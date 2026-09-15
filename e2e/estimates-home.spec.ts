@@ -125,4 +125,76 @@ test.describe("C7b — estimates home", () => {
     await expect(page.getByTestId("estimate-tabs")).toHaveCount(0);
     await expect(page.locator("section[data-provenance]")).toHaveCount(0);
   });
+  /**
+   * Tom, 15 Sep: tick a row on Waiting on you and remove it from THIS list.
+   * The fact is a draft estimate with condition photos awaiting sign-off —
+   * the cheapest thing the evaluator turns into a waiting row. Removing it
+   * hides it here (and stays hidden across a reload) while CRM Today still
+   * shows the same item, because this is a screen tidy, not a dismissal.
+   */
+  test("Waiting on you: tick + Remove takes a row off this list only — Today keeps it", async ({ page }) => {
+    test.skip(!staff, missingCreds("STAFF"));
+    test.skip(!db, "needs SUPABASE_SERVICE_ROLE_KEY");
+    const title = `Waiting hide ${Date.now()}`;
+    const r = await db!.from("estimates").insert({
+      title, status: "draft",
+      builder_state: { blocks: [], aiDeferred: [{ kind: "photo_review", count: 1 }] },
+    }).select("id").single();
+    if (r.error) throw new Error(r.error.message);
+    const id = r.data.id as string;
+    const key = `photo_review:estimate:${id}:photos`;
+    try {
+      await signIn(page, staff!, /estimates/);
+      await page.goto("/estimates");
+      const row = page.getByTestId(`waiting-row-${id}`);
+      await expect(row).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId("waiting-bulk-bar")).toHaveCount(0);
+
+      // Tick → the bar appears with the count; Remove → the row is gone at once.
+      await page.getByTestId(`waiting-tick-${id}`).check();
+      await expect(page.getByTestId("waiting-bulk-bar")).toContainText("1 selected");
+      await page.getByTestId("waiting-remove").click();
+      await expect(row).toHaveCount(0);
+      await expect(page.getByTestId("waiting-removed-line")).toContainText("1 row removed");
+
+      // Undo brings it back — in the list and in the table.
+      await page.getByTestId("waiting-undo").click();
+      await expect(page.getByTestId(`waiting-row-${id}`)).toBeVisible();
+      await expect(page.getByTestId("waiting-notice")).toHaveCount(0);
+      await page.reload();
+      await expect(page.getByTestId(`waiting-row-${id}`)).toBeVisible({ timeout: 30_000 });
+
+      // Remove for real, and it survives a reload.
+      await page.getByTestId(`waiting-tick-${id}`).check();
+      await page.getByTestId("waiting-remove").click();
+      await expect(page.getByTestId(`waiting-row-${id}`)).toHaveCount(0);
+      await expect(page.getByTestId("waiting-removed-line")).toBeVisible();
+      await page.reload();
+      await expect(page.getByTestId("waiting-table").or(page.getByTestId("waiting-empty"))).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId(`waiting-row-${id}`)).toHaveCount(0);
+
+      // The row is in the hidden table under its own key, by the signed-in staff member...
+      const hid = await db!.from("estimates_waiting_hidden").select("item_key, hidden_by").eq("item_key", key).maybeSingle();
+      expect(hid.data?.item_key).toBe(key);
+      expect(hid.data?.hidden_by).toBeTruthy();
+      // ...and NOT in work_item_dismissals: the CRM was not told anything.
+      const dis = await db!.from("work_item_dismissals").select("id").eq("item_key", key);
+      expect(dis.data ?? []).toHaveLength(0);
+
+      // CRM Today still shows the item — this is the whole ruling. Photo
+      // sign-offs sit in the Approvals group; the test project carries
+      // hundreds of open items, so walk that group's pages (50 a page).
+      let found = false;
+      for (let p = 1; p <= 12 && !found; p++) {
+        await page.goto(`/crm/today?who=all&f=approvals&page=${p}`);
+        await expect(page.getByTestId("who-chips")).toBeVisible({ timeout: 30_000 });
+        found = (await page.getByText(title, { exact: false }).count()) > 0;
+        if (!found && (await page.locator(`a[href*="page=${p + 1}"]`).count()) === 0) break;
+      }
+      expect(found, "the removed row must still be on CRM Today").toBe(true);
+    } finally {
+      await db!.from("estimates_waiting_hidden").delete().eq("item_key", key);
+      await db!.from("estimates").delete().eq("id", id);
+    }
+  });
 });

@@ -63,6 +63,7 @@
       "verified_at_commit": null,
       "sources": [
         "app/(app)/estimates/WaitingTable.tsx",
+        "app/(app)/estimates/actions.ts",
         "app/quote/PackPane.tsx",
         "app/quote/StripActions.tsx",
         "app/api/confirmations/[id]/route.ts",

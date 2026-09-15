@@ -65,3 +65,44 @@ export async function deleteEstimateAction(raw: unknown): Promise<DeleteResult> 
   const reason = answer.replace("error:", "");
   return { ok: false, message: WORDING[reason] ?? `That couldn't be deleted (${reason}).` };
 }
+
+/**
+ * Tom, 15 Sep: tick rows on "Waiting on you" and take them off THAT list.
+ *
+ * This is not a dismissal. `dismissWorkItem` (app/crm/actions.ts) silences a
+ * key for the whole queue — Today, the badge, every view — and asks for a
+ * reason. This hides the key from one screen, the estimates page, and nothing
+ * else changes: the evaluator never reads `estimates_waiting_hidden`, so the
+ * CRM still shows the item and still counts it.
+ *
+ * Optimistic on the client; the server answer only matters when it refuses.
+ */
+const keys = z.array(z.string().regex(/^[a-z_]+:[a-z_]+:[^:]+:[a-zA-Z0-9_-]+$/)).min(1).max(200);
+
+export type HideResult = { ok: true } | { ok: false; message: string };
+
+async function setHidden(raw: unknown, fn: "estimates_hide_waiting" | "estimates_unhide_waiting"): Promise<HideResult> {
+  const parsed = keys.safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid request." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc(fn, { p_item_keys: parsed.data });
+  if (error) {
+    reportError(error, { where: `estimates.waiting.${fn}` });
+    return {
+      ok: false,
+      message: /does not exist|schema cache/i.test(error.message)
+        ? "Removing rows from this list needs migration 20270147 run first."
+        : error.code === "42501" ? "You don't have permission to change this list." : error.message,
+    };
+  }
+  revalidatePath("/estimates");
+  return { ok: true };
+}
+
+export async function hideWaitingItemsAction(raw: unknown): Promise<HideResult> {
+  return setHidden(raw, "estimates_hide_waiting");
+}
+
+export async function unhideWaitingItemsAction(raw: unknown): Promise<HideResult> {
+  return setHidden(raw, "estimates_unhide_waiting");
+}

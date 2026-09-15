@@ -3403,3 +3403,16 @@ pre-selects the answer that prices four square metres.
 
 The crew note now says how much was allowed, in the rate row's own unit — "most of it — allowed
 for 8 m²" — so the painter can see the allowance rather than infer it.
+
+### Estimates → Waiting on you: remove rows from this list (Tom, 15 Sep 2026)
+
+The waiting table has tick boxes and a **Remove from this list** button. It is deliberately not a
+dismissal: `work_item_dismissals` silences a key for the whole queue (Today, the badge, every view)
+and asks for a reason, whereas Tom's ask was "just from the waiting screen". So the hidden keys live
+in their own table, `estimates_waiting_hidden` (migration `20270147`), keyed by the work item's own
+deterministic key and shared across staff, written only through `estimates_hide_waiting()` /
+`estimates_unhide_waiting()`. The evaluator in `lib/crm/work-queue.ts` never reads that table — the
+filter is applied on the estimates page alone (`app/(app)/estimates/page.tsx`), so CRM Today keeps
+the item and the badge keeps counting it. `WaitingTable.tsx` went client-side for the ticks; the
+rows are still whatever the evaluator said. Removal is optimistic with an Undo, matching the
+estimates table's delete. A key that re-fires under a new discriminator is a new fact and reappears.
