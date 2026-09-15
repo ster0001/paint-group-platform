@@ -124,6 +124,14 @@ export type Adjustments = {
   hourlyRateOverride?: number | null;
   contractorRateOverride?: number | null;
   /**
+   * The "Preparation" line (Tom, 15 Sep 2026): the per-job allowance for site
+   * set-up, fillers and consumables — what Settings calls "Sundries per job".
+   * It was always inside the subtotal but never shown, so customers' parts
+   * didn't add up. null/absent = the Settings default for the job's
+   * interior/exterior mix; a number (cents) is the estimator's own figure.
+   */
+  preparationOverrideCents?: number | null;
+  /**
    * C12 (addendum §4.14): the commercial LOADING — after hours, weekends,
    * staged, occupied — as one multiplier on PRODUCTION hours. Applied after
    * the multiplier chain (job modifier, size, uplift) and before allowances:
@@ -158,7 +166,10 @@ export type LineResult = { priceCents: number; hours: number; costCents: number 
 
 export type EstimateTotals = {
   subtotalCents: number;
+  /** The Preparation line as priced (override or Settings default). */
   sundriesCents: number;
+  /** What Settings would give for this job's interior/exterior mix. */
+  sundriesDefaultCents: number;
   /** Extra margin on bigger jobs (Settings "Margin uplift — tier …"); 0 until set. */
   sizeUpliftCents: number;
   discountCents: number;
@@ -482,7 +493,11 @@ export function priceEstimateTotals(
     }
   }
 
-  const sundriesCents = (anyInt ? rates.sundriesIntCents : 0) + (anyExt ? rates.sundriesExtCents : 0);
+  const sundriesDefaultCents = (anyInt ? rates.sundriesIntCents : 0) + (anyExt ? rates.sundriesExtCents : 0);
+  const sundriesCents =
+    adj.preparationOverrideCents != null && Number.isFinite(adj.preparationOverrideCents)
+      ? Math.max(0, Math.round(adj.preparationOverrideCents))
+      : sundriesDefaultCents;
   subtotal += sundriesCents;
 
   // Size uplift — before discount and GST, inside the subtotal, so the
@@ -510,6 +525,7 @@ export function priceEstimateTotals(
   return {
     subtotalCents: subtotal,
     sundriesCents,
+    sundriesDefaultCents,
     sizeUpliftCents: sizeUplift,
     discountCents,
     netSubtotalCents,

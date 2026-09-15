@@ -48,6 +48,11 @@ export type SnapshotPaint = {
   colours?: { name: string; hex: string; match: boolean; areas: string[] }[];
 };
 
+/** The Preparation line — customer wording (Tom, 15 Sep 2026). */
+export const PREPARATION_TITLE = "Preparation";
+export const PREPARATION_DESCRIPTION = "Allowance for materials for job site set up, fillers and consumables.";
+export const PREPARATION_ID = "preparation";
+
 export type CustomerSnapshot = {
   version: 1;
   company: {
@@ -71,7 +76,14 @@ export type CustomerSnapshot = {
   jobTitle: string;
   gstRatePct: number; // e.g. 10
   depositPct: number; // deposit % payable on acceptance (builder value, seeded from the invoicing Settings default)
-  baseSubtotalCents: number; // included items + sundries, ex-GST (excludes options)
+  baseSubtotalCents: number; // preparation + included items, ex-GST (excludes options)
+  /**
+   * The Preparation line (site set-up, fillers, consumables) — sits ABOVE the
+   * areas and line items. Absent on snapshots sent before 15 Sep 2026; those
+   * carried the same amount silently inside baseSubtotalCents, so
+   * `preparationLineFor` derives it from the residual.
+   */
+  preparation?: SnapshotLine | null;
   areas: SnapshotArea[];
   lineItems: SnapshotLine[];
   options: SnapshotLine[]; // optional add-ons the customer can toggle
@@ -93,6 +105,20 @@ export type CustomerSnapshot = {
     accreditations: string[];
   };
 };
+
+/**
+ * The Preparation line to show for a snapshot: the stored one, or — for a
+ * snapshot sent before the line existed — whatever part of baseSubtotalCents
+ * the visible areas and line items don't account for. null when there's nothing
+ * to show, so the parts always add to the subtotal.
+ */
+export function preparationLineFor(snap: Pick<CustomerSnapshot, "baseSubtotalCents" | "areas" | "lineItems"> & { preparation?: SnapshotLine | null }): SnapshotLine | null {
+  if (snap.preparation !== undefined) return snap.preparation && snap.preparation.priceCents > 0 ? snap.preparation : null;
+  const shown = (snap.areas ?? []).reduce((n, a) => n + (a.priceCents || 0), 0) + (snap.lineItems ?? []).reduce((n, l) => n + (l.priceCents || 0), 0);
+  const residual = (snap.baseSubtotalCents || 0) - shown;
+  if (residual <= 0) return null;
+  return { id: PREPARATION_ID, title: PREPARATION_TITLE, descriptionHtml: `<p>${PREPARATION_DESCRIPTION}</p>`, priceCents: residual };
+}
 
 export const DEFAULT_PROOF: CustomerSnapshot["proof"] = {
   rating: "5.0",

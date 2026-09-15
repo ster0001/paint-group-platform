@@ -73,6 +73,11 @@ export function adjustmentsFrom(state: Record<string, unknown>): Adjustments {
     discountFixedCents: (state.discountFixedCents as number) ?? 0,
     hourlyRateOverride: (state.hourlyRateOverride as number | null) ?? null,
     contractorRateOverride: (state.contractorRateOverride as number | null) ?? null,
+    // The Preparation line's estimator-set amount (cents); absent = Settings default.
+    preparationOverrideCents:
+      typeof state.preparationOverrideCents === "number" && Number.isFinite(state.preparationOverrideCents)
+        ? state.preparationOverrideCents
+        : null,
     // C12: the commercial loading, written by the submit route from the
     // hours/occupied answers; absent on every residential estimate.
     ...(typeof state.hourLoading === "number" && state.hourLoading > 0 ? { hourLoading: state.hourLoading } : {}),
