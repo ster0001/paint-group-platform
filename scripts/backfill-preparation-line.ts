@@ -16,11 +16,11 @@
  *
  * Usage (dry run by default — prints what it WOULD write):
  *   npx tsx scripts/backfill-preparation-line.ts --target test
- *   npx tsx scripts/backfill-preparation-line.ts --target prod --apply
+ *   npx tsx scripts/backfill-preparation-line.ts --target prod --env /path/to/prod/.env.local --apply
  *
  * --target is REQUIRED and must match the project in the env file:
  *   test → .env.test.local (or SUPABASE_TEST_URL / SUPABASE_TEST_SERVICE_ROLE_KEY)
- *   prod → .env.local
+ *   prod → .env.local, or the file named by --env (a worktree's own .env.local may be the test project)
  * The script refuses to run if the URL's project ref doesn't match the target.
  */
 import { createClient } from "@supabase/supabase-js";
@@ -45,7 +45,14 @@ async function main() {
     console.error("Usage: --target test|prod [--apply]");
     process.exit(2);
   }
-  const env = { ...parseEnv(".env.local"), ...(target === "test" ? parseEnv(".env.test.local") : {}), ...process.env } as Record<string, string>;
+  const envFile = args.includes("--env") ? args[args.indexOf("--env") + 1] : "";
+  if (args.includes("--env") && (!envFile || !existsSync(envFile))) { console.error(`--env: file not found: ${envFile}`); process.exit(2); }
+  const env = {
+    ...parseEnv(".env.local"),
+    ...(target === "test" ? parseEnv(".env.test.local") : {}),
+    ...process.env,
+    ...(envFile ? parseEnv(envFile) : {}), // an explicit file wins over everything
+  } as Record<string, string>;
   const url = target === "test" ? (env.SUPABASE_TEST_URL ?? env.NEXT_PUBLIC_SUPABASE_URL) : env.NEXT_PUBLIC_SUPABASE_URL;
   const key = target === "test" ? (env.SUPABASE_TEST_SERVICE_ROLE_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY) : env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) { console.error("Missing Supabase URL / service key for target", target); process.exit(2); }
