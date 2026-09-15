@@ -57,14 +57,15 @@ test.describe("the wizard drop-out funnel", () => {
     await page.getByTestId("ql-next").click();
     await expect(page.locator("[data-quick-step='job']")).toBeVisible();
 
-    // Walk away here. The autosave debounces at 2.5s, so wait past it before
-    // calling anything saved.
-    await page.waitForTimeout(4_000);
-
-    const { data: draft } = await db!.from("wizard_drafts")
+    // Walk away here. The autosave debounces at 2.5s AFTER the anonymous
+    // session has connected, and on a cold server that first connect can
+    // take longer than a fixed wait (CI #489 and a local cold run both
+    // read null at 4s and a row a moment later) — so poll for the row.
+    const read = async () => (await db!.from("wizard_drafts")
       .select("name, email, phone, progress_pct, converted_at, state")
-      .eq("suburb", dropSuburb).maybeSingle();
-    expect(draft, "abandoning must leave a draft — it is the funnel's only record").toBeTruthy();
+      .eq("suburb", dropSuburb).maybeSingle()).data;
+    await expect.poll(read, { timeout: 30_000, message: "abandoning must leave a draft — it is the funnel's only record" }).toBeTruthy();
+    const draft = await read();
     expect(draft!.converted_at, "an abandoned run is OPEN").toBeNull();
     expect(draft!.progress_pct).toBeGreaterThan(0);
     // ⚑1's trade, asserted rather than assumed: no contact was asked for, so
