@@ -16,7 +16,7 @@ const source: DuplicateSource = {
         facadeRunIds: ["22222222-2222-4222-8222-222222222222"],
         conditionSourceIds: ["33333333-3333-4333-8333-333333333333"],
         planPreviewUrl: "https://example.test/signed/plan.png",
-        rooms: [{ name: "Lounge", damageTier: 2, damagePhotoCount: 3 }],
+        details: { damageTier: 2, damagePhotoCount: 3, damageNote: "" },
       },
       snapshot: { accuracyPct: 80, photos: 7 },
     },
@@ -63,8 +63,8 @@ describe("buildDuplicate", () => {
     expect("account_id" in copy).toBe(false);
   });
 
-  it("names the address and the title as a copy", () => {
-    expect(copy.title).toBe("12 Smith St, Clayton (copy)");
+  it("marks the first line of the address as a copy and leaves the title alone", () => {
+    expect(copy.title).toBe("12 Smith St, Clayton");
     const job = copy.builder_state.jobAddress as { address: string; city: string };
     expect(job.address).toBe("12 Smith St (copy)");
     expect(job.city).toBe("Clayton");
@@ -83,7 +83,7 @@ describe("buildDuplicate", () => {
     expect(copy.source).toBe("wizard");
   });
 
-  it("drops every photo reference but keeps the answers", () => {
+  it("drops every photo reference and zeroes the photo count, keeping the other answers", () => {
     expect("photoReview" in copy.builder_state).toBe(false);
     const wizard = copy.builder_state.wizard as { state: Record<string, unknown>; snapshot: unknown };
     expect(wizard.state.planRunIds).toEqual([]);
@@ -91,8 +91,7 @@ describe("buildDuplicate", () => {
     expect(wizard.state.conditionSourceIds).toEqual([]);
     expect(wizard.state.planPreviewUrl).toBeNull();
     expect(wizard.state.jobType).toBe("interior");
-    // Counts are answers, not pictures.
-    expect(wizard.state.rooms).toEqual([{ name: "Lounge", damageTier: 2, damagePhotoCount: 3 }]);
+    expect(wizard.state.details).toEqual({ damageTier: 2, damagePhotoCount: 0, damageNote: "" });
     expect(wizard.snapshot).toEqual({ accuracyPct: 80, photos: 7 });
   });
 
@@ -107,7 +106,7 @@ describe("buildDuplicate", () => {
       { ...source, title: null, builder_state: null, subtotal_cents: null, total_cents: null, job_kind: null, requires_site_check: null, source: null },
       { createdBy: null },
     );
-    expect(bare.title).toBe("Untitled quote (copy)");
+    expect(bare.title).toBe("Untitled quote");
     expect(bare.builder_state).toEqual({});
     expect(bare.subtotal_cents).toBe(0);
     expect(bare.job_kind).toBe("residential");

@@ -38,6 +38,7 @@ test.describe("duplicate an estimate", () => {
         contact: { first_name: "Dup", last_name: "Tester", email: `dup-${stamp}@example.com`, phone: "" },
         jobAddress: { address: `${stamp % 1000} Copy Street`, city: "Clayton", state: "VIC", postal: "3168" },
         photoReview: { signedOffAt: new Date().toISOString(), photos: 1 },
+        wizard: { state: { jobType: "interior", details: { damageTier: 2, damagePhotoCount: 3, damageNote: "" } } },
       },
     }).select("id").single();
     if (r.error) throw new Error(r.error.message);
@@ -76,19 +77,20 @@ test.describe("duplicate an estimate", () => {
       .select("title, status, share_token, sent_at, sent_snapshot, total_cents, level_of_finish, builder_state, sources:estimate_sources(id)")
       .eq("id", copyId!).single();
     expect(copy).not.toBeNull();
-    expect(copy!.title).toBe(`${title} (copy)`);
+    expect(copy!.title).toBe(title);
     expect(copy!.status).toBe("draft");
     expect(copy!.share_token).toBeNull();
     expect(copy!.sent_at).toBeNull();
     expect(copy!.sent_snapshot).toBeNull();
     expect(copy!.total_cents).toBe(456700);
     expect(copy!.level_of_finish).toBe(3);
-    const state = copy!.builder_state as { blocks: unknown[]; jobAddress: { address: string; city: string }; contact: { first_name: string }; photoReview?: unknown };
+    const state = copy!.builder_state as { blocks: unknown[]; jobAddress: { address: string; city: string }; contact: { first_name: string }; photoReview?: unknown; wizard: { state: { details: { damagePhotoCount: number } } } };
     expect(state.jobAddress.address).toBe(`${stamp % 1000} Copy Street (copy)`);
     expect(state.jobAddress.city).toBe("Clayton");
     expect(state.blocks).toHaveLength(1);
     expect(state.contact.first_name).toBe("Dup");
     expect(state.photoReview).toBeUndefined();
+    expect(state.wizard.state.details.damagePhotoCount).toBe(0);
     expect(copy!.sources).toEqual([]);
 
     // The original keeps its photo — nothing was deleted.
@@ -103,7 +105,7 @@ test.describe("duplicate an estimate", () => {
     await page.goto(`/estimates?status=all&q=${encodeURIComponent(title)}`);
     const row = page.locator("tr", { has: page.getByTestId(`duplicate-${copyId}`) });
     await expect(row).toBeVisible({ timeout: 30_000 });
-    await expect(row).toContainText(`${title} (copy)`);
+    await expect(row).toContainText(title);
     await expect(row).toContainText(`${stamp % 1000} Copy Street (copy), Clayton`);
     await expect(row.getByTestId(`status-${copyId}`)).toContainText(/draft/i);
   });

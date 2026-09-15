@@ -9,9 +9,11 @@
  *     characters of the row id, so a fresh row IS a fresh number; the share
  *     token (the customer's link and the "EST-…" reference) is minted by the
  *     builder on its first save, never copied.
- *   - the address reads "… (copy)" — on the row (the list shows
- *     `builder_state.jobAddress`) and in the title — so nobody sends the copy
- *     to the old address by mistake before Tom has typed the new one.
+ *   - the FIRST LINE of the address reads "… (copy)" (`builder_state.
+ *     jobAddress.address`, which is what the list shows under the title) so
+ *     nobody sends the copy to the old address before Tom has typed the new
+ *     one. The title is left exactly as it was (Tom, 16 Sep: "the title is
+ *     basically a duplicate of the original").
  *   - NO PHOTOS. The uploaded plan and photos (`estimate_sources`) stay with
  *     the original and are not linked to the copy, and every reference the
  *     builder state keeps to them (the photo sign-off, the plan-read run ids,
@@ -86,10 +88,11 @@ export function copyName(name: string | null | undefined, fallback: string): str
 }
 
 /**
- * Every reference to a picture that rides `builder_state`, cleared. The
- * counts (`damagePhotoCount`, the snapshot's photo tally) are left alone:
- * they are answers the price was built on, not pictures, and zeroing one
- * would fail the wizard's "tier 2–3 needs evidence" parse on the copy.
+ * Every reference to a picture that rides `builder_state`, cleared — and the
+ * photo COUNT with it (Tom, 16 Sep: "photo count needs to go to zero"), so
+ * the copy never claims evidence it does not hold. A copy re-run through the
+ * internal wizard with damage at tier 2–3 and no note will be asked for
+ * photos or a description again, which is right: they are for the new house.
  */
 export function stripPhotoReferences(state: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...state };
@@ -102,6 +105,7 @@ export function stripPhotoReferences(state: Record<string, unknown>): Record<str
       if ("facadeRunIds" in s) s.facadeRunIds = [];
       if ("conditionSourceIds" in s) s.conditionSourceIds = [];
       if ("planPreviewUrl" in s) s.planPreviewUrl = null;
+      if (isObject(s.details) && "damagePhotoCount" in s.details) s.details = { ...s.details, damagePhotoCount: 0 };
       wizard.state = s;
     }
     out.wizard = wizard;
@@ -121,7 +125,7 @@ export function buildDuplicate(src: DuplicateSource, opts: { createdBy: string |
   }
 
   return {
-    title: copyName(src.title, "Untitled quote"),
+    title: (src.title ?? "").trim() || "Untitled quote",
     status: "draft",
     builder_state: state,
     rate_card_id: src.rate_card_id,
