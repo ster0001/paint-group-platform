@@ -96,4 +96,50 @@ test.describe("builder batch, 16 Sep", () => {
     await expect(page.getByText("The paint we're supplying")).toBeVisible();
     await expect(page.getByText("Stain blocking on the ceiling").first()).toBeVisible();
   });
+
+  /**
+   * Tom, 16 Sep (later): "if I click Change to change the window to a
+   * different type, make sure the label changes for the client automatically."
+   * The customer label used to survive a re-pick; now both labels follow the
+   * new substrate, and the area's description line with it.
+   */
+  test("Change to a different substrate renames it for the customer", async ({ page }) => {
+    test.setTimeout(180_000);
+    await db!.from("estimates").update({ status: "draft", sent_at: null }).eq("id", estimateId);
+    // Give the Walls row a customer label of its own, the way the wizard does.
+    const { data: cur } = await db!.from("estimates").select("builder_state").eq("id", estimateId).single();
+    const bs = cur!.builder_state as { blocks: Array<{ description: string; surfaces: Array<{ id: number; clientLabel: string }> }> };
+    bs.blocks[0].surfaces[0].clientLabel = "Walls — colour to confirm";
+    bs.blocks[0].description = "<p>Walls — colour to confirm</p>";
+    await db!.from("estimates").update({ builder_state: bs }).eq("id", estimateId);
+
+    await signIn(page, staff!, /estimates/);
+    await page.goto(`/quote?id=${estimateId}`);
+    await page.waitForLoadState("networkidle");
+    await page.getByText("Hall", { exact: true }).first().click();
+    await page.getByTestId("surface-row-2").click();
+    await expect(page.getByLabel("Client Label")).toHaveValue("Walls — colour to confirm");
+
+    // The button sits inside the field's <label>; click its own text.
+    await page.getByText("Change ›").first().click({ force: true });
+    await expect(page.getByPlaceholder("Search all surfaces…")).toBeVisible();
+    await page.getByPlaceholder("Search all surfaces…").fill("Ceilings");
+    await page.locator("button", { hasText: /^Ceilings\s*·/ }).first().click();
+
+    await expect(page.getByLabel("Client Label")).toHaveValue("Ceilings");
+    await expect(page.getByLabel("Internal Label")).toHaveValue("Ceilings");
+
+    // Save from the header — it is there on every screen of the builder.
+    await page.getByTestId("builder-save").click();
+    await expect(page.getByText("Saved ✓")).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => {
+      const { data } = await db!.from("estimates").select("builder_state, sent_snapshot").eq("id", estimateId).single();
+      const b = data?.builder_state as typeof bs | null;
+      return b?.blocks[0].surfaces[0].clientLabel ?? null;
+    }, { timeout: 20_000 }).toBe("Ceilings");
+    const { data } = await db!.from("estimates").select("builder_state, sent_snapshot").eq("id", estimateId).single();
+    expect((data!.builder_state as typeof bs).blocks[0].description).toContain("<p>Ceilings</p>");
+    const snap = data!.sent_snapshot as { areas: Array<{ surfaces: Array<{ label: string }> }> };
+    expect(snap.areas[0].surfaces.map((x) => x.label)).toEqual(["Ceilings"]);
+  });
 });

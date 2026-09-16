@@ -61,10 +61,13 @@ export function doorRateCode(style: string): string | null {
  *   door        just the leaf (a frame already painted, or a sliding door)
  *   frame       leaf + frame — the default, and what every existing
  *               estimate already means
- *   architrave  leaf + frame, PLUS an Architrave (1 Side) line at the same
- *               count. The architrave rides as its OWN visible line rather
- *               than a hidden loading: it is a separate rate and it shows on
- *               the Architraves tile, so nothing is priced invisibly.
+ *   architrave  leaf + frame. Until 16 Sep 2026 this also added an
+ *               Architrave (1 Side) line at the door count; Tom's ruling
+ *               (43 Keith Street, "4 × doors and frames as well as 4 ×
+ *               architraves") is that the door-and-frame rate ALREADY covers
+ *               the architrave, so the answer now prices as "frame" and the
+ *               merge drops any architrave line beside a frame line
+ *               (lib/wizard/merge.ts). Door-only + architraves stays separate.
  */
 export type DoorScope = "door" | "frame" | "architrave";
 

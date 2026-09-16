@@ -1,6 +1,6 @@
 import type { DraftArea, DraftResult } from "@/lib/extract/draft";
 import { makeDraftSurface } from "@/lib/extract/draft";
-import { ARCHITRAVE_CODE, doorCodeFor, doorLineLabel, doorStyleOfCode, windowRateCode } from "@/lib/extract/scope";
+import { ARCHITRAVE_CODE, doorCodeFor, doorLineLabel, doorScopeOfCode, doorStyleOfCode, windowRateCode } from "@/lib/extract/scope";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
 import {
   DEFAULT_PAINT_SYSTEMS, deriveSystem, groupForSubstrate,
@@ -202,14 +202,19 @@ export function applyWizardAnswers(
       s.internalLabel = doorLineLabel(face, doorScope);
       s.clientLabel = doorLineLabel(face, doorScope);
     }
-    if (doorScope === "architrave") {
-      const doors = kept.filter((s) => doorStyleOfCode(s.code) != null)
-        .reduce((n, s) => n + (s.count || 1), 0);
-      const already = kept.find((s) => s.code === ARCHITRAVE_CODE);
-      if (doors > 0 && !already) {
-        kept.push(makeDraftSurface(
-          nextId(), ARCHITRAVE_CODE, "Architraves (with the doors)", doors, "customer_stated", 0.8, [],
-        ));
+    // Tom, 16 Sep 2026 (43 Keith Street: "4 × doors and frames as well as
+    // 4 × architraves"): the door-AND-FRAME rate already covers the
+    // architrave — the frame IS the architrave on a painted door. So a room
+    // with a door-and-frame line never carries a separate Architrave line:
+    // the "+ architrave" answer rides the frame rate and adds nothing, and an
+    // architrave line that arrived some other way (a ticked "architraves"
+    // surface, the plan reader) is dropped alongside a frame line. A
+    // door-ONLY room keeps its architraves: that is the one case the two
+    // are genuinely separate work.
+    const hasFrame = kept.some((s) => doorScopeOfCode(s.code) === "frame");
+    if (hasFrame) {
+      for (let i = kept.length - 1; i >= 0; i--) {
+        if (kept[i].code === ARCHITRAVE_CODE) kept.splice(i, 1);
       }
     }
 
