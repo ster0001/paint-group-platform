@@ -101,7 +101,7 @@
   "app/i/[token]/status/route.ts": 1,
   "app/invoicing/actions.ts": 2,
   "app/invoicing/ci/[id]/pdf/route.ts": 2,
-  "app/invoicing/data.ts": 10,
+  "app/invoicing/data.ts": 8,
   "app/invoicing/inv/[id]/pdf/route.ts": 2,
   "app/invoicing/job/[estimateId]/page.tsx": 1,
   "app/invoicing/layout.tsx": 1,

@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { loadFailure, paymentsFailure, firstFailure } from "./loadFailure";
+import { loadFailure, paymentsFailure, costsFailure, firstFailure } from "./loadFailure";
 
 /**
  * The regression this encodes: a rejected read must never reach a money screen
@@ -69,4 +69,41 @@ test("firstFailure is null when every read succeeded", () => {
 test("firstFailure falls through to the invoice failure when payments were fine", () => {
   const f = firstFailure(paymentsFailure(null), loadFailure(MISSING))!;
   assert.match(f.headline, /not an empty ledger/i);
+});
+
+/**
+ * The costs/payables lists stay tolerant — one missing table must not blank the
+ * tab — so the failure they report has to name what is absent, and warn that
+ * the totals are UNDER-stated rather than merely blank.
+ */
+test("no failed cost read means no notice at all", () => {
+  assert.equal(costsFailure([{ label: "job costs" }, { label: "materials", error: null }]), null);
+});
+
+test("one failed cost read names it and says the tab is incomplete", () => {
+  const f = costsFailure([
+    { label: "job costs", error: MISSING },
+    { label: "materials", error: null },
+  ]);
+  assert.ok(f);
+  assert.match(f.headline, /one list/i);
+  assert.match(f.headline, /incomplete/i);
+  assert.match(f.detail, /Missing: job costs\./);
+  assert.ok(!/materials/.test(f.detail), "a read that succeeded is not listed as missing");
+});
+
+test("several failures are counted and all named", () => {
+  const f = costsFailure([
+    { label: "job costs", error: MISSING },
+    { label: "material invoices", error: { message: "boom" } },
+    { label: "the job picker", error: null },
+  ])!;
+  assert.match(f.headline, /2 lists/);
+  assert.match(f.detail, /job costs, material invoices/);
+});
+
+test("the costs warning says UNDERSTATED, not empty — the whole point", () => {
+  const f = costsFailure([{ label: "job costs", error: MISSING }])!;
+  assert.match(f.detail, /understated/i);
+  assert.match(f.detail, /nothing outstanding/i);
 });

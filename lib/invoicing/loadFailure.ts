@@ -38,7 +38,9 @@ export function loadFailure(error: { message?: string; code?: string } | null): 
   if (!error) return null;
   return {
     headline: "The invoices could not be loaded — this is not an empty ledger.",
-    detail: `${why(error)} Nothing has been lost: the figures below are blank because the read failed, not because the invoices are gone.`,
+    // Wording kept true on every screen that shows it — the dashboard, a job's
+    // money view and a single invoice document, which has no figures "below".
+    detail: `${why(error)} Nothing has been lost — this is a refused read, not a deleted invoice. Any figure showing zero here is unread, not empty.`,
   };
 }
 
@@ -59,4 +61,29 @@ export function paymentsFailure(error: { message?: string; code?: string } | nul
 /** The first failure that has something to say, in order of how badly it misleads. */
 export function firstFailure(...failures: (ReadFailure | null)[]): ReadFailure | null {
   return failures.find((f) => f !== null) ?? null;
+}
+
+/**
+ * A COSTS / PAYABLES read failed.
+ *
+ * These reads are tolerant by design — `loadCostCapture` has always substituted
+ * an empty list per table so one missing thing can't blank the whole tab, and
+ * that part is right. What was wrong is that it did so SILENTLY, and the lie a
+ * missing money-OUT list tells is a quiet understatement: a job looks cheaper
+ * than it was, an approval queue looks clear, a supplier invoice that arrived
+ * looks like it never did. Nobody sees an alarming blank; they see a smaller
+ * number and move on. So the tab stays up, and says what is missing from it.
+ */
+export function costsFailure(
+  reads: readonly { label: string; error?: { message?: string; code?: string } | null }[],
+): ReadFailure | null {
+  const failed = reads.filter((r) => r.error);
+  if (failed.length === 0) return null;
+  const labels = failed.map((f) => f.label).join(", ");
+  return {
+    headline: failed.length === 1
+      ? `One list on this tab could not be loaded — what you see is incomplete.`
+      : `${failed.length} lists on this tab could not be loaded — what you see is incomplete.`,
+    detail: `Missing: ${labels}. ${why(failed[0]!.error!)} Costs and approvals that DO exist may not be shown, so the totals here are understated — don't read this tab as "nothing outstanding".`,
+  };
 }

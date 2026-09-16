@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { firstFailure } from "@/lib/invoicing/loadFailure";
 import { melbourneDate } from "@/lib/workorder/console";
 import {
   agedBucketsCents,
@@ -80,7 +81,7 @@ export default async function InvoicingDashboardPage({
   const { f, tab } = await searchParams;
   const supabase = await createClient();
   const today = melbourneDate(new Date());
-  const [{ invoices, loadError, payments, events, contractorInvoices }, capture] = await Promise.all([
+  const [{ invoices, loadError, payablesError, payments, events, contractorInvoices }, capture] = await Promise.all([
     loadDashboard(supabase),
     loadCostCapture(supabase),
   ]);
@@ -334,6 +335,9 @@ export default async function InvoicingDashboardPage({
       buckets={buckets}
       rows={rows}
       loadError={loadError}
+      // Payables draws on two loaders — the contractor invoices and the cost
+      // capture — so either one failing makes that tab incomplete.
+      costsError={firstFailure(payablesError, capture.loadError)}
       activity={activity}
       initialFilter={f ?? "all"}
       initialTab={tab ?? "recv"}
