@@ -118,7 +118,7 @@ export function computeFactsRow(i: CustomerInput, now: Date = new Date(), t: Crm
     ...i.facts.workOrders.filter((w) => w.status === "complete").map((w) => w.end_date),
     ...i.allEvents.filter((e) => e.type === "job_completed").map((e) => e.occurred_at),
   );
-  const search = [i.name, i.email, i.phone, i.phone?.replace(/\s+/g, ""), i.suburb, i.address]
+  const search = [i.name, i.email, i.phone, i.phone?.replace(/\s+/g, ""), i.suburb, i.address, i.companyName]
     .filter(Boolean).join(" ").toLowerCase();
   // Repaint due (decision 8.8): from the last completed job and its type.
   const lastType = i.jobTypes.find((j) => j.type)?.type ?? null;

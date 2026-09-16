@@ -17,7 +17,7 @@
 import { z } from "zod";
 
 /** Who caused it. Mirrors the column's CHECK. */
-export const EVENT_SOURCES = ["system", "staff", "customer", "ai"] as const;
+export const EVENT_SOURCES = ["system", "staff", "customer", "ai", "airtable_import"] as const;
 export type EventSource = (typeof EVENT_SOURCES)[number];
 
 const money = z.number().int().min(0).max(100_000_000);
@@ -104,7 +104,8 @@ export const CRM_EVENT_SCHEMAS = {
   call_no_answer: z.object({ note: shortText.optional(), voicemail: z.boolean().default(false) }),
   message_left: z.object({ note: shortText.optional() }),
   call_connected: z.object({ note: shortText.optional() }),
-  note_added: z.object({ body: shortText }),
+  /** `author` / `origin` ride on notes brought across from Airtable (16 Sep 2026): who initialled the note, and which Airtable field it came from. */
+  note_added: z.object({ body: shortText, author: z.string().max(80).optional(), origin: z.string().max(40).optional() }),
   followup_set: z.object({ dueAt: z.string().datetime(), note: shortText.optional() }),
   temperature_set: z.object({ temperature: z.enum(["hot", "warm", "cold"]), previous: z.enum(["hot", "warm", "cold"]).nullable().default(null) }),
   snoozed: z.object({ until: z.string().datetime(), reason: shortText.optional() }),

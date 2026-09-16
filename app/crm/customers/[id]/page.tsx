@@ -38,7 +38,7 @@ const shortDate = (iso: string | null | undefined) =>
   iso ? new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", year: "2-digit" }).format(new Date(iso)) : "—";
 
 type AccountRow = {
-  id: string; name: string | null; email: string | null; phone: string | null; account_type: string;
+  id: string; name: string | null; email: string | null; phone: string | null; account_type: string; company_name: string | null; source: string;
   temperature: string | null; snoozed_until: string | null; followup_due_at: string | null; followup_note: string | null;
   owner_id: string | null;
   relationship_state: RelationshipState; state_until: string | null; state_note: string | null; state_reason: string | null; lost_reason: string | null;
@@ -53,6 +53,15 @@ type FactsRow = {
 type EstimateRow = { id: string; title: string | null; status: string; total_cents: number | null; created_at: string; sent_at: string | null; viewed_at: string | null; accepted_at: string | null; valid_until: string | null };
 type WoRow = { id: string; estimate_id: string; wo_ref: string | null; stage: string | null; start_date: string | null; end_date: string | null };
 type InvoiceRow = { id: string; estimate_id: string | null; number: string | null; status: string; total_inc_cents: number | null; due_on: string | null; issued_on: string | null; kind: string | null };
+/** R11 (16 Sep 2026): a job from before the platform — Airtable's Projects row with its PaintScout links. */
+type HistoryJobRow = {
+  id: string; estimate_id: string | null; project_name: string | null; job_type: string | null; status: string; quote_url: string | null; work_order_url: string | null;
+  start_date: string | null; end_date: string | null; invoice_total_cents: number | null; estimated_hours: number | null; actual_hours: number | null;
+  contractor_offer_cents: number | null; workers: number | null; notes: string | null;
+};
+const HISTORY_JOB_LABEL: Record<string, string> = {
+  completed: "Done", in_progress: "In progress", scheduled: "Booked", accepted_unscheduled: "Accepted, not booked", cancelled: "Cancelled", on_hold: "On hold",
+};
 
 const STATUS_PILL: Record<string, string> = { sent: "cy", accepted: "gr", declined: "rd", expired: "am", draft: "gy" };
 const WO_LABEL: Record<string, string> = {
@@ -74,7 +83,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
   const supabase = await createClient();
 
   const { data: account } = await supabase.from("accounts")
-    .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, followup_note, owner_id, relationship_state, state_until, state_note, state_reason, lost_reason, permit_email, permit_sms, permit_phone, permit_meta, tags, consents, notify_prefs")
+    .select("id, name, email, phone, account_type, company_name, source, temperature, snoozed_until, followup_due_at, followup_note, owner_id, relationship_state, state_until, state_note, state_reason, lost_reason, permit_email, permit_sms, permit_phone, permit_meta, tags, consents, notify_prefs")
     .eq("id", id).maybeSingle();
   if (!account) {
     return (
@@ -120,10 +129,16 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
     loadStaffAvailability(supabase),
   ]);
   const estIds = est.map((e) => e.id);
-  const [{ data: wos }, { data: invoices }] = await Promise.all([
+  const [{ data: wos }, { data: invoices }, historyRes] = await Promise.all([
     estIds.length ? supabase.from("work_orders").select("id, estimate_id, wo_ref, stage, start_date, end_date").in("estimate_id", estIds).order("start_date", { ascending: false, nullsFirst: false }).limit(50) : Promise.resolve({ data: [] }),
     supabase.from("invoices").select("id, estimate_id, number, status, total_inc_cents, due_on, issued_on, kind").or(`account_id.eq.${id}${estIds.length ? `,estimate_id.in.(${estIds.join(",")})` : ""}`).order("created_at", { ascending: false }).limit(50),
+    supabase.from("crm_jobs").select("id, estimate_id, project_name, job_type, status, quote_url, work_order_url, start_date, end_date, invoice_total_cents, estimated_hours, actual_hours, contractor_offer_cents, workers, notes")
+      .eq("account_id", id).order("start_date", { ascending: false, nullsFirst: false }).limit(50),
   ]);
+  // A rejected read is said out loud on the record, never drawn as "no jobs".
+  if (historyRes.error) reportError(historyRes.error, { where: "record.historyJobs", bestEffort: true, extra: { id } });
+  const pastJobs = ((historyRes.data ?? []) as HistoryJobRow[]);
+  const pastJobsFailed = Boolean(historyRes.error);
   // Item 13: overdue and "deposit unpaid" need the payments — the one rule the
   // invoicing dashboard uses (lib/invoicing/derive), never a second one here.
   const invRows = (invoices ?? []) as InvoiceRow[];
@@ -199,7 +214,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
           count, owner — sits in the TOP RIGHT of the screen beside the name,
           in large plain text. Stacks under the name on a phone. */}
       <div className="rtop">
-      <RecordDetails account={a} staff={staff} initials={initials(name)} address={recordAddress} />
+      <RecordDetails account={a} staff={staff} initials={initials(name)} address={recordAddress} companyName={a.company_name} imported={a.source === "airtable" || a.source === "paintscout"} />
 
       {(() => {
         const consents = parseConsents(a.consents);
@@ -260,7 +275,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
       )}
       <nav className="jumpstrip" aria-label="On this record" data-testid="jumpstrip">
         <a href="#estimates">Estimates<b>{est.length}</b></a>
-        <a href="#jobs">Jobs<b>{(wos ?? []).length}</b></a>
+        <a href="#jobs">Jobs<b>{(wos ?? []).length + pastJobs.length}</b></a>
         <a href="#invoices">Invoices<b>{invRows.length}</b></a>
         <a href="#visits">Visits</a>
         <a href="#messages">Messages</a>
@@ -364,6 +379,36 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
                   <span className="rgo">Open →</span>
                 </span>
               </Link>
+            ))}
+          </div>
+        </>
+      )}
+
+      {pastJobsFailed && <p className="banner bad" data-testid="history-jobs-error">The jobs from before the platform could not be loaded — this is not an empty list.</p>}
+      {pastJobs.length > 0 && (
+        <>
+          <p className="plabel">Jobs before the platform</p>
+          <div className="rlist" data-testid="history-jobs">
+            {pastJobs.map((j) => (
+              <div key={j.id} className="rrow" data-testid={`history-job-${j.id}`}>
+                <span>
+                  <span className="rt">{j.project_name || "Job"}{j.job_type ? ` · ${j.job_type}` : ""}</span>
+                  <span className="rsub">
+                    {[
+                      j.start_date ? `${shortDate(j.start_date)} → ${j.end_date ? shortDate(j.end_date) : "…"}` : "no dates",
+                      j.estimated_hours != null ? `${Number(j.estimated_hours)} h est${j.actual_hours != null && Number(j.actual_hours) > 0 ? ` · ${Number(j.actual_hours)} h actual` : ""}` : null,
+                      j.workers ? `${j.workers} painter${j.workers === 1 ? "" : "s"}` : null,
+                      j.contractor_offer_cents != null ? `offer ${money(j.contractor_offer_cents)}` : null,
+                      j.notes ? j.notes : null,
+                    ].filter(Boolean).join(" · ")}
+                  </span>
+                </span>
+                <span className="rright">
+                  <span className={`pill ${j.status === "completed" ? "gr" : j.status === "cancelled" ? "rd" : j.status === "in_progress" ? "cy" : "gy"}`}>{HISTORY_JOB_LABEL[j.status] ?? j.status}</span>
+                  <span className="mono">{money(j.invoice_total_cents)}</span>
+                  {j.quote_url ? <a className="rgo" href={j.quote_url} target="_blank" rel="noreferrer">PaintScout ↗</a> : <span className="rmiss">no PaintScout link</span>}
+                </span>
+              </div>
             ))}
           </div>
         </>

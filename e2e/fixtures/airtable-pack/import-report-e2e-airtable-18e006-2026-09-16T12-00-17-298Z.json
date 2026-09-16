@@ -1,0 +1,71 @@
+{
+  "import": "e2e-airtable-18e006",
+  "target": "qarfyjrzgdeoqbnbbxfp",
+  "at": "2026-09-16T12:00:17.298Z",
+  "report": {
+    "accounts": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 0,
+      "attached": 5,
+      "skipped": 0,
+      "notes": [
+        "acc_e2e0000001 attached to existing account 05513048-1b8f-4fcf-87ce-cce99ff89ae6 (pg.e2e.airtable.justin@example.com)",
+        "acc_e2e0000002 attached to existing account 1d58ada1-3efc-41d7-8785-a2bb378dc830 (pg.e2e.airtable.lorna@example.com)",
+        "acc_e2e0000003 attached to existing account f9d975f3-08a8-4dfe-9285-2a687fef5dcb (pg.e2e.airtable.agnes@example.com)",
+        "acc_e2e0000004 attached to existing account 502d9d3b-ad11-4c1e-97ae-1f5fd4389a6c (pg.e2e.airtable.colin@example.com)",
+        "acc_e2e0000005 attached to existing account 3e6cec7e-0dca-426e-886d-c390f4f21d10 (+61491570105)"
+      ]
+    },
+    "properties": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 0,
+      "attached": 5,
+      "skipped": 0,
+      "notes": []
+    },
+    "contacts": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 2,
+      "attached": 0,
+      "skipped": 0,
+      "notes": []
+    },
+    "estimates": {
+      "inserted": 8,
+      "updated": 0,
+      "unchanged": 0,
+      "attached": 0,
+      "skipped": 0,
+      "notes": []
+    },
+    "jobs": {
+      "inserted": 2,
+      "updated": 0,
+      "unchanged": 0,
+      "attached": 0,
+      "skipped": 0,
+      "notes": []
+    },
+    "events": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 24,
+      "attached": 0,
+      "skipped": 1,
+      "notes": [
+        "airtable:rec000009:note:0: note with no text — skipped"
+      ]
+    },
+    "followups": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 1,
+      "attached": 0,
+      "skipped": 0,
+      "notes": []
+    }
+  }
+}

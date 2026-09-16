@@ -1,0 +1,124 @@
+[
+ {
+  "quote_no": "9623",
+  "view": "booked",
+  "airtable_status": "Job Booked",
+  "project_name": "2 Example Crescent stage 3",
+  "customer_name": "Melissa Booked",
+  "email": "pg.e2e.airtable.melissa@example.com",
+  "phone": "0491570106",
+  "account_key": "acc_e2e0000006",
+  "address": "2 Example Crescent",
+  "suburb": "Testville",
+  "postcode": "3000",
+  "paintscout_address": "2 Example Crescent, Testville, VIC 3000",
+  "job_type": "Interior",
+  "job_type_norm": "interior",
+  "level_of_finish": 3,
+  "level_of_finish_assumed": "",
+  "quote_url": "https://app.paintscout.com/view/?view=quote&u=e2e9623",
+  "work_order_url": "https://app.paintscout.com/view/?view=workorder&u=e2e9623",
+  "subtotal_ex_gst_cents": 184800,
+  "gst_cents": 18480,
+  "total_inc_gst_cents": 203280,
+  "discount_ex_gst_cents": 0,
+  "discount_label": "",
+  "options_accepted_ex_gst_cents": 0,
+  "total_hours": 17.5,
+  "airtable_estimated_hours": 17.5,
+  "estimated_materials_cents": 25000,
+  "contractor_offer_cents": 96000,
+  "start_date": "2026-09-29",
+  "end_date": "2026-09-30",
+  "number_of_workers": 1,
+  "assigned_painter": "",
+  "assigned_painter_email": "",
+  "painter_accepted": "",
+  "date_accepted_ms": "1787711653276",
+  "deposit_recorded": "no",
+  "notes": "",
+  "import_note": "",
+  "areas": [
+   {
+    "name": "Interior Preparation",
+    "price_ex_gst_cents": 19000,
+    "hours_prep": null,
+    "hours_paint": 2,
+    "hours_total": 2,
+    "length_m": null,
+    "width_m": null,
+    "height_m": null,
+    "items": []
+   },
+   {
+    "name": "Interior and Exterior Paintwork",
+    "price_ex_gst_cents": null,
+    "hours_prep": null,
+    "hours_paint": null,
+    "hours_total": null,
+    "length_m": null,
+    "width_m": null,
+    "height_m": null,
+    "items": []
+   },
+   {
+    "name": "Kitchen",
+    "price_ex_gst_cents": 151550,
+    "hours_prep": 2.5,
+    "hours_paint": 11.5,
+    "hours_total": 14,
+    "length_m": 4.0,
+    "width_m": 3.0,
+    "height_m": 2.4,
+    "items": [
+     {
+      "item": "Ceiling",
+      "qty": 24,
+      "unit": "m2",
+      "hours": 3,
+      "coats": 2
+     },
+     {
+      "item": "Cornices",
+      "qty": 20,
+      "unit": "m",
+      "hours": 1.5,
+      "coats": 2
+     },
+     {
+      "item": "Walls",
+      "qty": 16,
+      "unit": "m2",
+      "hours": 4,
+      "coats": 2
+     },
+     {
+      "item": "Skirting Boards",
+      "qty": 20,
+      "unit": "m",
+      "hours": 4.25,
+      "coats": 2
+     },
+     {
+      "item": "Window Reveal",
+      "qty": 1,
+      "unit": "count",
+      "hours": 1.25,
+      "coats": 2
+     }
+    ]
+   },
+   {
+    "name": "Cleaning",
+    "price_ex_gst_cents": 14250,
+    "hours_prep": null,
+    "hours_paint": 1.5,
+    "hours_total": 1.5,
+    "length_m": null,
+    "width_m": null,
+    "height_m": null,
+    "items": []
+   }
+  ]
+ }
+]
