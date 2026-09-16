@@ -64,3 +64,8 @@ The write is one RPC, `import_booked_job` — the estimate accepted by hand unde
 ## Part C — the handover door
 
 `POST /api/inbound/airtable-jobs` (`Authorization: Bearer AIRTABLE_SYNC_SECRET`) takes the Zap's record plus the PaintScout quote and writes it through the same path. The quote has area prices and the job's total hours but no per-line hours, so the job arrives with `external_ref.hours_pending = true` and an "hours to confirm" item on Today; the office types the per-area hours from the PaintScout work order (Tom's C-1 ruling). A second post for the same record refreshes the tray note only. The Zap setup is in brief §C2.
+
+## Draft deposits for the imported jobs (Tom, 17 Sep 2026)
+
+The import and the handover draft no deposit invoice (Tom's 16 Sep ruling: payments PaintScout already collected are recorded by hand). To make that bookkeeping visible, `scripts/import/draft-deposits.ts check|run [--import-name a,b]` gives every accepted estimate the named imports created (default `paintscout-booked,airtable-handover`) the same **draft** deposit an online acceptance would have drafted, through `invoice_draft_deposit(p_estimate_id, p_auto)` (migration 20270153, service role only): the document's own deposit % — the import writes 50, brief B1.4 — else the settings default, one line, a `drafted` event. A draft counts for nothing in `invoice_ledger` and sends nothing; the office issues it and records the payment, edits the figure, or voids it. Idempotent: a job with a deposit invoice of any status answers `exists`. Run it again after the Zaps have delivered more jobs.
+

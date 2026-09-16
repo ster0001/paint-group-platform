@@ -33,3 +33,10 @@ npx tsx scripts/import/paintscout-booked.ts import docs/imports/airtable-crm-imp
 
 ## 3. Part C — the handover door
 Set up the two Zaps in brief §C2. Post one record; the job appears in the tray with "Hours to confirm" on its strip and on Today; type the area hours from the PaintScout work order.
+
+## Draft deposits (17 Sep)
+
+1. Invoicing → open one of the 35 imported jobs (PS-xxxx). Expect one **draft** deposit for 50% of the accepted total, unnumbered, no due date, with the line "Deposit — 50% of the contract price, payable on acceptance".
+2. The job's money strip still shows nothing invoiced (a draft does not count).
+3. Issue it and record the PaintScout payment on a job you know was paid; void it on a job with no deposit. The final at sign-off then bills the balance.
+
