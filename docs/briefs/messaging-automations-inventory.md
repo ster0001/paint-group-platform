@@ -38,7 +38,11 @@ but nothing is sent; **⚠** a caveat worth knowing before building on it.
 | 18 | `campaigns` | Marketing / follow-up campaigns | email + SMS | manual approval | Campaign sweep (cron every 30 min) enrols and QUEUES steps; a person approves in CRM → Campaigns queue. Approved-but-held steps are then sent by the sweep inside the window. | See §4 for the engine rules. |
 | 19 | — (not in registry) | Tenant access text | SMS | manual | Trade customer sends a tenant a link from the portal quote page. | `app/account/(portal)/quote/[id]/tenant/actions.ts`. Link expires after TENANT_LINK_DAYS. |
 | 20 | — (not in registry) | Reply from the CRM record | email + SMS | manual | Staff send a reply from the customer record. | `app/crm/recordActions.ts` `sendReply`. Recorded, routed, delivery-tracked. |
-| 21 | `signoff_nudges` | Sign-off reminders | — | **planned** | 0h / 24h / 48h after walkthrough with no signature. | Copy exists in the DB; nothing sends it. |
+| 21 | `signoff_reminder` | Sign-off reminders | email + SMS | auto | 0h / 24h / 48h after the completion pack goes out, unsigned (Session 3). | The DB ladder records the rung; the sweep sends it once. Stops at signature. |
+| 24 | `customer_accepted_welcome` | Welcome — what happens next | email + SMS | auto | On acceptance (Session 3). | Once per estimate. |
+| 25 | `invoice_reminder` | Unpaid invoice reminders | email (+ SMS on 3–4) | auto, **office approves first** | Due +1/+4/+7/+14 days (Session 3). | Stops on payment; `invoices.chase_hold_reason` pauses. Trade: finance seat. |
+| 26 | `deposit_reminder` | Deposit reminder | SMS | auto, office approves first | +3 days after issue, 5 days before start (Session 3). | Stops when paid. |
+| 27 | `variation_reminder` | Variation waiting — reminder | SMS | auto | 24 h / 48 h after priced (Session 3). | Stops on answer. |
 | 22 | `review_request` | Review request | — | **planned** | After sign-off. | Recorded as a follow-up task only. (A `job_completed` campaign trigger could carry it — see §4.) |
 | 23 | `booking_chase` | Booking chase | — | **planned** | Accepted estimate with no booking. | CRM board card only; no message. |
 
@@ -61,6 +65,7 @@ but nothing is sent; **⚠** a caveat worth knowing before building on it.
 | 5 | `contractor_remittance` | Remittance advice | email + PDF | auto | Office marks a painter's invoice paid. | Templates: `remittanceSubject`, `remittanceBody`. |
 | 6 | `walkthrough_invite` (painter copy) | Final walkthrough calendar invite | email + .ics | auto | Same event as customer #9. | Template: `walkthroughInvitePainterBody`. |
 | 7 | — (not in registry) | Google Calendar push | GCal event | auto | Booked jobs pushed to the contractor's Google Calendar as 07:30–15:30 blocks; per-action pings, with a wo-sweep reconcile as backstop. | `lib/gcal/sync.ts`, `lib/gcal/ping.ts`. Not a message, but a contractor-facing automation. |
+| 9 | `contractor_invoice_prompt` | Job signed off — send your invoice | SMS | auto | At sign-off, again +3 days if still a draft (Session 3). | Stops when submitted. |
 | 8 | — (not a send) | Offer expiry | — | auto | wo-sweep (and every board load) expires offers nobody answered in 24 h; job drops back to the unscheduled tray. | No message to the painter; the office is told via `office_job_declined` only if they actively decline. |
 
 Painter portal links (`/w/[token]`, `/crew/[token]`) are shared by hand; no automated send.
@@ -83,6 +88,7 @@ redelivery never tells anyone twice. `lib/staff/notify.ts`.
 | 4 | `office_invoice_paid` | Invoice paid | email + SMS | Payment recorded against a customer invoice. | Once per payment. Fixed wording. |
 | 5 | `office_variation_raised` | Variation raised | email + SMS | Painter raises a variation from their portal. | Once per variation. Fixed wording. |
 | 6 | `office_contractor_invoice` | Contractor invoice submitted | email + SMS | Painter submits an invoice / payment claim. | Once per invoice. Fixed wording. |
+| 10 | `office_signoff_overdue` | Sign-off overdue | email + SMS | Completion pack out 72 h, unsigned (Session 3). | Once per job. |
 | 7 | `assistant_handoff` | Assistant — someone wants a person | SMS | Customer in the assistant chat asks for a human inside support hours → on-duty roster texted. A claim past the SLA → escalation list texted. | Roster, hours and SLA under Admin → Assistant. Off = the handoff card still appears in Today → Messages. `lib/agent/gateway.ts`, `app/api/agent/website/route.ts`. |
 | 8 | — (in-app, not a send) | Staff chat dock | Realtime + chime | Customer message on an estimate chat. | Browser only; no email/SMS to staff. |
 | 9 | — (in-app) | CRM work queue / Today cards | screen | Derived from `crm_account_facts` (followup_due, waiting, lapsed, accepted-not-booked, wizard drop-outs). | Refreshed by crm-sweep every 30 min. No message goes out; these are the prompts a human acts on. |
@@ -120,10 +126,10 @@ redelivery never tells anyone twice. `lib/staff/notify.ts`.
 ## 6. Gaps and things to decide before building more
 
 1. ~~Trade daily digest not scheduled~~ — DONE Session 2 (hourly).
-2. **Three planned customer messages have no send**: sign-off nudges (0/24/48 h), review request, booking chase. Sign-off copy already exists in the DB.
+2. ~~Sign-off nudges~~ DONE Session 3. Still planned: review request (Session 6), booking chase (Session 5).
 3. **No painter-facing reminders**: nothing the day before a job starts, nothing when an offer is about to expire, nothing for an unanswered variation.
 4. **No customer-facing "job starts tomorrow" or "painter on the way" text** — only the pre-start checklist email (N days before) and the booking confirmation.
-5. **No payment reminders** on overdue invoices (the customer alert hint mentions them, but nothing sends them).
+5. ~~No payment reminders~~ DONE Session 3 (four-rung ladder, office approves first).
 6. **Two sends sit outside the registry** and therefore have no switch and don't appear on Settings → Automations: the tenant access text and CRM record replies. Google Calendar push is also outside it.
 7. ~~Wizard resume email once a day~~ — DONE Session 2 (every 30 minutes).
 8. **Adding a new automation** = registry entry + template fields in `DEFAULT_MESSAGING` + `loadMessaging` + `automationOn` check at the send site + a `messages`-recorded send. `registry.test.ts` pins that every template field has a default.

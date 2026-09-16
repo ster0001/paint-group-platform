@@ -23,7 +23,7 @@ import { reportError } from "@/lib/monitoring/report";
 
 type ContractorContact = { phone: string | null; email: string | null; firstName: string };
 
-async function contactFor(service: SupabaseClient, contractorId: string): Promise<ContractorContact> {
+export async function contactFor(service: SupabaseClient, contractorId: string): Promise<ContractorContact> {
   const { data, error } = await service
     .from("contractors")
     .select("profile_id, company_name, phone, profiles(name)")

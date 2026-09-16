@@ -363,6 +363,101 @@ export const AUTOMATIONS: Automation[] = [
     href: "/crm/campaigns",
   },
 
+  // ---- Session 3 (16 Sep 2026): money and sign-off ----------------------------
+  {
+    key: "customer_accepted_welcome", name: "Welcome — thanks, what happens next", audience: "customer", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", approvable: true, defaultMode: "auto", sendKind: "job_welcome", quietExempt: true, capExempt: true,
+    trigger: "A customer accepts an estimate. Thanks, what happens next, and a link to their account — with the deposit link when the deposit invoice has been issued.",
+    templates: [
+      { field: "welcomeSubject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{link}}", "{{deposit_line}}"] },
+      { field: "welcomeBody", label: "Email body", kind: "body", placeholders: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{link}}", "{{deposit_line}}"] },
+      { field: "welcomeSms", label: "Text message", kind: "sms", placeholders: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{link}}"] },
+    ],
+    guard: "Once per estimate.",
+  },
+  {
+    key: "invoice_reminder", name: "Unpaid invoice reminders", audience: "customer", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", approvable: true, defaultMode: "approve", sendKind: "invoice_reminder", capExempt: true,
+    trigger: "An issued invoice passes its due date with a balance owing. Four reminders, each with its own wording; the first two are email only, the last two add a text. Stops the moment a payment lands, and pauses while the invoice is marked \"reminders paused\" (a dispute).",
+    templates: [
+      { field: "invoiceReminder1Subject", label: "Reminder 1 · subject", kind: "subject", placeholders: ["{{first_name}}", "{{invoice_number}}", "{{amount}}", "{{due_date}}", "{{days_overdue}}", "{{company_name}}", "{{link}}"] },
+      { field: "invoiceReminder1Body", label: "Reminder 1 · body", kind: "body", placeholders: ["{{first_name}}", "{{invoice_number}}", "{{amount}}", "{{due_date}}", "{{days_overdue}}", "{{company_name}}", "{{link}}"] },
+      { field: "invoiceReminder2Subject", label: "Reminder 2 · subject", kind: "subject", placeholders: ["{{first_name}}", "{{invoice_number}}", "{{amount}}", "{{due_date}}", "{{days_overdue}}", "{{company_name}}", "{{link}}"] },
+      { field: "invoiceReminder2Body", label: "Reminder 2 · body", kind: "body", placeholders: ["{{first_name}}", "{{invoice_number}}", "{{amount}}", "{{due_date}}", "{{days_overdue}}", "{{company_name}}", "{{link}}"] },
+      { field: "invoiceReminder3Subject", label: "Reminder 3 · subject", kind: "subject", placeholders: ["{{first_name}}", "{{invoice_number}}", "{{amount}}", "{{due_date}}", "{{days_overdue}}", "{{company_name}}", "{{link}}"] },
+      { field: "invoiceReminder3Body", label: "Reminder 3 · body", kind: "body", placeholders: ["{{first_name}}", "{{invoice_number}}", "{{amount}}", "{{due_date}}", "{{days_overdue}}", "{{company_name}}", "{{link}}"] },
+      { field: "invoiceReminder4Subject", label: "Reminder 4 · subject", kind: "subject", placeholders: ["{{first_name}}", "{{invoice_number}}", "{{amount}}", "{{due_date}}", "{{days_overdue}}", "{{company_name}}", "{{link}}"] },
+      { field: "invoiceReminder4Body", label: "Reminder 4 · body", kind: "body", placeholders: ["{{first_name}}", "{{invoice_number}}", "{{amount}}", "{{due_date}}", "{{days_overdue}}", "{{company_name}}", "{{link}}"] },
+      { field: "invoiceReminderSms", label: "Text (reminders 3 and 4)", kind: "sms", placeholders: ["{{first_name}}", "{{invoice_number}}", "{{amount}}", "{{due_date}}", "{{days_overdue}}", "{{company_name}}", "{{link}}"] },
+    ],
+    timing: [
+      { id: "rung1", label: "Reminder 1", unit: "days", default: 1, min: 0, max: 60 },
+      { id: "rung2", label: "Reminder 2", unit: "days", default: 4, min: 0, max: 90 },
+      { id: "rung3", label: "Reminder 3", unit: "days", default: 7, min: 0, max: 120 },
+      { id: "rung4", label: "Reminder 4", unit: "days", default: 14, min: 0, max: 180 },
+    ],
+    guard: "Each reminder once per invoice; a missed one is never sent late in a burst. Trade customers: the account's finance contact where one exists.",
+    note: "No late fees are ever mentioned — that wording waits for legal review.",
+  },
+  {
+    key: "deposit_reminder", name: "Deposit reminder", audience: "customer", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "deposit_reminder", capExempt: true,
+    trigger: "A deposit invoice is issued and not paid: a reminder some days after issue, and again some days before the start date, so the date holds.",
+    templates: [
+      { field: "depositReminderSms", label: "Text message", kind: "sms", placeholders: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{start_date}}", "{{invoice_number}}", "{{link}}"] },
+    ],
+    timing: [
+      { id: "afterIssue", label: "Days after issue", unit: "days", default: 3, min: 0, max: 60 },
+      { id: "beforeStart", label: "Days before start", unit: "days", default: 5, min: 0, max: 60 },
+    ],
+    guard: "Each of the two once per invoice; stops when the deposit is paid.",
+  },
+  {
+    key: "signoff_reminder", name: "Sign-off reminders", audience: "customer", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", approvable: true, defaultMode: "auto", sendKind: "signoff_reminder", capExempt: true,
+    trigger: "The completion pack is sent and the customer has not signed: at once, then 24 h and 48 h later. The reminder line is the wording already held in the database (it never says the job will be treated as signed).",
+    templates: [
+      { field: "signoffReminderSubject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{reminder}}", "{{company_name}}", "{{link}}"] },
+      { field: "signoffReminderBody", label: "Email body", kind: "body", placeholders: ["{{first_name}}", "{{address}}", "{{reminder}}", "{{company_name}}", "{{link}}"] },
+      { field: "signoffReminderSms", label: "Text message", kind: "sms", placeholders: ["{{first_name}}", "{{address}}", "{{company_name}}", "{{link}}"] },
+    ],
+    guard: "Each rung once per job; stops at signature.",
+  },
+  {
+    key: "variation_reminder", name: "Variation waiting for approval — reminder", audience: "customer", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "variation_reminder",
+    trigger: "A priced change was sent for the customer's approval and nothing has come back: a text after 24 h, again at 48 h.",
+    templates: [
+      { field: "variationReminderSms", label: "Text message", kind: "sms", placeholders: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{link}}"] },
+    ],
+    timing: [
+      { id: "first", label: "First reminder", unit: "hours", default: 24, min: 1, max: 240 },
+      { id: "second", label: "Second reminder", unit: "hours", default: 48, min: 1, max: 480 },
+    ],
+    guard: "Each rung once per variation; stops when they approve or decline.",
+  },
+  {
+    key: "contractor_invoice_prompt", name: "Job signed off — send your invoice", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "contractor_invoice_prompt", capExempt: true,
+    trigger: "The customer signs off and the painter's invoice draft is waiting: a text at sign-off, and again some days later if it still hasn't been submitted.",
+    templates: [
+      { field: "contractorInvoicePromptSms", label: "Text message", kind: "sms", placeholders: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{link}}"] },
+    ],
+    timing: [{ id: "again", label: "Again after", unit: "days", default: 3, min: 1, max: 30 }],
+    guard: "Twice at most per job; stops when the invoice is submitted.",
+  },
+  {
+    key: "office_signoff_overdue", name: "Sign-off overdue", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "email", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "The completion pack went out and, after the set number of hours, the customer still hasn't signed off.",
+    templates: [
+      { field: "officeSignoffOverdueSubject", label: "Email subject", kind: "subject", placeholders: ["{{job}}", "{{wo_ref}}", "{{customer_name}}", "{{hours_since}}", "{{link}}"] },
+      { field: "officeSignoffOverdueBody", label: "Message", kind: "body", placeholders: ["{{job}}", "{{wo_ref}}", "{{customer_name}}", "{{hours_since}}", "{{link}}"] },
+    ],
+    timing: [{ id: "after", label: "After", unit: "hours", default: 72, min: 1, max: 720 }],
+    guard: "Once per job. Reaches each staff member who ticked it under Staff alerts.",
+  },
+
   // ---- brought onto the list in Session 1 (16 Sep) -------------------------
   {
     key: "tenant_access_text", name: "Tenant access text", audience: "customer", channels: ["sms"], kind: "manual",
@@ -384,10 +479,6 @@ export const AUTOMATIONS: Automation[] = [
   },
 
   // ---- recorded, not yet sent ---------------------------------------------
-  {
-    key: "signoff_nudges", name: "Sign-off reminders", audience: "customer", channels: [], kind: "planned",
-    trigger: "0h / 24h / 48h after the walkthrough with no signature. The copy exists in the database; nothing sends it yet.",
-  },
   {
     key: "review_request", name: "Review request", audience: "customer", channels: [], kind: "planned",
     trigger: "After sign-off. Recorded as a follow-up task; no message goes out yet.",

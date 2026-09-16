@@ -206,6 +206,9 @@ export const SAMPLE_VARS: Record<string, string> = {
   painter: "Marco Rossi", job: "12 Elm Grove, Thornbury", note_line: "", proposed_line: "", reason_line: "", method: "card",
   who: "Sarah Chen", category: "rot repair", comment: "Sill on the north window is soft.", hours_line: "", due_date: "Fri 2 Oct",
   expiry_time: "6:00 pm", access_notes: "Side gate, key in lockbox 4471", colour_status: "Dulux Natural White, confirmed",
+  days_overdue: "7", deposit_line: " Your deposit invoice is ready to pay: https://paintgroup.com.au/i/example",
+  reminder: "Your job is finished and the photos are ready to look through. When you have a moment, please have a look and let us know you are happy.",
+  hours_since: "74",
   review_link: "https://g.page/r/example", agency_name: "Northcote Property Co", agency_line: " for Northcote Property Co",
 };
 

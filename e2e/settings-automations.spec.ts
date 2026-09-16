@@ -65,7 +65,7 @@ test.describe("settings buckets + automations", () => {
     await expect(page.getByTestId("switch-contractor_offer")).toBeVisible();
     await expect(page.getByTestId("automation-estimate_send")).toContainText("You press send");
     await expect(page.getByTestId("automation-estimate_send").locator("input[role=switch]")).toHaveCount(0);
-    await expect(page.getByTestId("automation-signoff_nudges")).toContainText("Not sending yet");
+    await expect(page.getByTestId("automation-review_request")).toContainText("Not sending yet");
     await expect(page.getByTestId("automation-variation_auto_release")).toBeVisible();
 
     // Switch QA-fail texts off, reword the job-offer text, flip the variation
@@ -157,6 +157,6 @@ test.describe("automations · channel, mode and the editor", () => {
     await expect(page.getByTestId("channel-estimate_chat_reply")).toHaveValue("sms");
     await expect(page.getByTestId("mode-estimate_chat_reply")).toHaveValue("approve");
     await expect(page.getByTestId("daily-cap")).toHaveValue("5");
-    await expect(page.getByTestId("automations-off-count")).toContainText("1 approved first");
+    await expect(page.getByTestId("automations-off-count")).toContainText(/\d+ approved first/);
   });
 });

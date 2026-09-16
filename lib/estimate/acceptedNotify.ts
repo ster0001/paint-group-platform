@@ -16,6 +16,10 @@ import { buildEstimateEmailHtml, emailConfigured, sendEmail } from "@/lib/messag
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
 import { notifyStaff } from "@/lib/staff/notify";
+import { sendAutomation } from "@/lib/automations/dispatch";
+import { claimRung } from "@/lib/automations/reminders";
+import { normalisePhoneAU } from "@/lib/messaging/config";
+import { buildPlainEmailHtml } from "@/lib/messaging/send";
 
 const money = (c: number | null | undefined) => "$" + ((c ?? 0) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -86,4 +90,57 @@ export async function notifyOfficeOfAcceptanceByToken(service: SupabaseClient, s
   const id = (data as { id?: string } | null)?.id;
   if (!id) return "not_accepted" as const;
   return notifyOfficeOfAcceptance(service, id);
+}
+
+/**
+ * Session 3 (16 Sep 2026): the customer's welcome — thanks, what happens
+ * next, their account, and the deposit link when the deposit invoice is
+ * already issued. Once per estimate (automation_claims); best-effort.
+ */
+export async function sendCustomerWelcome(service: SupabaseClient, estimateId: string): Promise<"sent" | "skipped" | "already"> {
+  try {
+    const { data } = await service.from("estimates")
+      .select("id, status, account_id, accepted_name, sent_snapshot, builder_state")
+      .eq("id", estimateId).maybeSingle();
+    const est = data as { id: string; status: string; account_id: string | null; accepted_name: string | null;
+      sent_snapshot: { jobAddress?: string; contactEmail?: string } | null; builder_state: { contact?: { first_name?: string; email?: string; phone?: string } } | null } | null;
+    if (!est || est.status !== "accepted") return "skipped";
+    if (!(await claimRung(service, "customer_accepted_welcome", estimateId, ""))) return "already";
+    const { company } = await loadMessaging(service);
+    const { messaging } = await loadMessaging(service);
+    const contact = est.builder_state?.contact ?? {};
+    const email = (contact.email || est.sent_snapshot?.contactEmail || "").trim() || null;
+    const phone = contact.phone ? normalisePhoneAU(contact.phone) : null;
+    const { data: dep } = await service.from("invoices").select("token, status").eq("estimate_id", estimateId).eq("kind", "deposit")
+      .in("status", ["issued", "sent", "viewed", "partially_paid"]).limit(1).maybeSingle();
+    const depositLink = (dep as { token?: string } | null)?.token ? `${siteUrl()}/i/${(dep as { token: string }).token}` : null;
+    const link = email ? `${siteUrl()}/account/login?email=${encodeURIComponent(email)}` : `${siteUrl()}/account`;
+    const vars = {
+      first_name: contact.first_name || (est.accepted_name ?? "").split(/\s+/)[0] || "there",
+      company_name: company.name || "Paint Group",
+      address: est.sent_snapshot?.jobAddress || "your property",
+      link,
+      deposit_line: depositLink ? ` Your deposit invoice is ready to pay: ${depositLink}` : "",
+    };
+    const subject = renderTemplate(messaging.welcomeSubject, vars);
+    const r = await sendAutomation(service, {
+      key: "customer_accepted_welcome",
+      to: { email, phone },
+      email: { subject, html: buildPlainEmailHtml({ heading: subject, message: renderTemplate(messaging.welcomeBody, vars), companyName: vars.company_name, logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone }) },
+      sms: { body: renderTemplate(messaging.welcomeSms, vars) },
+      ctx: { accountId: est.account_id, estimateId, kind: "job_welcome" },
+    });
+    return r.outcome === "off" || r.outcome === "nobody" ? "skipped" : "sent";
+  } catch (e) {
+    reportError(e, { where: "customerWelcome", extra: { estimateId } });
+    return "skipped";
+  }
+}
+
+/** The /e page and the portal have only the token — resolve it, then welcome. */
+export async function sendCustomerWelcomeByToken(service: SupabaseClient, shareToken: string) {
+  const { data } = await service.from("estimates").select("id").eq("share_token", shareToken).maybeSingle();
+  const id = (data as { id?: string } | null)?.id;
+  if (!id) return "skipped" as const;
+  return sendCustomerWelcome(service, id);
 }

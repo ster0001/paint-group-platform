@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runSweep } from "@/lib/campaigns/runSweep";
 import { releaseDueHolds } from "@/lib/automations/dispatch";
+import { runMoneySignoffSweep } from "@/lib/automations/sweeps/moneySignoff";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -32,7 +33,11 @@ export async function GET(req: Request) {
 
   try {
     const now = new Date();
-    const outcomes = await runSweep(db, now);
+    // `?only=reminders` (the e2e, a hand run) skips the campaign engine.
+    const only = new URL(req.url).searchParams.get("only");
+    const outcomes = only === "reminders" ? [] : await runSweep(db, now);
+    // Session 3: money and sign-off reminder ladders, every half hour.
+    const reminders = await runMoneySignoffSweep(db, now);
     // Session 1: automatic job messages held for quiet hours or the daily
     // cap are released here — every 30 minutes, so a held text goes at the
     // opening, not at the next daily sweep. Only messages the office already
@@ -43,6 +48,7 @@ export async function GET(req: Request) {
       swept: outcomes.length,
       outcomes,
       released,
+      reminders,
       note: "Campaign steps are queued only. Held automatic messages whose time has come are sent.",
     });
   } catch (e) {

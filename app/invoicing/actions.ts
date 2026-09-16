@@ -602,3 +602,20 @@ export async function decidePreapprovalAction(raw: unknown): Promise<InvoicingRe
     p.data.approve ? "Approved — the contractor sees the agreed cap straight away." : "Declined.",
   );
 }
+
+/**
+ * Session 3 (16 Sep 2026): pause / resume the unpaid-invoice reminders on one
+ * invoice. A reason pauses (a dispute, a payment plan); an empty reason
+ * resumes. Staff only — the RLS on invoices decides.
+ */
+export async function pauseRemindersAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({ invoiceId: z.string().uuid(), estimateId: z.string().uuid(), reason: z.string().max(300) }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Check the reason and try again." };
+  const supabase = await createClient();
+  const reason = p.data.reason.trim();
+  const { error } = await supabase.from("invoices").update({ chase_hold_reason: reason || null }).eq("id", p.data.invoiceId);
+  if (error) return { ok: false, message: "Couldn't change that just now." };
+  revalidatePath(`/invoicing/job/${p.data.estimateId}`);
+  revalidatePath("/invoicing");
+  return { ok: true, message: reason ? "Reminders paused for this invoice." : "Reminders resumed." };
+}

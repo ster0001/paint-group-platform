@@ -69,6 +69,28 @@ export type MessagingSettings = {
   /** The tenant access text a trade customer sends from the portal (manual; wording editable). */
   tenantLinkSms: string;
 
+  // ---- Session 3 (16 Sep 2026): money and sign-off ---------------------------
+  welcomeSubject: string;
+  welcomeBody: string;
+  welcomeSms: string;
+  invoiceReminder1Subject: string;
+  invoiceReminder1Body: string;
+  invoiceReminder2Subject: string;
+  invoiceReminder2Body: string;
+  invoiceReminder3Subject: string;
+  invoiceReminder3Body: string;
+  invoiceReminder4Subject: string;
+  invoiceReminder4Body: string;
+  invoiceReminderSms: string;
+  depositReminderSms: string;
+  signoffReminderSubject: string;
+  signoffReminderBody: string;
+  signoffReminderSms: string;
+  variationReminderSms: string;
+  contractorInvoicePromptSms: string;
+  officeSignoffOverdueSubject: string;
+  officeSignoffOverdueBody: string;
+
   /** Painter: "you have a job offer" (send / reassign / re-offer). */
   offerSms: string;
   offerEmailSubject: string;
@@ -157,6 +179,46 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeContractorInvoiceSubject: "Contractor invoice in — {{painter}} · {{amount}}",
   officeContractorInvoiceBody: "{{painter}} has submitted invoice {{invoice_number}} for {{amount}} on {{wo_ref}} ({{job}}). It is waiting for approval in Payments.",
   tenantLinkSms: "{{company_name}}{{agency_line}}: photos and a quick look at the painting planned for {{address}} are here: {{link}}",
+
+  welcomeSubject: "Thank you for choosing {{company_name}} — what happens next",
+  welcomeBody:
+    "Hello {{first_name}},\n\n" +
+    "Thank you for choosing {{company_name}} for {{address}}. Here's what happens next: we'll confirm your painter and start date, then keep you updated at every step.\n\n" +
+    "Everything — updates, invoices, colours and messages — lives in your account.{{deposit_line}}\n\n" +
+    "Any questions, just reply to this email or give us a call.",
+  welcomeSms: "Hello {{first_name}}, thank you for choosing {{company_name}}. We'll confirm your painter and start date and keep you posted. Your account: {{link}}",
+  invoiceReminder1Subject: "A quick reminder — invoice {{invoice_number}}",
+  invoiceReminder1Body:
+    "Hello {{first_name}},\n\n" +
+    "A quick reminder that invoice {{invoice_number}} for {{amount}} was due on {{due_date}}. You can pay here: {{link}}\n\n" +
+    "If you've already paid, thank you, and please ignore this.",
+  invoiceReminder2Subject: "Invoice {{invoice_number}} — still outstanding",
+  invoiceReminder2Body:
+    "Hello {{first_name}},\n\n" +
+    "Invoice {{invoice_number}} for {{amount}} was due on {{due_date}} and we haven't seen the payment come through yet. The invoice, the pay-by-card link and our bank details are here: {{link}}\n\n" +
+    "If something isn't right with the invoice, reply to this email or give us a call and we'll sort it out.",
+  invoiceReminder3Subject: "Invoice {{invoice_number}} is {{days_overdue}} days overdue",
+  invoiceReminder3Body:
+    "Hello {{first_name}},\n\n" +
+    "Invoice {{invoice_number}} for {{amount}} is now {{days_overdue}} days overdue. Please arrange payment here: {{link}}\n\n" +
+    "If there's a reason it can't be paid yet, let us know a date we can expect it and we'll note it on your account.",
+  invoiceReminder4Subject: "Invoice {{invoice_number}} — please call us",
+  invoiceReminder4Body:
+    "Hello {{first_name}},\n\n" +
+    "Invoice {{invoice_number}} for {{amount}} is {{days_overdue}} days overdue and we haven't heard from you. Please pay here: {{link}} — or call us today so we can agree a way forward.",
+  invoiceReminderSms: "{{company_name}}: invoice {{invoice_number}} for {{amount}} is {{days_overdue}} days overdue. Pay or see the details here: {{link}}",
+  depositReminderSms: "{{company_name}}: a reminder that your deposit of {{amount}} holds your start date of {{start_date}}. Pay here: {{link}}",
+  signoffReminderSubject: "Your painting at {{address}} — please review and sign off",
+  signoffReminderBody:
+    "Hello {{first_name}},\n\n" +
+    "{{reminder}}\n\n" +
+    "Review the finished work and sign off here: {{link}}\n\n" +
+    "Any questions, just reply to this email.",
+  signoffReminderSms: "{{company_name}}: your painting at {{address}} is complete. When you have a moment, please review and sign off here: {{link}}",
+  variationReminderSms: "{{company_name}}: a change to your painting job is waiting for your approval. Review it here: {{link}}",
+  contractorInvoicePromptSms: "{{company_name}}: {{wo_ref}} is signed off — please send your invoice from your Money tab so we can pay you: {{link}}",
+  officeSignoffOverdueSubject: "Sign-off overdue — {{job}}",
+  officeSignoffOverdueBody: "The walkthrough on {{wo_ref}} ({{job}}) was done and the completion pack sent {{hours_since}} hours ago, but {{customer_name}} has not signed off. Worth a call.",
 
   offerSms:
     "{{company_name}}: you have a job offer ({{wo_ref}}) — it holds for 24 hours. Open your portal to see it and answer: {{link}}",
@@ -292,6 +354,12 @@ export type TemplateVars = {
   hours_line?: string;
   comment?: string;
   agency_line?: string;
+  // Session 3: money and sign-off reminders.
+  due_date?: string;
+  days_overdue?: string;
+  deposit_line?: string;
+  reminder?: string;
+  hours_since?: string;
 };
 
 /** Fill {{placeholders}}; unknown or missing values render as empty string. */

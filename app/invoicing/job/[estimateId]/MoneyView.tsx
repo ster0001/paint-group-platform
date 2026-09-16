@@ -13,6 +13,7 @@ import {
   requestPaymentAction,
   deleteDraftAction,
   voidInvoiceAction,
+  pauseRemindersAction,
   type InvoicingResult,
 } from "../../actions";
 import { fmt0, fmt2, fmtSigned2 } from "../../format";
@@ -59,6 +60,8 @@ export type InvoiceCardProp = {
   isDraft: boolean;
   isOpen: boolean;
   kind: string;
+  /** Session 3: reminders paused, with the reason; null = running. */
+  chaseHold: string | null;
 };
 
 export type FeedProp = { tone: string; title: string; meta: string };
@@ -256,6 +259,15 @@ export default function MoneyView({
                       .then(() => setFlash("Pay link copied — paste it anywhere."))
                       .catch(() => setFlash(`Pay link: ${window.location.origin}/i/${c.token}`));
                   }}>Copy pay link</button>
+                  {c.chaseHold ? (
+                    <button className="mini" disabled={busy} title={c.chaseHold} data-testid="resume-reminders"
+                      onClick={() => run(() => pauseRemindersAction({ invoiceId: c.invoiceId, estimateId, reason: "" }))}>Resume reminders</button>
+                  ) : (
+                    <button className="mini" disabled={busy} data-testid="pause-reminders" onClick={() => {
+                      const reason = prompt("Pause the unpaid-invoice reminders — why? (A dispute, a payment plan…)");
+                      if (reason?.trim()) run(() => pauseRemindersAction({ invoiceId: c.invoiceId, estimateId, reason: reason.trim() }));
+                    }}>Pause reminders</button>
+                  )}
                   <button className="mini" disabled={busy} onClick={() => {
                     const reason = prompt("Void this invoice — what's the reason? (The number is burnt, not reused.)");
                     if (reason?.trim()) run(() => voidInvoiceAction({ invoiceId: c.invoiceId, estimateId, reason: reason.trim() }));

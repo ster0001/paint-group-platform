@@ -23,6 +23,8 @@ export type InvoiceRow = {
   created_at: string;
   token: string;
   voided_reason: string;
+  /** Session 3: non-null pauses the unpaid-invoice reminders (the text is why). */
+  chase_hold_reason?: string | null;
   estimates?: {
     title: string | null; accepted_name: string | null; job_address: string | null;
     accepted_total_cents?: number | null;
@@ -70,7 +72,7 @@ export type Ledger = {
 };
 
 export const INVOICE_SELECT =
-  "id, estimate_id, work_order_id, kind, status, number, total_inc_cents, subtotal_ex_cents, gst_cents, issued_on, due_on, created_at, token, voided_reason";
+  "id, estimate_id, work_order_id, kind, status, number, total_inc_cents, subtotal_ex_cents, gst_cents, issued_on, due_on, created_at, token, voided_reason, chase_hold_reason";
 
 export function toDerive(rows: readonly InvoiceRow[]): DeriveInvoice[] {
   return rows.map((r) => ({

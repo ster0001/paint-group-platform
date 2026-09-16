@@ -36,6 +36,30 @@ const CHECKERS: Record<string, Checker> = {
   },
 };
 
+// ---- Session 3: money and sign-off --------------------------------------------
+async function invoiceOwing(db: SupabaseClient, invoiceId: string): Promise<NeedVerdict> {
+  const { data } = await db.from("invoices").select("status, total_inc_cents, chase_hold_reason").eq("id", invoiceId).maybeSingle();
+  const inv = data as { status: string; total_inc_cents: number; chase_hold_reason: string | null } | null;
+  if (!inv || !["issued", "sent", "viewed", "partially_paid"].includes(inv.status)) return { ok: false, reason: "The invoice is no longer open." };
+  if (inv.chase_hold_reason) return { ok: false, reason: `Reminders paused: ${inv.chase_hold_reason}` };
+  const { data: pays } = await db.from("payments").select("amount_cents").eq("invoice_id", invoiceId).eq("status", "succeeded");
+  const paid = ((pays ?? []) as { amount_cents: number }[]).reduce((n, p) => n + p.amount_cents, 0);
+  return paid >= inv.total_inc_cents ? { ok: false, reason: "Paid." } : { ok: true };
+}
+CHECKERS.invoice_reminder = (db, hold) => (hold.invoice_id ? invoiceOwing(db, hold.invoice_id) : Promise.resolve({ ok: true }));
+CHECKERS.deposit_reminder = CHECKERS.invoice_reminder;
+CHECKERS.signoff_reminder = async (db, hold) => {
+  if (!hold.work_order_id) return { ok: true };
+  const { data } = await db.from("wo_signoff").select("signed_at").eq("work_order_id", hold.work_order_id).maybeSingle();
+  return (data as { signed_at: string | null } | null)?.signed_at ? { ok: false, reason: "Signed off." } : { ok: true };
+};
+CHECKERS.contractor_invoice_prompt = async (db, hold) => {
+  if (!hold.work_order_id) return { ok: true };
+  const { data } = await db.from("contractor_invoices").select("status").eq("work_order_id", hold.work_order_id).eq("auto_draft_source", "signoff").limit(1).maybeSingle();
+  const s = (data as { status?: string } | null)?.status;
+  return !s || s === "draft" ? { ok: true } : { ok: false, reason: `Invoice ${s}.` };
+};
+
 export async function stillNeeded(db: SupabaseClient, hold: HoldRow): Promise<NeedVerdict> {
   const check = CHECKERS[hold.automation_key];
   if (!check) return { ok: true };

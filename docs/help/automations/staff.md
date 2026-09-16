@@ -25,6 +25,15 @@ You need a staff login. Texts need a mobile number and email needs an address on
 10. **Reset to default wording** puts the shipped wording back.
 11. Press **Save automations**. Nothing changes until you save.
 
+## Money and sign-off reminders (Session 3)
+- **Welcome** goes the moment a customer accepts: thanks, what happens next, their account, and the deposit link if that invoice is already issued.
+- **Unpaid invoice reminders** run four times after the due date (1, 4, 7 and 14 days by default; change the numbers on the row). Reminders 1 and 2 are email; 3 and 4 add a text. They ship as **Office approves first**, so each one lands in Messages to approve until you switch the mode. A payment stops the ladder at once. To pause a disputed invoice, press **Pause reminders** on the invoice row in Invoicing and give the reason; **Resume reminders** clears it. No reminder ever mentions late fees.
+- **Deposit reminder** texts a few days after the deposit is issued and again a few days before the start date, until it is paid.
+- **Sign-off reminders** go when the completion pack is sent, then 24 and 48 hours later, until the customer signs. The reminder line is the approved wording and never says the job will be treated as signed.
+- **Variation reminder** texts 24 and 48 hours after a priced change is sent, until they answer.
+- **Job signed off — send your invoice** texts the painter at sign-off and again three days later if their invoice is still a draft.
+- **Sign-off overdue** alerts the staff who ticked it, 72 hours after the pack went out unsigned.
+
 ## What the colours and labels mean
 - **Automatic** (green) — fires on its own; has the switch.
 - **You press send** (blue) — a person sends it; listed so the picture is complete.

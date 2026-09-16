@@ -68,6 +68,7 @@ export default async function JobMoneyPage({
         isDraft: r.status === "draft",
         isOpen: ["issued", "sent", "viewed", "partially_paid"].includes(r.status),
         kind: r.kind,
+        chaseHold: r.chase_hold_reason ?? null,
       };
     });
 

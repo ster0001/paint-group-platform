@@ -1,3 +1,16 @@
+# 16 Sep 2026 (night) — Messaging automations, Session 3: money and sign-off. ONE migration: 20270151 (`invoices.chase_hold_reason`, additive). Branch `feat/automations-s3-money-signoff`.
+
+Seven automations (see docs/ARCHITECTURE.md tail): welcome on acceptance, four-rung unpaid-invoice
+ladder (office approves first by default, no late-fee wording, finance seat for trade), deposit
+reminder, sign-off reminders (sending the DB ladder's own rungs), variation reminder, painter
+send-your-invoice prompt, sign-off-overdue staff alert. Pause reminders button on the invoice row.
+Migration on TEST via reapply-one; prod paste pending. Gates: vitest 2537/2537, tsc + eslint clean, e2e on
+:3102: automation-reminders (2), settings-automations (3), automation-queue, invoicing, wo-signoff all green.
+Sweep cost on the test project's 6,097-open-invoice backlog: ~25 s per pass (invoices 8 s, deposits 16 s) —
+fine for a half-hour cron, and prod has a fraction of those rows. Traps: the DB stamps a nudge a moment
+AFTER the sweep's `now` (clamp, or it waits a pass); a fixture must reach stage `walkthrough` before
+`wo_deliver_evidence_pack` records anything; test-address filtering must run BEFORE any lookup or claim.
+
 # 16 Sep 2026 (late) — Messaging automations, Session 2: timing. NO migration. Branch `feat/automations-s2-timing`.
 
 Session 1 merged to main (0bf15c6) and 20270150 handed to Tom for prod. Session 2: wizard-sweep
