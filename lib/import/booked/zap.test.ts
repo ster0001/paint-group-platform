@@ -70,7 +70,8 @@ describe("handover feed · Zap record → BookedJob", () => {
     expect(both.ok && both.job.areas[2]?.price_ex_gst_cents).toBe(260990);
 
     // Zapier omits every key whose Airtable field is empty; a missing key must parse like an empty one.
-    const { level_of_finish: _l, start_date: _s, end_date: _e, painter_email: _pe, painter_accepted: _pa, notes: _n, ps_status: _ps, ...omitted } = live;
+    const dropped = ["level_of_finish", "start_date", "end_date", "painter_email", "painter_accepted", "notes", "ps_status"];
+    const omitted = Object.fromEntries(Object.entries(live).filter(([k]) => !dropped.includes(k)));
     const sparse = zapJobSchema.safeParse(omitted);
     expect(sparse.success).toBe(true);
     if (sparse.success) expect(bookedJobFromZap(sparse.data).ok).toBe(true);
