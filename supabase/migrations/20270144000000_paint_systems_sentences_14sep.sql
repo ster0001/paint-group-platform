@@ -27,3 +27,8 @@ where key = 'paint_systems'
 
 select value->'walls'->'new'->>'sentence' as walls_new, value->'trims'->'new'->>'sentence' as trims_new, value->'doors'->'new'->>'sentence' as doors_new
 from settings where key = 'paint_systems';
+
+-- Registers itself in the production ledger (added 16 Sep 2026: this file
+-- shipped without it, so `select … from public._prod_migrations` could not say
+-- whether it was live — see docs/ARCHITECTURE.md, the invoicing read-failure note).
+insert into public._prod_migrations(name) values ('20270144000000_paint_systems_sentences_14sep.sql') on conflict (name) do nothing;
