@@ -149,6 +149,14 @@ export type Adjustments = {
    * Resolved from the answers in lib/pricing/commercial.ts `hourLoadingFor`.
    */
   hourLoading?: number;
+  /**
+   * Airtable/PaintScout import (16 Sep 2026): a signed job brought across
+   * with every surface and line as a price override. Its total IS the
+   * PaintScout total, to the cent; the size uplift is a margin rule for
+   * jobs this engine priced, and must never move an accepted, imported
+   * figure. `true` skips the uplift; absent or false prices as before.
+   */
+  sizeUpliftDisabled?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -511,7 +519,7 @@ export function priceEstimateTotals(
 
   // Size uplift — before discount and GST, inside the subtotal, so the
   // wizard range, the builder, the margin report and the work order agree.
-  const sizeUplift = sizeUpliftCents(subtotal, rates.sizeUplifts);
+  const sizeUplift = adj.sizeUpliftDisabled ? 0 : sizeUpliftCents(subtotal, rates.sizeUplifts);
   subtotal += sizeUplift;
 
   // Discount comes off the ex-GST subtotal (and out of margin) — a percentage

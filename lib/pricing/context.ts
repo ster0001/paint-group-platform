@@ -81,5 +81,7 @@ export function adjustmentsFrom(state: Record<string, unknown>): Adjustments {
     // C12: the commercial loading, written by the submit route from the
     // hours/occupied answers; absent on every residential estimate.
     ...(typeof state.hourLoading === "number" && state.hourLoading > 0 ? { hourLoading: state.hourLoading } : {}),
+    // Imported, override-only scopes (PaintScout): the uplift never touches them.
+    ...(state.sizeUpliftDisabled === true ? { sizeUpliftDisabled: true } : {}),
   };
 }

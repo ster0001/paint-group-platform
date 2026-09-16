@@ -143,6 +143,28 @@
       ]
     },
     {
+      "feature": "imported-history",
+      "role": "customer",
+      "title": "See your earlier quotes and jobs in your account",
+      "summary": "If Paint Group quoted or painted for you before this website existed, those quotes and jobs appear in your account as records once you sign in with your email.",
+      "path": "docs/help/imported-history/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
+      "feature": "imported-history",
+      "role": "staff",
+      "title": "Read a customer's history from Airtable, and pick up a job that was signed in PaintScout",
+      "summary": "What the Airtable import put on each customer record, why an imported estimate opens as a card instead of the builder, how to find imported history on the Estimates list, and how the 35 signed PaintScout jobs sit in the Unscheduled tray ready to offer.",
+      "path": "docs/help/imported-history/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "message-queue",
       "role": "staff",
       "title": "Approve, change or skip an automatic message before it goes",

@@ -11,7 +11,7 @@ import {
   buildDelayEndedItems,
   suppressQuiet,
   type DelayedAccountRow,
-  buildQuietQuoteItems, type QuietQuoteRow, estimatesPageItems,
+  buildQuietQuoteItems, type QuietQuoteRow, estimatesPageItems, buildHoursPendingItems,
 } from "./work-queue";
 
 /** Mid-afternoon Melbourne, mid-week. Every test pins its own clock. */
@@ -361,6 +361,17 @@ describe("followup_due — a quote out with the customer, gone quiet (Tom, 15 Se
   });
   const names = new Map([["a1", "Sarah"]]);
 
+  it("an Airtable history quote raises a card only for a hot or warm customer (Tom, 16 Sep)", () => {
+    const imported = quote({ source: "airtable", sent_at: iso(10) });
+    expect(buildQuietQuoteItems([imported], [], names, T, NOW, new Map([["a1", "cold"]]))).toHaveLength(0);
+    expect(buildQuietQuoteItems([imported], [], names, T, NOW, new Map([["a1", null]]))).toHaveLength(0);
+    expect(buildQuietQuoteItems([imported], [], names, T, NOW)).toHaveLength(0);
+    expect(buildQuietQuoteItems([imported], [], names, T, NOW, new Map([["a1", "warm"]]))).toHaveLength(1);
+    expect(buildQuietQuoteItems([imported], [], names, T, NOW, new Map([["a1", "hot"]]))).toHaveLength(1);
+    // A platform quote is chased whatever the temperature says.
+    expect(buildQuietQuoteItems([quote({ sent_at: iso(10) })], [], names, T, NOW, new Map([["a1", "cold"]]))).toHaveLength(1);
+  });
+
   it("an unopened quote fires at chaseUnopenedDays, not before", () => {
     expect(buildQuietQuoteItems([quote({ sent_at: iso(2) })], [], names, T, NOW)).toHaveLength(0);
     const [item] = buildQuietQuoteItems([quote({ sent_at: iso(3) })], [], names, T, NOW);
@@ -431,5 +442,19 @@ describe("estimatesPageItems (C7b) — the Waiting tab's cut", () => {
     }], [], new Map(), T, NOW);
     expect(chase).toHaveLength(1);
     expect(estimatesPageItems(chase)).toHaveLength(0);
+  });
+});
+
+describe("hours_to_confirm — a handover job with no per-area hours (16 Sep)", () => {
+  it("raises one item per pending job and none once the flag clears", () => {
+    const row = { id: "e9", title: "14 Handover Street", account_id: "a9", accepted_at: "2026-09-10T03:00:00Z", created_at: "2026-09-10T03:00:00Z", total_cents: 330000, external_ref: { quote_no: "3701", hours_pending: true } };
+    const [item] = buildHoursPendingItems([row], NOW);
+    expect(item.kind).toBe("hours_to_confirm");
+    expect(item.key).toBe("hours_to_confirm:estimate:e9:pending");
+    expect(item.title).toContain("hours to confirm");
+    expect(item.detail).toContain("PaintScout quote 3701");
+    expect(item.action?.href).toBe("/quote?id=e9");
+    expect(buildHoursPendingItems([{ ...row, external_ref: { quote_no: "3701", hours_pending: false } }], NOW)).toHaveLength(0);
+    expect(buildHoursPendingItems([{ ...row, external_ref: null }], NOW)).toHaveLength(0);
   });
 });

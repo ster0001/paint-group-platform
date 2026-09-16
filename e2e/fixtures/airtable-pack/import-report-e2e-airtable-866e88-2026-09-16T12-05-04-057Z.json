@@ -1,0 +1,65 @@
+{
+  "import": "e2e-airtable-866e88",
+  "target": "qarfyjrzgdeoqbnbbxfp",
+  "at": "2026-09-16T12:05:04.057Z",
+  "report": {
+    "accounts": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 5,
+      "attached": 0,
+      "skipped": 0,
+      "notes": []
+    },
+    "properties": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 5,
+      "attached": 0,
+      "skipped": 0,
+      "notes": []
+    },
+    "contacts": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 2,
+      "attached": 0,
+      "skipped": 0,
+      "notes": []
+    },
+    "estimates": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 8,
+      "attached": 0,
+      "skipped": 0,
+      "notes": []
+    },
+    "jobs": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 2,
+      "attached": 0,
+      "skipped": 0,
+      "notes": []
+    },
+    "events": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 24,
+      "attached": 0,
+      "skipped": 1,
+      "notes": [
+        "airtable:rec000009:note:0: note with no text — skipped"
+      ]
+    },
+    "followups": {
+      "inserted": 0,
+      "updated": 0,
+      "unchanged": 1,
+      "attached": 0,
+      "skipped": 0,
+      "notes": []
+    }
+  }
+}

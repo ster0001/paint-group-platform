@@ -43,9 +43,17 @@ export function filterQuery(filter: string | undefined): { status?: string; view
  * is EVERYTHING else, including the older rows whose source was never set —
  * a plain `.neq()` would drop those, because SQL's `<>` is not true for null.
  */
-export const SOURCE_FILTERS = ["all", "customers", "inhouse"] as const;
+/**
+ * Airtable import (16 Sep 2026): the 1,482 history rows (`source = 'airtable'`)
+ * are records, not work — they never had a scope here and cannot be re-priced.
+ * They sit behind their own chip and stay out of "All", so the list a person
+ * scans every morning is still the list of things they can act on. A signed
+ * PaintScout job (`source = 'paintscout'`) IS work, and stays in-house.
+ */
+export const SOURCE_FILTERS = ["all", "customers", "inhouse", "history"] as const;
 export type SourceFilter = (typeof SOURCE_FILTERS)[number];
-export const SOURCE_LABEL: Record<SourceFilter, string> = { all: "All", customers: "From customers", inhouse: "Built in-house" };
+export const SOURCE_LABEL: Record<SourceFilter, string> = { all: "All", customers: "From customers", inhouse: "Built in-house", history: "Imported history" };
+export const HISTORY_SOURCE = "airtable";
 
 export function sourceFilterOf(param: string | undefined): SourceFilter {
   return (SOURCE_FILTERS as readonly string[]).includes(param ?? "") ? (param as SourceFilter) : "all";
@@ -54,6 +62,7 @@ export function sourceFilterOf(param: string | undefined): SourceFilter {
 /** The PostgREST predicate for a source filter, or null for "all". */
 export function sourceQuery(filter: SourceFilter): { eq: string } | { or: string } | null {
   if (filter === "customers") return { eq: "customer_intake" };
-  if (filter === "inhouse") return { or: "source.neq.customer_intake,source.is.null" };
-  return null;
+  if (filter === "inhouse") return { or: `and(source.neq.customer_intake,source.neq.${HISTORY_SOURCE}),source.is.null` };
+  if (filter === "history") return { eq: HISTORY_SOURCE };
+  return { or: `source.neq.${HISTORY_SOURCE},source.is.null` };
 }

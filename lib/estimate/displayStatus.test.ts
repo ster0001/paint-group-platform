@@ -41,8 +41,10 @@ test("C7b: the existing tabs are untouched", () => {
 });
 
 test("C7b — the source filter: in-house includes rows whose source was never set", () => {
-  assert.deepEqual(sourceQuery(sourceFilterOf("inhouse")), { or: "source.neq.customer_intake,source.is.null" });
+  assert.deepEqual(sourceQuery(sourceFilterOf("inhouse")), { or: "and(source.neq.customer_intake,source.neq.airtable),source.is.null" });
   assert.deepEqual(sourceQuery(sourceFilterOf("customers")), { eq: "customer_intake" });
-  assert.equal(sourceQuery(sourceFilterOf(undefined)), null);
-  assert.equal(sourceQuery(sourceFilterOf("junk")), null);
+  // Airtable history (16 Sep 2026) has its own chip and never leaks into "All".
+  assert.deepEqual(sourceQuery(sourceFilterOf("history")), { eq: "airtable" });
+  assert.deepEqual(sourceQuery(sourceFilterOf(undefined)), { or: "source.neq.airtable,source.is.null" });
+  assert.deepEqual(sourceQuery(sourceFilterOf("junk")), { or: "source.neq.airtable,source.is.null" });
 });
