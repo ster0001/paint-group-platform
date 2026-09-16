@@ -192,7 +192,7 @@ Build:
 | D4 | Hosting plan allows the 30-minute sweep to carry everything | Yes (check before Session 2) |
 | D5 | Pin evening messages to Melbourne time | Yes, 6pm all year |
 | D6 | Invoice reminder rungs and the first-month approve mode | +1/+4/+7/+14 days, office approves first. **No late fees mentioned** until legal review |
-| D7 | Offer reminders and expiry | 12h and 20h. On expiry, alert only (no automatic re-offer) |
+| D7 | Offer reminders and expiry | 12h and 20h. On expiry, alert only (no automatic re-offer). **Tom, 16 Sep (late): no offer reminder between 22:00 and 04:59 Melbourne** — held until 05:00, then re-checked and dropped if the offer has lapsed or been answered. Own window on the row, separate from the office sending hours |
 | D8 | What counts as "painters arrived" | First tick or check-in on day one |
 | D9 | Booking chase | Office at 3 days, customer at 5 days |
 | D10 | Review request timing | 3 days after sign-off. ⚠ Confirm with your adviser that sending it without marketing consent is fine |
