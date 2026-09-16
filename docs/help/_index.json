@@ -197,7 +197,7 @@
         "media/contractor-12.png",
         "media/contractor-13.png"
       ],
-      "verified_at_commit": "931d769016",
+      "verified_at_commit": "588d5660d2",
       "sources": [
         "app/portal/requests",
         "app/portal/calendar",
@@ -224,7 +224,7 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": "931d769016",
+      "verified_at_commit": "588d5660d2",
       "sources": [
         "app/pc/schedule",
         "lib/scheduling",
