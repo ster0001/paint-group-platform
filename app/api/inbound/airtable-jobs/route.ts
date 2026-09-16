@@ -68,7 +68,9 @@ export async function POST(req: Request) {
       const job = { ...conv.job, import_note: [conv.job.import_note, ...conv.flags].join(" · ") };
       const r = await writeBookedJob(service, job, new SubstrateResolver([]), wctx, { importName: "airtable-handover", updateNote: true, hoursPending: true });
       // Provenance on the account: one note event per record, dedupe-keyed.
-      await service.rpc("crm_log_event", {
+      // A quote that already exists (a re-post, or one of the 35 the pack
+      // import wrote) adds nothing to the timeline.
+      if (r.status !== "exists") await service.rpc("crm_log_event", {
         p_type: "note_added", p_account_id: r.accountId,
         p_payload: { body: `Imported from Airtable view ${rec.view.replace(/_/g, " ")} (quote ${rec.quote_no})${conv.flags.length ? ` — ${conv.flags.join("; ")}` : ""}`, origin: "airtable_handover" },
         p_source: "system", p_occurred_at: new Date().toISOString(), p_estimate_id: r.estimateId,

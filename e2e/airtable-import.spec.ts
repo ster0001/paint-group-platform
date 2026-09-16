@@ -352,6 +352,11 @@ test.describe("Airtable → CRM import", () => {
     expect((await first.json()).results[record.record_id]).toMatch(/^created/);
     const again = await request.post("/api/inbound/airtable-jobs", { data: record, headers: { authorization: `Bearer ${secret}` } });
     expect((await again.json()).results[record.record_id]).toMatch(/^exists/);
+    // Tom's Zap retest, 17 Sep: a quote the pack import already wrote (Part B's 9623) must not become a second job.
+    const dup = await request.post("/api/inbound/airtable-jobs", { data: { ...record, record_id: `recDUP${run}`, quote_no: "9623" }, headers: { authorization: `Bearer ${secret}` } });
+    expect((await dup.json()).results[`recDUP${run}`]).toMatch(/^exists/);
+    const { count: jobs9623 } = await db!.from("work_orders").select("id", { count: "exact", head: true }).eq("wo_ref", "PS-9623");
+    expect(jobs9623).toBe(1);
 
     const sb = db!;
     const hana = await accountByEmail(sb, HANDOVER_EMAIL);
