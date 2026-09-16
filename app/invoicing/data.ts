@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DeriveInvoice, DerivePayment, InvoiceKind } from "@/lib/invoicing/derive";
 import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
-import { loadFailure } from "@/lib/invoicing/loadFailure";
+import { loadFailure, paymentsFailure, firstFailure } from "@/lib/invoicing/loadFailure";
+import { inSlices } from "@/lib/supabase/inSlices";
 
 /**
  * Server-side row fetching + mapping for the §7 screens. Read-only: every
@@ -280,12 +281,15 @@ export async function loadDashboard(supabase: SupabaseClient) {
   const rows = (invoices ?? []) as unknown as InvoiceRow[];
 
   const ids = rows.map((r) => r.id);
-  const [{ data: payments }, { data: events }, { data: cis }] = await Promise.all([
-    ids.length
-      ? supabase.from("payments")
-          .select("id, invoice_id, amount_cents, surcharge_cents, status, method, paid_on, receipt_number, reference")
-          .in("invoice_id", ids)
-      : Promise.resolve({ data: [] }),
+  // In SLICES: every invoice id in one `.in(...)` is a ~15 KB URL at 400
+  // invoices and the request layer refuses it (`TypeError: fetch failed`),
+  // which is how this read came back empty and drew every invoice as unpaid.
+  // Same fix the CRM work queue already had. See lib/supabase/inSlices.ts.
+  const [paymentsRes, { data: events }, { data: cis }] = await Promise.all([
+    inSlices<PaymentRow>(ids, (slice) =>
+      supabase.from("payments")
+        .select("id, invoice_id, amount_cents, surcharge_cents, status, method, paid_on, receipt_number, reference")
+        .in("invoice_id", slice)),
     supabase.from("invoice_events")
       .select("id, invoice_id, type, actor_kind, meta, created_at")
       .order("created_at", { ascending: false })
@@ -299,8 +303,10 @@ export async function loadDashboard(supabase: SupabaseClient) {
 
   return {
     invoices: rows,
-    loadError: loadFailure(invoicesError),
-    payments: (payments ?? []) as PaymentRow[],
+    // Payments first: an unread payments table shows PAID invoices as unpaid,
+    // which gets believed, where an empty ledger at least gets questioned.
+    loadError: firstFailure(paymentsFailure(paymentsRes.error), loadFailure(invoicesError)),
+    payments: paymentsRes.rows,
     events: (events ?? []) as EventRow[],
     contractorInvoices: (cis ?? []) as unknown as ContractorInvoiceRow[],
   };
@@ -324,12 +330,12 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
   const ids = rows.map((r) => r.id);
   const woId = (wo as { id?: string } | null)?.id;
 
-  const [{ data: payments }, { data: events }, { data: variations }, { data: ciRow }] = await Promise.all([
+  const [{ data: payments, error: paymentsError }, { data: events }, { data: variations }, { data: ciRow }] = await Promise.all([
     ids.length
       ? supabase.from("payments")
           .select("id, invoice_id, amount_cents, surcharge_cents, status, method, paid_on, receipt_number, reference")
           .in("invoice_id", ids)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     ids.length
       ? supabase.from("invoice_events")
           .select("id, invoice_id, type, actor_kind, meta, created_at")
@@ -356,7 +362,7 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
     } | null,
     ledger,
     invoices: rows,
-    loadError: loadFailure(invoicesError),
+    loadError: firstFailure(paymentsFailure(paymentsError), loadFailure(invoicesError)),
     payments: (payments ?? []) as PaymentRow[],
     events: (events ?? []) as EventRow[],
     variations: (variations ?? []) as {

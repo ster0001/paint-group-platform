@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { DashboardTiles, PayablesTiles } from "@/lib/invoicing/derive";
+import type { ReadFailure } from "@/lib/invoicing/loadFailure";
 import { fmt0, fmt2 } from "./format";
 import { approveContractorInvoiceAction, markContractorInvoicePaidAction } from "./actions";
 import PayablesCosts, {
@@ -68,8 +69,8 @@ export default function Dashboard({
   buckets: [number, number, number, number, number];
   rows: RowProp[];
   activity: ActivityProp[];
-  /** Set when the invoice read itself failed — never show an empty list then. */
-  loadError?: string | null;
+  /** Set when a read behind this screen failed — never present its figures as fact then. */
+  loadError?: ReadFailure | null;
   initialFilter: string;
   initialTab: string;
   payables?: PayablesTiles | null;
@@ -146,8 +147,7 @@ export default function Dashboard({
       {loadError && (
         <div className="banner bad" data-testid="invoices-load-error">
           <div className="i">▲</div>
-          <p><b>The invoices could not be loaded — this is not an empty ledger.</b><br />
-            {loadError} Nothing has been lost: the figures below are blank because the read failed, not because the invoices are gone.</p>
+          <p><b>{loadError.headline}</b><br />{loadError.detail}</p>
         </div>
       )}
 
