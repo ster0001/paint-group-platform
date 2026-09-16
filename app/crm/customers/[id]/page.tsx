@@ -129,13 +129,16 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
     loadStaffAvailability(supabase),
   ]);
   const estIds = est.map((e) => e.id);
-  const [{ data: wos }, { data: invoices }, { data: historyJobs }] = await Promise.all([
+  const [{ data: wos }, { data: invoices }, historyRes] = await Promise.all([
     estIds.length ? supabase.from("work_orders").select("id, estimate_id, wo_ref, stage, start_date, end_date").in("estimate_id", estIds).order("start_date", { ascending: false, nullsFirst: false }).limit(50) : Promise.resolve({ data: [] }),
     supabase.from("invoices").select("id, estimate_id, number, status, total_inc_cents, due_on, issued_on, kind").or(`account_id.eq.${id}${estIds.length ? `,estimate_id.in.(${estIds.join(",")})` : ""}`).order("created_at", { ascending: false }).limit(50),
     supabase.from("crm_jobs").select("id, estimate_id, project_name, job_type, status, quote_url, work_order_url, start_date, end_date, invoice_total_cents, estimated_hours, actual_hours, contractor_offer_cents, workers, notes")
       .eq("account_id", id).order("start_date", { ascending: false, nullsFirst: false }).limit(50),
   ]);
-  const pastJobs = ((historyJobs ?? []) as HistoryJobRow[]);
+  // A rejected read is said out loud on the record, never drawn as "no jobs".
+  if (historyRes.error) reportError(historyRes.error, { where: "record.historyJobs", bestEffort: true, extra: { id } });
+  const pastJobs = ((historyRes.data ?? []) as HistoryJobRow[]);
+  const pastJobsFailed = Boolean(historyRes.error);
   // Item 13: overdue and "deposit unpaid" need the payments — the one rule the
   // invoicing dashboard uses (lib/invoicing/derive), never a second one here.
   const invRows = (invoices ?? []) as InvoiceRow[];
@@ -381,6 +384,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
         </>
       )}
 
+      {pastJobsFailed && <p className="banner bad" data-testid="history-jobs-error">The jobs from before the platform could not be loaded — this is not an empty list.</p>}
       {pastJobs.length > 0 && (
         <>
           <p className="plabel">Jobs before the platform</p>

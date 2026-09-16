@@ -17,6 +17,7 @@ import {
   type InvoicingResult,
 } from "../../actions";
 import { fmt0, fmt2, fmtSigned2 } from "../../format";
+import type { ReadFailure } from "@/lib/invoicing/loadFailure";
 import AddCostSheet from "./AddCostSheet";
 import SendInvoiceSheet from "../../SendInvoiceSheet";
 
@@ -85,8 +86,8 @@ export default function MoneyView({
   };
   cards: InvoiceCardProp[];
   feed: FeedProp[];
-  /** Set when the invoice read itself failed — never show an empty ledger then. */
-  loadError?: string | null;
+  /** Set when a read behind this view failed — never present its figures as fact then. */
+  loadError?: ReadFailure | null;
   costs: {
     offerCents: number; acceptedDeltaCents: number;
     ci?: { number: string | null; status: string } | null;
@@ -168,8 +169,7 @@ export default function MoneyView({
       {loadError && (
         <div className="banner bad" data-testid="invoices-load-error">
           <div className="i">▲</div>
-          <p><b>This job&rsquo;s invoices could not be loaded — nothing has been lost.</b><br />
-            {loadError} The figures below are blank because the read failed, not because the invoices are gone.</p>
+          <p><b>{loadError.headline}</b><br />{loadError.detail}</p>
         </div>
       )}
 

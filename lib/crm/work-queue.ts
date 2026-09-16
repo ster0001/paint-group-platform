@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { inSlices as sliceRead } from "@/lib/supabase/inSlices";
 import { isQuiet } from "./states";
 import { loadCrmThresholds, type CrmThresholds } from "./thresholds";
 import { invoiceIsOverdue, invoiceBalanceCents, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
@@ -1162,14 +1163,20 @@ export function suppressQuiet(items: WorkItem[], quietAccountIds: Set<string>): 
  * goes in slices; a source that hands over 500 invoices still reads its
  * payments.
  */
-const ID_SLICE = 120;
+/**
+ * The slicing itself now lives in lib/supabase/inSlices.ts, so Invoicing gets
+ * the same protection — 16 Sep 2026: its payments read had exactly the long-URL
+ * bug this helper was written for, and no slicing. This wrapper keeps the
+ * queue's own signature, rows only.
+ *
+ * ⚚ It still DROPS a refused slice's error, which is the queue's existing
+ * behaviour and not something to change blind: a work item that quietly loses
+ * its payments understates what needs chasing. Worth revisiting with the
+ * unchecked-read audit (CLAUDE.md), not inside an invoicing fix.
+ */
 async function inSlices<T>(ids: string[], run: (slice: string[]) => PromiseLike<{ data: T[] | null; error?: { message: string } | null }>): Promise<T[]> {
-  const out: T[] = [];
-  for (let i = 0; i < ids.length; i += ID_SLICE) {
-    const { data } = await run(ids.slice(i, i + ID_SLICE));
-    out.push(...(data ?? []));
-  }
-  return out;
+  const { rows } = await sliceRead<T>(ids, run);
+  return rows;
 }
 
 /**
