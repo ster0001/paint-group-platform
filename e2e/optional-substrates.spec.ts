@@ -42,9 +42,16 @@ type Snap = {
   areas: Array<{ id: string; priceCents: number; surfaces: Array<{ label: string }> }>;
   options: Array<{ id: string; title: string; priceCents: number; descriptionHtml: string }>;
 };
+type WODocShape = {
+  contractorPaymentCents?: number;
+  appliedOptions?: string[];
+  areas?: Array<{ title: string; surfaces: Array<{ key: string; label?: string; code?: string }> }>;
+  materials?: Array<{ product: string; litres: number | null }>;
+};
 type State = {
   blocks: Array<{ id: number; surfaces: Array<{ id: number; isOption?: boolean }> }>;
-  woDoc?: { areas?: Array<{ title: string; surfaces: Array<{ label?: string; code?: string }> }> };
+  woDoc?: WODocShape;
+  woOptions?: Record<string, { title: string; contractorPaymentCents: number; areas: Array<{ surfaces: Array<{ label: string }> }> }>;
 };
 
 async function openBuilder(page: Page, estimateId: string) {
@@ -179,5 +186,129 @@ test.describe("optional substrates in a room", () => {
     await expect(card).toHaveCount(0);
     await expect(page.getByTestId("optional-extras")).toHaveCount(0);
     await expect(page.getByTestId(`area-optional-${AREA_ID}`)).toHaveCount(0);
+  });
+
+  /**
+   * Tom, 16 Sep (second ruling): what the customer ticks reaches the work
+   * order. Migration 20270149: the builder saves a job-sheet fragment per
+   * option; acceptance merges the ticked ones into the work order's document,
+   * its pay and the painter's tick list.
+   */
+  test("acceptance: a ticked option is on the work order, its pay and the tick list", async ({ page }) => {
+    test.skip(!doorCents, "the builder test did not run");
+    test.setTimeout(180_000);
+    await signIn(page, staff!, /estimates/);
+    await openBuilder(page, estimateId);
+    await page.getByText("Living room", { exact: true }).first().click();
+    // The put-back above was never saved, so the doors are still optional on
+    // disk; press only if a row reads Included.
+    const doorRow = page.getByTestId(`surface-row-${DOOR_ID}`);
+    await expect(doorRow).toBeVisible();
+    if ((await doorRow.getAttribute("data-option")) !== "true") {
+      await page.getByTestId(`surface-option-toggle-${DOOR_ID}`).click();
+    }
+    await expect(doorRow).toHaveAttribute("data-option", "true");
+    await page.getByRole("button", { name: "← All areas" }).click();
+    await page.getByTestId("builder-save").click();
+    await expect(page.getByText("Saved ✓")).toBeVisible({ timeout: 20_000 });
+
+    let state: State | null = null;
+    await expect.poll(async () => {
+      const { data } = await db!.from("estimates").select("builder_state").eq("id", estimateId).single();
+      state = (data?.builder_state as State | null) ?? null;
+      return state?.woOptions?.[`${AREA_ID}:surfaces`]?.title ?? null;
+    }, { timeout: 20_000 }).toBe("Living room — Doors");
+    const fragment = state!.woOptions![`${AREA_ID}:surfaces`];
+    expect(fragment.areas[0].surfaces.map((s) => s.label)).toEqual(["Doors"]);
+    expect(fragment.contractorPaymentCents).toBeGreaterThan(0);
+    const basePay = state!.woDoc!.contractorPaymentCents!;
+    expect(state!.woDoc!.areas![0].surfaces.map((s) => s.label)).toEqual(["Walls"]);
+
+    await db!.from("estimates").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", estimateId);
+    const accepted = await db!.rpc("accept_estimate", {
+      p_token: token, p_name: "Opt Customer", p_options: [`${AREA_ID}:surfaces`], p_total_cents: 0, p_deposit_cents: 0,
+    });
+    expect(accepted.error).toBeNull();
+    expect(accepted.data).toBe("accepted");
+
+    const { data: wo } = await db!.from("work_orders").select("id, wo_snapshot, contractor_payment_cents").eq("estimate_id", estimateId).single();
+    const snap = wo!.wo_snapshot as WODocShape;
+    expect(snap.appliedOptions).toEqual([`${AREA_ID}:surfaces`]);
+    const living = snap.areas!.find((a) => a.title === "Living room")!;
+    expect(living.surfaces.map((s) => s.label)).toEqual(["Walls", "Doors"]);
+    expect(snap.contractorPaymentCents).toBe(basePay + fragment.contractorPaymentCents);
+    expect(wo!.contractor_payment_cents).toBe(basePay + fragment.contractorPaymentCents);
+    // The estimate's own document too, so a later Issue keeps the doors.
+    const { data: after } = await db!.from("estimates").select("builder_state").eq("id", estimateId).single();
+    const doc = (after!.builder_state as State).woDoc!;
+    expect(doc.areas![0].surfaces.map((s) => s.label)).toEqual(["Walls", "Doors"]);
+    expect(doc.appliedOptions).toEqual([`${AREA_ID}:surfaces`]);
+    // And the painter's tick list has a Doors row.
+    const { data: rows } = await db!.from("wo_surfaces").select("label, heading, surface_key").eq("work_order_id", wo!.id).order("sort");
+    expect(rows!.map((r) => r.label)).toContain("Doors");
+    expect(rows!.find((r) => r.label === "Doors")!.surface_key).toBe(`${AREA_ID}:${DOOR_ID}`);
+  });
+
+  test("after acceptance: staff add an option the customer asked for since — total, invoice and work order follow", async ({ page }) => {
+    test.skip(!doorCents, "the builder test did not run");
+    test.setTimeout(180_000);
+    // A second estimate, accepted WITHOUT the doors.
+    const token2 = `${token}b`;
+    const est = await db!.from("estimates").insert({
+      title: `Optional substrates B ${run}`, status: "draft", source: "manual", level_of_finish: 3, share_token: token2,
+      builder_state: {
+        blocks: [{
+          id: AREA_ID, kind: "area", name: "Living room", type: "Interior", areaType: "room", L: 4, W: 3, H: 2.4,
+          isOption: false, description: "<p>The living room</p>", open: false, media: [],
+          surfaces: [surface(WALL_ID, "Walls", "Walls", 1), { ...surface(DOOR_ID, "Flat Door (1 Side)", "Doors", 2), isOption: true }],
+        }],
+        modSel: { "Level of Finish": "FIN-3" }, materials: {}, materialColours: {}, colourMatches: {},
+        contact: { first_name: "Opt", last_name: "Customer", email: "", phone: "" },
+        jobAddress: { address: "2 Option St", city: "Clayton", state: "VIC", postal: "3168" },
+      },
+    }).select("id").single();
+    if (est.error) throw new Error(est.error.message);
+    const id2 = est.data.id as string;
+    try {
+      await signIn(page, staff!, /estimates/);
+      await openBuilder(page, id2);
+      await page.getByTestId("builder-save").click();
+      await expect(page.getByText("Saved ✓")).toBeVisible({ timeout: 20_000 });
+      await expect.poll(async () => {
+        const { data } = await db!.from("estimates").select("builder_state").eq("id", id2).single();
+        return (data?.builder_state as State | null)?.woOptions?.[`${AREA_ID}:surfaces`]?.title ?? null;
+      }, { timeout: 20_000 }).toBe("Living room — Doors");
+
+      await db!.from("estimates").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", id2);
+      const accepted = await db!.rpc("accept_estimate", { p_token: token2, p_name: "Opt Customer", p_options: [], p_total_cents: 0, p_deposit_cents: 0 });
+      expect(accepted.data).toBe("accepted");
+      const { data: before } = await db!.from("estimates").select("accepted_total_cents, sent_snapshot").eq("id", id2).single();
+      const optPrice = (before!.sent_snapshot as Snap).options[0].priceCents;
+      expect(optPrice).toBe(doorCents);
+
+      // The accepted job in the builder: the option is listed, not on the job.
+      await openBuilder(page, id2);
+      const row = page.getByTestId(`accepted-option-${AREA_ID}:surfaces`);
+      await expect(row).toBeVisible();
+      await expect(row).toHaveAttribute("data-selected", "false");
+      await page.getByTestId(`accepted-option-add-${AREA_ID}:surfaces`).click();
+      await expect(page.getByTestId("accepted-options-msg")).toContainText("on the work order", { timeout: 20_000 });
+      await expect(row).toHaveAttribute("data-selected", "true");
+
+      const { data: after } = await db!.from("estimates").select("selected_options, accepted_total_cents, total_cents").eq("id", id2).single();
+      expect(after!.selected_options).toEqual([`${AREA_ID}:surfaces`]);
+      expect(after!.accepted_total_cents).toBe(before!.accepted_total_cents + Math.round(optPrice * 1.1));
+      const { data: wo } = await db!.from("work_orders").select("id, wo_snapshot").eq("estimate_id", id2).single();
+      const snap = wo!.wo_snapshot as WODocShape;
+      expect(snap.appliedOptions).toEqual([`${AREA_ID}:surfaces`]);
+      expect(snap.areas!.find((a) => a.title === "Living room")!.surfaces.map((s) => s.label)).toEqual(["Walls", "Doors"]);
+      const { data: rows } = await db!.from("wo_surfaces").select("label").eq("work_order_id", wo!.id);
+      expect(rows!.map((r) => r.label)).toContain("Doors");
+      // Pressing again changes nothing.
+      const again = await db!.rpc("wo_apply_selected_options", { p_estimate_id: id2 });
+      expect(again.data).toBe("ok:nothing");
+    } finally {
+      await db!.from("estimates").delete().eq("id", id2);
+    }
   });
 });

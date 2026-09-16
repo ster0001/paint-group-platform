@@ -70,6 +70,21 @@ export type WOArea = {
   finishOverridden: boolean;
 };
 
+/**
+ * Tom, 16 Sep 2026: one option the customer can tick, as the crew would see
+ * it. Saved beside the job sheet as `builder_state.woOptions[optionId]` and
+ * merged into the work order by `wo_apply_selected_options` (migration
+ * 20270149) once ticked — at acceptance, or by staff afterwards.
+ */
+export type WOOptionFragment = {
+  id: string;
+  title: string;
+  areas: WOArea[];
+  materials: WOMaterial[];
+  contractorPaymentCents: number;
+  conditionHours: number;
+};
+
 export type WorkOrderDoc = {
   version: 1;
   woRef: string;
@@ -109,6 +124,8 @@ export type WorkOrderDoc = {
    * documents issued before 23 Aug have none and read as one painter.
    */
   idealPainters?: number | null;
+  /** Option ids already merged into this document (see WOOptionFragment). */
+  appliedOptions?: string[];
 };
 
 // Purchasable tin sizes (litres). Round total required litres UP to what the

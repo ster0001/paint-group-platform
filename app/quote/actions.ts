@@ -337,3 +337,51 @@ export async function linkEstimateAccountAction(raw: unknown): Promise<{ linked:
     return { linked: false };
   }
 }
+
+/**
+ * Tom, 16 Sep: add an option to an ACCEPTED job. One database call
+ * (`estimate_add_option`, migration 20270149) moves the accepted total,
+ * re-drafts a standing draft final invoice and merges the option's scope into
+ * the work order and the painter's tick list. This turns its answer into a
+ * sentence.
+ */
+const addOptionInput = z.object({ estimateId: z.string().uuid(), optionId: z.string().min(1).max(120) });
+export type AddOptionResult = { ok: boolean; message: string };
+
+export async function addAcceptedOptionAction(raw: unknown): Promise<AddOptionResult> {
+  const v = addOptionInput.safeParse(raw);
+  if (!v.success) return { ok: false, message: "Invalid request." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("estimate_add_option", {
+    p_estimate_id: v.data.estimateId, p_option_id: v.data.optionId,
+  });
+  if (error) {
+    reportError(error, { where: "estimate.addOption", extra: { estimateId: v.data.estimateId } });
+    return {
+      ok: false,
+      message: /does not exist|schema cache/i.test(error.message)
+        ? "Adding options after acceptance needs migration 20270149 run first."
+        : error.message,
+    };
+  }
+  const answer = String(data ?? "");
+  if (answer.startsWith("ok:")) {
+    revalidatePath("/quote");
+    return {
+      ok: true,
+      message: answer.includes("no_work_order")
+        ? "Added to the accepted total and the invoice — there is no work order on this job yet."
+        : answer.startsWith("ok:already_selected")
+          ? "Already on the job."
+          : "Added — it is on the work order, the tick list, the accepted total and the final invoice.",
+    };
+  }
+  const reason = answer.replace("error:", "");
+  const wording: Record<string, string> = {
+    not_staff: "You don't have permission to change an accepted job.",
+    not_found: "That estimate no longer exists.",
+    not_accepted: "Only an accepted estimate takes options this way — before acceptance the customer ticks them.",
+    unknown_option: "That option isn't on the estimate the customer accepted.",
+  };
+  return { ok: false, message: wording[reason] ?? `That couldn't be added (${reason}).` };
+}
