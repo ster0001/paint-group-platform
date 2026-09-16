@@ -38,6 +38,14 @@ export type SurfaceInput = {
   size?: WindowSize | null;
   /** Priced like any other surface — `hidden` only affects what the customer sees. */
   hidden?: boolean;
+  /**
+   * Tom, 16 Sep 2026: ONE substrate of an area offered as an option — the
+   * walls and ceilings in the estimate, the doors and skirting as an extra
+   * the customer can tick. An optional surface sits outside the total (and
+   * outside the area's price, hours and materials) exactly as an optional
+   * AREA does; the customer's tick adds it back at acceptance.
+   */
+  isOption?: boolean;
   measureL?: number | null;
   measureH?: number | null;
   /** Fraction of the naturally-derived quantity, in whole percent (25/50/
@@ -473,6 +481,7 @@ export function priceEstimateTotals(
 
     if (b.kind === "area") {
       for (const s of b.surfaces) {
+        if (s.isOption) continue; // an optional substrate: the customer's tick adds it
         const c = priceSurface(b, s, ctx, adj, rates, items, productsByName, jobMod);
         subtotal += c.totalCents;
         contractorHours += c.paintingHr + c.prepHr;
@@ -540,16 +549,29 @@ export function priceEstimateTotals(
   };
 }
 
-/** Total for one area — used by the per-area summary in the builder. */
+/**
+ * Total for one area — used by the per-area summary in the builder. The
+ * INCLUDED surfaces only: an optional substrate is priced separately by
+ * `priceAreaOptions`, so the two figures add up to the whole room.
+ */
 export function priceArea(area: AreaInput, ctx: PricingContext, adj: Adjustments): number {
+  return priceAreaSplit(area, ctx, adj).includedCents;
+}
+
+/** The area's price in two parts: what is in the estimate, and what the customer may add. */
+export function priceAreaSplit(area: AreaInput, ctx: PricingContext, adj: Adjustments): { includedCents: number; optionalCents: number } {
   const rates = resolveRates(ctx, adj);
   const items = itemIndex(ctx.rateItems);
   const productsByName = productIndex(ctx.products);
   const jobMod = jobModifier(ctx.modifiers, adj.modSel);
-  return area.surfaces.reduce(
-    (n, s) => n + priceSurface(area, s, ctx, adj, rates, items, productsByName, jobMod).totalCents,
-    0,
-  );
+  let includedCents = 0;
+  let optionalCents = 0;
+  for (const s of area.surfaces) {
+    const c = priceSurface(area, s, ctx, adj, rates, items, productsByName, jobMod).totalCents;
+    if (s.isOption) optionalCents += c;
+    else includedCents += c;
+  }
+  return { includedCents, optionalCents };
 }
 
 /** Deposit payable on acceptance, as a percentage of the GST-inclusive total. */
