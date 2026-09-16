@@ -249,6 +249,8 @@ type ColourMatch = { required: boolean; code: string; brand: string; canSize: st
 
 /** Tom, 7 Sep: the estimator's sign-off on the customer's condition photos. */
 type PhotoReview = { signedOffAt: string; photos: number };
+/** Tom, 16 Sep: a product shown to the customer that no substrate row drives — a stain blocker, a primer. */
+type ExtraPaint = { productName: string; usage: string };
 
 export default function QuoteBuilder({
   rateCardId,
@@ -359,7 +361,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null; extraPaints?: ExtraPaint[] } | null;
   // Deferred plan-reader decisions ride builder_state so the review gate can
   // price them; the builder carries them through saves — and, since 7 Sep,
   // RESOLVES one of them: the estimator's sign-off on the customer's photos.
@@ -686,6 +688,10 @@ export default function QuoteBuilder({
   const [declineReason, setDeclineReason] = useState("");
   const [statusBusy, setStatusBusy] = useState(false);
   const [materialsOpen, setMaterialsOpen] = useState(true);
+  // Tom, 16 Sep: paints added by hand to "The paint we're supplying" (a primer,
+  // a stain blocker) — shown to the customer, never priced, never a surface.
+  const [extraPaints, setExtraPaints] = useState<ExtraPaint[]>(() => (Array.isArray(loaded?.extraPaints) ? loaded!.extraPaints! : []));
+  const [extraPick, setExtraPick] = useState("");
   // Right-column tools bar: Activity / Chat / Calculations / Follow-ups.
   const [rightTab, setRightTab] = useState<null | "activity" | "chat" | "calc" | "followups">(null);
   const [events, setEvents] = useState<{ type: string; payload: unknown; created_at: string }[]>([]);
@@ -909,7 +915,7 @@ export default function QuoteBuilder({
   // presentationId is part of the fingerprint (3 Sep): ticking a presentation
   // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
   // tab kept showing the last published copy — without the presentation.
-  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, presentationId, photoReview });
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, presentationId, photoReview, extraPaints });
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
   const unsaved = Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
@@ -954,10 +960,15 @@ export default function QuoteBuilder({
     const supabase = createClient();
     const finishCode = modSel["Level of Finish"];
     const token = shareToken ?? genShareToken();
+    const addressTitle = jobAddress ? [jobAddress.address, jobAddress.city].map((x) => (x ?? "").trim()).filter(Boolean).join(", ") : "";
+    const savedTitle = addressTitle || title.trim() || "Untitled quote";
+    if (savedTitle !== title) setTitle(savedTitle);
     // On update we deliberately DON'T touch status — a sent estimate stays sent,
     // and its refreshed sent_snapshot is what the customer sees live.
     const base = {
-      title: title.trim() || "Untitled quote",
+      // Tom, 16 Sep: the title IS the job address once one is on the estimate;
+      // a typed title only stands while there is no address.
+      title: savedTitle,
       rate_card_id: rateCardId,
       rate_card_version: rateCardVersion,
       level_of_finish: finishCode ? Number(finishCode.split("-")[1]) : null,
@@ -972,7 +983,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, photoReview, extraPaints, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
@@ -1274,6 +1285,32 @@ export default function QuoteBuilder({
         colours: [...(coloursByProduct.get(gkey)?.values() ?? [])].map((g) => ({
           name: g.name, hex: g.hex, match: g.match, areas: [...g.areas].slice(0, 6),
         })),
+      });
+    }
+    // Tom, 16 Sep: the paints added by hand. A product already on a card is
+    // not repeated; the estimator's note is its usage chip.
+    for (const x of extraPaints) {
+      const pname = x.productName.trim();
+      if (!pname || paints.some((c) => c.name === pname || `${c.brand} ${c.name}`.trim() === pname)) continue;
+      const p = productByName.get(pname);
+      const brand = p?.brand ?? "";
+      const category = p?.category ?? "";
+      const visible = p?.customer_visible ?? false;
+      let display = pname;
+      if (brand && display.toLowerCase().startsWith(brand.toLowerCase() + " ")) display = display.slice(brand.length + 1);
+      paints.push({
+        name: display, brand, category,
+        role: roleForCategory(category) || "Preparation",
+        finish: p?.finish ?? "",
+        colourName: "", colourHex: "",
+        blurb: visible ? (p?.blurb ?? "") : "",
+        properties: visible ? (p?.properties ?? []) : [],
+        guarantee: visible ? (p?.guarantee ?? "") : "",
+        photoUrl: p?.photo_url ?? p?.image_url ?? "",
+        customerVisible: visible,
+        isPrep: /prep|primer|sealer|undercoat|block/i.test(`${category} ${pname}`),
+        usage: [x.usage.trim() || "Where needed"],
+        colours: [],
       });
     }
     paints.sort((a, z) => (a.isPrep ? 1 : 0) - (z.isPrep ? 1 : 0));
@@ -2316,6 +2353,43 @@ export default function QuoteBuilder({
                           </div>
                         );
                       })}
+                      {/* Tom, 16 Sep: a paint no surface row drives — a stain blocker, a
+                          primer — shown on the customer's "The paint we're supplying". */}
+                      <div className="pt-3" data-testid="extra-paints">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Also shown to the customer</div>
+                        {extraPaints.map((x, i) => (
+                          <div key={`${x.productName}-${i}`} className="flex flex-wrap items-center gap-2 py-1.5 text-sm" data-testid={`extra-paint-${i}`}>
+                            <span className="w-40 shrink-0 truncate font-medium text-gray-900" title={x.productName}>{x.productName}</span>
+                            <input
+                              className="min-w-[12rem] flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                              placeholder="Used for… e.g. stain blocking on the ceiling"
+                              value={x.usage}
+                              onChange={(e) => setExtraPaints((list) => list.map((y, k) => (k === i ? { ...y, usage: e.target.value } : y)))}
+                              data-testid={`extra-paint-usage-${i}`}
+                            />
+                            <button onClick={() => setExtraPaints((list) => list.filter((_, k) => k !== i))} className="px-1 text-gray-400 hover:text-red-600" title="Remove" aria-label={`Remove ${x.productName}`}>×</button>
+                          </div>
+                        ))}
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <select
+                            className="min-w-[12rem] flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                            value={extraPick}
+                            onChange={(e) => setExtraPick(e.target.value)}
+                            data-testid="extra-paint-pick"
+                          >
+                            <option value="">— choose a paint to show (primer, stain blocker…) —</option>
+                            {products.filter((p) => !extraPaints.some((x) => x.productName === p.name)).map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                          </select>
+                          <button
+                            onClick={() => { if (!extraPick) return; setExtraPaints((list) => [...list, { productName: extraPick, usage: "" }]); setExtraPick(""); }}
+                            disabled={!extraPick}
+                            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300"
+                            data-testid="extra-paint-add"
+                          >
+                            + Add a paint
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </section>
@@ -3312,7 +3386,24 @@ function AreaCard({
                 return (
                   <tr key={s.id} onClick={() => onOpenSurface(s.id)} className={`cursor-pointer border-t border-gray-200 hover:bg-blue-50/40 ${s.isOption ? "bg-gray-50/70 text-gray-500" : ""}`} title="Open surface" data-testid={`surface-row-${s.id}`} data-option={s.isOption ? "true" : "false"}>
                     <td className="px-2 py-2">
-                      <span className="flex items-center gap-1 text-left">
+                      <span className="flex items-center gap-2 text-left">
+                        {/* Tom, 16 Sep: the option tick, next to every substrate. Ticked =
+                            this substrate is an optional item the customer can add. */}
+                        <label
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex shrink-0 flex-col items-center text-[9px] font-medium uppercase text-gray-500"
+                          title={s.code ? "Tick to offer this substrate as an option — outside the total until the customer adds it" : "Choose a substrate first"}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={s.isOption === true}
+                            disabled={!s.code}
+                            onChange={(e) => setSurfaceOption(s.id, e.target.checked)}
+                            aria-label={`Offer ${s.clientLabel || s.code || "this surface"} as an option`}
+                            data-testid={`surface-option-toggle-${s.id}`}
+                          />
+                          Option
+                        </label>
                         <span className="text-gray-400">📁</span>
                         <span>
                           <span className="font-medium">{s.clientLabel || s.code || "New surface"}</span>
@@ -3361,20 +3452,6 @@ function AreaCard({
                         </span>
                       )}
                       {s.hidden && <span className="mr-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium text-amber-700">Hidden</span>}
-                      {/* Tom, 16 Sep: one press makes this substrate an option for the
-                          customer (or puts it back). The row stays here, greyed; the
-                          customer sees it under "Optional extras". */}
-                      {s.code && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setSurfaceOption(s.id, !s.isOption); }}
-                          className={`mr-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${s.isOption ? "border-gray-900 bg-gray-900 text-white hover:bg-gray-700" : "border-gray-300 text-gray-600 hover:bg-gray-100"}`}
-                          title={s.isOption ? "Put this substrate back in the estimate" : "Offer this substrate as an option the customer can add"}
-                          aria-pressed={s.isOption === true}
-                          data-testid={`surface-option-toggle-${s.id}`}
-                        >
-                          {s.isOption ? "Include" : "Option"}
-                        </button>
-                      )}
                       <button onClick={(e) => { e.stopPropagation(); onDuplicateSurface(s.id); }} className="px-1 text-gray-400 hover:text-gray-700" title="Duplicate surface">⧉</button>
                       <button onClick={(e) => { e.stopPropagation(); onRemoveSurface(s.id); }} className="px-1 text-gray-400 hover:text-red-600" title="Remove surface">×</button>
                     </td>
