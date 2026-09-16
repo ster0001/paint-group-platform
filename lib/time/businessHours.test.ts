@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addBusinessHours, melbourneInstant, melbourneParts, nextBusinessMorning, nextOpen } from "./businessHours";
+import { EVENING_HOUR, addBusinessHours, isMelbourneHour, melbourneInstant, melbourneParts, nextBusinessMorning, nextOpen } from "./businessHours";
 
 const local = (d: Date) => { const p = melbourneParts(d); return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")} ${String(p.h).padStart(2, "0")}:${String(p.min).padStart(2, "0")}`; };
 
@@ -30,5 +30,15 @@ describe("Melbourne business hours", () => {
     const inHours = melbourneInstant(2026, 9, 8, 13, 30);
     expect(nextOpen(inHours).getTime()).toBe(inHours.getTime());
     expect(local(nextOpen(melbourneInstant(2026, 9, 8, 7)))).toBe("2026-09-08 09:00");
+  });
+});
+
+// ---- Session 2 (D5): 6 pm Melbourne either side of the 4 Oct 2026 clock change
+describe("isMelbourneHour", () => {
+  it("08:00 UTC is 6 pm Melbourne before the change; 07:00 UTC is 6 pm after it", () => {
+    expect(isMelbourneHour(new Date("2026-10-03T08:00:00Z"), EVENING_HOUR)).toBe(true);   // Sat 3 Oct, AEST
+    expect(isMelbourneHour(new Date("2026-10-03T07:00:00Z"), EVENING_HOUR)).toBe(false);
+    expect(isMelbourneHour(new Date("2026-10-05T08:00:00Z"), EVENING_HOUR)).toBe(false);  // Mon 5 Oct, AEDT → 7 pm
+    expect(isMelbourneHour(new Date("2026-10-05T07:00:00Z"), EVENING_HOUR)).toBe(true);
   });
 });

@@ -347,7 +347,7 @@ export const AUTOMATIONS: Automation[] = [
     defaultChannel: "email", sendKind: "digest", quietExempt: true, capExempt: true,
     trigger: "Once a day, each trade-organisation admin gets a summary of what moved on their properties.",
     wording: "Fixed wording; each person sets their own time under Team.",
-    note: "Needs the trade-digest cron scheduled in vercel.json — it is not, today.",
+    note: "Runs hourly; each admin's chosen hour (Melbourne) picks their run.",
   },
   {
     key: "assistant_handoff", name: "Assistant — someone wants a person", audience: "office", channels: ["sms"], kind: "automatic",
@@ -399,7 +399,7 @@ export const AUTOMATIONS: Automation[] = [
   {
     key: "wizard_abandoned", name: "Abandoned wizard — pick up where you left off", audience: "customer", channels: ["email"], kind: "automatic",
     defaultChannel: "email", quietExempt: true, capExempt: true, sendKind: "wizard_resume",
-    trigger: "A wizard run sits idle for 45 minutes with an email on it. One sign-in link per run, landing on the customer's account page where the unfinished estimate waits. Sent by the sweep — daily on the current hosting plan, and whenever staff open CRM Today or Estimates → Wizard.",
+    trigger: "A wizard run sits idle for 45 minutes with an email on it. One sign-in link per run, landing on the customer's account page where the unfinished estimate waits. Sent by the sweep — every 30 minutes, and whenever staff open CRM Today or Estimates → Wizard.",
     templates: [
       { field: "wizardResumeSubject", label: "Email subject", kind: "subject", placeholders: P.wizardResume },
       { field: "wizardResumeBody", label: "Email body", kind: "body", placeholders: P.wizardResume },

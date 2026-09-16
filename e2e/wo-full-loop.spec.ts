@@ -183,7 +183,7 @@ test.describe("the whole loop, one job", () => {
       expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: s.id, p_to: "done" })).toBe("ok:done");
     }
 
-    const sweep = await request.get("/api/cron/wo-sweep", { headers: { Authorization: `Bearer ${SECRET}` } });
+    const sweep = await request.get("/api/cron/wo-sweep?force=1", { headers: { Authorization: `Bearer ${SECRET}` } });
     expect(sweep.status()).toBe(200);
 
     const { data: update } = await db!.from("wo_updates")

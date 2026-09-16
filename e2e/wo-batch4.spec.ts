@@ -154,7 +154,7 @@ test.describe("batch 4 — no walkthrough, colour match, pre-start list", () => 
       expect(checklist.required).toBe(false);
       expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: checklist.id, p_done: true })).toBe("ok:done");
 
-      const response = await request.get("/api/cron/wo-sweep", { headers: { Authorization: `Bearer ${SECRET}` } });
+      const response = await request.get("/api/cron/wo-sweep?force=1", { headers: { Authorization: `Bearer ${SECRET}` } });
       expect(response.status()).toBe(200);
       const { data: ev } = await db!.from("wo_events").select("type, meta").eq("work_order_id", f.workOrderId)
         .in("type", ["pre_start_checklist_sent", "pre_start_checklist_skipped"]);
@@ -162,7 +162,7 @@ test.describe("batch 4 — no walkthrough, colour match, pre-start list", () => 
       expect((ev ?? []).length).toBe(1);
       expect(((ev ?? [])[0] as { type: string }).type).toBe("pre_start_checklist_skipped");
       // A second sweep does not write a second event.
-      await request.get("/api/cron/wo-sweep", { headers: { Authorization: `Bearer ${SECRET}` } });
+      await request.get("/api/cron/wo-sweep?force=1", { headers: { Authorization: `Bearer ${SECRET}` } });
       const { data: ev2 } = await db!.from("wo_events").select("id").eq("work_order_id", f.workOrderId)
         .in("type", ["pre_start_checklist_sent", "pre_start_checklist_skipped"]);
       expect((ev2 ?? []).length).toBe(1);

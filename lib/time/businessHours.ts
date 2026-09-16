@@ -78,3 +78,14 @@ export function nextBusinessMorning(at: Date): Date {
   } while (!isBusinessDay(melbourneParts(day).weekday));
   return day;
 }
+
+/**
+ * Session 2 (D5): "6 pm Melbourne, all year". Vercel cron speaks UTC, so an
+ * evening job is scheduled at BOTH 07:00 and 08:00 UTC and asks this before
+ * doing anything — exactly one of the two is 18:00 in Melbourne, whichever
+ * side of the daylight-saving change we are on.
+ */
+export const EVENING_HOUR = 18;
+export function isMelbourneHour(at: Date, hour: number): boolean {
+  return melbourneParts(at).h === hour;
+}

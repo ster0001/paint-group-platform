@@ -4,8 +4,8 @@ import { IDLE_MINUTES } from "@/lib/wizard/journey";
 import { sweepWizardSessions } from "@/lib/wizard/sweep";
 
 /**
- * Buckets brief §4.3 — the scheduled sweep (vercel.json; daily on the Hobby
- * plan, every 30 minutes once on Pro). `?minutes=` overrides the idle window
+ * Buckets brief §4.3 — the scheduled sweep (vercel.json; every 30 minutes
+ * since Session 2 of the messaging brief, 16 Sep 2026 — the plan is Pro). `?minutes=` overrides the idle window
  * (the e2e passes 0). The same pass also runs from the staff screens
  * (lib/wizard/sweep.ts maybeSweep).
  */

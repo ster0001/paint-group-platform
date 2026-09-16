@@ -21,9 +21,9 @@ but nothing is sent; **⚠** a caveat worth knowing before building on it.
 | 1 | `estimate_send` | Estimate sent | email + SMS | manual | Send in the estimate builder. Templates pre-fill the dialog. | Logged on the estimate activity feed. Templates: `emailSubject`, `emailIntro`, `smsTemplate`. |
 | 2 | `estimate_chat_reply` | Reply on the estimate chat | email + SMS | auto | Staff post a reply on an estimate's chat. | Templates: `chatReplySubject`, `chatReplySms`. |
 | 3 | `wizard_saved_link` | Estimate saved — sign-in link | email | auto | Customer finishes the online wizard and gets a price. | Skipped if already signed in. Templates: `wizardSavedSubject`, `wizardSavedBody`. |
-| 4 | `wizard_abandoned` | Abandoned wizard — pick up where you left off | email | auto | Wizard run idle 45 min with an email on it. Sent by the wizard sweep (cron daily 21:00 UTC) and whenever staff open CRM Today or Estimates → Wizard. | One link per run. Never to a run without an email or to a test address. Templates: `wizardResumeSubject`, `wizardResumeBody`. |
+| 4 | `wizard_abandoned` | Abandoned wizard — pick up where you left off | email | auto | Wizard run idle 45 min with an email on it. Sent by the wizard sweep (cron every 30 min) and whenever staff open CRM Today or Estimates → Wizard. | One link per run. Never to a run without an email or to a test address. Templates: `wizardResumeSubject`, `wizardResumeBody`. |
 | 5 | `visit_confirmation` | Visit booked — calendar invite | email + .ics | auto | Estimator visit booked (by customer in the estimate, or office on the record / Diary). Move = updated invite; cancel = pulls it. | One per booking and per move, recorded on the visit. Templates: `visitConfirmSubject`, `visitConfirmBody`. |
-| 6 | `visit_reminder` | Visit reminder text | SMS | auto | Evening before an estimator visit. Rides the daily wo-sweep (cron 08:00 UTC = 18:00 Melbourne AEST). | Once per visit; a moved visit is reminded again. Template: `visitReminderSms`. |
+| 6 | `visit_reminder` | Visit reminder text | SMS | auto | Evening before an estimator visit. Rides the wo-sweep at 6 pm Melbourne all year (Session 2). | Once per visit; a moved visit is reminded again. Template: `visitReminderSms`. |
 | 7 | `appointment_confirmation` | Booking confirmed | email | auto | Job booked in — painter accepts the offer, or office assigns directly. wo-sweep re-checks recent acceptances (3 days) as a backstop. | Once per booked start date; a re-book sends again. Templates: `apptConfirmSubject`, `apptConfirmBody`. |
 | 8 | `pre_start_checklist` | Pre-start checklist | email | auto | Office ticks "Pre-start checklist" on the job; wo-sweep sends it N days before start. | Once per job. Templates: `preStartDaysBefore`, `preStartSubject`, `preStartBody`. |
 | 9 | `walkthrough_invite` | Final walkthrough calendar invite | email + .ics | auto | Walkthrough booked, moved or cancelled. Customer AND painter each get a self-updating invite. | Only when date/time actually changed. Templates: `walkthroughInviteSubject`, `walkthroughInviteCustomerBody`, `walkthroughInvitePainterBody`. |
@@ -34,7 +34,7 @@ but nothing is sent; **⚠** a caveat worth knowing before building on it.
 | 14 | `payment_receipt` | Payment receipt | email | auto | Payment recorded (office, or card via payment page). | Templates: `receiptSubject`, `receiptBody`. |
 | 15 | `portal_magic_link` | Sign-in link | email | manual, always on | Customer asks to sign in to their account. | No switch — without it nobody can get in. `lib/portal/auth.ts`. |
 | 16 | `external_approval` | External approval request | email | auto | Trade customer sends an estimate to an approver / assessor / owner; sender is emailed the decision. | Off = link still created, just not emailed. `app/account/(portal)/approvals/actions.ts`, `app/a/[token]/actions.ts`. |
-| 17 | `trade_daily_digest` | Trade daily digest | email | auto | Once a day per trade-organisation admin, at the hour each person picks under Team. | ⚠ Cron route exists (`/api/cron/trade-digest`) but is NOT in `vercel.json`. Nothing goes out today. |
+| 17 | `trade_daily_digest` | Trade daily digest | email | auto | Once a day per trade-organisation admin, at the hour each person picks under Team. | Scheduled hourly since Session 2 (16 Sep). |
 | 18 | `campaigns` | Marketing / follow-up campaigns | email + SMS | manual approval | Campaign sweep (cron every 30 min) enrols and QUEUES steps; a person approves in CRM → Campaigns queue. Approved-but-held steps are then sent by the sweep inside the window. | See §4 for the engine rules. |
 | 19 | — (not in registry) | Tenant access text | SMS | manual | Trade customer sends a tenant a link from the portal quote page. | `app/account/(portal)/quote/[id]/tenant/actions.ts`. Link expires after TENANT_LINK_DAYS. |
 | 20 | — (not in registry) | Reply from the CRM record | email + SMS | manual | Staff send a reply from the customer record. | `app/crm/recordActions.ts` `sendReply`. Recorded, routed, delivery-tracked. |
@@ -108,22 +108,22 @@ redelivery never tells anyone twice. `lib/staff/notify.ts`.
 
 | Cron | Schedule (UTC) | What it sends or drafts |
 |------|----------------|-------------------------|
-| `/api/cron/wo-sweep` | daily 08:00 (18:00 Melbourne AEST, 19:00 AEDT) | DRAFTS customer progress updates; SENDS pre-start checklists and visit reminder texts; appointment-confirmation backstop; expires unanswered offers; QA cadence and GCal reconcile backstops. |
+| `/api/cron/wo-sweep` | 07:00 and 08:00 UTC; runs only in the one that is 6 pm Melbourne (Session 2, D5); `?force=1` runs it any time | DRAFTS customer progress updates; SENDS pre-start checklists and visit reminder texts; appointment-confirmation backstop; expires unanswered offers; QA cadence and GCal reconcile backstops. |
 | `/api/cron/campaign-sweep` | every 30 min | Enrols + queues campaign steps; sends approved-held steps inside the window. |
-| `/api/cron/wizard-sweep` | daily 21:00 | Abandoned-wizard resume email (45 min idle). ⚠ Daily only because of the hosting plan; also runs on staff screen loads. |
+| `/api/cron/wizard-sweep` | every 30 min | Abandoned-wizard resume email (45 min idle); also runs on staff screen loads. |
 | `/api/cron/crm-sweep` | every 30 min | Lapses estimates past valid_until; refreshes CRM facts. No messages. |
 | `/api/cron/agent-sweep` | every 15 min | Logs `wizard_abandoned` events for guided assistant conversations that went quiet (30 min). No messages. |
-| `/api/cron/trade-digest` | **not scheduled** | Trade daily digest — route built, never fires. |
+| `/api/cron/trade-digest` | hourly | Trade daily digest — each admin's chosen Melbourne hour picks their run (Session 2). |
 
 ---
 
 ## 6. Gaps and things to decide before building more
 
-1. **Trade daily digest** is built but not scheduled. One line in `vercel.json` (hourly, or 17:00 Melbourne) turns it on.
+1. ~~Trade daily digest not scheduled~~ — DONE Session 2 (hourly).
 2. **Three planned customer messages have no send**: sign-off nudges (0/24/48 h), review request, booking chase. Sign-off copy already exists in the DB.
 3. **No painter-facing reminders**: nothing the day before a job starts, nothing when an offer is about to expire, nothing for an unanswered variation.
 4. **No customer-facing "job starts tomorrow" or "painter on the way" text** — only the pre-start checklist email (N days before) and the booking confirmation.
 5. **No payment reminders** on overdue invoices (the customer alert hint mentions them, but nothing sends them).
 6. **Two sends sit outside the registry** and therefore have no switch and don't appear on Settings → Automations: the tenant access text and CRM record replies. Google Calendar push is also outside it.
-7. **Wizard resume email runs once a day**, so a 45-minute idle rule behaves like "next evening" unless a staff member opens CRM Today.
+7. ~~Wizard resume email once a day~~ — DONE Session 2 (every 30 minutes).
 8. **Adding a new automation** = registry entry + template fields in `DEFAULT_MESSAGING` + `loadMessaging` + `automationOn` check at the send site + a `messages`-recorded send. `registry.test.ts` pins that every template field has a default.

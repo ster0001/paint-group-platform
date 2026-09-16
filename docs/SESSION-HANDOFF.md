@@ -1,3 +1,13 @@
+# 16 Sep 2026 (late) — Messaging automations, Session 2: timing. NO migration. Branch `feat/automations-s2-timing`.
+
+Session 1 merged to main (0bf15c6) and 20270150 handed to Tom for prod. Session 2: wizard-sweep
+every 30 min; trade-digest scheduled hourly (Bearer auth added); wo-sweep at 07:00+08:00 UTC with a
+6-pm-Melbourne guard (`isMelbourneHour`, tested either side of 4 Oct) and `?force=1` for the e2e /
+console. Read-only report to Tom: 4 campaigns on prod (3 draft, 1 live "Warranty check-in (demo)",
+none auto-send); inbound texts DO land on the CRM thread (2 rows on prod); zero-tick catch built
+(`wo_zero_tick_sweep`); `contractors.insurance_expiry` stored (staff-only update); repeat views
+counted in `estimate_views` (116 rows) but only the FIRST open raises a CRM event.
+
 # 16 Sep 2026 (evening) — Messaging automations, Session 1: the control screen. ONE migration: 20270150 (`automation_holds` + `automation_claims`, additive, RLS staff read/update). Branch `feat/automations-s1-control-screen`.
 
 Tom's brief `docs/briefs/claude-code-brief-messaging-automations.md` (8 sessions). Session 1 built:

@@ -71,7 +71,7 @@ test.describe("daily updates and the silent site", () => {
     const bare = await request.get("/api/cron/wo-sweep");
     expect(bare.status()).toBe(401);
 
-    const wrong = await request.get("/api/cron/wo-sweep", {
+    const wrong = await request.get("/api/cron/wo-sweep?force=1", {
       headers: { Authorization: "Bearer not-the-secret" },
     });
     expect(wrong.status()).toBe(401);
@@ -91,7 +91,7 @@ test.describe("daily updates and the silent site", () => {
       expect(r).toBe("ok:done");
     }
 
-    const response = await request.get("/api/cron/wo-sweep", {
+    const response = await request.get("/api/cron/wo-sweep?force=1", {
       headers: { Authorization: `Bearer ${SECRET}` },
     });
     expect(response.status()).toBe(200);
@@ -152,7 +152,7 @@ test.describe("daily updates and the silent site", () => {
   test("a later sweep does not rewrite words a person has approved", async ({ request }) => {
     const before = await db!.from("wo_updates").select("final_text").eq("id", updateId).single();
 
-    await request.get("/api/cron/wo-sweep", { headers: { Authorization: `Bearer ${SECRET}` } });
+    await request.get("/api/cron/wo-sweep?force=1", { headers: { Authorization: `Bearer ${SECRET}` } });
 
     const after = await db!.from("wo_updates").select("final_text, status").eq("id", updateId).single();
     expect((after.data as { final_text: string }).final_text)
@@ -181,7 +181,7 @@ test.describe("daily updates and the silent site", () => {
   });
 
   test("a quiet site raises one reminder, and does not block the job", async ({ request }) => {
-    const first = await request.get("/api/cron/wo-sweep", { headers: { Authorization: `Bearer ${SECRET}` } });
+    const first = await request.get("/api/cron/wo-sweep?force=1", { headers: { Authorization: `Bearer ${SECRET}` } });
     expect(first.status()).toBe(200);
 
     const { data: flags } = await db!.from("wo_events")
@@ -196,7 +196,7 @@ test.describe("daily updates and the silent site", () => {
     expect((wo as { blocked_reason: string | null }).blocked_reason).toBeNull();
 
     // Again inside the same window: still one. One nudge, not a drumbeat.
-    await request.get("/api/cron/wo-sweep", { headers: { Authorization: `Bearer ${SECRET}` } });
+    await request.get("/api/cron/wo-sweep?force=1", { headers: { Authorization: `Bearer ${SECRET}` } });
     const { data: again } = await db!.from("wo_events")
       .select("id").eq("work_order_id", silent!.workOrderId).eq("type", "quiet_site");
     expect((again ?? []).length).toBe(1);
@@ -209,7 +209,7 @@ test.describe("daily updates and the silent site", () => {
       .update({ start_date: new Date().toISOString().slice(0, 10) })
       .eq("id", fresh.workOrderId);
 
-    await request.get("/api/cron/wo-sweep", { headers: { Authorization: `Bearer ${SECRET}` } });
+    await request.get("/api/cron/wo-sweep?force=1", { headers: { Authorization: `Bearer ${SECRET}` } });
 
     const { data } = await db!.from("wo_events")
       .select("id").eq("work_order_id", fresh.workOrderId).eq("type", "quiet_site");

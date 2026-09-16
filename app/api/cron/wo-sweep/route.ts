@@ -5,6 +5,7 @@ import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
 import { reportError } from "@/lib/monitoring/report";
 import { sendPreStartChecklists } from "@/lib/workorder/preStart";
 import { releaseDueHolds } from "@/lib/automations/dispatch";
+import { EVENING_HOUR, isMelbourneHour, melbourneParts } from "@/lib/time/businessHours";
 import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { reconcileAllConnected } from "@/lib/gcal/sync";
@@ -60,9 +61,17 @@ function authorised(request: Request): boolean {
   return header === `Bearer ${secret}`;
 }
 
-async function sweep() {
+async function sweep(opts: { force?: boolean } = {}) {
   const db = createServiceClient();
   if (!db) return { ok: false as const, error: "no service client" };
+
+  // Session 2 (D5): the sweep is scheduled at 07:00 AND 08:00 UTC and runs
+  // only in the one that is 6 pm in Melbourne, so the visit-reminder text
+  // lands at 6 pm all year — not 7 pm from October to April. `?force=1`
+  // (the console button, the e2e) runs it regardless.
+  if (!opts.force && !isMelbourneHour(new Date(), EVENING_HOUR)) {
+    return { ok: true as const, skipped: "not 6 pm in Melbourne" as const, melbourneHour: melbourneParts(new Date()).h };
+  }
 
   // Melbourne, always — and the day's start is derived from the zone rather
   // than a hardcoded +10:00, which would be an hour out from October to April.
@@ -239,7 +248,7 @@ export async function GET(request: Request) {
   if (!authorised(request)) {
     return NextResponse.json({ error: "not authorised" }, { status: 401 });
   }
-  const result = await sweep();
+  const result = await sweep({ force: new URL(request.url).searchParams.get("force") === "1" });
   return NextResponse.json(result, { status: result.ok ? 200 : 500 });
 }
 
