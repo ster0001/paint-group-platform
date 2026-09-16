@@ -109,6 +109,73 @@ export async function notifyJobOffer(service: SupabaseClient, workOrderId: strin
   }
 }
 
+/**
+ * Employed painters (Session 2): "you're on a job — tap Accept", "your dates
+ * changed — accept again", "you're off this job". Text + email for the
+ * assignment, text for the other two. Best-effort like every painter ping:
+ * the assignment is already in their calendar, this is the tap-saver.
+ */
+export async function notifyAssignment(
+  service: SupabaseClient,
+  assignmentId: string,
+  kind: "assigned" | "dates_changed" | "released",
+): Promise<void> {
+  try {
+    const { data, error } = await service
+      .from("wo_assignments")
+      .select("id, contractor_id, work_order_id, start_date, end_date, work_orders(wo_ref, wo_snapshot)")
+      .eq("id", assignmentId)
+      .maybeSingle();
+    if (error) throw error;
+    const a = data as {
+      id: string; contractor_id: string; work_order_id: string; start_date: string; end_date: string;
+      work_orders: { wo_ref: string; wo_snapshot: { jobAddress?: string } | null } | null;
+    } | null;
+    if (!a?.work_orders) return;
+
+    const key = kind === "assigned" ? "employee_assigned" : kind === "dates_changed" ? "employee_dates_changed" : "employee_released";
+    const { messaging, company } = await loadMessaging(service);
+    if (!automationOn(messaging, key)) {
+      await record(service, a.work_order_id, "assignment_notify_skipped", { assignment_id: a.id, kind, reason: "automation off" });
+      return;
+    }
+    const c = await contactFor(service, a.contractor_id);
+    const link = `${siteUrl()}/portal/jobs/${a.work_order_id}`;
+    const dmy = (iso: string) => iso.split("-").reverse().join("/");
+    const dates = a.start_date === a.end_date ? dmy(a.start_date) : `${dmy(a.start_date)} → ${dmy(a.end_date)}`;
+    const companyName = company.name || "Paint Group";
+    const vars = {
+      first_name: c.firstName, company_name: companyName, wo_ref: a.work_orders.wo_ref,
+      address: a.work_orders.wo_snapshot?.jobAddress ?? "", start_date: dmy(a.start_date), dates, link,
+    };
+    const smsTemplate = kind === "assigned" ? messaging.assignmentSms
+      : kind === "dates_changed" ? messaging.assignmentDatesChangedSms : messaging.assignmentReleasedSms;
+
+    await sendAutomation(service, {
+      key,
+      to: { phone: c.phone, email: c.email && !isTestEmail(c.email) ? c.email : null },
+      sms: { body: renderTemplate(smsTemplate, vars) },
+      ...(kind === "assigned" ? {
+        email: {
+          subject: renderTemplate(messaging.assignmentEmailSubject, vars),
+          html: buildEstimateEmailHtml({
+            companyName,
+            logoUrl: company.logoUrlLight || company.logoUrl,
+            intro: renderTemplate(messaging.assignmentEmailIntro, vars),
+            link,
+            buttonLabel: "Open your work order",
+          }),
+        },
+      } : {}),
+      ctx: { workOrderId: a.work_order_id, kind: "assignment" },
+      contractorId: a.contractor_id,
+    });
+    await record(service, a.work_order_id, "assignment_notified", { assignment_id: a.id, contractor_id: a.contractor_id, kind });
+  } catch (e) {
+    reportError(e, { where: "notify.assignment", extra: { assignmentId, kind } });
+  }
+}
+
 /** "A variation is approved and waiting for you" — text, once per variation. */
 export async function notifyVariationReleased(service: SupabaseClient, variationId: string): Promise<void> {
   try {

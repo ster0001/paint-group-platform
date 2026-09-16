@@ -88,6 +88,7 @@ const P = {
   preStart: ["{{first_name}}", "{{company_name}}", "{{start_date}}", "{{address}}", "{{estimate_title}}"],
   appt: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{start_date}}", "{{painter_name}}", "{{walkthrough_line}}"],
   offer: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{link}}"],
+  assignment: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{start_date}}", "{{dates}}", "{{link}}"],
   variation: ["{{company_name}}", "{{wo_ref}}", "{{action}}", "{{link}}"],
   qaFail: ["{{company_name}}", "{{wo_ref}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
@@ -239,6 +240,31 @@ export const AUTOMATIONS: Automation[] = [
       { field: "offerEmailIntro", label: "Email body", kind: "body", placeholders: P.offer },
     ],
     note: "Text needs a mobile on the painter's profile.",
+  },
+  // Employed painters (Session 2). Same "painter" audience: an employee is a
+  // painter with an assignment instead of an offer.
+  {
+    key: "employee_assigned", name: "Job assigned — tap Accept", audience: "painter", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "both", sendKind: "assignment", quietExempt: true, capExempt: true,
+    trigger: "The office puts an employed painter on a job. It is in their calendar already; Accept only says they have seen it.",
+    templates: [
+      { field: "assignmentSms", label: "Text message", kind: "sms", placeholders: P.assignment },
+      { field: "assignmentEmailSubject", label: "Email subject", kind: "subject", placeholders: P.assignment },
+      { field: "assignmentEmailIntro", label: "Email body", kind: "body", placeholders: P.assignment },
+    ],
+    note: "Text needs a mobile on the painter's profile.",
+  },
+  {
+    key: "employee_dates_changed", name: "Your dates changed — accept again", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "assignment_dates", quietExempt: true, capExempt: true,
+    trigger: "The office moves an employed painter's days on a job. Their earlier Accept is cleared.",
+    templates: [{ field: "assignmentDatesChangedSms", label: "Text message", kind: "sms", placeholders: P.assignment }],
+  },
+  {
+    key: "employee_released", name: "Taken off a job", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "assignment_released", capExempt: true,
+    trigger: "The office takes an employed painter off a job. Past ticks stay; future days come off their calendar.",
+    templates: [{ field: "assignmentReleasedSms", label: "Text message", kind: "sms", placeholders: P.assignment }],
   },
   {
     key: "variation_auto_release", name: "Approved variations go straight to the painter", audience: "painter", channels: [], kind: "automatic",

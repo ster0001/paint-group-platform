@@ -32,9 +32,12 @@ export type Lane = {
   active: boolean;
   /** Painters they can field at once — what makes overlapping jobs readable. */
   crewSize: number;
+  /** Employed painters (S2): an employee lane takes ASSIGNMENTS, a contractor lane takes OFFERS. */
+  employmentType: "contractor" | "employee";
 };
 
-export type BlockKind = "accepted" | "in_progress" | "offered" | "proposed" | "unavailable";
+/** `assigned` = an employee's assignment (S2). Hollow until they tap Accept. */
+export type BlockKind = "accepted" | "in_progress" | "offered" | "proposed" | "unavailable" | "assigned";
 
 export type Block = {
   id: string;
@@ -56,6 +59,13 @@ export type Block = {
   /** Unavailability only — who blocked it out. */
   source: "contractor" | "staff" | null;
   reason: string;
+  /** Assignments only (S2). */
+  assignmentId?: string;
+  isLead?: boolean;
+  acceptedAt?: string | null;
+  /** "1 of 3": this painter's position among everyone on the job, and the crew size. */
+  crewIndex?: number;
+  crewSize?: number;
 };
 
 /** A booked walkthrough, pinned on the assigned contractor's lane (§4b). */
@@ -152,6 +162,11 @@ type NoteRow = {
   id: string; work_order_id: string; note: string; author: string | null; created_at: string;
 };
 
+type ARow = {
+  id: string; work_order_id: string; contractor_id: string; start_date: string; end_date: string;
+  is_lead: boolean; status: "assigned" | "accepted" | "released"; accepted_at: string | null;
+};
+
 function snapshotOf(v: unknown): WorkOrderDoc | null {
   const s = v as WorkOrderDoc | null;
   return s && (s as Partial<WorkOrderDoc>).version === 1 ? s : null;
@@ -175,10 +190,11 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     { data: unavail, error: uErr },
     { data: bookingNotes, error: nErr },
     { data: walkthroughRows },
+    { data: assignmentRows, error: aErr },
   ] = await Promise.all([
       supabase
         .from("contractors")
-        .select("id, tier, active, offerable, company_name, crew_size, profiles ( name )")
+        .select("id, tier, active, offerable, company_name, crew_size, employment_type, profiles ( name )")
         .order("company_name"),
       // Drafts included on purpose — see TrayJob.needsIssuing. Open jobs all
       // come (the tray and pins need them regardless of dates); CLOSED jobs
@@ -227,6 +243,16 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .eq("status", "booked")
         .gte("scheduled_date", from)
         .lte("scheduled_date", to),
+      // Employed painters (S2): every live assignment on an open job, not just
+      // the window — "1 of 3" needs the whole crew, and the tray needs to know
+      // a job is taken. Small table; the job's own dates already bound it.
+      paged<ARow>((f, t) => supabase
+        .from("wo_assignments")
+        .select("id, work_order_id, contractor_id, start_date, end_date, is_lead, status, accepted_at")
+        .neq("status", "released")
+        .lte("start_date", addDays(to, 60))
+        .gte("end_date", addDays(from, -60))
+        .order("id").range(f, t)),
     ]);
 
   // An empty board because a query failed looks exactly like an empty board
@@ -240,9 +266,10 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     // embed that 400s, and because only `data` was destructured the notes just
     // silently never appeared — the write had worked, so nothing looked wrong.
     nErr && `booking notes: ${nErr}`,
+    aErr && `assignments: ${aErr}`,
   ].filter(Boolean) as string[];
 
-  type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; profiles: { name: string | null } | null };
+  type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; employment_type?: string | null; profiles: { name: string | null } | null };
   const lanes: Lane[] = ((contractors as CRow[] | null) ?? []).map((c) => ({
     contractorId: c.id,
     name: c.profiles?.name || c.company_name || "Contractor",
@@ -251,7 +278,18 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     offerable: c.offerable,
     active: c.active,
     crewSize: c.crew_size ?? 1,
+    // Anything but the literal 'employee' is a contractor — lib/painters/capabilities rule.
+    employmentType: c.employment_type === "employee" ? "employee" : "contractor",
   }));
+
+  // Jobs with a crew of employees on them. The lead IS work_orders.contractor_id,
+  // so the "direct assignment" block below must not draw the job a second time.
+  const assignmentsByWo = new Map<string, ARow[]>();
+  for (const a of assignmentRows) {
+    const list = assignmentsByWo.get(a.work_order_id) ?? [];
+    list.push(a);
+    assignmentsByWo.set(a.work_order_id, list);
+  }
 
   const wos = workOrders;
   const woById = new Map(wos.map((w) => [w.id, w]));
@@ -294,6 +332,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
 
   for (const w of wos) {
     if (!w.issued_at) continue; // a draft has no contractor-facing document yet
+    if (assignmentsByWo.has(w.id)) continue; // drawn per painter below (S2)
     const acc = acceptedByWo.get(w.id);
     // Also covers jobs staff assigned directly and dated without an offer.
     const hasDirect = !acc && w.contractor_id && w.start_date;
@@ -320,6 +359,39 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       expiresAt: null,
       source: null,
       reason: "",
+    });
+  }
+
+  // --- employee assignments: one block per painter, same job colour, "1 of 3" ---
+  for (const [woId, list] of assignmentsByWo) {
+    const w = woById.get(woId);
+    if (!w) continue;
+    const doc = snapshotOf(w.wo_snapshot);
+    // Lead first, then by start — the chip's numbering reads the same on every lane.
+    const crew = [...list].sort((a, b) => Number(b.is_lead) - Number(a.is_lead) || a.start_date.localeCompare(b.start_date));
+    crew.forEach((a, i) => {
+      blocks.push({
+        id: `asg-${a.id}`,
+        kind: w.status === "in_progress" ? "in_progress" : "assigned",
+        estimateId: w.estimate_id,
+        contractorId: a.contractor_id,
+        start: a.start_date,
+        end: a.end_date,
+        title: doc?.jobTitle || w.wo_ref,
+        woRef: w.wo_ref,
+        workOrderId: w.id,
+        offerId: null,
+        paymentCents: null, // an employee's job carries no price on the board either
+        finishCode: doc?.finishCode ?? null,
+        expiresAt: null,
+        source: null,
+        reason: "",
+        assignmentId: a.id,
+        isLead: a.is_lead,
+        acceptedAt: a.accepted_at,
+        crewIndex: i + 1,
+        crewSize: crew.length,
+      });
     });
   }
 

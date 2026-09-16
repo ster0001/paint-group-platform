@@ -7,7 +7,10 @@ import { pingGcalSync } from "@/lib/gcal/ping";
 import { pingAppointmentConfirm } from "@/lib/workorder/appointmentPing";
 import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
 import { addDays, dayDiff, todayIso } from "@/lib/scheduling/dates";
-import { sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote, type ActionResult } from "./actions";
+import {
+  sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote,
+  assignJobAction, reassignDatesAction, setLeadPainterAction, releaseAssignmentAction, type ActionResult,
+} from "./actions";
 import type { Block, BoardWalkthrough, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
 
@@ -426,6 +429,14 @@ export default function ScheduleBoard({
   const [offerNoWalk, setOfferNoWalk] = useState(false);
   const [toast, setToast] = useState("");
   const [detail, setDetail] = useState<Block | null>(null);
+  // Employed painters (S2): the detail sheet's "add a painter" picker.
+  const [addPainterId, setAddPainterId] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
+  /** An employee lane takes ASSIGNMENTS; a contractor lane takes OFFERS. */
+  const isEmployeeLane = useCallback(
+    (contractorId: string) => lanes.find((l) => l.contractorId === contractorId)?.employmentType === "employee",
+    [lanes],
+  );
   const [blockReason, setBlockReason] = useState("");
   const [cancelReason, setCancelReason] = useState("");
 
@@ -476,6 +487,91 @@ export default function ScheduleBoard({
       setOfferNoWalk(false);
       setWalkDate("");
       setWalkTime("");
+    }
+    setBusy(false);
+  }
+
+  /**
+   * Employed painters (S2): a tray job dropped on an EMPLOYEE lane is assigned,
+   * not offered. It lands in their calendar now; the first painter dropped is
+   * the lead (changeable from the block's detail sheet). The same walkthrough
+   * gate as an offer applies — booking still means someone spoke to the client.
+   */
+  async function assignJob() {
+    if (!pendingDrop?.job) return;
+    if (!offerNoWalk && (!walkDate || !walkTime)) {
+      setErr("Confirm the final walkthrough with the client first — enter its date and time, or tick walkthrough not required.");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    const r = await assignJobAction({
+      workOrderId: pendingDrop.job.workOrderId,
+      painters: [{
+        contractorId: pendingDrop.contractorId,
+        startDate: pendingDrop.startDate,
+        endDate: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
+      }],
+      leadContractorId: pendingDrop.contractorId,
+      overrideReason: overrideReason.trim() || null,
+      qaRequired: offerQa,
+      walkthroughRequired: !offerNoWalk,
+      walkthroughDate: offerNoWalk ? null : walkDate,
+      walkthroughTime: offerNoWalk ? null : walkTime,
+    });
+    if (handle(r, "Assigned — it's in their calendar, and the customer has their confirmation.")) {
+      setPendingDrop(null);
+      setOfferNote(""); setOfferQa(false); setOfferNoWalk(false); setWalkDate(""); setWalkTime(""); setOverrideReason("");
+    }
+    setBusy(false);
+  }
+
+  /** Move one painter's days. Their Accept is cleared and they are told to accept again. */
+  async function moveAssignment() {
+    if (!pendingDrop?.block?.assignmentId) return;
+    const b = pendingDrop.block;
+    if (b.contractorId !== pendingDrop.contractorId) {
+      setErr("Drag changes a painter's days, not the painter. Open the block to add someone else or take this painter off.");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    const r = await reassignDatesAction({
+      assignmentId: b.assignmentId,
+      startDate: pendingDrop.startDate,
+      endDate: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
+      overrideReason: overrideReason.trim() || null,
+    });
+    if (handle(r, "Days moved — they'll be asked to accept again.")) { setPendingDrop(null); setOverrideReason(""); }
+    setBusy(false);
+  }
+
+  async function addPainter(workOrderId: string, contractorId: string, start: string, end: string, lead: string) {
+    setBusy(true);
+    setErr("");
+    const r = await assignJobAction({
+      workOrderId,
+      painters: [{ contractorId, startDate: start, endDate: end }],
+      leadContractorId: lead,
+      overrideReason: overrideReason.trim() || null,
+      addingToBookedJob: true, // the walkthrough was settled when the job was first assigned
+    });
+    if (handle(r, "Added to the job.")) { setAddPainterId(""); setOverrideReason(""); setDetail(null); }
+    setBusy(false);
+  }
+
+  async function makeLead(workOrderId: string, contractorId: string) {
+    setBusy(true);
+    setErr("");
+    if (handle(await setLeadPainterAction({ workOrderId, contractorId }), "Lead painter changed.")) setDetail(null);
+    setBusy(false);
+  }
+
+  async function releasePainter(assignmentId: string, reason: string) {
+    setBusy(true);
+    setErr("");
+    if (handle(await releaseAssignmentAction({ assignmentId, reason }), "Taken off the job — future days only, their ticks stay.")) {
+      setDetail(null); setCancelReason("");
     }
     setBusy(false);
   }
@@ -716,6 +812,7 @@ export default function ScheduleBoard({
 
         <div className="legend">
           <span><i style={{ background: "var(--emerald)" }} />Accepted</span>
+          <span><i style={{ border: "1px dashed var(--emerald)", background: "transparent" }} />Assigned · not yet seen</span>
           <span><i style={{ background: "var(--cyan)" }} />In progress</span>
           <span><i style={{ background: "repeating-linear-gradient(45deg,var(--amber) 0 3px,transparent 3px 6px)" }} />Offered (24h)</span>
           <span><i style={{ background: "repeating-linear-gradient(45deg,#8C959D 0 3px,transparent 3px 6px)" }} />Unavailable</span>
@@ -945,10 +1042,12 @@ export default function ScheduleBoard({
                       <div className="nmrow">
                         <div className="nm">{l.name}</div>
                         <div className="bd">
-                          {l.active ? (
-                            <span className={l.offerable ? "q" : "no"}>{l.offerable ? "READY" : "NOT READY"}</span>
-                          ) : (
+                          {!l.active ? (
                             <span className="no">SUSPENDED</span>
+                          ) : l.employmentType === "employee" ? (
+                            <span className="emp" data-testid="lane-employee">EMPLOYEE</span>
+                          ) : (
+                            <span className={l.offerable ? "q" : "no"}>{l.offerable ? "READY" : "NOT READY"}</span>
                           )}
                         </div>
                       </div>
@@ -1000,11 +1099,15 @@ export default function ScheduleBoard({
                         const offset = Math.max(0, dayDiff(start, b.start));
                         const endIdx = Math.min(range - 1, dayDiff(start, b.end));
                         const span = Math.max(1, endIdx - offset + 1);
-                        const movable = b.kind === "accepted" || b.kind === "offered" || b.kind === "proposed";
+                        const movable = b.kind === "accepted" || b.kind === "offered" || b.kind === "proposed" || b.kind === "assigned";
                         return (
                           <div
                             key={b.id}
-                            className={`blk ${b.kind}`}
+                            className={`blk ${b.kind}${b.assignmentId && !b.acceptedAt ? " hollow" : ""}`}
+                            data-testid={b.assignmentId ? "assignment-block" : undefined}
+                            data-assignment-id={b.assignmentId}
+                            data-lead={b.isLead ? "1" : undefined}
+                            data-accepted={b.acceptedAt ? "1" : undefined}
                             style={{
                               left: `calc(var(--day-w) * ${offset} + 3px)`,
                               width: `calc(var(--day-w) * ${span} - 6px)`,
@@ -1014,11 +1117,15 @@ export default function ScheduleBoard({
                             onClick={() => setDetail(b)}
                             title={b.title}
                           >
-                            <div className="t">{b.title}</div>
+                            <div className="t">{b.isLead && <span className="lead" title="Lead painter">★</span>}{b.title}</div>
                             <div className="m">
                               {b.kind === "unavailable"
                                 ? (b.source === "staff" ? "BLOCKED BY OFFICE" : "UNAVAILABLE")
                                 : b.woRef}
+                              {b.assignmentId && (b.crewSize ?? 1) > 1 && (
+                                <span className="crew">{b.crewIndex} OF {b.crewSize}</span>
+                              )}
+                              {b.assignmentId && !b.acceptedAt && <span className="crew">NOT YET SEEN</span>}
                             </div>
                             {b.expiresAt && <div className="cd">{coarseCountdown(b.expiresAt)}</div>}
                           </div>
@@ -1061,8 +1168,16 @@ export default function ScheduleBoard({
       <div className={`sheet ${pendingDrop ? "open" : ""}`}>
         {pendingDrop && (
           <>
-            <h3>{pendingDrop.kind === "tray" ? "Send this offer?" : "Move this booking?"}</h3>
-            <p className="slab">Nothing reaches the customer until the contractor accepts</p>
+            <h3>
+              {isEmployeeLane(pendingDrop.contractorId) || pendingDrop.block?.assignmentId
+                ? (pendingDrop.kind === "tray" ? "Assign this job?" : "Move these days?")
+                : (pendingDrop.kind === "tray" ? "Send this offer?" : "Move this booking?")}
+            </h3>
+            <p className="slab">
+              {isEmployeeLane(pendingDrop.contractorId) || pendingDrop.block?.assignmentId
+                ? "Straight into their calendar — they tap Accept when they've seen it"
+                : "Nothing reaches the customer until the contractor accepts"}
+            </p>
             <div className="frow">
               <span className="l">Job</span>
               <span className="v">{(pendingDrop.job?.title ?? pendingDrop.block?.title ?? "").toUpperCase()}</span>
@@ -1085,10 +1200,26 @@ export default function ScheduleBoard({
                 <button onClick={() => setPendingDrop({ ...pendingDrop, spanDays: pendingDrop.spanDays + 1 })} style={{ background: "none", border: "1px solid var(--line)", color: "var(--text)", borderRadius: 6, width: 24, height: 24, cursor: "pointer" }}>+</button>
               </span>
             </div>
-            {pendingDrop.job && (
+            {pendingDrop.job && !isEmployeeLane(pendingDrop.contractorId) && (
               <div className="frow">
                 <span className="l">Their price</span>
                 <span className="v" style={{ color: "var(--cyan)" }}>{money(pendingDrop.job.paymentCents)}</span>
+              </div>
+            )}
+            {pendingDrop.job && isEmployeeLane(pendingDrop.contractorId) && pendingDrop.job.hours != null && (
+              <div className="frow">
+                <span className="l">Time budget</span>
+                <span className="v">{pendingDrop.job.estimatedDays} d · {pendingDrop.job.hours.toFixed(1)} h</span>
+              </div>
+            )}
+            {(isEmployeeLane(pendingDrop.contractorId) || pendingDrop.block?.assignmentId) && (
+              <div className="frow" style={{ display: "block" }}>
+                <span className="l" style={{ display: "block", marginBottom: 6 }}>
+                  Override reason <span style={{ opacity: 0.6 }}>(only if they&rsquo;re already booked or away those days)</span>
+                </span>
+                <input type="text" value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)}
+                  data-testid="assign-override" placeholder="e.g. agreed with Marco — he'll split the days"
+                  style={{ width: "100%" }} />
               </div>
             )}
 
@@ -1167,8 +1298,20 @@ export default function ScheduleBoard({
             )}
             {err && <div className="err">{err}</div>}
 
-            <button className="btn cy" disabled={busy} onClick={pendingDrop.kind === "tray" ? sendOffer : moveBooking}>
-              {busy ? "Working…" : pendingDrop.kind === "tray" ? "Send offer" : "Move booking"}
+            <button
+              className="btn cy"
+              disabled={busy}
+              data-testid="drop-confirm"
+              onClick={
+                pendingDrop.kind === "tray"
+                  ? (isEmployeeLane(pendingDrop.contractorId) ? assignJob : sendOffer)
+                  : (pendingDrop.block?.assignmentId ? moveAssignment : moveBooking)
+              }
+            >
+              {busy ? "Working…"
+                : pendingDrop.kind === "tray"
+                  ? (isEmployeeLane(pendingDrop.contractorId) ? "Assign job" : "Send offer")
+                  : (pendingDrop.block?.assignmentId ? "Move days" : "Move booking")}
             </button>
             <button className="btn gh" onClick={() => {
               // Reset EVERYTHING — a cancelled sheet must not leak one job's
@@ -1191,6 +1334,72 @@ export default function ScheduleBoard({
             {detail.paymentCents != null && <div className="frow"><span className="l">Their price</span><span className="v">{money(detail.paymentCents)}</span></div>}
             {detail.finishCode && <div className="frow"><span className="l">Finish</span><span className="v">{detail.finishCode}</span></div>}
             {detail.expiresAt && <div className="frow"><span className="l">Expires in</span><span className="v" style={{ color: "var(--amber)" }}>{coarseCountdown(detail.expiresAt)}</span></div>}
+
+            {/* Employed painters (S2): the crew on this job, the Lead painter
+                button, add a painter, take this one off. */}
+            {detail.assignmentId && detail.workOrderId && (() => {
+              const crew = blocks.filter((b) => b.assignmentId && b.workOrderId === detail.workOrderId);
+              const lead = crew.find((b) => b.isLead);
+              const onJob = new Set(crew.map((b) => b.contractorId));
+              const spare = lanes.filter((l) => l.employmentType === "employee" && l.active && !onJob.has(l.contractorId));
+              const nameOf = (id: string) => lanes.find((l) => l.contractorId === id)?.name ?? "Painter";
+              return (
+                <div data-testid="assignment-detail">
+                  <div className="frow">
+                    <span className="l">Painter</span>
+                    <span className="v">{nameOf(detail.contractorId).toUpperCase()}{detail.isLead ? " · LEAD" : ""}</span>
+                  </div>
+                  <div className="frow">
+                    <span className="l">Seen it</span>
+                    <span className="v" style={{ color: detail.acceptedAt ? "var(--emerald)" : "var(--amber)" }}>
+                      {detail.acceptedAt ? `ACCEPTED ${formatDMY(detail.acceptedAt.slice(0, 10))}` : "NOT YET — HOLLOW ON THE BOARD"}
+                    </span>
+                  </div>
+                  <div className="frow">
+                    <span className="l">Crew</span>
+                    <span className="v">{crew.map((b) => `${b.isLead ? "★ " : ""}${nameOf(b.contractorId)}`).join(" · ").toUpperCase()}</span>
+                  </div>
+                  {!detail.isLead && (
+                    <button className="btn dim" disabled={busy} data-testid="make-lead"
+                      onClick={() => makeLead(detail.workOrderId!, detail.contractorId)}>
+                      Make {nameOf(detail.contractorId)} the lead painter
+                    </button>
+                  )}
+                  {spare.length > 0 && (
+                    <div className="frow" style={{ display: "block", marginTop: 10 }}>
+                      <span className="l" style={{ display: "block", marginBottom: 6 }}>Add a painter — same days as {nameOf(detail.contractorId)}</span>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <select value={addPainterId} onChange={(e) => setAddPainterId(e.target.value)} data-testid="add-painter"
+                          style={{ flex: 1 }}>
+                          <option value="">Pick an employee…</option>
+                          {spare.map((l) => <option key={l.contractorId} value={l.contractorId}>{l.name}</option>)}
+                        </select>
+                        <button className="btn dim" disabled={busy || !addPainterId} data-testid="add-painter-go"
+                          onClick={() => addPainter(detail.workOrderId!, addPainterId, detail.start, detail.end, lead?.contractorId ?? detail.contractorId)}>
+                          Add
+                        </button>
+                      </div>
+                      <input type="text" value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)}
+                        placeholder="Override reason, only if they're booked or away those days" style={{ width: "100%", marginTop: 6 }} />
+                    </div>
+                  )}
+                  <label className="ctrl-lab" style={{ display: "block", marginTop: 16, marginBottom: 6 }}>
+                    Reason (goes on the record)
+                  </label>
+                  <input type="text" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="e.g. needed on the Elm St job" style={{ width: "100%" }} />
+                  <button className="btn dim" disabled={busy} data-testid="release-painter"
+                    onClick={() => releasePainter(detail.assignmentId!, cancelReason)}>
+                    Take {nameOf(detail.contractorId)} off this job
+                  </button>
+                  <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+                    Future days only — anything they have already ticked stays on the job.
+                    {detail.isLead && crew.length > 1 ? " They're the lead, so name another lead painter first." : ""}
+                    {crew.length === 1 ? " They're the only painter, so the job goes back to the unscheduled tray." : ""}
+                  </p>
+                </div>
+              );
+            })()}
             {detail.kind === "unavailable" && (
               <>
                 <div className="frow"><span className="l">Set by</span><span className="v">{detail.source === "staff" ? "THE OFFICE" : "THE CONTRACTOR"}</span></div>

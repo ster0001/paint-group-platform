@@ -2,7 +2,7 @@
 feature: scheduling
 role: staff
 title: Offer a job to a painter and manage the booking on the scheduling board
-summary: How the Schedule tab works — drag an accepted job onto a contractor's row to send a 24-hour offer, handle proposals and reschedule requests, cancel or move a booking, and what the customer receives once the painter accepts.
+summary: How the Schedule tab works — drag an accepted job onto a contractor's row to send a 24-hour offer, or onto an employed painter's row to assign it (several painters, one lead), handle proposals and reschedule requests, cancel or move a booking, and what the customer receives.
 walkthrough: media/staff-walkthrough.gif
 sources: app/pc/schedule, lib/scheduling, lib/workorder/appointmentEmail.ts
 verified_at_commit: 931d769016
@@ -56,15 +56,23 @@ The scheduling board is where an accepted job gets a painter and dates. Every is
 ### Blocking days out
 14. Tap **+ Block out days**, or drag across empty space on a contractor's row, choose the contractor and days, add an optional reason and tap **Block them out**. The contractor sees the block in their calendar. Office blocks can be removed from the block's detail sheet; days the contractor blocked themselves can only be cleared by them.
 
+### Assigning a job to an employed painter
+15. A row that reads **EMPLOYEE** belongs to one of Paint Group's own painters. They are never offered a job — you assign it. Drag the job onto their row exactly as you would for a contractor. The sheet reads **Assign this job?** and shows the time budget (days and hours) instead of a price. Confirm the final walkthrough with the client as usual, then tap **Assign job**.
+16. The job goes straight into their calendar: a green block with a **dashed outline** and **NOT YET SEEN** until the painter opens it and taps **Accept**. Nothing waits on that tap — the customer's booking confirmation goes out now, and the painter gets a text and email telling them to open the work order and tap Accept.
+17. To put more than one painter on the job, click the block and use **Add a painter**. Each painter gets their own block on their own row, with a **1 OF 3** style chip. Exactly one painter is the **lead** — the ★ on their block — and the lead is the name the customer sees. The first painter you drop is the lead; change it from any crew member's block with **Make … the lead painter**.
+18. To move one painter's days, drag their block along their row: **Move these days?** → **Move days**. Their Accept is cleared and they are told to accept again. To take a painter off the job, open their block, type a reason and tap **Take … off this job** — future days only; anything they have already ticked stays on the job. The lead cannot be taken off while others remain: name another lead first.
+19. If the painter is already on another job, or is on leave, an RDO or sick those days, the sheet refuses and names the other job or the kind of day. Type an **Override reason** and assign again if you mean it — the reason goes on the job's event log.
+
 ## What the colours and labels mean
 - **Amber hatched block with countdown** — offered, waiting on the contractor (24 hours).
 - **Green block** — accepted; the booking is confirmed and the customer has been told.
+- **Green block, dashed outline, NOT YET SEEN** — assigned to an employed painter who has not yet tapped Accept. **★** marks the lead painter; **2 OF 3** says how many painters share the job.
 - **Cyan block** — the job is in progress.
 - **Grey hatched block** — contractor unavailable (blocked out by them or by the office).
 - **Needs your decision** card, amber border — a proposal or reschedule request waiting on you; **red border / OVERDUE** — you have not answered within the time shown.
 - **WE CANCELLED — …** (red) on a tray card — the office cancelled a booking; the reason follows.
 - **… DIDN'T ACCEPT WITHIN 24 HOURS — MOVED BACK** (amber) on a tray card — the offer lapsed.
-- **READY** on a contractor row — insurance valid, can be offered work. **SUSPENDED** — cannot be offered work.
+- **READY** on a contractor row — insurance valid, can be offered work. **SUSPENDED** — cannot be offered work. **EMPLOYEE** — one of our own painters; jobs are assigned, not offered.
 - **0/1 ON**, **2/1 OVER** — jobs on the row against the painters on their crew; OVER means they are double-booked.
 
 ## If something goes wrong

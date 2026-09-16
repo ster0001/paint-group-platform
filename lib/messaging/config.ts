@@ -95,6 +95,14 @@ export type MessagingSettings = {
   offerSms: string;
   offerEmailSubject: string;
   offerEmailIntro: string;
+  /** Employee (employed-painters S2): a job is assigned — open it and tap Accept. */
+  assignmentSms: string;
+  assignmentEmailSubject: string;
+  assignmentEmailIntro: string;
+  /** Employee: their dates on a job changed — accept again. */
+  assignmentDatesChangedSms: string;
+  /** Employee: taken off a job. */
+  assignmentReleasedSms: string;
   /** Painter: an approved addition is waiting for their acceptance. */
   variationReleasedSms: string;
   /** Painter: a failed quality check, areas to put right. */
@@ -227,6 +235,17 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Hi {{first_name}},\n\n" +
     "{{company_name}} has offered you a job ({{wo_ref}}). The offer holds for 24 hours — " +
     "sign in to your portal to see the dates, the price and the job sheet, and give your answer.",
+  assignmentSms:
+    "{{company_name}}: you're on {{wo_ref}} from {{start_date}} ({{address}}). Open your work order and tap Accept: {{link}}",
+  assignmentEmailSubject: "You're on a job — {{wo_ref}}, from {{start_date}}",
+  assignmentEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "{{company_name}} has put you on {{wo_ref}} at {{address}}, {{dates}}. " +
+    "Open your work order to see the job sheet, and tap Accept so the office knows you've seen it.",
+  assignmentDatesChangedSms:
+    "{{company_name}}: your dates on {{wo_ref}} have changed to {{dates}}. Open the job and tap Accept again: {{link}}",
+  assignmentReleasedSms:
+    "{{company_name}}: you're no longer needed on {{wo_ref}} ({{address}}). Nothing to do — your calendar is updated.",
   variationReleasedSms:
     "{{company_name}}: a variation on {{wo_ref}} is approved and waiting on you — {{action}} it in your dashboard: {{link}}",
   qaFailSms:
