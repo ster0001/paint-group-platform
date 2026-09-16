@@ -11,8 +11,11 @@
 import { z } from "zod";
 import type { BookedArea, BookedJob } from "./types";
 
-const text = z.union([z.string(), z.number(), z.null(), z.undefined()]).transform((v) => (v == null ? "" : String(v).trim()));
-const money = z.union([z.string(), z.number(), z.null(), z.undefined()]).transform((v) => {
+// Zapier OMITS a key whose value is empty (an unset Airtable field), so every
+// optional field must accept a missing key, not just an empty value — a union
+// that merely lists `undefined` still fails as "expected nonoptional".
+const text = z.union([z.string(), z.number(), z.null()]).optional().transform((v) => (v == null ? "" : String(v).trim()));
+const money = z.union([z.string(), z.number(), z.null()]).optional().transform((v) => {
   if (v == null || v === "") return null;
   const n = typeof v === "number" ? v : Number(String(v).replace(/[$,\s]/g, ""));
   return Number.isFinite(n) ? n : null;
@@ -27,14 +30,14 @@ export type PsItem = z.infer<typeof psItem>;
  * values joined with commas when the step flattened them. Prices never carry a
  * comma; a name that did would split — the count check below catches that.
  */
-const list = z.union([z.array(z.union([z.string(), z.number(), z.null()])), z.string(), z.number(), z.null(), z.undefined()]).transform((v): string[] => {
+const list = z.union([z.array(z.union([z.string(), z.number(), z.null()])), z.string(), z.number(), z.null()]).optional().transform((v): string[] => {
   if (Array.isArray(v)) return v.map((x) => (x == null ? "" : String(x).trim()));
   if (v == null || v === "") return [];
   return String(v).split(",").map((x) => x.trim());
 });
 
 /** `ps_items` as an array of {name, price}, as a JSON string of one, or as parallel `name` / `price` lists (Unflatten). */
-const psItems = z.union([z.array(z.union([psItem, z.string(), z.number(), z.null()])), z.object({ name: list, price: list }), z.string(), z.null(), z.undefined()]).transform((v): PsItem[] => {
+const psItems = z.union([z.array(z.union([psItem, z.string(), z.number(), z.null()])), z.object({ name: list, price: list }), z.string(), z.null()]).optional().transform((v): PsItem[] => {
   // A bare list of names (what mapping the whole "Items" field sends) is accepted but carries no prices.
   if (Array.isArray(v)) return v.map((x) => (x && typeof x === "object" ? x : { name: x == null ? "" : String(x).trim(), price: null }));
   if (v && typeof v === "object") return zipItems(v.name, v.price);
