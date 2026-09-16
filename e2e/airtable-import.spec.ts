@@ -242,6 +242,32 @@ test.describe("Airtable → CRM import", () => {
     expect(String(ev![0].occurred_at).slice(0, 10)).toBe("2026-08-26");
   });
 
+  test("Tom, 17 Sep · every imported job gets the draft deposit an acceptance would have drafted; a draft counts for nothing", async () => {
+    const sb = db!;
+    const check = loader("draft-deposits.ts", ["check", "--import-name", IMPORT_B]);
+    expect(check.ok, check.out).toBe(true);
+    expect(check.out).toContain("1 to draft · $1016.40 in draft deposits");
+    const run = loader("draft-deposits.ts", ["run", "--import-name", IMPORT_B]);
+    expect(run.ok, run.out).toBe(true);
+    expect(run.out).toContain('done: {"drafted":1}');
+
+    const { data: inv, error } = await sb.from("invoices").select("id, kind, status, total_inc_cents, subtotal_ex_cents, gst_cents, work_order_id, number, issued_on").eq("estimate_id", bookedEstimateId);
+    expect(error).toBeNull();
+    // The document's own 50% (brief B1.4, IMPORT_DEPOSIT_PCT) of $2,032.80 inc = $1,016.40 inc, GST inside it; unnumbered, unissued.
+    expect(inv).toEqual([expect.objectContaining({ kind: "deposit", status: "draft", total_inc_cents: 101640, gst_cents: 9240, subtotal_ex_cents: 92400, work_order_id: bookedWoId, number: null, issued_on: null })]);
+    const { data: lines } = await sb.from("invoice_lines").select("description, amount_ex_cents, gst_cents").eq("invoice_id", inv![0].id);
+    expect(lines).toEqual([{ description: "Deposit — 50% of the contract price, payable on acceptance", amount_ex_cents: 92400, gst_cents: 9240 }]);
+    const { data: events } = await sb.from("invoice_events").select("type, meta").eq("invoice_id", inv![0].id);
+    expect(events).toEqual([expect.objectContaining({ type: "drafted", meta: expect.objectContaining({ auto: "import" }) })]);
+
+    // A draft is invisible to the ledger (invoice_ledger skips draft/void), so the final at sign-off still bills the whole contract.
+    // Twice is once.
+    const again = loader("draft-deposits.ts", ["run", "--import-name", IMPORT_B]);
+    expect(again.out).toContain('done: {"exists":1}');
+    const { count } = await sb.from("invoices").select("id", { count: "exact", head: true }).eq("estimate_id", bookedEstimateId);
+    expect(count).toBe(1);
+  });
+
   test("Part B · staff see the tray card and the PaintScout strip", async ({ page }) => {
     await signIn(page, staff!, /\/estimates/);
     await page.goto("/pc/schedule");
