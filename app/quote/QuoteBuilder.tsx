@@ -97,6 +97,13 @@ type Surface = {
    * "medium" prices unchanged; staff-only (the wizard always writes medium). */
   size?: "small" | "medium" | "large" | null;
   hidden: boolean; // priced into the total, but omitted from the customer's copy
+  /**
+   * Tom, 16 Sep 2026: this ONE substrate offered as an option. The walls and
+   * ceilings stay in the estimate; the doors, architraves and skirting of the
+   * same room become a ticked extra under "Optional extras", priced but
+   * outside the total until the customer adds them. Absent on older rows.
+   */
+  isOption?: boolean;
   media: MediaItem[];
   // per-surface measurement override — e.g. one wall that is half render, half
   // weatherboard: each surface gets its own size instead of the area dimensions.
@@ -700,7 +707,7 @@ export default function QuoteBuilder({
   }
   function newSurface(): Surface {
     return {
-      id: nextId++, code: "", internalLabel: "", clientLabel: "", coats: 2, count: 1, hidden: false, media: [], measureL: null, measureH: null, qtyOverride: null,
+      id: nextId++, code: "", internalLabel: "", clientLabel: "", coats: 2, count: 1, hidden: false, isOption: false, media: [], measureL: null, measureH: null, qtyOverride: null,
       rateOverride: null, paintingHrOverride: null, prepHr: 0, priceOverride: null, productName: null, color: "", colorHex: "",
       coverageOverride: null, volumeOverride: null, unitPriceOverride: null, crewNote: "",
       hideQty: false, showCoats: false, showPrice: false, useCustomRate: false, customRate: null,
@@ -1168,7 +1175,19 @@ export default function QuoteBuilder({
   const optionBlocks = blocks.filter((b) => b.isOption);
   // In customer view, hidden line items drop out of the document entirely.
   const visibleToCustomer = (b: Block) => !customerView || !(b.kind === "line" && b.hidden);
-  const areaPriceCents = (b: Area) => b.surfaces.reduce((n, s) => n + surfaceCalc(b, s).totalCents, 0);
+  // The area's price is its INCLUDED substrates; an optional substrate is
+  // priced on its own and offered under "Optional extras" (Tom, 16 Sep).
+  const areaPriceCents = (b: Area) => b.surfaces.reduce((n, s) => n + (s.isOption ? 0 : surfaceCalc(b, s).totalCents), 0);
+  const areaOptionCents = (b: Area) => b.surfaces.reduce((n, s) => n + (s.isOption ? surfaceCalc(b, s).totalCents : 0), 0);
+  const optionSurfacesOf = (b: Area) => b.surfaces.filter((s) => s.isOption && s.code && !s.hidden);
+  /** "Lounge — Doors, Architraves, Skirting": what the customer ticks. */
+  const surfaceOptionTitle = (b: Area) =>
+    `${b.name || "Area"} — ${optionSurfacesOf(b).map((s) => s.clientLabel || s.code).join(", ")}`;
+  const surfaceOptionId = (b: Area) => `${b.id}:surfaces`;
+  /** Included areas that carry at least one optional substrate: one option card each. */
+  const surfaceOptionAreas = blocks.filter((b): b is Area => b.kind === "area" && !b.isOption && optionSurfacesOf(b).length > 0);
+  const includeSurfacesAgain = (areaId: number) =>
+    setBlocks((bs) => bs.map((b) => (b.id === areaId && b.kind === "area" ? { ...b, surfaces: b.surfaces.map((x) => ({ ...x, isOption: false })) } : b)));
 
   // Distinct products actually used in the included areas → customer paint cards.
   const roleForCategory = (cat: string): string => {
@@ -1196,7 +1215,7 @@ export default function QuoteBuilder({
       if (b.kind !== "area" || b.isOption) continue; // only included areas
       const areaTitle = b.name || "Area";
       for (const s of b.surfaces) {
-        if (!s.code || s.hidden) continue;
+        if (!s.code || s.hidden || s.isOption) continue; // an optional substrate is not on the job yet
         const productName = productNameFor(b.type, s);
         if (!productName) continue;
         const sheen = sheenFor(b.type, s);
@@ -1267,16 +1286,27 @@ export default function QuoteBuilder({
     const options: SnapshotLine[] = [];
     for (const b of blocks) {
       if (b.kind === "area") {
+        // An optional area is one option, whole. An INCLUDED area lists its
+        // included substrates and, when some are optional, offers those as one
+        // option of their own ("Lounge — Doors, Skirting"), Tom 16 Sep.
         const surfaces = b.surfaces
-          .filter((s) => s.code && !s.hidden)
+          .filter((s) => s.code && !s.hidden && (b.isOption || !s.isOption))
           .map((s) => ({ label: s.clientLabel || s.code, coats: s.coats, product: productNameFor(b.type, s) || "" }));
         const photos = [
           ...(b.media ?? []).map((m) => m.url),
-          ...b.surfaces.filter((s) => !s.hidden).flatMap((s) => (s.media ?? []).map((m) => m.url)),
+          ...b.surfaces.filter((s) => !s.hidden && (b.isOption || !s.isOption)).flatMap((s) => (s.media ?? []).map((m) => m.url)),
         ];
-        const entry: SnapshotArea = { id: String(b.id), title: b.name || "Area", descriptionHtml: b.description ?? "", priceCents: areaPriceCents(b), surfaces, photos };
+        const wholePrice = b.surfaces.reduce((n, s) => n + surfaceCalc(b, s).totalCents, 0);
+        const entry: SnapshotArea = { id: String(b.id), title: b.name || "Area", descriptionHtml: b.description ?? "", priceCents: b.isOption ? wholePrice : areaPriceCents(b), surfaces, photos };
         if (b.isOption) options.push({ id: entry.id, title: entry.title, descriptionHtml: entry.descriptionHtml, priceCents: entry.priceCents });
-        else areas.push(entry);
+        else {
+          areas.push(entry);
+          const opt = optionSurfacesOf(b);
+          if (opt.length) {
+            const list = opt.map((s) => `<li>${s.clientLabel || s.code}${s.coats ? ` (${s.coats} ${s.coats === 1 ? "coat" : "coats"})` : ""}</li>`).join("");
+            options.push({ id: surfaceOptionId(b), title: surfaceOptionTitle(b), descriptionHtml: `<ul>${list}</ul>`, priceCents: areaOptionCents(b) });
+          }
+        }
       } else {
         if (b.hidden) continue;
         const line: SnapshotLine = { id: String(b.id), title: b.name || "Line item", descriptionHtml: b.description ?? "", priceCents: lineCalc(b).priceCents };
@@ -1337,7 +1367,7 @@ export default function QuoteBuilder({
       if (b.kind !== "area" || b.isOption) continue;
       const surfaces: WOArea["surfaces"] = [];
       for (const s of b.surfaces) {
-        if (!s.code || s.hidden) continue;
+        if (!s.code || s.hidden || s.isOption) continue; // optional: not on the job unless the customer adds it
         const pname = isAllowanceLine(s) ? "" : (productNameFor(b.type, s) || "");
         const calc = surfaceCalc(b, s);
         const col = pname ? colourFor(b.type, s) : { name: "", hex: "" };
@@ -1373,7 +1403,7 @@ export default function QuoteBuilder({
       }
       const photos = [
         ...(b.media ?? []).map((m) => m.url),
-        ...b.surfaces.filter((s) => !s.hidden).flatMap((s) => (s.media ?? []).map((m) => m.url)),
+        ...b.surfaces.filter((s) => !s.hidden && !s.isOption).flatMap((s) => (s.media ?? []).map((m) => m.url)),
       ];
       const areaOverride = woAreaFinish[String(b.id)] || null;
       areasDoc.push({
@@ -1520,8 +1550,13 @@ export default function QuoteBuilder({
   const renderFolderRow = (b: Block) => {
     const title = b.kind === "area" ? b.name || "Untitled area" : b.name || "Line item";
     const price = b.kind === "area" ? areaPriceCents(b) : lineCalc(b).priceCents;
+    const optionCents = b.kind === "area" && !b.isOption ? areaOptionCents(b) : 0;
     const areaSubtitle =
-      b.kind === "area" ? b.surfaces.filter((s) => s.code).map((s) => s.clientLabel || s.code).join(", ") || "No surfaces yet" : "";
+      b.kind === "area"
+        ? b.surfaces.filter((s) => s.code && !s.isOption).map((s) => s.clientLabel || s.code).join(", ")
+          + (b.kind === "area" && optionSurfacesOf(b).length ? ` · optional: ${optionSurfacesOf(b).map((s) => s.clientLabel || s.code).join(", ")}` : "")
+          || "No surfaces yet"
+        : "";
     const lineDesc = b.kind === "line" ? b.description ?? "" : "";
     const lineHasDesc = !!lineDesc && lineDesc.replace(/<[^>]*>/g, "").trim() !== "";
     const open = () => setView(b.kind === "area" ? { type: "area", id: b.id } : { type: "line", id: b.id });
@@ -1555,7 +1590,10 @@ export default function QuoteBuilder({
               <div className="text-xs text-gray-400">Line item — no description yet</div>
             )}
           </div>
-          <div className="whitespace-nowrap text-sm font-semibold tabular-nums">{fmt(price)}</div>
+          <div className="whitespace-nowrap text-right text-sm font-semibold tabular-nums">
+            {fmt(price)}
+            {optionCents > 0 && <span className="block text-[11px] font-normal text-gray-400" data-testid={`area-optional-${b.id}`}>+ {fmt(optionCents)} optional</span>}
+          </div>
           <label onClick={stop} className="flex items-center gap-1 text-xs text-gray-500" title="Optional add-on">
             <input type="checkbox" checked={b.isOption} onChange={(e) => patchBlock(b.id, { isOption: e.target.checked })} /> Opt
           </label>
@@ -2318,13 +2356,40 @@ export default function QuoteBuilder({
               )}
               {mainBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}
 
-              {optionBlocks.filter(visibleToCustomer).length > 0 && (
-                <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
+              {(optionBlocks.filter(visibleToCustomer).length > 0 || surfaceOptionAreas.length > 0) && (
+                <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4" data-testid="optional-extras">
                   <h2 className="text-sm font-semibold">
                     Optional extras{" "}
                     <span className="font-normal text-gray-400">— not included in the total unless added</span>
                   </h2>
-                  <div className="mt-3 space-y-4">{optionBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}</div>
+                  <div className="mt-3 space-y-4">
+                    {optionBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}
+                    {/* Tom, 16 Sep: the optional SUBSTRATES of an included room, one card
+                        per room. The customer ticks it on their page; here the one
+                        button puts them back in the estimate. */}
+                    {surfaceOptionAreas.map((b) => (
+                      <section key={`opt-${b.id}`} className="rounded-xl border border-gray-200 bg-white p-4" data-testid={`surface-option-${b.id}`}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{surfaceOptionTitle(b)}</span>
+                              <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">Optional</span>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500">
+                              {optionSurfacesOf(b).map((s) => `${s.clientLabel || s.code} · ${s.coats} ${s.coats === 1 ? "coat" : "coats"}`).join(" · ")}
+                            </div>
+                          </div>
+                          <div className="whitespace-nowrap text-right text-base font-semibold tabular-nums">{fmt(areaOptionCents(b))}</div>
+                        </div>
+                        {!customerView && (
+                          <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-2">
+                            <button onClick={() => setView({ type: "area", id: b.id })} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Edit {b.name || "area"} →</button>
+                            <button onClick={() => includeSurfacesAgain(b.id)} className="text-xs text-gray-500 hover:text-gray-900 hover:underline" data-testid={`surface-option-include-${b.id}`}>Put back in the estimate</button>
+                          </div>
+                        )}
+                      </section>
+                    ))}
+                  </div>
                 </section>
               )}
 
@@ -3028,13 +3093,26 @@ function AreaCard({
   onRemove: () => void;
 }) {
   // per-area totals (matches PaintScout's Area Hours / Area Price + breakdown)
+  // The TOTAL row is what is in the estimate; optional substrates (Tom, 16
+  // Sep) are summed on their own line beneath it.
   const at = area.surfaces.reduce(
+    (a, s) => {
+      if (s.isOption) return a;
+      const c = calc(s);
+      return { hrs: a.hrs + c.paintingHr + c.prepHr, prep: a.prep + c.prepHr, paint: a.paint + c.paintingHr, mat: a.mat + c.matPriceCents, labour: a.labour + c.labourCents, price: a.price + c.totalCents };
+    },
+    { hrs: 0, prep: 0, paint: 0, mat: 0, labour: 0, price: 0 },
+  );
+  const optionalSurfaces = area.surfaces.filter((s) => s.isOption);
+  const atOpt = optionalSurfaces.reduce(
     (a, s) => {
       const c = calc(s);
       return { hrs: a.hrs + c.paintingHr + c.prepHr, prep: a.prep + c.prepHr, paint: a.paint + c.paintingHr, mat: a.mat + c.matPriceCents, labour: a.labour + c.labourCents, price: a.price + c.totalCents };
     },
     { hrs: 0, prep: 0, paint: 0, mat: 0, labour: 0, price: 0 },
   );
+  const setSurfaceOption = (sid: number, v: boolean) =>
+    onPatch({ surfaces: area.surfaces.map((x) => (x.id === sid ? { ...x, isOption: v } : x)) });
   const nc = "px-2 py-2 text-right tabular-nums";
   const money = (cents: number) => (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
@@ -3064,8 +3142,11 @@ function AreaCard({
         </div>
         <div className="rounded-lg bg-gray-50 px-3 py-1.5 text-right">
           <div className="text-[10px] uppercase tracking-wide text-gray-400">Area price</div>
-          <div className="text-sm font-semibold tabular-nums">{fmt(at.price)}</div>
+          <div className="text-sm font-semibold tabular-nums" data-testid="area-price">{fmt(at.price)}</div>
           <div className="text-[11px] tabular-nums text-gray-400">{at.hrs.toFixed(2)} hr</div>
+          {optionalSurfaces.length > 0 && (
+            <div className="text-[11px] tabular-nums text-gray-400" data-testid="area-optional-price">+ {fmt(atOpt.price)} optional</div>
+          )}
         </div>
         <select
           className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
@@ -3135,12 +3216,15 @@ function AreaCard({
               {area.surfaces.map((s) => {
                 const c = calc(s);
                 return (
-                  <tr key={s.id} onClick={() => onOpenSurface(s.id)} className="cursor-pointer border-t border-gray-200 hover:bg-blue-50/40" title="Open surface">
+                  <tr key={s.id} onClick={() => onOpenSurface(s.id)} className={`cursor-pointer border-t border-gray-200 hover:bg-blue-50/40 ${s.isOption ? "bg-gray-50/70 text-gray-500" : ""}`} title="Open surface" data-testid={`surface-row-${s.id}`} data-option={s.isOption ? "true" : "false"}>
                     <td className="px-2 py-2">
                       <span className="flex items-center gap-1 text-left">
                         <span className="text-gray-400">📁</span>
                         <span>
                           <span className="font-medium">{s.clientLabel || s.code || "New surface"}</span>
+                          {s.isOption && (
+                            <span className="ml-1.5 rounded bg-gray-200 px-1 py-0.5 text-[9px] font-medium uppercase text-gray-600" title="Offered as an option — outside the total until the customer adds it">Optional</span>
+                          )}
                           {s.productName != null && (
                             <span className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium text-amber-700" title={`Custom product: ${s.productName}`}>custom</span>
                           )}
@@ -3183,6 +3267,20 @@ function AreaCard({
                         </span>
                       )}
                       {s.hidden && <span className="mr-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium text-amber-700">Hidden</span>}
+                      {/* Tom, 16 Sep: one press makes this substrate an option for the
+                          customer (or puts it back). The row stays here, greyed; the
+                          customer sees it under "Optional extras". */}
+                      {s.code && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setSurfaceOption(s.id, !s.isOption); }}
+                          className={`mr-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${s.isOption ? "border-gray-900 bg-gray-900 text-white hover:bg-gray-700" : "border-gray-300 text-gray-600 hover:bg-gray-100"}`}
+                          title={s.isOption ? "Put this substrate back in the estimate" : "Offer this substrate as an option the customer can add"}
+                          aria-pressed={s.isOption === true}
+                          data-testid={`surface-option-toggle-${s.id}`}
+                        >
+                          {s.isOption ? "Include" : "Option"}
+                        </button>
+                      )}
                       <button onClick={(e) => { e.stopPropagation(); onDuplicateSurface(s.id); }} className="px-1 text-gray-400 hover:text-gray-700" title="Duplicate surface">⧉</button>
                       <button onClick={(e) => { e.stopPropagation(); onRemoveSurface(s.id); }} className="px-1 text-gray-400 hover:text-red-600" title="Remove surface">×</button>
                     </td>
@@ -3205,6 +3303,19 @@ function AreaCard({
                 <td className={nc}>{money(at.price)}</td>
                 <td />
               </tr>
+              {optionalSurfaces.length > 0 && (
+                <tr className="border-t border-gray-200 text-gray-500" data-testid="area-optional-row">
+                  <td className="px-2 py-2">OPTIONAL <span className="font-normal">— not in the total unless the customer adds it</span></td>
+                  <td className={nc} />
+                  <td className={nc}>{atOpt.prep.toFixed(2)}</td>
+                  <td className={nc}>{atOpt.paint.toFixed(2)}</td>
+                  <td className={nc}>{atOpt.hrs.toFixed(2)}</td>
+                  <td className={nc}>{money(atOpt.mat)}</td>
+                  <td className={nc}>{money(atOpt.labour)}</td>
+                  <td className={`${nc} font-semibold`}>{money(atOpt.price)}</td>
+                  <td />
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -3496,6 +3607,7 @@ function SurfaceEditor({
             <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Advanced Options</div>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <Check checked={s.hidden} onChange={(v) => onPatch({ hidden: v })} label="Hide From Customer" hint="Still priced; shows on the work order" />
+              <Check checked={s.isOption === true} onChange={(v) => onPatch({ isOption: v })} label="Offer As An Option" hint="Outside the total; the customer ticks it to add it" />
               <Check checked={s.hideQty} onChange={(v) => onPatch({ hideQty: v })} label="Hide Quantity From Customer" />
               <Check checked={s.showCoats} onChange={(v) => onPatch({ showCoats: v })} label="Show Coats" />
               <Check checked={s.showPrice} onChange={(v) => onPatch({ showPrice: v })} label="Show Price" />

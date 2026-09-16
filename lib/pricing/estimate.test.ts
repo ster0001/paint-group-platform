@@ -12,6 +12,7 @@ import {
   priceSurface,
   priceLine,
   priceEstimateTotals,
+  priceAreaSplit,
   resolveRates,
   jobModifier,
   chargeOutCents,
@@ -218,6 +219,26 @@ test("options are excluded from the total until accepted", () => {
     priceEstimateTotals(withOption, ctx, adj).subtotalCents,
     priceEstimateTotals(oneWall, ctx, adj).subtotalCents,
   );
+});
+
+test("an optional SUBSTRATE sits outside the total like an optional area (Tom, 16 Sep)", () => {
+  // Walls in the estimate, the door offered as an extra: the total is the walls alone.
+  const wallsOnly = [area({ surfaces: [surface()] })];
+  const wallsAndDoor = [area({ surfaces: [surface(), surface({ code: "DOOR", count: 2 })] })];
+  const wallsDoorOptional = [area({ surfaces: [surface(), surface({ code: "DOOR", count: 2, isOption: true })] })];
+  const full = priceEstimateTotals(wallsAndDoor, ctx, adj);
+  const opt = priceEstimateTotals(wallsDoorOptional, ctx, adj);
+  assert.equal(opt.subtotalCents, priceEstimateTotals(wallsOnly, ctx, adj).subtotalCents, "the door is not in the subtotal");
+  assert.ok(full.subtotalCents > opt.subtotalCents, "the door was worth something");
+  assert.equal(opt.contractorHours, priceEstimateTotals(wallsOnly, ctx, adj).contractorHours, "nor in the hours");
+  assert.equal(opt.materialsCostCents, priceEstimateTotals(wallsOnly, ctx, adj).materialsCostCents, "nor in the materials");
+
+  // The area's two figures add up to the whole room.
+  const split = priceAreaSplit(wallsDoorOptional[0], ctx, adj);
+  assert.equal(split.includedCents, priceAreaSplit(wallsOnly[0], ctx, adj).includedCents);
+  assert.ok(split.optionalCents > 0);
+  assert.equal(split.includedCents + split.optionalCents, priceAreaSplit(wallsAndDoor[0], ctx, adj).includedCents);
+  assert.equal(priceAreaSplit(wallsAndDoor[0], ctx, adj).optionalCents, 0);
 });
 
 test("hidden surfaces ARE priced — hidden only affects what the customer sees", () => {
