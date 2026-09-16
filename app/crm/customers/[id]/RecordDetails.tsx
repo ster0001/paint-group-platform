@@ -14,11 +14,15 @@ export type StaffOption = { id: string; name: string };
 /** Tom, 8 Sep: the contact address sits with the phone and email, top-left. */
 export type RecordAddress = { text: string; more: number };
 
-export default function RecordDetails({ account, staff, initials, address = null }: {
+export default function RecordDetails({ account, staff, initials, address = null, companyName = null, imported = false }: {
   account: { id: string; name: string | null; email: string | null; phone: string | null; account_type: string; owner_id: string | null };
   staff: StaffOption[];
   initials: string;
   address?: RecordAddress | null;
+  /** R1 (16 Sep 2026): the agency or business behind a residential account. */
+  companyName?: string | null;
+  /** The record was brought across from Airtable / PaintScout. */
+  imported?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(account.name ?? "");
@@ -64,6 +68,8 @@ export default function RecordDetails({ account, staff, initials, address = null
             {account.email ? <a href={`mailto:${account.email}`} className="rlink">{account.email}</a> : <span className="rmiss">no email</span>}
             <span className="rsep">·</span>
             <span>{account.account_type === "trade" ? "Trade" : "Residential"}</span>
+            {companyName && <><span className="rsep">·</span><span data-testid="record-company">{companyName}</span></>}
+            {imported && <><span className="rsep">·</span><span className="rmiss" data-testid="record-imported">Imported from Airtable</span></>}
           </span>
           <span className="raddr" data-testid="record-address">
             {address

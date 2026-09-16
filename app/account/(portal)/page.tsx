@@ -124,7 +124,10 @@ export default async function AccountHomePage({
             // A wizard-built draft is the customer's to keep shaping — it opens
             // the confirm-loop editor. A staff-built draft has no customer editor.
             const shaping = e.status === "draft" && e.source === "customer_intake";
-            const open = (e.status !== "draft" && e.share_token && e.sent_at) || shaping;
+            // Airtable history (16 Sep 2026): a record of a quote from before the
+            // platform — no document to open, so it lists with its status only.
+            const history = e.source === "airtable";
+            const open = !history && ((e.status !== "draft" && e.share_token && e.sent_at) || shaping);
             const body = (
               <>
                 <div className="row">
@@ -132,6 +135,7 @@ export default async function AccountHomePage({
                   <span className={`chip ${shaping ? "amber" : chip.cls}`}>{shaping ? "Keep shaping" : chip.label}</span>
                 </div>
                 {open ? <div className="meta">{shaping ? "Tap to confirm your rooms and finalise your price" : "Tap to open it"}</div> : null}
+                {history ? <div className="meta" data-testid="portal-history">From our records{e.sent_at ? ` · ${new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", month: "short", year: "numeric" }).format(new Date(e.sent_at))}` : ""}</div> : null}
               </>
             );
             return open ? (

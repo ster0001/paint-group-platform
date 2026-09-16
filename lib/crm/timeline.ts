@@ -138,7 +138,7 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
     detail: (p) => join(p.voicemail ? "Voicemail left" : "No voicemail left", str(p.note)) },
   message_left: { label: "Left a message", kind: "activity", detail: (p) => str(p.note) },
   call_connected: { label: "Spoke to customer", kind: "activity", detail: (p) => str(p.note) },
-  note_added: { label: "Note", kind: "activity", detail: (p) => str(p.body) },
+  note_added: { label: "Note", kind: "activity", detail: (p) => join(str(p.body), str(p.author) && `— ${str(p.author)}`) },
   followup_set: { label: "Follow-up set", kind: "activity",
     detail: (p) => join(whenWords(str(p.dueAt)), str(p.note)) },
   temperature_set: { label: "Marked", kind: "activity",
@@ -255,7 +255,7 @@ export function buildTimeline(events: ReadonlyArray<RawEvent>): TimelineRow[] {
         label,
         detail: detail.trim(),
         occurredAt: e.occurred_at,
-        source: (["system", "staff", "customer", "ai"].includes(e.source) ? e.source : "system") as EventSource,
+        source: (["system", "staff", "customer", "ai", "airtable_import"].includes(e.source) ? e.source : "system") as EventSource,
         kind: render?.kind ?? "system",
       };
     });

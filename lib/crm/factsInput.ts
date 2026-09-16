@@ -31,6 +31,8 @@ export type CustomerInput = BoardInput & {
   address: string | null;
   suburb: string | null;
   accountType: string;
+  /** R1 (16 Sep 2026): the agency behind a residential account, searchable ("Kay & Burton" finds every agent). */
+  companyName?: string | null;
   /** Every event of the kinds the facts row counts (opens, contacts). `channel` rides on message events. */
   allEvents: Array<{ type: string; occurred_at: string; channel?: string | null }>;
   /** P5 — the audience facts. All optional so older callers and tests keep working. */
@@ -86,7 +88,7 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
   const [{ data: accounts, error: e1 }, { data: estimates, error: e2 }, { data: events, error: e3 }, { data: props, error: e4 }, { data: drafts, error: e5 }] =
     await Promise.all([
       supabase.from("accounts")
-        .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, owner_id, relationship_state, state_until, state_note, state_set_at, lost_reason, tags, permit_email, permit_sms, permit_phone")
+        .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, owner_id, relationship_state, state_until, state_note, state_set_at, lost_reason, tags, permit_email, permit_sms, permit_phone, company_name")
         .in("id", ids),
       supabase.from("estimates")
         .select("id, account_id, status, total_cents, accepted_total_cents, created_at, sent_at, viewed_at, accepted_at, declined_at, declined_reason, title, job_kind, wizard_job_type:builder_state->wizard->state->>jobType")
@@ -226,6 +228,7 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
       address: prop ? [prop.address, prop.suburb, prop.state, prop.postcode].filter(Boolean).join(" ") || null : null,
       suburb: suburb || null,
       accountType: (a.account_type as string) ?? "residential",
+      companyName: (a.company_name as string | null) ?? null,
       allEvents: evs.map((e) => ({ type: e.type, occurred_at: e.occurred_at, channel: (e.payload?.channel as string | undefined) ?? null })),
       allJobTypes: [
         ...est.map((e) => (e.wizard_job_type as string | null) ?? null),

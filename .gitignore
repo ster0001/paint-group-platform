@@ -57,3 +57,10 @@ next-env.d.ts
 
 # Captured Settings values (commercial numbers) — see scripts/c1/capture-settings.mjs
 .c1-settings.json
+
+# Airtable → CRM import packs hold real customer data: transform/validate and the READMEs are committed, the data never is (CLAUDE.md · no real customer data in the repo).
+docs/imports/airtable-crm-import/*.csv
+docs/imports/airtable-crm-import/*.json
+docs/imports/airtable-crm-import/booked/
+docs/imports/airtable-crm-import/import-report-*.json
+docs/imports/_to_delete/

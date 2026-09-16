@@ -70,6 +70,8 @@ export const WORK_ITEM_KINDS = [
   "desk_check",
   /** Session 1 (16 Sep): automatic job messages the office chose to approve first. */
   "message_approval",
+  /** Airtable handover (16 Sep): a signed PaintScout job arrived through the Zap with its price but no per-area hours — type them from the PaintScout work order. */
+  "hours_to_confirm",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -181,6 +183,8 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   delay_ended: 20,
   // A customer or painter is expecting this message; it outranks a campaign step.
   message_approval: 20,
+  // A job cannot be offered to a painter with no hours on it.
+  hours_to_confirm: 18,
 };
 
 export type PriorityInput = {
@@ -269,6 +273,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   estimate_lapsed: "followups",
   delay_ended: "followups",
   message_approval: "approvals",
+  hours_to_confirm: "approvals",
 };
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
@@ -952,11 +957,15 @@ export function buildLapsedItems(rows: LapsedEventRow[], attempts: ContactEventR
   return items;
 }
 
+const isWarmOrHot = (t: string | null | undefined) => t === "hot" || t === "warm";
+
 // ---- source: followup_due — a quote out with the customer, gone quiet (Tom, 15 Sep) ----
 
 export type QuietQuoteRow = {
   id: string; title: string | null; account_id: string; status: string;
   sent_at: string | null; created_at: string; viewed_at: string | null; total_cents: number | null;
+  /** estimates.source — an Airtable history quote ('airtable') is only chased for a hot or warm customer (Tom, 16 Sep 2026). */
+  source?: string | null;
 };
 
 /** The event types that count as a person following up — one list, shared by
@@ -987,11 +996,17 @@ export const CHASE_EVENT_TYPES = ["call_connected", "call_no_answer", "message_l
 export function buildQuietQuoteItems(
   rows: QuietQuoteRow[], attempts: ContactEventRow[], names: Map<string, string>,
   thresholds: Pick<CrmThresholds, "chaseUnopenedDays" | "chaseOpenedDays" | "goingColdDays">, now: Date,
+  /** accounts.temperature by account — only read for imported history quotes. */
+  temperature: Map<string, string | null> = new Map(),
 ): WorkItem[] {
   const items: WorkItem[] = [];
   const newestByAccount = new Map<string, QuietQuoteRow>();
   for (const r of rows) {
     if (r.status !== "sent" || !r.account_id) continue;
+    // Tom, 16 Sep 2026: the 210 open quotes brought across from Airtable raise
+    // a card only where the customer is hot or warm ("in negotiation" is hot
+    // in the pack); a cold or unrated one waits until somebody touches it.
+    if (r.source === "airtable" && !isWarmOrHot(temperature.get(r.account_id))) continue;
     const at = r.sent_at ?? r.created_at;
     const have = newestByAccount.get(r.account_id);
     if (!have || at > (have.sent_at ?? have.created_at)) newestByAccount.set(r.account_id, r);
@@ -1030,6 +1045,31 @@ export function buildQuietQuoteItems(
     }, { valueCents: cents, promisedToCustomer: false }, now));
   }
   return items;
+}
+
+// ---- source: hours_to_confirm — a handover job with no per-area hours (16 Sep) ----
+
+export type HoursPendingRow = { id: string; title: string | null; account_id: string | null; accepted_at: string | null; created_at: string; total_cents: number | null; external_ref: { quote_no?: unknown; hours_pending?: unknown } | null };
+
+/** One item per signed job whose feed carried no per-area hours (brief C1). The
+ *  key is the estimate, so the item leaves the moment the hours are typed and
+ *  `hours_pending` is cleared. */
+export function buildHoursPendingItems(rows: HoursPendingRow[], now: Date): WorkItem[] {
+  return rows.filter((r) => r.external_ref?.hours_pending === true).map((r) => {
+    const since = r.accepted_at ?? r.created_at;
+    const quote = typeof r.external_ref?.quote_no === "string" ? r.external_ref.quote_no : "";
+    return finish({
+      key: itemKey("hours_to_confirm", "estimate", r.id, "pending"),
+      kind: "hours_to_confirm",
+      accountId: r.account_id,
+      subjectRef: { type: "estimate", id: r.id },
+      title: `${r.title || "A signed job"} — hours to confirm`,
+      detail: [quote ? `PaintScout quote ${quote}` : null, r.total_cents ? money(r.total_cents) : null, "arrived from Airtable with no per-area hours"].filter(Boolean).join(" · "),
+      since,
+      dueAt: since,
+      action: { label: "Type the hours", href: `/quote?id=${r.id}` },
+    }, { valueCents: r.total_cents ?? null, promisedToCustomer: false }, now);
+  });
 }
 
 // ---- source: messages (CRM v2 P3) ------------------------------------------
@@ -1230,7 +1270,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // become follow-ups. Sent in the last 90 days — older ones have lapsed
   // (their own item) or are being ignored on purpose.
   const quoteRes = await supabase.from("estimates")
-    .select("id, title, account_id, status, sent_at, created_at, viewed_at, total_cents")
+    .select("id, title, account_id, status, sent_at, created_at, viewed_at, total_cents, source")
     .eq("status", "sent").not("account_id", "is", null)
     .gte("sent_at", since90d)
     .order("sent_at", { ascending: false }).limit(CAP.quotes);
@@ -1240,10 +1280,17 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const [quoteAttempts, quoteAccounts] = await Promise.all([
     inSlices(quoteAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
       .in("type", [...CHASE_EVENT_TYPES]).in("account_id", ids).gte("occurred_at", since90d).limit(ids.length * 8)),
-    inSlices(quoteAccountIds, (ids) => supabase.from("accounts").select("id, name, email, phone").in("id", ids)),
+    inSlices(quoteAccountIds, (ids) => supabase.from("accounts").select("id, name, email, phone, temperature").in("id", ids)),
   ]);
   const quoteNames = new Map(((quoteAccounts) as Array<{ id: string; name: string | null; email: string | null; phone: string | null }>)
     .map((a) => [a.id, a.name || a.email || a.phone || "A customer"]));
+  const quoteTemps = new Map(((quoteAccounts) as Array<{ id: string; temperature: string | null }>).map((a) => [a.id, a.temperature]));
+  // Airtable handover (16 Sep): signed jobs whose feed had no per-area hours.
+  const hoursRes = await supabase.from("estimates")
+    .select("id, title, account_id, accepted_at, created_at, total_cents, external_ref")
+    .eq("source", "paintscout").eq("status", "accepted").contains("external_ref", { hours_pending: true })
+    .order("accepted_at", { ascending: true }).limit(200);
+  const hoursRows = (hoursRes.error ? [] : (hoursRes.data ?? [])) as unknown as HoursPendingRow[];
   // Tom, 7 Sep: open estimates still waiting on the estimator's photo sign-off.
   const photoRes = await supabase.from("estimates")
     .select("id, title, account_id, created_at, status, builder_state")
@@ -1363,7 +1410,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
     ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now),
     ...buildLapsedItems(lapsedRows, lapsedAttempts as ContactEventRow[], lapsedNames, now),
-    ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now),
+    ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps),
+    ...buildHoursPendingItems(hoursRows, now),
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),

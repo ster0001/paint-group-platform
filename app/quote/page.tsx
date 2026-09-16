@@ -8,6 +8,7 @@ import PackPane from "./PackPane";
 import EstimateStrip from "./EstimateStrip";
 import { loadPackBundle } from "./pack-load";
 import AssistantDrawer from "./AssistantDrawer";
+import ImportedHistory, { type ImportedHistoryRow } from "./ImportedHistory";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { parseBackTo } from "@/lib/navigation/backTo";
@@ -111,7 +112,7 @@ export default async function QuotePage({
     supabase.from("line_items").select("*").order("type").order("name"),
     supabase.from("area_names").select("area, type").order("type").order("area"),
     supabase.from("contacts").select("*").order("last_name"),
-    id ? supabase.from("estimates").select("id, title, builder_state, share_token, status, sent_at, viewed_at, accepted_at, valid_until, presentation_id, sent_snapshot, selected_options").eq("id", id).single() : Promise.resolve({ data: null }),
+    id ? supabase.from("estimates").select("id, title, builder_state, share_token, status, sent_at, viewed_at, accepted_at, valid_until, presentation_id, sent_snapshot, selected_options, source, external_ref, total_cents, subtotal_cents, level_of_finish, declined_at, created_at, account_id").eq("id", id).single() : Promise.resolve({ data: null }),
     id ? supabase.from("work_orders").select("*").eq("estimate_id", id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("contractors").select("id, profiles(name)").eq("active", true),
     supabase.from("presentations").select("id, name, is_default, presentation_blocks(kind, position, enabled, content)").order("name"),
@@ -150,10 +151,16 @@ export default async function QuotePage({
   // Load an existing saved quote (?id=), or start a NEW estimate pre-filled from
   // a saved template (?template=). A template opens with no id, so saving it
   // creates a fresh estimate rather than overwriting the template.
-  type Initial = { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null ; selected_options?: string[] | null };
+  type Initial = { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null ; selected_options?: string[] | null; source?: string | null; external_ref?: Record<string, unknown> | null };
   let initial: Initial | null = null;
   if (id) {
     if (estimateRes.data) initial = estimateRes.data as Initial;
+    // Airtable history (16 Sep 2026): a record, not a scope. The builder is
+    // never opened over it — there is nothing to open, and nothing may
+    // re-price it (acceptance 7).
+    if (initial?.source === "airtable") {
+      return <ImportedHistory row={estimateRes.data as unknown as ImportedHistoryRow} backTo={backTo?.href ?? "/estimates"} />;
+    }
     // Revision: the builder edits the WORKING SCOPE, not the estimate row.
     if (initial && revisionMode && revisionScope) {
       initial = { ...initial, builder_state: revisionScope.working };
@@ -267,9 +274,25 @@ export default async function QuotePage({
   // The embedded assistant writes the row; a changed builder_state remounts
   // the builder on the fresh state (router.refresh() from the drawer).
   const builderKey = fingerprint(JSON.stringify(initial?.builder_state ?? null));
+  // A signed PaintScout job (Part B): the scope is the office's to revise, but
+  // the price is the signed one — every figure is an override and the engine
+  // never re-prices it. The strip says so and links the source documents.
+  const ps = initial?.source === "paintscout" ? (initial.external_ref ?? {}) : null;
+  const psStr = (k: string) => (ps && typeof ps[k] === "string" ? (ps[k] as string) : "");
+  const importedStrip = ps ? (
+    <div className="mx-auto max-w-6xl px-6 pt-4" data-testid="paintscout-strip">
+      <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+        <b>Imported from PaintScout</b> — quote {psStr("quote_no") || "?"}, signed as priced there. Every surface and line carries its PaintScout price and hours as overrides; nothing here is re-priced by the rate card.
+        {psStr("quote_url") && <> <a href={psStr("quote_url")} target="_blank" rel="noreferrer" className="underline" data-testid="paintscout-quote-link">Quote ↗</a></>}
+        {psStr("work_order_url") && <> · <a href={psStr("work_order_url")} target="_blank" rel="noreferrer" className="underline">Work order ↗</a></>}
+        {ps.hours_pending === true && <> · <b data-testid="hours-pending">Hours to confirm</b> — the per-area hours were not in the feed; type them from the PaintScout work order.</>}
+      </div>
+    </div>
+  ) : null;
   return (
     <>
     {strip}
+    {importedStrip}
     {estimateTabs}
     <QuoteBuilder
       key={builderKey}
