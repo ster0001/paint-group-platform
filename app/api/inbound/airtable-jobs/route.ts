@@ -67,6 +67,13 @@ export async function POST(req: Request) {
       wctx ??= await loadBookedWriteContext(service);
       const job = { ...conv.job, import_note: [conv.job.import_note, ...conv.flags].join(" · ") };
       const r = await writeBookedJob(service, job, new SubstrateResolver([]), wctx, { importName: "airtable-handover", updateNote: true, hoursPending: true });
+      // Tom, 17 Sep 2026: a job that arrives through the handover gets the same
+      // DRAFT deposit an online acceptance would have drafted (20270153). The
+      // ledger ignores a draft; the office issues it, edits it or voids it.
+      if (r.status === "created") {
+        const { error: depErr } = await service.rpc("invoice_draft_deposit", { p_estimate_id: r.estimateId, p_auto: "airtable_handover" });
+        if (depErr) reportError(new Error(`invoice_draft_deposit: ${depErr.message}`), { where: "airtableJobs.deposit", extra: { recordId: rec.record_id, quoteNo: rec.quote_no } });
+      }
       // Provenance on the account: one note event per record, dedupe-keyed.
       // A quote that already exists (a re-post, or one of the 35 the pack
       // import wrote) adds nothing to the timeline.
