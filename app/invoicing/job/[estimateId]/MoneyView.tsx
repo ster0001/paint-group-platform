@@ -71,7 +71,7 @@ const STAGE_LABEL: Record<PaymentStage["key"], string> = {
 };
 
 export default function MoneyView({
-  estimateId, woId, woRef, address, jobTitle, stages, strip, cards, feed, costs,
+  estimateId, woId, woRef, address, jobTitle, stages, strip, cards, feed, costs, loadError = null,
 }: {
   estimateId: string;
   woId: string | null;
@@ -85,6 +85,8 @@ export default function MoneyView({
   };
   cards: InvoiceCardProp[];
   feed: FeedProp[];
+  /** Set when the invoice read itself failed — never show an empty ledger then. */
+  loadError?: string | null;
   costs: {
     offerCents: number; acceptedDeltaCents: number;
     ci?: { number: string | null; status: string } | null;
@@ -162,6 +164,14 @@ export default function MoneyView({
           ✎ Revise scope — price &amp; sign changes to this invoice
         </Link>
       </header>
+
+      {loadError && (
+        <div className="banner bad" data-testid="invoices-load-error">
+          <div className="i">▲</div>
+          <p><b>This job&rsquo;s invoices could not be loaded — nothing has been lost.</b><br />
+            {loadError} The figures below are blank because the read failed, not because the invoices are gone.</p>
+        </div>
+      )}
 
       {/* payment stage progress bar */}
       <div className="stages" aria-label="Payment stages" data-testid="stage-rail">

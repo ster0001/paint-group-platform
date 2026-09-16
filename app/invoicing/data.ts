@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DeriveInvoice, DerivePayment, InvoiceKind } from "@/lib/invoicing/derive";
 import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
+import { loadFailure } from "@/lib/invoicing/loadFailure";
 
 /**
  * Server-side row fetching + mapping for the §7 screens. Read-only: every
@@ -271,7 +272,7 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
 
 /** Everything the dashboard needs, four round trips. */
 export async function loadDashboard(supabase: SupabaseClient) {
-  const { data: invoices } = await supabase
+  const { data: invoices, error: invoicesError } = await supabase
     .from("invoices")
     .select(`${INVOICE_SELECT}, estimates(title, accepted_name, accepted_total_cents, job_address:sent_snapshot->>jobAddress)`)
     .order("created_at", { ascending: false })
@@ -298,6 +299,7 @@ export async function loadDashboard(supabase: SupabaseClient) {
 
   return {
     invoices: rows,
+    loadError: loadFailure(invoicesError),
     payments: (payments ?? []) as PaymentRow[],
     events: (events ?? []) as EventRow[],
     contractorInvoices: (cis ?? []) as unknown as ContractorInvoiceRow[],
@@ -306,7 +308,7 @@ export async function loadDashboard(supabase: SupabaseClient) {
 
 /** One job's whole money picture (§7.1). */
 export async function loadJobMoney(supabase: SupabaseClient, estimateId: string) {
-  const [{ data: estimate }, ledgerRes, { data: invoices }, { data: wo }] = await Promise.all([
+  const [{ data: estimate }, ledgerRes, { data: invoices, error: invoicesError }, { data: wo }] = await Promise.all([
     supabase.from("estimates")
       .select("id, title, accepted_name, accepted_at, job_address:sent_snapshot->>jobAddress, job_title:sent_snapshot->>jobTitle")
       .eq("id", estimateId).maybeSingle(),
@@ -354,6 +356,7 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
     } | null,
     ledger,
     invoices: rows,
+    loadError: loadFailure(invoicesError),
     payments: (payments ?? []) as PaymentRow[],
     events: (events ?? []) as EventRow[],
     variations: (variations ?? []) as {
