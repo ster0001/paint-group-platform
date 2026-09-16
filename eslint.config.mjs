@@ -1,6 +1,8 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import noUncheckedSupabaseRead from "./eslint-rules/no-unchecked-supabase-read.mjs";
+import uncheckedReadBaseline from "./eslint-rules/unchecked-read-baseline.json" with { type: "json" };
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -27,6 +29,20 @@ const eslintConfig = defineConfig([
           message: "The assistant gateway is server-only. Reach it through an app/api/agent/** route handler, never from a page or component.",
         }],
       }],
+    },
+  },
+  // A Supabase list read that drops its `error` renders as "there is nothing
+  // here" — the 16 Sep 2026 invoicing outage, where a column that had not been
+  // migrated to production emptied the whole ledger on screen. The rule is a
+  // per-file RATCHET over the 180 reads that already did this: a new one, or a
+  // new file, is an error. Lower a count when you fix some; never raise one.
+  // See eslint-rules/no-unchecked-supabase-read.mjs.
+  {
+    files: ["app/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.ts", "**/*.test.tsx", "**/*.contract.test.ts"],
+    plugins: { local: { rules: { "no-unchecked-supabase-read": noUncheckedSupabaseRead } } },
+    rules: {
+      "local/no-unchecked-supabase-read": ["error", uncheckedReadBaseline],
     },
   },
 ]);
