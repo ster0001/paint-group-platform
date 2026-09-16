@@ -5,3 +5,8 @@
 -- Data-only column; safe to re-run.
 alter table public.estimate_sources add column if not exists label text;
 comment on column public.estimate_sources.label is 'Customer-facing label for the picture, e.g. the side of the house it shows (15 Sep 2026).';
+
+-- Registers itself in the production ledger (added 16 Sep 2026: this file
+-- shipped without it, so `select … from public._prod_migrations` could not say
+-- whether it was live — see docs/ARCHITECTURE.md, the invoicing read-failure note).
+insert into public._prod_migrations(name) values ('20270145000000_estimate_sources_label.sql') on conflict (name) do nothing;

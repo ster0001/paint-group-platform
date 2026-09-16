@@ -203,6 +203,9 @@
 .invx .banner p{font-size:12.5px;color:var(--muted);line-height:1.45;font-weight:500}
 .invx .banner b{color:var(--text);font-weight:600}
 .invx .banner .bacts{display:flex;gap:8px;margin-top:9px}
+/* A failed read, not a warning about the numbers — clay, so it never reads as routine. */
+.invx .banner.bad{border-color:rgba(179,87,74,.55)}
+.invx .banner.bad .i{color:var(--clay)}
 .invx .doc{margin:14px 16px 0;border:1px solid var(--line);border-radius:16px;background:var(--graphite);overflow:hidden}
 .invx .doc-head{padding:16px 15px 14px;border-bottom:1px solid var(--line)}
 .invx .brand{font-weight:700;font-size:16px;letter-spacing:.14em}

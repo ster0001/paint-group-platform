@@ -62,12 +62,14 @@ const BUCKET_COLOURS = ["var(--paint)", "var(--clay)", "var(--clay)", "var(--cla
 
 export default function Dashboard({
   tiles, buckets, rows, activity, initialFilter, initialTab,
-  payables = null, payableRows = [], costs = null,
+  payables = null, payableRows = [], costs = null, loadError = null,
 }: {
   tiles: DashboardTiles;
   buckets: [number, number, number, number, number];
   rows: RowProp[];
   activity: ActivityProp[];
+  /** Set when the invoice read itself failed — never show an empty list then. */
+  loadError?: string | null;
   initialFilter: string;
   initialTab: string;
   payables?: PayablesTiles | null;
@@ -141,6 +143,14 @@ export default function Dashboard({
         <div className="sub">All jobs · receivables &amp; payables · <Link href="/invoices">invoice list →</Link></div>
       </header>
 
+      {loadError && (
+        <div className="banner bad" data-testid="invoices-load-error">
+          <div className="i">▲</div>
+          <p><b>The invoices could not be loaded — this is not an empty ledger.</b><br />
+            {loadError} Nothing has been lost: the figures below are blank because the read failed, not because the invoices are gone.</p>
+        </div>
+      )}
+
       <div className="tiles">
         <div className="tile"><div className="k">Outstanding</div>
           <div className="v" data-testid="tile-outstanding">{fmt0(tiles.outstandingCents)}</div>
@@ -203,7 +213,9 @@ export default function Dashboard({
             </div>
           ))}
           {visible.length === 0 && (
-            <div className="card"><div className="hint">Nothing here — change the filter, or accept an estimate and the deposit draft appears on its own.</div></div>
+            <div className="card"><div className="hint">{loadError
+              ? "Nothing can be listed until the read above succeeds — this is not an empty ledger."
+              : "Nothing here — change the filter, or accept an estimate and the deposit draft appears on its own."}</div></div>
           )}
         </div>
 

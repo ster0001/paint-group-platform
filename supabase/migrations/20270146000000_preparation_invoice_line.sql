@@ -198,3 +198,8 @@ update public.invoice_lines
  where source = 'estimate_snapshot'
    and description = 'Sundries & consumables';
 alter table public.invoice_lines enable trigger t_invoice_lines_guard;
+
+-- Registers itself in the production ledger (added 16 Sep 2026: this file
+-- shipped without it, so `select … from public._prod_migrations` could not say
+-- whether it was live — see docs/ARCHITECTURE.md, the invoicing read-failure note).
+insert into public._prod_migrations(name) values ('20270146000000_preparation_invoice_line.sql') on conflict (name) do nothing;

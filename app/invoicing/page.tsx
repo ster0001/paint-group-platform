@@ -80,7 +80,7 @@ export default async function InvoicingDashboardPage({
   const { f, tab } = await searchParams;
   const supabase = await createClient();
   const today = melbourneDate(new Date());
-  const [{ invoices, payments, events, contractorInvoices }, capture] = await Promise.all([
+  const [{ invoices, loadError, payments, events, contractorInvoices }, capture] = await Promise.all([
     loadDashboard(supabase),
     loadCostCapture(supabase),
   ]);
@@ -333,6 +333,7 @@ export default async function InvoicingDashboardPage({
       tiles={tiles}
       buckets={buckets}
       rows={rows}
+      loadError={loadError}
       activity={activity}
       initialFilter={f ?? "all"}
       initialTab={tab ?? "recv"}

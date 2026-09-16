@@ -372,3 +372,8 @@ select p.proname, pg_get_function_identity_arguments(p.oid)
 --   select wo_snapshot->'appliedOptions', jsonb_array_length(wo_snapshot->'areas'->0->'surfaces')
 --     from work_orders where estimate_id = '<id>';
 -- Expect the option id listed and the extra surface counted.
+
+-- Registers itself in the production ledger (added 16 Sep 2026: this file
+-- shipped without it, so `select … from public._prod_migrations` could not say
+-- whether it was live — see docs/ARCHITECTURE.md, the invoicing read-failure note).
+insert into public._prod_migrations(name) values ('20270149000000_wo_apply_selected_options.sql') on conflict (name) do nothing;

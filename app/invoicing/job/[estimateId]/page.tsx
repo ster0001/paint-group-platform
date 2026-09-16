@@ -150,6 +150,7 @@ export default async function JobMoneyPage({
       }}
       cards={cards}
       feed={feed}
+      loadError={job.loadError}
       costs={{
         offerCents, acceptedDeltaCents, ci: job.contractorInvoice, rows: costRows, materials: materialRows,
         expenses: jobCostData.expenses.map((e) => ({

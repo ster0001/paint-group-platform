@@ -22,3 +22,8 @@ where key = 'paint_systems'
 
 -- What it did:
 select value->'trims'->'new' as trims_new, value->'doors'->'new' as doors_new from settings where key = 'paint_systems';
+
+-- Registers itself in the production ledger (added 16 Sep 2026: this file
+-- shipped without it, so `select … from public._prod_migrations` could not say
+-- whether it was live — see docs/ARCHITECTURE.md, the invoicing read-failure note).
+insert into public._prod_migrations(name) values ('20270143000000_paint_systems_trims_two_coats.sql') on conflict (name) do nothing;
