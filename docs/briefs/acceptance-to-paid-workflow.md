@@ -1,6 +1,6 @@
 # Acceptance → Paid — the G-phases workflow
 
-**Status:** DRAFT v2 — awaiting Tom's approval. Supersedes the v1 draft (authored in an earlier session, never committed). Settle the 5 ⚑s below, then commit to `docs/briefs/acceptance-to-paid-workflow.md` — that commit unblocks Step 7 of the invoicing build (B1's gate).
+**Status:** APPROVED by Tom, 16 Sep 2026, with the defaults below (rulings inline under §⚑). This unblocks Step 7 of the invoicing build. Timings, channels and approve-mode are Settings values (see `claude-code-brief-messaging-automations.md`, decision D6).
 **Owns:** the workflow semantics for the span from estimate acceptance to money in the bank — who does what, when the system speaks, and when it stays silent. Per the invoicing brief's closing rule: **this file wins on chase-ladder semantics; the brief wins on data model and build order.**
 **Owners of the span:** PC + Admin. Nothing in this workflow auto-contacts a customer without a human approval in v1.
 
@@ -55,17 +55,17 @@ Contractor invoice approved → 7-day timer → "due to pay" appears in the dash
 
 ---
 
-## ⚑ The 5 open flags — Tom to rule before committing
+## ⚑ The 5 flags — RULED 16 Sep 2026 (defaults accepted)
 
-| ⚑ | Decision | Default written above |
+| ⚑ | Decision | Ruling (= default) |
 |---|---|---|
 | 1 | Ladder rung timings (1 / 4 / 7 / 14 days after due) — and calendar vs business days | Calendar days, Settings-editable |
-| 2 | Channels per rung — email only, or email + SMS from rung 2? (SMS needs the provider decision, invoicing ⚑16) | Email drafts now; SMS joins rung 2 when a provider exists |
-| 3 | Draft-for-approval vs auto-send — does rung 1 ever earn auto-send after a bedding-in period? | Everything drafted in v1; revisit after one clean month, same pattern as daily updates |
+| 2 | Channels per rung | Rungs 1–2 email; rungs 3–4 email + SMS (Twilio exists now). Per-rung channel editable in Settings → Automations |
+| 3 | Draft-for-approval vs auto-send | "Office approves first" for the first month; the mode is a Settings switch per automation, so flipping to automatic needs no rebuild |
 | 4 | Rung-4 consequences — late fee? interest? letter-of-demand template? (Late fees on residential contracts need the same legal review as the deposit cap and deemed sign-off clause) | No fees in v1; escalation is human; demand template goes to legal review |
 | 5 | Start-unpaid policy — confirm jobs may start with deposit unpaid (amber card only), and whether an overdue progress claim should ever pause work on site | Start allowed with amber card; work never auto-pauses — pausing is Tom's call, made on the escalation card |
 
 ---
 
 ## Approval
-When the 5 ⚑s are ruled: mark this file **APPROVED**, note the rulings inline, commit to `docs/briefs/`, and tell the build session — Step 7 of the invoicing brief unblocks at that commit. Customer-facing copy throughout is ENGLISH (not Australian) tone; all timings and templates are Settings values so tuning never needs a rebuild.
+Ruled and approved by Tom on 16 Sep 2026 (all five defaults accepted). Step 7 of the invoicing brief is unblocked from this commit. Customer-facing copy throughout is ENGLISH (not Australian) tone; all timings and templates are Settings values so tuning never needs a rebuild.
