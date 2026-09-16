@@ -43,7 +43,11 @@ export async function POST(req: Request) {
     return new NextResponse("Bad payload.", { status: 400 });
   }
   const parsed = bodySchema.safeParse(json);
-  if (!parsed.success) return new NextResponse("Bad payload.", { status: 400 });
+  if (!parsed.success) {
+    // Name the fields, never the values: this line shows in Zapier's run log.
+    const fields = [...new Set(parsed.error.issues.map((i) => i.path.filter((p) => typeof p === "string").join(".") || "(body)"))].slice(0, 12);
+    return new NextResponse(`Bad payload: ${fields.join(", ")}.`, { status: 400 });
+  }
   const records = Array.isArray(parsed.data) ? parsed.data : [parsed.data];
 
   const service = createServiceClient();

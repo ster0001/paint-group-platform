@@ -69,6 +69,12 @@ describe("handover feed · Zap record → BookedJob", () => {
     const both = bookedJobFromZap(zapJobSchema.parse({ ...live, ps_items: live.ps_item_names }));
     expect(both.ok && both.job.areas[2]?.price_ex_gst_cents).toBe(260990);
 
+    // Zapier omits every key whose Airtable field is empty; a missing key must parse like an empty one.
+    const { level_of_finish: _l, start_date: _s, end_date: _e, painter_email: _pe, painter_accepted: _pa, notes: _n, ps_status: _ps, ...omitted } = live;
+    const sparse = zapJobSchema.safeParse(omitted);
+    expect(sparse.success).toBe(true);
+    if (sparse.success) expect(bookedJobFromZap(sparse.data).ok).toBe(true);
+
     // Flattened by the step: the same lists joined with commas.
     const joined = bookedJobFromZap(zapJobSchema.parse({ ...live, ps_item_names: live.ps_item_names.join(","), ps_item_prices: live.ps_item_prices.join(",") }));
     expect(joined.ok && joined.job.areas.length).toBe(7);
