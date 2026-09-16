@@ -8,6 +8,7 @@ import { SURFACE_STATE_LABEL, type SurfaceState } from "@/lib/workorder/surfaces
 import type { CrewVariation } from "@/lib/workorder/crew";
 import { WO_PHOTO_KIND_LABEL, groupByKind, type WOPhoto } from "@/lib/workorder/photos";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
+import AreaPhotoStrip from "@/app/components/wo/AreaPhotoStrip";
 import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, type Booking } from "@/lib/workorder/booking";
 import FinishChip from "@/app/components/FinishChip";
 import { conditionAllowanceLine } from "@/lib/workorder/conditionAllowance";
@@ -273,14 +274,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                     </div>
                   </div>
                 ))}
-                {a.photos.length > 0 && (
-                  <div className="area-photos">
-                    {a.photos.slice(0, 8).map((src, j) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={j} src={src} alt="" loading="lazy" />
-                    ))}
-                  </div>
-                )}
+                <AreaPhotoStrip area={a.title} photos={a.photos.slice(0, 8)} />
               </div>
             ))}
           </section>

@@ -15,6 +15,7 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
 - The job must be booked (you accepted the offer). Until then the job page shows the offer clock and the suburb only.
 - The office works through the **pre-start list** for the job: colours confirmed, materials ordered and so on. Your job page shows how many items are still to be ticked by the office. You cannot start the job until that list is done.
 - Photos are taken with your phone's camera from the job page. Make sure you have signal on site; a photo that does not upload says so and can be retried.
+- Any photo on the job sheet can be tapped to see it full size. Swipe left or right, or use the arrows, to move through the set; tap outside the photo to close it.
 - Have your crew's phones ready if you want them to see the job sheet: **Your crew → Share with your crew** gives them a read-only link with your price left off.
 
 ## Steps

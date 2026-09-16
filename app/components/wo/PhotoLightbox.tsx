@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 /**
  * Tap a site photo, see it big — without leaving the page.
@@ -55,6 +55,25 @@ export default function PhotoLightbox({
     };
   }, [openAt, onClose, step]);
 
+  // Swipe left / right walks the set on a phone, where the arrow buttons are
+  // small and the thumb is already on the picture (Tom, 16 Sep). A mostly
+  // vertical drag, or a short one, is left alone so a tap still closes.
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touch.current = t ? { x: t.clientX, y: t.clientY } : null;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touch.current;
+    touch.current = null;
+    const t = e.changedTouches[0];
+    if (!start || !t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    step(dx < 0 ? 1 : -1);
+  };
+
   if (openAt === null || photos.length === 0) return null;
   const photo = photos[Math.min(openAt, photos.length - 1)];
 
@@ -66,6 +85,8 @@ export default function PhotoLightbox({
       aria-label={photo.alt}
       data-testid="photo-lightbox"
       onClick={onClose}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
     >
       <button type="button" className="wolb-close" onClick={onClose}
         aria-label="Close" data-testid="lightbox-close">×</button>
