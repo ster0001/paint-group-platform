@@ -65,6 +65,10 @@ describe("handover feed · Zap record → BookedJob", () => {
     const built = buildBookedJob(conv.job, new SubstrateResolver([]), CTX, COMPANY, "token12345678901234567890");
     expect(built.totals).toMatchObject({ subtotalCents: 1192804, totalCents: 1312084 });
 
+    // The first Zap draft also still posts `ps_items` as a bare list of names; it must not break the parse, and the priced lists win.
+    const both = bookedJobFromZap(zapJobSchema.parse({ ...live, ps_items: live.ps_item_names }));
+    expect(both.ok && both.job.areas[2]?.price_ex_gst_cents).toBe(260990);
+
     // Flattened by the step: the same lists joined with commas.
     const joined = bookedJobFromZap(zapJobSchema.parse({ ...live, ps_item_names: live.ps_item_names.join(","), ps_item_prices: live.ps_item_prices.join(",") }));
     expect(joined.ok && joined.job.areas.length).toBe(7);

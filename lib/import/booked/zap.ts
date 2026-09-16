@@ -34,8 +34,9 @@ const list = z.union([z.array(z.union([z.string(), z.number(), z.null()])), z.st
 });
 
 /** `ps_items` as an array of {name, price}, as a JSON string of one, or as parallel `name` / `price` lists (Unflatten). */
-const psItems = z.union([z.array(psItem), z.object({ name: list, price: list }), z.string(), z.null(), z.undefined()]).transform((v): PsItem[] => {
-  if (Array.isArray(v)) return v;
+const psItems = z.union([z.array(z.union([psItem, z.string(), z.number(), z.null()])), z.object({ name: list, price: list }), z.string(), z.null(), z.undefined()]).transform((v): PsItem[] => {
+  // A bare list of names (what mapping the whole "Items" field sends) is accepted but carries no prices.
+  if (Array.isArray(v)) return v.map((x) => (x && typeof x === "object" ? x : { name: x == null ? "" : String(x).trim(), price: null }));
   if (v && typeof v === "object") return zipItems(v.name, v.price);
   if (typeof v === "string" && v.trim().startsWith("[")) {
     try { return z.array(psItem).parse(JSON.parse(v)); } catch { return []; }
