@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { loadInvoiceDoc } from "../../data";
 import { shortDay } from "../../format";
 import InvoiceDoc, { type DocLine, type DocPayment } from "./InvoiceDoc";
+import ReadFailureNotice from "../../ReadFailureNotice";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +21,22 @@ export default async function InvoiceDocPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
-  const doc = await loadInvoiceDoc(supabase, id);
+  const { doc, failure } = await loadInvoiceDoc(supabase, id);
+
+  // A refused read used to land here as notFound() — a 404 claiming the invoice
+  // does not exist. It does exist; it could not be read. Say that instead.
+  if (failure) {
+    return (
+      <div className="wrap">
+        <header>
+          <div className="crumb"><Link href="/invoicing"><span className="chev">‹</span> Payments</Link></div>
+          <h1>Invoice</h1>
+          <div className="sub">This invoice could not be opened</div>
+        </header>
+        <ReadFailureNotice failure={failure} />
+      </div>
+    );
+  }
   if (!doc || !doc.job.ledger) notFound();
   const { invoice, job } = doc;
 

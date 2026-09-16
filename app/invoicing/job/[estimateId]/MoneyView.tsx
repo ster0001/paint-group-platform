@@ -18,6 +18,7 @@ import {
 } from "../../actions";
 import { fmt0, fmt2, fmtSigned2 } from "../../format";
 import type { ReadFailure } from "@/lib/invoicing/loadFailure";
+import ReadFailureNotice from "../../ReadFailureNotice";
 import AddCostSheet from "./AddCostSheet";
 import SendInvoiceSheet from "../../SendInvoiceSheet";
 
@@ -72,7 +73,7 @@ const STAGE_LABEL: Record<PaymentStage["key"], string> = {
 };
 
 export default function MoneyView({
-  estimateId, woId, woRef, address, jobTitle, stages, strip, cards, feed, costs, loadError = null,
+  estimateId, woId, woRef, address, jobTitle, stages, strip, cards, feed, costs, loadError = null, costsError = null,
 }: {
   estimateId: string;
   woId: string | null;
@@ -88,6 +89,8 @@ export default function MoneyView({
   feed: FeedProp[];
   /** Set when a read behind this view failed — never present its figures as fact then. */
   loadError?: ReadFailure | null;
+  /** The same, for this job's cost lists — tolerant, but not silent. */
+  costsError?: ReadFailure | null;
   costs: {
     offerCents: number; acceptedDeltaCents: number;
     ci?: { number: string | null; status: string } | null;
@@ -166,12 +169,8 @@ export default function MoneyView({
         </Link>
       </header>
 
-      {loadError && (
-        <div className="banner bad" data-testid="invoices-load-error">
-          <div className="i">▲</div>
-          <p><b>{loadError.headline}</b><br />{loadError.detail}</p>
-        </div>
-      )}
+      {loadError && <ReadFailureNotice failure={loadError} />}
+      {!loadError && costsError && <ReadFailureNotice failure={costsError} />}
 
       {/* payment stage progress bar */}
       <div className="stages" aria-label="Payment stages" data-testid="stage-rail">

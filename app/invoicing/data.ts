@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DeriveInvoice, DerivePayment, InvoiceKind } from "@/lib/invoicing/derive";
 import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
-import { loadFailure, paymentsFailure, firstFailure } from "@/lib/invoicing/loadFailure";
+import { loadFailure, paymentsFailure, costsFailure, firstFailure } from "@/lib/invoicing/loadFailure";
 import { inSlices } from "@/lib/supabase/inSlices";
 
 /**
@@ -235,12 +235,23 @@ export async function loadCostCapture(supabase: SupabaseClient) {
       .limit(500),
   ]);
   return {
+    // Still tolerant per table — one missing list must not blank the tab — but
+    // no longer silent about it: a money-OUT list that quietly comes back empty
+    // understates what the business owes.
     expenses: (expenses.error ? [] : expenses.data ?? []) as unknown as ContractorExpenseRow[],
     preapprovals: (preapprovals.error ? [] : preapprovals.data ?? []) as unknown as PreapprovalRow[],
     intake: (intake.error ? [] : intake.data ?? []) as unknown as IntakeDbRow[],
     jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as JobCostRow[],
     unmatchedMaterials: (unmatched.error ? [] : unmatched.data ?? []) as unknown as MaterialCostRow[],
     jobs: (jobs.error ? [] : jobs.data ?? []) as unknown as JobPickRow[],
+    loadError: costsFailure([
+      { label: "contractor expense claims", error: expenses.error },
+      { label: "expense pre-approvals", error: preapprovals.error },
+      { label: "the supplier-invoice intake queue", error: intake.error },
+      { label: "job costs", error: jobCosts.error },
+      { label: "unmatched material invoices", error: unmatched.error },
+      { label: "the job picker", error: jobs.error },
+    ]),
   };
 }
 
@@ -262,6 +273,11 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
       .order("created_at", { ascending: true }),
   ]);
   return {
+    loadError: costsFailure([
+      { label: "job costs", error: jobCosts.error },
+      { label: "material invoices", error: materials.error },
+      { label: "contractor expense claims", error: expenses.error },
+    ]),
     jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as (Omit<JobCostRow, "work_orders">)[],
     materials: (materials.error ? [] : materials.data ?? []) as unknown as MaterialCostRow[],
     expenses: (expenses.error ? [] : expenses.data ?? []) as unknown as {
@@ -285,7 +301,9 @@ export async function loadDashboard(supabase: SupabaseClient) {
   // invoices and the request layer refuses it (`TypeError: fetch failed`),
   // which is how this read came back empty and drew every invoice as unpaid.
   // Same fix the CRM work queue already had. See lib/supabase/inSlices.ts.
-  const [paymentsRes, { data: events }, { data: cis }] = await Promise.all([
+  // `events` is the Activity feed only — a failure there costs a reader nothing
+  // they'd act on, so it stays tolerant and unreported. `cis` is money out.
+  const [paymentsRes, { data: events }, { data: cis, error: cisError }] = await Promise.all([
     inSlices<PaymentRow>(ids, (slice) =>
       supabase.from("payments")
         .select("id, invoice_id, amount_cents, surcharge_cents, status, method, paid_on, receipt_number, reference")
@@ -309,6 +327,7 @@ export async function loadDashboard(supabase: SupabaseClient) {
     payments: paymentsRes.rows,
     events: (events ?? []) as EventRow[],
     contractorInvoices: (cis ?? []) as unknown as ContractorInvoiceRow[],
+    payablesError: costsFailure([{ label: "contractor invoices", error: cisError }]),
   };
 }
 
@@ -380,11 +399,16 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
 
 /** One invoice document (§7.3). */
 export async function loadInvoiceDoc(supabase: SupabaseClient, invoiceId: string) {
-  const { data: invoice } = await supabase
+  const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
     .select(`${INVOICE_SELECT}, estimates(title, accepted_name, job_address:sent_snapshot->>jobAddress, job_title:sent_snapshot->>jobTitle)`)
     .eq("id", invoiceId).maybeSingle();
-  if (!invoice) return null;
+  // A REFUSED read is not a missing invoice. Returning null for both made this
+  // page answer 404 — "there is no such invoice" — for an invoice that exists
+  // and simply could not be read, which is the worst thing a money document can
+  // say. The caller gets the difference and shows the reason instead.
+  if (invoiceError) return { failure: loadFailure(invoiceError)!, doc: null };
+  if (!invoice) return { failure: null, doc: null };
   const inv = invoice as unknown as InvoiceRow & {
     estimates: { title: string | null; accepted_name: string | null; job_address: string | null; job_title: string | null } | null;
   };
@@ -402,11 +426,14 @@ export async function loadInvoiceDoc(supabase: SupabaseClient, invoiceId: string
 
   const settingRows = (settings ?? []) as { key: string; value: Record<string, string> }[];
   return {
+   failure: null,
+   doc: {
     invoice: inv,
     lines: (lines ?? []) as LineRow[],
     job: jobRes,
     driftCents: Number(driftRes.data ?? 0),
     entity: settingRows.find((s) => s.key === "invoicing_entity")?.value ?? {},
     bank: settingRows.find((s) => s.key === "invoicing_bank")?.value ?? {},
+   },
   };
 }

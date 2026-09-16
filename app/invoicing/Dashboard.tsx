@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { DashboardTiles, PayablesTiles } from "@/lib/invoicing/derive";
 import type { ReadFailure } from "@/lib/invoicing/loadFailure";
+import ReadFailureNotice from "./ReadFailureNotice";
 import { fmt0, fmt2 } from "./format";
 import { approveContractorInvoiceAction, markContractorInvoicePaidAction } from "./actions";
 import PayablesCosts, {
@@ -63,7 +64,7 @@ const BUCKET_COLOURS = ["var(--paint)", "var(--clay)", "var(--clay)", "var(--cla
 
 export default function Dashboard({
   tiles, buckets, rows, activity, initialFilter, initialTab,
-  payables = null, payableRows = [], costs = null, loadError = null,
+  payables = null, payableRows = [], costs = null, loadError = null, costsError = null,
 }: {
   tiles: DashboardTiles;
   buckets: [number, number, number, number, number];
@@ -71,6 +72,8 @@ export default function Dashboard({
   activity: ActivityProp[];
   /** Set when a read behind this screen failed — never present its figures as fact then. */
   loadError?: ReadFailure | null;
+  /** The same, for the money-OUT lists on Payables — tolerant, but not silent. */
+  costsError?: ReadFailure | null;
   initialFilter: string;
   initialTab: string;
   payables?: PayablesTiles | null;
@@ -144,12 +147,7 @@ export default function Dashboard({
         <div className="sub">All jobs · receivables &amp; payables · <Link href="/invoices">invoice list →</Link></div>
       </header>
 
-      {loadError && (
-        <div className="banner bad" data-testid="invoices-load-error">
-          <div className="i">▲</div>
-          <p><b>{loadError.headline}</b><br />{loadError.detail}</p>
-        </div>
-      )}
+      {loadError && <ReadFailureNotice failure={loadError} />}
 
       <div className="tiles">
         <div className="tile"><div className="k">Outstanding</div>
@@ -236,6 +234,7 @@ export default function Dashboard({
 
       {/* ================= PAYABLES ================= */}
       <section className={`tab ${tab === "pay" ? "on" : ""}`}>
+        {costsError && <ReadFailureNotice failure={costsError} />}
         {payables && (
           <div className="ptiles">
             <div className="tile"><div className="k">To approve</div>
