@@ -2,6 +2,8 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CONTRACTOR_COLUMNS, type ContractorRow } from "./model";
+import { employmentTypeFor } from "./employment";
+import { painterCapabilities, type EmploymentType, type PainterCapabilities } from "@/lib/painters/capabilities";
 
 // Server-only. Types and pure helpers live in ./model so Client Components can
 // share them without pulling `next/headers` into the browser bundle.
@@ -12,6 +14,10 @@ export type ContractorSession = {
   name: string;
   /** null when the profile is a contractor but staff haven't created their contractors row yet. */
   contractor: ContractorRow | null;
+  /** contractor | employee (migration 20270153). Read once per request; never branched on directly. */
+  employmentType: EmploymentType;
+  /** The ONE capability function's answer for this painter (brief §3.1). Branch on THIS. */
+  capabilities: PainterCapabilities;
 };
 
 /** Where the caller should be sent, or the session if they belong here. */
@@ -60,6 +66,12 @@ const loadSession = cache(async (): Promise<Loaded> => {
     .select(CONTRACTOR_COLUMNS)
     .eq("profile_id", user.id)
     .maybeSingle();
+  const row = (contractor as ContractorRow | null) ?? null;
+
+  // Employed painters (20270153): a separate best-effort read, the
+  // works_saturday rule — it degrades to "contractor" until the migration
+  // runs, so the column can never 42703 the whole portal.
+  const employmentType = row ? await employmentTypeFor(supabase, row.id) : "contractor";
 
   return {
     kind: "contractor",
@@ -67,7 +79,9 @@ const loadSession = cache(async (): Promise<Loaded> => {
       userId: user.id,
       email: user.email ?? "",
       name: profile?.name || user.email || "",
-      contractor: (contractor as ContractorRow | null) ?? null,
+      contractor: row,
+      employmentType,
+      capabilities: painterCapabilities(employmentType),
     },
   };
 });

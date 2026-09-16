@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireContractor } from "@/lib/contractor/session";
 import { listContractorOffers } from "@/lib/contractor/offers";
@@ -11,7 +12,10 @@ import { jobDaysFor } from "@/lib/contractor/jobDays";
 export const dynamic = "force-dynamic";
 
 export default async function RequestsPage() {
-  const { contractor } = await requireContractor();
+  const { contractor, capabilities } = await requireContractor();
+  // Offers are a contractor thing (ruling 1). An employee is never offered,
+  // so the page — and its "your price" copy — does not exist for them.
+  if (!capabilities.acceptsOffers) notFound();
   const offers = contractor ? await listContractorOffers(contractor.id) : [];
 
   // The contractor's own availability, so "propose a new date" is picked against

@@ -21,7 +21,7 @@ const melbourneDate = () =>
 const firstName = (full: string) => full.trim().split(/\s+/)[0] || "there";
 
 export default async function PortalHome() {
-  const { name, contractor } = await requireContractor();
+  const { name, contractor, capabilities } = await requireContractor();
 
   // Staff haven't finished setting this account up.
   if (!contractor) {
@@ -89,9 +89,11 @@ export default async function PortalHome() {
   // Everything the contractor has to act on right now, drawn from real state.
   const actions: { icon: string; text: string; chip?: string }[] = [];
   const awaitingCheck = docs.find((d) => d.kind === "insurance" && d.file_url && !d.verified_at);
-  if (docsError) {
+  if (docsError || !capabilities.requiresInsurance) {
     // Say nothing about insurance when we couldn't read the documents at all —
     // telling someone to upload what they already uploaded is worse than silence.
+    // And nothing at all for an employee: insurance is a contractor condition
+    // (ruling 5); their white card / working-at-heights arrive in Session 5.
   } else if (!insurance && awaitingCheck) {
     actions.push({
       icon: "🛡",
@@ -111,7 +113,8 @@ export default async function PortalHome() {
       chip: `${insuranceDays}d`,
     });
   }
-  if (missing.length) {
+  // Company details exist for the RCTI — an employee has no invoice to put them on.
+  if (missing.length && capabilities.canSelfInvoice) {
     actions.push({
       icon: "🏷",
       text: `Finish your company profile — still missing ${missing.join(", ")}`,
@@ -125,7 +128,9 @@ export default async function PortalHome() {
 
       {docsError && <div className="err">{docsErrorMessage(docsError)}</div>}
 
-      {/* Can this contractor be offered work? The single most important fact. */}
+      {/* Can this contractor be offered work? The single most important fact —
+          for a contractor. An employee is assigned, never offered (ruling 1). */}
+      {capabilities.acceptsOffers && (
       <div className={`card ${contractor.offerable ? "greenish" : "amberish"}`}>
         <span className={`chip ${contractor.offerable ? "grn" : "amb"}`}>
           {contractor.offerable ? "Ready for work" : "Not yet offerable"}
@@ -150,6 +155,7 @@ export default async function PortalHome() {
           </Link>
         )}
       </div>
+      )}
 
       {actions.length > 0 && (
         <div className="card">
@@ -255,6 +261,8 @@ export default async function PortalHome() {
         )}
       </div>
 
+      {/* Company, ABN, GST, insurance: the RCTI entity. Nothing an employee has (§3.7). */}
+      {capabilities.canSelfInvoice && (
       <div className="card">
         <h3>Your details</h3>
         <div className="frow">
@@ -287,6 +295,7 @@ export default async function PortalHome() {
           Open my profile
         </Link>
       </div>
+      )}
     </div>
   );
 }

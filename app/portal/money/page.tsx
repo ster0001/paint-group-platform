@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { requireContractor } from "@/lib/contractor/session";
 import { missingProfileFields } from "@/lib/contractor/model";
 import { createClient } from "@/lib/supabase/server";
@@ -26,7 +27,12 @@ const CHIP: Record<string, { cls: string; label: string }> = {
  * scratch. RLS scopes the list to their own rows.
  */
 export default async function MoneyPage() {
-  const { contractor } = await requireContractor();
+  const { contractor, capabilities } = await requireContractor();
+  // Self-invoicing is a contractor capability (ruling 4). An employee's
+  // expenses-only tab arrives in Session 5; until then this route does not
+  // exist for them — 404, not a hidden section, because the page's reads
+  // would otherwise run and ship their shape to the browser.
+  if (!capabilities.canSelfInvoice) notFound();
   const missing = missingProfileFields(contractor);
   const supabase = await createClient();
 
