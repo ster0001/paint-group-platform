@@ -34,6 +34,10 @@ export type MessageContext = {
   campaignMessageId?: string | null;
   /** A short tag for the kind of send — "estimate", "invoice", "update", "campaign", "reply"… */
   kind?: string;
+  /** The registry key of the automation that sent it (Session 1) — the daily cap counts these. */
+  automation?: string | null;
+  /** D3: the channel the office chose was impossible; what was done instead. Kept on the row. */
+  fallback?: string | null;
   actorProfileId?: string | null;
   threadId?: string | null;
   /** True for a test send or a send that must not be recorded (rare). */
@@ -135,7 +139,12 @@ export async function recordMessage(row: MessageRow, db?: SupabaseClient | null)
       to_address: row.toAddress ?? null,
       from_address: row.fromAddress ?? null,
       occurred_at: row.occurredAt ?? new Date().toISOString(),
-      meta: { ...(row.meta ?? {}), ...(row.kind ? { kind: row.kind } : {}) },
+      meta: {
+        ...(row.meta ?? {}),
+        ...(row.kind ? { kind: row.kind } : {}),
+        ...(row.automation ? { automation: row.automation } : {}),
+        ...(row.fallback ? { fallback: row.fallback } : {}),
+      },
     }).select("id").single();
     if (error) {
       // A duplicate provider id is a retry — the first row stands.

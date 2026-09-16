@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runSweep } from "@/lib/campaigns/runSweep";
+import { releaseDueHolds } from "@/lib/automations/dispatch";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -30,12 +31,19 @@ export async function GET(req: Request) {
   if (!db) return NextResponse.json({ error: "no service client" }, { status: 503 });
 
   try {
-    const outcomes = await runSweep(db, new Date());
+    const now = new Date();
+    const outcomes = await runSweep(db, now);
+    // Session 1: automatic job messages held for quiet hours or the daily
+    // cap are released here — every 30 minutes, so a held text goes at the
+    // opening, not at the next daily sweep. Only messages the office already
+    // approved (or never asked to approve) come this way.
+    const released = await releaseDueHolds(db, now);
     return NextResponse.json({
       ok: true,
       swept: outcomes.length,
       outcomes,
-      note: "Queued only. Nothing is sent by this route.",
+      released,
+      note: "Campaign steps are queued only. Held automatic messages whose time has come are sent.",
     });
   } catch (e) {
     reportError(e, { where: "cron.campaignSweep" });

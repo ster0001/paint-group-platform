@@ -20,6 +20,8 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
+import { automationOn } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 import { committedIds, type OfferStateRow, type Row as WoRow } from "@/lib/contractor/jobs";
 import { spanOf } from "@/lib/contractor/jobDays";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
@@ -155,11 +157,14 @@ export type GcalSyncResult =
   | { status: "synced"; created: number; updated: number; removed: number }
   | { status: "not_connected" }
   | { status: "unconfigured" }
+  /** Settings → Automations: "Google Calendar — jobs on the painter's calendar" is off. */
+  | { status: "off" }
   | { status: "error"; message: string };
 
 export async function reconcileContractorCalendar(contractorId: string): Promise<GcalSyncResult> {
   const admin = createServiceClient();
   if (!admin || !gcalEnv()) return { status: "unconfigured" };
+  if (!automationOn((await loadMessaging(admin)).messaging, "contractor_gcal_push")) return { status: "off" };
 
   const conn = await loadGcalConnection(admin, contractorId);
   if (!conn) return { status: "not_connected" };

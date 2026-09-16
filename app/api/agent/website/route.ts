@@ -4,9 +4,7 @@ import { agentActor, agentDb, displayText } from "@/lib/agent/session";
 import { SupabaseAgentStore, loadAgentSettings } from "@/lib/agent/store-supabase";
 import { supportHoursState } from "@/lib/agent/scope-tools";
 import { CLOSED_TEXT, onDutyNumbers } from "@/lib/agent/handoff";
-import { sendSms } from "@/lib/messaging/send";
-import { automationOn } from "@/lib/messaging/config";
-import { loadMessaging } from "@/lib/messaging/load";
+import { sendAutomation } from "@/lib/automations/dispatch";
 import { logCrmEvent } from "@/lib/crm/events";
 import { reportError } from "@/lib/monitoring/report";
 
@@ -106,8 +104,11 @@ export async function POST(request: Request) {
         await store.appendMessage({ conversationId: conv.id, role: "assistant", content: CLOSED_TEXT(hours.nextOpening), modelId: null, tokensIn: 0, tokensOut: 0 });
       } else {
         const { onDuty } = onDutyNumbers(settings.supportHours, now);
-        if (onDuty.length && automationOn((await loadMessaging(db)).messaging, "assistant_handoff")) {
-          await Promise.all(onDuty.map((n) => sendSms({ to: n, body: "Paint Group: a customer is chatting from the online estimate and waiting for a person. The chat is in the corner of every staff screen." }).catch(() => undefined)));
+        if (onDuty.length) {
+          await Promise.all(onDuty.map((n) => sendAutomation(db, {
+            key: "assistant_handoff", to: { phone: n }, ctx: { kind: "assistant_handoff" },
+            sms: { body: "Paint Group: a customer is chatting from the online estimate and waiting for a person. The chat is in the corner of every staff screen." },
+          }).catch(() => undefined)));
         }
       }
       // The session's own record: "asked to talk to a person" on the timeline.

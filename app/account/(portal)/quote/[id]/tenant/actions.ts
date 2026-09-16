@@ -4,6 +4,8 @@ import { z } from "zod";
 import { getCompanyContact, getPortalContext } from "@/lib/portal/data";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendSms } from "@/lib/messaging/send";
+import { loadMessaging } from "@/lib/messaging/load";
+import { renderTemplate } from "@/lib/messaging/config";
 import { reportError } from "@/lib/monitoring/report";
 import { TENANT_ASKS, TENANT_LINK_DAYS, newTenantToken, tenantMessage } from "@/lib/portal/tenant-link";
 
@@ -52,13 +54,16 @@ export async function sendTenantLink(raw: unknown): Promise<SendTenantLinkResult
   const company = await getCompanyContact();
   const property = ctx.properties.find((p) => p.id === est.property_id);
   const address = [property?.address, property?.suburb].filter(Boolean).join(", ") || (est.title as string | null) || "the property";
-  const message = tenantMessage({
-    companyName: company.name, agencyName: ctx.accounts.find((a) => a.account_type === "trade")?.name ?? null, address, url,
-  });
+  // Wording: Settings → Automations → "Tenant access text" (falls back to the built-in line).
+  const agencyName = ctx.accounts.find((a) => a.account_type === "trade")?.name ?? null;
+  const { messaging } = await loadMessaging(svc);
+  const message = messaging.tenantLinkSms?.trim()
+    ? renderTemplate(messaging.tenantLinkSms, { company_name: company.name, agency_line: agencyName ? ` for ${agencyName}` : "", address, link: url })
+    : tenantMessage({ companyName: company.name, agencyName, address, url });
 
   let smsStatus = "not_sent";
   if (parsed.data.phone) {
-    const r = await sendSms({ to: parsed.data.phone, body: message, ctx: { accountId: est.account_id as string, estimateId: est.id as string } });
+    const r = await sendSms({ to: parsed.data.phone, body: message, ctx: { accountId: est.account_id as string, estimateId: est.id as string, kind: "tenant_link", automation: "tenant_access_text" } });
     smsStatus = r.status;
   }
   return { ok: true, url, message, smsStatus };

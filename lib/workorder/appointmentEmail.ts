@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
-import { buildPlainEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
+import { buildPlainEmailHtml } from "@/lib/messaging/send";
+import { dispatched, outcomeWord, sendAutomation } from "@/lib/automations/dispatch";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
 
@@ -116,20 +117,25 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
     return;
   }
 
-  const result = emailConfigured()
-    ? await sendEmail({
-        ctx: { estimateId: wo.estimate_id, workOrderId: wo.id, kind: "appointment" },
-        to, subject, replyTo: company.email || undefined,
-        html: buildPlainEmailHtml({
-          heading: subject, message: body, companyName: vars.company_name,
-          logoUrl: company.logoUrlLight || company.logoUrl || undefined,
-          companyPhone: company.phone || undefined,
-        }),
-      })
-    : { status: "not_configured" as const };
-  const outcome = result.status;
-  const delivered = outcome === "sent";
-  const detail = "message" in result ? result.message : undefined;
+  // Through the dispatcher (Session 1): channel, approve-first, quiet hours
+  // and the daily cap are the office's settings, not this file's.
+  const result = await sendAutomation(service, {
+    key: "appointment_confirmation",
+    to: { email: to },
+    email: {
+      subject, replyTo: company.email || undefined,
+      html: buildPlainEmailHtml({
+        heading: subject, message: body, companyName: vars.company_name,
+        logoUrl: company.logoUrlLight || company.logoUrl || undefined,
+        companyPhone: company.phone || undefined,
+      }),
+    },
+    ctx: { estimateId: wo.estimate_id, workOrderId: wo.id, kind: "appointment" },
+  });
+  const outcome = outcomeWord(result);
+  // Queued for approval or held for the morning counts: the hold sends it, the guard must stand.
+  const delivered = dispatched(result);
+  const detail = result.outcome === "error" ? result.message : result.outcome === "nobody" ? result.detail : undefined;
   await service.from("wo_events").insert({
     work_order_id: workOrderId,
     type: delivered ? "appt_confirm_sent" : "appt_confirm_skipped",

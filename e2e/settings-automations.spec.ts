@@ -95,3 +95,68 @@ test.describe("settings buckets + automations", () => {
     await expect(page.getByTestId("automations-off-count")).toContainText("2 switched off");
   });
 });
+
+/**
+ * Session 1 of the messaging brief (16 Sep 2026): channel, mode, timing,
+ * sending hours, the daily limit and the wording editor.
+ */
+test.describe("automations · channel, mode and the editor", () => {
+  test.skip(!staff, missingCreds("STAFF"));
+  test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to restore the settings rows");
+
+  test("Text-only / approve-first / sending hours save to the row; the editor previews, counts and resets", async ({ page }) => {
+    await signIn(page, staff!, /\/estimates/);
+    await page.goto("/settings#automations");
+    await expect(page.getByTestId("automations")).toBeVisible();
+
+    // Channel and mode on a both-channel, approvable automation.
+    await page.getByTestId("channel-estimate_chat_reply").selectOption("sms");
+    await page.getByTestId("mode-estimate_chat_reply").selectOption("approve");
+    await expect(page.getByTestId("mode-badge-estimate_chat_reply")).toContainText("Office approves first");
+    // An email-only automation offers no channel choice; a non-approvable one no mode.
+    await expect(page.getByTestId("channel-appointment_confirmation")).toHaveCount(0);
+    await expect(page.getByTestId("mode-contractor_offer")).toHaveCount(0);
+
+    // Sending hours + daily limit.
+    await page.getByTestId("quiet-saturday-on").uncheck();
+    await page.getByTestId("quiet-weekday-close").selectOption("20");
+    await page.getByTestId("daily-cap").fill("5");
+
+    // The editor: token insert, preview with no raw token, SMS parts, reset.
+    await page.getByTestId("edit-contractor_offer").click();
+    const sms = page.getByTestId("tpl-offerSms");
+    await sms.fill("Offer for {{wo_ref}}: ");
+    await page.getByTestId("token-offerSms-link").click();
+    await expect(sms).toHaveValue("Offer for {{wo_ref}}: {{link}}");
+    await expect(page.getByTestId("preview-sms-contractor_offer")).toContainText("Offer for WO-1042: https://");
+    await expect(page.getByTestId("preview-sms-contractor_offer")).not.toContainText("{{");
+    await expect(page.getByTestId("sms-parts-offerSms")).toContainText("1 text message");
+    await sms.fill("x".repeat(170));
+    await expect(page.getByTestId("sms-parts-offerSms")).toContainText("2 text messages");
+    await sms.fill("Hi {{nonsense}}");
+    await expect(page.getByTestId("preview-unfilled-contractor_offer")).toContainText("{{nonsense}}");
+    await expect(page.getByTestId("reset-contractor_offer")).toBeEnabled();
+    await page.getByTestId("reset-contractor_offer").click();
+    await expect(sms).toHaveValue(/you have a job offer/);
+    await expect(page.getByTestId("reset-contractor_offer")).toBeDisabled();
+    // Office alert wording is editable now too.
+    await page.getByTestId("edit-office_job_declined").click();
+    await expect(page.getByTestId("preview-subject-office_job_declined")).toContainText("Job declined — Marco Rossi");
+
+    await page.getByTestId("automations-save").click();
+    await expect(page.getByTestId("automations-msg")).toContainText("Saved ✓", { timeout: 20_000 });
+
+    const { data: m } = await db!.from("settings").select("value").eq("key", "messaging").single();
+    const saved = m!.value as { controls: Record<string, { channel?: string; mode?: string }>; quietHours: { weekday: [number, number]; saturday: unknown }; dailyCap: number };
+    expect(saved.controls.estimate_chat_reply).toMatchObject({ channel: "sms", mode: "approve" });
+    expect(saved.quietHours.weekday).toEqual([8, 20]);
+    expect(saved.quietHours.saturday).toBeNull();
+    expect(saved.dailyCap).toBe(5);
+
+    await page.reload();
+    await expect(page.getByTestId("channel-estimate_chat_reply")).toHaveValue("sms");
+    await expect(page.getByTestId("mode-estimate_chat_reply")).toHaveValue("approve");
+    await expect(page.getByTestId("daily-cap")).toHaveValue("5");
+    await expect(page.getByTestId("automations-off-count")).toContainText("1 approved first");
+  });
+});

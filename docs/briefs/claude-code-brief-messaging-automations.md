@@ -2,7 +2,7 @@
 
 **Owner:** Tom Roman · **Date:** 16 Sep 2026
 **Save to:** `docs/briefs/claude-code-brief-messaging-automations.md`
-**Status:** Ready to start. Defaults are set for every ⚑ so nothing blocks Session 1, and every default is editable in Settings.
+**Status:** Session 1 BUILT 16 Sep 2026 (branch `feat/automations-s1-control-screen`, migration 20270150). Rulings 16 Sep: the invoicing attention queue = the CRM work queue; `acceptance-to-paid-workflow.md` approved with its defaults; sign-off reminders use the existing 0/24/48 h slots. D1–D12 defaults accepted; every one is editable in Settings.
 
 ---
 

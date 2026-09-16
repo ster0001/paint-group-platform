@@ -11,7 +11,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/service";
 import { isTestEmail } from "@/lib/accounts/identity";
-import { sendEmail } from "@/lib/messaging/send";
+import { sendAutomation } from "@/lib/automations/dispatch";
 import { automationOn } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 
@@ -163,7 +163,7 @@ export async function runTradeDigest(opts: { melbourneHour: number; origin: stri
       if (!(await digestOn())) continue;
       if (!isTestEmail(email)) {
         const msg = buildDigestEmail(org?.name?.trim() || "your organisation", lines, opts.origin);
-        await sendEmail({ to: email, subject: msg.subject, html: msg.html }).catch(() => {});
+        await sendAutomation(svc, { key: "trade_daily_digest", to: { email }, email: { subject: msg.subject, html: msg.html }, ctx: { accountId: m.account_id, kind: "digest" } }).catch(() => {});
       }
       await svc.from("notification_prefs").upsert(
         { account_user_id: m.id, last_digest_at: new Date().toISOString() },

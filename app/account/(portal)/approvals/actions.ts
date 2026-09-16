@@ -16,7 +16,7 @@ import {
 } from "@/lib/portal/approvalData";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isTestEmail } from "@/lib/accounts/identity";
-import { sendEmail } from "@/lib/messaging/send";
+import { sendAutomation } from "@/lib/automations/dispatch";
 import { automationOn } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 
@@ -127,8 +127,11 @@ export async function sendExternalApproval(raw: unknown): Promise<SendExternalRe
   // still created (copy it from the property), just not emailed.
   if (!isTestEmail(parsed.data.approverEmail) && automationOn((await loadMessaging(svc)).messaging, "external_approval")) {
     const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-    await sendEmail({
-      to: parsed.data.approverEmail,
+    await sendAutomation(svc, {
+      key: "external_approval",
+      to: { email: parsed.data.approverEmail },
+      ctx: { accountId: estimate.accountId ?? null, estimateId: parsed.data.estimateId, kind: "approval" },
+      email: {
       subject: `An estimate for ${estimate.title} — your approval is needed`,
       html: [
         `<p>Hello ${parsed.data.approverName.split(/\s+/)[0]},</p>`,
@@ -137,6 +140,7 @@ export async function sendExternalApproval(raw: unknown): Promise<SendExternalRe
         estimate.validUntil ? `<p>The estimate is valid until ${estimate.validUntil}.</p>` : "",
         `<p>Paint Group</p>`,
       ].join("\n"),
+      },
     }).catch(() => {});
   }
   revalidatePath("/account");

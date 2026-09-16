@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildIcs } from "./ics";
-import { sendEmail, emailConfigured, buildPlainEmailHtml } from "@/lib/messaging/send";
+import { buildPlainEmailHtml } from "@/lib/messaging/send";
+import { sendAutomation } from "@/lib/automations/dispatch";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
@@ -135,9 +136,7 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
     { email: painterEmail, name: painterName || "Painter", role: "painter" },
   ].filter((r) => r.email && !isTestEmail(r.email));
 
-  if (!emailConfigured()) {
-    console.log(`[walkthrough-invite:log-driver] wo=${wo.wo_ref} ${method} date=${state.date} to=${recipients.map((r) => r.email).join(",") || "-"}`);
-  } else {
+  {
     for (const r of recipients) {
       const ics = buildIcs({
         uid: `walkthrough-final-${wo.id}@paintgroup`,
@@ -161,26 +160,34 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
       const message = state.cancelled
         ? `The final walkthrough for ${address || "the job"} has been taken out of the calendar. We'll be in touch with a new time.`
         : renderTemplate(r.role === "customer" ? messaging.walkthroughInviteCustomerBody : messaging.walkthroughInvitePainterBody, vars);
-      const sent = await sendEmail({
-        // Only the customer's copy answers to their alert settings; the painter's always goes.
-        ctx: r.role === "customer" ? { estimateId: wo.estimate_id, workOrderId: wo.id, kind: "walkthrough_invite" } : undefined,
-        to: r.email,
-        subject: summary,
-        replyTo: company.email || undefined,
-        html: buildPlainEmailHtml({
-          heading,
-          message,
-          companyName,
-          logoUrl: company.logoUrlLight || company.logoUrl,
-          companyPhone: company.phone,
-        }),
-        attachments: [{
-          filename: state.cancelled ? "walkthrough-cancelled.ics" : "final-walkthrough.ics",
-          content: Buffer.from(ics, "utf8").toString("base64"),
-          contentType: `text/calendar; method=${method}`,
-        }],
+      // Through the dispatcher. Only the customer's copy answers to their
+      // alert settings (the kind); the painter's copy carries no kind. The
+      // invite is quiet-hours exempt — a calendar entry can land any time.
+      const sent = await sendAutomation(service, {
+        key: "walkthrough_invite",
+        to: { email: r.email },
+        email: {
+          subject: summary,
+          replyTo: company.email || undefined,
+          html: buildPlainEmailHtml({
+            heading,
+            message,
+            companyName,
+            logoUrl: company.logoUrlLight || company.logoUrl,
+            companyPhone: company.phone,
+          }),
+          attachments: [{
+            filename: state.cancelled ? "walkthrough-cancelled.ics" : "final-walkthrough.ics",
+            content: Buffer.from(ics, "utf8").toString("base64"),
+            contentType: `text/calendar; method=${method}`,
+          }],
+        },
+        ctx: r.role === "customer"
+          ? { estimateId: wo.estimate_id, workOrderId: wo.id, kind: "walkthrough_invite" }
+          : { workOrderId: wo.id, kind: "walkthrough_invite_painter" },
+        contractorId: r.role === "painter" ? wo.contractor_id : null,
       });
-      if (sent.status === "error") {
+      if (sent.outcome === "error") {
         reportError(new Error(sent.message ?? "invite send failed"), {
           where: "walkthroughInvite.send", extra: { workOrderId, role: r.role },
         });

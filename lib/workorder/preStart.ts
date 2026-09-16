@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
-import { buildPlainEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
+import { buildPlainEmailHtml } from "@/lib/messaging/send";
+import { dispatched, outcomeWord, sendAutomation } from "@/lib/automations/dispatch";
 import { melbourneDate } from "./console";
 
 /**
@@ -70,23 +71,26 @@ export async function sendPreStartChecklists(db: SupabaseClient, now = new Date(
     };
     const subject = renderTemplate(messaging.preStartSubject, vars);
     const body = renderTemplate(messaging.preStartBody, vars);
-    const result = emailConfigured()
-      ? await sendEmail({
-          ctx: { estimateId: j.estimate_id, workOrderId: j.id, kind: "pre_start" },
-          to, subject, replyTo: company.email || undefined,
-          html: buildPlainEmailHtml({
-            heading: subject, message: body, companyName: vars.company_name,
-            // Tom, 5 Sep: this one carries logo 1 (paint in white) on a dark
-            // header band, not the dark-on-light logo the other emails use.
-            logoUrl: company.logoUrl || company.logoUrlLight || undefined,
-            header: "ink",
-            companyPhone: company.phone || undefined,
-          }),
-        })
-      : { status: "not_configured" as const };
-    const outcome = result.status;
-    const delivered = outcome === "sent";
-    const detail = "message" in result ? result.message : undefined;
+    const result = await sendAutomation(db, {
+      key: "pre_start_checklist",
+      to: { email: to },
+      email: {
+        subject, replyTo: company.email || undefined,
+        html: buildPlainEmailHtml({
+          heading: subject, message: body, companyName: vars.company_name,
+          // Tom, 5 Sep: this one carries logo 1 (paint in white) on a dark
+          // header band, not the dark-on-light logo the other emails use.
+          logoUrl: company.logoUrl || company.logoUrlLight || undefined,
+          header: "ink",
+          companyPhone: company.phone || undefined,
+        }),
+      },
+      ctx: { estimateId: j.estimate_id, workOrderId: j.id, kind: "pre_start" },
+    });
+    const outcome = outcomeWord(result);
+    // Queued for approval or held for the morning counts: the hold sends it, the guard must stand.
+    const delivered = dispatched(result);
+    const detail = result.outcome === "error" ? result.message : result.outcome === "nobody" ? result.detail : undefined;
     await db.from("wo_events").insert({
       work_order_id: j.id,
       type: delivered ? "pre_start_checklist_sent" : "pre_start_checklist_skipped",

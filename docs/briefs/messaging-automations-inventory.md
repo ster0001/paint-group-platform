@@ -1,5 +1,7 @@
 # Messaging automations — inventory (as built, 16 Sep 2026)
 
+> **Session 1 (16 Sep, evening) changed the plumbing:** every automatic row below now goes through `lib/automations/dispatch.ts` — channel (Text/Email/Both), "office approves first", sending hours (8–7 weekdays, 9–5 Sat, none Sun) and the 3-a-day cap are Settings → Automations controls; held or pending messages sit in `automation_holds` and surface at CRM → Messages to approve. Three sends were added to the registry (tenant access text, CRM record reply, Google Calendar push) and the six staff alerts have editable wording. Section 6 items 6 and 8 are done; the rest stand.
+
 Every message the platform sends to customers, contractors (painters) and staff, taken from
 the code on `main`. Source of truth for the switchable ones is `lib/automations/registry.ts`,
 rendered at Settings → Automations. Each automatic send asks `automationOn(cfg, key)` first;

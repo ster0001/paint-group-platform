@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
 import { automationOn, normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
+import { outcomeWord, sendAutomation } from "@/lib/automations/dispatch";
 import { loadMessaging } from "@/lib/messaging/load";
 import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "./pdf";
@@ -224,7 +225,7 @@ export async function sendRemittanceEmail(
     .maybeSingle();
   const ci = data as {
     id: string; number: string | null; remittance_number: string | null;
-    total_inc_cents: number; bank_reference: string;
+    total_inc_cents: number; bank_reference: string; contractor_id: string | null;
     entity_snapshot: { company_name?: string } | null;
     contractors: { profile_id: string | null } | null;
     work_orders: { wo_ref: string } | null;
@@ -257,15 +258,16 @@ export async function sendRemittanceEmail(
     reference: null,
   });
 
-  if (!emailConfigured()) {
-    console.log(`[invoice-send:log-driver] to=${to} subject="Remittance ${ci.remittance_number}"`);
-    return { status: "not_configured", to };
-  }
-  const result = await sendEmail({ to, subject: renderTemplate(messaging.remittanceSubject, rvars), html });
-  if (result.status === "sent") return { status: "sent", to };
-  if (result.status === "not_configured") return { status: "not_configured", to };
-  reportError(new Error(result.message), { where: "sendRemittanceEmail", extra: { contractorInvoiceId } });
-  return { status: "error", message: result.message };
+  const r = await sendAutomation(service, {
+    key: "contractor_remittance", to: { email: to },
+    email: { subject: renderTemplate(messaging.remittanceSubject, rvars), html },
+    ctx: { kind: "remittance" }, contractorId: ci.contractor_id,
+  });
+  const word = outcomeWord(r);
+  if (word === "sent") return { status: "sent", to };
+  if (word === "not_configured") return { status: "not_configured", to };
+  if (r.outcome === "error") reportError(new Error(r.message), { where: "sendRemittanceEmail", extra: { contractorInvoiceId } });
+  return { status: "error", message: r.outcome === "error" ? r.message : word };
 }
 
 /** Email the receipt for a recorded payment — best-effort, never blocking. */
@@ -308,13 +310,14 @@ export async function sendReceiptEmail(
     reference: null,
   });
 
-  if (!emailConfigured()) {
-    console.log(`[invoice-send:log-driver] to=${to} subject="Receipt ${pay.receipt_number}" link=${link}`);
-    return { status: "not_configured", to };
-  }
-  const result = await sendEmail({ to, subject: renderTemplate(messaging.receiptSubject, pvars), html, ctx: { invoiceId: pay.invoice_id, kind: "receipt" } });
-  if (result.status === "sent") return { status: "sent", to };
-  if (result.status === "not_configured") return { status: "not_configured", to };
-  reportError(new Error(result.message), { where: "sendReceiptEmail", extra: { paymentId } });
-  return { status: "error", message: result.message };
+  const r = await sendAutomation(service, {
+    key: "payment_receipt", to: { email: to },
+    email: { subject: renderTemplate(messaging.receiptSubject, pvars), html },
+    ctx: { invoiceId: pay.invoice_id, kind: "receipt" },
+  });
+  const word = outcomeWord(r);
+  if (word === "sent") return { status: "sent", to };
+  if (word === "not_configured") return { status: "not_configured", to };
+  if (r.outcome === "error") reportError(new Error(r.message), { where: "sendReceiptEmail", extra: { paymentId } });
+  return { status: "error", message: r.outcome === "error" ? r.message : word };
 }

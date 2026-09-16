@@ -22,6 +22,7 @@
  * they are what the `disabled` list stores.
  */
 import type { MessagingSettings } from "@/lib/messaging/config";
+import type { ChannelChoice, SendMode } from "./controls";
 
 export type Audience = "customer" | "painter" | "office";
 export type Channel = "email" | "sms" | "ics" | "pdf";
@@ -33,6 +34,16 @@ export type TemplateField = {
   kind: "subject" | "body" | "sms" | "number";
   /** Placeholders this template understands, shown beside the box. */
   placeholders?: string[];
+};
+
+export type TimingDef = {
+  /** Stored under controls[key].timing[id]. */
+  id: string;
+  label: string;
+  unit: "days" | "hours" | "minutes";
+  default: number;
+  min?: number;
+  max?: number;
 };
 
 export type Automation = {
@@ -54,6 +65,22 @@ export type Automation = {
   note?: string;
   /** Deep link to where a manual one is sent / configured. */
   href?: string;
+
+  // ---- Session 1 controls (16 Sep 2026). Absent = the automation's send site
+  // decides on its own (manual sends, planned ones, the wo_loop switch).
+  /** The channel the office gets when they have never chosen. Must be among `channels`. */
+  defaultChannel?: ChannelChoice;
+  /** Whether it may be queued for approval; `defaultMode` is what ships. Office alerts are never queued. */
+  approvable?: boolean;
+  defaultMode?: SendMode;
+  /** D1: goes out at any hour (a job offer, a receipt, a sign-in link). */
+  quietExempt?: boolean;
+  /** D2: does not count toward, and is never blocked by, the daily cap (payment, sign-off). */
+  capExempt?: boolean;
+  /** The `ctx.kind` the dispatcher stamps on the send, so the customer's alert settings apply. */
+  sendKind?: string;
+  /** Numbers the office can tune (days before, hours after…). */
+  timing?: TimingDef[];
 };
 
 const P = {
@@ -88,6 +115,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "estimate_chat_reply", name: "Reply on the estimate chat", audience: "customer", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", approvable: true, defaultMode: "auto", sendKind: "chat_reply", quietExempt: true,
     trigger: "A staff member posts a reply on an estimate's chat — the customer is told there's a new message.",
     templates: [
       { field: "chatReplySubject", label: "Email subject", kind: "subject", placeholders: P.chat },
@@ -96,6 +124,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "wizard_saved_link", name: "Estimate saved — sign-in link", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", quietExempt: true, capExempt: true, sendKind: "wizard_saved",
     trigger: "A customer finishes the online wizard and gets a price. The link signs them into their account.",
     templates: [
       { field: "wizardSavedSubject", label: "Email subject", kind: "subject", placeholders: P.wizardSaved },
@@ -107,6 +136,7 @@ export const AUTOMATIONS: Automation[] = [
   // ---- customers · the job -----------------------------------------------
   {
     key: "appointment_confirmation", name: "Booking confirmed", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", approvable: true, defaultMode: "auto", sendKind: "appointment",
     trigger: "The job is booked in — the painter accepts the offer, or the office assigns one directly.",
     templates: [
       { field: "apptConfirmSubject", label: "Email subject", kind: "subject", placeholders: P.appt },
@@ -116,6 +146,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "pre_start_checklist", name: "Pre-start checklist", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", approvable: true, defaultMode: "auto", sendKind: "pre_start",
     trigger: "The office ticks “Pre-start checklist” on the job's pre-start list; the email goes out N days before the start date.",
     templates: [
       { field: "preStartDaysBefore", label: "Days before start", kind: "number" },
@@ -126,6 +157,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "visit_confirmation", name: "Visit booked — calendar invite", audience: "customer", channels: ["email", "ics"], kind: "automatic",
+    defaultChannel: "email", sendKind: "visit_confirmation", quietExempt: true,
     trigger: "An estimator visit is booked — by the customer in the estimate, or by the office on the record or Diary. A move sends the updated invite; a cancellation pulls it.",
     templates: [
       { field: "visitConfirmSubject", label: "Subject", kind: "subject", placeholders: P.visit },
@@ -135,6 +167,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "visit_reminder", name: "Visit reminder text", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "visit_reminder", quietExempt: true,
     trigger: "The evening before an estimator visit, to the customer's mobile.",
     templates: [{ field: "visitReminderSms", label: "Text", kind: "sms", placeholders: P.visit }],
     guard: "Once per visit; a moved visit is reminded again for its new day.",
@@ -142,6 +175,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "walkthrough_invite", name: "Final walkthrough calendar invite", audience: "customer", channels: ["email", "ics"], kind: "automatic",
+    defaultChannel: "email", sendKind: "walkthrough_invite", quietExempt: true,
     trigger: "The final walkthrough is booked, moved or cancelled. The customer AND the painter each get a calendar invite that updates itself.",
     templates: [
       { field: "walkthroughInviteSubject", label: "Subject (also the calendar entry's title)", kind: "subject", placeholders: P.walkthrough },
@@ -163,6 +197,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "signed_completion_report", name: "Signed completion report", audience: "customer", channels: ["email", "pdf"], kind: "automatic",
+    defaultChannel: "email", approvable: true, defaultMode: "auto", sendKind: "signoff_report", capExempt: true,
     trigger: "The customer signs off the job (on the painter's device or remotely). The report PDF is attached.",
     templates: [
       { field: "signedReportSubject", label: "Email subject", kind: "subject", placeholders: P.signed },
@@ -180,6 +215,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "payment_receipt", name: "Payment receipt", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", sendKind: "receipt", quietExempt: true, capExempt: true,
     trigger: "A payment is recorded against an invoice — by the office, or by card through the payment page.",
     templates: [
       { field: "receiptSubject", label: "Email subject", kind: "subject", placeholders: P.receipt },
@@ -195,6 +231,7 @@ export const AUTOMATIONS: Automation[] = [
   // ---- painters ----------------------------------------------------------
   {
     key: "contractor_offer", name: "Job offer", audience: "painter", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "both", sendKind: "offer", quietExempt: true, capExempt: true,
     trigger: "A job is offered, re-offered or reassigned to a painter. The offer holds for 24 hours.",
     templates: [
       { field: "offerSms", label: "Text message", kind: "sms", placeholders: P.offer },
@@ -210,18 +247,21 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "contractor_variation_released", name: "Variation waiting on you", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "variation_released", capExempt: true,
     trigger: "An approved variation is released to the painter (automatically at signing, or by the office).",
     templates: [{ field: "variationReleasedSms", label: "Text message", kind: "sms", placeholders: P.variation }],
     guard: "Once per variation.",
   },
   {
     key: "contractor_qa_fail", name: "Quality check — put right", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "qa_fail",
     trigger: "The office records a failed quality check on the painter's job.",
     templates: [{ field: "qaFailSms", label: "Text message", kind: "sms", placeholders: P.qaFail }],
     guard: "Once per check.",
   },
   {
     key: "contractor_remittance", name: "Remittance advice", audience: "painter", channels: ["email", "pdf"], kind: "automatic",
+    defaultChannel: "email", sendKind: "remittance", quietExempt: true, capExempt: true,
     trigger: "The office marks a painter's invoice as paid.",
     templates: [
       { field: "remittanceSubject", label: "Email subject", kind: "subject", placeholders: P.remittance },
@@ -232,6 +272,7 @@ export const AUTOMATIONS: Automation[] = [
   // ---- office / trade -----------------------------------------------------
   {
     key: "office_estimate_accepted", name: "Estimate accepted — tell the office", audience: "office", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A customer (or a trade approver) accepts an estimate. The office address below is emailed with the title, total and deposit, and a link to the estimate.",
     templates: [
       { field: "officeEmail", label: "Send to (email address)", kind: "subject" },
@@ -247,47 +288,70 @@ export const AUTOMATIONS: Automation[] = [
   // master kill for everyone.
   {
     key: "office_job_accepted", name: "Job accepted by the painter", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A painter accepts a job offer, or accepts it with a different start date proposed.",
-    wording: "Fixed wording — painter, job, date, their note.",
+    templates: [
+      { field: "officeJobAcceptedSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{start_date}}", "{{proposed_line}}", "{{note_line}}", "{{link}}"] },
+      { field: "officeJobAcceptedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{start_date}}", "{{proposed_line}}", "{{note_line}}", "{{link}}"] },
+    ],
     guard: "Once per offer.",
   },
   {
     key: "office_job_declined", name: "Job declined by the painter", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A painter declines a job offer — the job is back with the office to re-offer.",
-    wording: "Fixed wording — painter, job, their reason.",
+    templates: [
+      { field: "officeJobDeclinedSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{start_date}}", "{{reason_line}}", "{{link}}"] },
+      { field: "officeJobDeclinedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{start_date}}", "{{reason_line}}", "{{link}}"] },
+    ],
     guard: "Once per offer.",
   },
   {
     key: "office_invoice_paid", name: "Invoice paid", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A payment is recorded against a customer invoice — by the office, or by card through the payment page.",
-    wording: "Fixed wording — who, how much, which invoice.",
+    templates: [
+      { field: "officeInvoicePaidSubject", label: "Email subject", kind: "subject", placeholders: ["{{who}}", "{{amount}}", "{{invoice_number}}", "{{job}}", "{{method}}", "{{link}}"] },
+      { field: "officeInvoicePaidBody", label: "Message", kind: "body", placeholders: ["{{who}}", "{{amount}}", "{{invoice_number}}", "{{job}}", "{{method}}", "{{link}}"] },
+    ],
     guard: "Once per payment.",
   },
   {
     key: "office_variation_raised", name: "Variation raised", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A painter raises a variation from their portal — it is waiting to be priced.",
-    wording: "Fixed wording — painter, job, category, their comment.",
+    templates: [
+      { field: "officeVariationRaisedSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{category}}", "{{hours_line}}", "{{comment}}", "{{link}}"] },
+      { field: "officeVariationRaisedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{category}}", "{{hours_line}}", "{{comment}}", "{{link}}"] },
+    ],
     guard: "Once per variation.",
   },
   {
     key: "office_contractor_invoice", name: "Contractor invoice submitted", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A painter submits an invoice or a payment claim — it is waiting for approval in Payments.",
-    wording: "Fixed wording — painter, amount, job.",
+    templates: [
+      { field: "officeContractorInvoiceSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{amount}}", "{{invoice_number}}", "{{wo_ref}}", "{{job}}", "{{link}}"] },
+      { field: "officeContractorInvoiceBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{amount}}", "{{invoice_number}}", "{{wo_ref}}", "{{job}}", "{{link}}"] },
+    ],
     guard: "Once per invoice.",
   },
   {
     key: "external_approval", name: "External approval request", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", sendKind: "approval", quietExempt: true, capExempt: true,
     trigger: "A trade customer sends an estimate to an approver, assessor or owner for sign-off; the sender is emailed the decision.",
     wording: "Fixed wording.",
   },
   {
     key: "trade_daily_digest", name: "Trade daily digest", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", sendKind: "digest", quietExempt: true, capExempt: true,
     trigger: "Once a day, each trade-organisation admin gets a summary of what moved on their properties.",
     wording: "Fixed wording; each person sets their own time under Team.",
     note: "Needs the trade-digest cron scheduled in vercel.json — it is not, today.",
   },
   {
     key: "assistant_handoff", name: "Assistant — someone wants a person", audience: "office", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "assistant_handoff", quietExempt: true, capExempt: true,
     trigger: "A customer in the assistant chat asks for a human inside support hours; the on-duty roster is texted. A claim past the SLA texts the escalation list.",
     wording: "Fixed wording; roster and hours are under Admin → Assistant.",
     href: "/admin/agent",
@@ -297,6 +361,26 @@ export const AUTOMATIONS: Automation[] = [
     trigger: "Campaign steps are queued by the engine and sent only after a person approves them in the CRM queue.",
     wording: "Campaign templates live in CRM → Campaigns.",
     href: "/crm/campaigns",
+  },
+
+  // ---- brought onto the list in Session 1 (16 Sep) -------------------------
+  {
+    key: "tenant_access_text", name: "Tenant access text", audience: "customer", channels: ["sms"], kind: "manual",
+    trigger: "A trade customer texts a tenant a link to the photos and plan from the property page. The link lasts a set number of days.",
+    templates: [
+      { field: "tenantLinkSms", label: "Text message", kind: "sms", placeholders: ["{{company_name}}", "{{agency_line}}", "{{address}}", "{{link}}"] },
+    ],
+  },
+  {
+    key: "crm_record_reply", name: "Reply from the customer record", audience: "customer", channels: ["email", "sms"], kind: "manual",
+    trigger: "A staff member writes a reply on the customer's CRM record and presses Send. Free wording each time.",
+    wording: "Typed per message on the record.",
+    href: "/crm",
+  },
+  {
+    key: "contractor_gcal_push", name: "Google Calendar — jobs on the painter's calendar", audience: "painter", channels: [], kind: "automatic",
+    trigger: "A booked job is written to the painter's connected Google Calendar as a 07:30–15:30 block; moves and cancellations follow. Off: nothing is written or changed.",
+    wording: "Not a message — the calendar entry carries the job address and portal link.",
   },
 
   // ---- recorded, not yet sent ---------------------------------------------
@@ -314,6 +398,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "wizard_abandoned", name: "Abandoned wizard — pick up where you left off", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", quietExempt: true, capExempt: true, sendKind: "wizard_resume",
     trigger: "A wizard run sits idle for 45 minutes with an email on it. One sign-in link per run, landing on the customer's account page where the unfinished estimate waits. Sent by the sweep — daily on the current hosting plan, and whenever staff open CRM Today or Estimates → Wizard.",
     templates: [
       { field: "wizardResumeSubject", label: "Email subject", kind: "subject", placeholders: P.wizardResume },

@@ -9,6 +9,17 @@
   ],
   "files": [
     {
+      "feature": "automations",
+      "role": "staff",
+      "title": "Control every automatic message from one screen",
+      "summary": "Settings → Automations — switch any message on or off, choose Text, Email or Both, decide whether the office approves it first, set sending hours and the daily limit, and edit the wording with a live preview and a test send.",
+      "path": "docs/help/automations/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "5138945ff6",
+      "sources": []
+    },
+    {
       "feature": "crm",
       "role": "staff",
       "title": "Your first hour in the CRM",
@@ -130,6 +141,17 @@
         "app/api/help/media",
         "scripts/help-index.ts"
       ]
+    },
+    {
+      "feature": "message-queue",
+      "role": "staff",
+      "title": "Approve, change or skip an automatic message before it goes",
+      "summary": "CRM → Messages to approve — the automatic job messages the office chose to approve first, and anything held for sending hours or the daily limit. Approve, edit then send, or skip.",
+      "path": "docs/help/message-queue/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "5138945ff6",
+      "sources": []
     },
     {
       "feature": "scheduling",

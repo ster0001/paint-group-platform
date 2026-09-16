@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sendEstimateInput } from "@/lib/validation/estimate";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { buildChatEmailHtml, buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigured, type DeliveryResult } from "@/lib/messaging/send";
+import { sendAutomation } from "@/lib/automations/dispatch";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import type { ActionResult } from "@/app/pc/schedule/actions";
 import { z } from "zod";
@@ -19,9 +20,10 @@ const replyInput = z.object({
 });
 
 /** Per-channel outcome shown back in the send dialog. */
+/** "queued" (Session 1): the dispatcher put it in the approval queue or held it for sending hours. */
 export type DeliveryOutcome = {
-  email?: { status: DeliveryResult["status"]; message?: string };
-  sms?: { status: DeliveryResult["status"]; message?: string };
+  email?: { status: DeliveryResult["status"] | "queued"; message?: string };
+  sms?: { status: DeliveryResult["status"] | "queued"; message?: string };
 };
 
 export type SendResult = ActionResult & { delivery?: DeliveryOutcome };
@@ -242,12 +244,14 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
     const link = `${await baseUrl()}/e/${est.share_token}#chat`;
     const chatVars = { company_name: company.name, link };
 
-    if (contact?.email) {
-      let result: DeliveryResult;
-      if (!emailConfigured()) result = { status: "not_configured" };
-      else result = await sendEmail({
-        ctx: { estimateId, kind: "chat_reply" },
-        to: contact.email,
+    // Through the dispatcher (Session 1): Text / Email / Both and "office
+    // approves first" are the office's settings. A queued reply is reported
+    // back to the sender as such — nothing is silently dropped.
+    const phone = contact?.phone ? normalisePhoneAU(contact.phone) : null;
+    const r = await sendAutomation(supabase, {
+      key: "estimate_chat_reply",
+      to: { email: contact?.email || null, phone },
+      email: {
         subject: renderTemplate(chatMessaging.chatReplySubject, chatVars),
         replyTo: company.email || undefined,
         html: buildChatEmailHtml({
@@ -257,19 +261,25 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
           estimatorName: company.estimatorName || undefined,
           companyPhone: company.phone || undefined,
         }),
-      });
-      outcome.email = { status: result.status, ...("message" in result ? { message: result.message } : {}) };
-      await logDelivery(supabase, estimateId, "email", contact.email, result);
-    }
-
-    if (contact?.phone) {
-      let result: DeliveryResult;
-      const to = normalisePhoneAU(contact.phone);
-      if (!smsConfigured()) result = { status: "not_configured" };
-      else if (!to) result = { status: "error", message: "That mobile number doesn't look Australian." };
-      else result = await sendSms({ to, body: renderTemplate(chatMessaging.chatReplySms, chatVars), ctx: { estimateId, kind: "chat_reply" } });
-      outcome.sms = { status: result.status, ...("message" in result ? { message: result.message } : {}) };
-      await logDelivery(supabase, estimateId, "sms", contact.phone, result);
+      },
+      sms: { body: renderTemplate(chatMessaging.chatReplySms, chatVars) },
+      ctx: { estimateId, kind: "chat_reply" },
+    });
+    if (r.outcome === "sent") {
+      if (r.results.email && contact?.email) {
+        outcome.email = { status: r.results.email.status, ...("message" in r.results.email ? { message: r.results.email.message } : {}) };
+        await logDelivery(supabase, estimateId, "email", contact.email, r.results.email);
+      }
+      if (r.results.sms && contact?.phone) {
+        outcome.sms = { status: r.results.sms.status, ...("message" in r.results.sms ? { message: r.results.sms.message } : {}) };
+        await logDelivery(supabase, estimateId, "sms", contact.phone, r.results.sms);
+      }
+    } else if (r.outcome === "pending") {
+      outcome.email = { status: "queued", message: "Waiting for approval in Today → Messages to approve." };
+    } else if (r.outcome === "held") {
+      outcome.email = { status: "queued", message: `Held until sending hours open (${new Date(r.releaseAt).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", hour: "numeric", minute: "2-digit" })}).` };
+    } else if (r.outcome === "error") {
+      outcome.email = { status: "error", message: r.message };
     }
   }
 

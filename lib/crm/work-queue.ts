@@ -68,6 +68,8 @@ export const WORK_ITEM_KINDS = [
    * price" wrote a prep pack and raised nothing anyone would ever see.
    */
   "desk_check",
+  /** Session 1 (16 Sep): automatic job messages the office chose to approve first. */
+  "message_approval",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -177,6 +179,8 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   wizard_priced: 12,
   estimate_lapsed: 18,
   delay_ended: 20,
+  // A customer or painter is expecting this message; it outranks a campaign step.
+  message_approval: 20,
 };
 
 export type PriorityInput = {
@@ -264,6 +268,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   desk_check: "approvals",
   estimate_lapsed: "followups",
   delay_ended: "followups",
+  message_approval: "approvals",
 };
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
@@ -708,6 +713,25 @@ export function buildDeskCheckItems(
  * customer-visible work below them. The key carries no count, so approving
  * one of three doesn't resurrect a dismissed item.
  */
+/**
+ * Session 1: automatic job messages waiting for a person (Settings →
+ * Automations, "Office approves first"). One card, like the campaign queue —
+ * derived from pending automation_holds rows, never stored.
+ */
+export function buildMessageApprovalItem(pendingCount: number, now: Date): WorkItem[] {
+  if (pendingCount <= 0) return [];
+  const n = pendingCount;
+  return [finish({
+    key: itemKey("message_approval", "campaign_queue", "automation_holds", "pending"),
+    kind: "message_approval", accountId: null,
+    subjectRef: { type: "campaign_queue", id: "automation_holds" },
+    title: `${n} job message${n === 1 ? "" : "s"} waiting for approval`,
+    detail: "Booking confirmations, reminders and painter texts the office chose to approve first. Nothing leaves until you say so.",
+    since: now.toISOString(), dueAt: null,
+    action: { label: n === 1 ? "Review" : "Review all", href: "/crm/messages/queue" },
+  }, { valueCents: null, promisedToCustomer: false }, now)];
+}
+
 export function buildApprovalItem(queuedCount: number, now: Date): WorkItem[] {
   if (queuedCount <= 0) return [];
   const n = queuedCount;
@@ -1127,7 +1151,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // read that fills its cap is reported on the queue rather than dropped silently.
   const CAP = { followups: 500, invoices: 500, callbacks: 200, wizard: 300, lapsed: 300, inbound: 400, rebook: 200, quotes: 500 };
   const truncated: string[] = [];
-  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -1147,6 +1171,9 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     supabase.from("campaign_messages")
       .select("id", { count: "exact", head: true })
       .eq("state", "queued"),
+    supabase.from("automation_holds")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending"),
     supabase.from("work_item_dismissals")
       .select("item_key, until")
       .or(`until.is.null,until.gt.${nowIso}`)
@@ -1331,6 +1358,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildInvoiceItems(invRows, payments, now),
     ...buildCallbackItems(cbRows, attempts as ContactEventRow[], names, now),
     ...buildApprovalItem(queued.count ?? 0, now),
+    ...buildMessageApprovalItem(pendingHolds.error ? 0 : pendingHolds.count ?? 0, now),
     ...buildChangeRequestItems(crRows, staffReplies as StaffReplyRow[], now),
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
     ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now),

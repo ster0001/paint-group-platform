@@ -4,6 +4,7 @@ import { composeUpdate, type TickEvent } from "@/lib/workorder/updates";
 import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
 import { reportError } from "@/lib/monitoring/report";
 import { sendPreStartChecklists } from "@/lib/workorder/preStart";
+import { releaseDueHolds } from "@/lib/automations/dispatch";
 import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { reconcileAllConnected } from "@/lib/gcal/sync";
@@ -193,6 +194,10 @@ async function sweep() {
   // the timely send; this catches a lost ping and the staff-approved-proposal
   // path. Recent acceptances only (3 days) — both sends are idempotent off
   // wo_events, so re-touching a job is a no-op.
+  // Session 1 backstop: held automatic messages whose release time has passed.
+  let heldReleased = { released: 0, skipped: 0, failed: 0 };
+  try { heldReleased = await releaseDueHolds(db, now); } catch (e) { reportError(e, { where: "wo-sweep.releaseHolds" }); }
+
   let apptConfirmed = 0;
   try {
     const threeDaysAgo = new Date(now.getTime() - 3 * 86_400_000).toISOString();
@@ -226,6 +231,7 @@ async function sweep() {
     staffGcal: staffGcal.staff,
     staffGcalErrors: staffGcal.errors,
     visitReminders,
+    heldReleased,
   };
 }
 

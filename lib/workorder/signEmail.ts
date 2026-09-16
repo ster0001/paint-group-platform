@@ -8,7 +8,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Report } from "@/app/s/[token]/CompletionReport";
-import { buildEstimateEmailHtml, sendEmail } from "@/lib/messaging/send";
+import { buildEstimateEmailHtml } from "@/lib/messaging/send";
+import { sendAutomation } from "@/lib/automations/dispatch";
 import { reportError } from "@/lib/monitoring/report";
 import { DEFAULT_MESSAGING, automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
@@ -128,8 +129,13 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
       reportError(e, { where: "signEmail.pdf", bestEffort: true });
     }
 
-    const result = await sendEmail({ to: email, subject: msg.subject, html: msg.html, attachments, ctx: { estimateId: est?.id ?? null, workOrderId: s.work_order_id, kind: "signoff_report" } });
-    if (result.status === "error") reportError(new Error(result.message), { where: "signEmail.send" });
+    const result = await sendAutomation(db, {
+      key: "signed_completion_report",
+      to: { email },
+      email: { subject: msg.subject, html: msg.html, attachments },
+      ctx: { estimateId: est?.id ?? null, workOrderId: s.work_order_id, kind: "signoff_report" },
+    });
+    if (result.outcome === "error") reportError(new Error(result.message), { where: "signEmail.send" });
 
     // ⚑6 (31 Aug): where the property carries an Assessor reference and we
     // know the assessor's email (from the external-approval link they were
@@ -145,11 +151,11 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
           const assessorEmail = (appr as { approver_email?: string } | null)?.approver_email?.trim();
           const { isTestEmail } = await import("@/lib/accounts/identity");
           if (assessorEmail && assessorEmail !== email && !isTestEmail(assessorEmail)) {
-            await sendEmail({
-              to: assessorEmail,
-              subject: `Completion report — ${snap?.jobTitle || "painting works"}`,
-              html: msg.html,
-              attachments,
+            await sendAutomation(db, {
+              key: "signed_completion_report",
+              to: { email: assessorEmail },
+              email: { subject: `Completion report — ${snap?.jobTitle || "painting works"}`, html: msg.html, attachments },
+              ctx: { workOrderId: s.work_order_id, kind: "signoff_report_assessor" },
             });
           }
         }

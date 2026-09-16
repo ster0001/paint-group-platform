@@ -13,7 +13,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
-import { buildPlainEmailHtml, emailConfigured, sendEmail, sendSms } from "@/lib/messaging/send";
+import { buildPlainEmailHtml } from "@/lib/messaging/send";
+import { dispatched, sendAutomation } from "@/lib/automations/dispatch";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { buildIcs } from "@/lib/workorder/ics";
 import { melbourneParts } from "@/lib/time/businessHours";
@@ -98,17 +99,17 @@ export async function sendVisitConfirmation(db: SupabaseClient, visitId: string)
     organizerEmail: company.email || "email@paintgroup.com.au", organizerName: companyName,
     attendeeEmail: ctx.customerEmail, attendeeName: visit.customer_name || "Customer", now: new Date(),
   });
-  if (emailConfigured()) {
-    const sent = await sendEmail({
-      to: ctx.customerEmail, subject, replyTo: company.email || undefined,
+  const sent = await sendAutomation(db, {
+    key: "visit_confirmation",
+    to: { email: ctx.customerEmail },
+    email: {
+      subject, replyTo: company.email || undefined,
       html: buildPlainEmailHtml({ heading: `Visit booked — ${visitWhen(visit.starts_at)}`, message: body, companyName, logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone }),
       attachments: [{ filename: "visit.ics", content: Buffer.from(ics, "utf8").toString("base64"), contentType: "text/calendar; method=REQUEST" }],
-      ctx: { accountId: visit.account_id, estimateId: visit.estimate_id, kind: "visit_confirmation" },
-    });
-    if (sent.status === "error") reportError(new Error(sent.message ?? "visit confirmation failed"), { where: "visits.confirm.send", extra: { visitId } });
-  } else {
-    console.log(`[visit-confirm:log-driver] visit=${visitId} to=${ctx.customerEmail} when=${visitWhen(visit.starts_at)}`);
-  }
+    },
+    ctx: { accountId: visit.account_id, estimateId: visit.estimate_id, kind: "visit_confirmation" },
+  });
+  if (sent.outcome === "error") reportError(new Error(sent.message ?? "visit confirmation failed"), { where: "visits.confirm.send", extra: { visitId } });
   await db.from("visits").update({ confirmation_sent_at: new Date().toISOString() }).eq("id", visitId);
   return "sent";
 }
@@ -118,7 +119,7 @@ export async function sendVisitCancellation(db: SupabaseClient, visitId: string)
   const ctx = await context(db, visitId);
   if (!ctx || !ctx.visit.confirmation_sent_at || !ctx.customerEmail || isTestEmail(ctx.customerEmail)) return;
   const { messaging, company } = await loadMessaging(db);
-  if (!automationOn(messaging, "visit_confirmation") || !emailConfigured()) return;
+  if (!automationOn(messaging, "visit_confirmation")) return;
   const companyName = company.name || "Paint Group";
   const { date, time, minutes } = visitDateTime(ctx.visit.starts_at, ctx.visit.ends_at);
   const ics = buildIcs({
@@ -127,10 +128,14 @@ export async function sendVisitCancellation(db: SupabaseClient, visitId: string)
     organizerEmail: company.email || "email@paintgroup.com.au", organizerName: companyName,
     attendeeEmail: ctx.customerEmail, attendeeName: ctx.visit.customer_name || "Customer", now: new Date(),
   });
-  await sendEmail({
-    to: ctx.customerEmail, subject: `Visit cancelled — ${visitWhen(ctx.visit.starts_at)}`, replyTo: company.email || undefined,
-    html: buildPlainEmailHtml({ heading: "Visit cancelled", message: `The visit on ${visitWhen(ctx.visit.starts_at)} has been taken out of the calendar. We'll be in touch to find another time.`, companyName, logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone }),
-    attachments: [{ filename: "visit-cancelled.ics", content: Buffer.from(ics, "utf8").toString("base64"), contentType: "text/calendar; method=CANCEL" }],
+  await sendAutomation(db, {
+    key: "visit_confirmation",
+    to: { email: ctx.customerEmail },
+    email: {
+      subject: `Visit cancelled — ${visitWhen(ctx.visit.starts_at)}`, replyTo: company.email || undefined,
+      html: buildPlainEmailHtml({ heading: "Visit cancelled", message: `The visit on ${visitWhen(ctx.visit.starts_at)} has been taken out of the calendar. We'll be in touch to find another time.`, companyName, logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone }),
+      attachments: [{ filename: "visit-cancelled.ics", content: Buffer.from(ics, "utf8").toString("base64"), contentType: "text/calendar; method=CANCEL" }],
+    },
     ctx: { accountId: ctx.visit.account_id, estimateId: ctx.visit.estimate_id, kind: "visit_cancelled" },
   });
 }
@@ -169,9 +174,12 @@ export async function sendVisitReminders(db: SupabaseClient, now = new Date()): 
       first_name: (v.customer_name || "").split(/\s+/)[0] || "there", estimator_name: estimator,
       visit_when: visitWhen(v.starts_at).replace(/^\w+ \d+ \w+ /, ""), address: v.address || "your property", company_name: companyName,
     });
-    const r = await sendSms({ to, body, ctx: { accountId: v.account_id, estimateId: v.estimate_id, kind: "visit_reminder" } });
+    const r = await sendAutomation(db, {
+      key: "visit_reminder", to: { phone: to }, sms: { body },
+      ctx: { accountId: v.account_id, estimateId: v.estimate_id, kind: "visit_reminder" }, now,
+    });
     await db.from("visits").update({ reminder_sent_at: now.toISOString() }).eq("id", v.id);
-    if (r.status === "sent") sent += 1; else skipped += 1;
+    if (dispatched(r)) sent += 1; else skipped += 1;
   }
   return { sent, skipped };
 }

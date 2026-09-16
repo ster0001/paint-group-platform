@@ -15,7 +15,7 @@
  * announces, so every entry point swallows and reports.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { automationOn, normalisePhoneAU } from "@/lib/messaging/config";
+import { automationOn, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 import { buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
 import { siteUrl } from "@/lib/invoicing/pdf";
@@ -32,6 +32,9 @@ export type StaffAlert = {
   link: string;
   /** Addresses already told by another path (the office address on the accepted email). */
   skipEmails?: string[];
+  /** Session 1: editable wording. When set, subject/message above are only the fallback. */
+  templates?: { subject: keyof MessagingSettings; body: keyof MessagingSettings };
+  vars?: Record<string, string>;
 };
 
 export type StaffAlertOutcome = "sent" | "off" | "already" | "nobody" | "error";
@@ -64,6 +67,12 @@ export async function notifyStaff(service: SupabaseClient, alert: StaffAlert): P
   try {
     const { messaging, company } = await loadMessaging(service);
     if (!automationOn(messaging, alert.key)) return "off";
+    if (alert.templates && alert.vars) {
+      const subj = String(messaging[alert.templates.subject] ?? "").trim();
+      const body = String(messaging[alert.templates.body] ?? "").trim();
+      if (subj) alert = { ...alert, subject: renderTemplate(subj, { ...alert.vars, link: alert.link }) };
+      if (body) alert = { ...alert, message: renderTemplate(body, { ...alert.vars, link: alert.link }) };
+    }
 
     // Claim the guard first — a duplicate claim is the signal to stop.
     const claim = await service
@@ -145,6 +154,8 @@ export async function staffOfferResponded(service: SupabaseClient, offerId: stri
         subject: `Job accepted — ${painter} · ${job}`,
         message: `${painter} has accepted ${o.work_orders.wo_ref} (${job}) starting ${dateAU(o.start_date)}.${o.response_note ? `\n\nTheir note: ${o.response_note}` : ""}`,
         link,
+        templates: { subject: "officeJobAcceptedSubject", body: "officeJobAcceptedBody" },
+        vars: { painter, job, wo_ref: o.work_orders.wo_ref, start_date: dateAU(o.start_date), proposed_line: "", note_line: o.response_note ? `\n\nTheir note: ${o.response_note}` : "" },
       });
     }
     if (o.state === "proposed") {
@@ -153,6 +164,12 @@ export async function staffOfferResponded(service: SupabaseClient, offerId: stri
         subject: `Job accepted with a new date — ${painter} · ${job}`,
         message: `${painter} will take ${o.work_orders.wo_ref} (${job}) but has proposed ${dateAU(o.proposed_start_date)} instead of ${dateAU(o.start_date)}. It needs your OK on the job page.${o.response_note ? `\n\nTheir note: ${o.response_note}` : ""}`,
         link,
+        templates: { subject: "officeJobAcceptedSubject", body: "officeJobAcceptedBody" },
+        vars: {
+          painter, job, wo_ref: o.work_orders.wo_ref, start_date: dateAU(o.start_date),
+          proposed_line: ` They have proposed ${dateAU(o.proposed_start_date)} instead — it needs your OK on the job page.`,
+          note_line: o.response_note ? `\n\nTheir note: ${o.response_note}` : "",
+        },
       });
     }
     if (o.state === "declined") {
@@ -161,6 +178,8 @@ export async function staffOfferResponded(service: SupabaseClient, offerId: stri
         subject: `Job declined — ${painter} · ${job}`,
         message: `${painter} has declined ${o.work_orders.wo_ref} (${job}) for ${dateAU(o.start_date)}.${o.decline_reason ? `\n\nReason: ${o.decline_reason}` : ""}\n\nThe job is back with the office to re-offer.`,
         link,
+        templates: { subject: "officeJobDeclinedSubject", body: "officeJobDeclinedBody" },
+        vars: { painter, job, wo_ref: o.work_orders.wo_ref, start_date: dateAU(o.start_date), reason_line: o.decline_reason ? `\n\nReason: ${o.decline_reason}` : "" },
       });
     }
     return "nobody";
@@ -189,6 +208,8 @@ export async function staffInvoicePaid(service: SupabaseClient, paymentId: strin
       subject: `Invoice paid — ${money(p.amount_cents)} · ${job}`,
       message: `${who} has paid ${money(p.amount_cents)} on invoice ${p.invoices.number ?? ""} for ${job}${p.method ? ` (${p.method})` : ""}.`,
       link: `${siteUrl()}/invoicing/job/${p.invoices.estimate_id}`,
+      templates: { subject: "officeInvoicePaidSubject", body: "officeInvoicePaidBody" },
+      vars: { who, amount: money(p.amount_cents), invoice_number: p.invoices.number ?? "", job, method: p.method ?? "recorded by the office" },
     });
   } catch (e) {
     reportError(e, { where: "staffInvoicePaid", extra: { paymentId } });
@@ -216,6 +237,8 @@ export async function staffVariationRaised(service: SupabaseClient, variationId:
       subject: `Variation raised — ${job}`,
       message: `${painter} has raised a variation on ${v.work_orders.wo_ref} (${job}): ${category}${v.est_hours ? `, about ${v.est_hours} h` : ""}.\n\n“${v.comment}”\n\nIt is waiting to be priced.`,
       link: `${siteUrl()}/pc/wo/${v.work_orders.id}`,
+      templates: { subject: "officeVariationRaisedSubject", body: "officeVariationRaisedBody" },
+      vars: { painter, job, wo_ref: v.work_orders.wo_ref, category, hours_line: v.est_hours ? `, about ${v.est_hours} h` : "", comment: v.comment },
     });
   } catch (e) {
     reportError(e, { where: "staffVariationRaised", extra: { variationId } });
@@ -242,6 +265,8 @@ export async function staffContractorInvoice(service: SupabaseClient, invoiceId:
       subject: `Contractor invoice in — ${painter} · ${money(ci.total_inc_cents)}`,
       message: `${painter} has submitted invoice ${ci.number ?? ""} for ${money(ci.total_inc_cents)} on ${ci.work_orders.wo_ref} (${job}). It is waiting for approval in Payments.`,
       link: `${siteUrl()}/invoicing/ci/${ci.id}`,
+      templates: { subject: "officeContractorInvoiceSubject", body: "officeContractorInvoiceBody" },
+      vars: { painter, amount: money(ci.total_inc_cents), invoice_number: ci.number ?? "", wo_ref: ci.work_orders.wo_ref, job },
     });
   } catch (e) {
     reportError(e, { where: "staffContractorInvoice", extra: { invoiceId } });

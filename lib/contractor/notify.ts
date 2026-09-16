@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
+import { buildEstimateEmailHtml } from "@/lib/messaging/send";
+import { sendAutomation } from "@/lib/automations/dispatch";
 import { automationOn, normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 import { isTestEmail } from "@/lib/accounts/identity";
@@ -83,26 +84,25 @@ export async function notifyJobOffer(service: SupabaseClient, workOrderId: strin
     const vars = { first_name: c.firstName, company_name: companyName, wo_ref: woRef, link };
     const body = renderTemplate(messaging.offerSms, vars);
 
-    if (c.phone && smsConfigured()) await sendSms({ to: c.phone, body });
-    else if (c.phone) console.log(`[offer-sms:log-driver] to=${c.phone} body=${body}`);
-
-    if (c.email && !isTestEmail(c.email)) {
-      if (!emailConfigured()) {
-        console.log(`[offer-email:log-driver] to=${c.email} link=${link}`);
-      } else {
-        await sendEmail({
-          to: c.email,
-          subject: renderTemplate(messaging.offerEmailSubject, vars),
-          html: buildEstimateEmailHtml({
-            companyName,
-            logoUrl: company.logoUrlLight || company.logoUrl,
-            intro: renderTemplate(messaging.offerEmailIntro, vars),
-            link,
-            buttonLabel: "Open your portal",
-          }),
-        });
-      }
-    }
+    // Through the dispatcher (Session 1): Text / Email / Both is the office's
+    // choice; no mobile falls back to email and says so on the record.
+    await sendAutomation(service, {
+      key: "contractor_offer",
+      to: { phone: c.phone, email: c.email && !isTestEmail(c.email) ? c.email : null },
+      sms: { body },
+      email: {
+        subject: renderTemplate(messaging.offerEmailSubject, vars),
+        html: buildEstimateEmailHtml({
+          companyName,
+          logoUrl: company.logoUrlLight || company.logoUrl,
+          intro: renderTemplate(messaging.offerEmailIntro, vars),
+          link,
+          buttonLabel: "Open your portal",
+        }),
+      },
+      ctx: { workOrderId, kind: "offer" },
+      contractorId,
+    });
     await record(service, workOrderId, "offer_notified", { contractor_id: contractorId, wo_ref: woRef });
   } catch (e) {
     reportError(e, { where: "notify.jobOffer", extra: { workOrderId } });
@@ -132,8 +132,10 @@ export async function notifyVariationReleased(service: SupabaseClient, variation
       company_name: company.name || "Paint Group", wo_ref: row.work_orders.wo_ref,
       action: row.credit ? "acknowledge" : "approve", link,
     });
-    if (c.phone && smsConfigured()) await sendSms({ to: c.phone, body });
-    else console.log(`[variation-sms:log-driver] to=${c.phone ?? "-"} body=${body}`);
+    await sendAutomation(service, {
+      key: "contractor_variation_released", to: { phone: c.phone }, sms: { body },
+      ctx: { workOrderId: row.work_order_id, kind: "variation_released" }, contractorId: row.work_orders.contractor_id,
+    });
 
     await record(service, row.work_order_id, "variation_release_notified", { variation_id: row.id });
   } catch (e) {
@@ -163,8 +165,10 @@ export async function notifyQaFail(service: SupabaseClient, checkId: string): Pr
     const body = renderTemplate(messaging.qaFailSms, {
       company_name: company.name || "Paint Group", wo_ref: row.work_orders.wo_ref, link,
     });
-    if (c.phone && smsConfigured()) await sendSms({ to: c.phone, body });
-    else console.log(`[qa-fail-sms:log-driver] to=${c.phone ?? "-"} body=${body}`);
+    await sendAutomation(service, {
+      key: "contractor_qa_fail", to: { phone: c.phone }, sms: { body },
+      ctx: { workOrderId: row.work_order_id, kind: "qa_fail" }, contractorId: row.work_orders.contractor_id,
+    });
 
     await record(service, row.work_order_id, "qa_fail_notified", { check_id: row.id });
   } catch (e) {

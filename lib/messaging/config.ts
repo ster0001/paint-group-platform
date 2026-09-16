@@ -9,6 +9,8 @@
  * (delivery) — keep it free of secrets and server-only imports.
  */
 
+import type { AutomationControl, QuietHours } from "@/lib/automations/controls";
+
 export const MESSAGING_KEY = "messaging";
 
 export type MessagingSettings = {
@@ -44,6 +46,28 @@ export type MessagingSettings = {
 
   /** Registry keys switched OFF. Absent key = on (the shipped default). */
   disabled: string[];
+
+  // ---- Session 1 controls (Tom's brief, 16 Sep 2026) ------------------------
+  /** Per automation: channel (Text/Email/Both), mode (auto / office approves first), timing numbers. Absent = registry default. */
+  controls: Record<string, AutomationControl>;
+  /** D1: when automatic customer and painter messages may go out (Melbourne). Held otherwise, released at the next opening. */
+  quietHours: QuietHours;
+  /** D2: automatic job messages per customer per day; the registry marks the exempt ones. */
+  dailyCap: number;
+
+  /** Staff alerts — wording (was fixed in code before Session 1). Placeholders per event, see the registry. */
+  officeJobAcceptedSubject: string;
+  officeJobAcceptedBody: string;
+  officeJobDeclinedSubject: string;
+  officeJobDeclinedBody: string;
+  officeInvoicePaidSubject: string;
+  officeInvoicePaidBody: string;
+  officeVariationRaisedSubject: string;
+  officeVariationRaisedBody: string;
+  officeContractorInvoiceSubject: string;
+  officeContractorInvoiceBody: string;
+  /** The tenant access text a trade customer sends from the portal (manual; wording editable). */
+  tenantLinkSms: string;
 
   /** Painter: "you have a job offer" (send / reassign / re-offer). */
   offerSms: string;
@@ -117,6 +141,22 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Any questions before we start, just reply to this email or give us a call.",
 
   disabled: [],
+
+  controls: {},
+  quietHours: { weekday: [8, 19], saturday: [9, 17], sunday: null },
+  dailyCap: 3,
+
+  officeJobAcceptedSubject: "Job accepted — {{painter}} · {{job}}",
+  officeJobAcceptedBody: "{{painter}} has accepted {{wo_ref}} ({{job}}) starting {{start_date}}.{{proposed_line}}{{note_line}}",
+  officeJobDeclinedSubject: "Job declined — {{painter}} · {{job}}",
+  officeJobDeclinedBody: "{{painter}} has declined {{wo_ref}} ({{job}}) for {{start_date}}.{{reason_line}}\n\nThe job is back with the office to re-offer.",
+  officeInvoicePaidSubject: "Invoice paid — {{amount}} · {{job}}",
+  officeInvoicePaidBody: "{{who}} has paid {{amount}} on invoice {{invoice_number}} for {{job}} ({{method}}).",
+  officeVariationRaisedSubject: "Variation raised — {{job}}",
+  officeVariationRaisedBody: "{{painter}} has raised a variation on {{wo_ref}} ({{job}}): {{category}}{{hours_line}}.\n\n“{{comment}}”\n\nIt is waiting to be priced.",
+  officeContractorInvoiceSubject: "Contractor invoice in — {{painter}} · {{amount}}",
+  officeContractorInvoiceBody: "{{painter}} has submitted invoice {{invoice_number}} for {{amount}} on {{wo_ref}} ({{job}}). It is waiting for approval in Payments.",
+  tenantLinkSms: "{{company_name}}{{agency_line}}: photos and a quick look at the painting planned for {{address}} are here: {{link}}",
 
   offerSms:
     "{{company_name}}: you have a job offer ({{wo_ref}}) — it holds for 24 hours. Open your portal to see it and answer: {{link}}",
@@ -240,6 +280,18 @@ export type TemplateVars = {
   accepted_name?: string;
   accepted_at?: string;
   deposit?: string;
+  // Session 1 (16 Sep): staff-alert wording and the tenant text.
+  painter?: string;
+  job?: string;
+  proposed_line?: string;
+  note_line?: string;
+  reason_line?: string;
+  who?: string;
+  method?: string;
+  category?: string;
+  hours_line?: string;
+  comment?: string;
+  agency_line?: string;
 };
 
 /** Fill {{placeholders}}; unknown or missing values render as empty string. */

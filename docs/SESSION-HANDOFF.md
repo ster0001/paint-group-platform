@@ -1,3 +1,22 @@
+# 16 Sep 2026 (evening) — Messaging automations, Session 1: the control screen. ONE migration: 20270150 (`automation_holds` + `automation_claims`, additive, RLS staff read/update). Branch `feat/automations-s1-control-screen`.
+
+Tom's brief `docs/briefs/claude-code-brief-messaging-automations.md` (8 sessions). Session 1 built:
+one dispatcher for every automatic message (channel Text/Email/Both, office-approves-first queue,
+sending hours D1, daily cap D2, contact fallback D3), the Settings → Automations controls + wording
+editor (tokens, preview, SMS counter, test send, reset), CRM → Messages to approve (+ Today card),
+`lib/automations/reminders.ts` for Sessions 3–7, editable staff-alert wording, and three sends
+brought onto the list (tenant text, CRM reply, Google Calendar push). Fourteen existing send sites
+now go through `sendAutomation`. Rulings that day: the invoicing "attention queue" = the CRM work
+queue; `acceptance-to-paid-workflow.md` APPROVED with defaults; sign-off reminders reuse the
+existing `nudges` slots. Migration 20270150 applied to TEST (qarfyjrz…) via reapply-one.mjs; prod
+paste pending. Gates: vitest 2534/2534, tsc clean, eslint 0 errors, e2e on the :3102 worktree build:
+settings-automations (3) + automation-queue + staff-alerts green; regression wo-batch4 / invoicing /
+contractor-invoicing / handoff / portal-full-loop 22 passed, 2 failed — `contractor-invoicing:299`
+(claim picker "Pick an amount") and `handoff:54` (Hannah's card; the test project has 138 open
+handoffs) FAIL IDENTICALLY on an unmodified main build (:3103), so they are pre-existing.
+Left for later sessions: the wizard sign-in links stay outside the dispatcher (magic links expire in
+an hour — email-only, never held); Session 2 moves the wizard/digest sends onto the 30-min sweep.
+
 # 11 Sep 2026 — C0: the production migration ledger, the reference set, the straggler. ONE migration: 20270135 (`_prod_migrations`, additive). Branch `chore/c0-estimator-v2-groundwork`.
 
 First chunk of the estimator v2 run sheet (`docs/briefs/estimator-v2-runsheet.md`). No product

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/service";
 import { acceptViaToken } from "@/lib/portal/approvalData";
 import { isTestEmail } from "@/lib/accounts/identity";
-import { sendEmail } from "@/lib/messaging/send";
+import { sendAutomation } from "@/lib/automations/dispatch";
 import { melbourneTodayYmd } from "@/lib/portal/data";
 import { automationOn } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
@@ -79,8 +79,11 @@ export async function decideExternalApproval(raw: unknown): Promise<DecideResult
     const to = sender?.user?.email;
     if (to && !isTestEmail(to) && automationOn((await loadMessaging(svc)).messaging, "external_approval")) {
       const title = estimate.title?.trim() || "the estimate";
-      await sendEmail({
-        to,
+      await sendAutomation(svc, {
+        key: "external_approval",
+        to: { email: to },
+        ctx: { estimateId: row.estimate_id ?? null, kind: "approval_decision" },
+        email: {
         subject: parsed.data.decision === "approved"
           ? `${row.approver_name} approved ${title}`
           : `${row.approver_name} declined ${title}`,
@@ -89,6 +92,7 @@ export async function decideExternalApproval(raw: unknown): Promise<DecideResult
           parsed.data.note ? `<p>Their note: ${escapeHtml(parsed.data.note)}</p>` : "",
           `<p>It's on the property's timeline in your Paint Group workspace.</p>`,
         ].join("\n"),
+        },
       });
     }
   } catch { /* deliberate — the decision stands */ }
