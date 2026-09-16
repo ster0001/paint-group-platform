@@ -79,7 +79,7 @@ Column notes:
 1. `python3 validate.py out/` in the pack reports no violations before loading (it already does — `validation.json`); then `pnpm import:airtable docs/imports/airtable-crm-import/` completes; row counts in the database match `summary.json` (accounts, properties, estimates by status, events by type) ± the accounts that already existed by email (reported in the loader's log).
 2. Running the loader a second time inserts 0 rows and updates 0 rows.
 3. For estimate `est_recyOoMntfyrpCH3A` (Justin O'Connor, 56 Main Street Blackburn, $23,542.01): account exists, property exists with `suburb='Blackburn'`, estimate is `accepted`, `total_cents=2354201`, `subtotal_cents=2140183`, and the timeline shows `estimate_sent` (5 Dec 2025), six dated `note` events (9 Dec 2025 → 13 Apr 2026, three attributed to Tom), and `estimate_accepted` on 13 Apr 2026; the job is `scheduled` (Airtable "Job Booked") so there is no `job_started` yet.
-4. For `acc_` of `jhine@kayburton.com.au`: one account (R1), `account_type='residential'`, `company_name='Kay & Burton'`, tags include `agency` and `kay-and-burton`, 24 estimates from the Estimates table (38 rows across both Airtable tables), and 5 `account_contacts` for the other names seen under that email (Jennifer Hine, Natalie Hill, Rod Hill, J Rickards, Darren c/o Kay and Burton).
+4. For `acc_` of the Kay & Burton agent email (see the pack): one account (R1), `account_type='residential'`, `company_name='Kay & Burton'`, tags include `agency` and `kay-and-burton`, 24 estimates from the Estimates table (38 rows across both Airtable tables), and 5 `account_contacts` for the other names seen under that email (Jennifer Hine, Natalie Hill, Rod Hill, J Rickards, Darren c/o Kay and Burton).
 5. Facts rebuild: the Customers list shows imported accounts with the right stage; no account shows `enquiry_unfinished` because of a missing event; `won_cents` per account equals `accounts.csv.won_cents`.
 6. Every imported `estimate_accepted`/`job_completed` event has `occurred_at` < `recorded_at` and `source='airtable_import'`; none has today's date unless `payload.date_confidence='low'`.
 7. An imported estimate opens in the office estimate view read-only with an "Imported from Airtable" banner and a link to the PaintScout quote URL; it does not open in the wizard and cannot be re-priced.
@@ -93,7 +93,7 @@ Column notes:
 - **R2 Level of finish:** unknowns default to Level 3, `level_of_finish_assumed = yes` in `external_ref`.
 - **R3 Lost accounts:** every account whose quotes were all lost or cold is imported `relationship_state = lost` (reason competitor / other / no_response) **and** `temperature = cold`.
 - **R4 Cold quotes older than 90 days:** `expired`, with an `estimate_lapsed` event 90 days after the quote.
-- **R5 Staff and test rows:** excluded (robyn@paintgroup.com.au, tjhroman@gmail.com, "13 Leamo Crescent Test").
+- **R5 Staff and test rows:** excluded (the two staff addresses in `transform.py`, "13 Leamo Crescent Test").
 - **R6 Real-estate jobs:** tag `real-estate` on the account; no history goes into trade accounts — every imported account is `residential`.
 - **R7 Undated bulk-loaded rows (74):** imported, `date_confidence = low`.
 - **R8 Pre-May-2025 customers:** not imported (PaintScout only).
@@ -152,7 +152,7 @@ Per job (`booked_jobs.json` row, with `booked_substrate_map.csv` for the line �
 
 - `booking_offers_one_live` is irrelevant here (no offers), but the tray filter is not: a `start_date` or `contractor_id` on the work order takes the job **out** of the tray. Leave both null.
 - The lapse sweep for `sent` estimates does not touch `accepted` ones; the "accepted with no booking" CRM card (`registry.ts:488`) will show all 35 — that is correct and wanted.
-- Contractor emails in Airtable (`admin@djdecor.com.au`, `isahardani87@gmail.com`, `Younggunpainting@gmail.com`) go into the tray note only; staff pick the painter when they send the offer.
+- Contractor emails in Airtable (the three painter addresses in `booked_schedule.csv`) go into the tray note only; staff pick the painter when they send the offer.
 - 65 Hotham Street (3108): use 92 h and $10,087.21 as the pack does (invoice version incl. the kitchen-door variation).
 - 12A Cavell Court has two jobs (exterior 3156, interior 3157) at one property — two estimates, one property.
 - Substrate map: 737 lines match a rate code exactly, 49 by keyword (check the `keyword` rows once), 41 are custom surfaces (strapping, shingles, picture rails, fretwork, cabinets…) — import with the PaintScout name, never drop them.
@@ -162,7 +162,7 @@ Per job (`booked_jobs.json` row, with `booked_substrate_map.csv` for the line �
 1. 35 estimates, 35 work orders, 342 areas, 827 surfaces/lines. Σ `estimates.total_cents` = 34157852; Σ surface hours = 2785.8; **every estimate's builder total equals its PaintScout total to the cent** (test iterates all 35 against `booked_estimates.csv`).
 2. Job 3623 (2 Cootamundra Crescent stage 3): $2,032.80 inc GST; areas Interior Preparation $190 / Kitchen $1,515.50 / Cleaning $142.50; Kitchen surfaces Ceiling 24 m² 3 h, Cornices 20 m 1.5 h, Walls 16 m² 4 h, Skirting Boards 20 m 4.25 h, Window Reveal 1 × 1.25 h, prep 2.5 h; 17.5 h; in the Unscheduled tray with the note "Airtable: booked 29–30 Sep 2026, no painter assigned".
 3. Job 3672 (23 Third St): discount block −$233.04 "Custom...", total $16,500.00, 153.85 h, 21 areas, Bedroom 3 present twice (as PaintScout has it).
-4. Job 2826 (283 Station Street): tray note "Airtable: booked 16–20 Nov 2026 with Jacob (admin@djdecor.com.au) — painter accepted. Send the offer." and **no** booking_offers row.
+4. Job 2826 (283 Station Street): tray note "Airtable: booked 16–20 Nov 2026 with Jacob (<painter email>) — painter accepted. Send the offer." and **no** booking_offers row.
 5. Zero customer or office messages: `messages`/outbox count for the 35 accounts is 0 after import; `estimate_events` has `office_accept_notified` for each; `notifyOfficeOfAcceptance` returns `already`.
 6. Revision round trip on 3623: open Revision → Working scope, add "Hallway walls 20 m² 2 h $250" and save → the diff shows +$275.00 inc GST, a variation drafts for signature, the estimate total is unchanged until signed, and the invoice preview shows accepted $2,032.80 + the signed variation.
 7. Schedule board: 35 cards in Unscheduled, none on a lane; dragging 3623 onto a painter creates a normal offer.
