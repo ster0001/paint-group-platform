@@ -292,16 +292,31 @@ describe("what comes with each door", () => {
     expect(withScope("door").areas.flatMap((a) => a.surfaces).some((s) => s.code === "Architrave (1 Side)")).toBe(false);
   });
 
-  it("'+ architrave' rides the frame rate AND adds a visible architrave line", () => {
+  it("'+ architrave' rides the frame rate and adds NO architrave line — the frame rate covers it (Tom, 16 Sep)", () => {
     const out = withScope("architrave", "flat");
     const bed = out.areas.find((a) => a.name === "Bed 1")!;
     const door = bed.surfaces.find((s) => /Flat Door/.test(s.code));
     expect(door?.code).toBe("Flat Door and Frame (1 Side)");
     expect(door?.internalLabel).toBe("Flat door, frame & architrave");
-    const arch = bed.surfaces.find((s) => s.code === "Architrave (1 Side)");
-    expect(arch, "the architrave is its own line, never a hidden loading").toBeTruthy();
-    // …at the room's door count, not one per room.
-    expect(arch!.count).toBe(door!.count);
+    // 43 Keith Street: "4 × doors and frames as well as 4 × architraves" was
+    // the architrave counted twice.
+    expect(bed.surfaces.some((s) => s.code === "Architrave (1 Side)")).toBe(false);
+  });
+
+  it("an architrave line beside a door-and-frame line is dropped; beside a door-only line it stays", () => {
+    const seeded = draft();
+    for (const a of seeded.areas) {
+      if (a.name === "Bed 1") a.surfaces.push({ ...a.surfaces[0], id: 9901, code: "Architrave (1 Side)", internalLabel: "Architraves", clientLabel: "Architraves", count: 4 });
+    }
+    const frame = applyWizardAnswers(seeded, state({ details: { ...state().details, doorStyle: "panel", doorScope: "frame" } }), nextId);
+    expect(frame.areas.find((a) => a.name === "Bed 1")!.surfaces.some((s) => s.code === "Architrave (1 Side)")).toBe(false);
+
+    const seeded2 = draft();
+    for (const a of seeded2.areas) {
+      if (a.name === "Bed 1") a.surfaces.push({ ...a.surfaces[0], id: 9902, code: "Architrave (1 Side)", internalLabel: "Architraves", clientLabel: "Architraves", count: 4 });
+    }
+    const only = applyWizardAnswers(seeded2, state({ details: { ...state().details, doorStyle: "panel", doorScope: "door" } }), nextId);
+    expect(only.areas.find((a) => a.name === "Bed 1")!.surfaces.some((s) => s.code === "Architrave (1 Side)")).toBe(true);
   });
 
   it("a room with no doors gets no architrave", () => {

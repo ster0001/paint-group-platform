@@ -35,3 +35,11 @@ the title follows.
 Expect: the product has its own card under "The paint we're supplying" —
 under "Preparation products" when it is one — with your note as its chip.
 Nothing is added to the price. × on the row removes it.
+
+## 4. Change a substrate — the customer's label follows
+
+1. Open a room, click the Windows row, press **Change ›** and pick a
+   different window type.
+
+Expect: Internal Label and Client Label both read the new type, the row on
+the room table shows it, and the customer's estimate lists the new name.

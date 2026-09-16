@@ -756,11 +756,16 @@ export default function QuoteBuilder({
         if (b.id !== areaId || b.kind !== "area") return b;
         const prev = b.surfaces.find((s) => s.id === sid);
         const firstPick = !prev?.code && !!code;
+        // Tom, 16 Sep: "Change" to a different substrate renames it for the
+        // customer too — the labels follow the new pick every time the code
+        // changes (a re-pick of the same code keeps whatever was typed).
+        const changed = !!prev?.code && !!code && prev.code !== code;
         const surfaces = b.surfaces.map((s) =>
           s.id === sid
             ? {
                 ...s, code,
-                internalLabel: s.internalLabel || code, clientLabel: s.clientLabel || code,
+                internalLabel: changed ? code : (s.internalLabel || code),
+                clientLabel: changed ? code : (s.clientLabel || code),
                 // Only on the first pick — re-picking must not silently undo
                 // an estimator's own coat count.
                 coats: firstPick ? defaultCoatsFor(b.type, code) : s.coats,
@@ -771,6 +776,15 @@ export default function QuoteBuilder({
         if (firstPick) {
           const line = `<p>${code}</p>`;
           description = description.trim() ? description + line : line;
+        } else if (changed && prev) {
+          // The customer-facing description carries one line per substrate as
+          // picked; swap the old name for the new where it still reads verbatim.
+          for (const oldName of [prev.clientLabel, prev.code]) {
+            if (oldName && description.includes(`<p>${oldName}</p>`)) {
+              description = description.replace(`<p>${oldName}</p>`, `<p>${code}</p>`);
+              break;
+            }
+          }
         }
         return { ...b, surfaces, description };
       }),
