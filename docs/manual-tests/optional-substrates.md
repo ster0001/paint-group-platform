@@ -1,6 +1,8 @@
 # Manual test — optional substrates inside a room (16 Sep 2026)
 
-No migration. Deploys with the code.
+Run `supabase/migrations/20270149000000_wo_apply_selected_options.sql` in the
+Supabase SQL editor first (§4 and §6 need it; §1–3 and §5 do not). Its tail
+lists the five functions it made — expect five rows.
 
 ## 1. Make the doors an option
 
@@ -40,11 +42,12 @@ $X plus GST. Unticking removes it.
 Accept as the customer with the option ticked.
 
 Expect: the accepted total includes it and the final invoice carries a
-"Lounge — Doors, Architraves, Skirting (selected option)" line.
-
-Note (unchanged behaviour): the work order's job sheet is frozen from the
-INCLUDED scope, so add the accepted trims to the job by hand, as with an
-optional area today.
+"Lounge — Doors, Architraves, Skirting (selected option)" line. Open the
+job (Projects → the work order): the Lounge on the job sheet lists Doors,
+Architraves and Skirting after Walls and Ceilings, the materials carry their
+paint, the contractor payment is the higher figure, and the painter's tick
+list has a row for each. (The estimate must have been SAVED by the new
+builder before it was sent — that save writes the option's job-sheet piece.)
 
 ## 5. One button back
 
@@ -53,3 +56,22 @@ estimate**.
 
 Expect: the card disappears, the Lounge price is the whole room again and
 the three rows are no longer greyed.
+
+## 6. The customer asks for the option after accepting
+
+1. Accept an estimate WITHOUT ticking its option. Open it in the builder.
+
+Expect: a panel "Options on this accepted job" lists the option with an
+**Add to job** button.
+
+2. Press **Add to job**.
+
+Expect: "Added — it is on the work order, the tick list, the accepted total
+and the final invoice." The row reads "On the job ✓". The accepted total on
+the estimate has risen by the option's price plus GST (less the quote's
+percentage discount, if any). The work order's job sheet and tick list now
+carry the option's surfaces. If a draft final invoice existed it has been
+re-drafted with the line; an issued one is untouched and the balance shows
+the difference.
+
+3. Press nothing twice: the button is gone; the panel stays as the record.

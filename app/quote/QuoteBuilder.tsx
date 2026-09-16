@@ -33,13 +33,13 @@ import { DEFAULT_PROOF, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TIT
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
-import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea } from "@/lib/workorder/snapshot";
+import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea, type WOOptionFragment } from "@/lib/workorder/snapshot";
 import { aggregateMaterials, lookupColourEntry, materialColourKey, type MaterialSurfaceRow } from "@/lib/workorder/materials";
 import type { WoStage } from "@/lib/workorder/stages";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import { conditionExtraHours } from "@/lib/workorder/conditionAllowance";
 import OfferPanel from "./OfferPanel";
-import { linkEstimateAccountAction, replyToEstimateChatAction, sendEstimateAction, type DeliveryOutcome } from "./actions";
+import { linkEstimateAccountAction, replyToEstimateChatAction, sendEstimateAction, type DeliveryOutcome, addAcceptedOptionAction } from "./actions";
 import SendDialog, { type SendDelivery } from "./SendDialog";
 import { reviewGate, REVIEW_GATE_CENTS, type AiDeferred } from "@/lib/estimate/reviewGate";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, type MessagingSettings } from "@/lib/messaging/config";
@@ -288,7 +288,7 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   areaNames: AreaNameRef[];
-  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; sent_snapshot?: unknown } | null;
+  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; sent_snapshot?: unknown; selected_options?: string[] | null } | null;
   company: CompanyProfile;
   contacts: Contact[];
   inclusionTemplates?: InclusionTemplate[];
@@ -534,6 +534,9 @@ export default function QuoteBuilder({
    * never disagree. Saving republishes it, so it's held in state and refreshed
    * there rather than needing a page reload.
    */
+  // Tom, 16 Sep: the options the customer ticked (and staff added since) on an accepted job.
+  const [selectedOptions, setSelectedOptions] = useState<string[]>(() => initial?.selected_options ?? []);
+  const [optionMsg, setOptionMsg] = useState("");
   const [sentSnapshot, setSentSnapshot] = useState<CustomerSnapshot | null>(
     (initial?.sent_snapshot as CustomerSnapshot | null) ?? null,
   );
@@ -969,7 +972,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
@@ -1347,7 +1350,13 @@ export default function QuoteBuilder({
 
   // Build the work-order (job sheet) document live from the current estimate.
   // Contractor-safe: no customer pricing/margin, no surname/email.
-  function computeWorkOrderDoc(): WODoc {
+  /**
+   * The job-sheet pieces for a chosen slice of the scope. The job sheet itself
+   * takes the included scope; `computeWorkOrderOptions` takes each option's
+   * slice through the SAME code, so what the customer ticks reaches the crew
+   * priced, coloured and coated exactly as it would have been (Tom, 16 Sep).
+   */
+  function computeWorkOrderParts(areaFilter: (b: Area) => boolean, pick: (b: Area, s: Surface) => boolean) {
     // Materials aggregate per PRODUCT × COLOUR (ruling 1, 30 Aug): two rooms
     // in different colours with the same product are two order lines. The
     // per-surface truth also rides each doc surface (colourName/colourKey).
@@ -1364,10 +1373,10 @@ export default function QuoteBuilder({
     const conditionMult = conditionMod?.multiplier ?? 1;
     let conditionHoursTotal = 0;
     for (const b of blocks) {
-      if (b.kind !== "area" || b.isOption) continue;
+      if (b.kind !== "area" || !areaFilter(b)) continue;
       const surfaces: WOArea["surfaces"] = [];
       for (const s of b.surfaces) {
-        if (!s.code || s.hidden || s.isOption) continue; // optional: not on the job unless the customer adds it
+        if (!s.code || s.hidden || !pick(b, s)) continue;
         const pname = isAllowanceLine(s) ? "" : (productNameFor(b.type, s) || "");
         const calc = surfaceCalc(b, s);
         const col = pname ? colourFor(b.type, s) : { name: "", hex: "" };
@@ -1403,7 +1412,7 @@ export default function QuoteBuilder({
       }
       const photos = [
         ...(b.media ?? []).map((m) => m.url),
-        ...b.surfaces.filter((s) => !s.hidden && !s.isOption).flatMap((s) => (s.media ?? []).map((m) => m.url)),
+        ...b.surfaces.filter((s) => !s.hidden && pick(b, s)).flatMap((s) => (s.media ?? []).map((m) => m.url)),
       ];
       const areaOverride = woAreaFinish[String(b.id)] || null;
       areasDoc.push({
@@ -1420,6 +1429,14 @@ export default function QuoteBuilder({
       // confirmed/TBC stays on the work order; legacy rows keyed by bare product
       statusFor: (key, product) => lookupColourEntry(woColours, key, product)?.status ?? "tbc",
     });
+    return { areasDoc, materials, conditionHoursTotal, conditionMod, jobFinishCode };
+  }
+
+  function computeWorkOrderDoc(): WODoc {
+    // The included scope: never an optional area, never an optional substrate
+    // — those ride `woOptions` and are merged in when the customer ticks them.
+    const { areasDoc, materials, conditionHoursTotal, conditionMod, jobFinishCode } =
+      computeWorkOrderParts((b) => !b.isOption, (_b, s) => !s.isOption);
     return {
       version: 1,
       woRef: workOrder?.wo_ref ?? `WO-${(shareToken ?? "PREVIEW0").slice(0, 8).toUpperCase()}`,
@@ -1449,6 +1466,57 @@ export default function QuoteBuilder({
       company: { name: company.name, phone: company.phone, logoUrl: company.logoUrl },
       idealPainters,
     };
+  }
+
+  /**
+   * One contractor-safe fragment per option the customer can tick — the
+   * optional areas, the optional line items (hours and pay only; a line has
+   * no surfaces) and each room's optional substrates. Saved as
+   * `builder_state.woOptions`; the database merges the ticked ones into the
+   * work order at acceptance (`wo_apply_selected_options`, migration
+   * 20270149) and when staff add one later (`estimate_add_option`).
+   * Keys match the customer snapshot's option ids exactly.
+   */
+  function computeWorkOrderOptions(): Record<string, WOOptionFragment> {
+    const out: Record<string, WOOptionFragment> = {};
+    const payFor = (bs: Block[]) =>
+      priceEstimateTotals(bs as unknown as BlockInput[], pricingCtx, adjustments).contractorOfferCents;
+    for (const b of blocks) {
+      if (b.kind === "line") {
+        if (!b.isOption) continue;
+        out[String(b.id)] = { id: String(b.id), title: b.name || "Line item", areas: [], materials: [], contractorPaymentCents: payFor([{ ...b, isOption: false }]), conditionHours: 0 };
+        continue;
+      }
+      if (b.isOption) {
+        const parts = computeWorkOrderParts((x) => x.id === b.id, () => true);
+        out[String(b.id)] = {
+          id: String(b.id), title: b.name || "Area", areas: parts.areasDoc, materials: parts.materials,
+          contractorPaymentCents: payFor([{ ...b, isOption: false, surfaces: b.surfaces.map((s) => ({ ...s, isOption: false })) }]),
+          conditionHours: Math.round(parts.conditionHoursTotal * 100) / 100,
+        };
+        continue;
+      }
+      const opt = optionSurfacesOf(b);
+      if (!opt.length) continue;
+      const parts = computeWorkOrderParts((x) => x.id === b.id, (_x, s) => s.isOption === true);
+      out[surfaceOptionId(b)] = {
+        id: surfaceOptionId(b), title: surfaceOptionTitle(b), areas: parts.areasDoc, materials: parts.materials,
+        contractorPaymentCents: payFor([{ ...b, surfaces: opt.map((s) => ({ ...s, isOption: false })) }]),
+        conditionHours: Math.round(parts.conditionHoursTotal * 100) / 100,
+      };
+    }
+    return out;
+  }
+
+  // Tom, 16 Sep: an option the customer asks for AFTER accepting. The server
+  // adds it to the accepted total, the final invoice and the work order in
+  // one call; this only shows the answer.
+  async function addAcceptedOption(optionId: string) {
+    if (!quoteId) return;
+    setOptionMsg("Adding…");
+    const r = await addAcceptedOptionAction({ estimateId: quoteId, optionId });
+    if (r.ok) setSelectedOptions((prev) => (prev.includes(optionId) ? prev : [...prev, optionId]));
+    setOptionMsg(r.message);
   }
 
   const woEdit: WOEdit = {
@@ -2355,6 +2423,32 @@ export default function QuoteBuilder({
                 />
               )}
               {mainBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}
+
+              {locked && quoteId && (sentSnapshot?.options?.length ?? 0) > 0 && (
+                <section className="rounded-xl border border-gray-200 bg-white p-4" data-testid="accepted-options">
+                  <h2 className="text-sm font-semibold">Options on this accepted job</h2>
+                  <p className="mt-1 text-xs text-gray-500">
+                    What the customer ticked is on the work order. Add one they have asked for since — it goes on the job sheet, the painter&rsquo;s tick list, the accepted total and the final invoice.
+                  </p>
+                  <ul className="mt-3 divide-y divide-gray-100">
+                    {sentSnapshot!.options.map((o) => {
+                      const on = selectedOptions.includes(o.id);
+                      return (
+                        <li key={o.id} className="flex items-center justify-between gap-3 py-2 text-sm" data-testid={`accepted-option-${o.id}`} data-selected={on ? "true" : "false"}>
+                          <span className="min-w-0 flex-1 truncate">{o.title}</span>
+                          <span className="tabular-nums text-gray-600">{fmt(o.priceCents)}</span>
+                          {on ? (
+                            <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">On the job ✓</span>
+                          ) : (
+                            <button onClick={() => addAcceptedOption(o.id)} className="rounded border border-gray-300 px-2 py-0.5 text-xs font-medium hover:bg-gray-50" data-testid={`accepted-option-add-${o.id}`}>Add to job</button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {optionMsg && <p className="mt-2 text-xs text-gray-600" data-testid="accepted-options-msg">{optionMsg}</p>}
+                </section>
+              )}
 
               {(optionBlocks.filter(visibleToCustomer).length > 0 || surfaceOptionAreas.length > 0) && (
                 <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4" data-testid="optional-extras">
