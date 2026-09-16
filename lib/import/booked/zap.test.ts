@@ -48,6 +48,33 @@ describe("handover feed · Zap record → BookedJob", () => {
     expect(built.trayNote).toBe("Airtable: booked 5–7 Oct 2026, no painter assigned.");
   });
 
+  it("takes the items as the Zap really posts them: two parallel line-item lists, heading rows at $0, a discount below the items", () => {
+    // Shape of the first live test (16 Sep 2026): PaintScout items[] → "Items Name" / "Items Price"
+    // lists; Totals After Discount is the ex-GST figure; Totals After Tax includes GST.
+    const live = { ...RECORD, ps_items: undefined,
+      ps_item_names: ["Exterior Preparation ", "Exterior Paint application", "Left Side", "Right Side", "Front Side", "Back ", "Back Deck and Balustrades"],
+      ps_item_prices: ["0", "0", "2609.9", "2509.9", "3239.74", "3433.5", "535"],
+      ps_subtotal: "11928.04", ps_total_inc: "13120.84", ps_total_hours: "106.75" };
+    const conv = bookedJobFromZap(zapJobSchema.parse(live));
+    expect(conv.ok).toBe(true);
+    if (!conv.ok) return;
+    expect(conv.job).toMatchObject({ subtotal_ex_gst_cents: 1192804, gst_cents: 119280, total_inc_gst_cents: 1312084, discount_ex_gst_cents: -40000, discount_label: "Discount", airtable_estimated_hours: 106.75 });
+    expect(conv.job.areas.map((a) => [a.name, a.price_ex_gst_cents])).toEqual([
+      ["Exterior Preparation", 0], ["Exterior Paint application", 0], ["Left Side", 260990], ["Right Side", 250990], ["Front Side", 323974], ["Back", 343350], ["Back Deck and Balustrades", 53500],
+    ]);
+    const built = buildBookedJob(conv.job, new SubstrateResolver([]), CTX, COMPANY, "token12345678901234567890");
+    expect(built.totals).toMatchObject({ subtotalCents: 1192804, totalCents: 1312084 });
+
+    // Flattened by the step: the same lists joined with commas.
+    const joined = bookedJobFromZap(zapJobSchema.parse({ ...live, ps_item_names: live.ps_item_names.join(","), ps_item_prices: live.ps_item_prices.join(",") }));
+    expect(joined.ok && joined.job.areas.length).toBe(7);
+
+    // A list that does not line up (a name with a comma split it) is refused, never guessed at.
+    const skewed = bookedJobFromZap(zapJobSchema.parse({ ...live, ps_item_prices: live.ps_item_prices.slice(1) }));
+    expect(skewed.ok).toBe(false);
+    if (!skewed.ok) expect(skewed.reason).toMatch(/do not line up/);
+  });
+
   it("a discount on the quote is the gap between the items and the subtotal", () => {
     const conv = bookedJobFromZap(zapJobSchema.parse({ ...RECORD, ps_subtotal: "2800", ps_total_inc: "3080" }));
     expect(conv.ok && conv.job.discount_ex_gst_cents).toBe(-20000);

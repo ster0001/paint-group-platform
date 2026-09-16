@@ -18,8 +18,34 @@ const money = z.union([z.string(), z.number(), z.null(), z.undefined()]).transfo
   return Number.isFinite(n) ? n : null;
 });
 
-/** A PaintScout quote item as Zapier flattens it: name + price, either as an array of objects or parallel lists. */
+/** A PaintScout quote item: name + price. */
 const psItem = z.object({ name: text, price: money, hours: money.optional() });
+export type PsItem = z.infer<typeof psItem>;
+
+/**
+ * A Zapier line-item list as the webhook step posts it: a JSON array, or the
+ * values joined with commas when the step flattened them. Prices never carry a
+ * comma; a name that did would split — the count check below catches that.
+ */
+const list = z.union([z.array(z.union([z.string(), z.number(), z.null()])), z.string(), z.number(), z.null(), z.undefined()]).transform((v): string[] => {
+  if (Array.isArray(v)) return v.map((x) => (x == null ? "" : String(x).trim()));
+  if (v == null || v === "") return [];
+  return String(v).split(",").map((x) => x.trim());
+});
+
+/** `ps_items` as an array of {name, price}, as a JSON string of one, or as parallel `name` / `price` lists (Unflatten). */
+const psItems = z.union([z.array(psItem), z.object({ name: list, price: list }), z.string(), z.null(), z.undefined()]).transform((v): PsItem[] => {
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === "object") return zipItems(v.name, v.price);
+  if (typeof v === "string" && v.trim().startsWith("[")) {
+    try { return z.array(psItem).parse(JSON.parse(v)); } catch { return []; }
+  }
+  return [];
+});
+
+function zipItems(names: string[], prices: string[]): PsItem[] {
+  return names.map((name, i) => ({ name, price: money.parse(prices[i] ?? null) }));
+}
 
 export const zapJobSchema = z.object({
   record_id: z.string().trim().min(1).max(200),
@@ -47,13 +73,10 @@ export const zapJobSchema = z.object({
   notes: text,
   quote_url: text,
   work_order_url: text,
-  ps_items: z.union([z.array(psItem), z.string(), z.null(), z.undefined()]).transform((v) => {
-    if (Array.isArray(v)) return v;
-    if (typeof v === "string" && v.trim().startsWith("[")) {
-      try { return z.array(psItem).parse(JSON.parse(v)); } catch { return []; }
-    }
-    return [];
-  }),
+  ps_items: psItems,
+  /** The Zap's actual shape (16 Sep 2026): PaintScout's `items[]` arrive as two parallel line-item lists. */
+  ps_item_names: list.optional(),
+  ps_item_prices: list.optional(),
   ps_total_hours: money,
   ps_subtotal: money,
   ps_total_inc: money,
@@ -77,6 +100,28 @@ const toMs = (raw: string): number | null => {
   return Number.isFinite(ms) ? ms : null;
 };
 
+/**
+ * The quote's items from whichever shape the Zap sent. Parallel lists must
+ * line up one-for-one — a name with a comma in it would split into two and
+ * shift every price after it, so a count mismatch refuses rather than guesses.
+ * Items with no price (PaintScout's heading / note rows such as "Exterior
+ * Preparation") are kept: they become $0 lines that carry the description.
+ */
+function quoteItems(z: ZapJob): { ok: true; items: PsItem[] } | { ok: false; reason: string } {
+  const names = z.ps_item_names ?? [];
+  const prices = z.ps_item_prices ?? [];
+  let items: PsItem[];
+  if (names.length > 0 || prices.length > 0) {
+    if (names.length !== prices.length) return { ok: false, reason: `the quote's item names (${names.length}) and prices (${prices.length}) do not line up` };
+    items = zipItems(names, prices);
+  } else {
+    items = z.ps_items;
+  }
+  items = items.filter((i) => i.name);
+  if (items.length === 0) return { ok: false, reason: "the PaintScout quote has no items" };
+  return { ok: true, items };
+}
+
 export type ZapConversion = { ok: true; job: BookedJob; flags: string[] } | { ok: false, reason: string };
 
 /** The Zap record → a BookedJob. Refuses when the figures cannot make a job (no total, no areas). */
@@ -86,10 +131,10 @@ export function bookedJobFromZap(z: ZapJob, now: Date = new Date()): ZapConversi
   const subtotal = cents(z.ps_subtotal);
   const totalInc = cents(z.ps_total_inc);
   if (subtotal == null || subtotal <= 0 || totalInc == null || totalInc <= 0) return { ok: false, reason: "the PaintScout quote has no subtotal / total" };
-  const items = z.ps_items.filter((i) => i.name);
-  if (items.length === 0) return { ok: false, reason: "the PaintScout quote has no items" };
+  const items = quoteItems(z);
+  if (!items.ok) return items;
 
-  const areas: BookedArea[] = items.map((i) => ({
+  const areas: BookedArea[] = items.items.map((i) => ({
     name: i.name, price_ex_gst_cents: cents(i.price), hours_prep: null, hours_paint: null, hours_total: null,
     length_m: null, width_m: null, height_m: null, items: [],
   }));
