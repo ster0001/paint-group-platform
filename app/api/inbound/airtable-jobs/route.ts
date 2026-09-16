@@ -54,7 +54,12 @@ export async function POST(req: Request) {
   for (const rec of records) {
     try {
       const conv = bookedJobFromZap(rec);
-      if (!conv.ok) { results[rec.record_id] = `refused:${conv.reason}`; continue; }
+      if (!conv.ok) {
+        // Zapier is the only reader of the response; a refused handover must reach the error monitor or nobody learns of it.
+        reportError(new Error(`Airtable handover refused: ${conv.reason}`), { where: "airtableJobs.refused", extra: { recordId: rec.record_id, quoteNo: rec.quote_no } });
+        results[rec.record_id] = `refused:${conv.reason}`;
+        continue;
+      }
       wctx ??= await loadBookedWriteContext(service);
       const job = { ...conv.job, import_note: [conv.job.import_note, ...conv.flags].join(" · ") };
       const r = await writeBookedJob(service, job, new SubstrateResolver([]), wctx, { importName: "airtable-handover", updateNote: true, hoursPending: true });

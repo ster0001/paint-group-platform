@@ -217,9 +217,10 @@ estimated_hours  {1. Estimated Hours}
 notes            {1. Notes}
 quote_url        {1. Quote URL}
 work_order_url   {1. Work Order URL}
-ps_items         {2. Items}          (name + price per area)
+ps_item_names    {2. Items Name}     (one entry per PaintScout item — Zapier line-item list)
+ps_item_prices   {2. Items Price}    (same order; heading rows are 0)
 ps_total_hours   {2. Totals Hours}
-ps_subtotal      {2. Totals Price}
+ps_subtotal      {2. Totals After Discount}   (ex GST, net of discount — NOT "Totals Price", which is the labour figure)
 ps_total_inc     {2. Totals After Tax}
 ps_status        {2. Status}
 ps_accepted_at   {2. Dates Accepted}
