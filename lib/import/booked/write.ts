@@ -94,7 +94,33 @@ export async function writeBookedJob(
       .eq("id", linked.propertyId).is("external_ref", null).eq("source", "platform");
   }
 
-  // 2 · the job, silently.
+  // 2 · the job, silently. One quote is one job whichever door it came
+  // through: a quote the pack import already wrote (paintscout-booked) must
+  // not be written again by the handover (airtable-handover), and vice versa.
+  // Tom's Zap retest on 17 Sep 2026 posted quote 3677 — already one of the
+  // 35 — and made a second job; the RPC keys per import name, so the check
+  // across import names lives here.
+  const { data: elsewhere, error: elsewhereErr } = await db.from("crm_import_keys").select("import, row_id")
+    .eq("table_name", "estimates").eq("key", `bk_${job.quote_no}`).neq("import", importName).limit(1).maybeSingle();
+  if (elsewhereErr) throw new Error(`quote ${job.quote_no}: crm_import_keys: ${elsewhereErr.message}`);
+  const { data: elsewhereEst, error: elsewhereEstErr } = elsewhere
+    ? await db.from("estimates").select("id").eq("id", elsewhere.row_id as string).maybeSingle()
+    : { data: null, error: null };
+  if (elsewhereEstErr) throw new Error(`quote ${job.quote_no}: estimates: ${elsewhereEstErr.message}`);
+  if (elsewhere && !elsewhereEst) {
+    // A key whose estimate is gone (the other import's chain was purged) is
+    // stale: forget it and write the job.
+    await db.from("crm_import_keys").delete().eq("import", elsewhere.import as string).in("key", [`bk_${job.quote_no}`, `bk_${job.quote_no}:wo`]);
+  }
+  if (elsewhere && elsewhereEst) {
+    const { data: wo, error: woErr } = await db.from("work_orders").select("id").eq("estimate_id", elsewhere.row_id as string).maybeSingle();
+    if (woErr) throw new Error(`quote ${job.quote_no}: work_orders: ${woErr.message}`);
+    return {
+      quoteNo: job.quote_no, status: "exists", estimateId: elsewhere.row_id as string, workOrderId: (wo?.id as string | undefined) ?? null,
+      accountId: linked.accountId, propertyId: linked.propertyId, accountCreated,
+      totals: built.totals, roundingNotes: [`quote ${job.quote_no} already imported by ${elsewhere.import}`],
+    };
+  }
   const payload = {
     import: importName,
     key: `bk_${job.quote_no}`,
