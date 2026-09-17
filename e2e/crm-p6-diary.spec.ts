@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { pickDay } from "./helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
@@ -96,7 +97,7 @@ test.describe("CRM v2 P6 — visits and the Diary", () => {
     await page.goto(`/crm/customers/${accountId}`);
     await page.getByTestId("book-visit").click();
     await page.getByTestId("visit-staff").selectOption(staffId);
-    await page.getByTestId("visit-date").fill(day);
+    await pickDay(page, "visit-date", day);
     await page.getByTestId("visit-time").fill("10:00");
     await page.getByTestId("visit-save").click();
     await expect(page.getByTestId("visit-said")).toContainText("Booked");
@@ -113,7 +114,7 @@ test.describe("CRM v2 P6 — visits and the Diary", () => {
     // Overlapping, same estimator: the database says no.
     await page.getByTestId("book-visit").click();
     await page.getByTestId("visit-staff").selectOption(staffId);
-    await page.getByTestId("visit-date").fill(day);
+    await pickDay(page, "visit-date", day);
     await page.getByTestId("visit-time").fill("10:30");
     await page.getByTestId("visit-save").click();
     await expect(page.getByTestId("visit-said")).toContainText("already taken");

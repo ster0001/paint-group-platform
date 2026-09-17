@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { pickDay } from "./helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
@@ -72,7 +73,7 @@ test.describe("CRM v2 P4 — the status model", () => {
     await page.getByTestId("state-delayed").click();
     const form = page.getByTestId("delay-form");
     const day = new Date(Date.now() + 40 * 86_400_000).toLocaleDateString("en-CA");
-    await form.getByLabel("Delayed until").fill(day);
+    await pickDay(page, "delay-date", day);
     await form.getByLabel("Delay note").fill(`Ring about the exterior in spring ${run}`);
     await form.getByRole("button", { name: /^Delay until/ }).click();
     await expect(page.getByTestId("status-card")).toContainText("Delayed to");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import DateField from "../../DateField";
 import { useRouter } from "next/navigation";
 import { createTag, setPermission, setRelationshipState, setTags } from "../../recordActions";
 import type { CrmResult } from "../../actions";
@@ -86,7 +87,7 @@ export default function StatusPanel({ accountId, state, stateUntil, stateNote, s
           </p>
           {picking === "delayed" && (
             <div className="stform" data-testid="delay-form">
-              <input className="field" type="date" value={until} min={localDay(1)} onChange={(e) => setUntil(e.target.value)} aria-label="Delayed until" />
+              <DateField className="field" value={until} min={localDay(1)} onChange={setUntil} ariaLabel="Delayed until" testId="delay-date" />
               <input className="field" placeholder="What to do when it wakes — “ring about the exterior”" value={note} onChange={(e) => setNote(e.target.value)} aria-label="Delay note" />
               <div className="row">
                 <button type="button" className="go" disabled={busy} onClick={() => run(() => setRelationshipState(accountId, { state: "delayed", untilDay: until, note }))}>Delay until {until}</button>

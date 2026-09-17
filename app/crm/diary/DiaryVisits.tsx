@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import DateField from "../DateField";
 import { useState, useTransition } from "react";
 import { VISIT_KINDS, STATUS_LABEL, type VisitRow } from "@/lib/visits/types";
 import { moveVisitAction, visitOutcomeAction } from "./actions";
@@ -122,7 +123,7 @@ function MoveForm({ visit, lanes, busy, onMove }: { visit: VisitRow; lanes: Lane
   const [staffId, setStaffId] = useState(visit.staff_id ?? "");
   return (
     <div className="row" data-testid="move-form">
-      <input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" style={{ minWidth: 150 }} />
+      <DateField className="field" value={date} onChange={setDate} ariaLabel="Date" testId="move-date" />
       <input className="field" type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Time" style={{ minWidth: 110 }} />
       <select className="field" value={staffId} onChange={(e) => setStaffId(e.target.value)} aria-label="Estimator" style={{ minWidth: 150 }}>
         <option value="">— unassigned —</option>

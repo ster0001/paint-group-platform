@@ -21,7 +21,7 @@ type Session = {
 };
 
 const CSS = `
-.pgw{position:fixed;right:16px;bottom:16px;z-index:70;font-family:inherit}
+.pgw{position:fixed;right:16px;bottom:calc(16px + var(--chat-lift,0px) + env(safe-area-inset-bottom,0px));z-index:70;font-family:inherit}
 .pgw-launch{border:0;border-radius:999px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer;background:#39D9E6;color:#0b1116;box-shadow:0 8px 24px rgba(0,0,0,.35)}
 .pgw-launch:hover{filter:brightness(1.06)}
 .pgw-panel{position:absolute;right:0;bottom:56px;width:min(380px,calc(100vw - 32px));max-height:min(72vh,640px);display:flex;flex-direction:column;background:#0f151a;color:#e8edf1;border:1px solid rgba(255,255,255,.12);border-radius:16px;box-shadow:0 18px 48px rgba(0,0,0,.5);overflow:hidden}
@@ -67,7 +67,7 @@ export default function AssistantWidget({ estimateId = null, lift = 0 }: {
   }
 
   return (
-    <div className="pgw" data-testid="assistant-widget" style={lift ? { bottom: 16 + lift } : undefined}>
+    <div className="pgw" data-testid="assistant-widget" style={lift ? { bottom: `calc(${16 + lift}px + env(safe-area-inset-bottom, 0px))` } : undefined}>
       <style>{CSS}</style>
       {open && (
         <div className="pgw-panel" role="dialog" aria-label="Chat with Paint Group" data-testid="assistant-widget-panel">

@@ -5,6 +5,8 @@ import { parseInboundEmail } from "@/lib/costs/inbound";
 import { fetchReceivedEmailBody, resendConfigured } from "@/lib/costs/resendInbound";
 import { htmlToPlain, recordMessage, replyTokenFrom, resolveAccount } from "@/lib/messaging/record";
 import { reportError } from "@/lib/monitoring/report";
+import { forwardEmail } from "@/lib/messaging/send";
+import { loadMessaging } from "@/lib/messaging/load";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +21,13 @@ export const dynamic = "force-dynamic";
  *   2. else the sender's address, through crm_find_account;
  *   3. else STORED with no account — a Today item for a person to attach.
  * The email is data, never instructions. 503 until the secret is set.
+ *
+ * Tom, 17 Sep: the reply also goes to the office mailbox. Once stored, a
+ * copy is relayed to the company email (Settings → Company, or
+ * INBOUND_FORWARD_TO) with the customer as Reply-To, so the inbox sees every
+ * reply exactly as it did before the reply domain took them. The relay is
+ * best-effort AFTER the record is written — the CRM row is the source of
+ * truth and a relay failure is reported, never allowed to lose the message.
  */
 export async function POST(req: Request) {
   const secret = process.env.MESSAGES_INBOUND_SECRET;
@@ -76,10 +85,53 @@ export async function POST(req: Request) {
       fromAddress: email.fromEmail, toAddress: firstTo(json), accountId, threadId, estimateId,
       kind: "reply", meta: { resendEmailId: email.emailId },
     }, db);
-    return NextResponse.json({ received: true, id, matched: accountId != null });
+    const forwarded = await relayToOffice(db, email, { accountId, messageId: id });
+    return NextResponse.json({ received: true, id, matched: accountId != null, forwarded });
   } catch (e) {
     reportError(e, { where: "inboundMessages", extra: { messageId: email.messageId } });
     return new NextResponse("Storage failed.", { status: 500 });
+  }
+}
+
+/**
+ * The copy for the office mailbox: the customer's words under one line that
+ * says who wrote and where the thread lives. Reply-To is the customer, so
+ * "Reply" in the mailbox answers them, not the reply domain.
+ */
+async function relayToOffice(
+  db: ReturnType<typeof createServiceClient> & object,
+  email: { fromEmail: string; subject: string; text: string; html: string },
+  about: { accountId: string | null; messageId: string | null },
+): Promise<boolean> {
+  try {
+    const { company } = await loadMessaging(db);
+    const to = (process.env.INBOUND_FORWARD_TO || company.email || "").trim();
+    if (!to) return false;
+    // Never relay a message to the address it came from — a mailbox rule
+    // that auto-replies would otherwise bounce between the two forever.
+    if (to.toLowerCase() === email.fromEmail.toLowerCase()) return false;
+    const site = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
+    const recordUrl = about.accountId && site ? `${site}/crm/customers/${about.accountId}` : null;
+    const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const intro = [
+      `<p style="margin:0 0 12px;font:13px/1.5 -apple-system,Segoe UI,sans-serif;color:#555">`,
+      `Reply from <b>${esc(email.fromEmail)}</b> — `,
+      recordUrl
+        ? `logged on <a href="${recordUrl}">their CRM record</a>. Reply to this email to answer them directly.`
+        : `not yet matched to a customer; it is waiting on Today in the CRM to be attached. Reply to this email to answer them directly.`,
+      `</p><hr style="border:0;border-top:1px solid #ddd;margin:0 0 12px">`,
+    ].join("");
+    const body = email.html?.trim() ? email.html : `<pre style="white-space:pre-wrap;font:inherit">${esc(email.text)}</pre>`;
+    const subject = /^(re|fwd?):/i.test(email.subject.trim()) ? email.subject.trim() : `Re: ${email.subject.trim() || "(no subject)"}`;
+    const r = await forwardEmail({ to, subject, html: intro + body, replyTo: email.fromEmail });
+    if (r.status !== "sent") {
+      if (r.status !== "not_configured") reportError(new Error(`Inbound relay ${r.status}`), { where: "inboundMessages.relay", extra: { ...about, status: r.status } });
+      return false;
+    }
+    return true;
+  } catch (e) {
+    reportError(e, { where: "inboundMessages.relay", extra: about });
+    return false;
   }
 }
 

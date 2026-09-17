@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { logContact } from "./recordActions";
 import type { LogKind } from "./recordTypes";
 import type { CrmResult } from "./actions";
+import DateField from "./DateField";
 
 /**
  * CRM v2 P2 — the log sheet (deep dive §4.1.5): what just happened with this
@@ -84,7 +85,7 @@ export function LogSheetBody({ accountId, onDone, compact = false }: { accountId
             </button>
           ))}
           {preset === "date" && (
-            <input className="field datefield" type="date" value={day} min={localDay(0)} onChange={(e) => setDay(e.target.value)} aria-label="Follow-up date" />
+            <DateField value={day} min={localDay(0)} onChange={setDay} ariaLabel="Follow-up date" testId="log-followup-date" />
           )}
         </div>
       </div>

@@ -24,6 +24,12 @@ A staff login with the Estimates area. If you take visits, the office should tic
 6. **Commercial requests** never reach fix-online. A brief request (strata, hospital, any outside work) arrives with the brief on the pack and a visit already booked from the customer's slot pick; the site checklist items it raised (induction, meeting date, hazmat) are on the Pack too.
 7. **Trade requests** likewise always come to you. Fixing one puts the tree on the property's file; the agent's next quote on that property is seeded from it.
 
+## In the builder
+- **Admin notes** is the first card, above Job settings — anything the office knows that helps price the job (what the customer said on the phone, access, budget). Staff only: never on the customer's copy or the work order. Saved with the estimate.
+- **Preparation** reads "Allowance for time/ materials for job site set up, fillers and consumables". The amount is the Settings allowance (type your own to change it for this job). **Contractor time** on the same card is hours for site set-up: they are charged to the customer at the charge-out rate on the Preparation line, and they go to the painter's work order as a **Preparation** area at the top, so the offer's hours and the pay carry them.
+- **A single wall.** On a walls row inside a room-measured area, switch **Room L×W×H** to **Single wall W×H** to price one wall on its own — a feature wall, or a wall needing extra coats. Type its width (the height comes from the room), pick its coats, and it prices as W × H. Add another Walls row for the rest of the room. Switching back to Room clears the wall's own size.
+- **Clicking away saves.** With unsaved changes, any link — the sidebar, a breadcrumb — saves the estimate first and then opens the page. If the save fails, you stay on the builder and its message says why. Closing the tab with unsaved work asks the browser's "leave site?" question.
+
 ## What the colours and labels mean
 - **Overdue** (clay), **Today**, **Waiting** — the queue's buckets, from the promise clock.
 - **Amber** on the pack — assumed by the engine, the reader or the assistant. **Cyan** — the customer confirmed it.

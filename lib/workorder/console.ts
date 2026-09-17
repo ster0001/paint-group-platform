@@ -53,6 +53,8 @@ export type ConsoleInput = {
     id: string; workOrderId: string; status: string; createdAt: string; pricedAt: string | null;
     /** A3 — credits whose pay deduction routes to the PC when work had started. */
     credit?: boolean; needsManualDeduction?: boolean; deductionCents?: number | null;
+    /** Tom, 17 Sep: what the "Variations for approval" list shows per row. */
+    category?: string; comment?: string; priceCents?: number | null; raisedKind?: string;
   }[];
   updates: { id: string; workOrderId: string; status: string; createdAt: string }[];
   /** 3a-5: open "Report an issue" submissions from the customer portal. */
@@ -553,6 +555,62 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
 }
 
 /** §6.2 — critical oldest-first, then warning oldest-first, then info. */
+/**
+ * Tom, 17 Sep: "a 'variations for approval' section, so it's clear when we
+ * have variations to approve". One row per OPEN variation across every job,
+ * oldest first, each saying who it is waiting on: the office (a price),
+ * the customer (their yes on the link), or the painter (their accept). Pure
+ * — derived from the same variations the queue reads, never stored.
+ */
+export type VariationForApproval = {
+  id: string;
+  workOrderId: string;
+  ref: string;
+  waitingOn: "office" | "customer" | "contractor";
+  waitingLabel: string;
+  category: string;
+  comment: string;
+  priceCents: number | null;
+  credit: boolean;
+  ageHours: number;
+  href: string;
+};
+
+const VARIATION_CATEGORY_LABEL: Record<string, string> = {
+  rot: "Rot / substrate", damage: "Damage", extra_scope: "Extra scope",
+  customer_request: "Customer request", scope_removed: "Scope removed",
+};
+
+export function variationsForApproval(input: ConsoleInput): VariationForApproval[] {
+  const byId = new Map(input.workOrders.map((w) => [w.id, w]));
+  const rows: VariationForApproval[] = [];
+  for (const v of input.variations) {
+    if (v.status !== "raised" && v.status !== "priced" && v.status !== "customer_approved") continue;
+    const w = byId.get(v.workOrderId);
+    const waitingOn = v.status === "raised" ? "office" : v.status === "priced" ? "customer" : "contractor";
+    rows.push({
+      id: v.id,
+      workOrderId: v.workOrderId,
+      ref: w ? `${w.woRef} · ${w.title}` : v.workOrderId,
+      waitingOn,
+      waitingLabel: waitingOn === "office"
+        ? "Waiting on you — price it"
+        : waitingOn === "customer"
+          ? "Priced — waiting on the customer"
+          : `Customer approved — waiting on ${w?.contractorName ?? "the painter"}`,
+      category: VARIATION_CATEGORY_LABEL[v.category ?? ""] ?? (v.category ?? "Variation"),
+      comment: v.comment ?? "",
+      priceCents: v.priceCents ?? null,
+      credit: Boolean(v.credit),
+      ageHours: Math.max(0, (input.now.getTime() - new Date(v.createdAt).getTime()) / 3_600_000),
+      href: `/pc/wo/${v.workOrderId}#variation-${v.id}`,
+    });
+  }
+  // The office's own work first, then oldest first within each group.
+  const order = { office: 0, customer: 1, contractor: 2 } as const;
+  return rows.sort((a, b) => order[a.waitingOn] - order[b.waitingOn] || b.ageHours - a.ageHours);
+}
+
 export function rankQueue(cards: QueueCard[]): QueueCard[] {
   const order: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
   return [...cards].sort((a, b) =>

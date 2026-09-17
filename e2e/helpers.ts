@@ -72,3 +72,24 @@ export async function drawSignature(page: Page) {
  */
 export const TINY_SIGNATURE_PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+/**
+ * Tom, 17 Sep 2026: the CRM's date boxes open a mini calendar
+ * (app/crm/DateField.tsx) instead of the browser's date input, so a spec
+ * picks a day by clicking it. `testId` is the DateField's testId; `day` is
+ * `YYYY-MM-DD`. Steps the month view to the target, then clicks the day.
+ */
+export async function pickDay(page: Page, testId: string, day: string) {
+  const field = page.getByTestId(testId);
+  const button = page.getByTestId(`${testId}-button`);
+  await button.click();
+  const cal = page.getByTestId(`${testId}-calendar`);
+  await cal.waitFor({ state: "visible" });
+  const current = (await button.getAttribute("data-value")) || new Date().toLocaleDateString("en-CA");
+  const months = (d: string) => Number(d.slice(0, 4)) * 12 + Number(d.slice(5, 7)) - 1;
+  let delta = months(day) - months(current);
+  while (delta > 0) { await cal.getByLabel("Next month").click(); delta -= 1; }
+  while (delta < 0) { await cal.getByLabel("Previous month").click(); delta += 1; }
+  await cal.locator(`[data-day="${day}"]`).click();
+  await field.getByTestId(`${testId}-calendar`).waitFor({ state: "hidden" }).catch(() => undefined);
+}

@@ -12,6 +12,9 @@ The office uses this whenever money arrives outside the card link: a bank transf
 - The job has an invoice for the money you are recording. Every accepted job has a deposit draft; progress claims are drafted with **Request payment**.
 - You know the amount received and, ideally, the bank reference.
 
+## Finding a job
+Both invoice screens have a search box. On **Invoicing** it sits at the top beside the filter tabs: type part of the customer's name or the property address and press **Search** (or Enter) — the list keeps your filter tab and shows only the matching jobs, with the customer's name under each address. **Clear** takes the search off. On **Payments → Receivables** the box is above the filter chips and narrows the rows as you type.
+
 ## Steps
 1. Open the job from **Invoicing** and choose the **Invoices** tab, or open the invoice itself.
 2. On the invoice's card press **Record payment**. A draft shows the button beside **Issue & send**.
@@ -28,6 +31,9 @@ A deposit invoice lists every line item from the accepted estimate under **Contr
 - **Awaiting** — issued or sent, balance still owing.
 - **Paid in full** — the balance is zero. A partial payment shows the remaining balance on the card.
 - **Overdue** — the due date has passed with money owing. Recording the payment clears it.
+
+## Leaving an invoice mid-edit
+If a line's editor is open and you click to another page, the line is saved first and the page you clicked then opens. A line that cannot be saved (no description, or an amount that is not a number) keeps you on the invoice.
 
 ## If something goes wrong
 - **"This invoice isn't open for payment."** The invoice is void or written off. Draft a new one with **Request payment**.
