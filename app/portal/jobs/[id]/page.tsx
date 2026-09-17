@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { reportError } from "@/lib/monitoring/report";
 import { createClient } from "@/lib/supabase/server";
 import { requireContractor } from "@/lib/contractor/session";
 import { getContractorJob } from "@/lib/contractor/jobs";
@@ -10,7 +11,7 @@ import RescheduleRequest from "./RescheduleRequest";
 import OfferBar from "./OfferBar";
 import StartJob from "./StartJob";
 import TickList from "@/app/components/wo/TickList";
-import Variations, { type VariationView } from "./Variations";
+import Variations, { type EmployeeVariationView, type VariationView } from "./Variations";
 import RequestClaim, { type ClaimableJob } from "@/app/portal/money/RequestClaim";
 import { contractorVariationsCents, type PayVariation } from "@/lib/workorder/contractorPay";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
@@ -168,6 +169,26 @@ export default async function PortalJobPage({
     .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, needs_manual_deduction, deduction_cents, deduction_note, contractor_acknowledged_at")
     .eq("work_order_id", id)
     .order("created_at", { ascending: false });
+
+  // Employed painters (S4, ruling 8): the money-free read of the same rows.
+  let employeeVariations: EmployeeVariationView[] = [];
+  if (employee) {
+    const { data: evRows, error: evError } = await supabase.rpc("employee_variations", { p_work_order_id: id });
+    if (evError) reportError(evError, { where: "portal.job.employeeVariations", extra: { workOrderId: id } });
+    employeeVariations = ((evError ? [] : evRows) ?? [] as unknown[]).map((r: unknown) => {
+      const v = r as {
+        id: string; category: string; comment: string; est_hours: number | string | null;
+        outcome: EmployeeVariationView["outcome"]; scope_lines: unknown; office_note: string; credit: boolean;
+      };
+      const lines = Array.isArray(v.scope_lines) ? (v.scope_lines as Array<{ label?: unknown }>) : [];
+      return {
+        id: v.id, category: v.category, comment: v.comment,
+        estHours: v.est_hours == null ? null : Number(v.est_hours),
+        outcome: v.outcome, officeNote: v.office_note ?? "", credit: Boolean(v.credit),
+        scopeLines: lines.map((l) => ({ label: typeof l.label === "string" ? l.label : "" })).filter((l) => l.label),
+      };
+    });
+  }
 
   // "Can't make it" already on the record for these dates? (ruling 11)
   let cantMakeItFlagged = false;
@@ -493,14 +514,18 @@ export default async function PortalJobPage({
         </div>
       )}
 
-      {/* The priced variation card and the claim composer are contractor money
-          (rulings 3, 4, 8). Session 4 gives employees "Variation approved". */}
-      {job.committed && capabilities.seesMoney && (
+      {/* One variation card, two modes (ruling 8): a contractor accepts an
+          adjusted offer; an employee is told the outcome — scope and hours,
+          never a figure. The claim composer is contractor money (ruling 4). */}
+      {job.committed && (
         <div style={{ padding: "0 16px" }}>
-          <Variations workOrderId={id} variations={variations} />
-          <div style={{ marginTop: 12 }}>
-            <RequestClaim jobs={[claimJob]} heading="Invoice this job" />
-          </div>
+          <Variations workOrderId={id} variations={variations}
+            mode={employee ? "employee" : "contractor"} employeeVariations={employeeVariations} />
+          {capabilities.canSelfInvoice && (
+            <div style={{ marginTop: 12 }}>
+              <RequestClaim jobs={[claimJob]} heading="Invoice this job" />
+            </div>
+          )}
         </div>
       )}
 

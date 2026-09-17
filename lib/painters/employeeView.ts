@@ -89,10 +89,14 @@ export const employeeVariationSchema = z.object({
   category: z.string(),
   comment: z.string(),
   est_hours: z.number().nonnegative().nullable(),
-  outcome: z.enum(["raised", "with_office", "approved", "not_going_ahead"]),
-  scope_lines: z.array(z.object({ surface: z.string(), area: z.string(), what: z.string() })),
+  /** with_office = raised · with_customer = priced · approved · not_going_ahead */
+  outcome: z.enum(["with_office", "with_customer", "approved", "not_going_ahead"]),
+  /** The office's priced lines with the money stripped: what to do, not what it costs. */
+  scope_lines: z.array(z.object({ label: z.string() }).passthrough()),
   office_note: z.string(),
+  credit: z.boolean(),
   created_at: z.string(),
+  decided_at: z.string().nullable(),
 });
 export type EmployeeVariation = z.infer<typeof employeeVariationSchema>;
 

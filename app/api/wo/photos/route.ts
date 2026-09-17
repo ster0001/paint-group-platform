@@ -55,11 +55,16 @@ export async function POST(request: Request) {
   const parsed = signBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return fail(400, "Tell us which job the photo belongs to.");
 
-  // RLS decides whether this caller can see the job at all; a contractor who
-  // isn't on it gets no row back and therefore no upload URL.
-  const { data: wo } = await supabase
-    .from("work_orders").select("id").eq("id", parsed.data.workOrderId).maybeSingle();
-  if (!wo) return fail(404, "That job isn't yours.");
+  // The membership question, asked of the database: the lead (contractor_id)
+  // or anyone assigned to the job (employed crew, 20270159). SECURITY DEFINER,
+  // so it answers for an employee who has no work_orders read at all
+  // (20270153); staff read every job. A refused call is a refused upload.
+  const { data: onJob, error: onJobError } = await supabase
+    .rpc("wo_is_my_job_as_contractor", { p_wo_id: parsed.data.workOrderId });
+  if (onJobError) reportError(onJobError, { where: "wo.photos.ownership", extra: { workOrderId: parsed.data.workOrderId } });
+  const { data: staffRow } = onJob === true ? { data: null } : await supabase
+    .from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (onJob !== true && (staffRow as { role?: string } | null)?.role !== "staff") return fail(404, "That job isn't yours.");
 
   const path = photoPath(parsed.data.workOrderId);
   const { data, error } = await supabase.storage.from("wo-photos").createSignedUploadUrl(path);
