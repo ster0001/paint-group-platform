@@ -2,11 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { reconcileForWorkOrder } from "@/lib/gcal/sync";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
+import { sendSignedReportEmail } from "@/lib/workorder/signEmail";
+import { reportIfError } from "@/lib/monitoring/report";
 import { onChecklistAnswered } from "@/lib/colourRecords/transitions";
 
 export type PrepResult = { ok: true } | { ok: false; message: string };
@@ -145,6 +148,55 @@ export async function startWalkthroughMode(raw: unknown): Promise<WalkthroughMod
   if (s === "error:not_at_walkthrough") return { ok: false, message: "The job isn't at the walkthrough stage yet." };
   if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
   return { ok: false, message: "Couldn't start the walkthrough just now." };
+}
+
+export type RectifiedResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * Tom (17 Sep): the areas the customer flagged are put right → the job
+ * completes. The RPC does the whole tail in one transaction (gates, stages,
+ * the frozen report with a `rectified` list, warranty, invoice drafts) and
+ * the completion report goes to the customer at once, the same email a
+ * signature sends — the flagged areas are IN it. Never a second walkthrough.
+ */
+export async function completeAfterRectification(raw: unknown): Promise<RectifiedResult> {
+  const parsed = z.object({ workOrderId: z.string().uuid() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_complete_after_rectification", {
+    p_work_order_id: parsed.data.workOrderId,
+  });
+  if (error) return { ok: false, message: "Couldn't finish up just now — check your signal and try again." };
+
+  const s = String(data ?? "");
+  if (s === "ok:closed") {
+    revalidatePath("/portal/jobs");
+    revalidatePath("/pc");
+    // The report to the customer — service client, because the painter's
+    // session has no read on the customer's estimate. Best-effort by design.
+    const service = createServiceClient();
+    if (service) {
+      const soRes = await service.from("wo_signoff").select("customer_token")
+        .eq("work_order_id", parsed.data.workOrderId).maybeSingle();
+      // The job is already complete; a failed token read only costs the
+      // email, so it is reported rather than shown to the painter.
+      reportIfError(soRes, { where: "tickActions.completeAfterRectification.token", bestEffort: true });
+      const customerToken = (soRes.data as { customer_token?: string | null } | null)?.customer_token;
+      if (customerToken) {
+        const origin = (await headers()).get("origin")
+          ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app";
+        await sendSignedReportEmail(service, customerToken, origin);
+      }
+    }
+    return { ok: true };
+  }
+  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  if (s === "error:nothing_flagged") return { ok: false, message: "Nothing was flagged on this job — use All done instead." };
+  if (s === "error:no_walkthrough_yet") return { ok: false, message: "The customer hasn't had their walkthrough yet." };
+  if (s === "error:not_in_progress") return { ok: false, message: "This job isn't in progress — pull down to refresh." };
+  if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
+  return { ok: false, message: "Couldn't finish up just now." };
 }
 
 export type FinishResult =

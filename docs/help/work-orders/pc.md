@@ -63,7 +63,7 @@ The PC console (**Projects** in the sidebar) reads every open work order and tel
     ![](media/pc-15.png)
     ![](media/pc-16.png)
 18. The sign-off clock sends the customer reminders at the intervals set under Settings, and the queue shows **Sign-off clock at 48 hours** when it has run that long. Deemed execution is switched off: a job waits at Walkthrough until a person signs, however long the clock runs. An **Extension requested on sign-off** card asks you to approve or decline.
-19. A flagged area returns the job to **03 In progress** with the area on the painter's list; the walkthrough runs again once it is fixed.
+19. A flagged area returns the job to **03 In progress** with the area on the painter's list. Once the painter has put it right and ticked it, their **Fixed — send the report** press completes the job straight to **06 Closed**: the sign-off records **Flagged areas put right** (kind *rectified*), the customer is emailed the completion report with a **What you flagged, and what we did** section, and the warranty and invoice drafts fire as they would on a signature. The walkthrough does not run again.
 
 ### Closed
 20. Signing closes the job: **06 Closed — final invoice sent**, the **Next step** card reads "This job is finished and signed off", and the header gains **Final invoice (draft)**. The final invoice, warranty and completion report are created in that one step. **Something found after sign-off — reopen** takes the job back to Walkthrough for the customer to sign again; it asks for a reason.
