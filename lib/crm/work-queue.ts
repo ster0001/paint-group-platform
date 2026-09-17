@@ -12,6 +12,7 @@ import {
 import { sortQueue } from "@/lib/wizard/confirmation";
 import { DEFAULT_TURNAROUND_SETTING, isOverdue, turnaroundFromSettings, type TurnaroundSetting } from "@/lib/wizard/confirmation-actions";
 import { addBusinessHours, nextBusinessMorning } from "@/lib/time/businessHours";
+import { melbourneDayStartUtc } from "@/lib/workorder/console";
 
 /**
  * The work queue (shell brief §3) — the one answer to "what needs a human?".
@@ -73,6 +74,12 @@ export const WORK_ITEM_KINDS = [
   "message_approval",
   /** Airtable handover (16 Sep): a signed PaintScout job arrived through the Zap with its price but no per-area hours — type them from the PaintScout work order. */
   "hours_to_confirm",
+  /**
+   * Employed painters (S3, ruling 11): an employee flagged "can't make it"
+   * on a scheduled day — or marked sick over one. The assignment stays as
+   * it was; the office reassigns. Critical: a job with nobody on it.
+   */
+  "employee_reassign",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -186,6 +193,8 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   message_approval: 20,
   // A job cannot be offered to a painter with no hours on it.
   hours_to_confirm: 18,
+  // A booked day with no painter on it — outranks every internal chase.
+  employee_reassign: 32,
 };
 
 export type PriorityInput = {
@@ -275,7 +284,72 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   delay_ended: "followups",
   message_approval: "approvals",
   hours_to_confirm: "approvals",
+  employee_reassign: "followups",
 };
+
+// ---- source: employee_reassign (employed painters S3, ruling 11) ------------
+
+export type CantMakeItEventRow = {
+  id: string;
+  work_order_id: string;
+  created_at: string;
+  meta: { assignment_id?: string; contractor_id?: string; start_date?: string; end_date?: string; reason?: string } | null;
+  work_orders: { wo_ref: string; wo_snapshot: { jobTitle?: string; jobAddress?: string } | null } | null;
+};
+export type ActiveAssignmentRow = { id: string; contractor_id: string; start_date: string; end_date: string; status: string };
+export type DatesChangedEventRow = { created_at: string; meta: { assignment_id?: string } | null };
+
+/**
+ * One item per assignment with a STANDING flag: the painter said they can't
+ * make it, and the office has not since moved their dates or taken them off.
+ * Derived from wo_events + wo_assignments, never stored; the key is the
+ * assignment so a second flag on the same days does not resurrect a dismissal.
+ */
+export function buildEmployeeReassignItems(
+  flags: CantMakeItEventRow[],
+  active: ActiveAssignmentRow[],
+  moves: DatesChangedEventRow[],
+  painterNames: Map<string, string>,
+  now: Date,
+): WorkItem[] {
+  const activeById = new Map(active.filter((a) => a.status !== "released").map((a) => [a.id, a]));
+  const lastMove = new Map<string, string>();
+  for (const m of moves) {
+    const id = m.meta?.assignment_id;
+    if (!id) continue;
+    const seen = lastMove.get(id);
+    if (!seen || m.created_at > seen) lastMove.set(id, m.created_at);
+  }
+  const latestFlag = new Map<string, CantMakeItEventRow>();
+  for (const f of flags) {
+    const id = f.meta?.assignment_id;
+    if (!id || !activeById.has(id)) continue;
+    const moved = lastMove.get(id);
+    if (moved && moved >= f.created_at) continue; // the office already answered this one
+    const seen = latestFlag.get(id);
+    if (!seen || f.created_at > seen.created_at) latestFlag.set(id, f);
+  }
+  return [...latestFlag.entries()].map(([assignmentId, f]) => {
+    const a = activeById.get(assignmentId)!;
+    const who = painterNames.get(a.contractor_id) ?? "A painter";
+    const job = f.work_orders?.wo_snapshot?.jobTitle || f.work_orders?.wo_ref || "a job";
+    const dmy = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
+    const days = a.start_date === a.end_date ? dmy(a.start_date) : `${dmy(a.start_date)}–${dmy(a.end_date)}`;
+    return finish({
+      key: itemKey("employee_reassign", "work_order", f.work_order_id, assignmentId),
+      kind: "employee_reassign",
+      accountId: null,
+      subjectRef: { type: "work_order", id: f.work_order_id },
+      title: `${who} can't make ${job} — ${days}`,
+      detail: [f.meta?.reason ? `"${f.meta.reason}"` : "", "Nothing has changed on the job — reassign the days or take them off."].filter(Boolean).join(" · "),
+      since: f.created_at,
+      // Due the day before their first day (Melbourne midnight, offset measured
+      // from the zone — never written down), so it sits in Overdue once that passes.
+      dueAt: new Date(Date.parse(melbourneDayStartUtc(new Date(`${a.start_date}T12:00:00Z`))) - 86_400_000).toISOString(),
+      action: { label: "Reassign", href: `/pc/schedule?from=${a.start_date}&days=14` },
+    }, { valueCents: null, promisedToCustomer: false }, now);
+  });
+}
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
 
@@ -1298,6 +1372,25 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     .eq("source", "paintscout").eq("status", "accepted").contains("external_ref", { hours_pending: true })
     .order("accepted_at", { ascending: true }).limit(200);
   const hoursRows = (hoursRes.error ? [] : (hoursRes.data ?? [])) as unknown as HoursPendingRow[];
+  // Employed painters (S3): standing "can't make it" flags. Three bounded
+  // reads; a table that predates 20270154 just yields nothing.
+  const [flagRes, activeRes, moveRes] = await Promise.all([
+    supabase.from("wo_events")
+      .select("id, work_order_id, created_at, meta, work_orders(wo_ref, wo_snapshot)")
+      .eq("type", "assignment_cant_make_it").gte("created_at", since30d)
+      .order("created_at", { ascending: true }).limit(200),
+    supabase.from("wo_assignments").select("id, contractor_id, start_date, end_date, status")
+      .neq("status", "released").gte("end_date", new Date(now.getTime() - 7 * 86_400_000).toISOString().slice(0, 10)).limit(500),
+    supabase.from("wo_events").select("created_at, meta")
+      .eq("type", "assignment_dates_changed").gte("created_at", since30d).limit(500),
+  ]);
+  const flagRows = (flagRes.error ? [] : (flagRes.data ?? [])) as unknown as CantMakeItEventRow[];
+  const activeRows = (activeRes.error ? [] : (activeRes.data ?? [])) as ActiveAssignmentRow[];
+  const moveRows = (moveRes.error ? [] : (moveRes.data ?? [])) as unknown as DatesChangedEventRow[];
+  const flagPainterIds = [...new Set(flagRows.map((f) => f.meta?.contractor_id).filter((x): x is string => !!x))];
+  const flagPainters = await inSlices(flagPainterIds, (ids) => supabase.from("contractors").select("id, company_name, profiles(name)").in("id", ids));
+  const painterNames = new Map((flagPainters as unknown as Array<{ id: string; company_name: string | null; profiles: { name: string | null } | null }>)
+    .map((c) => [c.id, c.profiles?.name || c.company_name || "A painter"]));
   // Tom, 7 Sep: open estimates still waiting on the estimator's photo sign-off.
   const photoRes = await supabase.from("estimates")
     .select("id, title, account_id, created_at, status, builder_state")
@@ -1419,6 +1512,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildLapsedItems(lapsedRows, lapsedAttempts as ContactEventRow[], lapsedNames, now),
     ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps),
     ...buildHoursPendingItems(hoursRows, now),
+    ...buildEmployeeReassignItems(flagRows, activeRows, moveRows, painterNames, now),
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),

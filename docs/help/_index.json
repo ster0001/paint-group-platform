@@ -3,6 +3,7 @@
     "staff",
     "pc",
     "contractor",
+    "employee",
     "customer",
     "commercial",
     "trade"
@@ -208,7 +209,7 @@
         "media/contractor-12.png",
         "media/contractor-13.png"
       ],
-      "verified_at_commit": "931d769016",
+      "verified_at_commit": "3a6848a2fd",
       "sources": [
         "app/portal/requests",
         "app/portal/calendar",
@@ -219,9 +220,25 @@
     },
     {
       "feature": "scheduling",
+      "role": "employee",
+      "title": "Your assigned jobs — accepting one, your calendar, and what to do if you can't make a day",
+      "summary": "How a job reaches you as an employed painter — it lands in your calendar already booked, you tap Accept once to say you've seen it, several of you can share one job with one lead painter, and you can flag days you can't make.",
+      "path": "docs/help/scheduling/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "3a6848a2fd",
+      "sources": [
+        "app/portal/jobs",
+        "app/portal/calendar",
+        "app/portal/jobs/[id]/AssignmentCard.tsx",
+        "lib/contractor/employeeJobs.ts"
+      ]
+    },
+    {
+      "feature": "scheduling",
       "role": "staff",
       "title": "Offer a job to a painter and manage the booking on the scheduling board",
-      "summary": "How the Schedule tab works — drag an accepted job onto a contractor's row to send a 24-hour offer, handle proposals and reschedule requests, cancel or move a booking, and what the customer receives once the painter accepts.",
+      "summary": "How the Schedule tab works — drag an accepted job onto a contractor's row to send a 24-hour offer, or onto an employed painter's row to assign it (several painters, one lead), handle proposals and reschedule requests, cancel or move a booking, and what the customer receives.",
       "path": "docs/help/scheduling/staff.md",
       "walkthrough": "media/staff-walkthrough.gif",
       "media": [
@@ -235,7 +252,7 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": "931d769016",
+      "verified_at_commit": "3a6848a2fd",
       "sources": [
         "app/pc/schedule",
         "lib/scheduling",
@@ -261,11 +278,26 @@
         "media/contractor-09.png",
         "media/contractor-10.png"
       ],
-      "verified_at_commit": "931d769016",
+      "verified_at_commit": "a162c072c0",
       "sources": [
         "app/portal/money",
         "app/portal/profile",
         "lib/workorder/contractorPay.ts"
+      ]
+    },
+    {
+      "feature": "self-invoicing",
+      "role": "employee",
+      "title": "Claim an expense you paid for on a job",
+      "summary": "The Expenses tab for employed painters — a receipt photo, the category, the amount from the receipt, which job, and who paid; what happens over $100; and how a claim you paid yourself gets paid back.",
+      "path": "docs/help/self-invoicing/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "a162c072c0",
+      "sources": [
+        "app/portal/money/page.tsx",
+        "app/portal/money/Expenses.tsx",
+        "app/portal/money/expenseActions.ts"
       ]
     },
     {
@@ -280,10 +312,42 @@
         "media/staff-02.png",
         "media/staff-03.png"
       ],
-      "verified_at_commit": "931d769016",
+      "verified_at_commit": "a162c072c0",
       "sources": [
         "app/invoicing",
         "lib/invoicing"
+      ]
+    },
+    {
+      "feature": "timesheets",
+      "role": "employee",
+      "title": "Start your day, finish your day — your hours",
+      "summary": "The Start day / Finish day card for employed painters — two taps on the home page or the job, the break you took, what the office does with the hours, and what the status words mean.",
+      "path": "docs/help/timesheets/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "989f914fd9",
+      "sources": [
+        "app/portal/TimesheetCard.tsx",
+        "app/portal/timesheetActions.ts",
+        "lib/contractor/timesheets.ts"
+      ]
+    },
+    {
+      "feature": "timesheets",
+      "role": "pc",
+      "title": "Approve employed painters' days, record one for them, and export the payroll CSV",
+      "summary": "The Timesheets tab in PC Command — each clocked day waiting on approval, what approving does to the job's costs, recording a day the painter forgot, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.",
+      "path": "docs/help/timesheets/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "989f914fd9",
+      "sources": [
+        "app/pc/timesheets/page.tsx",
+        "app/pc/timesheets/TimesheetRow.tsx",
+        "app/pc/timesheets/RecordHours.tsx",
+        "app/pc/timesheets/export/route.ts",
+        "app/(app)/contractors/ContractorsManager.tsx"
       ]
     },
     {
@@ -314,12 +378,29 @@
         "media/contractor-18.png",
         "media/contractor-walkthrough-2.gif"
       ],
-      "verified_at_commit": "931d769016",
+      "verified_at_commit": "3a6848a2fd",
       "sources": [
         "app/portal/jobs",
         "app/components/wo",
         "app/s",
         "lib/workorder"
+      ]
+    },
+    {
+      "feature": "work-orders",
+      "role": "employee",
+      "title": "Run a job from the first tick to the customer's signature",
+      "summary": "How an assigned job works on your phone as an employed painter — the pre-start list, photos before ticks, ticking surfaces off, the finishing-up list, the quality check and the walkthrough — the same as every painter, with no money on it.",
+      "path": "docs/help/work-orders/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "3a6848a2fd",
+      "sources": [
+        "app/portal/jobs",
+        "app/components/wo",
+        "app/s",
+        "lib/workorder",
+        "lib/contractor/employeeJobs.ts"
       ]
     },
     {
@@ -349,7 +430,7 @@
         "media/pc-17.png",
         "media/pc-18.png"
       ],
-      "verified_at_commit": "931d769016",
+      "verified_at_commit": "3a6848a2fd",
       "sources": [
         "app/pc",
         "app/components/wo",

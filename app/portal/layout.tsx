@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 // Access is gated in requireContractor() — staff and customers are redirected to
 // their own side of the app.
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const { name, contractor } = await getContractorSession();
+  const { name, contractor, capabilities } = await getContractorSession();
 
   // A suspended contractor keeps their login but loses the portal. Showing a
   // plain explanation beats a broken-looking app or a silent redirect loop.
@@ -34,7 +34,9 @@ export default async function PortalLayout({ children }: { children: React.React
   // nothing seen yet, not suspended, and no offer or job on the books, because
   // a painter with work waiting came to act, not to browse. Help replays it.
   let tourCards: Awaited<ReturnType<typeof loadTour>> = [];
-  if (contractor && !suspended && !contractor.tour_seen_at) {
+  // The tour is written for contractors (offers, your price, invoices); the
+  // employee tour is Session 7's — until then an employee gets no tour.
+  if (contractor && !suspended && !contractor.tour_seen_at && capabilities.acceptsOffers) {
     const supabase = await createClient();
     const [{ count: offers }, { count: jobs }] = await Promise.all([
       supabase.from("booking_offers").select("id", { count: "exact", head: true })
@@ -58,13 +60,13 @@ export default async function PortalLayout({ children }: { children: React.React
           )}
           <Link href="/portal/profile" className="who">
             {contractor?.company_name?.trim() || name}
-            <b>Contractor portal</b>
+            <b>{capabilities.canSelfInvoice ? "Contractor portal" : "Painter portal"}</b>
           </Link>
         </header>
 
         {children}
 
-        {!suspended && <PortalTabs />}
+        {!suspended && <PortalTabs capabilities={capabilities} />}
         {tourCards.length > 0 && <PortalTour cards={tourCards} />}
       </div>
     </div>

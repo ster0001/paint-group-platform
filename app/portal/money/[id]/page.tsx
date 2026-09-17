@@ -27,7 +27,9 @@ type DeductionLine = { label?: string; cents?: number; note?: string; manual?: b
  */
 export default async function ContractorInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { contractor } = await requireContractor();
+  const { contractor, capabilities } = await requireContractor();
+  // Ruling 4: no self-invoicing for employees — the route does not exist for them.
+  if (!capabilities.canSelfInvoice) notFound();
   const supabase = await createClient();
 
   const { data } = await supabase

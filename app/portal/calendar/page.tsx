@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireContractor } from "@/lib/contractor/session";
 import { listContractorJobs } from "@/lib/contractor/jobs";
+import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
 import CalendarGrid, { type PortalBlock, type PortalJobDay } from "./CalendarGrid";
 import Placeholder from "../Placeholder";
 import { jobDaysFor } from "@/lib/contractor/jobDays";
@@ -14,7 +15,7 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ gcal?: string }>;
 }) {
-  const { contractor } = await requireContractor();
+  const { contractor, capabilities } = await requireContractor();
 
   if (!contractor) {
     return (
@@ -41,7 +42,9 @@ export default async function CalendarPage({
 
   // Booked days come from the jobs themselves, so the calendar and the Jobs tab
   // can never disagree.
-  const jobs = await listContractorJobs(contractor.id);
+  // An employee's booked days are their ASSIGNED days (their own span on each
+  // job), through the money-free RPC; a contractor's are their bookings.
+  const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
   const jobDays: PortalJobDay[] = jobDaysFor(jobs);
 
   // §4b: booked walkthroughs on the calendar, tap-through to the job. They
@@ -72,7 +75,12 @@ export default async function CalendarPage({
         immediately. Booked days can&rsquo;t be blocked here — give the office a call
         if something&rsquo;s changed.
       </p>
-      <GoogleSyncCard status={await gcalStatus(contractor.id)} flash={(await searchParams).gcal} />
+      {/* Google Calendar reconciles bookings only today — an employee's
+          assignments are not pushed yet (employed-painters ledger), so the
+          card would promise something it cannot do. */}
+      {capabilities.acceptsOffers && (
+        <GoogleSyncCard status={await gcalStatus(contractor.id)} flash={(await searchParams).gcal} />
+      )}
     </div>
   );
 }

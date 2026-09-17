@@ -182,6 +182,13 @@
 .sb .blk.offered { background: repeating-linear-gradient(45deg, rgba(224, 168, 60, 0.16) 0 8px, rgba(224, 168, 60, 0.08) 8px 16px); border-color: rgba(224, 168, 60, 0.65); color: #f2ddb0; }
 .sb .blk.proposed { background: repeating-linear-gradient(45deg, rgba(224, 168, 60, 0.16) 0 8px, rgba(224, 168, 60, 0.08) 8px 16px); border-color: var(--amber); color: #f2ddb0; }
 .sb .blk.unavailable { background: repeating-linear-gradient(45deg, rgba(140, 149, 157, 0.12) 0 7px, transparent 7px 14px); border-color: var(--line); color: var(--muted); cursor: default; }
+/* Employed painters (S2): an assignment reads as booked (same green) — hollow
+   until the painter taps Accept, a star on the lead's lane. */
+.sb .blk.assigned { background: rgba(47, 164, 107, 0.16); border-color: rgba(47, 164, 107, 0.6); color: #bfe9d2; }
+.sb .blk.assigned.hollow { background: transparent; border-style: dashed; }
+.sb .blk .crew { font-family: var(--mono); font-size: 8.5px; opacity: 0.9; margin-left: 6px; }
+.sb .blk .lead { color: var(--amber); margin-right: 4px; }
+.sb .cinfo .emp { color: var(--cyan); }
 .sb .blk.dragging { z-index: 30; opacity: 0.92; cursor: grabbing; transition: none; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5); }
 /* Eased settle after a drop. */
 .sb .blk.settling { transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1); }

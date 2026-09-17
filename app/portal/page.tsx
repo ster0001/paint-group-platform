@@ -4,9 +4,12 @@ import { listContractorOffers } from "@/lib/contractor/offers";
 import { effectiveState, isLive } from "@/lib/scheduling/offers";
 import OfferCard from "./requests/OfferCard";
 import { listContractorJobs, JOB_STATUS_CHIP, shortDate } from "@/lib/contractor/jobs";
-import { missingProfileFields, daysUntil, docState, workcoverNeeded } from "@/lib/contractor/model";
+import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
+import { missingProfileFields, daysUntil, docState, workcoverNeeded, employeeDocReminders } from "@/lib/contractor/model";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 import { createClient } from "@/lib/supabase/server";
+import { loadMyTimesheet } from "@/lib/contractor/timesheets";
+import TimesheetCard from "./TimesheetCard";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +24,7 @@ const melbourneDate = () =>
 const firstName = (full: string) => full.trim().split(/\s+/)[0] || "there";
 
 export default async function PortalHome() {
-  const { name, contractor } = await requireContractor();
+  const { name, contractor, capabilities } = await requireContractor();
 
   // Staff haven't finished setting this account up.
   if (!contractor) {
@@ -40,11 +43,16 @@ export default async function PortalHome() {
   }
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
-  const jobs = await listContractorJobs(contractor.id);
+  const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
+  // Session 6: the employee's day — Start / Finish, hours only. Nothing for a
+  // contractor, whose days are the offer they accepted.
+  const timesheet = capabilities.clocksOn ? await loadMyTimesheet() : null;
   // Live offers land on the FRONT page with their countdown (Tom, 25 Aug) —
-  // a 24-hour clock shouldn't hide behind the Requests tab.
-  const liveOffers = (await listContractorOffers(contractor.id))
-    .filter((o) => isLive(effectiveState(o.offer)));
+  // a 24-hour clock shouldn't hide behind the Requests tab. An employee is
+  // never offered (ruling 1); their new assignments show as "Tap Accept" jobs.
+  const liveOffers = capabilities.acceptsOffers
+    ? (await listContractorOffers(contractor.id)).filter((o) => isLive(effectiveState(o.offer)))
+    : [];
 
   // Front-page work items (Tom, 1 Sep #2): variations waiting on the painter's
   // approval, and failed quality checks with areas still to put right. Both
@@ -92,6 +100,10 @@ export default async function PortalHome() {
   if (docsError) {
     // Say nothing about insurance when we couldn't read the documents at all —
     // telling someone to upload what they already uploaded is worse than silence.
+  } else if (!capabilities.requiresInsurance) {
+    // An employee's tickets (ruling 5): white card and working at heights,
+    // reminded about, never a gate on anything.
+    for (const r of employeeDocReminders(docs)) actions.push({ icon: "🪪", text: r.text, chip: r.chip });
   } else if (!insurance && awaitingCheck) {
     actions.push({
       icon: "🛡",
@@ -112,15 +124,17 @@ export default async function PortalHome() {
     });
   }
   // WorkCover (Tom, 17 Sep): asked for, never a gate — the offerable card
-  // above stays green on public liability alone.
-  if (!docsError && workcoverNeeded(contractor.crew_size, docs)) {
+  // above stays green on public liability alone. A contractor's paperwork:
+  // an employee is covered by Paint Group's own policy (ruling 5).
+  if (!docsError && capabilities.requiresInsurance && workcoverNeeded(contractor.crew_size, docs)) {
     actions.push({
       icon: "🛡",
       text: "Upload your WorkCover certificate — required while anyone works with you",
       chip: "Needed",
     });
   }
-  if (missing.length) {
+  // Company details exist for the RCTI — an employee has no invoice to put them on.
+  if (missing.length && capabilities.canSelfInvoice) {
     actions.push({
       icon: "🏷",
       text: `Finish your company profile — still missing ${missing.join(", ")}`,
@@ -134,7 +148,9 @@ export default async function PortalHome() {
 
       {docsError && <div className="err">{docsErrorMessage(docsError)}</div>}
 
-      {/* Can this contractor be offered work? The single most important fact. */}
+      {/* Can this contractor be offered work? The single most important fact —
+          for a contractor. An employee is assigned, never offered (ruling 1). */}
+      {capabilities.acceptsOffers && (
       <div className={`card ${contractor.offerable ? "greenish" : "amberish"}`}>
         <span className={`chip ${contractor.offerable ? "grn" : "amb"}`}>
           {contractor.offerable ? "Ready for work" : "Not yet offerable"}
@@ -159,6 +175,11 @@ export default async function PortalHome() {
           </Link>
         )}
       </div>
+      )}
+
+      {timesheet && (
+        <TimesheetCard open={timesheet.open} recent={timesheet.recent} error={timesheet.error} />
+      )}
 
       {actions.length > 0 && (
         <div className="card">
@@ -264,6 +285,8 @@ export default async function PortalHome() {
         )}
       </div>
 
+      {/* Company, ABN, GST, insurance: the RCTI entity. Nothing an employee has (§3.7). */}
+      {capabilities.canSelfInvoice && (
       <div className="card">
         <h3>Your details</h3>
         <div className="frow">
@@ -296,6 +319,7 @@ export default async function PortalHome() {
           Open my profile
         </Link>
       </div>
+      )}
     </div>
   );
 }

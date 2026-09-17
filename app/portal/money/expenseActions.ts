@@ -46,9 +46,14 @@ export async function submitExpenseAction(raw: unknown): Promise<ExpenseResult> 
     receiptPath: z.string().min(1).max(400),
     note: z.string().trim().max(300).default(""),
     preapprovalId: uuid.optional(),
+    /** Employed painters (ruling 13): company card = a job cost, nothing to pay
+     *  back; personal = the reimbursement queue. A contractor's claim rides
+     *  their invoice either way and never sends this. */
+    paidWith: z.enum(["personal", "company_card"]).optional(),
   }).safeParse(raw);
   if (!p.success) return { ok: false, message: "Check the claim and try again." };
-  return call("contractor_expense_submit", {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("contractor_expense_submit", {
     p_work_order_id: p.data.workOrderId,
     p_category: p.data.category,
     p_amount_cents: p.data.amountCents,
@@ -56,7 +61,32 @@ export async function submitExpenseAction(raw: unknown): Promise<ExpenseResult> 
     p_receipt_path: p.data.receiptPath,
     p_note: p.data.note,
     p_preapproval_id: p.data.preapprovalId ?? null,
-  }, "Claim sent — it's with the office, and it rides your next invoice once approved.");
+  });
+  if (error) return { ok: false, message: "Couldn't send that just now — try again." };
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) {
+    const reason = s.replace("error:", "");
+    return { ok: false, message: WORDING[reason] ?? `Couldn't send that (${reason.replace(/_/g, " ")}).` };
+  }
+  if (p.data.paidWith) {
+    // A second, tiny write straight after the claim. If it fails the claim
+    // stands as "personal", which lands on the office's reimbursement list
+    // where they can see and correct it — never the silent direction.
+    const { data: pw, error: pwError } = await supabase.rpc("expense_set_paid_with", { p_id: s.slice(3), p_paid_with: p.data.paidWith });
+    if (pwError || !String(pw ?? "").startsWith("ok:")) {
+      revalidatePath("/portal/money");
+      return { ok: true, message: "Claim sent — but who paid didn't save; the office will check with you." };
+    }
+  }
+  revalidatePath("/portal/money");
+  return {
+    ok: true,
+    message: p.data.paidWith === "company_card"
+      ? "Claim sent — it's with the office as a job cost. Nothing to pay back to you."
+      : p.data.paidWith === "personal"
+        ? "Claim sent — once approved the office pays you back."
+        : "Claim sent — it's with the office, and it rides your next invoice once approved.",
+  };
 }
 
 export async function requestPreapprovalAction(raw: unknown): Promise<ExpenseResult> {

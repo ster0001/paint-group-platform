@@ -8,12 +8,16 @@ import {
   shortDate,
   type ContractorJob,
 } from "@/lib/contractor/jobs";
+import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
 import FinishChip from "@/app/components/FinishChip";
 import Placeholder from "../Placeholder";
 
 export const dynamic = "force-dynamic";
 
 function JobCard({ job }: { job: ContractorJob }) {
+  // Employed painters (S3): the same card, with a time budget where a
+  // contractor sees their price, and the Accept state on the chip row.
+  const a = job.assignment;
   const chip = JOB_STATUS_CHIP[job.status] ?? { cls: "gry", label: job.status };
   const doc = job.doc;
   // Live, from wo_surfaces — the frozen document never leaves "not_started".
@@ -23,7 +27,11 @@ function JobCard({ job }: { job: ContractorJob }) {
   return (
     <div className="card">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <span className={`chip ${chip.cls}`}>{chip.label}</span>
+        <span style={{ display: "flex", gap: 6 }}>
+          <span className={`chip ${chip.cls}`}>{chip.label}</span>
+          {a && !a.acceptedAt && <span className="chip amb" data-testid="job-tap-accept">Tap Accept</span>}
+          {a?.isLead && <span className="chip cyn">Lead</span>}
+        </span>
         <span style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--muted)", letterSpacing: ".08em" }}>
           {job.woRef}
         </span>
@@ -49,10 +57,17 @@ function JobCard({ job }: { job: ContractorJob }) {
           </span>
         </div>
       )}
-      <div className="frow">
-        <span className="l">Your price</span>
-        <span className="v cyan">{money(job.paymentCents)}</span>
-      </div>
+      {a ? (
+        <div className="frow">
+          <span className="l">Time budget</span>
+          <span className="v">{a.timeBudget.days} DAY{a.timeBudget.days === 1 ? "" : "S"} · {a.timeBudget.hours.toFixed(1)} H</span>
+        </div>
+      ) : (
+        <div className="frow">
+          <span className="l">Your price</span>
+          <span className="v cyan">{money(job.paymentCents)}</span>
+        </div>
+      )}
 
       <Link href={`/portal/jobs/${job.id}`} className="btn gh">
         Open work order
@@ -62,9 +77,13 @@ function JobCard({ job }: { job: ContractorJob }) {
 }
 
 export default async function JobsPage() {
-  const { contractor } = await requireContractor();
+  const { contractor, capabilities } = await requireContractor();
 
-  const jobs = contractor ? await listContractorJobs(contractor.id) : [];
+  // One list, two loaders: a contractor's issued work orders, or an
+  // employee's assignments through the money-free RPC. Same shape either way.
+  const jobs = !contractor ? [] : capabilities.acceptsOffers
+    ? await listContractorJobs(contractor.id)
+    : await listEmployeeJobs();
 
   if (jobs.length === 0) {
     return (

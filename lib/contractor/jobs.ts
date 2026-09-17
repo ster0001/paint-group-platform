@@ -6,10 +6,33 @@ import { suburbOnly } from "@/lib/scheduling/offers";
 // restricts this to their own rows (see 20260825000000), but every query filters
 // explicitly too so the intent is readable without cross-referencing the policy.
 
+/**
+ * Employed painters (Session 3): what an ASSIGNED job carries that an offered
+ * one does not. Present only on jobs loaded through lib/contractor/employeeJobs.ts.
+ * No money in here — a time budget is hours and days, never a rate.
+ */
+export type EmployeeAssignment = {
+  assignmentId: string;
+  isLead: boolean;
+  /** The painter's one-tap Accept; null until tapped, cleared when dates change. */
+  acceptedAt: string | null;
+  crewSize: number;
+  /** This painter's own days on the job (the job's span may be wider). */
+  myStart: string;
+  myEnd: string;
+  /** From the RPC — the employee cannot read work_orders directly. */
+  stage: string;
+  walkthroughRequired: boolean;
+  colours: Record<string, unknown>;
+  timeBudget: { days: number; hours: number };
+};
+
 export type ContractorJob = {
   id: string;
   woRef: string;
   status: string;
+  /** Set when the painter is on the job by ASSIGNMENT (employee), absent for offers. */
+  assignment?: EmployeeAssignment;
   startDate: string | null;
   /** The booking's last day, when one has been set. */
   endDate: string | null;

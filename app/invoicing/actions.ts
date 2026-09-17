@@ -575,6 +575,17 @@ export async function assignMaterialCostAction(raw: unknown): Promise<InvoicingR
 
 // ---- 6c: contractor expenses + ask-first (staff side) ----------------------
 
+/**
+ * Employed painters (S5, ruling 13): an approved personal-card claim is paid
+ * back by the office — the reimbursement queue on Payables, never an invoice
+ * line. Company-card claims are job costs with nothing to pay out.
+ */
+export async function markReimbursedAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({ expenseId: uuid }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Couldn't find that claim." };
+  return call("expense_mark_reimbursed", { p_id: p.data.expenseId }, {}, "Paid back — it's off the list, and the painter sees it as paid.");
+}
+
 export async function decideExpenseAction(raw: unknown): Promise<InvoicingResult> {
   const p = z.object({ expenseId: uuid, approve: z.boolean() }).safeParse(raw);
   if (!p.success) return { ok: false, message: "Couldn't find that claim." };

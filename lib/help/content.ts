@@ -16,7 +16,7 @@ import type { Inline } from "@/lib/marketing/md";
  * may see and only ever opens files whose front-matter role is one of them.
  */
 
-export type HelpRole = "staff" | "pc" | "contractor" | "customer" | "commercial" | "trade";
+export type HelpRole = "staff" | "pc" | "contractor" | "employee" | "customer" | "commercial" | "trade";
 
 export type HelpEntry = {
   feature: string;
@@ -42,7 +42,11 @@ const HELP_ROOT = resolve(process.cwd(), "docs", "help");
  * customer-facing estimator guides (customer, commercial, trade) so they can
  * answer a caller from the same page the caller is reading (C17); a painter
  * reads contractor. */
-export function rolesFor(kind: "staff" | "contractor"): HelpRole[] {
+export function rolesFor(kind: "staff" | "contractor" | "employee"): HelpRole[] {
+  // An employed painter (employed-painters S3) reads the employee guides and
+  // nothing written for contractors: those pages talk about offers, prices
+  // and invoices they never see.
+  if (kind === "employee") return ["employee"];
   return kind === "staff" ? ["staff", "pc", "customer", "commercial", "trade"] : ["contractor"];
 }
 

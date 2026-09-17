@@ -164,6 +164,8 @@ export async function destroyLoopFixture(db: SupabaseClient, fixture: LoopFixtur
   await purge("contractor_invoices", db.from("contractor_invoices").delete().eq("work_order_id", fixture.workOrderId));
   // Job costs (Step 6a): work_order_id is ON DELETE RESTRICT too. Materials
   // and intake rows only set-null, but leaving them is still a leak.
+  // S6: timesheets pin their labour line (job_cost_id) — the entries go first.
+  await purge("timesheet_entries", db.from("timesheet_entries").delete().eq("work_order_id", fixture.workOrderId));
   await purge("job_costs", db.from("job_costs").delete().eq("work_order_id", fixture.workOrderId));
   // 6c: both RESTRICT-FK'd to the work order.
   await purge("contractor_expenses", db.from("contractor_expenses").delete().eq("work_order_id", fixture.workOrderId));

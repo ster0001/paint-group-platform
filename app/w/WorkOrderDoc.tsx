@@ -3,7 +3,7 @@
 import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
 import { WO_STATUS_LABEL } from "@/lib/workorder/snapshot";
 import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
-import { STAGE_LANES, type WoStage } from "@/lib/workorder/stages";
+import { STAGE_LANES, stageTitle, type WoStage } from "@/lib/workorder/stages";
 import { SURFACE_STATE_LABEL, type SurfaceState } from "@/lib/workorder/surfaces";
 import type { CrewVariation } from "@/lib/workorder/crew";
 import { WO_PHOTO_KIND_LABEL, groupByKind, type WOPhoto } from "@/lib/workorder/photos";
@@ -38,14 +38,16 @@ export type WOEdit = {
  * from the frozen snapshot, which is why it is a prop rather than part of Doc.
  * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
  */
-export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", crewVariations = [], removedKeys = [] }: {
+export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [] }: {
   doc: Doc; edit?: WOEdit; stage?: WoStage | null;
   /**
    * "crew" is the painter's copy: no payment section, no customer phone. The
    * doc it receives is ALREADY stripped by lib/workorder/crew.ts — hiding the
    * section here is the second lock on the same door, not the first.
    */
-  variant?: "contractor" | "crew";
+  variant?: "contractor" | "crew" | "employee";
+  /** Employed painters: the job left stage 1 by assignment, so stage 1 reads "Assigned". */
+  acceptanceMode?: "offered" | "assigned";
   /** Variations for the crew view: the work, never the money. */
   crewVariations?: readonly CrewVariation[];
   /** The live booking, derived from the offer — requested is not confirmed. */
@@ -73,7 +75,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
           <span className="wo-chips">
             {stage ? (
               <span className={`stage-badge ${stage}`} title={`Stage ${STAGE_LANES[stage].n} of 06`}>
-                <b>{STAGE_LANES[stage].n}</b> {STAGE_LANES[stage].title}
+                <b>{STAGE_LANES[stage].n}</b> {stageTitle(stage, acceptanceMode)}
               </span>
             ) : null}
             <span className={`chip ${doc.status}`}>{WO_STATUS_LABEL[doc.status] ?? doc.status}</span>
@@ -320,8 +322,10 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
         )}
 
         {/* CONTRACTOR PAYMENT — their price only. No customer pricing anywhere,
-            and the crew's copy has no payment at all. */}
-        {variant !== "crew" && (
+            and the crew's copy has no payment at all. Neither does an
+            employee's (ruling 3): their doc is stripped in SQL before it gets
+            here — this is the second lock, not the first. */}
+        {variant !== "crew" && variant !== "employee" && (
           <section>
             <h2>Payment</h2>
             <div className="pay">

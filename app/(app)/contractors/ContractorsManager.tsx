@@ -24,6 +24,10 @@ export type ContractorSummary = {
   bookedJobs: number;
   /** Weekend availability — null until migration 20261221 runs (controls hidden). */
   weekend: { worksSaturday: boolean; worksSunday: boolean } | null;
+  /** Employed painters (S5, ruling 15): the tick box. */
+  employmentType: "contractor" | "employee";
+  /** Session 6: the office's cost per hour in force today (employees only); null = not set. */
+  costRateCents: number | null;
 };
 
 /** An unacknowledged change to where a contractor gets paid. */
@@ -57,10 +61,17 @@ export default function ContractorsManager({
   contractors,
   invites,
   bankAlerts,
+  employeesEnabled = false,
 }: {
   contractors: ContractorSummary[];
   invites: InviteRow[];
   bankAlerts: BankAlert[];
+  /**
+   * The employed-painters switch (settings.employees_enabled). Off = no tick
+   * box anywhere; existing employees still render as employees (the switch
+   * gates the office's hand, never how a row is treated).
+   */
+  employeesEnabled?: boolean;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -69,7 +80,51 @@ export default function ContractorsManager({
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [showInvite, setShowInvite] = useState(false);
-  const [form, setForm] = useState({ email: "", name: "", company: "", tier: "B" });
+  const [form, setForm] = useState({ email: "", name: "", company: "", tier: "B", employee: false });
+  /** Per-row refusal from set_employment_type, shown beside the box (ruling 15). */
+  const [typeRefusal, setTypeRefusal] = useState<Record<string, string>>({});
+
+  /** Session 6: the internal cost rate, $/h as typed, cents to the RPC. History kept by day. */
+  const [rateDraft, setRateDraft] = useState<Record<string, string>>({});
+  async function saveCostRate(id: string) {
+    const dollars = Number((rateDraft[id] ?? "").replace(/[^0-9.]/g, ""));
+    if (!Number.isFinite(dollars) || dollars <= 0) { setErr("Enter the cost rate in dollars per hour, e.g. 52.50"); return; }
+    setBusy(id); setErr("");
+    const { data, error } = await supabase.rpc("set_employee_cost_rate", { p_contractor_id: id, p_cents_per_hour: Math.round(dollars * 100) });
+    const s = String(data ?? "");
+    if (error) setErr(error.message);
+    else if (s.startsWith("ok:")) { setMsg(`Cost rate saved from ${s.slice(3)} — approved timesheets from that day post at this rate.`); setRateDraft((d) => ({ ...d, [id]: "" })); router.refresh(); }
+    else setErr(s === "error:not_an_employee" ? "Only an employee has a cost rate." : s.replace("error:", "").replaceAll("_", " "));
+    setBusy(null);
+  }
+
+  async function setEmploymentType(id: string, type: "contractor" | "employee") {
+    setBusy(id);
+    setErr("");
+    setTypeRefusal((r) => ({ ...r, [id]: "" }));
+    const { data, error } = await supabase.rpc("set_employment_type", { p_contractor_id: id, p_type: type });
+    const s = String(data ?? "");
+    if (error) setErr(error.message);
+    else if (s.startsWith("ok:")) {
+      setMsg(type === "employee"
+        ? "Marked as an employee — their portal switches on their next load: no offers, no invoicing, expenses only."
+        : "Marked as a contractor — their profile now needs insurance and company details before they can be offered work.");
+      router.refresh();
+    } else {
+      const [, what, ...rest] = s.split(":");
+      const ref = rest.join(":");
+      const name = contractors.find((c) => c.id === id)?.name ?? "They";
+      setTypeRefusal((r) => ({
+        ...r,
+        [id]: what === "open_offer" ? `Can't change yet — ${name} has an open offer or booking on ${ref}. Withdraw it or wait for it to close.`
+          : what === "active_assignment" ? `Can't change yet — ${name} is on ${ref}. Take them off it or wait for it to close.`
+          : what === "unpaid_invoice" ? `Can't change yet — ${name} has an unpaid invoice (${ref}). Pay it first.`
+          : what === "unpaid_expense" ? `Can't change yet — ${name} has an approved expense not yet paid back. Pay it first.`
+          : `Can't change yet (${s}).`,
+      }));
+    }
+    setBusy(null);
+  }
   const [newLink, setNewLink] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -99,11 +154,12 @@ export default function ContractorsManager({
         p_company: form.company.trim(),
         p_tier: form.tier || null,
         p_days: 7,
+        p_employment_type: employeesEnabled && form.employee ? "employee" : "contractor",
       });
       if (error) throw error;
       setNewLink(linkFor(String(data)));
       setMsg("Invite created — send them the link below.");
-      setForm({ email: "", name: "", company: "", tier: "B" });
+      setForm({ email: "", name: "", company: "", tier: "B", employee: false });
       router.refresh();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e));
@@ -370,6 +426,12 @@ export default function ContractorsManager({
                 ))}
               </select>
             </label>
+            {employeesEnabled && (
+              <label className="flex items-center gap-2 text-xs text-gray-600" data-testid="invite-employee">
+                <input type="checkbox" checked={form.employee} onChange={(e) => setForm({ ...form, employee: e.target.checked })} />
+                Employee (PAYG — assigned jobs, expenses only, never sees a price)
+              </label>
+            )}
           </div>
           <button
             onClick={sendInvite}
@@ -484,9 +546,48 @@ export default function ContractorsManager({
                         ))}
                       </select>
                     </label>
+                    {employeesEnabled && (
+                      <label
+                        className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium ${
+                          c.employmentType === "employee" ? "border-sky-300 bg-sky-100 text-sky-800" : "border-gray-300 text-gray-700"
+                        }`}
+                        title="Ticked = employed painter (PAYG): assigned jobs, expenses only, never sees a price. Unticked = contractor."
+                      >
+                        <input
+                          type="checkbox"
+                          checked={c.employmentType === "employee"}
+                          disabled={busy === c.id}
+                          onChange={(e) => setEmploymentType(c.id, e.target.checked ? "employee" : "contractor")}
+                          data-testid={`employee-${c.id}`}
+                        />
+                        Employee
+                      </label>
+                    )}
+                    {c.employmentType === "contractor" && (
                     <span className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600">
                       {c.crewSize} painter{c.crewSize === 1 ? "" : "s"}
                     </span>
+                    )}
+                    {c.employmentType === "employee" && (
+                      <label className="flex items-center gap-1.5 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700"
+                        title="Internal cost per hour (base + super + WorkCover + allowances ÷ hours). Never shown to the painter; approved timesheets post at this rate.">
+                        Cost rate
+                        <span className="text-gray-500">{c.costRateCents !== null ? `$${(c.costRateCents / 100).toFixed(2)}/h` : "not set"}</span>
+                        <input
+                          type="text" inputMode="decimal" placeholder="$/h"
+                          value={rateDraft[c.id] ?? ""}
+                          onChange={(e) => setRateDraft((d) => ({ ...d, [c.id]: e.target.value }))}
+                          disabled={busy === c.id}
+                          className="w-16 rounded-md border border-gray-300 px-1.5 py-0.5 text-xs"
+                          data-testid={`cost-rate-${c.id}`}
+                        />
+                        <button type="button" onClick={() => saveCostRate(c.id)} disabled={busy === c.id || !(rateDraft[c.id] ?? "").trim()}
+                          className="rounded-md bg-gray-900 px-2 py-0.5 text-xs font-medium text-white disabled:opacity-40"
+                          data-testid={`cost-rate-save-${c.id}`}>
+                          Save
+                        </button>
+                      </label>
+                    )}
                     <button
                       onClick={() => setRequiresQa(c.id, !c.requiresQa)}
                       disabled={busy === c.id}
@@ -542,6 +643,12 @@ export default function ContractorsManager({
                     </button>
                   </div>
                 </div>
+
+                {typeRefusal[c.id] && (
+                  <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid={`employee-refusal-${c.id}`}>
+                    {typeRefusal[c.id]}
+                  </div>
+                )}
 
                 {c.docs.length > 0 && (
                   <div className="mt-3 border-t border-gray-100 pt-2">

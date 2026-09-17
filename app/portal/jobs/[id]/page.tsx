@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { reportError } from "@/lib/monitoring/report";
 import { createClient } from "@/lib/supabase/server";
 import { requireContractor } from "@/lib/contractor/session";
 import { getContractorJob } from "@/lib/contractor/jobs";
+import { getEmployeeJob } from "@/lib/contractor/employeeJobs";
+import AssignmentCard from "./AssignmentCard";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
 import RescheduleRequest from "./RescheduleRequest";
 import OfferBar from "./OfferBar";
 import StartJob from "./StartJob";
 import TickList from "@/app/components/wo/TickList";
-import Variations, { type VariationView } from "./Variations";
+import Variations, { type EmployeeVariationView, type VariationView } from "./Variations";
 import RequestClaim, { type ClaimableJob } from "@/app/portal/money/RequestClaim";
 import { contractorVariationsCents, type PayVariation } from "@/lib/workorder/contractorPay";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
@@ -28,6 +31,8 @@ import type { PortalBlock, PortalJobDay } from "@/app/portal/calendar/CalendarGr
 import { jobDaysFor } from "@/lib/contractor/jobDays";
 import { suburbOnly } from "@/lib/scheduling/offers";
 import { requestNowMs } from "@/lib/time/requestClock";
+import { loadMyTimesheet } from "@/lib/contractor/timesheets";
+import TimesheetCard from "@/app/portal/TimesheetCard";
 
 export const dynamic = "force-dynamic";
 
@@ -44,11 +49,17 @@ export default async function PortalJobPage({
   // Where they came from, so "back" goes back rather than to a default the
   // painter has to re-navigate out of.
   const { from } = await searchParams;
-  const { contractor } = await requireContractor();
+  const { contractor, capabilities } = await requireContractor();
   if (!contractor) notFound();
 
-  const job = await getContractorJob(contractor.id, id);
+  // Employed painters (S3): the same page, the other loader. An assigned job
+  // arrives through the money-free RPC with `assignment` set; the document is
+  // stripped in SQL and the sections below that are about offers, invoices
+  // and the contractor's price branch on `capabilities`, never on the shape.
+  const employee = !capabilities.seesMoney;
+  const job = employee ? await getEmployeeJob(id) : await getContractorJob(contractor.id, id);
   if (!job || !job.doc) notFound();
+  const assignment = job.assignment ?? null;
 
   // Best-effort "seen it" stamp so staff know the job landed.
   const supabase = await createClient();
@@ -59,7 +70,8 @@ export default async function PortalJobPage({
 
   // The booking behind this job: an accepted one can be asked to move, and a
   // still-OFFERED one pins its clock + accept/decline to the top (Tom, 25 Aug).
-  const { data: offerRows } = await supabase
+  // An employee has no offers (and no read on the table).
+  const { data: offerRows } = employee ? { data: null } : await supabase
     .from("booking_offers")
     .select(OFFER_COLUMNS)
     .eq("work_order_id", id)
@@ -92,7 +104,11 @@ export default async function PortalJobPage({
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos")
       .select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
-    supabase.from("work_orders").select("stage, walkthrough_required, colours, wo_ref, contractor_payment_cents").eq("id", id).maybeSingle(),
+    // The employee's stage/flags came with the RPC — the direct read is
+    // refused for them (20270153), and would carry the price anyway.
+    assignment
+      ? Promise.resolve({ data: { stage: assignment.stage, walkthrough_required: assignment.walkthroughRequired, colours: assignment.colours, wo_ref: job.woRef, contractor_payment_cents: null } })
+      : supabase.from("work_orders").select("stage, walkthrough_required, colours, wo_ref, contractor_payment_cents").eq("id", id).maybeSingle(),
     supabase.from("wo_walkthroughs")
       .select("kind, scheduled_date, status").eq("work_order_id", id)
       .eq("status", "booked"),
@@ -144,15 +160,45 @@ export default async function PortalJobPage({
   });
   const prepItems: PrepItem[] = ((prepRows as PrepRow[] | null) ?? []).map(toPrepItem);
 
-  const { data: ciTotals } = await supabase
+  // Money reads: a contractor's invoices and priced variations. An employee
+  // has neither (rulings 3, 4, 8) — Session 4 gives them the "Variation
+  // approved" card with scope and hours; until then nothing is read.
+  const { data: ciTotals } = employee ? { data: null } : await supabase
     .from("contractor_invoices")
     .select("total_inc_cents").eq("work_order_id", id).neq("status", "draft");
 
-  const { data: variationRows } = await supabase
+  const { data: variationRows } = employee ? { data: null } : await supabase
     .from("wo_variations")
     .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, needs_manual_deduction, deduction_cents, deduction_note, contractor_acknowledged_at")
     .eq("work_order_id", id)
     .order("created_at", { ascending: false });
+
+  // Employed painters (S4, ruling 8): the money-free read of the same rows.
+  let employeeVariations: EmployeeVariationView[] = [];
+  if (employee) {
+    const { data: evRows, error: evError } = await supabase.rpc("employee_variations", { p_work_order_id: id });
+    if (evError) reportError(evError, { where: "portal.job.employeeVariations", extra: { workOrderId: id } });
+    employeeVariations = ((evError ? [] : evRows) ?? [] as unknown[]).map((r: unknown) => {
+      const v = r as {
+        id: string; category: string; comment: string; est_hours: number | string | null;
+        outcome: EmployeeVariationView["outcome"]; scope_lines: unknown; office_note: string; credit: boolean;
+      };
+      const lines = Array.isArray(v.scope_lines) ? (v.scope_lines as Array<{ label?: unknown }>) : [];
+      return {
+        id: v.id, category: v.category, comment: v.comment,
+        estHours: v.est_hours == null ? null : Number(v.est_hours),
+        outcome: v.outcome, officeNote: v.office_note ?? "", credit: Boolean(v.credit),
+        scopeLines: lines.map((l) => ({ label: typeof l.label === "string" ? l.label : "" })).filter((l) => l.label),
+      };
+    });
+  }
+
+  // "Can't make it" already on the record for these dates? (ruling 11)
+  let cantMakeItFlagged = false;
+  if (assignment) {
+    const { data: flags, error: flagsError } = await supabase.rpc("employee_flag_state", { p_assignment_id: assignment.assignmentId });
+    if (!flagsError) cantMakeItFlagged = String(flags ?? "") === "flagged";
+  }
 
   const variations: VariationView[] = ((variationRows as {
     id: string; category: string; comment: string; status: VariationView["status"];
@@ -253,6 +299,8 @@ export default async function PortalJobPage({
     }
   }
   const atWalkthrough = stage === "walkthrough";
+  // Session 6: Start / Finish day on THIS job, hours only (clocksOn painters).
+  const timesheet = capabilities.clocksOn && stage !== "closed" ? await loadMyTimesheet(id) : null;
   const bookedFinal = ((walkthroughRows ?? []) as { kind: string; scheduled_date: string }[])
     .find((w) => w.kind === "final")?.scheduled_date ?? null;
   const canPrep = stage === "completion_prep";
@@ -306,6 +354,13 @@ export default async function PortalJobPage({
         {liveOffer && (
           <OfferBar offerId={liveOffer.id} workOrderId={id} expiresAt={liveOffer.expires_at}
             priceCents={liveOffer.payment_cents ?? null} />
+        )}
+        {assignment && stage !== "closed" && (
+          <AssignmentCard assignment={assignment} flagged={cantMakeItFlagged} />
+        )}
+        {timesheet && (
+          <TimesheetCard open={timesheet.open} recent={timesheet.recent} error={timesheet.error}
+            workOrderId={id} jobTitle={claimJob.title} />
         )}
         {!job.committed && (
           <div className="card amberish" style={{ marginTop: 4 }}>
@@ -479,23 +534,33 @@ export default async function PortalJobPage({
       )}
 
       {/* Committed jobs only: an open offer's suburb-only view has nothing a
-          crew needs, and the link would outlive a declined offer. */}
-      {job.committed && (
+          crew needs, and the link would outlive a declined offer. A crew link
+          is a contractor's thing (their own painters); an employee's
+          colleagues are on the job by assignment already. */}
+      {job.committed && capabilities.hasCrewCount && (
         <div style={{ padding: "0 16px" }}>
           <CrewShare workOrderId={id} />
         </div>
       )}
 
+      {/* One variation card, two modes (ruling 8): a contractor accepts an
+          adjusted offer; an employee is told the outcome — scope and hours,
+          never a figure. The claim composer is contractor money (ruling 4). */}
       {job.committed && (
         <div style={{ padding: "0 16px" }}>
-          <Variations workOrderId={id} variations={variations} />
-          <div style={{ marginTop: 12 }}>
-            <RequestClaim jobs={[claimJob]} heading="Invoice this job" />
-          </div>
+          <Variations workOrderId={id} variations={variations}
+            mode={employee ? "employee" : "contractor"} employeeVariations={employeeVariations} />
+          {capabilities.canSelfInvoice && (
+            <div style={{ marginTop: 12 }}>
+              <RequestClaim jobs={[claimJob]} heading="Invoice this job" />
+            </div>
+          )}
         </div>
       )}
 
-      <WorkOrderDoc doc={job.doc} booking={woBooking} />
+      <WorkOrderDoc doc={job.doc} booking={woBooking}
+        variant={assignment ? "employee" : "contractor"}
+        acceptanceMode={assignment ? "assigned" : "offered"} />
     </div>
   );
 }

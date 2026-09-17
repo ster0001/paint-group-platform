@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { CONTRACTOR_COLUMNS, type ContractorRow, type ContractorDoc, DOC_COLUMNS } from "@/lib/contractor/model";
 import { weekendAvailability } from "@/lib/contractor/weekend";
+import { EMPLOYEES_ENABLED_KEY, employeesSwitchFrom } from "@/lib/painters/employeesFlag";
+import { reportError } from "@/lib/monitoring/report";
+import { isEmploymentType } from "@/lib/painters/capabilities";
 import ContractorsManager, { type BankAlert, type ContractorSummary, type InviteRow } from "./ContractorsManager";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +62,29 @@ export default async function ContractorsPage() {
     supabase,
     ((rows as Row[] | null) ?? []).map((c) => c.id),
   );
+  // Employed painters (S5): the type per row (best-effort, the works_saturday
+  // rule — a missing column reads as contractor) and the office's switch.
+  const [{ data: typeRows, error: typeErr }, { data: flagRow, error: flagErr }, { data: rateRows, error: rateErr }] = await Promise.all([
+    supabase.from("contractors").select("id, employment_type"),
+    supabase.from("settings").select("value").eq("key", EMPLOYEES_ENABLED_KEY).maybeSingle(),
+    // Session 6: the cost rate in force per employee — newest effective_from
+    // on or before today wins. Staff-only table; a refused read is reported.
+    supabase.from("employee_cost_rates").select("contractor_id, cents_per_hour, effective_from")
+      .lte("effective_from", new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date()))
+      .order("effective_from", { ascending: false }),
+  ]);
+  if (rateErr) reportError(rateErr, { where: "contractors.costRates" });
+  const rateOf = new Map<string, number>();
+  for (const r of (rateErr ? [] : rateRows ?? []) as { contractor_id: string; cents_per_hour: number }[]) {
+    if (!rateOf.has(r.contractor_id)) rateOf.set(r.contractor_id, r.cents_per_hour);
+  }
+  // Both degrade to the proven type (contractor) and the safe switch (off);
+  // a refused read is reported, never silently absorbed.
+  if (typeErr) reportError(typeErr, { where: "contractors.employmentType" });
+  if (flagErr) reportError(flagErr, { where: "contractors.employeesFlag" });
+  const typeOf = new Map(((typeErr ? [] : typeRows ?? []) as { id: string; employment_type?: unknown }[])
+    .map((r) => [r.id, isEmploymentType(r.employment_type) ? r.employment_type : "contractor" as const]));
+  const employeesEnabled = !flagErr && employeesSwitchFrom((flagRow as { value?: unknown } | null)?.value).enabled;
 
   const contractors: ContractorSummary[] = ((rows as Row[] | null) ?? []).map((c) => ({
     id: c.id,
@@ -77,6 +103,8 @@ export default async function ContractorsPage() {
     liveOffers: allOffers.filter((o) => o.contractor_id === c.id && ["offered", "proposed"].includes(o.state)).length,
     bookedJobs: allOffers.filter((o) => o.contractor_id === c.id && o.state === "accepted").length,
     weekend: weekendMap.get(c.id) ?? null,
+    employmentType: typeOf.get(c.id) ?? "contractor",
+    costRateCents: rateOf.get(c.id) ?? null,
   }));
 
   type EventRow = { id: string; contractor_id: string; detail: unknown; created_at: string };
@@ -99,6 +127,7 @@ export default async function ContractorsPage() {
       contractors={contractors}
       invites={(invites as InviteRow[] | null) ?? []}
       bankAlerts={bankAlerts}
+      employeesEnabled={employeesEnabled}
     />
   );
 }

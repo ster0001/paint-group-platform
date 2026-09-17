@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { STAGE_LANES, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
+import { reportError } from "@/lib/monitoring/report";
+import { STAGE_LANES, stageTitle, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
 import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
@@ -147,6 +148,25 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   const coloursConfirmed = Boolean(
     (await supabase.rpc("wo_colours_confirmed", { p_work_order_id: id })).data,
   );
+
+  // Employed painters (brief §3.4): a job with a crew of employees left, or
+  // will leave, stage 1 by ASSIGNMENT — the rail reads "Assigned" and the
+  // stage-1 checklist "Ready to assign". A label derived from the rows; the
+  // enum never changes. A refused read reads as a contractor job.
+  const { data: assignmentRows, error: assignmentErr } = await supabase
+    .from("wo_assignments")
+    .select("id, start_date, end_date, is_lead, accepted_at, contractors(company_name, profiles(name))")
+    .eq("work_order_id", id).neq("status", "released").order("is_lead", { ascending: false }).order("start_date");
+  const acceptanceMode: "offered" | "assigned" = !assignmentErr && (assignmentRows ?? []).length > 0 ? "assigned" : "offered";
+  // The internal crew list (S5): every painter and their days. The customer's
+  // report names the lead only; this page is ours.
+  const crew = ((assignmentErr ? [] : assignmentRows ?? []) as unknown as {
+    id: string; start_date: string; end_date: string; is_lead: boolean; accepted_at: string | null;
+    contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
+  }[]).map((a) => ({
+    id: a.id, isLead: a.is_lead, accepted: a.accepted_at !== null, start: a.start_date, end: a.end_date,
+    name: a.contractors?.profiles?.name || a.contractors?.company_name || "Painter",
+  }));
   const qaScheduled = ((qaRows ?? []) as unknown[]).length > 0;
 
   // The job sheet, opened on the work-order view where the colours live, and
@@ -276,7 +296,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     .reduce((sum, v) => sum + (v.credit ? -(v.price_cents ?? 0) : (v.price_cents ?? 0)), 0);
   const pendingVariations = variations.some((v) =>
     v.status === "raised" || v.status === "priced" || v.status === "customer_approved");
-  const gp = contract > 0 ? Math.round(((contract - contractorPay) / contract) * 1000) / 10 : 0;
+  // Employed painters (S6): approved labour lines are this job's labour cost —
+  // the offer is nil on an employee job, so without them GP reads 100%.
+  const { data: labourRows, error: labourError } = await supabase
+    .from("job_costs").select("amount_ex_cents, gst_cents")
+    .eq("work_order_id", id).eq("category", "labour").in("status", ["approved", "paid"]);
+  if (labourError) reportError(labourError, { where: "pc.wo.labourCost", bestEffort: true });
+  const labourCents = ((labourRows ?? []) as { amount_ex_cents: number; gst_cents: number }[])
+    .reduce((sum, c) => sum + c.amount_ex_cents + c.gst_cents, 0);
+  const gp = contract > 0 ? Math.round(((contract - contractorPay - labourCents) / contract) * 1000) / 10 : 0;
 
   const stageIndex = VISIBLE_STAGES.indexOf(visibleStage(row.stage));
   const update = ((updateRows ?? []) as { id: string; draft_text: string; final_text: string | null; status: string; for_date: string }[])[0];
@@ -310,7 +338,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
           {VISIBLE_STAGES.map((stage, i) => (
             <span className={`st ${i < stageIndex ? "p" : i === stageIndex ? "c" : ""}`} key={stage}
               data-testid={`rail-${stage}`}>
-              <i /><span>{STAGE_LANES[stage].n} {STAGE_LANES[stage].title}</span>
+              <i /><span>{STAGE_LANES[stage].n} {stageTitle(stage, acceptanceMode)}</span>
             </span>
           ))}
         </div>
@@ -329,6 +357,9 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             </b>
           </span>
           <span className="mi"><span>Contractor</span><b>{money(contractorPay)}</b></span>
+          {labourCents > 0 && (
+            <span className="mi"><span>Labour (employees)</span><b data-testid="money-labour">{money(labourCents)}</b></span>
+          )}
           <span className="mi"><span>Est. GP</span>
             <b style={{ color: "var(--emerald)" }} data-testid="money-gp">{gp}%</b></span>
           <span className="mi"><span>Deposit</span>
@@ -467,9 +498,25 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             moneyHref={`/invoicing/job/${estimateId}?tab=costs`}
           />
 
+          {crew.length > 0 && (
+            <div className="card" data-testid="crew-card">
+              <div className="tick-head"><b>Crew</b><span className="tick-count">{crew.length} painter{crew.length === 1 ? "" : "s"}</span></div>
+              {crew.map((c) => (
+                <div key={c.id} className="frow" data-testid={`crew-${c.id}`}>
+                  <span className="l">{c.isLead ? "★ Lead" : "Painter"}</span>
+                  <span className="v">
+                    {c.name.toUpperCase()} · {c.start === c.end ? c.start : `${c.start} → ${c.end}`}
+                    {c.accepted ? "" : " · NOT YET SEEN"}
+                  </span>
+                </div>
+              ))}
+              <p className="hint" style={{ padding: 0, marginTop: 6 }}>The customer hears about the lead painter only. Change the lead from the schedule board.</p>
+            </div>
+          )}
+
           {row.stage === "offered" && forPhase("pre_offer").length > 0 && (
             <Checklist
-              title="Ready to offer"
+              title={acceptanceMode === "assigned" ? "Ready to assign" : "Ready to offer"}
               caption="Not ready to start — colours can still be TBC when the contractor accepts."
               items={forPhase("pre_offer")}
               outstanding={outstanding("pre_offer")}

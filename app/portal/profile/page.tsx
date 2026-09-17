@@ -7,7 +7,7 @@ import ProfileForm from "./ProfileForm";
 export const dynamic = "force-dynamic";
 
 export default async function ProfilePage() {
-  const { email, name, contractor } = await requireContractor();
+  const { email, name, contractor, capabilities } = await requireContractor();
 
   if (!contractor) {
     return (
@@ -39,6 +39,7 @@ export default async function ProfilePage() {
       email={email}
       weekend={weekend}
       phone={phone.available ? { value: phone.phone ?? "" } : null}
+      capabilities={capabilities}
     />
   );
 }

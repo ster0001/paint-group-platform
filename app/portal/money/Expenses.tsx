@@ -26,6 +26,8 @@ export type ExpenseRow = {
   overThreshold: boolean;
   note: string;
   createdAt: string;
+  /** Employed painters (ruling 13): who paid. Absent on a contractor's claim. */
+  paidWith?: "personal" | "company_card";
 };
 
 export type ExpenseJob = { workOrderId: string; title: string };
@@ -46,17 +48,24 @@ const STATUS_CHIP: Record<string, string> = {
   submitted: "amber", approved: "cy", rejected: "clay", paid: "ok",
 };
 
-export default function Expenses({ jobs, expenses, preapprovals, categories, thresholdCents }: {
+export default function Expenses({ jobs, expenses, preapprovals, categories, thresholdCents, mode = "contractor" }: {
   jobs: ExpenseJob[];
   expenses: ExpenseRow[];
   preapprovals: Preapproval[];
   categories: string[];
   thresholdCents: number;
+  /**
+   * The one component, two modes (CLAUDE.md). A contractor's approved claim
+   * rides their invoice; an employee's is either a job cost (company card,
+   * the default — ruling 13) or paid back by the office (personal).
+   */
+  mode?: "contractor" | "employee";
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [open, setOpen] = useState<null | "claim" | "ask">(null);
+  const [paidWith, setPaidWith] = useState<"company_card" | "personal">("company_card");
 
   // Claim form
   const fileRef = useRef<HTMLInputElement>(null);
@@ -116,6 +125,7 @@ export default function Expenses({ jobs, expenses, preapprovals, categories, thr
         receiptPath: signed.path,
         note: note.trim(),
         preapprovalId: approvedPre?.id,
+        paidWith: mode === "employee" ? paidWith : undefined,
       });
       setMessage(r.message ?? null);
       if (r.ok) {
@@ -150,8 +160,9 @@ export default function Expenses({ jobs, expenses, preapprovals, categories, thr
     <div className="card" data-testid="expenses">
       <div className="tick-head"><b>Expenses</b></div>
       <p className="hint" style={{ padding: 0 }}>
-        Receipt photo required — no photo, no claim. Approved expenses are
-        repaid on your next invoice, listed separately at cost.
+        {mode === "employee"
+          ? "Receipt photo required — no photo, no claim. A company-card purchase is recorded against the job; anything you paid yourself is paid back once approved."
+          : "Receipt photo required — no photo, no claim. Approved expenses are repaid on your next invoice, listed separately at cost."}
       </p>
 
       {/* Ask-first (⚑A5 threshold from Settings) */}
@@ -209,6 +220,7 @@ export default function Expenses({ jobs, expenses, preapprovals, categories, thr
                 </div>
                 <div className="hint" style={{ padding: 0, fontSize: 11 }}>
                   {e.jobTitle} · receipt ✓{e.overThreshold ? " · over the threshold without pre-approval" : ""}
+                  {e.paidWith === "company_card" ? " · company card" : e.paidWith === "personal" ? " · paid back to you" : ""}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
@@ -254,6 +266,21 @@ export default function Expenses({ jobs, expenses, preapprovals, categories, thr
           </div>
           <input type="text" placeholder="Note (optional)" value={note} maxLength={300}
             onChange={(e) => setNote(e.target.value)} {...input()} />
+          {mode === "employee" && (
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }} data-testid="expense-paid-with">
+              {([["company_card", "Company card"], ["personal", "My own money"]] as const).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setPaidWith(v)}
+                  className={`btn ${paidWith === v ? "cy" : "gh"}`} data-testid={`paid-with-${v}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {mode === "employee" && (
+            <p className="hint" style={{ padding: 0, marginTop: 4 }}>
+              {paidWith === "personal" ? "The office pays you back once it's approved." : "A job cost — nothing to pay back to you."}
+            </p>
+          )}
           {overThreshold && !approvedPre && (
             <p className="hint" style={{ padding: 0, marginTop: 6, color: "var(--amber, #E0A83C)" }}>
               Over {money(thresholdCents)} without a pre-approval — you can still

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { reportError } from "@/lib/monitoring/report";
 import { signPhotos, type WOPhotoRow, type WOPhoto } from "@/lib/workorder/photos";
 import Walkthrough from "./Walkthrough";
 import CompletionReport, { type Report } from "./CompletionReport";
@@ -46,7 +47,21 @@ export default async function WalkthroughPage({
   let warrantyEnds: string | null = null;
   let warrantyYears: number | null = null;
   let reportPhotos: WOPhoto[] = [];
+  // Employed painters (S5, ruling 6): the customer's report names the LEAD
+  // painter only — first name, never the crew. The lead is the work order's
+  // contractor_id; read on the server, by the token the page already holds.
+  let leadPainter: string | null = null;
   if (row.signed_at) {
+    const service = createServiceClient();
+    if (service) {
+      const { data: lead, error: leadError } = await service
+        .from("wo_signoff").select("work_orders(contractor_id, contractors(profiles(name)))")
+        .eq("customer_token", token).maybeSingle();
+      if (leadError) reportError(leadError, { where: "signoff.leadPainter" });
+      const name = (lead as { work_orders?: { contractors?: { profiles?: { name?: string | null } | null } | null } | null } | null)
+        ?.work_orders?.contractors?.profiles?.name;
+      leadPainter = name?.trim().split(/\s+/)[0] || null;
+    }
     const { data: rep } = await supabase.rpc("wo_report_by_token", { p_token: token });
     const r = ((rep as { report: Report; warranty_ends: string | null; warranty_years: number | null }[] | null) ?? [])[0];
     if (r?.report) {
@@ -109,6 +124,7 @@ export default async function WalkthroughPage({
             warrantyEnds={warrantyEnds}
             warrantyYears={warrantyYears}
             photos={reportPhotos}
+            leadPainter={leadPainter}
           />
         )}
       </div>

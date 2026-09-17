@@ -31,9 +31,31 @@ export type VariationView = {
  * the server refuses a variation with no evidence — so the form asks for them
  * up front rather than failing at the end.
  */
+/**
+ * Employed painters (S4, ruling 8): what an employee sees of a variation.
+ * Outcome and scope, never a delta. `scope_lines` arrive stripped in SQL.
+ */
+export type EmployeeVariationView = {
+  id: string;
+  category: string;
+  comment: string;
+  estHours: number | null;
+  outcome: "with_office" | "with_customer" | "approved" | "not_going_ahead";
+  scopeLines: { label: string }[];
+  officeNote: string;
+  credit: boolean;
+};
+
 export default function Variations({
-  workOrderId, variations,
-}: { workOrderId: string; variations: VariationView[] }) {
+  workOrderId, variations, mode = "contractor", employeeVariations = [],
+}: {
+  workOrderId: string;
+  variations: VariationView[];
+  /** The one component, two modes (CLAUDE.md): a contractor accepts an adjusted
+   *  offer; an employee is told the outcome. Never two copies of the card. */
+  mode?: "contractor" | "employee";
+  employeeVariations?: EmployeeVariationView[];
+}) {
   const [list, setList] = useState(variations);
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<string>(VARIATION_CATEGORIES[0].code);
@@ -185,7 +207,43 @@ export default function Variations({
         </div>
       )}
 
-      {list.map((v) => (
+      {/* Employee mode (ruling 8): outcome + scope + hours. No accept, no $. */}
+      {mode === "employee" && employeeVariations.map((v) => (
+        <div className="var-item" key={v.id} data-testid={`variation-${v.id}`} data-outcome={v.outcome}>
+          <div className="var-item-top">
+            <b>
+              {v.category === "scope_removed" ? "Removed from scope"
+                : VARIATION_CATEGORIES.find((c) => c.code === v.category)?.label ?? v.category}
+            </b>
+            <span className={`chip ${v.outcome === "approved" ? "grn" : v.outcome === "not_going_ahead" ? "cly" : "amb"}`}>
+              {v.outcome === "with_office" ? "With the office"
+                : v.outcome === "with_customer" ? "With the customer"
+                : v.outcome === "approved" ? (v.credit ? "Removed from scope" : "Variation approved")
+                : "Not going ahead"}
+            </span>
+          </div>
+          <p className="var-item-comment">{v.comment}</p>
+          {v.outcome === "approved" && (
+            <div className="note" data-testid={`approved-${v.id}`}>
+              {v.credit
+                ? "The customer has taken this out of the scope. The struck surfaces are marked on your tick list."
+                : `Go ahead${v.estHours != null ? ` — ${v.estHours} hr${v.estHours === 1 ? "" : "s"} added to the job` : ""}.`}
+              {v.scopeLines.length > 0 && (
+                <ul className="excl" style={{ marginTop: 6 }} data-testid={`scope-${v.id}`}>
+                  {v.scopeLines.map((l, i) => <li key={i}>{l.label}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
+          {v.outcome === "not_going_ahead" && (
+            <p className="note" data-testid={`declined-${v.id}`}>
+              Leave it as it is.{v.officeNote ? ` The office says: "${v.officeNote}"` : ""}
+            </p>
+          )}
+        </div>
+      ))}
+
+      {mode === "contractor" && list.map((v) => (
         <div className="var-item" key={v.id} data-testid={`variation-${v.id}`}>
           <div className="var-item-top">
             <b>
@@ -245,7 +303,7 @@ export default function Variations({
         </div>
       ))}
 
-      {list.length === 0 && !open && (
+      {(mode === "employee" ? employeeVariations.length === 0 : list.length === 0) && !open && (
         <p className="note">Nothing raised on this job. Found rot or damage? Tell the office before you work on it.</p>
       )}
     </div>
