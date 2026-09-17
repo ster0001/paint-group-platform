@@ -233,8 +233,14 @@
 .acct .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .acct .tab.on { color: var(--cyan); }
 
+/* Tom, 17 Sep: on a phone the fixed tab bar is ~72px tall — the "Chat with us"
+   launcher (AssistantWidget, bottom-right) sat straight on top of the Money /
+   Jobs tabs. Lift it clear of the bar; on a laptop the bar is a side rail. */
+.acct { --chat-lift: 76px; }
+
 /* ===== desktop: same components, sidebar layout ===== */
 @media (min-width: 900px) {
+  .acct { --chat-lift: 0px; }
   .acct .app { display: grid; grid-template-columns: 236px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .acct .hdr { grid-column: 1 / -1; }
   .acct .tabbar {

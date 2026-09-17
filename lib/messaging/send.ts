@@ -101,6 +101,23 @@ export async function sendEmail(opts: {
   return result;
 }
 
+/**
+ * Tom, 17 Sep: "when the customer responds to her email, it responds to our
+ * email but also sends the response to the CRM". With REPLY_DOMAIN set a
+ * reply lands ONLY in the CRM thread, so the inbound route hands a copy to
+ * the office mailbox through this. It is a plain relay: no `messages` row
+ * (the reply itself is the row), no reply token, and the customer's own
+ * address as Reply-To so answering from the mailbox reaches them directly.
+ */
+export async function forwardEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+}): Promise<DeliveryResult> {
+  return sendEmailRaw(opts);
+}
+
 async function sendEmailRaw(opts: {
   to: string;
   subject: string;

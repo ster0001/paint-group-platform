@@ -50,7 +50,8 @@ export type SnapshotPaint = {
 
 /** The Preparation line — customer wording (Tom, 15 Sep 2026). */
 export const PREPARATION_TITLE = "Preparation";
-export const PREPARATION_DESCRIPTION = "Allowance for materials for job site set up, fillers and consumables.";
+// Tom, 17 Sep 2026: "time/ materials" — the line now carries the contractor's set-up hours too.
+export const PREPARATION_DESCRIPTION = "Allowance for time/ materials for job site set up, fillers and consumables.";
 export const PREPARATION_ID = "preparation";
 
 export type CustomerSnapshot = {

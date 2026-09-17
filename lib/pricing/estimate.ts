@@ -140,6 +140,15 @@ export type Adjustments = {
    */
   preparationOverrideCents?: number | null;
   /**
+   * Tom, 17 Sep 2026: contractor TIME on the Preparation line — site set-up
+   * hours the painter is paid for and the customer is charged for, at the
+   * job's charge-out rate (interior when the job has any interior area,
+   * exterior otherwise). It rides the work order as its own "Preparation"
+   * area so the painter's hours, the offer's hours and the pay all carry it.
+   * Absent, null or 0 = no time on the line, priced exactly as before.
+   */
+  preparationHours?: number | null;
+  /**
    * C12 (addendum §4.14): the commercial LOADING — after hours, weekends,
    * staged, occupied — as one multiplier on PRODUCTION hours. Applied after
    * the multiplier chain (job modifier, size, uplift) and before allowances:
@@ -186,6 +195,9 @@ export type EstimateTotals = {
   sundriesCents: number;
   /** What Settings would give for this job's interior/exterior mix. */
   sundriesDefaultCents: number;
+  /** Tom, 17 Sep: contractor time on the Preparation line — hours, and what they add at the charge-out rate. */
+  preparationHours: number;
+  preparationHoursCents: number;
   /** Extra margin on bigger jobs (Settings "Margin uplift — tier …"); 0 until set. */
   sizeUpliftCents: number;
   discountCents: number;
@@ -517,6 +529,16 @@ export function priceEstimateTotals(
       : sundriesDefaultCents;
   subtotal += sundriesCents;
 
+  // The Preparation line's contractor time (Tom, 17 Sep): hours at the
+  // charge-out rate, straight into the subtotal and the contractor's hours.
+  const preparationHours =
+    adj.preparationHours != null && Number.isFinite(adj.preparationHours) ? Math.max(0, adj.preparationHours) : 0;
+  const preparationHoursCents = preparationHours > 0
+    ? Math.round(preparationHours * chargeOutCents(anyInt || !anyExt ? "Interior" : "Exterior", ctx.rateItems, rates.hourlyRateOverride))
+    : 0;
+  subtotal += preparationHoursCents;
+  contractorHours += preparationHours;
+
   // Size uplift — before discount and GST, inside the subtotal, so the
   // wizard range, the builder, the margin report and the work order agree.
   const sizeUplift = adj.sizeUpliftDisabled ? 0 : sizeUpliftCents(subtotal, rates.sizeUplifts);
@@ -543,6 +565,8 @@ export function priceEstimateTotals(
     subtotalCents: subtotal,
     sundriesCents,
     sundriesDefaultCents,
+    preparationHours,
+    preparationHoursCents,
     sizeUpliftCents: sizeUplift,
     discountCents,
     netSubtotalCents,

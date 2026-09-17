@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
-import { buildQueue, headline, pulseTiles, sparkline } from "@/lib/workorder/console";
+import { buildQueue, headline, pulseTiles, sparkline, variationsForApproval } from "@/lib/workorder/console";
 import DismissCard from "./DismissCard";
 import ReofferDialog from "./ReofferDialog";
 import CollectionDone from "./CollectionDone";
@@ -68,6 +68,9 @@ export default async function DashboardPage() {
 
   const tiles = pulseTiles(input, queue, signedOffThisWeek);
   const head = headline(tiles);
+  // Tom, 17 Sep: every open variation, across every job, in one place.
+  const approvals = variationsForApproval(input);
+  const onYou = approvals.filter((v) => v.waitingOn === "office").length;
   const line = sparkline(ticksByDay, input.now);
 
   const max = Math.max(1, ...line);
@@ -121,6 +124,43 @@ export default async function DashboardPage() {
           <span className="k">Signed off this week</span>
           <span className="v" data-testid="tile-signed">{tiles.signedOffThisWeek}</span>
           <span className="s">from the event log</span>
+        </div>
+      </div>
+
+      <div className="sect" data-testid="variations-for-approval">
+        <div className="sect-h">
+          <h2>Variations for approval</h2>
+          <span data-testid="variations-for-approval-count">
+            {approvals.length === 0
+              ? "none open"
+              : `${approvals.length} open · ${onYou} waiting on you`}
+          </span>
+        </div>
+        <div className="stack">
+          {approvals.map((v) => (
+            <div className={`al ${v.waitingOn === "office" ? "al-warn" : "al-info"}`} key={v.id}
+              data-testid={`variation-approval-${v.id}`}>
+              <span className="rail" />
+              <span className="ic">{v.waitingOn === "office" ? "◐" : v.waitingOn === "customer" ? "◑" : "◔"}</span>
+              <div className="bd">
+                <div className="hd">
+                  <strong>{v.category}{v.credit ? " · credit" : ""}{v.priceCents != null ? ` · ${money(v.priceCents)}` : ""}</strong>
+                  <span className="ref">{v.ref}</span>
+                </div>
+                <p>{v.waitingLabel}{v.comment ? ` — ${v.comment}` : ""}</p>
+              </div>
+              <span className="tm">{age(v.ageHours)}</span>
+              <Link className={`btn ${v.waitingOn === "office" ? "primary" : ""}`} href={v.href}
+                data-testid={`variation-approval-open-${v.id}`}>
+                {v.waitingOn === "office" ? "Price it" : "Open"}
+              </Link>
+            </div>
+          ))}
+          {approvals.length === 0 && (
+            <p className="empty" data-testid="variations-for-approval-empty">
+              No variations waiting. A painter&rsquo;s raise, or one you write down, appears here until everyone has said yes.
+            </p>
+          )}
         </div>
       </div>
 

@@ -4,6 +4,8 @@ import { melbourneDate } from "@/lib/workorder/console";
 import { invoiceBalanceCents, invoiceIsOverdue } from "@/lib/invoicing/derive";
 import { kindLabelWithContext } from "@/app/invoicing/format";
 import { loadDashboard, toDerive, toDerivePayments } from "@/app/invoicing/data";
+import ReadFailureNotice from "@/app/invoicing/ReadFailureNotice";
+import SearchBox from "./SearchBox";
 
 export const dynamic = "force-dynamic";
 
@@ -36,20 +38,27 @@ const CHIP: Record<string, string> = {
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ f?: string }>;
+  searchParams: Promise<{ f?: string; q?: string }>;
 }) {
-  const { f } = await searchParams;
+  const { f, q: qRaw } = await searchParams;
+  // Tom, 17 Sep: one search needle (customer name or property address),
+  // kept across the filter tabs.
+  const q = (qRaw ?? "").trim();
+  const needle = q.toLowerCase();
   const filter: Filter = (FILTERS as readonly string[]).includes(f ?? "") ? (f as Filter) : "active";
 
   const supabase = await createClient();
   const today = melbourneDate(new Date());
-  const { invoices, payments } = await loadDashboard(supabase);
+  const { invoices, payments, loadError } = await loadDashboard(supabase);
   const derive = toDerive(invoices);
   const dPays = toDerivePayments(payments);
 
   type JobRow = {
     estimateId: string;
     address: string;
+    /** Everything the search box may match: customer name, address, title. */
+    haystack: string;
+    customer: string;
     invoices: { id: string; label: string; status: string; overdue: boolean; balanceCents: number }[];
     balanceCents: number;
     /** The job's contract figure (Tom, 25 Aug: the TOTAL is always visible). */
@@ -66,6 +75,9 @@ export default async function InvoicesPage({
     const job = byJob.get(r.estimate_id) ?? {
       estimateId: r.estimate_id,
       address: r.estimates?.job_address || r.estimates?.title || "Untitled job",
+      haystack: [r.estimates?.accepted_name, r.estimates?.job_address, r.estimates?.title]
+        .filter(Boolean).join(" ").toLowerCase(),
+      customer: r.estimates?.accepted_name ?? "",
       invoices: [], balanceCents: 0, contractCents, hasActive: false,
     };
     job.invoices.push({
@@ -92,23 +104,37 @@ export default async function InvoicesPage({
       case "paid": return job.invoices.length > 0 && job.invoices.every((i) => ["paid", "void", "written_off"].includes(i.status));
     }
   };
+  // The filter tabs keep the search needle; the default tab keeps a bare URL.
+  const tabHref = (k: Filter) => {
+    const p = new URLSearchParams();
+    if (k !== "active") p.set("f", k);
+    if (q) p.set("q", q);
+    const qs = p.toString();
+    return `/invoices${qs ? `?${qs}` : ""}`;
+  };
   const rows = [...byJob.values()].filter(matches)
+    .filter((job) => !needle || job.haystack.includes(needle))
     .sort((a, b) => b.balanceCents - a.balanceCents);
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Invoicing</h1>
-        <Link href="/invoicing" className="text-sm font-medium text-gray-600 hover:text-gray-900 hover:underline">
-          Payments dashboard →
-        </Link>
+        <div className="flex flex-wrap items-center gap-4">
+          <SearchBox q={q} />
+          <Link href="/invoicing" className="text-sm font-medium text-gray-600 hover:text-gray-900 hover:underline">
+            Payments dashboard →
+          </Link>
+        </div>
       </div>
+
+      {loadError && <div className="mt-4"><ReadFailureNotice failure={loadError} /></div>}
 
       <div className="mt-4 flex flex-wrap gap-1 border-b border-gray-200">
         {FILTERS.map((k) => (
           <Link
             key={k}
-            href={k === "active" ? "/invoices" : `/invoices?f=${k}`}
+            href={tabHref(k)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize ${
               filter === k ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800"
             }`}
@@ -144,6 +170,7 @@ export default async function InvoicesPage({
                     >
                       {job.address}
                     </Link>
+                    {job.customer && <div className="text-xs text-gray-500" data-testid={`customer-${job.estimateId}`}>{job.customer}</div>}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1.5">
@@ -173,7 +200,9 @@ export default async function InvoicesPage({
         </div>
       ) : (
         <div className="mt-4 rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
-          No {filter === "all" ? "" : `${filter} `}invoices — a deposit drafts itself when an estimate is accepted.
+          {q
+            ? <span data-testid="invoices-search-empty">No {filter === "all" ? "" : `${filter} `}invoice matches “{q}”.</span>
+            : <>No {filter === "all" ? "" : `${filter} `}invoices — a deposit drafts itself when an estimate is accepted.</>}
         </div>
       )}
     </div>

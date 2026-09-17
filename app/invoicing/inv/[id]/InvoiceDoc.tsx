@@ -17,6 +17,7 @@ import {
 } from "../../actions";
 import { fmt2, fmtSigned2, kindLabelWithContext, STATUS_LABEL } from "../../format";
 import SendInvoiceSheet from "../../SendInvoiceSheet";
+import { useSaveBeforeLeave } from "@/app/components/useSaveBeforeLeave";
 
 /**
  * §7.3 client — the document editor. Every edit submits INTENT to a server
@@ -80,6 +81,26 @@ export default function InvoiceDoc({
       setFlash(r.ok ? (r.message ?? null) : r.message);
       if (r.ok) { setEditing(null); setPaySheet(false); setSendSheet(null); router.refresh(); }
     });
+
+  // Tom, 17 Sep: a line (or the draft total) left open in its editor is saved
+  // before another page opens, instead of being lost with the click.
+  useSaveBeforeLeave({
+    dirty: () => editing != null && editing !== "new",
+    save: async () => {
+      let r: InvoicingResult | null = null;
+      if (editing === "total") {
+        if (!Number.isFinite(Number(dollars))) return false;
+        r = await setDraftTotalAction({ invoiceId, estimateId, totalIncCents: Math.round(Number(dollars) * 100) });
+      } else if (editing && editing !== "new") {
+        if (!desc.trim() || !Number.isFinite(Number(dollars))) return false;
+        r = await updateLineAction({ invoiceId, estimateId, lineId: editing, description: desc.trim(), amountExCents: Math.round(Number(dollars) * 100) });
+      }
+      if (!r) return true;
+      setFlash(r.ok ? (r.message ?? null) : r.message);
+      if (r.ok) setEditing(null);
+      return r.ok;
+    },
+  });
 
   const contract = lines.filter((l) => l.source === "estimate_snapshot");
   const variations = lines.filter((l) => l.source === "variation");

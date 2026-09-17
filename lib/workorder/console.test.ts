@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  variationsForApproval,
   buildQueue, headline, melbourneDate, melbourneDayStartUtc, pulseTiles, rankQueue, sparkline,
   type ConsoleInput, type QueueCard,
 } from "./console";
@@ -450,5 +451,34 @@ describe("the Melbourne day boundary", () => {
     expect(lateEvening.toISOString().slice(0, 10)).toBe("2026-08-21");
     const start = new Date(melbourneDayStartUtc(lateEvening));
     expect(lateEvening.getTime()).toBeGreaterThan(start.getTime());
+  });
+});
+
+describe("variations for approval (Tom, 17 Sep)", () => {
+  it("lists every open variation, the office's own first, and says who each waits on", () => {
+    const input = base({
+      workOrders: [wo({ id: "w1", woRef: "WO-1", title: "1 Ocean St", contractorName: "Sam" })],
+      variations: [
+        { id: "v-priced", workOrderId: "w1", status: "priced", createdAt: hoursAgo(30), pricedAt: hoursAgo(30), category: "damage", comment: "Cracked render", priceCents: 42_000 },
+        { id: "v-raised", workOrderId: "w1", status: "raised", createdAt: hoursAgo(2), pricedAt: null, category: "rot", comment: "Sill rotten" },
+        { id: "v-approved", workOrderId: "w1", status: "customer_approved", createdAt: hoursAgo(50), pricedAt: null, category: "extra_scope", comment: "" , priceCents: 10_000 },
+        { id: "v-done", workOrderId: "w1", status: "contractor_accepted", createdAt: hoursAgo(80), pricedAt: null },
+        { id: "v-declined", workOrderId: "w1", status: "declined", createdAt: hoursAgo(80), pricedAt: null },
+      ],
+    });
+    const rows = variationsForApproval(input);
+    expect(rows.map((r) => r.id)).toEqual(["v-raised", "v-priced", "v-approved"]);
+    expect(rows[0].waitingOn).toBe("office");
+    expect(rows[0].waitingLabel).toBe("Waiting on you — price it");
+    expect(rows[0].category).toBe("Rot / substrate");
+    expect(rows[0].ref).toBe("WO-1 · 1 Ocean St");
+    expect(rows[0].href).toBe("/pc/wo/w1#variation-v-raised");
+    expect(rows[1].waitingLabel).toBe("Priced — waiting on the customer");
+    expect(rows[1].priceCents).toBe(42_000);
+    expect(rows[2].waitingLabel).toBe("Customer approved — waiting on Sam");
+  });
+
+  it("is empty when nothing is open", () => {
+    expect(variationsForApproval(base())).toEqual([]);
   });
 });

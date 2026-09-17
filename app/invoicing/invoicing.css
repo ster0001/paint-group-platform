@@ -162,6 +162,21 @@
 .invx .spark{position:absolute;right:10px;bottom:10px;display:flex;align-items:flex-end;gap:2px;height:20px;opacity:.85}
 .invx .spark i{width:4px;border-radius:2px;background:var(--emerald);min-height:2px}
 
+/* Tom, 17 Sep: the staff chat dock (bottom-left) sat on the fixed action bar of
+   an invoice on a phone — lift it above the bar's ~76px on narrow screens. */
+.invx { --dock-lift: 76px; }
+@media (min-width: 768px) { .invx { --dock-lift: 0px; } }
+
+/* ---------- search box (Tom, 17 Sep: by customer name or address) ---------- */
+.invx .search{display:flex;gap:8px;align-items:center;padding:8px 0 2px}
+.invx .search input{flex:1;min-width:0;appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--text);
+  font:inherit;font-size:13px;padding:9px 12px;border-radius:10px;outline:none}
+.invx .search input:focus{border-color:var(--cyan)}
+.invx .search input::placeholder{color:var(--muted)}
+.invx .search button{appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--muted);
+  font-family:var(--mono);font-size:10.5px;padding:8px 11px;border-radius:999px;cursor:pointer}
+.invx .r .job .who{font-weight:400;color:var(--muted)}
+
 /* ---------- §7.2 filter chips + rows ---------- */
 .invx .filters{display:flex;gap:6px;overflow-x:auto;padding:6px 0 2px;scrollbar-width:none}
 .invx .filters::-webkit-scrollbar{display:none}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { setTemperature, type CrmResult } from "./actions";
 import { setFollowupOn, snoozeOn } from "./recordActions";
 import { LogSheetBody } from "./LogSheet";
+import DateField from "./DateField";
 
 /**
  * The record's write panel (P2): the log sheet inline, temperature, and a
@@ -18,6 +19,10 @@ const localDay = (offsetDays: number) => {
   d.setDate(d.getDate() + offsetDays);
   return d.toLocaleDateString("en-CA");
 };
+
+/** An instant as its Melbourne calendar day — what the date box should show for a saved follow-up. */
+const melbourneDay = (iso: string | null) =>
+  iso ? new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso)) : null;
 
 const fmt = (iso: string | null) =>
   iso ? new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short" }).format(new Date(iso)) : null;
@@ -33,8 +38,17 @@ export default function CustomerPanel({ accountId, temperature, followupDueAt, f
   const [busy, startTransition] = useTransition();
   const [temp, setTemp] = useState(temperature);
   const [reason, setReason] = useState("");
-  const [pickFollow, setPickFollow] = useState(localDay(1));
-  const [pickSnooze, setPickSnooze] = useState(localDay(7));
+  // Tom, 17 Sep (item 9): the date box shows the SAVED follow-up / snooze when
+  // there is one — it used to reset to "tomorrow" on every visit, which read
+  // as the date not having saved. It follows the record when the page refreshes.
+  const [pickFollow, setPickFollow] = useState(() => melbourneDay(followupDueAt) ?? localDay(1));
+  const [pickSnooze, setPickSnooze] = useState(() => melbourneDay(snoozedUntil) ?? localDay(7));
+  // The record refreshed with a new saved value → the box follows it (state
+  // adjusted during render on a prop change, the React-recommended shape).
+  const [seenFollow, setSeenFollow] = useState(followupDueAt);
+  const [seenSnooze, setSeenSnooze] = useState(snoozedUntil);
+  if (seenFollow !== followupDueAt) { setSeenFollow(followupDueAt); setPickFollow(melbourneDay(followupDueAt) ?? localDay(1)); }
+  if (seenSnooze !== snoozedUntil) { setSeenSnooze(snoozedUntil); setPickSnooze(melbourneDay(snoozedUntil) ?? localDay(7)); }
   const router = useRouter();
 
   const run = (work: () => Promise<CrmResult>) => startTransition(async () => {
@@ -74,7 +88,7 @@ export default function CustomerPanel({ accountId, temperature, followupDueAt, f
         <button className="chip" disabled={busy} onClick={() => run(() => setFollowupOn(accountId, localDay(1), reason))}>Tomorrow</button>
         <button className="chip" disabled={busy} onClick={() => run(() => setFollowupOn(accountId, localDay(3), reason))}>3 days</button>
         <button className="chip" disabled={busy} onClick={() => run(() => setFollowupOn(accountId, localDay(7), reason))}>Next week</button>
-        <input className="field datefield" type="date" value={pickFollow} min={localDay(0)} onChange={(e) => setPickFollow(e.target.value)} aria-label="Follow-up date" />
+        <DateField value={pickFollow} min={localDay(0)} onChange={setPickFollow} ariaLabel="Follow-up date" testId="followup-date" />
         <button className="chip" disabled={busy || !pickFollow} onClick={() => run(() => setFollowupOn(accountId, pickFollow, reason))}>Set date</button>
         {followupDueAt && (
           <button className="chip ghost" disabled={busy} onClick={() => run(() => setFollowupOn(accountId, null, ""))} data-testid="clear-followup">
@@ -88,7 +102,7 @@ export default function CustomerPanel({ accountId, temperature, followupDueAt, f
         <button className="chip" disabled={busy} onClick={() => run(() => snoozeOn(accountId, localDay(1), reason))}>Tomorrow</button>
         <button className="chip" disabled={busy} onClick={() => run(() => snoozeOn(accountId, localDay(7), reason))}>Next week</button>
         <button className="chip" disabled={busy} onClick={() => run(() => snoozeOn(accountId, localDay(30), reason))}>Next month</button>
-        <input className="field datefield" type="date" value={pickSnooze} min={localDay(1)} onChange={(e) => setPickSnooze(e.target.value)} aria-label="Snooze date" />
+        <DateField value={pickSnooze} min={localDay(1)} onChange={setPickSnooze} ariaLabel="Snooze date" testId="snooze-date" />
         <button className="chip" disabled={busy || !pickSnooze} onClick={() => run(() => snoozeOn(accountId, pickSnooze, reason))}>Set date</button>
         {snoozeLive && (
           <button className="chip ghost" disabled={busy} onClick={() => run(() => snoozeOn(accountId, null, ""))} data-testid="clear-snooze">
