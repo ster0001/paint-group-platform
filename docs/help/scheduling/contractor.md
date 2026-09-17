@@ -13,7 +13,7 @@ Paint Group offers you jobs through the contractor portal. Each offer comes with
 
 ## Before you start
 - You need a portal login from Paint Group. Sign in at the address they sent you and you land on **Home**.
-- Your **Home** page must show the green **READY FOR WORK** card. If it says you are not yet offerable, open **Profile** from Home and upload your current public liability insurance. Paint Group can only send you offers while your insurance is valid.
+- Your **Home** page must show the green **READY FOR WORK** card. If it says you are not yet offerable, open **Profile** from Home and upload your current public liability insurance. Paint Group can only send you offers while your public liability is valid. Upload your WorkCover certificate there too — it is required if you have any other workers working with you, though it does not hold up offers.
 - Block out any days you cannot work under **Calendar** before offers arrive. Paint Group sees your blocked days on their scheduling board straight away, so they will not offer you those dates.
 
 ## Steps

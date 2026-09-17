@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { docState, daysUntil, type ContractorDoc } from "@/lib/contractor/model";
+import { docState, daysUntil, DOC_LABEL, type ContractorDoc } from "@/lib/contractor/model";
 import { formatDMY } from "@/lib/scheduling/offers";
 
 export type ContractorSummary = {
@@ -549,7 +549,7 @@ export default function ContractorsManager({
                     <ul className="mt-1 space-y-1">
                       {c.docs.map((d) => (
                         <li key={d.id} className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="font-medium capitalize">{d.kind}</span>
+                          <span className="font-medium">{DOC_LABEL[d.kind] ?? d.kind}</span>
                           <span className="min-w-0 flex-1 truncate text-gray-500">
                             {d.name}
                             {d.expires_on ? ` · expires ${formatDMY(d.expires_on)}` : " · no expiry"}

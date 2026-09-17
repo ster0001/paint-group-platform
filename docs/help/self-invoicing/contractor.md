@@ -21,7 +21,7 @@ You invoice Paint Group from the **Invoicing** tab of the portal, not from your 
 ### Finish your profile first
 1. Open **Invoicing**. If you see **NOT READY TO INVOICE**, it names what is missing (for example "Still missing ABN"). Tap **Finish my company profile**.
    ![](media/contractor-01.png)
-2. Under **Company details** fill in your trading name, ABN, business address, the number of painters on your crew and, if you like, an invoice prefix. Further down, enter your mobile, your bank BSB and account number under **Where you get paid**, and keep your insurance current under **Insurance & licences**.
+2. Under **Company details** fill in your trading name, ABN, business address, the number of painters on your crew and, if you like, an invoice prefix. Further down, enter your mobile, your bank BSB and account number under **Where you get paid**, and keep your public liability and WorkCover certificates current under **Insurance & licences** (WorkCover is required if anyone works with you; public liability is what unlocks offers).
    ![](media/contractor-02.png)
 
 ### Send a progress claim while the job is running

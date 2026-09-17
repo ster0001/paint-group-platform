@@ -31,7 +31,7 @@ export type WeekendAvailability = { worksSaturday: boolean; worksSunday: boolean
 export type ContractorDoc = {
   id: string;
   contractor_id: string;
-  kind: "insurance" | "licence" | "other";
+  kind: "insurance" | "workcover" | "licence" | "other";
   name: string;
   file_url: string;
   expires_on: string | null;
@@ -92,6 +92,19 @@ export function docState(d: ContractorDoc): ContractorDoc["status"] {
 
 export const DOC_LABEL: Record<ContractorDoc["kind"], string> = {
   insurance: "Public liability insurance",
+  workcover: "WorkCover insurance",
   licence: "Painting licence",
   other: "Other document",
 };
+
+/**
+ * WorkCover (Tom, 17 Sep 2026): asked for beside the public liability policy,
+ * REQUIRED in the portal's words when anyone works with the contractor, but
+ * never a gate — `contractor_recompute_offerable` reads public liability alone.
+ * "Needed" here means the crew is bigger than one and no WorkCover certificate
+ * is on file at all (uploaded-and-being-checked already counts as on file).
+ */
+export function workcoverNeeded(crewSize: number | null | undefined, docs: readonly ContractorDoc[]): boolean {
+  if ((crewSize ?? 1) <= 1) return false;
+  return !docs.some((d) => d.kind === "workcover" && d.file_url && docState(d) !== "expired");
+}
