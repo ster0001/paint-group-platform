@@ -92,6 +92,11 @@ export async function signAction(raw: unknown): Promise<SignResult> {
     };
   }
   if (s === "error:no_name") return { ok: false, message: "Please type your full name to sign." };
+  // The job is not at walkthrough — something is still with the painter
+  // (17 Sep: a signature must never half-land on a job that cannot close).
+  if (s.startsWith("error:not_at_walkthrough:")) {
+    return { ok: false, message: "Your painter still has something to put right on this job — sign-off opens again once it's done." };
+  }
   return { ok: false, message: "We couldn't record your sign-off — please try again." };
 }
 

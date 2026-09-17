@@ -126,7 +126,11 @@ export default async function PortalHome() {
   // WorkCover (Tom, 17 Sep): asked for, never a gate — the offerable card
   // above stays green on public liability alone. A contractor's paperwork:
   // an employee is covered by Paint Group's own policy (ruling 5).
-  if (!docsError && capabilities.requiresInsurance && workcoverNeeded(contractor.crew_size, docs)) {
+  // Tom (17 Sep): a crew above one with no WorkCover on file is REMINDED on
+  // the Ready-for-work card itself, not only in the action list. Never a
+  // gate — the card stays green on public liability.
+  const workcoverReminder = !docsError && capabilities.requiresInsurance && workcoverNeeded(contractor.crew_size, docs);
+  if (workcoverReminder) {
     actions.push({
       icon: "🛡",
       text: "Upload your WorkCover certificate — required while anyone works with you",
@@ -162,6 +166,13 @@ export default async function PortalHome() {
               ? "Waiting on Paint Group"
               : "Compliance incomplete"}
         </div>
+        {contractor.offerable && workcoverReminder && (
+          <div style={{ fontSize: "12.5px", color: "var(--amber, #E0A83C)", fontWeight: 600, marginTop: 6 }}
+            data-testid="ready-workcover-reminder">
+            REQUIRED: Please upload your WorkCover certificate —{" "}
+            <Link href="/portal/profile" style={{ color: "inherit" }}>Insurance &amp; licences</Link>
+          </div>
+        )}
         <div style={{ fontSize: "12.5px", color: "var(--muted)", marginTop: 4 }}>
           {contractor.offerable
             ? "Offers will land in Requests with a 24-hour clock to respond."

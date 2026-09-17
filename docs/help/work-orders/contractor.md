@@ -91,6 +91,7 @@ The second walkthrough film covers this part of the job, from the completion lis
 - **The photo did not upload.** "That photo didn't upload — check your signal and try again." Move to better signal and tap the button again; nothing is lost.
 - **Start the job is greyed out.** The office has pre-start items still to tick. Ring them if the start date is close.
 - **All done — next step does nothing.** A surface is not done, a completion item is unanswered, or a variation you raised is still waiting on a decision. Look for a row that is not green, a question without an answer, or a variation still marked **WITH THE OFFICE** or **YOUR APPROVAL**.
+- **The customer flagged an area, then tapped Happy with this straight after.** That withdraws the flag: the rectify row disappears from your list, the job returns to the walkthrough, and they can sign as normal. If they had flagged something you had already put right, that row stays on the record.
 - **The customer is not there for the walkthrough.** Do not sign for them. Tell the office; they can open a remote sign-off for the customer.
 - **The job came back as In progress after the walkthrough.** The customer flagged an area. It is on your tick list with what they said; fix it, tick it, and tap **Fixed — send the report** on the bar at the top. The job completes and the customer gets the report — no second walkthrough.
 
