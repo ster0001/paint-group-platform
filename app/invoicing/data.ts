@@ -53,6 +53,8 @@ export type LineRow = {
   source_ref: string | null;
   description: string;
   amount_ex_cents: number;
+  /** Scope shown for information on a deposit (20270156) — never part of its total, never editable. */
+  informational: boolean;
 };
 
 export type EventRow = {
@@ -414,8 +416,12 @@ export async function loadInvoiceDoc(supabase: SupabaseClient, invoiceId: string
   };
 
   const [{ data: lines }, jobRes, driftRes, { data: settings }] = await Promise.all([
+    // "*" on purpose: naming `informational` (20270156) here would make this
+    // read FAIL — and the document unreadable — on a database where the paste
+    // hasn't landed yet, which is exactly how 20270151 blanked Invoicing on
+    // 16 Sep. The column defaults to false where it is missing (below).
     supabase.from("invoice_lines")
-      .select("id, invoice_id, sort, source, source_ref, description, amount_ex_cents")
+      .select("*")
       .eq("invoice_id", invoiceId).order("sort", { ascending: true }),
     loadJobMoney(supabase, inv.estimate_id),
     inv.kind === "final" && inv.status === "draft"
@@ -429,7 +435,8 @@ export async function loadInvoiceDoc(supabase: SupabaseClient, invoiceId: string
    failure: null,
    doc: {
     invoice: inv,
-    lines: (lines ?? []) as LineRow[],
+    lines: ((lines ?? []) as Array<Omit<LineRow, "informational"> & { informational?: boolean | null }>)
+      .map((l) => ({ ...l, informational: Boolean(l.informational) })),
     job: jobRes,
     driftCents: Number(driftRes.data ?? 0),
     entity: settingRows.find((s) => s.key === "invoicing_entity")?.value ?? {},

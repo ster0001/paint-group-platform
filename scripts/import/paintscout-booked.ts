@@ -70,6 +70,7 @@ async function main() {
     // and finally the accounts and properties this import created.
     for (const id of estimates) {
       await db.from("invoices").delete().eq("estimate_id", id);
+      await db.from("crm_events").delete().eq("estimate_id", id);
       const { error: e1 } = await db.from("estimates").delete().eq("id", id);
       if (e1) throw new Error(`estimate ${id}: ${e1.message}`);
     }

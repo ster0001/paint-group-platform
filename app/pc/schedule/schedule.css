@@ -61,7 +61,24 @@
 @media (max-width: 900px) { .sb .layout { grid-template-columns: 1fr; } }
 
 /* ---- tray ---------------------------------------------------------------- */
-.sb .tray { border-right: 1px solid var(--line); padding: 16px; }
+/* The tray is its OWN scroller (Tom, 17 Sep): a long list of unscheduled jobs
+   used to push the timeline off the bottom of the page, so the card you had
+   finally scrolled to had nowhere to be dropped. It now pins under the sticky
+   header at the viewport's height and scrolls inside itself, so the lanes stay
+   beside every card. --sb-stick is the header it sits under. */
+.sb { --sb-stick: 56px; }
+.sb .tray {
+  border-right: 1px solid var(--line); padding: 16px;
+  position: sticky; top: var(--sb-stick);
+  max-height: calc(100vh - var(--sb-stick)); overflow-y: auto;
+  align-self: stretch; /* the divider runs the full height of the lanes when the tray is short */
+}
+@media (max-width: 900px) {
+  /* One column: the tray sits above the lanes. Bounded so the timeline is
+     never more than a short scroll away, but not pinned — a pinned tray would
+     cover the lanes it is meant to be dropped onto. */
+  .sb .tray { position: static; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--line); }
+}
 .sb .tray h2 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
 .sb .tray .sub { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 14px; text-transform: uppercase; }
 .sb .jcard {
@@ -251,6 +268,10 @@
 /* The console's own tab rail is the sticky furniture on this page. */
 .pc .sb .top { position: static; }
 .pc .sb .layout { min-height: calc(100vh - 260px); }
+/* The console's tab rail sits at top:10px and is ~44px tall; the tray pins just
+   under it. `clip` rather than `hidden`: hidden makes .sb a scroll container,
+   which would pin the tray to a box that never scrolls instead of the page. */
+.pc .sb { overflow: clip; --sb-stick: 64px; }
 
 /* An offer that ran out its 24 hours and came back on its own. Amber, not red:
    nothing is broken — a contractor simply didn't answer, and the job is waiting
