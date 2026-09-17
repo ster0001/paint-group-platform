@@ -62,6 +62,14 @@ test("a freshly invited painter is toured once, can replay it from Help", async 
   const tour = page.getByTestId("tour");
   await expect(tour).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("tour-card-1")).toBeVisible();
+  // Tom (17 Sep): the screen the tour describes must stay visible behind it —
+  // a light tint, not a blackout. Read the overlay's actual paint.
+  const alpha = await tour.evaluate((el) => {
+    const m = getComputedStyle(el).backgroundColor.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*([\d.]+))?\)/);
+    return m ? Number(m[1] ?? 1) : 1;
+  });
+  expect(alpha).toBeLessThanOrEqual(0.3);
+  await expect(page.locator(".pt .hd")).toBeVisible();
   for (let i = 1; i < cards; i++) {
     await page.getByTestId("tour-next").click();
     await expect(page.getByTestId(`tour-card-${i + 1}`)).toBeVisible();
