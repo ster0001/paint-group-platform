@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { STAGE_LANES, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
+import { STAGE_LANES, stageTitle, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
 import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
@@ -147,6 +147,14 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   const coloursConfirmed = Boolean(
     (await supabase.rpc("wo_colours_confirmed", { p_work_order_id: id })).data,
   );
+
+  // Employed painters (brief §3.4): a job with a crew of employees left, or
+  // will leave, stage 1 by ASSIGNMENT — the rail reads "Assigned" and the
+  // stage-1 checklist "Ready to assign". A label derived from the rows; the
+  // enum never changes. A refused read reads as a contractor job.
+  const { data: assignmentRows, error: assignmentErr } = await supabase
+    .from("wo_assignments").select("id").eq("work_order_id", id).neq("status", "released").limit(1);
+  const acceptanceMode: "offered" | "assigned" = !assignmentErr && (assignmentRows ?? []).length > 0 ? "assigned" : "offered";
   const qaScheduled = ((qaRows ?? []) as unknown[]).length > 0;
 
   // The job sheet, opened on the work-order view where the colours live, and
@@ -310,7 +318,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
           {VISIBLE_STAGES.map((stage, i) => (
             <span className={`st ${i < stageIndex ? "p" : i === stageIndex ? "c" : ""}`} key={stage}
               data-testid={`rail-${stage}`}>
-              <i /><span>{STAGE_LANES[stage].n} {STAGE_LANES[stage].title}</span>
+              <i /><span>{STAGE_LANES[stage].n} {stageTitle(stage, acceptanceMode)}</span>
             </span>
           ))}
         </div>
@@ -469,7 +477,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
           {row.stage === "offered" && forPhase("pre_offer").length > 0 && (
             <Checklist
-              title="Ready to offer"
+              title={acceptanceMode === "assigned" ? "Ready to assign" : "Ready to offer"}
               caption="Not ready to start — colours can still be TBC when the contractor accepts."
               items={forPhase("pre_offer")}
               outstanding={outstanding("pre_offer")}

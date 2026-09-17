@@ -83,6 +83,17 @@ export const STAGE_LANES: Record<WoStage, { n: string; title: string }> = {
   closed: { n: "06", title: "Closed — final invoice sent" },
 };
 
+/**
+ * Employed painters (brief §3.4): stage 1 is "Offer" for a contractor's job
+ * and "Assigned" for a crew of employees. A LABEL derived from how the job
+ * left stage 1 (`acceptance_mode: 'assigned'` on the stage_changed event, or
+ * simply the presence of assignments) — the enum value never changes.
+ */
+export function stageTitle(stage: WoStage, mode: "offered" | "assigned" = "offered"): string {
+  if (stage === "offered" && mode === "assigned") return "Assigned";
+  return STAGE_LANES[stage].title;
+}
+
 export function findTransition(from: WoStage, to: WoStage): WoTransition | undefined {
   return TRANSITIONS.find((t) => t.from === from && t.to === to);
 }

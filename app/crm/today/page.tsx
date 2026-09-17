@@ -37,6 +37,7 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   desk_check: "Desk check",
   message_approval: "Approve",
   hours_to_confirm: "Hours to confirm",
+  employee_reassign: "Reassign",
 };
 
 const GROUP_ICON: Record<Exclude<FilterGroup, "all">, string> = {

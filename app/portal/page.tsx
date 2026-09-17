@@ -4,6 +4,7 @@ import { listContractorOffers } from "@/lib/contractor/offers";
 import { effectiveState, isLive } from "@/lib/scheduling/offers";
 import OfferCard from "./requests/OfferCard";
 import { listContractorJobs, JOB_STATUS_CHIP, shortDate } from "@/lib/contractor/jobs";
+import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
 import { missingProfileFields, daysUntil, docState } from "@/lib/contractor/model";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 import { createClient } from "@/lib/supabase/server";
@@ -40,11 +41,13 @@ export default async function PortalHome() {
   }
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
-  const jobs = await listContractorJobs(contractor.id);
+  const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
   // Live offers land on the FRONT page with their countdown (Tom, 25 Aug) —
-  // a 24-hour clock shouldn't hide behind the Requests tab.
-  const liveOffers = (await listContractorOffers(contractor.id))
-    .filter((o) => isLive(effectiveState(o.offer)));
+  // a 24-hour clock shouldn't hide behind the Requests tab. An employee is
+  // never offered (ruling 1); their new assignments show as "Tap Accept" jobs.
+  const liveOffers = capabilities.acceptsOffers
+    ? (await listContractorOffers(contractor.id)).filter((o) => isLive(effectiveState(o.offer)))
+    : [];
 
   // Front-page work items (Tom, 1 Sep #2): variations waiting on the painter's
   // approval, and failed quality checks with areas still to put right. Both
