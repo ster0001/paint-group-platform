@@ -33,6 +33,8 @@ export type DocLine = {
   detail: string;
   description: string;
   amountExCents: number;
+  /** A deposit's scope line (20270156): shown, never summed, never edited here. */
+  informational?: boolean;
   approvedOn: string | null;
 };
 
@@ -124,8 +126,13 @@ export default function InvoiceDoc({
           {l.detail && <div className="d2">{l.detail}</div>}
           {l.approvedOn && <div className="appr">✓ {l.approvedOn}</div>}
         </div>
+        {/* The pencil sits BEFORE the amount (Tom, 17 Sep: "values all in a
+            line") so every figure shares the totals' right edge, whether or
+            not a line is editable. */}
+        {isDraft && (l.informational
+          ? <span className="edit ghost" aria-hidden="true" />
+          : <button className="edit" aria-label="Edit line" onClick={() => startEdit(l)}>✎</button>)}
         <div className="a">{fmtSigned2(l.amountExCents)}</div>
-        {isDraft && <button className="edit" aria-label="Edit line" onClick={() => startEdit(l)}>✎</button>}
       </div>
     );
 
@@ -195,7 +202,10 @@ export default function InvoiceDoc({
 
         {contract.length > 0 && (
           <>
-            <div className="grp-h"><span className="t">Contract works — from accepted estimate</span></div>
+            <div className="grp-h">
+              <span className="t">Contract works — from accepted estimate</span>
+              {incAnchored && <span className="t" style={{ color: "var(--muted)" }}>for information — not part of this invoice&apos;s total</span>}
+            </div>
             {contract.map(renderLine)}
           </>
         )}
@@ -286,7 +296,10 @@ export default function InvoiceDoc({
           </div>
         ))}
         <div className="payacts">
-          <button className="mini" disabled={!["issued", "sent", "viewed", "partially_paid"].includes(status)}
+          {/* A draft is payable too (Tom, 17 Sep): the server issues it first,
+              so money that arrived before the send never forces a send. */}
+          <button className="mini" disabled={!["draft", "issued", "sent", "viewed", "partially_paid"].includes(status)}
+            title={isDraft ? "Issues the invoice and records the payment — nothing is sent" : undefined}
             onClick={() => { setPaySheet(true); setPayDollars((Math.max(totals.totalIncCents, 0) / 100).toFixed(2)); }}>
             Record payment
           </button>
@@ -351,7 +364,10 @@ export default function InvoiceDoc({
       <div className="scrim" onClick={() => setPaySheet(false)} style={paySheet ? { opacity: 1, pointerEvents: "auto" } : undefined} />
       <div className="sheet" role="dialog" aria-label="Record a payment" style={paySheet ? { transform: "none" } : undefined}>
         <h3>Record a payment</h3>
-        <div className="hint">{number ?? "This invoice"} · bounded server-side against the balance.</div>
+        <div className="hint">
+          {number ?? "This invoice"} · bounded server-side against the balance.
+          {isDraft && " Recording issues the invoice (number allocated) without sending it."}
+        </div>
         <div className="chips">
           {([["bank_transfer", "Bank"], ["cash", "Cash"], ["other", "Other"]] as const).map(([k, label]) => (
             <button key={k} className={`pchip ${payMethod === k ? "on" : ""}`} onClick={() => setPayMethod(k)}>{label}</button>

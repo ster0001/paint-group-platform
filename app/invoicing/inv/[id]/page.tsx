@@ -50,6 +50,7 @@ export default async function InvoiceDocPage({
       detail: l.description.includes(" — ") ? l.description.slice(l.description.indexOf(" — ") + 3) : "",
       description: l.description,
       amountExCents: l.amount_ex_cents,
+      informational: Boolean(l.informational),
       // Ruling 1 (addendum): the drawn signature travels to the invoice line
       // detail — name the signer when there is one.
       approvedOn: v?.signed_name
