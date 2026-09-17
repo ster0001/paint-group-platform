@@ -196,6 +196,12 @@ export const AUTOMATIONS: Automation[] = [
     wording: "Fixed wording, built around the change's own description.",
   },
   {
+    key: "variation_verbal_confirmation", name: "Variation — your phone approval, in writing", audience: "customer", channels: ["email", "sms"], kind: "manual",
+    trigger: "The office records a customer's verbal approval of a priced change from the PC console (\"Customer approved by phone — confirm on their behalf\"). Email and text, whichever are on file.",
+    wording: "Fixed wording: who approved it, when, the amount, and how to say if that isn't right.",
+    href: "/pc",
+  },
+  {
     key: "signed_completion_report", name: "Signed completion report", audience: "customer", channels: ["email", "pdf"], kind: "automatic",
     defaultChannel: "email", approvable: true, defaultMode: "auto", sendKind: "signoff_report", capExempt: true,
     trigger: "The customer signs off the job (on the painter's device or remotely). The report PDF is attached.",

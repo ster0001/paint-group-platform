@@ -133,7 +133,7 @@
   "app/quote/layout.tsx": 2,
   "app/quote/pack-load.ts": 1,
   "app/quote/page.tsx": 8,
-  "app/quote/revisionActions.ts": 8,
+  "app/quote/revisionActions.ts": 6,
   "app/quote/variationActions.ts": 4,
   "app/quote/workOrderActions.ts": 3,
   "app/s/[token]/actions.ts": 2,

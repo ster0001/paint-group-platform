@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { priceVariationAction } from "@/app/quote/variationActions";
 import { sendVariationForSignatureAction } from "@/app/quote/revisionActions";
-import { approveVariationInternal, releaseVariation, setVariationContractorAmount } from "../../actions";
-import { contractorDeltaCents } from "@/lib/workorder/variations";
+import { approveVariationInternal, confirmVariationVerbally, releaseVariation, setVariationContractorAmount } from "../../actions";
+import { contractorDeltaCents, describeSendOutcome } from "@/lib/workorder/variations";
 import type { VariationStatus } from "@/lib/workorder/variations";
 
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
@@ -46,8 +46,34 @@ export default function PriceVariation({
         hours: Number(hours),
         materialsCents: Math.round((Number(materials) || 0) * 100),
       });
-      if (result.ok) { setState("priced"); setMessage("Priced — the signing link has been emailed. Text it too below if you like."); }
-      else setMessage(result.message);
+      if (!result.ok) { setMessage(result.message); return; }
+      setState("priced");
+      // Say what actually happened to the signing link (17 Sep 2026) — it used
+      // to read "has been emailed" with no email on the job.
+      if (result.email?.status === "sent") setMessage("Priced — the signing link has been emailed. Text it too below if you like.");
+      else if (result.emailProblem) setMessage(`Priced. ${result.emailProblem}`);
+      else if (result.email) setMessage(`Priced. ${describeSendOutcome({ email: result.email })}`);
+      else setMessage("Priced. Send the signing link with the buttons below.");
+    });
+  }
+
+  function confirmVerbally() {
+    // Two window.prompts, the Mark-paid pattern: who said yes, then a note.
+    const who = window.prompt(
+      "Confirm this variation ON THE CUSTOMER'S BEHALF.\n" +
+      "Only after they have approved it verbally — the customer is sent a written confirmation of what was approved.\n\n" +
+      "Who gave the approval? (their name)",
+    );
+    if (who == null) return;
+    if (!who.trim()) { setMessage("Say who gave the approval — their name goes on the record."); return; }
+    const note = window.prompt("A note for the record — when and how they approved it (optional):") ?? "";
+    setMessage(null);
+    startTransition(async () => {
+      const r = await confirmVariationVerbally({ variationId: id, confirmedWith: who.trim(), note });
+      if (!r.ok) { setMessage(r.message); return; }
+      setState("customer_approved");
+      if ((r.message ?? "").includes("released to the painter")) setIsReleased(true);
+      setMessage(r.message ?? "Recorded as approved by phone.");
     });
   }
 
@@ -102,7 +128,10 @@ export default function PriceVariation({
       const bits: string[] = [];
       if (r.email?.status === "sent") bits.push("emailed");
       if (r.sms?.status === "sent") bits.push("texted");
-      setMessage(bits.length ? `Signing link ${bits.join(" and ")}.` : "Nothing went out — check the contact's details.");
+      // Anything short of "sent" is said in full — "not configured", the
+      // customer's own alert settings, the provider's error — never "check
+      // the contact" when the contact was fine (17 Sep 2026).
+      setMessage(bits.length ? `Signing link ${bits.join(" and ")}.` : describeSendOutcome(r));
     });
   }
 
@@ -177,6 +206,14 @@ export default function PriceVariation({
             <button type="button" className="btn" disabled={pending}
               onClick={approveInternal} data-testid={`approve-internal-priced-${id}`}>
               Approve for the contractor only
+            </button>
+          </div>
+          {/* Tom, 17 Sep: the customer said yes on the phone — record it for
+              them; they get a written confirmation of what was approved. */}
+          <div className="row">
+            <button type="button" className="btn" disabled={pending}
+              onClick={confirmVerbally} data-testid={`verbal-confirm-${id}`}>
+              Customer approved by phone — confirm on their behalf
             </button>
           </div>
         </>

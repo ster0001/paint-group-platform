@@ -60,3 +60,24 @@ export function blockedReason(open: { status: VariationStatus }[]): string | nul
   const n = waiting.length;
   return `${n} variation${n === 1 ? "" : "s"} still waiting on a decision`;
 }
+
+/** What one delivery attempt reported — the shape both send actions return. */
+export type SendChannelOutcome = { status: string; message?: string };
+
+/**
+ * The office's one-line read of a customer send (signing link, confirmation),
+ * in words a screen can show. Anything short of "sent" is said in full —
+ * "not configured", the customer's own alert settings, the provider's error —
+ * never "check the contact" when the contact was fine (17 Sep 2026).
+ */
+export function describeSendOutcome(r: { email?: SendChannelOutcome; sms?: SendChannelOutcome }): string {
+  const bits: string[] = [];
+  for (const [label, d] of [["Email", r.email], ["Text", r.sms]] as const) {
+    if (!d) continue;
+    if (d.status === "sent") bits.push(`${label} sent`);
+    else if (d.status === "not_configured") bits.push(`${label} isn't configured on this server — the link was recorded, not sent`);
+    else if (d.status === "suppressed") bits.push(`${label} suppressed: ${d.message ?? "the customer switched it off"}`);
+    else bits.push(`${label} failed: ${d.message ?? "unknown error"}`);
+  }
+  return bits.length ? bits.join(". ") + "." : "Nothing went out.";
+}

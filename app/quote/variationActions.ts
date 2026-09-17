@@ -32,7 +32,13 @@ import { reportError } from "@/lib/monitoring/report";
  */
 
 export type VariationResult =
-  | { ok: true; token?: string; state: string }
+  | {
+      ok: true; token?: string; state: string;
+      /** Pricing auto-emails the signing link; this is what actually happened to it (17 Sep 2026). */
+      email?: { status: string; message?: string };
+      /** Why the auto-email was not attempted, when it wasn't (no email on file, no photo, …). */
+      emailProblem?: string;
+    }
   | { ok: false; message: string };
 
 const uuid = z.string().uuid();
@@ -123,17 +129,21 @@ export async function priceVariationAction(raw: unknown): Promise<VariationResul
     revalidatePath("/portal/jobs");
     // Tom's ruling (25 Aug): the moment a variation is priced — which is the
     // moment its signing link goes live — the customer gets it BY EMAIL,
-    // without anyone remembering to send it. Same rails as everything else
-    // (best-effort behind the response; re-pricing re-sends the same stable
-    // link, which is fine). SMS stays a deliberate tap in the builder panel.
-    after(async () => {
-      try {
-        const sent = await sendVariationForSignatureAction({ variationId, via: "email" });
-        if (!sent.ok) console.log(`[variation-auto-email] not sent: ${sent.message ?? sent.email?.status ?? "unknown"}`);
-      } catch (e) {
-        reportError(e, { where: "variation.autoEmail", extra: { variationId } });
-      }
-    });
+    // without anyone remembering to send it. Same rails as everything else;
+    // re-pricing re-sends the same stable link, which is fine. SMS stays a
+    // deliberate tap in the builder panel.
+    //
+    // 17 Sep 2026: awaited, not after() — the outcome goes back to the screen.
+    // Behind the response it was a console line, and the console told the
+    // office "the signing link has been emailed" whether it had or not.
+    try {
+      const sent = await sendVariationForSignatureAction({ variationId, via: "email" });
+      if (sent.email) result.email = sent.email;
+      if (!sent.ok) result.emailProblem = sent.message ?? "The signing link was not emailed.";
+    } catch (e) {
+      reportError(e, { where: "variation.autoEmail", extra: { variationId } });
+      result.emailProblem = "The signing link could not be emailed just now — send it from the buttons below.";
+    }
   }
   return result;
 }

@@ -4,6 +4,28 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 17 Sep 2026 — variation link finds the customer; verbal approval recorded by the office
+
+**2026-09-17 · `lib/workorder/customerContact.ts`, `lib/workorder/variationConfirmation.ts`, `app/quote/revisionActions.ts`,
+`app/quote/variationActions.ts`, `app/pc/actions.ts`, `app/pc/wo/[id]/PriceVariation.tsx`, `app/v/[token]/`,
+`supabase/migrations/20270158000000_variation_verbal_confirm.sql`**
+
+The variation signing link read its recipient from `builder_state.contact` alone, while invoices, updates and
+reminders read the sent snapshot — a job whose contact lived only in the snapshot (1/41 Devoy Street) had no
+email as far as variations were concerned, and the price-time auto-email logged its failure to the console
+while the card said "has been emailed". `loadCustomerContact` is now the one resolver (builder contact → sent
+snapshot → linked account); the price action awaits the auto-email and returns its outcome; every send button
+reports "sent", "not configured", "suppressed by the customer's alert settings" or the provider error in words.
+`wo_staff_confirm_variation` (staff-only, priced-only, name required) records a verbal approval as
+`customer_approved` with `signed_name` = who gave it, `signature` NULL and `verbal_confirmed_*` stamped; the
+credit-strike / auto-release arm moved out of `wo_customer_sign_variation` into `wo_variation_apply_approval` so
+both paths share it. The console's "Customer approved by phone — confirm on their behalf" calls it, then
+`sendVariationConfirmation` puts the approval in writing (email + text where on file, `kind: variation_confirmed`).
+`/v/[token]` reads `verbal_confirmed_at` and says "approved by phone … recorded by our office", never "signed".
+Pinned by `e2e/variation-verbal-confirm.spec.ts` and `lib/workorder/customerContact.test.ts`.
+
+---
+
 ## 4 Sep 2026 — number boxes, capture save-on-exit, office acceptance email
 
 **2026-09-04 · `app/components/NumInput.tsx`, `app/quote/QuoteBuilder.tsx`, `app/quote/capture/CaptureApp.tsx`,
