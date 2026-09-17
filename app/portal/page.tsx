@@ -4,7 +4,7 @@ import { listContractorOffers } from "@/lib/contractor/offers";
 import { effectiveState, isLive } from "@/lib/scheduling/offers";
 import OfferCard from "./requests/OfferCard";
 import { listContractorJobs, JOB_STATUS_CHIP, shortDate } from "@/lib/contractor/jobs";
-import { missingProfileFields, daysUntil, docState } from "@/lib/contractor/model";
+import { missingProfileFields, daysUntil, docState, workcoverNeeded } from "@/lib/contractor/model";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 import { createClient } from "@/lib/supabase/server";
 
@@ -109,6 +109,15 @@ export default async function PortalHome() {
       icon: "🛡",
       text: `Public liability expires in ${insuranceDays} day${insuranceDays === 1 ? "" : "s"} — upload the renewal`,
       chip: `${insuranceDays}d`,
+    });
+  }
+  // WorkCover (Tom, 17 Sep): asked for, never a gate — the offerable card
+  // above stays green on public liability alone.
+  if (!docsError && workcoverNeeded(contractor.crew_size, docs)) {
+    actions.push({
+      icon: "🛡",
+      text: "Upload your WorkCover certificate — required while anyone works with you",
+      chip: "Needed",
     });
   }
   if (missing.length) {

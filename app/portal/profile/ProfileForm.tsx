@@ -11,6 +11,7 @@ import {
   daysUntil,
   docState,
   missingProfileFields,
+  workcoverNeeded,
   type ContractorDoc,
   type ContractorRow,
 } from "@/lib/contractor/model";
@@ -307,7 +308,7 @@ export default function ProfileForm({
         <div style={{ marginTop: 10, fontSize: "12.5px", color: "var(--muted)" }}>
           {contractor.offerable
             ? "Your compliance is current, so Paint Group can offer you jobs."
-            : "A current public liability certificate has to be on file before Paint Group can offer you work. Upload it below."}
+            : "A current public liability certificate has to be on file before Paint Group can offer you work. Upload it below — and your WorkCover certificate if anyone works with you."}
         </div>
         {missing.length > 0 && (
           <div style={{ marginTop: 8, fontSize: "12.5px", color: "var(--amber)" }}>
@@ -546,10 +547,18 @@ export default function ProfileForm({
       <div className="card">
         <h3>Insurance &amp; licences</h3>
         <p className="hint">
-          A current public liability certificate is what unlocks job offers. Upload it
-          with its expiry date — Paint Group check it, and once they&rsquo;ve confirmed
-          it you&rsquo;re available for work. The portal warns you before it lapses.
+          Upload your public liability certificate of currency and your WorkCover
+          certificate, each with its expiry date. Public liability is what unlocks job
+          offers — Paint Group check it, and once they&rsquo;ve confirmed it you&rsquo;re
+          available for work. WorkCover is required if you have any other workers working
+          with you, so keep it on file here too. The portal warns you before either lapses.
         </p>
+        {workcoverNeeded(Number(company.crew_size) || 1, docs) && (
+          <div className="err" style={{ marginTop: 12 }} data-testid="workcover-required">
+            You&rsquo;ve told us {Number(company.crew_size)} painters are on your crew, so a
+            WorkCover certificate is required — upload it below.
+          </div>
+        )}
 
         {docErr && <div className="err" style={{ marginTop: 12 }}>{docErr}</div>}
         {docMsg && <div className="ok" style={{ marginTop: 12 }}>{docMsg}</div>}
@@ -615,6 +624,7 @@ export default function ProfileForm({
           onChange={(e) => setDocKind(e.target.value as ContractorDoc["kind"])}
         >
           <option value="insurance">Public liability insurance</option>
+          <option value="workcover">WorkCover insurance</option>
           <option value="licence">Painting licence</option>
           <option value="other">Other</option>
         </select>
