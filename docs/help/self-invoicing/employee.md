@@ -4,6 +4,7 @@ role: employee
 title: Claim an expense you paid for on a job
 summary: The Expenses tab for employed painters — a receipt photo, the category, the amount from the receipt, which job, and who paid; what happens over $100; and how a claim you paid yourself gets paid back.
 sources: app/portal/money/page.tsx, app/portal/money/Expenses.tsx, app/portal/money/expenseActions.ts
+verified_at_commit: a162c072c0
 ---
 
 ## What this is for
