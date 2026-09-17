@@ -128,3 +128,24 @@ export const DEFAULT_PROOF: CustomerSnapshot["proof"] = {
   warranty: "2-year",
   accreditations: ["Master Painters Accredited"],
 };
+
+/**
+ * Tom, 18 Sep 2026: "if all colours are entered, remove 'Colour consultation
+ * included' from the bar at the top of the estimate". Colours live on the
+ * snapshot's paints: a topcoat carries `colourName` (first colour) and
+ * `colours[]` (every colour it is used in; `match` = colour-matching an
+ * existing colour, which is a decision too). Prep and primers never carry a
+ * colour. True when there is at least one topcoat and every one has its
+ * colour(s) decided — one TBC still gets the reassurance.
+ */
+export function allColoursChosen(snap: Pick<CustomerSnapshot, "paints">): boolean {
+  const topcoats = (snap.paints ?? []).filter((p) => !p.isPrep);
+  if (topcoats.length === 0) return false;
+  return topcoats.every((p) => {
+    if (p.colours && p.colours.length > 0) return p.colours.every((c) => Boolean((c.name ?? "").trim()) || c.match);
+    return Boolean((p.colourName ?? "").trim());
+  });
+}
+
+/** The company's own bank details, as the printed estimate and every invoice show them. */
+export type BankDetails = { accountName?: string; bank?: string; bsb?: string; acc?: string };
