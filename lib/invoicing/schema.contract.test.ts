@@ -162,3 +162,56 @@ describe("readback discipline", () => {
     expect(CORE).toContain("relrowsecurity");
   });
 });
+
+describe("a payment can be recorded before the invoice is sent (20270155)", () => {
+  const PAY = read("20270155000000_invoice_pay_before_send.sql");
+  const body = PAY.slice(PAY.indexOf("create or replace function public.invoice_record_payment"));
+
+  it("a draft is issued THROUGH invoice_issue before the money lands — the matrix is untouched", () => {
+    expect(body).toMatch(/if v\.status = 'draft' then[\s\S]*public\.invoice_issue\(p_invoice_id\)/);
+    // draft → issued → paid, never draft → paid: no new transition rows.
+    expect(PAY).not.toMatch(/insert into public\.invoice_transitions/i);
+    expect(PAY).not.toMatch(/'draft'::public\.invoice_status,\s*'(paid|partially_paid)'/);
+  });
+  it("nothing is sent: no invoice_send call, no 'sent' event", () => {
+    expect(body).not.toContain("invoice_send(");
+    expect(body).not.toMatch(/invoice_event\([^;]*'sent'/);
+  });
+  it("the issue step's own refusal is surfaced, not swallowed", () => {
+    expect(body).toMatch(/if v_issue <> 'ok:issued' then return v_issue; end if;/);
+  });
+  it("the original guards survive: staff only, manual methods only, balance × 1.05", () => {
+    expect(body).toContain("if not public.is_staff() then return 'error:not_staff'; end if;");
+    expect(body).toContain("return 'error:stripe_via_webhook';");
+    expect(body).toContain("if p_amount_cents > round(v_balance * 1.05) then return 'error:exceeds_balance'; end if;");
+  });
+  it("ends by registering itself", () => {
+    expect(PAY.trimEnd()).toMatch(/insert into public\._prod_migrations\(name\) values \('20270155000000_invoice_pay_before_send\.sql'\) on conflict \(name\) do nothing;$/);
+  });
+});
+
+describe("deposit invoices list the accepted scope, for information (20270156)", () => {
+  const DEP = read("20270156000000_invoice_deposit_scope_lines.sql");
+  it("the flag exists and defaults off", () => {
+    expect(DEP).toContain("add column if not exists informational boolean not null default false");
+  });
+  it("one writer of snapshot lines — draft_final calls it, the deposit trigger calls it", () => {
+    expect(DEP).toContain("create or replace function public.invoice_write_snapshot_lines(");
+    expect(DEP).toContain("v_sort := public.invoice_write_snapshot_lines(v_inv, p_estimate_id, v_sort, false);");
+    expect(DEP).toMatch(/if new\.kind = 'deposit' and new\.status = 'draft' then\s+perform public\.invoice_write_snapshot_lines\(new\.id, new\.estimate_id, -1000, true\);/);
+    expect(DEP).toContain("create trigger t_invoice_deposit_scope after insert on public.invoices");
+  });
+  it("informational lines never reach a draft's totals or its single money line", () => {
+    const recompute = DEP.slice(DEP.indexOf("function public.invoice_recompute_draft"), DEP.indexOf("function public.invoice_set_draft_total"));
+    expect(recompute).toContain("where l.invoice_id = p_invoice_id and not l.informational");
+    const setTotal = DEP.slice(DEP.indexOf("function public.invoice_set_draft_total"), DEP.indexOf("function public.invoice_deposit_scope_lines"));
+    expect(setTotal).toContain("where invoice_id = p_invoice_id and not informational;");
+    expect(setTotal).toContain("where invoice_id = p_invoice_id and not informational;\n  end if;");
+  });
+  it("the backfill touches drafts only", () => {
+    expect(DEP).toMatch(/where i\.kind = 'deposit' and i\.status = 'draft'\s+and not exists/);
+  });
+  it("ends by registering itself", () => {
+    expect(DEP.trimEnd()).toMatch(/\('20270156000000_invoice_deposit_scope_lines\.sql'\) on conflict \(name\) do nothing;$/);
+  });
+});

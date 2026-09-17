@@ -165,6 +165,17 @@
       "sources": []
     },
     {
+      "feature": "invoicing",
+      "role": "staff",
+      "title": "Record a customer payment, including one that arrives before you send the invoice",
+      "summary": "How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, what happens when the invoice is still a draft, and what the customer receives.",
+      "path": "docs/help/invoicing/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "message-queue",
       "role": "staff",
       "title": "Approve, change or skip an automatic message before it goes",

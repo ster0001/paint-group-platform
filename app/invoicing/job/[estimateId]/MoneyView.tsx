@@ -257,6 +257,11 @@ export default function MoneyView({
               {c.isDraft && (
                 <>
                   <button className="mini" disabled={busy} onClick={() => setSendFor(c.invoiceId)}>Issue &amp; send</button>
+                  {/* Paid before we sent it (Tom, 17 Sep): the server issues the
+                      draft — number, totals, lock — and records the money in one
+                      transaction. Nothing is emailed but the receipt. */}
+                  <button className="mini" disabled={busy} title="Issues the invoice and records the payment — nothing is sent"
+                    onClick={() => { setSheet({ record: c }); setPayDollars((c.balanceCents / 100).toFixed(2)); }}>Record payment</button>
                   <button className="mini" disabled={busy} onClick={() => { if (confirm("Delete this draft? Drafts are the only deletable invoices.")) run(() => deleteDraftAction({ invoiceId: c.invoiceId, estimateId })); }}>Delete</button>
                 </>
               )}

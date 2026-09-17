@@ -125,6 +125,31 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     await expect(page.getByTestId("strip-balance")).toHaveText("$18,500");
   });
 
+  // Tom, 17 Sep 2026: the deposit invoice lists every line item of the
+  // accepted estimate — for information; the total stays the deposit.
+  test("the deposit draft lists the accepted scope without it touching the total", async ({ page }) => {
+    await signIn(page, staff!, /estimates/);
+    await page.goto(`/invoicing/inv/${depositInvoiceId}`);
+    await expect(page.getByText("Contract works — from accepted estimate")).toBeVisible();
+    await expect(page.getByText("Front elevation")).toBeVisible();
+    await expect(page.getByTestId("doc-total")).toHaveText("$1,850.00");
+
+    const { data: lines, error } = await db!.from("invoice_lines")
+      .select("source, informational, amount_ex_cents").eq("invoice_id", depositInvoiceId!).order("sort");
+    expect(error).toBeNull();
+    const rows = lines as { source: string; informational: boolean; amount_ex_cents: number }[];
+    expect(rows.filter((l) => l.informational).map((l) => l.source)).toContain("estimate_snapshot");
+    expect(rows.filter((l) => !l.informational)).toHaveLength(1); // the deposit's own money line
+
+    // The customer sheet shows the same scope above "This invoice".
+    const { data: inv } = await db!.from("invoices").select("token").eq("id", depositInvoiceId!).single();
+    await page.goto(`/i/${(inv as { token: string }).token}?preview=1`);
+    const sheet = page.getByTestId("invoice-sheet");
+    await expect(sheet.getByText("Contract works — from your accepted estimate")).toBeVisible();
+    await expect(sheet.getByText("Front elevation")).toBeVisible();
+    await expect(sheet.getByTestId("total-inc")).toHaveText("$1,850.00");
+  });
+
   test("issue allocates the number, and the database refuses edits after it", async ({ page }) => {
     await signIn(page, staff!, /estimates/);
     await openMoneyView(page);
@@ -343,6 +368,45 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   // the dedicated test project) the card path must vanish CLEANLY: bank
   // transfer only, a friendly refusal on the checkout route, and a webhook
   // that answers 503 rather than pretending. Test-card e2e runs on C1.
+
+  // Tom, 17 Sep 2026: a customer who pays by bank transfer before we have sent
+  // the invoice must not force a send. The 25% progress claim above is still a
+  // draft — record the money against it and the server issues it on the way.
+  test("a payment recorded on a DRAFT issues it silently — number allocated, nothing sent", async ({ page }) => {
+    await signIn(page, staff!, /estimates/);
+    await openMoneyView(page);
+    await page.getByRole("button", { name: "Invoices" }).click();
+    const card = page.getByTestId("invoice-card-progress");
+    await expect(card).toContainText("Draft");
+    // Pay whatever the draft says today — the reconciliation test above may
+    // have amended it — so this is a payment in full, not a part payment.
+    const { data: before } = await db!.from("invoices")
+      .select("total_inc_cents").eq("estimate_id", estimateId!).eq("kind", "progress").single();
+    const owed = (before as { total_inc_cents: number }).total_inc_cents;
+    await card.getByRole("button", { name: "Record payment" }).click();
+    await page.getByTestId("record-amount").fill((owed / 100).toFixed(2));
+    await page.getByRole("button", { name: /^Record \$/ }).click();
+    // The card's chip says "Paid"; the balance line is the proof it is in full.
+    await expect(card.locator(".chip")).toHaveText("Paid", { timeout: 15_000 });
+    await expect(card).toContainText("Balance$0.00");
+
+    const { data: prog, error } = await db!.from("invoices")
+      .select("id, number, status, issued_on").eq("estimate_id", estimateId!)
+      .eq("kind", "progress").single();
+    expect(error).toBeNull();
+    const row = prog as { id: string; number: string; status: string; issued_on: string };
+    expect(row.status).toBe("paid");
+    expect(row.number).toMatch(/^INV-\d{4}$/);
+    expect(row.issued_on).toBeTruthy();
+
+    // The events tell the story: issued, then paid — and never sent.
+    const { data: events } = await db!.from("invoice_events")
+      .select("type, meta").eq("invoice_id", row.id).order("created_at");
+    const types = ((events ?? []) as { type: string; meta: { paid_before_send?: boolean } }[]);
+    expect(types.map((e) => e.type)).toEqual(expect.arrayContaining(["issued", "payment_received"]));
+    expect(types.map((e) => e.type)).not.toContain("sent");
+    expect(types.find((e) => e.type === "payment_received")?.meta.paid_before_send).toBe(true);
+  });
 
   test("without Stripe keys the card path degrades to bank-transfer only", async ({ browser }) => {
     test.skip(Boolean(process.env.STRIPE_SECRET_KEY),
