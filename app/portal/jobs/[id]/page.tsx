@@ -16,6 +16,7 @@ import FinishDate from "./FinishDate";
 import ColourMatchCard from "@/app/components/wo/ColourMatchCard";
 import FinishUp from "./FinishUp";
 import WalkthroughStart from "./WalkthroughStart";
+import WalkthroughBar from "./WalkthroughBar";
 import CrewShare from "./CrewShare";
 import SitePhotos from "./SitePhotos";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
@@ -275,8 +276,17 @@ export default async function PortalJobPage({
   }
 
 
+  // Tom (17 Sep): every box ticked → a Start-the-walkthrough bar pinned under
+  // the header, so the next step is never a scroll away. It stays through the
+  // finish and the walkthrough stage; the quality check has its own notice.
+  const showWalkthroughBar = job.committed && (atWalkthrough || canPrep || (canTick && allSurfacesDone));
+  const prepLeft = prepItems.filter((i) => i.required && !i.done).length;
+
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
+      {showWalkthroughBar && (
+        <WalkthroughBar workOrderId={id} phase={atWalkthrough ? "walkthrough" : "finish"} prepLeft={prepLeft} />
+      )}
       <div style={{ padding: "0 16px" }}>
         <Link href={from === "requests" ? "/portal/requests" : from === "calendar" ? "/portal/calendar" : "/portal/jobs"}
           className="backlink" data-testid="job-back">

@@ -54,24 +54,25 @@ The second walkthrough film covers this part of the job, from the completion lis
     ![](media/contractor-09.png)
 11. Tap **All done — next step**. The job routes itself: to a **quality check** if one is due on this job, straight to the **walkthrough** if not, or to complete if the booking has no customer walkthrough. The message tells you which.
     ![](media/contractor-10.png)
+12. The same moment every surface is done, an **ALL SURFACES DONE · Start the walkthrough** bar pins itself under the Paint Group header and stays there while you scroll. It is the same next step as the card, one tap from anywhere on the page: it finishes the job, and if no quality check is due it opens the walkthrough straight away. While finishing-up items are still unticked the bar says how many are left, and the tap is refused until they are done.
 
 ### The quality check
-12. If a check is due, the job page shows **Quality check** and says the office is checking before sign-off; there is nothing for you to do unless something comes back to fix.
+13. If a check is due, the job page shows **Quality check** and says the office is checking before sign-off; there is nothing for you to do unless something comes back to fix.
     ![](media/contractor-11.png)
-13. If the check finds something, the page shows a red **QUALITY CHECK — AREAS TO PUT RIGHT** card naming the area and what needs doing, with any photos, and the item appears on your tick list with an amber **RECTIFY** chip under that area (marked "raised by QA"). Put it right, tick it done, and tap **All done — next step** again. The job goes back to **Quality check** for the office to look at the fix.
+14. If the check finds something, the page shows a red **QUALITY CHECK — AREAS TO PUT RIGHT** card naming the area and what needs doing, with any photos, and the item appears on your tick list with an amber **RECTIFY** chip under that area (marked "raised by QA"). Put it right, tick it done, and tap **All done — next step** again. The job goes back to **Quality check** for the office to look at the fix.
     ![](media/contractor-12.png)
     ![](media/contractor-13.png)
 
 ### Walkthrough and sign-off on your phone
-14. Once the check passes (or no check was due), **Walkthrough & sign-off** appears with the booked date: "Walk the job with the customer on your phone: they approve each area and sign with their own name, right there." The **Finish & walkthrough** card above it also lists the quality check and its result. With the customer beside you, tap **Start the walkthrough**.
+15. Once the check passes (or no check was due), **Walkthrough & sign-off** appears with the booked date: "Walk the job with the customer on your phone: they approve each area and sign with their own name, right there." The **Finish & walkthrough** card above it also lists the quality check and its result. The pinned bar at the top now reads **READY TO SIGN OFF** and carries the same button, so you do not have to scroll to the card. With the customer beside you, tap **Start the walkthrough** on either.
     ![](media/contractor-14.png)
-15. Your phone switches to the customer's view, headed **READY FOR YOUR LOOK — Your job is finished**, with your customer note at the top. Hand it over. For each area they tap **Happy with this**, or **Something's not right** and say what they have spotted. The bottom of the page lists what is still to look at.
+16. Your phone switches to the customer's view, headed **READY FOR YOUR LOOK — Your job is finished**, with your customer note at the top. Hand it over. For each area they tap **Happy with this**, or **Something's not right** and say what they have spotted. The bottom of the page lists what is still to look at.
     ![](media/contractor-15.png)
-16. When every area shows **HAPPY**, they type their full name and tap **Sign off the job**. The page tells them signing confirms the work is done and starts their two-year warranty. **I'm away at the moment** is for a customer who wants to come back to it later.
+17. When every area shows **HAPPY**, they type their full name and tap **Sign off the job**. The page tells them signing confirms the work is done and starts their two-year warranty. **I'm away at the moment** is for a customer who wants to come back to it later.
     ![](media/contractor-16.png)
-17. The screen reads **Signed off — thank you**, and says the completion report and warranty are on their way. Take your phone back; it returns to the job on its own, or tap **Back to the job**.
+18. The screen reads **Signed off — thank you**, and says the completion report and warranty are on their way. Take your phone back; it returns to the job on its own, or tap **Back to the job**.
     ![](media/contractor-17.png)
-18. The job now reads **Job complete · signed off**, with who signed and when, and the work order header says **COMPLETE**. **Invoice this job** is waiting below (see the invoicing guide). If an area was flagged instead, the job comes back to you as In progress with the flagged area on your tick list, and the walkthrough runs again once it is fixed.
+19. The job now reads **Job complete · signed off**, with who signed and when, and the work order header says **COMPLETE**. **Invoice this job** is waiting below (see the invoicing guide). If an area was flagged instead, the job comes back to you as In progress with the flagged area on your tick list, and the walkthrough runs again once it is fixed.
     ![](media/contractor-18.png)
 
 ## What the colours and labels mean
