@@ -72,7 +72,8 @@ The second walkthrough film covers this part of the job, from the completion lis
     ![](media/contractor-16.png)
 18. The screen reads **Signed off — thank you**, and says the completion report and warranty are on their way. Take your phone back; it returns to the job on its own, or tap **Back to the job**.
     ![](media/contractor-17.png)
-19. The job now reads **Job complete · signed off**, with who signed and when, and the work order header says **COMPLETE**. **Invoice this job** is waiting below (see the invoicing guide). If an area was flagged instead, the job comes back to you as In progress with the flagged area on your tick list, and the walkthrough runs again once it is fixed.
+19. The job now reads **Job complete · signed off**, with who signed and when, and the work order header says **COMPLETE**. **Invoice this job** is waiting below (see the invoicing guide). If an area was flagged instead, the job comes back to you as In progress with the flagged area on your tick list — see the next step.
+20. **A flagged area, put right.** The customer's flag sits on your tick list as a **RECTIFY** row with what they said. Fix it, take the finished shot, and tick it. The pinned bar at the top now reads **FLAGGED AREAS PUT RIGHT · Fixed — send the report**, and the card below says the same. One tap completes the job: the customer is emailed their completion report with a **What you flagged, and what we did** section, their two-year warranty starts, and the job reads **Job complete**. There is no second walkthrough — they already looked at everything and told you what was wrong.
     ![](media/contractor-18.png)
 
 ## What the colours and labels mean
@@ -91,7 +92,7 @@ The second walkthrough film covers this part of the job, from the completion lis
 - **Start the job is greyed out.** The office has pre-start items still to tick. Ring them if the start date is close.
 - **All done — next step does nothing.** A surface is not done, a completion item is unanswered, or a variation you raised is still waiting on a decision. Look for a row that is not green, a question without an answer, or a variation still marked **WITH THE OFFICE** or **YOUR APPROVAL**.
 - **The customer is not there for the walkthrough.** Do not sign for them. Tell the office; they can open a remote sign-off for the customer.
-- **The job came back as In progress after the walkthrough.** The customer flagged an area. It is on your tick list with what they said; fix it, tick it, and finish again.
+- **The job came back as In progress after the walkthrough.** The customer flagged an area. It is on your tick list with what they said; fix it, tick it, and tap **Fixed — send the report** on the bar at the top. The job completes and the customer gets the report — no second walkthrough.
 
 ## Related
 - [Answer a job offer and manage your booked dates](../scheduling/contractor.md)

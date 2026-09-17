@@ -98,7 +98,7 @@ export default async function PortalJobPage({
       .eq("status", "booked"),
     supabase.from("wo_qa_checks")
       .select("id, result, kind, scheduled_for, notes, checked_at").eq("work_order_id", id),
-    supabase.from("wo_signoff").select("signed_at, signed_name").eq("work_order_id", id).maybeSingle(),
+    supabase.from("wo_signoff").select("signed_at, signed_name, areas, evidence_pack_sent_at").eq("work_order_id", id).maybeSingle(),
   ]);
 
   // Requested or confirmed — derived from the live offer, never stored twice.
@@ -281,11 +281,22 @@ export default async function PortalJobPage({
   // finish and the walkthrough stage; the quality check has its own notice.
   const showWalkthroughBar = job.committed && (atWalkthrough || canPrep || (canTick && allSurfacesDone));
   const prepLeft = prepItems.filter((i) => i.required && !i.done).length;
+  // Tom (17 Sep): areas the customer flagged at their walkthrough and nobody
+  // has yet marked put right. While any exist on an in-progress job, the
+  // finish IS the completion — report to the customer, job closed — never a
+  // second walkthrough. Derived from the sign-off row's areas, not stored twice.
+  const so = signoffRow as { signed_at?: string | null; evidence_pack_sent_at?: string | null;
+    areas?: Record<string, { flagged_at?: string; rectified_at?: string }> | null } | null;
+  const flaggedAreas = so && !so.signed_at && so.evidence_pack_sent_at
+    ? Object.entries(so.areas ?? {}).filter(([, a]) => a?.flagged_at && !a?.rectified_at).map(([h]) => h)
+    : [];
+  const rectifiedPhase = canTick && flaggedAreas.length > 0;
 
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
       {showWalkthroughBar && (
-        <WalkthroughBar workOrderId={id} phase={atWalkthrough ? "walkthrough" : "finish"} prepLeft={prepLeft} />
+        <WalkthroughBar workOrderId={id} phase={atWalkthrough ? "walkthrough" : rectifiedPhase ? "rectified" : "finish"}
+          prepLeft={prepLeft} flaggedAreas={rectifiedPhase ? flaggedAreas : []} />
       )}
       <div style={{ padding: "0 16px" }}>
         <Link href={from === "requests" ? "/portal/requests" : from === "calendar" ? "/portal/calendar" : "/portal/jobs"}
@@ -403,7 +414,7 @@ export default async function PortalJobPage({
       {((canTick && allSurfacesDone) || canPrep) && (
         <div style={{ padding: "0 16px" }}>
           {prepItems.length > 0 && <PrepChecklist items={prepItems} />}
-          <FinishUp workOrderId={id} />
+          <FinishUp workOrderId={id} flaggedAreas={rectifiedPhase ? flaggedAreas : []} />
         </div>
       )}
 

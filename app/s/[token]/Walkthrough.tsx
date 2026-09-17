@@ -14,9 +14,11 @@ type AreaState = { approved?: boolean; flagged?: boolean; note?: string };
  * weeks later, and by then the painter has gone.
  */
 export default function Walkthrough({
-  token, headings, initial, signedName, backHref = null,
+  token, headings, initial, signedName, signedKind = null, backHref = null,
 }: {
   token: string; headings: string[]; initial: Record<string, AreaState>; signedName: string | null;
+  /** How it completed — a rectified completion reads differently from a signature. */
+  signedKind?: string | null;
   /** Set on an on-device walkthrough: where this device returns after signing. */
   backHref?: string | null;
 }) {
@@ -39,10 +41,11 @@ export default function Walkthrough({
   if (signed) {
     return (
       <div className="cv-done approved" data-testid="signed">
-        <b>Signed off — thank you, {signed}.</b>
+        <b>{signedKind === "rectified" ? "Complete — the areas you flagged have been put right." : `Signed off — thank you, ${signed}.`}</b>
         <p>
-          Your completion report and two-year warranty are on their way. If anything
-          comes up later, that warranty still covers you.
+          {signedKind === "rectified"
+            ? "Your completion report below shows what you flagged and what was done, and your two-year warranty has started. If anything comes up later, that warranty still covers you."
+            : "Your completion report and two-year warranty are on their way. If anything comes up later, that warranty still covers you."}
         </p>
         {goBack && backHref && (
           <p className="cv-fine" style={{ marginTop: 10 }}>
