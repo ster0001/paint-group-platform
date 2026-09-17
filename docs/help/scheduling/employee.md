@@ -4,7 +4,7 @@ role: employee
 title: Your assigned jobs — accepting one, your calendar, and what to do if you can't make a day
 summary: How a job reaches you as an employed painter — it lands in your calendar already booked, you tap Accept once to say you've seen it, several of you can share one job with one lead painter, and you can flag days you can't make.
 sources: app/portal/jobs, app/portal/calendar, app/portal/jobs/[id]/AssignmentCard.tsx, lib/contractor/employeeJobs.ts
-verified_at_commit: 3a6848a2fd
+verified_at_commit: 0a07c92452
 ---
 
 ## What this is for

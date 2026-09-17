@@ -209,7 +209,7 @@
         "media/contractor-12.png",
         "media/contractor-13.png"
       ],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "0a07c92452",
       "sources": [
         "app/portal/requests",
         "app/portal/calendar",
@@ -226,7 +226,7 @@
       "path": "docs/help/scheduling/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "0a07c92452",
       "sources": [
         "app/portal/jobs",
         "app/portal/calendar",
@@ -252,7 +252,7 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "0a07c92452",
       "sources": [
         "app/pc/schedule",
         "lib/scheduling",
@@ -326,7 +326,7 @@
       "path": "docs/help/timesheets/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "989f914fd9",
+      "verified_at_commit": "0a07c92452",
       "sources": [
         "app/portal/TimesheetCard.tsx",
         "app/portal/timesheetActions.ts",
@@ -341,7 +341,7 @@
       "path": "docs/help/timesheets/pc.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "989f914fd9",
+      "verified_at_commit": "0a07c92452",
       "sources": [
         "app/pc/timesheets/page.tsx",
         "app/pc/timesheets/TimesheetRow.tsx",
