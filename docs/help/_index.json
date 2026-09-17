@@ -319,6 +319,38 @@
       ]
     },
     {
+      "feature": "timesheets",
+      "role": "employee",
+      "title": "Start your day, finish your day — your hours",
+      "summary": "The Start day / Finish day card for employed painters — two taps on the home page or the job, the break you took, what the office does with the hours, and what the status words mean.",
+      "path": "docs/help/timesheets/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "82053bbd7c",
+      "sources": [
+        "app/portal/TimesheetCard.tsx",
+        "app/portal/timesheetActions.ts",
+        "lib/contractor/timesheets.ts"
+      ]
+    },
+    {
+      "feature": "timesheets",
+      "role": "pc",
+      "title": "Approve employed painters' days, record one for them, and export the payroll CSV",
+      "summary": "The Timesheets tab in PC Command — each clocked day waiting on approval, what approving does to the job's costs, recording a day the painter forgot, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.",
+      "path": "docs/help/timesheets/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "82053bbd7c",
+      "sources": [
+        "app/pc/timesheets/page.tsx",
+        "app/pc/timesheets/TimesheetRow.tsx",
+        "app/pc/timesheets/RecordHours.tsx",
+        "app/pc/timesheets/export/route.ts",
+        "app/(app)/contractors/ContractorsManager.tsx"
+      ]
+    },
+    {
       "feature": "work-orders",
       "role": "contractor",
       "title": "Run a job from the first tick to the customer's signature",

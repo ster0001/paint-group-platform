@@ -26,6 +26,8 @@ export type ContractorSummary = {
   weekend: { worksSaturday: boolean; worksSunday: boolean } | null;
   /** Employed painters (S5, ruling 15): the tick box. */
   employmentType: "contractor" | "employee";
+  /** Session 6: the office's cost per hour in force today (employees only); null = not set. */
+  costRateCents: number | null;
 };
 
 /** An unacknowledged change to where a contractor gets paid. */
@@ -81,6 +83,20 @@ export default function ContractorsManager({
   const [form, setForm] = useState({ email: "", name: "", company: "", tier: "B", employee: false });
   /** Per-row refusal from set_employment_type, shown beside the box (ruling 15). */
   const [typeRefusal, setTypeRefusal] = useState<Record<string, string>>({});
+
+  /** Session 6: the internal cost rate, $/h as typed, cents to the RPC. History kept by day. */
+  const [rateDraft, setRateDraft] = useState<Record<string, string>>({});
+  async function saveCostRate(id: string) {
+    const dollars = Number((rateDraft[id] ?? "").replace(/[^0-9.]/g, ""));
+    if (!Number.isFinite(dollars) || dollars <= 0) { setErr("Enter the cost rate in dollars per hour, e.g. 52.50"); return; }
+    setBusy(id); setErr("");
+    const { data, error } = await supabase.rpc("set_employee_cost_rate", { p_contractor_id: id, p_cents_per_hour: Math.round(dollars * 100) });
+    const s = String(data ?? "");
+    if (error) setErr(error.message);
+    else if (s.startsWith("ok:")) { setMsg(`Cost rate saved from ${s.slice(3)} — approved timesheets from that day post at this rate.`); setRateDraft((d) => ({ ...d, [id]: "" })); router.refresh(); }
+    else setErr(s === "error:not_an_employee" ? "Only an employee has a cost rate." : s.replace("error:", "").replaceAll("_", " "));
+    setBusy(null);
+  }
 
   async function setEmploymentType(id: string, type: "contractor" | "employee") {
     setBusy(id);
@@ -551,6 +567,26 @@ export default function ContractorsManager({
                     <span className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600">
                       {c.crewSize} painter{c.crewSize === 1 ? "" : "s"}
                     </span>
+                    )}
+                    {c.employmentType === "employee" && (
+                      <label className="flex items-center gap-1.5 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700"
+                        title="Internal cost per hour (base + super + WorkCover + allowances ÷ hours). Never shown to the painter; approved timesheets post at this rate.">
+                        Cost rate
+                        <span className="text-gray-500">{c.costRateCents !== null ? `$${(c.costRateCents / 100).toFixed(2)}/h` : "not set"}</span>
+                        <input
+                          type="text" inputMode="decimal" placeholder="$/h"
+                          value={rateDraft[c.id] ?? ""}
+                          onChange={(e) => setRateDraft((d) => ({ ...d, [c.id]: e.target.value }))}
+                          disabled={busy === c.id}
+                          className="w-16 rounded-md border border-gray-300 px-1.5 py-0.5 text-xs"
+                          data-testid={`cost-rate-${c.id}`}
+                        />
+                        <button type="button" onClick={() => saveCostRate(c.id)} disabled={busy === c.id || !(rateDraft[c.id] ?? "").trim()}
+                          className="rounded-md bg-gray-900 px-2 py-0.5 text-xs font-medium text-white disabled:opacity-40"
+                          data-testid={`cost-rate-save-${c.id}`}>
+                          Save
+                        </button>
+                      </label>
                     )}
                     <button
                       onClick={() => setRequiresQa(c.id, !c.requiresQa)}

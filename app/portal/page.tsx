@@ -8,6 +8,8 @@ import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
 import { missingProfileFields, daysUntil, docState, workcoverNeeded, employeeDocReminders } from "@/lib/contractor/model";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 import { createClient } from "@/lib/supabase/server";
+import { loadMyTimesheet } from "@/lib/contractor/timesheets";
+import TimesheetCard from "./TimesheetCard";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +44,9 @@ export default async function PortalHome() {
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
   const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
+  // Session 6: the employee's day — Start / Finish, hours only. Nothing for a
+  // contractor, whose days are the offer they accepted.
+  const timesheet = capabilities.clocksOn ? await loadMyTimesheet() : null;
   // Live offers land on the FRONT page with their countdown (Tom, 25 Aug) —
   // a 24-hour clock shouldn't hide behind the Requests tab. An employee is
   // never offered (ruling 1); their new assignments show as "Tap Accept" jobs.
@@ -170,6 +175,10 @@ export default async function PortalHome() {
           </Link>
         )}
       </div>
+      )}
+
+      {timesheet && (
+        <TimesheetCard open={timesheet.open} recent={timesheet.recent} error={timesheet.error} />
       )}
 
       {actions.length > 0 && (

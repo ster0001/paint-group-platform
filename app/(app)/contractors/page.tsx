@@ -64,10 +64,20 @@ export default async function ContractorsPage() {
   );
   // Employed painters (S5): the type per row (best-effort, the works_saturday
   // rule — a missing column reads as contractor) and the office's switch.
-  const [{ data: typeRows, error: typeErr }, { data: flagRow, error: flagErr }] = await Promise.all([
+  const [{ data: typeRows, error: typeErr }, { data: flagRow, error: flagErr }, { data: rateRows, error: rateErr }] = await Promise.all([
     supabase.from("contractors").select("id, employment_type"),
     supabase.from("settings").select("value").eq("key", EMPLOYEES_ENABLED_KEY).maybeSingle(),
+    // Session 6: the cost rate in force per employee — newest effective_from
+    // on or before today wins. Staff-only table; a refused read is reported.
+    supabase.from("employee_cost_rates").select("contractor_id, cents_per_hour, effective_from")
+      .lte("effective_from", new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date()))
+      .order("effective_from", { ascending: false }),
   ]);
+  if (rateErr) reportError(rateErr, { where: "contractors.costRates" });
+  const rateOf = new Map<string, number>();
+  for (const r of (rateErr ? [] : rateRows ?? []) as { contractor_id: string; cents_per_hour: number }[]) {
+    if (!rateOf.has(r.contractor_id)) rateOf.set(r.contractor_id, r.cents_per_hour);
+  }
   // Both degrade to the proven type (contractor) and the safe switch (off);
   // a refused read is reported, never silently absorbed.
   if (typeErr) reportError(typeErr, { where: "contractors.employmentType" });
@@ -94,6 +104,7 @@ export default async function ContractorsPage() {
     bookedJobs: allOffers.filter((o) => o.contractor_id === c.id && o.state === "accepted").length,
     weekend: weekendMap.get(c.id) ?? null,
     employmentType: typeOf.get(c.id) ?? "contractor",
+    costRateCents: rateOf.get(c.id) ?? null,
   }));
 
   type EventRow = { id: string; contractor_id: string; detail: unknown; created_at: string };

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { reportError } from "@/lib/monitoring/report";
 import { STAGE_LANES, stageTitle, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
 import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
@@ -295,7 +296,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     .reduce((sum, v) => sum + (v.credit ? -(v.price_cents ?? 0) : (v.price_cents ?? 0)), 0);
   const pendingVariations = variations.some((v) =>
     v.status === "raised" || v.status === "priced" || v.status === "customer_approved");
-  const gp = contract > 0 ? Math.round(((contract - contractorPay) / contract) * 1000) / 10 : 0;
+  // Employed painters (S6): approved labour lines are this job's labour cost —
+  // the offer is nil on an employee job, so without them GP reads 100%.
+  const { data: labourRows, error: labourError } = await supabase
+    .from("job_costs").select("amount_ex_cents, gst_cents")
+    .eq("work_order_id", id).eq("category", "labour").in("status", ["approved", "paid"]);
+  if (labourError) reportError(labourError, { where: "pc.wo.labourCost", bestEffort: true });
+  const labourCents = ((labourRows ?? []) as { amount_ex_cents: number; gst_cents: number }[])
+    .reduce((sum, c) => sum + c.amount_ex_cents + c.gst_cents, 0);
+  const gp = contract > 0 ? Math.round(((contract - contractorPay - labourCents) / contract) * 1000) / 10 : 0;
 
   const stageIndex = VISIBLE_STAGES.indexOf(visibleStage(row.stage));
   const update = ((updateRows ?? []) as { id: string; draft_text: string; final_text: string | null; status: string; for_date: string }[])[0];
@@ -348,6 +357,9 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             </b>
           </span>
           <span className="mi"><span>Contractor</span><b>{money(contractorPay)}</b></span>
+          {labourCents > 0 && (
+            <span className="mi"><span>Labour (employees)</span><b data-testid="money-labour">{money(labourCents)}</b></span>
+          )}
           <span className="mi"><span>Est. GP</span>
             <b style={{ color: "var(--emerald)" }} data-testid="money-gp">{gp}%</b></span>
           <span className="mi"><span>Deposit</span>

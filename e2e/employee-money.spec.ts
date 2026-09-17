@@ -177,6 +177,9 @@ test.describe("an employed painter never sees money", () => {
       `estimates?id=eq.${fixture!.estimateId}&select=id,total_cents`,
       `invoices?select=id`,
       `rate_items?select=id&limit=1`,
+      // S6: the office's cost rate and the labour line it posts — staff-only tables.
+      `employee_cost_rates?select=id,cents_per_hour`,
+      `job_costs?work_order_id=eq.${fixture!.workOrderId}&select=id,amount_ex_cents`,
     ];
     for (const path of denied) {
       const { rows, error } = await readAsEmployee(path);

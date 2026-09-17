@@ -31,6 +31,8 @@ import type { PortalBlock, PortalJobDay } from "@/app/portal/calendar/CalendarGr
 import { jobDaysFor } from "@/lib/contractor/jobDays";
 import { suburbOnly } from "@/lib/scheduling/offers";
 import { requestNowMs } from "@/lib/time/requestClock";
+import { loadMyTimesheet } from "@/lib/contractor/timesheets";
+import TimesheetCard from "@/app/portal/TimesheetCard";
 
 export const dynamic = "force-dynamic";
 
@@ -297,6 +299,8 @@ export default async function PortalJobPage({
     }
   }
   const atWalkthrough = stage === "walkthrough";
+  // Session 6: Start / Finish day on THIS job, hours only (clocksOn painters).
+  const timesheet = capabilities.clocksOn && stage !== "closed" ? await loadMyTimesheet(id) : null;
   const bookedFinal = ((walkthroughRows ?? []) as { kind: string; scheduled_date: string }[])
     .find((w) => w.kind === "final")?.scheduled_date ?? null;
   const canPrep = stage === "completion_prep";
@@ -353,6 +357,10 @@ export default async function PortalJobPage({
         )}
         {assignment && stage !== "closed" && (
           <AssignmentCard assignment={assignment} flagged={cantMakeItFlagged} />
+        )}
+        {timesheet && (
+          <TimesheetCard open={timesheet.open} recent={timesheet.recent} error={timesheet.error}
+            workOrderId={id} jobTitle={claimJob.title} />
         )}
         {!job.committed && (
           <div className="card amberish" style={{ marginTop: 4 }}>
