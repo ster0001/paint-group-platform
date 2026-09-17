@@ -23,4 +23,4 @@ select
            where t.typname = 'contractor_doc_kind' and e.enumlabel = 'workcover') as workcover_ok,
   (select prosrc like '%d.kind = ''insurance''%' from pg_proc where proname = 'contractor_recompute_offerable') as gate_still_insurance_only;
 
-insert into public._prod_migrations(name) values ('20270157000000_contractor_doc_kind_workcover.sql') on conflict (name) do nothing;
+insert into public._prod_migrations(name) values ('20270160000000_contractor_doc_kind_workcover.sql') on conflict (name) do nothing;
