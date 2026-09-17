@@ -98,6 +98,13 @@ export type CustomerSnapshot = {
   discountMode: "pct" | "fixed"; // percentage of subtotal, or a flat dollar amount
   discountPct: number; // discount % applied to the ex-GST subtotal (when mode = pct)
   discountFixedCents: number; // flat discount in cents (when mode = fixed)
+  /**
+   * Tom, 18 Sep 2026: this job's Safe Work Method Statement, attached on the
+   * estimate (Job settings → SWMS). A public-read PDF in the presentation-docs
+   * bucket; the customer downloads it beside the public liability card.
+   * Absent/null = none attached.
+   */
+  swms?: { url: string; label: string } | null;
   proof: {
     rating: string; // "5.0"
     reviews: string; // "93+"
@@ -149,3 +156,12 @@ export function allColoursChosen(snap: Pick<CustomerSnapshot, "paints">): boolea
 
 /** The company's own bank details, as the printed estimate and every invoice show them. */
 export type BankDetails = { accountName?: string; bank?: string; bsb?: string; acc?: string };
+
+/** Where per-estimate documents (the SWMS) live: public read, staff write — the presentations' bucket. */
+export const ESTIMATE_DOCS_BUCKET = "presentation-docs";
+export function estimateDocUrl(path: string): string {
+  if (!path) return "";
+  if (/^https?:\/\//.test(path)) return path;
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
+  return `${base}/storage/v1/object/public/${ESTIMATE_DOCS_BUCKET}/${path}`;
+}

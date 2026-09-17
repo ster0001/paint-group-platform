@@ -242,6 +242,8 @@
 .cv .tval.gold { color: var(--text); }
 .cv .tval.cyan { color: var(--text); }
 .cv .tlab { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.cv .tcard .doc { display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--cyan); border: 1px solid rgba(59,216,233,.4); border-radius: 100px; padding: 5px 11px; text-decoration: none; }
+.cv .tcard .doc:hover { background: rgba(59,216,233,.1); }
 
 /* accept panel + responses */
 .cv .acceptpanel { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); border-radius: 16px; padding: 36px 30px; text-align: center; }

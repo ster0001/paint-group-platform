@@ -30,7 +30,7 @@ import type { BackTo } from "@/lib/navigation/backTo";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
-import { DEFAULT_PROOF, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint } from "@/lib/customer/snapshot";
+import { DEFAULT_PROOF, ESTIMATE_DOCS_BUCKET, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, estimateDocUrl, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint } from "@/lib/customer/snapshot";
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
@@ -369,7 +369,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; preparationHours?: number | null; adminNotes?: string; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null; extraPaints?: ExtraPaint[] } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; preparationHours?: number | null; adminNotes?: string; swms?: { path: string; name: string } | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null; extraPaints?: ExtraPaint[] } | null;
   // Deferred plan-reader decisions ride builder_state so the review gate can
   // price them; the builder carries them through saves — and, since 7 Sep,
   // RESOLVES one of them: the estimator's sign-off on the customer's photos.
@@ -481,6 +481,9 @@ export default function QuoteBuilder({
   // Tom, 17 Sep: admin notes for the estimator — staff only, never on the
   // customer's copy or the work order. Lives in builder_state.
   const [adminNotes, setAdminNotes] = useState<string>(() => loaded?.adminNotes ?? "");
+  // Tom, 18 Sep: this job's SWMS (a PDF in presentation-docs), downloadable by
+  // the customer beside the public liability card. null = none attached.
+  const [swms, setSwms] = useState<{ path: string; name: string } | null>(() => loaded?.swms ?? null);
   // What we pay the contractor per hour (margin only, never shown to the customer).
   // Blank falls back to the settings default.
   const [contractorRateOverride, setContractorRateOverride] = useState<number | null>(() => loaded?.contractorRateOverride ?? null);
@@ -944,7 +947,7 @@ export default function QuoteBuilder({
   // presentationId is part of the fingerprint (3 Sep): ticking a presentation
   // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
   // tab kept showing the last published copy — without the presentation.
-  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, aiDeferred, idealPainters, presentationId, photoReview, extraPaints });
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, presentationId, photoReview, extraPaints });
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
   const unsaved = Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
@@ -981,7 +984,7 @@ export default function QuoteBuilder({
       try {
         const result = await saveWorkingScopeAction({
           estimateId: quoteId,
-          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, aiDeferred, idealPainters, photoReview },
+          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview },
         });
         setSaveMsg(result.ok ? "Saved ✓ (working scope)" : result.message);
       } finally {
@@ -1018,7 +1021,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, aiDeferred, idealPainters, photoReview, extraPaints, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview, extraPaints, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
@@ -1413,6 +1416,7 @@ export default function QuoteBuilder({
       inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
       presentation: presentationDoc(),
+      swms: swms ? { url: estimateDocUrl(swms.path), label: swms.name } : null,
       terms,
       discountMode,
       discountPct: discountPct || 0,
@@ -2320,6 +2324,10 @@ export default function QuoteBuilder({
                       )}
                     </label>
                   )}
+                  {/* Tom, 18 Sep: the SWMS for THIS job — a PDF the customer downloads
+                      beside the public liability card. The presentation's own
+                      capability cards stay generic; this one is per estimate. */}
+                  <SwmsAttachment value={swms} onChange={setSwms} estimateId={quoteId} disabled={locked} />
                 </section>
               )}
 
@@ -3636,6 +3644,75 @@ function AreaCard({
 // This is exactly what the customer sees; staff get edit controls below it,
 // which vanish in customer view (and when the estimate is sent).
 /** The pinned Preparation line: title + wording fixed, amount editable in build mode. */
+/**
+ * Tom, 18 Sep 2026: "add a separate attachment in the estimate to that
+ * particular job with a SWMS sheet". One PDF per estimate, stored in the
+ * presentations' public-read / staff-write bucket under swms/<estimate>/…,
+ * remembered in builder_state.swms and published to the snapshot on save.
+ * Validation is the shared upload rule (PDF, size cap); the bucket enforces
+ * the same limits server-side.
+ */
+function SwmsAttachment({ value, onChange, estimateId, disabled }: {
+  value: { path: string; name: string } | null;
+  onChange: (v: { path: string; name: string } | null) => void;
+  estimateId: string | null;
+  disabled: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  return (
+    <div className="mt-3 text-xs" data-testid="swms-attachment">
+      <span className="text-gray-500">SWMS for this job <span className="text-gray-400">· a PDF the customer can download beside our public liability</span></span>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        {value ? (
+          <>
+            <a href={estimateDocUrl(value.path)} target="_blank" rel="noreferrer" className="rounded-md border border-gray-300 px-2 py-1 font-medium text-gray-800 hover:bg-gray-50" data-testid="swms-current">
+              📄 {value.name}
+            </a>
+            {!disabled && (
+              <button type="button" className="text-gray-500 underline hover:text-red-600" onClick={() => onChange(null)} data-testid="swms-remove">Remove</button>
+            )}
+          </>
+        ) : (
+          <span className="text-gray-400">None attached.</span>
+        )}
+        {!disabled && (
+          <label className="inline-flex cursor-pointer items-center gap-2">
+            <span className="rounded-md border border-gray-300 px-2 py-1 font-medium hover:bg-gray-50">{busy ? "Uploading…" : value ? "Replace PDF" : "Attach SWMS (PDF)"}</span>
+            <input
+              type="file"
+              accept={acceptAttr("document")}
+              className="hidden"
+              data-testid="swms-file"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                const bad = checkUpload(f, "document");
+                if (bad) { setErr(bad); return; }
+                setBusy(true); setErr("");
+                try {
+                  const supabase = createClient();
+                  const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                  const path = `swms/${estimateId ?? "draft"}/${Date.now()}-${safe}`;
+                  const { error } = await supabase.storage.from(ESTIMATE_DOCS_BUCKET).upload(path, f, { upsert: true, contentType: f.type || "application/pdf" });
+                  if (error) throw error;
+                  onChange({ path, name: f.name });
+                } catch (x) {
+                  setErr(x instanceof Error ? x.message : "Upload failed");
+                }
+                setBusy(false);
+              }}
+            />
+          </label>
+        )}
+        {err && <span className="text-red-600" data-testid="swms-error">{err}</span>}
+      </div>
+      {value && <span className="mt-1 block text-[11px] text-gray-500">Goes to the customer&rsquo;s copy with the next save.</span>}
+    </div>
+  );
+}
+
 function PreparationCard({ priceCents, defaultCents, overrideCents, hours, hoursCents, customerView, onCommit, onCommitHours }: {
   /** The whole line as the customer sees it: the allowance PLUS the contractor time. */
   priceCents: number;

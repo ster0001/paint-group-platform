@@ -595,6 +595,14 @@ export default function CustomerEstimate({
           <div className="trust">
             <div className="tcard"><div className="tval gold">{snap.proof.rating} ★</div><div className="tlab">from {snap.proof.reviews} 5-star reviews</div></div>
             <div className="tcard"><div className="tval cyan">{snap.proof.liability}</div><div className="tlab">public liability insurance</div></div>
+            {/* Tom, 18 Sep: this job's SWMS, downloadable beside the insurance. */}
+            {snap.swms?.url && (
+              <div className="tcard" data-testid="swms-card">
+                <div className="tval cyan">SWMS</div>
+                <div className="tlab">Safe Work Method Statement for this job</div>
+                <a className="doc" href={snap.swms.url} target="_blank" rel="noreferrer" download data-testid="swms-download">⤓ Download SWMS</a>
+              </div>
+            )}
             <div className="tcard"><div className="tval gold">Master Painters</div><div className="tlab">accredited member</div></div>
           </div>
         </section>
@@ -860,6 +868,13 @@ function PrintQuote({
         </tbody></table>
         <div className="pd-paynote">Please pay the deposit by bank transfer using the reference above. A tax invoice and receipt follow every payment.</div>
       </div>
+
+      {snap.swms?.url && (
+        <div className="pd-block">
+          <div className="pd-h">Safe Work Method Statement</div>
+          <div className="pd-sub">A SWMS for this job ({snap.swms.label || "PDF"}) is attached to your online estimate — download it beside the public liability card.</div>
+        </div>
+      )}
 
       {snap.paints?.length > 0 && (
         <div className="pd-block">
