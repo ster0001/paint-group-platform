@@ -98,6 +98,20 @@ export default function ContractorsManager({
     setBusy(null);
   }
 
+  /**
+   * S7: the switch itself (settings.employees_enabled). Off = no tick box, no
+   * invite tick; existing employees keep their portal. Staff-only through the
+   * settings table's own policy; the flag is read fresh on every page.
+   */
+  const [flagBusy, setFlagBusy] = useState(false);
+  async function setEmployeesEnabled(enabled: boolean) {
+    setFlagBusy(true); setErr("");
+    const { error } = await supabase.from("settings").upsert({ key: "employees_enabled", value: { enabled } }, { onConflict: "key" });
+    if (error) setErr(error.message);
+    else { setMsg(enabled ? "Employed painters switched on — the Employee tick box is on every row." : "Employed painters switched off — existing employees keep their portal; nothing new can be marked."); router.refresh(); }
+    setFlagBusy(false);
+  }
+
   async function setEmploymentType(id: string, type: "contractor" | "employee") {
     setBusy(id);
     setErr("");
@@ -322,12 +336,21 @@ export default function ContractorsManager({
           <h1 className="text-2xl font-semibold tracking-tight">Contractors</h1>
           <p className="text-sm text-gray-400">Invite painters and control who can be offered work.</p>
         </div>
-        <button
-          onClick={() => setShowInvite((s) => !s)}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accentink hover:bg-paint"
-        >
-          {showInvite ? "Close" : "+ Invite a contractor"}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* S7: the employed-painters switch. Off by default in production until the loop is proven. */}
+          <label className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium ${employeesEnabled ? "border-sky-400 bg-sky-900/40 text-sky-100" : "border-gray-600 text-gray-300"}`}
+            title="On: every row gets an Employee tick box and the invite form can add employed painters. Off: nothing new can be marked; existing employees keep their portal.">
+            <input type="checkbox" checked={employeesEnabled} disabled={flagBusy}
+              onChange={(e) => setEmployeesEnabled(e.target.checked)} data-testid="employees-enabled" />
+            Employed painters {employeesEnabled ? "on" : "off"}
+          </label>
+          <button
+            onClick={() => setShowInvite((s) => !s)}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accentink hover:bg-paint"
+          >
+            {showInvite ? "Close" : "+ Invite a contractor"}
+          </button>
+        </div>
       </div>
 
       {err && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}

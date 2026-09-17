@@ -189,7 +189,9 @@ export default async function PortalHome() {
       )}
 
       {timesheet && (
-        <TimesheetCard open={timesheet.open} recent={timesheet.recent} error={timesheet.error} />
+        <TimesheetCard open={timesheet.open} recent={timesheet.recent} error={timesheet.error}
+          today={new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())}
+          jobs={jobs.filter((j) => j.status !== "complete" && j.status !== "cancelled").map((j) => ({ id: j.id, title: j.doc?.jobTitle || j.woRef }))} />
       )}
 
       {actions.length > 0 && (

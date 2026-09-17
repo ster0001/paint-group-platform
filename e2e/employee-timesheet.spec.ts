@@ -108,6 +108,9 @@ test.describe("employed painter — timesheets and job cost", () => {
   test("Start day, Finish day: two taps, hours only, and nothing in dollars on the page", async ({ page }) => {
     await signIn(page, employee, /\/portal/);
     await expect(page.getByTestId("timesheet-card")).toBeVisible();
+    // S7b: the standard day logs itself; Start day is behind a second tap, for a two-job day.
+    await expect(page.getByTestId("timesheet-auto-note")).toContainText(/logged for you/);
+    await page.getByTestId("timesheet-clock-open").click();
     await page.getByTestId("timesheet-start").click();
     await expect(page.getByTestId("timesheet-running")).toBeVisible({ timeout: 15_000 });
 
@@ -226,6 +229,49 @@ test.describe("employed painter — timesheets and job cost", () => {
     // Not staff: the route does not exist.
     const anon = await request.get(`/pc/timesheets/export?from=${today}&to=${today}`);
     expect(anon.status()).toBe(404);
+  });
+
+  test("a standard day logs itself for the painter who tapped nothing — once, never on a day already logged", async () => {
+    // A weekday inside the assignment (today..tomorrow) that has finished by the standard time — yesterday-proof:
+    // the fill refuses a day that has not ended, so pick today only when 15:30 Melbourne has passed.
+    const hourNow = Number(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", hour12: false }).format(new Date()));
+    const dow = new Date(today + "T12:00:00Z").getUTCDay();
+    test.skip(hourNow < 16 || dow === 0 || dow === 6, "the standard day fills after 15:30 on a weekday — run this after then");
+    const filled = await rpcAs(staff!, "timesheet_autofill", { p_day: today });
+    expect(filled).toMatch(/^ok:/);
+    const { data: rows } = await db!.from("timesheet_entries").select("id, source, status, started_at, finished_at, break_minutes")
+      .eq("contractor_id", norateCid).eq("work_date", today);
+    const auto = (rows as { id: string; source: string; status: string; started_at: string; finished_at: string; break_minutes: number }[]).filter((r) => r.source === "auto");
+    expect(auto.length).toBe(1);
+    expect(auto[0].status).toBe("submitted");
+    expect(auto[0].break_minutes).toBe(30);
+    expect(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(auto[0].started_at))).toBe("07:30");
+    // The lead already has entries today → nothing added for them; a second run adds nothing for anyone.
+    const { count: leadAuto } = await db!.from("timesheet_entries").select("id", { count: "exact", head: true }).eq("contractor_id", employeeCid).eq("source", "auto");
+    expect(leadAuto).toBe(0);
+    expect(await rpcAs(staff!, "timesheet_autofill", { p_day: today })).toBe("ok:0");
+  });
+
+  test("the painter logs extra hours on top of the day, and cannot overlap what is already logged", async ({ page }) => {
+    await signIn(page, employee, /\/portal/);
+    await page.getByTestId("timesheet-extra-open").click();
+    // The lead's own day today ran two hours ago (test 1) — an overlap is refused.
+    const startedAt = (await db!.from("timesheet_entries").select("started_at").eq("contractor_id", employeeCid).eq("source", "painter").order("started_at", { ascending: true }).limit(1).single()).data as { started_at: string };
+    const clock = (iso: string, plusMin: number) => new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(new Date(iso).getTime() + plusMin * 60_000));
+    await page.getByTestId("timesheet-extra-start").fill(clock(startedAt.started_at, 10));
+    await page.getByTestId("timesheet-extra-finish").fill(clock(startedAt.started_at, 40));
+    await page.getByTestId("timesheet-extra-send").click();
+    await expect(page.getByTestId("timesheet-error")).toContainText(/overlap/, { timeout: 15_000 });
+    // Before that day: fine.
+    await page.getByTestId("timesheet-extra-start").fill(clock(startedAt.started_at, -90));
+    await page.getByTestId("timesheet-extra-finish").fill(clock(startedAt.started_at, -30));
+    await page.getByTestId("timesheet-extra-note").fill("Set-up before the crew arrived");
+    await page.getByTestId("timesheet-extra-send").click();
+    await expect(page.getByTestId("timesheet-done")).toContainText(/Extra hours sent/, { timeout: 15_000 });
+    const { data: extra } = await db!.from("timesheet_entries").select("source, status, note, break_minutes").eq("contractor_id", employeeCid).eq("note", "Set-up before the crew arrived").single();
+    expect((extra as { source: string; status: string; break_minutes: number }).source).toBe("painter");
+    expect((extra as { status: string }).status).toBe("submitted");
+    expect(await page.locator("body").innerText()).not.toMatch(/\$\s?\d/);
   });
 
   test("approval refuses a day no cost rate covers, and says so on the row", async ({ page }) => {

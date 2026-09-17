@@ -193,6 +193,21 @@ async function sweep(opts: { force?: boolean } = {}) {
   let gcal = { contractors: 0, errors: 0 };
   try { gcal = await reconcileAllConnected(); } catch (e) { reportError(e, { where: "wo-sweep.gcal" }); }
 
+  // Employed painters (S7b, Tom 17 Sep): standard days clock themselves —
+  // today and the last six, idempotent; a day with two jobs is left for the
+  // office (the count is reported, never hidden).
+  let timesheetsFilled = 0;
+  let timesheetsManual = 0;
+  try {
+    for (let back = 6; back >= 0; back--) {
+      const day = melbourneDate(new Date(now.getTime() - back * 86_400_000));
+      const { data: r, error: aErr } = await db.rpc("timesheet_autofill", { p_day: day });
+      if (aErr) throw aErr;
+      const m = /^ok:(\d+)(?::manual:(\d+))?/.exec(String(r ?? ""));
+      if (m) { timesheetsFilled += Number(m[1]); timesheetsManual += Number(m[2] ?? 0); }
+    }
+  } catch (e) { reportError(e, { where: "wo-sweep.timesheetAutofill" }); }
+
   // P6: the estimators' calendars, and tomorrow's visit reminder texts.
   let staffGcal = { staff: 0, errors: 0 };
   let visitReminders = { sent: 0, skipped: 0 };
@@ -241,6 +256,8 @@ async function sweep(opts: { force?: boolean } = {}) {
     staffGcalErrors: staffGcal.errors,
     visitReminders,
     heldReleased,
+    timesheetsFilled,
+    timesheetsManual,
   };
 }
 

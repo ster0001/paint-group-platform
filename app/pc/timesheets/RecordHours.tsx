@@ -12,7 +12,7 @@ export default function RecordHours({ painters, today }: { painters: PainterOpti
   const [painter, setPainter] = useState(painters[0]?.id ?? "");
   const [job, setJob] = useState(painters[0]?.jobs[0]?.id ?? "");
   const [date, setDate] = useState(today);
-  const [start, setStart] = useState("07:00");
+  const [start, setStart] = useState("07:30");
   const [finish, setFinish] = useState("15:30");
   const [breakMinutes, setBreakMinutes] = useState(30);
   const [message, setMessage] = useState<string | null>(null);

@@ -80,6 +80,12 @@ export const WORK_ITEM_KINDS = [
    * it was; the office reassigns. Critical: a job with nobody on it.
    */
   "employee_reassign",
+  /** S7 (brief §3.9): an assignment nobody has tapped Accept on, starting within a day — ring them. */
+  "employee_unaccepted",
+  /** S7: an employee asked for leave or an RDO — approve or decline before the day. */
+  "leave_request",
+  /** S7: clocked days waiting on the office for more than a day. */
+  "timesheet_approval",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -195,6 +201,12 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   hours_to_confirm: 18,
   // A booked day with no painter on it — outranks every internal chase.
   employee_reassign: 32,
+  // A job starting tomorrow that its painter may not know about — a phone call.
+  employee_unaccepted: 26,
+  // A yes/no before the day, and then the board is right.
+  leave_request: 12,
+  // Payroll waits on this, but a day, not an hour.
+  timesheet_approval: 10,
 };
 
 export type PriorityInput = {
@@ -285,6 +297,9 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   message_approval: "approvals",
   hours_to_confirm: "approvals",
   employee_reassign: "followups",
+  employee_unaccepted: "followups",
+  leave_request: "approvals",
+  timesheet_approval: "approvals",
 };
 
 // ---- source: employee_reassign (employed painters S3, ruling 11) ------------
@@ -296,7 +311,16 @@ export type CantMakeItEventRow = {
   meta: { assignment_id?: string; contractor_id?: string; start_date?: string; end_date?: string; reason?: string } | null;
   work_orders: { wo_ref: string; wo_snapshot: { jobTitle?: string; jobAddress?: string } | null } | null;
 };
-export type ActiveAssignmentRow = { id: string; contractor_id: string; start_date: string; end_date: string; status: string };
+export type ActiveAssignmentRow = {
+  id: string; contractor_id: string; start_date: string; end_date: string; status: string;
+  /** S7: present when the read carries them — the unaccepted item needs the job and the tap. */
+  work_order_id?: string; accepted_at?: string | null;
+  work_orders?: { wo_ref: string; wo_snapshot: { jobTitle?: string; jobAddress?: string } | null } | null;
+};
+export type LeaveRequestRow = {
+  id: string; contractor_id: string; kind: string; start_date: string; end_date: string; reason: string; created_at: string;
+};
+export type TimesheetPendingRow = { id: string; contractor_id: string; work_order_id: string; work_date: string; finished_at: string | null };
 export type DatesChangedEventRow = { created_at: string; meta: { assignment_id?: string } | null };
 
 /**
@@ -347,6 +371,88 @@ export function buildEmployeeReassignItems(
       // from the zone — never written down), so it sits in Overdue once that passes.
       dueAt: new Date(Date.parse(melbourneDayStartUtc(new Date(`${a.start_date}T12:00:00Z`))) - 86_400_000).toISOString(),
       action: { label: "Reassign", href: `/pc/schedule?from=${a.start_date}&days=14` },
+    }, { valueCents: null, promisedToCustomer: false }, now);
+  });
+}
+
+// ---- sources: employee_unaccepted · leave_request · timesheet_approval (S7, brief §3.9) ----
+
+const dmyOf = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
+const daysOf = (start: string, end: string) => start === end ? dmyOf(start) : `${dmyOf(start)}–${dmyOf(end)}`;
+
+/**
+ * An assignment with no Accept on it whose first day starts within 24 hours
+ * (Melbourne midnight, measured from the zone). Amber: the painter may not
+ * know. Clears the moment they tap Accept, their dates move, or the day is
+ * past — nothing is stored.
+ */
+export function buildEmployeeUnacceptedItems(active: ActiveAssignmentRow[], painterNames: Map<string, string>, now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const a of active) {
+    if (a.status !== "assigned" || a.accepted_at || !a.work_order_id) continue;
+    const startsAt = Date.parse(melbourneDayStartUtc(new Date(`${a.start_date}T12:00:00Z`)));
+    const endsAt = Date.parse(melbourneDayStartUtc(new Date(`${a.end_date}T12:00:00Z`))) + 86_400_000;
+    if (startsAt - now.getTime() > 86_400_000 || endsAt <= now.getTime()) continue;
+    const who = painterNames.get(a.contractor_id) ?? "A painter";
+    const job = a.work_orders?.wo_snapshot?.jobTitle || a.work_orders?.wo_ref || "a job";
+    items.push(finish({
+      key: itemKey("employee_unaccepted", "work_order", a.work_order_id, a.id),
+      kind: "employee_unaccepted",
+      accountId: null,
+      subjectRef: { type: "work_order", id: a.work_order_id },
+      title: `${who} hasn't accepted ${job} — ${daysOf(a.start_date, a.end_date)}`,
+      detail: "No tap on the assignment yet. Ring them: they may not know they're on it.",
+      since: now.toISOString(),
+      dueAt: new Date(startsAt).toISOString(),
+      action: { label: "Call painter", href: "/contractors" },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
+/** One item per leave / RDO request still undecided. Due the day before it starts. */
+export function buildLeaveRequestItems(rows: LeaveRequestRow[], painterNames: Map<string, string>, now: Date): WorkItem[] {
+  return rows.map((r) => {
+    const who = painterNames.get(r.contractor_id) ?? "A painter";
+    const what = r.kind === "rdo" ? "an RDO" : "leave";
+    return finish({
+      key: itemKey("leave_request", "event", r.id, r.kind),
+      kind: "leave_request",
+      accountId: null,
+      subjectRef: { type: "event", id: r.id },
+      title: `${who} asked for ${what} — ${daysOf(r.start_date, r.end_date)}`,
+      detail: r.reason ? `"${r.reason}"` : "No reason given.",
+      since: r.created_at,
+      dueAt: new Date(Date.parse(melbourneDayStartUtc(new Date(`${r.start_date}T12:00:00Z`))) - 86_400_000).toISOString(),
+      action: { label: "Decide", href: "/pc/timesheets#time-off" },
+    }, { valueCents: null, promisedToCustomer: false }, now);
+  });
+}
+
+/**
+ * Clocked days waiting on the office for more than 24 hours — one item per
+ * painter, counting their days, keyed on the painter so the count changing
+ * never resurrects a dismissal.
+ */
+export function buildTimesheetApprovalItems(rows: TimesheetPendingRow[], painterNames: Map<string, string>, now: Date): WorkItem[] {
+  const byPainter = new Map<string, TimesheetPendingRow[]>();
+  for (const r of rows) {
+    if (!r.finished_at || now.getTime() - Date.parse(r.finished_at) < 86_400_000) continue;
+    byPainter.set(r.contractor_id, [...(byPainter.get(r.contractor_id) ?? []), r]);
+  }
+  return [...byPainter.entries()].map(([cid, entries]) => {
+    const oldest = entries.reduce((a, b) => (a.finished_at! < b.finished_at! ? a : b));
+    const who = painterNames.get(cid) ?? "A painter";
+    return finish({
+      key: itemKey("timesheet_approval", "work_order", oldest.work_order_id, cid),
+      kind: "timesheet_approval",
+      accountId: null,
+      subjectRef: { type: "work_order", id: oldest.work_order_id },
+      title: `${entries.length} clocked day${entries.length === 1 ? "" : "s"} from ${who} waiting on approval`,
+      detail: `Oldest is ${dmyOf(oldest.work_date)}. Approve posts the labour to the job; payroll takes the approved days.`,
+      since: oldest.finished_at!,
+      dueAt: new Date(Date.parse(oldest.finished_at!) + 86_400_000).toISOString(),
+      action: { label: "Approve", href: "/pc/timesheets" },
     }, { valueCents: null, promisedToCustomer: false }, now);
   });
 }
@@ -1379,15 +1485,31 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .select("id, work_order_id, created_at, meta, work_orders(wo_ref, wo_snapshot)")
       .eq("type", "assignment_cant_make_it").gte("created_at", since30d)
       .order("created_at", { ascending: true }).limit(200),
-    supabase.from("wo_assignments").select("id, contractor_id, start_date, end_date, status")
+    supabase.from("wo_assignments").select("id, contractor_id, start_date, end_date, status, work_order_id, accepted_at, work_orders(wo_ref, wo_snapshot)")
       .neq("status", "released").gte("end_date", new Date(now.getTime() - 7 * 86_400_000).toISOString().slice(0, 10)).limit(500),
     supabase.from("wo_events").select("created_at, meta")
       .eq("type", "assignment_dates_changed").gte("created_at", since30d).limit(500),
   ]);
   const flagRows = (flagRes.error ? [] : (flagRes.data ?? [])) as unknown as CantMakeItEventRow[];
-  const activeRows = (activeRes.error ? [] : (activeRes.data ?? [])) as ActiveAssignmentRow[];
+  const activeRows = (activeRes.error ? [] : (activeRes.data ?? [])) as unknown as ActiveAssignmentRow[];
   const moveRows = (moveRes.error ? [] : (moveRes.data ?? [])) as unknown as DatesChangedEventRow[];
-  const flagPainterIds = [...new Set(flagRows.map((f) => f.meta?.contractor_id).filter((x): x is string => !!x))];
+  // S7: undecided leave / RDO requests and clocked days nobody has approved.
+  // Both tables are staff-only; a session that cannot read them gets nothing.
+  const [leaveRes, tsRes] = await Promise.all([
+    supabase.from("contractor_unavailability").select("id, contractor_id, kind, start_date, end_date, reason, created_at")
+      .in("kind", ["leave", "rdo"]).is("approved_at", null).is("declined_at", null)
+      .gte("end_date", now.toISOString().slice(0, 10)).order("start_date", { ascending: true }).limit(200),
+    supabase.from("timesheet_entries").select("id, contractor_id, work_order_id, work_date, finished_at")
+      .eq("status", "submitted").order("finished_at", { ascending: true }).limit(500),
+  ]);
+  const leaveRows = (leaveRes.error ? [] : (leaveRes.data ?? [])) as LeaveRequestRow[];
+  const tsRows = (tsRes.error ? [] : (tsRes.data ?? [])) as TimesheetPendingRow[];
+  const flagPainterIds = [...new Set([
+    ...flagRows.map((f) => f.meta?.contractor_id),
+    ...activeRows.filter((a) => !a.accepted_at).map((a) => a.contractor_id),
+    ...leaveRows.map((r) => r.contractor_id),
+    ...tsRows.map((r) => r.contractor_id),
+  ].filter((x): x is string => !!x))];
   const flagPainters = await inSlices(flagPainterIds, (ids) => supabase.from("contractors").select("id, company_name, profiles(name)").in("id", ids));
   const painterNames = new Map((flagPainters as unknown as Array<{ id: string; company_name: string | null; profiles: { name: string | null } | null }>)
     .map((c) => [c.id, c.profiles?.name || c.company_name || "A painter"]));
@@ -1513,6 +1635,9 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps),
     ...buildHoursPendingItems(hoursRows, now),
     ...buildEmployeeReassignItems(flagRows, activeRows, moveRows, painterNames, now),
+    ...buildEmployeeUnacceptedItems(activeRows, painterNames, now),
+    ...buildLeaveRequestItems(leaveRows, painterNames, now),
+    ...buildTimesheetApprovalItems(tsRows, painterNames, now),
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),

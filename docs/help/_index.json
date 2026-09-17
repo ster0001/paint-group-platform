@@ -209,7 +209,7 @@
         "media/contractor-12.png",
         "media/contractor-13.png"
       ],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "0a07c92452",
       "sources": [
         "app/portal/requests",
         "app/portal/calendar",
@@ -226,7 +226,7 @@
       "path": "docs/help/scheduling/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "0a07c92452",
       "sources": [
         "app/portal/jobs",
         "app/portal/calendar",
@@ -252,7 +252,7 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "0a07c92452",
       "sources": [
         "app/pc/schedule",
         "lib/scheduling",
@@ -321,12 +321,12 @@
     {
       "feature": "timesheets",
       "role": "employee",
-      "title": "Start your day, finish your day — your hours",
-      "summary": "The Start day / Finish day card for employed painters — two taps on the home page or the job, the break you took, what the office does with the hours, and what the status words mean.",
+      "title": "Your hours — logged for you, plus any extra you work",
+      "summary": "How an employed painter's hours reach payroll — a standard day is logged automatically on every day you are on a job, you add only extra hours, Start day / Finish day is for a day with two jobs, and what the status words mean.",
       "path": "docs/help/timesheets/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "989f914fd9",
+      "verified_at_commit": "83a6a8ba48",
       "sources": [
         "app/portal/TimesheetCard.tsx",
         "app/portal/timesheetActions.ts",
@@ -336,17 +336,20 @@
     {
       "feature": "timesheets",
       "role": "pc",
-      "title": "Approve employed painters' days, record one for them, and export the payroll CSV",
-      "summary": "The Timesheets tab in PC Command — each clocked day waiting on approval, what approving does to the job's costs, recording a day the painter forgot, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.",
+      "title": "Employed painters' days — logged automatically, approved in one click, plus time off and the payroll CSV",
+      "summary": "The Timesheets tab in PC Command — the standard day that logs itself every evening, approving a normal week in one click, days that need a manual entry, painters' extra hours, leave and RDO requests, recording a day by hand, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.",
       "path": "docs/help/timesheets/pc.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "989f914fd9",
+      "verified_at_commit": "83a6a8ba48",
       "sources": [
         "app/pc/timesheets/page.tsx",
+        "app/pc/timesheets/StandardDay.tsx",
         "app/pc/timesheets/TimesheetRow.tsx",
+        "app/pc/timesheets/LeaveRow.tsx",
         "app/pc/timesheets/RecordHours.tsx",
         "app/pc/timesheets/export/route.ts",
+        "app/api/cron/wo-sweep/route.ts",
         "app/(app)/contractors/ContractorsManager.tsx"
       ]
     },

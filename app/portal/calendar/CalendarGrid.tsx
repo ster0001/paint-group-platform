@@ -42,8 +42,9 @@ export default function CalendarGrid({
 }: {
   blocks: PortalBlock[];
   jobDays: PortalJobDay[];
-  /** "block" = tap/drag to mark unavailable. "pick" = choose one start date. */
-  mode?: "block" | "pick";
+  /** "block" = tap/drag to mark unavailable. "pick" = choose one start date.
+   *  "view" = look only (an employee's days off are REQUESTED, S7). */
+  mode?: "block" | "pick" | "view";
   onPickDate?: (date: string) => void;
   selectedDate?: string | null;
   /** Open on this date's month — otherwise picking a date months out means
@@ -147,7 +148,7 @@ export default function CalendarGrid({
   );
 
   function dayDown(date: string) {
-    if (mode === "pick" || jobByDate.has(date)) return;
+    if (mode !== "block" || jobByDate.has(date)) return;
     dragRef.current = { anchor: date, last: date };
     setMarquee({ from: date, to: date });
   }
@@ -241,8 +242,9 @@ export default function CalendarGrid({
               title={
                 tooEarly && !job ? "That date has passed"
                 : job ? `${job.label} — tap to open the job`
-                : blk ? (blk.source === "staff" ? "Blocked by Paint Group" : "You marked this unavailable")
+                : blk ? (blk.source === "staff" ? "Blocked by Paint Group" : mode === "view" ? blk.reason || "Time off" : "You marked this unavailable")
                 : mode === "pick" ? "Tap to start here"
+                : mode === "view" ? ""
                 : "Tap, or drag across several days"
               }
             >

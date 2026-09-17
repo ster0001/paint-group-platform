@@ -79,6 +79,8 @@ export const blockOutInput = z
     startDate: isoDate,
     endDate: isoDate,
     reason: z.string().max(200).default(""),
+    /** S7b: the office marks an employee sick / on leave / on an RDO from the board. "other" = a plain block. */
+    kind: z.enum(["other", "leave", "rdo", "sick"]).default("other"),
   })
   .refine((v) => v.endDate >= v.startDate, {
     message: "the last day cannot be before the first",

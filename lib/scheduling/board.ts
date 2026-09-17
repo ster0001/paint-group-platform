@@ -218,7 +218,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .order("id").range(f, t)),
       supabase
         .from("contractor_unavailability")
-        .select("id, contractor_id, start_date, end_date, reason, source")
+        .select("id, contractor_id, start_date, end_date, reason, source, kind, approved_at, declined_at")
         .lte("start_date", to)
         .gte("end_date", from),
       // The chase log. Every unbooked job's notes in one query rather than one
@@ -396,8 +396,14 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   }
 
   // --- blocked-out days ---
-  type URow = { id: string; contractor_id: string; start_date: string; end_date: string; reason: string; source: "contractor" | "staff" };
+  type URow = {
+    id: string; contractor_id: string; start_date: string; end_date: string; reason: string; source: "contractor" | "staff";
+    kind?: string | null; approved_at?: string | null; declined_at?: string | null;
+  };
   for (const u of (unavail as URow[] | null) ?? []) {
+    // S7: a declined request is not a day off; a pending one is shown as asked-for.
+    if (u.declined_at) continue;
+    const kindWord = u.kind === "rdo" ? "RDO" : u.kind === "leave" ? "Leave" : u.kind === "sick" ? "Sick" : null;
     blocks.push({
       id: `unav-${u.id}`,
       kind: "unavailable",
@@ -405,7 +411,9 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       contractorId: u.contractor_id,
       start: u.start_date,
       end: u.end_date,
-      title: u.reason || (u.source === "staff" ? "Blocked by office" : "Unavailable"),
+      title: kindWord
+        ? `${kindWord}${(u.kind === "leave" || u.kind === "rdo") && !u.approved_at ? " — requested" : ""}${u.reason ? ` · ${u.reason}` : ""}`
+        : u.reason || (u.source === "staff" ? "Blocked by office" : "Unavailable"),
       woRef: "",
       workOrderId: null,
       offerId: null,
