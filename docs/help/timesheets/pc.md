@@ -4,7 +4,7 @@ role: pc
 title: Approve employed painters' days, record one for them, and export the payroll CSV
 summary: The Timesheets tab in PC Command — each clocked day waiting on approval, what approving does to the job's costs, recording a day the painter forgot, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.
 sources: app/pc/timesheets/page.tsx, app/pc/timesheets/TimesheetRow.tsx, app/pc/timesheets/RecordHours.tsx, app/pc/timesheets/export/route.ts, app/(app)/contractors/ContractorsManager.tsx
-verified_at_commit: 82053bb807
+verified_at_commit: 989f914fd9
 ---
 
 ## What this is for

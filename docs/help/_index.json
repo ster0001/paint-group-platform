@@ -326,7 +326,7 @@
       "path": "docs/help/timesheets/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "82053bbd7c",
+      "verified_at_commit": "989f914fd9",
       "sources": [
         "app/portal/TimesheetCard.tsx",
         "app/portal/timesheetActions.ts",
@@ -341,7 +341,7 @@
       "path": "docs/help/timesheets/pc.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "82053bbd7c",
+      "verified_at_commit": "989f914fd9",
       "sources": [
         "app/pc/timesheets/page.tsx",
         "app/pc/timesheets/TimesheetRow.tsx",

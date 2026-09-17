@@ -4,7 +4,7 @@ role: employee
 title: Start your day, finish your day — your hours
 summary: The Start day / Finish day card for employed painters — two taps on the home page or the job, the break you took, what the office does with the hours, and what the status words mean.
 sources: app/portal/TimesheetCard.tsx, app/portal/timesheetActions.ts, lib/contractor/timesheets.ts
-verified_at_commit: 82053bb807
+verified_at_commit: 989f914fd9
 ---
 
 ## What this is for
