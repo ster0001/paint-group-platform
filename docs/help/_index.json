@@ -209,7 +209,7 @@
         "media/contractor-12.png",
         "media/contractor-13.png"
       ],
-      "verified_at_commit": "588d5660d2",
+      "verified_at_commit": "3a6848a2fd",
       "sources": [
         "app/portal/requests",
         "app/portal/calendar",
@@ -226,7 +226,7 @@
       "path": "docs/help/scheduling/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "3a6848a2fd",
       "sources": [
         "app/portal/jobs",
         "app/portal/calendar",
@@ -252,7 +252,7 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": "588d5660d2",
+      "verified_at_commit": "3a6848a2fd",
       "sources": [
         "app/pc/schedule",
         "lib/scheduling",
@@ -331,7 +331,7 @@
         "media/contractor-18.png",
         "media/contractor-walkthrough-2.gif"
       ],
-      "verified_at_commit": "931d769016",
+      "verified_at_commit": "3a6848a2fd",
       "sources": [
         "app/portal/jobs",
         "app/components/wo",
@@ -347,7 +347,7 @@
       "path": "docs/help/work-orders/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "3a6848a2fd",
       "sources": [
         "app/portal/jobs",
         "app/components/wo",
@@ -383,7 +383,7 @@
         "media/pc-17.png",
         "media/pc-18.png"
       ],
-      "verified_at_commit": "931d769016",
+      "verified_at_commit": "3a6848a2fd",
       "sources": [
         "app/pc",
         "app/components/wo",
