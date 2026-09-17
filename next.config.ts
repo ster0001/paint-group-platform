@@ -6,8 +6,25 @@ const nextConfig: NextConfig = {
   // page-level robots metadata) so Google never sees two Paint Group sites.
   // The flip: set SITE_INDEXABLE=1 in the Vercel project env and redeploy.
   async headers() {
-    if (process.env.SITE_INDEXABLE === "1") return [];
-    return [{ source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }];
+    // Baseline browser hardening on every response (18 Sep 2026 security
+    // audit — there were none before). No page here is meant to be framed by
+    // another site, so clickjacking is shut with both the legacy header and
+    // the CSP directive; nosniff stops a served upload being sniffed into a
+    // script; the referrer policy keeps token-bearing paths (/e/<token>…)
+    // out of third parties' logs when a customer follows an outbound link.
+    // A full Content-Security-Policy is NOT set here: the pages carry inline
+    // scripts (JSON-LD, Clarity, the tour) and third-party embeds, so it
+    // needs a nonce pass first — tracked in the audit report.
+    const security = [
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=()" },
+      { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+    ];
+    const robots = process.env.SITE_INDEXABLE === "1" ? [] : [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
+    return [{ source: "/:path*", headers: [...security, ...robots] }];
   },
   // Showcase photos live in the public showcase-media bucket and are served
   // through next/image (CLAUDE.md: images via next/image with Supabase

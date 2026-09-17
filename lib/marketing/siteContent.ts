@@ -1,3 +1,4 @@
+import "server-only";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mediaPath } from "@/lib/showcase/schema";
