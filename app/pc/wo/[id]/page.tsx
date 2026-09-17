@@ -67,7 +67,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         .select("id, heading, heading_meta, label, state, rectification, removed_from_scope")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_variations")
-        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents")
+        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, verbal_confirmed_at, verbal_note, needs_manual_deduction, deduction_cents")
         .eq("work_order_id", id).order("created_at", { ascending: false }),
       supabase.from("wo_updates").select("id, draft_text, final_text, status, for_date")
         .eq("work_order_id", id).order("for_date", { ascending: false }).limit(1),
@@ -264,6 +264,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     est_hours: string | null; price_cents: number | null;
     contractor_delta_cents: number | null; released_at: string | null;
     credit: boolean; signed_name: string | null; signed_at: string | null;
+    verbal_confirmed_at: string | null; verbal_note: string | null;
     needs_manual_deduction: boolean; deduction_cents: number | null;
   }[]);
 
@@ -567,7 +568,16 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                 {v.est_hours ? ` · est. ${Number(v.est_hours)} hrs` : ""}
                 {v.credit ? " · credit" : ""}</b>
               </div>
-              {v.signed_name && (
+              {v.signed_name && v.verbal_confirmed_at && (
+                // Tom, 17 Sep: a verbal approval recorded by the office — said
+                // as such, never dressed up as a signature.
+                <p className="note" data-testid={`variation-signed-${v.id}`}>
+                  ✓ Approved by phone — {v.signed_name}, recorded by the office
+                  {` on ${new Date(v.verbal_confirmed_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" })}`}
+                  {v.verbal_note ? ` · “${v.verbal_note}”` : ""}
+                </p>
+              )}
+              {v.signed_name && !v.verbal_confirmed_at && (
                 <p className="note" data-testid={`variation-signed-${v.id}`}>
                   ✓ Signed by {v.signed_name}
                   {v.signed_at

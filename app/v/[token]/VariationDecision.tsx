@@ -16,10 +16,12 @@ const dateFmt = (iso: string) =>
  * one-tap it always was — nobody signs to say no.
  */
 export default function VariationDecision({
-  token, priceCents, credit, status, signedName, signedAt, estimateToken = null, dashboardHref = null,
+  token, priceCents, credit, status, signedName, signedAt, verbalConfirmedAt = null, estimateToken = null, dashboardHref = null,
 }: {
   token: string; priceCents: number; credit: boolean; status: string;
   signedName: string | null; signedAt: string | null;
+  /** The office recorded a verbal approval (Tom, 17 Sep 2026): say so, never "signed". */
+  verbalConfirmedAt?: string | null;
   /** Their own /e page — the fallback landing for pre-portal customers. */
   estimateToken?: string | null;
   /** The dashboard invoicing view (Tom, 1 Sep) — wins over /e when they have an account. */
@@ -60,7 +62,13 @@ export default function VariationDecision({
             ? `We'll take that out of the scope, and the ${money(priceCents)} comes off your final invoice.`
             : `We'll get straight on with it. The extra ${money(priceCents)} will appear on your final invoice.`}
         </p>
-        {doneName && (
+        {doneName && verbalConfirmedAt && (
+          <p className="cv-signedby" data-testid="variation-signedby">
+            Approved by phone by {doneName} on {dateFmt(verbalConfirmedAt)}, recorded by our office.
+            If that isn&rsquo;t right, reply to the confirmation email or give us a call.
+          </p>
+        )}
+        {doneName && !verbalConfirmedAt && (
           <p className="cv-signedby" data-testid="variation-signedby">
             Signed by {doneName}
             {doneAt ? ` on ${dateFmt(doneAt)}` : ""}.

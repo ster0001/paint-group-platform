@@ -20,6 +20,8 @@ type Row = {
   signed_name: string | null; signed_at: string | null;
   adjusted_contract_cents: number | null;
   estimate_token: string | null;
+  /** Set when the office recorded a verbal approval (20270158) — absent on older functions. */
+  verbal_confirmed_at?: string | null;
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -141,6 +143,7 @@ export default async function VariationPage({ params }: { params: Promise<{ toke
           status={row.status}
           signedName={row.signed_name}
           signedAt={row.signed_at}
+          verbalConfirmedAt={row.verbal_confirmed_at ?? null}
           estimateToken={row.estimate_token}
           dashboardHref={dashboardHref}
         />

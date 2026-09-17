@@ -14,6 +14,7 @@ import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
 import { melbourneDate } from "@/lib/workorder/console";
+import { describeConfirmation, sendVariationConfirmation } from "@/lib/workorder/variationConfirmation";
 
 /**
  * The console's own actions — the three PC surfaces the earlier steps deferred
@@ -85,6 +86,61 @@ export async function approveVariationInternal(raw: unknown): Promise<PcResult> 
     }
   }
   return r;
+}
+
+/**
+ * Tom, 17 Sep 2026: the customer said yes on the phone. The office records
+ * that approval on their behalf — the same customer_approved the signature
+ * produces, stamped verbal with who gave it — and the customer gets a
+ * confirmation of what was approved (email and text where on file), so a
+ * verbal OK never lives only in someone's memory. The confirmation is
+ * awaited so the office sees what went out; the painter's release text
+ * rides behind the response as it does for a signature.
+ */
+export async function confirmVariationVerbally(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    variationId: uuid,
+    confirmedWith: z.string().trim().min(1).max(200),
+    note: z.string().trim().max(500).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Say who gave the approval — their name goes on the record." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_staff_confirm_variation", {
+    p_variation_id: parsed.data.variationId,
+    p_confirmed_with: parsed.data.confirmedWith,
+    p_note: parsed.data.note,
+  });
+  if (error) return { ok: false, message: error.message };
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) {
+    const reason = s.replace("error:", "");
+    const wording: Record<string, string> = {
+      not_staff: "You don't have permission to confirm variations.",
+      not_found: "That variation no longer exists.",
+      not_priced: "Price it first — the customer can only approve a figure.",
+      name_required: "Say who gave the approval — their name goes on the record.",
+    };
+    if (reason.startsWith("already_")) return { ok: false, message: "This one has already been answered." };
+    return { ok: false, message: wording[reason] ?? reason.replace(/_/g, " ") };
+  }
+  revalidatePath("/pc");
+  revalidatePath("/pc/flow");
+  revalidatePath("/quote");
+  revalidatePath("/portal/jobs");
+
+  const variationId = parsed.data.variationId;
+  const service = createServiceClient();
+  let confirmation = "Confirmation not sent — the server has no service key.";
+  if (service) {
+    confirmation = describeConfirmation(await sendVariationConfirmation(service, variationId));
+    after(() => notifyVariationReleased(service, variationId));
+  }
+  const released = s === "ok:approved_released";
+  return {
+    ok: true,
+    message: `Recorded as approved by phone by ${parsed.data.confirmedWith}${released ? " — released to the painter" : ""}. ${confirmation}`,
+  };
 }
 
 /** Staff override of the contractor's figure on a variation (Tom, 1 Sep #2). */

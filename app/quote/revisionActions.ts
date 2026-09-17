@@ -6,9 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import type { PricingContext } from "@/lib/pricing/estimate";
 import type { RateItem, Product } from "@/lib/pricing/types";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
-import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
+import { sendEmail, sendSms } from "@/lib/messaging/send";
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { buildInvoiceEmailHtml } from "@/lib/invoicing/sendInvoice";
+import { loadCustomerContact } from "@/lib/workorder/customerContact";
+import { describeSendOutcome } from "@/lib/workorder/variations";
 
 /**
  * The revision builder's server side (addendum A2).
@@ -267,6 +269,12 @@ export type SendVariationResult = {
  * messaging rails as estimates — email and text, ⚑16 log-driver when
  * unconfigured. Recipient comes from the estimate's own contact; nothing is
  * typed. Re-sending is fine — the link is stable per variation.
+ *
+ * 17 Sep 2026 (1/41 Devoy Street): the recipient is resolved by
+ * `loadCustomerContact` — builder contact, then the sent snapshot, then the
+ * linked account — the same order every other customer send uses. Reading
+ * `builder_state.contact` alone found nothing on a job whose contact lived in
+ * the snapshot, and the failure never reached a screen.
  */
 export async function sendVariationForSignatureAction(raw: unknown): Promise<SendVariationResult> {
   const parsed = z.object({
@@ -281,10 +289,11 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
   const query = supabase
     .from("wo_variations")
     .select("id, customer_token, status, price_cents, credit, comment, work_orders(estimate_id, wo_ref)");
-  const { data: v } = await (parsed.data.variationId
+  const { data: v, error: vErr } = await (parsed.data.variationId
     ? query.eq("id", parsed.data.variationId)
     : query.eq("customer_token", parsed.data.token!)
   ).maybeSingle();
+  if (vErr) return { ok: false, message: `Couldn't read the variation: ${vErr.message}` };
   const variation = v as {
     id: string; customer_token: string | null; status: string;
     price_cents: number | null; credit: boolean; comment: string;
@@ -297,10 +306,11 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
   // what was found — they sign what they can see. Credits (scope removals)
   // are exempt; there is nothing on site to photograph.
   if (!variation.credit) {
-    const { count } = await supabase
+    const { count, error: photoErr } = await supabase
       .from("wo_photos")
       .select("id", { count: "exact", head: true })
       .eq("variation_id", variation.id);
+    if (photoErr) return { ok: false, message: `Couldn't check the variation's photos: ${photoErr.message}` };
     if (!count) {
       return {
         ok: false,
@@ -309,17 +319,19 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
     }
   }
 
-  const [{ data: est }, { data: settingsRows }] = await Promise.all([
-    supabase.from("estimates").select("builder_state, title").eq("id", variation.work_orders?.estimate_id ?? "").maybeSingle(),
-    supabase.from("settings").select("key, value").eq("key", "company_profile").maybeSingle()
-      .then((r) => ({ data: r.data ? [r.data] : [] })),
-  ]);
-  const contact = ((est?.builder_state as { contact?: { first_name?: string; email?: string; phone?: string } } | null)?.contact) ?? null;
-  const company = ((settingsRows?.[0] as { value?: { name?: string; email?: string } } | undefined)?.value) ?? {};
+  const estimateId = variation.work_orders?.estimate_id ?? "";
+  const loaded = await loadCustomerContact(supabase, estimateId);
+  if (!loaded.ok) return { ok: false, message: loaded.message };
+  const { contact, accountId } = loaded;
+
+  const { data: companyRow, error: companyErr } = await supabase
+    .from("settings").select("value").eq("key", "company_profile").maybeSingle();
+  if (companyErr) return { ok: false, message: `Couldn't read the company profile: ${companyErr.message}` };
+  const company = ((companyRow as { value?: { name?: string; email?: string } } | null)?.value) ?? {};
 
   const link = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app"}/v/${variation.customer_token}`;
   const money = "$" + (Math.abs(variation.price_cents ?? 0) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
-  const first = contact?.first_name || "there";
+  const first = contact.firstName;
   const what = variation.credit
     ? `a change that takes ${money} off your job total`
     : `a change adding ${money} to your job total`;
@@ -328,62 +340,63 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
   const wantEmail = via !== "sms";
   const wantSms = via !== "email";
   const result: SendVariationResult = { ok: false };
+  const ctx = { estimateId: estimateId || null, accountId, kind: "variation" };
 
-  if (wantEmail && !contact?.email && via === "email") {
-    return { ok: false, message: "No email on the estimate's contact — add one, or text it instead." };
+  if (wantEmail && !contact.email && via === "email") {
+    return { ok: false, message: "No email on the estimate's contact — add one on the estimate, or text it instead." };
   }
-  if (wantSms && !contact?.phone && via === "sms") {
-    return { ok: false, message: "No mobile on the estimate's contact — add one, or email it instead." };
-  }
-
-  if (wantEmail && contact?.email) {
-    if (!emailConfigured()) {
-      console.log(`[variation-send:log-driver] to=${contact.email} link=${link}`);
-      result.email = { status: "not_configured" };
-    } else {
-      const sent = await sendEmail({
-        ctx: { estimateId: variation.work_orders?.estimate_id ?? null, kind: "variation" },
-        to: contact.email,
-        subject: `A change to your job needs your signature — ${company.name ?? "Paint Group"}`,
-        replyTo: company.email || undefined,
-        html: buildInvoiceEmailHtml({
-          companyName: company.name ?? "Paint Group",
-          heading: "A change to your job needs your signature",
-          intro:
-            `Hello ${first},\n\n` +
-            `There's ${what}: ${variation.comment || "a scope change"}. ` +
-            `Please review and sign it at the link below — nothing changes on your invoice until you do.`,
-          link,
-          buttonLabel: "Review & sign the change",
-          bank: {},
-          reference: null,
-        }),
-      });
-      result.email = { status: sent.status, ...("message" in sent ? { message: sent.message } : {}) };
-    }
+  if (wantSms && !contact.phone && via === "sms") {
+    return { ok: false, message: "No mobile on the estimate's contact — add one on the estimate, or email it instead." };
   }
 
-  if (wantSms && contact?.phone) {
+  // Always through sendEmail/sendSms: an unconfigured server still RECORDS
+  // the attempt in `messages` (status not_configured), so "the link was
+  // recorded" is true and the CRM record shows what was tried (17 Sep 2026).
+  if (wantEmail && contact.email) {
+    const sent = await sendEmail({
+      ctx,
+      to: contact.email,
+      subject: `A change to your job needs your signature — ${company.name ?? "Paint Group"}`,
+      replyTo: company.email || undefined,
+      html: buildInvoiceEmailHtml({
+        companyName: company.name ?? "Paint Group",
+        heading: "A change to your job needs your signature",
+        intro:
+          `Hello ${first},\n\n` +
+          `There's ${what}: ${variation.comment || "a scope change"}. ` +
+          `Please review and sign it at the link below — nothing changes on your invoice until you do.`,
+        link,
+        buttonLabel: "Review & sign the change",
+        bank: {},
+        reference: null,
+      }),
+    });
+    result.email = { status: sent.status, ...("message" in sent ? { message: sent.message } : {}) };
+    if (sent.status === "not_configured") console.log(`[variation-send:log-driver] to=${contact.email} link=${link}`);
+  }
+
+  if (wantSms && contact.phone) {
     const to = normalisePhoneAU(contact.phone);
-    if (!smsConfigured()) {
-      console.log(`[variation-send:log-driver] sms=${contact.phone} link=${link}`);
-      result.sms = { status: "not_configured" };
-    } else if (!to) {
+    if (!to) {
       result.sms = { status: "error", message: "That mobile number doesn't look Australian." };
     } else {
       const sent = await sendSms({
-        ctx: { estimateId: variation.work_orders?.estimate_id ?? null, kind: "variation" },
+        ctx,
         to,
         body: `${company.name ?? "Paint Group"}: ${what} on your job needs your signature. Review & sign: ${link}`,
       });
       result.sms = { status: sent.status, ...("message" in sent ? { message: sent.message } : {}) };
+      if (sent.status === "not_configured") console.log(`[variation-send:log-driver] sms=${contact.phone} link=${link}`);
     }
   }
 
   if (!result.email && !result.sms) {
-    return { ok: false, message: "No email or mobile on the estimate's contact — copy the link instead." };
+    return { ok: false, message: "No email or mobile on the estimate's contact — add one on the estimate, or copy the link." };
   }
   result.ok = result.email?.status === "sent" || result.sms?.status === "sent"
     || result.email?.status === "not_configured" || result.sms?.status === "not_configured";
+  // A send that was refused says WHY — "suppressed" (the customer's own alert
+  // settings) or the provider's error — instead of "check the contact".
+  if (!result.ok) result.message = describeSendOutcome(result);
   return result;
 }
