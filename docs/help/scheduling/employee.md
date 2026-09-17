@@ -27,21 +27,28 @@ As one of Paint Group's own painters you are never offered a job and never asked
 5. Exactly one painter on every job is the **lead**. The customer's confirmation carries the lead's name, the walkthrough prompt comes to the lead, and the lead is who the office rings first. Everyone on the job can tick surfaces, add photos and raise a variation regardless. The office chooses the lead and can change it; you will see **Lead** on your card when it is you.
 
 ### Your calendar
-6. **Calendar** shows every day you are on a job, in the job's colour, with a walkthrough day marked separately. Tap a booked day to open the job. Tap a free day to block it out — the office sees the block straight away and will not put you on a job over it without a reason.
+6. **Calendar** shows every day you are on a job, in the job's colour, with a walkthrough day marked separately. Tap a booked day to open the job. You do not block days out yourself — time off is asked for, under the calendar (next section).
+
+### Time off — leave, an RDO, or a sick day
+7. Under the calendar, the **Time off** card. Choose **Leave** or **RDO**, pick the first and last day, add a word on why if you like, and tap **Ask the office**. It shows in your list as **Requested** and on the office's queue; when they decide you get a text and the entry reads **Approved** or **Declined** (with their note). An approved day is off-limits on the office's board; a declined one is not a day off. Tap **Cancel** on a request that has not started if plans change.
+8. Sick today? Tap **Sick today** then **Mark me sick today**. That needs no approval — it counts at once, and if you were on a job today the office gets a **Reassign** item for it. You can mark yesterday the morning after by asking the office.
 
 ### If you can't make a day
-7. On the job, under the Accept card, tap **I can't make these days**, type why in a few words and tap **Tell the office**. Nothing changes on the job — your days stay yours until the office reassigns them — but a **Reassign** item goes to the top of the office's queue with your reason, so they can sort it. The card then reads "You've told the office you can't make these days." If your dates are moved, the flag clears and the new days need a fresh Accept.
+9. On the job, under the Accept card, tap **I can't make these days**, type why in a few words and tap **Tell the office**. Nothing changes on the job — your days stay yours until the office reassigns them — but a **Reassign** item goes to the top of the office's queue with your reason, so they can sort it. The card then reads "You've told the office you can't make these days." If your dates are moved, the flag clears and the new days need a fresh Accept.
 
 ## What the colours and labels mean
 - **Tap Accept** (amber chip) — the office has put you on this job and has not yet seen you accept it.
 - **Lead** (cyan chip) — you are the lead painter on this job.
 - **Time budget** — planned days and hours for the whole job. A size, never a rate.
 - **Booked** / **In progress** / **Completed** on a job card — the job's stage, the same as for every painter.
+- **Requested** (amber) / **Approved** (green) / **Declined** (clay) on a time-off entry — where the office is up to. **Sick** needs no decision.
 
 ## If something goes wrong
 - **A job you were told about is not in Jobs.** Ask the office to check you are on it and that your login is marked as an employee; a painter marked as a contractor sees a different portal.
 - **The Accept button does nothing.** Check your signal and try again. If the card says the assignment no longer exists, the office has taken you off the job — they will have been in touch.
 - **You see a price anywhere.** You should not. Tell the office which screen; that is a fault, not a feature.
+- **"You've already asked for those days."** A request (or a sick day) already covers one of them — cancel it first if it has changed.
+- **"A sick day is today."** For days ahead, ask for leave instead.
 
 ## Related
 - [Run a job from the first tick to the customer's signature](../work-orders/employee.md)

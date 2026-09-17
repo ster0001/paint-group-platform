@@ -103,6 +103,14 @@ export type MessagingSettings = {
   assignmentDatesChangedSms: string;
   /** Employee: taken off a job. */
   assignmentReleasedSms: string;
+  /** Employee (S7): they are now the lead painter on a job. */
+  leadChangedSms: string;
+  /** Employee (S7): the customer approved a change on their job — hours added, no price. */
+  employeeVariationApprovedSms: string;
+  /** Painter (S7): an expense claim was approved or rejected. */
+  expenseDecidedSms: string;
+  /** Employee (S7): leave / RDO approved or declined. */
+  leaveDecidedSms: string;
   /** Painter: an approved addition is waiting for their acceptance. */
   variationReleasedSms: string;
   /** Painter: a failed quality check, areas to put right. */
@@ -246,6 +254,14 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}}: your dates on {{wo_ref}} have changed to {{dates}}. Open the job and tap Accept again: {{link}}",
   assignmentReleasedSms:
     "{{company_name}}: you're no longer needed on {{wo_ref}} ({{address}}). Nothing to do — your calendar is updated.",
+  leadChangedSms:
+    "{{company_name}}: you're now the lead painter on {{wo_ref}} ({{address}}) — the customer's updates and walkthrough go through you: {{link}}",
+  employeeVariationApprovedSms:
+    "{{company_name}}: the customer approved a change on {{wo_ref}}{{hours_line}}. It's on your job page: {{link}}",
+  expenseDecidedSms:
+    "{{company_name}}: your expense claim of {{amount}} on {{wo_ref}} was {{decision}}.{{reason_line}}",
+  leaveDecidedSms:
+    "{{company_name}}: your {{kind_word}} request for {{dates}} was {{decision}}.{{reason_line}}",
   variationReleasedSms:
     "{{company_name}}: a variation on {{wo_ref}} is approved and waiting on you — {{action}} it in your dashboard: {{link}}",
   qaFailSms:
@@ -325,6 +341,10 @@ export const TEMPLATE_PLACEHOLDERS = [
 ] as const;
 
 export type TemplateVars = {
+  /** S7: "approved" | "declined" | "rejected", and "leave" | "RDO". */
+  decision?: string;
+  kind_word?: string;
+  dates?: string;
   first_name?: string;
   start_date?: string;
   address?: string;

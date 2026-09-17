@@ -10,6 +10,7 @@ import { sendInvoiceEmail, sendInvoiceSms, sendReceiptEmail, sendRemittanceEmail
 import { staffInvoicePaid } from "@/lib/staff/notify";
 import { COST_DOCS_BUCKET, isOwnReceiptPath } from "@/lib/costs/store";
 import { sniffKind } from "@/lib/extract/normalise";
+import { notifyExpenseDecided } from "@/lib/contractor/notify";
 
 /**
  * Invoicing actions — thin, zod-validated translations over the Step 1/2
@@ -589,7 +590,7 @@ export async function markReimbursedAction(raw: unknown): Promise<InvoicingResul
 export async function decideExpenseAction(raw: unknown): Promise<InvoicingResult> {
   const p = z.object({ expenseId: uuid, approve: z.boolean() }).safeParse(raw);
   if (!p.success) return { ok: false, message: "Couldn't find that claim." };
-  return call(
+  const r = await call(
     "contractor_expense_decide",
     { p_id: p.data.expenseId, p_approve: p.data.approve },
     {},
@@ -597,6 +598,12 @@ export async function decideExpenseAction(raw: unknown): Promise<InvoicingResult
       ? "Approved — it rides the contractor's next invoice as a reimbursement line."
       : "Rejected — the contractor sees why in their app.",
   );
+  if (r.ok) {
+    // S7: the painter is told (best-effort text; the portal already shows the decision).
+    const service = createServiceClient();
+    if (service) after(() => notifyExpenseDecided(service, p.data.expenseId));
+  }
+  return r;
 }
 
 export async function decidePreapprovalAction(raw: unknown): Promise<InvoicingResult> {

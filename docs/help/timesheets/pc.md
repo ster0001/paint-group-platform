@@ -1,9 +1,9 @@
 ---
 feature: timesheets
 role: pc
-title: Approve employed painters' days, record one for them, and export the payroll CSV
-summary: The Timesheets tab in PC Command — each clocked day waiting on approval, what approving does to the job's costs, recording a day the painter forgot, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.
-sources: app/pc/timesheets/page.tsx, app/pc/timesheets/TimesheetRow.tsx, app/pc/timesheets/RecordHours.tsx, app/pc/timesheets/export/route.ts, app/(app)/contractors/ContractorsManager.tsx
+title: Approve employed painters' days and time off, record a day for them, and export the payroll CSV
+summary: The Timesheets tab in PC Command — each clocked day waiting on approval, what approving does to the job's costs, leave and RDO requests to approve or decline, recording a day the painter forgot, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.
+sources: app/pc/timesheets/page.tsx, app/pc/timesheets/TimesheetRow.tsx, app/pc/timesheets/LeaveRow.tsx, app/pc/timesheets/RecordHours.tsx, app/pc/timesheets/export/route.ts, app/(app)/contractors/ContractorsManager.tsx
 verified_at_commit: 989f914fd9
 ---
 
@@ -20,14 +20,17 @@ Employed painters clock on and off in their portal. Every finished day lands her
 2. Press **Approve**. The card reads **Approved ✓** and the job's money view (Costs tab) gains a line "Labour — <painter> · <date> · <hours> h" at hours × rate, GST nil.
 3. Something wrong? Press **Send back**, type why, then **Send back** again. The painter sees the reason under that day; the day posts nothing.
 
+### Time off requests
+4. **Time off requests** lists every leave or RDO an employed painter has asked for. **Approve** puts it on the board as time off (the Schedule refuses to book them over it) and texts them. **Decline** asks for a word on why, which they see under the entry. If the days land on a job they are booked on, the card says so up front and Approve refuses until you reassign those days on the Schedule — or decline. A sick day never appears here: it counts at once and raises **Reassign** on Today for any booked day.
+
 ### Recording a day the painter forgot
-4. In **Record a day for a painter**, choose the painter, the job (only jobs they are assigned to are offered), the date, start and finish times and the break, then **Record**. It joins the list marked "entered by the office" and still needs approving.
+5. In **Record a day for a painter**, choose the painter, the job (only jobs they are assigned to are offered), the date, start and finish times and the break, then **Record**. It joins the list marked "entered by the office" and still needs approving.
 
 ### Payroll
-5. **Payroll CSV → Last 7 days / Last 14 days** downloads the approved days: painter, job, date, start, finish, break, hours, source, approved at. No rate and no pay column — payroll works those out.
+6. **Payroll CSV → Last 7 days / Last 14 days** downloads the approved days: painter, job, date, start, finish, break, hours, source, approved at. No rate and no pay column — payroll works those out.
 
 ### Allocated vs actual
-6. The table lists every job with approved hours in the last 60 days against the hours the estimate allowed. Actual in amber means it has run over.
+7. The table lists every job with approved hours in the last 60 days against the hours the estimate allowed. Actual in amber means it has run over.
 
 ## What the colours and labels mean
 - **Approve / Send back** — the day is waiting on you.
@@ -35,12 +38,15 @@ Employed painters clock on and off in their portal. Every finished day lands her
 - **Approved ✓** — posted to the job.
 - **Not approved** — sent back with a reason.
 - **"No cost rate covers this day"** — set the rate on Painters (dated on or before the day) before approving.
+- **"Booked on WO-… — reassign those days first, or decline."** on a time-off card — approving would empty a booked day.
+- **Today's queue**: **Not accepted** (a painter who has not tapped Accept on a job starting within a day — ring them), **Time off** (a request to decide), **Timesheets** (clocked days waiting more than a day), **Reassign** (sick or can't make it on a booked day). Each clears by itself once the fact behind it changes.
 
 ## If something goes wrong
 - **"No cost rate is set for this painter."** Set one on Painters, then approve.
 - **"That painter isn't assigned to that job."** Recording only works for a job the painter is on; assign them on the Schedule first.
 - **"A day can't run past 16 hours."** A day left running overnight closes at 16 hours; send it back and record the real times.
 - **The CSV download says Not found.** You are not signed in as staff.
+- **There is no Employee tick box on the Contractors page.** The **Employed painters** switch at the top of that page is off — turn it on. Off never changes an existing employee.
 
 ## Related
 - [Assign employed painters to a job on the board](../scheduling/staff.md)

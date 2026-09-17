@@ -210,6 +210,7 @@ export const SAMPLE_VARS: Record<string, string> = {
   days_overdue: "7", deposit_line: " Your deposit invoice is ready to pay: https://paintgroup.com.au/i/example",
   reminder: "Your job is finished and the photos are ready to look through. When you have a moment, please have a look and let us know you are happy.",
   hours_since: "74",
+  decision: "approved", kind_word: "leave",
   review_link: "https://g.page/r/example", agency_name: "Northcote Property Co", agency_line: " for Northcote Property Co",
 };
 

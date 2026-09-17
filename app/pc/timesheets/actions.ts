@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { notifyLeaveDecided } from "@/lib/contractor/notify";
 import type { PcResult } from "../actions";
 
 /**
@@ -24,6 +27,7 @@ const WORDING: Record<string, string> = {
   bad_span: "Finish has to be after start.",
   too_long: "A day can't run past 16 hours.",
   bad_break: "The break has to be between 0 and 4 hours.",
+  not_a_request: "That's a blocked day, not a request.",
 };
 
 async function call(fn: string, args: Record<string, unknown>, okWording?: string): Promise<PcResult> {
@@ -86,4 +90,32 @@ function melbourneInstant(date: string, hhmm: string): string {
   const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
   const asMelbourne = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"));
   return new Date(guess - (asMelbourne - guess)).toISOString();
+}
+
+/**
+ * S7: approve or decline a leave / RDO request. Approval over a booked day
+ * is refused with the job named (`conflict:assigned:WO-…`) — reassign first.
+ * The painter is texted either way (best-effort; the calendar shows it).
+ */
+export async function decideLeaveAction(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    id: z.string().uuid(),
+    approve: z.boolean(),
+    note: z.string().transform((t) => t.trim()).pipe(z.string().max(300)).optional().default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Keep the note under 300 characters." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("leave_decide", { p_id: parsed.data.id, p_approve: parsed.data.approve, p_note: parsed.data.note });
+  if (error) return { ok: false, message: error.message };
+  const s = String(data ?? "");
+  if (s.startsWith("conflict:assigned:")) {
+    return { ok: false, message: `They're booked on ${s.slice("conflict:assigned:".length)} over those days — reassign it on the Schedule first, or decline.` };
+  }
+  if (!s.startsWith("ok:")) return { ok: false, message: WORDING[s.replace("error:", "")] ?? s.replace("error:", "").replaceAll("_", " ") };
+  revalidatePath("/pc/timesheets");
+  revalidatePath("/pc/schedule");
+  revalidatePath("/crm/today");
+  const service = createServiceClient();
+  if (service) after(() => notifyLeaveDecided(service, parsed.data.id));
+  return { ok: true, message: parsed.data.approve ? "Approved — it's on the board as time off, and they've been told." : "Declined — they see why on their calendar." };
 }

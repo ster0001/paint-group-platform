@@ -6,7 +6,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { reconcileForOffer } from "@/lib/gcal/sync";
-import { notifyAssignment, notifyJobOffer } from "@/lib/contractor/notify";
+import { notifyAssignment, notifyJobOffer, notifyLeadChanged } from "@/lib/contractor/notify";
 import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { reportError } from "@/lib/monitoring/report";
@@ -326,7 +326,12 @@ export async function setLeadPainterAction(raw: unknown): Promise<ActionResult> 
   const r = await run("set_lead_painter", {
     p_work_order_id: parsed.data.workOrderId, p_contractor_id: parsed.data.contractorId,
   });
-  if (r.ok) revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+  if (r.ok) {
+    revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+    // S7: the new lead is told (the customer sees the new name on their next load — ⚑B, no customer message).
+    const service = createServiceClient();
+    if (service) after(() => notifyLeadChanged(service, parsed.data.workOrderId, parsed.data.contractorId));
+  }
   return r;
 }
 

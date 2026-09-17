@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { notifyVariationReleased } from "@/lib/contractor/notify";
+import { notifyEmployeeVariationApproved, notifyVariationReleased } from "@/lib/contractor/notify";
 
 /**
  * The customer's answer to a priced variation. Token-only, exactly like the
@@ -52,7 +52,11 @@ export async function signVariationAction(raw: unknown): Promise<RespondResult> 
         const { data: v } = await service
           .from("wo_variations").select("id").eq("customer_token", token).maybeSingle();
         const id = (v as { id?: string } | null)?.id;
-        if (id) await notifyVariationReleased(service, id);
+        if (id) {
+          await notifyVariationReleased(service, id);
+          // S7: employed painters on the job hear it in their own words (hours, no price).
+          await notifyEmployeeVariationApproved(service, id);
+        }
       });
     }
     return { ok: true, state: "approved" };
