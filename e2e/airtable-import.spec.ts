@@ -365,6 +365,10 @@ test.describe("Airtable → CRM import", () => {
     expect((est!.external_ref as { hours_pending: boolean }).hours_pending).toBe(true);
     const { count: offers } = await sb.from("booking_offers").select("id", { count: "exact", head: true }).eq("work_order_id", (await sb.from("work_orders").select("id").eq("estimate_id", est!.id).single()).data!.id);
     expect(offers).toBe(0);
+    // Tom, 17 Sep: the handover drafts the deposit itself — 50% of $3,300 inc, a draft, unissued; twice is once.
+    const { data: deposits, error: depErr } = await sb.from("invoices").select("kind, status, total_inc_cents, number, issued_on").eq("estimate_id", est!.id);
+    expect(depErr).toBeNull();
+    expect(deposits).toEqual([{ kind: "deposit", status: "draft", total_inc_cents: 165000, number: null, issued_on: null }]);
     const { data: note } = await sb.from("crm_events").select("payload").eq("account_id", hana!.id).eq("type", "note_added").maybeSingle();
     expect((note?.payload as { body: string }).body).toContain("Imported from Airtable view future booked jobs");
 
