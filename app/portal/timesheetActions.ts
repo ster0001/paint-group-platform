@@ -16,6 +16,11 @@ const WORDING: Record<string, string> = {
   not_started: "No day is running. Tap Start day first.",
   too_short: "That's under a minute of work — tap Start again when you're actually on the tools.",
   bad_break: "The break has to be between 0 and 4 hours.",
+  bad_date: "Extra hours can be logged for today or the last 7 days.",
+  bad_span: "The finish has to be after the start.",
+  too_long: "Log up to 8 extra hours at a time.",
+  not_yet: "That finish time hasn't happened yet.",
+  overlap: "Those hours overlap a day already on your sheet — your standard day is logged for you; add only the extra.",
 };
 
 async function call(fn: string, args: Record<string, unknown>): Promise<TimesheetResult> {
@@ -44,4 +49,21 @@ export async function finishDayAction(raw: unknown): Promise<TimesheetResult> {
   const parsed = z.object({ breakMinutes: z.number().int().min(0).max(240) }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: WORDING.bad_break };
   return call("timesheet_finish", { p_break_minutes: parsed.data.breakMinutes });
+}
+
+/**
+ * S7b (Tom): standard days clock themselves; the painter only logs the EXTRA.
+ * A span on top of the day, on a job they are on, within the last week.
+ */
+export async function logExtraHoursAction(raw: unknown): Promise<TimesheetResult> {
+  const parsed = z.object({
+    workOrderId: z.string().uuid(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    start: z.string().regex(/^\d{2}:\d{2}$/),
+    finish: z.string().regex(/^\d{2}:\d{2}$/),
+    note: z.string().transform((t) => t.trim()).pipe(z.string().max(300)),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Pick the job, the day and the times." };
+  const d = parsed.data;
+  return call("timesheet_extra", { p_work_order_id: d.workOrderId, p_date: d.date, p_start: d.start, p_finish: d.finish, p_note: d.note });
 }

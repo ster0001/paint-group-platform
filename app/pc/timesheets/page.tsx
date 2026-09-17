@@ -4,6 +4,7 @@ import { allocatedHours, melbourneClock, workedHours } from "@/lib/timesheets/ho
 import TimesheetRow, { type TimesheetRowProp } from "./TimesheetRow";
 import RecordHours, { type PainterOption } from "./RecordHours";
 import LeaveRow, { type LeaveRowProp } from "./LeaveRow";
+import StandardDay from "./StandardDay";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,8 @@ const shiftDays = (day: string, n: number) => {
 
 type EntryRow = {
   id: string; contractor_id: string; work_order_id: string; work_date: string; started_at: string; finished_at: string | null;
-  break_minutes: number; source: "painter" | "pc"; status: "open" | "submitted" | "approved" | "rejected";
-  approved_at: string | null; rejected_reason: string;
+  break_minutes: number; source: "painter" | "pc" | "auto"; status: "open" | "submitted" | "approved" | "rejected";
+  approved_at: string | null; rejected_reason: string; note?: string;
   contractors: { profiles: { name: string | null } | null } | null;
   work_orders: { wo_ref: string; wo_snapshot: { jobTitle?: string } | null } | null;
 };
@@ -33,9 +34,9 @@ type EntryRow = {
 export default async function TimesheetsPage() {
   const supabase = await createClient();
   const today = melbourneDay(new Date());
-  const select = "id, contractor_id, work_order_id, work_date, started_at, finished_at, break_minutes, source, status, approved_at, rejected_reason, contractors(profiles(name)), work_orders(wo_ref, wo_snapshot)";
+  const select = "id, contractor_id, work_order_id, work_date, started_at, finished_at, break_minutes, source, status, approved_at, rejected_reason, note, contractors(profiles(name)), work_orders(wo_ref, wo_snapshot)";
 
-  const [pending, decided, employees, assignments, rates, leave] = await Promise.all([
+  const [pending, decided, employees, assignments, rates, leave, daySetting] = await Promise.all([
     supabase.from("timesheet_entries").select(select).in("status", ["open", "submitted"]).order("work_date", { ascending: true }).order("started_at", { ascending: true }),
     supabase.from("timesheet_entries").select(select).in("status", ["approved", "rejected"]).gte("work_date", shiftDays(today, -60)).order("work_date", { ascending: false }).limit(200),
     supabase.from("contractors").select("id, profiles(name)").eq("employment_type", "employee").eq("active", true),
@@ -46,9 +47,11 @@ export default async function TimesheetsPage() {
       .select("id, contractor_id, kind, start_date, end_date, reason, created_at, contractors(profiles(name))")
       .in("kind", ["leave", "rdo"]).is("approved_at", null).is("declined_at", null).gte("end_date", today)
       .order("start_date", { ascending: true }),
+    // S7b: the standard day the autofill logs.
+    supabase.from("settings").select("value").eq("key", "timesheets").maybeSingle(),
   ]);
   const failures: string[] = [];
-  for (const [label, r] of [["timesheets", pending], ["decided timesheets", decided], ["employees", employees], ["assignments", assignments], ["cost rates", rates], ["time off requests", leave]] as const) {
+  for (const [label, r] of [["timesheets", pending], ["decided timesheets", decided], ["employees", employees], ["assignments", assignments], ["cost rates", rates], ["time off requests", leave], ["standard day", daySetting]] as const) {
     if (r.error) { reportError(r.error, { where: `pc.timesheets.${label}` }); failures.push(label); }
   }
 
@@ -62,7 +65,7 @@ export default async function TimesheetsPage() {
     woRef: r.work_orders?.wo_ref ?? "", jobTitle: r.work_orders?.wo_snapshot?.jobTitle ?? "",
     workDate: r.work_date, start: melbourneClock(r.started_at), finish: r.finished_at ? melbourneClock(r.finished_at) : null,
     breakMinutes: r.break_minutes, hours: workedHours(r.started_at, r.finished_at, r.break_minutes),
-    source: r.source, status: r.status, rejectedReason: r.rejected_reason,
+    source: r.source, status: r.status, rejectedReason: r.rejected_reason, note: r.note ?? "",
     // A rate set AFTER the work day does not price it — the RPC refuses, and the row says so up front.
     rateMissing: !(ratedFrom.get(r.contractor_id) && ratedFrom.get(r.contractor_id)! <= r.work_date),
   });
@@ -111,6 +114,30 @@ export default async function TimesheetsPage() {
       .map((a) => a.work_orders!.wo_ref),
   }));
 
+  // S7b: the standard day, and the days that need a manual entry (a painter on
+  // two jobs the same weekday, nothing logged) over the last 7 days.
+  const dv = (daySetting.data as { value?: { dayStart?: string; dayFinish?: string; breakMinutes?: number } } | null)?.value ?? {};
+  const standard = { dayStart: dv.dayStart ?? "07:30", dayFinish: dv.dayFinish ?? "15:30", breakMinutes: dv.breakMinutes ?? 30 };
+  const pendingAuto = pendingRows.filter((r) => r.source === "auto" && r.status === "submitted").length;
+  const { data: recentEntries, error: recentErr } = await supabase.from("timesheet_entries")
+    .select("contractor_id, work_date").gte("work_date", shiftDays(today, -7));
+  if (recentErr) { reportError(recentErr, { where: "pc.timesheets.recent" }); failures.push("recent days"); }
+  const logged = new Set(((recentEntries ?? []) as { contractor_id: string; work_date: string }[]).map((e) => `${e.contractor_id}|${e.work_date}`));
+  const nameOf = new Map(painters.map((p) => [p.id, p.name]));
+  const manualDays: { painter: string; day: string; jobs: string }[] = [];
+  for (let back = 7; back >= 1; back--) {
+    const day = shiftDays(today, -back);
+    const dow = new Date(day + "T12:00:00Z").getUTCDay();
+    if (dow === 0 || dow === 6) continue;
+    const byPainter = new Map<string, string[]>();
+    for (const a of assignRows) {
+      if (a.start_date <= day && a.end_date >= day && a.work_orders) byPainter.set(a.contractor_id, [...(byPainter.get(a.contractor_id) ?? []), a.work_orders.wo_ref]);
+    }
+    for (const [cid, refs] of byPainter) {
+      if (refs.length > 1 && !logged.has(`${cid}|${day}`) && nameOf.has(cid)) manualDays.push({ painter: nameOf.get(cid)!, day, jobs: refs.join(" + ") });
+    }
+  }
+
   const fortnightFrom = shiftDays(today, -13);
   const lastWeekFrom = shiftDays(today, -6);
 
@@ -119,8 +146,8 @@ export default async function TimesheetsPage() {
       <div>
         <h1>Timesheets and time off.</h1>
         <p className="lede">
-          Each day an employed painter clocked, and each leave or RDO they asked for. Approving a day posts
-          the hours to the job at their cost rate; the painter only ever sees the hours. Payroll takes the CSV.
+          Standard days log themselves; painters add only the extra. Approving a day posts the hours to the job at
+          their cost rate; the painter only ever sees the hours. Leave and RDO requests are decided here too. Payroll takes the CSV.
         </p>
       </div>
 
@@ -128,6 +155,28 @@ export default async function TimesheetsPage() {
         <p className="note" data-testid="timesheets-read-failure">
           Couldn&rsquo;t read {failures.join(", ")} — what&rsquo;s shown may be incomplete. It has been reported.
         </p>
+      )}
+
+      <div className="sect">
+        <StandardDay dayStart={standard.dayStart} dayFinish={standard.dayFinish} breakMinutes={standard.breakMinutes}
+          pendingAuto={pendingAuto} yesterday={shiftDays(today, -1)} />
+      </div>
+
+      {manualDays.length > 0 && (
+        <div className="sect">
+          <div className="card" data-testid="manual-days">
+            <h3>Needs a manual day <em>two jobs, nothing logged</em></h3>
+            <div className="stack" style={{ marginTop: 8 }}>
+              {manualDays.map((m) => (
+                <div className="row" key={`${m.painter}-${m.day}`} style={{ alignItems: "baseline", gap: 14 }}>
+                  <span style={{ minWidth: 200 }}>{m.painter}</span><span>{m.day}</span>
+                  <span style={{ color: "var(--muted)" }}>{m.jobs}</span>
+                </div>
+              ))}
+            </div>
+            <p className="note" style={{ marginTop: 8 }}>Record each job&rsquo;s hours below, or the painter taps Start / Finish on each job.</p>
+          </div>
+        </div>
       )}
 
       <div className="sect">

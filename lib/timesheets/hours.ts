@@ -18,8 +18,9 @@ export type TimesheetEntry = {
   startedAt: string;
   finishedAt: string | null;
   breakMinutes: number;
-  source: "painter" | "pc";
+  source: "painter" | "pc" | "auto";
   status: TimesheetStatus;
+  note?: string;
   approvedAt: string | null;
   rejectedReason: string;
 };
@@ -50,7 +51,7 @@ export type PayrollRow = {
   startedAt: string;
   finishedAt: string;
   breakMinutes: number;
-  source: "painter" | "pc";
+  source: "painter" | "pc" | "auto";
   approvedAt: string;
 };
 

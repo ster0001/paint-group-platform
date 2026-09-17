@@ -438,6 +438,8 @@ export default function ScheduleBoard({
     [lanes],
   );
   const [blockReason, setBlockReason] = useState("");
+  /** S7b: what kind of day the office is marking on an employee's lane. */
+  const [blockKind, setBlockKind] = useState<"other" | "leave" | "rdo" | "sick">("other");
   const [cancelReason, setCancelReason] = useState("");
 
   function flash(msg: string) {
@@ -608,10 +610,14 @@ export default function ScheduleBoard({
     setBusy(false);
   }
 
-  async function blockOut(contractorId: string, from: string, to: string, reason: string) {
+  const KIND_DONE: Record<string, string> = {
+    other: "Days blocked out.", sick: "Marked sick — any booked day is on Today to reassign.",
+    leave: "Leave recorded — it's on the board as time off.", rdo: "RDO recorded — it's on the board as time off.",
+  };
+  async function blockOut(contractorId: string, from: string, to: string, reason: string, kind: "other" | "leave" | "rdo" | "sick" = "other") {
     setBusy(true);
     setErr("");
-    handle(await blockOutAction({ contractorId, startDate: from, endDate: to, reason }), "Days blocked out.");
+    handle(await blockOutAction({ contractorId, startDate: from, endDate: to, reason, kind }), KIND_DONE[kind]);
     setBusy(false);
   }
 
@@ -658,9 +664,10 @@ export default function ScheduleBoard({
 
   async function saveBlockOut() {
     if (!pendingBlock) return;
-    await blockOut(pendingBlock.contractorId, pendingBlock.start, pendingBlock.end, blockReason);
+    await blockOut(pendingBlock.contractorId, pendingBlock.start, pendingBlock.end, blockReason, isEmployeeLane(pendingBlock.contractorId) ? blockKind : "other");
     setPendingBlock(null);
     setBlockReason("");
+    setBlockKind("other");
   }
 
   async function removeBlock(id: string) {
@@ -1474,6 +1481,17 @@ export default function ScheduleBoard({
               <span className="l">Days</span>
               <span className="v">{formatDMY(pendingBlock.start)}{pendingBlock.end !== pendingBlock.start ? ` → ${formatDMY(pendingBlock.end)}` : ""}</span>
             </div>
+            {isEmployeeLane(pendingBlock.contractorId) && (
+              <>
+                <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>What kind of day</label>
+                <select value={blockKind} onChange={(e) => setBlockKind(e.target.value as typeof blockKind)} data-testid="block-kind" style={{ width: "100%" }}>
+                  <option value="sick">Sick — counts now, Reassign on any booked day</option>
+                  <option value="leave">Leave — approved by you</option>
+                  <option value="rdo">RDO — approved by you</option>
+                  <option value="other">Blocked out (other)</option>
+                </select>
+              </>
+            )}
             <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Reason (optional)</label>
             <input type="text" value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="e.g. training, annual leave" style={{ width: "100%" }} />
             {err && <div className="err">{err}</div>}
@@ -1498,7 +1516,7 @@ function BlockOutBar({
   busy,
 }: {
   lanes: Lane[];
-  onBlock: (contractorId: string, s: string, e: string, reason: string) => void;
+  onBlock: (contractorId: string, s: string, e: string, reason: string, kind?: "other" | "leave" | "rdo" | "sick") => void;
   busy: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -1506,6 +1524,8 @@ function BlockOutBar({
   const [s, setS] = useState("");
   const [e, setE] = useState("");
   const [reason, setReason] = useState("");
+  const [kind, setKind] = useState<"other" | "leave" | "rdo" | "sick">("other");
+  const employee = lanes.find((l) => l.contractorId === cid)?.employmentType === "employee";
 
   if (!open) {
     return (
@@ -1528,14 +1548,22 @@ function BlockOutBar({
         <input type="date" value={s} onChange={(ev) => setS(ev.target.value)} style={{ flex: 1 }} />
         <input type="date" value={e} onChange={(ev) => setE(ev.target.value)} style={{ flex: 1 }} />
       </div>
+      {employee && (
+        <select value={kind} onChange={(ev) => setKind(ev.target.value as typeof kind)} data-testid="blockbar-kind" style={{ width: "100%", marginBottom: 6 }}>
+          <option value="sick">Sick</option>
+          <option value="leave">Leave (approved)</option>
+          <option value="rdo">RDO (approved)</option>
+          <option value="other">Blocked out (other)</option>
+        </select>
+      )}
       <input type="text" placeholder="Reason (optional)" value={reason} onChange={(ev) => setReason(ev.target.value)} style={{ width: "100%", marginBottom: 8 }} />
       <button
         className="btn cy"
         style={{ marginTop: 0, padding: 9, fontSize: 13 }}
         disabled={busy || !cid || !s}
-        onClick={() => { onBlock(cid, s, e || s, reason); setOpen(false); setCid(""); setS(""); setE(""); setReason(""); }}
+        onClick={() => { onBlock(cid, s, e || s, reason, employee ? kind : "other"); setOpen(false); setCid(""); setS(""); setE(""); setReason(""); setKind("other"); }}
       >
-        Block these days
+        {employee && kind !== "other" ? `Mark ${kind === "sick" ? "sick" : kind === "rdo" ? "an RDO" : "leave"}` : "Block these days"}
       </button>
       <button className="btn gh" style={{ padding: 9, fontSize: 13 }} onClick={() => setOpen(false)}>Cancel</button>
     </div>

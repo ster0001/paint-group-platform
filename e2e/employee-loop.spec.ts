@@ -78,7 +78,8 @@ async function onToday(page: Page, filter: "followups" | "approvals", re: RegExp
 test.describe("employed painters — the whole loop, then Session 7", () => {
   test.skip(!staff || !customer, missingCreds("CUSTOMER"));
   test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to provision the accounts");
-  test.describe.configure({ mode: "serial" });
+  // Three of these walk the office's Today queue page by page (50 a page, many pages on the test project).
+  test.describe.configure({ mode: "serial", timeout: 180_000 });
 
   test.beforeAll(async () => {
     const flag = await db!.from("settings").upsert({ key: "employees_enabled", value: { enabled: true } }, { onConflict: "key" });
@@ -331,6 +332,12 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
       const { data: sick } = await db!.from("contractor_unavailability").select("id").eq("contractor_id", crewCid).eq("kind", "sick");
       expect((sick ?? []).length).toBe(1);
       expect(await rpcAs(crew, "leave_request", { p_kind: "leave", p_start: today, p_end: today, p_reason: "" })).toBe("error:overlap");
+      // S7b: the office can mark time off on the painter's behalf — leave is approved at once by the office's hand.
+      const byOffice = await rpcAs(staff!, "leave_record_for", { p_contractor_id: crewCid, p_kind: "leave", p_start: shift(today, 30), p_end: shift(today, 31), p_reason: "Office-entered" });
+      expect(byOffice).toMatch(/^ok:/);
+      const { data: off } = await db!.from("contractor_unavailability").select("approved_at, source").eq("id", byOffice.slice(3)).single();
+      expect((off as { approved_at: string | null }).approved_at).not.toBeNull();
+      expect((off as { source: string }).source).toBe("staff");
     } finally {
       await destroyLoopFixture(db!, sickJob);
     }

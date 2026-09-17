@@ -361,6 +361,18 @@ export async function blockOutAction(raw: unknown): Promise<ActionResult> {
   if (!ok) return { ok: false, kind: "error", message: ERROR_WORDING.not_staff };
 
   const v = parsed.data;
+  if (v.kind !== "other") {
+    // S7b: sick / leave / RDO on the painter's behalf. Leave and RDO count at
+    // once (the office entered them); sick raises Reassign on any booked day.
+    const { data, error } = await supabase.rpc("leave_record_for", {
+      p_contractor_id: v.contractorId, p_kind: v.kind, p_start: v.startDate, p_end: v.endDate, p_reason: v.reason,
+    });
+    if (error) return { ok: false, kind: "error", message: error.message };
+    const s = String(data ?? "");
+    if (!s.startsWith("ok:")) return { ok: false, kind: "error", message: ERROR_WORDING[s.replace("error:", "")] ?? s.replace("error:", "").replaceAll("_", " ") };
+    revalidatePath("/pc/schedule"); revalidatePath("/pc/timesheets"); revalidatePath("/crm/today");
+    return { ok: true, state: v.kind };
+  }
   const { error } = await supabase.from("contractor_unavailability").insert({
     contractor_id: v.contractorId,
     start_date: v.startDate,
