@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { CustomerSnapshot } from "@/lib/customer/snapshot";
+import type { BankDetails, CustomerSnapshot } from "@/lib/customer/snapshot";
+import { createServiceClient } from "@/lib/supabase/service";
 import CustomerEstimate, { type CustomerChanges, type EstimateRow } from "./CustomerEstimate";
 
 export const dynamic = "force-dynamic";
@@ -41,9 +42,16 @@ export default async function Page({
   const { referencesLineForEstimateToken } = await import("@/lib/portal/approvalData");
   const referencesLine = await referencesLineForEstimateToken(token).catch(() => null);
 
+  // Tom, 18 Sep: the company's bank details print on the PDF with the ABN.
+  // `settings` is staff-only under RLS, so the server reads this ONE row
+  // through the service client — the same row every issued invoice shows the
+  // customer. A failed read prints the quote without the block, never a 500.
+  const bank = await loadBankDetails();
+
   return (
     <CustomerEstimate
       snapshot={row.snapshot}
+      bank={bank}
       token={token}
       status={row.status}
       acceptedName={row.accepted_name}
@@ -55,4 +63,15 @@ export default async function Page({
       referencesLine={referencesLine}
     />
   );
+}
+
+async function loadBankDetails(): Promise<BankDetails | null> {
+  const service = createServiceClient();
+  if (!service) return null;
+  const { data, error } = await service.from("settings").select("value").eq("key", "invoicing_bank").maybeSingle();
+  if (error || !data) return null;
+  const v = (data as { value: Record<string, unknown> }).value ?? {};
+  const str = (k: string) => (typeof v[k] === "string" ? (v[k] as string).trim() : "");
+  const bank = { accountName: str("accountName"), bank: str("bank"), bsb: str("bsb"), acc: str("acc") };
+  return bank.accountName || bank.bsb || bank.acc ? bank : null;
 }
