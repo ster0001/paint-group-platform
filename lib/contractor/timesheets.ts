@@ -13,7 +13,7 @@ import type { TimesheetEntry, TimesheetStatus } from "@/lib/timesheets/hours";
 type Row = {
   id: string; contractor_id: string; work_order_id: string; work_date: string;
   started_at: string; finished_at: string | null; break_minutes: number;
-  source: "painter" | "pc"; status: TimesheetStatus; approved_at: string | null; rejected_reason: string;
+  source: "painter" | "pc" | "auto"; status: TimesheetStatus; approved_at: string | null; rejected_reason: string; note: string;
 };
 
 export type MyTimesheet = {
@@ -28,13 +28,13 @@ export type MyTimesheet = {
 const toEntry = (r: Row): TimesheetEntry => ({
   id: r.id, contractorId: r.contractor_id, workOrderId: r.work_order_id, workDate: r.work_date,
   startedAt: r.started_at, finishedAt: r.finished_at, breakMinutes: r.break_minutes,
-  source: r.source, status: r.status, approvedAt: r.approved_at, rejectedReason: r.rejected_reason,
+  source: r.source, status: r.status, approvedAt: r.approved_at, rejectedReason: r.rejected_reason, note: r.note ?? "",
 });
 
 export async function loadMyTimesheet(workOrderId?: string): Promise<MyTimesheet> {
   const supabase = await createClient();
   let q = supabase.from("timesheet_entries")
-    .select("id, contractor_id, work_order_id, work_date, started_at, finished_at, break_minutes, source, status, approved_at, rejected_reason")
+    .select("id, contractor_id, work_order_id, work_date, started_at, finished_at, break_minutes, source, status, approved_at, rejected_reason, note")
     .order("started_at", { ascending: false })
     .limit(14);
   if (workOrderId) q = q.eq("work_order_id", workOrderId);
@@ -49,7 +49,7 @@ export async function loadMyTimesheet(workOrderId?: string): Promise<MyTimesheet
   let open = recent.find((e) => e.status === "open") ?? null;
   if (!open && workOrderId) {
     const { data: o, error: oErr } = await supabase.from("timesheet_entries")
-      .select("id, contractor_id, work_order_id, work_date, started_at, finished_at, break_minutes, source, status, approved_at, rejected_reason")
+      .select("id, contractor_id, work_order_id, work_date, started_at, finished_at, break_minutes, source, status, approved_at, rejected_reason, note")
       .eq("status", "open").maybeSingle();
     if (oErr) reportError(oErr, { where: "portal.timesheets.open" });
     else if (o) open = toEntry(o as Row);

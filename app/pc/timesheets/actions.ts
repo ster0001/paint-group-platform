@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { notifyLeaveDecided } from "@/lib/contractor/notify";
 import type { PcResult } from "../actions";
 
 /**
@@ -24,6 +27,7 @@ const WORDING: Record<string, string> = {
   bad_span: "Finish has to be after start.",
   too_long: "A day can't run past 16 hours.",
   bad_break: "The break has to be between 0 and 4 hours.",
+  not_a_request: "That's a blocked day, not a request.",
 };
 
 async function call(fn: string, args: Record<string, unknown>, okWording?: string): Promise<PcResult> {
@@ -86,4 +90,76 @@ function melbourneInstant(date: string, hhmm: string): string {
   const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
   const asMelbourne = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"));
   return new Date(guess - (asMelbourne - guess)).toISOString();
+}
+
+/**
+ * S7: approve or decline a leave / RDO request. Approval over a booked day
+ * is refused with the job named (`conflict:assigned:WO-…`) — reassign first.
+ * The painter is texted either way (best-effort; the calendar shows it).
+ */
+export async function decideLeaveAction(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    id: z.string().uuid(),
+    approve: z.boolean(),
+    note: z.string().transform((t) => t.trim()).pipe(z.string().max(300)).optional().default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Keep the note under 300 characters." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("leave_decide", { p_id: parsed.data.id, p_approve: parsed.data.approve, p_note: parsed.data.note });
+  if (error) return { ok: false, message: error.message };
+  const s = String(data ?? "");
+  if (s.startsWith("conflict:assigned:")) {
+    return { ok: false, message: `They're booked on ${s.slice("conflict:assigned:".length)} over those days — reassign it on the Schedule first, or decline.` };
+  }
+  if (!s.startsWith("ok:")) return { ok: false, message: WORDING[s.replace("error:", "")] ?? s.replace("error:", "").replaceAll("_", " ") };
+  revalidatePath("/pc/timesheets");
+  revalidatePath("/pc/schedule");
+  revalidatePath("/crm/today");
+  const service = createServiceClient();
+  if (service) after(() => notifyLeaveDecided(service, parsed.data.id));
+  return { ok: true, message: parsed.data.approve ? "Approved — it's on the board as time off, and they've been told." : "Declined — they see why on their calendar." };
+}
+
+/** S7b: approve every standard (auto) day that is waiting and has a rate. One click for a normal week. */
+export async function approveStandardDaysAction(): Promise<PcResult & { approved?: number; left?: number }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("timesheet_entries").select("id").eq("status", "submitted").eq("source", "auto").order("work_date", { ascending: true }).limit(500);
+  if (error) return { ok: false, message: error.message };
+  let approved = 0; let left = 0;
+  for (const row of (data ?? []) as { id: string }[]) {
+    const { data: r, error: aErr } = await supabase.rpc("timesheet_approve", { p_entry_id: row.id });
+    if (!aErr && String(r ?? "").startsWith("ok:")) approved += 1; else left += 1;
+  }
+  revalidatePath("/pc/timesheets");
+  return { ok: true, approved, left, message: `${approved} standard day${approved === 1 ? "" : "s"} approved${left ? ` — ${left} left (no cost rate covers them)` : ""}.` };
+}
+
+/** S7b: the standard day (start, finish, break) — what the autofill logs. */
+export async function saveStandardDayAction(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    dayStart: z.string().regex(/^\d{2}:\d{2}$/),
+    dayFinish: z.string().regex(/^\d{2}:\d{2}$/),
+    breakMinutes: z.number().int().min(0).max(240),
+  }).refine((v) => v.dayFinish > v.dayStart, { message: "finish after start" }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Start, finish (after the start) and a break of 0–240 minutes." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("settings").upsert({ key: "timesheets", value: parsed.data }, { onConflict: "key" });
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/pc/timesheets");
+  return { ok: true, message: "Standard day saved — it applies from the next evening's fill." };
+}
+
+/** S7b: fill the standard days for a given date now (the sweep does this every evening). */
+export async function autofillNowAction(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Pick a day." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("timesheet_autofill", { p_day: parsed.data.day });
+  if (error) return { ok: false, message: error.message };
+  const s = String(data ?? "");
+  if (s === "error:day_not_over") return { ok: false, message: "That day hasn't finished yet — the fill runs after the standard finish time." };
+  if (!s.startsWith("ok:")) return { ok: false, message: s.replace("error:", "").replaceAll("_", " ") };
+  const m = /^ok:(\d+)(?::manual:(\d+))?/.exec(s);
+  revalidatePath("/pc/timesheets");
+  return { ok: true, message: `${m?.[1] ?? 0} standard day${m?.[1] === "1" ? "" : "s"} filled${m?.[2] ? ` — ${m[2]} painter${m[2] === "1" ? "" : "s"} on two jobs need a manual day` : ""}.` };
 }

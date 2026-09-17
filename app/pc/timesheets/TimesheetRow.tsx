@@ -6,7 +6,8 @@ import { approveTimesheetAction, rejectTimesheetAction } from "./actions";
 export type TimesheetRowProp = {
   id: string; painter: string; woRef: string; jobTitle: string; workDate: string;
   start: string; finish: string | null; breakMinutes: number; hours: number | null;
-  source: "painter" | "pc"; status: "open" | "submitted" | "approved" | "rejected"; rejectedReason: string;
+  source: "painter" | "pc" | "auto"; status: "open" | "submitted" | "approved" | "rejected"; rejectedReason: string;
+  note?: string;
   /** No cost rate covers this day — approval will refuse; say so before the click. */
   rateMissing: boolean;
 };
@@ -38,13 +39,14 @@ export default function TimesheetRow(row: TimesheetRowProp) {
     <div className="card" data-testid={`timesheet-${row.id}`}>
       <h3>
         {row.painter}
-        <em>{row.woRef} · {row.workDate}{row.source === "pc" ? " · entered by the office" : ""}</em>
+        <em>{row.woRef} · {row.workDate}{row.source === "pc" ? " · entered by the office" : row.source === "auto" ? " · standard day" : " · logged by the painter"}</em>
       </h3>
       <div className="draft" data-testid={`timesheet-hours-${row.id}`}>
         {row.jobTitle && <>{row.jobTitle} · </>}
         {row.start}–{row.finish ?? "running"}
         {row.breakMinutes ? ` · ${row.breakMinutes} min break` : ""}
         {row.hours !== null && <> · <b>{row.hours.toFixed(2)} h</b></>}
+        {row.note ? <> · &ldquo;{row.note}&rdquo;</> : null}
       </div>
       {row.rateMissing && state === "submitted" && (
         <p className="note" data-testid={`timesheet-norate-${row.id}`}>

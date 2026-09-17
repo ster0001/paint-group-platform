@@ -360,7 +360,8 @@ export default async function PortalJobPage({
         )}
         {timesheet && (
           <TimesheetCard open={timesheet.open} recent={timesheet.recent} error={timesheet.error}
-            workOrderId={id} jobTitle={claimJob.title} />
+            workOrderId={id} jobTitle={claimJob.title}
+            today={new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())} />
         )}
         {!job.committed && (
           <div className="card amberish" style={{ marginTop: 4 }}>

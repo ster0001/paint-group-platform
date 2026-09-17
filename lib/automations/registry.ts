@@ -90,6 +90,10 @@ const P = {
   offer: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{link}}"],
   assignment: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{start_date}}", "{{dates}}", "{{link}}"],
   variation: ["{{company_name}}", "{{wo_ref}}", "{{action}}", "{{link}}"],
+  leadChanged: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{link}}"],
+  employeeVariation: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{hours_line}}", "{{link}}"],
+  expenseDecided: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{wo_ref}}", "{{decision}}", "{{reason_line}}"],
+  leaveDecided: ["{{first_name}}", "{{company_name}}", "{{kind_word}}", "{{dates}}", "{{decision}}", "{{reason_line}}"],
   qaFail: ["{{company_name}}", "{{wo_ref}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
@@ -265,6 +269,31 @@ export const AUTOMATIONS: Automation[] = [
     defaultChannel: "sms", sendKind: "assignment_released", capExempt: true,
     trigger: "The office takes an employed painter off a job. Past ticks stay; future days come off their calendar.",
     templates: [{ field: "assignmentReleasedSms", label: "Text message", kind: "sms", placeholders: P.assignment }],
+  },
+  // Employed painters (Session 7, brief §3.9): the rest of the employee moments.
+  {
+    key: "employee_lead_changed", name: "You're now the lead painter", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "lead_changed", capExempt: true,
+    trigger: "The office makes a different employed painter the lead on a job (the customer sees the new name on their next load).",
+    templates: [{ field: "leadChangedSms", label: "Text message", kind: "sms", placeholders: P.leadChanged }],
+  },
+  {
+    key: "employee_variation_approved", name: "The customer approved a change (employee wording)", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "variation_approved_employee", capExempt: true,
+    trigger: "A customer signs a priced change on a job with employed painters on it. Every painter on the job is told — hours, never a price.",
+    templates: [{ field: "employeeVariationApprovedSms", label: "Text message", kind: "sms", placeholders: P.employeeVariation }],
+  },
+  {
+    key: "expense_decided", name: "Expense claim decided", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "expense_decided", capExempt: true,
+    trigger: "The office approves or rejects a painter's expense claim.",
+    templates: [{ field: "expenseDecidedSms", label: "Text message", kind: "sms", placeholders: P.expenseDecided }],
+  },
+  {
+    key: "leave_decided", name: "Leave / RDO decided", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "leave_decided", capExempt: true,
+    trigger: "The office approves or declines an employed painter's leave or RDO request.",
+    templates: [{ field: "leaveDecidedSms", label: "Text message", kind: "sms", placeholders: P.leaveDecided }],
   },
   {
     key: "variation_auto_release", name: "Approved variations go straight to the painter", audience: "painter", channels: [], kind: "automatic",

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { reconcileForOffer } from "@/lib/gcal/sync";
-import { notifyAssignment, notifyJobOffer } from "@/lib/contractor/notify";
+import { notifyAssignment, notifyJobOffer, notifyLeadChanged } from "@/lib/contractor/notify";
 import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { reportError } from "@/lib/monitoring/report";
@@ -326,7 +326,12 @@ export async function setLeadPainterAction(raw: unknown): Promise<ActionResult> 
   const r = await run("set_lead_painter", {
     p_work_order_id: parsed.data.workOrderId, p_contractor_id: parsed.data.contractorId,
   });
-  if (r.ok) revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+  if (r.ok) {
+    revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+    // S7: the new lead is told (the customer sees the new name on their next load — ⚑B, no customer message).
+    const service = createServiceClient();
+    if (service) after(() => notifyLeadChanged(service, parsed.data.workOrderId, parsed.data.contractorId));
+  }
   return r;
 }
 
@@ -356,6 +361,18 @@ export async function blockOutAction(raw: unknown): Promise<ActionResult> {
   if (!ok) return { ok: false, kind: "error", message: ERROR_WORDING.not_staff };
 
   const v = parsed.data;
+  if (v.kind !== "other") {
+    // S7b: sick / leave / RDO on the painter's behalf. Leave and RDO count at
+    // once (the office entered them); sick raises Reassign on any booked day.
+    const { data, error } = await supabase.rpc("leave_record_for", {
+      p_contractor_id: v.contractorId, p_kind: v.kind, p_start: v.startDate, p_end: v.endDate, p_reason: v.reason,
+    });
+    if (error) return { ok: false, kind: "error", message: error.message };
+    const s = String(data ?? "");
+    if (!s.startsWith("ok:")) return { ok: false, kind: "error", message: ERROR_WORDING[s.replace("error:", "")] ?? s.replace("error:", "").replaceAll("_", " ") };
+    revalidatePath("/pc/schedule"); revalidatePath("/pc/timesheets"); revalidatePath("/crm/today");
+    return { ok: true, state: v.kind };
+  }
   const { error } = await supabase.from("contractor_unavailability").insert({
     contractor_id: v.contractorId,
     start_date: v.startDate,

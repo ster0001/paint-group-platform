@@ -65,3 +65,70 @@ describe("employee_reassign", () => {
     expect(later.bucket).toBe("overdue");
   });
 });
+
+// ---- Session 7 (brief §3.9): the three items that join Reassign ------------
+import {
+  buildEmployeeUnacceptedItems, buildLeaveRequestItems, buildTimesheetApprovalItems,
+  type LeaveRequestRow, type TimesheetPendingRow,
+} from "./work-queue";
+
+describe("employee_unaccepted", () => {
+  const withJob = (over: Partial<ActiveAssignmentRow>): ActiveAssignmentRow => ({
+    id: "a-9", contractor_id: "c-1", start_date: "2026-10-02", end_date: "2026-10-03", status: "assigned",
+    work_order_id: "wo-9", accepted_at: null, work_orders: { wo_ref: "WO-9", wo_snapshot: { jobTitle: "4 Oak St" } }, ...over,
+  });
+  it("is an internal follow-up below Reassign", () => {
+    expect(GROUP_OF_KIND.employee_unaccepted).toBe("followups");
+    expect(isCustomerVisible("employee_unaccepted")).toBe(false);
+    expect(KIND_WEIGHT.employee_unaccepted).toBeLessThan(KIND_WEIGHT.employee_reassign);
+  });
+  it("raises when the first day starts within 24 hours and nobody has tapped Accept", () => {
+    // now = 1 Oct 09:00 Melbourne; the job starts 2 Oct 00:00 Melbourne — 15 h away.
+    const items = buildEmployeeUnacceptedItems([withJob({})], names, now);
+    expect(items).toHaveLength(1);
+    expect(items[0].title).toBe("Marco Rossi hasn't accepted 4 Oak St — 02/10–03/10");
+    expect(items[0].action.label).toBe("Call painter");
+    expect(items[0].dueAt).toBe("2026-10-01T14:00:00.000Z"); // 2 Oct 00:00 AEST (+10 — DST starts 4 Oct)
+  });
+  it("stays quiet for an accepted assignment, one starting later than a day out, or one already over", () => {
+    expect(buildEmployeeUnacceptedItems([withJob({ accepted_at: "2026-09-30T00:00:00Z" })], names, now)).toHaveLength(0);
+    expect(buildEmployeeUnacceptedItems([withJob({ start_date: "2026-10-04", end_date: "2026-10-05" })], names, now)).toHaveLength(0);
+    expect(buildEmployeeUnacceptedItems([withJob({ start_date: "2026-09-28", end_date: "2026-09-29" })], names, now)).toHaveLength(0);
+    expect(buildEmployeeUnacceptedItems([withJob({ status: "released" })], names, now)).toHaveLength(0);
+  });
+});
+
+describe("leave_request", () => {
+  const req: LeaveRequestRow = { id: "u-1", contractor_id: "c-1", kind: "rdo", start_date: "2026-10-09", end_date: "2026-10-09", reason: "long weekend", created_at: "2026-09-30T01:00:00Z" };
+  it("is an approval, due the day before the leave starts, with Decide as the action", () => {
+    expect(GROUP_OF_KIND.leave_request).toBe("approvals");
+    const [item] = buildLeaveRequestItems([req], names, now);
+    expect(item.title).toBe("Marco Rossi asked for an RDO — 09/10");
+    expect(item.detail).toBe("\"long weekend\"");
+    expect(item.dueAt).toBe("2026-10-07T13:00:00.000Z"); // 8 Oct 00:00 AEDT (+11)
+    expect(item.action).toEqual({ label: "Decide", href: "/pc/timesheets#time-off" });
+    expect(item.subjectRef).toEqual({ type: "event", id: "u-1" });
+  });
+});
+
+describe("timesheet_approval", () => {
+  const entry = (id: string, finished_at: string | null, contractor_id = "c-1"): TimesheetPendingRow =>
+    ({ id, contractor_id, work_order_id: "wo-1", work_date: (finished_at ?? "2026-09-30").slice(0, 10), finished_at });
+  it("counts a painter's days once they have waited a day, one item per painter", () => {
+    const items = buildTimesheetApprovalItems([
+      entry("t-1", "2026-09-29T06:00:00Z"), entry("t-2", "2026-09-28T06:00:00Z"),
+      entry("t-3", "2026-09-30T22:30:00Z"), // 30 min ago — not yet
+      entry("t-4", "2026-09-29T06:00:00Z", "c-2"),
+    ], new Map([["c-1", "Marco Rossi"]]), now);
+    expect(items).toHaveLength(2);
+    const marco = items.find((i) => i.title.includes("Marco"))!;
+    expect(marco.title).toBe("2 clocked days from Marco Rossi waiting on approval");
+    expect(marco.detail).toContain("Oldest is 28/09");
+    expect(marco.action).toEqual({ label: "Approve", href: "/pc/timesheets" });
+    expect(GROUP_OF_KIND.timesheet_approval).toBe("approvals");
+    expect(items.find((i) => i.title.includes("A painter"))!.title).toMatch(/^1 clocked day from/);
+  });
+  it("an open day (no finish) is not waiting on anyone", () => {
+    expect(buildTimesheetApprovalItems([entry("t-1", null)], names, now)).toHaveLength(0);
+  });
+});

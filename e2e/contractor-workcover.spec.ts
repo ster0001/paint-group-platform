@@ -58,8 +58,10 @@ test.describe("WorkCover asked for, never a gate", () => {
     await expect(section).toContainText(/WorkCover certificate/i);
     await expect(section).toContainText(/required if you have any other workers/i);
     await expect(section.locator("#dockind option", { hasText: /WorkCover/ })).toHaveCount(1);
-    // A crew of one is not told WorkCover is required.
+    // A crew of one is not told WorkCover is required — on the profile or Home.
     await expect(page.getByTestId("workcover-required")).toHaveCount(0);
+    await page.goto("/portal");
+    await expect(page.getByTestId("ready-workcover-reminder")).toHaveCount(0);
   });
 
   test("a crew bigger than one with no WorkCover on file is told it is required — and stays offerable", async ({ page }) => {
@@ -73,6 +75,11 @@ test.describe("WorkCover asked for, never a gate", () => {
     await page.goto("/portal");
     await expect(page.locator(".act", { hasText: /WorkCover certificate/i })).toBeVisible();
     await expect(page.locator(".act", { hasText: /WorkCover certificate/i })).toContainText(/Needed/);
+    // Tom (17 Sep): the reminder sits ON the Ready-for-work card too, above
+    // the Requests line, and the card stays green.
+    const ready = page.locator(".card.greenish", { hasText: /ready for work/i });
+    await expect(ready.getByTestId("ready-workcover-reminder")).toContainText(/REQUIRED: Please upload your WorkCover certificate/);
+    await expect(ready).toContainText(/Offers will land in Requests with a 24-hour clock to respond/);
   });
 
   test("a WorkCover row is accepted by the database and does not move the offerable flag", async ({ page }) => {
