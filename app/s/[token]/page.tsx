@@ -99,6 +99,7 @@ export default async function WalkthroughPage({
           headings={row.headings ?? []}
           initial={initial}
           signedName={row.signed_at ? row.signed_name : null}
+          signedKind={report?.signed_kind ?? null}
           backHref={backHref}
         />
 

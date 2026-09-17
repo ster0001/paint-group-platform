@@ -17,6 +17,8 @@ type ReportVariation = {
   credit?: boolean; signed_name?: string | null; signed_at?: string | null;
 };
 type ReportQa = { kind: string; result: string | null; thin_record: boolean };
+/** An area the customer flagged at their walkthrough, put right before completion (Tom, 17 Sep). */
+export type ReportRectified = { area: string; note: string; flagged_at: string | null; rectified_at: string; fixes: string[] };
 
 export type Report = {
   wo_ref: string;
@@ -27,7 +29,18 @@ export type Report = {
   qa: ReportQa[];
   /** Storage paths, signed into URLs by the page — never rendered raw. */
   photos: { kind: string; area: string | null; path: string }[];
+  /** Present on a job completed after the customer's flags were put right. */
+  rectified?: ReportRectified[];
 };
+
+/** How the report was completed, in the customer's words. */
+export function completionLine(report: Pick<Report, "signed_kind" | "signed_name" | "signed_at">): string {
+  const when = dateFmt(report.signed_at);
+  if (report.signed_kind === "rectified") return `Completed on ${when}, once the areas you flagged were put right`;
+  if (report.signed_kind === "no_walkthrough") return `Completed on ${when}`;
+  if (report.signed_kind === "deemed") return `Taken as complete on ${when}`;
+  return `Signed by ${report.signed_name} on ${when}`;
+}
 
 const money = (c: number) =>
   "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -56,8 +69,8 @@ export default function CompletionReport({
   return (
     <section className="cv-report" data-testid="completion-report">
       <h2>Your completion report</h2>
-      <p className="cv-fine">
-        Signed by {report.signed_name} on {dateFmt(report.signed_at)} · {report.wo_ref}
+      <p className="cv-fine" data-testid="report-completion-line">
+        {completionLine(report)} · {report.wo_ref}
       </p>
 
       <div className="cv-warranty" data-testid="report-warranty">
@@ -67,6 +80,25 @@ export default function CompletionReport({
           Anything you notice later in that window, get in touch — it&rsquo;s covered.
         </span>
       </div>
+
+      {(report.rectified ?? []).length > 0 && (
+        <div className="cv-rectified" data-testid="report-rectified">
+          <h3>What you flagged, and what we did</h3>
+          {report.rectified!.map((r) => {
+            const areaPhotos = photos.filter((p) => p.kind === "completion" && p.area === r.area);
+            return (
+              <div className="cv-area" key={r.area} data-testid={`report-rectified-${r.area}`}>
+                <b>{r.area}</b>
+                <ul>
+                  {r.note ? <li>You said: &ldquo;{r.note}&rdquo;</li> : <li>Flagged at your walkthrough</li>}
+                  <li>Put right on {dateFmt(r.rectified_at)}{r.fixes.length > 1 ? ` — ${r.fixes.length} items` : ""}</li>
+                </ul>
+                {areaPhotos.length > 0 && <PhotoGrid photos={areaPhotos} showKind={false} tight />}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <h3>What was done</h3>
       {[...byHeading.entries()].map(([heading, rows]) => (

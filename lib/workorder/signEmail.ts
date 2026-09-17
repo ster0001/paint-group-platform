@@ -81,7 +81,9 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
     const msg = signedReportEmail({
       firstName: contact?.first_name ?? (est?.accepted_name ?? "").trim().split(/\s+/)[0] ?? "",
       jobTitle: snap?.jobTitle || "your painting job",
-      signedName: String(s.signed_name ?? ""),
+      // A rectified completion has no signer — "signed off by Flagged areas
+      // put right" is not a sentence (Tom, 17 Sep).
+      signedName: String(s.signed_kind ?? "") === "rectified" ? "" : String(s.signed_name ?? ""),
       link: `${origin}/s/${customerToken}`,
       company: snap?.company?.name || "Paint Group",
       logoUrl: company.logoUrlLight || company.logoUrl,

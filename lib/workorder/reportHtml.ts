@@ -52,6 +52,27 @@ export function buildCompletionReportHtml(opts: {
       <ul>${rows.map((s) => `<li>${esc(s.label)}${s.rectification ? `<em> · attended after your walkthrough</em>` : ""}</li>`).join("")}</ul>
     </div>`).join("");
 
+  // Tom (17 Sep): what the customer flagged at their walkthrough, and that it
+  // was put right — the reason this report exists on a rectified completion.
+  const rectified = r.rectified ?? [];
+  const rectifiedHtml = rectified.length === 0 ? "" : `
+    <h2>What you flagged, and what we did</h2>
+    ${rectified.map((x) => `
+    <div class="area">
+      <div class="area-h">${esc(x.area)}</div>
+      <ul>
+        <li>${x.note ? `You said: &ldquo;${esc(x.note)}&rdquo;` : "Flagged at your walkthrough"}</li>
+        <li>Put right on ${esc(dateFmt(x.rectified_at))}${x.fixes.length > 1 ? ` — ${x.fixes.length} items` : ""}</li>
+      </ul>
+    </div>`).join("")}`;
+  const completionLine = r.signed_kind === "rectified"
+    ? `Completed on ${esc(dateFmt(r.signed_at))}, once the areas you flagged were put right.`
+    : r.signed_kind === "no_walkthrough"
+      ? `Completed on ${esc(dateFmt(r.signed_at))}.`
+      : r.signed_kind === "deemed"
+        ? `Taken as complete on ${esc(dateFmt(r.signed_at))}.`
+        : `Signed off by ${esc(r.signed_name)} on ${esc(dateFmt(r.signed_at))}.`;
+
   const variationsHtml = variations.length === 0 ? "" : `
     <h2>Changes along the way</h2>
     <ul class="vars">${variations.map((v) => {
@@ -107,19 +128,21 @@ export function buildCompletionReportHtml(opts: {
     ${logo}
     <div>
       <div class="doc-title">Completion report</div>
-      <div class="doc-meta">${esc(r.wo_ref)}<br>Signed ${esc(dateFmt(r.signed_at))}</div>
+      <div class="doc-meta">${esc(r.wo_ref)}<br>${r.signed_kind === "rectified" || r.signed_kind === "no_walkthrough" ? "Completed" : "Signed"} ${esc(dateFmt(r.signed_at))}</div>
     </div>
   </div>
 
   <h1>${esc(opts.jobTitle)}</h1>
   ${opts.referencesLine ? `<p class="signedline">${esc(opts.referencesLine)}</p>` : ""}
-  <p class="signedline">Signed off by ${esc(r.signed_name)} on ${esc(dateFmt(r.signed_at))}.</p>
+  <p class="signedline">${completionLine}</p>
 
   <div class="warranty">
     <b>${opts.warrantyYears ?? 2}-year workmanship warranty</b>
     ${esc(dateFmt(r.warranty_starts))}${opts.warrantyEnds ? ` — ${esc(dateFmt(opts.warrantyEnds))}` : ""}.
     Anything you notice later in that window, get in touch — it's covered.
   </div>
+
+  ${rectifiedHtml}
 
   <h2>What was done</h2>
   ${areasHtml}
