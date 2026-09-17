@@ -10,7 +10,7 @@ import { fmt0, fmt2 } from "./format";
 import { approveContractorInvoiceAction, markContractorInvoicePaidAction } from "./actions";
 import PayablesCosts, {
   type AccuracyProp, type CostPayableRowProp, type ExpenseClaimProp, type IntakeCardProp,
-  type JobPickProp, type PreapprovalProp, type UnmatchedMaterialProp,
+  type JobPickProp, type PreapprovalProp, type ReimbursementProp, type UnmatchedMaterialProp,
 } from "./PayablesCosts";
 
 /**
@@ -86,6 +86,8 @@ export default function Dashboard({
     accuracy: AccuracyProp;
     expenseClaims?: ExpenseClaimProp[];
     preapprovals?: PreapprovalProp[];
+    /** Employed painters (S5): approved personal-card claims owed back. */
+    reimbursements?: ReimbursementProp[];
   } | null;
 }) {
   const router = useRouter();
@@ -252,7 +254,8 @@ export default function Dashboard({
         {costs && (
           <PayablesCosts cards={costs.cards} jobs={costs.jobs} unmatched={costs.unmatched}
             costRows={costs.costRows} accuracy={costs.accuracy}
-            expenseClaims={costs.expenseClaims} preapprovals={costs.preapprovals} />
+            expenseClaims={costs.expenseClaims} preapprovals={costs.preapprovals}
+            reimbursements={costs.reimbursements} />
         )}
 
         {payMessage && <div className="hint" role="status" data-testid="payables-message" style={{ margin: "8px 0" }}>{payMessage}</div>}

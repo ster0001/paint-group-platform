@@ -31,7 +31,7 @@ export type WeekendAvailability = { worksSaturday: boolean; worksSunday: boolean
 export type ContractorDoc = {
   id: string;
   contractor_id: string;
-  kind: "insurance" | "workcover" | "licence" | "other";
+  kind: "insurance" | "workcover" | "licence" | "other" | "white_card" | "working_at_heights";
   name: string;
   file_url: string;
   expires_on: string | null;
@@ -95,7 +95,36 @@ export const DOC_LABEL: Record<ContractorDoc["kind"], string> = {
   workcover: "WorkCover insurance",
   licence: "Painting licence",
   other: "Other document",
+  white_card: "White card",
+  working_at_heights: "Working at heights",
 };
+
+/**
+ * Employed painters (S5, ruling 5): which document kinds each type of painter
+ * keeps on file. A contractor's paperwork is insurance; an employee's is
+ * their own tickets — white card and working at heights, with expiry
+ * reminders and NOTHING else. Neither employee kind gates anything.
+ */
+export const CONTRACTOR_DOC_KINDS: readonly ContractorDoc["kind"][] = ["insurance", "workcover", "licence", "other"];
+export const EMPLOYEE_DOC_KINDS: readonly ContractorDoc["kind"][] = ["white_card", "working_at_heights"];
+
+/** The employee tickets still missing, expired, or expiring within 45 days. */
+export function employeeDocReminders(docs: readonly ContractorDoc[]): { kind: ContractorDoc["kind"]; text: string; chip: string }[] {
+  const out: { kind: ContractorDoc["kind"]; text: string; chip: string }[] = [];
+  for (const kind of EMPLOYEE_DOC_KINDS) {
+    const live = docs.filter((d) => d.kind === kind && d.file_url);
+    const current = live.find((d) => docState(d) !== "expired");
+    if (!current) {
+      out.push({ kind, text: `Upload your ${DOC_LABEL[kind].toLowerCase()}${live.length ? " — the one on file has expired" : ""}`, chip: "Needed" });
+      continue;
+    }
+    const days = daysUntil(current.expires_on);
+    if (days !== null && days <= 45) {
+      out.push({ kind, text: `${DOC_LABEL[kind]} expires in ${days} day${days === 1 ? "" : "s"} — upload the renewal`, chip: `${days}d` });
+    }
+  }
+  return out;
+}
 
 /**
  * WorkCover (Tom, 17 Sep 2026): asked for beside the public liability policy,

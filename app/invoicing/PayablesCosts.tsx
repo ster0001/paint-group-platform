@@ -10,6 +10,7 @@ import {
   approveJobCostAction,
   confirmIntakeAction,
   decideExpenseAction,
+  markReimbursedAction,
   decidePreapprovalAction,
   markJobCostPaidAction,
   rejectIntakeAction,
@@ -82,6 +83,16 @@ export type PreapprovalProp = {
   estCents: number;
 };
 
+/** Employed painters (S5, ruling 13): an approved personal-card claim the office owes back. */
+export type ReimbursementProp = {
+  id: string;
+  painter: string;
+  ref: string;
+  amtCents: number;
+  note: string;
+  approvedOn: string | null;
+};
+
 export type AccuracyProp = {
   decided: number;
   exactRefPct: number | null;
@@ -102,7 +113,7 @@ const CATEGORIES: { key: string; label: string }[] = [
 ];
 
 export default function PayablesCosts({
-  cards, jobs, unmatched, costRows, accuracy, expenseClaims = [], preapprovals = [],
+  cards, jobs, unmatched, costRows, accuracy, expenseClaims = [], preapprovals = [], reimbursements = [],
 }: {
   cards: IntakeCardProp[];
   jobs: JobPickProp[];
@@ -111,6 +122,7 @@ export default function PayablesCosts({
   accuracy: AccuracyProp;
   expenseClaims?: ExpenseClaimProp[];
   preapprovals?: PreapprovalProp[];
+  reimbursements?: ReimbursementProp[];
 }) {
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -332,6 +344,28 @@ export default function PayablesCosts({
                 <button className="mini" disabled={busy} data-testid={`decline-pre-${p.id}`}
                   onClick={() => run(() => decidePreapprovalAction({ preapprovalId: p.id, approve: false }))}>
                   Decline
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ============ employee reimbursements (employed painters S5) ============ */}
+      {reimbursements.length > 0 && (
+        <div className="card" data-testid="reimbursements">
+          <div className="row"><h3>Employee reimbursements — owed back</h3><span className="chip submitted">{reimbursements.length}</span></div>
+          <p className="hint" style={{ fontSize: 11.5 }}>
+            Approved claims an employed painter paid from their own pocket. Pay them through payroll or a transfer, then mark it here. Company-card claims never appear — they are job costs with nothing to pay out.
+          </p>
+          {reimbursements.map((r) => (
+            <div key={r.id} style={{ borderTop: "1px solid var(--line)", padding: "10px 0" }} data-testid={`reimbursement-${r.id}`}>
+              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.painter} · {fmt2(r.amtCents)}</div>
+              <div className="hint mono" style={{ fontSize: 10 }}>{r.ref}{r.note ? ` · ${r.note}` : ""}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <button className="mini cy" disabled={busy} data-testid={`reimburse-${r.id}`}
+                  onClick={() => run(() => markReimbursedAction({ expenseId: r.id }))}>
+                  Mark paid back
                 </button>
               </div>
             </div>

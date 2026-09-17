@@ -153,8 +153,19 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   // stage-1 checklist "Ready to assign". A label derived from the rows; the
   // enum never changes. A refused read reads as a contractor job.
   const { data: assignmentRows, error: assignmentErr } = await supabase
-    .from("wo_assignments").select("id").eq("work_order_id", id).neq("status", "released").limit(1);
+    .from("wo_assignments")
+    .select("id, start_date, end_date, is_lead, accepted_at, contractors(company_name, profiles(name))")
+    .eq("work_order_id", id).neq("status", "released").order("is_lead", { ascending: false }).order("start_date");
   const acceptanceMode: "offered" | "assigned" = !assignmentErr && (assignmentRows ?? []).length > 0 ? "assigned" : "offered";
+  // The internal crew list (S5): every painter and their days. The customer's
+  // report names the lead only; this page is ours.
+  const crew = ((assignmentErr ? [] : assignmentRows ?? []) as unknown as {
+    id: string; start_date: string; end_date: string; is_lead: boolean; accepted_at: string | null;
+    contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
+  }[]).map((a) => ({
+    id: a.id, isLead: a.is_lead, accepted: a.accepted_at !== null, start: a.start_date, end: a.end_date,
+    name: a.contractors?.profiles?.name || a.contractors?.company_name || "Painter",
+  }));
   const qaScheduled = ((qaRows ?? []) as unknown[]).length > 0;
 
   // The job sheet, opened on the work-order view where the colours live, and
@@ -474,6 +485,22 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             canEdit={row.stage !== "closed"}
             moneyHref={`/invoicing/job/${estimateId}?tab=costs`}
           />
+
+          {crew.length > 0 && (
+            <div className="card" data-testid="crew-card">
+              <div className="tick-head"><b>Crew</b><span className="tick-count">{crew.length} painter{crew.length === 1 ? "" : "s"}</span></div>
+              {crew.map((c) => (
+                <div key={c.id} className="frow" data-testid={`crew-${c.id}`}>
+                  <span className="l">{c.isLead ? "★ Lead" : "Painter"}</span>
+                  <span className="v">
+                    {c.name.toUpperCase()} · {c.start === c.end ? c.start : `${c.start} → ${c.end}`}
+                    {c.accepted ? "" : " · NOT YET SEEN"}
+                  </span>
+                </div>
+              ))}
+              <p className="hint" style={{ padding: 0, marginTop: 6 }}>The customer hears about the lead painter only. Change the lead from the schedule board.</p>
+            </div>
+          )}
 
           {row.stage === "offered" && forPhase("pre_offer").length > 0 && (
             <Checklist

@@ -7,7 +7,9 @@ import { createClient } from "@/lib/supabase/client";
 import { signout } from "@/app/auth/actions";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 import {
+  CONTRACTOR_DOC_KINDS,
   DOC_LABEL,
+  EMPLOYEE_DOC_KINDS,
   daysUntil,
   docState,
   missingProfileFields,
@@ -15,6 +17,7 @@ import {
   type ContractorDoc,
   type ContractorRow,
 } from "@/lib/contractor/model";
+import type { PainterCapabilities } from "@/lib/painters/capabilities";
 
 const DOCS_BUCKET = "contractor-docs";
 const LOGO_BUCKET = "contractor-logos";
@@ -55,6 +58,7 @@ export default function ProfileForm({
   email,
   weekend = null,
   phone = null,
+  capabilities,
 }: {
   contractor: ContractorRow;
   docs: ContractorDoc[];
@@ -66,7 +70,15 @@ export default function ProfileForm({
   weekend?: { worksSaturday: boolean; worksSunday: boolean } | null;
   /** Mobile on file — null (pre-migration 20261223) hides the card. */
   phone?: { value: string } | null;
+  /**
+   * Employed painters (S5, §3.7): the same form, sections by capability. A
+   * contractor keeps company details, banking, insurance and crew count; an
+   * employee keeps contact, weekends, and their own tickets (white card,
+   * working at heights) — nothing else.
+   */
+  capabilities: PainterCapabilities;
 }) {
+  const docKinds = capabilities.requiresInsurance ? CONTRACTOR_DOC_KINDS : EMPLOYEE_DOC_KINDS;
   const supabase = createClient();
   const router = useRouter();
 
@@ -227,7 +239,7 @@ export default function ProfileForm({
 
   // ---- compliance documents ------------------------------------------------
   const docInput = useRef<HTMLInputElement>(null);
-  const [docKind, setDocKind] = useState<ContractorDoc["kind"]>("insurance");
+  const [docKind, setDocKind] = useState<ContractorDoc["kind"]>(docKinds[0]);
   const [docExpiry, setDocExpiry] = useState("");
   const [docBusy, setDocBusy] = useState(false);
   const [docErr, setDocErr] = useState("");
@@ -301,6 +313,9 @@ export default function ProfileForm({
       </p>
 
       {/* ---- status ---------------------------------------------------- */}
+      {/* Offerable is a contractor's fact (insurance → offers). An employee
+          is assigned, not offered, and their tickets gate nothing. */}
+      {capabilities.acceptsOffers && (
       <div className={`card ${contractor.offerable ? "greenish" : "amberish"}`}>
         <span className={`chip ${contractor.offerable ? "grn" : "amb"}`}>
           {contractor.offerable ? "Ready for work" : "Not yet offerable"}
@@ -316,8 +331,10 @@ export default function ProfileForm({
           </div>
         )}
       </div>
+      )}
 
-      {/* ---- company details ------------------------------------------- */}
+      {/* ---- company details (the RCTI entity — contractors only) --------- */}
+      {capabilities.canSelfInvoice && (
       <div className="card">
         <h3>Company details</h3>
         <p className="hint">These appear on the tax invoices you send Paint Group.</p>
@@ -445,6 +462,7 @@ export default function ProfileForm({
           {companyBusy ? "Saving…" : "Save company details"}
         </button>
       </div>
+      )}
 
       {/* ---- mobile for notifications ----------------------------------- */}
       {phone && (
@@ -497,7 +515,8 @@ export default function ProfileForm({
         </div>
       )}
 
-      {/* ---- bank details ----------------------------------------------- */}
+      {/* ---- bank details (the RCTI is paid here — contractors only) ------- */}
+      {capabilities.canSelfInvoice && (
       <div className="card">
         <h3>Where you get paid</h3>
         <p className="hint">
@@ -542,18 +561,17 @@ export default function ProfileForm({
           {bankBusy ? "Saving…" : contractor.bank_account_last4 ? "Update bank details" : "Save bank details"}
         </button>
       </div>
+      )}
 
       {/* ---- compliance -------------------------------------------------- */}
-      <div className="card">
-        <h3>Insurance &amp; licences</h3>
+      <div className="card" data-testid="compliance-card">
+        <h3>{capabilities.requiresInsurance ? "Insurance & licences" : "Your tickets"}</h3>
         <p className="hint">
-          Upload your public liability certificate of currency and your WorkCover
-          certificate, each with its expiry date. Public liability is what unlocks job
-          offers — Paint Group check it, and once they&rsquo;ve confirmed it you&rsquo;re
-          available for work. WorkCover is required if you have any other workers working
-          with you, so keep it on file here too. The portal warns you before either lapses.
+          {capabilities.requiresInsurance
+            ? "Upload your public liability certificate of currency and your WorkCover certificate, each with its expiry date. Public liability is what unlocks job offers — Paint Group check it, and once they've confirmed it you're available for work. WorkCover is required if you have any other workers working with you, so keep it on file here too. The portal warns you before either lapses."
+            : "Keep your white card and your working-at-heights ticket on file here, each with its expiry date. Paint Group check them, and the portal reminds you before either runs out. Nothing here holds up a job."}
         </p>
-        {workcoverNeeded(Number(company.crew_size) || 1, docs) && (
+        {capabilities.requiresInsurance && workcoverNeeded(Number(company.crew_size) || 1, docs) && (
           <div className="err" style={{ marginTop: 12 }} data-testid="workcover-required">
             You&rsquo;ve told us {Number(company.crew_size)} painters are on your crew, so a
             WorkCover certificate is required — upload it below.
@@ -623,10 +641,7 @@ export default function ProfileForm({
           value={docKind}
           onChange={(e) => setDocKind(e.target.value as ContractorDoc["kind"])}
         >
-          <option value="insurance">Public liability insurance</option>
-          <option value="workcover">WorkCover insurance</option>
-          <option value="licence">Painting licence</option>
-          <option value="other">Other</option>
+          {docKinds.map((k) => <option key={k} value={k}>{DOC_LABEL[k]}</option>)}
         </select>
 
         <label className="fl" htmlFor="docexp">Expires on</label>

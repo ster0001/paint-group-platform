@@ -150,12 +150,19 @@ test.describe("an employed painter never sees money", () => {
     }
   });
 
-  test("the self-invoicing and offer routes do not exist for an employee", async ({ page }) => {
+  test("the self-invoicing and offer routes do not exist for an employee; the money tab is expenses only", async ({ page }) => {
     await signIn(page, employee, /\/portal/);
-    for (const path of ["/portal/money", "/portal/requests", `/portal/money/${crypto.randomUUID()}`]) {
+    for (const path of ["/portal/requests", `/portal/money/${crypto.randomUUID()}`]) {
       const response = await page.goto(path);
       expect(response?.status(), path).toBe(404);
     }
+    // Session 5: /portal/money IS a page for an employee — expenses only. No
+    // invoice, offer or price vocabulary on it; the receipt amounts are the
+    // painter's own figures and are the one money-shaped thing allowed here.
+    const res = await page.goto("/portal/money");
+    expect(res?.status()).toBe(200);
+    await expect(page.getByTestId("expenses-only")).toBeVisible();
+    await expect(page.locator("body")).not.toContainText(/invoice|RCTI|your price|contract|\/hr/i);
   });
 
   test("every direct read of a money table as the employee is denied — zero rows, and nothing else", async () => {

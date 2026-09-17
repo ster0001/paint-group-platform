@@ -17,7 +17,7 @@ import { accuracyReadout, jobCode, queueRows, SOURCE_LABEL, type ExtractedBill, 
 import { COST_DOCS_BUCKET } from "@/lib/costs/store";
 import { fmt2, KIND_LABEL, kindLabelWithContext, shortDay } from "./format";
 import Dashboard, { type ActivityProp, type PayableRowProp, type RowProp } from "./Dashboard";
-import type { CostPayableRowProp, ExpenseClaimProp, IntakeCardProp, JobPickProp, PreapprovalProp, UnmatchedMaterialProp } from "./PayablesCosts";
+import type { CostPayableRowProp, ExpenseClaimProp, IntakeCardProp, JobPickProp, PreapprovalProp, ReimbursementProp, UnmatchedMaterialProp } from "./PayablesCosts";
 
 export const dynamic = "force-dynamic";
 
@@ -307,6 +307,18 @@ export default async function InvoicingDashboardPage({
     note: e.note,
     receiptUrl: docUrlByPath.get(e.receipt_path) ?? null,
   }));
+  const reimbursements: ReimbursementProp[] = capture.reimbursements.map((r) => ({
+    id: r.id,
+    painter: r.contractors?.profiles?.name || r.contractors?.company_name || "An employee",
+    ref: [
+      r.category.replaceAll("_", " "),
+      jobCode(r.work_orders?.job_no ?? null) || null,
+      r.work_orders?.job_address ?? null,
+    ].filter(Boolean).join(" · "),
+    amtCents: r.amount_cents,
+    note: r.note,
+    approvedOn: r.decided_at,
+  }));
   const preapprovalCards: PreapprovalProp[] = capture.preapprovals.map((p) => ({
     id: p.id,
     contractor: p.contractors?.company_name || "Contractor",
@@ -343,7 +355,7 @@ export default async function InvoicingDashboardPage({
       initialTab={tab ?? "recv"}
       payables={payables}
       payableRows={payableRows}
-      costs={{ cards, jobs: jobsForPick, unmatched, costRows, accuracy, expenseClaims, preapprovals: preapprovalCards }}
+      costs={{ cards, jobs: jobsForPick, unmatched, costRows, accuracy, expenseClaims, preapprovals: preapprovalCards, reimbursements }}
     />
   );
 }

@@ -5,7 +5,7 @@ import { effectiveState, isLive } from "@/lib/scheduling/offers";
 import OfferCard from "./requests/OfferCard";
 import { listContractorJobs, JOB_STATUS_CHIP, shortDate } from "@/lib/contractor/jobs";
 import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
-import { missingProfileFields, daysUntil, docState, workcoverNeeded } from "@/lib/contractor/model";
+import { missingProfileFields, daysUntil, docState, workcoverNeeded, employeeDocReminders } from "@/lib/contractor/model";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 import { createClient } from "@/lib/supabase/server";
 
@@ -92,11 +92,13 @@ export default async function PortalHome() {
   // Everything the contractor has to act on right now, drawn from real state.
   const actions: { icon: string; text: string; chip?: string }[] = [];
   const awaitingCheck = docs.find((d) => d.kind === "insurance" && d.file_url && !d.verified_at);
-  if (docsError || !capabilities.requiresInsurance) {
+  if (docsError) {
     // Say nothing about insurance when we couldn't read the documents at all —
     // telling someone to upload what they already uploaded is worse than silence.
-    // And nothing at all for an employee: insurance is a contractor condition
-    // (ruling 5); their white card / working-at-heights arrive in Session 5.
+  } else if (!capabilities.requiresInsurance) {
+    // An employee's tickets (ruling 5): white card and working at heights,
+    // reminded about, never a gate on anything.
+    for (const r of employeeDocReminders(docs)) actions.push({ icon: "🪪", text: r.text, chip: r.chip });
   } else if (!insurance && awaitingCheck) {
     actions.push({
       icon: "🛡",

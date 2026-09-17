@@ -36,12 +36,14 @@ const dateFmt = (d: string) =>
   new Date(d).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
 
 export default function CompletionReport({
-  report, warrantyEnds, warrantyYears, photos,
+  report, warrantyEnds, warrantyYears, photos, leadPainter = null,
 }: {
   report: Report;
   warrantyEnds: string | null;
   warrantyYears: number | null;
   photos: readonly WOPhoto[];
+  /** The lead painter's first name (employed painters S5, ruling 6) — never the crew. */
+  leadPainter?: string | null;
 }) {
   const byHeading = new Map<string, ReportSurface[]>();
   for (const s of report.surfaces ?? []) {
@@ -58,6 +60,7 @@ export default function CompletionReport({
       <h2>Your completion report</h2>
       <p className="cv-fine">
         Signed by {report.signed_name} on {dateFmt(report.signed_at)} · {report.wo_ref}
+        {leadPainter ? <span data-testid="report-lead-painter"> · Your painter: {leadPainter}</span> : null}
       </p>
 
       <div className="cv-warranty" data-testid="report-warranty">

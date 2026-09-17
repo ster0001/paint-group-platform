@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireContractor } from "@/lib/contractor/session";
+import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
+import { reportIfError } from "@/lib/monitoring/report";
 import { missingProfileFields } from "@/lib/contractor/model";
 import { createClient } from "@/lib/supabase/server";
 import { contractorVariationsCents, type PayVariation } from "@/lib/workorder/contractorPay";
@@ -28,11 +30,13 @@ const CHIP: Record<string, { cls: string; label: string }> = {
  */
 export default async function MoneyPage() {
   const { contractor, capabilities } = await requireContractor();
-  // Self-invoicing is a contractor capability (ruling 4). An employee's
-  // expenses-only tab arrives in Session 5; until then this route does not
-  // exist for them — 404, not a hidden section, because the page's reads
-  // would otherwise run and ship their shape to the browser.
-  if (!capabilities.canSelfInvoice) notFound();
+  // Ruling 4: an employee's money tab is EXPENSES ONLY — no invoices, no
+  // RCTI, no claim composer. Same route, a different page, and none of the
+  // invoice reads below ever run for them.
+  if (!capabilities.canSelfInvoice) {
+    if (!capabilities.canClaimExpenses || !contractor) notFound();
+    return <ExpensesOnly />;
+  }
   const missing = missingProfileFields(contractor);
   const supabase = await createClient();
 
@@ -203,6 +207,75 @@ export default async function MoneyPage() {
           office and you have squared off. Check it, submit it in one tap, and
           watch it move through submitted → approved → paid.
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Employed painters (S5, rulings 4 and 13): the Expenses tab. Receipt photo,
+ * category, amount inc. GST, which job, who paid (company card by default).
+ * Over the threshold asks first, the same $100 as contractors. Nothing about
+ * invoices exists on this page — not the composer, not the RCTI text, not a
+ * job's contract figure. Jobs come through the money-free RPC.
+ */
+async function ExpensesOnly() {
+  const supabase = await createClient();
+  const jobs = await listEmployeeJobs();
+  const [expenseRes, preRes, settingsRes] = await Promise.all([
+    supabase.from("contractor_expenses")
+      .select("id, work_order_id, category, amount_cents, status, over_threshold_unapproved, note, created_at, paid_with")
+      .order("created_at", { ascending: false }).limit(50),
+    supabase.from("expense_preapprovals")
+      .select("id, work_order_id, description, est_cents, cap_cents, status")
+      .order("created_at", { ascending: false }).limit(20),
+    supabase.from("settings").select("value").eq("key", "cost_intake").maybeSingle(),
+  ]);
+  // A refused read is a broken screen, not an empty list — say so.
+  const failed = [expenseRes.error, preRes.error].filter(Boolean);
+  for (const e of failed) reportIfError({ error: e }, { where: "portal.expensesOnly", bestEffort: true });
+
+  const titleByWo = new Map(jobs.map((j) => [j.id, j.doc?.jobTitle || j.doc?.jobAddress || j.woRef]));
+  const expenses: ExpenseRow[] = ((expenseRes.error ? [] : expenseRes.data ?? []) as {
+    id: string; work_order_id: string; category: string; amount_cents: number;
+    status: ExpenseRow["status"]; over_threshold_unapproved: boolean; note: string; created_at: string; paid_with?: string | null;
+  }[]).map((e) => ({
+    id: e.id, jobTitle: titleByWo.get(e.work_order_id) ?? "Job", category: e.category,
+    amountCents: e.amount_cents, status: e.status, overThreshold: e.over_threshold_unapproved,
+    note: e.note, createdAt: e.created_at, paidWith: e.paid_with === "company_card" ? "company_card" : "personal",
+  }));
+  const preapprovals: Preapproval[] = ((preRes.error ? [] : preRes.data ?? []) as {
+    id: string; work_order_id: string; description: string; est_cents: number; cap_cents: number | null; status: string;
+  }[]).map((p) => ({
+    id: p.id, jobTitle: titleByWo.get(p.work_order_id) ?? "Job",
+    description: p.description, estCents: p.est_cents, capCents: p.cap_cents, status: p.status,
+  }));
+  const ciValue = ((settingsRes.data as { value?: Record<string, unknown> } | null)?.value) ?? {};
+  const categories = Array.isArray(ciValue.claimableCategories)
+    ? (ciValue.claimableCategories as string[])
+    : ["materials_topup", "sundries", "parking", "tip_fees", "other"];
+  const thresholdCents = typeof ciValue.expenseThresholdCents === "number"
+    ? ciValue.expenseThresholdCents
+    : DEFAULT_EXPENSE_THRESHOLD_CENTS;
+  const expenseJobs: ExpenseJob[] = jobs.map((j) => ({ workOrderId: j.id, title: titleByWo.get(j.id) ?? j.woRef }));
+
+  return (
+    <div className="wrap" data-testid="expenses-only">
+      <h1>Expenses</h1>
+      <p className="slab">Receipts for things you bought for a job</p>
+      {failed.length > 0 && (
+        <div className="err">Couldn&rsquo;t read your claims just now — pull down to refresh, or ring the office.</div>
+      )}
+      {expenseJobs.length === 0 ? (
+        <div className="card">
+          <h3>Nothing to claim against yet</h3>
+          <p className="hint" style={{ padding: 0, marginTop: 6 }}>
+            Expenses are claimed against a job. Once you&rsquo;re on one it appears here.
+          </p>
+        </div>
+      ) : (
+        <Expenses jobs={expenseJobs} expenses={expenses} preapprovals={preapprovals}
+          categories={categories} thresholdCents={thresholdCents} mode="employee" />
       )}
     </div>
   );

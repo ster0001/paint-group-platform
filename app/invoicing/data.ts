@@ -202,16 +202,30 @@ export type PreapprovalRow = {
   work_orders: { estimate_id: string; job_no: number | null; job_address: string | null } | null;
 };
 
+export type ReimbursementRow = {
+  id: string; work_order_id: string; category: string; amount_cents: number; note: string; decided_at: string | null;
+  contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
+  work_orders: { estimate_id: string; job_no: number | null; job_address: string | null } | null;
+};
+
 export async function loadCostCapture(supabase: SupabaseClient) {
-  const [expenses, preapprovals] = await Promise.all([
+  const [expenses, preapprovals, reimbursements] = await Promise.all([
     supabase.from("contractor_expenses")
-      .select("id, work_order_id, category, amount_cents, gst_cents, receipt_path, note, status, over_threshold_unapproved, created_at, contractors(company_name), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
+      .select("id, work_order_id, category, amount_cents, gst_cents, receipt_path, note, status, over_threshold_unapproved, created_at, paid_with, contractors(company_name, profiles(name)), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
       .eq("status", "submitted")
       .order("created_at", { ascending: true }),
     supabase.from("expense_preapprovals")
       .select("id, work_order_id, description, est_cents, status, created_at, contractors(company_name), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
       .eq("status", "requested")
       .order("created_at", { ascending: true }),
+    // Employed painters (S5, ruling 13): approved, paid from their own
+    // pocket, not yet paid back. A contractor's claims ride their invoice and
+    // never appear here — this is the employee's reimbursement queue.
+    supabase.from("contractor_expenses")
+      .select("id, work_order_id, category, amount_cents, note, decided_at, contractors!inner(company_name, employment_type, profiles(name)), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
+      .eq("status", "approved").eq("paid_with", "personal").is("reimbursed_at", null)
+      .eq("contractors.employment_type", "employee")
+      .order("decided_at", { ascending: true }).limit(100),
   ]);
   const [intake, jobCosts, unmatched, jobs] = await Promise.all([
     supabase.from("cost_intake")
@@ -242,6 +256,7 @@ export async function loadCostCapture(supabase: SupabaseClient) {
     // understates what the business owes.
     expenses: (expenses.error ? [] : expenses.data ?? []) as unknown as ContractorExpenseRow[],
     preapprovals: (preapprovals.error ? [] : preapprovals.data ?? []) as unknown as PreapprovalRow[],
+    reimbursements: (reimbursements.error ? [] : reimbursements.data ?? []) as unknown as ReimbursementRow[],
     intake: (intake.error ? [] : intake.data ?? []) as unknown as IntakeDbRow[],
     jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as JobCostRow[],
     unmatchedMaterials: (unmatched.error ? [] : unmatched.data ?? []) as unknown as MaterialCostRow[],
