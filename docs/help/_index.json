@@ -23,12 +23,12 @@
     {
       "feature": "contractors",
       "role": "staff",
-      "title": "Invite a painter onto the platform, and email them the link",
-      "summary": "How the office invites a contractor or employed painter — a private link that lasts a week, emailed from the platform or copied and sent another way — and what the waiting list tells you.",
+      "title": "Invite a painter, open their record, and remove one who should never have been there",
+      "summary": "How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), and when a painter can be removed rather than suspended.",
       "path": "docs/help/contractors/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "cfab75826b",
       "sources": []
     },
     {
