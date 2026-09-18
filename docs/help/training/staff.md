@@ -4,7 +4,7 @@ role: staff
 title: Training videos — short films that show the platform in use
 summary: Every training video in one place for the office — the quick how-tos and the full walkthrough, each opening on YouTube in its own tab.
 sources: app/(app)/help/page.tsx, app/components/help/HelpArticle.tsx
-verified_at_commit: 2a9f1474e4
+verified_at_commit: ab8b2d3fec
 ---
 
 ## What this is for
@@ -13,10 +13,10 @@ Short films showing the platform being used, rather than described. Watch one be
 ## Quick how-tos
 One thing each, under a minute. Watch on a phone.
 
-1. [Training video 1](https://youtube.com/shorts/0dR0AVqccgw)
-2. [Training video 2](https://youtube.com/shorts/c3STd0cC9KE)
-3. [Training video 3](https://youtube.com/shorts/CWnIApwbdiw)
-4. [Training video 4](https://youtube.com/shorts/EI8tkZdXDRQ)
+1. [Company information](https://youtube.com/shorts/0dR0AVqccgw)
+2. [Platform guide](https://youtube.com/shorts/c3STd0cC9KE)
+3. [Accepting a job](https://youtube.com/shorts/CWnIApwbdiw)
+4. [Work orders](https://youtube.com/shorts/EI8tkZdXDRQ)
 
 ## Full walkthrough
 The long one. Worth watching end to end when you start, or when something has changed.

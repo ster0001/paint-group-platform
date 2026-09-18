@@ -372,7 +372,7 @@
       "path": "docs/help/training/contractor.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "2a9f1474e4",
+      "verified_at_commit": "ab8b2d3fec",
       "sources": [
         "app/portal/help/page.tsx",
         "app/components/help/HelpArticle.tsx"
@@ -386,7 +386,7 @@
       "path": "docs/help/training/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "2a9f1474e4",
+      "verified_at_commit": "ab8b2d3fec",
       "sources": [
         "app/portal/help/page.tsx",
         "app/components/help/HelpArticle.tsx"
@@ -400,7 +400,7 @@
       "path": "docs/help/training/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "2a9f1474e4",
+      "verified_at_commit": "ab8b2d3fec",
       "sources": [
         "app/(app)/help/page.tsx",
         "app/components/help/HelpArticle.tsx"
