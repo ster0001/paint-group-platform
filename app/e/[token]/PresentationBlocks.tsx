@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { safeParse, validReviews, blockHasContent, type BlockKind } from "@/lib/presentations/schema";
+import { isSwmsCard } from "@/lib/customer/snapshot";
 
 const BASE = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const mediaUrl = (path: string) => (!path ? "" : /^https?:\/\//.test(path) ? path : `${BASE}/storage/v1/object/public/presentation-media/${path}`);
@@ -17,7 +18,11 @@ function youTubeId(url: string): string | null {
   return m ? m[1] : null;
 }
 
-export default function PresentationBlocks({ blocks }: { blocks: { kind: string; content: unknown }[] }) {
+/** Tom, 18 Sep: this job's SWMS. When given, the capability panel's SWMS card
+ *  links to it instead of the presentation's generic sample. */
+type SwmsDoc = { url: string; label: string } | null;
+
+export default function PresentationBlocks({ blocks, swms = null }: { blocks: { kind: string; content: unknown }[]; swms?: SwmsDoc }) {
   const visible = blocks.filter((b) => blockHasContent(b.kind as BlockKind, b.content));
   if (visible.length === 0) return null;
   return (
@@ -27,7 +32,7 @@ export default function PresentationBlocks({ blocks }: { blocks: { kind: string;
         if (kind === "video") return <VideoBlock key={i} c={safeParse(kind, b.content) as never} />;
         if (kind === "before_after_gallery") return <BeforeAfterBlock key={i} c={safeParse(kind, b.content) as never} />;
         if (kind === "review_set") return <ReviewBlock key={i} c={safeParse(kind, b.content) as never} />;
-        if (kind === "capability_panel") return <CapabilityBlock key={i} c={safeParse(kind, b.content) as never} />;
+        if (kind === "capability_panel") return <CapabilityBlock key={i} c={safeParse(kind, b.content) as never} swms={swms} />;
         return null;
       })}
     </>
@@ -121,7 +126,7 @@ function ReviewBlock({ c }: { c: { title: string; reviews: { body: string; revie
   );
 }
 
-function CapabilityBlock({ c }: { c: { title: string; cards: { icon: string; heading: string; body: string; attachment?: { label: string; doc_path: string } }[] } }) {
+function CapabilityBlock({ c, swms }: { c: { title: string; cards: { icon: string; heading: string; body: string; attachment?: { label: string; doc_path: string } }[] }; swms: SwmsDoc }) {
   const cards = c.cards.filter((x) => x.heading || x.body);
   if (cards.length === 0) return null;
   return (
@@ -132,9 +137,13 @@ function CapabilityBlock({ c }: { c: { title: string; cards: { icon: string; hea
           <div className="cap" key={i}>
             <h3>{card.icon && <i>{card.icon}</i>} {card.heading}</h3>
             {card.body && <p>{card.body}</p>}
-            {card.attachment?.doc_path && card.attachment.label && (
+            {/* Tom, 18 Sep: the SWMS card carries THIS job's SWMS when one is
+                attached — the generic sample only when there is none. */}
+            {swms?.url && isSwmsCard(card) ? (
+              <a className="doc" href={swms.url} target="_blank" rel="noreferrer" download data-testid="swms-download" title={swms.label}>⤓ Download SWMS</a>
+            ) : card.attachment?.doc_path && card.attachment.label ? (
               <a className="doc" href={docUrl(card.attachment.doc_path)} target="_blank" rel="noreferrer">{card.attachment.label}</a>
-            )}
+            ) : null}
           </div>
         ))}
       </div>

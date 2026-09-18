@@ -25,7 +25,7 @@ Have the address handy and know roughly what you want painted (inside, outside o
 
 ## The PDF, and the colour note
 - **Download estimate (PDF)** prints a paper copy of the quote: every area and its price, the deposit, the paint being supplied, what is and is not included, and a **Payment details** box with Paint Group's ABN, bank account and the reference to use — so the deposit can be paid straight from the PDF.
-- **SWMS.** When Paint Group has attached a Safe Work Method Statement for your job, a **SWMS** card sits beside the public liability card under "Why Melburnians choose us", with a **Download SWMS** button. It opens as a PDF.
+- **SWMS.** When Paint Group has attached a Safe Work Method Statement for your job, a **Download SWMS** button sits on the SWMS card beside the public liability card (or on its own **SWMS** card under "Why Melburnians choose us"). It opens as a PDF.
 - **Colour consultation included** shows near the top while any colour on the job is still to be decided. Once every colour has been chosen it disappears — there is nothing left to consult on.
 
 ## What the colours and labels mean
