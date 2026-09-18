@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getPortalContext, melbourneTodayYmd } from "@/lib/portal/data";
 import { getTradeProperty } from "@/lib/portal/tradeData";
 import { viewerTradeRole } from "@/lib/portal/approvalData";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
  * excluded (job detail), white A4 through the invoicing Chromium pipeline. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await params;
+  if (!z.string().uuid().safeParse(id).success) return new NextResponse("Not found", { status: 404 });
   const ctx = await getPortalContext();
   if (!ctx || !ctx.accounts.some((a) => a.account_type === "trade")) {
     return new NextResponse("Not found", { status: 404 });

@@ -19,6 +19,10 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "no" }, { status: 401 });
+  // Explicit role check, as ../badge does — RLS is the last line, not the only one.
+  const { data: profile, error: profileError } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  if (profileError) return NextResponse.json({ error: "Search isn't available just now." }, { status: 503 });
+  if (profile?.role !== "staff") return NextResponse.json({ error: "no" }, { status: 403 });
 
   const [accounts, estimates] = await Promise.all([
     supabase.from("crm_account_facts")

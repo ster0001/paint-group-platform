@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { headers } from "next/headers";
+import { trustedOrigin } from "@/lib/security/trustedOrigin";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { reconcileForWorkOrder } from "@/lib/gcal/sync";
@@ -184,9 +184,7 @@ export async function completeAfterRectification(raw: unknown): Promise<Rectifie
       reportIfError(soRes, { where: "tickActions.completeAfterRectification.token", bestEffort: true });
       const customerToken = (soRes.data as { customer_token?: string | null } | null)?.customer_token;
       if (customerToken) {
-        const origin = (await headers()).get("origin")
-          ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app";
-        await sendSignedReportEmail(service, customerToken, origin);
+        await sendSignedReportEmail(service, customerToken, await trustedOrigin());
       }
     }
     return { ok: true };

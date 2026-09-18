@@ -18,6 +18,14 @@ export type HelpBlock =
 
 export type HelpListItem = { lines: Inline[][]; images: { src: string; alt: string }[] };
 
+/**
+ * A link that leaves the platform — a training video on YouTube, say.
+ * Rendered as a plain anchor with target=_blank: following it in place would
+ * throw the reader out of the portal mid-guide, and next/link has nothing to
+ * prefetch on another host. In-repo links (../feature/role.md, /help) stay.
+ */
+export const isExternalHelpLink = (href: string): boolean => /^https?:\/\//.test(href);
+
 const IMG = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/;
 const H = /^(#{2,3})\s+(.*)$/;
 const OL = /^(\d+)\.\s+(.*)$/;

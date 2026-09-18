@@ -2,9 +2,10 @@
 
 import { emailContractorInvite } from "./actions";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { docState, daysUntil, DOC_LABEL, type ContractorDoc } from "@/lib/contractor/model";
+import { docState, daysUntil, DOC_LABEL, employeeDocReminders, type ContractorDoc } from "@/lib/contractor/model";
 import { formatDMY } from "@/lib/scheduling/offers";
 
 export type ContractorSummary = {
@@ -16,7 +17,8 @@ export type ContractorSummary = {
   active: boolean;
   offerable: boolean;
   /** Staff-set: every job quality checked, not just their first few. */
-  requiresQa: boolean;
+  /** Tom, 18 Sep: three settings, not two. */
+  qaMode: "first_jobs" | "every_job" | "none";
   rctiSigned: boolean;
   abn: string;
   hasBank: boolean;
@@ -229,19 +231,27 @@ export default function ContractorsManager({
     setBusy(null);
   }
 
-  async function setRequiresQa(id: string, requires: boolean) {
+  /**
+   * Tom, 18 Sep: first jobs → every job → none → first jobs. One button that
+   * names the setting it is on, rather than a tick that could only say two
+   * things.
+   */
+  const QA_NEXT: Record<string, "first_jobs" | "every_job" | "none"> = {
+    first_jobs: "every_job", every_job: "none", none: "first_jobs",
+  };
+  async function cycleQaMode(id: string, current: string) {
+    const mode = QA_NEXT[current] ?? "first_jobs";
     setBusy(id);
     setErr("");
-    const { data, error } = await supabase.rpc("set_contractor_requires_qa",
-      { p_contractor_id: id, p_requires: requires });
+    const { data, error } = await supabase.rpc("set_contractor_qa_mode", { p_contractor_id: id, p_mode: mode });
+    const s = String(data ?? "");
     if (error) setErr(error.message);
-    else if (String(data).startsWith("error:")) setErr(String(data).replace("error:", ""));
-    else {
-      setMsg(requires
-        ? "Every job for this contractor now gets a quality check before sign-off."
-        : "Back to the normal cadence — first few jobs only.");
+    else if (s.startsWith("ok:")) {
+      setMsg(mode === "every_job" ? "Every job of theirs will be quality checked."
+        : mode === "none" ? "No quality checks for this painter — unless a job is ticked for one when it's booked."
+        : "Quality checked on their first jobs, then as scheduled.");
       router.refresh();
-    }
+    } else setErr(s.replace("error:", "").replaceAll("_", " "));
     setBusy(null);
   }
 
@@ -350,6 +360,15 @@ export default function ContractorsManager({
 
   /** Plain-English compliance line, derived live rather than trusting stored status. */
   function compliance(c: ContractorSummary) {
+    // An employee is covered by Paint Group's own policy (ruling 5), so they
+    // are never asked for public liability and must never be marked down for
+    // not having it. Their paperwork is their tickets, and `employeeDocReminders`
+    // is the one place that decides what is outstanding.
+    if (c.employmentType === "employee") {
+      const due = employeeDocReminders(c.docs);
+      if (due.length === 0) return { tone: "ok", text: "Tickets current" };
+      return { tone: "warn", text: due.map((d) => DOC_LABEL[d.kind]).join(" · ") + " outstanding" };
+    }
     const ins = c.docs.find((d) => d.kind === "insurance" && docState(d) === "valid");
     if (!ins) {
       const awaiting = c.docs.find((d) => d.kind === "insurance" && d.file_url && !d.verified_at);
@@ -576,17 +595,33 @@ export default function ContractorsManager({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{c.name}</span>
+                      <Link href={`/contractors/${c.id}`} className="font-medium text-sky-700 hover:underline"
+                        data-testid={`open-${c.id}`} title="Their details, jobs and quality checks">
+                        {c.name}
+                      </Link>
                       {!c.active && (
                         <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">Suspended</span>
                       )}
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          c.offerable ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                        }`}
-                      >
-                        {c.offerable ? "Ready for work" : "Not offerable"}
-                      </span>
+                      {/* Tom, 18 Sep: an employee was reading "Not offerable".
+                          `offerable` means "can be sent an OFFER", which an
+                          employee never is — they are assigned. The flag is
+                          right; saying it like a compliance failure was not. */}
+                      {c.employmentType === "employee" ? (
+                        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800"
+                          data-testid={`badge-${c.id}`}
+                          title="Employed painter — jobs are assigned to them on the schedule board, never offered, so there is nothing to be offerable for.">
+                          Employee · assigned
+                        </span>
+                      ) : (
+                        <span
+                          data-testid={`badge-${c.id}`}
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            c.offerable ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {c.offerable ? "Ready for work" : "Not offerable"}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-0.5 text-sm text-gray-500">
                       {c.company || <span className="italic">no company name yet</span>}
@@ -660,17 +695,17 @@ export default function ContractorsManager({
                       </label>
                     )}
                     <button
-                      onClick={() => setRequiresQa(c.id, !c.requiresQa)}
+                      onClick={() => cycleQaMode(c.id, c.qaMode)}
                       disabled={busy === c.id}
-                      title="Quality check every job for this contractor before sign-off"
-                      data-testid={`requires-qa-${c.id}`}
+                      title="Quality checks for this painter — click to change: first jobs → every job → none"
+                      data-testid={`qa-mode-${c.id}`}
                       className={`rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
-                        c.requiresQa
-                          ? "bg-amber-100 text-amber-800 border border-amber-300"
-                          : "border border-gray-300 text-gray-700 hover:bg-gray-100"
+                        c.qaMode === "every_job" ? "bg-sky-100 text-sky-800"
+                          : c.qaMode === "none" ? "bg-gray-100 text-gray-500"
+                          : "bg-gray-100 text-gray-700"
                       }`}
                     >
-                      {c.requiresQa ? "QA: every job" : "QA: first jobs"}
+                      {c.qaMode === "every_job" ? "QA: every job" : c.qaMode === "none" ? "QA: none" : "QA: first jobs"}
                     </button>
                     {c.weekend && ([["works_saturday", "Sat", c.weekend.worksSaturday], ["works_sunday", "Sun", c.weekend.worksSunday]] as const).map(([col, label, on]) => (
                       <button

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/supabase/guards";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -17,7 +18,9 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const user = await requireStaff(supabase);
   if (!user) return NextResponse.json({ error: "staff only" }, { status: 403 });
-  const body = (await request.json().catch(() => ({}))) as { pushJobs?: boolean };
+  const parsed = z.object({ pushJobs: z.boolean().optional() }).safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) return NextResponse.json({ error: "bad request" }, { status: 400 });
+  const body = parsed.data;
   if (typeof body.pushJobs === "boolean") {
     const admin = createServiceClient();
     if (!admin) return NextResponse.json({ error: "service unavailable" }, { status: 503 });

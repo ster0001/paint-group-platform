@@ -108,6 +108,14 @@ export const DOC_LABEL: Record<ContractorDoc["kind"], string> = {
 export const CONTRACTOR_DOC_KINDS: readonly ContractorDoc["kind"][] = ["insurance", "workcover", "licence", "other"];
 export const EMPLOYEE_DOC_KINDS: readonly ContractorDoc["kind"][] = ["white_card", "working_at_heights"];
 
+/**
+ * Tom, 18 Sep 2026: an insurance certificate is never saved without its
+ * expiry. Mirrors the database trigger (20270169); the form refuses first so
+ * the painter sees why before anything uploads.
+ */
+export const EXPIRY_REQUIRED_KINDS: readonly ContractorDoc["kind"][] = ["insurance", "workcover"];
+export const expiryRequired = (kind: ContractorDoc["kind"]): boolean => EXPIRY_REQUIRED_KINDS.includes(kind);
+
 /** The employee tickets still missing, expired, or expiring within 45 days. */
 export function employeeDocReminders(docs: readonly ContractorDoc[]): { kind: ContractorDoc["kind"]; text: string; chip: string }[] {
   const out: { kind: ContractorDoc["kind"]; text: string; chip: string }[] = [];

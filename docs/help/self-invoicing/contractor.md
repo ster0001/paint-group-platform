@@ -5,7 +5,7 @@ title: Invoice Paint Group for a job
 summary: How your invoices are drafted for you in the portal, how to send a progress claim at any time, how to check and submit the sign-off invoice, and how to see when it has been approved and paid.
 walkthrough: media/contractor-walkthrough.gif
 sources: app/portal/money, app/portal/profile, lib/workorder/contractorPay.ts
-verified_at_commit: a162c072c0
+verified_at_commit: d96f549a5a
 ---
 
 ## What this is for
@@ -21,7 +21,7 @@ You invoice Paint Group from the **Invoicing** tab of the portal, not from your 
 ### Finish your profile first
 1. Open **Invoicing**. If you see **NOT READY TO INVOICE**, it names what is missing (for example "Still missing ABN"). Tap **Finish my company profile**.
    ![](media/contractor-01.png)
-2. Under **Company details** fill in your trading name, ABN, business address, the number of painters on your crew and, if you like, an invoice prefix. Further down, enter your mobile, your bank BSB and account number under **Where you get paid**, and keep your public liability and WorkCover certificates current under **Insurance & licences** (WorkCover is required if anyone works with you; public liability is what unlocks offers).
+2. Under **Company details** fill in your trading name, ABN, business address, the number of painters on your crew and, if you like, an invoice prefix. Further down, enter your mobile, your bank BSB and account number under **Where you get paid**, and keep your public liability and WorkCover certificates current under **Insurance & licences** (WorkCover is required if anyone works with you; public liability is what unlocks offers). To add a certificate: pick the document type, enter its **expiry date** (a certificate cannot be saved without one), **Choose file**, then **Upload**. A certificate already on file with no date shows a **Save expiry** box beside it.
    ![](media/contractor-02.png)
 
 ### Send a progress claim while the job is running

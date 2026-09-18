@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { HelpBlock } from "@/lib/help/markdown";
+import { isExternalHelpLink, type HelpBlock } from "@/lib/help/markdown";
 import type { Inline } from "@/lib/marketing/md";
 import "./help.css";
 
@@ -34,7 +34,11 @@ function lines(ls: Inline[][]) {
       {i > 0 ? <br /> : null}
       {line.map((inl, j) => {
         if (inl.t === "b") return <b key={j}>{inl.v}</b>;
-        if (inl.t === "a") return <Link key={j} href={inl.href}>{inl.v}</Link>;
+        if (inl.t === "a") {
+          return isExternalHelpLink(inl.href)
+            ? <a key={j} href={inl.href} target="_blank" rel="noopener noreferrer">{inl.v}</a>
+            : <Link key={j} href={inl.href}>{inl.v}</Link>;
+        }
         return <span key={j}>{inl.v}</span>;
       })}
     </span>

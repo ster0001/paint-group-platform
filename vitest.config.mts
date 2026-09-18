@@ -5,7 +5,13 @@ export default defineConfig({
   resolve: {
     // Same `@/` alias as tsconfig, so tests import modules by the path the app
     // uses rather than a parallel set of relative paths that can drift.
-    alias: { "@": fileURLToPath(new URL("./", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./", import.meta.url)),
+      // `server-only` throws on import anywhere that is not a React server
+      // bundle — including Vitest. Modules that read the service-role key
+      // carry it as a tripwire; tests get an empty module instead.
+      "server-only": fileURLToPath(new URL("./lib/testing/server-only-stub.ts", import.meta.url)),
+    },
   },
   test: {
     include: ["lib/**/*.test.ts"],
