@@ -2,6 +2,7 @@
 
 import { emailContractorInvite } from "./actions";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { docState, daysUntil, DOC_LABEL, type ContractorDoc } from "@/lib/contractor/model";
@@ -576,7 +577,10 @@ export default function ContractorsManager({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{c.name}</span>
+                      <Link href={`/contractors/${c.id}`} className="font-medium text-sky-700 hover:underline"
+                        data-testid={`open-${c.id}`} title="Their details, jobs and quality checks">
+                        {c.name}
+                      </Link>
                       {!c.active && (
                         <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">Suspended</span>
                       )}

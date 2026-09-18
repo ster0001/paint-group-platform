@@ -87,3 +87,43 @@ export async function emailContractorInvite(inviteId: string): Promise<InviteEma
   revalidatePath("/contractors");
   return { ok: true, message: `Invitation emailed to ${inv.email}.` };
 }
+
+// ---- Remove a painter (Tom, 18 Sep 2026) -----------------------------------
+
+export type DeleteContractorResult = { ok: true } | { ok: false; message: string };
+
+const DELETE_WORDING: Record<string, string> = {
+  not_staff: "You don't have permission to do that.",
+  not_found: "That painter is already gone — refresh the list.",
+  not_deleted: "Nothing was removed — the database refused it. Suspend them instead and tell whoever maintains the platform.",
+};
+
+/**
+ * Thin translation over `delete_contractor` (20270170). Every rule lives in
+ * the function: it refuses by name for anyone with history, because the
+ * foreign keys would otherwise strip their jobs of a painter and cascade away
+ * their certificates. Suspending is the reversible answer for a real painter.
+ */
+export async function deleteContractorAction(raw: unknown): Promise<DeleteContractorResult> {
+  const parsed = z.object({ id: z.string().uuid() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't find that painter." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("delete_contractor", { p_id: parsed.data.id });
+  if (error) return { ok: false, message: error.message };
+
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) {
+    revalidatePath("/contractors");
+    return { ok: true };
+  }
+  const [, what, detail] = s.split(":");
+  const keep = "Suspend access instead — it keeps the record and stops them being offered work.";
+  if (what === "jobs") return { ok: false, message: `They are on job ${detail}. Removing them would leave that job with no painter. ${keep}` };
+  if (what === "assignments") return { ok: false, message: `They are assigned to ${detail}. Take them off that job first, or suspend them. ${keep}` };
+  if (what === "offers") return { ok: false, message: `They have been offered ${detail}, and that record stays. ${keep}` };
+  if (what === "invoice") return { ok: false, message: `They have invoice ${detail} on file. ${keep}` };
+  if (what === "expenses") return { ok: false, message: `They have ${detail} expense claim${detail === "1" ? "" : "s"} on file. ${keep}` };
+  if (what === "preapprovals") return { ok: false, message: `They have ${detail} spending request${detail === "1" ? "" : "s"} on file. ${keep}` };
+  if (what === "timesheets") return { ok: false, message: `They have ${detail} clocked day${detail === "1" ? "" : "s"} on file, which payroll needs. ${keep}` };
+  return { ok: false, message: DELETE_WORDING[s.replace("error:", "")] ?? "Couldn't remove them just now." };
+}
