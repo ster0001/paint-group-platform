@@ -365,6 +365,48 @@
       ]
     },
     {
+      "feature": "training",
+      "role": "contractor",
+      "title": "Training videos — short films showing the painter portal",
+      "summary": "Every training video in one place for painters — the quick how-tos and the full walkthrough, each opening on YouTube in its own tab.",
+      "path": "docs/help/training/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "2a9f1474e4",
+      "sources": [
+        "app/portal/help/page.tsx",
+        "app/components/help/HelpArticle.tsx"
+      ]
+    },
+    {
+      "feature": "training",
+      "role": "employee",
+      "title": "Training videos — short films showing the painter portal",
+      "summary": "Every training video in one place for painters — the quick how-tos and the full walkthrough, each opening on YouTube in its own tab.",
+      "path": "docs/help/training/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "2a9f1474e4",
+      "sources": [
+        "app/portal/help/page.tsx",
+        "app/components/help/HelpArticle.tsx"
+      ]
+    },
+    {
+      "feature": "training",
+      "role": "staff",
+      "title": "Training videos — short films that show the platform in use",
+      "summary": "Every training video in one place for the office — the quick how-tos and the full walkthrough, each opening on YouTube in its own tab.",
+      "path": "docs/help/training/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "2a9f1474e4",
+      "sources": [
+        "app/(app)/help/page.tsx",
+        "app/components/help/HelpArticle.tsx"
+      ]
+    },
+    {
       "feature": "work-orders",
       "role": "contractor",
       "title": "Run a job from the first tick to the customer's signature",

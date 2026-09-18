@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { parseHelp, helpToText, type HelpBlock } from "./markdown";
+import { isExternalHelpLink, parseHelp, helpToText, type HelpBlock } from "./markdown";
 import { searchIn, type SearchHit } from "./search";
 import { parseTour, tourProblems, type TourCard } from "./tour";
 import type { Inline } from "@/lib/marketing/md";
@@ -80,7 +80,7 @@ function rewrite(blocks: HelpBlock[], feature: string, roles: HelpRole[], base: 
   const inl = (line: Inline[]): Inline[] =>
     line.map((i) => {
       if (i.t !== "a") return i;
-      if (/^https?:\/\//.test(i.href)) return i;
+      if (isExternalHelpLink(i.href)) return i;
       const to = relatedHref(i.href, roles, base);
       return to ? { ...i, href: to } : { t: "text", v: i.v };
     });

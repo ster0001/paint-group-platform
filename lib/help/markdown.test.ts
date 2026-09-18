@@ -55,3 +55,36 @@ describe("help markdown", () => {
     expect(text).toContain("What this is for");
   });
 });
+
+// ---- Training videos (Tom, 18 Sep 2026) ------------------------------------
+import { readFileSync } from "node:fs";
+import { isExternalHelpLink } from "./markdown";
+
+describe("training video guides", () => {
+  it("a link off the platform opens in its own tab; an in-repo one does not", () => {
+    expect(isExternalHelpLink("https://youtu.be/IraRrURz-Hk")).toBe(true);
+    expect(isExternalHelpLink("https://youtube.com/shorts/0dR0AVqccgw")).toBe(true);
+    expect(isExternalHelpLink("/portal/help")).toBe(false);
+    expect(isExternalHelpLink("../scheduling/contractor.md")).toBe(false);
+    expect(isExternalHelpLink("#top")).toBe(false);
+  });
+
+  it.each(["staff", "contractor", "employee"])("the %s guide parses as headings plus linked lists", (role) => {
+    const blocks = parseHelp(readFileSync(`docs/help/training/${role}.md`, "utf8"));
+    const headings = blocks.filter((b) => b.t === "h").map((b) => (b as { text: string }).text);
+    expect(headings).toContain("Quick how-tos");
+    expect(headings).toContain("Full walkthrough");
+
+    // Every video is a link, and every link leaves the platform.
+    const links = blocks
+      .filter((b) => b.t === "list")
+      .flatMap((b) => (b as { items: { lines: { t: string; href?: string }[][] }[] }).items)
+      .flatMap((i) => i.lines.flat())
+      .filter((inl) => inl.t === "a")
+      .map((inl) => inl.href!);
+    const videos = links.filter(isExternalHelpLink);
+    expect(videos).toHaveLength(5);
+    expect(new Set(videos).size, "no video is listed twice").toBe(5);
+    expect(videos.filter((h) => h.includes("/shorts/"))).toHaveLength(4);
+  });
+});
