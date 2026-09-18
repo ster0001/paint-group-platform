@@ -24,6 +24,8 @@ const run = Date.now().toString(36);
 const SPARE_NAME = `E2E Spare Painter ${run}`;
 let spareUserId = "";
 let spareContractorId = "";
+let declinedUserId = "";
+let declinedContractorId = "";
 let realContractorId: string | null = null;
 let fixture: LoopFixture | null = null;
 
@@ -48,14 +50,35 @@ test.describe("a painter's detail page, and removing one", () => {
       .select("id").single();
     if (c.error) throw new Error(c.error.message);
     spareContractorId = (c.data as { id: string }).id;
+
+    // A second one, for the offer they turned down (Tom, 18 Sep: a demo painter
+    // was locked on the system for ever by a DECLINED offer on a test job).
+    const created2 = await db!.auth.admin.createUser({
+      email: `pg.e2e.declined.${run}@example.com`, password: `Declined-${run}-pw!`,
+      email_confirm: true, user_metadata: { name: `E2E Declined Painter ${run}` },
+    });
+    if (created2.error || !created2.data.user) throw new Error(`create declined: ${created2.error?.message}`);
+    declinedUserId = created2.data.user.id;
+    const prof2 = await db!.from("profiles").update({ role: "contractor", name: `E2E Declined Painter ${run}` }).eq("id", declinedUserId);
+    if (prof2.error) throw new Error(prof2.error.message);
+    const c2 = await db!.from("contractors")
+      .insert({ profile_id: declinedUserId, tier: "C", active: true, company_name: `Declined Co ${run}` })
+      .select("id").single();
+    if (c2.error) throw new Error(c2.error.message);
+    declinedContractorId = (c2.data as { id: string }).id;
   });
 
   test.afterAll(async () => {
     if (fixture) await destroyLoopFixture(db!, fixture);
     if (spareContractorId) await db!.from("contractors").delete().eq("id", spareContractorId);
+    if (declinedContractorId) await db!.from("contractors").delete().eq("id", declinedContractorId);
     if (spareUserId) {
       const r = await db!.auth.admin.deleteUser(spareUserId);
       if (r.error) throw new Error(`teardown user: ${r.error.message}`);
+    }
+    if (declinedUserId) {
+      const r = await db!.auth.admin.deleteUser(declinedUserId);
+      if (r.error) throw new Error(`teardown declined user: ${r.error.message}`);
     }
   });
 
@@ -131,6 +154,50 @@ test.describe("a painter's detail page, and removing one", () => {
     const { data: gone } = await db!.from("contractors").select("id").eq("id", spareContractorId).maybeSingle();
     expect(gone).toBeNull();
     spareContractorId = ""; // teardown has nothing left to do
+  });
+
+  /**
+   * Tom, 18 Sep: a demo painter could not be removed because of WO-OVERLAP2 —
+   * a leftover TEST work order they had once been offered and had not taken.
+   * An offer that was never accepted is not history worth keeping a painter on
+   * the system for; an accepted one still is (20270172).
+   */
+  test("an offer they turned down no longer locks them on the system; one they accepted still does", async ({ page }) => {
+    test.skip(!fixture, "needs the fixture job");
+    const offer = await db!.from("booking_offers").insert({
+      work_order_id: fixture!.workOrderId, contractor_id: declinedContractorId, state: "declined",
+      start_date: "2026-11-02", offered_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 86_400_000).toISOString(), responded_at: new Date().toISOString(),
+    }).select("id").single();
+    if (offer.error) throw new Error(`declined offer: ${offer.error.message}`);
+
+    // Accepted first: still refused, and it names the job.
+    const up = await db!.from("booking_offers").update({ state: "accepted" }).eq("id", (offer.data as { id: string }).id);
+    if (up.error) throw new Error(up.error.message);
+    const { data: w, error: wErr } = await db!.from("work_orders").select("wo_ref").eq("id", fixture!.workOrderId).single();
+    if (wErr) throw new Error(wErr.message);
+    expect(await rpcAs(staff!, "delete_contractor", { p_id: declinedContractorId }))
+      .toBe(`conflict:offers:${(w as { wo_ref: string }).wo_ref}`);
+
+    // Back to declined: they go, and the job keeps its own record.
+    const back = await db!.from("booking_offers").update({ state: "declined" }).eq("id", (offer.data as { id: string }).id);
+    if (back.error) throw new Error(back.error.message);
+
+    await signIn(page, staff!, /\/estimates/);
+    await page.goto(`/contractors/${declinedContractorId}`);
+    await page.getByTestId("delete-open").click();
+    await page.getByTestId("delete-confirm-input").fill("DELETE");
+    await page.getByTestId("delete-go").click();
+    if (await page.getByTestId("delete-message").count()) {
+      throw new Error(`delete refused: ${await page.getByTestId("delete-message").innerText()}`);
+    }
+    await expect(page).toHaveURL(/\/contractors(\?|$)/, { timeout: 20_000 });
+    const { data: gone } = await db!.from("contractors").select("id").eq("id", declinedContractorId).maybeSingle();
+    expect(gone).toBeNull();
+    declinedContractorId = "";
+
+    const { data: job } = await db!.from("work_orders").select("id").eq("id", fixture!.workOrderId).single();
+    expect(job, "the job it was offered for is untouched").not.toBeNull();
   });
 
   test("the RPC refuses a painter who is not staff's to remove, and an unknown id", async () => {

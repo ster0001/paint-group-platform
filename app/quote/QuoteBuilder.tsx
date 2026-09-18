@@ -35,7 +35,7 @@ import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
 import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea, type WOOptionFragment } from "@/lib/workorder/snapshot";
-import { aggregateMaterials, lookupColourEntry, materialColourKey, type MaterialSurfaceRow } from "@/lib/workorder/materials";
+import { aggregateMaterials, lookupColourEntry, materialColourKey, paintOptions, type MaterialSurfaceRow } from "@/lib/workorder/materials";
 import type { WoStage } from "@/lib/workorder/stages";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import { conditionExtraHours } from "@/lib/workorder/conditionAllowance";
@@ -707,6 +707,8 @@ export default function QuoteBuilder({
   // Tom, 16 Sep: paints added by hand to "The paint we're supplying" (a primer,
   // a stain blocker) — shown to the customer, never priced, never a surface.
   const [extraPaints, setExtraPaints] = useState<ExtraPaint[]>(() => (Array.isArray(loaded?.extraPaints) ? loaded!.extraPaints! : []));
+  /** Tom, 18 Sep: narrows every paint dropdown in Materials. */
+  const [paintSearch, setPaintSearch] = useState("");
   const [extraPick, setExtraPick] = useState("");
   // Right-column tools bar: Activity / Chat / Calculations / Follow-ups.
   const [rightTab, setRightTab] = useState<null | "activity" | "chat" | "calc" | "followups">(null);
@@ -2343,12 +2345,29 @@ export default function QuoteBuilder({
                     <span className="text-gray-400">{materialsOpen ? "▾" : "▸"}</span>
                   </button>
                   {materialsOpen && (
+                    <>
+                    {/* Tom, 18 Sep: the catalogue is long. One box narrows every
+                        paint dropdown below; the paint already chosen on a row
+                        always stays in its own list, so filtering can never
+                        silently swap a product. */}
+                    <input
+                      type="search"
+                      className="mt-3 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                      placeholder="Search the paints — e.g. Dulux, low sheen"
+                      aria-label="Search the paint list"
+                      value={paintSearch}
+                      onChange={(e) => setPaintSearch(e.target.value)}
+                      data-testid="paint-search"
+                    />
                     <div className="mt-3 divide-y divide-gray-100">
                       {materialRows.map((r) => {
                         const globalName = materials[r.key] ?? itemByKey.get(r.key)?.default_product ?? "";
-                        // Filter to products for this Int/Ext type, but always keep the
-                        // currently-selected product in the list so it never shows blank.
-                        const opts = products.filter((p) => !p.type || p.type === r.type || p.name === globalName);
+                        // Int/Ext type, then the search box, then A-Z — and the
+                        // paint already chosen is kept whatever either says.
+                        // The rule lives in lib/workorder/materials.ts with its
+                        // own tests, because getting it wrong changes what a job
+                        // is quoted with.
+                        const opts = paintOptions(products, { surfaceType: r.type, chosen: globalName, search: paintSearch });
                         return (
                           <div key={r.key} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2">
                             <div className="flex w-40 shrink-0 items-center gap-1.5">
@@ -2360,6 +2379,7 @@ export default function QuoteBuilder({
                             <select
                               className="min-w-[12rem] flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                               value={globalName}
+                              data-testid={`paint-pick-${r.key}`}
                               onChange={(e) => setMaterials((m) => ({ ...m, [r.key]: e.target.value }))}
                             >
                               {globalName === "" && <option value="">— choose a product —</option>}
@@ -2472,6 +2492,7 @@ export default function QuoteBuilder({
                         </div>
                       </div>
                     </div>
+                    </>
                   )}
                 </section>
               )}

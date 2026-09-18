@@ -33,9 +33,11 @@ export default function DeleteContractor({ id, name, suspended }: {
     <div className="rounded-lg border border-red-200 bg-red-50 p-4" data-testid="danger-zone">
       <div className="text-sm font-semibold text-red-900">Remove this painter</div>
       <p className="mt-1 text-xs text-red-800">
-        Only for a row that should never have existed: a duplicate, a typo, an invite that went nowhere.
-        A painter with any job, offer, invoice, expense or timesheet behind them cannot be removed, because
-        deleting them would strip their jobs of a painter and take their insurance certificates with it.
+        Only for a row with no history: a duplicate, a typo, an invite that went nowhere, a painter
+        brought on who never started. A painter with a job, an assignment, an offer they ACCEPTED, an
+        invoice, an expense or an hour on a timesheet cannot be removed, because deleting them would
+        strip their jobs of a painter and take their insurance certificates with it. Offers they
+        turned down or let lapse go with them — the job keeps its own record of what happened.
         {suspended ? " They are already suspended, which is the reversible way to stop offering them work." : " Suspend access instead — it keeps every record and stops them being offered work."}
       </p>
 

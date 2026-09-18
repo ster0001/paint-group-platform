@@ -24,11 +24,11 @@
       "feature": "contractors",
       "role": "staff",
       "title": "Invite a painter, open their record, and remove one who should never have been there",
-      "summary": "How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), and when a painter can be removed rather than suspended.",
+      "summary": "How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), how the quality-check setting works, and when a painter can be removed rather than suspended.",
       "path": "docs/help/contractors/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "cfab75826b",
+      "verified_at_commit": "65054fe00d",
       "sources": []
     },
     {
@@ -83,7 +83,7 @@
       "path": "docs/help/estimator/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "65054fe00d",
       "sources": [
         "app/(app)/estimates/WaitingTable.tsx",
         "app/(app)/estimates/actions.ts",
@@ -263,7 +263,7 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": "0a07c92452",
+      "verified_at_commit": "65054fe00d",
       "sources": [
         "app/pc/schedule",
         "lib/scheduling",

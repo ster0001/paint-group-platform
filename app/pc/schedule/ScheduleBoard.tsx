@@ -111,7 +111,10 @@ export default function ScheduleBoard({
       lanes.filter((l) => {
         if (picked.length > 0) return picked.includes(l.contractorId);
         if (tiers.length > 0 && !tiers.includes(l.tier)) return false;
-        if (onlyOfferable && !l.offerable) return false;
+        // "Ready for work" is about being OFFERABLE, and an employee is never
+        // offered — they are assigned. Filtering on the flag hid every employee
+        // from the board, which is how Saulius went missing (Tom, 18 Sep).
+        if (onlyOfferable && !l.offerable && l.employmentType !== "employee") return false;
         return true;
       }),
     [lanes, picked, tiers, onlyOfferable],
@@ -398,6 +401,13 @@ export default function ScheduleBoard({
   // ---- commit ---------------------------------------------------------------
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // Tom, 18 Sep: find a job in a long tray without scrolling it. Matches the
+  // title, the reference and the suburb — the three things staff know a job by.
+  const [traySearch, setTraySearch] = useState("");
+  const trayQuery = traySearch.trim().toLowerCase();
+  const shownTray = trayQuery
+    ? tray.filter((j) => `${j.title} ${j.woRef} ${j.suburb}`.toLowerCase().includes(trayQuery))
+    : tray;
   const lapsedJobs = tray.filter((j) => j.lapsed);
   // The chase log composer. Keyed by work order so two cards can't share a
   // draft, and closed by default — the tray is a drag surface first.
@@ -761,7 +771,7 @@ export default function ScheduleBoard({
 
           {/* Requirement 4 — who appears in the board. */}
           <div className="filters">
-            <button className="seg" style={{ padding: "7px 10px", background: "none", border: "1px solid var(--line)", color: visibleLanes.length === lanes.length ? "var(--muted)" : "var(--cyan)", borderRadius: 8, cursor: "pointer", fontFamily: "var(--mono)", fontSize: 9, letterSpacing: ".06em", textTransform: "uppercase" }} onClick={() => setShowFilters((s) => !s)}>
+            <button className="seg" style={{ padding: "7px 10px", background: "none", border: "1px solid var(--line)", color: visibleLanes.length === lanes.length ? "var(--muted)" : "var(--cyan)", borderRadius: 8, cursor: "pointer", fontFamily: "var(--mono)", fontSize: 9, letterSpacing: ".06em", textTransform: "uppercase" }} onClick={() => setShowFilters((s) => !s)} data-testid="filters-open">
               Contractors · {visibleLanes.length}/{lanes.length}
             </button>
             {showFilters && (
@@ -797,8 +807,8 @@ export default function ScheduleBoard({
                 ))}
 
                 <label className="crow2" style={{ marginTop: 8 }}>
-                  <input type="checkbox" checked={onlyOfferable} onChange={(e) => setOnlyOfferable(e.target.checked)} />
-                  Ready for work only
+                  <input type="checkbox" checked={onlyOfferable} onChange={(e) => setOnlyOfferable(e.target.checked)} data-testid="filter-offerable" />
+                  Ready for work only <span className="lab" style={{ marginLeft: 6 }}>(employees always shown)</span>
                 </label>
 
                 <div className="lab">Pick individually</div>
@@ -885,11 +895,26 @@ export default function ScheduleBoard({
           )}
 
           <h2>Unscheduled</h2>
-          <p className="sub">Accepted jobs awaiting dates · drag onto the timeline</p>
+          <p className="sub">Accepted jobs awaiting dates · longest wait first · drag onto the timeline</p>
+          {tray.length > 0 && (
+            <input
+              type="search"
+              className="traysearch"
+              placeholder="Search job, reference or suburb"
+              aria-label="Search the unscheduled jobs"
+              value={traySearch}
+              onChange={(e) => setTraySearch(e.target.value)}
+              data-testid="tray-search"
+            />
+          )}
           {tray.length === 0 ? (
             <div className="empty">Nothing waiting. Issue a work order and it appears here.</div>
+          ) : shownTray.length === 0 ? (
+            <div className="empty" data-testid="tray-no-match">
+              Nothing matches &ldquo;{traySearch.trim()}&rdquo;. {tray.length} job{tray.length === 1 ? "" : "s"} waiting.
+            </div>
           ) : (
-            tray.map((j) =>
+            shownTray.map((j) =>
               j.needsIssuing ? (
                 // Accepted but not issued: visible here so it can't be forgotten,
                 // but it can't be dragged until the work order exists to send.

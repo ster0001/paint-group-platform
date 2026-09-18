@@ -120,7 +120,9 @@ export async function deleteContractorAction(raw: unknown): Promise<DeleteContra
   const keep = "Suspend access instead — it keeps the record and stops them being offered work.";
   if (what === "jobs") return { ok: false, message: `They are on job ${detail}. Removing them would leave that job with no painter. ${keep}` };
   if (what === "assignments") return { ok: false, message: `They are assigned to ${detail}. Take them off that job first, or suspend them. ${keep}` };
-  if (what === "offers") return { ok: false, message: `They have been offered ${detail}, and that record stays. ${keep}` };
+  // Only an ACCEPTED offer blocks now (20270172). A declined or lapsed one no
+  // longer locks a painter on the system for ever — Tom, 18 Sep.
+  if (what === "offers") return { ok: false, message: `They accepted ${detail}, so that job is theirs on the record. ${keep}` };
   if (what === "invoice") return { ok: false, message: `They have invoice ${detail} on file. ${keep}` };
   if (what === "expenses") return { ok: false, message: `They have ${detail} expense claim${detail === "1" ? "" : "s"} on file. ${keep}` };
   if (what === "preapprovals") return { ok: false, message: `They have ${detail} spending request${detail === "1" ? "" : "s"} on file. ${keep}` };

@@ -5,11 +5,11 @@ title: Offer a job to a painter and manage the booking on the scheduling board
 summary: How the Schedule tab works — drag an accepted job onto a contractor's row to send a 24-hour offer, or onto an employed painter's row to assign it (several painters, one lead), handle proposals and reschedule requests, cancel or move a booking, and what the customer receives.
 walkthrough: media/staff-walkthrough.gif
 sources: app/pc/schedule, lib/scheduling, lib/workorder/appointmentEmail.ts
-verified_at_commit: 0a07c92452
+verified_at_commit: 65054fe00d
 ---
 
 ## What this is for
-The scheduling board is where an accepted job gets a painter and dates. Every issued work order that has no booking sits in the **Unscheduled** tray. You drag it onto a contractor's row, confirm the offer, and the contractor has 24 hours to accept, propose another date or decline. Nothing reaches the customer until the contractor accepts. Once they do, the job turns green on the board and the customer gets their booking confirmation.
+The scheduling board is where an accepted job gets a painter and dates. Every issued work order that has no booking sits in the **Unscheduled** tray, longest wait at the top. You drag it onto a contractor's row, confirm the offer, and the contractor has 24 hours to accept, propose another date or decline. Nothing reaches the customer until the contractor accepts. Once they do, the job turns green on the board and the customer gets their booking confirmation.
 
 ## Before you start
 - The job must have an issued work order. Accept the estimate and issue the work order and it appears in the tray on its own. Older jobs accepted before work orders were automatic carry a label saying so.
@@ -20,7 +20,7 @@ The scheduling board is where an accepted job gets a painter and dates. Every is
 ## Steps
 
 ### Sending an offer
-1. Open **Projects → Schedule**. The tray on the left lists **Unscheduled** jobs: reference, finish chip, title, address, estimated days and hours, and the contractor's price. Each contractor has a row on the timeline with a capacity chip such as **0/1 ON**. Use **2W / 4W / 8W**, **Zoom** and **Jump to** to move around, and **Contractors** to filter by tier or hand-pick rows.
+1. Open **Projects → Schedule**. The tray on the left lists **Unscheduled** jobs: reference, finish chip, title, address, estimated days and hours, and the contractor's price. **They are ordered by how long they have been waiting** — the job accepted longest ago is at the top, the most recently accepted at the bottom, so the next one to book is always the first one you see. The **search box above the list** narrows it by title, reference or suburb; clear it to see them all again. Each contractor has a row on the timeline with a capacity chip such as **0/1 ON**. Use **2W / 4W / 8W**, **Zoom** and **Jump to** to move around, and **Contractors** to filter by tier or hand-pick rows. **Ready for work only** hides contractors without current insurance — employed painters always stay on the board, because they are assigned rather than offered.
    ![](media/staff-01.png)
 2. Drag the job card onto the contractor's row, landing on the start day. If the row turns red, that contractor has blocked those days out; you can still send, but they told you they are unavailable.
 3. The **Send this offer?** sheet opens. Check the job, contractor and dates, adjust **Length** with − and +, and read **Their price**. Add a **Note for the contractor** if there is something they must know before accepting; they see it on the offer. Tick **Quality check required on this job** if the job needs one.

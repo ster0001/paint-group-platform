@@ -35,20 +35,23 @@ export default async function ContractorDetailPage({ params }: { params: Promise
 
   const { data: row, error: rowError } = await supabase
     .from("contractors")
-    .select(`${CONTRACTOR_COLUMNS}, requires_qa, rcti_agreement_signed_at, employment_type, phone, works_saturday, works_sunday, profiles ( name )`)
+    .select(`${CONTRACTOR_COLUMNS}, requires_qa, qa_mode, rcti_agreement_signed_at, employment_type, phone, works_saturday, works_sunday, profiles ( name )`)
     .eq("id", id)
     .maybeSingle();
   if (rowError) reportError(rowError, { where: "contractorDetail.row" });
   if (!row) notFound();
 
   const c = row as unknown as ContractorRow & {
-    requires_qa: boolean | null; rcti_agreement_signed_at: string | null;
+    requires_qa: boolean | null; qa_mode?: unknown; rcti_agreement_signed_at: string | null;
     employment_type?: unknown; phone?: string | null;
     works_saturday?: boolean | null; works_sunday?: boolean | null;
     profiles: { name: string | null } | null;
   };
   const name = c.profiles?.name?.trim() || c.company_name?.trim() || "Painter";
   const employmentType = isEmploymentType(c.employment_type) ? c.employment_type : "contractor";
+  // Falls back to the old boolean for a row written before qa_mode existed.
+  const qaMode = c.qa_mode === "every_job" || c.qa_mode === "none" || c.qa_mode === "first_jobs"
+    ? c.qa_mode : c.requires_qa ? "every_job" : "first_jobs";
   const failures: string[] = [];
 
   // Their jobs. A contractor holds the work order; an employed painter is on it
@@ -198,7 +201,9 @@ export default async function ContractorDetailPage({ params }: { params: Promise
           </span>
         </h2>
         <p className="mt-1 text-xs text-gray-500">
-          {c.requires_qa ? "Every job of theirs is quality checked." : "Checked on their first jobs, then as scheduled."}
+          {qaMode === "every_job" ? "Every job of theirs is quality checked."
+            : qaMode === "none" ? "No quality checks for this painter, unless a job is ticked for one when it's booked."
+            : "Checked on their first jobs, then as scheduled."}
         </p>
         {qa.length === 0 ? (
           <p className="mt-2 text-sm text-gray-500">No quality check has been recorded against their jobs yet.</p>
