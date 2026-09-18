@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
-import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColoursChosen, type BankDetails } from "@/lib/customer/snapshot";
+import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColoursChosen, presentationHasSwmsCard, type BankDetails } from "@/lib/customer/snapshot";
 import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
 import SignaturePad from "@/app/components/SignaturePad";
@@ -410,7 +410,7 @@ export default function CustomerEstimate({
         )}
 
         {/* PRESENTATION BLOCKS — view-only, between hero and scope */}
-        {!invoiceMode && snap.presentation?.blocks?.length ? <PresentationBlocks blocks={snap.presentation.blocks} /> : null}
+        {!invoiceMode && snap.presentation?.blocks?.length ? <PresentationBlocks blocks={snap.presentation.blocks} swms={snap.swms ?? null} /> : null}
 
         {/* PHOTOS */}
         {!invoiceMode && snap.areas.some((a) => a.photos.length) && (
@@ -595,8 +595,9 @@ export default function CustomerEstimate({
           <div className="trust">
             <div className="tcard"><div className="tval gold">{snap.proof.rating} ★</div><div className="tlab">from {snap.proof.reviews} 5-star reviews</div></div>
             <div className="tcard"><div className="tval cyan">{snap.proof.liability}</div><div className="tlab">public liability insurance</div></div>
-            {/* Tom, 18 Sep: this job's SWMS, downloadable beside the insurance. */}
-            {snap.swms?.url && (
+            {/* Tom, 18 Sep: this job's SWMS, downloadable beside the insurance —
+                here only when the presentation has no SWMS card of its own to carry it. */}
+            {snap.swms?.url && !presentationHasSwmsCard(snap) && (
               <div className="tcard" data-testid="swms-card">
                 <div className="tval cyan">SWMS</div>
                 <div className="tlab">Safe Work Method Statement for this job</div>

@@ -165,3 +165,22 @@ export function estimateDocUrl(path: string): string {
   const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   return `${base}/storage/v1/object/public/${ESTIMATE_DOCS_BUCKET}/${path}`;
 }
+
+/**
+ * Tom, 18 Sep 2026 (follow-up): the presentation's capability panel already
+ * has a "SWMS & site inductions" card beside the public liability card. When
+ * it does, THAT card carries the job's SWMS download, and the trust-strip
+ * fallback card stays out of the way. A card is the SWMS card when its
+ * heading or attachment label says so.
+ */
+export const isSwmsCard = (card: { heading?: string; attachment?: { label?: string } | null }): boolean =>
+  /\bswms\b/i.test(`${card.heading ?? ""} ${card.attachment?.label ?? ""}`);
+
+export function presentationHasSwmsCard(snap: Pick<CustomerSnapshot, "presentation">): boolean {
+  for (const b of snap.presentation?.blocks ?? []) {
+    if (b.kind !== "capability_panel") continue;
+    const cards = (b.content as { cards?: { heading?: string; attachment?: { label?: string } | null }[] } | null)?.cards ?? [];
+    if (cards.some(isSwmsCard)) return true;
+  }
+  return false;
+}

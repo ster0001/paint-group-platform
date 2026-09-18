@@ -84,6 +84,31 @@ test.describe("SWMS attached to an estimate", () => {
     expect((await res.body()).subarray(0, 5).toString()).toBe("%PDF-");
   });
 
+  test("with a presentation SWMS card, the download sits ON that card beside public liability, and the trust card steps aside", async ({ page }) => {
+    // The presentation as Tom's is: a capability panel with the insurance card
+    // and a "SWMS & site inductions" card whose sample slot is empty.
+    const { data } = await db!.from("estimates").select("sent_snapshot").eq("id", id).single();
+    const snap = data!.sent_snapshot as Record<string, unknown>;
+    await db!.from("estimates").update({ sent_snapshot: { ...snap, presentation: { blocks: [{ kind: "capability_panel", content: { title: "Built for commercial", cards: [
+      { icon: "", heading: "$20M public liability", body: "Certificate on request.", attachment: { label: "Certificate of currency ↓", doc_path: "" } },
+      { icon: "", heading: "SWMS & site inductions", body: "Site-specific SWMS before day one.", attachment: { label: "Sample SWMS ↓", doc_path: "" } },
+    ] } }] } } }).eq("id", id);
+    await page.goto(`/e/${token}`);
+    await expect(page.locator("details.room").first()).toBeVisible();
+    const link = page.getByTestId("swms-download");
+    await expect(link).toHaveCount(1);
+    await expect(link).toHaveAttribute("href", new RegExp(`presentation-docs/${path.replace(/\//g, "\\/")}$`));
+    // On the SWMS card, which sits right after the public liability card.
+    const cards = page.locator(".capgrid .cap");
+    const headings = await cards.locator("h3").allTextContents();
+    const liability = headings.findIndex((t) => /public liability/i.test(t));
+    expect(headings[liability + 1]).toMatch(/SWMS/);
+    await expect(cards.nth(liability + 1).getByTestId("swms-download")).toBeVisible();
+    await expect(page.getByTestId("swms-card")).toHaveCount(0);
+    // Put the snapshot back for the next test.
+    await db!.from("estimates").update({ sent_snapshot: snap }).eq("id", id);
+  });
+
   test("removed in the builder → gone from the customer's copy", async ({ page }) => {
     await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
     await page.goto(`/quote?id=${id}`);
