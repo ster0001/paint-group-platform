@@ -36,6 +36,7 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { RUN_LOCK_BUSY_MESSAGE, acquireRunLock } from "./run-lock";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -298,6 +299,16 @@ export default async function globalSetup(): Promise<void> {
           "    E2E_ALLOW_PRODUCTION=1 E2E_BASE_URL=" + base + " npx playwright test …\n",
       );
     }
+  }
+
+  // ---- ONE RUN AT A TIME (18 Sep 2026) ------------------------------------
+  //
+  // Taken BEFORE the marker is written, because the marker is the thing a
+  // concurrent run would delete by. See e2e/run-lock.ts for why a timestamp is
+  // not ownership and what it cost.
+  {
+    const held = await acquireRunLock();
+    if (held === "busy") throw new Error(RUN_LOCK_BUSY_MESSAGE);
   }
 
   // ---- C7c: the tripwire, and this run's marker ---------------------------

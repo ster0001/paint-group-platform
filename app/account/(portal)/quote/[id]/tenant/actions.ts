@@ -7,7 +7,7 @@ import { sendSms } from "@/lib/messaging/send";
 import { loadMessaging } from "@/lib/messaging/load";
 import { renderTemplate } from "@/lib/messaging/config";
 import { reportError } from "@/lib/monitoring/report";
-import { TENANT_ASKS, TENANT_LINK_DAYS, newTenantToken, tenantMessage } from "@/lib/portal/tenant-link";
+import { TENANT_ASKS, TENANT_LINK_DAYS, newTenantToken, tenantMessage, tenantWhoAsked } from "@/lib/portal/tenant-link";
 
 /**
  * C15 (A4) — "Send the link": one `tenant_photo_links` row per send, a
@@ -58,7 +58,7 @@ export async function sendTenantLink(raw: unknown): Promise<SendTenantLinkResult
   const agencyName = ctx.accounts.find((a) => a.account_type === "trade")?.name ?? null;
   const { messaging } = await loadMessaging(svc);
   const message = messaging.tenantLinkSms?.trim()
-    ? renderTemplate(messaging.tenantLinkSms, { company_name: company.name, agency_line: agencyName ? ` for ${agencyName}` : "", address, link: url })
+    ? renderTemplate(messaging.tenantLinkSms, { company_name: company.name, who_asked: tenantWhoAsked(agencyName), agency_line: agencyName ? ` for ${agencyName}` : "", address, link: url })
     : tenantMessage({ companyName: company.name, agencyName, address, url });
 
   let smsStatus = "not_sent";
