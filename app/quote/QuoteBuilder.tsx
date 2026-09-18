@@ -1392,7 +1392,7 @@ export default function QuoteBuilder({
           areas.push(entry);
           const opt = optionSurfacesOf(b);
           if (opt.length) {
-            const list = opt.map((s) => `<li>${s.clientLabel || s.code}${countFor(b, s) != null ? ` × ${countFor(b, s)}` : ""}${s.coats ? ` (${s.coats} ${s.coats === 1 ? "coat" : "coats"})` : ""}</li>`).join("");
+            const list = opt.map((s) => `<li>${s.clientLabel || s.code}${(countFor(b, s) ?? 0) > 1 ? ` × ${countFor(b, s)}` : ""}${s.coats ? ` (${s.coats} ${s.coats === 1 ? "coat" : "coats"})` : ""}</li>`).join("");
             options.push({ id: surfaceOptionId(b), title: surfaceOptionTitle(b), descriptionHtml: `<ul>${list}</ul>`, priceCents: areaOptionCents(b) });
           }
         }

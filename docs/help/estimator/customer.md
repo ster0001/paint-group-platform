@@ -25,7 +25,7 @@ Have the address handy and know roughly what you want painted (inside, outside o
 
 ## The estimate page, once it is sent
 - **Photos.** "Your property, as we saw it" shows the first nine photos from your enquiry and our site notes. When there are more, a **More photos (N)** button sits underneath; press it and the rest open below (the button then reads **Fewer photos**).
-- **Counts.** In "Scope of works, item by item", anything we price per item — doors, windows, posts, architraves — shows how many we counted in that room, e.g. **Doors × 4**. Walls and ceilings are measured, not counted, so they carry no number. If a count looks wrong, tell your estimator before accepting; the price follows the count.
+- **Counts.** In "Scope of works, item by item", anything we price per item — doors, windows, posts, architraves — shows how many we counted in that room, e.g. **Doors × 4**. A single item shows no number, and walls and ceilings are measured, not counted, so they carry none either. If a count looks wrong, tell your estimator before accepting; the price follows the count.
 
 ## The PDF, and the colour note
 - **Download estimate (PDF)** prints a paper copy of the quote: every area and its price (per-item surfaces with their count, e.g. "Doors × 4"), the deposit, the paint being supplied, what is and is not included, and a **Payment details** box with Paint Group's ABN, bank account and the reference to use — so the deposit can be paid straight from the PDF.

@@ -50,6 +50,8 @@ export type CustomerChanges = {
 
 /** Photos on the page before the "More photos" button (Tom, 18 Sep 2026). */
 const PHOTOS_SHOWN = 9;
+/** The count chip shows from two up — "Doors × 1" says nothing (Tom, 18 Sep: "hide chip"). */
+const showCount = (count: number | undefined): boolean => count != null && count > 1;
 
 export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null,
@@ -481,7 +483,7 @@ export default function CustomerEstimate({
                 <div className="room-body">
                   {a.surfaces.map((s, j) => (
                     <div className="surface" key={j}>
-                      <div className="s-name">{s.label}{s.count != null && <span className="s-count" data-testid="surface-count">× {s.count}</span>}</div>
+                      <div className="s-name">{s.label}{showCount(s.count) && <span className="s-count" data-testid="surface-count">× {s.count}</span>}</div>
                       <div className="s-coats">{s.coats} {s.coats === 1 ? "COAT" : "COATS"}</div>
                       {s.product && <div className="s-spec">{s.product}</div>}
                     </div>
@@ -796,7 +798,7 @@ function PrintQuote({
 }) {
   const c = snap.company;
   const surfaceLine = (a: CustomerSnapshot["areas"][number]) =>
-    a.surfaces.map((s) => `${s.label}${s.count != null ? ` × ${s.count}` : ""} (${s.coats} ${s.coats === 1 ? "coat" : "coats"}${s.product ? ` · ${s.product}` : ""})`).join("; ");
+    a.surfaces.map((s) => `${s.label}${showCount(s.count) ? ` × ${s.count}` : ""} (${s.coats} ${s.coats === 1 ? "coat" : "coats"}${s.product ? ` · ${s.product}` : ""})`).join("; ");
   const opts = snap.options.filter((o) => selectedIds.has(o.id));
   const preparation = preparationLineFor(snap);
   return (

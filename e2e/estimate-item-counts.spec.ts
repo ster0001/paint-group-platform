@@ -8,7 +8,8 @@ import { credentials, missingCreds, signIn } from "./helpers";
  *
  * 1. Counted items show their count. "Doors" in the builder with a count of 4
  *    reads "Doors × 4" to the customer, per room, so they can see how many we
- *    counted. Measured surfaces (walls, ceilings) carry no count.
+ *    counted. Measured surfaces (walls, ceilings) carry no count, and a single
+ *    item shows no chip (Tom: "hide chip").
  * 2. Nine photos on the page; when there are more, a "More photos" button
  *    underneath opens the rest.
  *
@@ -55,7 +56,7 @@ test.describe("item counts on the customer's estimate", () => {
         blocks: [{
           id: 1, kind: "area", name: "Living room", type: "Interior", areaType: "room", L: 4, W: 3, H: 2.4,
           isOption: false, description: "", open: false, media: [],
-          surfaces: [surface(2, "Walls", "Walls", 1), surface(3, "Flat Door (1 Side)", "Doors", 4)],
+          surfaces: [surface(2, "Walls", "Walls", 1), surface(3, "Flat Door (1 Side)", "Doors", 4), surface(4, "Flat Door (1 Side)", "Front door", 1)],
         }],
         modSel: { "Level of Finish": "FIN-3" }, materials: {}, materialColours: {}, colourMatches: {},
         contact: { first_name: "Count", last_name: "Customer", email: "", phone: "" },
@@ -81,7 +82,7 @@ test.describe("item counts on the customer's estimate", () => {
       const { data } = await db!.from("estimates").select("sent_snapshot").eq("id", estimateId).single();
       const snap = data?.sent_snapshot as Snap | null;
       return snap?.areas[0]?.surfaces.map((s) => [s.label, s.count ?? null]) ?? null;
-    }, { timeout: 20_000 }).toEqual([["Walls", null], ["Doors", 4]]);
+    }, { timeout: 20_000 }).toEqual([["Walls", null], ["Doors", 4], ["Front door", 1]]);
 
     await db!.from("estimates").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", estimateId);
 
@@ -96,6 +97,8 @@ test.describe("item counts on the customer's estimate", () => {
       await expect(doors.getByTestId("surface-count")).toHaveText("× 4");
       const walls = room.locator(".surface", { hasText: "Walls" });
       await expect(walls.getByTestId("surface-count")).toHaveCount(0);
+      // A single item carries no chip — "Front door × 1" says nothing (Tom: "hide chip").
+      await expect(room.locator(".surface", { hasText: "Front door" }).getByTestId("surface-count")).toHaveCount(0);
     } finally {
       await anon.close();
     }
