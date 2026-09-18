@@ -70,7 +70,8 @@
 .sb .tray {
   border-right: 1px solid var(--line); padding: 16px;
   position: sticky; top: var(--sb-stick);
-  max-height: calc(100vh - var(--sb-stick)); overflow-y: auto;
+  /* The same measured height as the timeline, so the two columns end together. */
+  max-height: var(--sb-space, calc(100vh - var(--sb-stick))); overflow-y: auto;
   align-self: stretch; /* the divider runs the full height of the lanes when the tray is short */
 }
 @media (max-width: 900px) {
@@ -78,6 +79,9 @@
      never more than a short scroll away, but not pinned — a pinned tray would
      cover the lanes it is meant to be dropped onto. */
   .sb .tray { position: static; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--line); }
+  /* A scroller inside a scroller is worse than a page that simply scrolls. */
+  .sb .tl { height: auto; max-height: none; overflow-x: auto; }
+  .sb .hdr { position: static; }
 }
 .sb .tray h2 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
 .sb .tray .sub { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 14px; text-transform: uppercase; }
@@ -107,7 +111,31 @@
 /* No left padding: the lane column sticks to left:0 of the scrollport, so any
    gutter here is a strip the pinned names DON'T cover — blocks scroll through
    it and read as debris beside the name. */
-.sb .tl { overflow-x: auto; padding: 16px 16px 60px 0; }
+/* Tom, 18 Sep: "keep the month day and date locked at the top of the screen,
+   so you can still see when dragging a job". The header lives INSIDE the
+   horizontal scroller (it has to — it scrolls sideways with the columns), and
+   a sticky element only pins to its own scrollport, so pinning it to the page
+   does nothing. The timeline therefore becomes its own scroller in both
+   directions, bounded to the viewport exactly as the tray already is, and the
+   header pins to the top of that. The lanes scroll under it. */
+.sb .tl {
+  overflow: auto; padding: 0 16px 60px 0;
+  /* Ends where the screen ends, so the lanes scroll INSIDE it and the dates
+     can stay locked at its top. --sb-space is measured in ScheduleBoard (see
+     the comment there); the calc is only the pre-paint fallback. Sticky is
+     NOT the answer here: a sticky timeline only holds while its containing
+     block still has travel, and once the board is taller than the screen there
+     is none — it pins for a few pixels and then scrolls away, header and all,
+     which is precisely the case this was meant to fix. */
+  height: var(--sb-space, calc(100vh - var(--sb-stick)));
+  align-self: start;
+}
+/* z-index clears the lane name column (8/9), the blocks (4) and the today
+   line (5). The solid background stops any of them showing through it. */
+/* The timeline's top padding lives HERE rather than on .tl, so the header
+   pins flush at the top: left on the scroller it became a 16px gap that the
+   lanes scrolled up through, above the dates. */
+.sb .hdr { position: sticky; top: 0; z-index: 10; background: var(--ink); padding-top: 16px; }
 .sb .grid { min-width: min-content; }
 .sb .mb { display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w)); }
 .sb .mb .mcell {

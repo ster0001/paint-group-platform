@@ -368,11 +368,11 @@
       "feature": "training",
       "role": "contractor",
       "title": "Training videos — short films showing the painter portal",
-      "summary": "Every training video in one place for painters — the quick how-tos and the full walkthrough, each opening on YouTube in its own tab.",
+      "summary": "Every training video in one place for painters — one short film per job, each opening on YouTube in its own tab.",
       "path": "docs/help/training/contractor.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "ab8b2d3fec",
+      "verified_at_commit": "c4973ff835",
       "sources": [
         "app/portal/help/page.tsx",
         "app/components/help/HelpArticle.tsx"
@@ -382,11 +382,11 @@
       "feature": "training",
       "role": "employee",
       "title": "Training videos — short films showing the painter portal",
-      "summary": "Every training video in one place for painters — the quick how-tos and the full walkthrough, each opening on YouTube in its own tab.",
+      "summary": "Every training video in one place for painters — one short film per job, each opening on YouTube in its own tab.",
       "path": "docs/help/training/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "ab8b2d3fec",
+      "verified_at_commit": "c4973ff835",
       "sources": [
         "app/portal/help/page.tsx",
         "app/components/help/HelpArticle.tsx"
@@ -396,11 +396,11 @@
       "feature": "training",
       "role": "staff",
       "title": "Training videos — short films that show the platform in use",
-      "summary": "Every training video in one place for the office — the quick how-tos and the full walkthrough, each opening on YouTube in its own tab.",
+      "summary": "Every training video in one place for the office — one short film per job, each opening on YouTube in its own tab.",
       "path": "docs/help/training/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "ab8b2d3fec",
+      "verified_at_commit": "c4973ff835",
       "sources": [
         "app/(app)/help/page.tsx",
         "app/components/help/HelpArticle.tsx"

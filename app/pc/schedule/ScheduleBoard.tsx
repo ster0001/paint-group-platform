@@ -82,6 +82,39 @@ export default function ScheduleBoard({
   const [range, setRange] = useState(rangeDays);
   const [start, setStart] = useState(from);
   const tlRef = useRef<HTMLElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * The board is a workspace, not a document (Tom, 18 Sep: "keep the month day
+   * and date locked at the top of the screen, so you can still see when
+   * dragging a job").
+   *
+   * The dates live INSIDE the horizontal scroller — they have to, they scroll
+   * sideways with the columns — and a sticky element only ever pins to its own
+   * scrollport, so pinning them to the page does nothing. The timeline has to
+   * be the scroller instead, which means it has to end where the screen ends.
+   *
+   * That height is MEASURED, not guessed: what sits above it — the console's
+   * tab rail, the board's own bar, the legend — changes height when it wraps,
+   * and a guess that is 40px out either hides the bottom lane or leaves the
+   * page scrolling the locked header off the top, which is the whole bug.
+   */
+  useEffect(() => {
+    const root = rootRef.current;
+    const tl = tlRef.current;
+    if (!root || !tl) return;
+    const fit = () => {
+      // Document coordinates: the viewport-relative top moves as the page
+      // scrolls, and sizing off that feeds itself.
+      const top = tl.getBoundingClientRect().top + window.scrollY;
+      root.style.setProperty("--sb-space", `${Math.max(260, window.innerHeight - top - 8)}px`);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(root);
+    window.addEventListener("resize", fit);
+    return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
+  }, []);
 
   /**
    * Picking 2W/4W/8W should CHANGE THE SIZE of the view, not just stretch the
@@ -732,7 +765,7 @@ export default function ScheduleBoard({
   const styleVars = { ["--day-w" as string]: `${dayW}px`, ["--days" as string]: String(range) } as React.CSSProperties;
 
   return (
-    <div className="sb" style={styleVars}>
+    <div className="sb" style={styleVars} ref={rootRef}>
       <header className="top">
         <div>
           <div className="crumb">Scheduling</div>
@@ -1035,6 +1068,12 @@ export default function ScheduleBoard({
 
         <main className="tl" ref={tlRef}>
           <div className="grid">
+            {/* Tom, 18 Sep: the month, the day and the date stay locked at the
+                top while you scroll down through the contractors, so you can
+                always see which day you are dragging a job onto. One wrapper
+                rather than pinning the two rows separately, so nothing depends
+                on knowing how tall the month bar is. */}
+            <div className="hdr" data-testid="board-header">
             <div className="mb">
               <div className="mcell spacer" />
               {monthRuns(days).map((m, i) => (
@@ -1058,6 +1097,7 @@ export default function ScheduleBoard({
                   </div>
                 );
               })}
+            </div>
             </div>
 
             <div>

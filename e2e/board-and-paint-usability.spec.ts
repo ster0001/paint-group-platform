@@ -142,6 +142,68 @@ test.describe("board and paint usability, 18 Sep", () => {
     await expect(page.getByTestId("lane-employee").first()).toBeVisible();
   });
 
+  test("the month, day and date stay locked at the top while the contractors scroll", async ({ page }) => {
+    await signIn(page, staff!, /\/estimates/);
+    // A short laptop, so the handful of lanes on the test board overflows the
+    // timeline. Tom's board has dozens on a full screen — the same condition.
+    await page.setViewportSize({ width: 1280, height: 520 });
+    await page.goto("/pc/schedule");
+    await expect(page.getByTestId("board-header")).toBeVisible({ timeout: 30_000 });
+
+    const read = () => page.evaluate(() => {
+      const tl = document.querySelector(".sb .tl") as HTMLElement;
+      const h = document.querySelector('[data-testid="board-header"]') as HTMLElement;
+      const row = document.querySelector(".sb .crow") as HTMLElement;
+      return {
+        tlTop: tl.getBoundingClientRect().top,
+        headerTop: h.getBoundingClientRect().top,
+        rowTop: row.getBoundingClientRect().top,
+        scrolled: tl.scrollTop,
+        maxScroll: tl.scrollHeight - tl.clientHeight,
+      };
+    });
+
+    const before = await read();
+    expect(before.maxScroll, "the timeline is its own scroller and this board overflows it")
+      .toBeGreaterThan(0);
+    // On screen, and ending at the bottom of it: the timeline is sized to the
+    // space it has, which is what gives the lanes somewhere to scroll.
+    expect(before.tlTop, "the timeline starts on screen").toBeGreaterThan(0);
+    const bottomGap = await page.evaluate(() => {
+      const tl = document.querySelector(".sb .tl") as HTMLElement;
+      return window.innerHeight - tl.getBoundingClientRect().bottom;
+    });
+    expect(bottomGap, "the timeline runs to the bottom of the screen").toBeGreaterThanOrEqual(0);
+    expect(bottomGap, "and not far short of it").toBeLessThan(40);
+
+    await page.evaluate(() => {
+      const tl = document.querySelector(".sb .tl") as HTMLElement;
+      tl.scrollTop = tl.scrollHeight;
+    });
+    const after = await read();
+
+    // The contractors moved by exactly what was scrolled…
+    expect(after.scrolled).toBe(before.maxScroll);
+    expect(Math.round(before.rowTop - after.rowTop), "the lanes moved with the scroll")
+      .toBe(Math.round(after.scrolled));
+    // …and the dates did not move at all.
+    expect(Math.round(after.headerTop), "the dates stayed put").toBe(Math.round(before.headerTop));
+    expect(Math.abs(after.headerTop - after.tlTop), "flush with the top of the timeline")
+      .toBeLessThanOrEqual(1);
+
+    // And they are genuinely on top: a lane scrolling past does not cover them.
+    const covered = await page.evaluate(() => {
+      const h = document.querySelector('[data-testid="board-header"]') as HTMLElement;
+      // A day cell, not the header's own centre — the header is as wide as the
+      // whole timeline, so its midpoint is off the side of the screen.
+      const cell = document.querySelector(".sb .dh .cell:not(.lanehead)") as HTMLElement;
+      const r = cell.getBoundingClientRect();
+      const el = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return Boolean(el && h.contains(el));
+    });
+    expect(covered, "nothing scrolls over the top of the dates").toBe(true);
+  });
+
   test("the tray searches, and puts the longest wait at the top", async ({ page }) => {
     await signIn(page, staff!, /\/estimates/);
     await page.goto("/pc/schedule");

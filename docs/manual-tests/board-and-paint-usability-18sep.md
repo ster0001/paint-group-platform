@@ -18,6 +18,12 @@ test and production. Nothing below needs a fresh paste.
    if the tick does nothing, tell me.)*
 4. Contractors without current insurance drop off the board. **The employee stays.**
 
+## 2b. The dates stay put
+1. Same screen, with enough contractors to fill it.
+2. Scroll down through the contractor rows. **The month, the day name and the date stay locked at the top** — you can still see which day you are over while dragging a job.
+3. Drag a job onto a row near the bottom: the dates are still on screen to aim at.
+4. On a phone the page scrolls normally instead; the board is not a fixed box there.
+
 ## 3. The unscheduled tray
 1. Same screen. The tray heading says **longest wait first**.
 2. Top card = the job accepted longest ago; bottom = the most recently accepted.
@@ -50,3 +56,9 @@ test and production. Nothing below needs a fresh paste.
    clocked day is still refused, and the message names it. Suspend those instead.
 5. `WO-OVERLAP2` and `WO-VERIFY1` are leftover test work orders from August. If a painter is
    still blocked by one of those, say so and I will send the SQL to clear them.
+
+## 7. Training videos
+1. **Help → Training videos** (as the office, and again from a painter's portal).
+2. Five videos in ONE list, no separate "Full walkthrough" section.
+3. No. 4 reads **Preparing for the final walkthrough**.
+4. No. 5 reads **Updating your job in the system** and opens the long video.
