@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendSignedReportEmail } from "@/lib/workorder/signEmail";
-import { headers } from "next/headers";
+import { trustedOrigin } from "@/lib/security/trustedOrigin";
 
 /** The customer's walkthrough: approve or flag each area, then sign. */
 
@@ -16,7 +16,12 @@ export type SignResult =
   | { ok: true; onDevice: boolean }
   | { ok: false; message: string; outstanding?: string[] };
 
-const token = z.string().min(24).max(200);
+/** Sign-off tokens are hex (Postgres gen_random_uuid pairs) or base64url —
+ *  never anything else. The charset matters, not just the length: the token
+ *  is interpolated into a PostgREST `or=` filter below, whose grammar is
+ *  comma/bracket-delimited, so a `,` or `)` in it would rewrite the filter
+ *  (18 Sep security audit). Same guard as app/a/[token]/page.tsx. */
+const token = z.string().regex(/^[A-Za-z0-9_-]{24,200}$/);
 
 export async function walkthroughAreaAction(raw: unknown): Promise<AreaResult> {
   const parsed = z.object({
@@ -77,9 +82,7 @@ export async function signAction(raw: unknown): Promise<SignResult> {
     // email always addresses the CUSTOMER token, which the service lookup
     // resolves from the same sign-off row. Best-effort by construction.
     if (service && pre?.customer_token) {
-      const origin = (await headers()).get("origin")
-        ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app";
-      await sendSignedReportEmail(service, pre.customer_token, origin);
+      await sendSignedReportEmail(service, pre.customer_token, await trustedOrigin());
     }
     return { ok: true, onDevice };
   }

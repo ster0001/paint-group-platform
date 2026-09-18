@@ -2,9 +2,19 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { isMarketingHost } from "@/lib/marketing/hosts";
 import { AUDIENCE_HEADER, resolveAudience } from "@/lib/marketing/audience";
+import { allowTokenRoute, clientIpFromHeaders, isTokenRoutePath } from "@/lib/security/tokenRouteLimit";
 
 export async function proxy(request: NextRequest) {
   const host = request.headers.get("host");
+  // CLAUDE.md: token routes are rate-limited. One shared per-IP budget across
+  // every /<door>/[token] path (lib/security/tokenRouteLimit.ts) — a brake on
+  // token guessing and runaway scripts, answered before any database work.
+  if (isTokenRoutePath(request.nextUrl.pathname)
+      && !allowTokenRoute(clientIpFromHeaders((n) => request.headers.get(n)))) {
+    return new NextResponse("Too many requests — please wait a minute and try again.", {
+      status: 429, headers: { "Retry-After": "60", "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
   // The marketing homepage owns `/` only on the website's hosts; on the
   // platform address (paint-group-platform.vercel.app and previews) `/` is
   // the login page, as it was before the homepage shipped (Tom, 5 Sep 2026).

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { reconcileContractorCalendar, reconcileForOffer } from "@/lib/gcal/sync";
 
@@ -30,12 +31,16 @@ export async function POST(request: Request) {
     const { data } = await supabase.from("contractors").select("id").eq("profile_id", user.id).maybeSingle();
     contractorId = (data as { id: string } | null)?.id ?? null;
   } else if (profile?.role === "staff") {
-    const body = (await request.json().catch(() => ({}))) as { contractorId?: string; offerId?: string };
-    if (typeof body.offerId === "string") {
-      await reconcileForOffer(body.offerId);
+    const parsed = z.object({
+      contractorId: z.string().uuid().optional(),
+      offerId: z.string().uuid().optional(),
+    }).safeParse(await request.json().catch(() => ({})));
+    if (!parsed.success) return NextResponse.json({ error: "bad request" }, { status: 400 });
+    if (parsed.data.offerId) {
+      await reconcileForOffer(parsed.data.offerId);
       return NextResponse.json({ status: "synced_offer" });
     }
-    contractorId = typeof body.contractorId === "string" ? body.contractorId : null;
+    contractorId = parsed.data.contractorId ?? null;
   } else {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }

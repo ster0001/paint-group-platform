@@ -181,11 +181,22 @@ export async function POST(request: Request) {
     // so `email` is legitimately empty here. `email.eq.` would match every
     // emailless lead ever written and rate-limit the whole world after two —
     // an emailless run is identified by its IP hash alone.
-    const { count } = await db.from("wizard_leads")
+    // PostgREST's or= filter is comma/bracket-delimited, and `contact.email`
+    // is only length-checked — an address with `,` or `(` in it would rewrite
+    // the filter (18 Sep audit: a bogus column made the count query 400 and
+    // the dropped error read as "0 estimates", i.e. no limit at all). An
+    // unsafe address counts by IP alone, like the emailless run.
+    const safeEmail = /^[^,()]+$/.test(email) ? email : "";
+    const { count, error: countError } = await db.from("wizard_leads")
       .select("id", { count: "exact", head: true })
-      .or(email ? `email.eq.${email},ip_hash.eq.${ipHash}` : `ip_hash.eq.${ipHash}`)
+      .or(safeEmail ? `email.eq.${safeEmail},ip_hash.eq.${ipHash}` : `ip_hash.eq.${ipHash}`)
       .neq("outcome", "rate_limited")
       .gte("created_at", since);
+    if (countError) {
+      // A guard that cannot see its evidence refuses; it never assumes zero.
+      reportError(countError, { where: "wizard.submit.rateLimitCount" });
+      return NextResponse.json({ error: "The estimate wizard isn't available just now." }, { status: 503 });
+    }
     if ((count ?? 0) >= max) {
       await db.from("wizard_leads").insert({
         user_id: user.id, email, ip_hash: ipHash,
