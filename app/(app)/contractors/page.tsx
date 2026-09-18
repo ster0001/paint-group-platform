@@ -34,7 +34,7 @@ export default async function ContractorsPage() {
     supabase.from("contractor_documents").select(DOC_COLUMNS),
     supabase
       .from("contractor_invites")
-      .select("id, email, name, company_name, tier, token, created_at, expires_at, accepted_at, revoked_at")
+      .select("id, email, name, company_name, tier, token, created_at, expires_at, accepted_at, revoked_at, emailed_at, emailed_count")
       .is("accepted_at", null)
       .is("revoked_at", null)
       .order("created_at", { ascending: false }),
