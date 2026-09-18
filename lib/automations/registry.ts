@@ -518,7 +518,7 @@ export const AUTOMATIONS: Automation[] = [
     key: "tenant_access_text", name: "Tenant access text", audience: "customer", channels: ["sms"], kind: "manual",
     trigger: "A trade customer texts a tenant a link to the photos and plan from the property page. The link lasts a set number of days.",
     templates: [
-      { field: "tenantLinkSms", label: "Text message", kind: "sms", placeholders: ["{{company_name}}", "{{agency_line}}", "{{address}}", "{{link}}"] },
+      { field: "tenantLinkSms", label: "Text message", kind: "sms", placeholders: ["{{company_name}}", "{{who_asked}}", "{{agency_line}}", "{{address}}", "{{link}}"] },
     ],
   },
   {

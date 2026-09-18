@@ -160,6 +160,10 @@ test("4 · the Estimates page searches by customer name or address", async ({ pa
     // The box is on the other tabs too, and Clear takes the needle off.
     await page.goto("/estimates?q=zzz-no-such-customer");
     await expect(page.getByTestId("estimates-search-empty")).toBeVisible();
+    // Clear is inert until React attaches, and an inert click reports as a URL
+    // that never changed rather than as a missing button — which is how this
+    // read as a product bug on CI (slower runner) while passing locally.
+    await expect(page.getByTestId("estimates-search")).toHaveAttribute("data-ready", "1");
     await page.getByTestId("estimates-search-clear").click();
     await expect(page).toHaveURL(/\/estimates$/);
   } finally {
