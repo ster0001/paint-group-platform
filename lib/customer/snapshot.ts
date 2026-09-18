@@ -7,6 +7,10 @@ export type SnapshotSurface = {
   label: string; // client label
   coats: number;
   product: string;
+  /** How many we counted (doors, windows, posts — anything priced per item).
+   *  Absent for measured surfaces (walls, ceilings) and on snapshots sent
+   *  before 18 Sep 2026. Tom, 18 Sep: the customer sees the count per room. */
+  count?: number;
 };
 
 export type SnapshotArea = {

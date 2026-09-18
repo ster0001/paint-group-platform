@@ -85,6 +85,11 @@
 .cv .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px; }
 .cv .ph { aspect-ratio: 4/3; border-radius: 10px; border: 1px solid var(--line); object-fit: cover; width: 100%; background: var(--panel); }
 @media (max-width: 640px) { .cv .photos { grid-template-columns: 1fr 1fr; } }
+.cv .more-photos { display: block; width: 100%; margin-top: 12px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
+.cv .more-photos:hover { border-color: var(--paint); }
+.cv .more-photos:focus-visible { outline: 2px solid var(--paint); outline-offset: 3px; }
+.cv .more-photos[aria-expanded="true"] { margin-bottom: 10px; }
+.cv .s-count { margin-left: 8px; color: var(--muted); font-family: var(--mono); font-size: 13px; font-weight: 500; }
 
 /* rooms */
 .cv .room { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 14px; overflow: hidden; }

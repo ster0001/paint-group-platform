@@ -48,6 +48,11 @@ export type CustomerChanges = {
   }[];
 };
 
+/** Photos on the page before the "More photos" button (Tom, 18 Sep 2026). */
+const PHOTOS_SHOWN = 9;
+/** The count chip shows from two up — "Doors × 1" says nothing (Tom, 18 Sep: "hide chip"). */
+const showCount = (count: number | undefined): boolean => count != null && count > 1;
+
 export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
@@ -85,6 +90,8 @@ export default function CustomerEstimate({
   // signature did not store — acceptance still counts, but we say so rather
   // than letting the customer believe we hold something we don't.
   const [signatureSaved, setSignatureSaved] = useState<boolean | null>(null);
+  const [showAllPhotos, setShowAllPhotos] = useState(false);
+  const allPhotos = useMemo(() => snap.areas.flatMap((a) => a.photos), [snap.areas]);
   const [done, setDone] = useState<null | "accepted" | "declined">(
     status === "accepted" ? "accepted" : status === "declined" ? "declined" : null,
   );
@@ -422,11 +429,28 @@ export default function CustomerEstimate({
             <h2>Your property, as we saw it</h2>
             <p className="sub">Photos from your enquiry and our site notes. Your estimate is scoped to these exact rooms and surfaces.</p>
             <div className="photos">
-              {snap.areas.flatMap((a) => a.photos).slice(0, 9).map((src, i) => (
+              {allPhotos.slice(0, PHOTOS_SHOWN).map((src, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img key={i} className="ph" src={src} alt="" loading="lazy" />
               ))}
             </div>
+            {/* Tom, 18 Sep: nine on the page; the rest open from a button
+                underneath, so a job with thirty site photos is still one screen. */}
+            {allPhotos.length > PHOTOS_SHOWN && (
+              <>
+                <button type="button" className="more-photos" data-testid="more-photos" aria-expanded={showAllPhotos} onClick={() => setShowAllPhotos((v) => !v)}>
+                  {showAllPhotos ? "Fewer photos" : `More photos (${allPhotos.length - PHOTOS_SHOWN})`}
+                </button>
+                {showAllPhotos && (
+                  <div className="photos" data-testid="more-photos-list">
+                    {allPhotos.slice(PHOTOS_SHOWN).map((src, i) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={PHOTOS_SHOWN + i} className="ph" src={src} alt="" loading="lazy" />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </section>
         )}
 
@@ -459,7 +483,7 @@ export default function CustomerEstimate({
                 <div className="room-body">
                   {a.surfaces.map((s, j) => (
                     <div className="surface" key={j}>
-                      <div className="s-name">{s.label}</div>
+                      <div className="s-name">{s.label}{showCount(s.count) && <span className="s-count" data-testid="surface-count">× {s.count}</span>}</div>
                       <div className="s-coats">{s.coats} {s.coats === 1 ? "COAT" : "COATS"}</div>
                       {s.product && <div className="s-spec">{s.product}</div>}
                     </div>
@@ -774,7 +798,7 @@ function PrintQuote({
 }) {
   const c = snap.company;
   const surfaceLine = (a: CustomerSnapshot["areas"][number]) =>
-    a.surfaces.map((s) => `${s.label} (${s.coats} ${s.coats === 1 ? "coat" : "coats"}${s.product ? ` · ${s.product}` : ""})`).join("; ");
+    a.surfaces.map((s) => `${s.label}${showCount(s.count) ? ` × ${s.count}` : ""} (${s.coats} ${s.coats === 1 ? "coat" : "coats"}${s.product ? ` · ${s.product}` : ""})`).join("; ");
   const opts = snap.options.filter((o) => selectedIds.has(o.id));
   const preparation = preparationLineFor(snap);
   return (

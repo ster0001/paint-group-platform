@@ -30,7 +30,7 @@ import type { BackTo } from "@/lib/navigation/backTo";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
-import { DEFAULT_PROOF, ESTIMATE_DOCS_BUCKET, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, estimateDocUrl, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint } from "@/lib/customer/snapshot";
+import { DEFAULT_PROOF, ESTIMATE_DOCS_BUCKET, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, estimateDocUrl, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint, type SnapshotSurface } from "@/lib/customer/snapshot";
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
@@ -1360,6 +1360,12 @@ export default function QuoteBuilder({
   // Build the customer-safe document from the CURRENT state — no margin, costs,
   // contractor rates, hidden surfaces/items or internal notes. Used both for the
   // live "Customer view" preview and written to sent_snapshot on every save.
+  /** The count the customer sees for a surface: only per-item substrates
+   *  (the rate item is "Hours Per Item"), and only a real count. A typed
+   *  quantity override still shows the count of items, not the hours. */
+  const countFor = (b: Area, s: Surface): number | null =>
+    surfaceCalc(b, s).isItem && Number.isFinite(s.count) && s.count > 0 ? Math.round(s.count) : null;
+
   function buildCustomerDoc(token: string): CustomerSnapshot {
     const areas: SnapshotArea[] = [];
     const lineItemsDoc: SnapshotLine[] = [];
@@ -1369,9 +1375,14 @@ export default function QuoteBuilder({
         // An optional area is one option, whole. An INCLUDED area lists its
         // included substrates and, when some are optional, offers those as one
         // option of their own ("Lounge — Doors, Skirting"), Tom 16 Sep.
+        // Per-item substrates (doors, windows, posts…) carry their count so the
+        // customer sees how many we counted in each room (Tom, 18 Sep).
         const surfaces = b.surfaces
           .filter((s) => s.code && !s.hidden && (b.isOption || !s.isOption))
-          .map((s) => ({ label: s.clientLabel || s.code, coats: s.coats, product: productNameFor(b.type, s) || "" }));
+          .map((s): SnapshotSurface => {
+            const count = countFor(b, s);
+            return { label: s.clientLabel || s.code, coats: s.coats, product: productNameFor(b.type, s) || "", ...(count != null ? { count } : {}) };
+          });
         const photos = [
           ...(b.media ?? []).map((m) => m.url),
           ...b.surfaces.filter((s) => !s.hidden && (b.isOption || !s.isOption)).flatMap((s) => (s.media ?? []).map((m) => m.url)),
@@ -1383,7 +1394,7 @@ export default function QuoteBuilder({
           areas.push(entry);
           const opt = optionSurfacesOf(b);
           if (opt.length) {
-            const list = opt.map((s) => `<li>${s.clientLabel || s.code}${s.coats ? ` (${s.coats} ${s.coats === 1 ? "coat" : "coats"})` : ""}</li>`).join("");
+            const list = opt.map((s) => `<li>${s.clientLabel || s.code}${(countFor(b, s) ?? 0) > 1 ? ` × ${countFor(b, s)}` : ""}${s.coats ? ` (${s.coats} ${s.coats === 1 ? "coat" : "coats"})` : ""}</li>`).join("");
             options.push({ id: surfaceOptionId(b), title: surfaceOptionTitle(b), descriptionHtml: `<ul>${list}</ul>`, priceCents: areaOptionCents(b) });
           }
         }
