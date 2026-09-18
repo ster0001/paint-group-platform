@@ -194,7 +194,20 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeVariationRaisedBody: "{{painter}} has raised a variation on {{wo_ref}} ({{job}}): {{category}}{{hours_line}}.\n\n“{{comment}}”\n\nIt is waiting to be priced.",
   officeContractorInvoiceSubject: "Contractor invoice in — {{painter}} · {{amount}}",
   officeContractorInvoiceBody: "{{painter}} has submitted invoice {{invoice_number}} for {{amount}} on {{wo_ref}} ({{job}}). It is waiting for approval in Payments.",
-  tenantLinkSms: "{{company_name}}{{agency_line}}: photos and a quick look at the painting planned for {{address}} are here: {{link}}",
+  // THE TENANT TEXT IS THE ONE MESSAGE THAT GOES TO SOMEONE WHO NEVER ASKED US
+  // FOR ANYTHING (Tom, 18 Sep 2026). A tenant gets an unexpected text from a
+  // painting company asking them to photograph their home, so it says who we
+  // are, who asked, and — the line that stops the phone call to the agent —
+  // that it has nothing to do with their bond or their lease. This default WAS
+  // a terser line, which silently replaced the careful wording the moment this
+  // field was added (it is used whenever it is non-blank, and it is never
+  // blank). `tenantMessage()` in lib/portal/tenant-link.ts renders THIS string,
+  // so the words live in exactly one place. Under 320 characters = two segments.
+  tenantLinkSms:
+    "Hi — this is {{company_name}}, painters. {{who_asked}} to quote some painting at {{address}}. "
+    + "Could you take a few photos on your phone so we can plan it without a visit? "
+    + "It's nothing to do with your bond or your lease. "
+    + "Photos go here: {{link}}",
 
   welcomeSubject: "Thank you for choosing {{company_name}} — what happens next",
   welcomeBody:
@@ -392,6 +405,7 @@ export type TemplateVars = {
   category?: string;
   hours_line?: string;
   comment?: string;
+  who_asked?: string;
   agency_line?: string;
   // Session 3: money and sign-off reminders.
   due_date?: string;

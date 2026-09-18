@@ -211,7 +211,7 @@ export const SAMPLE_VARS: Record<string, string> = {
   reminder: "Your job is finished and the photos are ready to look through. When you have a moment, please have a look and let us know you are happy.",
   hours_since: "74",
   decision: "approved", kind_word: "leave",
-  review_link: "https://g.page/r/example", agency_name: "Northcote Property Co", agency_line: " for Northcote Property Co",
+  review_link: "https://g.page/r/example", agency_name: "Northcote Property Co", agency_line: " for Northcote Property Co", who_asked: "Northcote Property Co has asked us",
 };
 
 /** Placeholders present in a template that the preview cannot fill. */

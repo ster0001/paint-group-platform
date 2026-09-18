@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { DEFAULT_MESSAGING, renderTemplate } from "@/lib/messaging/config";
 
 /**
  * C15 — THE TENANT PHOTO LINK (walk A, screen A4; ⚑61).
@@ -27,13 +28,26 @@ export function newTenantToken(): string {
   return randomBytes(18).toString("base64url");
 }
 
-/** copy:new — the SMS. Under 320 characters so it is two segments at most. */
+/** Who asked us — the half of the sentence a placeholder cannot carry, because
+ *  "Smith Real Estate has asked us" and "your property manager has asked us"
+ *  are different sentences, not a name slotted into one. */
+export function tenantWhoAsked(agencyName: string | null): string {
+  return agencyName ? `${agencyName} has asked us` : "your property manager has asked us";
+}
+
+/** copy:new — the SMS. Under 320 characters so it is two segments at most.
+ *  The WORDS live in `DEFAULT_MESSAGING.tenantLinkSms` (Settings → Automations →
+ *  Tenant access text), because the send path uses that template whenever it is
+ *  non-blank. This renders the same string, so the two can never drift: on
+ *  16 Sep 2026 they did, and every tenant since lost the bond reassurance. */
 export function tenantMessage(input: { companyName: string; agencyName: string | null; address: string; url: string }): string {
-  const who = input.agencyName ? `${input.agencyName} has asked us` : "your property manager has asked us";
-  return `Hi — this is ${input.companyName}, painters. ${who} to quote some painting at ${input.address}. `
-    + "Could you take a few photos on your phone so we can plan it without a visit? "
-    + "It's nothing to do with your bond or your lease. "
-    + `Photos go here: ${input.url}`;
+  return renderTemplate(DEFAULT_MESSAGING.tenantLinkSms, {
+    company_name: input.companyName,
+    who_asked: tenantWhoAsked(input.agencyName),
+    agency_line: input.agencyName ? ` for ${input.agencyName}` : "",
+    address: input.address,
+    link: input.url,
+  });
 }
 
 /** copy:new — the token page's opening line, in the same voice. */
