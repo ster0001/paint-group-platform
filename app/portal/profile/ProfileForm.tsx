@@ -10,6 +10,7 @@ import {
   CONTRACTOR_DOC_KINDS,
   DOC_LABEL,
   EMPLOYEE_DOC_KINDS,
+  expiryRequired,
   daysUntil,
   docState,
   missingProfileFields,
@@ -40,6 +41,9 @@ function friendly(e: unknown): string {
   }
   if (/row-level security/i.test(msg)) {
     return "You don't have permission to change that.";
+  }
+  if (/needs its expiry date/i.test(msg)) {
+    return "An insurance certificate can't be saved without its expiry date — enter the date on the certificate.";
   }
   // The bucket's own limits (migration 20260905000000). The browser check below
   // catches these first, but a phone that reports no MIME type can still get
@@ -244,8 +248,18 @@ export default function ProfileForm({
   const [docBusy, setDocBusy] = useState(false);
   const [docErr, setDocErr] = useState("");
   const [docMsg, setDocMsg] = useState("");
+  // Tom, 18 Sep: the file is STAGED, not uploaded the moment it is picked.
+  // Uploading on pick meant a date typed afterwards never reached the row —
+  // the certificate sat there as "NO EXPIRY".
+  const [pendingDoc, setPendingDoc] = useState<File | null>(null);
+  const needsExpiry = expiryRequired(docKind);
+  const canUpload = Boolean(pendingDoc) && (!needsExpiry || Boolean(docExpiry));
 
   async function uploadDoc(file: File) {
+    if (needsExpiry && !docExpiry) {
+      setDocErr("Enter the certificate's expiry date first — an insurance certificate can't be saved without it.");
+      return;
+    }
     setDocBusy(true);
     setDocErr("");
     setDocMsg("");
@@ -268,7 +282,8 @@ export default function ProfileForm({
       if (insErr) throw insErr;
 
       setDocExpiry("");
-      setDocMsg("Uploaded. Paint Group can see it straight away.");
+      setPendingDoc(null);
+      setDocMsg(docExpiry ? `Uploaded, expiring ${docExpiry}. Paint Group can see it straight away.` : "Uploaded. Paint Group can see it straight away.");
       router.refresh();
     } catch (e) {
       setDocErr(friendly(e));
@@ -276,6 +291,17 @@ export default function ProfileForm({
       setDocBusy(false);
       if (docInput.current) docInput.current.value = "";
     }
+  }
+
+  // A row already on file with no date: the painter sets it in place.
+  const [rowExpiry, setRowExpiry] = useState<Record<string, string>>({});
+  async function saveRowExpiry(id: string) {
+    const value = rowExpiry[id];
+    if (!value) return;
+    setDocErr(""); setDocMsg("");
+    const { error } = await supabase.from("contractor_documents").update({ expires_on: value }).eq("id", id);
+    if (error) setDocErr(friendly(error));
+    else { setDocMsg(`Expiry saved — ${value}.`); router.refresh(); }
   }
 
   async function removeDoc(id: string) {
@@ -612,6 +638,16 @@ export default function ProfileForm({
                       {d.name}
                       {d.expires_on ? ` · EXPIRES ${d.expires_on}` : " · NO EXPIRY"}
                     </small>
+                    {!d.expires_on && (
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }} data-testid={`doc-set-expiry-${d.id}`}>
+                        <input type="date" aria-label={`Expiry for ${DOC_LABEL[d.kind]}`} value={rowExpiry[d.id] ?? ""}
+                          onChange={(e) => setRowExpiry((m) => ({ ...m, [d.id]: e.target.value }))} style={{ fontSize: "12px" }} />
+                        <button type="button" className="btn gh narrow" style={{ marginTop: 0 }} disabled={!rowExpiry[d.id]}
+                          onClick={() => saveRowExpiry(d.id)} data-testid={`doc-save-expiry-${d.id}`}>
+                          Save expiry
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <span className={`chip ${chip.cls}`}>{chip.text}</span>
                   <button
@@ -644,16 +680,28 @@ export default function ProfileForm({
           {docKinds.map((k) => <option key={k} value={k}>{DOC_LABEL[k]}</option>)}
         </select>
 
-        <label className="fl" htmlFor="docexp">Expires on</label>
-        <input id="docexp" type="date" value={docExpiry} onChange={(e) => setDocExpiry(e.target.value)} />
+        <label className="fl" htmlFor="docexp">Expires on{needsExpiry ? " (required)" : ""}</label>
+        <input id="docexp" type="date" value={docExpiry} required={needsExpiry} onChange={(e) => setDocExpiry(e.target.value)} />
+        {needsExpiry && !docExpiry && (
+          <div className="hint" style={{ padding: 0, marginTop: 4 }} data-testid="doc-expiry-needed">
+            The expiry date on the certificate — it can&rsquo;t be saved without one.
+          </div>
+        )}
 
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button type="button" className="btn gh" disabled={docBusy} onClick={() => docInput.current?.click()} data-testid="doc-choose">
+            {pendingDoc ? "Choose a different file" : "Choose file"}
+          </button>
+          {pendingDoc && <span style={{ fontSize: "12.5px" }} data-testid="doc-pending">{pendingDoc.name}</span>}
+        </div>
         <button
           type="button"
           className="btn cy"
-          disabled={docBusy}
-          onClick={() => docInput.current?.click()}
+          disabled={docBusy || !canUpload}
+          onClick={() => { if (pendingDoc) uploadDoc(pendingDoc); }}
+          data-testid="doc-upload"
         >
-          {docBusy ? "Uploading…" : "Choose file and upload"}
+          {docBusy ? "Uploading…" : "Upload"}
         </button>
         <input
           ref={docInput}
@@ -662,7 +710,8 @@ export default function ProfileForm({
           style={{ display: "none" }}
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) uploadDoc(f);
+            setDocErr("");
+            if (f) setPendingDoc(f);
           }}
         />
       </div>

@@ -289,7 +289,7 @@
         "media/contractor-09.png",
         "media/contractor-10.png"
       ],
-      "verified_at_commit": "a162c072c0",
+      "verified_at_commit": "d96f549a5a",
       "sources": [
         "app/portal/money",
         "app/portal/profile",
@@ -304,7 +304,7 @@
       "path": "docs/help/self-invoicing/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "a162c072c0",
+      "verified_at_commit": "d96f549a5a",
       "sources": [
         "app/portal/money/page.tsx",
         "app/portal/money/Expenses.tsx",
@@ -323,7 +323,7 @@
         "media/staff-02.png",
         "media/staff-03.png"
       ],
-      "verified_at_commit": "a162c072c0",
+      "verified_at_commit": "d96f549a5a",
       "sources": [
         "app/invoicing",
         "lib/invoicing"
