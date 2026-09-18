@@ -20,9 +20,9 @@ update public.settings
          '{tenantLinkSms}',
          to_jsonb(
            'Hi — this is {{company_name}}, painters. {{who_asked}} to quote some painting at {{address}}. '
-           'Could you take a few photos on your phone so we can plan it without a visit? '
-           'It''s nothing to do with your bond or your lease. '
-           'Photos go here: {{link}}'::text)
+           || 'Could you take a few photos on your phone so we can plan it without a visit? '
+           || 'It''s nothing to do with your bond or your lease. '
+           || 'Photos go here: {{link}}')
        )
  where key = 'messaging'
    and value ->> 'tenantLinkSms'
