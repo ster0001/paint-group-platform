@@ -50,6 +50,7 @@ Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is 
 
 ## If something goes wrong
 - **Start the job is greyed out.** The office still has pre-start items to tick — the number is on the button's card. Ring them if you are already on site.
+- **The card says the office has not set the pre-start list up yet.** The list is missing on this job rather than unfinished. Nothing you can do from here — ring the office, especially if you are due on site.
 - **A tick is refused with "before photo required".** Take the area's before photo first; the rule is the server's, not the screen's.
 - **The job page has gone.** You have been taken off the job, or it has closed. Your ticks stay on the record either way.
 

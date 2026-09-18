@@ -62,6 +62,18 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     else if (r.startsWith("error:gate:")) qaHold = r.slice("error:gate:".length);
   }
 
+  // The office's own lists, built before the reads below so this render sees
+  // them (Tom, 18 Sep: "the pre-start checklist has been removed from
+  // employees — it still needs to happen for both"). The list is the same for
+  // a contractor and an employee; what differed was how many chances it had to
+  // be made. 20270173 seeds it at issue and at assignment; this heals a job
+  // that predates those triggers, the way the tick list and the QA cadence
+  // heal themselves further down. Idempotent — a complete list answers ok:0,
+  // and a failure shows as the "list not built" card rather than silence.
+  if (row.stage === "offered" || row.stage === "pre_start") {
+    await supabase.rpc("wo_seed_checklists", { p_work_order_id: id }).then(() => {}, () => {});
+  }
+
   const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
     await Promise.all([
       supabase.from("wo_surfaces")
@@ -532,6 +544,21 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               outstanding={outstanding("pre_start")}
               coloursHref={coloursHref}
             />
+          )}
+
+          {/* A job at pre-start with no list is a fault, not a finished list —
+              and drawing nothing is how it stayed invisible. The seed above
+              runs on every view, so this says the heal itself failed. */}
+          {row.stage === "pre_start" && forPhase("pre_start").length === 0 && (
+            <div className="card" data-testid="pre-start-missing">
+              <h3>Pre-start <em>list not built</em></h3>
+              <p className="note">
+                This job has no pre-start list — colours, materials, equipment and access.
+                It should build itself the moment the job is issued or a painter is put on it,
+                for a contractor and an employee alike. Refresh once; if it is still empty,
+                the job cannot start and the office needs to know.
+              </p>
+            </div>
           )}
 
           {/* §4b: book the walkthroughs and hold the Mode B gate. Shown from
