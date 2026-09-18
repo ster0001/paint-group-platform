@@ -82,6 +82,39 @@ export default function ScheduleBoard({
   const [range, setRange] = useState(rangeDays);
   const [start, setStart] = useState(from);
   const tlRef = useRef<HTMLElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * The board is a workspace, not a document (Tom, 18 Sep: "keep the month day
+   * and date locked at the top of the screen, so you can still see when
+   * dragging a job").
+   *
+   * The dates live INSIDE the horizontal scroller — they have to, they scroll
+   * sideways with the columns — and a sticky element only ever pins to its own
+   * scrollport, so pinning them to the page does nothing. The timeline has to
+   * be the scroller instead, which means it has to end where the screen ends.
+   *
+   * That height is MEASURED, not guessed: what sits above it — the console's
+   * tab rail, the board's own bar, the legend — changes height when it wraps,
+   * and a guess that is 40px out either hides the bottom lane or leaves the
+   * page scrolling the locked header off the top, which is the whole bug.
+   */
+  useEffect(() => {
+    const root = rootRef.current;
+    const tl = tlRef.current;
+    if (!root || !tl) return;
+    const fit = () => {
+      // Document coordinates: the viewport-relative top moves as the page
+      // scrolls, and sizing off that feeds itself.
+      const top = tl.getBoundingClientRect().top + window.scrollY;
+      root.style.setProperty("--sb-space", `${Math.max(260, window.innerHeight - top - 8)}px`);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(root);
+    window.addEventListener("resize", fit);
+    return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
+  }, []);
 
   /**
    * Picking 2W/4W/8W should CHANGE THE SIZE of the view, not just stretch the
@@ -111,7 +144,10 @@ export default function ScheduleBoard({
       lanes.filter((l) => {
         if (picked.length > 0) return picked.includes(l.contractorId);
         if (tiers.length > 0 && !tiers.includes(l.tier)) return false;
-        if (onlyOfferable && !l.offerable) return false;
+        // "Ready for work" is about being OFFERABLE, and an employee is never
+        // offered — they are assigned. Filtering on the flag hid every employee
+        // from the board, which is how Saulius went missing (Tom, 18 Sep).
+        if (onlyOfferable && !l.offerable && l.employmentType !== "employee") return false;
         return true;
       }),
     [lanes, picked, tiers, onlyOfferable],
@@ -398,6 +434,13 @@ export default function ScheduleBoard({
   // ---- commit ---------------------------------------------------------------
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // Tom, 18 Sep: find a job in a long tray without scrolling it. Matches the
+  // title, the reference and the suburb — the three things staff know a job by.
+  const [traySearch, setTraySearch] = useState("");
+  const trayQuery = traySearch.trim().toLowerCase();
+  const shownTray = trayQuery
+    ? tray.filter((j) => `${j.title} ${j.woRef} ${j.suburb}`.toLowerCase().includes(trayQuery))
+    : tray;
   const lapsedJobs = tray.filter((j) => j.lapsed);
   // The chase log composer. Keyed by work order so two cards can't share a
   // draft, and closed by default — the tray is a drag surface first.
@@ -722,7 +765,7 @@ export default function ScheduleBoard({
   const styleVars = { ["--day-w" as string]: `${dayW}px`, ["--days" as string]: String(range) } as React.CSSProperties;
 
   return (
-    <div className="sb" style={styleVars}>
+    <div className="sb" style={styleVars} ref={rootRef}>
       <header className="top">
         <div>
           <div className="crumb">Scheduling</div>
@@ -761,7 +804,7 @@ export default function ScheduleBoard({
 
           {/* Requirement 4 — who appears in the board. */}
           <div className="filters">
-            <button className="seg" style={{ padding: "7px 10px", background: "none", border: "1px solid var(--line)", color: visibleLanes.length === lanes.length ? "var(--muted)" : "var(--cyan)", borderRadius: 8, cursor: "pointer", fontFamily: "var(--mono)", fontSize: 9, letterSpacing: ".06em", textTransform: "uppercase" }} onClick={() => setShowFilters((s) => !s)}>
+            <button className="seg" style={{ padding: "7px 10px", background: "none", border: "1px solid var(--line)", color: visibleLanes.length === lanes.length ? "var(--muted)" : "var(--cyan)", borderRadius: 8, cursor: "pointer", fontFamily: "var(--mono)", fontSize: 9, letterSpacing: ".06em", textTransform: "uppercase" }} onClick={() => setShowFilters((s) => !s)} data-testid="filters-open">
               Contractors · {visibleLanes.length}/{lanes.length}
             </button>
             {showFilters && (
@@ -797,8 +840,8 @@ export default function ScheduleBoard({
                 ))}
 
                 <label className="crow2" style={{ marginTop: 8 }}>
-                  <input type="checkbox" checked={onlyOfferable} onChange={(e) => setOnlyOfferable(e.target.checked)} />
-                  Ready for work only
+                  <input type="checkbox" checked={onlyOfferable} onChange={(e) => setOnlyOfferable(e.target.checked)} data-testid="filter-offerable" />
+                  Ready for work only <span className="lab" style={{ marginLeft: 6 }}>(employees always shown)</span>
                 </label>
 
                 <div className="lab">Pick individually</div>
@@ -885,11 +928,26 @@ export default function ScheduleBoard({
           )}
 
           <h2>Unscheduled</h2>
-          <p className="sub">Accepted jobs awaiting dates · drag onto the timeline</p>
+          <p className="sub">Accepted jobs awaiting dates · longest wait first · drag onto the timeline</p>
+          {tray.length > 0 && (
+            <input
+              type="search"
+              className="traysearch"
+              placeholder="Search job, reference or suburb"
+              aria-label="Search the unscheduled jobs"
+              value={traySearch}
+              onChange={(e) => setTraySearch(e.target.value)}
+              data-testid="tray-search"
+            />
+          )}
           {tray.length === 0 ? (
             <div className="empty">Nothing waiting. Issue a work order and it appears here.</div>
+          ) : shownTray.length === 0 ? (
+            <div className="empty" data-testid="tray-no-match">
+              Nothing matches &ldquo;{traySearch.trim()}&rdquo;. {tray.length} job{tray.length === 1 ? "" : "s"} waiting.
+            </div>
           ) : (
-            tray.map((j) =>
+            shownTray.map((j) =>
               j.needsIssuing ? (
                 // Accepted but not issued: visible here so it can't be forgotten,
                 // but it can't be dragged until the work order exists to send.
@@ -1010,6 +1068,12 @@ export default function ScheduleBoard({
 
         <main className="tl" ref={tlRef}>
           <div className="grid">
+            {/* Tom, 18 Sep: the month, the day and the date stay locked at the
+                top while you scroll down through the contractors, so you can
+                always see which day you are dragging a job onto. One wrapper
+                rather than pinning the two rows separately, so nothing depends
+                on knowing how tall the month bar is. */}
+            <div className="hdr" data-testid="board-header">
             <div className="mb">
               <div className="mcell spacer" />
               {monthRuns(days).map((m, i) => (
@@ -1033,6 +1097,7 @@ export default function ScheduleBoard({
                   </div>
                 );
               })}
+            </div>
             </div>
 
             <div>

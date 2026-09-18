@@ -25,16 +25,17 @@ import {
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import NumInput from "@/app/components/NumInput";
+import { useSaveBeforeLeave } from "@/app/components/useSaveBeforeLeave";
 import type { BackTo } from "@/lib/navigation/backTo";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
-import { DEFAULT_PROOF, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint } from "@/lib/customer/snapshot";
+import { DEFAULT_PROOF, ESTIMATE_DOCS_BUCKET, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, estimateDocUrl, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint } from "@/lib/customer/snapshot";
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
 import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea, type WOOptionFragment } from "@/lib/workorder/snapshot";
-import { aggregateMaterials, lookupColourEntry, materialColourKey, type MaterialSurfaceRow } from "@/lib/workorder/materials";
+import { aggregateMaterials, lookupColourEntry, materialColourKey, paintOptions, type MaterialSurfaceRow } from "@/lib/workorder/materials";
 import type { WoStage } from "@/lib/workorder/stages";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import { conditionExtraHours } from "@/lib/workorder/conditionAllowance";
@@ -109,6 +110,13 @@ type Surface = {
   // weatherboard: each surface gets its own size instead of the area dimensions.
   measureL: number | null; // length (m)
   measureH: number | null; // height / width (m), for area (m²) substrates
+  /**
+   * Tom, 17 Sep 2026: a walls row measured as ONE wall (width × height) instead
+   * of the room's perimeter × height — a feature wall, or a single wall that
+   * needs extra coats, priced on its own. "wall" reads measureL as the width
+   * and measureH as the height; absent = the room measure, as before.
+   */
+  measureMode?: "wall" | null;
   qtyOverride: number | null;
   rateOverride: number | null; // productivity (units/hr) or hours/item
   paintingHrOverride: number | null;
@@ -361,7 +369,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null; extraPaints?: ExtraPaint[] } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; preparationHours?: number | null; adminNotes?: string; swms?: { path: string; name: string } | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null; extraPaints?: ExtraPaint[] } | null;
   // Deferred plan-reader decisions ride builder_state so the review gate can
   // price them; the builder carries them through saves — and, since 7 Sep,
   // RESOLVES one of them: the estimator's sign-off on the customer's photos.
@@ -468,6 +476,14 @@ export default function QuoteBuilder({
   const [hourlyRateOverride, setHourlyRateOverride] = useState<number | null>(() => loaded?.hourlyRateOverride ?? null);
   // The Preparation line's amount (cents) when the estimator has typed one; null = Settings default.
   const [preparationOverrideCents, setPreparationOverrideCents] = useState<number | null>(() => loaded?.preparationOverrideCents ?? null);
+  // Tom, 17 Sep: contractor time on the Preparation line (hours; null = none).
+  const [preparationHours, setPreparationHours] = useState<number | null>(() => loaded?.preparationHours ?? null);
+  // Tom, 17 Sep: admin notes for the estimator — staff only, never on the
+  // customer's copy or the work order. Lives in builder_state.
+  const [adminNotes, setAdminNotes] = useState<string>(() => loaded?.adminNotes ?? "");
+  // Tom, 18 Sep: this job's SWMS (a PDF in presentation-docs), downloadable by
+  // the customer beside the public liability card. null = none attached.
+  const [swms, setSwms] = useState<{ path: string; name: string } | null>(() => loaded?.swms ?? null);
   // What we pay the contractor per hour (margin only, never shown to the customer).
   // Blank falls back to the settings default.
   const [contractorRateOverride, setContractorRateOverride] = useState<number | null>(() => loaded?.contractorRateOverride ?? null);
@@ -691,6 +707,8 @@ export default function QuoteBuilder({
   // Tom, 16 Sep: paints added by hand to "The paint we're supplying" (a primer,
   // a stain blocker) — shown to the customer, never priced, never a surface.
   const [extraPaints, setExtraPaints] = useState<ExtraPaint[]>(() => (Array.isArray(loaded?.extraPaints) ? loaded!.extraPaints! : []));
+  /** Tom, 18 Sep: narrows every paint dropdown in Materials. */
+  const [paintSearch, setPaintSearch] = useState("");
   const [extraPick, setExtraPick] = useState("");
   // Right-column tools bar: Activity / Chat / Calculations / Follow-ups.
   const [rightTab, setRightTab] = useState<null | "activity" | "chat" | "calc" | "followups">(null);
@@ -844,8 +862,8 @@ export default function QuoteBuilder({
     [rateItems, products, modifiers, settings],
   );
   const adjustments: Adjustments = useMemo(
-    () => ({ modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents }),
-    [modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents],
+    () => ({ modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours }),
+    [modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours],
   );
   const rates = useMemo(() => resolveRates(pricingCtx, adjustments), [pricingCtx, adjustments]);
   // What is still assumed on this estimate, priced and ordered - the $150 gate.
@@ -883,6 +901,8 @@ export default function QuoteBuilder({
       subtotal: t.subtotalCents,
       sundries: t.sundriesCents,
       sundriesDefault: t.sundriesDefaultCents,
+      preparationHours: t.preparationHours,
+      preparationHoursCents: t.preparationHoursCents,
       discountCents: t.discountCents,
       netSubtotal: t.netSubtotalCents,
       gst: t.gstCents,
@@ -929,7 +949,7 @@ export default function QuoteBuilder({
   // presentationId is part of the fingerprint (3 Sep): ticking a presentation
   // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
   // tab kept showing the last published copy — without the presentation.
-  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, presentationId, photoReview, extraPaints });
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, presentationId, photoReview, extraPaints });
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
   const unsaved = Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
@@ -948,6 +968,12 @@ export default function QuoteBuilder({
     registerBuilder({ save: () => save(), dirty: () => dirtyRef.current() });
     return () => registerBuilder(null);
   });
+  // Tom, 17 Sep: clicking away with unsaved work saves first, then opens the
+  // page that was clicked. A failed save stays here with its message showing.
+  useSaveBeforeLeave({
+    dirty: () => !locked && dirtyRef.current(),
+    save: async () => { await save(); return !dirtyRef.current(); },
+  });
   async function save(): Promise<{ id: string | null; token: string | null }> {
     if (locked) { setSaveMsg("This estimate is accepted and locked."); return { id: quoteId, token: shareToken }; }
 
@@ -960,7 +986,7 @@ export default function QuoteBuilder({
       try {
         const result = await saveWorkingScopeAction({
           estimateId: quoteId,
-          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, photoReview },
+          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview },
         });
         setSaveMsg(result.ok ? "Saved ✓ (working scope)" : result.message);
       } finally {
@@ -997,7 +1023,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, photoReview, extraPaints, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview, extraPaints, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
@@ -1383,14 +1409,16 @@ export default function QuoteBuilder({
       gstRatePct: Math.round(gstRate * 100),
       depositPct,
       baseSubtotalCents: totals.subtotal,
-      preparation: totals.sundries > 0
-        ? { id: PREPARATION_ID, title: PREPARATION_TITLE, descriptionHtml: `<p>${PREPARATION_DESCRIPTION}</p>`, priceCents: totals.sundries }
+      // The allowance PLUS the contractor's set-up time (Tom, 17 Sep) — one line.
+      preparation: totals.sundries + totals.preparationHoursCents > 0
+        ? { id: PREPARATION_ID, title: PREPARATION_TITLE, descriptionHtml: `<p>${PREPARATION_DESCRIPTION}</p>`, priceCents: totals.sundries + totals.preparationHoursCents }
         : null,
       areas, lineItems: lineItemsDoc, options,
       paints: computePaints(),
       inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
       presentation: presentationDoc(),
+      swms: swms ? { url: estimateDocUrl(swms.path), label: swms.name } : null,
       terms,
       discountMode,
       discountPct: discountPct || 0,
@@ -1488,6 +1516,25 @@ export default function QuoteBuilder({
     // — those ride `woOptions` and are merged in when the customer ticks them.
     const { areasDoc, materials, conditionHoursTotal, conditionMod, jobFinishCode } =
       computeWorkOrderParts((b) => !b.isOption, (_b, s) => !s.isOption);
+    // Tom, 17 Sep: the Preparation line's contractor time rides the work order
+    // as its own area, FIRST, so the painter's sheet, the offer's hours sum and
+    // the pay all carry it without a special case anywhere downstream.
+    const prepHours = preparationHours != null && preparationHours > 0 ? preparationHours : 0;
+    const prepArea: WOArea[] = prepHours > 0 ? [{
+      id: PREPARATION_ID,
+      title: PREPARATION_TITLE,
+      surfaces: [{
+        key: `${PREPARATION_ID}:setup`,
+        label: "Site set-up, fillers and consumables",
+        coats: 0, product: "", prep: "",
+        hours: woHours[`${PREPARATION_ID}:setup`] ?? Number(prepHours.toFixed(2)),
+        paintingHours: 0, prepHours: Number(prepHours.toFixed(2)), conditionHours: 0,
+        status: "not_started",
+      }],
+      photos: [],
+      finishCode: null,
+      finishOverridden: false,
+    }] : [];
     return {
       version: 1,
       woRef: workOrder?.wo_ref ?? `WO-${(shareToken ?? "PREVIEW0").slice(0, 8).toUpperCase()}`,
@@ -1511,7 +1558,7 @@ export default function QuoteBuilder({
         : null,
       contractorName: contractors.find((c) => c.id === woContractorId)?.name ?? "",
       contractorPaymentCents: totals.contractorOffer,
-      materials, areas: areasDoc,
+      materials, areas: [...prepArea, ...areasDoc],
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
       inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
       company: { name: company.name, phone: company.phone, logoUrl: company.logoUrl },
@@ -2203,6 +2250,24 @@ export default function QuoteBuilder({
           ) : (
             /* ---------- the list of folders ---------- */
             <>
+              {/* Tom, 17 Sep: admin notes for the estimator — anything the office
+                  knows that helps price the job. Staff only; saved with the estimate,
+                  never on the customer's copy or the work order. */}
+              {!customerView && (
+                <section className="rounded-xl border border-gray-200 bg-white p-4" data-testid="admin-notes">
+                  <h2 className="text-sm font-semibold">Admin notes <span className="font-normal text-gray-400">· staff only · for the estimator</span></h2>
+                  <textarea
+                    className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
+                    rows={adminNotes.trim() ? Math.min(8, Math.max(2, adminNotes.split("\n").length + 1)) : 2}
+                    placeholder="Anything that helps the quote — access, what the customer said on the phone, budget, what to watch for on site…"
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    aria-label="Admin notes for the estimator"
+                    data-testid="admin-notes-input"
+                    disabled={locked}
+                  />
+                </section>
+              )}
               {!customerView && (
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h2 className="text-sm font-semibold">Job settings <span className="font-normal text-gray-400">· staff only</span></h2>
@@ -2261,6 +2326,10 @@ export default function QuoteBuilder({
                       )}
                     </label>
                   )}
+                  {/* Tom, 18 Sep: the SWMS for THIS job — a PDF the customer downloads
+                      beside the public liability card. The presentation's own
+                      capability cards stay generic; this one is per estimate. */}
+                  <SwmsAttachment value={swms} onChange={setSwms} estimateId={quoteId} disabled={locked} />
                 </section>
               )}
 
@@ -2276,12 +2345,29 @@ export default function QuoteBuilder({
                     <span className="text-gray-400">{materialsOpen ? "▾" : "▸"}</span>
                   </button>
                   {materialsOpen && (
+                    <>
+                    {/* Tom, 18 Sep: the catalogue is long. One box narrows every
+                        paint dropdown below; the paint already chosen on a row
+                        always stays in its own list, so filtering can never
+                        silently swap a product. */}
+                    <input
+                      type="search"
+                      className="mt-3 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                      placeholder="Search the paints — e.g. Dulux, low sheen"
+                      aria-label="Search the paint list"
+                      value={paintSearch}
+                      onChange={(e) => setPaintSearch(e.target.value)}
+                      data-testid="paint-search"
+                    />
                     <div className="mt-3 divide-y divide-gray-100">
                       {materialRows.map((r) => {
                         const globalName = materials[r.key] ?? itemByKey.get(r.key)?.default_product ?? "";
-                        // Filter to products for this Int/Ext type, but always keep the
-                        // currently-selected product in the list so it never shows blank.
-                        const opts = products.filter((p) => !p.type || p.type === r.type || p.name === globalName);
+                        // Int/Ext type, then the search box, then A-Z — and the
+                        // paint already chosen is kept whatever either says.
+                        // The rule lives in lib/workorder/materials.ts with its
+                        // own tests, because getting it wrong changes what a job
+                        // is quoted with.
+                        const opts = paintOptions(products, { surfaceType: r.type, chosen: globalName, search: paintSearch });
                         return (
                           <div key={r.key} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2">
                             <div className="flex w-40 shrink-0 items-center gap-1.5">
@@ -2293,6 +2379,7 @@ export default function QuoteBuilder({
                             <select
                               className="min-w-[12rem] flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                               value={globalName}
+                              data-testid={`paint-pick-${r.key}`}
                               onChange={(e) => setMaterials((m) => ({ ...m, [r.key]: e.target.value }))}
                             >
                               {globalName === "" && <option value="">— choose a product —</option>}
@@ -2405,6 +2492,7 @@ export default function QuoteBuilder({
                         </div>
                       </div>
                     </div>
+                    </>
                   )}
                 </section>
               )}
@@ -2501,13 +2589,16 @@ export default function QuoteBuilder({
               {/* The Preparation line sits above every area and line item (Tom, 15 Sep 2026):
                   the per-job allowance for set-up, fillers and consumables — always in the
                   subtotal, now visible, and editable here (blank = the Settings default). */}
-              {(totals.sundries > 0 || !customerView) && (
+              {(totals.sundries + totals.preparationHoursCents > 0 || !customerView) && (
                 <PreparationCard
-                  priceCents={totals.sundries}
+                  priceCents={totals.sundries + totals.preparationHoursCents}
                   defaultCents={totals.sundriesDefault}
                   overrideCents={preparationOverrideCents}
+                  hours={preparationHours}
+                  hoursCents={totals.preparationHoursCents}
                   customerView={customerView}
                   onCommit={setPreparationOverrideCents}
+                  onCommitHours={setPreparationHours}
                 />
               )}
               {mainBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}
@@ -2674,7 +2765,7 @@ export default function QuoteBuilder({
           <div className="rounded-xl border border-gray-200 bg-white p-4">
             <h2 className="text-sm font-semibold">Quote</h2>
             <dl className="mt-3 space-y-1.5 text-sm">
-              <Row label="Preparation" value={fmt(totals.sundries)} muted />
+              <Row label="Preparation" value={fmt(totals.sundries + totals.preparationHoursCents)} muted />
               <Row label="Subtotal" value={fmt(totals.subtotal)} />
               <Row label={`GST (${Math.round(gstRate * 100)}%)`} value={fmt(totals.gst)} muted />
               <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-semibold">
@@ -3434,6 +3525,49 @@ function AreaCard({
                                 : `${c.qty.toFixed(0)} ${unitLabel(c.item)}`
                               : "choose a substrate"}
                           </span>
+                          {/* Tom, 17 Sep: a walls row measured as the room (L × W × H) or as
+                              ONE wall (W × H) — a feature wall or a wall needing extra coats,
+                              priced on its own. Only on walls, only in a room-measured area. */}
+                          {s.code && !c.isItem && /wall/i.test(s.code) && area.areaType === "room" && (
+                            <span className="mt-1 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()} data-testid={`wall-measure-${s.id}`}>
+                              <span className="inline-flex overflow-hidden rounded border border-gray-300 text-[10px] font-semibold">
+                                <button
+                                  type="button"
+                                  className={`px-1.5 py-0.5 ${s.measureMode !== "wall" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+                                  title="Measure as the room: perimeter × height"
+                                  data-testid={`wall-measure-room-${s.id}`}
+                                  onClick={() => onPatch({ surfaces: area.surfaces.map((x) => (x.id === s.id ? { ...x, measureMode: null, measureL: null, measureH: null } : x)) })}
+                                >Room L×W×H</button>
+                                <button
+                                  type="button"
+                                  className={`px-1.5 py-0.5 ${s.measureMode === "wall" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+                                  title="Measure as one wall: width × height — a feature wall, or a wall with extra coats"
+                                  data-testid={`wall-measure-wall-${s.id}`}
+                                  onClick={() => onPatch({ surfaces: area.surfaces.map((x) => (x.id === s.id ? { ...x, measureMode: "wall", measureH: x.measureH ?? (area.H || null) } : x)) })}
+                                >Single wall W×H</button>
+                              </span>
+                              {s.measureMode === "wall" && (
+                                <>
+                                  <label className="flex items-center gap-1 text-[11px] text-gray-500">W
+                                    <NumInput min={0} step={0.1} className="w-14 rounded-md border border-gray-300 px-1 py-0.5 text-right text-[12px] tabular-nums"
+                                      value={s.measureL} placeholder="m" aria-label="Wall width (m)" data-testid={`wall-width-${s.id}`}
+                                      onCommit={(n) => onPatch({ surfaces: area.surfaces.map((x) => (x.id === s.id ? { ...x, measureL: n } : x)) })} />
+                                  </label>
+                                  <label className="flex items-center gap-1 text-[11px] text-gray-500">H
+                                    <NumInput min={0} step={0.1} className="w-14 rounded-md border border-gray-300 px-1 py-0.5 text-right text-[12px] tabular-nums"
+                                      value={s.measureH} placeholder="m" aria-label="Wall height (m)" data-testid={`wall-height-${s.id}`}
+                                      onCommit={(n) => onPatch({ surfaces: area.surfaces.map((x) => (x.id === s.id ? { ...x, measureH: n } : x)) })} />
+                                  </label>
+                                  <label className="flex items-center gap-1 text-[11px] text-gray-500">Coats
+                                    <select className="rounded-md border border-gray-300 px-1 py-0.5 text-[12px]" value={s.coats} aria-label="Coats on this wall" data-testid={`wall-coats-${s.id}`}
+                                      onChange={(e) => onPatch({ surfaces: area.surfaces.map((x) => (x.id === s.id ? { ...x, coats: Number(e.target.value) } : x)) })}>
+                                      {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
+                                    </select>
+                                  </label>
+                                </>
+                              )}
+                            </span>
+                          )}
                         </span>
                       </span>
                     </td>
@@ -3531,12 +3665,86 @@ function AreaCard({
 // This is exactly what the customer sees; staff get edit controls below it,
 // which vanish in customer view (and when the estimate is sent).
 /** The pinned Preparation line: title + wording fixed, amount editable in build mode. */
-function PreparationCard({ priceCents, defaultCents, overrideCents, customerView, onCommit }: {
+/**
+ * Tom, 18 Sep 2026: "add a separate attachment in the estimate to that
+ * particular job with a SWMS sheet". One PDF per estimate, stored in the
+ * presentations' public-read / staff-write bucket under swms/<estimate>/…,
+ * remembered in builder_state.swms and published to the snapshot on save.
+ * Validation is the shared upload rule (PDF, size cap); the bucket enforces
+ * the same limits server-side.
+ */
+function SwmsAttachment({ value, onChange, estimateId, disabled }: {
+  value: { path: string; name: string } | null;
+  onChange: (v: { path: string; name: string } | null) => void;
+  estimateId: string | null;
+  disabled: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  return (
+    <div className="mt-3 text-xs" data-testid="swms-attachment">
+      <span className="text-gray-500">SWMS for this job <span className="text-gray-400">· a PDF the customer can download beside our public liability</span></span>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        {value ? (
+          <>
+            <a href={estimateDocUrl(value.path)} target="_blank" rel="noreferrer" className="rounded-md border border-gray-300 px-2 py-1 font-medium text-gray-800 hover:bg-gray-50" data-testid="swms-current">
+              📄 {value.name}
+            </a>
+            {!disabled && (
+              <button type="button" className="text-gray-500 underline hover:text-red-600" onClick={() => onChange(null)} data-testid="swms-remove">Remove</button>
+            )}
+          </>
+        ) : (
+          <span className="text-gray-400">None attached.</span>
+        )}
+        {!disabled && (
+          <label className="inline-flex cursor-pointer items-center gap-2">
+            <span className="rounded-md border border-gray-300 px-2 py-1 font-medium hover:bg-gray-50">{busy ? "Uploading…" : value ? "Replace PDF" : "Attach SWMS (PDF)"}</span>
+            <input
+              type="file"
+              accept={acceptAttr("document")}
+              className="hidden"
+              data-testid="swms-file"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                const bad = checkUpload(f, "document");
+                if (bad) { setErr(bad); return; }
+                setBusy(true); setErr("");
+                try {
+                  const supabase = createClient();
+                  const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                  const path = `swms/${estimateId ?? "draft"}/${Date.now()}-${safe}`;
+                  const { error } = await supabase.storage.from(ESTIMATE_DOCS_BUCKET).upload(path, f, { upsert: true, contentType: f.type || "application/pdf" });
+                  if (error) throw error;
+                  onChange({ path, name: f.name });
+                } catch (x) {
+                  setErr(x instanceof Error ? x.message : "Upload failed");
+                }
+                setBusy(false);
+              }}
+            />
+          </label>
+        )}
+        {err && <span className="text-red-600" data-testid="swms-error">{err}</span>}
+      </div>
+      {value && <span className="mt-1 block text-[11px] text-gray-500">Goes to the customer&rsquo;s copy with the next save.</span>}
+    </div>
+  );
+}
+
+function PreparationCard({ priceCents, defaultCents, overrideCents, hours, hoursCents, customerView, onCommit, onCommitHours }: {
+  /** The whole line as the customer sees it: the allowance PLUS the contractor time. */
   priceCents: number;
   defaultCents: number;
   overrideCents: number | null;
+  /** Tom, 17 Sep: contractor time on the line (hours; null = none). */
+  hours: number | null;
+  hoursCents: number;
   customerView: boolean;
   onCommit: (cents: number | null) => void;
+  onCommitHours: (hours: number | null) => void;
 }) {
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4" data-testid="preparation-line">
@@ -3567,6 +3775,30 @@ function PreparationCard({ priceCents, defaultCents, overrideCents, customerView
           {overrideCents == null
             ? <span>Settings default for this job ({fmt(defaultCents)}). Type an amount to change it for this estimate only.</span>
             : <><span>Your figure — the Settings default is {fmt(defaultCents)}.</span><button type="button" onClick={() => onCommit(null)} className="underline hover:text-gray-800" data-testid="preparation-reset">Use default</button></>}
+        </div>
+      )}
+      {!customerView && (
+        /* Tom, 17 Sep: time for the contractor — goes on the work order as its
+           own Preparation area, into the offer's hours and the pay. */
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3 text-sm">
+          <label className="flex items-center gap-2">
+            <span className="text-gray-600">Contractor time</span>
+            <NumInput
+              min={0} step={0.5}
+              value={hours}
+              placeholder="0"
+              onCommit={(n) => onCommitHours(n == null || n <= 0 ? null : n)}
+              className="w-20 rounded-md border border-gray-300 px-2 py-1 text-right tabular-nums"
+              aria-label="Preparation contractor time (hours)"
+              data-testid="preparation-hours"
+            />
+            <span className="text-gray-500">hr</span>
+          </label>
+          <span className="text-xs text-gray-500" data-testid="preparation-hours-hint">
+            {hours && hours > 0
+              ? <>Adds {hours} h to the contractor&rsquo;s work order and {fmt(hoursCents)} to this line at the charge-out rate.</>
+              : <>Hours for site set-up. They appear on the contractor&rsquo;s work order as a Preparation area and are charged at the charge-out rate.</>}
+          </span>
         </div>
       )}
     </section>

@@ -320,6 +320,29 @@
 .crm .logta{resize:vertical;min-height:38px;width:100%;font-family:inherit}
 .crm .logfollow{display:grid;gap:6px}
 .crm .datefield{flex:none;min-width:150px;padding:6px 10px;font-size:12px;color-scheme:dark}
+/* Tom, 17 Sep: the mini calendar behind every CRM date box (app/crm/DateField.tsx). */
+.crm .datepick{position:relative;display:inline-flex;flex:none}
+.crm .datepick>button.field{display:inline-flex;align-items:center;gap:7px;cursor:pointer;text-align:left;white-space:nowrap}
+.crm .datepick>button.field:hover{border-color:var(--cyan)}
+.crm .datepick .dp-ico{color:var(--muted);font-size:11px}
+.crm .dp-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:60;width:272px;padding:10px;border:1px solid var(--line);border-radius:12px;
+  background:var(--graphite);box-shadow:0 18px 44px rgba(0,0,0,.45)}
+.crm .dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.crm .dp-month{font-size:13px;font-weight:600}
+.crm .dp-nav{appearance:none;border:1px solid var(--line);background:transparent;color:var(--text);width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:16px;line-height:1}
+.crm .dp-nav:hover{border-color:var(--cyan);color:var(--cyan)}
+.crm .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.crm .dp-wd{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--muted);text-align:center;padding:4px 0}
+.crm .dp-day{appearance:none;border:1px solid transparent;background:transparent;color:var(--text);height:32px;border-radius:8px;cursor:pointer;font:inherit;font-size:12.5px}
+.crm .dp-day:hover{background:var(--raised);border-color:var(--line)}
+.crm .dp-day.today{border-color:var(--line);font-weight:600}
+.crm .dp-day.on{background:var(--cyan);color:#0b1116;font-weight:700}
+.crm .dp-day:disabled{color:var(--ph);cursor:default;background:transparent;border-color:transparent}
+.crm .dp-blank{height:32px}
+.crm .dp-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.crm .dp-link{appearance:none;border:0;background:transparent;color:var(--cyan);cursor:pointer;font:inherit;font-size:12px;padding:0}
+.crm .dp-link:disabled{color:var(--ph);cursor:default}
+.crm .dp-hint{font-family:var(--mono);font-size:10px;color:var(--muted)}
 .crm .logwrap{position:relative;display:inline-block}
 .crm .logbtn{background:none;border:0;cursor:pointer;font:inherit;padding:0}
 .crm .logpop{position:absolute;z-index:30;top:calc(100% + 8px);left:0;width:min(420px,92vw);}

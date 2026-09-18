@@ -70,7 +70,8 @@
 .sb .tray {
   border-right: 1px solid var(--line); padding: 16px;
   position: sticky; top: var(--sb-stick);
-  max-height: calc(100vh - var(--sb-stick)); overflow-y: auto;
+  /* The same measured height as the timeline, so the two columns end together. */
+  max-height: var(--sb-space, calc(100vh - var(--sb-stick))); overflow-y: auto;
   align-self: stretch; /* the divider runs the full height of the lanes when the tray is short */
 }
 @media (max-width: 900px) {
@@ -78,6 +79,9 @@
      never more than a short scroll away, but not pinned — a pinned tray would
      cover the lanes it is meant to be dropped onto. */
   .sb .tray { position: static; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--line); }
+  /* A scroller inside a scroller is worse than a page that simply scrolls. */
+  .sb .tl { height: auto; max-height: none; overflow-x: auto; }
+  .sb .hdr { position: static; }
 }
 .sb .tray h2 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
 .sb .tray .sub { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 14px; text-transform: uppercase; }
@@ -107,7 +111,31 @@
 /* No left padding: the lane column sticks to left:0 of the scrollport, so any
    gutter here is a strip the pinned names DON'T cover — blocks scroll through
    it and read as debris beside the name. */
-.sb .tl { overflow-x: auto; padding: 16px 16px 60px 0; }
+/* Tom, 18 Sep: "keep the month day and date locked at the top of the screen,
+   so you can still see when dragging a job". The header lives INSIDE the
+   horizontal scroller (it has to — it scrolls sideways with the columns), and
+   a sticky element only pins to its own scrollport, so pinning it to the page
+   does nothing. The timeline therefore becomes its own scroller in both
+   directions, bounded to the viewport exactly as the tray already is, and the
+   header pins to the top of that. The lanes scroll under it. */
+.sb .tl {
+  overflow: auto; padding: 0 16px 60px 0;
+  /* Ends where the screen ends, so the lanes scroll INSIDE it and the dates
+     can stay locked at its top. --sb-space is measured in ScheduleBoard (see
+     the comment there); the calc is only the pre-paint fallback. Sticky is
+     NOT the answer here: a sticky timeline only holds while its containing
+     block still has travel, and once the board is taller than the screen there
+     is none — it pins for a few pixels and then scrolls away, header and all,
+     which is precisely the case this was meant to fix. */
+  height: var(--sb-space, calc(100vh - var(--sb-stick)));
+  align-self: start;
+}
+/* z-index clears the lane name column (8/9), the blocks (4) and the today
+   line (5). The solid background stops any of them showing through it. */
+/* The timeline's top padding lives HERE rather than on .tl, so the header
+   pins flush at the top: left on the scroller it became a 16px gap that the
+   lanes scrolled up through, above the dates. */
+.sb .hdr { position: sticky; top: 0; z-index: 10; background: var(--ink); padding-top: 16px; }
 .sb .grid { min-width: min-content; }
 .sb .mb { display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w)); }
 .sb .mb .mcell {
@@ -182,10 +210,13 @@
 .sb .blk.offered { background: repeating-linear-gradient(45deg, rgba(224, 168, 60, 0.16) 0 8px, rgba(224, 168, 60, 0.08) 8px 16px); border-color: rgba(224, 168, 60, 0.65); color: #f2ddb0; }
 .sb .blk.proposed { background: repeating-linear-gradient(45deg, rgba(224, 168, 60, 0.16) 0 8px, rgba(224, 168, 60, 0.08) 8px 16px); border-color: var(--amber); color: #f2ddb0; }
 .sb .blk.unavailable { background: repeating-linear-gradient(45deg, rgba(140, 149, 157, 0.12) 0 7px, transparent 7px 14px); border-color: var(--line); color: var(--muted); cursor: default; }
-/* Employed painters (S2): an assignment reads as booked (same green) — hollow
-   until the painter taps Accept, a star on the lead's lane. */
+/* Employed painters (S2): an assignment reads as booked (same green as a
+   contractor booking), with a star on the lead's lane.
+   Tom, 18 Sep: it used to go TRANSPARENT until the painter tapped Accept, which
+   left the text unreadable over the grid. The fill now always matches a
+   contractor block; a DASHED border carries "hasn't tapped Accept yet" instead. */
 .sb .blk.assigned { background: rgba(47, 164, 107, 0.16); border-color: rgba(47, 164, 107, 0.6); color: #bfe9d2; }
-.sb .blk.assigned.hollow { background: transparent; border-style: dashed; }
+.sb .blk.assigned.hollow { border-style: dashed; }
 .sb .blk .crew { font-family: var(--mono); font-size: 8.5px; opacity: 0.9; margin-left: 6px; }
 .sb .blk .lead { color: var(--amber); margin-right: 4px; }
 .sb .cinfo .emp { color: var(--cyan); }
@@ -254,6 +285,12 @@
 .sb .fpop .viewrow button.pick:hover { color: var(--cyan); }
 .sb .fpop .viewrow button.del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
 
+.sb .traysearch {
+  width: 100%; margin: 8px 0 10px; padding: 8px 10px; font-size: 12.5px; font-family: inherit;
+  background: var(--ink); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+}
+.sb .traysearch::placeholder { color: var(--muted); }
+.sb .traysearch:focus { outline: none; border-color: var(--cyan); }
 .sb .empty { border: 1px dashed var(--line); border-radius: 12px; padding: 26px 18px; text-align: center; color: var(--muted); font-size: 12.5px; }
 
 /* ---- inside the Projects console ---------------------------------------- */
@@ -265,8 +302,15 @@
   min-height: 0; background: transparent;
   border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
 }
-/* The console's own tab rail is the sticky furniture on this page. */
-.pc .sb .top { position: static; }
+/* The console's own tab rail is the sticky furniture on this page, so the
+   board's own header does not stick here — but it must stay POSITIONED.
+   `position: static` threw away its `z-index: 40`, and because the header
+   carries a `backdrop-filter` it is a stacking context whatever its position,
+   so the whole thing painted below the board's rows (`.crow` is relative).
+   The Contractors filter popover hangs off this header: it looked right and
+   could not be clicked at all, because the lane cells behind it were taking
+   every click. `relative` keeps it in flow and lets the z-index apply. */
+.pc .sb .top { position: relative; }
 .pc .sb .layout { min-height: calc(100vh - 260px); }
 /* The console's tab rail sits at top:10px and is ~44px tall; the tray pins just
    under it. `clip` rather than `hidden`: hidden makes .sb a scroll container,

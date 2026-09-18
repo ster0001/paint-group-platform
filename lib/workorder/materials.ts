@@ -151,3 +151,30 @@ export function applyMaterialEdit(doc: WorkOrderDoc, rowKey: string, edit: Mater
   }));
   return { ...doc, materials, areas };
 }
+
+/**
+ * The paint list on the Materials panel (Tom, 18 Sep 2026): "add a search bar
+ * to the paint list in job settings and order the paint A-Z so it is easier
+ * to find."
+ *
+ * Three rules, in this order, because the third is the safety one:
+ *  1. Only paints for this surface's Int/Ext type (a product with no type
+ *     suits either).
+ *  2. Narrowed by what the office typed, matched anywhere in the name.
+ *  3. The paint ALREADY CHOSEN on the row is always kept, whatever the type
+ *     and whatever the search says. A <select> whose current value is missing
+ *     from its options silently displays the first one instead, which is how
+ *     every trim once read the wrong product (Tom, 30 Aug) — filtering must
+ *     never be able to change what a job is quoted with.
+ */
+export function paintOptions<T extends { name: string; type?: string | null }>(
+  products: readonly T[],
+  opts: { surfaceType: string; chosen: string; search: string },
+): T[] {
+  const q = opts.search.trim().toLowerCase();
+  return products
+    .filter((p) => !p.type || p.type === opts.surfaceType || p.name === opts.chosen)
+    .filter((p) => !q || p.name === opts.chosen || p.name.toLowerCase().includes(q))
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, "en-AU", { sensitivity: "base" }));
+}

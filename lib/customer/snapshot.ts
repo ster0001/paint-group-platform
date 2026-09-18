@@ -50,7 +50,8 @@ export type SnapshotPaint = {
 
 /** The Preparation line — customer wording (Tom, 15 Sep 2026). */
 export const PREPARATION_TITLE = "Preparation";
-export const PREPARATION_DESCRIPTION = "Allowance for materials for job site set up, fillers and consumables.";
+// Tom, 17 Sep 2026: "time/ materials" — the line now carries the contractor's set-up hours too.
+export const PREPARATION_DESCRIPTION = "Allowance for time/ materials for job site set up, fillers and consumables.";
 export const PREPARATION_ID = "preparation";
 
 export type CustomerSnapshot = {
@@ -97,6 +98,13 @@ export type CustomerSnapshot = {
   discountMode: "pct" | "fixed"; // percentage of subtotal, or a flat dollar amount
   discountPct: number; // discount % applied to the ex-GST subtotal (when mode = pct)
   discountFixedCents: number; // flat discount in cents (when mode = fixed)
+  /**
+   * Tom, 18 Sep 2026: this job's Safe Work Method Statement, attached on the
+   * estimate (Job settings → SWMS). A public-read PDF in the presentation-docs
+   * bucket; the customer downloads it beside the public liability card.
+   * Absent/null = none attached.
+   */
+  swms?: { url: string; label: string } | null;
   proof: {
     rating: string; // "5.0"
     reviews: string; // "93+"
@@ -127,3 +135,52 @@ export const DEFAULT_PROOF: CustomerSnapshot["proof"] = {
   warranty: "2-year",
   accreditations: ["Master Painters Accredited"],
 };
+
+/**
+ * Tom, 18 Sep 2026: "if all colours are entered, remove 'Colour consultation
+ * included' from the bar at the top of the estimate". Colours live on the
+ * snapshot's paints: a topcoat carries `colourName` (first colour) and
+ * `colours[]` (every colour it is used in; `match` = colour-matching an
+ * existing colour, which is a decision too). Prep and primers never carry a
+ * colour. True when there is at least one topcoat and every one has its
+ * colour(s) decided — one TBC still gets the reassurance.
+ */
+export function allColoursChosen(snap: Pick<CustomerSnapshot, "paints">): boolean {
+  const topcoats = (snap.paints ?? []).filter((p) => !p.isPrep);
+  if (topcoats.length === 0) return false;
+  return topcoats.every((p) => {
+    if (p.colours && p.colours.length > 0) return p.colours.every((c) => Boolean((c.name ?? "").trim()) || c.match);
+    return Boolean((p.colourName ?? "").trim());
+  });
+}
+
+/** The company's own bank details, as the printed estimate and every invoice show them. */
+export type BankDetails = { accountName?: string; bank?: string; bsb?: string; acc?: string };
+
+/** Where per-estimate documents (the SWMS) live: public read, staff write — the presentations' bucket. */
+export const ESTIMATE_DOCS_BUCKET = "presentation-docs";
+export function estimateDocUrl(path: string): string {
+  if (!path) return "";
+  if (/^https?:\/\//.test(path)) return path;
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
+  return `${base}/storage/v1/object/public/${ESTIMATE_DOCS_BUCKET}/${path}`;
+}
+
+/**
+ * Tom, 18 Sep 2026 (follow-up): the presentation's capability panel already
+ * has a "SWMS & site inductions" card beside the public liability card. When
+ * it does, THAT card carries the job's SWMS download, and the trust-strip
+ * fallback card stays out of the way. A card is the SWMS card when its
+ * heading or attachment label says so.
+ */
+export const isSwmsCard = (card: { heading?: string; attachment?: { label?: string } | null }): boolean =>
+  /\bswms\b/i.test(`${card.heading ?? ""} ${card.attachment?.label ?? ""}`);
+
+export function presentationHasSwmsCard(snap: Pick<CustomerSnapshot, "presentation">): boolean {
+  for (const b of snap.presentation?.blocks ?? []) {
+    if (b.kind !== "capability_panel") continue;
+    const cards = (b.content as { cards?: { heading?: string; attachment?: { label?: string } | null }[] } | null)?.cards ?? [];
+    if (cards.some(isSwmsCard)) return true;
+  }
+  return false;
+}

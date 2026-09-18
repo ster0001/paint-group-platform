@@ -23,6 +23,8 @@ export type RowProp = {
   invoiceId: string;
   estimateId: string;
   job: string;
+  /** The customer's name as accepted — the search box matches on it (Tom, 17 Sep). */
+  customer: string;
   ref: string;
   filter: "overdue" | "awaiting" | "partial" | "draft" | "paid" | "other";
   ageLabel: string;
@@ -93,6 +95,8 @@ export default function Dashboard({
   const router = useRouter();
   const [tab, setTab] = useState(initialTab === "pay" || initialTab === "act" ? initialTab : "recv");
   const [filter, setFilter] = useState(FILTERS.some((f) => f.key === initialFilter) ? initialFilter : "all");
+  // Tom, 17 Sep: search the receivables by customer name or property address.
+  const [search, setSearch] = useState("");
   const [payMessage, setPayMessage] = useState<string | null>(null);
   const [payBusy, startPay] = useTransition();
 
@@ -137,7 +141,9 @@ export default function Dashboard({
   const counts: Record<string, number> = { all: rows.length };
   for (const f of FILTERS.slice(1)) counts[f.key] = rows.filter((r) => r.filter === f.key).length;
 
-  const visible = filter === "all" ? rows : rows.filter((r) => r.filter === filter);
+  const needle = search.trim().toLowerCase();
+  const visible = (filter === "all" ? rows : rows.filter((r) => r.filter === filter))
+    .filter((r) => !needle || `${r.customer} ${r.job} ${r.ref}`.toLowerCase().includes(needle));
   const bucketTotal = buckets.reduce((a, b) => a + b, 0);
   const sparkMax = Math.max(...tiles.collectedSpark, 1);
 
@@ -182,6 +188,17 @@ export default function Dashboard({
 
       {/* ================= RECEIVABLES ================= */}
       <section className={`tab ${tab === "recv" ? "on" : ""}`}>
+        <div className="search" role="search">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by customer or address"
+            aria-label="Search invoices by customer name or property address"
+            data-testid="payments-search-input"
+          />
+          {search && <button type="button" onClick={() => setSearch("")} data-testid="payments-search-clear">Clear</button>}
+        </div>
         <div className="filters">
           {FILTERS.map((fx) => (
             <button key={fx.key} className={`f ${filter === fx.key ? "on" : ""}`}
@@ -201,6 +218,7 @@ export default function Dashboard({
               <div className="body">
                 <div className="job">
                   <Link href={`/invoicing/job/${r.estimateId}`} onClick={(e) => e.stopPropagation()}>{r.job}</Link>
+                  {r.customer && <span className="who"> · {r.customer}</span>}
                 </div>
                 <div className="ref">{r.ref}</div>
                 <div className={`age ${r.ageTone}`}>{r.ageLabel}</div>
@@ -215,7 +233,9 @@ export default function Dashboard({
           {visible.length === 0 && (
             <div className="card"><div className="hint">{loadError
               ? "Nothing can be listed until the read above succeeds — this is not an empty ledger."
-              : "Nothing here — change the filter, or accept an estimate and the deposit draft appears on its own."}</div></div>
+              : needle
+                ? `No invoice matches “${search.trim()}” on this filter.`
+                : "Nothing here — change the filter, or accept an estimate and the deposit draft appears on its own."}</div></div>
           )}
         </div>
 

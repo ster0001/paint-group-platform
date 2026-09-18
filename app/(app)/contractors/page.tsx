@@ -30,11 +30,11 @@ export default async function ContractorsPage() {
   const supabase = await createClient();
 
   const [{ data: rows }, { data: docs }, { data: invites }, { data: offers }, { data: events }] = await Promise.all([
-    supabase.from("contractors").select(`${CONTRACTOR_COLUMNS}, requires_qa, rcti_agreement_signed_at, profiles ( name )`).order("company_name"),
+    supabase.from("contractors").select(`${CONTRACTOR_COLUMNS}, requires_qa, qa_mode, rcti_agreement_signed_at, profiles ( name )`).order("company_name"),
     supabase.from("contractor_documents").select(DOC_COLUMNS),
     supabase
       .from("contractor_invites")
-      .select("id, email, name, company_name, tier, token, created_at, expires_at, accepted_at, revoked_at")
+      .select("id, email, name, company_name, tier, token, created_at, expires_at, accepted_at, revoked_at, emailed_at, emailed_count")
       .is("accepted_at", null)
       .is("revoked_at", null)
       .order("created_at", { ascending: false }),
@@ -94,7 +94,12 @@ export default async function ContractorsPage() {
     crewSize: c.crew_size ?? 1,
     active: c.active,
     offerable: c.offerable,
-    requiresQa: Boolean((c as Row & { requires_qa?: boolean }).requires_qa),
+    // A row from before the qa_mode column reads through the old boolean.
+    qaMode: (() => {
+      const m = (c as Row & { qa_mode?: unknown }).qa_mode;
+      return m === "every_job" || m === "none" || m === "first_jobs" ? m
+        : (c as Row & { requires_qa?: boolean }).requires_qa ? "every_job" : "first_jobs";
+    })(),
     // ⚑9: the RCTI switch is inert until the agreement is recorded as signed.
     rctiSigned: Boolean((c as Row & { rcti_agreement_signed_at?: string | null }).rcti_agreement_signed_at),
     abn: c.abn ?? "",

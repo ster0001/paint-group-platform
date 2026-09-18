@@ -23,6 +23,11 @@ Have the address handy and know roughly what you want painted (inside, outside o
 8. When you are done, the footer says what happens next. If the job qualifies, **Fix my price online** gives you one number, held for the days shown. Otherwise **Send to <your estimator>** and they confirm it, usually by the next working day. **Book a visit** is always there too.
 9. Keep it: enter your email at the bottom of the range and we send a sign-in link. You can come back to the same estimate from any device — no password, ever.
 
+## The PDF, and the colour note
+- **Download estimate (PDF)** prints a paper copy of the quote: every area and its price, the deposit, the paint being supplied, what is and is not included, and a **Payment details** box with Paint Group's ABN, bank account and the reference to use — so the deposit can be paid straight from the PDF.
+- **SWMS.** When Paint Group has attached a Safe Work Method Statement for your job, a **Download SWMS** button sits on the SWMS card beside the public liability card (or on its own **SWMS** card under "Why Melburnians choose us"). It opens as a PDF.
+- **Colour consultation included** shows near the top while any colour on the job is still to be decided. Once every colour has been chosen it disappears — there is nothing left to consult on.
+
 ## What the colours and labels mean
 - **Amber** — assumed. A typical size, a surface we guessed, an answer the assistant filled in. Tap to confirm or change.
 - **Cyan** — confirmed by you.

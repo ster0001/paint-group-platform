@@ -242,6 +242,8 @@
 .cv .tval.gold { color: var(--text); }
 .cv .tval.cyan { color: var(--text); }
 .cv .tlab { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.cv .tcard .doc { display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--cyan); border: 1px solid rgba(59,216,233,.4); border-radius: 100px; padding: 5px 11px; text-decoration: none; }
+.cv .tcard .doc:hover { background: rgba(59,216,233,.1); }
 
 /* accept panel + responses */
 .cv .acceptpanel { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); border-radius: 16px; padding: 36px 30px; text-align: center; }
@@ -327,6 +329,11 @@
   .cv .printdoc .pd-cols { display: flex; gap: 24px; }
   .cv .printdoc .pd-cols .pd-block { flex: 1; }
   .cv .printdoc .pd-block { margin-bottom: 12px; break-inside: avoid; }
+  .cv .printdoc .pd-pay { border: 1px solid #bbb; border-radius: 6px; padding: 8px 10px; margin-bottom: 14px; }
+  .cv .printdoc .pd-paytable { font-size: 11px; border-collapse: collapse; }
+  .cv .printdoc .pd-paytable td { padding: 1px 12px 1px 0; vertical-align: top; }
+  .cv .printdoc .pd-paytable td:first-child { color: #555; white-space: nowrap; }
+  .cv .printdoc .pd-paynote { margin-top: 6px; font-size: 10.5px; color: #444; }
   .cv .printdoc .pd-h { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin-bottom: 5px; }
   .cv .printdoc .pd-list { margin: 0; padding-left: 16px; font-size: 11px; line-height: 1.5; }
   .cv .printdoc .pd-terms { white-space: pre-line; font-size: 10px; color: #333; line-height: 1.5; }

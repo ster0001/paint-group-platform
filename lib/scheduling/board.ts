@@ -121,6 +121,12 @@ export type TrayJob = {
    * the scheduler never looks.
    */
   needsIssuing: boolean;
+  /**
+   * When the customer accepted, so the tray puts the longest wait on top (Tom,
+   * 18 Sep). Falls back to the work order's own creation date, so the sort is
+   * total even for a job that never carried an acceptance stamp.
+   */
+  acceptedAt: string;
 };
 
 /** A proposal or reschedule sitting with staff for a decision. */
@@ -155,7 +161,8 @@ export function daysFromHours(hours: number | null | undefined, painters: number
 type WRow = {
   id: string; estimate_id: string; wo_ref: string; stage: string; status: string; contractor_id: string | null;
   start_date: string | null; contractor_payment_cents: number | null; wo_snapshot: unknown;
-  issued_at: string | null; estimates: { title: string | null } | null;
+  issued_at: string | null; created_at: string | null;
+  estimates: { title: string | null; accepted_at: string | null } | null;
 };
 
 type NoteRow = {
@@ -203,7 +210,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       // this was the query that silently lost jobs past PostgREST's row cap.
       paged<WRow>((f, t) => supabase
         .from("work_orders")
-        .select("id, estimate_id, wo_ref, stage, status, contractor_id, start_date, contractor_payment_cents, wo_snapshot, issued_at, estimates ( title )")
+        .select("id, estimate_id, wo_ref, stage, status, contractor_id, start_date, contractor_payment_cents, wo_snapshot, issued_at, created_at, estimates ( title, accepted_at )")
         .or(`stage.neq.closed,and(start_date.lte.${addDays(to, 30)},end_date.gte.${addDays(from, -30)})`)
         .order("id").range(f, t)),
       // Windowed rather than "every offer ever made" (audit S6). The window is
@@ -522,6 +529,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         notes: notesByWo.get(w.id) ?? [],
         cancelledReason: cancelledByWo.get(w.id)?.reason ?? "",
         lapsed: lapsedByWo.get(w.id) ?? null,
+        acceptedAt: w.estimates?.accepted_at ?? w.created_at ?? "",
         needsIssuing: !w.issued_at,
       };
     });
@@ -543,8 +551,10 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       };
     });
 
-  // Not-yet-issued jobs first — they're the ones needing a decision.
-  tray.sort((a, b) => Number(b.needsIssuing) - Number(a.needsIssuing));
+  // Tom, 18 Sep: longest wait at the top — the job accepted first has been
+  // waiting on dates the longest, so it is the one to book next. (This replaced
+  // "not-yet-issued first"; a job needing issuing still says so on its card.)
+  tray.sort((a, b) => a.acceptedAt.localeCompare(b.acceptedAt));
 
   const walkthroughs: BoardWalkthrough[] = [];
   for (const w of ((walkthroughRows ?? []) as {

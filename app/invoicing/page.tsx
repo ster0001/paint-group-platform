@@ -147,6 +147,7 @@ export default async function InvoicingDashboardPage({
 
     return {
       invoiceId: r.id, estimateId: r.estimate_id, job,
+      customer: r.estimates?.accepted_name ?? "",
       ref: refBits.join(" · "),
       filter, ageLabel, ageTone,
       amtCents: filter === "paid" ? 0 : balance > 0 ? balance : r.total_inc_cents,

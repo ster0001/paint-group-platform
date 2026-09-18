@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
-import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint } from "@/lib/customer/snapshot";
+import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColoursChosen, presentationHasSwmsCard, type BankDetails } from "@/lib/customer/snapshot";
 import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
 import SignaturePad from "@/app/components/SignaturePad";
@@ -51,7 +51,7 @@ export type CustomerChanges = {
 export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
-  changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null,
+  changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null, bank = null,
 }: {
   snapshot: CustomerSnapshot;
   token?: string;
@@ -71,6 +71,8 @@ export default function CustomerEstimate({
   /** Trade portal v2 §5.4: the property's references (Owner / PO / Claim),
    * printed on the document — screen and PDF alike. */
   referencesLine?: string | null;
+  /** Tom, 18 Sep: the company's bank details, printed with the ABN on the PDF. */
+  bank?: BankDetails | null;
 }) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
   // Invoice dress (Tom, 24 Aug close-off): the revision preview is the
@@ -398,16 +400,17 @@ export default function CustomerEstimate({
 
         </div>
 
-        {/* COLOUR CONSULTATION — reassurance callout */}
-        {!invoiceMode && (
-        <div className="colourbox">
+        {/* COLOUR CONSULTATION — reassurance callout. Tom, 18 Sep: gone once
+            every colour on the job is decided — there is nothing left to consult on. */}
+        {!invoiceMode && !allColoursChosen(snap) && (
+        <div className="colourbox" data-testid="colour-consultation">
           <div className="cb-title">Colour consultation included</div>
           <p>Colours are confirmed after you accept. We provide unlimited samples, so you can try out for yourself in your own light.</p>
         </div>
         )}
 
         {/* PRESENTATION BLOCKS — view-only, between hero and scope */}
-        {!invoiceMode && snap.presentation?.blocks?.length ? <PresentationBlocks blocks={snap.presentation.blocks} /> : null}
+        {!invoiceMode && snap.presentation?.blocks?.length ? <PresentationBlocks blocks={snap.presentation.blocks} swms={snap.swms ?? null} /> : null}
 
         {/* PHOTOS */}
         {!invoiceMode && snap.areas.some((a) => a.photos.length) && (
@@ -592,6 +595,15 @@ export default function CustomerEstimate({
           <div className="trust">
             <div className="tcard"><div className="tval gold">{snap.proof.rating} ★</div><div className="tlab">from {snap.proof.reviews} 5-star reviews</div></div>
             <div className="tcard"><div className="tval cyan">{snap.proof.liability}</div><div className="tlab">public liability insurance</div></div>
+            {/* Tom, 18 Sep: this job's SWMS, downloadable beside the insurance —
+                here only when the presentation has no SWMS card of its own to carry it. */}
+            {snap.swms?.url && !presentationHasSwmsCard(snap) && (
+              <div className="tcard" data-testid="swms-card">
+                <div className="tval cyan">SWMS</div>
+                <div className="tlab">Safe Work Method Statement for this job</div>
+                <a className="doc" href={snap.swms.url} target="_blank" rel="noreferrer" download data-testid="swms-download">⤓ Download SWMS</a>
+              </div>
+            )}
             <div className="tcard"><div className="tval gold">Master Painters</div><div className="tlab">accredited member</div></div>
           </div>
         </section>
@@ -737,6 +749,7 @@ export default function CustomerEstimate({
         selectedIds={selected} grossSubtotal={grossSubtotal} discount={discount}
         discountPct={discountPct} discountMode={discountMode} gst={gst} total={total}
         deposit={deposit} depositPct={depositPct} acceptedName={acceptedName} done={done}
+        bank={bank}
       />
 
       {!done && !invoiceMode && (
@@ -751,12 +764,13 @@ export default function CustomerEstimate({
 
 function PrintQuote({
   snap, est, sentAt, validUntil, selectedIds, grossSubtotal, discount, discountPct,
-  discountMode, gst, total, deposit, depositPct, acceptedName, done,
+  discountMode, gst, total, deposit, depositPct, acceptedName, done, bank,
 }: {
   snap: CustomerSnapshot; est: string; sentAt: string | null; validUntil: string | null;
   selectedIds: Set<string>; grossSubtotal: number; discount: number; discountPct: number;
   discountMode: string; gst: number; total: number; deposit: number; depositPct: number;
   acceptedName: string | null; done: null | "accepted" | "declined";
+  bank: BankDetails | null;
 }) {
   const c = snap.company;
   const surfaceLine = (a: CustomerSnapshot["areas"][number]) =>
@@ -840,6 +854,28 @@ function PrintQuote({
       <div className="pd-deposit">
         <b>Deposit payable ({depositPct}%): {money2(deposit)}</b>, payable in full prior to work commencement. Balance on completion after your walkthrough.
       </div>
+
+      {/* Tom, 18 Sep: the ABN and bank details on the PDF, so the deposit can
+          be paid straight off the printed quote. */}
+      <div className="pd-block pd-pay" data-testid="print-payment-details">
+        <div className="pd-h">Payment details</div>
+        <table className="pd-paytable"><tbody>
+          <tr><td>Payee</td><td>{c.name}{c.abn ? ` · ABN ${c.abn}` : ""}</td></tr>
+          {bank?.accountName && <tr><td>Account name</td><td>{bank.accountName}</td></tr>}
+          {bank?.bank && <tr><td>Bank</td><td>{bank.bank}</td></tr>}
+          {bank?.bsb && <tr><td>BSB</td><td>{bank.bsb}</td></tr>}
+          {bank?.acc && <tr><td>Account number</td><td>{bank.acc}</td></tr>}
+          <tr><td>Reference</td><td>{est}{snap.contactName ? ` · ${snap.contactName}` : ""}</td></tr>
+        </tbody></table>
+        <div className="pd-paynote">Please pay the deposit by bank transfer using the reference above. A tax invoice and receipt follow every payment.</div>
+      </div>
+
+      {snap.swms?.url && (
+        <div className="pd-block">
+          <div className="pd-h">Safe Work Method Statement</div>
+          <div className="pd-sub">A SWMS for this job ({snap.swms.label || "PDF"}) is attached to your online estimate — download it beside the public liability card.</div>
+        </div>
+      )}
 
       {snap.paints?.length > 0 && (
         <div className="pd-block">

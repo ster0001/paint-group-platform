@@ -78,6 +78,11 @@ export function adjustmentsFrom(state: Record<string, unknown>): Adjustments {
       typeof state.preparationOverrideCents === "number" && Number.isFinite(state.preparationOverrideCents)
         ? state.preparationOverrideCents
         : null,
+    // Tom, 17 Sep: contractor time on the Preparation line (hours); absent = none.
+    preparationHours:
+      typeof state.preparationHours === "number" && Number.isFinite(state.preparationHours) && state.preparationHours > 0
+        ? state.preparationHours
+        : null,
     // C12: the commercial loading, written by the submit route from the
     // hours/occupied answers; absent on every residential estimate.
     ...(typeof state.hourLoading === "number" && state.hourLoading > 0 ? { hourLoading: state.hourLoading } : {}),

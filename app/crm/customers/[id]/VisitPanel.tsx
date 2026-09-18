@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import DateField from "../../DateField";
 import { VISIT_KINDS, STATUS_LABEL, type VisitKind, type VisitRow } from "@/lib/visits/types";
 import { bookVisitAction, dayPlanAction, visitOutcomeAction, type DayPlan } from "../../diary/actions";
 import { melbourneInstantFromLocal } from "../../diary/time";
@@ -61,7 +62,7 @@ export default function VisitPanel({ accountId, propertyId, estimateId, staff, v
             <select className="field" value={staffId} onChange={(e) => setStaffId(e.target.value)} aria-label="Estimator" style={{ minWidth: 150 }} data-testid="visit-staff">
               {staff.map((s) => <option key={s.id} value={s.id}>{s.name}{s.takesVisits ? "" : " (doesn't take visits)"}</option>)}
             </select>
-            <input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" style={{ minWidth: 150 }} data-testid="visit-date" />
+            <DateField className="field" value={date} onChange={setDate} ariaLabel="Date" testId="visit-date" />
             <input className="field" type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Time" style={{ minWidth: 110 }} data-testid="visit-time" />
             <select className="field" value={kind} onChange={(e) => setKind(e.target.value as VisitKind)} aria-label="Kind" style={{ minWidth: 150 }}>
               {VISIT_KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}

@@ -393,3 +393,23 @@ test("a poor-condition job gives the contractor more hours and more pay", () => 
   );
   assert.equal(poor.contractorOfferCents, Math.round(poor.contractorHours * 6000 * 1));
 });
+
+test("the Preparation line's contractor time (Tom, 17 Sep): hours at the charge-out rate, into the subtotal and the contractor's hours", () => {
+  const base = priceEstimateTotals(oneWall, ctx, adj);
+  assert.equal(base.preparationHours, 0);
+  assert.equal(base.preparationHoursCents, 0);
+  const timed = priceEstimateTotals(oneWall, ctx, { ...adj, preparationHours: 2.5 });
+  const chargeOut = chargeOutCents("Interior", ctx.rateItems, null);
+  assert.equal(timed.preparationHours, 2.5);
+  assert.equal(timed.preparationHoursCents, Math.round(2.5 * chargeOut), "hours × the interior charge-out rate");
+  assert.equal(timed.subtotalCents - base.subtotalCents, timed.preparationHoursCents, "the subtotal moves by exactly the time");
+  assert.equal(timed.contractorHours - base.contractorHours, 2.5, "the contractor's hours carry it");
+  assert.equal(timed.sundriesCents, base.sundriesCents, "the allowance itself is untouched");
+  // The customer's Preparation line is the residual over areas + lines, so
+  // the allowance and the time land on the same line.
+  const shown = timed.subtotalCents - (timed.subtotalCents - timed.sundriesCents - timed.preparationHoursCents - timed.sizeUpliftCents);
+  assert.equal(shown, timed.sundriesCents + timed.preparationHoursCents + timed.sizeUpliftCents);
+  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationHours: null }).preparationHoursCents, 0, "null = none");
+  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationHours: -3 }).preparationHoursCents, 0, "never negative");
+  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationHours: 1, hourlyRateOverride: 120 }).preparationHoursCents, 12000, "follows the $/hr override");
+});

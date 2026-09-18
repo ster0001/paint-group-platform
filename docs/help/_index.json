@@ -21,6 +21,17 @@
       "sources": []
     },
     {
+      "feature": "contractors",
+      "role": "staff",
+      "title": "Invite a painter, open their record, and remove one who should never have been there",
+      "summary": "How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), how the quality-check setting works, and when a painter can be removed rather than suspended.",
+      "path": "docs/help/contractors/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "65054fe00d",
+      "sources": []
+    },
+    {
       "feature": "crm",
       "role": "staff",
       "title": "Your first hour in the CRM",
@@ -72,7 +83,7 @@
       "path": "docs/help/estimator/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "65054fe00d",
       "sources": [
         "app/(app)/estimates/WaitingTable.tsx",
         "app/(app)/estimates/actions.ts",
@@ -252,7 +263,7 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": "0a07c92452",
+      "verified_at_commit": "65054fe00d",
       "sources": [
         "app/pc/schedule",
         "lib/scheduling",
@@ -278,7 +289,7 @@
         "media/contractor-09.png",
         "media/contractor-10.png"
       ],
-      "verified_at_commit": "a162c072c0",
+      "verified_at_commit": "d96f549a5a",
       "sources": [
         "app/portal/money",
         "app/portal/profile",
@@ -293,7 +304,7 @@
       "path": "docs/help/self-invoicing/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "a162c072c0",
+      "verified_at_commit": "d96f549a5a",
       "sources": [
         "app/portal/money/page.tsx",
         "app/portal/money/Expenses.tsx",
@@ -312,7 +323,7 @@
         "media/staff-02.png",
         "media/staff-03.png"
       ],
-      "verified_at_commit": "a162c072c0",
+      "verified_at_commit": "d96f549a5a",
       "sources": [
         "app/invoicing",
         "lib/invoicing"
@@ -351,6 +362,48 @@
         "app/pc/timesheets/export/route.ts",
         "app/api/cron/wo-sweep/route.ts",
         "app/(app)/contractors/ContractorsManager.tsx"
+      ]
+    },
+    {
+      "feature": "training",
+      "role": "contractor",
+      "title": "Training videos — short films showing the painter portal",
+      "summary": "Every training video in one place for painters — one short film per job, each opening on YouTube in its own tab.",
+      "path": "docs/help/training/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "c4973ff835",
+      "sources": [
+        "app/portal/help/page.tsx",
+        "app/components/help/HelpArticle.tsx"
+      ]
+    },
+    {
+      "feature": "training",
+      "role": "employee",
+      "title": "Training videos — short films showing the painter portal",
+      "summary": "Every training video in one place for painters — one short film per job, each opening on YouTube in its own tab.",
+      "path": "docs/help/training/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "c4973ff835",
+      "sources": [
+        "app/portal/help/page.tsx",
+        "app/components/help/HelpArticle.tsx"
+      ]
+    },
+    {
+      "feature": "training",
+      "role": "staff",
+      "title": "Training videos — short films that show the platform in use",
+      "summary": "Every training video in one place for the office — one short film per job, each opening on YouTube in its own tab.",
+      "path": "docs/help/training/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "c4973ff835",
+      "sources": [
+        "app/(app)/help/page.tsx",
+        "app/components/help/HelpArticle.tsx"
       ]
     },
     {
