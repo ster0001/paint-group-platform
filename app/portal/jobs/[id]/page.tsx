@@ -140,12 +140,20 @@ export default async function PortalJobPage({
   // The pre-start colours question: a No opens the colour-match work for the painter.
   const { data: coloursItem } = await supabase.from("wo_checklist_items").select("answer")
     .eq("work_order_id", id).eq("phase", "pre_start").eq("item_key", "colours").maybeSingle();
-  // How many required pre-start items are still unticked — the contractor's
+  // How many required pre-start items are still unticked — the painter's
   // Start button unlocks at zero (the SQL gate re-checks on the actual start).
-  const { data: preStartOpen } = await supabase.from("wo_checklist_items")
+  // Read the WHOLE list, not just the open ones: zero open items means "the
+  // office is done" only if there is a list to be done with. A job with no
+  // list at all used to read as ready here and start on a tap — 20270173
+  // refuses it in SQL, and this stops the button promising what SQL will
+  // refuse. The error is kept: a refused read must not render as "ready".
+  const { data: preStartRows, error: preStartErr } = await supabase.from("wo_checklist_items")
     .select("id, done_at, required")
-    .eq("work_order_id", id).eq("phase", "pre_start").eq("required", true).is("done_at", null);
-  const preStartLeft = (preStartOpen ?? []).length;
+    .eq("work_order_id", id).eq("phase", "pre_start");
+  const preStartItems = ((preStartErr ? null : preStartRows) ?? []) as
+    { id: string; done_at: string | null; required: boolean }[];
+  const preStartListBuilt = !preStartErr && preStartItems.length > 0;
+  const preStartLeft = preStartItems.filter((r) => r.required && r.done_at === null).length;
   const coloursNo = (coloursItem as { answer?: string | null } | null)?.answer === "no";
 
   type PrepRow = {
@@ -384,7 +392,7 @@ export default async function PortalJobPage({
       {/* Tom (25 Aug): once the job has STARTED, the reschedule bar goes —
           moving a live job is a phone call, not a button. */}
       {stage === "pre_start" && job.committed && (
-        <StartJob workOrderId={id} blockedCount={preStartLeft} />
+        <StartJob workOrderId={id} blockedCount={preStartLeft} listBuilt={preStartListBuilt} />
       )}
       {booking && ["offered", "pre_start"].includes(stage ?? "") && (
         <RescheduleRequest

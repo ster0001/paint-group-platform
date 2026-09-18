@@ -10,10 +10,17 @@ import { createClient } from "@/lib/supabase/client";
  * required pre-start item ticked — enforced again in SQL, so a stale page
  * can't start what isn't ready.
  */
-export default function StartJob({ workOrderId, blockedCount }: {
+export default function StartJob({ workOrderId, blockedCount, listBuilt = true }: {
   workOrderId: string;
   /** Required pre-start items still unticked (server-computed at render). */
   blockedCount: number;
+  /**
+   * Does the job HAVE a pre-start list? Zero items outstanding used to read as
+   * "the office is finished" on a job that never had a list — and the button
+   * then started a job past a screen nobody saw. SQL refuses it now (20270173);
+   * this stops the button offering it.
+   */
+  listBuilt?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -46,14 +53,16 @@ export default function StartJob({ workOrderId, blockedCount }: {
     }
   }
 
-  const ready = blockedCount === 0;
+  const ready = listBuilt && blockedCount === 0;
   return (
     <div className="card" data-testid="start-job">
       <div className="tick-head"><b>Ready to start?</b></div>
       <p className="hint" style={{ padding: 0 }}>
-        {ready
-          ? "Everything on the pre-start list is ticked. Starting moves the job to In progress and tells the office you're on site."
-          : `${blockedCount} pre-start item${blockedCount === 1 ? "" : "s"} still to be ticked by the office — the button unlocks when the list is done.`}
+        {!listBuilt
+          ? "The office hasn't set this job's pre-start list up yet — colours, materials, equipment and access. Give them a ring if you're due on site."
+          : ready
+            ? "Everything on the pre-start list is ticked. Starting moves the job to In progress and tells the office you're on site."
+            : `${blockedCount} pre-start item${blockedCount === 1 ? "" : "s"} still to be ticked by the office — the button unlocks when the list is done.`}
       </p>
       <button type="button" className="btn cy" disabled={busy || !ready}
         onClick={start} data-testid="start-job-button" style={{ width: "100%", marginTop: 8 }}>
