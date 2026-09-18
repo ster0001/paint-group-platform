@@ -21,6 +21,17 @@
       "sources": []
     },
     {
+      "feature": "contractors",
+      "role": "staff",
+      "title": "Invite a painter onto the platform, and email them the link",
+      "summary": "How the office invites a contractor or employed painter — a private link that lasts a week, emailed from the platform or copied and sent another way — and what the waiting list tells you.",
+      "path": "docs/help/contractors/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "crm",
       "role": "staff",
       "title": "Your first hour in the CRM",

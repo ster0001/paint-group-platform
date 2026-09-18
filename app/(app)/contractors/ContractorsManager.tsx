@@ -1,5 +1,6 @@
 "use client";
 
+import { emailContractorInvite } from "./actions";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -53,6 +54,9 @@ export type InviteRow = {
   token: string;
   created_at: string;
   expires_at: string;
+  /** Tom, 18 Sep: when the link was last emailed from here (null = never), and how often. */
+  emailed_at?: string | null;
+  emailed_count?: number | null;
 };
 
 const TIERS = ["A", "B", "C"];
@@ -81,6 +85,9 @@ export default function ContractorsManager({
   const [msg, setMsg] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [form, setForm] = useState({ email: "", name: "", company: "", tier: "B", employee: false });
+  // Tom, 18 Sep: email the link from here instead of copying it — on by default.
+  const [emailNow, setEmailNow] = useState(true);
+  const [emailing, setEmailing] = useState<string | null>(null);
   /** Per-row refusal from set_employment_type, shown beside the box (ruling 15). */
   const [typeRefusal, setTypeRefusal] = useState<Record<string, string>>({});
 
@@ -171,14 +178,39 @@ export default function ContractorsManager({
         p_employment_type: employeesEnabled && form.employee ? "employee" : "contractor",
       });
       if (error) throw error;
-      setNewLink(linkFor(String(data)));
-      setMsg("Invite created — send them the link below.");
+      const token = String(data);
+      setNewLink(linkFor(token));
+      const to = form.email.trim();
       setForm({ email: "", name: "", company: "", tier: "B", employee: false });
+      if (emailNow) {
+        // The RPC returns the token; the action wants the row id.
+        const { data: row, error: rowErr } = await supabase.from("contractor_invites").select("id").eq("token", token).maybeSingle();
+        const id = (row as { id: string } | null)?.id;
+        const r = rowErr
+          ? { ok: false, message: `Invite created, but it couldn't be read back to email (${rowErr.message}) — copy the link below.` }
+          : id ? await emailContractorInvite(id) : { ok: false, message: "Invite created, but it couldn't be found to email — copy the link below." };
+        setMsg(r.ok ? `${r.message} The link is below if you want to send it another way too.` : `Invite created for ${to}. ${r.message}`);
+      } else {
+        setMsg("Invite created — send them the link below.");
+      }
       router.refresh();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e));
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function emailInvite(id: string) {
+    setEmailing(id);
+    setErr("");
+    setMsg("");
+    try {
+      const r = await emailContractorInvite(id);
+      if (r.ok) setMsg(r.message); else setErr(r.message);
+      router.refresh();
+    } finally {
+      setEmailing(null);
     }
   }
 
@@ -403,7 +435,7 @@ export default function ContractorsManager({
         <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
           <div className="text-sm font-medium">Invite a contractor</div>
           <p className="mt-1 text-xs text-gray-500">
-            You&rsquo;ll get a private link to send them however you like — text, WhatsApp or email.
+            We email them a private link (or untick below and send it yourself — text, WhatsApp, whatever suits). It lasts a week.
             It works once, expires in 7 days, and only the address you enter here can use it.
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -456,12 +488,17 @@ export default function ContractorsManager({
               </label>
             )}
           </div>
+          <label className="mt-3 flex items-center gap-2 text-xs text-gray-600" data-testid="invite-email-now">
+            <input type="checkbox" checked={emailNow} onChange={(e) => setEmailNow(e.target.checked)} />
+            Email them the link now (from {typeof window === "undefined" ? "the office" : "us"}, with what it&rsquo;s for and when it expires)
+          </label>
           <button
             onClick={sendInvite}
             disabled={busy === "invite"}
             className="mt-3 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+            data-testid="invite-create"
           >
-            {busy === "invite" ? "Creating…" : "Create invite link"}
+            {busy === "invite" ? (emailNow ? "Creating & emailing…" : "Creating…") : emailNow ? "Create & email invite" : "Create invite link"}
           </button>
 
           {newLink && (
@@ -493,8 +530,19 @@ export default function ContractorsManager({
                   <div className="text-xs text-gray-500">
                     {i.email}
                     {i.company_name ? ` · ${i.company_name}` : ""} · expires {formatDMY(i.expires_at.slice(0, 10))}
+                    {i.emailed_at
+                      ? <span className="text-emerald-700" data-testid={`invite-emailed-${i.id}`}> · emailed {formatDMY(i.emailed_at.slice(0, 10))}{(i.emailed_count ?? 0) > 1 ? ` (×${i.emailed_count})` : ""}</span>
+                      : <span className="text-amber-700" data-testid={`invite-not-emailed-${i.id}`}> · not emailed yet</span>}
                   </div>
                 </div>
+                <button
+                  onClick={() => emailInvite(i.id)}
+                  disabled={emailing === i.id}
+                  className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
+                  data-testid={`invite-email-${i.id}`}
+                >
+                  {emailing === i.id ? "Emailing…" : i.emailed_at ? "Email again" : "Email the link"}
+                </button>
                 <button onClick={() => copy(i.token)} className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium hover:bg-gray-50">
                   {copied === i.token ? "Copied ✓" : "Copy link"}
                 </button>
