@@ -23,8 +23,12 @@ Have the address handy and know roughly what you want painted (inside, outside o
 8. When you are done, the footer says what happens next. If the job qualifies, **Fix my price online** gives you one number, held for the days shown. Otherwise **Send to <your estimator>** and they confirm it, usually by the next working day. **Book a visit** is always there too.
 9. Keep it: enter your email at the bottom of the range and we send a sign-in link. You can come back to the same estimate from any device — no password, ever.
 
+## The estimate page, once it is sent
+- **Photos.** "Your property, as we saw it" shows the first nine photos from your enquiry and our site notes. When there are more, a **More photos (N)** button sits underneath; press it and the rest open below (the button then reads **Fewer photos**).
+- **Counts.** In "Scope of works, item by item", anything we price per item — doors, windows, posts, architraves — shows how many we counted in that room, e.g. **Doors × 4**. Walls and ceilings are measured, not counted, so they carry no number. If a count looks wrong, tell your estimator before accepting; the price follows the count.
+
 ## The PDF, and the colour note
-- **Download estimate (PDF)** prints a paper copy of the quote: every area and its price, the deposit, the paint being supplied, what is and is not included, and a **Payment details** box with Paint Group's ABN, bank account and the reference to use — so the deposit can be paid straight from the PDF.
+- **Download estimate (PDF)** prints a paper copy of the quote: every area and its price (per-item surfaces with their count, e.g. "Doors × 4"), the deposit, the paint being supplied, what is and is not included, and a **Payment details** box with Paint Group's ABN, bank account and the reference to use — so the deposit can be paid straight from the PDF.
 - **SWMS.** When Paint Group has attached a Safe Work Method Statement for your job, a **Download SWMS** button sits on the SWMS card beside the public liability card (or on its own **SWMS** card under "Why Melburnians choose us"). It opens as a PDF.
 - **Colour consultation included** shows near the top while any colour on the job is still to be decided. Once every colour has been chosen it disappears — there is nothing left to consult on.
 
