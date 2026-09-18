@@ -5,7 +5,7 @@ title: Approve and pay contractor invoices from the Payables tab
 summary: What the office sees when a contractor submits an invoice or progress claim, how the figures are drafted and reconciled to the job, and how approve, mark paid and the remittance work.
 walkthrough: media/staff-walkthrough.gif
 sources: app/invoicing, lib/invoicing
-verified_at_commit: a162c072c0
+verified_at_commit: d96f549a5a
 ---
 
 ## What this is for
