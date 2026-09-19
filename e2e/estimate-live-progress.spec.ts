@@ -250,6 +250,27 @@ test.describe("the live-progress phone on the estimate", () => {
     await expect(page.getByTestId("see-how-you-follow")).toHaveCount(0);
   });
 
+  test("as an anonymous customer, nothing staff-only reaches the browser (acceptance 10, rule 5)", async ({ page }) => {
+    // Staff-only names from the builder state, the pricing engine and the CRM
+    // capture — none may appear in the page HTML (which carries the RSC flight
+    // data inline) or in any JSON / RSC response the page loads.
+    const STAFF_ONLY = /\b(crewNote|crew_note|prepHr|prep_hr|paintingHr|painting_hr|costCents|cost_cents|chargeOut|charge_out|marginPct|margin_pct|contractorRate|contractor_rate|builder_state|sent_by_user_id|lead_source|SUPABASE_SERVICE_ROLE_KEY)\b/;
+    const bodies: Array<{ url: string; text: string }> = [];
+    page.on("response", async (r) => {
+      const ct = r.headers()["content-type"] ?? "";
+      if (/json|x-component/.test(ct) && r.url().startsWith(page.url().slice(0, page.url().indexOf("/e/")))) {
+        bodies.push({ url: r.url(), text: await r.text().catch(() => "") });
+      }
+    });
+    await openEstimate(page, trade.token);
+    await page.getByTestId("live-progress").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(1500);
+    const html = await page.content();
+    expect(html).toContain("Example of your live updates");
+    expect(html.match(STAFF_ONLY)?.[0] ?? null).toBeNull();
+    for (const b of bodies) expect(b.text.match(STAFF_ONLY)?.[0] ?? null, b.url).toBeNull();
+  });
+
   test("with a presentation: the hero button and the step-4 link point at the section", async ({ page }) => {
     // The trade estimate: still unaccepted here (an accepted estimate hides its hero buttons by design).
     await openEstimate(page, trade.token);
