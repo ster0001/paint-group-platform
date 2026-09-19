@@ -35,6 +35,9 @@ The office uses this when a new painter is joining. Each invite is a private lin
 10. A painter with a job, an assignment, an offer they **accepted**, an invoice, an expense claim or a clocked day behind them **cannot be removed**, and the message names what is stopping it. That is deliberate. Deleting them would strip their jobs of a painter and take their insurance certificates with them. Use **Suspend access** instead, which keeps every record and stops them being offered work.
 11. An offer they **turned down or let lapse** does not stop it. The job keeps its own record of what happened, so there is nothing to strand.
 
+## Asking a painter for their hours
+Each painter's row has an **Asks for hours / Hours from schedule** button. Switched on, that painter's **All surfaces done** press asks for days on site and hours in total (pre-filled from the booking; they can skip). Their entry shows on their self-invoice as a note and feeds the dashboard's hours-versus-estimate. Switched off (the default), the dashboard uses the booked days × the standard day length from Settings (**worked_day_hours**, 8) and says so. Switching a painter on or off changes only what their *next* finished job asks — nothing already entered moves.
+
 ## What the colours and labels mean
 - **emailed 18/9** (green) — the invitation went out on that day; **(×2)** means it was resent.
 - **not emailed yet** (amber) — the link exists but nothing has been sent from here.

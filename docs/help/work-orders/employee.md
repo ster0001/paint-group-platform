@@ -42,6 +42,9 @@ Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is 
 ### Walkthrough and sign-off on your phone
 10. At **Walkthrough**, the lead painter's page carries **Start the walkthrough**. Any painter on the job can run it: walk the customer through each area, they approve or mark anything to fix, and sign on your phone. The job closes and the page reads **Job complete**.
 
+## How long were you on site (when asked)
+If the office has switched it on for you, the **All surfaces done** card asks for your days on site and hours in total before the job moves on. Change the pre-filled numbers to what actually happened, or tick **Skip** to use the booked days. It is for the office's hours-versus-estimate figures and changes nothing about your pay.
+
 ## What the colours and labels mean
 - **Amber "Before photo" button** — that area needs its before shot before anything in it can be ticked.
 - **Cyan PREPPED / green DONE** — a surface's live state, shared by everyone on the job.

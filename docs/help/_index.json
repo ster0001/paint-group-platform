@@ -493,6 +493,8 @@
       ],
       "verified_at_commit": "3a6848a2fd",
       "sources": [
+        "app/portal/jobs/[id]/FinishUp.tsx",
+        "lib/reporting/workedTime.ts",
         "app/portal/jobs",
         "app/components/wo",
         "app/s",
@@ -545,6 +547,7 @@
       ],
       "verified_at_commit": "3a6848a2fd",
       "sources": [
+        "app/pc/wo/[id]/ReviewCard.tsx",
         "app/pc",
         "app/components/wo",
         "lib/workorder"

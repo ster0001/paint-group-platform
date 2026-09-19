@@ -30,7 +30,7 @@ export default async function ContractorsPage() {
   const supabase = await createClient();
 
   const [{ data: rows }, { data: docs }, { data: invites }, { data: offers }, { data: events }] = await Promise.all([
-    supabase.from("contractors").select(`${CONTRACTOR_COLUMNS}, requires_qa, qa_mode, rcti_agreement_signed_at, profiles ( name )`).order("company_name"),
+    supabase.from("contractors").select(`${CONTRACTOR_COLUMNS}, requires_qa, qa_mode, rcti_agreement_signed_at, capture_worked_hours, profiles ( name )`).order("company_name"),
     supabase.from("contractor_documents").select(DOC_COLUMNS),
     supabase
       .from("contractor_invites")
@@ -100,6 +100,8 @@ export default async function ContractorsPage() {
       return m === "every_job" || m === "none" || m === "first_jobs" ? m
         : (c as Row & { requires_qa?: boolean }).requires_qa ? "every_job" : "first_jobs";
     })(),
+    // Dashboard 0c (Tom, 19 Sep): ask this painter for days and hours at their final tick.
+    captureWorkedHours: Boolean((c as Row & { capture_worked_hours?: boolean | null }).capture_worked_hours),
     // ⚑9: the RCTI switch is inert until the agreement is recorded as signed.
     rctiSigned: Boolean((c as Row & { rcti_agreement_signed_at?: string | null }).rcti_agreement_signed_at),
     abn: c.abn ?? "",

@@ -43,6 +43,8 @@ export function buildContractorInvoiceHtml(opts: {
   subtotalExCents: number;
   gstCents: number;
   totalIncCents: number;
+  /** Dashboard 0c: the painter's own days and hours — a reference line, never money. */
+  workedTime?: { days: number; hours: number } | null;
 }): string {
   const fmtDate = (iso: string | null) =>
     iso
@@ -66,6 +68,9 @@ export function buildContractorInvoiceHtml(opts: {
         opts.previouslyInvoicedCents > 0 ? `<tr><td>Less previously invoiced</td><td class="r mono">−${money(opts.previouslyInvoicedCents)}</td></tr>` : "",
       ].join("");
 
+  const worked = opts.workedTime && opts.workedTime.days > 0
+    ? `<tr><td>Time on site — as entered by the painter<small>${Number(opts.workedTime.days)} day${Number(opts.workedTime.days) === 1 ? "" : "s"} · ${Number(opts.workedTime.hours)} hours · reference only, not charged</small></td><td class="r mono">—</td></tr>`
+    : "";
   const reimb = (opts.reimbursementLines ?? []).filter((l) => (l.cents ?? 0) > 0);
   const reimbRows = reimb.map((l) =>
     `<tr><td>${esc(l.label ?? "Reimbursement")}<small>at cost — approved expense</small></td><td class="r mono">${money(l.cents ?? 0)}</td></tr>`,
@@ -131,7 +136,7 @@ export function buildContractorInvoiceHtml(opts: {
 
   <table>
     <thead><tr><th>Description</th><th class="r">Amount</th></tr></thead>
-    <tbody>${lines}${reimbRows}</tbody>
+    <tbody>${lines}${worked}${reimbRows}</tbody>
   </table>
 
   <div class="totals">
