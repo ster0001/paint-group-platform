@@ -50,6 +50,8 @@ export type MetricDef<Row extends object> = {
   columns: ReadonlyArray<{ key: keyof Row & string; label: string }>;
   /** Where a tile click goes. */
   href?: string;
+  /** "rows": the mockup's list card (AOV by category, by salesperson, activity) rather than a stat tile. */
+  display?: "tile" | "rows";
   /** Period metrics: the rows that fall in a range. Now metrics: every row (the range is ignored). */
   select: (input: MetricInput, range: Range) => Row[];
 };
@@ -58,7 +60,11 @@ export type Aggregate<Row extends object> =
   | "count"
   | { sum: keyof Row & string }
   | { countWhere: keyof Row & string }
-  | { ratioPct: { num: keyof Row & string; den: keyof Row & string } };
+  | { ratioPct: { num: keyof Row & string; den: keyof Row & string } }
+  /** rows where the column is truthy, as a percentage of all rows ("47% of sent") */
+  | { shareWhere: keyof Row & string }
+  /** sum(num) ÷ sum(den) — an average order value from per-group rows */
+  | { divide: { num: keyof Row & string; den: keyof Row & string } };
 
 /** Everything a metric may read. Loaders fill what a page needs; a metric reads only its own slice. */
 export type MetricInput = {
@@ -68,6 +74,41 @@ export type MetricInput = {
   console?: ConsoleSlice | null;
   /** Session 2: the contractor-side rows (0c capture). */
   contractors?: ContractorSlice | null;
+  /** Session 3: presentations (categories), staff names, targets, 12 months of history, and who is looking. */
+  sales?: SalesSlice | null;
+  /** Session 3: wizard sessions and the estimates they became. */
+  funnel?: FunnelSlice | null;
+  /** Session 3: the CRM timeline, role-scoped by the metric. */
+  activity?: ActivitySlice | null;
+};
+
+export type SalesSlice = {
+  presentations: { id: string; category_label: string }[];
+  staff: { id: string; name: string }[];
+  /** sales_targets rows the viewer may see (owner/admin — RLS); month is yyyy-mm-01. */
+  targets: { month: string; target_cents: number }[];
+  /** Accepted estimates over the last 12 months, for the chart: month yyyy-mm, cents inc GST. */
+  history: { month: string; sales_cents: number; accepted: number }[];
+  viewerUserId: string | null;
+  /** "mine" (a sales login's default) or "team". */
+  who: "mine" | "team";
+};
+
+export type FunnelSlice = {
+  drafts: { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; lead_source: string | null }[];
+  /** The estimates the drafts became, whatever their date. */
+  estimates: FunnelEstimate[];
+};
+export type FunnelEstimate = { id: string; status: string; sent_at: string | null; viewed_at: string | null; accepted_at: string | null; declined_at: string | null; lead_source: string | null };
+
+export type ActivityEvent = { id: string; type: string; payload: Record<string, unknown> | null; occurred_at: string; source: string; account_id: string | null; account_name: string | null };
+export type ActivitySlice = {
+  events: ActivityEvent[];
+  /** The viewer's roles decide which event families the feed shows. */
+  roles: ReadonlyArray<DashboardRole>;
+  /** Optional filters from the page: an event family and free text over customer / detail. */
+  family: string | null;
+  q: string | null;
 };
 
 export type ConsoleSlice = {
@@ -141,6 +182,8 @@ export function aggregateRows<Row extends object>(rows: Row[], aggregate: Aggreg
   if (aggregate === "count") return rows.length;
   if ("sum" in aggregate) return rows.reduce((s, r) => s + num(r, aggregate.sum), 0);
   if ("countWhere" in aggregate) return rows.filter((r) => Boolean((r as Record<string, unknown>)[aggregate.countWhere])).length;
+  if ("shareWhere" in aggregate) return rows.length ? Math.round((rows.filter((r) => Boolean((r as Record<string, unknown>)[aggregate.shareWhere])).length / rows.length) * 1000) / 10 : 0;
+  if ("divide" in aggregate) { const d = rows.reduce((s, r) => s + num(r, aggregate.divide.den), 0); return d > 0 ? Math.round(rows.reduce((s, r) => s + num(r, aggregate.divide.num), 0) / d) : 0; }
   const numSum = rows.reduce((s, r) => s + num(r, aggregate.ratioPct.num), 0);
   const denSum = rows.reduce((s, r) => s + num(r, aggregate.ratioPct.den), 0);
   return denSum > 0 ? Math.round(((numSum - denSum) / denSum) * 1000) / 10 : 0;

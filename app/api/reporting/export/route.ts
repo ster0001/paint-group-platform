@@ -22,6 +22,9 @@ const query = z.object({
   preset: z.enum(RANGE_PRESETS).default("this_month"),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  who: z.enum(["mine", "team"]).optional(),
+  family: z.string().max(20).optional(),
+  q: z.string().max(120).optional(),
 });
 
 export async function GET(request: Request) {
@@ -41,7 +44,7 @@ export async function GET(request: Request) {
   const range = resolveRange(parsed.data.preset, now, { from: parsed.data.from, to: parsed.data.to });
 
   try {
-    const { input, failures } = await loadMetricInput(supabase, range, now, [def.section]);
+    const { input, failures } = await loadMetricInput(supabase, range, now, [def.section], { userId: user.id, who: parsed.data.who, family: parsed.data.family ?? null, q: parsed.data.q ?? null }, roles);
     if (failures.length) return NextResponse.json({ error: "a read failed", failures }, { status: 503 });
     const result = runMetric(def, input, range, roles);
     return new Response(csvStream(def, result.rows as Record<string, unknown>[]), {

@@ -19,7 +19,7 @@ import { materialsBudgetCents, invoicedExGst } from "@/lib/workorder/materialsBu
 import type { PricingContext } from "@/lib/pricing/estimate";
 import { numericSettingValue } from "@/lib/settings/numeric";
 import {
-  addDays, previousRange, type AwaitingReplyRow, type ConsoleSlice, type ContractorSlice, type EstimateRow, type MaterialsJobRow, type MetricInput, type Range,
+  addDays, previousRange, type ActivitySlice, type AwaitingReplyRow, type ConsoleSlice, type ContractorSlice, type EstimateRow, type FunnelSlice, type MaterialsJobRow, type MetricInput, type Range, type SalesSlice,
 } from "./core";
 import { effectiveRoles, isDashboardRole, type DashboardRole, type DashboardSection } from "./roles";
 
@@ -196,6 +196,68 @@ async function loadContractorSlice(supabase: SupabaseClient, range: Range, failu
   };
 }
 
+// ---- sales, funnel, activity (session 3) ---------------------------------------------
+
+export type ViewerOptions = { userId: string | null; who?: "mine" | "team"; family?: string | null; q?: string | null };
+
+async function loadSalesSlice(supabase: SupabaseClient, range: Range, viewer: ViewerOptions, roles: ReadonlyArray<DashboardRole>, failures: LoadFailure[]): Promise<SalesSlice> {
+  const [y, m] = range.to.slice(0, 7).split("-").map(Number);
+  const historyFrom = new Date(Date.UTC(y, m - 12, 1)).toISOString();
+  const [pres, staff, targets, history] = await Promise.all([
+    supabase.from("presentations").select("id, category_label, name"),
+    supabase.from("profiles").select("id, name").eq("role", "staff"),
+    // Targets are owner/admin only (RLS) — a sales login reads an empty list, and the card is not rendered for them.
+    supabase.from("sales_targets").select("month, target_cents").is("category_label", null).is("salesperson_id", null).gte("month", historyFrom.slice(0, 10)),
+    fetchAllRows<{ accepted_at: string; accepted_total_cents: number | null; total_cents: number }>((from, to) =>
+      supabase.from("estimates").select("accepted_at, accepted_total_cents, total_cents").eq("status", "accepted").gte("accepted_at", historyFrom).order("accepted_at").range(from, to)).then((rows) => ({ data: rows, error: null as null | { message: string } })).catch((e: unknown) => ({ data: [] as { accepted_at: string; accepted_total_cents: number | null; total_cents: number }[], error: { message: e instanceof Error ? e.message : String(e) } })),
+  ]);
+  for (const [where, r] of [["presentations", pres], ["staff names", staff], ["sales history", history]] as const) if (r.error) failure(failures, where, r.error);
+  if (targets.error && targets.error.code !== "42501") failure(failures, "sales targets", targets.error);
+  const monthly = new Map<string, { sales_cents: number; accepted: number }>();
+  for (const e of history.data ?? []) {
+    const mo = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit" }).format(new Date(e.accepted_at)).slice(0, 7);
+    const g = monthly.get(mo) ?? { sales_cents: 0, accepted: 0 };
+    g.sales_cents += e.accepted_total_cents ?? e.total_cents; g.accepted += 1; monthly.set(mo, g);
+  }
+  const salesOnly = roles.length > 0 && roles.every((r) => r === "sales");
+  return {
+    presentations: ((pres.data ?? []) as { id: string; category_label: string | null; name: string }[]).map((p) => ({ id: p.id, category_label: p.category_label || p.name })),
+    staff: ((staff.data ?? []) as { id: string; name: string | null }[]).map((s) => ({ id: s.id, name: s.name || "Staff" })),
+    targets: ((targets.data ?? []) as { month: string; target_cents: number }[]).map((t) => ({ month: t.month, target_cents: Number(t.target_cents) })),
+    history: [...monthly.entries()].map(([month, g]) => ({ month, ...g })).sort((a, b) => a.month.localeCompare(b.month)),
+    viewerUserId: viewer.userId,
+    who: viewer.who ?? (salesOnly ? "mine" : "team"),
+  };
+}
+
+async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures: LoadFailure[]): Promise<FunnelSlice> {
+  const { fromIso, toIso } = windowOf(range);
+  const drafts = await supabase.from("wizard_drafts").select("id, started_at, email, estimate_id, converted_at, last_seen_at, accounts(lead_source)")
+    .gte("started_at", fromIso).lte("started_at", toIso).order("started_at", { ascending: false }).limit(5000);
+  if (drafts.error) { failure(failures, "wizard sessions", drafts.error); return { drafts: [], estimates: [] }; }
+  type DraftRow = { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; accounts: { lead_source: string | null } | null };
+  const rows = (drafts.data ?? []) as unknown as DraftRow[];
+  const estIds = [...new Set(rows.map((d) => d.estimate_id).filter((x): x is string => Boolean(x)))];
+  const ests = estIds.length ? await inSlices(estIds, (s) => supabase.from("estimates").select("id, status, sent_at, viewed_at, accepted_at, declined_at, lead_source").in("id", s)) : { rows: [], error: null };
+  if (ests.error) failure(failures, "estimates behind wizard sessions", ests.error);
+  return {
+    drafts: rows.map((d) => ({ id: d.id, started_at: d.started_at, email: d.email, estimate_id: d.estimate_id, converted_at: d.converted_at, last_seen_at: d.last_seen_at, lead_source: d.accounts?.lead_source ?? null })),
+    estimates: ((ests.rows ?? []) as FunnelSlice["estimates"]),
+  };
+}
+
+async function loadActivitySlice(supabase: SupabaseClient, range: Range, roles: ReadonlyArray<DashboardRole>, viewer: ViewerOptions, failures: LoadFailure[]): Promise<ActivitySlice> {
+  const { fromIso, toIso } = windowOf(range);
+  const ev = await supabase.from("crm_events").select("id, type, payload, occurred_at, source, account_id, accounts(name)")
+    .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).limit(2000);
+  if (ev.error) { failure(failures, "activity", ev.error); return { events: [], roles, family: viewer.family ?? null, q: viewer.q ?? null }; }
+  type EvRow = { id: string; type: string; payload: Record<string, unknown> | null; occurred_at: string; source: string; account_id: string | null; accounts: { name: string | null } | null };
+  return {
+    events: ((ev.data ?? []) as unknown as EvRow[]).map((e) => ({ id: e.id, type: e.type, payload: e.payload, occurred_at: e.occurred_at, source: e.source, account_id: e.account_id, account_name: e.accounts?.name ?? null })),
+    roles, family: viewer.family ?? null, q: viewer.q ?? null,
+  };
+}
+
 // ---- the page's one load ------------------------------------------------------------
 
 export type DashboardLoad = {
@@ -207,9 +269,10 @@ export type DashboardLoad = {
 /** Everything /home needs, loaded once for the sections this login sees. */
 export async function loadDashboard(
   supabase: SupabaseClient, roles: ReadonlyArray<DashboardRole>, sections: ReadonlyArray<DashboardSection>, range: Range, now = new Date(),
+  viewer: ViewerOptions = { userId: null },
 ): Promise<DashboardLoad> {
   const failures: LoadFailure[] = [];
-  const wantsQueue = roles.length > 0;
+  const wantsQueue = roles.length > 0 && sections.includes("needs_doing");
   const wantsConsole = sections.includes("pc_command") || sections.includes("contractors");
   const wantsEstimates = sections.includes("sales");
   const [wq, console_, est] = await Promise.all([
@@ -218,12 +281,15 @@ export async function loadDashboard(
     wantsEstimates ? loadEstimates(supabase, range) : Promise.resolve({ rows: [] as EstimateRow[], failures: [] as LoadFailure[] }),
   ]);
   failures.push(...est.failures);
-  const [consoleSlice, contractorSlice] = await Promise.all([
+  const [consoleSlice, contractorSlice, salesSlice, funnelSlice, activitySlice] = await Promise.all([
     console_ ? loadConsoleSlice(supabase, console_, range, failures) : Promise.resolve(null),
     sections.includes("contractors") ? loadContractorSlice(supabase, range, failures) : Promise.resolve(null),
+    wantsEstimates ? loadSalesSlice(supabase, range, viewer, roles, failures) : Promise.resolve(null),
+    sections.includes("funnel") ? loadFunnelSlice(supabase, range, failures) : Promise.resolve(null),
+    sections.includes("activity") ? loadActivitySlice(supabase, range, roles, viewer, failures) : Promise.resolve(null),
   ]);
   return {
-    input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice },
+    input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, sales: salesSlice, funnel: funnelSlice, activity: activitySlice },
     strip: { workItems: wq?.items ?? [], consoleCards: consoleSlice?.cards ?? [] },
     failures,
   };
@@ -231,8 +297,10 @@ export async function loadDashboard(
 
 /** The export route and the cron: the rows a single metric needs, by section. */
 export async function loadMetricInput(
-  supabase: SupabaseClient, range: Range, now = new Date(), sections: ReadonlyArray<DashboardSection> = ["sales", "pc_command", "contractors"],
+  supabase: SupabaseClient, range: Range, now = new Date(), sections: ReadonlyArray<DashboardSection> = ["sales", "pc_command", "contractors", "funnel"],
+  viewer: ViewerOptions = { userId: null }, roles: ReadonlyArray<DashboardRole> = [],
 ): Promise<{ input: MetricInput; failures: LoadFailure[] }> {
-  const d = await loadDashboard(supabase, [], sections, range, now);   // no roles → no work queue; the tiles do not need it
+  // Roles here scope the activity feed and "mine"; the work queue is only loaded for the page.
+  const d = await loadDashboard(supabase, roles.length ? roles : [], sections, range, now, viewer);
   return { input: d.input, failures: d.failures };
 }

@@ -26,6 +26,7 @@ export type TileData = {
   rows: Record<string, unknown>[];
   rowCount: number;
   exportHref: string;
+  display?: "tile" | "rows";
 };
 
 const aud = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
@@ -50,15 +51,17 @@ function cell(v: unknown, key: string): string {
   return String(v);
 }
 
-export default function HomeTiles({ tiles }: { tiles: TileData[] }) {
+export default function HomeTiles({ tiles: all }: { tiles: TileData[] }) {
   const [open, setOpen] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const tiles = all.filter((t) => t.display !== "rows");
+  const cards = all.filter((t) => t.display === "rows");
   const active = tiles.find((t) => t.key === open) ?? null;
   const cls = tiles.length === 3 ? "tiles three" : "tiles";
 
   return (
     <>
-      <div className={cls}>
+      {tiles.length > 0 && <div className={cls}>
         {tiles.map((t) => {
           const d = t.kind === "period" ? compareDelta(t.value, t.compare) : null;
           return (
@@ -84,7 +87,35 @@ export default function HomeTiles({ tiles }: { tiles: TileData[] }) {
             </button>
           );
         })}
-      </div>
+      </div>}
+
+      {cards.length > 0 && (
+        <div className="grid2">
+          {cards.map((c) => (
+            <div className="card" key={c.key} data-testid={`rows-${c.key}`}>
+              <h2 style={{ fontSize: 15 }}>{c.title} <em>{c.note ?? ""}</em>
+                <button type="button" className="ex" aria-pressed={info === c.key} onClick={() => setInfo(info === c.key ? null : c.key)} data-testid={`info-${c.key}`} title="What this counts">i</button>
+                <a className="ex" href={c.exportHref} data-testid={`export-${c.key}`}>Export CSV</a>
+              </h2>
+              {info === c.key && <p className="note" data-testid={`definition-${c.key}`}>{c.definition}</p>}
+              <div className="rows">
+                {c.rows.length === 0 && <p className="note">Nothing in this range.</p>}
+                {c.rows.map((r, i) => {
+                  const [first, ...rest] = c.columns;
+                  const money = c.columns.find((col) => /cents$/.test(col.key) && col.key !== first.key);
+                  const sub = rest.filter((col) => col !== money).slice(0, 3).map((col) => `${cell(r[col.key], col.key)}${/pct$/.test(col.key) ? "%" : ""} ${col.label.replace(/ \(.*\)$/, "").toLowerCase()}`).join(" · ");
+                  return (
+                    <div className="row" key={i} data-testid={`row-${c.key}-${i}`}>
+                      <div>{String(r[first.key] ?? "")}<div className="sub">{sub}</div></div>
+                      {money && <div className="val">{cell(r[money.key], money.key)}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {active && (
         <div className="card drill" data-testid={`drill-${active.key}`}>
