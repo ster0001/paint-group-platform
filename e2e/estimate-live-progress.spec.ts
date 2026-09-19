@@ -135,10 +135,14 @@ test.describe("the live-progress phone on the estimate", () => {
     await expect(page.getByTestId("pp-sms1")).toContainText(`Good morning Casey. ${DEMO.name} and the team have arrived at 12 Progress Street.`);
     await expect(sec.locator(".pp-addr")).toHaveText("12 Progress Street");
     await expect(sec.locator(".pp-sub")).toHaveText("Alphington · for Casey Livesey");
-    // Only the estimate's own photos, each tagged as theirs (6b, F2).
-    const srcs = await sec.locator("img").evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).getAttribute("src") ?? ""));
-    expect(srcs.length).toBeGreaterThanOrEqual(2);
-    for (const s of srcs) expect(s).toContain(`estimate-media/e2e-live-${run}-`);
+    // 6b / F2: every photo in the feed is the estimate's own. The ONLY other
+    // image in the section is the demo painter's avatar, which F1 takes from
+    // Settings → Website (this suite sets one in beforeAll).
+    const feedSrcs = await sec.locator(".pp-feed img").evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).getAttribute("src") ?? ""));
+    expect(feedSrcs.length).toBeGreaterThanOrEqual(2);
+    for (const s of feedSrcs) expect(s).toContain(`estimate-media/e2e-live-${run}-`);
+    const otherSrcs = await sec.locator("img:not(.pp-feed img)").evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).getAttribute("src") ?? ""));
+    expect(otherSrcs).toEqual([expect.stringMatching(new RegExp(`showcase-media/${DEMO.photoPath}$`))]);
     await expect(sec.locator(".pp-feed .cap").first()).toHaveText("Before · your photo");
     await expect(sec.locator(".pp-feed .tl-item").first()).toContainText("Lounge and Dining");
 
