@@ -251,7 +251,8 @@ test.describe("the live-progress phone on the estimate", () => {
   });
 
   test("with a presentation: the hero button and the step-4 link point at the section", async ({ page }) => {
-    await openEstimate(page, withPres.token);
+    // The trade estimate: still unaccepted here (an accepted estimate hides its hero buttons by design).
+    await openEstimate(page, trade.token);
     await expect(page.getByTestId("see-how-you-follow")).toHaveAttribute("href", "#live-progress");
     await expect(page.getByTestId("step-live-progress-link")).toHaveAttribute("href", "#live-progress");
   });
