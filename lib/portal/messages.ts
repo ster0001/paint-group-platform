@@ -1,3 +1,4 @@
+import { reportError } from "@/lib/monitoring/report";
 import { createServiceClient } from "@/lib/supabase/service";
 
 /**
@@ -82,6 +83,11 @@ export async function getPortalThreads(accountIds: string[]): Promise<PortalThre
   const rows = (estimates ?? []) as ThreadEstimate[];
   if (!rows.length) return [];
   const estIds = rows.map((e) => e.id);
+
+  // Dashboard 0b: opening the thread is reading it — staff replies on these
+  // estimates get read_at (readSource portal). Best-effort, never in the way.
+  const opened = await svc.rpc("customer_thread_opened", { p_estimate_ids: estIds });
+  if (opened.error) reportError(opened.error, { where: "portal.threads.opened", bestEffort: true });
 
   const [{ data: messages }, { data: invoices }] = await Promise.all([
     svc.from("estimate_messages")

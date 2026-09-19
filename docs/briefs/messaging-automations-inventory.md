@@ -133,3 +133,7 @@ redelivery never tells anyone twice. `lib/staff/notify.ts`.
 6. **Two sends sit outside the registry** and therefore have no switch and don't appear on Settings → Automations: the tenant access text and CRM record replies. Google Calendar push is also outside it.
 7. ~~Wizard resume email once a day~~ — DONE Session 2 (every 30 minutes).
 8. **Adding a new automation** = registry entry + template fields in `DEFAULT_MESSAGING` + `loadMessaging` + `automationOn` check at the send site + a `messages`-recorded send. `registry.test.ts` pins that every template field has a default.
+
+## 7. Dashboard capture (session 0b, 19 Sep 2026)
+
+Every `messages` row now carries `sender_role` — customer · staff · system · assistant (legacy unsigned outbound = unknown, counted as a reply so nothing old resurfaces). Every registry send is `system`; so are campaigns, the welcome, the tenant text, the sign-in link, staff alerts, receipts and remittances. A person's send (estimate, chat reply, variation, invoice, job update, contractor invite, a logged call or text, a portal reply) is `staff`. The account's facts row carries `last_inbound_at` and `last_staff_reply_at`; "customers awaiting reply" = the first is later than the second, and an automation never moves the second. The customer opening their thread (token chat or portal) sets `read_at` with `readSource = portal`; a Resend open sets it with `readSource = email_open, readIsBestEffort = true`. Migration 20270176.

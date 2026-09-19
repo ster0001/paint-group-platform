@@ -28,6 +28,9 @@ You need a staff login with the CRM area ticked (Settings → Staff logins). If 
 ## When a customer replies to an email
 An email sent from the record (Messages → Email) carries a reply address that routes straight back into the CRM: the reply appears on the record as "They wrote" and on Today as a Message card. A copy of every reply is also sent on to the office mailbox (Settings → Company email, or the `INBOUND_FORWARD_TO` address), with the customer as the reply-to, so answering from the mailbox reaches them directly. This needs the reply domain and inbound webhook set up in Resend (`REPLY_DOMAIN`, `MESSAGES_INBOUND_SECRET`); without them replies go to the company mailbox only, as before.
 
+## What counts as a reply
+A customer's message — an email reply, a text, a portal message, the chat on their estimate — sits on Today as a Message card until a **person** answers it: a reply typed on the record or in the builder's Chat tab, an email or text you send them, or a call you log. An automated message (a quote follow-up, a deposit reminder, any of Settings → Automations) does **not** clear the card — the customer is still waiting for you. Failed or suppressed sends never count either. The record's Messages tab shows a reply as read once the customer has opened the thread; for emails, an open is the best signal there is and is marked as such.
+
 ## What the colours and labels mean
 - **Amber** — waiting on something; the label says what.
 - **Cyan** — confirmed, active, yours.

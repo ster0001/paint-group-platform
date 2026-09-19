@@ -272,9 +272,16 @@ describe("messages (CRM v2 P3) — unanswered and unmatched", () => {
   });
 
   it("dies when we wrote back after it, or rang them after it — not before", () => {
-    expect(buildMessageItems([inbound()], [{ account_id: "acc1", occurred_at: ago(1) }], [], names, now)).toHaveLength(0);
-    expect(buildMessageItems([inbound()], [{ account_id: "acc1", occurred_at: ago(9) }], [], names, now)).toHaveLength(1);
+    expect(buildMessageItems([inbound()], [{ account_id: "acc1", occurred_at: ago(1), sender_role: "staff" }], [], names, now)).toHaveLength(0);
+    expect(buildMessageItems([inbound()], [{ account_id: "acc1", occurred_at: ago(9), sender_role: "staff" }], [], names, now)).toHaveLength(1);
     expect(buildMessageItems([inbound()], [], [{ account_id: "acc1", occurred_at: ago(1) }], names, now)).toHaveLength(0);
+  });
+
+  it("dashboard 0b: an automated chase after the customer's message is not a reply — they are still waiting", () => {
+    expect(buildMessageItems([inbound()], [{ account_id: "acc1", occurred_at: ago(1), sender_role: "system" }], [], names, now)).toHaveLength(1);
+    expect(buildMessageItems([inbound()], [{ account_id: "acc1", occurred_at: ago(1), sender_role: "assistant" }], [], names, now)).toHaveLength(1);
+    // A legacy row nobody signed keeps counting as a reply, as it did before the column existed.
+    expect(buildMessageItems([inbound()], [{ account_id: "acc1", occurred_at: ago(1), sender_role: "unknown" }], [], names, now)).toHaveLength(0);
   });
 
   it("a message with no customer is an attach item, never dropped", () => {

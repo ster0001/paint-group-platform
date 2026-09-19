@@ -1,3 +1,18 @@
+# 19 Sep 2026 (late) — Home dashboard v2, Session 0b: capture on messaging. ONE migration: 20270176 (additive: `messages.sender_role`, `crm_account_facts.last_inbound_at/last_staff_reply_at`, two triggers, `customer_thread_opened`, `get_estimate_thread_by_token` redefined to mark read). Branch `feat/home-dashboard-0b-messaging`.
+
+Already there and NOT duplicated: `messages.direction`, `read_at`, `occurred_at`, delivery status
+incl. Resend `opened`, `crm_mark_messages_read` (the office reading). Built: sender_role with ONE
+rule in app + SQL (pinned by senderRole.test.ts); legacy unsigned outbound = `unknown` and still
+counts as a reply (no resurrected Today cards); every send site names a kind now; the account IS
+the thread (facts columns by trigger, backfilled); work-queue `message_unanswered` ignores system/
+assistant touches (the brief's test case: customer → automated chase → still waiting); customer
+reads via `customer_thread_opened` (token chat + portal, readSource portal) and Resend opens
+(readSource email_open, best-effort flagged, never over a portal read). Gates: vitest 2696/2696, tsc + eslint clean (4 pre-existing warnings), `e2e/dashboard-capture-messages.spec.ts` 2/2 green on :3103 (a peer held :3101 and the run lock; the retry loop waited it out); 20270176 applied on TEST via reapply-one and read back (3 columns, 2 triggers, roles staff 27 / system 8 / unknown 42 / customer 32, 7 accounts awaiting reply).
+Not covered by e2e: the Resend webhook path (no RESEND_WEBHOOK_SECRET in the test env — unit-tested
+with a fake client) and the portal thread page (same function as the token chat; one-line call).
+Prod: 20270176 needs Tom's paste. Next: 0c work orders (B3 — all_surfaces_done_at, booked_end_date +
+booking_extended, wo_qa_checks.attempt_no, review_requests, actor_id on photos, worked-hours opt-in).
+
 # 19 Sep 2026 (evening) — Home dashboard v2, Session 0a: capture on estimates + presentations. ONE migration: 20270175 (additive: `estimates.sent_by_user_id` + `lead_source`, `accounts.category` + `lead_source`, `presentations.category_label`, three triggers, `send_estimate` redefined). Branch `feat/home-dashboard-0a-capture`.
 
 Reference set committed first (brief v2, v1 kept, both mockups, presentations summary, P&L-vs-Settings

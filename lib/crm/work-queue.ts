@@ -1259,7 +1259,8 @@ export type InboundMessageRow = {
   id: string; account_id: string | null; channel: string; subject: string | null; body: string;
   from_address: string | null; occurred_at: string; read_at: string | null;
 };
-export type OutboundTouchRow = { account_id: string; occurred_at: string };
+/** Dashboard 0b: an automation's chase is outbound but not a reply — the customer is still waiting. */
+export type OutboundTouchRow = { account_id: string; occurred_at: string; sender_role: string | null };
 
 const MESSAGE_OVERDUE_HOURS = 4;   // ⚑7.8 — a customer message waits four hours, an unmatched one a day
 const excerpt = (m: InboundMessageRow) => (m.subject?.trim() || m.body.replace(/\s+/g, " ").trim()).slice(0, 120) || "(no text)";
@@ -1289,7 +1290,7 @@ export function buildMessageItems(
       }, { valueCents: null, promisedToCustomer: false }, now));
       continue;
     }
-    const answered = outbound.some((o) => o.account_id === m.account_id && o.occurred_at > m.occurred_at)
+    const answered = outbound.some((o) => o.account_id === m.account_id && o.occurred_at > m.occurred_at && o.sender_role !== "system" && o.sender_role !== "assistant")
       || attempts.some((a) => a.account_id === m.account_id && a.occurred_at > m.occurred_at);
     if (answered) continue;
     const who = names.get(m.account_id) ?? "A customer";
@@ -1554,8 +1555,9 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const inboundRows = (inboundMsgs.error ? [] : (inboundMsgs.data ?? [])) as unknown as InboundMessageRow[];
   const inboundAccountIds = [...new Set(inboundRows.map((m) => m.account_id).filter((x): x is string => Boolean(x)))];
   const [outboundTouches, inboundAttempts, inboundAccounts] = await Promise.all([
-    inSlices(inboundAccountIds, (ids) => supabase.from("messages").select("account_id, occurred_at").eq("direction", "out")
-      .not("status", "in", "(failed,not_configured)").in("account_id", ids).gte("occurred_at", since30d).limit(ids.length * 8)),
+    inSlices(inboundAccountIds, (ids) => supabase.from("messages").select("account_id, occurred_at, sender_role").eq("direction", "out")
+      .not("status", "in", "(failed,not_configured,suppressed)").not("sender_role", "in", "(system,assistant)")
+      .in("account_id", ids).gte("occurred_at", since30d).limit(ids.length * 8)),
     inSlices(inboundAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
       .in("type", ["call_connected", "call_no_answer", "message_left"]).in("account_id", ids).gte("occurred_at", since30d).limit(ids.length * 5)),
     inSlices(inboundAccountIds, (ids) => supabase.from("accounts").select("id, name, email, phone").in("id", ids)),

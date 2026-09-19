@@ -94,7 +94,7 @@ export async function GET(request: Request) {
     await store.markEscalated(h.id, now);
     await store.appendMessage({ conversationId: h.conversationId, role: "assistant", content: ESCALATED_TEXT, modelId: null, tokensIn: 0, tokensOut: 0 });
     const { escalate } = onDutyNumbers(settings.supportHours, now);
-    if (handoffTexts) await Promise.all(escalate.map((n) => sendSms({ to: n, body: "Paint Group assistant: a live-chat request has passed the SLA — claim it in Today → Messages." }).catch(() => undefined)));
+    if (handoffTexts) await Promise.all(escalate.map((n) => sendSms({ to: n, body: "Paint Group assistant: a live-chat request has passed the SLA — claim it in Today → Messages.", ctx: { kind: "assistant_handoff" } }).catch(() => undefined)));
     escalated++;
   }
   return NextResponse.json({ checked: (convs ?? []).length, logged, skipped, escalated });
