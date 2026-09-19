@@ -11,13 +11,23 @@ export const dynamic = "force-dynamic";
  * contractor keeps help (Phase C ⚑ C-3), the notice page explains the rest.
  */
 export default async function PortalHelpPage({ searchParams }: { searchParams: Promise<{ q?: string; tour?: string }> }) {
-  await getContractorSession();
-  const roles = rolesFor("contractor");
+  const { employmentType, capabilities } = await getContractorSession();
+  // The reader's OWN manual, never a literal — see the guide page for what
+  // hardcoding "contractor" here cost. An employee's list, search results and
+  // tour are the employee ones; `rolesFor` is the single answer to "which
+  // manual", shared with /api/help/media so a page can never offer a picture
+  // the media route will refuse.
+  const roles = rolesFor(employmentType);
   const guides = guidesFor(roles);
   const sp = await searchParams;
   const q = (sp.q ?? "").trim().slice(0, 80);
   const hits = q ? searchGuides(q, roles) : null;
-  const tour = loadTour("contractor");
+  // The tour is written for contractors — "your price", "your invoices",
+  // "send a progress claim". The layout already withholds the first-run tour
+  // from an employee on `acceptsOffers`; the replay button here did not, so an
+  // employee could summon a tour about money they never see. Same gate, and
+  // the employee tour (Session 7's) drops in by role when it is written.
+  const tour = capabilities.acceptsOffers ? loadTour(employmentType) : [];
   const replay = sp.tour === "1" && tour.length > 0;
 
   return (

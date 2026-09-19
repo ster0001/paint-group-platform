@@ -12,7 +12,15 @@ import { credentials, missingCreds, signIn } from "./helpers";
 type Entry = { feature: string; role: string; title: string; summary: string; path: string; walkthrough: string | null; media: string[] };
 const index = JSON.parse(readFileSync("docs/help/_index.json", "utf8")) as { files: Entry[] };
 const contractorGuides = index.files.filter((e) => e.role === "contractor");
-const officeGuides = index.files.filter((e) => e.role === "staff" || e.role === "pc");
+/**
+ * What the office help centre lists. Not staff + pc: since C17 the office also
+ * reads the three customer-facing estimator guides, so they can answer a caller
+ * from the page the caller is on (`rolesFor("staff")` says so, and the route
+ * serves them). Counting only staff + pc expected 13 against the 17 on screen —
+ * a stale assertion, not a leak; the leak checks below are unchanged.
+ */
+const OFFICE_ROLES = ["staff", "pc", "customer", "commercial", "trade"];
+const officeGuides = index.files.filter((e) => OFFICE_ROLES.includes(e.role));
 
 /**
  * A sentence that exists only in this file: its front-matter summary, which
