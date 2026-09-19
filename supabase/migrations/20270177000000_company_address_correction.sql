@@ -24,6 +24,10 @@
 -- pick this up immediately.
 -- =============================================================================
 
+-- A busy table must fail loudly rather than deadlock the paste (CLAUDE.md,
+-- 19 Sep). `settings` is tiny, but the rule is the rule and costs nothing.
+set lock_timeout = '15s';
+
 insert into public.settings (key, value)
 values (
   'invoicing_entity',
