@@ -7,12 +7,23 @@ import HelpArticle from "@/app/components/help/HelpArticle";
 export const dynamic = "force-dynamic";
 
 export default async function PortalHelpGuidePage({ params }: { params: Promise<{ feature: string }> }) {
-  await getContractorSession();
+  const { employmentType } = await getContractorSession();
   const { feature } = await params;
-  // A contractor session can only ever open contractor files. Anything else
-  // is not found — not forbidden — so the existence of an office guide never
-  // shows through.
-  const guide = readGuide(feature, "contractor", rolesFor("contractor"), "portal");
+  // WHICH MANUAL (Tom, 19 Sep: "none of the walkthrough gifs work on mobile in
+  // the contractor portal"). This page used to ask for the CONTRACTOR file
+  // whoever was reading, while `/api/help/media` resolved the reader's real
+  // role — so an employee was served the contractor guide and then refused its
+  // pictures: a broken "Walkthrough" icon on every guide with a film, which is
+  // what Saulius's phone showed. The two must ask the same question, and the
+  // answer to it is `rolesFor` — not a literal. The guide the employee gets is
+  // now their own, which also closes the money leak: the contractor scheduling
+  // guide opens "Each offer comes with the dates, the calculated labour hours,
+  // YOUR PRICE and a 24-hour clock", and an employee never sees a figure.
+  //
+  // A portal session can only ever open portal files. Anything else is not
+  // found — not forbidden — so the existence of an office guide never shows
+  // through, and neither does a contractor guide to an employee.
+  const guide = readGuide(feature, employmentType, rolesFor(employmentType), "portal");
   if (!guide) notFound();
 
   return (
