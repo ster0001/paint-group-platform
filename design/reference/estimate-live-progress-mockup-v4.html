@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estimate view · live progress on a phone · mockup v4</title>
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A0B0D; --graphite:#12161A; --raised:#171C21; --line:#242B32;
+  --text:#EDF0F2; --muted:#8C959D; --cyan:#3BD8E9; --on-cyan:#03272D;
+  --paint:#2FB9CB; --amber:#E0A83C; --emerald:#2FA46B;
+  --sans:"Switzer",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"Martian Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;padding-bottom:84px}
+.mono{font-family:var(--mono);font-size:11px;color:var(--muted)}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:6px}
+a{color:var(--cyan)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+[hidden]{display:none!important}
+
+/* mockup-only controls */
+.mockbar{background:#1d1606;border-bottom:1px solid #4a3a12;padding:12px 0}
+.mockbar .mono{color:var(--amber)}
+.mockbar .row{display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.mockbar label{display:grid;gap:3px;font-size:11px;color:var(--amber)}
+.mockbar input{background:var(--ink);border:1px solid #4a3a12;border-radius:8px;padding:7px 10px;font-size:14px;width:170px}
+.seg{display:inline-flex;background:var(--ink);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{padding:7px 13px;border-radius:999px;font-size:13px;font-weight:500;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--cyan);color:var(--on-cyan)}
+
+.top{display:flex;justify-content:space-between;align-items:center;padding:18px 0;border-bottom:1px solid var(--line)}
+.top img{height:30px}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;font-family:var(--mono);font-size:11px;border:1px solid var(--line)}
+.pill.await{color:var(--amber);border-color:#4a3a12;background:#1d1606}
+.hero{padding:44px 0 36px}
+.hero h1{font-size:clamp(30px,6vw,52px);font-weight:600;letter-spacing:-.035em;line-height:1.05;margin:10px 0 8px}
+.price{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-top:28px}
+.price b{font-family:var(--mono);font-weight:500;font-size:clamp(34px,7vw,56px);letter-spacing:-.04em;line-height:1}
+.btn{display:inline-block;padding:13px 20px;border-radius:10px;font-weight:600;font-size:15px;text-decoration:none}
+.btn.primary{background:var(--cyan);color:var(--on-cyan)}
+.btn.ghost{border:1px solid var(--line);color:var(--text)}
+.stub{border:1px dashed var(--line);border-radius:12px;padding:14px 16px;margin:10px 0;display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:14px}
+.stub b{color:var(--text);font-weight:500}
+.stub.pres{border-color:#164a52;background:#08242a}
+.stub.none{border-color:#4a3a12;color:var(--amber)}
+
+/* ===== NEW SECTION ===== */
+.live{margin:34px 0;padding:40px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);position:relative}
+.newflag{position:absolute;top:-11px;left:0;background:var(--amber);color:#1d1606;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px}
+.replay{font-size:13px;color:var(--muted);padding:8px 14px;border:1px solid var(--line);border-radius:999px;margin-top:22px}
+.fine{margin-top:16px;font-size:12.5px;color:var(--muted);max-width:50ch}
+.stage{display:flex;justify-content:center}
+.under{text-align:center}
+.under .fine{margin:14px auto 0}
+
+/* phone */
+.phone{width:320px;height:650px;flex:none;border-radius:48px;background:#05070a;border:1px solid #2e363e;padding:10px;box-shadow:0 0 0 5px #0f1317,0 50px 100px -30px rgba(59,216,233,.26)}
+.screen{position:relative;width:100%;height:100%;border-radius:39px;overflow:hidden;background:var(--graphite)}
+.lock{position:absolute;inset:0;z-index:3;background:radial-gradient(120% 80% at 50% 0%,#1b2b33,#0b1014 60%);display:flex;flex-direction:column;align-items:center;padding-top:80px;transition:opacity .5s,transform .5s}
+.lock.gone{opacity:0;transform:scale(1.07);pointer-events:none}
+.lock .time{font-size:68px;font-weight:500;letter-spacing:-.04em;line-height:1}
+.lock .date{color:#b9c3ca;font-size:14px;margin-bottom:26px}
+.sms{width:calc(100% - 20px);background:rgba(36,43,50,.94);backdrop-filter:blur(8px);border:1px solid #333d46;border-radius:18px;padding:11px 12px;display:grid;grid-template-columns:34px 1fr;gap:10px;font-size:12.5px;line-height:1.35;opacity:0;transform:translateY(-28px) scale(.96);transition:opacity .45s,transform .45s cubic-bezier(.2,.9,.3,1.2),background .2s;overflow-wrap:anywhere}
+.sms.in{opacity:1;transform:none}
+.sms.tap{transform:scale(.96);background:rgba(59,216,233,.18)}
+.sms .ico{width:34px;height:34px;border-radius:9px;background:var(--emerald);display:grid;place-items:center;font-size:16px}
+.sms .hd{display:flex;justify-content:space-between;font-weight:600;font-size:12px;margin-bottom:2px}
+.sms .hd span{color:var(--muted);font-weight:400}
+.sms u{color:var(--cyan);text-decoration:none}
+.sms.over{position:absolute;top:12px;left:10px;z-index:4}
+
+.app{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;background:var(--graphite)}
+.app::-webkit-scrollbar{display:none}
+.p-top{position:sticky;top:0;z-index:2;background:rgba(18,22,26,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:38px 16px 12px}
+.p-brand{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;margin-bottom:10px}
+.p-addr{font-size:21px;font-weight:600;letter-spacing:-.025em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-sub{margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-row{display:flex;justify-content:space-between;align-items:center;margin:10px 0 8px}
+.pill.live-pill{color:var(--cyan);border-color:#164a52;background:#08242a;padding:3px 9px;font-size:10px}
+.pill.live-pill i{width:6px;height:6px;border-radius:50%;background:var(--cyan);animation:pulse 1.6s infinite}
+.pill.done{color:var(--emerald);border-color:#1c4e37;background:#0b2119;padding:3px 9px;font-size:10px}
+@keyframes pulse{50%{opacity:.25}}
+.bar{height:4px;border-radius:4px;background:var(--line);overflow:hidden}
+.bar b{display:block;height:100%;width:0;background:var(--cyan);transition:width .9s ease}
+.rail{display:flex;gap:4px;margin-top:12px}
+.rail span{flex:1;text-align:center;font-family:var(--mono);font-size:8px;color:var(--muted);padding-top:7px;border-top:2px solid var(--line)}
+.rail span.on{color:var(--cyan);border-color:var(--cyan)}
+.rail span.was{color:var(--text);border-color:var(--paint)}
+.p-body{padding:14px 16px 60px}
+.card{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:12px}
+.lead{display:grid;grid-template-columns:42px 1fr auto;gap:10px;align-items:center}
+.av{width:42px;height:42px;border-radius:50%;background:linear-gradient(140deg,var(--paint),#1a6d78);display:grid;place-items:center;font-weight:600;color:var(--on-cyan)}
+.lead b{font-size:14px;font-weight:600;display:block;line-height:1.2}
+.lead .msg{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:6px 10px}
+.docs{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.docs span{font-family:var(--mono);font-size:9.5px;padding:5px 8px;border-radius:6px;border:1px solid var(--line);color:#b9c3ca}
+.feed{list-style:none;padding:0;margin:18px 0 0;position:relative}
+.feed::before{content:"";position:absolute;left:5px;top:6px;bottom:0;width:1px;background:var(--line)}
+.feed li{display:none;position:relative;padding:0 0 20px 24px}
+.feed li.in{display:block;animation:rise .55s cubic-bezier(.2,.8,.3,1)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}}
+.feed li::before{content:"";position:absolute;left:0;top:5px;width:11px;height:11px;border-radius:50%;background:var(--graphite);border:2px solid var(--cyan)}
+.feed li.milestone::before{background:var(--emerald);border-color:var(--emerald)}
+.feed .when{display:flex;justify-content:space-between;margin-bottom:3px}
+.feed h4{font-size:14.5px;font-weight:600;letter-spacing:-.01em;margin-bottom:3px}
+.feed p{font-size:13px;color:#b9c3ca;line-height:1.45}
+.shots{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}
+.ph{position:relative;height:88px;border-radius:9px;overflow:hidden;background:linear-gradient(135deg,#1e262d,#2a343c)}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph .tag{position:absolute;left:6px;bottom:6px;background:rgba(10,11,13,.78);padding:3px 6px;border-radius:5px;font-family:var(--mono);font-size:9px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.chips span{font-family:var(--mono);font-size:9.5px;padding:3px 7px;border-radius:5px;border:1px solid #1c4e37;color:var(--emerald)}
+
+.steps{list-style:none;padding:0;margin:14px 0;display:grid;gap:8px}
+.steps li{padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:14px;color:var(--muted)}
+.steps li b{color:var(--text);display:block;font-weight:600}
+.steps li.hl{border-color:#164a52;background:#08242a}
+h3.sec{font-size:22px;font-weight:600;letter-spacing:-.02em;margin-top:34px}
+.sticky{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(10,11,13,.94);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:12px 0}
+.sticky .wrap{display:flex;justify-content:space-between;align-items:center}
+.sticky b{font-family:var(--mono);font-weight:500;font-size:18px}
+
+@media (max-width:380px){ .phone{transform:scale(.9);transform-origin:top center;margin-bottom:-65px} }
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="mockbar"><div class="wrap">
+  <span class="mono">Mockup controls (not customer-facing). Change the details to see the phone re-sync.</span>
+  <div class="row">
+    <div class="seg" role="group" aria-label="Account type"><button data-variant="res" aria-pressed="true">Residential customer</button><button data-variant="com" aria-pressed="false">Commercial / trade account</button></div>
+    <div class="seg" role="group" aria-label="Presentation"><button data-pres="1" aria-pressed="true">Presentation attached</button><button data-pres="0" aria-pressed="false">No presentation</button></div>
+  </div>
+  <div class="row">
+    <label>First name<input id="iFirst" value="Ben"></label>
+    <label>Surname<input id="iLast" value="Guptill"></label>
+    <label id="lOrg" hidden>Organisation<input id="iOrg" value="Sample Property Group"></label>
+    <label>Street address<input id="iAddr" value="43 Keith Street"></label>
+    <label>Suburb<input id="iSub" value="Alphington"></label>
+  </div>
+</div></div>
+
+<div class="wrap">
+  <header class="top">
+    <img src="https://llmrvgdequpmzzuaxdhq.supabase.co/storage/v1/object/public/estimate-media/logos/1786806613771-Color_logo_-_no_background.png" alt="Paint Group" onerror="this.outerHTML='<b>Paint Group</b>'">
+    <span class="pill await">Awaiting your approval</span>
+  </header>
+  <section class="hero">
+    <div class="mono">Estimate EST-YOEVFDOB · Prepared 16 Sept 2026 · Prepared by Tom Roman</div>
+    <h1 data-f="addrFull"></h1>
+    <div style="color:var(--muted)">For <span data-f="forName"></span></div>
+    <div class="price">
+      <div><div class="mono">Your painting quote · incl. GST</div><b>$10,820</b></div>
+      <a class="btn primary" href="#accept">Accept estimate</a>
+      <a class="btn ghost" href="#live" data-needs-pres>See how you'll follow the job</a>
+    </div>
+  </section>
+
+  <div class="stub pres" data-needs-pres><b>Presentation blocks: video · before and after · reviews · certificate of currency</b><span>Existing · from the attached presentation</span></div>
+  <div class="stub none" id="noPres" hidden><b>No presentation attached to this quote</b><span>The live progress section is not rendered, and neither are its two links</span></div>
+  <div class="stub"><b>Your property, as we saw it</b><span>Existing · unchanged</span></div>
+
+
+  <div class="stub"><b>Scope of works, item by item</b><span>Existing · unchanged</span></div>
+
+  <!-- ================= NEW SECTION (only with a presentation) ================= -->
+  <section class="live" id="live" aria-label="How you will follow your job" data-needs-pres>
+    <span class="newflag">New · below the scope of works · only when a presentation is attached</span>
+    <div class="stage"><div class="phone" aria-hidden="true"><div class="screen">
+      <div class="lock" id="lock"><div class="time">7:42</div><div class="date">Monday</div><div class="sms" id="sms1"></div></div>
+      <div class="app" id="app"></div>
+      <div class="sms over" id="sms2"></div>
+    </div></div></div>
+    <div class="under"><button class="replay" id="replay">↻ Play again</button><p class="fine" data-f="fine"></p></div>
+  </section>
+
+  <div class="stub"><b>The paint we're supplying · Optional extras · What's included · Your painting quote</b><span>Unchanged</span></div>
+  <h3 class="sec">What happens when you accept</h3>
+  <ol class="steps">
+    <li><b>Booking</b>We'll contact you to lock in your start dates.</li>
+    <li><b>Confirmation</b>Your lead painter's name, start date and time, and a checklist to help you prepare.</li>
+    <li><b>Colour consultation</b>Free, unlimited colour samples. Nothing starts until you're happy.</li>
+    <li class="hl"><b>Live progress in your portal</b>Log in to see updates and track your job's progress. <a href="#live" data-needs-pres>See it for your address ↑</a></li>
+    <li><b>Final walkthrough</b>We walk through every room with you before final payment.</li>
+  </ol>
+  <div class="stub" id="accept"><b>Ready when you are · Terms &amp; conditions</b><span>Unchanged</span></div>
+</div>
+<div class="sticky"><div class="wrap"><div><div class="mono">Total incl. GST</div><b>$10,820</b></div><a class="btn primary" href="#accept">Accept estimate</a></div></div>
+
+<script>
+/* In production: customer, address, photos, areas and products all come from the estimate being viewed */
+const S='https://llmrvgdequpmzzuaxdhq.supabase.co/storage/v1/object/public/';
+const own=['7d6576e5-e29f-4443-9ede-89061c152ede','690677f5-b33e-441d-af77-d2cdd7b59cbf','29aa5101-e400-4cbe-bdb8-818eb1c0a05d','e0734f83-0c97-4a82-a9c1-66e6c50eeae6'].map(i=>S+'estimate-media/'+i+'.jpg');
+const eg=[S+'presentation-media/1789559709533-Screenshot_2026-09-16_at_9.40.15_pm.png',S+'presentation-media/1789559735675-WhatsApp_Image_2026-09-16_at_10.53.46.jpeg'];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const LEAD='Jacob'; // sample only
+
+function details(){ const g=id=>esc($(id).value.trim());
+  const d={first:g('#iFirst'),last:g('#iLast'),org:g('#iOrg'),addr:g('#iAddr')||'your property',sub:g('#iSub')};
+  d.slug=d.addr.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,18); return d; }
+
+/* ---------- the two messaging sets ---------- */
+function copy(variant,d){
+ const hi=d.first?d.first+', ':'', Hi=d.first?' '+d.first:'';
+ const YOURS='Your photo', EG='Example · recent job';
+ if(variant==='res') return {
+  forName:[d.first,d.last].filter(Boolean).join(' ')||'you',
+  fine:`A preview built from your estimate. The room names and first photos are yours. Later photos are examples from a recent job, and ${LEAD} is shown as a sample until your lead painter is confirmed at booking.`,
+  sms1:`Good morning${Hi}. ${LEAD} and the team have arrived at ${d.addr}. Follow today's progress: <u>paintgroup.com.au/j/${d.slug}</u>`,
+  sms2:`${hi}${d.addr} is finished. Your walkthrough with ${LEAD} is at 2pm today.`,
+  brandRight:'Your job', sub:[d.sub,d.first&&'for '+d.first+' '+d.last].filter(Boolean).join(' · '), rail:null, role:'Your lead painter', docs:null,
+  feed:[
+   {d:'Day 1',t:'8:05am',h:'Set-up and protection',p:'Floors covered, furniture moved to the centre of each room and wrapped. Filling and sanding under way in the Lounge and Dining.',shots:[[own[0],YOURS],[own[1],YOURS]],pct:12},
+   {d:'Day 2',t:'4:40pm',h:'Preparation finished',p:'Cracks filled and sanded in Bed 1, Bed 2 and Bed 3. Picture rails in the Lounge and Dining undercoated.',shots:[[own[2],YOURS],[eg[0],EG]],pct:30},
+   {d:'Day 3',t:'4:15pm',h:'Ceilings and cornices',p:'Two coats of Haymes Expressions Ceiling in the Lounge, Dining and Entry. Decorative cornices cut in by hand.',chips:['Lounge ✓','Dining ✓','Entry ✓'],pct:48},
+   {d:'Day 5',t:'4:30pm',h:'Walls, first coat',p:'Dulux Wash and Wear going on in the Hallway, Study and Kitchen, in the colours you chose at your consultation.',shots:[[eg[1],EG],[own[3],YOURS]],pct:76},
+   {d:'Day 7',t:'11:20am',h:'Final walkthrough booked',p:`2pm today with ${LEAD}. You'll walk every room together, and anything you spot is put right before the final invoice.`,pct:100,ms:1}]};
+ return {
+  forName:d.org||[d.first,d.last].filter(Boolean).join(' '),
+  fine:`A preview built from your estimate. The address and first photos are from your property. Later photos are examples from a recent job; the reference numbers and supervisor shown are samples.`,
+  sms1:`${d.addr} (PO 4471): Paint Group signed in on site at 6:30am. ${LEAD} is your site supervisor. Live progress: <u>paintgroup.com.au/j/${d.slug}</u>`,
+  sms2:`${d.addr} (PO 4471): works complete and site cleared. Handover walkthrough at 2pm. Completion report to follow.`,
+  brandRight:d.org||'Your job', sub:[d.sub,'PO 4471','Owner ref KS-43'].filter(Boolean).join(' · '),
+  rail:['Pre-start','In progress','Quality check','Walkthrough','Closed'], role:'Site supervisor', docs:['Certificate of currency','SWMS','Daily reports'],
+  feed:[
+   {d:'Day 1',t:'6:30am',h:'Site induction and set-up',p:'Team inducted and signed in. SWMS reviewed with your site contact, work zones barricaded and signed, floors and fixtures protected in Reception and the Lift lobby.',shots:[[own[0],'Site photo'],[own[1],'Site photo']],chips:['SWMS on site ✓','Tenant notice posted ✓'],pct:12,st:1},
+   {d:'Day 2',t:'4:45pm',h:'Preparation complete, common areas',p:'Corridors, Stairwell and Lift lobby patched, sanded and spot-primed. Access kept clear throughout trading hours. Daily report sent to 3 recipients.',shots:[[own[2],'Site photo'],[eg[0],EG]],pct:30,st:1},
+   {d:'Day 3',t:'9:40pm',h:'After-hours works, Reception',p:'Ceilings and walls to Reception completed after close using low-odour products. Area cleaned and reopened for trading at 7am.',chips:['Out of hours ✓','On programme ✓','Variations 0'],pct:48,st:1},
+   {d:'Day 5',t:'4:45pm',h:'Open-plan office and Boardroom',p:'Two coats to walls in the Open-plan office, Boardroom and Meeting rooms, completed in stages around your staff. Colours recorded against the property.',shots:[[eg[1],EG],[own[3],'Site photo']],pct:76,st:2},
+   {d:'Day 7',t:'11:20am',h:'Practical completion and handover',p:'Quality check passed. Walkthrough at 2pm with your site contact. Signed completion report, photo record and colour schedule filed to the property.',pct:100,ms:1,st:3}]};
+}
+
+/* ---------- render ---------- */
+let variant='res', pres=true, run=0, C;
+const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const ph=(src,tag)=>`<div class="ph"><img src="${src}" alt="" loading="lazy" onerror="this.remove()"><span class="tag">${tag}</span></div>`;
+const smsHTML=body=>`<div class="ico">💬</div><div><div class="hd">Paint Group<span>now</span></div>${body}</div>`;
+function render(){
+  const d=details(); C=copy(variant,d);
+  const F={addrFull:[d.addr,d.sub].filter(Boolean).join(', '),forName:C.forName,fine:C.fine};
+  $$('[data-f]').forEach(e=>e.innerHTML=F[e.dataset.f]);
+  $('#sms1').innerHTML=smsHTML(C.sms1); $('#sms2').innerHTML=smsHTML(C.sms2);
+  $('#app').innerHTML=`<div class="p-top"><div class="p-brand"><span>Paint Group</span><span class="mono">${C.brandRight}</span></div>
+    <div class="p-addr">${d.addr}</div><div class="mono p-sub">${C.sub}</div>
+    <div class="p-row"><span class="pill live-pill" id="pillS"><i></i>In progress</span><span class="mono" id="day">Day 1</span></div>
+    <div class="bar"><b id="bar"></b></div>${C.rail?`<div class="rail">${C.rail.map(s=>`<span>${s}</span>`).join('')}</div>`:''}</div>
+    <div class="p-body"><div class="card lead"><div class="av">${LEAD[0]}</div><div><b>${LEAD}</b><span class="mono">${C.role}</span></div><span class="msg">Message</span></div>
+    ${C.docs?`<div class="docs">${C.docs.map(x=>`<span>${x}</span>`).join('')}</div>`:''}
+    <ol class="feed">${C.feed.map(e=>`<li class="${e.ms?'milestone':''}"><div class="when mono"><span>${e.d}</span><span>${e.t}</span></div><h4>${e.h}</h4><p>${e.p}</p>${e.shots?`<div class="shots">${e.shots.map(s=>ph(s[0],s[1])).join('')}</div>`:''}${e.chips?`<div class="chips">${e.chips.map(c=>`<span>${c}</span>`).join('')}</div>`:''}</li>`).join('')}</ol></div>`;
+  $$('[data-variant]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.variant===variant));
+  $$('[data-pres]').forEach(b=>b.setAttribute('aria-pressed',(b.dataset.pres==='1')===pres));
+  $$('[data-needs-pres]').forEach(e=>e.hidden=!pres); $('#noPres').hidden=pres; $('#lOrg').hidden=variant!=='com';
+}
+
+/* ---------- the scripted story ---------- */
+const wait=(ms,id)=>new Promise((ok,no)=>setTimeout(()=>id===run?ok():no(),RM?0:ms));
+async function play(){
+  const id=++run, app=$('#app'); if(!pres) return;
+  $('#lock').classList.remove('gone'); ['#sms1','#sms2'].forEach(s=>$(s).classList.remove('in','tap')); app.scrollTop=0;
+  try{
+    await wait(700,id); $('#sms1').classList.add('in'); await wait(3000,id);
+    $('#sms1').classList.add('tap'); await wait(320,id); $('#lock').classList.add('gone'); await wait(1400,id);
+    const items=[...app.querySelectorAll('.feed li')];
+    for(let i=0;i<items.length;i++){
+      const e=C.feed[i], li=items[i]; li.classList.add('in');
+      $('#day').textContent=e.d; $('#bar').style.width=e.pct+'%';
+      app.querySelectorAll('.rail span').forEach((s,n)=>s.className=n<e.st?'was':n===e.st?'on':'');
+      const y=li.getBoundingClientRect().top-app.getBoundingClientRect().top+app.scrollTop-app.querySelector('.p-top').offsetHeight-14;
+      app.scrollTo({top:Math.max(0,y),behavior:RM?'auto':'smooth'});
+      await wait(i===0?3200:2700,id);
+    }
+    const p=$('#pillS'); p.className='pill done'; p.textContent='Ready for walkthrough';
+    $('#sms2').classList.add('in'); if(RM) return;
+    await wait(6500,id); render(); play();
+  }catch(e){}
+}
+
+/* ---------- wiring ---------- */
+let deb; $$('.mockbar input').forEach(i=>i.oninput=()=>{clearTimeout(deb);deb=setTimeout(()=>{render();play();},450);});
+const SAMPLE={res:['43 Keith Street','Alphington'],com:['210 High Street','Northcote']};
+$$('[data-variant]').forEach(b=>b.onclick=()=>{ const prev=SAMPLE[variant]; variant=b.dataset.variant;
+  if($('#iAddr').value===prev[0]&&$('#iSub').value===prev[1]){ $('#iAddr').value=SAMPLE[variant][0]; $('#iSub').value=SAMPLE[variant][1]; }
+  render();play();});
+$$('[data-pres]').forEach(b=>b.onclick=()=>{pres=b.dataset.pres==='1';render();play();});
+$('#replay').onclick=()=>{render();play();};
+render();
+new IntersectionObserver((en,ob)=>{ if(en[0].isIntersecting){ play(); ob.disconnect(); } },{threshold:.4}).observe($('.phone'));
+</script>
+</body>
+</html>
