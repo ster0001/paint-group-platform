@@ -1,6 +1,8 @@
 /* Finish-level chip + standards sheet. Shared by the staff work order (.wo) and
    the contractor portal (.pt) — both define the same colour tokens, so this file
-   only uses var() and never hard-codes a colour. */
+   works in var() wherever it can. Three colours are literals and could not be
+   (the chip label, the amber "differs" label, the scrim); they are restated for
+   light mode at the foot of this file. */
 
 .fchip {
   display: inline-flex;
@@ -102,3 +104,26 @@
   .fchip b { color: #111 !important; }
   .fchip .fchev { display: none; }
 }
+
+/* ---- light mode (Tom, 19 Sep) ---------------------------------------------
+   The portal can now be light, and the chip's pale-cyan label on a pale-cyan
+   wash disappeared completely — the literals above have no token to follow.
+   Scoped to a light host, so the dark surfaces are untouched. */
+.pt[data-theme="light"] .fchip,
+.wo[data-theme="light"] .fchip {
+  background: rgba(14, 140, 156, 0.08);
+  border-color: rgba(14, 140, 156, 0.4);
+  color: #0B616D;
+}
+.pt[data-theme="light"] .fchip:hover,
+.wo[data-theme="light"] .fchip:hover { background: rgba(14, 140, 156, 0.14); }
+.pt[data-theme="light"] .fchip.mini.diff,
+.wo[data-theme="light"] .fchip.mini.diff {
+  background: rgba(154, 106, 18, 0.1); border-color: rgba(154, 106, 18, 0.45); color: var(--amber);
+}
+.pt[data-theme="light"] .fchip.unset,
+.wo[data-theme="light"] .fchip.unset { background: rgba(92, 103, 113, 0.08); }
+.pt[data-theme="light"] .fsheet-scrim,
+.wo[data-theme="light"] .fsheet-scrim { background: rgba(20, 30, 40, 0.35); }
+.pt[data-theme="light"] .fsheet .fs-close:hover,
+.wo[data-theme="light"] .fsheet .fs-close:hover { background: rgba(18, 22, 26, 0.05); }

@@ -524,3 +524,119 @@
 .pt .tour-dots i.on { background: var(--cyan); }
 .pt .tour-btns { display: flex; gap: 8px; align-items: center; }
 .pt .tour-btns .btn { margin-top: 0; }
+
+/* ---- dark or light (Tom, 19 Sep) -------------------------------------------
+   "A switch for the contractor portal to be in dark or light theme to match
+   with other themes." The portal joins the CRM, Projects and Payments on the
+   SAME switch, the SAME cookie (`crm_theme`) and the SAME token names, so a
+   painter chooses once and every screen follows — including the employee
+   portal, which is this shell with different tabs.
+
+   Only two kinds of rule live below: the tokens, and the handful of places
+   that were painted with a hard-coded near-black instead of a token (the page
+   behind the phone, the sticky header, the fixed tab bar, the hairlines and a
+   few dark-mode-only text colours). Everything else in this file already reads
+   a token and follows for free. */
+
+/* The switch itself — icon only. The header is 430px wide and already carries
+   the logo and the painter's company name; the word would push one of them
+   off. `aria-label` and `title` carry "Switch to light mode" for anyone who
+   needs it read out. */
+.pt .themebtn {
+  position: relative; /* anchors the screen-reader label to the button */
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pt .themebtn:hover { border-color: var(--cyan); color: var(--cyan); }
+.pt .themelbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pt .themebtn + .who { margin-left: 0; }
+
+/* Two marks in the page, the theme picks one: the white-lettering logo
+   vanishes on a light header, which is exactly the kind of "it went blank"
+   a painter would report as the app being broken. */
+.pt .brandmark { display: flex; align-items: center; min-width: 0; }
+.pt .brandlogo-light { display: none; }
+.pt[data-theme="light"] .brandlogo-dark { display: none; }
+.pt[data-theme="light"] .brandlogo-light { display: block; }
+
+.pt[data-theme="light"] {
+  --ink: #F1F4F6;
+  --graphite: #FFFFFF;
+  --raised: #FFFFFF;
+  --line: #D9E0E6;
+  --text: #12161A;
+  --soft: #3A434B;
+  --muted: #5C6771;
+  --cyan: #0E8C9C;
+  --on-cyan: #FFFFFF;
+  --paint: #1A9DAE;
+  --amber: #9A6A12;
+  --emerald: #1F7A4A;
+  --green: #1F7A4A;
+  --clay: #A3463A;
+  /* A shade under --ink, so the phone column still reads as a card on a page
+     rather than dissolving into it (dark does the same, the other way up). */
+  background: #E3E9ED;
+  color-scheme: light;
+}
+
+/* The three surfaces painted with near-black rather than a token. */
+.pt[data-theme="light"] .hd { background: rgba(241, 244, 246, 0.95); }
+.pt[data-theme="light"] .tabs { background: rgba(241, 244, 246, 0.96); }
+.pt[data-theme="light"] .scrim { background: rgba(20, 30, 40, 0.35); }
+
+/* Hairlines: the dark --line, written out as rgba before it was a token. */
+.pt[data-theme="light"] .frow,
+.pt[data-theme="light"] .act,
+.pt[data-theme="light"] .doc { border-bottom-color: var(--line); }
+
+/* Dark-mode-only text and washes: unreadable, or invisible, on white. */
+.pt[data-theme="light"] .btn.gh:hover { background: rgba(18, 22, 26, 0.05); }
+.pt[data-theme="light"] input::placeholder,
+.pt[data-theme="light"] textarea::placeholder { color: #8A949C; }
+.pt[data-theme="light"] input[type="date"] { color-scheme: light; }
+.pt[data-theme="light"] .err { color: var(--clay); }
+.pt[data-theme="light"] .ok { color: var(--emerald); }
+.pt[data-theme="light"] .tick-prog { background: rgba(18, 22, 26, 0.08); }
+.pt[data-theme="light"] .tour { box-shadow: 0 12px 40px rgba(20, 30, 40, 0.18); }
+/* Dark text on the cyan gradient is a dark-palette choice; in light the
+   gradient itself is darker, so the label goes white with the rest. */
+.pt[data-theme="light"] .var-send,
+.pt[data-theme="light"] .prep.on .prep-box { color: var(--on-cyan); }
+
+/* Accents: the washes and borders are alphas of the DARK accent colours, which
+   all but disappear on white. Same meanings, restated at the light values. */
+.pt[data-theme="light"] .chip.amb { border-color: rgba(154, 106, 18, 0.45); }
+.pt[data-theme="light"] .chip.grn { border-color: rgba(31, 122, 74, 0.45); }
+.pt[data-theme="light"] .chip.cyn { border-color: rgba(14, 140, 156, 0.45); }
+.pt[data-theme="light"] .chip.cly { border-color: rgba(163, 70, 58, 0.45); }
+.pt[data-theme="light"] .card.amberish { border-color: rgba(154, 106, 18, 0.4); background: linear-gradient(180deg, rgba(154, 106, 18, 0.07), var(--graphite)); }
+.pt[data-theme="light"] .card.greenish { border-color: rgba(31, 122, 74, 0.4); background: linear-gradient(180deg, rgba(31, 122, 74, 0.06), var(--graphite)); }
+.pt[data-theme="light"] .tick-photo,
+.pt[data-theme="light"] .var-photo { background: rgba(154, 106, 18, 0.07); border-color: rgba(154, 106, 18, 0.45); }
+.pt[data-theme="light"] .tick-photo.after { background: rgba(31, 122, 74, 0.08); border-color: rgba(31, 122, 74, 0.45); }
+.pt[data-theme="light"] .tickrow .sw i.a { background: rgba(31, 122, 74, 0.2); border-color: rgba(31, 122, 74, 0.55); }
+.pt[data-theme="light"] .tickrow .sw i.b { background: rgba(14, 140, 156, 0.18); border-color: rgba(14, 140, 156, 0.5); }
+.pt[data-theme="light"] .var-chip.on { background: rgba(14, 140, 156, 0.08); }
+
+/* The calendar carries the most meaning-by-colour on the phone. */
+.pt[data-theme="light"] .cd2.istoday { box-shadow: inset 0 0 0 1px rgba(14, 140, 156, 0.55); }
+.pt[data-theme="light"] .cd2.job { border-color: rgba(14, 140, 156, 0.5); background: rgba(14, 140, 156, 0.08); }
+.pt[data-theme="light"] .cd2.booked { border-color: rgba(31, 122, 74, 0.5); background: rgba(31, 122, 74, 0.09); }
+.pt[data-theme="light"] .cd2.offered { border-color: rgba(154, 106, 18, 0.5); background: rgba(154, 106, 18, 0.1); color: var(--amber); }
+.pt[data-theme="light"] .cd2.marq { background: rgba(14, 140, 156, 0.16); border-color: rgba(14, 140, 156, 0.5); }
+.pt[data-theme="light"] .cd2.blocked { background: repeating-linear-gradient(45deg, rgba(92, 103, 113, 0.18) 0 5px, transparent 5px 10px); }
+.pt[data-theme="light"] .cd2.blocked.office { background: repeating-linear-gradient(45deg, rgba(163, 70, 58, 0.18) 0 5px, transparent 5px 10px); border-color: rgba(163, 70, 58, 0.45); color: var(--clay); }

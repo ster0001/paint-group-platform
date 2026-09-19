@@ -45,17 +45,25 @@ export type PortalContext = {
   coordinatorName: string;
 };
 
-/** The public-safe company contact block (name, phone, logo, coordinator).
+/** The public-safe company contact block (name, phone, both logos, coordinator).
  * Read through the SERVICE client: `settings` is staff-RLS'd, and customers
  * and the anonymous login page still need the phone number — §7: it never
- * hides. Only these four display fields ever leave this function. */
-export async function getCompanyContact(): Promise<{ name: string; phone: string; logoUrl: string; coordinatorName: string }> {
+ * hides. Only these five display fields ever leave this function.
+ *
+ * `logoUrlLight` is the dark-lettering mark (19 Sep): the portal can now be
+ * light, and the white-lettering logo disappears on a light header. Same pair
+ * `loadLogos()` hands the staff surfaces — this is the door a contractor
+ * session has to it, since `settings` is staff-RLS'd. */
+export async function getCompanyContact(): Promise<{ name: string; phone: string; logoUrl: string; logoUrlLight: string; coordinatorName: string }> {
   const svc = createServiceClient();
-  if (!svc) return { name: "Paint Group", phone: "", logoUrl: "", coordinatorName: "" };
+  if (!svc) return { name: "Paint Group", phone: "", logoUrl: "", logoUrlLight: "", coordinatorName: "" };
   const { data } = await svc.from("settings").select("value").eq("key", "company_profile").maybeSingle();
-  const v = (data?.value ?? {}) as { name?: string; phone?: string; logoUrl?: string; coordinatorName?: string };
+  const v = (data?.value ?? {}) as { name?: string; phone?: string; logoUrl?: string; logoUrlLight?: string; coordinatorName?: string };
   return {
     name: v.name || "Paint Group", phone: v.phone || "", logoUrl: v.logoUrl || "",
+    // Unset falls back to the main mark, exactly as loadLogos() does — one
+    // logo configured must never mean "no logo in light mode".
+    logoUrlLight: v.logoUrlLight || v.logoUrl || "",
     // 14 Sep: no invented name. An unset coordinator is a Settings gap the
     // switch checklist names; every reader has its own honest fallback.
     coordinatorName: v.coordinatorName || "",
