@@ -131,7 +131,8 @@ test.describe("the live-progress phone on the estimate", () => {
     const sec = page.getByTestId("live-progress");
     await sec.scrollIntoViewIfNeeded();
 
-    await expect(page.getByTestId("pp-sms1")).toContainText("Good morning Casey. The team have arrived at 12 Progress Street.");
+    // The suite sets a Demo painter in beforeAll (F1), so the residential text names them.
+    await expect(page.getByTestId("pp-sms1")).toContainText(`Good morning Casey. ${DEMO.name} and the team have arrived at 12 Progress Street.`);
     await expect(sec.locator(".pp-addr")).toHaveText("12 Progress Street");
     await expect(sec.locator(".pp-sub")).toHaveText("Alphington · for Casey Livesey");
     // Only the estimate's own photos, each tagged as theirs (6b, F2).
@@ -227,7 +228,8 @@ test.describe("the live-progress phone on the estimate", () => {
     const sec = page.getByTestId("live-progress");
     await expect(sec).toHaveAttribute("data-set", "commercial");
     await expect(page.getByTestId("pp-sms1")).toContainText(`12 Progress Street (PO 4471-${run}): Paint Group signed in on site`);
-    await expect(sec.locator(".pp-sub")).toHaveText(`Northcote · PO 4471-${run}`);
+    // The phone reads the ESTIMATE's address (snapshot), not the property row — so its suburb, plus the property's PO.
+    await expect(sec.locator(".pp-sub")).toHaveText(`Alphington · PO 4471-${run}`);
     await expect(sec.locator(".pp-brand")).toContainText(`Sample Property Group ${run}`);
     await expect(sec.locator(".pp-rail span")).toHaveCount(5);
     await expect(sec.locator(".pp-lead")).toContainText("Site supervisor");
