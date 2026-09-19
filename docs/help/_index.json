@@ -442,6 +442,28 @@
       ]
     },
     {
+      "feature": "warranty",
+      "role": "customer",
+      "title": "Your two-year workmanship warranty — what it covers, how long it lasts and how to make a claim",
+      "summary": "Every job Paint Group completes is covered for two years from the day you sign off; this explains what is covered, what is not, where to find your certificate and how to report something that does not look right.",
+      "path": "docs/help/warranty/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
+      "feature": "warranty",
+      "role": "staff",
+      "title": "What the two-year workmanship warranty promises, where the customer sees it, and what you can and cannot change",
+      "summary": "The warranty is approved, applies to every job for two years from sign-off, does not transfer to a new owner, and now appears on the customer's estimate as well as in their account — there is no switch to turn it off for a particular job.",
+      "path": "docs/help/warranty/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "work-orders",
       "role": "contractor",
       "title": "Run a job from the first tick to the customer's signature",

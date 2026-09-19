@@ -1,5 +1,16 @@
 # Paint Group — 2-Year Workmanship Warranty
-**Draft for the platform · August 2026 · requires legal review before publication**
+**APPROVED BY TOM · 19 September 2026 · live on the estimate and in the portal**
+
+> Tom, 19 Sep 2026: *"Please approve the workmanship warranty terms as we previously created - i am
+> happy to proceed so remove watermark."* · *"Remove the ability to transfer a warranty."* ·
+> *"Lets just keep the 2 year workmanship warranty active for everybody."*
+>
+> The terms below now ship as `lib/warranty/terms.ts` (version `2026-09-19`), rendered on the
+> customer's estimate (`/e/[token]`) and in their portal. The DRAFT watermark is off — migration
+> `20270174000000_warranty_terms_approved.sql` sets `settings.warranty_terms.approved`. Tom approved
+> the drafted wording as it stood, with one change: §8 takes **Option A — the warranty does not
+> transfer**. The lawyer's review in §3 was not waived by this; it is Tom's commercial decision to
+> publish now, and anything the lawyer changes later is a text edit in one module.
 
 This document contains three parts: the short warranty card shown in the portal (§1), the full warranty terms (§2), and the flagged decisions and legal notes for you (§3). Customer-facing copy is written in the agreed English tone. I'm not a lawyer — this draft is built around the Australian Consumer Law's mandatory requirements for a "warranty against defects", but it must be reviewed by a lawyer before it goes live, ideally alongside the deemed sign-off clause you already have queued for review.
 
@@ -85,9 +96,9 @@ Making a claim costs you nothing. We bear the cost of inspecting and carrying ou
 
 The warranty period runs for two years from the date of practical completion — the day the project is signed off in your Paint Group account, or otherwise taken to be complete under your quote terms. ⚑ The completion date and the warranty expiry date are shown on your warranty card in your account.
 
-**8. Transfer to a new owner** ⚑
+**8. Transfer to a new owner**
 
-[Decision required — see §3. Option A: This warranty is personal to the customer named on the estimate and does not transfer. Option B: This warranty attaches to the property and transfers automatically to a new owner for the balance of the warranty period; the new owner may claim using the property's paint register.]
+This warranty is personal to the customer named on the estimate and does not transfer. If you sell the property, the warranty does not pass to the new owner, and it cannot be assigned to anyone else. Nothing in this clause affects rights a person has under the Australian Consumer Law.
 
 **9. Your rights under the Australian Consumer Law**
 
@@ -99,16 +110,19 @@ The benefits given by this warranty are in addition to other rights and remedies
 
 ## 3. For Tom — flags and legal notes
 
-**⚑ Business decisions needed (in the order they appear):**
+**Business decisions — ALL RESOLVED 19 Sep 2026.** Tom approved the drafted wording as it stood,
+which settles 1–6 as written, and ruled on 7 and 8:
 
-1. **Warrantor details** — ABN, registered address, and whether warranty claims get their own email address (recommended: warranty@ routes claims into the PC console the same way "Report an issue" does, so phone/email/portal all land in one queue).
-2. **Repair-to-natural-break promise (§3)** — this is a strong, differentiating promise ("a repair you cannot see") but it costs more than a patch touch-up. Confirm you want to commit to it in writing, and whether it applies to exteriors (repaint to the nearest elevation edge?).
-3. **Against-our-recommendation exclusion (§4)** — this only works if the platform records it. Suggested mechanism: a "painted at customer request — noted condition" flag on the estimate line, shown to the customer before acceptance. Worth adding to the estimate builder so the exclusion is evidenced, not argued.
-4. **Customer-supplied paint (§4)** — cover workmanship but not the product, as drafted, or exclude those surfaces entirely?
-5. **Claim response times (§5)** — the drafted 2 business days to acknowledge / 10 to inspect are placeholders. Whatever you commit to should match a PC console SLA, since these become measurable promises.
-6. **Warranty start date (§7)** — drafted as sign-off date, consistent with your existing ⚑ (sign-off = master event). The "or otherwise taken to be complete" wording is there to keep the 72-hour deemed sign-off consistent — the two clauses must be reviewed together.
-7. **Transferability (§8)** — genuine business choice. Option B (attaches to the property) is unusual in the market, pairs beautifully with the per-property paint register, and is a real selling point for real estate and body corporate clients — but it extends your liability to people you've never contracted with. If you choose B, consider requiring the new owner to claim through the property's existing portal record.
-8. **Commercial scope** — does the same 2-year term apply to commercial and body corporate jobs, or do those carry negotiated terms? If negotiated, the platform needs a per-job warranty term field rather than a hard-coded "2 years".
+| # | Decision | Where it landed |
+|---|---|---|
+| 1 | Warrantor details | **From Settings, not from this file.** Clause 1 renders `invoicing_entity.tradingName / abn / address` and clause 5 the company phone + email. ⚑ **If those Settings fields are blank, the approved terms go out without an ABN or a registered address, which reg 90 requires** — Tom to check Settings → Invoicing entity. No separate `warranty@` address was created; claims come through the portal, the phone and the company email. |
+| 2 | Repair to the nearest natural break | **Committed, as drafted** (§3). Applies to interiors and exteriors alike; the words say "such as the corner of a wall", not a rule per elevation. |
+| 3 | Against-our-recommendation exclusion | **Kept, as drafted** (§4). ⚑ Still unevidenced in the platform: there is no "painted at customer request — noted condition" flag on an estimate line, so the exclusion would have to be argued from the work order's notes. Worth building before it is ever relied on. |
+| 4 | Customer-supplied paint | **Workmanship covered, product not** (§4), as drafted. |
+| 5 | Claim response times | **2 business days to acknowledge, 10 to offer an inspection** (§5), as drafted. These are now promises in a published document; nothing in the PC console measures them yet. |
+| 6 | Warranty start date | **Sign-off date** (§7), as drafted — consistent with `wo_loop.warrantyStart = 'signoff_date'`. |
+| 7 | Transferability | **Option A — it does not transfer.** Tom, 19 Sep: "Remove the ability to transfer a warranty." Personal to the customer named on the estimate, not assignable. |
+| 8 | Commercial scope | **The same two years for everybody.** Tom, 19 Sep: "Lets just keep the 2 year workmanship warranty active for everybody." No per-estimate switch and no per-job term field — deliberately rejected, so `years` stays 2 in the sign-off functions. |
 
 **Legal notes for your lawyer (not decisions for you):**
 

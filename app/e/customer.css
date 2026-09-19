@@ -250,6 +250,22 @@
 .cv .tcard .doc { display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--cyan); border: 1px solid rgba(59,216,233,.4); border-radius: 100px; padding: 5px 11px; text-decoration: none; }
 .cv .tcard .doc:hover { background: rgba(59,216,233,.1); }
 
+/* the warranty ATTACHMENT (Tom, 19 Sep 2026) — its own document at
+   /e/[token]/warranty, not written into the quote. Deliberately NOT `.wrap`:
+   the print sheet hides `.wrap` to swap in the paper quote, and this page has
+   to print as itself. */
+.cv .docpage { max-width: 780px; margin: 0 auto; padding: 40px 22px 80px; }
+.cv .docpage .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }
+.cv .dochead { border-bottom: 1px solid var(--line); padding-bottom: 18px; margin-bottom: 24px; }
+.cv .brandline { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--cyan); margin-bottom: 10px; }
+.cv .docpage h1 { font-size: 30px; line-height: 1.15; margin-bottom: 8px; }
+.cv .docmeta { font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; color: var(--muted); }
+.cv .docintro { font-size: 15.5px; color: var(--muted); line-height: 1.6; margin-bottom: 14px; max-width: 70ch; }
+.cv .wclause { margin-top: 22px; }
+.cv .wclause h2 { font-family: var(--sans); font-weight: 600; font-size: 16px; margin-bottom: 6px; color: var(--text); }
+.cv .wclause p { font-size: 14px; color: var(--muted); line-height: 1.65; max-width: 70ch; }
+.cv .wacl { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+
 /* accept panel + responses */
 .cv .acceptpanel { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); border-radius: 16px; padding: 36px 30px; text-align: center; }
 .cv .acceptpanel h2 { margin-bottom: 8px; }
@@ -309,6 +325,17 @@
 
   /* Replace the on-screen marketing document with the paper quote. */
   .cv .wrap { display: none !important; }
+
+  /* …but the warranty attachment IS the document on its own page: it prints
+     as itself, in black on white, with the buttons gone. */
+  .cv .docpage { max-width: none; padding: 0; color: #111; }
+  .cv .docpage h1, .cv .docpage .wclause h2 { color: #111 !important; }
+  .cv .docpage .brandline { color: #444 !important; }
+  .cv .docpage .docmeta, .cv .docpage .docintro,
+  .cv .docpage .wclause p, .cv .docpage .wacl { color: #333 !important; }
+  .cv .dochead { border-color: #ccc !important; }
+  .cv .docpage .wacl { border-color: #ccc !important; }
+  .cv .docpage .wclause { break-inside: avoid; }
   .cv .printdoc { display: block !important; color: #111; font-family: var(--sans); font-size: 12px; }
   .cv .printdoc .pd-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 16px; }
   .cv .printdoc .pd-logo { height: 42px; width: auto; max-width: 230px; object-fit: contain; }

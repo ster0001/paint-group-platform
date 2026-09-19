@@ -7,6 +7,7 @@ import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColou
 import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
 import SignaturePad from "@/app/components/SignaturePad";
+import { warrantyAttachmentLine } from "@/lib/warranty/terms";
 import "../customer.css";
 
 // The public token page keeps this row shape; the builder passes a live snapshot
@@ -639,6 +640,17 @@ export default function CustomerEstimate({
                 <a className="doc" href={snap.swms.url} target="_blank" rel="noreferrer" download data-testid="swms-download">⤓ Download SWMS</a>
               </div>
             )}
+            {/* Tom, 19 Sep: the workmanship warranty beside the insurance and
+                the SWMS — promised on the estimate they are deciding on, not
+                first met after sign-off, and its terms downloadable as their
+                own document rather than written into the quote. Everybody. */}
+            <div className="tcard" data-testid="warranty-card">
+              <div className="tval cyan">{snap.proof.warranty || "2-year"}</div>
+              <div className="tlab">workmanship warranty on every job</div>
+              {token && (
+                <a className="doc" href={`/e/${token}/warranty`} target="_blank" rel="noreferrer" data-testid="warranty-download">⤓ Warranty terms (PDF)</a>
+              )}
+            </div>
             <div className="tcard"><div className="tval gold">Master Painters</div><div className="tlab">accredited member</div></div>
           </div>
         </section>
@@ -784,7 +796,7 @@ export default function CustomerEstimate({
         selectedIds={selected} grossSubtotal={grossSubtotal} discount={discount}
         discountPct={discountPct} discountMode={discountMode} gst={gst} total={total}
         deposit={deposit} depositPct={depositPct} acceptedName={acceptedName} done={done}
-        bank={bank}
+        bank={bank} invoiceMode={invoiceMode}
       />
 
       {!done && !invoiceMode && (
@@ -799,13 +811,15 @@ export default function CustomerEstimate({
 
 function PrintQuote({
   snap, est, sentAt, validUntil, selectedIds, grossSubtotal, discount, discountPct,
-  discountMode, gst, total, deposit, depositPct, acceptedName, done, bank,
+  discountMode, gst, total, deposit, depositPct, acceptedName, done, bank, invoiceMode,
 }: {
   snap: CustomerSnapshot; est: string; sentAt: string | null; validUntil: string | null;
   selectedIds: Set<string>; grossSubtotal: number; discount: number; discountPct: number;
   discountMode: string; gst: number; total: number; deposit: number; depositPct: number;
   acceptedName: string | null; done: null | "accepted" | "declined";
   bank: BankDetails | null;
+  /** The same document doubles as the printed invoice; the warranty block is a quote's. */
+  invoiceMode: boolean;
 }) {
   const c = snap.company;
   const surfaceLine = (a: CustomerSnapshot["areas"][number]) =>
@@ -909,6 +923,18 @@ function PrintQuote({
         <div className="pd-block">
           <div className="pd-h">Safe Work Method Statement</div>
           <div className="pd-sub">A SWMS for this job ({snap.swms.label || "PDF"}) is attached to your online estimate — download it beside the public liability card.</div>
+        </div>
+      )}
+
+      {/* Tom, 19 Sep: the printed quote records that the job carries the
+          warranty and points at the attachment — the terms themselves are the
+          attachment, the way the SWMS block points at its PDF. Not on the
+          printed INVOICE: that is the accepted scope and what is owed, and
+          this paragraph names "this estimate". */}
+      {!invoiceMode && (
+        <div className="pd-block" data-testid="print-warranty">
+          <div className="pd-h">Two-year workmanship warranty</div>
+          <div className="pd-sub">{warrantyAttachmentLine()}</div>
         </div>
       )}
 
