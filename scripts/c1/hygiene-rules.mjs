@@ -29,6 +29,10 @@ export const DEFAULTS = Object.freeze({
   /** Users per SQL round trip inside a batch. */
   chunk: 25,
   budgetMinutes: 20,
+  /** How long a sweep waits for a running e2e suite before giving up. A suite
+   * is 20-40 minutes and the sweep has all night; bouncing off the first
+   * refusal is how you get a string of green sweeps that deleted nothing. */
+  lockWaitMinutes: 12,
 });
 
 /** Exit codes the runner uses, so a caller can tell a refusal from a failure. */

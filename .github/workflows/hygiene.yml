@@ -30,10 +30,26 @@ on:
       budget_min:
         description: "Minutes to spend deleting before stopping (raise this to clear a backlog)"
         default: "20"
+      lock_wait_min:
+        description: "Minutes to wait for a running e2e suite to finish before giving up"
+        default: "12"
 
 concurrency:
-  # Never beside an e2e run: the same group the CI e2e job uses.
-  group: e2e-test-project
+  # ITS OWN GROUP, and that is deliberate (19 Sep 2026).
+  #
+  # This used to be `e2e-test-project`, shared with the CI e2e job, so the two
+  # could never run at once. It also meant the sweep could never run at all on
+  # a busy day: GitHub keeps only ONE pending run per concurrency group, and a
+  # newly queued run DISPLACES the pending one — `cancel-in-progress: false`
+  # protects the RUNNING entry, not the waiting one. A sweep dispatched to
+  # clear an 8,700-row backlog sat pending behind an e2e job, the next CI run
+  # joined the group, and the sweep was cancelled without anyone touching it.
+  # Measured: run 8, cancelled while waiting.
+  #
+  # What keeps the sweep away from a live run now is the advisory lock it takes
+  # (scripts/c1/hygiene.mjs), which is strictly better than this group ever
+  # was: it also covers LOCAL runs, which were never in any GitHub group.
+  group: hygiene-sweep
   cancel-in-progress: false
 
 jobs:
@@ -67,6 +83,6 @@ jobs:
       # and each chunk is its own transaction, so stopping on the budget is
       # safe and the next run carries on from the oldest row left.
       - name: Sweep
-        run: node scripts/c1/hygiene.mjs sweep --age-days "${{ github.event.inputs.age_days || '1' }}" --batch "${{ github.event.inputs.batch || '1000' }}" --budget-min "${{ github.event.inputs.budget_min || '20' }}"
+        run: node scripts/c1/hygiene.mjs sweep --age-days "${{ github.event.inputs.age_days || '1' }}" --batch "${{ github.event.inputs.batch || '1000' }}" --budget-min "${{ github.event.inputs.budget_min || '20' }}" --lock-wait-min "${{ github.event.inputs.lock_wait_min || '12' }}"
       - name: Count after
         run: node scripts/c1/hygiene.mjs count || true
