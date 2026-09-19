@@ -13,7 +13,7 @@
 **Between:**
 
 **The Recipient:** ENLVN Pty Ltd trading as Paint Group,
-ABN 41 639 780 108, of 25/25-35 Bunney Road, Oakleigh South VIC 3167
+ABN 41 639 780 108, of 25/25-27 Bunney Road, Oakleigh South VIC 3167
 ("Paint Group")
 
 **and**

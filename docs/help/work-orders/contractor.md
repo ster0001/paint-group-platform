@@ -4,7 +4,7 @@ role: contractor
 title: Run a job from the first tick to the customer's signature
 summary: How a booked job works on your phone — the pre-start list, photos before ticks, ticking surfaces off, raising a variation, the finishing-up list, the quality check, and handing the phone to the customer to sign off.
 walkthrough: media/contractor-walkthrough.gif
-sources: app/portal/jobs, app/components/wo, app/s, lib/workorder
+sources: app/portal/jobs/[id]/FinishUp.tsx, lib/reporting/workedTime.ts, app/portal/jobs, app/components/wo, app/s, lib/workorder
 verified_at_commit: 3a6848a2fd
 ---
 
@@ -75,6 +75,9 @@ The second walkthrough film covers this part of the job, from the completion lis
 19. The job now reads **Job complete · signed off**, with who signed and when, and the work order header says **COMPLETE**. **Invoice this job** is waiting below (see the invoicing guide). If an area was flagged instead, the job comes back to you as In progress with the flagged area on your tick list — see the next step.
 20. **A flagged area, put right.** The customer's flag sits on your tick list as a **RECTIFY** row with what they said. Fix it, take the finished shot, and tick it. The pinned bar at the top now reads **FLAGGED AREAS PUT RIGHT · Fixed — send the report**, and the card below says the same. One tap completes the job: the customer is emailed their completion report with a **What you flagged, and what we did** section, their two-year warranty starts, and the job reads **Job complete**. There is no second walkthrough — they already looked at everything and told you what was wrong.
     ![](media/contractor-18.png)
+
+## How long were you on site (some painters only)
+If the office has switched it on for you, the **All surfaces done** card asks **How long were you on site?** before the job moves on — days on site and hours in total, pre-filled from your booking. Change it to what actually happened. It goes on your invoice as a note ("Time on site — as entered by the painter") and it never changes what you are paid. Tick **Skip** to leave it and the booked days are used instead. If you never see the question, it is not switched on for you — nothing to do.
 
 ## What the colours and labels mean
 - **TO DO / PREPPED / DONE** on a row — not started (grey), prepped (cyan), finished (green).

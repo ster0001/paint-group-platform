@@ -27,7 +27,13 @@
 import pg from "pg";
 import { productionRef } from "./env.mjs";
 import { checkTarget, DEFAULTS, EXIT, fkAction, parseArgs, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
-import { E2E_RUN_LOCK_KEY, sessionPooledUrl } from "./session-url.mjs";
+import {
+  E2E_RUN_LOCK_KEY,
+  LOCK_HOLDER_QUERY,
+  describeLockHolder,
+  lockHolderName,
+  sessionPooledUrl,
+} from "./session-url.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const cmd = args._[0];
@@ -256,65 +262,112 @@ if (cmd === "teardown") {
 }
 
 if (cmd === "sweep") {
-  // ONE RUN AT A TIME, and the sweep is a run. It deletes by AGE, and a live
-  // e2e run's rows become old enough to qualify while it is still using them —
-  // the same "a timestamp is not ownership" hole the run lock was built for
-  // (e2e/run-lock.ts), from a third direction. CI cannot collide (the sweep
-  // workflow shares the `e2e-test-project` concurrency group with the e2e job)
-  // but a LOCAL run has nothing in common with a GitHub concurrency group, and
-  // this repo is worked in several checkouts at once.
+  // THE SWEEP YIELDS. It takes the e2e run lock, but only for one SLICE of the
+  // delete at a time — seconds, not the whole run.
   //
-  // Only the sweep takes it. `teardown` is called BY global-teardown, from a
-  // process that already holds this exact lock — taking it again from this
-  // child process would refuse the run's own cleanup.
-  const lockClient = new pg.Client({
-    connectionString: sessionPooledUrl(dbUrl),
-    ssl: { rejectUnauthorized: false },
-    application_name: "pg-hygiene-sweep-lock",
-  });
-  await lockClient.connect();
-
-  // WAIT for a run rather than bouncing off it. A suite takes 20-40 minutes and
-  // the sweep has all night; giving up on the first refusal means a busy day
-  // produces a string of sweeps that deleted nothing, which is how a backlog
-  // forms while every job is green.
-  const lockWaitMs = Math.max(0, Number(args["lock-wait-min"] ?? DEFAULTS.lockWaitMinutes)) * 60_000;
-  const waitStarted = Date.now();
-  let held = false;
-  for (;;) {
-    const [lock] = (await lockClient.query("select pg_try_advisory_lock($1) as ok", [E2E_RUN_LOCK_KEY])).rows;
-    if (lock?.ok) { held = true; break; }
-    if (Date.now() - waitStarted >= lockWaitMs) break;
-    if (Date.now() - waitStarted < 15_000) log(`an e2e run holds the test project — waiting up to ${Math.round(lockWaitMs / 60_000)} min for it to finish…`);
-    await new Promise((r) => setTimeout(r, 15_000));
-  }
-  if (!held) {
-    await lockClient.end();
-    await client.end();
-    // Not a failure: the project is in use and the sweep runs again tomorrow.
-    // A red job here would train everyone to ignore it.
-    log(`sweep skipped: an e2e run still holds the test project after ${Math.round((Date.now() - waitStarted) / 60_000)} min. Nothing was deleted; the next scheduled sweep will pick it up.`);
-    if (json) console.log(JSON.stringify({ skipped: "run-in-progress", waitedMin: Math.round((Date.now() - waitStarted) / 60_000), deleted: 0 }));
-    process.exit(EXIT.ok);
-  }
-  if (Date.now() - waitStarted > 1_000) log(`took the lock after waiting ${Math.round((Date.now() - waitStarted) / 1_000)}s`);
-
+  // Holding it for the full sweep was the obvious design and the wrong one: a
+  // 45-minute backlog clear would refuse every e2e run that started underneath
+  // it (`acquireRunLock` in e2e/run-lock.ts fails, it does not wait), so the
+  // tidy-up job could take out a whole afternoon's CI. The asymmetry is the
+  // point — a run is someone waiting for an answer, the sweep is housekeeping
+  // that has all night. Housekeeping gives way.
+  //
+  // It is safe to work in slices because the AGE CUTOFF, not the lock, is what
+  // keeps the sweep off a live run's rows: nothing younger than --age-days is
+  // ever selected, and a run's rows are minutes old. The lock is belt to that
+  // braces, so it only needs to cover the moment a delete is actually running.
+  //
+  // Only the sweep takes it at all. `teardown` is spawned BY global-teardown,
+  // from a process that already holds this lock; taking it again there would
+  // refuse the run its own cleanup.
   const days = Number(args["age-days"] ?? process.env.E2E_SWEEP_AGE_DAYS ?? DEFAULTS.sweepAgeDays);
   const batch = Number(args.batch ?? process.env.E2E_SWEEP_BATCH ?? DEFAULTS.batch);
   const where = `created_at < now() - ($1::int * interval '1 day')`;
+
+  const lockClient = new pg.Client({
+    connectionString: sessionPooledUrl(dbUrl),
+    ssl: { rejectUnauthorized: false },
+  });
+  await lockClient.connect();
+  // The name goes on with set_config, not in the client options: the pooler
+  // swallows a startup-packet application_name (every holder read back as
+  // "Supavisor"), and this sweep is exactly the holder nobody could identify.
+  await lockClient.query("select set_config('application_name', $1, false)", [
+    lockHolderName("sweep", { ci: Boolean(process.env.CI || process.env.GITHUB_ACTIONS) }),
+  ]);
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const takeLock = async () => Boolean((await lockClient.query("select pg_try_advisory_lock($1) as ok", [E2E_RUN_LOCK_KEY])).rows[0]?.ok);
+  const dropLock = async () => { await lockClient.query("select pg_advisory_unlock($1)", [E2E_RUN_LOCK_KEY]).catch(() => {}); };
+
+  // A budget for WAITING, spent across the whole sweep: it can ride out one
+  // suite and carry on, but it never waits all night.
+  let waitLeftMs = Math.max(0, Number(args["lock-wait-min"] ?? DEFAULTS.lockWaitMinutes)) * 60_000;
+  let announcedWait = false;
+  async function takeLockOrGiveWay() {
+    if (await takeLock()) return true;
+    if (!announcedWait) {
+      announcedWait = true;
+      // WHO, not a guess: this sweep spent 26 minutes being mistaken for a
+      // phantom e2e run from the other side of the same lock.
+      let holder = "another run";
+      try {
+        const [row] = (await lockClient.query(LOCK_HOLDER_QUERY, [E2E_RUN_LOCK_KEY])).rows;
+        if (row) holder = describeLockHolder(row.application_name, row.held_for);
+      } catch { /* a vaguer line is fine; giving way is not a failure */ }
+      log(`the test project is held by ${holder} — giving way, up to ${Math.round(waitLeftMs / 60_000)} min of waiting in hand…`);
+    }
+    // Poll FAST. The gap the sweep is looking for is the one between a run's
+    // teardown and the next run's global-setup, which on a busy afternoon is
+    // seconds wide — a 15-second poll walked straight past them and the sweep
+    // gave way for its whole budget without deleting a row (measured, 19 Sep).
+    // The probe is one indexed `pg_try_advisory_lock`; two seconds is nothing.
+    while (waitLeftMs > 0) {
+      const t = Date.now();
+      await sleep(Math.min(2_000, waitLeftMs));
+      waitLeftMs -= Date.now() - t;
+      if (await takeLock()) return true;
+    }
+    return false;
+  }
+
+
   const before = await counts();
-  const users = await removeUsers(where, [days], batch, budgetMs, stats);
-  const accounts = await removeExampleAccounts(where, [days], batch, budgetMs, stats, t0);
+  let deleted = 0, gaveWay = false, exhausted = false, emptied = false;
+  while (deleted < batch) {
+    if (Date.now() - t0 >= budgetMs) { exhausted = true; break; }
+    if (!(await takeLockOrGiveWay())) { gaveWay = true; break; }
+    let res;
+    try {
+      res = await removeUsers(where, [days], Math.min(DEFAULTS.sliceUsers, batch - deleted), budgetMs - (Date.now() - t0), stats);
+    } finally {
+      // Released before the next select, and before the pause below, so a run
+      // that is waiting on this lock gets it within a second or two.
+      await dropLock();
+    }
+    deleted += res.deleted;
+    if (res.exhausted) { exhausted = true; break; }
+    if (res.selected === 0) { emptied = true; break; }
+    await sleep(500);
+  }
+
+  // The @example.com accounts a run leaves behind, same courtesy.
+  let accounts = { selected: 0, deleted: 0 };
+  if (!gaveWay && Date.now() - t0 < budgetMs) {
+    if (await takeLockOrGiveWay()) {
+      try { accounts = await removeExampleAccounts(where, [days], batch, budgetMs - (Date.now() - t0), stats, t0); }
+      finally { await dropLock(); }
+    } else gaveWay = true;
+  }
+
   const left = await leftCount(where, [days]);
   const seconds = (Date.now() - t0) / 1000;
-  const line = summaryLine({ verb: `sweep (older than ${days}d, batch ${batch})`, deleted: users.deleted, left, seconds, byTable: stats });
-  log(line + (accounts.selected ? ` · @example.com accounts ${accounts.deleted}/${accounts.selected}` : "") + (users.exhausted ? " · TIME BUDGET HIT" : ""));
+  const line = summaryLine({ verb: `sweep (older than ${days}d, batch ${batch})`, deleted, left, seconds, byTable: stats });
+  const why = gaveWay ? " · GAVE WAY to an e2e run" : exhausted ? " · TIME BUDGET HIT" : emptied ? " · nothing older left" : "";
+  log(line + (accounts.selected ? ` · @example.com accounts ${accounts.deleted}/${accounts.selected}` : "") + why);
   const after = await counts();
   log(`users before ${before.anonymous + before.e2eLogins} → after ${after.anonymous + after.e2eLogins}`);
-  if (json) console.log(JSON.stringify({ days, batch, deleted: users.deleted, left, accounts, seconds, before, after, byTable: stats }));
-  // The lock goes last, after the rows are gone — ending the connection would
-  // release it anyway, but saying so keeps the intent readable in the log.
-  await lockClient.query("select pg_advisory_unlock($1)", [E2E_RUN_LOCK_KEY]).catch(() => {});
+  if (json) console.log(JSON.stringify({ days, batch, deleted, left, accounts, seconds, before, after, gaveWay, exhausted, byTable: stats }));
   await lockClient.end().catch(() => {});
   await client.end();
   process.exit(EXIT.ok);
