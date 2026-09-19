@@ -28,6 +28,11 @@ export const DEFAULTS = Object.freeze({
   batch: 1_000,
   /** Users per SQL round trip inside a batch. */
   chunk: 25,
+  /** Users per SLICE — how much the sweep deletes before it drops the e2e run
+   * lock and lets anyone waiting have the project. Two chunks: long enough to
+   * be worth the round trip, short enough that a run never waits more than a
+   * few seconds for housekeeping. */
+  sliceUsers: 50,
   budgetMinutes: 20,
   /** How long a sweep waits for a running e2e suite before giving up. A suite
    * is 20-40 minutes and the sweep has all night; bouncing off the first

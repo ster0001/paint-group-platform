@@ -3753,6 +3753,18 @@ The sweep now has **its own group** (`hygiene-sweep`). What keeps it away from a
 
 And it now **waits** for a run rather than bouncing off it (`--lock-wait-min`, default 12): a suite is 20–40 minutes and the sweep has all night, so giving up on the first refusal produces a string of green sweeps that deleted nothing — the same failure as the backlog itself, one level up. Verified against live CI: `sweep --batch 200 --lock-wait-min 2` logged "waiting up to 2 min for it to finish…", waited, and exited 0 with "still holds the test project after 2 min. Nothing was deleted".
 
+## Housekeeping gives way (19 Sep 2026, later still)
+
+Giving the sweep its own concurrency group fixed the starvation and created a worse problem: it could now run beside CI, and it held the e2e run lock for the WHOLE sweep. A 45-minute backlog clear therefore refused every e2e run that started underneath it — `acquireRunLock` fails, it does not wait. Measured the hard way: CI runs 667 and 669 failed that way while a dispatched clear was running, with Tom mid-session. A tidy-up job took out real work.
+
+**The sweep now works in SLICES and drops the lock between them** (`DEFAULTS.sliceUsers`, 50 — two chunks, ~20 s). It is safe to work in slices because **the age cutoff, not the lock, is what keeps the sweep off a live run's rows**: nothing younger than `--age-days` is ever selected and a run's rows are minutes old. The lock only has to cover the moment a delete is actually running. Between slices it releases, pauses 500 ms, and re-acquires, so a run waiting on the lock gets it within a second or two. When it cannot get the lock it **gives way** — reported as `GAVE WAY to an e2e run`, exit 0 — and the waiting budget (`--lock-wait-min`) is spent across the whole sweep, so it can ride out one suite and carry on.
+
+**It polls for the gap every 2 seconds, not every 15.** The gap the sweep needs is the one between a run's teardown and the next run's `global-setup`, which on a busy afternoon is seconds wide; a 15-second poll walked straight past them and the sweep gave way for its entire budget without deleting a row — measured twice, 400 and 600 batches, both `deleted 0`. The probe is one `pg_try_advisory_lock`.
+
+**And a run now retries a held lock briefly before refusing** (`ACQUIRE_RETRY_MS`, 45 s, `e2e/run-lock.ts`). The only thing a run should ever meet is a sweep slice, and failing instantly on one would turn housekeeping into a red CI run. It stays short on purpose: against a real concurrent RUN (20–40 minutes) nothing changes — it still refuses with the same explanation — and a run that waits minutes for another run is worse than one that tells you to come back.
+
+The asymmetry is the whole design: a run is someone waiting for an answer, the sweep is housekeeping that has all night.
+
 ## The run lock now says who is holding it (19 Sep 2026)
 
 A local run was refused with *"another e2e run already holds the test project… a local one is usually a peer checkout's `./scripts/c1/run-e2e.sh`"*. There was no such run. The process table was empty, CI was idle, and only a `pg_locks` query gave the real answer: the **hygiene sweep** held it, 26 minutes into clearing the backlog. Three things contend for this lock — a local e2e run, a CI e2e run, and the sweep — and the message only knew about two of them, so it asserted the wrong one with confidence.
