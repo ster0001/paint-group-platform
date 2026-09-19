@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { STAFF_AREAS, type StaffAreaKey } from "@/lib/staff/access";
+import { DASHBOARD_ROLES, ROLE_LABEL, type DashboardRole } from "@/lib/reporting/roles";
 import { createStaffAction, listStaffAction, removeStaffAction, updateStaffAction, type StaffRow } from "./staffActions";
 
 /**
@@ -26,6 +27,7 @@ export default function StaffAccountsManager() {
   const [password, setPassword] = useState("");
   const [newOwner, setNewOwner] = useState(false);
   const [newAccess, setNewAccess] = useState<Record<string, boolean>>({});
+  const [newRoles, setNewRoles] = useState<DashboardRole[]>([]);
 
   const load = useCallback(async () => {
     const r = await listStaffAction().catch(() => null);
@@ -38,10 +40,10 @@ export default function StaffAccountsManager() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null); setBusy(true);
-    const r = await createStaffAction({ email, name, phone, password, isOwner: newOwner, access: newAccess }).catch(() => null);
+    const r = await createStaffAction({ email, name, phone, password, isOwner: newOwner, access: newAccess, roles: newRoles }).catch(() => null);
     setBusy(false);
     if (!r || r.status === "error") { setMsg({ ok: false, text: r?.message ?? "That didn't save — try again." }); return; }
-    setEmail(""); setName(""); setPhone(""); setPassword(""); setNewOwner(false); setNewAccess({});
+    setEmail(""); setName(""); setPhone(""); setPassword(""); setNewOwner(false); setNewAccess({}); setNewRoles([]);
     setMsg({ ok: true, text: r.message });
     load();
   };
@@ -52,7 +54,7 @@ export default function StaffAccountsManager() {
     setMsg(null); setBusy(true);
     const access: Record<string, boolean> = {};
     for (const a of STAFF_AREAS) access[a.key] = row.access[a.key] !== false;
-    const r = await updateStaffAction({ id: row.id, isOwner: row.isOwner, access, name: row.name, phone: row.phone }).catch(() => null);
+    const r = await updateStaffAction({ id: row.id, isOwner: row.isOwner, access, roles: row.roles, name: row.name, phone: row.phone }).catch(() => null);
     setBusy(false);
     setMsg(r ? { ok: r.status === "ok", text: r.message } : { ok: false, text: "That didn't save — try again." });
     if (r?.status === "ok") load();
@@ -65,6 +67,20 @@ export default function StaffAccountsManager() {
     setMsg(r ? { ok: r.status === "ok", text: r.message } : { ok: false, text: "That didn't work — try again." });
     load();
   };
+
+  /** Dashboard 0d (Tom, 19 Sep): roles = which dashboard sections; a person may hold several (union). */
+  const roleTicks = (roles: DashboardRole[], onTick: (r: DashboardRole, v: boolean) => void, disabled: boolean, idPrefix: string) => (
+    <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+      {DASHBOARD_ROLES.map((r) => (
+        <label key={r} className={`flex items-center gap-1.5 ${disabled ? "text-gray-400" : "text-gray-700"}`}>
+          <input type="checkbox" disabled={disabled} checked={roles.includes(r)} onChange={(e) => onTick(r, e.target.checked)} data-testid={`${idPrefix}role-${r}`} />
+          {ROLE_LABEL[r]}
+        </label>
+      ))}
+    </div>
+  );
+  const withRole = (roles: DashboardRole[], r: DashboardRole, on: boolean): DashboardRole[] =>
+    DASHBOARD_ROLES.filter((x) => (x === r ? on : roles.includes(x)));
 
   const areaTicks = (access: Record<string, boolean | undefined>, onTick: (k: StaffAreaKey, v: boolean) => void, disabled: boolean) => (
     <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
@@ -119,6 +135,10 @@ export default function StaffAccountsManager() {
                 <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">{row.isOwner ? "A master user sees everything" : "Areas this person sees"}</div>
                 {areaTicks(row.access, (k, v) => toggle(row, k, v), !isOwner || row.isOwner)}
               </div>
+              <div className="mt-2">
+                <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">{row.isOwner ? "A master user holds every dashboard role" : "Dashboard roles (sections they see — several add up)"}</div>
+                {roleTicks(row.roles, (r, v) => setRows((rs) => rs.map((x) => (x.id === row.id ? { ...x, roles: withRole(x.roles, r, v) } : x))), !isOwner || row.isOwner, `${row.email}-`)}
+              </div>
               {isOwner && (
                 <div className="mt-3 flex gap-2">
                   <button type="button" disabled={busy} onClick={() => save(row)} className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">Save</button>
@@ -146,6 +166,8 @@ export default function StaffAccountsManager() {
             <div className="mt-3">
               <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Areas this person sees</div>
               {areaTicks(newAccess, (k, v) => setNewAccess((m) => ({ ...m, [k]: v })), false)}
+              <div className="mb-1 mt-3 text-[10px] uppercase tracking-wide text-gray-400">Dashboard roles</div>
+              {roleTicks(newRoles, (r, v) => setNewRoles((rs) => withRole(rs, r, v)), false, "new-")}
             </div>
           )}
           <button type="submit" disabled={busy} className="mt-4 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50" data-testid="staff-submit">

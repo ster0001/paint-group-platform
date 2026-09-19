@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { DASHBOARD_ROLES, isDashboardRole, type DashboardRole } from "@/lib/reporting/roles";
 import { reportError } from "@/lib/monitoring/report";
 import { STAFF_AREA_KEYS, parseStaffAccess, type StaffAccess } from "@/lib/staff/access";
 import { STAFF_EVENT_KEYS, parseStaffNotify, type StaffNotifyMap } from "@/lib/staff/notifyEvents";
@@ -25,6 +26,8 @@ export type StaffRow = {
   phone: string;
   isOwner: boolean;
   access: StaffAccess;
+  /** Dashboard 0d (Tom, 19 Sep): the roles ticked for this login — what the master holds is every role. */
+  roles: DashboardRole[];
   /** Tom, 10 Sep: which staff alerts reach this person, by channel. */
   notify: StaffNotifyMap;
   self: boolean;
@@ -68,8 +71,8 @@ export async function listStaffAction(): Promise<StaffListResult> {
   const c = await caller();
   if (!c) return { status: "error", message: "Staff only." };
   const svc = createServiceClient()!;
-  const full = await svc.from("profiles").select("id, name, is_owner, staff_access, phone, staff_notify").eq("role", "staff").order("created_at");
-  // Pre-20270134 the phone / staff_notify columns 42703 the select — retry without them.
+  const full = await svc.from("profiles").select("id, name, is_owner, staff_access, phone, staff_notify, staff_roles").eq("role", "staff").order("created_at");
+  // Pre-20270134 the phone / staff_notify columns 42703 the select; pre-20270179 staff_roles does — retry without them.
   const { data, error } = full.error
     ? await svc.from("profiles").select("id, name, is_owner, staff_access").eq("role", "staff").order("created_at")
     : full;
@@ -83,6 +86,7 @@ export async function listStaffAction(): Promise<StaffListResult> {
     phone: ((r as { phone?: string | null }).phone ?? "") || "",
     isOwner: r.is_owner === true,
     access: parseStaffAccess(r.staff_access),
+    roles: (((r as { staff_roles?: unknown }).staff_roles as unknown[] | null) ?? []).filter(isDashboardRole),
     notify: parseStaffNotify((r as { staff_notify?: unknown }).staff_notify),
     self: r.id === c.id,
   }));
@@ -103,6 +107,9 @@ const phoneSchema = z.string().trim().max(30).transform((v, ctx) => {
   return n;
 });
 
+/** Dashboard roles as ticked; unknown strings dropped, order fixed. */
+const rolesSchema = z.array(z.string()).default([]).transform((rs) => DASHBOARD_ROLES.filter((r) => rs.includes(r)));
+
 const createSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
   name: z.string().trim().max(120),
@@ -110,11 +117,12 @@ const createSchema = z.object({
   password: z.string().min(8).max(200),
   isOwner: z.boolean(),
   access: accessSchema,
+  roles: rolesSchema,
 });
 
 export type StaffWriteResult = { status: "ok"; message: string } | { status: "error"; message: string };
 
-export async function createStaffAction(input: { email: string; name: string; phone?: string; password: string; isOwner: boolean; access: Record<string, boolean> }): Promise<StaffWriteResult> {
+export async function createStaffAction(input: { email: string; name: string; phone?: string; password: string; isOwner: boolean; access: Record<string, boolean>; roles?: string[] }): Promise<StaffWriteResult> {
   const c = await caller();
   if (!c) return { status: "error", message: "Staff only." };
   if (!c.canManage) return { status: "error", message: "Only the master user can create staff logins." };
@@ -124,7 +132,7 @@ export async function createStaffAction(input: { email: string; name: string; ph
     const ph = parsed.error.issues.some((i) => i.path[0] === "phone");
     return { status: "error", message: pw ? "The password needs at least 8 characters." : ph ? "That mobile doesn't look right — 04xx xxx xxx." : "Check the email address." };
   }
-  const { email, name, phone, password, isOwner, access } = parsed.data;
+  const { email, name, phone, password, isOwner, access, roles } = parsed.data;
   const svc = createServiceClient()!;
   try {
     const res = await svc.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: name ? { name } : undefined });
@@ -137,7 +145,7 @@ export async function createStaffAction(input: { email: string; name: string; ph
     const userId = res.data.user?.id;
     if (!userId) throw new Error("no user id back from auth");
     // handle_new_user made a customer profile on insert; make it staff.
-    const upd = await svc.from("profiles").upsert({ id: userId, role: "staff", name: name || null, is_owner: isOwner, staff_access: isOwner ? {} : access, ...(phone !== undefined ? { phone: phone || null } : {}) }, { onConflict: "id" });
+    const upd = await svc.from("profiles").upsert({ id: userId, role: "staff", name: name || null, is_owner: isOwner, staff_access: isOwner ? {} : access, staff_roles: isOwner ? [] : roles, ...(phone !== undefined ? { phone: phone || null } : {}) }, { onConflict: "id" });
     if (upd.error) throw new Error(upd.error.message);
     return { status: "ok", message: `${email} can sign in at /login with that password.${isOwner ? " They are a master user." : ""}` };
   } catch (e) {
@@ -146,9 +154,9 @@ export async function createStaffAction(input: { email: string; name: string; ph
   }
 }
 
-const updateSchema = z.object({ id: z.string().uuid(), isOwner: z.boolean(), access: accessSchema, name: z.string().trim().max(120).optional(), phone: phoneSchema.optional() });
+const updateSchema = z.object({ id: z.string().uuid(), isOwner: z.boolean(), access: accessSchema, roles: rolesSchema, name: z.string().trim().max(120).optional(), phone: phoneSchema.optional() });
 
-export async function updateStaffAction(input: { id: string; isOwner: boolean; access: Record<string, boolean>; name?: string; phone?: string }): Promise<StaffWriteResult> {
+export async function updateStaffAction(input: { id: string; isOwner: boolean; access: Record<string, boolean>; roles?: string[]; name?: string; phone?: string }): Promise<StaffWriteResult> {
   const c = await caller();
   if (!c) return { status: "error", message: "Staff only." };
   if (!c.isOwner) return { status: "error", message: "Only the master user can change what a staff login sees." };
@@ -157,13 +165,14 @@ export async function updateStaffAction(input: { id: string; isOwner: boolean; a
     const ph = parsed.error.issues.some((i) => i.path[0] === "phone");
     return { status: "error", message: ph ? "That mobile doesn't look right — 04xx xxx xxx." : "Check the details." };
   }
-  const { id, isOwner, access, name, phone } = parsed.data;
+  const { id, isOwner, access, roles, name, phone } = parsed.data;
   const svc = createServiceClient()!;
   if (id === c.id && !isOwner) {
     const { count } = await svc.from("profiles").select("id", { count: "exact", head: true }).eq("role", "staff").eq("is_owner", true);
     if ((count ?? 0) <= 1) return { status: "error", message: "You are the only master user — make someone else master first." };
   }
-  const upd = await svc.from("profiles").update({ is_owner: isOwner, staff_access: isOwner ? {} : access, ...(name !== undefined ? { name: name || null } : {}), ...(phone !== undefined ? { phone: phone || null } : {}) }).eq("id", id).eq("role", "staff");
+  // The master holds every role whatever the column says, so a master's ticks are cleared rather than stored.
+  const upd = await svc.from("profiles").update({ is_owner: isOwner, staff_access: isOwner ? {} : access, staff_roles: isOwner ? [] : roles, ...(name !== undefined ? { name: name || null } : {}), ...(phone !== undefined ? { phone: phone || null } : {}) }).eq("id", id).eq("role", "staff");
   if (upd.error) return { status: "error", message: upd.error.message };
   return { status: "ok", message: "Saved." };
 }
