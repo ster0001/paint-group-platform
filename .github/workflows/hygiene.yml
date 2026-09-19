@@ -5,10 +5,13 @@
 # but not installed, and installing it would be a `create extension` that
 # must never reach production — so the schedule lives here instead.
 #
-# Deletes anonymous users and pg.e2e.* logins older than 3 days (⚑43), 200
-# per run (brief step 2: bounded, oldest first), with the estimate chains,
-# leads, sources and @example.com accounts that hang off them. The seeded
-# logins are excluded by id; the guard refuses anything but the test project.
+# Deletes anonymous users and pg.e2e.* logins older than 1 day (⚑43), 1,000
+# per run (bounded, oldest first), with the estimate chains, leads, sources
+# and @example.com accounts that hang off them. The seeded logins are excluded
+# by id; the guard refuses anything but the test project. The sweep takes the
+# SAME advisory lock an e2e run does and SKIPS (green, with a line saying so)
+# when one is running — the concurrency group below only covers CI, and local
+# runs from the several checkouts this repo is worked in are not in it.
 # The job log carries "deleted N, left N" every run, so a jump is visible.
 name: Test-project hygiene
 
@@ -20,10 +23,13 @@ on:
     inputs:
       batch:
         description: "Users to remove this run (oldest first)"
-        default: "200"
+        default: "1000"
       age_days:
         description: "Only users older than this many days"
-        default: "3"
+        default: "1"
+      budget_min:
+        description: "Minutes to spend deleting before stopping (raise this to clear a backlog)"
+        default: "20"
 
 concurrency:
   # Never beside an e2e run: the same group the CI e2e job uses.
@@ -56,7 +62,11 @@ jobs:
           case "$E2E_DATABASE_URL" in *llmrvgdequpmzzuaxdhq*) echo "::error::E2E_DATABASE_URL is PRODUCTION."; exit 1;; esac
       - name: Count before
         run: node scripts/c1/hygiene.mjs count || true
+      # To clear a backlog: run this workflow by hand with a big batch and a
+      # budget to match (e.g. batch 9000, budget_min 45). The walk is chunked
+      # and each chunk is its own transaction, so stopping on the budget is
+      # safe and the next run carries on from the oldest row left.
       - name: Sweep
-        run: node scripts/c1/hygiene.mjs sweep --age-days "${{ github.event.inputs.age_days || '3' }}" --batch "${{ github.event.inputs.batch || '200' }}" --budget-min 20
+        run: node scripts/c1/hygiene.mjs sweep --age-days "${{ github.event.inputs.age_days || '1' }}" --batch "${{ github.event.inputs.batch || '1000' }}" --budget-min "${{ github.event.inputs.budget_min || '20' }}"
       - name: Count after
         run: node scripts/c1/hygiene.mjs count || true

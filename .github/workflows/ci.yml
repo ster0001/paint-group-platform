@@ -20,7 +20,15 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # On a BRANCH, cancelling a superseded run is what you want. On MAIN it is
+  # how the test project fills up: the cancelled run's e2e job never reaches
+  # global-teardown, so its anonymous users, estimates and accounts are left
+  # behind — a whole run's worth, every merge. Six of the eight main runs
+  # before 19 Sep 2026 were cancelled this way, which is most of the 8,711-row
+  # backlog. Main runs now finish and clean up after themselves; the e2e job's
+  # own `e2e-test-project` group still serialises them, so they queue rather
+  # than overlap.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   gate:
