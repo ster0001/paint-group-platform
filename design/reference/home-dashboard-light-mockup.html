@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home — Paint Group</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F6F5F1; --card:#FFFFFF; --raised:#F0EEE8; --line:#E3E0D8;
+  --ink:#0A0B0D; --text:#1A1D21; --muted:#6B7178;
+  --cyan:#3BD8E9; --paint:#2FB9CB; --paint-deep:#157F8C; --on-paint:#03272D;
+  --amber:#C88A1E; --amber-soft:#FBF1DC; --emerald:#238A58; --emerald-soft:#E3F3EA; --clay:#A8483B; --clay-soft:#F7E6E2;
+  --sans:"Switzer","Geist",Inter,system-ui,-apple-system,sans-serif;
+  --mono:"Martian Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+body{font-size:15px;line-height:1.45}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+
+.wrap{max-width:1180px;margin:0 auto;padding:14px 16px 90px}
+
+/* top bar */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0 14px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em}
+.brand i{width:26px;height:26px;border-radius:7px;background:var(--ink);display:inline-block;position:relative}
+.brand i::after{content:"";position:absolute;left:5px;right:5px;bottom:5px;height:9px;background:var(--cyan);border-radius:2px}
+.who{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.role{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 11px;font-family:var(--mono);font-size:11px;color:var(--muted);cursor:pointer}
+.role[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.role:focus-visible,.chip:focus-visible,.tile:focus-visible{outline:2px solid var(--paint-deep);outline-offset:2px}
+
+header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;padding:4px 0 16px}
+header h1{font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+header h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);letter-spacing:0;margin-top:5px}
+.periods{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:7px 12px;font-family:var(--mono);font-size:11.5px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--paint);color:var(--on-paint);border-color:var(--paint);font-weight:600}
+
+/* needs doing */
+.todo{background:var(--ink);color:#EDF0F2;border-radius:14px;padding:14px 16px}
+.todo h2{font-size:13px;font-weight:500;color:#8C959D;letter-spacing:0}
+.todo h2 b{color:#fff;font-weight:600}
+.cards{display:flex;gap:10px;overflow-x:auto;margin-top:10px;padding-bottom:4px;scroll-snap-type:x mandatory}
+.tcard{flex:0 0 250px;scroll-snap-align:start;background:#171C21;border:1px solid #242B32;border-radius:11px;padding:12px}
+.tcard .sev{font-family:var(--mono);font-size:10.5px}
+.tcard .t{font-size:14px;font-weight:600;margin-top:5px;line-height:1.3}
+.tcard .s{font-size:12px;color:#8C959D;margin-top:3px}
+.tcard .act{display:inline-block;margin-top:10px;background:var(--cyan);color:var(--on-paint);border-radius:7px;padding:6px 10px;font-size:12px;font-weight:600}
+.sev.c{color:#E86E5E}.sev.a{color:#E0A83C}.sev.i{color:#3BD8E9}
+
+/* sections */
+section{margin-top:30px}
+section[hidden]{display:none}
+section h2{font-size:18px;font-weight:600;letter-spacing:-.015em;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+section h2 em{font-style:normal;font-size:12.5px;color:var(--muted);font-weight:400}
+section h2 .ex{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--paint-deep);font-weight:500;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:5px 9px;cursor:pointer}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:12px}
+.grid2{display:grid;grid-template-columns:1fr;gap:12px}
+.note{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.45}
+
+/* stat tiles */
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:12px}
+.tile{background:var(--card);padding:14px 14px 12px;text-align:left;border:0;cursor:pointer;position:relative;min-width:0}
+.tile:hover{background:#FBFAF7}
+.tile .l{font-size:13px;color:var(--muted);padding-right:22px}
+.tile .v{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.02em;margin-top:6px;line-height:1;color:var(--ink)}
+.tile .v span{font-size:13px;color:var(--muted);font-weight:400}
+.tile .d{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.tile .arrow{position:absolute;top:13px;right:12px;color:var(--line);font-size:14px}
+.tile:hover .arrow{color:var(--paint-deep)}
+.tile.now .l::after{content:"right now";font-family:var(--mono);font-size:9.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+.up{color:var(--emerald)} .down{color:var(--clay)} .warn{color:var(--amber)}
+.tile.alert{box-shadow:inset 3px 0 0 var(--amber)}
+.tile.bad{box-shadow:inset 3px 0 0 var(--clay)}
+
+/* rows */
+.rows{margin-top:6px}
+.row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:13.5px}
+.row:first-child{border-top:0}
+.row .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px}
+.row .val{font-family:var(--mono);font-size:13px;text-align:right;white-space:nowrap}
+.pill{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-left:6px;vertical-align:1px;background:var(--card)}
+.pill.a{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
+.pill.c{border-color:var(--paint);color:var(--paint-deep)}
+.pill.g{border-color:var(--emerald);color:var(--emerald);background:var(--emerald-soft)}
+.pill.r{border-color:var(--clay);color:var(--clay);background:var(--clay-soft)}
+
+/* target */
+.target{display:grid;grid-template-columns:1fr;gap:14px;margin-top:6px}
+.tbar{height:14px;background:var(--raised);border-radius:7px;overflow:hidden;position:relative;margin-top:8px}
+.tbar i{display:block;height:100%;background:var(--paint);border-radius:7px}
+.tbar b{position:absolute;top:-4px;width:2px;height:22px;background:var(--ink)}
+.tlab{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px}
+
+/* funnel */
+.funnel{display:grid;gap:8px;margin-top:6px}
+.frow{display:grid;grid-template-columns:112px 1fr 54px;gap:10px;align-items:center;font-size:13px}
+.frow .b{height:22px;background:var(--raised);border-radius:6px;overflow:hidden}
+.frow .b i{display:block;height:100%;background:var(--paint);border-radius:6px;opacity:.75}
+.frow .b i.gold{background:var(--paint-deep);opacity:1}
+.frow .n{font-family:var(--mono);font-size:12px;text-align:right}
+.frow .drop{grid-column:2/4;font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:-4px}
+.frow .drop b{color:var(--amber);font-weight:500}
+
+svg{display:block;width:100%;height:auto}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+/* activity */
+.feed{margin-top:6px}
+.ev{display:grid;grid-template-columns:52px 1fr;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:13.5px}
+.ev:first-child{border-top:0}
+.ev .t{font-family:var(--mono);font-size:11px;color:var(--muted);padding-top:2px}
+.ev .w{color:var(--muted);font-size:12px;margin-top:2px}
+.ev b{font-weight:600}
+
+/* basis chip */
+.basis{display:inline-block;font-family:var(--mono);font-size:10.5px;border:1px solid var(--amber);color:var(--amber);background:var(--amber-soft);border-radius:999px;padding:2px 8px}
+
+/* empty */
+.empty{border:1px dashed var(--line);border-radius:14px;padding:16px;margin-top:12px}
+.empty .l{font-size:15px;font-weight:600}
+.empty p{font-size:13px;color:var(--muted);margin-top:6px}
+.btn{display:inline-block;margin-top:12px;border:1px solid var(--paint-deep);color:var(--paint-deep);border-radius:8px;padding:8px 12px;font-size:13px;text-decoration:none;font-weight:600}
+
+.hint{margin-top:26px;font-size:12.5px;color:var(--muted);text-align:center}
+
+@media (min-width:760px){
+  .wrap{padding:20px 24px 100px}
+  .tiles{grid-template-columns:repeat(4,1fr)}
+  .tiles.three{grid-template-columns:repeat(3,1fr)}
+  .grid2{grid-template-columns:1fr 1fr}
+  .target{grid-template-columns:1.2fr 1fr}
+  .tcard{flex-basis:290px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="bar">
+  <div class="brand"><i></i>Paint Group</div>
+  <div class="who" role="group" aria-label="View as">
+    <button class="role" aria-pressed="true" data-role="owner">Owner</button>
+    <button class="role" aria-pressed="false" data-role="pc">PC</button>
+    <button class="role" aria-pressed="false" data-role="sales">Sales</button>
+    <button class="role" aria-pressed="false" data-role="finance">Finance</button>
+  </div>
+</div>
+
+<header class="top">
+  <h1>Good morning, <span id="name">Tom</span><small id="range">1 – 19 September 2026 · compared with 1 – 19 August</small></h1>
+  <div class="periods" role="group" aria-label="Period">
+    <button class="chip" aria-pressed="true">This month</button>
+    <button class="chip" aria-pressed="false">Last 30 days</button>
+    <button class="chip" aria-pressed="false">Quarter</button>
+    <button class="chip" aria-pressed="false">Year to date</button>
+    <button class="chip" aria-pressed="false">Custom</button>
+  </div>
+</header>
+
+<!-- needs doing -->
+<div class="todo">
+  <h2><b id="todoN">6 things</b> need you today</h2>
+  <div class="cards" id="todo">
+    <div class="tcard" data-roles="owner finance"><div class="sev c">Critical · money</div><div class="t">$4,200 deposit unpaid — job starts Monday</div><div class="s">18 Ormond Rd, Elwood · Priya Nair</div><span class="act">Approve chase</span></div>
+    <div class="tcard" data-roles="owner pc"><div class="sev c">Critical · job</div><div class="t">Offer to Felipe past 24h SLA</div><div class="s">#3169 weatherboard exterior · starts 22 Sep</div><span class="act">Re-offer</span></div>
+    <div class="tcard" data-roles="owner pc finance"><div class="sev a">Amber · customer</div><div class="t">Mark Ellis waiting 3h 10m for a reply</div><div class="s">Colour consult timing · #3160</div><span class="act">Open thread</span></div>
+    <div class="tcard" data-roles="owner sales"><div class="sev a">Amber · sales</div><div class="t">4 estimates expire within 14 days</div><div class="s">$38,100 · 2 viewed twice, no answer</div><span class="act">Call list</span></div>
+    <div class="tcard" data-roles="owner pc"><div class="sev a">Amber · job</div><div class="t">Colours TBC on a job starting Thursday</div><div class="s">12 Alma Rd · consult booked Tue</div><span class="act">Open pre-start</span></div>
+    <div class="tcard" data-roles="owner"><div class="sev a">Amber · trend</div><div class="t">Conversion down 18% vs August</div><div class="s">Exterior estimates driving it · 9 of 14 unanswered</div><span class="act">See estimates</span></div>
+    <div class="tcard" data-roles="owner finance"><div class="sev i">Info</div><div class="t">$6,850 received this morning</div><div class="s">Lachlan Reid · final on #3165</div><span class="act">View</span></div>
+  </div>
+</div>
+
+<!-- SALES -->
+<section data-roles="owner sales">
+  <h2>Sales <em>this period</em><button class="ex">Export CSV</button></h2>
+  <div class="tiles">
+    <button class="tile"><span class="arrow">›</span><div class="l">Estimates sent</div><div class="v">36</div><div class="d"><span>9 drafts not sent</span><span class="up">▲ 6% vs Aug</span></div></button>
+    <button class="tile"><span class="arrow">›</span><div class="l">Sales $</div><div class="v">$118,400</div><div class="d"><span>inc GST</span><span class="up">▲ 12% vs Aug</span></div></button>
+    <button class="tile"><span class="arrow">›</span><div class="l">Sales (number)</div><div class="v">17</div><div class="d"><span>6 self-serve, no visit</span></div></button>
+    <button class="tile alert"><span class="arrow">›</span><div class="l">Conversion</div><div class="v">47%</div><div class="d"><span>17 of 36 sent</span><span class="warn">5 still open</span></div></button>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h2 style="font-size:15px">Average order value <em>by presentation category</em></h2>
+      <div class="rows">
+        <div class="row"><div>Residential interior<div class="sub">9 jobs · median $4,900</div></div><div class="val">$5,420</div></div>
+        <div class="row"><div>Residential exterior<div class="sub">5 jobs · median $9,100</div></div><div class="val">$9,860</div></div>
+        <div class="row"><div>Commercial<div class="sub">2 jobs · median $14,300</div></div><div class="val">$14,300</div></div>
+        <div class="row"><div>Uncategorised <span class="pill a">1</span><div class="sub">no presentation attached yet</div></div><div class="val">$3,200</div></div>
+      </div>
+      <div class="note">Category comes from the presentation sent with the estimate. Online enquiries that arrive without a category pick one up automatically when the presentation goes out.</div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:15px">September target <em>set in Settings</em></h2>
+      <div class="target">
+        <div>
+          <div class="mono" style="font-size:24px;font-weight:600;color:var(--ink)">$118,400 <span style="font-size:13px;color:var(--muted);font-weight:400">of $190,000</span></div>
+          <div class="tbar"><i style="width:62%"></i><b style="left:63%" title="Where the month should be today"></b></div>
+          <div class="tlab"><span>62% hit</span><span>63% of month gone · on pace</span></div>
+        </div>
+        <div>
+          <svg viewBox="0 0 300 96" role="img" aria-label="Twelve months of target versus actual">
+            <g fill="#F0EEE8"><rect x="4" y="30" width="18" height="60" rx="3"/><rect x="28" y="24" width="18" height="66" rx="3"/><rect x="52" y="28" width="18" height="62" rx="3"/><rect x="76" y="20" width="18" height="70" rx="3"/><rect x="100" y="22" width="18" height="68" rx="3"/><rect x="124" y="18" width="18" height="72" rx="3"/><rect x="148" y="26" width="18" height="64" rx="3"/><rect x="172" y="16" width="18" height="74" rx="3"/><rect x="196" y="20" width="18" height="70" rx="3"/><rect x="220" y="14" width="18" height="76" rx="3"/><rect x="244" y="18" width="18" height="72" rx="3"/><rect x="268" y="12" width="18" height="78" rx="3"/></g>
+            <g fill="#2FB9CB"><rect x="4" y="38" width="18" height="52" rx="3"/><rect x="28" y="20" width="18" height="70" rx="3"/><rect x="52" y="34" width="18" height="56" rx="3"/><rect x="76" y="26" width="18" height="64" rx="3"/><rect x="100" y="14" width="18" height="76" rx="3"/><rect x="124" y="24" width="18" height="66" rx="3"/><rect x="148" y="30" width="18" height="60" rx="3"/><rect x="172" y="10" width="18" height="80" rx="3"/><rect x="196" y="28" width="18" height="62" rx="3"/><rect x="220" y="8" width="18" height="82" rx="3"/><rect x="244" y="24" width="18" height="66" rx="3"/><rect x="268" y="42" width="18" height="48" rx="3"/></g>
+          </svg>
+          <div class="legend"><span><i style="background:#F0EEE8"></i>Target</span><span><i style="background:#2FB9CB"></i>Actual</span><span>Oct 25 → Sep 26</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px">By salesperson</h2>
+    <div class="rows">
+      <div class="row"><div>Tom<div class="sub">14 sent · 8 accepted</div></div><div class="val">$71,900 · 57%</div></div>
+      <div class="row"><div>Sarah<div class="sub">18 sent · 8 accepted</div></div><div class="val">$42,300 · 44%</div></div>
+      <div class="row"><div>Wizard (self-serve)<div class="sub">4 sent · 1 accepted</div></div><div class="val">$4,200 · 25%</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- WHERE ESTIMATES GO -->
+<section data-roles="owner sales">
+  <h2>Where estimates go <em>this period</em><button class="ex">Export CSV</button></h2>
+  <div class="card">
+    <div class="funnel">
+      <div class="frow"><span>Wizard started</span><div class="b"><i style="width:100%"></i></div><span class="n">212</span></div>
+      <div class="frow"><span>Email captured</span><div class="b"><i style="width:61%"></i></div><span class="n">129</span><span class="drop"><b>83 dropped</b> before leaving an email — nothing to chase</span></div>
+      <div class="frow"><span>Estimate saved</span><div class="b"><i style="width:34%"></i></div><span class="n">72</span><span class="drop"><b>57 dropped</b> with an email — warm leads in the CRM</span></div>
+      <div class="frow"><span>Sent</span><div class="b"><i style="width:17%"></i></div><span class="n">36</span></div>
+      <div class="frow"><span>Viewed</span><div class="b"><i style="width:15%"></i></div><span class="n">31</span><span class="drop"><b>5 never opened</b> — chase ladder running</span></div>
+      <div class="frow"><span>Accepted</span><div class="b"><i class="gold" style="width:8%"></i></div><span class="n">17</span></div>
+    </div>
+    <div class="note">Median sent-to-accepted: 3.4 days. Tap any step to open those estimates or sessions. Filter by lead source in the Marketing section.</div>
+  </div>
+</section>
+
+<!-- PC COMMAND -->
+<section data-roles="owner pc">
+  <h2>PC Command <em>tap any tile to open the records</em><button class="ex">Export CSV</button></h2>
+  <div class="tiles">
+    <button class="tile now alert"><span class="arrow">›</span><div class="l">Jobs to schedule</div><div class="v">7</div><div class="d"><span>$61,200</span><span class="warn">oldest 11 days</span></div></button>
+    <button class="tile now"><span class="arrow">›</span><div class="l">In progress</div><div class="v">9</div><div class="d"><span>3 wrapping up</span></div></button>
+    <button class="tile now"><span class="arrow">›</span><div class="l">Quality check</div><div class="v">2</div><div class="d"><span>1 check due today</span></div></button>
+    <button class="tile now"><span class="arrow">›</span><div class="l">Variations open</div><div class="v">3</div><div class="d"><span>1 to price · 2 with customer</span></div></button>
+    <button class="tile now bad"><span class="arrow">›</span><div class="l">Customers awaiting reply</div><div class="v">4</div><div class="d"><span class="down">longest 3h 10m</span></div></button>
+    <button class="tile now"><span class="arrow">›</span><div class="l">Awaiting sign-off</div><div class="v">3</div><div class="d"><span>2 walkthroughs today</span><span class="down">1 overdue</span></div></button>
+    <button class="tile now bad"><span class="arrow">›</span><div class="l">Offers past SLA</div><div class="v">1</div><div class="d"><span>Felipe · #3169</span></div></button>
+    <button class="tile now alert"><span class="arrow">›</span><div class="l">Starting this week</div><div class="v">4</div><div class="d"><span class="warn">1 colours TBC</span><span>3 contractors</span></div></button>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px">Materials budget vs actual <em>signed-off jobs this period</em></h2>
+    <div class="rows">
+      <div class="row"><div>Total<div class="sub">11 jobs · 2 with unmatched costs</div></div><div class="val">$8,940 est · $8,410 actual <span class="pill g">−6%</span></div></div>
+      <div class="row"><div>12 Alma Rd, Caulfield<div class="sub">exterior · Felipe</div></div><div class="val">$1,420 → $1,890 <span class="pill r">+33%</span></div></div>
+      <div class="row"><div>7 Pine St, Bentleigh<div class="sub">interior · Marco</div></div><div class="val">$860 → $780 <span class="pill g">−9%</span></div></div>
+      <div class="row"><div>Booked work ahead<div class="sub">accepted, not started</div></div><div class="val">$164,900 · 5.1 weeks</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTRACTOR -->
+<section data-roles="owner pc">
+  <h2>Contractors <em>this period</em><button class="ex">Export CSV</button></h2>
+  <div class="tiles three">
+    <button class="tile"><span class="arrow">›</span><div class="l">Finished on time</div><div class="v">8 <span>of 11 · 73%</span></div><div class="d"><span>booked end day vs all surfaces done</span></div></button>
+    <button class="tile now alert"><span class="arrow">›</span><div class="l">Silent 3+ days</div><div class="v">2</div><div class="d"><span class="warn">Dean · Anh</span><span>both on site</span></div></button>
+    <button class="tile"><span class="arrow">›</span><div class="l">QA passed first time</div><div class="v">9 <span>of 11 · 82%</span></div><div class="d"><span>2 rectifications logged</span></div></button>
+  </div>
+  <div class="card">
+    <div class="rows">
+      <div class="row"><div>Offers accepted within 24h</div><div class="val">14 of 16 · 88%</div></div>
+      <div class="row"><div>Variations raised per job</div><div class="val">0.6 <span class="pill a">Dean 2.5</span></div></div>
+      <div class="row"><div>Expense claims awaiting approval</div><div class="val">3 · $412</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- INVOICING -->
+<section data-roles="owner finance">
+  <h2>Invoicing <em>inc GST</em><button class="ex">Export CSV</button></h2>
+  <div class="tiles">
+    <button class="tile"><span class="arrow">›</span><div class="l">Received</div><div class="v">$103,620</div><div class="d"><span>9 finals · 14 deposits</span><span class="up">▲ 9%</span></div></button>
+    <button class="tile now"><span class="arrow">›</span><div class="l">Outstanding</div><div class="v">$32,950</div><div class="d"><span>11 invoices</span><span>due, not overdue</span></div></button>
+    <button class="tile now bad"><span class="arrow">›</span><div class="l">Overdue</div><div class="v">$8,900</div><div class="d"><span>3 invoices</span><span class="down">1 over 30 days</span></div></button>
+    <button class="tile now"><span class="arrow">›</span><div class="l">Contractor invoices to pay</div><div class="v">$14,760</div><div class="d"><span>6 approved</span><span>2 to approve</span></div></button>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h2 style="font-size:15px">Received by payment type</h2>
+      <div class="rows">
+        <div class="row"><div>Bank transfer</div><div class="val">$71,400 · 69%</div></div>
+        <div class="row"><div>Card (Stripe)<div class="sub">surcharge passed on $412</div></div><div class="val">$30,120 · 29%</div></div>
+        <div class="row"><div>Cash</div><div class="val">$2,100 · 2%</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:15px">Unsent invoices <em>money not yet asked for</em></h2>
+      <div class="rows">
+        <div class="row"><div>Deposit drafts unissued <span class="pill a">2 over 24h</span></div><div class="val">4 · $9,300</div></div>
+        <div class="row"><div>Progress not yet requested</div><div class="val">3 · $18,200</div></div>
+        <div class="row"><div>Final drafted after sign-off <span class="pill r">money on the table</span></div><div class="val">1 · $6,400</div></div>
+        <div class="row"><div>Average days to pay a final</div><div class="val">6.2 <span class="pill g">was 9.1</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- P&L -->
+<section data-roles="owner">
+  <h2>P&amp;L <em>ex GST</em> <span class="basis">Settings basis until MYOB</span><button class="ex">Export CSV</button></h2>
+  <div class="tiles">
+    <button class="tile"><span class="arrow">›</span><div class="l">Contracts signed</div><div class="v">$107,640</div><div class="d"><span>17 accepted</span></div></button>
+    <button class="tile"><span class="arrow">›</span><div class="l">Revenue received</div><div class="v">$94,200</div><div class="d"><span>payments in period</span></div></button>
+    <button class="tile"><span class="arrow">›</span><div class="l">Gross margin</div><div class="v">32.1% <span>actual</span></div><div class="d"><span>31.4% estimated</span><span class="up">+0.7 pts</span></div></button>
+    <button class="tile"><span class="arrow">›</span><div class="l">Net margin</div><div class="v">14.6%</div><div class="d"><span>overhead $16,050 · marketing $4,780</span></div></button>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h2 style="font-size:15px">Margin by job size <em>actual GP</em></h2>
+      <div class="rows">
+        <div class="row"><div>Under $2,000<div class="sub">3 jobs</div></div><div class="val">29.8%</div></div>
+        <div class="row"><div>$2,000 – $4,500 <span class="pill a">weakest</span><div class="sub">4 jobs</div></div><div class="val" style="color:var(--amber)">26.4%</div></div>
+        <div class="row"><div>$4,500 – $12,000<div class="sub">3 jobs</div></div><div class="val">33.9%</div></div>
+        <div class="row"><div>Over $12,000<div class="sub">1 job</div></div><div class="val">36.2%</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:15px">Materials and margin by category</h2>
+      <div class="rows">
+        <div class="row"><div>Materials % of revenue<div class="sub">estimated 10% · flat rule</div></div><div class="val">9.4% actual <span class="pill g">−$530</span></div></div>
+        <div class="row"><div>Residential interior</div><div class="val">33.4% GP</div></div>
+        <div class="row"><div>Residential exterior</div><div class="val">29.1% GP</div></div>
+        <div class="row"><div>Commercial</div><div class="val">35.8% GP</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MARKETING -->
+<section data-roles="owner">
+  <h2>Marketing <em>this period</em><button class="ex">Export CSV</button></h2>
+  <div class="tiles three">
+    <button class="tile"><span class="arrow">›</span><div class="l">Cost per accepted job</div><div class="v">$281</div><div class="d"><span>blended · $4,780 spend</span></div></button>
+    <button class="tile"><span class="arrow">›</span><div class="l">Spend vs sales</div><div class="v">4.0%</div><div class="d"><span>of accepted $</span><span class="up">was 4.6%</span></div></button>
+    <button class="tile"><span class="arrow">›</span><div class="l">Repeat + referral share</div><div class="v">31%</div><div class="d"><span>of accepted $</span></div></button>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px">By lead source <em>sent → accepted · AOV · revenue</em></h2>
+    <div class="rows">
+      <div class="row"><div>Google search<div class="sub">14 sent → 7 accepted · 50%</div></div><div class="val">$6,100 · $42,700</div></div>
+      <div class="row"><div>Google Ads<div class="sub">9 sent → 3 accepted · 33% · $2,900 spend</div></div><div class="val">$5,400 · $16,200</div></div>
+      <div class="row"><div>Referral<div class="sub">5 sent → 4 accepted · 80%</div></div><div class="val">$8,900 · $35,600</div></div>
+      <div class="row"><div>Repeat customer<div class="sub">3 sent → 2 accepted · 67%</div></div><div class="val">$5,200 · $10,400</div></div>
+      <div class="row"><div>Instagram<div class="sub">3 sent → 1 accepted · 33% · $1,880 spend</div></div><div class="val">$4,200 · $4,200</div></div>
+      <div class="row"><div>Real estate / trade<div class="sub">2 sent → 0 accepted</div></div><div class="val">—</div></div>
+    </div>
+    <div class="note">Sources are reliable from the new-website launch (5 Sep). Earlier estimates show as "not recorded".</div>
+  </div>
+</section>
+
+<!-- SALES ACTIVITY -->
+<section data-roles="owner sales pc finance">
+  <h2>Activity <em>latest first</em><button class="ex">Export CSV</button></h2>
+  <div class="card">
+    <div class="feed">
+      <div class="ev"><div class="t">10:42</div><div><b>Priya Nair</b> viewed estimate #3172 for the second time<div class="w">Brighton East · $9,840 · sent Monday</div></div></div>
+      <div class="ev"><div class="t">10:31</div><div><b>Daniel Cho</b> downloaded the PDF of #3160<div class="w">Expires in 9 days · no reply to Tuesday's message</div></div></div>
+      <div class="ev"><div class="t">10:15</div><div><b>Felipe</b> accepted the offer for #3169<div class="w">Weatherboard exterior, Murrumbeena · starts 22 Sep</div></div></div>
+      <div class="ev"><div class="t">09:58</div><div><b>Jo (office)</b> replied to Mark Ellis<div class="w">26 min after his message</div></div></div>
+      <div class="ev"><div class="t">09:30</div><div><b>Wizard</b> — estimate saved, no request<div class="w">Interior, 3-bed, Bentleigh · $6,200 range · Google search · warm lead</div></div></div>
+      <div class="ev"><div class="t">08:47</div><div><b>Lachlan Reid</b> accepted #3165 <span class="pill g">$14,300</span><div class="w">Deposit invoice issued automatically · category: residential exterior</div></div></div>
+      <div class="ev"><div class="t">Yest.</div><div><b>Sign-off</b> — 12 Alma Rd, Caulfield<div class="w">Final invoice issued · review request sent · report emailed</div></div></div>
+    </div>
+  </div>
+</section>
+
+<p class="hint">Switch the view at the top to see what each role lands on. Every number reads from the event logs; nothing on this page is typed in.</p>
+</div>
+
+<script>
+var names={owner:'Tom',pc:'Felipe',sales:'Sarah',finance:'Jo'};
+function setRole(r){
+  document.querySelectorAll('.role').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.role===r))});
+  document.getElementById('name').textContent=names[r];
+  var n=0;
+  document.querySelectorAll('[data-roles]').forEach(function(el){
+    var show=el.dataset.roles.split(' ').indexOf(r)>-1;
+    if(el.tagName==='SECTION'){ el.hidden=!show; } else { el.style.display=show?'':'none'; if(show) n++; }
+  });
+  document.getElementById('todoN').textContent=n+' thing'+(n===1?'':'s');
+  window.scrollTo({top:0});
+}
+document.querySelectorAll('.role').forEach(function(b){ b.addEventListener('click',function(){setRole(b.dataset.role)}); });
+document.querySelectorAll('.chip').forEach(function(c){ c.addEventListener('click',function(){
+  document.querySelectorAll('.chip').forEach(function(x){x.setAttribute('aria-pressed','false')}); c.setAttribute('aria-pressed','true');
+}); });
+setRole('owner');
+</script>
+</body>
+</html>

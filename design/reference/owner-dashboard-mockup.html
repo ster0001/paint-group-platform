@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Owner dashboard — Paint Group</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A0B0D; --graphite:#12161A; --raised:#171C21; --line:#242B32;
+  --text:#EDF0F2; --muted:#8C959D; --cyan:#3BD8E9; --on-cyan:#03272D; --paint:#2FB9CB;
+  --amber:#E0A83C; --emerald:#2FA46B; --clay:#B3574A;
+  --sans:"Switzer","Geist",Inter,system-ui,-apple-system,sans-serif;
+  --mono:"Martian Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+:root:not([data-theme="light"]){color-scheme:dark}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--ink);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+body{font-size:15px;line-height:1.45}
+a{color:inherit}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* shell */
+.wrap{max-width:1180px;margin:0 auto;padding:16px 16px 80px}
+header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;padding:8px 0 18px}
+header h1{font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+header h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted);letter-spacing:0;margin-top:4px}
+.periods{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--graphite);color:var(--muted);border-radius:999px;padding:7px 12px;font-family:var(--mono);font-size:11.5px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--cyan);color:var(--on-cyan);border-color:var(--cyan);font-weight:600}
+.chip:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+/* headline */
+.headline{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.stat{background:var(--graphite);padding:16px 16px 14px;position:relative}
+.stat .l{font-size:13px;color:var(--muted)}
+.stat .v{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.02em;margin-top:6px;line-height:1}
+.stat .v span{font-size:14px;color:var(--muted);font-weight:400}
+.stat .d{display:flex;gap:10px;align-items:baseline;margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.up{color:var(--emerald)} .down{color:var(--clay)} .warn{color:var(--amber)}
+.def{margin-top:8px;font-size:12px;color:var(--muted);display:none;line-height:1.4}
+.stat.open .def{display:block}
+.i{position:absolute;top:12px;right:12px;width:20px;height:20px;border-radius:50%;border:1px solid var(--line);background:none;color:var(--muted);font-family:var(--mono);font-size:11px;cursor:pointer}
+.i:focus-visible{outline:2px solid var(--cyan)}
+
+/* sections */
+section{margin-top:34px}
+section h2{font-size:18px;font-weight:600;letter-spacing:-.015em;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+section h2 em{font-style:normal;font-size:12.5px;color:var(--muted);font-weight:400}
+.card{background:var(--graphite);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:12px}
+.grid2{display:grid;grid-template-columns:1fr;gap:12px}
+.note{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.45}
+
+/* funnel */
+.funnel{display:grid;gap:8px;margin-top:6px}
+.frow{display:grid;grid-template-columns:118px 1fr 58px;gap:10px;align-items:center;font-size:13px}
+.frow .bar{height:22px;background:var(--raised);border-radius:6px;overflow:hidden}
+.frow .bar i{display:block;height:100%;background:var(--paint);border-radius:6px}
+.frow .bar i.gold{background:var(--cyan)}
+.frow .n{font-family:var(--mono);font-size:12px;text-align:right}
+.frow .drop{grid-column:2/4;font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:-4px}
+.frow .drop b{color:var(--amber);font-weight:500}
+
+/* bars chart */
+svg{display:block;width:100%;height:auto}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+/* margin split */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.kv{background:var(--raised);border-radius:10px;padding:12px}
+.kv .l{font-size:12.5px;color:var(--muted)}
+.kv .v{font-family:var(--mono);font-size:22px;font-weight:600;margin-top:4px}
+.kv .s{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px}
+
+/* placeholder / empty state */
+.empty{border:1px dashed var(--line);border-radius:14px;padding:16px;margin-top:12px;background:none}
+.empty .l{font-size:15px;font-weight:600}
+.empty p{font-size:13px;color:var(--muted);margin-top:6px}
+.btn{display:inline-block;margin-top:12px;border:1px solid var(--cyan);color:var(--cyan);border-radius:8px;padding:8px 12px;font-size:13px;text-decoration:none;font-weight:600}
+
+/* lanes */
+.lanes{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:6px}
+.lane{background:var(--raised);border-radius:10px;padding:10px 8px;text-align:center;min-width:0}
+.lane .c{font-family:var(--mono);font-size:22px;font-weight:600}
+.lane .l{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.2}
+.lane .f{font-family:var(--mono);font-size:10px;margin-top:6px}
+.lane.blocked{box-shadow:inset 0 0 0 1px var(--amber)}
+.lane.overdue{box-shadow:inset 0 0 0 1px var(--clay)}
+
+/* table-ish rows */
+.rows{margin-top:6px}
+.row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:13.5px}
+.row:first-child{border-top:0}
+.row .sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px}
+.row .val{font-family:var(--mono);font-size:13px;text-align:right;white-space:nowrap}
+.pill{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-left:6px;vertical-align:1px}
+.pill.a{border-color:var(--amber);color:var(--amber)}
+.pill.c{border-color:var(--cyan);color:var(--cyan)}
+.pill.g{border-color:var(--emerald);color:var(--emerald)}
+
+/* activity */
+.feed{margin-top:6px}
+.ev{display:grid;grid-template-columns:54px 1fr;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:13.5px}
+.ev:first-child{border-top:0}
+.ev .t{font-family:var(--mono);font-size:11px;color:var(--muted);padding-top:2px}
+.ev .w{color:var(--muted);font-size:12px;margin-top:2px}
+.ev b{font-weight:600}
+
+/* two-col on wide */
+@media (min-width:760px){
+  .wrap{padding:24px 24px 90px}
+  .headline{grid-template-columns:repeat(4,1fr)}
+  .grid2{grid-template-columns:1fr 1fr}
+  .cols{display:grid;grid-template-columns:1.6fr 1fr;gap:24px;align-items:start}
+  .cols section{margin-top:34px}
+}
+@media (prefers-reduced-motion:no-preference){ .stat .v{transition:opacity .25s} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Paint Group<small id="range">1 – 16 September 2026 · compared with 1 – 16 August</small></h1>
+  <div class="periods" role="group" aria-label="Period">
+    <button class="chip" aria-pressed="true" data-p="mtd">This month</button>
+    <button class="chip" aria-pressed="false" data-p="30">Last 30 days</button>
+    <button class="chip" aria-pressed="false" data-p="q">This quarter</button>
+    <button class="chip" aria-pressed="false" data-p="ytd">Year to date</button>
+    <button class="chip" aria-pressed="false" data-p="c">Custom</button>
+  </div>
+</header>
+
+<!-- headline -->
+<div class="headline">
+  <div class="stat">
+    <button class="i" aria-label="What this means">i</button>
+    <div class="l">Agreed sales</div>
+    <div class="v" data-k="agreed">$118,400</div>
+    <div class="d"><span data-k="agreedN">17 jobs signed</span><span class="up">▲ 12% vs Aug</span></div>
+    <div class="def">Estimates accepted in the period, inc GST. Signed on the date the customer accepted, not the date sent.</div>
+  </div>
+  <div class="stat">
+    <button class="i" aria-label="What this means">i</button>
+    <div class="l">Conversion</div>
+    <div class="v" data-k="conv">47%</div>
+    <div class="d"><span data-k="convN">17 of 36 sent</span><span class="warn">5 still open</span></div>
+    <div class="def">Accepted ÷ sent, by the month the estimate was sent. Drafts never count. "Still open" are inside their 60-day window and could still lift this figure.</div>
+  </div>
+  <div class="stat">
+    <button class="i" aria-label="What this means">i</button>
+    <div class="l">Revenue recognised</div>
+    <div class="v" data-k="rev">$96,250</div>
+    <div class="d"><span data-k="revN">11 jobs signed off</span><span class="down">▼ 4% vs Aug</span></div>
+    <div class="def">Jobs signed off in the period, ex GST. Sign-off is the master event — cash received is shown separately under Money.</div>
+  </div>
+  <div class="stat">
+    <button class="i" aria-label="What this means">i</button>
+    <div class="l">Gross margin</div>
+    <div class="v" data-k="gm">32.1% <span>actual</span></div>
+    <div class="d"><span data-k="gmN">31.4% estimated</span><span class="up">+0.7 pts</span></div>
+    <div class="def">Revenue less contractor offers, materials, pass-throughs and reimbursed expenses, on signed-off jobs. Estimated is what the engine said at acceptance.</div>
+  </div>
+</div>
+
+<div class="cols">
+<div>
+
+<!-- funnel -->
+<section>
+  <h2>Where estimates go <em>this period, from the website wizard and staff-built</em></h2>
+  <div class="card">
+    <div class="funnel">
+      <div class="frow"><span>Wizard started</span><div class="bar"><i style="width:100%"></i></div><span class="n">212</span></div>
+      <div class="frow"><span>Email captured</span><div class="bar"><i style="width:61%"></i></div><span class="n">129</span><span class="drop"><b>83 dropped</b> before leaving an email — nothing to chase</span></div>
+      <div class="frow"><span>Estimate saved</span><div class="bar"><i style="width:34%"></i></div><span class="n">72</span><span class="drop"><b>57 dropped</b> with an email — warm leads in the CRM</span></div>
+      <div class="frow"><span>Sent</span><div class="bar"><i style="width:17%"></i></div><span class="n">36</span></div>
+      <div class="frow"><span>Viewed</span><div class="bar"><i style="width:15%"></i></div><span class="n">31</span><span class="drop"><b>5 never opened</b> — chase ladder running</span></div>
+      <div class="frow"><span>Accepted</span><div class="bar"><i class="gold" style="width:8%"></i></div><span class="n">17</span></div>
+    </div>
+    <div class="note">Self-serve accepted without a visit: 6 of 17. Median time from sent to accepted: 3.4 days.</div>
+  </div>
+</section>
+
+<!-- revenue & margin -->
+<section>
+  <h2>Revenue and margin <em>last 6 months, ex GST</em></h2>
+  <div class="card">
+    <svg viewBox="0 0 640 220" role="img" aria-label="Monthly revenue bars with estimated and actual gross margin lines">
+      <g font-family="Martian Mono, monospace" font-size="10" fill="#8C959D">
+        <text x="0" y="14">$250k</text><text x="0" y="104">$125k</text><text x="0" y="194">$0</text>
+        <text x="600" y="14" text-anchor="end">40%</text><text x="600" y="104" text-anchor="end">30%</text><text x="600" y="194" text-anchor="end">20%</text>
+      </g>
+      <g stroke="#242B32" stroke-width="1"><line x1="44" y1="10" x2="560" y2="10"/><line x1="44" y1="100" x2="560" y2="100"/><line x1="44" y1="190" x2="560" y2="190"/></g>
+      <!-- bars: Apr..Sep -->
+      <g fill="#171C21">
+        <rect x="70" y="52" width="46" height="138" rx="4"/>
+        <rect x="150" y="38" width="46" height="152" rx="4"/>
+        <rect x="230" y="66" width="46" height="124" rx="4"/>
+        <rect x="310" y="30" width="46" height="160" rx="4"/>
+        <rect x="390" y="44" width="46" height="146" rx="4"/>
+      </g>
+      <rect x="470" y="121" width="46" height="69" rx="4" fill="#2FB9CB"/>
+      <rect x="470" y="60" width="46" height="61" rx="4" fill="none" stroke="#2FB9CB" stroke-dasharray="3 3"/>
+      <!-- estimated GP line -->
+      <polyline fill="none" stroke="#8C959D" stroke-width="1.5" stroke-dasharray="4 3" points="93,90 173,88 253,94 333,86 413,90 493,88"/>
+      <!-- actual GP line -->
+      <polyline fill="none" stroke="#3BD8E9" stroke-width="2" points="93,96 173,80 253,102 333,78 413,84 493,81"/>
+      <g fill="#3BD8E9"><circle cx="93" cy="96" r="3"/><circle cx="173" cy="80" r="3"/><circle cx="253" cy="102" r="3"/><circle cx="333" cy="78" r="3"/><circle cx="413" cy="84" r="3"/><circle cx="493" cy="81" r="3"/></g>
+      <g font-family="Martian Mono, monospace" font-size="10.5" fill="#8C959D" text-anchor="middle">
+        <text x="93" y="212">Apr</text><text x="173" y="212">May</text><text x="253" y="212">Jun</text><text x="333" y="212">Jul</text><text x="413" y="212">Aug</text><text x="493" y="212" fill="#EDF0F2">Sep</text>
+      </g>
+    </svg>
+    <div class="legend"><span><i style="background:#171C21;border:1px solid #242B32"></i>Revenue signed off</span><span><i style="background:#2FB9CB"></i>September so far</span><span><i style="background:none;border:1px dashed #2FB9CB"></i>Booked, not yet signed off</span><span><i style="background:#3BD8E9"></i>Actual GP</span><span><i style="background:#8C959D"></i>Estimated GP</span></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2 style="font-size:15px">Margin by job size <em>signed-off jobs, actual GP</em></h2>
+      <div class="rows">
+        <div class="row"><div>Under $2,000<div class="sub">3 jobs</div></div><div class="val">29.8%</div></div>
+        <div class="row"><div>$2,000 – $4,500 <span class="pill a">weakest</span><div class="sub">4 jobs</div></div><div class="val" style="color:var(--amber)">26.4%</div></div>
+        <div class="row"><div>$4,500 – $12,000<div class="sub">3 jobs</div></div><div class="val">33.9%</div></div>
+        <div class="row"><div>Over $12,000<div class="sub">1 job</div></div><div class="val">36.2%</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:15px">Where the money went <em>share of revenue</em></h2>
+      <div class="rows">
+        <div class="row"><div>Contractor offers</div><div class="val">48.7%</div></div>
+        <div class="row"><div>Materials <span class="pill c">est 10% → actual 9.4%</span></div><div class="val">9.4%</div></div>
+        <div class="row"><div>Pass-throughs and reimbursed</div><div class="val">6.1%</div></div>
+        <div class="row"><div>Staff time on jobs</div><div class="val">3.7%</div></div>
+        <div class="row"><div><b>Gross margin</b></div><div class="val"><b>32.1%</b></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="empty">
+      <div class="l">Net margin — needs your monthly overheads</div>
+      <p>Wages, vehicles, insurance and software aren't on the platform yet. Enter a monthly overhead figure in Settings, or connect MYOB, and this tile will show net margin from that month on.</p>
+      <a class="btn" href="#">Enter overheads in Settings</a>
+    </div>
+    <div class="empty">
+      <div class="l">Cost per accepted job — needs marketing spend</div>
+      <p>Enter what you spent on Google, Meta and print this month and this shows blended cost per accepted job. Cost by channel switches on from the new-website launch, when lead source is reliable.</p>
+      <a class="btn" href="#">Enter marketing spend</a>
+    </div>
+  </div>
+</section>
+
+<!-- estimate accuracy -->
+<section>
+  <h2>Estimate accuracy <em>jobs signed off in the period</em></h2>
+  <div class="card">
+    <div class="split">
+      <div class="kv"><div class="l">Estimated hours vs worked</div><div class="v">+6.8%</div><div class="s">contractors logged more than the engine allowed on 7 of 11</div></div>
+      <div class="kv"><div class="l">Correction at staff review</div><div class="v">$140 <span style="font-size:12px;color:var(--muted)">median</span></div><div class="s">target under $150 · 2 of 17 corrected over $500</div></div>
+    </div>
+    <div class="note">Feeds the calibration table. Hours overrun is concentrated in exterior prep lines — worth a look before the interior/exterior factors get re-run.</div>
+  </div>
+</section>
+
+<!-- jobs in flight -->
+<section>
+  <h2>Jobs on the books <em>right now, not period-filtered</em></h2>
+  <div class="card">
+    <div class="lanes">
+      <div class="lane"><div class="c">4</div><div class="l">Offered</div><div class="f" style="color:var(--clay)">1 past SLA</div></div>
+      <div class="lane blocked"><div class="c">6</div><div class="l">Pre-start</div><div class="f" style="color:var(--amber)">2 colours TBC</div></div>
+      <div class="lane"><div class="c">9</div><div class="l">On site</div><div class="f" style="color:var(--muted)">3 wrapping up</div></div>
+      <div class="lane"><div class="c">2</div><div class="l">QA</div><div class="f" style="color:var(--muted)">—</div></div>
+      <div class="lane overdue"><div class="c">3</div><div class="l">Walk-through</div><div class="f" style="color:var(--clay)">1 overdue</div></div>
+      <div class="lane"><div class="c">11</div><div class="l">Closed</div><div class="f" style="color:var(--muted)">this month</div></div>
+    </div>
+    <div class="rows" style="margin-top:12px">
+      <div class="row"><div>Booked work ahead<div class="sub">accepted, not yet started</div></div><div class="val">$164,900 · 5.1 weeks</div></div>
+      <div class="row"><div>Starting this week</div><div class="val">4 jobs · 3 contractors</div></div>
+      <div class="row"><div>Variations this month<div class="sub">7 raised · 6 approved · 1 declined</div></div><div class="val">+$4,320</div></div>
+    </div>
+    <div class="note">Blocked and overdue items are actioned in the PC console — this is the count, not the queue.</div>
+  </div>
+</section>
+
+<!-- money -->
+<section>
+  <h2>Money <em>cash, not recognised revenue</em></h2>
+  <div class="card">
+    <div class="split">
+      <div class="kv"><div class="l">Collected this period</div><div class="v">$103,620</div><div class="s">inc GST · 9 final, 14 deposit</div></div>
+      <div class="kv"><div class="l">Outstanding</div><div class="v">$41,850</div><div class="s"><span style="color:var(--clay)">$8,900 overdue</span> · 3 invoices</div></div>
+    </div>
+    <div class="note">Detail and chase ladder live on the invoicing dashboard.</div>
+  </div>
+</section>
+
+</div>
+<div>
+
+<!-- pipeline -->
+<section>
+  <h2>Open pipeline <em>right now</em></h2>
+  <div class="card">
+    <div class="rows">
+      <div class="row"><div>Sent, awaiting answer<div class="sub">19 estimates</div></div><div class="val">$212,400</div></div>
+      <div class="row"><div>Expiring in 14 days <span class="pill a">4</span></div><div class="val">$38,100</div></div>
+      <div class="row"><div>Visit requested, not booked <span class="pill c">3</span></div><div class="val">$27,600</div></div>
+      <div class="row"><div>Saved, never sent<div class="sub">warm leads · 57</div></div><div class="val">~$310,000</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- contractors -->
+<section>
+  <h2>Contractors <em>this period</em></h2>
+  <div class="card">
+    <div class="rows">
+      <div class="row"><div>Offers accepted within 24h</div><div class="val">14 of 16</div></div>
+      <div class="row"><div>QA passed first time</div><div class="val">9 of 11</div></div>
+      <div class="row"><div>Finished on the booked day</div><div class="val">8 of 11</div></div>
+      <div class="row"><div>Days with no update posted</div><div class="val" style="color:var(--amber)">4</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- customers -->
+<section>
+  <h2>Customers <em>this period</em></h2>
+  <div class="card">
+    <div class="rows">
+      <div class="row"><div>First reply to a customer message<div class="sub">median, working hours</div></div><div class="val">41 min</div></div>
+      <div class="row"><div>Enquiry to estimate sent<div class="sub">median</div></div><div class="val">1.8 days</div></div>
+      <div class="row"><div>Reviews asked → received</div><div class="val">11 → 6 <span class="pill g">5.0</span></div></div>
+      <div class="row"><div>Warranty call-backs</div><div class="val">1</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- activity -->
+<section>
+  <h2>Activity <em>latest first</em></h2>
+  <div class="card">
+    <div class="feed">
+      <div class="ev"><div class="t">10:42</div><div><b>Priya Nair</b> viewed estimate #3172 for the second time<div class="w">Brighton East · $9,840 · sent Monday</div></div></div>
+      <div class="ev"><div class="t">10:15</div><div><b>Felipe</b> accepted the offer for #3169<div class="w">Weatherboard exterior, Murrumbeena · starts 22 Sep</div></div></div>
+      <div class="ev"><div class="t">09:58</div><div><b>Jo (office)</b> replied to Mark Ellis<div class="w">Asked about colour consult timing · 26 min after his message</div></div></div>
+      <div class="ev"><div class="t">09:30</div><div><b>Wizard</b> — estimate saved, no request<div class="w">Interior, 3-bed, Bentleigh · $6,200 range · added to CRM as warm</div></div></div>
+      <div class="ev"><div class="t">08:47</div><div><b>Lachlan Reid</b> accepted #3165 <span class="pill g">$14,300</span><div class="w">Deposit invoice issued automatically</div></div></div>
+      <div class="ev"><div class="t">Yest.</div><div><b>Sign-off</b> — 12 Alma Rd, Caulfield<div class="w">Final invoice issued · review request sent · report emailed</div></div></div>
+      <div class="ev"><div class="t">Yest.</div><div><b>Daniel Cho</b> read your message, no reply yet<div class="w">Estimate #3160 expires in 9 days</div></div></div>
+    </div>
+    <div class="note">Everything here is read from the event logs (estimate views, messages, work-order events, ledger). Nothing is typed in.</div>
+  </div>
+</section>
+
+</div>
+</div>
+</div>
+
+<script>
+// tap "i" to reveal the definition under a headline tile
+document.querySelectorAll('.stat .i').forEach(function(b){
+  b.addEventListener('click',function(){ b.closest('.stat').classList.toggle('open'); });
+});
+// period chips swap the headline numbers (illustrative)
+var data={
+  mtd:{range:'1 – 16 September 2026 · compared with 1 – 16 August',agreed:'$118,400',agreedN:'17 jobs signed',conv:'47%',convN:'17 of 36 sent',rev:'$96,250',revN:'11 jobs signed off',gm:'32.1% <span>actual</span>',gmN:'31.4% estimated'},
+  '30':{range:'17 August – 16 September 2026 · compared with the 30 days before',agreed:'$231,900',agreedN:'33 jobs signed',conv:'48%',convN:'33 of 69 sent',rev:'$204,700',revN:'23 jobs signed off',gm:'31.6% <span>actual</span>',gmN:'31.2% estimated'},
+  q:{range:'1 July – 16 September 2026 · compared with Apr – Jun',agreed:'$598,200',agreedN:'86 jobs signed',conv:'46%',convN:'86 of 187 sent',rev:'$552,300',revN:'64 jobs signed off',gm:'31.9% <span>actual</span>',gmN:'31.3% estimated'},
+  ytd:{range:'1 January – 16 September 2026 · compared with same period 2025',agreed:'$1,742,600',agreedN:'251 jobs signed',conv:'45%',convN:'251 of 558 sent',rev:'$1,689,100',revN:'233 jobs signed off',gm:'31.4% <span>actual</span>',gmN:'31.1% estimated'},
+  c:{range:'Choose two dates',agreed:'—',agreedN:'',conv:'—',convN:'',rev:'—',revN:'',gm:'—',gmN:''}
+};
+document.querySelectorAll('.chip').forEach(function(c){
+  c.addEventListener('click',function(){
+    document.querySelectorAll('.chip').forEach(function(x){x.setAttribute('aria-pressed','false')});
+    c.setAttribute('aria-pressed','true');
+    var d=data[c.dataset.p];
+    document.getElementById('range').textContent=d.range;
+    Object.keys(d).forEach(function(k){ var el=document.querySelector('[data-k="'+k+'"]'); if(el) el.innerHTML=d[k]; });
+  });
+});
+</script>
+</body>
+</html>
