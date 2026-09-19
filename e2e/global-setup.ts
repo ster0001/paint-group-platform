@@ -37,7 +37,7 @@
 
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { RUN_LOCK_BUSY_MESSAGE, acquireRunLock } from "./run-lock";
+import { acquireRunLock, runLockBusyMessage } from "./run-lock";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -317,7 +317,7 @@ export default async function globalSetup(): Promise<void> {
   // not ownership and what it cost.
   {
     const held = await acquireRunLock();
-    if (held === "busy") throw new Error(RUN_LOCK_BUSY_MESSAGE);
+    if (held === "busy") throw new Error(runLockBusyMessage());
   }
 
   // ---- C7c: the tripwire, and this run's marker ---------------------------

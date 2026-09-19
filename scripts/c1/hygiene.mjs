@@ -27,7 +27,13 @@
 import pg from "pg";
 import { productionRef } from "./env.mjs";
 import { checkTarget, DEFAULTS, EXIT, fkAction, parseArgs, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
-import { E2E_RUN_LOCK_KEY, sessionPooledUrl } from "./session-url.mjs";
+import {
+  E2E_RUN_LOCK_KEY,
+  LOCK_HOLDER_QUERY,
+  describeLockHolder,
+  lockHolderName,
+  sessionPooledUrl,
+} from "./session-url.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const cmd = args._[0];
@@ -270,9 +276,16 @@ if (cmd === "sweep") {
   const lockClient = new pg.Client({
     connectionString: sessionPooledUrl(dbUrl),
     ssl: { rejectUnauthorized: false },
-    application_name: "pg-hygiene-sweep-lock",
   });
   await lockClient.connect();
+  // The name goes on with set_config, not in the client options: the pooler
+  // swallows a startup-packet application_name (every holder read back as
+  // "Supavisor"), and this sweep is exactly the holder nobody could identify —
+  // it can hold the lock for its whole budget while it clears a backlog, which
+  // reads to a refused e2e run like a phantom peer.
+  await lockClient.query("select set_config('application_name', $1, false)", [
+    lockHolderName("sweep", { ci: Boolean(process.env.CI || process.env.GITHUB_ACTIONS) }),
+  ]);
 
   // WAIT for a run rather than bouncing off it. A suite takes 20-40 minutes and
   // the sweep has all night; giving up on the first refusal means a busy day
@@ -281,11 +294,16 @@ if (cmd === "sweep") {
   const lockWaitMs = Math.max(0, Number(args["lock-wait-min"] ?? DEFAULTS.lockWaitMinutes)) * 60_000;
   const waitStarted = Date.now();
   let held = false;
+  let holder = "another run";
   for (;;) {
     const [lock] = (await lockClient.query("select pg_try_advisory_lock($1) as ok", [E2E_RUN_LOCK_KEY])).rows;
     if (lock?.ok) { held = true; break; }
+    try {
+      const [row] = (await lockClient.query(LOCK_HOLDER_QUERY, [E2E_RUN_LOCK_KEY])).rows;
+      if (row) holder = describeLockHolder(row.application_name, row.held_for);
+    } catch { /* a vaguer line is fine; waiting is not a failure */ }
     if (Date.now() - waitStarted >= lockWaitMs) break;
-    if (Date.now() - waitStarted < 15_000) log(`an e2e run holds the test project — waiting up to ${Math.round(lockWaitMs / 60_000)} min for it to finish…`);
+    if (Date.now() - waitStarted < 15_000) log(`the test project is held by ${holder} — waiting up to ${Math.round(lockWaitMs / 60_000)} min for it to finish…`);
     await new Promise((r) => setTimeout(r, 15_000));
   }
   if (!held) {
@@ -293,8 +311,8 @@ if (cmd === "sweep") {
     await client.end();
     // Not a failure: the project is in use and the sweep runs again tomorrow.
     // A red job here would train everyone to ignore it.
-    log(`sweep skipped: an e2e run still holds the test project after ${Math.round((Date.now() - waitStarted) / 60_000)} min. Nothing was deleted; the next scheduled sweep will pick it up.`);
-    if (json) console.log(JSON.stringify({ skipped: "run-in-progress", waitedMin: Math.round((Date.now() - waitStarted) / 60_000), deleted: 0 }));
+    log(`sweep skipped: the test project is still held by ${holder} after ${Math.round((Date.now() - waitStarted) / 60_000)} min. Nothing was deleted; the next scheduled sweep will pick it up.`);
+    if (json) console.log(JSON.stringify({ skipped: "run-in-progress", holder, waitedMin: Math.round((Date.now() - waitStarted) / 60_000), deleted: 0 }));
     process.exit(EXIT.ok);
   }
   if (Date.now() - waitStarted > 1_000) log(`took the lock after waiting ${Math.round((Date.now() - waitStarted) / 1_000)}s`);

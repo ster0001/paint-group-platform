@@ -32,13 +32,20 @@
  * connection ended.
  */
 import pg from "pg";
-import { sessionPooledUrl } from "@/lib/testing/session-pooled-url";
+import {
+  LOCK_HOLDER_QUERY,
+  describeLockHolder,
+  lockHolderName,
+  sessionPooledUrl,
+} from "@/lib/testing/session-pooled-url";
 
 /** Arbitrary but fixed: "pge2e" as a 32-bit key. Any run, any checkout, any
  *  machine pointed at this database contends for THIS number. */
 export const E2E_RUN_LOCK_KEY = 0x70676532;
 
 let client: pg.Client | null = null;
+/** Who the last refusal found holding the project, for the message. */
+let busyHolder = "";
 
 export function e2eDatabaseUrl(): string {
   return process.env.E2E_DATABASE_URL || process.env.C1_DATABASE_URL || "";
@@ -58,11 +65,19 @@ export async function acquireRunLock(): Promise<"held" | "busy" | "skipped"> {
   const raw = e2eDatabaseUrl();
   if (!raw) return "skipped";
   const connectionString = sessionPooledUrl(raw);
-  const c = new pg.Client({ connectionString, application_name: "pg-e2e-run-lock" });
+  // NOT `new pg.Client({ application_name })`: that travels in the startup
+  // packet, which the pooler swallows — every holder read back as "Supavisor",
+  // so a refusal could not say what it was waiting for. A runtime set_config
+  // survives. Measured 19 Sep 2026.
+  const c = new pg.Client({ connectionString });
   await c.connect();
   try {
+    await c.query("select set_config('application_name', $1, false)", [
+      lockHolderName("e2e", { ci: Boolean(process.env.CI || process.env.GITHUB_ACTIONS) }),
+    ]);
     const r = await c.query<{ ok: boolean }>("select pg_try_advisory_lock($1) as ok", [E2E_RUN_LOCK_KEY]);
     if (!r.rows[0]?.ok) {
+      busyHolder = await readLockHolder(c);
       await c.end();
       return "busy";
     }
@@ -85,10 +100,39 @@ export async function releaseRunLock(): Promise<void> {
   await c.end().catch(() => {});
 }
 
-export const RUN_LOCK_BUSY_MESSAGE =
-  "REFUSED: another e2e run already holds the test project.\n" +
-  "  Two runs at once delete each other's live anonymous users (the teardown deletes by\n" +
-  "  time window, and a concurrent run's rows fall inside it), which surfaces as\n" +
-  "  \"Couldn't create the estimate: … estimates_created_by_fkey\" late in whichever run\n" +
-  "  is still going. Wait for the other run to finish — CI runs are visible under\n" +
-  "  Actions → CI, and a local one is usually a peer checkout's ./scripts/c1/run-e2e.sh.";
+/** Ask the database who is holding it. Never throws: a refusal must still
+ *  refuse, with a vaguer message, if this read fails. */
+async function readLockHolder(c: pg.Client): Promise<string> {
+  try {
+    const r = await c.query<{ application_name: string | null; held_for: string | null }>(
+      LOCK_HOLDER_QUERY, [E2E_RUN_LOCK_KEY]);
+    const row = r.rows[0];
+    if (!row) return "another run (it let go while this one was asking)";
+    return describeLockHolder(row.application_name, row.held_for);
+  } catch {
+    return "another run (could not read pg_stat_activity to say which)";
+  }
+}
+
+/**
+ * Why this run is refused, naming the holder.
+ *
+ * The message used to assert "another e2e run" and point at CI and peer
+ * checkouts — and on 19 Sep 2026 the holder was neither: the HYGIENE SWEEP
+ * takes this same lock while it clears a backlog, for up to its 45-minute
+ * budget. Several minutes went into hunting a phantom e2e run before
+ * `pg_locks` gave the real answer. Three things can hold this lock; the
+ * message now says which one did.
+ */
+export function runLockBusyMessage(): string {
+  return (
+    `REFUSED: the test project is held by ${busyHolder || "another run"}.\n` +
+    "  Two runs at once delete each other's live anonymous users (the teardown deletes by\n" +
+    "  time window, and a concurrent run's rows fall inside it), which surfaces as\n" +
+    "  \"Couldn't create the estimate: … estimates_created_by_fkey\" late in whichever run\n" +
+    "  is still going.\n" +
+    "  The sweep releases it when its budget is up (default 20 min, 45 when clearing a\n" +
+    "  backlog by hand); an e2e run releases it when it finishes. CI runs are visible\n" +
+    "  under Actions, and a local one is usually a peer checkout's ./scripts/c1/run-e2e.sh."
+  );
+}
