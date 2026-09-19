@@ -20,6 +20,7 @@ export type TileData = {
   value: number;
   compare: number | null;
   compareRange: Range | null;
+  note: string | null;
   href?: string;
   columns: { key: string; label: string }[];
   rows: Record<string, unknown>[];
@@ -33,7 +34,7 @@ const num = new Intl.NumberFormat("en-AU");
 export function formatValue(value: number, unit: MetricUnit): string {
   switch (unit) {
     case "cents": return aud.format(Math.round(value) / 100);
-    case "pct": return `${Math.round(value)}%`;
+    case "pct": return `${value > 0 ? "+" : ""}${Math.round(value * 10) / 10}%`;
     case "days": return `${num.format(Math.round(value * 10) / 10)} d`;
     case "hours": return `${num.format(Math.round(value * 10) / 10)} h`;
     default: return num.format(value);
@@ -72,6 +73,7 @@ export default function HomeTiles({ tiles }: { tiles: TileData[] }) {
               <div className="l">{t.title}</div>
               <div className="v" data-testid={`tile-value-${t.key}`}>{formatValue(t.value, t.unit)}</div>
               <div className="d">
+                {t.note && <span data-testid={`tile-note-${t.key}`}>{t.note}</span>}
                 {t.gst && <span>{t.gst === "inc" ? "inc GST" : "ex GST"}</span>}
                 {d && d.dir !== "flat" && (
                   <span className={d.dir === "up" ? "up" : "down"}>{d.dir === "up" ? "▲" : "▼"} {d.pct}% vs {monthShort(t.compareRange)}</span>

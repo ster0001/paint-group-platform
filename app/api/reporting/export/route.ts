@@ -41,7 +41,7 @@ export async function GET(request: Request) {
   const range = resolveRange(parsed.data.preset, now, { from: parsed.data.from, to: parsed.data.to });
 
   try {
-    const { input, failures } = await loadMetricInput(supabase, range, now);
+    const { input, failures } = await loadMetricInput(supabase, range, now, [def.section]);
     if (failures.length) return NextResponse.json({ error: "a read failed", failures }, { status: 503 });
     const result = runMetric(def, input, range, roles);
     return new Response(csvStream(def, result.rows as Record<string, unknown>[]), {

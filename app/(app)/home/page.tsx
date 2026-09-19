@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PRESET_LABEL, RANGE_PRESETS, rangeLabel, resolveRange, runMetric, type MetricResult, type RangePreset } from "@/lib/reporting/core";
-import { loadMetricInput, loadRoles, loadStripSources } from "@/lib/reporting/load";
+import { loadDashboard, loadRoles } from "@/lib/reporting/load";
 import { METRICS, SECTION_TITLE, SWITCHES_ON, metricsForSection } from "@/lib/reporting/registry";
 import { ROLE_LABEL, sectionsFor, type DashboardSection } from "@/lib/reporting/roles";
 import { buildStrip } from "@/lib/reporting/strip";
@@ -45,12 +45,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const roles = await loadRoles(supabase);
   const sections = sectionsFor(roles);
 
-  const [strip, metricInput] = await Promise.all([
-    loadStripSources(supabase, roles, now),
-    sections.some((s) => metricsForSection(s).length > 0) ? loadMetricInput(supabase, range, now) : Promise.resolve(null),
-  ]);
-  const cards = buildStrip({ workItems: strip.workItems, consoleCards: strip.consoleCards }, roles);
-  const failures = [...strip.failures, ...(metricInput?.failures ?? [])];
+  const loaded = await loadDashboard(supabase, roles, sections, range, now);
+  const cards = buildStrip(loaded.strip, roles);
+  const failures = loaded.failures;
+  const metricInput = roles.length > 0 ? loaded : null;
 
   const tilesBySection = new Map<DashboardSection, TileData[]>();
   if (metricInput) {
@@ -61,7 +59,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           const r: MetricResult = runMetric(def, metricInput.input, range, roles);
           tiles.push({
             key: r.key, kind: r.kind, title: r.title, definition: r.definition, unit: r.unit, gst: r.gst,
-            value: r.value, compare: r.compare, compareRange: r.compareRange, href: r.href,
+            value: r.value, compare: r.compare, compareRange: r.compareRange, note: r.note, href: r.href,
             columns: def.columns.map((c) => ({ key: String(c.key), label: c.label })),
             rows: (r.rows as Record<string, unknown>[]).slice(0, MAX_ROWS_ON_PAGE), rowCount: r.rows.length,
             exportHref: `/api/reporting/export?metric=${encodeURIComponent(def.key)}&preset=${preset}${sp.from ? `&from=${sp.from}` : ""}${sp.to ? `&to=${sp.to}` : ""}`,
