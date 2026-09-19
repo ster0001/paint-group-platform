@@ -1,3 +1,19 @@
+# 19 Sep 2026 (evening) — Home dashboard v2, Session 0a: capture on estimates + presentations. ONE migration: 20270175 (additive: `estimates.sent_by_user_id` + `lead_source`, `accounts.category` + `lead_source`, `presentations.category_label`, three triggers, `send_estimate` redefined). Branch `feat/home-dashboard-0a-capture`.
+
+Reference set committed first (brief v2, v1 kept, both mockups, presentations summary, P&L-vs-Settings
+note, decisions ledger). Tom's rulings ⚑1 (five roles, union of sections) and ⚑2 (margin/P&L/targets/
+marketing owner+admin only, server-side) recorded in the brief's Part F for 0d/1. Built: sender written
+once at send (backfilled from the `sent` event's `payload.by` — 0 on TEST because TEST has no `sent`
+events at all; prod will fill); lead source = the CRM's SOURCES list on account AND estimate, flowing
+first-touch → account → estimates, staff pick → account-when-blank, `unknown` never propagates; Send
+refuses without it (builder picker under Job settings); presentation `category_label` (blank = name)
+→ account category on first send, never overwritten; `downloaded` estimate event from the customer's
+Download button via `/api/estimates/downloaded`. NOT duplicated: `valid_until` is `expires_at`;
+`question` is `question_asked`; the per-job-type presentation tick in the summary was never built
+(per-estimate tick reports; none = Uncategorised) — noted in the summary. Gates: vitest 2685/2685, tsc + eslint clean (4 pre-existing warnings), `e2e/dashboard-capture-estimates.spec.ts` 5/5 green on :3101 (anon download ping, staff-session send + column grant + 42501 on the sender, first-touch cascade, builder gate, Settings label); 20270175 applied on TEST via reapply-one and read back (5 columns, 4 triggers, sender ungranted, 46,373 legacy estimates → `unknown`, 726 accounts sourced).
+Prod: 20270175 needs Tom's paste — read the select at the end of the file back.
+Next: 0b messaging (`direction`, `sender_role`, `read_at`, thread `last_inbound_at`/`last_staff_reply_at`).
+
 # 16 Sep 2026 (night) — Messaging automations, Session 3: money and sign-off. ONE migration: 20270151 (`invoices.chase_hold_reason`, additive). Branch `feat/automations-s3-money-signoff`.
 
 Seven automations (see docs/ARCHITECTURE.md tail): welcome on acceptance, four-rung unpaid-invoice

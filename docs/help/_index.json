@@ -90,7 +90,10 @@
         "app/quote/PackPane.tsx",
         "app/quote/StripActions.tsx",
         "app/api/confirmations/[id]/route.ts",
-        "lib/crm/work-queue.ts"
+        "lib/crm/work-queue.ts",
+        "app/quote/QuoteBuilder.tsx",
+        "lib/estimate/leadSource.ts",
+        "app/(app)/settings/PresentationsManager.tsx"
       ]
     },
     {

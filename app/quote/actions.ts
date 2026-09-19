@@ -13,6 +13,7 @@ import { z } from "zod";
 import { ensureAccountAndProperty } from "@/lib/accounts/link";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
+import { LEAD_SOURCE_REQUIRED } from "@/lib/estimate/leadSource";
 
 const replyInput = z.object({
   estimateId: z.string().uuid(),
@@ -94,6 +95,7 @@ export async function sendEstimateAction(raw: unknown): Promise<SendResult> {
     not_saved: "Save the estimate before sending it.",
     nothing_to_send: "There's nothing published yet — save first.",
     not_found: "That estimate no longer exists.",
+    lead_source_required: LEAD_SOURCE_REQUIRED,
   };
   return { ok: false, kind: "error", message: wording[reason] ?? `Couldn't send that (${reason}).` };
 }

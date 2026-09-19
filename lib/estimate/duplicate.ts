@@ -35,7 +35,7 @@ export const COPY_SUFFIX = " (copy)";
 /** The columns the copy reads from the source row — the ones the builder writes. */
 export const DUPLICATE_SELECT =
   "title, builder_state, rate_card_id, rate_card_version, level_of_finish, size_band, "
-  + "subtotal_cents, total_cents, presentation_id, job_kind, storey_heights, requires_site_check, source";
+  + "subtotal_cents, total_cents, presentation_id, lead_source, job_kind, storey_heights, requires_site_check, source";
 
 export type DuplicateSource = {
   title: string | null;
@@ -47,6 +47,7 @@ export type DuplicateSource = {
   subtotal_cents: number | null;
   total_cents: number | null;
   presentation_id: string | null;
+  lead_source: string | null;
   job_kind: string | null;
   storey_heights: unknown;
   requires_site_check: boolean | null;
@@ -64,6 +65,7 @@ export type DuplicateInsert = {
   subtotal_cents: number;
   total_cents: number;
   presentation_id: string | null;
+  lead_source: string | null;
   job_kind: string;
   storey_heights: unknown;
   requires_site_check: boolean;
@@ -135,6 +137,7 @@ export function buildDuplicate(src: DuplicateSource, opts: { createdBy: string |
     subtotal_cents: src.subtotal_cents ?? 0,
     total_cents: src.total_cents ?? 0,
     presentation_id: src.presentation_id,
+    lead_source: src.lead_source,
     job_kind: src.job_kind ?? "residential",
     storey_heights: src.storey_heights ?? null,
     requires_site_check: src.requires_site_check ?? false,

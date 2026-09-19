@@ -42,6 +42,7 @@ import { conditionExtraHours } from "@/lib/workorder/conditionAllowance";
 import OfferPanel from "./OfferPanel";
 import { linkEstimateAccountAction, replyToEstimateChatAction, sendEstimateAction, type DeliveryOutcome, addAcceptedOptionAction } from "./actions";
 import SendDialog, { type SendDelivery } from "./SendDialog";
+import { LEAD_SOURCE_OPTIONS, LEAD_SOURCE_REQUIRED, isLeadSource, type LeadSource } from "@/lib/estimate/leadSource";
 import { reviewGate, REVIEW_GATE_CENTS, type AiDeferred } from "@/lib/estimate/reviewGate";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, type MessagingSettings } from "@/lib/messaging/config";
 import { depositPctFromSettings } from "@/lib/invoicing/settings";
@@ -298,7 +299,7 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   areaNames: AreaNameRef[];
-  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; sent_snapshot?: unknown; selected_options?: string[] | null } | null;
+  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; lead_source?: string | null; sent_snapshot?: unknown; selected_options?: string[] | null } | null;
   company: CompanyProfile;
   contacts: Contact[];
   inclusionTemplates?: InclusionTemplate[];
@@ -440,6 +441,10 @@ export default function QuoteBuilder({
   );
   // Presentation tick — which presentation (if any) injects into the customer view.
   const [presentationId, setPresentationId] = useState<string | null>(initial?.presentation_id ?? null);
+  // Lead source (dashboard 0a): where this job came from. Pre-filled from the
+  // account's first touch by the database; a staff pick fills the account when
+  // it has none. Required before Send — the server refuses without it.
+  const [leadSource, setLeadSource] = useState<LeadSource | null>(isLeadSource(initial?.lead_source) ? initial.lead_source : null);
   // The list is loaded with the page, then REFRESHED whenever this tab regains
   // focus or the picker is opened — a presentation made in Settings a minute
   // ago must be offered without a reload (Tom, 3 Sep: "make sure any future
@@ -949,7 +954,7 @@ export default function QuoteBuilder({
   // presentationId is part of the fingerprint (3 Sep): ticking a presentation
   // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
   // tab kept showing the last published copy — without the presentation.
-  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, presentationId, photoReview, extraPaints });
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, presentationId, leadSource, photoReview, extraPaints });
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
   const unsaved = Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
@@ -1026,6 +1031,7 @@ export default function QuoteBuilder({
       builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview, extraPaints, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
       share_token: token,
       presentation_id: presentationId,
+      lead_source: leadSource,
       sent_snapshot: buildCustomerDoc(token),
     };
     try {
@@ -1061,6 +1067,7 @@ export default function QuoteBuilder({
 
   function openSendDialog() {
     if (!finishChosen) { setSaveMsg("Choose a level of finish before sending."); return; }
+    if (!leadSource) { setSaveMsg(LEAD_SOURCE_REQUIRED); return; }
     setSendDialogOpen(true);
   }
 
@@ -2316,6 +2323,18 @@ export default function QuoteBuilder({
                         ≈ {Math.max(1, Math.ceil(totals.contractorHours / (8 * idealPainters)))} day{Math.max(1, Math.ceil(totals.contractorHours / (8 * idealPainters))) === 1 ? "" : "s"} on site at {totals.contractorHours.toFixed(1)} h
                       </span>
                     )}
+                  </label>
+                  <label className="mt-3 block text-xs sm:max-w-xs">
+                    <span className="text-gray-500">Lead source <span className="text-gray-400">· where this job came from; required before sending</span></span>
+                    <select
+                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                      value={leadSource ?? ""}
+                      onChange={(e) => setLeadSource(isLeadSource(e.target.value) ? e.target.value : null)}
+                      data-testid="lead-source-picker"
+                    >
+                      <option value="">— required —</option>
+                      {LEAD_SOURCE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                    </select>
                   </label>
                   {presList.length > 0 && (
                     <label className="mt-3 block text-xs">

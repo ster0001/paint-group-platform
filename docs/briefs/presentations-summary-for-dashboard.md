@@ -11,3 +11,7 @@ The full presentations brief (`claude-code-brief-presentations.md`, Aug 2026) is
 - Adding a presentation in Settings must make its label appear in every category breakdown with no code change; estimates with no presentation report as "Uncategorised".
 
 If the presentations table or the job-type tick does not exist as described, stop and report — do not invent the model.
+
+---
+
+**As built (session 0a, 19 Sep 2026).** The presentations table exists as described, with `is_default`; the tick is **per estimate** in the builder (Job settings → Presentation), not per job type — that per-job-type tick was never built, and the dashboard does not need it. `category_label` and `accounts.category` are live (`20270175`). `estimates.presentation_id` is whatever the builder ticked at the time of sending; no tick reports as "Uncategorised". A per-job-type default remains a ⚑ for the presentations module, not this one.

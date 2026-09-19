@@ -191,6 +191,17 @@ export default function CustomerEstimate({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  // Dashboard 0a: the download is an estimate event ("downloaded"). Fire and
+  // forget — the print dialog opens whether or not the ping lands.
+  function recordDownload() {
+    try {
+      void fetch("/api/estimates/downloaded", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }), keepalive: true,
+      }).catch(() => undefined);
+    } catch { /* never in the way of the print */ }
+  }
+
   async function decline() {
     setBusy(true); setErr("");
     const reason = [declinePick, declineReason.trim()].filter(Boolean).join(" — ");
@@ -401,7 +412,7 @@ export default function CustomerEstimate({
 
           {!invoiceMode && (
             <div className="cta-row print-hide" style={{ marginTop: 14 }}>
-              <button className="btn btn-ghost" onClick={() => window.print()}>⤓ Download estimate (PDF)</button>
+              <button className="btn btn-ghost" data-testid="download-estimate" onClick={() => { recordDownload(); window.print(); }}>⤓ Download estimate (PDF)</button>
             </div>
           )}
 

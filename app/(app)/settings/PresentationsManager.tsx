@@ -6,7 +6,7 @@ import { acceptAttr, checkUpload, type UploadKind } from "@/lib/uploads/validate
 import PresentationBlocks from "@/app/e/[token]/PresentationBlocks";
 
 type Block = { id: string; kind: string; position: number; enabled: boolean; content: Record<string, unknown> };
-export type PresentationRow = { id: string; name: string; description: string; is_default: boolean; presentation_blocks: Block[] };
+export type PresentationRow = { id: string; name: string; description: string; is_default: boolean; category_label: string; presentation_blocks: Block[] };
 
 const KIND_LABEL: Record<string, string> = { video: "Video", before_after_gallery: "Before / after", review_set: "Reviews", capability_panel: "Capability panel" };
 const EMPTY: Record<string, unknown> = {
@@ -35,11 +35,11 @@ export default function PresentationsManager({ initial, usage }: { initial: Pres
     const name = prompt("New presentation name:", `${p.name} copy`);
     if (!name) return;
     const supabase = createClient();
-    const { data: pres, error } = await supabase.from("presentations").insert({ name, description: p.description, is_default: false }).select("id").single();
+    const { data: pres, error } = await supabase.from("presentations").insert({ name, description: p.description, is_default: false, category_label: p.category_label }).select("id").single();
     if (error) { setMsg(error.message); return; }
     const blocks = p.presentation_blocks.map((b) => ({ presentation_id: pres.id, kind: b.kind, position: b.position, enabled: b.enabled, content: b.content }));
     if (blocks.length) await supabase.from("presentation_blocks").insert(blocks);
-    const { data: full } = await supabase.from("presentations").select("id, name, description, is_default, presentation_blocks(id, kind, position, enabled, content)").eq("id", pres.id).single();
+    const { data: full } = await supabase.from("presentations").select("id, name, description, is_default, category_label, presentation_blocks(id, kind, position, enabled, content)").eq("id", pres.id).single();
     if (full) { setRows((rs) => [...rs, full as PresentationRow]); setEditing((full as PresentationRow).id); }
   }
   async function createScaffold() {
@@ -50,7 +50,7 @@ export default function PresentationsManager({ initial, usage }: { initial: Pres
     if (error) { setMsg(error.message); return; }
     const kinds = ["video", "before_after_gallery", "review_set", "capability_panel"];
     await supabase.from("presentation_blocks").insert(kinds.map((k, i) => ({ presentation_id: pres.id, kind: k, position: i, enabled: true, content: EMPTY[k] })));
-    const { data: full } = await supabase.from("presentations").select("id, name, description, is_default, presentation_blocks(id, kind, position, enabled, content)").eq("id", pres.id).single();
+    const { data: full } = await supabase.from("presentations").select("id, name, description, is_default, category_label, presentation_blocks(id, kind, position, enabled, content)").eq("id", pres.id).single();
     if (full) { setRows((rs) => [...rs, { ...(full as PresentationRow), presentation_blocks: [...(full as PresentationRow).presentation_blocks].sort((a, b) => a.position - b.position) }]); setEditing((full as PresentationRow).id); }
   }
   async function remove(p: PresentationRow) {
@@ -66,6 +66,17 @@ export default function PresentationsManager({ initial, usage }: { initial: Pres
   const patchBlockMeta = (presId: string, blockId: string, meta: Partial<Block>) =>
     setRows((rs) => rs.map((p) => p.id !== presId ? p : { ...p, presentation_blocks: p.presentation_blocks.map((b) => b.id === blockId ? { ...b, ...meta } : b) }));
 
+  async function saveCategoryLabel(p: PresentationRow) {
+    const supabase = createClient();
+    const { error } = await supabase.from("presentations").update({ category_label: p.category_label.trim() }).eq("id", p.id);
+    if (error) { setMsg(error.message); return; }
+    // The server fills a blank label with the name; read it back so the screen agrees.
+    const back = await supabase.from("presentations").select("category_label").eq("id", p.id).single();
+    if (back.error) { setMsg(`Saved, but couldn't read the label back: ${back.error.message}`); return; }
+    const label = (back.data as { category_label: string } | null)?.category_label;
+    if (label != null) setRows((rs) => rs.map((x) => x.id === p.id ? { ...x, category_label: label } : x));
+    setMsg("Saved ✓");
+  }
   async function saveBlock(b: Block) {
     const { error } = await createClient().from("presentation_blocks").update({ content: b.content, enabled: b.enabled, position: b.position }).eq("id", b.id);
     setMsg(error ? error.message : "Saved ✓");
@@ -89,6 +100,20 @@ export default function PresentationsManager({ initial, usage }: { initial: Pres
       <div className="space-y-4">
         <button onClick={() => setEditing(null)} className="text-sm font-medium text-blue-600 hover:text-blue-800">← All presentations</button>
         <input className={`${inp} max-w-md font-semibold`} value={active.name} onChange={(e) => setRows((rs) => rs.map((p) => p.id === active.id ? { ...p, name: e.target.value } : p))} onBlur={() => createClient().from("presentations").update({ name: active.name, description: active.description }).eq("id", active.id)} />
+        {/* Dashboard 0a: the reporting category. Sales, P&L and Marketing group
+            by this label, never by id — so a rewrite keeps its history and two
+            presentations may share one. Blank = same as the name (server default). */}
+        <label className="block max-w-md text-xs">
+          <span className="text-gray-500">Category label <span className="text-gray-400">· how the dashboard groups estimates sent with this presentation; leave blank to use the name</span></span>
+          <input
+            className={`mt-1 ${inp}`}
+            value={active.category_label}
+            placeholder={active.name}
+            data-testid="presentation-category-label"
+            onChange={(e) => setRows((rs) => rs.map((p) => p.id === active.id ? { ...p, category_label: e.target.value } : p))}
+            onBlur={() => saveCategoryLabel(active)}
+          />
+        </label>
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="space-y-3">
             {active.presentation_blocks.map((b, i) => (
@@ -128,10 +153,10 @@ export default function PresentationsManager({ initial, usage }: { initial: Pres
       </div>
       {rows.length === 0 && <p className="text-sm text-gray-500">No presentations yet. Run the seed to add the Commercial preset, or create a blank one.</p>}
       {rows.map((p) => (
-        <div key={p.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
+        <div key={p.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2" data-testid={`presentation-row-${p.id}`}>
           <div>
             <div className="text-sm font-medium">{p.name}{p.is_default && <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">default</span>}</div>
-            <div className="text-xs text-gray-400">{p.presentation_blocks.length} blocks · used on {usage[p.id] ?? 0} estimate{(usage[p.id] ?? 0) === 1 ? "" : "s"}</div>
+            <div className="text-xs text-gray-400">{p.presentation_blocks.length} blocks · used on {usage[p.id] ?? 0} estimate{(usage[p.id] ?? 0) === 1 ? "" : "s"} · category <span data-testid={`presentation-category-${p.id}`}>{p.category_label || p.name}</span></div>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <button onClick={() => setEditing(p.id)} className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium hover:bg-gray-50">Edit</button>

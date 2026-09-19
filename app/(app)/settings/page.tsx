@@ -73,7 +73,7 @@ export default async function SettingsPage() {
     supabase.from("modifiers").select("id, group_name, code, label, multiplier, active").order("group_name"),
     supabase.from("settings").select("key, value").order("key"),
     supabase.from("colours").select("id, brand, name, hex, collection").order("brand").order("name"),
-    supabase.from("presentations").select("id, name, description, is_default, presentation_blocks(id, kind, position, enabled, content)").order("created_at"),
+    supabase.from("presentations").select("id, name, description, is_default, category_label, presentation_blocks(id, kind, position, enabled, content)").order("created_at"),
     // Only used to count how many estimates use each presentation, so ask for
     // the ones that actually have one rather than every estimate ever written
     // (audit S6). Capped too — the count is advisory, and the cap is stated in

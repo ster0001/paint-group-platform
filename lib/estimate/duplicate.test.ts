@@ -28,6 +28,7 @@ const source: DuplicateSource = {
   subtotal_cents: 1000000,
   total_cents: 1100000,
   presentation_id: "pres-1",
+  lead_source: "referral",
   job_kind: "residential",
   storey_heights: { ground: 2.7 },
   requires_site_check: true,
