@@ -10,12 +10,16 @@
 import type { MetricDef } from "./core";
 import type { DashboardSection } from "./roles";
 import { estimatesSent, salesCents, salesCount } from "./metrics/sales";
+import { PC_METRICS } from "./metrics/pc";
+import { CONTRACTOR_METRICS } from "./metrics/contractors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a heterogeneous registry; every entry is a MetricDef of its own row type
 export type AnyMetricDef = MetricDef<any>;
 
 export const METRICS: ReadonlyArray<AnyMetricDef> = [
   estimatesSent, salesCents, salesCount,
+  ...PC_METRICS,
+  ...CONTRACTOR_METRICS,
 ];
 
 export function metricByKey(key: string): AnyMetricDef | null {
@@ -29,8 +33,6 @@ export function metricsForSection(section: DashboardSection): AnyMetricDef[] {
 /** Honest placeholders: what each section waits on, until its session lands. */
 export const SWITCHES_ON: Partial<Record<DashboardSection, string>> = {
   funnel: "session 3 — wizard sessions and estimate events",
-  pc_command: "session 2 — the PC console evaluator",
-  contractors: "session 2 — work-order events and the worked-hours capture",
   invoicing: "session 4 — the invoicing ledger",
   pl: "session 5 — cost capture and the Settings-basis P&L",
   marketing: "session 5 — lead source and marketing spend",
