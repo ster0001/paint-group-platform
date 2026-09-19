@@ -30,8 +30,8 @@ test.describe("dashboard · session 1 · the shell", () => {
   const temps: Temp[] = [];
   let sentEstimateId = "";
 
-  async function makeLogin(role: "pc" | "sales" | "finance"): Promise<Temp> {
-    const email = `pg.e2e.home.${role}.${run}@example.com`;
+  async function makeLogin(role: "pc" | "sales" | "finance", tag = role): Promise<Temp> {
+    const email = `pg.e2e.home.${tag}.${run}@example.com`;
     const made = await db!.auth.admin.createUser({ email, password, email_confirm: true });
     if (made.error) throw new Error(made.error.message);
     const id = made.data.user!.id;
@@ -68,7 +68,7 @@ test.describe("dashboard · session 1 · the shell", () => {
   const sectionsOn = async (page: import("@playwright/test").Page) =>
     (await page.locator("section[data-section]").evaluateAll((els) => els.map((e) => e.getAttribute("data-section")))) as string[];
 
-  test("the master lands on every section; the strip and the sales tiles are real numbers", async ({ page, request }) => {
+  test("the master lands on every section; the strip and the sales tiles are real numbers", async ({ page }) => {
     await signIn(page, staff!, /\/estimates/);
     const t0 = Date.now();
     await page.goto("/home");
@@ -93,12 +93,13 @@ test.describe("dashboard · session 1 · the shell", () => {
     await expect(page.getByTestId("definition-sales.estimates_sent")).toContainText("Melbourne days");
     const exportHref = await page.getByTestId("export-sales.estimates_sent").getAttribute("href");
     expect(exportHref).toContain("/api/reporting/export?metric=sales.estimates_sent");
-    const csv = await request.get(exportHref!);
+    const csv = await page.request.get(exportHref!);
     expect(csv.status()).toBe(200);
     expect(csv.headers()["content-type"]).toContain("text/csv");
     const lines = (await csv.text()).replace(/^﻿/, "").split("\r\n").filter((l) => l.length > 0);
     expect(lines.length - 1).toBe(value);                         // header + one line per row
-    expect(lines[0]).toBe("Sent,Estimate,Status,Total (cents, inc GST),Lead source,Sent by (user id)");
+    // RFC 4180: a header cell with a comma is quoted.
+    expect(lines[0]).toBe("Sent,Estimate,Status,\"Total (cents, inc GST)\",Lead source,Sent by (user id)");
     expect(Number(csv.headers()["x-metric-value"])).toBe(value);
     expect((await csv.text())).toContain(`Home ${run}`);
 
@@ -118,7 +119,7 @@ test.describe("dashboard · session 1 · the shell", () => {
     await expect(page.getByTestId("tile-sales.estimates_sent")).toHaveCount(0);
   });
 
-  test("a sales login lands on Sales and the funnel — and the P&L export is a 403, not an empty file", async ({ page, request }) => {
+  test("a sales login lands on Sales and the funnel — and the P&L export is a 403, not an empty file", async ({ page }) => {
     const sales = temps.find((t) => t.roles[0] === "sales")!;
     await signIn(page, sales, /\/(home|estimates|pc|crm|contacts|invoic|settings|proving|contractors)/);
     await page.goto("/home");
@@ -126,32 +127,32 @@ test.describe("dashboard · session 1 · the shell", () => {
     expect(await sectionsOn(page)).toEqual(["sales", "funnel", "activity"]);
     await expect(page.getByTestId("tile-sales.estimates_sent")).toBeVisible();
     // Their own metric exports; a metric outside their roles is refused server-side (acceptance 4).
-    const mine = await request.get("/api/reporting/export?metric=sales.estimates_sent&preset=this_month");
+    const mine = await page.request.get("/api/reporting/export?metric=sales.estimates_sent&preset=this_month");
     expect(mine.status()).toBe(200);
     // No P&L metric is registered yet (session 5) — the registry answers 404 for an unknown key,
     // and the role gate answers 403 for a known one: prove the gate with a known metric and a role that lacks it below.
-    const unknown = await request.get("/api/reporting/export?metric=pl.net_margin&preset=this_month");
+    const unknown = await page.request.get("/api/reporting/export?metric=pl.net_margin&preset=this_month");
     expect(unknown.status()).toBe(404);
   });
 
-  test("a finance login lands on Invoicing only, and a sales metric is 403 for them", async ({ page, request }) => {
+  test("a finance login lands on Invoicing only, and a sales metric is 403 for them", async ({ page }) => {
     const finance = temps.find((t) => t.roles[0] === "finance")!;
     await signIn(page, finance, /\/(home|estimates|pc|crm|contacts|invoic|settings|proving|contractors)/);
     await page.goto("/home");
     await expect(page.getByTestId("home")).toBeVisible({ timeout: 20_000 });
     expect(await sectionsOn(page)).toEqual(["invoicing", "activity"]);
-    const refused = await request.get("/api/reporting/export?metric=sales.estimates_sent&preset=this_month");
+    const refused = await page.request.get("/api/reporting/export?metric=sales.estimates_sent&preset=this_month");
     expect(refused.status()).toBe(403);
     expect(await refused.json()).toEqual({ error: "not available to this login" });
   });
 
-  test("a staff login with no roles sees an honest empty state, and the export route refuses too", async ({ page, request }) => {
-    const none = await makeLogin("pc");
+  test("a staff login with no roles sees an honest empty state, and the export route refuses too", async ({ page }) => {
+    const none = await makeLogin("pc", "none");
     await db!.from("profiles").update({ staff_roles: [] }).eq("id", none.id);
     await signIn(page, none, /\/(home|estimates|pc|crm|contacts|invoic|settings|proving|contractors)/);
     await page.goto("/home");
     await expect(page.getByTestId("home-no-roles")).toBeVisible({ timeout: 20_000 });
     expect(await sectionsOn(page)).toEqual([]);
-    expect((await request.get("/api/reporting/export?metric=sales.estimates_sent")).status()).toBe(403);
+    expect((await page.request.get("/api/reporting/export?metric=sales.estimates_sent")).status()).toBe(403);
   });
 });
