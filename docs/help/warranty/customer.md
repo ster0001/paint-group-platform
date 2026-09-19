@@ -9,7 +9,7 @@ summary: Every job Paint Group completes is covered for two years from the day y
 Everything we paint for you is covered by our workmanship warranty for two full years, starting the day you sign the job off. You do not have to register anything or keep a receipt — the cover is created automatically when you sign off, and your certificate appears in your account.
 
 ## Before you start
-Nothing. If you have accepted an estimate, the warranty is already part of it — you can read the full terms on your estimate before you accept, under **Your two-year workmanship warranty**.
+Nothing. If you have an estimate from us, the warranty is already part of it — open the estimate, find the **2-year workmanship warranty** card beside our public liability, and press **Warranty terms (PDF)**. The terms open as their own document, and **Download as PDF** saves you a copy to keep. You can read all of it before you accept anything.
 
 ## What is covered
 If our workmanship lets you down within the two years — paint peeling, flaking, blistering or cracking because of the way it was prepared or applied — we come back and put it right at no cost to you, labour and materials included. We use the same products and colours recorded in your paint register, and if a colour has been discontinued we agree the nearest match with you first. Where a touch-up would leave a visible patch, we repaint to the nearest natural break, such as the corner of a wall, so the finish stays even.

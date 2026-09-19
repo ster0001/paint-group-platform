@@ -4,10 +4,12 @@ import { serviceClient } from "./fixtures/woLoop";
 
 /**
  * Tom, 19 Sep 2026: "I would also like them to see it in the estimate view as
- * well along with the SWMS and public liability etc" — the two-year
- * workmanship warranty, promised on the estimate the customer is deciding on,
- * not first met after the job is signed off. Same ruling: the warranty is
- * active for everybody, and it does NOT transfer to a new owner.
+ * well along with the SWMS and public liability etc", then — "please have
+ * workmanship warranty as an attachment with this information, rather than
+ * written directly on the estimate". So: a card in the trust row that opens the
+ * terms as their own document, the way the SWMS attachment works, and a quote
+ * that stays a quote. Same ruling: active for everybody, and it does NOT
+ * transfer to a new owner.
  *
  * Anonymous customer throughout: this is the surface a buyer reads.
  */
@@ -62,13 +64,21 @@ test.describe("the warranty on the customer's estimate", () => {
     const liability = labels.findIndex((t) => /public liability/i.test(t));
     expect(liability).toBeGreaterThanOrEqual(0);
     expect(labels.findIndex((t) => /workmanship warranty/i.test(t))).toBeGreaterThan(liability);
+
+    // An ATTACHMENT, like the SWMS — not the terms typed into the quote.
+    await expect(card.getByTestId("warranty-download")).toHaveAttribute("href", `/e/${token}/warranty`);
   });
 
-  test("the card opens the warranty in full, and nothing is a draft", async ({ page }) => {
+  test("the quote itself is not where the terms live", async ({ page }) => {
     await page.goto(`/e/${token}`);
     await expect(page.locator("details.room").first()).toBeVisible();
+    // A sentence unique to the terms. On the estimate page it must not appear.
+    await expect(page.getByText(/quality of our preparation and application/i)).toHaveCount(0);
+    await expect(page.locator("#warranty")).toHaveCount(0);
+  });
 
-    await page.getByTestId("warranty-read").click();
+  test("the attachment carries the warranty in full, and nothing is a draft", async ({ page }) => {
+    await page.goto(`/e/${token}/warranty`);
     const terms = page.getByTestId("warranty-terms");
     await expect(terms).toBeVisible();
 
@@ -84,14 +94,22 @@ test.describe("the warranty on the customer's estimate", () => {
     await expect(terms).toContainText(/Making a claim costs you nothing/i);
     await expect(terms).toContainText(/Australian Consumer Law/i);
 
-    // Approved 19 Sep 2026 — no watermark anywhere on a customer's estimate.
+    // It says which estimate it is attached to, and saves as a PDF.
+    await expect(page.getByTestId("warranty-attachment")).toContainText(`EST-W${run}`);
+    await expect(page.getByRole("button", { name: "Download as PDF" }).first()).toBeVisible();
+
+    // Approved 19 Sep 2026 — no watermark anywhere a customer can reach.
     await expect(page.locator(".draftwrap")).toHaveCount(0);
     await expect(page.getByText(/AWAITING LEGAL REVIEW/i)).toHaveCount(0);
   });
 
+  test("the attachment is token-only: an unknown token is a 404, never a leak", async ({ page }) => {
+    const res = await page.goto("/e/notarealtokenatall000000/warranty");
+    expect(res?.status()).toBe(404);
+  });
+
   test("the warranty does not transfer to a new owner, and no clause is unfinished", async ({ page }) => {
-    await page.goto(`/e/${token}`);
-    await page.getByTestId("warranty-read").click();
+    await page.goto(`/e/${token}/warranty`);
     const terms = page.getByTestId("warranty-terms");
 
     await expect(terms).toContainText(/does not transfer/i);
@@ -99,12 +117,16 @@ test.describe("the warranty on the customer's estimate", () => {
     await expect(terms).not.toContainText(/being finalised/i);
   });
 
-  test("the printed quote carries the warranty too", async ({ page }) => {
+  test("the printed quote records the warranty and points at the attachment", async ({ page }) => {
     await page.goto(`/e/${token}`);
     await expect(page.locator("details.room").first()).toBeVisible();
     const block = page.getByTestId("print-warranty");
     await expect(block).toHaveCount(1);
     await expect(block).toContainText(/two years/i);
+    await expect(block).toContainText(/does not transfer/i);
+    await expect(block).toContainText(/attached to your online estimate/i);
     await expect(block).toContainText(/Australian Consumer Law/i);
+    // The clauses are the attachment's job, not the paper quote's.
+    await expect(block).not.toContainText(/quality of our preparation and application/i);
   });
 });

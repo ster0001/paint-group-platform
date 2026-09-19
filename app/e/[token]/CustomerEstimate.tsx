@@ -7,7 +7,7 @@ import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColou
 import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
 import SignaturePad from "@/app/components/SignaturePad";
-import { ACL_LINE, warrantyClauses, warrantyLimit, warrantyPrintSummary, warrantyPromise } from "@/lib/warranty/terms";
+import { warrantyAttachmentLine } from "@/lib/warranty/terms";
 import "../customer.css";
 
 // The public token page keeps this row shape; the builder passes a live snapshot
@@ -629,47 +629,19 @@ export default function CustomerEstimate({
                 <a className="doc" href={snap.swms.url} target="_blank" rel="noreferrer" download data-testid="swms-download">⤓ Download SWMS</a>
               </div>
             )}
-            {/* Tom, 19 Sep: the workmanship warranty belongs here, beside the
-                insurance and the SWMS — promised on the estimate they are
-                deciding on, not first met after sign-off. Active for everybody. */}
+            {/* Tom, 19 Sep: the workmanship warranty beside the insurance and
+                the SWMS — promised on the estimate they are deciding on, not
+                first met after sign-off, and its terms downloadable as their
+                own document rather than written into the quote. Everybody. */}
             <div className="tcard" data-testid="warranty-card">
               <div className="tval cyan">{snap.proof.warranty || "2-year"}</div>
               <div className="tlab">workmanship warranty on every job</div>
-              <a className="doc" href="#warranty" data-testid="warranty-card-link">↓ Read the warranty</a>
+              {token && (
+                <a className="doc" href={`/e/${token}/warranty`} target="_blank" rel="noreferrer" data-testid="warranty-download">⤓ Warranty terms (PDF)</a>
+              )}
             </div>
             <div className="tcard"><div className="tval gold">Master Painters</div><div className="tlab">accredited member</div></div>
           </div>
-        </section>
-        )}
-
-        {/* WARRANTY — Tom, 19 Sep 2026. The words come from lib/warranty/terms.ts,
-            the same source the customer's portal renders, so the warranty they
-            read when deciding is the warranty they get. */}
-        {!invoiceMode && (
-        <section id="warranty">
-          <h2>Your two-year workmanship warranty</h2>
-          <p className="sub">{warrantyPromise()}</p>
-          <p className="sub">{warrantyLimit()}</p>
-          <div className="panelbox">
-            <details className="warrantyterms">
-              <summary data-testid="warranty-read">The warranty in full<span className="chev"> ⌄</span></summary>
-              <div data-testid="warranty-terms">
-                {warrantyClauses({
-                  companyName: snap.company.name,
-                  abn: snap.company.abn,
-                  address: [snap.company.addressLine1, snap.company.addressLine2].filter(Boolean).join(", "),
-                  phone: snap.company.phone,
-                  email: snap.company.email,
-                }).map((cl) => (
-                  <div className="wclause" key={cl.n}>
-                    <h3>{cl.n} · {cl.heading}</h3>
-                    <p>{cl.body}</p>
-                  </div>
-                ))}
-              </div>
-            </details>
-          </div>
-          <p className="wacl">{ACL_LINE}</p>
         </section>
         )}
 
@@ -943,14 +915,15 @@ function PrintQuote({
         </div>
       )}
 
-      {/* Tom, 19 Sep: the warranty on the printed quote too — the full clauses
-          stay on the online estimate, the way the SWMS block points at its PDF.
-          Not on the printed INVOICE: that document is the accepted scope and
-          what is owed, and this paragraph names "this estimate". */}
+      {/* Tom, 19 Sep: the printed quote records that the job carries the
+          warranty and points at the attachment — the terms themselves are the
+          attachment, the way the SWMS block points at its PDF. Not on the
+          printed INVOICE: that is the accepted scope and what is owed, and
+          this paragraph names "this estimate". */}
       {!invoiceMode && (
         <div className="pd-block" data-testid="print-warranty">
           <div className="pd-h">Two-year workmanship warranty</div>
-          <div className="pd-sub">{warrantyPrintSummary()}</div>
+          <div className="pd-sub">{warrantyAttachmentLine()}</div>
         </div>
       )}
 

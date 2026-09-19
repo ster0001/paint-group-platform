@@ -52,18 +52,18 @@ export const ACL_LINE =
   "This warranty is in addition to your rights under the Australian Consumer Law, which no business can take away.";
 
 /**
- * The warranty on the printed quote: the promise, the no-transfer rule and the
- * prescribed ACL line, in one paragraph. The full clauses live on the online
- * estimate and in the customer's account — the printed page points there, the
- * same way the SWMS block does.
+ * Tom, 19 Sep 2026 (second pass): "please have workmanship warranty as an
+ * attachment with this information, rather than written directly on the
+ * estimate." The printed quote records the FACT of the warranty and points at
+ * the attachment, exactly the way the SWMS block points at its PDF — the terms
+ * themselves are the attachment, not part of the quote.
  */
-export function warrantyPrintSummary(): string {
+export function warrantyAttachmentLine(): string {
   return (
-    "Every job we complete carries our workmanship warranty for two years from the day you sign off. " +
-    "If our workmanship fails in that time — peeling, flaking, blistering or cracking because of how it " +
-    "was applied — we come back and put it right, labour and materials included. The warranty is personal " +
-    "to the customer named on this estimate and does not transfer. The full terms are on your online " +
-    "estimate and in your account. " + ACL_LINE
+    "Every job we complete carries our workmanship warranty for two years from the day you sign off, " +
+    "covering our preparation and application. It is personal to the customer named on this estimate " +
+    "and does not transfer. The full terms are attached to your online estimate — open it and choose " +
+    "“Warranty terms” beside the public liability card. " + ACL_LINE
   );
 }
 

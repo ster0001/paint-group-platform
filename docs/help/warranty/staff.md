@@ -21,8 +21,8 @@ Ordinary wear and tear; damage by anyone else, including other trades; building 
 The warranty is personal to the customer named on the estimate. If they sell the house, it does not pass to the buyer, and it cannot be assigned to anyone else. If a new owner rings, that is a quote, not a claim. Nothing in that clause takes away anyone's rights under the Australian Consumer Law, so never tell a caller they "have no rights" — tell them the warranty does not transfer.
 
 ## Where the customer sees it
-- **On their estimate**, before they accept: a card in the trust row beside public liability and the SWMS, and a **Your two-year workmanship warranty** section with the full terms folded behind "The warranty in full".
-- **On the printed or PDF quote**: a Two-year workmanship warranty block above the paint list.
+- **On their estimate**, before they accept: a card in the trust row beside public liability and the SWMS, with **⤓ Warranty terms (PDF)**. That opens the warranty as its own document — the promise, the exclusions and all nine clauses, with **Download as PDF**. The terms are an attachment, not part of the quote, so the quote reads as a quote.
+- **On the printed or PDF quote**: a Two-year workmanship warranty block that states the cover, says it does not transfer, and points at the attachment — the same way the SWMS block points at its PDF.
 - **In their account** once the job is signed off: the warranty card with a live countdown, the **Warranty certificate (PDF)**, the full terms, and the **Report an issue** form. Their account is reached from the Home screen → **Your documents**.
 
 ## Can I turn it off for one job?

@@ -18,28 +18,36 @@ migration just does it on both projects in one paste, and records who and when.)
 
 ---
 
-## 1 · The customer's estimate — the new part
+## 1 · The customer's estimate — the warranty is an ATTACHMENT
 
 1. Open any **sent** estimate as the customer would: `/e/<token>`.
 2. Scroll to **Why Melburnians choose us**. There is now a fourth card — **2-year ·
    workmanship warranty on every job** — after public liability (and after the SWMS card
-   when that job has one), with a **↓ Read the warranty** link.
-3. Press the link. It jumps to **Your two-year workmanship warranty**: the promise, what it
-   does not cover, and **THE WARRANTY IN FULL**.
-4. Open **THE WARRANTY IN FULL**. Nine clauses. Check:
+   when that job has one), with **⤓ Warranty terms (PDF)**.
+3. The quote itself should say nothing more about the warranty: no clauses, no section of
+   terms in the middle of the document. That is the point of this change.
+4. Press **⤓ Warranty terms (PDF)**. It opens the warranty as its own document in a new tab:
+   the heading, which estimate it is attached to, the promise, the exclusions and nine
+   clauses. Check:
    - **1 · Who gives this warranty** names the company, the ABN and the address.
      ⚑ If the ABN or address is missing, fill in **Settings → Invoicing entity** — a
      warranty against defects has to name the warrantor.
    - **8 · Transfer to a new owner** reads *"personal to the customer named on the estimate
      and does not transfer"*. It must NOT say "being finalised".
-   - Nowhere on the page says DRAFT or AWAITING LEGAL REVIEW.
-5. On a phone, the trust cards should sit 2 × 2 with the warranty card bottom-left.
+   - Nowhere says DRAFT or AWAITING LEGAL REVIEW.
+5. Press **Download as PDF** on the attachment. It should print as a clean white document —
+   no buttons, no dark background, clauses not split across pages.
+6. **← Back to your estimate** returns you to the quote.
+7. Change one character of the token in the URL: `/e/<wrong-token>/warranty` must be a
+   **404**, never someone else's warranty and never an error page with detail on it.
+8. On a phone, the trust cards should sit 2 × 2 with the warranty card bottom-left.
 
 ## 2 · The printed quote
 
-6. From the same estimate press **Download PDF** (or Cmd-P → Save as PDF).
-7. Above the paint list there is a **TWO-YEAR WORKMANSHIP WARRANTY** block: the promise,
-   "does not transfer", and the Australian Consumer Law line.
+9. From the estimate press **Download PDF** (or Cmd-P → Save as PDF).
+10. Above the paint list there is a **TWO-YEAR WORKMANSHIP WARRANTY** block — one paragraph:
+    the cover, that it does not transfer, the Australian Consumer Law line, and that the full
+    terms are attached to the online estimate. The clauses themselves are NOT on the quote.
 
 ## 3 · The customer's account — the watermark is gone
 
@@ -62,11 +70,13 @@ migration just does it on both projects in one paste, and records who and when.)
 
 ## Automated cover
 
-- `e2e/estimate-warranty.spec.ts` — 4 specs, anonymous customer: the card's place in the
-  trust row, the terms opening, the warrantor's details rendering, no watermark, the
-  no-transfer clause, and the printed block. **Green on the test project 19 Sep.**
-- `lib/warranty/terms.contract.test.ts` — 7 tests: two years everywhere, the nine clauses,
-  clause 8 cannot say "transfers", and neither component may keep its own copy of the words.
+- `e2e/estimate-warranty.spec.ts` — 6 specs, anonymous customer: the card's place in the
+  trust row and that it points at the attachment, the terms NOT being on the quote, the
+  attachment's clauses and warrantor details, an unknown token 404ing, the no-transfer
+  clause, and the printed pointer. **Green on the test project 19 Sep.**
+- `lib/warranty/terms.contract.test.ts` — 9 tests: two years everywhere, the nine clauses,
+  clause 8 cannot say "transfers", the quote's line may not grow into the terms, and no
+  component may keep its own copy of the words.
 - `e2e/portal-aftercare.spec.ts` — the portal warranty card and the watermark flag. Green.
   (One unrelated test in that file is red on main: the colours page says "Colours to be
   confirmed" and the spec expects the singular. Not this work.)

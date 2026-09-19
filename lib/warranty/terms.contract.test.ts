@@ -4,8 +4,8 @@ import { join } from "node:path";
 import {
   ACL_LINE,
   WARRANTY_YEARS,
+  warrantyAttachmentLine,
   warrantyClauses,
-  warrantyPrintSummary,
   warrantyPromise,
 } from "./terms";
 
@@ -31,7 +31,7 @@ describe("the warranty terms module", () => {
   it("is two years, everywhere", () => {
     expect(WARRANTY_YEARS).toBe(2);
     expect(warrantyPromise()).toMatch(/two full years/);
-    expect(warrantyPrintSummary()).toMatch(/two years/);
+    expect(warrantyAttachmentLine()).toMatch(/two years/);
   });
 
   it("carries the nine clauses a warranty against defects needs", () => {
@@ -58,12 +58,23 @@ describe("the warranty terms module", () => {
     expect(eight.body).not.toMatch(/transfers automatically|attaches to the property/i);
     // …and never quietly at the customer's expense: the ACL still stands.
     expect(eight.body).toMatch(/Australian Consumer Law/);
-    expect(warrantyPrintSummary()).toMatch(/does not transfer/);
+    expect(warrantyAttachmentLine()).toMatch(/does not transfer/);
   });
 
   it("states the consumer-law line wherever the warranty is promised", () => {
     expect(ACL_LINE).toMatch(/in addition to your rights under the Australian Consumer Law/);
-    expect(warrantyPrintSummary()).toContain(ACL_LINE);
+    expect(warrantyAttachmentLine()).toContain(ACL_LINE);
+  });
+
+  /**
+   * Tom, 19 Sep 2026: the terms are an ATTACHMENT. The line the quote carries
+   * points at it and states the fact — it must never grow into the terms.
+   */
+  it("the quote's line points at the attachment instead of reciting it", () => {
+    const line = warrantyAttachmentLine();
+    expect(line).toMatch(/attached to your online estimate/);
+    expect(line).not.toMatch(/quality of our preparation and application/);
+    expect(line.length).toBeLessThan(600);
   });
 
   it("degrades honestly when the company details are not filled in", () => {
@@ -76,7 +87,7 @@ describe("the warranty terms module", () => {
 describe("one source — no component retypes a clause", () => {
   const SURFACES = [
     "app/account/(portal)/documents/WarrantyTerms.tsx",
-    "app/e/[token]/CustomerEstimate.tsx",
+    "app/e/[token]/warranty/page.tsx",
   ];
 
   it("every surface that shows the warranty imports it", () => {
@@ -89,8 +100,15 @@ describe("one source — no component retypes a clause", () => {
     // A sentence unique to the terms. If it appears in a component, someone
     // pasted the words instead of rendering them.
     const tell = /quality of our preparation and application/;
-    for (const f of SURFACES) {
+    for (const f of [...SURFACES, "app/e/[token]/CustomerEstimate.tsx"]) {
       expect(read(f), `${f} has its own copy of the terms`).not.toMatch(tell);
     }
+  });
+
+  /** The estimate links to the attachment; it does not render the clauses. */
+  it("the estimate carries a link to the attachment, not the terms", () => {
+    const est = read("app/e/[token]/CustomerEstimate.tsx");
+    expect(est).toMatch(/\/e\/\$\{token\}\/warranty/);
+    expect(est).not.toMatch(/warrantyClauses/);
   });
 });
