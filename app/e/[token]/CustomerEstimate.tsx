@@ -408,6 +408,7 @@ export default function CustomerEstimate({
               <div className="cta-row print-hide">
                 <a className="btn btn-primary" href="#accept">Accept estimate</a>
                 <button className="btn btn-ghost" onClick={() => { setPanel("ask"); document.getElementById("accept")?.scrollIntoView(); }}>Ask a question</button>
+                {progressPreview && <a className="btn btn-ghost" href="#live-progress" data-testid="see-how-you-follow">See how you&apos;ll follow the job</a>}
               </div>
             )}
           </div>
@@ -625,7 +626,7 @@ export default function CustomerEstimate({
             <div className="step"><span className="stepnum" /><div><b>Booking</b><p>We&apos;ll contact you to lock in your start dates.</p></div></div>
             <div className="step"><span className="stepnum" /><div><b>Confirmation</b><p>We&apos;ll send you your lead painter&apos;s name, start date and time, and a handy checklist to help you prepare.</p></div></div>
             <div className="step"><span className="stepnum" /><div><b>Colour consultation</b><p>We provide free, unlimited colour samples. Nothing starts until you&apos;re happy with your colour choices.</p></div></div>
-            <div className="step"><span className="stepnum" /><div><b>Live progress in your portal</b><p>Log in to see updates and track your job&apos;s progress.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Live progress in your portal</b><p>Log in to see updates and track your job&apos;s progress.{progressPreview && <> <a href="#live-progress" className="print-hide" data-testid="step-live-progress-link">See it for your address ↑</a></>}</p></div></div>
             <div className="step"><span className="stepnum" /><div><b>Final walkthrough</b><p>We walk through every room with you to confirm you&apos;re 100% satisfied before final payment.</p></div></div>
           </div>
         </section>

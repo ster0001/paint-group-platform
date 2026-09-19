@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mediaPath } from "@/lib/showcase/schema";
+import { showcaseMediaUrl } from "@/lib/showcase/format";
 import { parseVideoUrl } from "@/lib/marketing/video";
 
 /**
@@ -28,6 +29,10 @@ export type Painter = z.infer<typeof painterSchema>;
 
 export const websiteContentSchema = z.object({
   painters: z.array(painterSchema).max(3).default([]),
+  /** Estimate live-progress phone (Tom, 19 Sep — F1): which of the painters
+   * above is shown as the example lead painter. Their NAME (an index would
+   * shift when a painter is removed). null = the generic fallback. */
+  demoPainter: z.string().trim().max(60).nullable().default(null),
   /** §4.5 panel 0 — the two photos beside "Replace 2.4 m of rotten fascia board…". */
   promisePhotos: z.array(mediaPath).max(2).default([]),
   /** §4.7 beat 3 — "Prep · floors covered", "Living room · masked up". */
@@ -48,7 +53,7 @@ export const websiteContentSchema = z.object({
 });
 export type WebsiteContent = z.infer<typeof websiteContentSchema>;
 
-export const EMPTY_WEBSITE_CONTENT: WebsiteContent = { painters: [], promisePhotos: [], storyPhotos: [], heroPhoto: null, heroPhotoBusiness: null, featuredVideoJobId: null, featuredVideo: { url: "", caption: "", transcript: "", posterPath: null } };
+export const EMPTY_WEBSITE_CONTENT: WebsiteContent = { painters: [], demoPainter: null, promisePhotos: [], storyPhotos: [], heroPhoto: null, heroPhotoBusiness: null, featuredVideoJobId: null, featuredVideo: { url: "", caption: "", transcript: "", posterPath: null } };
 
 /** Tolerant: an older or partial row still renders; garbage renders the defaults. */
 export function parseWebsiteContent(value: unknown): WebsiteContent {
@@ -74,4 +79,16 @@ export async function getSiteLogo(): Promise<string> {
   const { data } = await svc.from("settings").select("value").eq("key", "company_profile").maybeSingle();
   const v = (data?.value ?? {}) as { logoUrl?: string };
   return (v.logoUrl ?? "").trim();
+}
+
+/**
+ * The Demo painter as the estimate's live-progress phone shows them (F1):
+ * the chosen painter by name, only if they still exist in the list AND have
+ * a photo. Anything else is null → "Your lead painter", generic avatar.
+ */
+export function demoPainterFor(content: WebsiteContent): { name: string; photoUrl: string } | null {
+  if (!content.demoPainter) return null;
+  const p = content.painters.find((x) => x.name === content.demoPainter);
+  if (!p || !p.photoPath) return null;
+  return { name: p.name, photoUrl: showcaseMediaUrl(p.photoPath) };
 }

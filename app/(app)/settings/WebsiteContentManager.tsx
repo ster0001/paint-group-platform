@@ -150,6 +150,16 @@ export default function WebsiteContentManager({ initial, videoJobs = [] }: { ini
         {c.painters.length < 3 && (
           <button type="button" className="justify-self-start rounded-md border border-dashed border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50" data-testid="painter-add" onClick={() => setC((x) => ({ ...x, painters: [...x.painters, blankPainter()] }))}>+ Add a painter</button>
         )}
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium text-gray-900">Demo painter</span>
+          <span className="text-xs text-gray-500">Shown by name and photo as the example lead painter on the estimate&rsquo;s &ldquo;Example of your live updates&rdquo; phone (only when a presentation is attached). Needs a photo. Leave unset and the phone says &ldquo;Your lead painter&rdquo; with a plain avatar.</span>
+          <select className={input} value={c.demoPainter ?? ""} data-testid="demo-painter" onChange={(e) => setC((x) => ({ ...x, demoPainter: e.target.value || null }))}>
+            <option value="">None — generic &ldquo;Your lead painter&rdquo;</option>
+            {c.painters.filter((p) => p.name.trim()).map((p) => (
+              <option key={p.name} value={p.name} disabled={!p.photoPath}>{p.name}{p.photoPath ? "" : " (needs a photo)"}</option>
+            ))}
+          </select>
+        </label>
       </section>
 
       <PhotoSlots

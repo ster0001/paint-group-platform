@@ -1,10 +1,11 @@
+import type React from "react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { BankDetails, CustomerSnapshot } from "@/lib/customer/snapshot";
 import { createServiceClient } from "@/lib/supabase/service";
 import CustomerEstimate, { type CustomerChanges, type EstimateRow } from "./CustomerEstimate";
 import ProgressSection from "./ProgressSection";
-import { messagingSetFor } from "@/lib/progress-preview/build";
+import { loadProgressContext } from "@/lib/progress-preview/context";
 
 export const dynamic = "force-dynamic";
 
@@ -52,10 +53,13 @@ export default async function Page({
 
   // Live-progress phone (brief v4): decided HERE, server-side — an estimate
   // with no presentation attached gets no section, no markup, no script.
+  // Tom's F9: staff-sent estimates only — a wizard self-built one never shows it.
   const hasPresentation = (snap.presentation?.blocks?.length ?? 0) > 0;
-  const progressPreview = hasPresentation
-    ? <ProgressSection snapshot={row.snapshot} set={messagingSetFor(null)} demoPainter={null} organisationName={null} references={null} />
-    : null;
+  let progressPreview: React.ReactNode = null;
+  if (hasPresentation) {
+    const ctx = await loadProgressContext(token);
+    if (ctx.eligible) progressPreview = <ProgressSection snapshot={row.snapshot} set={ctx.set} demoPainter={ctx.demoPainter} organisationName={ctx.organisationName} references={ctx.references} />;
+  }
 
   return (
     <CustomerEstimate

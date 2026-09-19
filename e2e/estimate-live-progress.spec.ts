@@ -42,10 +42,11 @@ const SNAPSHOT = {
 };
 const PRESENTATION = { blocks: [{ kind: "capability_panel", content: { title: "Built for you", cards: [{ label: "Public liability", value: "$20M", note: "" }] } }] };
 
-async function seed(withPresentation: boolean): Promise<{ id: string; token: string }> {
+async function seed(withPresentation: boolean, extra: { source?: string; account_id?: string; property_id?: string } = {}): Promise<{ id: string; token: string }> {
   const token = `live${withPresentation ? "p" : "n"}${run}${randomBytes(8).toString("hex")}`;
   const r = await db!.from("estimates").insert({
-    title: `Live progress ${run}`, status: "sent", source: "manual", level_of_finish: 3, share_token: token,
+    title: `Live progress ${run}`, status: "sent", source: extra.source ?? "manual", level_of_finish: 3, share_token: token,
+    account_id: extra.account_id ?? null, property_id: extra.property_id ?? null,
     sent_at: new Date().toISOString(), total_cents: 330000,
     builder_state: { blocks: [], modSel: { "Level of Finish": "FIN-3" }, materials: {} },
     sent_snapshot: { ...SNAPSHOT, estRef: `EST-L${run}`, jobAddress: `12 Progress Street, Alphington VIC 3078`, presentation: withPresentation ? PRESENTATION : null },
@@ -63,13 +64,46 @@ test.describe("the live-progress phone on the estimate", () => {
   test.skip(!db, "needs the service key");
   let withPres = { id: "", token: "" };
   let without = { id: "", token: "" };
+  let trade = { id: "", token: "" };
+  let wizard = { id: "", token: "" };
+  let accountId = "";
+  let propertyId = "";
+  let websiteBefore: unknown = undefined;
+  const DEMO = { name: `Demo Painter ${run}`, specialty: "", since: "", quote: "", photoPath: `site/e2e-demo-${run}.jpg` };
 
   test.beforeAll(async () => {
+    // F1: the Demo painter is a Settings → Website value. Save what is there, set ours, restore after.
+    const cur = await db!.from("settings").select("value").eq("key", "website_content").maybeSingle();
+    if (cur.error) throw new Error(cur.error.message);
+    websiteBefore = cur.data?.value ?? null;
+    const base = (websiteBefore && typeof websiteBefore === "object" ? websiteBefore : {}) as Record<string, unknown>;
+    const painters = (Array.isArray(base.painters) ? base.painters : []).slice(0, 2) as unknown[];
+    const up = await db!.from("settings").upsert({ key: "website_content", value: { ...base, painters: [...painters, DEMO], demoPainter: DEMO.name } }, { onConflict: "key" });
+    if (up.error) throw new Error(up.error.message);
+
+    // F5: a trade account with a property carrying a PO reference → the commercial set.
+    const a = await db!.from("accounts").insert({ email: `pg.e2e.live-${run}@example.com`, name: `Sample Property Group ${run}`, account_type: "trade" }).select("id").single();
+    if (a.error) throw new Error(a.error.message);
+    accountId = a.data.id;
+    const pr = await db!.from("properties").insert({ account_id: accountId, address: "210 High Street", suburb: "Northcote", postcode: "3070", address_norm: `210 high street northcote 3070 ${run}` }).select("id").single();
+    if (pr.error) throw new Error(pr.error.message);
+    propertyId = pr.data.id;
+    const ref = await db!.from("property_references").insert({ property_id: propertyId, label: "PO", value: `4471-${run}`, sort: 10 });
+    if (ref.error) throw new Error(ref.error.message);
+
     withPres = await seed(true);
     without = await seed(false);
+    trade = await seed(true, { account_id: accountId, property_id: propertyId });
+    wizard = await seed(true, { source: "wizard" });
   });
   test.afterAll(async () => {
-    for (const e of [withPres, without]) if (e.id) await db!.from("estimates").delete().eq("id", e.id);
+    for (const e of [withPres, without, trade, wizard]) if (e.id) await db!.from("estimates").delete().eq("id", e.id);
+    if (propertyId) await db!.from("properties").delete().eq("id", propertyId);
+    if (accountId) await db!.from("accounts").delete().eq("id", accountId);
+    if (websiteBefore !== undefined) {
+      if (websiteBefore === null) await db!.from("settings").delete().eq("key", "website_content");
+      else await db!.from("settings").upsert({ key: "website_content", value: websiteBefore }, { onConflict: "key" });
+    }
   });
 
   test("sits directly after the scope of works and before the paint section, and is only the phone", async ({ page }) => {
@@ -167,6 +201,37 @@ test.describe("the live-progress phone on the estimate", () => {
     // The demo's own script never loads (rule 2). Its stylesheet rides the
     // route's CSS bundle either way — a stylesheet is neither script nor image.
     expect(requested.some((u) => /ProgressPhone/.test(u) && /\.js(\?|$)/.test(u))).toBe(false);
+  });
+
+  test("demo painter from Settings → Website shows by name and photo (F1)", async ({ page }) => {
+    await openEstimate(page, withPres.token);
+    const lead = page.getByTestId("live-progress").locator(".pp-lead");
+    await expect(lead).toContainText(DEMO.name);
+    await expect(lead).toContainText("Your lead painter");
+    await expect(lead.locator("img")).toHaveAttribute("src", new RegExp(`showcase-media/${DEMO.photoPath.replace(/\//g, "\\/")}$`));
+    await expect(page.getByTestId("pp-sms1")).toContainText(`${DEMO.name} and the team have arrived`);
+  });
+
+  test("a trade account gets the commercial set: organisation, PO on the estimate, stage rail, site photos (F5, acceptance 9)", async ({ page }) => {
+    await openEstimate(page, trade.token);
+    const sec = page.getByTestId("live-progress");
+    await expect(sec).toHaveAttribute("data-set", "commercial");
+    await expect(page.getByTestId("pp-sms1")).toContainText(`12 Progress Street (PO 4471-${run}): Paint Group signed in on site`);
+    await expect(sec.locator(".pp-sub")).toHaveText(`Northcote · PO 4471-${run}`);
+    await expect(sec.locator(".pp-brand")).toContainText(`Sample Property Group ${run}`);
+    await expect(sec.locator(".pp-rail span")).toHaveCount(5);
+    await expect(sec.locator(".pp-lead")).toContainText("Site supervisor");
+    await expect(sec.locator(".pp-feed .cap").first()).toHaveText("Before · site photo");
+    await expect(page.getByTestId("pp-line")).toContainText("not your actual programme");
+    // 13b in the page: none of the residential room words in the commercial wording (area names are the estimate's).
+    const feedText = await sec.locator(".pp-feed .card h3, .pp-feed .card .sub").allTextContents();
+    for (const t of feedText) expect(t.replace(/Lounge|Dining|Study/g, "")).not.toMatch(/\b(bedroom|bed|bathroom|bath|kitchen|lounge|laundry|home)\b/i);
+  });
+
+  test("a wizard self-built estimate never shows it, presentation or not (F9)", async ({ page }) => {
+    await openEstimate(page, wizard.token);
+    await expect(page.getByTestId("live-progress")).toHaveCount(0);
+    await expect(page.getByTestId("see-how-you-follow")).toHaveCount(0);
   });
 
   test("with a presentation: the hero button and the step-4 link point at the section", async ({ page }) => {
