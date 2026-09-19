@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Estimate view · live progress on a phone · mockup v4</title>
+<title>Estimate view · live progress on a phone · mockup v4 (rulings 19 Sep applied)</title>
 <link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -55,7 +55,8 @@ a{color:var(--cyan)}
 .live{margin:34px 0;padding:40px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);position:relative}
 .newflag{position:absolute;top:-11px;left:0;background:var(--amber);color:#1d1606;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px}
 .replay{font-size:13px;color:var(--muted);padding:8px 14px;border:1px solid var(--line);border-radius:999px;margin-top:22px}
-.fine{margin-top:16px;font-size:12.5px;color:var(--muted);max-width:50ch}
+.fine{margin-top:16px;font-size:13px;color:var(--muted);max-width:56ch}
+.eglabel{text-align:center;font-size:15px;font-weight:600;letter-spacing:-.01em;margin-bottom:18px}
 .stage{display:flex;justify-content:center}
 .under{text-align:center}
 .under .fine{margin:14px auto 0}
@@ -174,6 +175,7 @@ h3.sec{font-size:22px;font-weight:600;letter-spacing:-.02em;margin-top:34px}
   <!-- ================= NEW SECTION (only with a presentation) ================= -->
   <section class="live" id="live" aria-label="How you will follow your job" data-needs-pres>
     <span class="newflag">New · below the scope of works · only when a presentation is attached</span>
+    <p class="eglabel">Example of your live updates</p>
     <div class="stage"><div class="phone" aria-hidden="true"><div class="screen">
       <div class="lock" id="lock"><div class="time">7:42</div><div class="date">Monday</div><div class="sms" id="sms1"></div></div>
       <div class="app" id="app"></div>
@@ -199,7 +201,6 @@ h3.sec{font-size:22px;font-weight:600;letter-spacing:-.02em;margin-top:34px}
 /* In production: customer, address, photos, areas and products all come from the estimate being viewed */
 const S='https://llmrvgdequpmzzuaxdhq.supabase.co/storage/v1/object/public/';
 const own=['7d6576e5-e29f-4443-9ede-89061c152ede','690677f5-b33e-441d-af77-d2cdd7b59cbf','29aa5101-e400-4cbe-bdb8-818eb1c0a05d','e0734f83-0c97-4a82-a9c1-66e6c50eeae6'].map(i=>S+'estimate-media/'+i+'.jpg');
-const eg=[S+'presentation-media/1789559709533-Screenshot_2026-09-16_at_9.40.15_pm.png',S+'presentation-media/1789559735675-WhatsApp_Image_2026-09-16_at_10.53.46.jpeg'];
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const LEAD='Jacob'; // sample only
@@ -211,31 +212,31 @@ function details(){ const g=id=>esc($(id).value.trim());
 /* ---------- the two messaging sets ---------- */
 function copy(variant,d){
  const hi=d.first?d.first+', ':'', Hi=d.first?' '+d.first:'';
- const YOURS='Your photo', EG='Example · recent job';
+ const YOURS='Before · your photo', SITE='Before · site photo';
  if(variant==='res') return {
   forName:[d.first,d.last].filter(Boolean).join(' ')||'you',
-  fine:`A preview built from your estimate. The room names and first photos are yours. Later photos are examples from a recent job, and ${LEAD} is shown as a sample until your lead painter is confirmed at booking.`,
+  fine:`For illustration only. This is an example of the updates you'll receive, shown with your address and your own photos. The days, times, messages and the painter shown are examples, not your actual schedule.`,
   sms1:`Good morning${Hi}. ${LEAD} and the team have arrived at ${d.addr}. Follow today's progress: <u>paintgroup.com.au/j/${d.slug}</u>`,
   sms2:`${hi}${d.addr} is finished. Your walkthrough with ${LEAD} is at 2pm today.`,
   brandRight:'Your job', sub:[d.sub,d.first&&'for '+d.first+' '+d.last].filter(Boolean).join(' · '), rail:null, role:'Your lead painter', docs:null,
   feed:[
    {d:'Day 1',t:'8:05am',h:'Set-up and protection',p:'Floors covered, furniture moved to the centre of each room and wrapped. Filling and sanding under way in the Lounge and Dining.',shots:[[own[0],YOURS],[own[1],YOURS]],pct:12},
-   {d:'Day 2',t:'4:40pm',h:'Preparation finished',p:'Cracks filled and sanded in Bed 1, Bed 2 and Bed 3. Picture rails in the Lounge and Dining undercoated.',shots:[[own[2],YOURS],[eg[0],EG]],pct:30},
+   {d:'Day 2',t:'4:40pm',h:'Preparation finished',p:'Cracks filled and sanded in Bed 1, Bed 2 and Bed 3. Picture rails in the Lounge and Dining undercoated.',shots:[[own[2],YOURS],[own[3],YOURS]],pct:30},
    {d:'Day 3',t:'4:15pm',h:'Ceilings and cornices',p:'Two coats of Haymes Expressions Ceiling in the Lounge, Dining and Entry. Decorative cornices cut in by hand.',chips:['Lounge ✓','Dining ✓','Entry ✓'],pct:48},
-   {d:'Day 5',t:'4:30pm',h:'Walls, first coat',p:'Dulux Wash and Wear going on in the Hallway, Study and Kitchen, in the colours you chose at your consultation.',shots:[[eg[1],EG],[own[3],YOURS]],pct:76},
+   {d:'Day 5',t:'4:30pm',h:'Walls, first coat',p:'Dulux Wash and Wear going on in the Hallway, Study and Kitchen, in the colours you chose at your consultation.',pct:76},
    {d:'Day 7',t:'11:20am',h:'Final walkthrough booked',p:`2pm today with ${LEAD}. You'll walk every room together, and anything you spot is put right before the final invoice.`,pct:100,ms:1}]};
  return {
   forName:d.org||[d.first,d.last].filter(Boolean).join(' '),
-  fine:`A preview built from your estimate. The address and first photos are from your property. Later photos are examples from a recent job; the reference numbers and supervisor shown are samples.`,
+  fine:`For illustration only. This is an example of the updates you and your team will receive, shown with your address and your own site photos. The days, times, messages, references and the supervisor shown are examples, not your actual programme.`,
   sms1:`${d.addr} (PO 4471): Paint Group signed in on site at 6:30am. ${LEAD} is your site supervisor. Live progress: <u>paintgroup.com.au/j/${d.slug}</u>`,
   sms2:`${d.addr} (PO 4471): works complete and site cleared. Handover walkthrough at 2pm. Completion report to follow.`,
   brandRight:d.org||'Your job', sub:[d.sub,'PO 4471','Owner ref KS-43'].filter(Boolean).join(' · '),
   rail:['Pre-start','In progress','Quality check','Walkthrough','Closed'], role:'Site supervisor', docs:['Certificate of currency','SWMS','Daily reports'],
   feed:[
-   {d:'Day 1',t:'6:30am',h:'Site induction and set-up',p:'Team inducted and signed in. SWMS reviewed with your site contact, work zones barricaded and signed, floors and fixtures protected in Reception and the Lift lobby.',shots:[[own[0],'Site photo'],[own[1],'Site photo']],chips:['SWMS on site ✓','Tenant notice posted ✓'],pct:12,st:1},
-   {d:'Day 2',t:'4:45pm',h:'Preparation complete, common areas',p:'Corridors, Stairwell and Lift lobby patched, sanded and spot-primed. Access kept clear throughout trading hours. Daily report sent to 3 recipients.',shots:[[own[2],'Site photo'],[eg[0],EG]],pct:30,st:1},
+   {d:'Day 1',t:'6:30am',h:'Site induction and set-up',p:'Team inducted and signed in. SWMS reviewed with your site contact, work zones barricaded and signed, floors and fixtures protected in Reception and the Lift lobby.',shots:[[own[0],SITE],[own[1],SITE]],chips:['SWMS on site ✓','Tenant notice posted ✓'],pct:12,st:1},
+   {d:'Day 2',t:'4:45pm',h:'Preparation complete, common areas',p:'Corridors, Stairwell and Lift lobby patched, sanded and spot-primed. Access kept clear throughout trading hours. Daily report sent to 3 recipients.',shots:[[own[2],SITE],[own[3],SITE]],pct:30,st:1},
    {d:'Day 3',t:'9:40pm',h:'After-hours works, Reception',p:'Ceilings and walls to Reception completed after close using low-odour products. Area cleaned and reopened for trading at 7am.',chips:['Out of hours ✓','On programme ✓','Variations 0'],pct:48,st:1},
-   {d:'Day 5',t:'4:45pm',h:'Open-plan office and Boardroom',p:'Two coats to walls in the Open-plan office, Boardroom and Meeting rooms, completed in stages around your staff. Colours recorded against the property.',shots:[[eg[1],EG],[own[3],'Site photo']],pct:76,st:2},
+   {d:'Day 5',t:'4:45pm',h:'Open-plan office and Boardroom',p:'Two coats to walls in the Open-plan office, Boardroom and Meeting rooms, completed in stages around your staff. Colours recorded against the property.',pct:76,st:2},
    {d:'Day 7',t:'11:20am',h:'Practical completion and handover',p:'Quality check passed. Walkthrough at 2pm with your site contact. Signed completion report, photo record and colour schedule filed to the property.',pct:100,ms:1,st:3}]};
 }
 
