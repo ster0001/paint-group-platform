@@ -250,6 +250,14 @@
 .cv .tcard .doc { display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--cyan); border: 1px solid rgba(59,216,233,.4); border-radius: 100px; padding: 5px 11px; text-decoration: none; }
 .cv .tcard .doc:hover { background: rgba(59,216,233,.1); }
 
+/* warranty — Tom, 19 Sep 2026: the terms the customer reads before deciding */
+.cv .warrantyterms > summary { list-style: none; cursor: pointer; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); }
+.cv .warrantyterms > summary::-webkit-details-marker { display: none; }
+.cv .wclause { margin-top: 18px; }
+.cv .wclause h3 { font-family: var(--sans); font-weight: 600; font-size: 14.5px; margin-bottom: 6px; color: var(--text); }
+.cv .wclause p { font-size: 13.5px; color: var(--muted); line-height: 1.6; max-width: 70ch; }
+.cv .wacl { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+
 /* accept panel + responses */
 .cv .acceptpanel { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); border-radius: 16px; padding: 36px 30px; text-align: center; }
 .cv .acceptpanel h2 { margin-bottom: 8px; }
