@@ -93,6 +93,7 @@ export async function sendMagicLink(opts: {
   const sent = await sendEmail({
     to: email,
     subject: opts.subject ?? `Sign in to your ${companyName} account`,
+    ctx: { kind: "magic_link" },
     html: buildEstimateEmailHtml({
       intro,
       link,

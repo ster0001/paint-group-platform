@@ -23,6 +23,29 @@ import { reportError } from "@/lib/monitoring/report";
 export type MessageChannel = "email" | "sms" | "call" | "chat" | "portal" | "note";
 export type MessageProvider = "resend" | "twilio" | "manual" | "system" | "portal" | "assistant";
 export type MessageStatus = "queued" | "sent" | "delivered" | "opened" | "clicked" | "bounced" | "complained" | "failed" | "not_configured" | "received" | "suppressed";
+/** Dashboard 0b (B4): who wrote it. An automation is `system` — outbound, but never a reply. */
+export type SenderRole = "customer" | "staff" | "system" | "assistant" | "unknown";
+
+/** Kinds a person sends from a screen. Mirrors `message_sender_role()` in 20270176; the unit test compares. */
+export const STAFF_KINDS = ["estimate", "chat_reply", "variation", "invoice", "job_update", "contractor_invite"] as const;
+/** Kinds the platform sends on its own, outside the automation registry. */
+export const SYSTEM_KINDS = ["campaign", "job_welcome", "tenant_link", "magic_link", "staff_alert", "receipt", "remittance", "assistant_handoff"] as const;
+
+/**
+ * The one rule (same as the database's, for direct inserts and the backfill):
+ * inbound is the customer; the assistant is itself; anything from the
+ * automation registry or a campaign is system; a signed send, a manual log,
+ * a portal reply or a staff-only kind is staff; a legacy outbound row nobody
+ * signed is `unknown` — new rows never are, because every send site says.
+ */
+export function deriveSenderRole(row: Pick<MessageRow, "direction" | "provider" | "actorProfileId" | "campaignMessageId" | "kind" | "automation" | "senderRole">): SenderRole {
+  if (row.senderRole) return row.senderRole;
+  if (row.direction === "in") return "customer";
+  if (row.provider === "assistant") return "assistant";
+  if (row.automation || row.campaignMessageId || (row.kind && (SYSTEM_KINDS as readonly string[]).includes(row.kind))) return "system";
+  if (row.actorProfileId || row.provider === "manual" || row.provider === "portal" || (row.kind && (STAFF_KINDS as readonly string[]).includes(row.kind))) return "staff";
+  return "unknown";
+}
 
 /** What a send site may say about the message it is sending. */
 export type MessageContext = {
@@ -39,6 +62,8 @@ export type MessageContext = {
   /** D3: the channel the office chose was impossible; what was done instead. Kept on the row. */
   fallback?: string | null;
   actorProfileId?: string | null;
+  /** Who is speaking. Derived from the rest of the context when not said. */
+  senderRole?: SenderRole;
   threadId?: string | null;
   /** True for a test send or a send that must not be recorded (rare). */
   skipRecord?: boolean;
@@ -122,6 +147,7 @@ export async function recordMessage(row: MessageRow, db?: SupabaseClient | null)
       contact_id: row.contactId ?? null,
       channel: row.channel,
       direction: row.direction,
+      sender_role: deriveSenderRole(row),
       subject: row.subject ?? null,
       body: (row.body ?? "").slice(0, 20_000),
       body_html: row.bodyHtml ? row.bodyHtml.slice(0, 200_000) : null,
@@ -167,13 +193,20 @@ export async function updateMessageStatus(
   status: MessageStatus,
   at: string = new Date().toISOString(),
 ): Promise<{ id: string; account_id: string | null; meta: Record<string, unknown> } | null> {
-  const { data: row } = await db.from("messages").select("id, account_id, status, meta")
+  const { data: row } = await db.from("messages").select("id, account_id, status, meta, read_at")
     .eq("provider", provider).eq("provider_message_id", providerMessageId).maybeSingle();
   if (!row) return null;
-  const r = row as { id: string; account_id: string | null; status: MessageStatus; meta: Record<string, unknown> };
+  const r = row as { id: string; account_id: string | null; status: MessageStatus; meta: Record<string, unknown>; read_at: string | null };
   // A status never goes backwards: "opened" after "delivered" is news; "delivered" after "opened" is not.
   const RANK: Record<MessageStatus, number> = { queued: 0, not_configured: 0, sent: 1, delivered: 2, opened: 3, clicked: 4, received: 1, failed: 5, bounced: 5, complained: 6, suppressed: 5 };
   if (RANK[status] <= RANK[r.status] && status !== r.status && RANK[status] < 5) return r;
-  await db.from("messages").update({ status, status_at: at }).eq("id", r.id);
+  // Dashboard 0b: an email open is the best read signal email gives — kept,
+  // and flagged as best-effort so a report can say so. Never overwrites a
+  // read the portal recorded, and never moves backwards.
+  const opened = status === "opened" && !r.read_at;
+  await db.from("messages").update({
+    status, status_at: at,
+    ...(opened ? { read_at: at, meta: { ...r.meta, readSource: "email_open", readIsBestEffort: true } } : {}),
+  }).eq("id", r.id);
   return r;
 }
