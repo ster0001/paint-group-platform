@@ -4,6 +4,21 @@ import { areaRollups, buildTimeline, dayHeading, type TimelineInput } from "@/li
 import { dayOfJob } from "@/lib/portal/home";
 import { moneyFmt } from "@/lib/portal/money";
 import PhotoGrid, { type GridPhoto } from "./project/PhotoGrid";
+import type { TimelineItem } from "@/lib/portal/timeline";
+
+/**
+ * Estimate live-progress phone (brief v4, Tom 19 Sep): the SAME feed markup,
+ * fed precomputed items and already-public photo URLs. With `sample` set the
+ * component renders only the day-by-day feed, signs nothing and reads nothing
+ * from storage — `lib/progress-preview/jobTimelineSample.test.ts` pins that,
+ * and `timeline.shared.test.ts` pins that both portals still render as before.
+ */
+export type SampleTimeline = {
+  items: TimelineItem[];
+  /** One heading per item, in order — stands in for the real date headings. */
+  headings: string[];
+  photos: Map<string, GridPhoto>;
+};
 
 /**
  * THE job timeline — one component for both portals (trade portal v2 §5.3:
@@ -12,7 +27,7 @@ import PhotoGrid, { type GridPhoto } from "./project/PhotoGrid";
  * back link and the extra trade events threaded through the same feed. The
  * snapshot test pins that identical input produces identical output.
  */
-export default async function JobTimeline({ project, companyPhone, coordinatorName, greet, h1, backLink, tradeEvents }: {
+export default async function JobTimeline({ project, companyPhone, coordinatorName, greet, h1, backLink, tradeEvents, sample }: {
   project: PortalProject;
   companyPhone: string;
   /** Settings → Company details → Project coordinator (Tom, 1 Sep). */
@@ -21,17 +36,16 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
   h1?: string;
   backLink?: { href: string; label: string };
   tradeEvents?: TimelineInput["tradeEvents"];
+  /** Feed-only render from sample data (the estimate's live-progress phone). */
+  sample?: SampleTimeline;
 }) {
   const today = melbourneTodayYmd();
-  const items = buildTimeline({ ...project.timeline, todayYmd: today, tradeEvents });
   // Sign only what renders: at most 4 photos per card and 12 on the first
   // screen of the feed (volume law §10.3 — each signature is a storage call).
-  let signBudget = 12;
-  for (const item of items) {
-    item.photoIds = item.photoIds.slice(0, Math.min(4, signBudget));
-    signBudget -= item.photoIds.length;
-  }
-  const photosById = await signPhotosByIds(project.photoRows, items.flatMap((i) => i.photoIds));
+  // Sample items arrive already capped (≤2 per update) and are not ours to change.
+  const items = sample ? sample.items : capPhotos(buildTimeline({ ...project.timeline, todayYmd: today, tradeEvents }));
+  // Sample photos are the estimate's own public URLs — nothing to sign.
+  const photosById = sample ? sample.photos : await signPhotosByIds(project.photoRows, items.flatMap((i) => i.photoIds));
   const rollups = areaRollups(project.timeline.surfaces);
   const dayChip = dayOfJob(project.startDate, project.endDate, today);
   const showCrew = ["in_progress", "qa", "completion_prep", "walkthrough"].includes(project.stage);
@@ -45,8 +59,45 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
   // Day headings render once per day — derived up front (render stays pure).
   const withHeadings = items.map((item, i) => ({
     item,
-    heading: items[i - 1]?.dayYmd === item.dayYmd ? null : dayHeading(item.dayYmd, today),
+    heading: sample ? (sample.headings[i] ?? null) : items[i - 1]?.dayYmd === item.dayYmd ? null : dayHeading(item.dayYmd, today),
   }));
+
+  const feed = (
+    <div className="tl">
+      {withHeadings.map(({ item, heading }) => {
+        return (
+          <div key={item.key} className={`tl-item ${item.live ? "live" : "done"}`}>
+            {heading && <div className="tl-date">{heading}</div>}
+            <div className="card">
+              <div className="row">
+                <h3 style={{ margin: 0 }}>{item.title}</h3>
+                {item.amountCents != null && (
+                  <span className="money" style={{ fontSize: 15 }}>{moneyFmt(item.amountCents)}</span>
+                )}
+              </div>
+              <p className="sub" style={{ marginTop: 4 }}>{item.body}</p>
+              <PhotoGrid photos={gridFor(item.photoIds)} />
+              {item.chip && (
+                <div className="row" style={{ marginTop: 12 }}>
+                  <span className={`chip ${item.chip.cls}`}>{item.chip.label}</span>
+                </div>
+              )}
+              {item.cta && (
+                <div style={{ marginTop: 14 }}>
+                  <Link className="btn btn-cyan" href={item.cta.href}>{item.cta.label}</Link>
+                </div>
+              )}
+              {item.key.startsWith("update:") && (
+                <div className="mmeta">CHECKED AND SENT BY THE OFFICE</div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  if (sample) return feed;
 
   return (
     <div>
@@ -145,38 +196,16 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
         </div>
       )}
 
-      <div className="tl">
-        {withHeadings.map(({ item, heading }) => {
-          return (
-            <div key={item.key} className={`tl-item ${item.live ? "live" : "done"}`}>
-              {heading && <div className="tl-date">{heading}</div>}
-              <div className="card">
-                <div className="row">
-                  <h3 style={{ margin: 0 }}>{item.title}</h3>
-                  {item.amountCents != null && (
-                    <span className="money" style={{ fontSize: 15 }}>{moneyFmt(item.amountCents)}</span>
-                  )}
-                </div>
-                <p className="sub" style={{ marginTop: 4 }}>{item.body}</p>
-                <PhotoGrid photos={gridFor(item.photoIds)} />
-                {item.chip && (
-                  <div className="row" style={{ marginTop: 12 }}>
-                    <span className={`chip ${item.chip.cls}`}>{item.chip.label}</span>
-                  </div>
-                )}
-                {item.cta && (
-                  <div style={{ marginTop: 14 }}>
-                    <Link className="btn btn-cyan" href={item.cta.href}>{item.cta.label}</Link>
-                  </div>
-                )}
-                {item.key.startsWith("update:") && (
-                  <div className="mmeta">CHECKED AND SENT BY THE OFFICE</div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {feed}
     </div>
   );
+}
+
+function capPhotos(items: TimelineItem[]): TimelineItem[] {
+  let signBudget = 12;
+  return items.map((item) => {
+    const photoIds = item.photoIds.slice(0, Math.min(4, signBudget));
+    signBudget -= photoIds.length;
+    return { ...item, photoIds };
+  });
 }

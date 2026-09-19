@@ -97,6 +97,8 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
     detail: (p) => join(money(p.totalCents) && `${money(p.totalCents)} inc. GST`,
       str(p.channel) === "both" ? "SMS + email" : str(p.channel),
       num(p.validDays) && `valid ${num(p.validDays)} days`) },
+  estimate_progress_preview: { label: "Watched the live-updates example on the estimate", kind: "customer",
+    detail: (p) => ({ started: "Started playing.", completed: "Watched it through.", replayed: "Pressed Play again.", cta_clicked: "Tapped \"See how you'll follow the job\"." }[str(p.event)] ?? "") },
   estimate_viewed: { label: "Estimate opened", kind: "customer",
     detail: (p) => {
       const nth = Number(p.viewNumber);

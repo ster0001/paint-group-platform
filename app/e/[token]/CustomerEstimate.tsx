@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
 import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColoursChosen, presentationHasSwmsCard, type BankDetails } from "@/lib/customer/snapshot";
@@ -8,6 +8,7 @@ import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
 import SignaturePad from "@/app/components/SignaturePad";
 import { warrantyAttachmentLine } from "@/lib/warranty/terms";
+import { trackProgressPreview } from "@/lib/progress-preview/track";
 import "../customer.css";
 
 // The public token page keeps this row shape; the builder passes a live snapshot
@@ -57,7 +58,7 @@ const showCount = (count: number | undefined): boolean => count != null && count
 export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
-  changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null, bank = null,
+  changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null, bank = null, progressPreview = null, progressPreviewSet = null,
 }: {
   snapshot: CustomerSnapshot;
   token?: string;
@@ -79,6 +80,12 @@ export default function CustomerEstimate({
   referencesLine?: string | null;
   /** Tom, 18 Sep: the company's bank details, printed with the ABN on the PDF. */
   bank?: BankDetails | null;
+  /** Live-progress phone (brief v4, Tom 19 Sep): server-rendered by page.tsx
+   * ONLY when a presentation is attached; sits between the scope of works and
+   * the paint section, ruled placement. Null = nothing renders. */
+  progressPreview?: ReactNode;
+  /** Which messaging set the phone shows — rides on the hero button's tracking ping. */
+  progressPreviewSet?: "residential" | "commercial" | null;
 }) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
   // Invoice dress (Tom, 24 Aug close-off): the revision preview is the
@@ -404,6 +411,7 @@ export default function CustomerEstimate({
               <div className="cta-row print-hide">
                 <a className="btn btn-primary" href="#accept">Accept estimate</a>
                 <button className="btn btn-ghost" onClick={() => { setPanel("ask"); document.getElementById("accept")?.scrollIntoView(); }}>Ask a question</button>
+                {progressPreview && <a className="btn btn-ghost" href="#live-progress" data-testid="see-how-you-follow" onClick={() => { if (interactive && progressPreviewSet) trackProgressPreview(token, "cta_clicked", progressPreviewSet); }}>See how you&apos;ll follow the job</a>}
               </div>
             )}
           </div>
@@ -520,6 +528,9 @@ export default function CustomerEstimate({
           </section>
         )}
 
+        {/* LIVE PROGRESS PHONE — between scope and paint (ruled, brief v4 §7) */}
+        {!invoiceMode && progressPreview}
+
         {/* THE PAINT WE'RE SUPPLYING */}
         {(snap.paints?.length ?? 0) > 0 && (() => {
           const topcoats = snap.paints.filter((p) => !p.isPrep);
@@ -618,7 +629,7 @@ export default function CustomerEstimate({
             <div className="step"><span className="stepnum" /><div><b>Booking</b><p>We&apos;ll contact you to lock in your start dates.</p></div></div>
             <div className="step"><span className="stepnum" /><div><b>Confirmation</b><p>We&apos;ll send you your lead painter&apos;s name, start date and time, and a handy checklist to help you prepare.</p></div></div>
             <div className="step"><span className="stepnum" /><div><b>Colour consultation</b><p>We provide free, unlimited colour samples. Nothing starts until you&apos;re happy with your colour choices.</p></div></div>
-            <div className="step"><span className="stepnum" /><div><b>Live progress in your portal</b><p>Log in to see updates and track your job&apos;s progress.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Live progress in your portal</b><p>Log in to see updates and track your job&apos;s progress.{progressPreview && <> <a href="#live-progress" className="print-hide" data-testid="step-live-progress-link">See it for your address ↑</a></>}</p></div></div>
             <div className="step"><span className="stepnum" /><div><b>Final walkthrough</b><p>We walk through every room with you to confirm you&apos;re 100% satisfied before final payment.</p></div></div>
           </div>
         </section>
