@@ -38,6 +38,10 @@ import { sessionPooledUrl } from "@/lib/testing/session-pooled-url";
  *  machine pointed at this database contends for THIS number. */
 export const E2E_RUN_LOCK_KEY = 0x70676532;
 
+/** How long a run retries a held lock before refusing. Sized for the hygiene
+ *  sweep's slice (~20 s of deleting), not for another run. */
+export const ACQUIRE_RETRY_MS = 45_000;
+
 let client: pg.Client | null = null;
 
 export function e2eDatabaseUrl(): string {
@@ -61,13 +65,29 @@ export async function acquireRunLock(): Promise<"held" | "busy" | "skipped"> {
   const c = new pg.Client({ connectionString, application_name: "pg-e2e-run-lock" });
   await c.connect();
   try {
-    const r = await c.query<{ ok: boolean }>("select pg_try_advisory_lock($1) as ok", [E2E_RUN_LOCK_KEY]);
-    if (!r.rows[0]?.ok) {
-      await c.end();
-      return "busy";
+    // A SHORT retry before refusing (19 Sep 2026). The other thing that takes
+    // this lock is the hygiene sweep, which now works in slices and drops it
+    // every few seconds — so the only way a run should ever meet a held lock
+    // is by asking during one of those slices. Failing instantly on that would
+    // turn a tidy-up job into a red CI run for no reason.
+    //
+    // It stays SHORT on purpose. Against a real concurrent RUN (20-40 minutes)
+    // this changes nothing: it still refuses, with the same explanation. The
+    // window it closes is seconds wide, and a run that waits minutes for
+    // another run is worse than one that tells you to come back.
+    const deadline = Date.now() + ACQUIRE_RETRY_MS;
+    for (;;) {
+      const r = await c.query<{ ok: boolean }>("select pg_try_advisory_lock($1) as ok", [E2E_RUN_LOCK_KEY]);
+      if (r.rows[0]?.ok) {
+        client = c;
+        return "held";
+      }
+      if (Date.now() >= deadline) {
+        await c.end();
+        return "busy";
+      }
+      await new Promise((res) => setTimeout(res, 3_000));
     }
-    client = c;
-    return "held";
   } catch (e) {
     await c.end().catch(() => {});
     throw e;
