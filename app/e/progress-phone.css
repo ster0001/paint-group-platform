@@ -80,6 +80,10 @@
 .cv .pp-feed .card .row:first-child { margin-top: 0 !important; }
 /* the phone is a demo: no lightbox, photos are not buttons to press */
 .cv .pp-feed .photo { pointer-events: none; }
+/* a failed image leaves a neutral tile (brief §7): no alt text, no broken-image icon, the tile's own background */
+.cv .pp-feed .photo img { color: transparent; text-indent: -9999px; font-size: 0; position: relative; }
+/* Chrome paints ::before on a FAILED image only (a loaded one is a replaced element) — cover its broken-image icon with the tile colour */
+.cv .pp-feed .photo img::before { content: ""; position: absolute; inset: 0; background: var(--panel-2); }
 
 /* reveal: how many items the sequence has reached */
 .cv .pp-feed[data-shown="1"] .tl-item:nth-child(-n + 1),
