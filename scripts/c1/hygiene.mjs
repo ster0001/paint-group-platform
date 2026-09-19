@@ -4,7 +4,7 @@
  *
  *   node scripts/c1/hygiene.mjs count    [--json] [--warn 5000] [--fail 20000]
  *   node scripts/c1/hygiene.mjs teardown --since <iso> [--budget-min 5] [--json]
- *   node scripts/c1/hygiene.mjs sweep    [--age-days 3] [--batch 200] [--budget-min 20] [--json]
+ *   node scripts/c1/hygiene.mjs sweep    [--age-days 1] [--batch 1000] [--budget-min 20] [--json]
  *
  * ONE implementation, three triggers: the tripwire at the start of every e2e
  * run (count), the teardown after every run (this run's users, by marker),
@@ -27,6 +27,7 @@
 import pg from "pg";
 import { productionRef } from "./env.mjs";
 import { checkTarget, DEFAULTS, EXIT, fkAction, parseArgs, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
+import { E2E_RUN_LOCK_KEY, sessionPooledUrl } from "./session-url.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const cmd = args._[0];
@@ -57,8 +58,13 @@ async function counts() {
   const [c] = await q(`
     select (select count(*) from auth.users where is_anonymous)::int as anonymous,
            (select count(*) from auth.users where email like 'pg.e2e.%')::int as e2e_logins,
+           (select count(*) from public.estimates)::int as estimates,
+           (select count(*) from public.accounts)::int as accounts,
            now() as now`);
-  return { anonymous: c.anonymous, e2eLogins: c.e2e_logins, now: new Date(c.now).toISOString() };
+  // estimates/accounts are REPORTED, never thresholded: the delete walk is
+  // bounded by users, and these are what the users are carrying. They are the
+  // number that actually tells you the project is filling up.
+  return { anonymous: c.anonymous, e2eLogins: c.e2e_logins, estimates: c.estimates, accounts: c.accounts, now: new Date(c.now).toISOString() };
 }
 
 if (cmd === "count") {
@@ -250,6 +256,34 @@ if (cmd === "teardown") {
 }
 
 if (cmd === "sweep") {
+  // ONE RUN AT A TIME, and the sweep is a run. It deletes by AGE, and a live
+  // e2e run's rows become old enough to qualify while it is still using them —
+  // the same "a timestamp is not ownership" hole the run lock was built for
+  // (e2e/run-lock.ts), from a third direction. CI cannot collide (the sweep
+  // workflow shares the `e2e-test-project` concurrency group with the e2e job)
+  // but a LOCAL run has nothing in common with a GitHub concurrency group, and
+  // this repo is worked in several checkouts at once.
+  //
+  // Only the sweep takes it. `teardown` is called BY global-teardown, from a
+  // process that already holds this exact lock — taking it again from this
+  // child process would refuse the run's own cleanup.
+  const lockClient = new pg.Client({
+    connectionString: sessionPooledUrl(dbUrl),
+    ssl: { rejectUnauthorized: false },
+    application_name: "pg-hygiene-sweep-lock",
+  });
+  await lockClient.connect();
+  const [lock] = (await lockClient.query("select pg_try_advisory_lock($1) as ok", [E2E_RUN_LOCK_KEY])).rows;
+  if (!lock?.ok) {
+    await lockClient.end();
+    await client.end();
+    // Not a failure: an e2e run is using the project, and the sweep runs
+    // again tomorrow. A red job here would train everyone to ignore it.
+    log("sweep skipped: an e2e run holds the test project. Nothing was deleted; the next scheduled sweep will pick it up.");
+    if (json) console.log(JSON.stringify({ skipped: "run-in-progress", deleted: 0 }));
+    process.exit(EXIT.ok);
+  }
+
   const days = Number(args["age-days"] ?? process.env.E2E_SWEEP_AGE_DAYS ?? DEFAULTS.sweepAgeDays);
   const batch = Number(args.batch ?? process.env.E2E_SWEEP_BATCH ?? DEFAULTS.batch);
   const where = `created_at < now() - ($1::int * interval '1 day')`;
@@ -263,6 +297,10 @@ if (cmd === "sweep") {
   const after = await counts();
   log(`users before ${before.anonymous + before.e2eLogins} → after ${after.anonymous + after.e2eLogins}`);
   if (json) console.log(JSON.stringify({ days, batch, deleted: users.deleted, left, accounts, seconds, before, after, byTable: stats }));
+  // The lock goes last, after the rows are gone — ending the connection would
+  // release it anyway, but saying so keeps the intent readable in the log.
+  await lockClient.query("select pg_advisory_unlock($1)", [E2E_RUN_LOCK_KEY]).catch(() => {});
+  await lockClient.end().catch(() => {});
   await client.end();
   process.exit(EXIT.ok);
 }

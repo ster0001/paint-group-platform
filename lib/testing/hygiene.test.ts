@@ -82,6 +82,16 @@ describe("the tripwire (⚑44): the line is always produced, the thresholds are 
     expect(v.level).toBe("ok");
     expect(v.line).toBe("test-project rows · anonymous users 0 · pg.e2e.* logins 0 · total 0 (warn 5,000 · fail 20,000)");
   });
+
+  // 19 Sep 2026: 8,711 users were carrying 66,168 estimates and 27,225
+  // accounts, so the users-only line understated the load about eightfold.
+  // Reported beside the total, never folded into the threshold.
+  it("reports what the users are carrying, without letting it move the verdict", () => {
+    const v = verdict({ anonymous: 4_000, e2eLogins: 100, estimates: 66_168, accounts: 27_225 });
+    expect(v.line).toContain("carrying estimates 66,168, accounts 27,225");
+    expect(v.level).toBe("ok");
+    expect(v.total).toBe(4_100);
+  });
   it("warns above 5,000 and fails above 20,000 — the 11 Sep project would have failed", () => {
     expect(verdict({ anonymous: 4_900, e2eLogins: 100 }).level).toBe("ok");
     expect(verdict({ anonymous: 4_900, e2eLogins: 101 }).level).toBe("warn");

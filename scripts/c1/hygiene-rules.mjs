@@ -15,11 +15,17 @@ export const DEFAULTS = Object.freeze({
   /** ⚑44 — logged every run regardless; these are only the backstop. */
   warnRows: 5_000,
   failRows: 20_000,
-  /** ⚑43 */
-  sweepAgeDays: 3,
-  /** Users per sweep run. 200 to start (brief step 2): a single auth-user
-   * delete measured 13.5 s on this project before its hot FKs were indexed. */
-  batch: 200,
+  /** ⚑43. Dropped 3 → 1 on 19 Sep 2026: the sweep now takes the SAME advisory
+   * lock an e2e run does, so it can no longer overlap one, and the three-day
+   * grace was only ever there to keep it away from live rows. A shorter window
+   * is what stops a backlog forming in the first place. */
+  sweepAgeDays: 1,
+  /** Users per sweep run. Was 200 — chosen when a single auth-user delete
+   * measured 13.5 s, before its hot FKs were indexed. Measured 19 Sep 2026 at
+   * ~0.15 s/user, so 200 was costing 30 seconds of a 20-minute budget while
+   * 8,290 users sat eligible: a 41-DAY tail that could never catch up. 1,000
+   * is ~2.5 minutes, still a fraction of the budget. */
+  batch: 1_000,
   /** Users per SQL round trip inside a batch. */
   chunk: 25,
   budgetMinutes: 20,
@@ -122,7 +128,14 @@ export function fkAction(fk, owned = OWNED) {
 /**
  * The tripwire verdict. The line is produced whatever the numbers are —
  * ⚑44: a tripwire that says nothing until it fails is one nobody reads.
- * @param {{ anonymous?: number, e2eLogins?: number } | null | undefined} counts
+ * The threshold is on USERS, because users are what the delete walk is bounded
+ * by. But users are not what fills the project: on 19 Sep 2026, 8,711 of them
+ * carried 66,168 estimates, 31,654 properties and 27,225 accounts — so the one
+ * number this line used to print understated the load about eightfold. The
+ * hangers-on are now reported beside it, clearly outside the threshold, so the
+ * next person does not have to go and query for them.
+ *
+ * @param {{ anonymous?: number, e2eLogins?: number, estimates?: number, accounts?: number } | null | undefined} counts
  * @param {{ warnRows: number, failRows: number }} [thresholds]
  * @returns {{ level: "ok" | "warn" | "fail", total: number, line: string }}
  */
@@ -130,7 +143,13 @@ export function verdict(counts, thresholds = DEFAULTS) {
   const anonymous = Number(counts?.anonymous) || 0;
   const e2eLogins = Number(counts?.e2eLogins) || 0;
   const total = anonymous + e2eLogins;
-  const line = `test-project rows · anonymous users ${anonymous.toLocaleString("en-AU")} · pg.e2e.* logins ${e2eLogins.toLocaleString("en-AU")} · total ${total.toLocaleString("en-AU")} (warn ${thresholds.warnRows.toLocaleString("en-AU")} · fail ${thresholds.failRows.toLocaleString("en-AU")})`;
+  const hangers = [
+    ["estimates", counts?.estimates],
+    ["accounts", counts?.accounts],
+  ].filter(([, n]) => Number.isFinite(Number(n)))
+    .map(([k, n]) => `${k} ${Number(n).toLocaleString("en-AU")}`);
+  const carried = hangers.length ? ` · carrying ${hangers.join(", ")}` : "";
+  const line = `test-project rows · anonymous users ${anonymous.toLocaleString("en-AU")} · pg.e2e.* logins ${e2eLogins.toLocaleString("en-AU")} · total ${total.toLocaleString("en-AU")} (warn ${thresholds.warnRows.toLocaleString("en-AU")} · fail ${thresholds.failRows.toLocaleString("en-AU")})${carried}`;
   const level = total > thresholds.failRows ? "fail" : total > thresholds.warnRows ? "warn" : "ok";
   return { level, total, line };
 }
