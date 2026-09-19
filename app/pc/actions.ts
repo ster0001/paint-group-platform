@@ -198,6 +198,32 @@ export async function sendCustomerUpdateAction(raw: unknown): Promise<PcResult> 
  * machine decides whether the move is legal and whether it is ready; this only
  * asks, and reports.
  */
+/** Dashboard 0c (⚑B2): a person records that a review was asked for. */
+export async function markReviewRequested(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: z.string().uuid() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That request didn't look right." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_review_requested", { p_work_order_id: parsed.data.workOrderId, p_via: "staff" });
+  if (error) return { ok: false, message: error.message };
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) return { ok: false, message: s.replace("error:", "").replaceAll("_", " ") };
+  revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+  return { ok: true };
+}
+
+/** Dashboard 0c (⚑B2): a person records that the review came back, with its stars when known. */
+export async function markReviewReceived(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: z.string().uuid(), rating: z.number().int().min(1).max(5).nullable() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That request didn't look right." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_review_received", { p_work_order_id: parsed.data.workOrderId, p_rating: parsed.data.rating, p_note: "" });
+  if (error) return { ok: false, message: error.message };
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) return { ok: false, message: s.replace("error:", "").replaceAll("_", " ") };
+  revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+  return { ok: true };
+}
+
 export async function advanceStage(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ workOrderId: uuid, to: z.enum(WO_STAGES) }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };

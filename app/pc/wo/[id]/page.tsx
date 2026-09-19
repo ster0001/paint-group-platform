@@ -9,6 +9,7 @@ import PriceVariation from "./PriceVariation";
 import UpdateComposer from "./UpdateComposer";
 import Checklist, { type ChecklistItem } from "./Checklist";
 import WalkthroughCard from "./WalkthroughCard";
+import ReviewCard, { type ReviewState } from "./ReviewCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
 import QaControls from "./QaControls";
 import ColourMatchCard from "@/app/components/wo/ColourMatchCard";
@@ -318,6 +319,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     .reduce((sum, c) => sum + c.amount_ex_cents + c.gst_cents, 0);
   const gp = contract > 0 ? Math.round(((contract - contractorPay - labourCents) / contract) * 1000) / 10 : 0;
 
+  // Dashboard 0c: the job's review row (one per job), for the card below.
+  const reviewRes = await supabase.from("review_requests")
+    .select("sent_at, sent_via, received_at, rating").eq("work_order_id", id).maybeSingle();
+  if (reviewRes.error) reportError(reviewRes.error, { where: "pc.wo.review", bestEffort: true, extra: { workOrderId: id } });
+  const reviewRow = reviewRes.data as { sent_at: string | null; sent_via: string | null; received_at: string | null; rating: number | null } | null;
+  const reviewState: ReviewState = reviewRow
+    ? { sentAt: reviewRow.sent_at, sentVia: reviewRow.sent_via, receivedAt: reviewRow.received_at, rating: reviewRow.rating }
+    : null;
+
   const stageIndex = VISIBLE_STAGES.indexOf(visibleStage(row.stage));
   const update = ((updateRows ?? []) as { id: string; draft_text: string; final_text: string | null; status: string; for_date: string }[])[0];
 
@@ -601,6 +611,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
           {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed") && qaChecks.map((c) => (
             <QaCheck key={c.id} check={c} workOrderId={id} />
           ))}
+          {/* Dashboard 0c: reviews requested → received, a person's tick until the API. */}
+          {(row.stage === "walkthrough" || row.stage === "closed") && (
+            <ReviewCard workOrderId={id} review={reviewState} />
+          )}
           {/* An empty qa stage was a silent dead end: no cards, no explanation,
               and the way forward not obviously the answer. Say what's true. */}
           {row.stage === "qa" && qaHold && (

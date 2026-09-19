@@ -19,6 +19,8 @@ export type ContractorSummary = {
   /** Staff-set: every job quality checked, not just their first few. */
   /** Tom, 18 Sep: three settings, not two. */
   qaMode: "first_jobs" | "every_job" | "none";
+  /** Dashboard 0c (Tom, 19 Sep): opt-in — their final DONE tick asks for days and hours. */
+  captureWorkedHours: boolean;
   rctiSigned: boolean;
   abn: string;
   hasBank: boolean;
@@ -250,6 +252,21 @@ export default function ContractorsManager({
       setMsg(mode === "every_job" ? "Every job of theirs will be quality checked."
         : mode === "none" ? "No quality checks for this painter — unless a job is ticked for one when it's booked."
         : "Quality checked on their first jobs, then as scheduled.");
+      router.refresh();
+    } else setErr(s.replace("error:", "").replaceAll("_", " "));
+    setBusy(null);
+  }
+
+  /** Dashboard 0c: per-contractor opt-in for worked hours. Off = the schedule stands in. */
+  async function toggleWorkedHours(id: string, on: boolean) {
+    setBusy(id);
+    setErr("");
+    const { data, error } = await supabase.rpc("set_contractor_capture_worked_hours", { p_contractor_id: id, p_on: on });
+    const s = String(data ?? "");
+    if (error) setErr(error.message);
+    else if (s.startsWith("ok:")) {
+      setMsg(on ? "Their next finished job asks for days on site and hours per day."
+        : "Not asked — their hours come from the schedule. Nothing already entered changes.");
       router.refresh();
     } else setErr(s.replace("error:", "").replaceAll("_", " "));
     setBusy(null);
@@ -694,6 +711,17 @@ export default function ContractorsManager({
                         </button>
                       </label>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => toggleWorkedHours(c.id, !c.captureWorkedHours)}
+                      disabled={busy === c.id}
+                      title="Ask this painter for days on site and hours at their final tick — for the dashboard's hours-vs-estimate. Off: the schedule stands in."
+                      data-testid={`worked-hours-${c.id}`}
+                      aria-pressed={c.captureWorkedHours}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${c.captureWorkedHours ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-500"}`}
+                    >
+                      {c.captureWorkedHours ? "Asks for hours" : "Hours from schedule"}
+                    </button>
                     <button
                       onClick={() => cycleQaMode(c.id, c.qaMode)}
                       disabled={busy === c.id}

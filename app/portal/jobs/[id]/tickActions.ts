@@ -201,6 +201,31 @@ export type FinishResult =
   | { ok: true; to: "qa" | "walkthrough" | "closed" }
   | { ok: false; message: string };
 
+export type WorkedHoursResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * Dashboard 0c (Tom, 19 Sep): the painter's own days and hours, asked at the
+ * final DONE tick only when their flag is on. The server refuses an entry
+ * for a painter who is not asked (`not_asked`), so the screen cannot invent
+ * one. Never a gate — the finish goes ahead whether or not this lands.
+ */
+export async function enterWorkedHours(raw: unknown): Promise<WorkedHoursResult> {
+  const parsed = z.object({
+    workOrderId: z.string().uuid(),
+    days: z.number().positive().max(365),
+    hours: z.number().min(0).max(5000),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Days must be more than 0 and hours can't be negative." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_enter_worked_hours", {
+    p_work_order_id: parsed.data.workOrderId, p_days: parsed.data.days, p_hours: parsed.data.hours,
+  });
+  if (error) return { ok: false, message: "Couldn't save your hours just now." };
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) return { ok: true };
+  return { ok: false, message: s === "error:not_asked" ? "Hours aren't being collected for you — nothing to save." : "Couldn't save your hours just now." };
+}
+
 /**
  * "I'm done" — the painter finishes their own job. The SERVER routes it:
  * quality checks due → qa (with the notice event), none → completion prep.

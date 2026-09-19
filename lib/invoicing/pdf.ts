@@ -193,7 +193,7 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
     .select("id, number, status, submitted_at, due_on, invoice_pdf_path, entity_snapshot, " +
       "auto_draft_source, claim_pct, offer_cents, variation_delta_cents, deduction_lines, " +
       "previously_invoiced_cents, subtotal_ex_cents, gst_cents, total_inc_cents, " +
-      "gst_registered_at_submit, lines, invoice_date, reimbursement_lines, work_orders(wo_ref, wo_snapshot)")
+      "gst_registered_at_submit, lines, invoice_date, reimbursement_lines, contractor_id, work_order_id, work_orders(wo_ref, wo_snapshot)")
     .eq("id", contractorInvoiceId)
     .maybeSingle();
   const ci = data as {
@@ -206,10 +206,21 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
     total_inc_cents: number; gst_registered_at_submit: boolean | null;
     lines?: { label?: string; cents?: number }[] | null; invoice_date?: string | null;
     reimbursement_lines?: { label?: string; cents?: number }[] | null;
+    contractor_id: string | null; work_order_id: string | null;
     work_orders: { wo_ref: string; wo_snapshot: { jobTitle?: string; jobAddress?: string } | null } | null;
   } | null;
   if (!ci || ci.status === "draft" || !ci.number) return null;
   if (ci.invoice_pdf_path) return ci.invoice_pdf_path;
+
+  // Dashboard 0c: the painter's own hours ride the document as a note.
+  let workedTime: { days: number; hours: number } | null = null;
+  if (ci.contractor_id && ci.work_order_id) {
+    const wh = await service.from("wo_worked_hours").select("days, hours")
+      .eq("work_order_id", ci.work_order_id).eq("contractor_id", ci.contractor_id).maybeSingle();
+    if (wh.error) reportError(wh.error, { where: "ensureContractorInvoicePdf.workedHours", bestEffort: true });
+    const row = wh.data as { days: number | string; hours: number | string } | null;
+    if (row) workedTime = { days: Number(row.days), hours: Number(row.hours) };
+  }
 
   try {
     const { data: settings } = await service
@@ -236,6 +247,7 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
       subtotalExCents: ci.subtotal_ex_cents,
       gstCents: ci.gst_cents,
       totalIncCents: ci.total_inc_cents,
+      workedTime,
     });
     const pdf = await renderHtmlToPdf(html);
     const path = `${ci.id}/${ci.number}.pdf`;

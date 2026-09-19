@@ -286,3 +286,10 @@ Implemented by migration `20261028000000_wo_walkthroughs_signoff_v3.sql`.
 `docs/briefs/acceptance-to-paid-workflow.md` (§1 list) remains missing on this
 machine — searched 23 Aug (repo, git history, Spotlight, Downloads); noted, not
 reconstructed.
+
+
+---
+
+## Amendment — home dashboard capture (session 0c, 19 Sep 2026)
+
+Migration `20270178` adds to the loop, for the dashboard (brief v2 Part B3): `wo_events` 'all_surfaces_done' (written once by `wo_tick_surface`), `booking_offers.booked_end_date` (frozen at acceptance) with a 'booking_extended' event when an accepted span grows, `wo_qa_checks.attempt_no`, `review_requests` (a person's ticks via `wo_review_requested` / `wo_review_received` until the automation and the Google API), and — per contractor, by opt-in (`contractors.capture_worked_hours`) — `wo_worked_hours` entered at the final DONE tick. Everyone else resolves to the schedule in `lib/reporting/workedTime.ts`, and the source is always shown. Callbacks (`wo_callbacks`) wait for trade portal v2 session 5.
