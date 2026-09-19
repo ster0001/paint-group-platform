@@ -8,11 +8,12 @@ the choice lives in the browser, not in the database.
    painter if you want both). You land on **Home**.
 
 ## The switch
-2. Top of the screen, between the logo and the company name, there is a small
-   round button with a **moon** in it. Press it.
+2. Top of the screen, between the logo and the company name, there is a **cyan
+   circle with a sun (☀) in it** — same cyan as the tab you are on. Press it.
    - The whole screen goes light straight away — header, cards, the tab bar along
      the bottom.
-   - The button now shows a **sun**.
+   - The button now shows a **moon (☾)**. The icon is always what you will GET,
+     not where you are.
 3. Pull down to refresh, or close the tab and open the portal again.
    - It comes back LIGHT, with no flash of dark first. That is the bit worth
      watching: the server is being told the choice, not just the browser.
@@ -21,7 +22,7 @@ the choice lives in the browser, not in the database.
    - The work order — the part with the reference number, the materials and the
      scope — is light too, not a black slab in the middle of a light screen.
    - Press **PG-3 … what this means**: the sheet that slides up is readable.
-6. Press the sun. Everything goes back to dark, and stays dark on a refresh.
+6. Press the moon. Everything goes back to dark, and stays dark on a refresh.
 
 ## What to look for — and what to tell me
 7. In LIGHT, on each screen: is anything faint, washed out, or invisible?

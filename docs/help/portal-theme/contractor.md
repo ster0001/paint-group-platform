@@ -13,13 +13,14 @@ The portal arrives dark. That reads well indoors and at night, but on a bright d
 Nothing. It is available the moment you sign in, on every screen, and you can change it as often as you like.
 
 ## Steps
-1. Look at the top of any portal screen. Between the logo and your company name there is a small round button with a **moon** (☾) in it when you are in the dark look, and a **sun** (☀) when you are in the light one. The picture shows what you will get if you press it.
+1. Look at the top of any portal screen, between the logo and your company name: a cyan circle with a **sun** (☀) in it. The picture shows what you will GET if you press it — a sun while you are in the dark look, a **moon** (☾) while you are in the light one.
 2. Press it. The screen changes straight away — the header, the tab bar along the bottom, your job sheets, the calendar, everything.
 3. Press it again to go back. There is no Save, and nothing to confirm.
 
 ## What the colours and labels mean
-- **☾ moon** — you are in the dark look now; pressing it gives you the light one.
-- **☀ sun** — you are in the light look now; pressing it gives you the dark one.
+- **☀ sun** — you are in the dark look now; pressing it gives you the light one.
+- **☾ moon** — you are in the light look now; pressing it gives you the dark one.
+- The button is always cyan, the same colour as the tab you are on and the buttons you can press.
 - Everything else keeps the meaning it always had. Amber is still waiting on something, cyan still means in progress, green still means done, and the clay/red stripes on your calendar are still days the office has blocked. Only the background changes, not the colour language.
 
 ## If something goes wrong
