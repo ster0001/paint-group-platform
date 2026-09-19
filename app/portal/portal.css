@@ -541,7 +541,13 @@
 /* The switch itself — icon only. The header is 430px wide and already carries
    the logo and the painter's company name; the word would push one of them
    off. `aria-label` and `title` carry "Switch to light mode" for anyone who
-   needs it read out. */
+   needs it read out.
+
+   It is painted in the CYAN the portal already uses for "you can press this"
+   (the active tab, the links, the primary button), not in --muted. The first
+   version used the muted grey the staff surfaces use — on a 430px phone
+   header, against near-black, Tom could not find it at all. A control nobody
+   can see is not a control. */
 .pt .themebtn {
   position: relative; /* anchors the screen-reader label to the button */
   margin-left: auto;
@@ -549,18 +555,19 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   font: inherit;
-  font-size: 14px;
+  font-size: 17px;
   line-height: 1;
-  color: var(--muted);
+  color: var(--cyan);
   background: none;
-  border: 1px solid var(--line);
+  border: 1px solid var(--cyan);
   border-radius: 999px;
   cursor: pointer;
 }
-.pt .themebtn:hover { border-color: var(--cyan); color: var(--cyan); }
+.pt .themebtn:hover { background: rgba(59, 216, 233, 0.12); }
+.pt[data-theme="light"] .themebtn:hover { background: rgba(14, 140, 156, 0.1); }
 .pt .themelbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .pt .themebtn + .who { margin-left: 0; }
 

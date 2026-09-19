@@ -44,9 +44,22 @@ test.describe("contractor portal — dark or light", () => {
     await expect(pt).toHaveAttribute("data-theme", "dark");
     expect(await pt.evaluate((el) => getComputedStyle(el).color)).toBe(DARK_TEXT);
 
-    await page.getByTestId("theme-toggle").click();
+    // The icon is what you WILL GET, not where you are — a sun while dark, a
+    // moon while light. The help files describe it in those words, and they had
+    // it backwards until someone looked at the real screen; pin it here so the
+    // two cannot drift again.
+    const toggle = page.getByTestId("theme-toggle");
+    await expect(toggle).toHaveAttribute("aria-label", /switch to light mode/i);
+    await expect(toggle).toContainText("☀");
+
+    await toggle.click();
     await expect(pt).toHaveAttribute("data-theme", "light");
+    await expect(toggle).toHaveAttribute("aria-label", /switch to dark mode/i);
+    await expect(toggle).toContainText("☾");
     expect(await pt.evaluate((el) => getComputedStyle(el).color)).toBe(LIGHT_TEXT);
+    // And it is painted in the portal's "you can press this" cyan, not the
+    // muted grey it shipped as — which on a phone header nobody could find.
+    expect(await toggle.evaluate((el) => getComputedStyle(el).color)).toBe("rgb(14, 140, 156)");
     // The phone column, the sticky header and the fixed tab bar are the three
     // surfaces that were painted with hard-coded near-black rather than tokens.
     expect(await page.locator(".pt .phone").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(LIGHT_INK);
