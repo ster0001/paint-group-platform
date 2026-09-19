@@ -8,6 +8,7 @@ import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
 import SignaturePad from "@/app/components/SignaturePad";
 import { warrantyAttachmentLine } from "@/lib/warranty/terms";
+import { trackProgressPreview } from "@/lib/progress-preview/track";
 import "../customer.css";
 
 // The public token page keeps this row shape; the builder passes a live snapshot
@@ -57,7 +58,7 @@ const showCount = (count: number | undefined): boolean => count != null && count
 export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
-  changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null, bank = null, progressPreview = null,
+  changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null, bank = null, progressPreview = null, progressPreviewSet = null,
 }: {
   snapshot: CustomerSnapshot;
   token?: string;
@@ -83,6 +84,8 @@ export default function CustomerEstimate({
    * ONLY when a presentation is attached; sits between the scope of works and
    * the paint section, ruled placement. Null = nothing renders. */
   progressPreview?: ReactNode;
+  /** Which messaging set the phone shows — rides on the hero button's tracking ping. */
+  progressPreviewSet?: "residential" | "commercial" | null;
 }) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
   // Invoice dress (Tom, 24 Aug close-off): the revision preview is the
@@ -408,7 +411,7 @@ export default function CustomerEstimate({
               <div className="cta-row print-hide">
                 <a className="btn btn-primary" href="#accept">Accept estimate</a>
                 <button className="btn btn-ghost" onClick={() => { setPanel("ask"); document.getElementById("accept")?.scrollIntoView(); }}>Ask a question</button>
-                {progressPreview && <a className="btn btn-ghost" href="#live-progress" data-testid="see-how-you-follow">See how you&apos;ll follow the job</a>}
+                {progressPreview && <a className="btn btn-ghost" href="#live-progress" data-testid="see-how-you-follow" onClick={() => { if (interactive && progressPreviewSet) trackProgressPreview(token, "cta_clicked", progressPreviewSet); }}>See how you&apos;ll follow the job</a>}
               </div>
             )}
           </div>

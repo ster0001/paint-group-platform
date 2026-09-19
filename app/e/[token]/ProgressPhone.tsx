@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ProgressPreview } from "@/lib/progress-preview/build";
+import { trackProgressPreview } from "@/lib/progress-preview/track";
 import "@/app/account/account.css";
 import "../progress-phone.css";
 
@@ -32,7 +33,8 @@ function readReducedMotion() { return window.matchMedia(REDUCED_MOTION).matches;
 const STEP_APP = 3;
 const HOLD_BEFORE_LOOP_MS = 6500;
 
-export default function ProgressPhone({ preview, feed }: { preview: ProgressPreview; feed: ReactNode }) {
+/** `token` = the real customer page (tracked); null = a preview, never tracked. */
+export default function ProgressPhone({ preview, feed, token = null }: { preview: ProgressPreview; feed: ReactNode; token?: string | null }) {
   const n = preview.updates.length;
   const FINAL = STEP_APP + n + 1;
   const reduced = useSyncExternalStore(subscribeReducedMotion, readReducedMotion, () => false);
@@ -99,7 +101,13 @@ export default function ProgressPhone({ preview, feed }: { preview: ProgressPrev
     app.scrollTo({ top: Math.max(0, y), behavior: reduced || document.hidden ? "auto" : "smooth" });
   }, [shown, reduced]);
 
-  const replay = () => { if (!reduced) start(); };
+  const replay = () => { if (reduced) return; trackProgressPreview(token, "replayed", preview.set); start(); };
+
+  // §8: started when the first text lands, completed when the last one does — once each per load.
+  useEffect(() => {
+    if (step === 1) trackProgressPreview(token, "started", preview.set);
+    if (step >= FINAL && !reduced) trackProgressPreview(token, "completed", preview.set);
+  }, [step, FINAL, reduced, token, preview.set]);
 
   const current = shown > 0 ? preview.updates[shown - 1] : null;
   const done = step >= FINAL;

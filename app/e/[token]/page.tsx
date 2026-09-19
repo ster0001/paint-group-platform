@@ -56,9 +56,11 @@ export default async function Page({
   // Tom's F9: staff-sent estimates only — a wizard self-built one never shows it.
   const hasPresentation = (snap.presentation?.blocks?.length ?? 0) > 0;
   let progressPreview: React.ReactNode = null;
+  let progressSet: "residential" | "commercial" | null = null;
   if (hasPresentation) {
     const ctx = await loadProgressContext(token);
-    if (ctx.eligible) progressPreview = <ProgressSection snapshot={row.snapshot} set={ctx.set} demoPainter={ctx.demoPainter} organisationName={ctx.organisationName} references={ctx.references} />;
+    if (ctx.eligible) progressSet = ctx.set;
+    if (ctx.eligible) progressPreview = <ProgressSection token={token} snapshot={row.snapshot} set={ctx.set} demoPainter={ctx.demoPainter} organisationName={ctx.organisationName} references={ctx.references} />;
   }
 
   return (
@@ -75,6 +77,7 @@ export default async function Page({
       fromPortal={portal === "1"}
       referencesLine={referencesLine}
       progressPreview={progressPreview}
+      progressPreviewSet={progressSet}
     />
   );
 }

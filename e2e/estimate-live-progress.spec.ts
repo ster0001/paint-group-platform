@@ -155,6 +155,16 @@ test.describe("the live-progress phone on the estimate", () => {
     await expect(page.getByTestId("pp-lock")).not.toHaveClass(/gone/);
     await expect(page.getByTestId("pp-lock")).toHaveClass(/gone/, { timeout: 15_000 });
 
+    // §8 tracking: started, completed and replayed landed on the estimate's events (and the CRM log) — once each.
+    await page.getByTestId("see-how-you-follow").click();
+    await expect.poll(async () => {
+      const { data } = await db!.from("estimate_events").select("type").eq("estimate_id", withPres.id).like("type", "progress_preview_%");
+      return ((data ?? []) as Array<{ type: string }>).map((r) => r.type).sort();
+    }, { timeout: 15_000 }).toEqual(["progress_preview_completed", "progress_preview_cta_clicked", "progress_preview_replayed", "progress_preview_started"]);
+    const { data: crm } = await db!.from("crm_events").select("payload").eq("estimate_id", withPres.id).eq("type", "estimate_progress_preview");
+    expect(((crm ?? []) as Array<{ payload: { event: string; set: string } }>).map((r) => r.payload.event).sort()).toEqual(["completed", "cta_clicked", "replayed", "started"]);
+    expect(((crm ?? []) as Array<{ payload: { set: string } }>).every((r) => r.payload.set === "residential")).toBe(true);
+
     // Acceptance works exactly as before (16).
     await page.getByRole("button", { name: "Accept this estimate" }).click();
     await page.getByPlaceholder("Your full name").fill("Casey Livesey");

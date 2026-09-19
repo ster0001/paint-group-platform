@@ -11,12 +11,14 @@ import ProgressPhone from "./ProgressPhone";
  * the client phone the rendered feed. page.tsx decides whether this renders
  * at all (presentation attached); this file never reads the database.
  */
-export default function ProgressSection({ snapshot, set, demoPainter, organisationName, references }: {
+export default function ProgressSection({ snapshot, set, demoPainter, organisationName, references, token = null }: {
   snapshot: CustomerSnapshot;
   set: MessagingSet;
   demoPainter: DemoPainter;
   organisationName: string | null;
   references: ReadonlyArray<{ label: string; value: string }> | null;
+  /** The share token when this is the real customer page — tracking rides on it. */
+  token?: string | null;
 }) {
   const preview = buildProgressPreview(
     {
@@ -34,6 +36,7 @@ export default function ProgressSection({ snapshot, set, demoPainter, organisati
   const sample = sampleTimeline(preview);
   return (
     <ProgressPhone
+      token={token}
       preview={preview}
       feed={<JobTimeline project={SAMPLE_PROJECT} companyPhone="" sample={sample} />}
     />
