@@ -35,6 +35,7 @@
  *   credential is a failed run, not a quiet pass.
  */
 
+import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { RUN_LOCK_BUSY_MESSAGE, acquireRunLock } from "./run-lock";
 import { writeFileSync } from "node:fs";
@@ -45,6 +46,14 @@ export const PRODUCTION_REF_VAR = "PRODUCTION_SUPABASE_REF";
 
 /** Where this run's start marker is written, for global-teardown.ts. */
 export const RUN_MARKER_FILE = join(tmpdir(), "pg-e2e-run-marker.json");
+
+/**
+ * This run, named once. The marker file above is shared by every checkout and
+ * worktree on the machine and survives the run that wrote it, so "the marker
+ * exists" says nothing about whose rows it describes — the teardown compares
+ * this id before deleting anything (lib/testing/teardown-window.ts).
+ */
+export const RUN_ID = randomUUID();
 
 /**
  * WHAT IS PRODUCTION? — named once, by the environment, and never guessed.
@@ -329,8 +338,13 @@ export default async function globalSetup(): Promise<void> {
     if (r.status !== 0) throw new Error(`The hygiene tripwire could not count the test project (exit ${r.status}). Is E2E_DATABASE_URL / C1_DATABASE_URL set?`);
     const last = (r.stdout ?? "").trim().split("\n").pop() ?? "";
     const parsed = JSON.parse(last) as { now: string; anonymous: number; e2eLogins: number };
+    // The run id is stamped with the window, in BOTH places, because the
+    // marker file is machine-wide and outlives the run that wrote it. The
+    // teardown will not delete by a window it cannot show this run recorded —
+    // see lib/testing/teardown-window.ts for the rows that cost.
     process.env.E2E_RUN_STARTED_AT = parsed.now;
-    writeFileSync(RUN_MARKER_FILE, JSON.stringify({ startedAt: parsed.now, anonymous: parsed.anonymous, e2eLogins: parsed.e2eLogins }));
+    process.env.E2E_RUN_ID = RUN_ID;
+    writeFileSync(RUN_MARKER_FILE, JSON.stringify({ runId: RUN_ID, startedAt: parsed.now, anonymous: parsed.anonymous, e2eLogins: parsed.e2eLogins }));
   }
 
   // ---- A1-06: in CI, a missing credential fails the run -------------------

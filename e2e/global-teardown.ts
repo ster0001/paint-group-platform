@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { RUN_MARKER_FILE } from "./global-setup";
 import { releaseRunLock } from "./run-lock";
+import { resolveTeardownWindow, type RunMarker } from "@/lib/testing/teardown-window";
 
 /**
  * C7c — a run cleans up after itself (brief step 2).
@@ -13,6 +14,10 @@ import { releaseRunLock } from "./run-lock";
  * all time — and the estimate chains, leads and @example.com accounts that
  * hang off them, in the order the foreign keys require.
  *
+ * It deletes ONLY when this process's global-setup recorded the window (the
+ * run id it stamped alongside it). A run that was refused reaches this
+ * function too and must delete nothing: see lib/testing/teardown-window.ts.
+ *
  * It is the same script the scheduled sweep runs (scripts/c1/hygiene.mjs),
  * so there is ONE guard, ONE exclusion list and ONE delete walk. A refusal
  * (exit 3) is thrown, because a teardown that silently did nothing is the
@@ -20,15 +25,24 @@ import { releaseRunLock } from "./run-lock";
  * with what was left, because the suite's own result must stand.
  */
 export default async function globalTeardown(): Promise<void> {
-  let since = process.env.E2E_RUN_STARTED_AT ?? "";
-  if (!since) {
-    try { since = JSON.parse(readFileSync(RUN_MARKER_FILE, "utf8")).startedAt ?? ""; } catch { /* no marker */ }
-  }
-  if (!since) {
-    console.error("e2e teardown: no run marker — global-setup did not record one, so nothing is deleted (a teardown by pattern alone would eventually delete a fixture).");
+  let marker: RunMarker = null;
+  try { marker = JSON.parse(readFileSync(RUN_MARKER_FILE, "utf8")) as RunMarker; } catch { /* no marker, or unreadable */ }
+
+  // WHOSE ROWS ARE THESE? Only this run's, and only when this run can be shown
+  // to have recorded the window. A refused run (busy lock, failed tripwire)
+  // reaches this function too, owning nothing — and once deleted another run's
+  // live users by the marker file a previous run had left behind.
+  const window = resolveTeardownWindow({
+    runId: process.env.E2E_RUN_ID,
+    envSince: process.env.E2E_RUN_STARTED_AT,
+    marker,
+  });
+  if (!window.act) {
+    console.error(`e2e teardown: deleting nothing — ${window.reason}.`);
     await releaseRunLock();
     return;
   }
+  const since = window.since;
   const r = spawnSync(process.execPath, ["scripts/c1/hygiene.mjs", "teardown", "--since", since], {
     encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "inherit"], timeout: 8 * 60_000,
   });
