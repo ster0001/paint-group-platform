@@ -43,6 +43,22 @@
       "sources": []
     },
     {
+      "feature": "dashboard",
+      "role": "staff",
+      "title": "Who sees what on the home dashboard, and the numbers the office types in",
+      "summary": "Dashboard roles are ticked per staff login on Settings → Staff logins (several add up); the Dashboard folder in Settings holds the monthly sales target, marketing spend by channel and the dashboard's thresholds, and only an owner or admin can open it.",
+      "path": "docs/help/dashboard/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/(app)/settings/StaffAccountsManager.tsx",
+        "app/(app)/settings/staffActions.ts",
+        "app/(app)/settings/DashboardSettings.tsx",
+        "lib/reporting/roles.ts"
+      ]
+    },
+    {
       "feature": "estimator",
       "role": "commercial",
       "title": "A price for an office, warehouse, shop or building — online where we can, a quick visit where we can't",
@@ -493,6 +509,8 @@
       ],
       "verified_at_commit": "3a6848a2fd",
       "sources": [
+        "app/portal/jobs/[id]/FinishUp.tsx",
+        "lib/reporting/workedTime.ts",
         "app/portal/jobs",
         "app/components/wo",
         "app/s",
@@ -545,6 +563,7 @@
       ],
       "verified_at_commit": "3a6848a2fd",
       "sources": [
+        "app/pc/wo/[id]/ReviewCard.tsx",
         "app/pc",
         "app/components/wo",
         "lib/workorder"

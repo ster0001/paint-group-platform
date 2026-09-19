@@ -17,7 +17,8 @@ import { contractorVariationsCents, type PayVariation } from "@/lib/workorder/co
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
 import FinishDate from "./FinishDate";
 import ColourMatchCard from "@/app/components/wo/ColourMatchCard";
-import FinishUp from "./FinishUp";
+import FinishUp, { type HoursAsk } from "./FinishUp";
+import { scheduleDays } from "@/lib/reporting/workedTime";
 import WalkthroughStart from "./WalkthroughStart";
 import WalkthroughBar from "./WalkthroughBar";
 import CrewShare from "./CrewShare";
@@ -85,6 +86,25 @@ export default async function PortalJobPage({
       ? booking0
       : null;
   const booking = booking0 && booking0.state !== "offered" ? booking0 : null;
+
+  // Dashboard 0c (Tom, 19 Sep): only a painter the office opted in is asked
+  // for days and hours at the final tick, pre-filled from the booking. The
+  // flag is on their own contractors row (self-read RLS); the day length is
+  // the Settings value through worked_day_hours() (settings are staff-only).
+  const flagRes = await supabase.from("contractors")
+    .select("capture_worked_hours, works_saturday, works_sunday").eq("id", contractor.id).maybeSingle();
+  if (flagRes.error) reportError(flagRes.error, { where: "portal.job.workedHoursFlag", bestEffort: true, extra: { workOrderId: id } });
+  const flagRow = flagRes.data as { capture_worked_hours: boolean | null; works_saturday: boolean | null; works_sunday: boolean | null } | null;
+  let hoursAsk: HoursAsk | null = null;
+  if (flagRow?.capture_worked_hours) {
+    const dayRes = await supabase.rpc("worked_day_hours");
+    if (dayRes.error) reportError(dayRes.error, { where: "portal.job.workedDayHours", bestEffort: true });
+    const dayHours = Number(dayRes.data ?? 8) || 8;
+    const bookedDays = booking?.start_date && booking?.end_date
+      ? scheduleDays(booking.start_date, booking.end_date, { worksSaturday: Boolean(flagRow.works_saturday), worksSunday: Boolean(flagRow.works_sunday) })
+      : null;
+    hoursAsk = { days: bookedDays, hours: bookedDays != null ? bookedDays * dayHours : null };
+  }
 
   const { data: u } = await supabase
     .from("contractor_unavailability")
@@ -478,7 +498,7 @@ export default async function PortalJobPage({
       {((canTick && allSurfacesDone) || canPrep) && (
         <div style={{ padding: "0 16px" }}>
           {prepItems.length > 0 && <PrepChecklist items={prepItems} />}
-          <FinishUp workOrderId={id} flaggedAreas={rectifiedPhase ? flaggedAreas : []} />
+          <FinishUp workOrderId={id} flaggedAreas={rectifiedPhase ? flaggedAreas : []} hoursAsk={hoursAsk} />
         </div>
       )}
 

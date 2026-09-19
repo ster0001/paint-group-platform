@@ -4,7 +4,7 @@ role: pc
 title: Run jobs through the six stages from the PC console
 summary: The project coordinator's console — the attention queue and what its colours mean, the six lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.
 walkthrough: media/pc-walkthrough.gif
-sources: app/pc, app/components/wo, lib/workorder
+sources: app/pc/wo/[id]/ReviewCard.tsx, app/pc, app/components/wo, lib/workorder
 verified_at_commit: 3a6848a2fd
 ---
 
@@ -72,6 +72,11 @@ The Dashboard's second section, **Variations for approval**, lists every open va
 20. Signing closes the job: **06 Closed — final invoice sent**, the **Next step** card reads "This job is finished and signed off", and the header gains **Final invoice (draft)**. The final invoice, warranty and completion report are created in that one step. **Something found after sign-off — reopen** takes the job back to Walkthrough for the customer to sign again; it asks for a reason.
     ![](media/pc-17.png)
     ![](media/pc-18.png)
+
+## Reviews, and what the dashboard counts from a job
+- **Review card** (walkthrough and completed jobs): **We asked for a review** records that the customer was asked — a person's tick until the review-request automation ships. **Review received** with the stars records that it came back (a person's tick until the Google Business Profile connection). One row per job; asking twice never resets the first ask.
+- **Quality check attempts**: every check on a job carries an attempt number — 1 for the first, one more after every fail. "Passed first time" on the dashboard means attempt 1 passed.
+- **Finished on time**: the last surface ticked writes the moment the job was done; the booking's end date, moved by the painter's finish date or a reschedule that lengthens the job, is what it is compared with. A longer booking is logged as an extension on the job's activity.
 
 ## What the colours and labels mean
 - **Amber** — waiting on a decision, usually yours: **WAITING**, **COLOURS TBC**, a queue card with an amber bar, a variation at **RAISED** or **PRICED**.

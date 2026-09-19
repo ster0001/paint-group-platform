@@ -1,8 +1,9 @@
+import { reportError } from "@/lib/monitoring/report";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_COMPANY, type CompanyProfile } from "@/app/quote/company";
 import SettingsForm from "./SettingsForm";
-import SettingsShell, { type SettingsBucketDef } from "./SettingsShell";
+import SettingsShell, { type SettingsBucketDef, type SettingsFolderDef } from "./SettingsShell";
 import BrainManager, { type BrainRow } from "./BrainManager";
 import EditableTable from "./EditableTable";
 import LineItemsManager, { type LineItemRow } from "./LineItemsManager";
@@ -54,6 +55,8 @@ const mergeVisitsSettingsSafe = () => DEFAULT_VISITS_SETTINGS;
 import { CRM_SETTINGS_KEY, mergeThresholds } from "@/lib/crm/thresholds";
 import { WEBSITE_CONTENT_KEY, parseWebsiteContent } from "@/lib/marketing/siteContent";
 import { listShowcaseJobsForStaff } from "@/lib/showcase/staff";
+import DashboardSettings, { type SpendRow, type TargetRow, type ThresholdRow } from "./DashboardSettings";
+import { numericSettingValue, settingNotes, settingUnit } from "@/lib/settings/numeric";
 
 const AUTOMATION_COUNT = AUTOMATIONS.length;
 
@@ -222,6 +225,28 @@ export default async function SettingsPage() {
     loadStaffAvailability(supabase).catch(() => []),
   ]);
 
+  // Dashboard 0d (⚑2): targets and marketing spend are owner/admin only. The
+  // folder is not rendered for anyone else; the tables' RLS refuse them too.
+  const moneyRes = await supabase.rpc("dashboard_sees_money");
+  if (moneyRes.error) reportError(moneyRes.error, { where: "settings.dashboardSeesMoney", bestEffort: true });
+  const seesDashboardMoney = moneyRes.data === true;
+  let dashboardFolder: SettingsFolderDef | null = null;
+  if (seesDashboardMoney) {
+    const [targetsRes, spendRes, thRes] = await Promise.all([
+      supabase.from("sales_targets").select("id, month, target_cents, note").is("category_label", null).is("salesperson_id", null).order("month", { ascending: false }).limit(36),
+      supabase.from("marketing_spend").select("id, month, channel, spend_cents, note").order("month", { ascending: false }).order("channel").limit(200),
+      supabase.from("settings").select("key, value").like("key", "dashboard_%").order("key"),
+    ]);
+    for (const r of [targetsRes, spendRes, thRes]) if (r.error) reportError(r.error, { where: "settings.dashboardFolder", bestEffort: true });
+    const thresholds: ThresholdRow[] = ((thRes.data ?? []) as { key: string; value: unknown }[])
+      .map((r) => ({ key: r.key, value: numericSettingValue(r.value) ?? 0, unit: settingUnit(r.value), notes: settingNotes(r.value) }));
+    dashboardFolder = {
+      id: "dashboard", title: "Dashboard", subtitle: "Monthly sales target, marketing spend by channel, and the home dashboard's thresholds — owner and admin only",
+      count: (targetsRes.data?.length ?? 0) + (spendRes.data?.length ?? 0),
+      content: <DashboardSettings targets={(targetsRes.data ?? []) as TargetRow[]} spend={(spendRes.data ?? []) as SpendRow[]} thresholds={thresholds} />,
+    };
+  }
+
   // ---- the buckets (Tom, 3 Sep 2026) --------------------------------------
   // Six sections, each a list of folders. Titles are what the office and the
   // e2e specs click on — keep them stable; move folders between buckets freely.
@@ -247,8 +272,9 @@ export default async function SettingsPage() {
               <Link href="/settings/showcase" data-testid="open-showcase" className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700">Open showcase jobs →</Link>
             </div>
           ) },
-        { id: "staff-logins", title: "Staff logins", subtitle: "Office logins for your team — the master user creates them and ticks which areas each person sees",
+        { id: "staff-logins", title: "Staff logins", subtitle: "Office logins for your team — the master user creates them, ticks which areas each person sees, and which dashboard roles they hold",
           content: <StaffAccountsManager /> },
+        ...(dashboardFolder ? [dashboardFolder] : []),
         { id: "estimator-visits", title: "Estimator visits", subtitle: "Who takes site visits, their days and hours, and the morning / afternoon windows customers can book online", count: staffAvailability.filter((s) => s.takesVisits).length,
           content: <VisitsSettingsPanel initial={visitsSettings} staff={staffAvailability} /> },
         { id: "trade-accounts", title: "Trade accounts", subtitle: "Create a trade login or grant an existing customer the trade workspace — office-side only, never self-serve",
