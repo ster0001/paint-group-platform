@@ -10,6 +10,7 @@ import { signout } from "@/app/auth/actions";
 // entry is gone, so anything holding a link to it (and the wizard's own use of
 // the extraction pipeline) is untouched.
 const ALL_NAV = [
+  { href: "/home", label: "Home", icon: "⌂", area: "home" },
   { href: "/estimates", label: "Estimates", icon: "📄", area: "estimates" },
   { href: "/proving", label: "Proving", icon: "🎯", area: "proving" },
   // Projects — the job workflow, from scheduling through to sign-off. It lives

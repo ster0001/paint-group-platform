@@ -15,6 +15,8 @@
  */
 
 export const STAFF_AREAS = [
+  // Dashboard v2 (session 1): the home page. Listed first so a login with a hidden area lands here.
+  { key: "home",        label: "Home",        href: "/home",        prefixes: ["/home"] },
   { key: "estimates",   label: "Estimates",   href: "/estimates",   prefixes: ["/estimates", "/quote"] },
   { key: "proving",     label: "Proving",     href: "/proving",     prefixes: ["/proving"] },
   { key: "projects",    label: "Projects",    href: "/pc",          prefixes: ["/pc"] },

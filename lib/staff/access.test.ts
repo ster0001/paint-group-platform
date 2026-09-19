@@ -19,8 +19,10 @@ describe("staff access (Tom, 5 Sep)", () => {
     expect(areaForPath("/account")).toBeNull();
   });
   it("sends a hidden visitor to their first visible area, and drops hidden entries from the rail", () => {
-    const vis = { isOwner: false, access: { estimates: false, proving: false } };
+    const vis = { isOwner: false, access: { home: false, estimates: false, proving: false } };
     expect(firstVisibleHref(vis)).toBe("/pc");
+    // Dashboard v2: Home is the first area, so a login that can see it lands there.
+    expect(firstVisibleHref({ isOwner: false, access: { estimates: false } })).toBe("/home");
     expect(visibleAreas(vis)).not.toContain("estimates");
     expect(visibleAreas(vis)).toContain("settings");
     expect(firstVisibleHref({ isOwner: false, access: Object.fromEntries(visibleAreas({ isOwner: true, access: {} }).map((k) => [k, false])) })).toBe("/account");
