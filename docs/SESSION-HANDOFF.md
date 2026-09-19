@@ -1,3 +1,17 @@
+# 19 Sep 2026 (small hours, 20 Sep) — Home dashboard v2, Session 1: reporting core + /home shell. ONE migration: 20270180 (`metrics_daily`, additive). Branch `feat/home-dashboard-s1-core`.
+
+Built: `lib/reporting/` core (MetricDef/runMetric, Melbourne ranges + previous-period rule, golden seed,
+registry with SWITCHES_ON, CSV, strip from the three existing evaluators, server loaders), the ONE export
+route, the nightly rollup + cron (vercel.json 16:00 UTC), `/home` to the light mockup (chips, strip,
+role-driven sections, tiles → rows + i + Export), `home` area first in STAFF_AREAS + the rail. Three sales
+metrics live as the pattern; every other section shows its honest "switches on" state. NOT done: /home as
+the post-login landing (64 specs pin /estimates — session 6 with a spec sweep); performance gate on the 25k
+seed (measured once in the spec log; the gate is session 6). Gates: vitest 2749/2749 (core on the golden seed, strip, roles, the loop's own offset audit — which caught a written +10:00 in the seed; instants now come from melbourneInstant), tsc + eslint clean. e2e `dashboard-home.spec.ts` (four logins → four homes, finance→sales export 403, tile = CSV rows, chips) is WRITTEN and NOT RUN: the one attempt at 23:21 was refused by the run lock (a CI run on main held it) and Tom's rule is wait once and report, never loop. Run it once on the next go: build, serve on :3103, `E2E_BASE_URL=http://localhost:3103 npx playwright test e2e/dashboard-home.spec.ts`. 20270180 applied on TEST via reapply-one.
+Prod: 20270180 needs Tom's paste; Vercel picks the cron up from vercel.json on deploy (CRON_SECRET exists).
+Next: SESSION 2 — PC Command + Contractors (N tiles from the console evaluator, materials est vs actual,
+contractor metrics with workedTime coverage, booked-work-ahead; e2e as PC: every tile opens the right list
+and the count equals the list length).
+
 # 19 Sep 2026 (late night) — Home dashboard v2, Session 0d: Settings and roles. ONE migration: 20270179 (additive: `staff_role` enum, `profiles.staff_roles`, guard trigger widened, `dashboard_roles()` / `has_dashboard_role()` / `dashboard_sees_money()`, `sales_targets` + `marketing_spend` with owner/admin RLS, four `dashboard_*` numeric settings). Branch `feat/home-dashboard-0d-settings`.
 
 Phase 0 complete with this. Built on the existing master-user model rather than beside it: roles are a
