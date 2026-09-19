@@ -30,7 +30,8 @@ test.describe("dashboard · session 1 · the shell", () => {
   const temps: Temp[] = [];
   let sentEstimateId = "";
 
-  async function makeLogin(role: "pc" | "sales" | "finance", tag = role): Promise<Temp> {
+  // `tag` is a free label (the no-roles case passes "none"); without the annotation it would inherit the role union.
+  async function makeLogin(role: "pc" | "sales" | "finance", tag: string = role): Promise<Temp> {
     const email = `pg.e2e.home.${tag}.${run}@example.com`;
     const made = await db!.auth.admin.createUser({ email, password, email_confirm: true });
     if (made.error) throw new Error(made.error.message);
