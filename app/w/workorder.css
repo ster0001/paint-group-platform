@@ -172,3 +172,40 @@
 .wo .wo-booking.emerald .wo-booking-when,
 .wo .wo-booking.emerald .wo-booking-state { color: var(--emerald); }
 .wo .wo-booking.emerald .wo-booking-state { border-color: color-mix(in srgb, var(--emerald) 45%, var(--line)); }
+
+/* ---- the job sheet inside a LIGHT contractor portal (Tom, 19 Sep) ----------
+   /portal/jobs/[id] embeds this document, so the portal's dark/light switch
+   has to reach it: left alone, a black sheet sat between a light header and a
+   light tab bar — worse than no switch at all.
+
+   Scoped to the portal on purpose. The token link (/w/[token]), the crew
+   share, the staff preview and the quote builder keep the dark sheet they were
+   designed as; the `.wo[data-theme]` half is there for the day one of them
+   gets its own switch. The rest of this file is written in tokens and
+   `color-mix`, so the accents re-derive themselves from these values. */
+.wo[data-theme="light"],
+.pt[data-theme="light"] .wo {
+  /* --ink matches the portal's column, so the sheet joins the page rather
+     than sitting on it as a second card (dark does the same, inverted). */
+  --ink: #F1F4F6;
+  --panel: #FFFFFF;
+  --panel-2: #F1F4F6;
+  --line: #D9E0E6;
+  --text: #12161A;
+  --muted: #5C6771;
+  --cyan: #0E8C9C;
+  --on-cyan: #FFFFFF;
+  --accent: #0E8C9C;
+  --paint: #1A9DAE;
+  --amber: #9A6A12;
+  --emerald: #1F7A4A;
+  --clay: #A3463A;
+}
+/* The two borders written as alphas of the dark accents, before color-mix. */
+.wo[data-theme="light"] .pill.doing,
+.pt[data-theme="light"] .wo .pill.doing { border-color: rgba(14, 140, 156, 0.45); }
+.wo[data-theme="light"] .pill.done,
+.pt[data-theme="light"] .wo .pill.done { border-color: rgba(31, 122, 74, 0.45); }
+/* The colour swatch outlines itself against the sheet, not against black. */
+.wo[data-theme="light"] .mat-colour .swatch,
+.pt[data-theme="light"] .wo .mat-colour .swatch { border-color: rgba(18, 22, 26, 0.2); }

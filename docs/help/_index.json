@@ -199,6 +199,38 @@
       "sources": []
     },
     {
+      "feature": "portal-theme",
+      "role": "contractor",
+      "title": "Switching the portal between dark and light",
+      "summary": "The round button at the top of every portal screen swaps the whole portal between the dark look and a light one — useful in bright sun or on a site where the dark screen is hard to read. Your choice sticks on that phone until you change it back.",
+      "path": "docs/help/portal-theme/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/layout.tsx",
+        "app/portal/portal.css",
+        "app/components/ThemeToggle.tsx",
+        "lib/theme/cookie.ts"
+      ]
+    },
+    {
+      "feature": "portal-theme",
+      "role": "employee",
+      "title": "Switching the painter portal between dark and light",
+      "summary": "The round button at the top of every portal screen swaps the whole portal between the dark look and a light one — useful in bright sun or on a site where the dark screen is hard to read. Your choice sticks on that phone until you change it back.",
+      "path": "docs/help/portal-theme/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/layout.tsx",
+        "app/portal/portal.css",
+        "app/components/ThemeToggle.tsx",
+        "lib/theme/cookie.ts"
+      ]
+    },
+    {
       "feature": "scheduling",
       "role": "contractor",
       "title": "Answer a job offer and manage your booked dates",
