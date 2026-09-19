@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { BankDetails, CustomerSnapshot } from "@/lib/customer/snapshot";
 import { createServiceClient } from "@/lib/supabase/service";
 import CustomerEstimate, { type CustomerChanges, type EstimateRow } from "./CustomerEstimate";
+import ProgressSection from "./ProgressSection";
+import { messagingSetFor } from "@/lib/progress-preview/build";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +50,13 @@ export default async function Page({
   // customer. A failed read prints the quote without the block, never a 500.
   const bank = await loadBankDetails();
 
+  // Live-progress phone (brief v4): decided HERE, server-side — an estimate
+  // with no presentation attached gets no section, no markup, no script.
+  const hasPresentation = (snap.presentation?.blocks?.length ?? 0) > 0;
+  const progressPreview = hasPresentation
+    ? <ProgressSection snapshot={row.snapshot} set={messagingSetFor(null)} demoPainter={null} organisationName={null} references={null} />
+    : null;
+
   return (
     <CustomerEstimate
       snapshot={row.snapshot}
@@ -61,6 +70,7 @@ export default async function Page({
       changes={changes}
       fromPortal={portal === "1"}
       referencesLine={referencesLine}
+      progressPreview={progressPreview}
     />
   );
 }

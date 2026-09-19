@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
 import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColoursChosen, presentationHasSwmsCard, type BankDetails } from "@/lib/customer/snapshot";
@@ -57,7 +57,7 @@ const showCount = (count: number | undefined): boolean => count != null && count
 export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
-  changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null, bank = null,
+  changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null, bank = null, progressPreview = null,
 }: {
   snapshot: CustomerSnapshot;
   token?: string;
@@ -79,6 +79,10 @@ export default function CustomerEstimate({
   referencesLine?: string | null;
   /** Tom, 18 Sep: the company's bank details, printed with the ABN on the PDF. */
   bank?: BankDetails | null;
+  /** Live-progress phone (brief v4, Tom 19 Sep): server-rendered by page.tsx
+   * ONLY when a presentation is attached; sits between the scope of works and
+   * the paint section, ruled placement. Null = nothing renders. */
+  progressPreview?: ReactNode;
 }) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
   // Invoice dress (Tom, 24 Aug close-off): the revision preview is the
@@ -519,6 +523,9 @@ export default function CustomerEstimate({
             ))}
           </section>
         )}
+
+        {/* LIVE PROGRESS PHONE — between scope and paint (ruled, brief v4 §7) */}
+        {!invoiceMode && progressPreview}
 
         {/* THE PAINT WE'RE SUPPLYING */}
         {(snap.paints?.length ?? 0) > 0 && (() => {
