@@ -27,7 +27,13 @@
 import pg from "pg";
 import { productionRef } from "./env.mjs";
 import { checkTarget, DEFAULTS, EXIT, fkAction, parseArgs, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
-import { E2E_RUN_LOCK_KEY, sessionPooledUrl } from "./session-url.mjs";
+import {
+  E2E_RUN_LOCK_KEY,
+  LOCK_HOLDER_QUERY,
+  describeLockHolder,
+  lockHolderName,
+  sessionPooledUrl,
+} from "./session-url.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const cmd = args._[0];
@@ -281,9 +287,15 @@ if (cmd === "sweep") {
   const lockClient = new pg.Client({
     connectionString: sessionPooledUrl(dbUrl),
     ssl: { rejectUnauthorized: false },
-    application_name: "pg-hygiene-sweep-lock",
   });
   await lockClient.connect();
+  // The name goes on with set_config, not in the client options: the pooler
+  // swallows a startup-packet application_name (every holder read back as
+  // "Supavisor"), and this sweep is exactly the holder nobody could identify.
+  await lockClient.query("select set_config('application_name', $1, false)", [
+    lockHolderName("sweep", { ci: Boolean(process.env.CI || process.env.GITHUB_ACTIONS) }),
+  ]);
+
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const takeLock = async () => Boolean((await lockClient.query("select pg_try_advisory_lock($1) as ok", [E2E_RUN_LOCK_KEY])).rows[0]?.ok);
   const dropLock = async () => { await lockClient.query("select pg_advisory_unlock($1)", [E2E_RUN_LOCK_KEY]).catch(() => {}); };
@@ -296,7 +308,14 @@ if (cmd === "sweep") {
     if (await takeLock()) return true;
     if (!announcedWait) {
       announcedWait = true;
-      log(`an e2e run holds the test project — giving way, up to ${Math.round(waitLeftMs / 60_000)} min of waiting in hand…`);
+      // WHO, not a guess: this sweep spent 26 minutes being mistaken for a
+      // phantom e2e run from the other side of the same lock.
+      let holder = "another run";
+      try {
+        const [row] = (await lockClient.query(LOCK_HOLDER_QUERY, [E2E_RUN_LOCK_KEY])).rows;
+        if (row) holder = describeLockHolder(row.application_name, row.held_for);
+      } catch { /* a vaguer line is fine; giving way is not a failure */ }
+      log(`the test project is held by ${holder} — giving way, up to ${Math.round(waitLeftMs / 60_000)} min of waiting in hand…`);
     }
     // Poll FAST. The gap the sweep is looking for is the one between a run's
     // teardown and the next run's global-setup, which on a busy afternoon is
@@ -311,6 +330,7 @@ if (cmd === "sweep") {
     }
     return false;
   }
+
 
   const before = await counts();
   let deleted = 0, gaveWay = false, exhausted = false, emptied = false;
