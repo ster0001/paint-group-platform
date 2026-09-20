@@ -112,7 +112,20 @@ jobs:
     # it. `gate` (typecheck · lint · unit) is untouched and still runs on every
     # push: it needs no secrets and no database, so it costs the test project
     # nothing.
-    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    #
+    # AND NOT TWICE FOR ONE PULL REQUEST (20 Sep 2026). A PR's own e2e run
+    # already proved the exact code that lands on main when it is merged with
+    # a merge commit — so the push to main that follows was a second 40-minute
+    # run of the same suite on the same tree, holding the one lock while the
+    # next PR's run queued behind it. Tom counted eight runs for one merge on
+    # 20 Sep. A merge commit from the GitHub button always starts
+    # "Merge pull request #", so main skips e2e for exactly those pushes and
+    # still runs it for a direct push or merge to main, which has no other
+    # gate. A PR merged by SQUASH has no such message and DOES run again —
+    # that is deliberate: a squash tree is not the tree the PR tested.
+    if: >-
+      github.event_name != 'push'
+      || (github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'Merge pull request #'))
     # ONE e2e RUN AT A TIME, ACROSS THE WHOLE REPOSITORY (11 Sep 2026).
     #
     # The workflow-level group above is keyed on `github.ref`, so it only ever
