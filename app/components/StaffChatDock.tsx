@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { useLiveConversation } from "@/app/estimate/assist/useLiveConversation";
+import { staffEstimateThreadAction, type EstimateChatMessage } from "./estimateChatActions";
+import { replyToEstimateChatAction } from "@/app/quote/actions";
 import "./staffdock.css";
 
 /**
@@ -18,6 +20,7 @@ import "./staffdock.css";
  * through the same /api/agent/handoff route the full chat page uses.
  */
 type Row = {
+  kind?: "agent" | "estimate";
   conversationId: string; handoffId: string; status: string; reason: string; requestedAt: string;
   claimedBy: string | null; mine: boolean;
   who: string; phone: string | null; accountId: string | null; estimateId: string | null;
@@ -117,7 +120,9 @@ export default function StaffChatDock() {
   const toggleOpen = (v: boolean) => { setOpen(v); try { window.localStorage.setItem(OPEN_KEY, v ? "1" : "0"); } catch { /* fine */ } };
   const toggleSound = () => { const v = !sound; setSound(v); try { window.localStorage.setItem(SOUND_KEY, v ? "on" : "off"); } catch { /* fine */ } };
 
-  if (rows.length === 0 && !open) return null;
+  // Tom, 20 Sep: "always keep the live chat box visible in the bottom
+  // corner, regardless of which page you are on" — the pill stays put with
+  // nothing open too, so it is always where they left it.
   const current = selected ? rows.find((r) => r.conversationId === selected) ?? null : null;
   const waitingCount = rows.filter((r) => r.status === "requested").length;
 
@@ -126,7 +131,9 @@ export default function StaffChatDock() {
       {open ? (
         <div className="dk-panel" role="dialog" aria-label="Customer chats">
           {current ? (
-            <DockThread row={current} onBack={() => setSelected(null)} onMinimise={() => toggleOpen(false)} onActivity={refresh} />
+            current.kind === "estimate"
+              ? <EstimateDockThread row={current} onBack={() => setSelected(null)} onMinimise={() => toggleOpen(false)} onActivity={refresh} />
+              : <DockThread row={current} onBack={() => setSelected(null)} onMinimise={() => toggleOpen(false)} onActivity={refresh} />
           ) : (
             <>
               <div className="dk-head">
@@ -144,7 +151,7 @@ export default function StaffChatDock() {
                       <span className={`dk-state ${r.status === "requested" ? "wait" : "live"}`}>{r.status === "requested" ? "Waiting" : r.mine ? "You" : "Live"}</span>
                       <span className="dk-when">{ago(r.lastAt)}</span>
                     </span>
-                    <span className="dk-last">{r.lastRole === "user" ? "" : r.lastRole === "staff" ? "You: " : "Assistant: "}{r.lastText || "…"}</span>
+                    <span className="dk-last">{r.kind === "estimate" ? "Estimate chat · " : ""}{r.lastRole === "user" ? "" : r.lastRole === "staff" ? "You: " : "Assistant: "}{r.lastText || "…"}</span>
                   </button>
                 ))}
               </div>
@@ -154,8 +161,8 @@ export default function StaffChatDock() {
       ) : (
         <button type="button" className="dk-pill" onClick={() => toggleOpen(true)} aria-label="Open customer chats" data-testid="dock-pill">
           <span aria-hidden="true">💬</span>
-          <span>{waitingCount ? `${waitingCount} waiting` : `${rows.length} chat${rows.length === 1 ? "" : "s"}`}</span>
-          {unseen.size > 0 ? <span className="dk-badge" data-testid="dock-badge">{unseen.size}</span> : <span className="dk-badge quiet">{rows.length}</span>}
+          <span>{waitingCount ? `${waitingCount} waiting` : rows.length ? `${rows.length} chat${rows.length === 1 ? "" : "s"}` : "Live chat"}</span>
+          {unseen.size > 0 ? <span className="dk-badge" data-testid="dock-badge">{unseen.size}</span> : rows.length > 0 ? <span className="dk-badge quiet">{rows.length}</span> : null}
         </button>
       )}
     </div>
@@ -215,6 +222,78 @@ function DockThread({ row, onBack, onMinimise, onActivity }: { row: Row; onBack:
       <form className="dk-input" onSubmit={async (e) => { e.preventDefault(); if (!text.trim()) return; const j = await post({ action: "reply", text }); if (j?.message) setText(""); }}>
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply to the customer…" aria-label="Reply" disabled={busy || status === "closed"} data-testid="dock-input" />
         <button type="submit" disabled={busy || !text.trim() || status === "closed"} data-testid="dock-send">Send</button>
+      </form>
+    </>
+  );
+}
+
+/**
+ * Tom, 20 Sep: the estimate chat, in the dock. Same thread the customer sees
+ * on their estimate and in the portal's Messages tab; a reply here goes
+ * through the builder's reply action, so the customer gets the same text
+ * and email they would from the estimate page.
+ */
+function EstimateDockThread({ row, onBack, onMinimise, onActivity }: { row: Row; onBack: () => void; onMinimise: () => void; onActivity: () => void }) {
+  const estimateId = row.estimateId ?? row.conversationId.replace(/^est:/, "");
+  const [messages, setMessages] = useState<EstimateChatMessage[]>([]);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const endRef = useRef<HTMLDivElement | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await staffEstimateThreadAction({ estimateId });
+      if (r) setMessages(r.messages);
+    } catch { /* the next poll retries */ }
+  }, [estimateId]);
+  useEffect(() => {
+    const first = setTimeout(() => { void load(); }, 0);
+    const t = setInterval(() => { void load(); }, 6_500);
+    return () => { clearTimeout(first); clearInterval(t); };
+  }, [load]);
+  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [messages.length]);
+
+  async function send() {
+    const body = text.trim();
+    if (!body) return;
+    setBusy(true); setError(null);
+    try {
+      const r = await replyToEstimateChatAction({ estimateId, body });
+      if (!r.ok) { setError(r.message); return; }
+      setText("");
+      await load();
+      onActivity();
+    } catch { setError("That didn't go through — check the connection."); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <>
+      <div className="dk-head">
+        <button type="button" className="dk-back" onClick={onBack} aria-label="Back to the list">‹</button>
+        <b>{row.who}</b>
+        <span className="dk-sub">{row.status === "requested" ? "Waiting for a reply" : "Estimate chat"}</span>
+        <button type="button" className="dk-x" onClick={onMinimise} aria-label="Minimise" data-testid="dock-minimise">—</button>
+      </div>
+      <div className="dk-actions">
+        {row.phone && <a className="dk-btn" href={`tel:${row.phone.replace(/\s+/g, "")}`}>Call {row.phone}</a>}
+        {row.accountId && <a className="dk-btn" href={`/crm/customers/${row.accountId}`}>Record</a>}
+        <a className="dk-btn" href={`/quote?id=${estimateId}`}>Open estimate</a>
+      </div>
+      <div className="dk-log" data-testid="dock-log">
+        {messages.map((m) => (
+          <div key={m.id} className={`dk-msg ${m.direction === "staff" ? "me" : "them"}`} data-testid={`dock-msg-${m.direction === "staff" ? "staff" : "user"}`}>
+            {m.direction === "customer" && <span className="dk-role">{row.who.split(" · ")[0]}</span>}
+            <span>{m.body}</span>
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+      {error && <p className="dk-err" role="alert">{error}</p>}
+      <form className="dk-input" onSubmit={(e) => { e.preventDefault(); void send(); }}>
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply to the customer…" aria-label="Reply" disabled={busy} data-testid="dock-input" />
+        <button type="submit" disabled={busy || !text.trim()} data-testid="dock-send">Send</button>
       </form>
     </>
   );

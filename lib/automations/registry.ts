@@ -88,6 +88,7 @@ const P = {
   preStart: ["{{first_name}}", "{{company_name}}", "{{start_date}}", "{{address}}", "{{estimate_title}}"],
   appt: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{start_date}}", "{{painter_name}}", "{{walkthrough_line}}"],
   offer: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{link}}"],
+  offerReminder: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{start_date}}", "{{expiry_time}}", "{{link}}"],
   assignment: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{start_date}}", "{{dates}}", "{{link}}"],
   variation: ["{{company_name}}", "{{wo_ref}}", "{{action}}", "{{link}}"],
   leadChanged: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{link}}"],
@@ -245,6 +246,20 @@ export const AUTOMATIONS: Automation[] = [
     ],
     note: "Text needs a mobile on the painter's profile.",
   },
+  {
+    key: "contractor_offer_reminder", name: "Job offer still waiting — reminder", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "offer_reminder", quietExempt: true, capExempt: true,
+    trigger: "A job offer has had no answer: a text 12 h after it went out, again at 20 h, each saying when the offer expires. An answered, withdrawn or expired offer cancels what is left.",
+    templates: [
+      { field: "offerReminderSms", label: "Text message", kind: "sms", placeholders: P.offerReminder },
+    ],
+    timing: [
+      { id: "first", label: "First reminder", unit: "hours", default: 12, min: 1, max: 23 },
+      { id: "second", label: "Second reminder", unit: "hours", default: 20, min: 1, max: 23 },
+    ],
+    guard: "Each rung once per offer; stops the moment the offer is answered or lapses.",
+    note: "Has its own night window instead of the office sending hours: nothing goes between 10 pm and 4:59 am Melbourne — a reminder due then waits for the first sweep after 5 am and is dropped if the offer was answered meanwhile.",
+  },
   // Employed painters (Session 2). Same "painter" audience: an employee is a
   // painter with an assignment instead of an offer.
   {
@@ -350,6 +365,16 @@ export const AUTOMATIONS: Automation[] = [
       { field: "officeJobAcceptedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{start_date}}", "{{proposed_line}}", "{{note_line}}", "{{link}}"] },
     ],
     guard: "Once per offer.",
+  },
+  {
+    key: "office_estimate_chat", name: "Customer wrote on the estimate chat", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "A customer sends a message from the chat on their estimate (Ask a question / Chat with us / Message us). Who is told, and how, is each person's routing under Settings → Staff logins; with nobody routed, the office address is emailed. Out of hours the subject carries an (after hours) tag.",
+    templates: [
+      { field: "officeEstimateChatSubject", label: "Email subject", kind: "subject", placeholders: ["{{customer}}", "{{job}}", "{{message}}", "{{hours_tag}}", "{{hours_line}}", "{{link}}"] },
+      { field: "officeEstimateChatBody", label: "Message", kind: "body", placeholders: ["{{customer}}", "{{job}}", "{{message}}", "{{hours_tag}}", "{{hours_line}}", "{{link}}"] },
+    ],
+    guard: "Once per chat message.",
   },
   {
     key: "office_job_declined", name: "Job declined by the painter", audience: "office", channels: ["email", "sms"], kind: "automatic",

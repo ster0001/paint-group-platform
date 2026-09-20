@@ -60,6 +60,9 @@ export type MessagingSettings = {
   officeJobAcceptedBody: string;
   officeJobDeclinedSubject: string;
   officeJobDeclinedBody: string;
+  /** Tom, 20 Sep: a customer writes on their estimate's chat. */
+  officeEstimateChatSubject: string;
+  officeEstimateChatBody: string;
   officeInvoicePaidSubject: string;
   officeInvoicePaidBody: string;
   officeVariationRaisedSubject: string;
@@ -95,6 +98,8 @@ export type MessagingSettings = {
   offerSms: string;
   offerEmailSubject: string;
   offerEmailIntro: string;
+  /** Painter (Session 4): the offer is still waiting — 12 h and 20 h after it went out. */
+  offerReminderSms: string;
   /** Employee (employed-painters S2): a job is assigned — open it and tap Accept. */
   assignmentSms: string;
   assignmentEmailSubject: string;
@@ -188,6 +193,8 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeJobAcceptedBody: "{{painter}} has accepted {{wo_ref}} ({{job}}) starting {{start_date}}.{{proposed_line}}{{note_line}}",
   officeJobDeclinedSubject: "Job declined — {{painter}} · {{job}}",
   officeJobDeclinedBody: "{{painter}} has declined {{wo_ref}} ({{job}}) for {{start_date}}.{{reason_line}}\n\nThe job is back with the office to re-offer.",
+  officeEstimateChatSubject: "Chat from {{customer}} — {{job}}{{hours_tag}}",
+  officeEstimateChatBody: "{{customer}} wrote on the chat for {{job}}:\n\n“{{message}}”\n\nReply from the chat pop-up on any staff page, or open the estimate.{{hours_line}}",
   officeInvoicePaidSubject: "Invoice paid — {{amount}} · {{job}}",
   officeInvoicePaidBody: "{{who}} has paid {{amount}} on invoice {{invoice_number}} for {{job}} ({{method}}).",
   officeVariationRaisedSubject: "Variation raised — {{job}}",
@@ -256,6 +263,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Hi {{first_name}},\n\n" +
     "{{company_name}} has offered you a job ({{wo_ref}}). The offer holds for 24 hours — " +
     "sign in to your portal to see the dates, the price and the job sheet, and give your answer.",
+  offerReminderSms: "Job offer at {{suburb}} ({{start_date}}) is still waiting and expires at {{expiry_time}}. Accept or decline: {{link}}",
   assignmentSms:
     "{{company_name}}: you're on {{wo_ref}} from {{start_date}} ({{address}}). Open your work order and tap Accept: {{link}}",
   assignmentEmailSubject: "You're on a job — {{wo_ref}}, from {{start_date}}",

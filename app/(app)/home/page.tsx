@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { PRESET_LABEL, RANGE_PRESETS, rangeLabel, resolveRange, runMetric, type MetricResult, type RangePreset } from "@/lib/reporting/core";
+import { melbourneDay, parsePreset, rangeLabel, rangeShortLabel, resolveRange, runMetric, type MetricResult, type RangePreset } from "@/lib/reporting/core";
+import { RANGE_COOKIE, parseRangeCookie } from "@/lib/reporting/rangeCookie";
+import RangePicker from "./RangePicker";
 import { loadDashboard, loadRoles } from "@/lib/reporting/load";
 import { METRICS, SECTION_TITLE, SWITCHES_ON, metricsForSection } from "@/lib/reporting/registry";
 import { ROLE_LABEL, sectionsFor, seesMoney, type DashboardSection } from "@/lib/reporting/roles";
@@ -41,9 +44,13 @@ const greeting = (now: Date) => {
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ preset?: string; from?: string; to?: string; who?: string; family?: string; q?: string }> }) {
   const sp = await searchParams;
-  const preset: RangePreset = (RANGE_PRESETS as readonly string[]).includes(sp.preset ?? "") ? (sp.preset as RangePreset) : "this_month";
+  // The period: the URL first, then the remembered choice, then this month.
+  const remembered = parseRangeCookie((await cookies()).get(RANGE_COOKIE)?.value);
+  const fromUrl: RangePreset | null = parsePreset(sp.preset) ?? (sp.from && sp.to ? "custom" : null);
+  const preset: RangePreset = fromUrl ?? remembered?.preset ?? "month";
+  const custom = fromUrl ? { from: sp.from, to: sp.to } : { from: remembered?.from, to: remembered?.to };
   const now = requestNow();
-  const range = resolveRange(preset, now, { from: sp.from, to: sp.to });
+  const range = resolveRange(preset, now, custom);
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -63,7 +70,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   const qs = (extra: Record<string, string | null | undefined>) => {
     const p = new URLSearchParams();
-    p.set("preset", preset); if (sp.from) p.set("from", sp.from); if (sp.to) p.set("to", sp.to);
+    p.set("preset", preset); if (preset === "custom") { p.set("from", range.from); p.set("to", range.to); }
     const whoNow = loaded.input.sales?.who; if (whoNow) p.set("who", whoNow);
     if (sp.family) p.set("family", sp.family); if (sp.q) p.set("q", sp.q);
     for (const [k, v] of Object.entries(extra)) { if (v == null || v === "") p.delete(k); else p.set(k, v); }
@@ -99,14 +106,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   }
 
   // Session 5: a period tile off its comparison by the Settings threshold is a strip card (owner/admin).
-  const monthOf = (r: MetricResult) => r.compareRange ? new Intl.DateTimeFormat("en-AU", { month: "long", timeZone: "UTC" }).format(new Date(`${r.compareRange.from}T00:00:00Z`)) : "last period";
-  const extraCards = anomalyCards(periodResults, loaded.input.thresholds?.anomalyPct ?? 25, monthOf);
+  const comparedWith = (r: MetricResult) => (r.compareRange ? rangeShortLabel(r.compareRange) : "last period");
+  const extraCards = anomalyCards(periodResults, loaded.input.thresholds?.anomalyPct ?? 25, comparedWith);
 
   const compareLabel = (() => {
     const first = [...tilesBySection.values()].flat().find((t) => t.compareRange);
     return first?.compareRange ? ` · compared with ${rangeLabel(first.compareRange)}` : "";
   })();
-  const chipHref = (p: RangePreset) => (p === "custom" ? `/home?preset=custom&from=${range.from}&to=${range.to}` : `/home?preset=${p}`);
 
   return (
     <div className="home wrap" data-testid="home" data-roles={roles.join(" ")} data-timings={JSON.stringify(loaded.timings ?? {})}>
@@ -115,19 +121,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           {greeting(now)}, <span data-testid="home-name">{firstName}</span>
           <small data-testid="home-range">{rangeLabel(range)}{compareLabel}</small>
         </h1>
-        <div className="periods" role="group" aria-label="Period">
-          {RANGE_PRESETS.map((p) => (
-            <Link key={p} href={chipHref(p)} className="chip" aria-pressed={p === preset} data-testid={`range-${p}`}>{PRESET_LABEL[p]}</Link>
-          ))}
-        </div>
-        {preset === "custom" && (
-          <form className="custom" action="/home" method="get" data-testid="range-custom-form">
-            <input type="hidden" name="preset" value="custom" />
-            <label>From <input type="date" name="from" defaultValue={range.from} /></label>
-            <label>To <input type="date" name="to" defaultValue={range.to} /></label>
-            <button type="submit" className="chip">Apply</button>
-          </form>
-        )}
+        <RangePicker preset={preset} from={range.from} to={range.to} today={melbourneDay(now)} />
       </header>
 
       {roles.length === 0 && (

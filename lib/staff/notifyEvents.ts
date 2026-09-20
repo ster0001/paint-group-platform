@@ -21,6 +21,8 @@ export const STAFF_EVENTS = [
   { key: "office_contractor_invoice",  label: "Contractor invoice in",    short: "Painter invoice" },
   /** Session 3 (16 Sep 2026): walkthrough done, pack sent, no signature after N hours. */
   { key: "office_signoff_overdue",     label: "Sign-off overdue",         short: "Sign-off" },
+  /** Tom, 20 Sep 2026: a customer wrote on their estimate's chat. */
+  { key: "office_estimate_chat",       label: "Customer chat message",    short: "Chat" },
 ] as const;
 
 export type StaffEventKey = (typeof STAFF_EVENTS)[number]["key"];

@@ -106,7 +106,7 @@ test.describe("dashboard · session 3 · sales, funnel, activity", () => {
     expect(Number(await page.getByTestId("funnel-count-started").textContent())).toBeGreaterThanOrEqual(1);
     expect(Number(await page.getByTestId("funnel-count-sent").textContent())).toBeGreaterThanOrEqual(1);
     // The export carries the Mine / Team scope.
-    const mine = await page.request.get("/api/reporting/export?metric=sales.conversion&preset=this_month&who=mine");
+    const mine = await page.request.get("/api/reporting/export?metric=sales.conversion&preset=month&who=mine");
     expect(mine.status()).toBe(200);
     expect(await mine.text()).toContain(`Mine ${run}`);
     expect(await mine.text()).not.toContain(`Theirs ${run}`);
@@ -131,7 +131,7 @@ test.describe("dashboard · session 3 · sales, funnel, activity", () => {
     // Search narrows; the export is the filtered rows.
     await page.goto(`/home?family=estimates&q=${encodeURIComponent(customer)}`);
     await expect(page.getByTestId("activity-feed").locator("[data-testid=activity-row]").first()).toContainText(customer);
-    const csv = await page.request.get(`/api/reporting/export?metric=activity.events&preset=this_month&family=estimates&q=${encodeURIComponent(customer)}`);
+    const csv = await page.request.get(`/api/reporting/export?metric=activity.events&preset=month&family=estimates&q=${encodeURIComponent(customer)}`);
     expect(csv.status()).toBe(200);
     const text = (await csv.text()).replace(/^\uFEFF/, "");
     expect(text).toContain(customer);

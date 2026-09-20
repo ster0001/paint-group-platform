@@ -221,7 +221,7 @@ test.describe("Airtable → CRM import", () => {
     expect(state.woDoc.areas.flatMap((a) => a.surfaces).reduce((n, s) => n + s.hours, 0)).toBe(17.5);
 
     const { data: wo } = await sb.from("work_orders").select("id, wo_ref, status, stage, contractor_id, start_date, contractor_payment_cents, access_notes").eq("estimate_id", bookedEstimateId).single();
-    expect(wo).toMatchObject({ wo_ref: "PS-9623", status: "issued", stage: "pre_start", contractor_id: null, start_date: null, contractor_payment_cents: 96000, access_notes: "" });
+    expect(wo).toMatchObject({ wo_ref: "PS-9623", status: "issued", stage: "offered", contractor_id: null, start_date: null, contractor_payment_cents: 96000, access_notes: "" });
     bookedWoId = wo!.id as string;
     const { data: notes } = await sb.from("wo_booking_notes").select("note").eq("work_order_id", bookedWoId);
     expect(notes).toEqual([{ note: "Airtable: booked 29–30 Sep 2026, no painter assigned." }]);

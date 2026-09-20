@@ -59,11 +59,28 @@ Both are idempotent: a second run reports `inserted 0 updated 0` for every table
 
 Three readings of the pack, checked against all 35 jobs: PaintScout's line hours already include preparation (`hours_prep` is a breakdown, so `prepHr` stays 0 and the split is written into the area description); an area with hours but no lines (Interior Preparation, Cleaning) is crew work and becomes an area with one custom surface, so the job sheet and the tray carry the hours; a heading with neither price nor hours is a hidden line so the block count matches the pack.
 
-The write is one RPC, `import_booked_job` — the estimate accepted by hand under the import switch, the office-notified marker and the welcome claim written first so no sweep ever sends a word, the one `estimate_accepted` event with the historical date, and the work order issued at `pre_start` with no contractor and no date (the Unscheduled tray). The Airtable plan ("booked 16–20 Nov 2026 with Jacob — painter accepted. Send the offer.") is a booking note on the tray card, not `access_notes`, because access notes print on the contractor's job sheet. No offers, no invoices, no messages.
+The write is one RPC, `import_booked_job` — the estimate accepted by hand under the import switch, the office-notified marker and the welcome claim written first so no sweep ever sends a word, the one `estimate_accepted` event with the historical date, and the work order issued at `offered` with no contractor and no date — the needs-booking lane the tray, the console's "Accepted, still not booked in" card and the dashboard's Jobs-to-schedule tile all read (until 20 Sep 2026 it was `pre_start`, which none of them look at; see "Releasing imported jobs to the tray"). The Airtable plan ("booked 16–20 Nov 2026 with Jacob — painter accepted. Send the offer.") is a booking note on the tray card, not `access_notes`, because access notes print on the contractor's job sheet. No offers, no invoices, no messages.
 
 ## Part C — the handover door
 
 `POST /api/inbound/airtable-jobs` (`Authorization: Bearer AIRTABLE_SYNC_SECRET`) takes the Zap's record plus the PaintScout quote and writes it through the same path. The quote has area prices and the job's total hours but no per-line hours, so the job arrives with `external_ref.hours_pending = true` and an "hours to confirm" item on Today; the office types the per-area hours from the PaintScout work order (Tom's C-1 ruling). A second post for the same record refreshes the tray note only. The Zap setup is in brief §C2.
+
+## Releasing imported jobs to the tray (Tom, 20 Sep 2026)
+
+An imported job has NOT been booked — no contractor, no date, no offer — so it belongs at stage `offered`, the needs-booking lane the tray, the console's "Accepted, still not booked in" card and the dashboard's Jobs-to-schedule tile all read. Migration `20270185000000_import_booked_lands_in_offered.sql` makes `import_booked_job` write new arrivals (the loader and the Zap door alike) at `offered`; the rows already in were written at `pre_start` and are moved by the same migration's `import_release_to_tray(p_work_order_id)` — service role only — which takes them `pre_start → offered` through `wo_set_stage` (a legal transition, the event written, status re-derived) and leaves alone anything already at another stage or booked by hand since the import (a contractor, a start date, or a live offer). One line per job, then a tally; a second run answers `skip:offered` for every row.
+
+```sh
+# test project
+set -a; source .env.test.local; set +a
+npx tsx scripts/import/release-to-tray.ts check      # lists every imported work order and what run would do
+npx tsx scripts/import/release-to-tray.ts run        # calls import_release_to_tray per row, tallies ok/skip/error
+
+# production (Tom): after the migration's _prod_migrations row is in
+IMPORT_ALLOW_PRODUCTION=1 npx tsx scripts/import/release-to-tray.ts check
+IMPORT_ALLOW_PRODUCTION=1 npx tsx scripts/import/release-to-tray.ts run
+```
+
+`--import-name a,b` narrows the key map the script reads (default `paintscout-booked,airtable-handover`); the RPC itself only ever moves rows under those two names.
 
 ## Draft deposits for the imported jobs (Tom, 17 Sep 2026)
 

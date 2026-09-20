@@ -60,6 +60,20 @@ CHECKERS.contractor_invoice_prompt = async (db, hold) => {
   return !s || s === "draft" ? { ok: true } : { ok: false, reason: `Invoice ${s}.` };
 };
 
+// ---- Session 4: painters --------------------------------------------------------
+// A held offer reminder is pointless once the offer was answered, withdrawn or
+// lapsed. The live offer for the job must still be 'offered' and unexpired.
+CHECKERS.contractor_offer_reminder = async (db, hold) => {
+  if (!hold.work_order_id) return { ok: true };
+  const { data, error } = await db.from("booking_offers").select("state, expires_at")
+    .eq("work_order_id", hold.work_order_id).in("state", ["offered", "proposed"]).limit(1).maybeSingle();
+  if (error) throw error;
+  const o = data as { state: string; expires_at: string } | null;
+  if (!o || o.state !== "offered") return { ok: false, reason: "The offer has been answered." };
+  if (new Date(o.expires_at).getTime() <= Date.now()) return { ok: false, reason: "The offer has expired." };
+  return { ok: true };
+};
+
 export async function stillNeeded(db: SupabaseClient, hold: HoldRow): Promise<NeedVerdict> {
   const check = CHECKERS[hold.automation_key];
   if (!check) return { ok: true };

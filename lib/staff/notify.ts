@@ -35,6 +35,8 @@ export type StaffAlert = {
   /** Session 1: editable wording. When set, subject/message above are only the fallback. */
   templates?: { subject: keyof MessagingSettings; body: keyof MessagingSettings };
   vars?: Record<string, string>;
+  /** Tom, 20 Sep: the estimate this alert is about. Recorded on the send, so an email REPLY to it can be routed back into that estimate's chat (app/api/inbound/messages). */
+  estimateId?: string | null;
 };
 
 export type StaffAlertOutcome = "sent" | "off" | "already" | "nobody" | "error";
@@ -103,7 +105,7 @@ export async function notifyStaff(service: SupabaseClient, alert: StaffAlert): P
       logoUrl: company.logoUrlLight || company.logoUrl, buttonLabel: "Open it",
     });
     const smsBody = `${companyName}: ${alert.subject}\n${alert.link}`;
-    const ctx = { kind: "staff_alert" };
+    const ctx = { kind: "staff_alert", estimateId: alert.estimateId ?? null };
 
     const results = await Promise.all(recipients.map(async (r) => {
       let status = "not_configured";

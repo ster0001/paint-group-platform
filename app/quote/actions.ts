@@ -4,9 +4,8 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { sendEstimateInput } from "@/lib/validation/estimate";
-import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
-import { buildChatEmailHtml, buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigured, type DeliveryResult } from "@/lib/messaging/send";
-import { sendAutomation } from "@/lib/automations/dispatch";
+import { DEFAULT_MESSAGING, MESSAGING_KEY, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
+import { buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigured, type DeliveryResult } from "@/lib/messaging/send";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import type { ActionResult } from "@/app/pc/schedule/actions";
 import { z } from "zod";
@@ -14,6 +13,7 @@ import { ensureAccountAndProperty } from "@/lib/accounts/link";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
 import { LEAD_SOURCE_REQUIRED } from "@/lib/estimate/leadSource";
+import { postStaffChatReply } from "@/lib/estimates/chatReply";
 
 const replyInput = z.object({
   estimateId: z.string().uuid(),
@@ -222,70 +222,11 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
   if (profile?.role !== "staff") return { ok: false, kind: "error", message: "You don't have permission to do that." };
 
   const authorName = (profile as { full_name?: string | null }).full_name || null;
-
-  // 1. the message itself — staff write directly through RLS.
-  const { error: insErr } = await supabase.from("estimate_messages").insert({
-    estimate_id: estimateId, direction: "staff", body, author_name: authorName,
-  });
-  if (insErr) return { ok: false, kind: "error", message: `Couldn't post the message: ${insErr.message}` };
-
-  // 2. notify the customer, best-effort.
-  const [{ data: est }, { data: settingsRows }] = await Promise.all([
-    supabase.from("estimates").select("share_token, builder_state").eq("id", estimateId).single(),
-    supabase.from("settings").select("key, value").in("key", ["company_profile", MESSAGING_KEY]),
-  ]);
-  const rows = (settingsRows as { key: string; value: unknown }[] | null) ?? [];
-  const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((rows.find((r) => r.key === "company_profile")?.value as Partial<CompanyProfile>) ?? {}) };
-  const chatMessaging: MessagingSettings = { ...DEFAULT_MESSAGING, ...((rows.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingSettings>) ?? {}) };
-  const contact = ((est?.builder_state as { contact?: Contact } | null)?.contact ?? null);
-  const outcome: DeliveryOutcome = {};
-
-  // Settings → Automations: "Reply on the estimate chat". Off = the reply is
-  // posted (the record) and the customer sees it next time they open the chat.
-  if (est?.share_token && automationOn(chatMessaging, "estimate_chat_reply")) {
-    const link = `${await baseUrl()}/e/${est.share_token}#chat`;
-    const chatVars = { company_name: company.name, link };
-
-    // Through the dispatcher (Session 1): Text / Email / Both and "office
-    // approves first" are the office's settings. A queued reply is reported
-    // back to the sender as such — nothing is silently dropped.
-    const phone = contact?.phone ? normalisePhoneAU(contact.phone) : null;
-    const r = await sendAutomation(supabase, {
-      key: "estimate_chat_reply",
-      to: { email: contact?.email || null, phone },
-      email: {
-        subject: renderTemplate(chatMessaging.chatReplySubject, chatVars),
-        replyTo: company.email || undefined,
-        html: buildChatEmailHtml({
-          message: body, link,
-          companyName: company.name,
-          logoUrl: company.logoUrlLight || company.logoUrl || undefined,
-          estimatorName: company.estimatorName || undefined,
-          companyPhone: company.phone || undefined,
-        }),
-      },
-      sms: { body: renderTemplate(chatMessaging.chatReplySms, chatVars) },
-      ctx: { estimateId, kind: "chat_reply" },
-    });
-    if (r.outcome === "sent") {
-      if (r.results.email && contact?.email) {
-        outcome.email = { status: r.results.email.status, ...("message" in r.results.email ? { message: r.results.email.message } : {}) };
-        await logDelivery(supabase, estimateId, "email", contact.email, r.results.email);
-      }
-      if (r.results.sms && contact?.phone) {
-        outcome.sms = { status: r.results.sms.status, ...("message" in r.results.sms ? { message: r.results.sms.message } : {}) };
-        await logDelivery(supabase, estimateId, "sms", contact.phone, r.results.sms);
-      }
-    } else if (r.outcome === "pending") {
-      outcome.email = { status: "queued", message: "Waiting for approval in Today → Messages to approve." };
-    } else if (r.outcome === "held") {
-      outcome.email = { status: "queued", message: `Held until sending hours open (${new Date(r.releaseAt).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", hour: "numeric", minute: "2-digit" })}).` };
-    } else if (r.outcome === "error") {
-      outcome.email = { status: "error", message: r.message };
-    }
-  }
-
-  return { ok: true, state: "sent", delivery: outcome };
+  // The insert and the customer's text + email live in lib/estimates/chatReply
+  // (Tom, 20 Sep) — the dock and an emailed reply post the same way.
+  const r = await postStaffChatReply(supabase, { estimateId, body, authorName });
+  if (!r.ok) return { ok: false, kind: "error", message: r.message };
+  return { ok: true, state: "sent", delivery: r.delivery };
 }
 
 // ---------------------------------------------------------------------------
@@ -397,3 +338,23 @@ export async function addAcceptedOptionAction(raw: unknown): Promise<AddOptionRe
   };
   return { ok: false, message: wording[reason] ?? `That couldn't be added (${reason}).` };
 }
+
+// ---- leave a job out of the dashboard (20270184, Tom 20 Sep 2026) ----------------------------
+
+const reportingExcludedInput = z.object({ estimateId: z.string().uuid(), excluded: z.boolean(), reason: z.string().max(200).optional() });
+
+/**
+ * A test job, or a duplicate, must not move a number on /home. Staff only;
+ * the RPC checks. The estimate, its job and its invoices stay where they
+ * are — only the dashboard stops counting them.
+ */
+export async function setReportingExcludedAction(raw: unknown): Promise<{ ok: true; excludedAt: string | null } | { ok: false; error: string }> {
+  const v = reportingExcludedInput.safeParse(raw);
+  if (!v.success) return { ok: false, error: "That request did not make sense." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("estimate_set_reporting_excluded", { p_estimate_id: v.data.estimateId, p_excluded: v.data.excluded, p_reason: v.data.reason ?? null });
+  if (error) { reportError(error, { where: "quote.setReportingExcluded" }); return { ok: false, error: "Could not save that — try again." }; }
+  if (data !== "ok") return { ok: false, error: data === "error:not_staff" ? "Staff only." : "That estimate could not be found." };
+  return { ok: true, excludedAt: v.data.excluded ? new Date().toISOString() : null };
+}
+

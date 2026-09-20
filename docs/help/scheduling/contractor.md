@@ -21,6 +21,7 @@ Paint Group offers you jobs through the contractor portal. Each offer comes with
 ### Answering an offer
 1. Open the portal. A new offer shows on **Home** under **Needs your answer**, with the clock already counting down from 24:00:00. The same card is on the **Requests** tab.
    ![](media/contractor-01.png)
+   If you haven't answered, you get a text reminder 12 hours and again 20 hours after the offer, naming the suburb, the start date and the time the offer expires, with a link to your Requests tab. No reminder is sent between 10 pm and 5 am. Answering the offer stops the reminders.
 2. Read the card. You see the suburb only, the finish level chip (for example PG-3 Premium finish), the dates, the calculated labour hours, your price, any note from the office and a scope summary by area. The full street address stays hidden until you accept.
    ![](media/contractor-02.png)
 3. Tap **View full work order** to read the whole job sheet. The clock, **Accept — lock it in** and **Decline** stay pinned to the top while you read. The address card reads **SUBURB ONLY** until you accept.

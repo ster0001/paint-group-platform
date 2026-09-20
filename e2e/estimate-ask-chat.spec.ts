@@ -1,0 +1,186 @@
+import { test, expect } from "@playwright/test";
+import { randomBytes } from "node:crypto";
+import { serviceClient } from "./fixtures/woLoop";
+import { credentials, missingCreds, signIn } from "./helpers";
+
+/**
+ * Tom, 20 Sep 2026:
+ *  1. "The Ask a question button isn't working on the estimate — pop up the
+ *     live chat box." The hero button, the accept panel's Message us and the
+ *     #chat link all open the same thread as a pop-up in the corner, over the
+ *     page; a message sent from it lands on the estimate's thread.
+ *  2. "Always keep the live chat box visible on the platform in the bottom
+ *     corner, regardless of which page you are on." The staff dock's pill is
+ *     there with nothing open, on every staff shell.
+ *  3. (later that day) "Add a 'Chat with us' button in the bar at the bottom;
+ *     all messages the customer sends reach the chat in the software; out
+ *     of hours a note says the office hours and that we'll get back to them;
+ *     email and text the office when someone wants to chat." The bar button
+ *     opens the same pop-up; a message becomes a Waiting row in the staff
+ *     dock, where a reply lands on the customer's thread; the office alert
+ *     (`office_estimate_chat`) claims its once-only guard row; and a Sunday
+ *     send shows the after-hours note.
+ */
+const db = serviceClient();
+const run = randomBytes(3).toString("hex");
+
+const SNAPSHOT = {
+  version: 1,
+  company: { name: "Paint Group Pty Ltd", addressLine1: "1 Example St", addressLine2: "Melbourne VIC", phone: "(03) 9000 0000", abn: "11 222 333 444", email: "hello@example.com", estimatorName: "", estimatorTitle: "", estimatorPhone: "", logoUrl: "" },
+  contactName: "Casey Asker", contactEmail: "", jobTitle: "Interior repaint", jobAddress: "5 Question Street, Fairfield VIC 3078",
+  gstRatePct: 10, depositPct: 10,
+  lineItems: [], options: [], inclusions: [], exclusions: [], terms: "",
+  discountMode: "pct", discountPct: 0, discountFixedCents: 0, baseSubtotalCents: 200000,
+  proof: { rating: "5.0", reviews: "93+", liability: "$20M", warranty: "2-year", accreditations: [] },
+  areas: [{ id: "1", title: "Lounge", descriptionHtml: "", priceCents: 200000, surfaces: [{ label: "Walls", coats: 2, product: "" }], photos: [] }],
+  paints: [],
+};
+
+test.describe("Ask a question opens the chat pop-up; the staff dock never leaves the corner", () => {
+  test.skip(!db, "needs the service key");
+  let estimateId = "";
+  const token = `askchat${run}${randomBytes(8).toString("hex")}`;
+
+  test.beforeAll(async () => {
+    const r = await db!.from("estimates").insert({
+      title: `Ask chat ${run}`, status: "sent", source: "manual", level_of_finish: 3, share_token: token,
+      sent_at: new Date().toISOString(), total_cents: 220000,
+      builder_state: { blocks: [], modSel: { "Level of Finish": "FIN-3" }, materials: {} },
+      sent_snapshot: { ...SNAPSHOT, estRef: `EST-A${run}` },
+    }).select("id").single();
+    if (r.error) throw new Error(r.error.message);
+    estimateId = r.data.id;
+  });
+  test.afterAll(async () => {
+    if (estimateId) {
+      const { data: msgs } = await db!.from("estimate_messages").select("id").eq("estimate_id", estimateId);
+      const ids = ((msgs ?? []) as { id: string }[]).map((m) => m.id);
+      if (ids.length) await db!.from("staff_notifications").delete().eq("event_key", "office_estimate_chat").in("entity_id", ids);
+      await db!.from("estimate_messages").delete().eq("estimate_id", estimateId);
+      await db!.from("estimates").delete().eq("id", estimateId);
+    }
+  });
+
+  test("hero 'Ask a question' pops the chat up over the page; a message lands on the thread; Message us and #chat open the same box", async ({ page }) => {
+    await page.goto(`/e/${token}`);
+    await expect(page.locator("details.room").first()).toBeVisible();
+    await expect(page.getByTestId("chat-pop")).toHaveCount(0);
+
+    await page.getByTestId("ask-a-question").click();
+    const pop = page.getByTestId("chat-pop");
+    await expect(pop).toBeVisible();
+    await expect(pop).toContainText("Chat with us");
+    // Fixed in the corner, not somewhere down the page: it is in view without scrolling.
+    expect(await pop.evaluate((el) => getComputedStyle(el).position)).toBe("fixed");
+    const box = (await pop.boundingBox())!;
+    const vh = await page.evaluate(() => window.innerHeight);
+    expect(box.y + box.height).toBeLessThanOrEqual(vh);
+
+    await pop.getByPlaceholder("Type your message…").fill(`Is the ceiling included? ${run}`);
+    await pop.getByRole("button", { name: "Send message" }).click();
+    await expect(pop.locator(".chatrow.mine .chatbody")).toContainText(`Is the ceiling included? ${run}`);
+    const { data } = await db!.from("estimate_messages").select("id, direction, body").eq("estimate_id", estimateId);
+    expect(data).toMatchObject([{ direction: "customer", body: `Is the ceiling included? ${run}` }]);
+    // The office alert ran for THIS message: its once-only guard row is claimed
+    // (who it reached depends on Staff logins routing — the guard is the proof the path fired).
+    const msgId = (data as { id: string }[])[0].id;
+    await expect.poll(async () => {
+      const g = await db!.from("staff_notifications").select("id").eq("event_key", "office_estimate_chat").eq("entity_id", msgId);
+      return (g.data ?? []).length;
+    }, { timeout: 15_000 }).toBe(1);
+
+    // Close, then the accept panel's button opens the same box.
+    await page.getByTestId("chat-pop-close").click();
+    await expect(page.getByTestId("chat-pop")).toHaveCount(0);
+    await page.locator("#accept").scrollIntoViewIfNeeded();
+    await page.getByRole("button", { name: /Open chat|Message us/ }).click();
+    await expect(page.getByTestId("chat-pop")).toBeVisible();
+    await expect(page.getByTestId("chat-pop").locator(".chatrow.mine")).toHaveCount(1);
+
+    // The #chat deep link (the SMS/email "reply here" link) opens it on load.
+    await page.goto(`/e/${token}#chat`);
+    await expect(page.getByTestId("chat-pop")).toBeVisible();
+  });
+
+  test("'Chat with us' in the bottom bar opens the same pop-up", async ({ page }) => {
+    await page.goto(`/e/${token}`);
+    await expect(page.locator("details.room").first()).toBeVisible();
+    const bar = page.getByTestId("bar-chat");
+    await expect(bar).toBeVisible();
+    expect(await bar.evaluate((el) => el.closest(".stickybar") != null)).toBe(true);
+    await bar.click();
+    await expect(page.getByTestId("chat-pop")).toBeVisible();
+    await expect(page.getByTestId("chat-pop").locator(".chatrow.mine")).toHaveCount(1); // the thread from the first case
+  });
+
+  test("out of hours (a Sunday), a sent message is answered with the office-hours note", async ({ page }) => {
+    // The browser's clock decides the note (the same Mon–Fri 08:30–16:30 Melbourne rule the server tags the alert with).
+    await page.clock.setFixedTime(new Date("2026-09-20T02:00:00Z")); // Sunday 12:00 AEST
+    await page.goto(`/e/${token}`);
+    await expect(page.locator("details.room").first()).toBeVisible();
+    await page.getByTestId("ask-a-question").click();
+    const pop = page.getByTestId("chat-pop");
+    await expect(pop.getByTestId("chat-after-hours")).toHaveCount(0);
+    await pop.getByPlaceholder("Type your message…").fill(`Sunday question ${run}`);
+    await pop.getByRole("button", { name: "Send message" }).click();
+    await expect(pop.locator(".chatrow.mine .chatbody").last()).toContainText(`Sunday question ${run}`);
+    const note = pop.getByTestId("chat-after-hours");
+    await expect(note).toBeVisible();
+    await expect(note).toContainText("we've received your message");
+    await expect(note).toContainText("Monday to Friday, 8:30am to 4:30pm");
+  });
+
+  test("staff: the customer's chat is a Waiting row in the dock; a reply from there lands on the customer's thread", async ({ page, browser }) => {
+    const staff = credentials("STAFF");
+    test.skip(!staff, missingCreds("STAFF"));
+    await signIn(page, staff!, /\/(estimates|crm|quote|home)/);
+    await page.goto("/estimates");
+    const dock = page.getByTestId("staff-dock");
+    await expect(dock).toBeVisible({ timeout: 30_000 });
+    // A customer line this browser has not seen pops the dock open; otherwise open it.
+    if (await page.getByTestId("dock-pill").count()) await page.getByTestId("dock-pill").click();
+    const row = page.getByTestId("dock-row").filter({ hasText: "Casey Asker" }).first();
+    await expect(row).toBeVisible({ timeout: 30_000 });
+    await expect(row).toContainText("Estimate chat");
+    await expect(row).toContainText("Waiting");
+    await row.click();
+    await expect(page.getByTestId("dock-log")).toContainText(`Is the ceiling included? ${run}`);
+    await page.getByTestId("dock-input").fill(`Yes — the ceilings are in. ${run}`);
+    await page.getByTestId("dock-send").click();
+    await expect(page.getByTestId("dock-log").locator("[data-testid=dock-msg-staff]").last()).toContainText(`Yes — the ceilings are in. ${run}`);
+    const { data } = await db!.from("estimate_messages").select("direction, body").eq("estimate_id", estimateId).order("created_at");
+    expect((data as { direction: string; body: string }[]).at(-1)).toMatchObject({ direction: "staff", body: `Yes — the ceilings are in. ${run}` });
+
+    // The customer sees the reply in their pop-up.
+    const anon = await browser.newContext();
+    const cp = await anon.newPage();
+    try {
+      await cp.goto(`/e/${token}#chat`);
+      await expect(cp.getByTestId("chat-pop").locator(".chatrow.theirs .chatbody").last()).toContainText(`Yes — the ceilings are in. ${run}`);
+    } finally { await anon.close(); }
+  });
+
+  test("the old 'ask' form is gone — one chat, one place", async ({ page }) => {
+    await page.goto(`/e/${token}`);
+    await expect(page.locator("details.room").first()).toBeVisible();
+    await page.getByTestId("ask-a-question").click();
+    await expect(page.getByRole("button", { name: "Send question" })).toHaveCount(0);
+    await expect(page.getByPlaceholder(/Anything you'd like to check/)).toHaveCount(0);
+  });
+
+  test("staff: the chat dock pill is in the corner on every staff shell, even with no chat open", async ({ page }) => {
+    const staff = credentials("STAFF");
+    test.skip(!staff, missingCreds("STAFF"));
+    await signIn(page, staff!, /\/(estimates|crm|quote|home)/);
+    for (const path of ["/estimates", "/crm", "/invoicing", "/pc", `/quote?id=${estimateId}`]) {
+      await page.goto(path);
+      const dock = page.getByTestId("staff-dock");
+      await expect(dock, path).toBeVisible({ timeout: 30_000 });
+      const box = (await dock.boundingBox())!;
+      const vh = await page.evaluate(() => window.innerHeight);
+      expect(box.y + box.height, path).toBeLessThanOrEqual(vh + 1);
+      // Minimised or open, it is there: the pill, or the panel.
+      await expect(dock.locator("[data-testid=dock-pill], .dk-panel").first(), path).toBeVisible();
+    }
+  });
+});

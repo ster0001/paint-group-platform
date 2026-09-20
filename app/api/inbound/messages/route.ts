@@ -7,6 +7,7 @@ import { htmlToPlain, recordMessage, replyTokenFrom, resolveAccount } from "@/li
 import { reportError } from "@/lib/monitoring/report";
 import { forwardEmail } from "@/lib/messaging/send";
 import { loadMessaging } from "@/lib/messaging/load";
+import { postStaffChatReply, stripQuotedReply } from "@/lib/estimates/chatReply";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,13 +68,32 @@ export async function POST(req: Request) {
   let accountId: string | null = null;
   let threadId: string | null = null;
   let estimateId: string | null = null;
+  let parentKind: string | null = null;
   if (token) {
-    const { data: parent } = await db.from("messages").select("id, account_id, thread_id, estimate_id").eq("reply_token", token).maybeSingle();
+    const { data: parent } = await db.from("messages").select("id, account_id, thread_id, estimate_id, kind").eq("reply_token", token).maybeSingle();
     if (parent) {
-      const p = parent as { id: string; account_id: string | null; thread_id: string | null; estimate_id: string | null };
+      const p = parent as { id: string; account_id: string | null; thread_id: string | null; estimate_id: string | null; kind: string | null };
       accountId = p.account_id;
       threadId = p.thread_id ?? p.id;
       estimateId = p.estimate_id;
+      parentKind = p.kind;
+    }
+  }
+
+  // Tom, 20 Sep: "if we reply to the email, it automatically replies to
+  // their chat box as well". The office's chat alert is recorded against
+  // the estimate (kind staff_alert + estimate_id); a reply to THAT token from
+  // a staff address is posted on the estimate chat as a staff reply, and the
+  // customer gets the same text + email a reply from the builder sends.
+  if (parentKind === "staff_alert" && estimateId) {
+    const staffName = await staffNameForEmail(db, email.fromEmail);
+    if (staffName !== null) {
+      const body = stripQuotedReply(email.text);
+      if (body) {
+        const r = await postStaffChatReply(db, { estimateId, body, authorName: staffName || null });
+        if (!r.ok) reportError(new Error(r.message), { where: "inboundMessages.chatReply", extra: { estimateId } });
+        return NextResponse.json({ received: true, chatReply: r.ok, estimateId });
+      }
     }
   }
   if (!accountId) accountId = await resolveAccount(db, { email: email.fromEmail });
@@ -133,6 +153,19 @@ async function relayToOffice(
     reportError(e, { where: "inboundMessages.relay", extra: about });
     return false;
   }
+}
+
+/** A staff login's display name when the sender is one of ours — "" when they have no name, null when not staff. */
+async function staffNameForEmail(db: ReturnType<typeof createServiceClient> & object, fromEmail: string): Promise<string | null> {
+  const wanted = fromEmail.trim().toLowerCase();
+  if (!wanted) return null;
+  const { data: rows, error } = await db.from("profiles").select("id, full_name").eq("role", "staff");
+  if (error) throw error;
+  for (const p of ((rows ?? []) as { id: string; full_name: string | null }[])) {
+    const { data: u } = await db.auth.admin.getUserById(p.id);
+    if ((u?.user?.email ?? "").trim().toLowerCase() === wanted) return p.full_name ?? "";
+  }
+  return null;
 }
 
 /** The first To address in the raw payload, whatever shape the provider used. */

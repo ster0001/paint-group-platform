@@ -105,7 +105,7 @@ test.describe("dashboard · session 4 · invoicing", () => {
     const text = (await ok.text()).replace(/^﻿/, "");
     expect(text.split("\r\n")[0]).toContain("Invoice,Customer,Address,Kind,Status");
     expect(text).toContain(`INV-E2E-${run}`);
-    const refused = await page.request.get("/api/reporting/export?metric=sales.sales_cents&preset=this_month");
+    const refused = await page.request.get("/api/reporting/export?metric=sales.sales_cents&preset=month");
     expect(refused.status()).toBe(403);
   });
 });
