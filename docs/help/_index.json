@@ -214,8 +214,8 @@
     {
       "feature": "live-progress",
       "role": "customer",
-      "title": "The phone on your estimate — an example of the updates you'll get while we paint",
-      "summary": "Below your scope of works is a phone playing an example of the day-by-day updates you will receive if you go ahead, shown with your address, your rooms and your own photos; the days, times and painter are examples, not your schedule.",
+      "title": "The live-updates demo on your estimate — an example of the updates you'll get while we paint",
+      "summary": "Under \"A few extra details\" on your estimate, a glowing card opens a phone playing an example of the day-by-day updates you will receive if you go ahead, shown with your address, your rooms and your own photos; the days, times and painter are examples, not your schedule.",
       "path": "docs/help/live-progress/customer.md",
       "walkthrough": null,
       "media": [],
@@ -225,8 +225,8 @@
     {
       "feature": "live-progress",
       "role": "staff",
-      "title": "The \"Example of your live updates\" phone on a customer's estimate — when it shows, what it says, and the one setting behind it",
-      "summary": "An estimate with a presentation attached shows the customer a phone playing an example of the day-by-day updates they will get, built from their own address, rooms and photos; trade accounts see commercial wording; the Demo painter comes from Settings → Website.",
+      "title": "The live-updates demo card on a customer's estimate — when it shows, what it says, and the one setting behind it",
+      "summary": "An estimate with a presentation attached carries one glowing card in the presentation's capability panel (\"A few extra details\"); pressed, it opens a phone playing an example of the day-by-day updates the customer will get, built from their own address, rooms and photos; trade accounts see commercial wording; the Demo painter comes from Settings → Website.",
       "path": "docs/help/live-progress/staff.md",
       "walkthrough": null,
       "media": [],
