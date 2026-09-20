@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, userIdFor, TINY_SIGNATURE_PNG } from "./helpers";
 import {
   completePreStart, completePrep, contractorIdForEmail, createLoopFixture, customerIdForEmail,
-  destroyLoopFixture, rpcAs, serviceClient, type LoopFixture,
+  destroyLoopFixture, rpcAs, rpcAsJson, serviceClient, type LoopFixture,
 } from "./fixtures/woLoop";
 
 /**
@@ -186,6 +186,9 @@ test.describe("dashboard · session 6 · the whole loop moves every tile by exac
     const { data: check, error } = await db!.from("wo_qa_checks").insert({ work_order_id: job!.workOrderId, kind: "final" }).select("id").single();
     if (error) throw new Error(error.message);
     expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "qa" })).toBe("ok:qa");
+    // A pass needs every standard on the check ticked first (wo-qa.spec is the pattern).
+    const { data: items } = await db!.from("wo_qa_items").select("id").eq("qa_check_id", (check as { id: string }).id).order("sort");
+    for (const it of (items ?? []) as { id: string }[]) expect(await rpcAs(staff!, "wo_tick_qa_item", { p_item_id: it.id, p_done: true })).toBe("ok:done");
     expect(await rpcAs(staff!, "wo_record_qa", { p_check_id: (check as { id: string }).id, p_result: "pass", p_notes: "Clean.", p_rectify: [] })).toMatch(/^ok:pass/);
     const delivered = await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: job!.workOrderId });
     expect(delivered).toMatch(/^ok:/);
@@ -194,14 +197,18 @@ test.describe("dashboard · session 6 · the whole loop moves every tile by exac
     await expectMoved(base, { "pc.awaiting_signoff": 1, "pc.in_progress": 0 }, SEES);
   });
 
-  test("7 · signed off: Awaiting sign-off back, the final invoice drafted → Unsent + its total for finance and owner", async () => {
-    const page = pages.owner!;
+  test("7 · signed off: Awaiting sign-off back, the final invoice drafted → Unsent + its total for finance and owner", async ({ browser }) => {
+    // The customer signs from their own (anonymous) browser, as on every sign-off spec — not from a staff session.
+    const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
     await page.goto(`/s/${signoffToken}`);
     await page.getByTestId("approve-Front").click();
     await page.getByTestId("approve-Left").click();
-    await page.getByTestId("sign-name").fill("Melissa Hartley");
-    await page.getByTestId("sign").click();
-    await expect(page.getByTestId("signed")).toContainText("Signed off");
+    await page.context().close();
+    // A remote signature needs the walkthrough first unless the office records the client cannot attend (wo-full-loop does the same).
+    expect(await rpcAs(staff!, "wo_mark_client_unavailable", { p_work_order_id: job!.workOrderId })).toMatch(/^ok/);
+    // The signature itself through the RPC the page calls, so a refusal says WHY (the page only says "try again").
+    const signed = await rpcAsJson<unknown>(customer!, "wo_sign", { p_token: signoffToken, p_name: "Melissa Hartley", p_kind: "remote", p_device: "e2e" });
+    expect(String(typeof signed === "string" ? signed : JSON.stringify(signed)), "wo_sign").toMatch(/^ok/);
     expect(await stage()).toBe("closed");
     const { data: inv, error } = await db!.from("invoices").select("id, status, total_inc_cents").eq("estimate_id", job!.estimateId).eq("kind", "final").single();
     if (error) throw new Error(error.message);
