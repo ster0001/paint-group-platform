@@ -33,6 +33,7 @@ You need a staff login. Texts need a mobile number and email needs an address on
 - **Variation reminder** texts 24 and 48 hours after a priced change is sent, until they answer.
 - **Job signed off — send your invoice** texts the painter at sign-off and again three days later if their invoice is still a draft.
 - **Sign-off overdue** alerts the staff who ticked it, 72 hours after the pack went out unsigned.
+- **Customer wrote on the estimate chat** (20 Sep) emails and texts the staff who ticked **Customer chat message** under Staff logins the moment a customer sends a chat message from their estimate — or the office address when nobody has. Out of hours the subject says *(after hours)*. See `docs/help/estimate-chat/staff.md`.
 
 ## What the colours and labels mean
 - **Automatic** (green) — fires on its own; has the switch.

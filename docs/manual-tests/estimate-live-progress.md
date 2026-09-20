@@ -57,6 +57,10 @@ Link the estimate's customer to an account whose type is **trade**, with a PO on
 3. Close it. **Message us** / **Open chat** in the **Ready when you are** panel opens the same box with the same thread. So does opening the link with `#chat` on the end (the "reply here" link in texts and emails).
 4. The old **Ask a question** form with **Send question** is gone.
 5. In the builder's ESTIMATE tab, **Ask a question** opens the box too, reading "Preview: your customer asks their questions here…", and Send is disabled.
+6. (20 Sep, later) The bar at the bottom has **💬 Chat with us** next to **Accept estimate**; it opens the same box. On a 390-px phone both buttons and the total fit on one row.
+7. Send a message on a Sunday (or after 4:30pm): an amber note appears under your bubble — *Thanks — we've received your message. Our office hours are Monday to Friday, 8:30am to 4:30pm; we'll get back to you as soon as we're open.* In hours: no note.
+8. Staff side: the chat dock (bottom-left, any staff page) pops open with **Estimate chat · Waiting** for that customer; open it, reply — the reply shows on the customer's box and they get the reply text + email. Settings → Staff logins → tick **Customer chat message** for yourself first, then send another customer message: you get the *Chat from … — …* email/text with the message and a link to the estimate. Untick everyone: the office address gets the email instead.
+9. With the reply domain configured: reply to that alert email from your staff address — your reply text appears on the customer's chat as a staff reply within a minute.
 
 ## 5c · Staff chat dock: always in the corner (Tom, 20 Sep)
 

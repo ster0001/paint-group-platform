@@ -352,6 +352,16 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Once per offer.",
   },
   {
+    key: "office_estimate_chat", name: "Customer wrote on the estimate chat", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "A customer sends a message from the chat on their estimate (Ask a question / Chat with us / Message us). Who is told, and how, is each person's routing under Settings → Staff logins; with nobody routed, the office address is emailed. Out of hours the subject carries an (after hours) tag.",
+    templates: [
+      { field: "officeEstimateChatSubject", label: "Email subject", kind: "subject", placeholders: ["{{customer}}", "{{job}}", "{{message}}", "{{hours_tag}}", "{{hours_line}}", "{{link}}"] },
+      { field: "officeEstimateChatBody", label: "Message", kind: "body", placeholders: ["{{customer}}", "{{job}}", "{{message}}", "{{hours_tag}}", "{{hours_line}}", "{{link}}"] },
+    ],
+    guard: "Once per chat message.",
+  },
+  {
     key: "office_job_declined", name: "Job declined by the painter", audience: "office", channels: ["email", "sms"], kind: "automatic",
     defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A painter declines a job offer — the job is back with the office to re-offer.",

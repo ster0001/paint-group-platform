@@ -82,6 +82,28 @@
       ]
     },
     {
+      "feature": "estimate-chat",
+      "role": "customer",
+      "title": "Chat with us from your estimate — ask anything, and we reply in the same place",
+      "summary": "Ask a question at the top, Chat with us in the bottom bar or Message us at the bottom all open one chat box in the corner of your estimate; your message reaches our office straight away, we reply there and let you know by text and email, and outside office hours the box tells you when we'll be back.",
+      "path": "docs/help/estimate-chat/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
+      "feature": "estimate-chat",
+      "role": "staff",
+      "title": "A customer's chat message reaches you in the corner of every staff page — and by email and text",
+      "summary": "A message sent from the chat on a customer's estimate becomes a Waiting row in the chat dock on every staff page, emails and texts the staff routed for \"Customer chat message\", or the office address when nobody is; reply from the dock, the builder's Messages or by answering the alert email, and the customer is texted and emailed the reply.",
+      "path": "docs/help/estimate-chat/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "estimator",
       "role": "commercial",
       "title": "A price for an office, warehouse, shop or building — online where we can, a quick visit where we can't",

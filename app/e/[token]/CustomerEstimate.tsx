@@ -7,6 +7,7 @@ import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColou
 import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
 import LiveUpdatesCard from "./LiveUpdatesCard";
+import { AFTER_HOURS_NOTE, officeOpenAt } from "@/lib/messaging/officeHours";
 import SignaturePad from "@/app/components/SignaturePad";
 import { warrantyAttachmentLine } from "@/lib/warranty/terms";
 import "../customer.css";
@@ -110,6 +111,8 @@ export default function CustomerEstimate({
   // Tom, 20 Sep: "Ask a question" pops the live chat up in the corner — one
   // chat, one place, reachable from the hero, the accept panel and #chat.
   const [chatOpen, setChatOpen] = useState(false);
+  // Tom, 20 Sep: out of hours the chat says so, once, after their message lands.
+  const [afterHours, setAfterHours] = useState(false);
   const [thread, setThread] = useState<{ id: string; direction: "staff" | "customer"; body: string; author_name: string | null; created_at: string }[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
@@ -245,11 +248,19 @@ export default function CustomerEstimate({
     const body = chatDraft.trim();
     if (!body) return;
     setChatBusy(true); setErr("");
-    const supabase = createClient();
-    const { error } = await supabase.rpc("post_estimate_message_by_token", { p_token: token, p_body: body });
+    // Through the route (Tom, 20 Sep): the message lands the same way, and
+    // the office is emailed / texted in the same breath.
+    let res: { ok?: boolean; error?: string } | null = null;
+    try {
+      const r = await fetch("/api/estimates/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, body }) });
+      res = await r.json().catch(() => null);
+      if (!r.ok) { setChatBusy(false); setErr(res?.error || "That didn't go through — please try again."); return; }
+    } catch {
+      setChatBusy(false); setErr("That didn't go through — check the connection and try again."); return;
+    }
     setChatBusy(false);
-    if (error) { setErr(error.message); return; }
     setChatDraft("");
+    if (!officeOpenAt(new Date())) setAfterHours(true);
     await loadThread();
   }
 
@@ -269,6 +280,7 @@ export default function CustomerEstimate({
                 </div>
               </div>
             ))}
+        {afterHours && <div className="chatnote" role="status" data-testid="chat-after-hours">{AFTER_HOURS_NOTE}</div>}
       </div>
       <label className="field">
         <textarea
@@ -788,7 +800,11 @@ export default function CustomerEstimate({
       {!done && !invoiceMode && (
         <div className="stickybar print-hide">
           <div className="p"><small>Total incl. GST</small>{money0(total)}</div>
-          <a className="btn btn-primary" href="#accept">Accept estimate</a>
+          <div className="stickybtns">
+            {/* Tom, 20 Sep: chat from the bar at the bottom too — same pop-up, same thread. */}
+            <button type="button" className="btn btn-ghost" onClick={() => setChatOpen(true)} data-testid="bar-chat">💬 Chat with us</button>
+            <a className="btn btn-primary" href="#accept">Accept estimate</a>
+          </div>
         </div>
       )}
 
