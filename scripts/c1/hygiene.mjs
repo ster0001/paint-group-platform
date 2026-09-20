@@ -178,6 +178,30 @@ async function purge(table, ids, deleteSelf, stats, depth = 0, trail = []) {
   }
 }
 
+// ---- orphans: rows no user or account marker reaches any more --------------
+
+/**
+ * Three shapes of debris a cancelled run leaves that the user walk cannot
+ * find: a wizard draft whose anonymous user is already gone (no FK on
+ * `user_id`), an open handoff on a conversation with no account, and a
+ * callback event with no account. All age-gated; all through `purge`, so
+ * whatever hangs off them by FK goes too. Test project only (the guard above).
+ */
+async function removeOrphans(days, stats) {
+  const drafts = (await q(
+    `select d.id from public.wizard_drafts d left join auth.users u on u.id = d.user_id
+      where d.user_id is not null and u.id is null and d.started_at < now() - ($1::int * interval '1 day') limit 5000`, [days])).map((r) => r.id);
+  await purge("public.wizard_drafts", drafts, true, stats);
+  const handoffs = (await q(
+    `select h.id from public.agent_handoffs h join public.agent_conversations ac on ac.id = h.conversation_id
+      where h.status in ('requested', 'claimed', 'active') and ac.account_id is null and h.requested_at < now() - ($1::int * interval '1 day') limit 2000`, [days])).map((r) => r.id);
+  await purge("public.agent_handoffs", handoffs, true, stats);
+  const callbacks = (await q(
+    `select id from public.crm_events where type = 'callback_requested' and account_id is null and occurred_at < now() - ($1::int * interval '1 day') limit 2000`, [days])).map((r) => r.id);
+  await purge("public.crm_events", callbacks, true, stats);
+  return { drafts: drafts.length, handoffs: handoffs.length, callbacks: callbacks.length };
+}
+
 // ---- selecting whom to remove ----------------------------------------------
 /** Users a run makes: anonymous customers, and pg.e2e.* logins. Nothing else, ever. */
 const RUN_USER = "(is_anonymous or email like 'pg.e2e.%')";
@@ -360,11 +384,26 @@ if (cmd === "sweep") {
     } else gaveWay = true;
   }
 
+  // The orphans no marker can reach (21 Sep 2026). `wizard_drafts.user_id` is
+  // not a foreign key, so deleting an anonymous user leaves its draft behind —
+  // 926 of them sat in the CRM's "ready to call" buckets and filled the Today
+  // queue to its cap, which is how seven CRM specs went red on the test
+  // project. Same shape: open handoffs and callback events whose conversation
+  // or event has no account. Age-gated like everything else here.
+  let orphans = { drafts: 0, handoffs: 0, callbacks: 0 };
+  if (!gaveWay && Date.now() - t0 < budgetMs) {
+    if (await takeLockOrGiveWay()) {
+      try { orphans = await removeOrphans(days, stats); }
+      finally { await dropLock(); }
+    } else gaveWay = true;
+  }
+
   const left = await leftCount(where, [days]);
   const seconds = (Date.now() - t0) / 1000;
   const line = summaryLine({ verb: `sweep (older than ${days}d, batch ${batch})`, deleted, left, seconds, byTable: stats });
   const why = gaveWay ? " · GAVE WAY to an e2e run" : exhausted ? " · TIME BUDGET HIT" : emptied ? " · nothing older left" : "";
-  log(line + (accounts.selected ? ` · @example.com accounts ${accounts.deleted}/${accounts.selected}` : "") + why);
+  const orphanLine = orphans.drafts + orphans.handoffs + orphans.callbacks ? ` · orphans: ${orphans.drafts} drafts, ${orphans.handoffs} handoffs, ${orphans.callbacks} callbacks` : "";
+  log(line + (accounts.selected ? ` · @example.com accounts ${accounts.deleted}/${accounts.selected}` : "") + orphanLine + why);
   const after = await counts();
   log(`users before ${before.anonymous + before.e2eLogins} → after ${after.anonymous + after.e2eLogins}`);
   if (json) console.log(JSON.stringify({ days, batch, deleted, left, accounts, seconds, before, after, gaveWay, exhausted, byTable: stats }));

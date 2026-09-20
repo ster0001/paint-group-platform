@@ -1,3 +1,13 @@
+# 21 Sep 2026 — CRM Today specs red on the test project: orphans, not code. Branch `fix/crm-today-specs-walk-pages`. No migration.
+
+Seven CRM specs looked for their fresh card on page one of Today; the test project's Today held ~500 capped items
+of debris: 926 wizard drafts whose anonymous user the sweep had already deleted (`wizard_drafts.user_id` has NO FK,
+so the draft survives), 133 open handoffs and 58 callbacks with no account. Two fixes: `gotoTodayWith` in e2e/helpers
+walks the pages (the assertion is "in the queue"); the hygiene sweep gained an orphan pass (`removeOrphans`) for
+exactly those three shapes, age-gated. One hand run cleared 1,986 drafts, 133 handoffs, 58 callbacks. All seven
+specs green on :3103. Note: the work queue's handoff read takes the 100 OLDEST open handoffs — fine on prod, but on a
+project with >100 stale ones a new handoff never shows; the sweep now keeps that from recurring.
+
 # 20 Sep 2026 (afternoon) — Home dashboard v2, Session 6: finish. Migration 20270183 (indexes only). Branch `feat/home-dashboard-s6-finish`.
 
 /home is the staff landing (87 specs swept); "i" on every tile; the needs-doing strip STREAMS behind the sections
