@@ -32,6 +32,7 @@ You need a staff login. Texts need a mobile number and email needs an address on
 - **Sign-off reminders** go when the completion pack is sent, then 24 and 48 hours later, until the customer signs. The reminder line is the approved wording and never says the job will be treated as signed.
 - **Variation reminder** texts 24 and 48 hours after a priced change is sent, until they answer.
 - **Job signed off — send your invoice** texts the painter at sign-off and again three days later if their invoice is still a draft.
+- **Job offer still waiting — reminder** texts the painter 12 and 20 hours after a job offer if they haven't answered, naming the suburb, start date and the time the offer expires, with a link to their Requests tab. It stops the moment the offer is accepted, declined, withdrawn or expires. It has its own night rule instead of the sending hours: nothing goes between 10 pm and 4:59 am Melbourne — a reminder due then goes on the first sweep after 5 am, or not at all if the offer was answered overnight. Change the two hour numbers on the row.
 - **Sign-off overdue** alerts the staff who ticked it, 72 hours after the pack went out unsigned.
 
 ## What the colours and labels mean

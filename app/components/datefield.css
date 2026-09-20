@@ -1,0 +1,25 @@
+/* The mini calendar behind a date box (app/components/DateField.tsx), for any
+   surface. Colours come from the surface's own tokens with plain fallbacks;
+   the CRM's `.crm .dp-*` rules (app/crm/crm.css) are more specific and keep
+   their dark look there. */
+.datepick{position:relative;display:inline-flex;flex:none}
+.datepick>button{display:inline-flex;align-items:center;gap:7px;cursor:pointer;text-align:left;white-space:nowrap}
+.datepick .dp-ico{opacity:.7;font-size:11px}
+.dp-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:60;width:272px;padding:10px;border:1px solid var(--line,#d9d9d9);border-radius:12px;
+  background:var(--card,var(--graphite,#fff));color:var(--text,#1a1d21);box-shadow:0 18px 44px rgba(0,0,0,.22);font-family:var(--sans,system-ui,sans-serif)}
+.dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.dp-month{font-size:13px;font-weight:600}
+.dp-nav{appearance:none;border:1px solid var(--line,#d9d9d9);background:transparent;color:inherit;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:16px;line-height:1}
+.dp-nav:hover{border-color:var(--paint,var(--cyan,#2fb9cb));color:var(--paint-deep,var(--cyan,#157f8c))}
+.dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dp-wd{font-family:var(--mono,ui-monospace,monospace);font-size:9.5px;letter-spacing:.06em;opacity:.65;text-align:center;padding:4px 0}
+.dp-day{appearance:none;border:1px solid transparent;background:transparent;color:inherit;height:32px;border-radius:8px;cursor:pointer;font:inherit;font-size:12.5px}
+.dp-day:hover{background:var(--raised,#eee);border-color:var(--line,#d9d9d9)}
+.dp-day.today{border-color:var(--line,#d9d9d9);font-weight:600}
+.dp-day.on{background:var(--paint,var(--cyan,#2fb9cb));color:var(--on-paint,#03272d);font-weight:700}
+.dp-day:disabled{opacity:.35;cursor:default;background:transparent;border-color:transparent}
+.dp-blank{height:32px}
+.dp-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--line,#d9d9d9)}
+.dp-link{appearance:none;border:0;background:transparent;color:var(--paint-deep,var(--cyan,#157f8c));cursor:pointer;font:inherit;font-size:12px;padding:0}
+.dp-link:disabled{opacity:.4;cursor:default}
+.dp-hint{font-family:var(--mono,ui-monospace,monospace);font-size:10px;opacity:.65}

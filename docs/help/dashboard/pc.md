@@ -19,13 +19,13 @@ Your login needs the Project coordinator role. Owner and admin logins see these 
 3. **Contractors** — Finished on time ("8 of 11 · 73%": last surface ticked on or before the booking's end, extensions included), Silent 3+ days (the console's quiet-site flags at the Settings threshold), QA passed first time (attempt 1), Variations raised, Expense claims awaiting approval, and Days on site / Hours vs estimate blended from the painter's own entry where they are opted in, otherwise the booked days × the standard day. Every row names its source and the tile says "actual on 4 of 11 jobs, schedule on 7". Nothing averages the two silently.
 4. **Press a tile** for the rows it was counted from; **i** on the tile (or in the drill) says exactly what it counts; **Export CSV** downloads those rows; **Open list** goes to the console.
 5. **Activity** — the job events for the period (stages, ticks, photos, visits, messages), newest first, with chips to narrow to one family and a search box. Export CSV is the rows you are looking at.
-6. **Period chips** (This month, Last 30 days, Quarter, Year to date, Custom) move the period tiles and Activity; right-now tiles say **right now** and ignore them.
+6. **Period chips** (Week, Month, Quarter, Year, Custom — Custom opens a calendar for the From and To days) move the period tiles and Activity; right-now tiles say **right now** and ignore them. The period you choose is remembered next time you open Home.
 
 ## What the colours and labels mean
 - **Critical · job** — a console card that needs you now (an offer past SLA, a silent site).
 - **Amber · job** — a console card due today.
 - **right now** on a tile — a state count, not a period figure.
-- **▲ / ▼ vs Aug** on a period tile — against the same days of last month (a whole month against the whole previous month).
+- **▲ / ▼ vs Aug** (or **vs 7–13 Sep**, **vs Q2 26**, **vs 2025**) on a period tile — against the same stretch of the previous week, month, quarter or year; a whole period against the whole previous one.
 - **actual on N of M jobs, schedule on K** — how many hours figures came from a painter's own entry versus the booking.
 
 ## If something goes wrong

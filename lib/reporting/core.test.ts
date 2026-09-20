@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { melbourneDay as mdayCrm } from "@/lib/crm/work-queue";
 import {
-  ForbiddenError, aggregateRows, compareDelta, daysBetween, inRange, melbourneDay, previousRange, rangeLabel, resolveRange, runMetric,
+  ForbiddenError, aggregateRows, compareDelta, daysBetween, inRange, melbourneDay, previousRange, rangeLabel, rangeShortLabel, resolveRange, runMetric, parsePreset,
   type MetricInput,
 } from "./core";
 import { estimatesSent, salesCents, salesCount } from "./metrics/sales";
@@ -30,12 +30,32 @@ describe("Melbourne calendar days", () => {
     expect(inRange(null, { from: "2026-09-01", to: "2026-09-30" })).toBe(false);
   });
   it("the header's chips resolve to Melbourne days ending today", () => {
-    expect(resolveRange("this_month", SEED_NOW)).toEqual({ from: "2026-09-01", to: "2026-09-19" });
-    expect(resolveRange("last_30", SEED_NOW)).toEqual({ from: "2026-08-21", to: "2026-09-19" });
-    expect(resolveRange("quarter", SEED_NOW)).toEqual({ from: "2026-07-01", to: "2026-09-19" });
-    expect(resolveRange("ytd", SEED_NOW)).toEqual({ from: "2026-01-01", to: "2026-09-19" });
+    expect(resolveRange("month", SEED_NOW)).toEqual({ from: "2026-09-01", to: "2026-09-19" });
+    // 19 Sep 2026 is a Saturday: the week runs from Monday the 14th, compared with the same days of the week before.
+    expect(resolveRange("week", SEED_NOW)).toEqual({ from: "2026-09-14", to: "2026-09-19", compare: { from: "2026-09-07", to: "2026-09-12" } });
+    expect(resolveRange("quarter", SEED_NOW)).toEqual({ from: "2026-07-01", to: "2026-09-19", compare: { from: "2026-04-01", to: "2026-06-20" } });
+    expect(resolveRange("year", SEED_NOW)).toEqual({ from: "2026-01-01", to: "2026-09-19", compare: { from: "2025-01-01", to: "2025-09-19" } });
     expect(resolveRange("custom", SEED_NOW, { from: "2026-08-10", to: "2026-08-03" })).toEqual({ from: "2026-08-03", to: "2026-08-10" });
     expect(resolveRange("custom", SEED_NOW, { from: "nope" })).toEqual({ from: "2026-09-01", to: "2026-09-19" });
+    // A custom range that is exactly a quarter or a year compares with the whole one before.
+    expect(resolveRange("custom", SEED_NOW, { from: "2026-04-01", to: "2026-06-30" })).toEqual({ from: "2026-04-01", to: "2026-06-30", compare: { from: "2026-01-01", to: "2026-03-31" } });
+    expect(resolveRange("custom", SEED_NOW, { from: "2025-01-01", to: "2025-12-31" })).toEqual({ from: "2025-01-01", to: "2025-12-31", compare: { from: "2024-01-01", to: "2024-12-31" } });
+  });
+  it("old links still name a period: this_month, ytd and last_30 map; anything else is nothing", () => {
+    expect(parsePreset("this_month")).toBe("month");
+    expect(parsePreset("ytd")).toBe("year");
+    expect(parsePreset("week")).toBe("week");
+    expect(parsePreset("fortnight")).toBeNull();
+    expect(parsePreset(undefined)).toBeNull();
+  });
+  it("previousRange honours the preset's own comparison, and the tile label never assumes a month", () => {
+    expect(previousRange({ from: "2026-09-14", to: "2026-09-19", compare: { from: "2026-09-07", to: "2026-09-12" } })).toEqual({ from: "2026-09-07", to: "2026-09-12" });
+    expect(rangeShortLabel({ from: "2026-08-01", to: "2026-08-31" })).toBe("Aug");
+    expect(rangeShortLabel({ from: "2026-04-01", to: "2026-06-30" })).toBe("Q2 26");
+    expect(rangeShortLabel({ from: "2025-01-01", to: "2025-12-31" })).toBe("2025");
+    expect(rangeShortLabel({ from: "2026-09-07", to: "2026-09-12" })).toBe("7–12 Sept");
+    expect(rangeShortLabel({ from: "2026-08-24", to: "2026-09-06" })).toBe("24 Aug – 6 Sept");
+    expect(rangeShortLabel(null)).toBe("");
   });
   it("compares a partial month with the same days of the previous month, a whole month with the whole previous month", () => {
     expect(previousRange({ from: "2026-09-01", to: "2026-09-19" })).toEqual({ from: "2026-08-01", to: "2026-08-19" });

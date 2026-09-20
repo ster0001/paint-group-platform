@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { ForbiddenError, RANGE_PRESETS, resolveRange, runMetric } from "@/lib/reporting/core";
+import { ForbiddenError, parsePreset, resolveRange, runMetric } from "@/lib/reporting/core";
 import { csvFilename, csvStream } from "@/lib/reporting/csv";
 import { loadMetricInput, loadRoles } from "@/lib/reporting/load";
 import { metricByKey } from "@/lib/reporting/registry";
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  */
 const query = z.object({
   metric: z.string().min(3).max(80),
-  preset: z.enum(RANGE_PRESETS).default("this_month"),
+  preset: z.string().max(20).optional(),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   who: z.enum(["mine", "team"]).optional(),
@@ -31,6 +31,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const parsed = query.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) return NextResponse.json({ error: "bad request" }, { status: 400 });
+  // The page's chip names, the session-1 names still in old links, or nothing — never a guess at anything else.
+  const preset = parsePreset(parsed.data.preset) ?? (parsed.data.preset ? null : "month");
+  if (!preset) return NextResponse.json({ error: "bad request" }, { status: 400 });
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -41,7 +44,7 @@ export async function GET(request: Request) {
 
   const roles = await loadRoles(supabase);
   const now = new Date();
-  const range = resolveRange(parsed.data.preset, now, { from: parsed.data.from, to: parsed.data.to });
+  const range = resolveRange(preset, now, { from: parsed.data.from, to: parsed.data.to });
 
   try {
     const { input, failures } = await loadMetricInput(supabase, range, now, [def.section], { userId: user.id, who: parsed.data.who, family: parsed.data.family ?? null, q: parsed.data.q ?? null }, roles);

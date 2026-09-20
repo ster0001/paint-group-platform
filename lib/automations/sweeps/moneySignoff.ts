@@ -10,6 +10,10 @@
  *   variation_reminder        N h after a variation is priced, again later
  *   contractor_invoice_prompt at sign-off, again N days later if not submitted
  *   office_signoff_overdue    staff alert N h after the pack went out unsigned
+ *   contractor_offer_reminder (Session 4, D7) 12 h and 20 h after an offer went
+ *                             out with no answer; never between 22:00 and 04:59
+ *                             Melbourne — held, unclaimed, for the first sweep
+ *                             after 5 am, which re-checks the offer is still live
  *
  * Every rung is CLAIMED (automation_claims) before it is sent; only the latest
  * due rung fires (lib/automations/reminders.ts). "Still needed?" is asked
@@ -104,6 +108,48 @@ export function rungToFire(anchor: Date, rungs: Rung[], now: Date, claimed: Set<
   return claimed.has(`${entityId}:${latest.id}`) ? null : latest;
 }
 
+// ---- Session 4: offer reminders (pure parts) ------------------------------------
+
+/** D7: the two rungs, in hours after `booking_offers.offered_at`. */
+export function offerReminderRungs(firstHours: number, secondHours: number): Rung[] {
+  return [{ id: "first", afterHours: firstHours }, { id: "second", afterHours: secondHours }];
+}
+
+/** Tom, 16 Sep (late): no offer reminder between 22:00 and 04:59 Melbourne. Measured from the zone, never a written offset. */
+export const OFFER_WINDOW_OPEN_HOUR = 5;
+export const OFFER_WINDOW_CLOSE_HOUR = 22;
+export function inOfferReminderWindow(now: Date): boolean {
+  const h = melbourneParts(now).h;
+  return h >= OFFER_WINDOW_OPEN_HOUR && h < OFFER_WINDOW_CLOSE_HOUR;
+}
+
+const expiryFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
+});
+/** "3:15 pm Tue 22 Sep" — the expiry as the painter's phone would read it, in Melbourne. */
+export function formatOfferExpiry(at: Date): string {
+  const p: Record<string, string> = {};
+  for (const part of expiryFmt.formatToParts(at)) p[part.type] = part.value;
+  return `${p.hour}:${p.minute} ${(p.dayPeriod ?? "").toLowerCase()} ${p.weekday} ${p.day} ${p.month}`;
+}
+
+/**
+ * The suburb out of a job address as the work order snapshot holds it
+ * ("12 Elm Grove, Thornbury VIC 3071" → "Thornbury"). Falls back to the whole
+ * address when there is no comma, and to the fallback when there is nothing.
+ */
+export function suburbFromAddress(address: string | null | undefined, fallback: string): string {
+  const raw = (address ?? "").trim();
+  if (!raw) return fallback;
+  const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const candidate = parts.length > 1 ? parts[1] : parts[0];
+  const cleaned = candidate
+    .replace(/\b(VIC|NSW|QLD|SA|WA|TAS|NT|ACT|Victoria|Australia)\b/gi, "")
+    .replace(/\b\d{4}\b/g, "")
+    .replace(/\s+/g, " ").trim();
+  return cleaned || fallback;
+}
+
 // ---- recipients ---------------------------------------------------------------
 
 type Recipient = { email: string | null; phone: string | null; firstName: string; accountId: string | null };
@@ -147,15 +193,23 @@ export type MoneySignoffResult = {
   signoff: { fired: number; nudged: number };
   variations: { fired: number; stopped: number };
   contractorPrompts: { fired: number; stopped: number };
+  /** Session 4: `held` = a rung was due inside the night window and waits, unclaimed, for the morning sweep. */
+  offerReminders: { fired: number; stopped: number; held: number };
   signoffOverdue: number;
   /** Milliseconds per section — the cron log reads these. */
   ms: Record<string, number>;
 };
 
-export async function runMoneySignoffSweep(db: SupabaseClient, now = new Date()): Promise<MoneySignoffResult> {
+export type MoneySignoffOptions = {
+  /** The e2e (and a deliberate hand run) only: send offer reminders regardless of the Melbourne night window. */
+  ignoreOfferWindow?: boolean;
+};
+
+export async function runMoneySignoffSweep(db: SupabaseClient, now = new Date(), opts: MoneySignoffOptions = {}): Promise<MoneySignoffResult> {
   const out: MoneySignoffResult = {
     invoices: { fired: 0, stopped: 0 }, deposits: { fired: 0, stopped: 0 }, signoff: { fired: 0, nudged: 0 },
-    variations: { fired: 0, stopped: 0 }, contractorPrompts: { fired: 0, stopped: 0 }, signoffOverdue: 0, ms: {},
+    variations: { fired: 0, stopped: 0 }, contractorPrompts: { fired: 0, stopped: 0 },
+    offerReminders: { fired: 0, stopped: 0, held: 0 }, signoffOverdue: 0, ms: {},
   };
   const timed = async (name: string, fn: () => Promise<void>) => {
     const t = Date.now();
@@ -171,6 +225,7 @@ export async function runMoneySignoffSweep(db: SupabaseClient, now = new Date())
   await timed("signoff", () => signoffReminders(db, messaging, brand, now, out));
   await timed("variations", () => variationReminders(db, messaging, now, out));
   await timed("contractorPrompts", () => contractorInvoicePrompts(db, messaging, now, out));
+  await timed("offerReminders", () => offerReminders(db, messaging, now, out, opts.ignoreOfferWindow === true));
   await timed("signoffOverdue", () => signoffOverdueAlerts(db, messaging, now, out));
   return out;
 }
@@ -435,6 +490,68 @@ async function contractorInvoicePrompts(db: SupabaseClient, messaging: Messaging
     });
     if (r.fired) out.contractorPrompts.fired += 1;
     if (r.stopped) out.contractorPrompts.stopped += 1;
+  }
+}
+
+type OfferRow = {
+  id: string; work_order_id: string; contractor_id: string; state: string; offered_at: string; expires_at: string; start_date: string | null;
+  work_orders: { wo_ref: string; wo_snapshot: { jobAddress?: string | null } | null } | null;
+};
+
+/**
+ * Session 4 (D7): the offer is still waiting. Only live, unexpired offers are
+ * candidates, so an answered or lapsed one simply stops being asked about;
+ * `stillNeeded` re-reads the row at send time for the race in between.
+ * Outside 05:00–21:59 Melbourne a due rung is counted as `held` and left
+ * UNCLAIMED — the first sweep after 5 am picks it up, or drops it if the
+ * offer was answered overnight. `ignoreWindow` is the e2e's door only.
+ */
+async function offerReminders(db: SupabaseClient, messaging: MessagingSettings, now: Date, out: MoneySignoffResult, ignoreWindow: boolean) {
+  const a = automationByKey("contractor_offer_reminder");
+  if (!a || !automationOn(messaging, a.key)) return;
+  const rungs = offerReminderRungs(timingFor(a, messaging, "first"), timingFor(a, messaging, "second"));
+  const { data, error } = await db.from("booking_offers")
+    .select("id, work_order_id, contractor_id, state, offered_at, expires_at, start_date, work_orders(wo_ref, wo_snapshot)")
+    .eq("state", "offered").gt("expires_at", now.toISOString())
+    .gte("offered_at", new Date(now.getTime() - 14 * 86_400_000).toISOString())
+    .order("offered_at", { ascending: true }).limit(300);
+  if (error) throw error;
+  const offers = (data ?? []) as unknown as OfferRow[];
+  if (offers.length === 0) return;
+  const claimed = await claimedSet(db, a.key, offers.map((o) => o.id));
+  const inWindow = ignoreWindow || inOfferReminderWindow(now);
+  const { contactFor } = await import("@/lib/contractor/notify");
+  const { company } = await loadMessaging(db);
+  for (const o of offers) {
+    const anchor = new Date(o.offered_at);
+    if (!rungToFire(anchor, rungs, now, claimed, o.id)) continue;
+    if (!inWindow) { out.offerReminders.held += 1; continue; }
+    const r = await runLadder(db, {
+      key: a.key, entityId: o.id, anchor, rungs, now,
+      stillNeeded: async () => {
+        const { data: f, error: fErr } = await db.from("booking_offers").select("state, expires_at").eq("id", o.id).maybeSingle();
+        if (fErr) throw fErr;
+        const row = f as { state: string; expires_at: string } | null;
+        if (!row || row.state !== "offered") return { ok: false, reason: `The offer has been ${row?.state ?? "removed"}.` };
+        if (new Date(row.expires_at).getTime() <= now.getTime()) return { ok: false, reason: "The offer has expired." };
+        return { ok: true };
+      },
+      send: async () => {
+        const c = await contactFor(db, o.contractor_id);
+        const woRef = o.work_orders?.wo_ref ?? "";
+        const vars = {
+          first_name: c.firstName, company_name: company.name || "Paint Group", wo_ref: woRef,
+          suburb: suburbFromAddress(o.work_orders?.wo_snapshot?.jobAddress, woRef || "the job"),
+          start_date: o.start_date ? dateAU(o.start_date) : "date to be confirmed",
+          expiry_time: formatOfferExpiry(new Date(o.expires_at)),
+          link: `${siteUrl()}/portal/requests`,
+        };
+        const body = renderTemplate(messaging.offerReminderSms, vars);
+        await sendAutomation(db, { key: a.key, to: { phone: c.phone }, sms: { body }, ctx: { workOrderId: o.work_order_id, kind: "offer_reminder" }, contractorId: o.contractor_id, now });
+      },
+    });
+    if (r.fired) out.offerReminders.fired += 1;
+    if (r.stopped) out.offerReminders.stopped += 1;
   }
 }
 

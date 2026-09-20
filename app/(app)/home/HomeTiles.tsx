@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { compareDelta, type GstBasis, type MetricKind, type MetricUnit, type Range } from "@/lib/reporting/core";
+import { compareDelta, rangeShortLabel, type GstBasis, type MetricKind, type MetricUnit, type Range } from "@/lib/reporting/core";
 
 /**
  * Session 1 — the stat tiles of one section (mockup `.tiles` / `.tile`).
@@ -42,7 +42,6 @@ export function formatValue(value: number, unit: MetricUnit): string {
   }
 }
 
-const monthShort = (r: Range | null) => (r ? new Intl.DateTimeFormat("en-AU", { month: "short", timeZone: "UTC" }).format(new Date(`${r.from}T00:00:00Z`)) : "");
 
 function cell(v: unknown, key: string): string {
   if (v == null) return "";
@@ -83,10 +82,10 @@ export default function HomeTiles({ tiles: all }: { tiles: TileData[] }) {
                 {t.note && <span data-testid={`tile-note-${t.key}`}>{t.note}</span>}
                 {t.gst && <span>{t.gst === "inc" ? "inc GST" : "ex GST"}</span>}
                 {d && d.dir !== "flat" && (
-                  <span className={d.dir === "up" ? "up" : "down"}>{d.dir === "up" ? "▲" : "▼"} {d.pct}% vs {monthShort(t.compareRange)}</span>
+                  <span className={d.dir === "up" ? "up" : "down"}>{d.dir === "up" ? "▲" : "▼"} {d.pct}% vs {rangeShortLabel(t.compareRange)}</span>
                 )}
-                {d && d.dir === "flat" && <span>same as {monthShort(t.compareRange)}</span>}
-                {t.kind === "period" && t.compare === 0 && t.value > 0 && <span>none in {monthShort(t.compareRange)}</span>}
+                {d && d.dir === "flat" && <span>same as {rangeShortLabel(t.compareRange)}</span>}
+                {t.kind === "period" && t.compare === 0 && t.value > 0 && <span>none in {rangeShortLabel(t.compareRange)}</span>}
               </div>
             </button>
             <button type="button" className="i" aria-pressed={tileInfo === t.key} aria-label={`What ${t.title} counts`} title="What this counts" onClick={() => setTileInfo(tileInfo === t.key ? null : t.key)} data-testid={`tile-info-${t.key}`}>i</button>

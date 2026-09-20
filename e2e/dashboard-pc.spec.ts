@@ -122,7 +122,7 @@ test.describe("dashboard · session 2 · PC Command + Contractors", () => {
     const ok = await page.request.get("/api/reporting/export?metric=pc.in_progress");
     expect(ok.status()).toBe(200);
     expect((await ok.text()).split("\r\n")[0]).toContain("Job,Address,Painter,Stage");
-    const refused = await page.request.get("/api/reporting/export?metric=sales.estimates_sent&preset=this_month");
+    const refused = await page.request.get("/api/reporting/export?metric=sales.estimates_sent&preset=month");
     expect(refused.status()).toBe(403);
   });
 });
