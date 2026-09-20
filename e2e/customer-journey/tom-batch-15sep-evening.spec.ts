@@ -165,7 +165,12 @@ test("4 · the Estimates page searches by customer name or address", async ({ pa
     // read as a product bug on CI (slower runner) while passing locally.
     await expect(page.getByTestId("estimates-search")).toHaveAttribute("data-ready", "1");
     await page.getByTestId("estimates-search-clear").click();
-    await expect(page).toHaveURL(/\/estimates$/);
+    // The URL changes when the App Router COMMITS the navigation — after the
+    // Waiting tab has rendered, which is ~4 s on a dev server against the test
+    // project (64k estimates) and longer on CI's runner. CI #693 attempt 2
+    // (20 Sep) failed here twice with the click landing and the URL simply
+    // not there within 10 s. Same allowance as the visibility waits above.
+    await expect(page).toHaveURL(/\/estimates$/, { timeout: 30_000 });
   } finally {
     await db.from("estimates").delete().eq("id", id);
   }
