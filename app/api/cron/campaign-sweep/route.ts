@@ -34,10 +34,14 @@ export async function GET(req: Request) {
   try {
     const now = new Date();
     // `?only=reminders` (the e2e, a hand run) skips the campaign engine.
-    const only = new URL(req.url).searchParams.get("only");
+    const params = new URL(req.url).searchParams;
+    const only = params.get("only");
     const outcomes = only === "reminders" ? [] : await runSweep(db, now);
     // Session 3: money and sign-off reminder ladders, every half hour.
-    const reminders = await runMoneySignoffSweep(db, now);
+    // `?force=1` (the e2e, a deliberate hand run) ignores the offer reminder's
+    // 22:00–04:59 Melbourne night window — the same word the wo-sweep uses.
+    // Nothing else is forced: an offer still has to be live and its rung due.
+    const reminders = await runMoneySignoffSweep(db, now, { ignoreOfferWindow: params.get("force") === "1" });
     // Session 1: automatic job messages held for quiet hours or the daily
     // cap are released here — every 30 minutes, so a held text goes at the
     // opening, not at the next daily sweep. Only messages the office already

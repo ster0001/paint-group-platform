@@ -55,7 +55,7 @@ test.describe("dashboard · session 5 · P&L + marketing, owner only", () => {
   test("the owner sees P&L and Marketing on the Settings basis, and the anomaly card in the strip", async ({ page }) => {
     test.setTimeout(150_000);
     await signIn(page, staff!, home);
-    await page.goto("/home?preset=this_month");
+    await page.goto("/home?preset=month");
     await expect(page.getByTestId("home")).toBeVisible({ timeout: 45_000 });
     await expect(page.getByTestId("section-pl")).toBeVisible();
     await expect(page.getByTestId("section-marketing")).toBeVisible();
@@ -86,19 +86,19 @@ test.describe("dashboard · session 5 · P&L + marketing, owner only", () => {
   test("the owner's export goes through the one route; pc, sales and finance are 403 on every P&L and marketing metric", async ({ page }) => {
     test.setTimeout(150_000);
     await signIn(page, staff!, home);
-    const ok = await page.request.get("/api/reporting/export?metric=pl.contracts_signed_ex&preset=this_month");
+    const ok = await page.request.get("/api/reporting/export?metric=pl.contracts_signed_ex&preset=month");
     expect(ok.status()).toBe(200);
     const text = (await ok.text()).replace(/^﻿/, "");
     expect(text.split("\r\n")[0]).toContain("Accepted,Estimate,Category");
     expect(text).toContain(`Anomaly ${run}`);
-    const mk = await page.request.get("/api/reporting/export?metric=mk.by_source&preset=this_month");
+    const mk = await page.request.get("/api/reporting/export?metric=mk.by_source&preset=month");
     expect(mk.status()).toBe(200);
 
     for (const o of others) {
       await page.context().clearCookies();
       await signIn(page, { email: o.email, password }, home);
       for (const metric of ["pl.contracts_signed_ex", "pl.gross_margin_actual", "pl.net_margin_ex", "mk.by_source", "mk.cost_per_accepted", "mk.repeat_referral_share"]) {
-        const r = await page.request.get(`/api/reporting/export?metric=${metric}&preset=this_month`);
+        const r = await page.request.get(`/api/reporting/export?metric=${metric}&preset=month`);
         expect(r.status(), `${o.role} on ${metric}`).toBe(403);
       }
       await page.goto("/home");

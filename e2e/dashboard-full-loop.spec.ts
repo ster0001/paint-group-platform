@@ -49,7 +49,7 @@ test.describe("dashboard · session 6 · the whole loop moves every tile by exac
   let base: Snapshot = {};
 
   const read = async (page: Page, key: string): Promise<Reading> => {
-    const r = await page.request.get(`/api/reporting/export?metric=${key}&preset=this_month`);
+    const r = await page.request.get(`/api/reporting/export?metric=${key}&preset=month`);
     if (r.status() === 403) return "403";
     expect(r.status(), key).toBe(200);
     return Number(r.headers()["x-metric-value"]);

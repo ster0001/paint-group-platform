@@ -397,3 +397,23 @@ export async function addAcceptedOptionAction(raw: unknown): Promise<AddOptionRe
   };
   return { ok: false, message: wording[reason] ?? `That couldn't be added (${reason}).` };
 }
+
+// ---- leave a job out of the dashboard (20270184, Tom 20 Sep 2026) ----------------------------
+
+const reportingExcludedInput = z.object({ estimateId: z.string().uuid(), excluded: z.boolean(), reason: z.string().max(200).optional() });
+
+/**
+ * A test job, or a duplicate, must not move a number on /home. Staff only;
+ * the RPC checks. The estimate, its job and its invoices stay where they
+ * are — only the dashboard stops counting them.
+ */
+export async function setReportingExcludedAction(raw: unknown): Promise<{ ok: true; excludedAt: string | null } | { ok: false; error: string }> {
+  const v = reportingExcludedInput.safeParse(raw);
+  if (!v.success) return { ok: false, error: "That request did not make sense." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("estimate_set_reporting_excluded", { p_estimate_id: v.data.estimateId, p_excluded: v.data.excluded, p_reason: v.data.reason ?? null });
+  if (error) { reportError(error, { where: "quote.setReportingExcluded" }); return { ok: false, error: "Could not save that — try again." }; }
+  if (data !== "ok") return { ok: false, error: data === "error:not_staff" ? "Staff only." : "That estimate could not be found." };
+  return { ok: true, excludedAt: v.data.excluded ? new Date().toISOString() : null };
+}
+

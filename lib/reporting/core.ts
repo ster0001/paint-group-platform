@@ -27,7 +27,16 @@ export type MetricKind = "period" | "now";
 export type MetricUnit = "count" | "cents" | "pct" | "days" | "hours";
 export type GstBasis = "inc" | "ex" | null;
 
-export type Range = { from: string; to: string };   // yyyy-mm-dd, Melbourne calendar days, inclusive
+export type Range = {
+  from: string; to: string;   // yyyy-mm-dd, Melbourne calendar days, inclusive
+  /**
+   * The period this one is compared with, when the preset knows better than
+   * the same-length rule: a week against the same weekdays of the week before,
+   * a quarter or year against the same day-count of the one before.
+   * `previousRange` honours it; absent, the month rule applies.
+   */
+  compare?: { from: string; to: string };
+};
 
 export type MetricDef<Row extends object> = {
   key: string;
@@ -107,7 +116,7 @@ export type PlSlice = {
   /** marketing_spend rows over the last 13 months (month yyyy-mm-01). */
   spend: { month: string; channel: string; spend_cents: number }[];
   /** Succeeded payments landed in the window, inc GST. */
-  payments: { paid_on: string; amount_cents: number }[];
+  payments: { paid_on: string; amount_cents: number; invoice_id?: string | null }[];
   /** Accounts (accepted in the window) that had an accepted estimate BEFORE the one in the window. */
   repeatAccounts: string[];
   /** Twelve months of accepted totals by month (inc GST) — shared with the target card. */
@@ -136,6 +145,8 @@ export type SalesSlice = {
   targets: { month: string; target_cents: number }[];
   /** Accepted estimates over the last 12 months, for the chart: month yyyy-mm, cents inc GST. */
   history: { month: string; sales_cents: number; accepted: number }[];
+  /** The rows behind `history`, with ids, so the dashboard exclusions (20270184) can be applied after the load. */
+  historyRows?: { id: string; accepted_at: string; accepted_total_cents: number | null; total_cents: number }[];
   viewerUserId: string | null;
   /** "mine" (a sales login's default) or "team". */
   who: "mine" | "team";
@@ -285,6 +296,7 @@ export const daysBetween = (from: string, to: string): number => Math.round((utc
  * ("1–19 Aug"), as the mockup shows.
  */
 export function previousRange(range: Range): Range {
+  if (range.compare) return { from: range.compare.from, to: range.compare.to };
   const fromDay = utc(range.from);
   const isMonthStart = fromDay.getUTCDate() === 1;
   if (isMonthStart) {
@@ -302,28 +314,68 @@ export function previousRange(range: Range): Range {
   return { from: addDays(to, -(len - 1)), to };
 }
 
-export const RANGE_PRESETS = ["this_month", "last_30", "quarter", "ytd", "custom"] as const;
+export const RANGE_PRESETS = ["week", "month", "quarter", "year", "custom"] as const;
 export type RangePreset = (typeof RANGE_PRESETS)[number];
 export const PRESET_LABEL: Record<RangePreset, string> = {
-  this_month: "This month", last_30: "Last 30 days", quarter: "Quarter", ytd: "Year to date", custom: "Custom",
+  week: "Week", month: "Month", quarter: "Quarter", year: "Year", custom: "Custom",
 };
+/** The session-1 chip names, still in old links and specs; each maps to the preset that means the same thing. */
+const LEGACY_PRESET: Record<string, RangePreset> = { this_month: "month", last_30: "month", ytd: "year" };
+export const isRangePreset = (s: string): s is RangePreset => (RANGE_PRESETS as readonly string[]).includes(s);
+/** A preset name from a URL or a cookie — a current name, a legacy name, or null. Never a guess. */
+export function parsePreset(raw: string | null | undefined): RangePreset | null {
+  if (!raw) return null;
+  return isRangePreset(raw) ? raw : LEGACY_PRESET[raw] ?? null;
+}
+
+const quarterStart = (y: number, m: number) => isoOf(new Date(Date.UTC(y, Math.floor((m - 1) / 3) * 3, 1)));
+const quarterEnd = (y: number, m: number) => isoOf(new Date(Date.UTC(y, Math.floor((m - 1) / 3) * 3 + 3, 0)));
+/** Monday of the week the day falls in (Melbourne calendar, Monday-first). */
+export const weekStart = (day: string): string => addDays(day, -((utc(day).getUTCDay() + 6) % 7));
+
+/**
+ * The same stretch of the previous quarter or year: whole against whole,
+ * a partial against the same day-count from the previous one's first day,
+ * clamped to its length (a leap day never pushes it over).
+ */
+function samePartOfPrevious(range: { from: string; to: string }, prevFrom: string, prevTo: string): { from: string; to: string } {
+  const len = daysBetween(range.from, range.to);
+  const prevLen = daysBetween(prevFrom, prevTo);
+  return { from: prevFrom, to: addDays(prevFrom, Math.min(len, prevLen) - 1) };
+}
 
 /** Resolve the header's chips to Melbourne calendar days, ending today. */
-export function resolveRange(preset: RangePreset, now: Date, custom?: Partial<Range>): Range {
+export function resolveRange(preset: RangePreset, now: Date, custom?: Partial<{ from: string; to: string }>): Range {
   const today = melbourneDay(now);
   const [y, m] = today.split("-").map(Number);
   switch (preset) {
-    case "this_month": return { from: `${today.slice(0, 7)}-01`, to: today };
-    case "last_30":    return { from: addDays(today, -29), to: today };
-    case "quarter": {
-      const qStart = new Date(Date.UTC(y, Math.floor((m - 1) / 3) * 3, 1));
-      return { from: isoOf(qStart), to: today };
+    case "week": {
+      const from = weekStart(today);
+      return { from, to: today, compare: { from: addDays(from, -7), to: addDays(today, -7) } };
     }
-    case "ytd":        return { from: `${y}-01-01`, to: today };
+    case "month":   return { from: `${today.slice(0, 7)}-01`, to: today };
+    case "quarter": {
+      const from = quarterStart(y, m);
+      const prevEnd = addDays(from, -1);
+      const [py, pm] = prevEnd.split("-").map(Number);
+      return { from, to: today, compare: samePartOfPrevious({ from, to: today }, quarterStart(py, pm), prevEnd) };
+    }
+    case "year": {
+      const from = `${y}-01-01`;
+      return { from, to: today, compare: samePartOfPrevious({ from, to: today }, `${y - 1}-01-01`, `${y - 1}-12-31`) };
+    }
     case "custom": {
       const from = custom?.from && /^\d{4}-\d{2}-\d{2}$/.test(custom.from) ? custom.from : `${today.slice(0, 7)}-01`;
       const to = custom?.to && /^\d{4}-\d{2}-\d{2}$/.test(custom.to) ? custom.to : today;
-      return from <= to ? { from, to } : { from: to, to: from };
+      const r = from <= to ? { from, to } : { from: to, to: from };
+      // A custom range that is exactly a whole quarter or year compares with the whole previous one.
+      const [fy, fm] = r.from.split("-").map(Number);
+      if (r.from === `${fy}-01-01` && r.to === `${fy}-12-31`) return { ...r, compare: { from: `${fy - 1}-01-01`, to: `${fy - 1}-12-31` } };
+      if (r.from === quarterStart(fy, fm) && r.to === quarterEnd(fy, fm)) {
+        const prevEnd = addDays(r.from, -1); const [py, pm] = prevEnd.split("-").map(Number);
+        return { ...r, compare: { from: quarterStart(py, pm), to: prevEnd } };
+      }
+      return r;
     }
   }
 }
@@ -339,6 +391,25 @@ export function rangeLabel(r: Range): string {
     return `${a.getUTCDate()} – ${dayLabel.format(b)}`;
   }
   return `${dayShort.format(a)} – ${dayLabel.format(b)}`;
+}
+
+const monShort = new Intl.DateTimeFormat("en-AU", { month: "short", timeZone: "UTC" });
+const dayMonShort = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", timeZone: "UTC" });
+/**
+ * The few characters a tile has for "vs …": a whole month is "Aug", a whole
+ * quarter "Q2", a whole year "2025", the same weekdays last week "7–13 Sep",
+ * anything else "24 Aug – 6 Sep". Never assumes the period is a month.
+ */
+export function rangeShortLabel(r: { from: string; to: string } | null): string {
+  if (!r) return "";
+  const a = utc(r.from); const b = utc(r.to);
+  const [fy, fm] = r.from.split("-").map(Number);
+  if (r.from === `${fy}-01-01` && r.to === `${fy}-12-31`) return String(fy);
+  if (r.from === quarterStart(fy, fm) && r.to === quarterEnd(fy, fm)) return `Q${Math.floor((fm - 1) / 3) + 1} ${String(fy).slice(2)}`;
+  const wholeMonth = a.getUTCDate() === 1 && r.to === isoOf(new Date(Date.UTC(fy, fm, 0)));
+  if (wholeMonth) return monShort.format(a);
+  if (a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth()) return r.from === r.to ? dayMonShort.format(a) : `${a.getUTCDate()}–${dayMonShort.format(b)}`;
+  return `${dayMonShort.format(a)} – ${dayMonShort.format(b)}`;
 }
 
 /** "▲ 6% vs Aug" — the arrow the tile shows. Null when there is nothing to compare with. */

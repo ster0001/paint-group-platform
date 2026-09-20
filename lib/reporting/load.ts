@@ -25,6 +25,7 @@ import {
 } from "./core";
 import { loadDashboard as loadInvoicingDashboard, toDerive, toDerivePayments, type InvoiceRow } from "@/app/invoicing/data";
 import { effectiveRoles, isDashboardRole, type DashboardRole, type DashboardSection } from "./roles";
+import { loadReportingExclusions, without, type ReportingExclusions } from "./exclusions";
 
 export async function loadRoles(supabase: SupabaseClient): Promise<DashboardRole[]> {
   const { data, error } = await supabase.rpc("dashboard_roles");
@@ -228,6 +229,19 @@ async function loadContractorSlice(supabase: SupabaseClient, range: Range, failu
 
 export type ViewerOptions = { userId: string | null; who?: "mine" | "team"; family?: string | null; q?: string | null };
 
+type HistoryRow = { id: string; accepted_at: string; accepted_total_cents: number | null; total_cents: number };
+const monthFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit" });
+/** Accepted totals by Melbourne month — the target card's twelve bars; recomputed after the exclusions are applied. */
+function salesHistory(rows: readonly HistoryRow[]): SalesSlice["history"] {
+  const monthly = new Map<string, { sales_cents: number; accepted: number }>();
+  for (const e of rows) {
+    const mo = monthFmt.format(new Date(e.accepted_at)).slice(0, 7);
+    const g = monthly.get(mo) ?? { sales_cents: 0, accepted: 0 };
+    g.sales_cents += e.accepted_total_cents ?? e.total_cents; g.accepted += 1; monthly.set(mo, g);
+  }
+  return [...monthly.entries()].map(([month, g]) => ({ month, ...g })).sort((a, b) => a.month.localeCompare(b.month));
+}
+
 async function loadSalesSlice(supabase: SupabaseClient, range: Range, viewer: ViewerOptions, roles: ReadonlyArray<DashboardRole>, failures: LoadFailure[]): Promise<SalesSlice> {
   const [y, m] = range.to.slice(0, 7).split("-").map(Number);
   const historyFrom = new Date(Date.UTC(y, m - 12, 1)).toISOString();
@@ -236,23 +250,18 @@ async function loadSalesSlice(supabase: SupabaseClient, range: Range, viewer: Vi
     supabase.from("profiles").select("id, name").eq("role", "staff"),
     // Targets are owner/admin only (RLS) — a sales login reads an empty list, and the card is not rendered for them.
     supabase.from("sales_targets").select("month, target_cents").is("category_label", null).is("salesperson_id", null).gte("month", historyFrom.slice(0, 10)),
-    fetchAllRows<{ accepted_at: string; accepted_total_cents: number | null; total_cents: number }>((from, to) =>
-      supabase.from("estimates").select("accepted_at, accepted_total_cents, total_cents").eq("status", "accepted").gte("accepted_at", historyFrom).order("accepted_at").range(from, to)).then((rows) => ({ data: rows, error: null as null | { message: string } })).catch((e: unknown) => ({ data: [] as { accepted_at: string; accepted_total_cents: number | null; total_cents: number }[], error: { message: e instanceof Error ? e.message : String(e) } })),
+    fetchAllRows<HistoryRow>((from, to) =>
+      supabase.from("estimates").select("id, accepted_at, accepted_total_cents, total_cents").eq("status", "accepted").gte("accepted_at", historyFrom).order("accepted_at").range(from, to)).then((rows) => ({ data: rows, error: null as null | { message: string } })).catch((e: unknown) => ({ data: [] as HistoryRow[], error: { message: e instanceof Error ? e.message : String(e) } })),
   ]);
   for (const [where, r] of [["presentations", pres], ["staff names", staff], ["sales history", history]] as const) if (r.error) failure(failures, where, r.error);
   if (targets.error && targets.error.code !== "42501") failure(failures, "sales targets", targets.error);
-  const monthly = new Map<string, { sales_cents: number; accepted: number }>();
-  for (const e of history.data ?? []) {
-    const mo = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit" }).format(new Date(e.accepted_at)).slice(0, 7);
-    const g = monthly.get(mo) ?? { sales_cents: 0, accepted: 0 };
-    g.sales_cents += e.accepted_total_cents ?? e.total_cents; g.accepted += 1; monthly.set(mo, g);
-  }
   const salesOnly = roles.length > 0 && roles.every((r) => r === "sales");
   return {
     presentations: ((pres.data ?? []) as { id: string; category_label: string | null; name: string }[]).map((p) => ({ id: p.id, category_label: p.category_label || p.name })),
     staff: ((staff.data ?? []) as { id: string; name: string | null }[]).map((s) => ({ id: s.id, name: s.name || "Staff" })),
     targets: ((targets.data ?? []) as { month: string; target_cents: number }[]).map((t) => ({ month: t.month, target_cents: Number(t.target_cents) })),
-    history: [...monthly.entries()].map(([month, g]) => ({ month, ...g })).sort((a, b) => a.month.localeCompare(b.month)),
+    history: salesHistory(history.data ?? []),
+    historyRows: history.data ?? [],
     viewerUserId: viewer.userId,
     who: viewer.who ?? (salesOnly ? "mine" : "team"),
   };
@@ -334,7 +343,7 @@ async function loadPlSlice(supabase: SupabaseClient, range: Range, closedJobs: C
   const [settings, spend, pays] = await Promise.all([
     supabase.from("settings").select("key, value").in("key", ["Weekly fixed costs", "Weekly marketing"]),
     supabase.from("marketing_spend").select("month, channel, spend_cents").gte("month", spendFrom),
-    supabase.from("payments").select("paid_on, amount_cents").eq("status", "succeeded").gte("paid_on", fromIso.slice(0, 10)).lte("paid_on", toIso.slice(0, 10)).limit(5000),
+    supabase.from("payments").select("paid_on, amount_cents, invoice_id").eq("status", "succeeded").gte("paid_on", fromIso.slice(0, 10)).lte("paid_on", toIso.slice(0, 10)).limit(5000),
   ]);
   if (settings.error) failure(failures, "overhead settings", settings.error);
   if (spend.error && spend.error.code !== "42501") failure(failures, "marketing spend", spend.error);
@@ -355,9 +364,50 @@ async function loadPlSlice(supabase: SupabaseClient, range: Range, closedJobs: C
     weeklyFixedCents: (() => { const v = val("Weekly fixed costs"); return v == null ? null : Math.round(v * 100); })(),
     weeklyMarketingCents: (() => { const v = val("Weekly marketing"); return v == null ? null : Math.round(v * 100); })(),
     spend: ((spend.data ?? []) as { month: string; channel: string; spend_cents: number }[]).map((r) => ({ month: r.month, channel: r.channel, spend_cents: Number(r.spend_cents) })),
-    payments: ((pays.data ?? []) as { paid_on: string | null; amount_cents: number }[]).filter((p) => p.paid_on).map((p) => ({ paid_on: p.paid_on as string, amount_cents: p.amount_cents })),
+    payments: ((pays.data ?? []) as { paid_on: string | null; amount_cents: number; invoice_id: string | null }[]).filter((p) => p.paid_on).map((p) => ({ paid_on: p.paid_on as string, amount_cents: p.amount_cents, invoice_id: p.invoice_id })),
     repeatAccounts: [...repeat],
     history,
+  };
+}
+
+// ---- exclusions (20270184) ----------------------------------------------------------
+
+function excludeConsole(input: ConsoleData["input"], woIds: ReadonlySet<string>): ConsoleData["input"] {
+  if (woIds.size === 0) return input;
+  const byWo = <T extends { workOrderId: string }>(xs: T[] | undefined): T[] | undefined => (xs ? without(xs, (r) => r.workOrderId, woIds) : xs);
+  return {
+    ...input,
+    workOrders: without(input.workOrders, (w) => w.id, woIds),
+    offers: without(input.offers, (o) => o.workOrderId, woIds),
+    variations: without(input.variations, (v) => v.workOrderId, woIds),
+    updates: without(input.updates, (u) => u.workOrderId, woIds),
+    warrantyIssues: byWo(input.warrantyIssues),
+    signoffs: without(input.signoffs, (s) => s.workOrderId, woIds),
+    quietSites: without(input.quietSites, (q) => q.workOrderId, woIds),
+    collections: byWo(input.collections),
+  };
+}
+
+function excludeContractors(c: ContractorSlice, woIds: ReadonlySet<string>): ContractorSlice {
+  if (woIds.size === 0) return c;
+  return {
+    ...c,
+    done: without(c.done, (r) => r.work_order_id, woIds),
+    qaChecks: without(c.qaChecks, (r) => r.work_order_id, woIds),
+    offers: without(c.offers, (r) => r.work_order_id, woIds),
+    variations: without(c.variations, (r) => r.work_order_id, woIds),
+    pendingExpenses: without(c.pendingExpenses, (r) => r.work_order_id, woIds),
+  };
+}
+
+function excludeInvoicing(i: InvoicingSlice, x: ReportingExclusions): InvoicingSlice {
+  if (x.invoiceIds.size === 0 && x.woRefs.size === 0) return i;
+  return {
+    ...i,
+    invoices: without(i.invoices, (r) => r.id, x.invoiceIds),
+    payments: without(i.payments, (r) => r.invoiceId, x.invoiceIds),
+    contractorInvoices: without(i.contractorInvoices, (r) => r.wo_ref, x.woRefs),
+    paymentsInWindow: without(i.paymentsInWindow, (r) => r.invoice_id, x.invoiceIds),
   };
 }
 
@@ -397,7 +447,8 @@ export async function loadDashboard(
   // Session 6: one wave for everything that depends on nothing else; the two
   // that need the console or the closed jobs follow. The critical path is the
   // slowest single read, not the sum of three stages.
-  const [console_, est, closedJobs, thresholdRes, contractorSlice, salesSlice, funnelSlice, activitySlice, invoicingSlice] = await Promise.all([
+  const [excl, console_, estRaw, closedRaw, thresholdRes, contractorRaw, salesRaw, funnelRaw, activitySlice, invoicingRaw] = await Promise.all([
+    timed("exclusions", loadReportingExclusions(supabase)),
     wantsConsole ? timed("console", loadConsole(supabase, now).catch((e: unknown) => { failure(failures, "PC console", e); return null; })) : null,
     wantsEstimates ? timed("estimates", loadEstimates(supabase, range)) : Promise.resolve({ rows: [] as EstimateRow[], failures: [] as LoadFailure[] }),
     wantsClosedJobs ? timed("closed_jobs", loadClosedJobs(supabase, range, failures)) : Promise.resolve([] as ClosedJobRow[]),
@@ -408,13 +459,25 @@ export async function loadDashboard(
     sections.includes("activity") ? timed("activity", loadActivitySlice(supabase, range, roles, viewer, failures)) : Promise.resolve(null),
     sections.includes("invoicing") ? timed("invoicing", loadInvoicingSlice(supabase, range, now, failures)) : Promise.resolve(null),
   ]);
-  failures.push(...est.failures);
+  failures.push(...estRaw.failures);
   if (thresholdRes.error) failure(failures, "anomaly threshold", thresholdRes.error);
+  if (excl.error) failure(failures, "dashboard exclusions", excl.error);
+  // Migration 20270184: a marked estimate is gone from every slice at once.
+  const x = excl.exclusions;
+  const est = { rows: without(estRaw.rows, (e) => e.id, x.estimateIds) };
+  const closedJobs = without(closedRaw, (j) => j.work_order_id, x.workOrderIds);
+  if (console_) console_.input = excludeConsole(console_.input, x.workOrderIds);
+  const contractorSlice = contractorRaw ? excludeContractors(contractorRaw, x.workOrderIds) : null;
+  const historyRows = salesRaw ? without(salesRaw.historyRows, (h) => h.id, x.estimateIds) : [];
+  const salesSlice = salesRaw ? { ...salesRaw, historyRows, history: salesHistory(historyRows) } : null;
+  const funnelSlice = funnelRaw ? { ...funnelRaw, estimates: without(funnelRaw.estimates, (e) => e.id, x.estimateIds) } : null;
+  const invoicingSlice = invoicingRaw ? excludeInvoicing(invoicingRaw, x) : null;
   const anomalyPct = numericSettingValue((thresholdRes.data as { value?: unknown } | null)?.value) ?? 25;
-  const [consoleSlice, plSlice] = await Promise.all([
+  const [consoleSlice, plRaw] = await Promise.all([
     console_ ? timed("console_slice", loadConsoleSlice(supabase, console_, closedJobs, failures)) : Promise.resolve(null),
     sections.includes("pl") || sections.includes("marketing") ? timed("pl", loadPlSlice(supabase, range, closedJobs, salesSlice?.history ?? [], failures)) : Promise.resolve(null),
   ]);
+  const plSlice = plRaw ? { ...plRaw, payments: without(plRaw.payments, (p) => p.invoice_id, x.invoiceIds) } : null;
   timings.total = Math.round(performance.now() - t0);
   return {
     input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, sales: salesSlice, funnel: funnelSlice, activity: activitySlice, invoicing: invoicingSlice, pl: plSlice, thresholds: { anomalyPct } },

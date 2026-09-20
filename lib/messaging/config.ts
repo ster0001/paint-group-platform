@@ -95,6 +95,8 @@ export type MessagingSettings = {
   offerSms: string;
   offerEmailSubject: string;
   offerEmailIntro: string;
+  /** Painter (Session 4): the offer is still waiting — 12 h and 20 h after it went out. */
+  offerReminderSms: string;
   /** Employee (employed-painters S2): a job is assigned — open it and tap Accept. */
   assignmentSms: string;
   assignmentEmailSubject: string;
@@ -256,6 +258,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Hi {{first_name}},\n\n" +
     "{{company_name}} has offered you a job ({{wo_ref}}). The offer holds for 24 hours — " +
     "sign in to your portal to see the dates, the price and the job sheet, and give your answer.",
+  offerReminderSms: "Job offer at {{suburb}} ({{start_date}}) is still waiting and expires at {{expiry_time}}. Accept or decline: {{link}}",
   assignmentSms:
     "{{company_name}}: you're on {{wo_ref}} from {{start_date}} ({{address}}). Open your work order and tap Accept: {{link}}",
   assignmentEmailSubject: "You're on a job — {{wo_ref}}, from {{start_date}}",

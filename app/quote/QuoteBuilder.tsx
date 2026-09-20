@@ -42,7 +42,7 @@ import type { WoStage } from "@/lib/workorder/stages";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import { conditionExtraHours } from "@/lib/workorder/conditionAllowance";
 import OfferPanel from "./OfferPanel";
-import { linkEstimateAccountAction, replyToEstimateChatAction, sendEstimateAction, type DeliveryOutcome, addAcceptedOptionAction } from "./actions";
+import { linkEstimateAccountAction, replyToEstimateChatAction, sendEstimateAction, setReportingExcludedAction, type DeliveryOutcome, addAcceptedOptionAction } from "./actions";
 import SendDialog, { type SendDelivery } from "./SendDialog";
 import { LEAD_SOURCE_OPTIONS, LEAD_SOURCE_REQUIRED, isLeadSource, type LeadSource } from "@/lib/estimate/leadSource";
 import { reviewGate, REVIEW_GATE_CENTS, type AiDeferred } from "@/lib/estimate/reviewGate";
@@ -301,7 +301,7 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   areaNames: AreaNameRef[];
-  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; lead_source?: string | null; sent_snapshot?: unknown; selected_options?: string[] | null } | null;
+  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; lead_source?: string | null; sent_snapshot?: unknown; selected_options?: string[] | null; reporting_excluded_at?: string | null; reporting_excluded_reason?: string | null } | null;
   company: CompanyProfile;
   contacts: Contact[];
   inclusionTemplates?: InclusionTemplate[];
@@ -447,6 +447,16 @@ export default function QuoteBuilder({
   // account's first touch by the database; a staff pick fills the account when
   // it has none. Required before Send — the server refuses without it.
   const [leadSource, setLeadSource] = useState<LeadSource | null>(isLeadSource(initial?.lead_source) ? initial.lead_source : null);
+  // 20270184: a test job (or a duplicate) left out of every dashboard number. Saved on the spot, not with the builder.
+  const [reportingExcluded, setReportingExcluded] = useState<boolean>(Boolean(initial?.reporting_excluded_at));
+  const [reportingExcludedMsg, setReportingExcludedMsg] = useState<string>("");
+  const toggleReportingExcluded = async (next: boolean) => {
+    if (!initial?.id) return;
+    setReportingExcluded(next); setReportingExcludedMsg("Saving…");
+    const r = await setReportingExcludedAction({ estimateId: initial.id, excluded: next, reason: next ? "test job" : undefined });
+    if (!r.ok) { setReportingExcluded(!next); setReportingExcludedMsg(r.error); return; }
+    setReportingExcludedMsg(next ? "Left out of the dashboard from now on." : "Counted on the dashboard again.");
+  };
   // The list is loaded with the page, then REFRESHED whenever this tab regains
   // focus or the picker is opened — a presentation made in Settings a minute
   // ago must be offered without a reload (Tom, 3 Sep: "make sure any future
@@ -2370,6 +2380,22 @@ export default function QuoteBuilder({
                       {LEAD_SOURCE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
                     </select>
                   </label>
+                  {initial?.id && (
+                    <label className="mt-3 flex items-start gap-2 text-xs sm:max-w-md">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={reportingExcluded}
+                        onChange={(e) => { void toggleReportingExcluded(e.target.checked); }}
+                        data-testid="reporting-excluded"
+                      />
+                      <span className="text-gray-500">
+                        Leave out of the dashboard <span className="text-gray-400">· a test job or a duplicate: nothing on Home counts it, the estimate and its job stay put</span>
+                        {reportingExcludedMsg && <span className="ml-2 text-gray-700" data-testid="reporting-excluded-msg">{reportingExcludedMsg}</span>}
+                        {reportingExcluded && initial?.reporting_excluded_reason && !reportingExcludedMsg && <span className="ml-2 text-gray-700">· {initial.reporting_excluded_reason}</span>}
+                      </span>
+                    </label>
+                  )}
                   {presList.length > 0 && (
                     <label className="mt-3 block text-xs">
                       <span className="text-gray-500">Presentation <span className="text-gray-400">· injects capability/proof blocks into the customer view</span></span>
