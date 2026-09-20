@@ -86,16 +86,24 @@ export function anomalyCards(results: ReadonlyArray<MetricResult>, thresholdPct:
 
 const RANK: Record<StripSeverity, number> = { critical: 0, amber: 1, info: 2 };
 
-/** Pick the strip for a login. Owner and admin see every card; the rest their own. */
+/**
+ * Pick the strip for a login. Owner and admin see every card; the rest their
+ * own. The `extra` cards (the trend anomalies) are kept whole — a busy
+ * database has more than `limit` critical job cards, and a trend card that
+ * the limit silently drops is a trend nobody saw — then the rest fill up to
+ * the limit, critical first.
+ */
 export function buildStrip(
   input: { workItems: WorkItem[]; consoleCards: QueueCard[]; extra?: StripCard[] },
   roles: ReadonlyArray<DashboardRole>,
   limit = 12,
 ): StripCard[] {
-  const all: StripCard[] = [...(input.extra ?? [])];
-  for (const i of input.workItems) { const c = fromWorkItem(i); if (c) all.push(c); }
-  for (const c of input.consoleCards) all.push(fromConsoleCard(c));
-  const mine = all.filter((c) => c.roles.some((r) => roles.includes(r)));
-  mine.sort((a, b) => RANK[a.severity] - RANK[b.severity] || a.title.localeCompare(b.title));
-  return mine.slice(0, limit);
+  const forMe = (c: StripCard) => c.roles.some((r) => roles.includes(r));
+  const bySeverity = (a: StripCard, b: StripCard) => RANK[a.severity] - RANK[b.severity] || a.title.localeCompare(b.title);
+  const extra = (input.extra ?? []).filter(forMe).sort(bySeverity);
+  const rest: StripCard[] = [];
+  for (const i of input.workItems) { const c = fromWorkItem(i); if (c) rest.push(c); }
+  for (const c of input.consoleCards) rest.push(fromConsoleCard(c));
+  const mine = rest.filter(forMe).sort(bySeverity).slice(0, Math.max(0, limit - extra.length));
+  return [...extra, ...mine].sort(bySeverity);
 }

@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorkItem } from "@/lib/crm/work-queue";
 import type { QueueCard } from "@/lib/workorder/console";
-import { buildStrip } from "./strip";
+import { buildStrip, type StripCard } from "./strip";
 
 const item = (kind: WorkItem["kind"], bucket: WorkItem["bucket"], title: string): WorkItem => ({
   key: `k:${kind}:${title}`, kind, accountId: "a1", subjectRef: { type: "account", id: "a1" }, title, detail: "d", since: "2026-09-19T00:00:00Z",
@@ -47,5 +47,20 @@ describe("buildStrip", () => {
   it("no roles, no cards; the limit holds", () => {
     expect(buildStrip(input, [])).toEqual([]);
     expect(buildStrip(input, ["owner"], 2)).toHaveLength(2);
+  });
+});
+
+describe("session 5 — trend cards are never crowded out", () => {
+  it("keeps every extra card past the limit and fills the rest with the highest-ranked cards", () => {
+    const items = Array.from({ length: 20 }, (_, n) => ({
+      key: `inv-${n}`, kind: "invoice_action", bucket: "overdue", title: `Invoice ${String(n).padStart(2, "0")}`, detail: "", action: { label: "Open", href: "/invoicing" },
+    })) as unknown as WorkItem[];
+    const extra: StripCard[] = [{ key: "anomaly:pl.contracts_signed_ex", severity: "amber", label: "Amber · trend", title: "Contracts signed up 40% vs August", detail: "", action: { label: "See the tile", href: "/home#section-pl" }, roles: ["owner", "admin"] }];
+    const strip = buildStrip({ workItems: items, consoleCards: [], extra }, ["owner"]);
+    expect(strip).toHaveLength(12);
+    expect(strip.some((c) => c.key === "anomaly:pl.contracts_signed_ex")).toBe(true);
+    expect(strip.filter((c) => c.severity === "critical")).toHaveLength(11);
+    // Not for a finance login: the trend card is owner/admin.
+    expect(buildStrip({ workItems: items, consoleCards: [], extra }, ["finance"]).some((c) => c.key.startsWith("anomaly:"))).toBe(false);
   });
 });

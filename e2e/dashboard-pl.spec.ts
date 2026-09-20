@@ -67,7 +67,7 @@ test.describe("dashboard · session 5 · P&L + marketing, owner only", () => {
     expect(signed).toBeGreaterThanOrEqual(8_181_818);
     await expect(page.getByTestId("tile-note-pl.contracts_signed_ex")).toContainText("Settings basis until MYOB");
     await page.getByTestId("tile-pl.contracts_signed_ex").click();
-    await expect(page.getByTestId("drill-pl.contracts_signed_ex").locator("tr", { hasText: `Anomaly ${run}` })).toContainText("818181818");
+    await expect(page.getByTestId("drill-pl.contracts_signed_ex").locator("tr", { hasText: `Anomaly ${run}` })).toContainText("$8,181,818");
     await page.getByTestId("tile-pl.contracts_signed_ex").click();
 
     // Net margin is a rows card whose first line is the gross margin; the basis is written on every line.
