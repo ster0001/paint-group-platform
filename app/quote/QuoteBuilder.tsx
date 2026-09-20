@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 
 import { registerBuilder } from "./builderBridge";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   priceSurface,
   priceLine,
