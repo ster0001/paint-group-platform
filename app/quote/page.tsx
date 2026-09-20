@@ -3,6 +3,7 @@ import { ticksBySurfaceKey, type SurfaceState } from "@/lib/workorder/surfaces";
 import { signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import PhotoGrid from "@/app/account/(portal)/project/PhotoGrid";
 import QuoteBuilder from "./QuoteBuilder";
 import PackPane from "./PackPane";
 import EstimateStrip from "./EstimateStrip";
@@ -294,6 +295,14 @@ export default async function QuotePage({
     {strip}
     {importedStrip}
     {estimateTabs}
+    <>
+    {/* Live-progress phone in the builder preview (20 Sep): the feed the
+        renderProgressPreviewAction returns is the portal's JobTimeline, which
+        renders the PhotoGrid client component. A client reference only exists
+        where a SERVER component imports a client one, so this page — the
+        route's server entry — must reference PhotoGrid or the action's payload
+        cannot be resolved in the browser. Renders nothing with no photos. */}
+    <PhotoGrid photos={[]} />
     <QuoteBuilder
       key={builderKey}
       provenanceEdges={hasWizard}
@@ -325,6 +334,7 @@ export default async function QuotePage({
       contractors={contractors}
       presentations={presentations}
     />
+    </>
     {!revisionMode && <AssistantDrawer estimateId={id ?? null} />}
     </>
   );

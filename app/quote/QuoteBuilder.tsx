@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 
 import { registerBuilder } from "./builderBridge";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   priceSurface,
   priceLine,
@@ -30,6 +30,8 @@ import type { BackTo } from "@/lib/navigation/backTo";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
+import { renderProgressPreviewAction, type ProgressPreviewRender } from "./progressPreviewAction";
+import ProgressPhone from "@/app/e/[token]/ProgressPhone";
 import { DEFAULT_PROOF, ESTIMATE_DOCS_BUCKET, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, estimateDocUrl, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint, type SnapshotSurface } from "@/lib/customer/snapshot";
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
@@ -955,9 +957,37 @@ export default function QuoteBuilder({
   // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
   // tab kept showing the last published copy — without the presentation.
   const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, presentationId, leadSource, photoReview, extraPaints });
+
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
   const unsaved = Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
+
+  // Live-progress phone in the builder's customer preview (Tom, 20 Sep: "I want
+  // to see it in the estimate view"). The phone's feed is the portal's own
+  // JobTimeline — a Server Component — so the client cannot render it. The
+  // server action renders the same ProgressSection the customer page uses,
+  // from the doc this preview is showing (the sent snapshot, or the live
+  // build), and hands the node back. Debounced: a burst of edits is one call,
+  // and every state change happens inside the timer, never in the effect body.
+  const [progressData, setProgressData] = useState<ProgressPreviewRender | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      if (!quoteId) { setProgressData(null); return; }
+      const doc = !unsaved && sentSnapshot ? sentSnapshot : buildCustomerDoc(shareToken ?? "PREVIEW00");
+      if ((doc.presentation?.blocks?.length ?? 0) === 0) { setProgressData(null); return; }
+      void renderProgressPreviewAction({
+        estimateId: quoteId,
+        contactName: doc.contactName ?? "",
+        jobAddress: doc.jobAddress ?? "",
+        areas: (doc.areas ?? []).map((a) => ({ title: a.title, photos: a.photos ?? [] })),
+        paints: (doc.paints ?? []).map((pt) => ({ name: pt.name, brand: pt.brand, category: pt.category, role: pt.role, isPrep: pt.isPrep })),
+      }).then((data) => { if (!cancelled) setProgressData(data); }).catch(() => { if (!cancelled) setProgressData(null); });
+    }, 600);
+    return () => { cancelled = true; window.clearTimeout(t); };
+    // buildCustomerDoc reads the same state builderFingerprint hashes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [builderFingerprint, quoteId, sentSnapshot, unsaved, shareToken]);
   // Ticking a presentation IS the instruction to publish it — save at once,
   // so the customer's copy and the Estimate tab carry it without anyone
   // remembering the Save button (Tom, 3 Sep).
@@ -2158,7 +2188,11 @@ export default function QuoteBuilder({
               validUntil={validUntil}
               sentAt={sentAt}
               preview
+              progressPreview={progressData
+                ? <ProgressPhone token={null} preview={progressData.preview} feed={progressData.feed} />
+                : null}
             />
+
           </div>
           )}
         </div>

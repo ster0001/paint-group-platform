@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
-import { drawSignature } from "./helpers";
+import { credentials, drawSignature, missingCreds, signIn } from "./helpers";
 
 /**
  * Live-progress phone on the customer estimate (brief v4, Tom 19 Sep 2026):
@@ -269,6 +269,22 @@ test.describe("the live-progress phone on the estimate", () => {
     expect(html).toContain("Example of your live updates");
     expect(html.match(STAFF_ONLY)?.[0] ?? null).toBeNull();
     for (const b of bodies) expect(b.text.match(STAFF_ONLY)?.[0] ?? null, b.url).toBeNull();
+  });
+
+  test("staff see the same phone in the builder's ESTIMATE preview (Tom, 20 Sep)", async ({ page }) => {
+    const staff = credentials("STAFF");
+    test.skip(!staff, missingCreds("STAFF"));
+    await signIn(page, staff!, /\/(estimates|crm|quote|home)/);
+    await page.goto(`/quote?id=${trade.id}`);
+    await page.getByRole("button", { name: /^ESTIMATE$/ }).first().click();
+    const sec = page.getByTestId("live-progress");
+    await expect(sec).toBeVisible({ timeout: 30_000 });
+    // The preview is rendered by the server action from the estimate's own
+    // context, so the trade account's commercial set shows here too.
+    await expect(sec).toHaveAttribute("data-set", "commercial");
+    await expect(page.getByTestId("pp-label")).toHaveText("Example of your live updates");
+    await expect(sec.locator(".pp-feed .tl-item")).toHaveCount(5);
+    await expect(sec.locator(".pp-feed .cap").first()).toHaveText("Before · site photo");
   });
 
   test("with a presentation: the hero button and the step-4 link point at the section", async ({ page }) => {
