@@ -22,7 +22,7 @@ test.describe("dashboard · session 4 · invoicing", () => {
   const run = randomBytes(3).toString("hex");
   const password = "painttest123";
   const finEmail = `pg.e2e.fin.${run}@example.com`;
-  let finId = ""; let estimateId = ""; let invoiceId = "";
+  let finId = ""; let estimateId = ""; let invoiceId = ""; let materialId = "";
   const daysFrom = (n: number) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
   test.beforeAll(async () => {
@@ -44,9 +44,16 @@ test.describe("dashboard · session 4 · invoicing", () => {
     }).select("id").single();
     if (inv.error) throw new Error(inv.error.message);
     invoiceId = inv.data.id as string;
+    // A supplier invoice with no job yet (work_order_id null): the one state "Materials to match" counts (Tom, 20 Sep).
+    const mat = await db!.from("material_costs").insert({
+      work_order_id: null, supplier: `E2E Supplies ${run}`, order_ref: "", address_text: "9 Nowhere St", amount_cents: 18_700, invoice_date: daysFrom(-2), source: "email",
+    }).select("id").single();
+    if (mat.error) throw new Error(mat.error.message);
+    materialId = mat.data.id as string;
   });
   test.afterAll(async () => {
     if (!db) return;
+    if (materialId) await db.from("material_costs").delete().eq("id", materialId);
     if (invoiceId) await db.from("invoices").delete().eq("id", invoiceId);
     if (estimateId) await db.from("estimates").delete().eq("id", estimateId);
     if (finId) await db.auth.admin.deleteUser(finId);
@@ -62,6 +69,15 @@ test.describe("dashboard · session 4 · invoicing", () => {
     const homeOutstanding = digits(await page.getByTestId("tile-value-inv.outstanding_cents").textContent());
     const homeOverdue = digits(await page.getByTestId("tile-value-inv.overdue_cents").textContent());
     const homeToPay = digits(await page.getByTestId("tile-value-inv.contractors_to_pay_cents").textContent());
+    // Materials to match (Tom, 20 Sep): a COUNT of supplier invoices with no job; the fixture's row is one of them.
+    const homeToMatch = digits(await page.getByTestId("tile-value-inv.materials_to_match").textContent());
+    expect(homeToMatch).toBeGreaterThanOrEqual(1);
+    await page.getByTestId("tile-inv.materials_to_match").click();
+    const matchDrill = page.getByTestId("drill-inv.materials_to_match");
+    await expect(matchDrill).toBeVisible();
+    await expect(matchDrill.locator("tr", { hasText: `E2E Supplies ${run}` })).toBeVisible();
+    expect(await matchDrill.locator("tbody tr").count()).toBe(homeToMatch);
+    await page.getByTestId("tile-inv.materials_to_match").click();
 
     // The same instant, the /invoicing dashboard's own tiles (its money format drops cents too).
     await page.goto("/invoicing");
@@ -70,6 +86,10 @@ test.describe("dashboard · session 4 · invoicing", () => {
     expect(digits(await page.getByTestId("tile-overdue").textContent())).toBe(homeOverdue);
     // Approved-to-pay: /invoicing's Payables shows "to pay this week"; Home shows all approved — compare the shared to-approve line instead.
     const toApproveInvoicing = digits(await page.getByTestId("tile-to-approve").textContent());
+    // …and the Payables "Materials to match" tile is the same count, and its card lists the same row.
+    expect(digits(await page.getByTestId("tile-materials-to-match").textContent())).toBe(homeToMatch);
+    await page.getByTestId("tile-materials-to-match-link").click();
+    await expect(page.getByTestId("unmatched-materials")).toContainText(`E2E Supplies ${run}`);
     await page.goto("/home");
     await expect(page.getByTestId("home")).toBeVisible({ timeout: 30_000 });
     expect(digits(await page.getByTestId("tile-value-inv.contractors_to_pay_cents").textContent())).toBe(homeToPay);
@@ -85,7 +105,7 @@ test.describe("dashboard · session 4 · invoicing", () => {
     await page.getByTestId("tile-inv.overdue_cents").click();
 
     // Count tiles equal their rows.
-    for (const key of ["inv.deposits_unpaid_soon"]) {
+    for (const key of ["inv.deposits_unpaid_soon", "inv.materials_to_match"]) {
       const shown = digits(await page.getByTestId(`tile-value-${key}`).textContent());
       await page.getByTestId(`tile-${key}`).click();
       const d = page.getByTestId(`drill-${key}`);

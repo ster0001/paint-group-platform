@@ -22,6 +22,7 @@
  * Money is integer cents; GST basis is a label on the definition.
  */
 import { type DashboardRole, type DashboardSection, canSeeSection } from "./roles";
+import { fyEnd, fyOf, fyShortLabel, fyStart, isWholeFy } from "./financialYear";
 
 export type MetricKind = "period" | "now";
 export type MetricUnit = "count" | "cents" | "pct" | "days" | "hours";
@@ -136,6 +137,8 @@ export type InvoicingSlice = {
   ageingEdges: [number, number];
   /** Melbourne today, yyyy-mm-dd — the instant the /invoicing tiles are also computed for. */
   today: string;
+  /** Supplier (materials) invoices with no job yet — the Payables "Materials to match" rows (lib/invoicing/materialsToMatch). */
+  materialsToMatch?: import("@/lib/invoicing/materialsToMatch").MaterialToMatch[];
 };
 
 export type SalesSlice = {
@@ -147,6 +150,8 @@ export type SalesSlice = {
   history: { month: string; sales_cents: number; accepted: number }[];
   /** The rows behind `history`, with ids, so the dashboard exclusions (20270184) can be applied after the load. */
   historyRows?: { id: string; accepted_at: string; accepted_total_cents: number | null; total_cents: number }[];
+  /** 20270186: months recorded from PaintScout (yyyy-mm-01), which replace the platform's rows for that month. */
+  recorded?: { month: string; sales_cents: number; accepted: number | null; source: string }[];
   viewerUserId: string | null;
   /** "mine" (a sales login's default) or "team". */
   who: "mine" | "team";
@@ -317,7 +322,7 @@ export function previousRange(range: Range): Range {
 export const RANGE_PRESETS = ["week", "month", "quarter", "year", "custom"] as const;
 export type RangePreset = (typeof RANGE_PRESETS)[number];
 export const PRESET_LABEL: Record<RangePreset, string> = {
-  week: "Week", month: "Month", quarter: "Quarter", year: "Year", custom: "Custom",
+  week: "Week", month: "Month", quarter: "Quarter", year: "Financial year", custom: "Custom",
 };
 /** The session-1 chip names, still in old links and specs; each maps to the preset that means the same thing. */
 const LEGACY_PRESET: Record<string, RangePreset> = { this_month: "month", last_30: "month", ytd: "year" };
@@ -361,15 +366,18 @@ export function resolveRange(preset: RangePreset, now: Date, custom?: Partial<{ 
       return { from, to: today, compare: samePartOfPrevious({ from, to: today }, quarterStart(py, pm), prevEnd) };
     }
     case "year": {
-      const from = `${y}-01-01`;
-      return { from, to: today, compare: samePartOfPrevious({ from, to: today }, `${y - 1}-01-01`, `${y - 1}-12-31`) };
+      // The financial year, 1 July → today (Tom, 20 Sep 2026), against the same stretch of the FY before.
+      const fy = fyOf(today);
+      const from = fyStart(fy);
+      return { from, to: today, compare: samePartOfPrevious({ from, to: today }, fyStart(fy - 1), fyEnd(fy - 1)) };
     }
     case "custom": {
       const from = custom?.from && /^\d{4}-\d{2}-\d{2}$/.test(custom.from) ? custom.from : `${today.slice(0, 7)}-01`;
       const to = custom?.to && /^\d{4}-\d{2}-\d{2}$/.test(custom.to) ? custom.to : today;
       const r = from <= to ? { from, to } : { from: to, to: from };
-      // A custom range that is exactly a whole quarter or year compares with the whole previous one.
+      // A custom range that is exactly a whole financial year, calendar year or quarter compares with the whole previous one.
       const [fy, fm] = r.from.split("-").map(Number);
+      if (isWholeFy(r.from, r.to)) return { ...r, compare: { from: fyStart(fyOf(r.from) - 1), to: fyEnd(fyOf(r.from) - 1) } };
       if (r.from === `${fy}-01-01` && r.to === `${fy}-12-31`) return { ...r, compare: { from: `${fy - 1}-01-01`, to: `${fy - 1}-12-31` } };
       if (r.from === quarterStart(fy, fm) && r.to === quarterEnd(fy, fm)) {
         const prevEnd = addDays(r.from, -1); const [py, pm] = prevEnd.split("-").map(Number);
@@ -404,6 +412,7 @@ export function rangeShortLabel(r: { from: string; to: string } | null): string 
   if (!r) return "";
   const a = utc(r.from); const b = utc(r.to);
   const [fy, fm] = r.from.split("-").map(Number);
+  if (isWholeFy(r.from, r.to)) return fyShortLabel(fyOf(r.from));
   if (r.from === `${fy}-01-01` && r.to === `${fy}-12-31`) return String(fy);
   if (r.from === quarterStart(fy, fm) && r.to === quarterEnd(fy, fm)) return `Q${Math.floor((fm - 1) / 3) + 1} ${String(fy).slice(2)}`;
   const wholeMonth = a.getUTCDate() === 1 && r.to === isoOf(new Date(Date.UTC(fy, fm, 0)));

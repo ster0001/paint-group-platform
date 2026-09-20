@@ -265,4 +265,42 @@ test.describe("dashboard · session 1 · the shell", () => {
       await db!.from("accounts").delete().eq("id", accountId);
     }
   });
+
+  test("a month recorded from PaintScout stands in for the platform's rows; the Year chip is the financial year", async ({ page }) => {
+    // 20270186 (Tom, 20 Sep): the months sold before the platform are typed once and replace the imported rows.
+    await signIn(page, staff!, /\/(home|estimates)/);
+    const month = "2024-03";   // long before any real row, so nothing else lands in it
+    const put = await db!.from("sales_history_months").upsert({ month: `${month}-01`, sales_cents: 9_876_500, accepted: 7, source: "paintscout", note: `e2e ${run}` }, { onConflict: "month" });
+    if (put.error) throw new Error(put.error.message);
+    const dup = await db!.from("estimates").insert({
+      status: "accepted", source: "airtable", level_of_finish: 3, title: `Recorded-month dup ${run}`, lead_source: "referral",
+      sent_at: `${month}-02T01:00:00Z`, accepted_at: `${month}-10T01:00:00Z`, accepted_total_cents: 1_000_000, total_cents: 1_000_000, subtotal_cents: 909_091,
+      share_token: `homer${randomBytes(18).toString("base64url")}`, builder_state: { blocks: [] },
+    }).select("id").single();
+    if (dup.error) throw new Error(dup.error.message);
+    const read = async (metric: string, q: string) => {
+      const r = await page.request.get(`/api/reporting/export?metric=${metric}&${q}`);
+      expect(r.status()).toBe(200);
+      return { value: Number(r.headers()["x-metric-value"]), text: (await r.text()).replace(/^\uFEFF/, "") };
+    };
+    try {
+      const whole = `preset=custom&from=${month}-01&to=${month}-31`;
+      const cents = await read("sales.sales_cents", whole);
+      expect(cents.value).toBe(9_876_500);                       // the recorded month, not the $10,000 imported row
+      expect(cents.text).toContain("PaintScout · March 2024 (recorded)");
+      expect(cents.text).not.toContain(`Recorded-month dup ${run}`);
+      expect((await read("sales.sales_count", whole)).value).toBe(7);
+      // Part of the month is pro-rated by days: 1–15 March is 15 of 31.
+      expect((await read("sales.sales_cents", `preset=custom&from=${month}-01&to=${month}-15`)).value).toBe(Math.round(9_876_500 * 15 / 31));
+      expect((await read("pl.contracts_signed_ex", whole)).value).toBe(Math.round(9_876_500 / 1.1));
+      // The Year chip is the financial year: 1 July → today.
+      await page.goto("/home?preset=year");
+      await expect(page.getByTestId("range-year")).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByTestId("home-range")).toContainText("1 July");
+      await expect(page.getByTestId("target-fy")).toContainText("FY ");
+    } finally {
+      await db!.from("estimates").delete().eq("id", dup.data.id as string);
+      await db!.from("sales_history_months").delete().eq("month", `${month}-01`);
+    }
+  });
 });

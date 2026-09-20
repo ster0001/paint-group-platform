@@ -1,0 +1,6 @@
+property_key,account_key,address,suburb,state,postcode,address_norm,type,airtable_refs
+prop_e2e0000001,acc_e2e0000001,56 Main Street,Blackburn,VIC,3130,56 main street blackburn,,recE2E1
+prop_e2e0000002,acc_e2e0000002,7 Lost Lane,Testville,VIC,3000,7 lost lane testville,,recE2E2
+prop_e2e0000003,acc_e2e0000003,1/9 Agency Ave,Testville,VIC,3000,1/9 agency avenue testville,,recE2E3
+prop_e2e0000004,acc_e2e0000004,4 Cold Court,Testville,VIC,3000,4 cold court testville,,recE2E4
+prop_e2e0000005,acc_e2e0000005,61 Phone Road,Testville,VIC,3000,61 phone road testville,,recE2E5

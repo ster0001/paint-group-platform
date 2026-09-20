@@ -7,6 +7,7 @@ import {
   invoicePaidCents,
   paymentStages,
 } from "@/lib/invoicing/derive";
+import { contractorInvoiceTone } from "@/lib/invoicing/contractorInvoiceTone";
 import { loadJobCosts, loadJobMoney, toDerive, toDerivePayments } from "../../data";
 import { contractorVariationsCents } from "@/lib/workorder/contractorPay";
 import { SOURCE_LABEL, type IntakeSource } from "@/lib/costs/intake";
@@ -153,7 +154,12 @@ export default async function JobMoneyPage({
       loadError={job.loadError}
       costsError={jobCostData.loadError}
       costs={{
-        offerCents, acceptedDeltaCents, ci: job.contractorInvoice, rows: costRows, materials: materialRows,
+        offerCents, acceptedDeltaCents,
+        // The same tone as the Payables row (lib/invoicing/contractorInvoiceTone) — one colour per state.
+        ci: job.contractorInvoice
+          ? (() => { const t = contractorInvoiceTone({ status: job.contractorInvoice.status, dueOn: job.contractorInvoice.due_on }, today); return { number: job.contractorInvoice.number, status: job.contractorInvoice.status, toneClass: t.className, overdueLabel: t.overdueLabel }; })()
+          : null,
+        rows: costRows, materials: materialRows,
         expenses: jobCostData.expenses.map((e) => ({
           id: e.id,
           label: [e.category.replaceAll("_", " "), e.note || null].filter(Boolean).join(" — "),

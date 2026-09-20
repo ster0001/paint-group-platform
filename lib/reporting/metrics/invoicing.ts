@@ -9,6 +9,7 @@
  */
 import { OPEN_STATUSES } from "@/lib/invoicing/stateMachine";
 import { daysBetween, invoiceBalanceCents, invoiceIsOverdue, payablesTiles } from "@/lib/invoicing/derive";
+import { MATERIALS_TO_MATCH_HREF, materialsToMatch } from "@/lib/invoicing/materialsToMatch";
 import { inRange, type MetricDef, type MetricInput } from "../core";
 
 const ROLES = ["owner", "admin", "finance"] as const;
@@ -71,6 +72,30 @@ export const contractorsToPay: MetricDef<CiRow> = {
   unit: "cents", gst: "inc", roles: ROLES, aggregate: { sum: "total_cents" }, columns: CI_COLUMNS, href: "/invoicing#payables",
   select: (input) => ciRows(input, ["approved"]),
   note: (rows, _v, input) => { const t = payablesTiles(slice(input)?.contractorInvoices ?? [], slice(input)?.today ?? ""); return `${t.toApproveCount} to approve · ${aud(t.toApproveCents)}${rows.length ? ` · ${t.toPayWeekCount} due this week` : ""}`; },
+};
+
+export type MaterialToMatchRow = { supplier: string; amount_cents: number; invoice_date: string; received_on: string; reference: string; days_waiting: number; link: string };
+/**
+ * Tom, 20 Sep 2026: "a payables dashboard to show all materials which need to
+ * be matched (number of invoices to match only)". The predicate lives in
+ * lib/invoicing/materialsToMatch — a `material_costs` row with no
+ * `work_order_id` — and the /invoicing Payables tile calls the same function
+ * over the same read, so the two counts cannot differ.
+ */
+export const materialsToMatchTile: MetricDef<MaterialToMatchRow> = {
+  key: "inv.materials_to_match", kind: "now", section: "invoicing", title: "Materials to match",
+  definition: "Supplier (materials) invoices that have arrived but sit on no job yet — a materials cost with no work order against it. Counted, not summed: it is the number of invoices still to match. The same rows as the \"Materials without a job\" card on /invoicing → Payables, where each one is matched to its job. Right now.",
+  unit: "count", gst: null, roles: ROLES, aggregate: "count",
+  columns: [{ key: "supplier", label: "Supplier" }, { key: "amount_cents", label: "Amount (cents)" }, { key: "invoice_date", label: "Invoice date" }, { key: "received_on", label: "Received" }, { key: "reference", label: "Reference" }, { key: "days_waiting", label: "Days waiting" }, { key: "link", label: "Match it" }],
+  href: MATERIALS_TO_MATCH_HREF,
+  select: (input) => {
+    const s = slice(input); if (!s) return [];
+    return materialsToMatch(s.materialsToMatch ?? []).map((m) => ({
+      supplier: m.supplier || "Materials", amount_cents: m.amount_cents, invoice_date: m.invoice_date ?? "", received_on: m.created_at.slice(0, 10),
+      reference: [m.order_ref, m.address_text].filter(Boolean).join(" · "), days_waiting: daysBetween(m.created_at.slice(0, 10), s.today), link: MATERIALS_TO_MATCH_HREF,
+    }));
+  },
+  note: (rows) => rows.length ? `${aud(rows.reduce((t, r) => t + r.amount_cents, 0))} unallocated · oldest waiting ${Math.max(...rows.map((r) => r.days_waiting))} day${Math.max(...rows.map((r) => r.days_waiting)) === 1 ? "" : "s"}` : "every supplier invoice is on a job",
 };
 
 export const unsentInvoices: MetricDef<OpenInvoiceRow> = {
@@ -141,4 +166,4 @@ export const daysToPayFinal: MetricDef<DaysToPayRow> = {
   note: (rows) => rows.length ? `${rows.length} final${rows.length === 1 ? "" : "s"} paid in full` : "no finals paid in full in this range",
 };
 
-export const INVOICING_METRICS = [received, outstanding, overdue, contractorsToPay, unsentInvoices, depositsUnpaidSoon, daysToPayFinal] as const;
+export const INVOICING_METRICS = [received, outstanding, overdue, contractorsToPay, materialsToMatchTile, unsentInvoices, depositsUnpaidSoon, daysToPayFinal] as const;

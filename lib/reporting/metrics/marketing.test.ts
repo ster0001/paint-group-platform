@@ -85,7 +85,9 @@ describe("cost per accepted job — one row per acceptance, never a double count
 describe("spend vs sales", () => {
   it("the tile is spend ÷ accepted sales over the range, one decimal", () => {
     const r = runMetric(spendVsSales, input, range, owner);
-    const sales = acceptedInRange.reduce((s, e) => s + (e.accepted_total_cents ?? e.total_cents), 0);
+    // Both sides ex GST: every row's sales figure is the signed total ÷ 1.1 (20 Sep audit).
+    const sales = r.rows.reduce((s, x) => s + x.sales_cents, 0);
+    expect(sales).toBe(acceptedInRange.reduce((s, e) => s + Math.round((e.accepted_total_cents ?? e.total_cents) / 1.1), 0));
     expect(r.rows).toHaveLength(acceptedInRange.length);
     expect(r.value).toBe(Math.round((r.rows.reduce((s, x) => s + x.spend_share_cents, 0) / sales) * 1000) / 10);
     expect(r.unit).toBe("pct");
@@ -93,8 +95,9 @@ describe("spend vs sales", () => {
   it("twelve months: recorded where a month has it, else Settings weekly × 52 ÷ 12", () => {
     const r = runMetric(spendVsSalesTrend, input, range, owner);
     expect(r.rows).toHaveLength(12);
-    expect(r.rows[11]).toMatchObject({ month: "2026-09", spend_cents: 433_333, sales_cents: 4_000_000, pct: 10.8, basis: "Settings" });
-    expect(r.rows[10]).toMatchObject({ month: "2026-08", spend_cents: 400_000, sales_cents: 8_000_000, pct: 5, basis: "recorded" });
+    // Sales ex GST (÷ 1.1) against spend, which is recorded ex GST (20 Sep audit).
+    expect(r.rows[11]).toMatchObject({ month: "2026-09", spend_cents: 433_333, sales_cents: 3_636_364, pct: 11.9, basis: "Settings" });
+    expect(r.rows[10]).toMatchObject({ month: "2026-08", spend_cents: 400_000, sales_cents: 7_272_727, pct: 5.5, basis: "recorded" });
     expect(r.note).toBe("1 of 12 months from recorded spend");
   });
 });

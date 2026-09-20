@@ -2,7 +2,7 @@
 feature: invoicing
 role: staff
 title: Record a customer payment, including one that arrives before you send the invoice
-summary: How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, what happens when the invoice is still a draft, and what the customer receives.
+summary: How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, what happens when the invoice is still a draft, what the customer receives, the Payables tiles including Materials to match, and what each contractor invoice colour means.
 ---
 
 ## What this is for
@@ -31,6 +31,21 @@ A deposit invoice lists every line item from the accepted estimate under **Contr
 - **Awaiting** — issued or sent, balance still owing.
 - **Paid in full** — the balance is zero. A partial payment shows the remaining balance on the card.
 - **Overdue** — the due date has passed with money owing. Recording the payment clears it.
+
+## The Payables tiles
+Open **Invoicing → Payables**. Three tiles sit at the top:
+- **To approve** — contractor invoices submitted and waiting on a decision, with their total.
+- **To pay this week** — approved contractor invoices due within seven days (or with no due date), with their total.
+- **Materials to match** — the number of supplier invoices that have arrived but sit on no job yet. It is a count, not a dollar figure. Press the tile to jump to the **Materials without a job** card, where each one has **Assign to job**: pick the job and the invoice moves onto that job's Costs tab and drops off the count. The same count sits on **Home** under Invoicing as **Materials to match**; press it there for the list (supplier, amount, date received, reference).
+
+## Contractor invoice colours
+Every contractor invoice row on Payables, and the **Contractor** chip on a job's Costs tab, is coloured by what the office still owes on it:
+- **Amber** — submitted, waiting on you to approve or query.
+- **Red-brown (clay)** — approved and not yet paid: outstanding for payment.
+- **Stronger red-brown with "overdue N d"** — approved, unpaid, and past its due date; the number is the days past terms.
+- **Green** — paid.
+- **Grey** — a draft the painter has not submitted yet. Nothing is owed on it.
+Press **Mark paid** on a clay row to turn it green.
 
 ## Leaving an invoice mid-edit
 If a line's editor is open and you click to another page, the line is saved first and the page you clicked then opens. A line that cannot be saved (no description, or an amount that is not a number) keeps you on the invoice.
