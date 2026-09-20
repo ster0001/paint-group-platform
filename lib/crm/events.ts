@@ -58,6 +58,10 @@ export const CRM_EVENT_SCHEMAS = {
   estimate_built: z.object({ totalCents: money, accuracyPct: z.number().min(0).max(100).optional(), rooms: z.number().int().min(0).optional() }),
   estimate_sent: z.object({ totalCents: money, channel: z.enum(["email", "sms", "both", "link"]), validDays: z.number().int().min(1).max(365).optional() }),
   estimate_viewed: z.object({ viewNumber: z.number().int().min(1).optional(), secondsOnPage: z.number().int().min(0).optional() }),
+  /** Live-progress phone on the estimate (brief v4 §8): the customer watched
+   *  the example play (started / completed), pressed Play again, or tapped
+   *  the hero button to it. `set` = which messaging set they saw. */
+  estimate_progress_preview: z.object({ event: z.enum(["started", "completed", "replayed", "cta_clicked"]), set: z.enum(["residential", "commercial"]) }),
   estimate_revised: z.object({ revision: z.number().int().min(1), totalCents: money }),
   estimate_accepted: z.object({ totalCents: money, depositCents: money.optional() }),
   estimate_declined: z.object({ reason: shortText.optional() }),

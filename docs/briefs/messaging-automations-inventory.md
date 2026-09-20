@@ -54,6 +54,15 @@ but nothing is sent; **⚠** a caveat worth knowing before building on it.
 
 ---
 
+### Gaps shown by the estimate's live-progress example (Tom, 19 Sep 2026 — to be built, not blocking that build)
+
+The example phone on the customer estimate (`docs/briefs/claude-code-brief-estimate-live-progress-v4.md`) shows two customer texts that no automation sends today:
+
+| Gap | Message | Channel | Nearest existing row |
+|---|---|---|---|
+| Arrival text | "Good morning {first_name}. {lead} and the team have arrived at {street_address}. Follow today's progress: {link}" (commercial: "signed in on site at 6:30am") | SMS | none — #7 confirms the booking days earlier; nothing fires on the morning the crew arrives |
+| Job finished / walkthrough text | "{first_name}, {street_address} is finished. Your walkthrough with {lead} is at 2pm today." | SMS | #9 sends a calendar invite when the walkthrough is booked; #12 sends the report after sign-off; nothing says "finished, walkthrough today" |
+
 ## 2. Contractors (painters)
 
 | # | Key | Message | Channel | Kind | Trigger | Guard / notes |
