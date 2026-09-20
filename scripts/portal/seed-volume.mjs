@@ -49,6 +49,20 @@ async function run(label, sql) {
 
 async function wipe() {
   console.log("Wiping previous volume rows…");
+  // 20 Sep 2026: invoice_guard_delete (20261112) refuses to delete an issued
+  // invoice for everyone except service_role — "e2e fixtures and admin repairs
+  // clean up whole test estimates with the service key". This wipe is exactly
+  // that repair, so it acts as the service role for the deletes and steps back
+  // afterwards. The production tripwire above has already run.
+  // ONE transaction, with LOCAL settings: `set local` dies with the
+  // transaction, so a wipe that fails half-way can never leave `role
+  // service_role` or a 30-minute timeout behind on a POOLED backend for the
+  // next C1 tool to inherit (20 Sep: a killed run did exactly that, and the
+  // next migration apply failed with "must be owner of table crm_events").
+  // 700k rows across nine tables need more than the pooler's 2-minute default.
+  await run("begin the wipe transaction", "begin");
+  await run("allow long statements (this transaction only)", "set local statement_timeout = '30min'");
+  await run("act as the service role (this transaction only)", "set local role service_role");
   await run("wipe payments", "delete from public.payments where invoice_id in (select id from public.invoices where token like 'vol%')");
   await run("wipe invoices", "delete from public.invoices where token like 'vol%'");
   await run("wipe photos", "delete from public.wo_photos where storage_path like 'vol/%'");
@@ -61,6 +75,7 @@ async function wipe() {
   await run("wipe properties", "delete from public.properties where account_id in (select id from public.accounts where email like 'vol-%@volume.example')");
   await run("wipe memberships", "delete from public.account_users where account_id in (select id from public.accounts where email like 'vol-%@volume.example')");
   await run("wipe accounts", "delete from public.accounts where email like 'vol-%@volume.example'");
+  await run("commit the wipe", "commit");
 }
 
 async function main() {
