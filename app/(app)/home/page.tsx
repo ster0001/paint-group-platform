@@ -10,7 +10,7 @@ import { activityRows, familiesFor } from "@/lib/reporting/metrics/activity";
 import TargetCard from "./TargetCard";
 import FunnelCard from "./FunnelCard";
 import ActivityFeed from "./ActivityFeed";
-import { buildStrip } from "@/lib/reporting/strip";
+import { anomalyCards, buildStrip } from "@/lib/reporting/strip";
 import { requestNow } from "@/lib/time/requestClock";
 import { reportError } from "@/lib/monitoring/report";
 import HomeTiles, { type TileData } from "./HomeTiles";
@@ -54,9 +54,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const who: "mine" | "team" | undefined = sp.who === "mine" || sp.who === "team" ? sp.who : undefined;
   const viewer = { userId: user?.id ?? null, who, family: sp.family ?? null, q: sp.q ?? null };
   const loaded = await loadDashboard(supabase, roles, ["needs_doing", ...sections], range, now, viewer);
-  const cards = buildStrip(loaded.strip, roles);
   const failures = loaded.failures;
   const metricInput = roles.length > 0 ? loaded : null;
+  const periodResults: MetricResult[] = [];
 
   const qs = (extra: Record<string, string | null | undefined>) => {
     const p = new URLSearchParams();
@@ -78,6 +78,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       for (const def of metricsForSection(s)) {
         try {
           const r: MetricResult = runMetric(def, metricInput.input, range, roles);
+          if (r.kind === "period" && !def.display) periodResults.push(r);
           tiles.push({
             key: r.key, kind: r.kind, title: r.title, definition: r.definition, unit: r.unit, gst: r.gst,
             value: r.value, compare: r.compare, compareRange: r.compareRange, note: r.note, href: r.href,
@@ -93,6 +94,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       tilesBySection.set(s, tiles);
     }
   }
+
+  // Session 5: a period tile off its comparison by the Settings threshold is a strip card (owner/admin).
+  const monthOf = (r: MetricResult) => r.compareRange ? new Intl.DateTimeFormat("en-AU", { month: "long", timeZone: "UTC" }).format(new Date(`${r.compareRange.from}T00:00:00Z`)) : "last period";
+  const cards = buildStrip({ ...loaded.strip, extra: anomalyCards(periodResults, loaded.input.thresholds?.anomalyPct ?? 25, monthOf) }, roles);
 
   const compareLabel = (() => {
     const first = [...tilesBySection.values()].flat().find((t) => t.compareRange);

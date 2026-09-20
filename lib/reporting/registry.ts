@@ -13,6 +13,8 @@ import { aovByCategory, bySalesperson, conversion, estimatesSent, salesCents, sa
 import { wizardSessions } from "./metrics/funnel";
 import { activity } from "./metrics/activity";
 import { INVOICING_METRICS } from "./metrics/invoicing";
+import { PL_METRICS } from "./metrics/pl";
+import { MARKETING_METRICS } from "./metrics/marketing";
 import { PC_METRICS } from "./metrics/pc";
 import { CONTRACTOR_METRICS } from "./metrics/contractors";
 
@@ -25,6 +27,8 @@ export const METRICS: ReadonlyArray<AnyMetricDef> = [
   ...PC_METRICS,
   ...CONTRACTOR_METRICS,
   ...INVOICING_METRICS,
+  ...PL_METRICS,
+  ...MARKETING_METRICS,
 ];
 
 export function metricByKey(key: string): AnyMetricDef | null {
@@ -37,8 +41,6 @@ export function metricsForSection(section: DashboardSection): AnyMetricDef[] {
 
 /** Honest placeholders: what each section waits on, until its session lands. */
 export const SWITCHES_ON: Partial<Record<DashboardSection, string>> = {
-  pl: "session 5 — cost capture and the Settings-basis P&L",
-  marketing: "session 5 — lead source and marketing spend",
 };
 
 export const SECTION_TITLE: Record<DashboardSection, string> = {

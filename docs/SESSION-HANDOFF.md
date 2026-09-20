@@ -1,3 +1,15 @@
+# 20 Sep 2026 (afternoon) — Home dashboard v2, Session 5: P&L + Marketing. NO migration. Branch `feat/home-dashboard-s5-pl`.
+
+Built (owner/admin only, ⚑2 enforced in runMetric → 403): P&L on the Settings basis with the chip on every
+line — contracts signed ex, revenue received ex, gross margin actual vs estimated per signed-off job (ONE read,
+`loadClosedJobs`, also feeds the PC materials card), net margin rows card (fixed × weeks, marketing from
+recorded months else weekly), margin by size band / category; Marketing — by lead source, cost per accepted
+(one row per acceptance, no double count), CPA by channel, spend vs sales + 12-month trend, repeat + referral
+(derived from an earlier acceptance), wizard starts by source. Anomaly "Amber · trend" cards into the strip via
+`anomalyCards` + `buildStrip({extra})`. Gates: see the session report. Next: SESSION 6 — definitions "i"
+everywhere, comparison arrows, mobile pass, per-role help files, full-loop e2e, performance gate < 1.5 s, flip
+/home as the post-login landing with the 64-spec sweep.
+
 # 20 Sep 2026 (mid-morning) — Home dashboard v2, Session 4: Invoicing. NO migration. Branch `feat/home-dashboard-s4-invoicing`.
 
 Built on /invoicing's own read (`app/invoicing/data.ts` loadDashboard → toDerive/toDerivePayments) and its own

@@ -64,7 +64,9 @@ export type Aggregate<Row extends object> =
   /** rows where the column is truthy, as a percentage of all rows ("47% of sent") */
   | { shareWhere: keyof Row & string }
   /** sum(num) ÷ sum(den) — an average order value from per-group rows */
-  | { divide: { num: keyof Row & string; den: keyof Row & string } };
+  | { divide: { num: keyof Row & string; den: keyof Row & string } }
+  /** 100 × sum(num) ÷ sum(den), one decimal — spend as a share of sales */
+  | { pctOf: { num: keyof Row & string; den: keyof Row & string } };
 
 /** Everything a metric may read. Loaders fill what a page needs; a metric reads only its own slice. */
 export type MetricInput = {
@@ -82,6 +84,34 @@ export type MetricInput = {
   activity?: ActivitySlice | null;
   /** Session 4: the invoicing dashboard's own rows (app/invoicing/data.ts loadDashboard), plus the period's payments. */
   invoicing?: InvoicingSlice | null;
+  /** Session 5: signed-off jobs with estimated vs actual costs, overhead settings, marketing spend, payments — owner/admin. */
+  pl?: PlSlice | null;
+  /** Session 5: the strip's anomaly threshold (Settings dashboard_anomaly_threshold_pct). */
+  thresholds?: { anomalyPct: number } | null;
+};
+
+export type ClosedJobRow = {
+  work_order_id: string; wo_ref: string; title: string; closed_on: string; estimate_id: string | null;
+  category: string; size_band: string; account_id: string | null; lead_source: string | null;
+  /** The engine on the estimate behind the job, ex GST. Null when the estimate has no priced scope. */
+  est: { net_subtotal_cents: number; contractor_cents: number; materials_cents: number; third_party_cents: number; margin_cents: number } | null;
+  /** What was actually spent, ex GST: contractor invoices (approved or paid), supplier invoices, job costs, approved expenses. */
+  actual: { contractor_cents: number; materials_cents: number; job_costs_cents: number; expenses_cents: number };
+};
+
+export type PlSlice = {
+  closedJobs: ClosedJobRow[];
+  /** Settings, ex GST, per week: "Weekly fixed costs", "Weekly marketing". Null when not set. */
+  weeklyFixedCents: number | null;
+  weeklyMarketingCents: number | null;
+  /** marketing_spend rows over the last 13 months (month yyyy-mm-01). */
+  spend: { month: string; channel: string; spend_cents: number }[];
+  /** Succeeded payments landed in the window, inc GST. */
+  payments: { paid_on: string; amount_cents: number }[];
+  /** Accounts (accepted in the window) that had an accepted estimate BEFORE the one in the window. */
+  repeatAccounts: string[];
+  /** Twelve months of accepted totals by month (inc GST) — shared with the target card. */
+  history: { month: string; sales_cents: number; accepted: number }[];
 };
 
 export type InvoicingSlice = {
@@ -201,6 +231,7 @@ export function aggregateRows<Row extends object>(rows: Row[], aggregate: Aggreg
   if ("countWhere" in aggregate) return rows.filter((r) => Boolean((r as Record<string, unknown>)[aggregate.countWhere])).length;
   if ("shareWhere" in aggregate) return rows.length ? Math.round((rows.filter((r) => Boolean((r as Record<string, unknown>)[aggregate.shareWhere])).length / rows.length) * 1000) / 10 : 0;
   if ("divide" in aggregate) { const d = rows.reduce((s, r) => s + num(r, aggregate.divide.den), 0); return d > 0 ? Math.round(rows.reduce((s, r) => s + num(r, aggregate.divide.num), 0) / d) : 0; }
+  if ("pctOf" in aggregate) { const d = rows.reduce((s, r) => s + num(r, aggregate.pctOf.den), 0); return d > 0 ? Math.round((rows.reduce((s, r) => s + num(r, aggregate.pctOf.num), 0) / d) * 1000) / 10 : 0; }
   const numSum = rows.reduce((s, r) => s + num(r, aggregate.ratioPct.num), 0);
   const denSum = rows.reduce((s, r) => s + num(r, aggregate.ratioPct.den), 0);
   return denSum > 0 ? Math.round(((numSum - denSum) / denSum) * 1000) / 10 : 0;

@@ -15,11 +15,13 @@ import { inSlices } from "@/lib/supabase/inSlices";
 import { buildWorkQueue, type WorkItem } from "@/lib/crm/work-queue";
 import { buildQueue, rankQueue, type QueueCard } from "@/lib/workorder/console";
 import { loadConsole, type ConsoleData } from "@/lib/workorder/consoleData";
-import { materialsBudgetCents, invoicedExGst } from "@/lib/workorder/materialsBudget";
+import { invoicedExGst } from "@/lib/workorder/materialsBudget";
+import { priceEstimateTotals, type BlockInput } from "@/lib/pricing/estimate";
+import { adjustmentsFrom } from "@/lib/pricing/context";
 import type { PricingContext } from "@/lib/pricing/estimate";
 import { numericSettingValue } from "@/lib/settings/numeric";
 import {
-  addDays, melbourneDay, previousRange, type ActivitySlice, type AwaitingReplyRow, type ConsoleSlice, type ContractorSlice, type EstimateRow, type FunnelSlice, type InvoicingSlice, type MaterialsJobRow, type MetricInput, type Range, type SalesSlice,
+  addDays, melbourneDay, previousRange, type ActivitySlice, type AwaitingReplyRow, type ClosedJobRow, type ConsoleSlice, type ContractorSlice, type EstimateRow, type FunnelSlice, type InvoicingSlice, type MaterialsJobRow, type MetricInput, type PlSlice, type Range, type SalesSlice,
 } from "./core";
 import { loadDashboard as loadInvoicingDashboard, toDerive, toDerivePayments, type InvoiceRow } from "@/app/invoicing/data";
 import { effectiveRoles, isDashboardRole, type DashboardRole, type DashboardSection } from "./roles";
@@ -70,10 +72,10 @@ export async function loadEstimates(supabase: SupabaseClient, range: Range): Pro
 
 type WoRefRow = { id: string; wo_ref: string; contractor_id: string | null; estimate_id: string | null; title: string | null; stage: string; stage_entered_at: string | null };
 
-async function loadConsoleSlice(supabase: SupabaseClient, console_: ConsoleData, range: Range, failures: LoadFailure[]): Promise<ConsoleSlice> {
+async function loadConsoleSlice(supabase: SupabaseClient, console_: ConsoleData, closedJobs: ClosedJobRow[], failures: LoadFailure[]): Promise<ConsoleSlice> {
   const cards = rankQueue(buildQueue(console_.input));
-  const [awaitingReply, materials] = await Promise.all([loadAwaitingReply(supabase, failures), loadMaterialsJobs(supabase, range, failures)]);
-  return { input: console_.input, cards, awaitingReply, materials };
+  const awaitingReply = await loadAwaitingReply(supabase, failures);
+  return { input: console_.input, cards, awaitingReply, materials: materialsRowsOf(closedJobs) };
 }
 
 async function loadAwaitingReply(supabase: SupabaseClient, failures: LoadFailure[]): Promise<AwaitingReplyRow[]> {
@@ -92,7 +94,8 @@ async function loadAwaitingReply(supabase: SupabaseClient, failures: LoadFailure
  * Materials card shows (`materialsBudgetCents`, `material_costs`). The
  * pricing context is loaded once per rate card, not once per job.
  */
-async function loadMaterialsJobs(supabase: SupabaseClient, range: Range, failures: LoadFailure[]): Promise<MaterialsJobRow[]> {
+/** Signed-off jobs in the window, with the engine's estimate and every recorded cost — one read for the PC materials card AND the P&L. */
+async function loadClosedJobs(supabase: SupabaseClient, range: Range, failures: LoadFailure[]): Promise<ClosedJobRow[]> {
   const { fromIso, toIso } = windowOf(range);
   const wos = await supabase.from("work_orders")
     .select("id, wo_ref, estimate_id, stage, stage_entered_at, title:wo_snapshot->>jobTitle")
@@ -102,17 +105,26 @@ async function loadMaterialsJobs(supabase: SupabaseClient, range: Range, failure
   if (jobs.length === 0) return [];
   const ids = jobs.map((j) => j.id);
   const estIds = jobs.map((j) => j.estimate_id).filter((x): x is string => Boolean(x));
-  const [costs, ests, products, modifiers, settings] = await Promise.all([
+  const [costs, ests, products, modifiers, settings, cis, jobCosts, expenses, pres] = await Promise.all([
     inSlices(ids, (s) => supabase.from("material_costs").select("work_order_id, amount_cents").in("work_order_id", s)),
-    inSlices(estIds, (s) => supabase.from("estimates").select("id, builder_state, rate_card_id").in("id", s)),
+    inSlices(estIds, (s) => supabase.from("estimates").select("id, builder_state, rate_card_id, size_band, presentation_id, account_id, lead_source").in("id", s)),
     supabase.from("products").select("*"),
     supabase.from("modifiers").select("code, group_name, multiplier").eq("active", true),
     supabase.from("settings").select("key, value"),
+    inSlices(ids, (s) => supabase.from("contractor_invoices").select("work_order_id, status, subtotal_ex_cents, total_inc_cents").in("work_order_id", s).in("status", ["approved", "paid"])),
+    inSlices(ids, (s) => supabase.from("job_costs").select("work_order_id, amount_ex_cents, status").in("work_order_id", s)),
+    inSlices(ids, (s) => supabase.from("contractor_expenses").select("work_order_id, amount_cents, gst_cents, status").in("work_order_id", s).in("status", ["approved", "paid"])),
+    supabase.from("presentations").select("id, category_label, name"),
   ]);
-  for (const [where, r] of [["material costs", costs], ["estimates behind signed-off jobs", ests], ["products", products], ["modifiers", modifiers], ["settings", settings]] as const) {
+  for (const [where, r] of [["material costs", costs], ["estimates behind signed-off jobs", ests], ["products", products], ["modifiers", modifiers], ["settings", settings], ["contractor invoices", cis], ["job costs", jobCosts], ["expenses", expenses], ["presentations", pres]] as const) {
     if (r.error) { failure(failures, where, r.error); return []; }
   }
-  const estById = new Map(((ests.rows ?? []) as { id: string; builder_state: Record<string, unknown> | null; rate_card_id: string | null }[]).map((e) => [e.id, e]));
+  const estById = new Map(((ests.rows ?? []) as { id: string; builder_state: Record<string, unknown> | null; rate_card_id: string | null; size_band: string | null; presentation_id: string | null; account_id: string | null; lead_source: string | null }[]).map((e) => [e.id, e]));
+  const catLabel = new Map(((pres.data ?? []) as { id: string; category_label: string | null; name: string }[]).map((p) => [p.id, p.category_label || p.name]));
+  const sum = (rows: unknown[] | null | undefined, key: string, f: (r: Record<string, unknown>) => number) => { const m = new Map<string, number>(); for (const r of (rows ?? []) as Record<string, unknown>[]) m.set(String(r[key]), (m.get(String(r[key])) ?? 0) + f(r)); return m; };
+  const ciByWo = sum(cis.rows, "work_order_id", (r) => Number(r.subtotal_ex_cents ?? invoicedExGst(Number(r.total_inc_cents) || 0)) || 0);
+  const jcByWo = sum(jobCosts.rows, "work_order_id", (r) => (r.status === "void" ? 0 : Number(r.amount_ex_cents) || 0));
+  const exByWo = sum(expenses.rows, "work_order_id", (r) => (Number(r.amount_cents) || 0) - (Number(r.gst_cents) || 0));
   const cardIds = [...new Set([...estById.values()].map((e) => e.rate_card_id ?? "active"))];
   const rateItemsByCard = new Map<string, PricingContext["rateItems"]>();
   for (const cardId of cardIds) {
@@ -132,11 +144,26 @@ async function loadMaterialsJobs(supabase: SupabaseClient, range: Range, failure
       modifiers: (modifiers.data ?? []) as PricingContext["modifiers"],
       settings: (settings.data ?? []) as PricingContext["settings"],
     };
-    let budget: number | null = null;
-    try { budget = est ? materialsBudgetCents(est.builder_state, ctx) : null; } catch (e) { reportError(e, { where: "reporting.materials.budget", bestEffort: true, extra: { workOrderId: j.id } }); }
-    return { work_order_id: j.id, wo_ref: j.wo_ref, title: j.title ?? "", closed_on: (j.stage_entered_at ?? "").slice(0, 10), budget_cents: budget, invoiced_ex_cents: invoicedExGst(invoicedByWo.get(j.id) ?? 0) };
+    let engine: ClosedJobRow["est"] = null;
+    try {
+      const blocks = (est?.builder_state?.blocks as BlockInput[] | undefined) ?? null;
+      if (est && Array.isArray(blocks) && blocks.length > 0 && ctx.rateItems.length > 0) {
+        const t = priceEstimateTotals(blocks, ctx, adjustmentsFrom(est.builder_state ?? {}));
+        engine = { net_subtotal_cents: t.netSubtotalCents, contractor_cents: t.contractorOfferCents, materials_cents: t.materialsCostCents, third_party_cents: t.thirdPartyCostCents, margin_cents: t.marginCents };
+      }
+    } catch (e) { reportError(e, { where: "reporting.closedJobs.engine", bestEffort: true, extra: { workOrderId: j.id } }); }
+    return {
+      work_order_id: j.id, wo_ref: j.wo_ref, title: j.title ?? "", closed_on: (j.stage_entered_at ?? "").slice(0, 10), estimate_id: j.estimate_id,
+      category: (est?.presentation_id && catLabel.get(est.presentation_id)) || "Uncategorised", size_band: est?.size_band ?? "", account_id: est?.account_id ?? null, lead_source: est?.lead_source ?? null,
+      est: engine,
+      actual: { contractor_cents: ciByWo.get(j.id) ?? 0, materials_cents: invoicedExGst(invoicedByWo.get(j.id) ?? 0), job_costs_cents: jcByWo.get(j.id) ?? 0, expenses_cents: exByWo.get(j.id) ?? 0 },
+    };
   });
 }
+
+/** The PC materials card's rows, from the same read. */
+const materialsRowsOf = (jobs: ClosedJobRow[]): MaterialsJobRow[] =>
+  jobs.map((j) => ({ work_order_id: j.work_order_id, wo_ref: j.wo_ref, title: j.title, closed_on: j.closed_on, budget_cents: j.est ? j.est.materials_cents : null, invoiced_ex_cents: j.actual.materials_cents }));
 
 // ---- contractors (session 2, from the 0c capture) ----------------------------------
 
@@ -298,6 +325,42 @@ async function loadInvoicingSlice(supabase: SupabaseClient, range: Range, now: D
   };
 }
 
+// ---- P&L + Marketing (session 5, owner/admin) ----------------------------------------------
+
+async function loadPlSlice(supabase: SupabaseClient, range: Range, closedJobs: ClosedJobRow[], history: SalesSlice["history"], failures: LoadFailure[]): Promise<PlSlice> {
+  const { fromIso, toIso } = windowOf(range);
+  const [y, m] = range.to.slice(0, 7).split("-").map(Number);
+  const spendFrom = new Date(Date.UTC(y, m - 13, 1)).toISOString().slice(0, 10);
+  const [settings, spend, pays] = await Promise.all([
+    supabase.from("settings").select("key, value").in("key", ["Weekly fixed costs", "Weekly marketing"]),
+    supabase.from("marketing_spend").select("month, channel, spend_cents").gte("month", spendFrom),
+    supabase.from("payments").select("paid_on, amount_cents").eq("status", "succeeded").gte("paid_on", fromIso.slice(0, 10)).lte("paid_on", toIso.slice(0, 10)).limit(5000),
+  ]);
+  if (settings.error) failure(failures, "overhead settings", settings.error);
+  if (spend.error && spend.error.code !== "42501") failure(failures, "marketing spend", spend.error);
+  if (pays.error) failure(failures, "payments received", pays.error);
+  const val = (key: string) => numericSettingValue(((settings.data ?? []) as { key: string; value: unknown }[]).find((s) => s.key === key)?.value);
+  // Repeat customers: the accounts accepted in the window that had an accepted estimate before it.
+  const accepted = await supabase.from("estimates").select("account_id, accepted_at").eq("status", "accepted").gte("accepted_at", fromIso).lte("accepted_at", toIso).not("account_id", "is", null).limit(5000);
+  if (accepted.error) failure(failures, "accepted estimates", accepted.error);
+  const firstInWindow = new Map<string, string>();
+  for (const e of (accepted.data ?? []) as { account_id: string; accepted_at: string }[]) if (!firstInWindow.has(e.account_id) || e.accepted_at < firstInWindow.get(e.account_id)!) firstInWindow.set(e.account_id, e.accepted_at);
+  const accountIds = [...firstInWindow.keys()];
+  const earlier = accountIds.length ? await inSlices(accountIds, (s) => supabase.from("estimates").select("account_id, accepted_at").eq("status", "accepted").in("account_id", s).lt("accepted_at", fromIso)) : { rows: [], error: null };
+  if (earlier.error) failure(failures, "earlier acceptances", earlier.error);
+  const repeat = new Set<string>();
+  for (const e of (earlier.rows ?? []) as { account_id: string; accepted_at: string }[]) if ((firstInWindow.get(e.account_id) ?? "") > e.accepted_at) repeat.add(e.account_id);
+  return {
+    closedJobs,
+    weeklyFixedCents: (() => { const v = val("Weekly fixed costs"); return v == null ? null : Math.round(v * 100); })(),
+    weeklyMarketingCents: (() => { const v = val("Weekly marketing"); return v == null ? null : Math.round(v * 100); })(),
+    spend: ((spend.data ?? []) as { month: string; channel: string; spend_cents: number }[]).map((r) => ({ month: r.month, channel: r.channel, spend_cents: Number(r.spend_cents) })),
+    payments: ((pays.data ?? []) as { paid_on: string | null; amount_cents: number }[]).filter((p) => p.paid_on).map((p) => ({ paid_on: p.paid_on as string, amount_cents: p.amount_cents })),
+    repeatAccounts: [...repeat],
+    history,
+  };
+}
+
 // ---- the page's one load ------------------------------------------------------------
 
 export type DashboardLoad = {
@@ -314,23 +377,29 @@ export async function loadDashboard(
   const failures: LoadFailure[] = [];
   const wantsQueue = roles.length > 0 && sections.includes("needs_doing");
   const wantsConsole = sections.includes("pc_command") || sections.includes("contractors");
-  const wantsEstimates = sections.includes("sales");
+  const wantsEstimates = sections.includes("sales") || sections.includes("pl") || sections.includes("marketing");
   const [wq, console_, est] = await Promise.all([
     wantsQueue ? buildWorkQueue(supabase, now).catch((e: unknown) => { failure(failures, "work queue", e); return null; }) : null,
     wantsConsole ? loadConsole(supabase, now).catch((e: unknown) => { failure(failures, "PC console", e); return null; }) : null,
     wantsEstimates ? loadEstimates(supabase, range) : Promise.resolve({ rows: [] as EstimateRow[], failures: [] as LoadFailure[] }),
   ]);
   failures.push(...est.failures);
+  const wantsClosedJobs = Boolean(console_) || sections.includes("pl");
+  const closedJobs = wantsClosedJobs ? await loadClosedJobs(supabase, range, failures) : [];
+  const thresholdRes = await supabase.from("settings").select("key, value").eq("key", "dashboard_anomaly_threshold_pct").maybeSingle();
+  if (thresholdRes.error) failure(failures, "anomaly threshold", thresholdRes.error);
+  const anomalyPct = numericSettingValue((thresholdRes.data as { value?: unknown } | null)?.value) ?? 25;
   const [consoleSlice, contractorSlice, salesSlice, funnelSlice, activitySlice, invoicingSlice] = await Promise.all([
-    console_ ? loadConsoleSlice(supabase, console_, range, failures) : Promise.resolve(null),
+    console_ ? loadConsoleSlice(supabase, console_, closedJobs, failures) : Promise.resolve(null),
     sections.includes("contractors") ? loadContractorSlice(supabase, range, failures) : Promise.resolve(null),
-    wantsEstimates ? loadSalesSlice(supabase, range, viewer, roles, failures) : Promise.resolve(null),
-    sections.includes("funnel") ? loadFunnelSlice(supabase, range, failures) : Promise.resolve(null),
+    wantsEstimates || sections.includes("pl") || sections.includes("marketing") ? loadSalesSlice(supabase, range, viewer, roles, failures) : Promise.resolve(null),
+    sections.includes("funnel") || sections.includes("marketing") ? loadFunnelSlice(supabase, range, failures) : Promise.resolve(null),
     sections.includes("activity") ? loadActivitySlice(supabase, range, roles, viewer, failures) : Promise.resolve(null),
     sections.includes("invoicing") ? loadInvoicingSlice(supabase, range, now, failures) : Promise.resolve(null),
   ]);
+  const plSlice = sections.includes("pl") || sections.includes("marketing") ? await loadPlSlice(supabase, range, closedJobs, salesSlice?.history ?? [], failures) : null;
   return {
-    input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, sales: salesSlice, funnel: funnelSlice, activity: activitySlice, invoicing: invoicingSlice },
+    input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, sales: salesSlice, funnel: funnelSlice, activity: activitySlice, invoicing: invoicingSlice, pl: plSlice, thresholds: { anomalyPct } },
     strip: { workItems: wq?.items ?? [], consoleCards: consoleSlice?.cards ?? [] },
     failures,
   };
@@ -338,7 +407,7 @@ export async function loadDashboard(
 
 /** The export route and the cron: the rows a single metric needs, by section. */
 export async function loadMetricInput(
-  supabase: SupabaseClient, range: Range, now = new Date(), sections: ReadonlyArray<DashboardSection> = ["sales", "pc_command", "contractors", "funnel", "invoicing"],
+  supabase: SupabaseClient, range: Range, now = new Date(), sections: ReadonlyArray<DashboardSection> = ["sales", "pc_command", "contractors", "funnel", "invoicing", "pl", "marketing"],
   viewer: ViewerOptions = { userId: null }, roles: ReadonlyArray<DashboardRole> = [],
 ): Promise<{ input: MetricInput; failures: LoadFailure[] }> {
   // Roles here scope the activity feed and "mine"; the work queue is only loaded for the page.
