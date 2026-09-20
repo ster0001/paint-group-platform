@@ -167,6 +167,8 @@ export type FunnelEstimate = { id: string; status: string; sent_at: string | nul
 export type ActivityEvent = { id: string; type: string; payload: Record<string, unknown> | null; occurred_at: string; source: string; account_id: string | null; account_name: string | null };
 export type ActivitySlice = {
   events: ActivityEvent[];
+  /** True when the window held more events than the feed reads (the newest 5,000) — the tile says "5,000+", never a quiet undercount. */
+  truncated?: boolean;
   /** The viewer's roles decide which event families the feed shows. */
   roles: ReadonlyArray<DashboardRole>;
   /** Optional filters from the page: an event family and free text over customer / detail. */

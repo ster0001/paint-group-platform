@@ -53,9 +53,22 @@ function windowOf(range: Range): { fromIso: string; toIso: string } {
  * 20 Sep audit found six of them. Same shape as a bare select so the
  * `failure` handling around each read stays as it was.
  */
-async function pageAll<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<{ data: T[]; error: { message: string } | null }> {
-  try { return { data: await fetchAllRows<T>(query), error: null }; }
-  catch (e: unknown) { return { data: [], error: { message: e instanceof Error ? e.message : String(e) } }; }
+async function pageAll<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>, maxPages = Infinity): Promise<{ data: T[]; error: { message: string } | null; truncated: boolean }> {
+  try { return { ...(await fetchPages<T>(query, maxPages)), error: null }; }
+  catch (e: unknown) { return { data: [], error: { message: e instanceof Error ? e.message : String(e) }, truncated: false }; }
+}
+/** `fetchAllRows` with a ceiling: a feed (activity, wizard sessions) is read newest-first and SAYS when it stopped, never silently. */
+async function fetchPages<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>, maxPages: number): Promise<{ data: T[]; truncated: boolean }> {
+  if (!Number.isFinite(maxPages)) return { data: await fetchAllRows<T>(query), truncated: false };
+  const PAGE = 1000; const out: T[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const { data, error } = await query(page * PAGE, page * PAGE + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+    if (rows.length < PAGE) return { data: out, truncated: false };
+  }
+  return { data: out, truncated: true };
 }
 
 const failure = (failures: LoadFailure[], where: string, e: unknown) => {
@@ -288,7 +301,8 @@ type DraftRow = { id: string; started_at: string; email: string | null; estimate
 async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures: LoadFailure[]): Promise<FunnelSlice> {
   const { fromIso, toIso } = windowOf(range);
   const drafts = await pageAll<DraftRow>((from, to) => supabase.from("wizard_drafts").select("id, started_at, email, estimate_id, converted_at, last_seen_at, accounts(lead_source)")
-    .gte("started_at", fromIso).lte("started_at", toIso).order("started_at", { ascending: false }).order("id").range(from, to));
+    .gte("started_at", fromIso).lte("started_at", toIso).order("started_at", { ascending: false }).order("id").range(from, to), 10);
+  if (drafts.truncated) failure(failures, "wizard sessions", new Error("more than 10,000 sessions in the window — the funnel counts the newest 10,000"));
   if (drafts.error) { failure(failures, "wizard sessions", drafts.error); return { drafts: [], estimates: [] }; }
   const rows = drafts.data;
   const estIds = [...new Set(rows.map((d) => d.estimate_id).filter((x): x is string => Boolean(x)))];
@@ -303,10 +317,12 @@ async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures:
 async function loadActivitySlice(supabase: SupabaseClient, range: Range, roles: ReadonlyArray<DashboardRole>, viewer: ViewerOptions, failures: LoadFailure[]): Promise<ActivitySlice> {
   const { fromIso, toIso } = windowOf(range);
   type EvRow = { id: string; type: string; payload: Record<string, unknown> | null; occurred_at: string; source: string; account_id: string | null; accounts: { name: string | null } | null };
+  // A feed, not a figure: the newest 5,000 events of the window are enough for the timeline, and the slice says when there were more.
   const ev = await pageAll<EvRow>((from, to) => supabase.from("crm_events").select("id, type, payload, occurred_at, source, account_id, accounts(name)")
-    .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).order("id").range(from, to));
+    .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).order("id").range(from, to), 5);
   if (ev.error) { failure(failures, "activity", ev.error); return { events: [], roles, family: viewer.family ?? null, q: viewer.q ?? null }; }
   return {
+    truncated: ev.truncated,
     events: ev.data.map((e) => ({ id: e.id, type: e.type, payload: e.payload, occurred_at: e.occurred_at, source: e.source, account_id: e.account_id, account_name: e.accounts?.name ?? null })),
     roles, family: viewer.family ?? null, q: viewer.q ?? null,
   };

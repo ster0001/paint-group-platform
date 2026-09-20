@@ -256,7 +256,8 @@ test.describe("Airtable → CRM import", () => {
     // The document's own 50% (brief B1.4, IMPORT_DEPOSIT_PCT) of $2,032.80 inc = $1,016.40 inc, GST inside it; unnumbered, unissued.
     expect(inv).toEqual([expect.objectContaining({ kind: "deposit", status: "draft", total_inc_cents: 101640, gst_cents: 9240, subtotal_ex_cents: 92400, work_order_id: bookedWoId, number: null, issued_on: null })]);
     const { data: lines } = await sb.from("invoice_lines").select("description, amount_ex_cents, gst_cents").eq("invoice_id", inv![0].id);
-    expect(lines).toEqual([{ description: "Deposit — 50% of the contract price, payable on acceptance", amount_ex_cents: 92400, gst_cents: 9240 }]);
+    // The deposit line is the money; since the Preparation-line change the draft also carries the scope's descriptive lines.
+    expect(lines).toContainEqual({ description: "Deposit — 50% of the contract price, payable on acceptance", amount_ex_cents: 92400, gst_cents: 9240 });
     const { data: events } = await sb.from("invoice_events").select("type, meta").eq("invoice_id", inv![0].id);
     expect(events).toEqual([expect.objectContaining({ type: "drafted", meta: expect.objectContaining({ auto: "import" }) })]);
 

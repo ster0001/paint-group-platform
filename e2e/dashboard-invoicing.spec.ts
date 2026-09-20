@@ -87,6 +87,8 @@ test.describe("dashboard · session 4 · invoicing", () => {
     // Approved-to-pay: /invoicing's Payables shows "to pay this week"; Home shows all approved — compare the shared to-approve line instead.
     const toApproveInvoicing = digits(await page.getByTestId("tile-to-approve").textContent());
     // …and the Payables "Materials to match" tile is the same count, and its card lists the same row.
+    await page.goto("/invoicing?tab=pay");
+    await expect(page.getByTestId("tile-materials-to-match")).toBeVisible({ timeout: 30_000 });
     expect(digits(await page.getByTestId("tile-materials-to-match").textContent())).toBe(homeToMatch);
     await page.getByTestId("tile-materials-to-match-link").click();
     await expect(page.getByTestId("unmatched-materials")).toContainText(`E2E Supplies ${run}`);
