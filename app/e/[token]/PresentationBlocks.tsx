@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { safeParse, validReviews, blockHasContent, type BlockKind } from "@/lib/presentations/schema";
 import { isSwmsCard } from "@/lib/customer/snapshot";
 
@@ -22,9 +22,15 @@ function youTubeId(url: string): string | null {
  *  links to it instead of the presentation's generic sample. */
 type SwmsDoc = { url: string; label: string } | null;
 
-export default function PresentationBlocks({ blocks, swms = null }: { blocks: { kind: string; content: unknown }[]; swms?: SwmsDoc }) {
+/** Tom, 20 Sep: the live-updates card (LiveUpdatesCard, wrapping the phone)
+ *  lives in the FIRST capability panel — "A few extra details" on the live
+ *  presentations — as one more card in its grid. A presentation with no
+ *  capability panel still gets it, in a grid of its own after the blocks. */
+export default function PresentationBlocks({ blocks, swms = null, liveUpdates = null }: { blocks: { kind: string; content: unknown }[]; swms?: SwmsDoc; liveUpdates?: ReactNode }) {
   const visible = blocks.filter((b) => blockHasContent(b.kind as BlockKind, b.content));
-  if (visible.length === 0) return null;
+  const fallback = liveUpdates ? <section className="pres" data-testid="live-updates-fallback"><div className="capgrid">{liveUpdates}</div></section> : null;
+  if (visible.length === 0) return fallback;
+  const firstCap = visible.findIndex((b) => b.kind === "capability_panel");
   return (
     <>
       {visible.map((b, i) => {
@@ -32,9 +38,10 @@ export default function PresentationBlocks({ blocks, swms = null }: { blocks: { 
         if (kind === "video") return <VideoBlock key={i} c={safeParse(kind, b.content) as never} />;
         if (kind === "before_after_gallery") return <BeforeAfterBlock key={i} c={safeParse(kind, b.content) as never} />;
         if (kind === "review_set") return <ReviewBlock key={i} c={safeParse(kind, b.content) as never} />;
-        if (kind === "capability_panel") return <CapabilityBlock key={i} c={safeParse(kind, b.content) as never} swms={swms} />;
+        if (kind === "capability_panel") return <CapabilityBlock key={i} c={safeParse(kind, b.content) as never} swms={swms} extra={i === firstCap ? liveUpdates : null} />;
         return null;
       })}
+      {firstCap < 0 && fallback}
     </>
   );
 }
@@ -126,7 +133,7 @@ function ReviewBlock({ c }: { c: { title: string; reviews: { body: string; revie
   );
 }
 
-function CapabilityBlock({ c, swms }: { c: { title: string; cards: { icon: string; heading: string; body: string; attachment?: { label: string; doc_path: string } }[] }; swms: SwmsDoc }) {
+function CapabilityBlock({ c, swms, extra = null }: { c: { title: string; cards: { icon: string; heading: string; body: string; attachment?: { label: string; doc_path: string } }[] }; swms: SwmsDoc; extra?: ReactNode }) {
   const cards = c.cards.filter((x) => x.heading || x.body);
   if (cards.length === 0) return null;
   return (
@@ -146,6 +153,7 @@ function CapabilityBlock({ c, swms }: { c: { title: string; cards: { icon: strin
             ) : null}
           </div>
         ))}
+        {extra}
       </div>
     </section>
   );

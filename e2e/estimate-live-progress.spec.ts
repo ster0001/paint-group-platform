@@ -5,13 +5,18 @@ import { credentials, drawSignature, missingCreds, signIn } from "./helpers";
 
 /**
  * Live-progress phone on the customer estimate (brief v4, Tom 19 Sep 2026):
- * a phone, and nothing else, below the scope of works — only when a
- * presentation is attached. A text arrives, gets tapped, the customer's job
- * opens with their address, their rooms and their own before photos, and the
- * updates rise one by one until the "finished" text.
+ * a phone, and nothing else — only when a presentation is attached. A text
+ * arrives, gets tapped, the customer's job opens with their address, their
+ * rooms and their own before photos, and the updates rise one by one until
+ * the "finished" text.
+ *
+ * Tom, 20 Sep: the phone lives behind ONE glowing card in the presentation's
+ * capability panel ("A few extra details" on the live presentations); the
+ * card is the only way in — no hero button, no step-4 link — and the phone
+ * mounts when the card is pressed.
  *
  * Anonymous customer throughout. Two estimates: one with a presentation
- * attached (the phone), one without (nothing at all).
+ * attached (the card and the phone), one without (nothing at all).
  */
 const db = serviceClient();
 const run = randomBytes(3).toString("hex");
@@ -40,7 +45,7 @@ const SNAPSHOT = {
   ],
   paints: [{ name: "Wash & Wear", brand: "Dulux", category: "Interior walls", role: "Walls", finish: "Low sheen", colourName: "", colourHex: "", blurb: "", properties: [], guarantee: "", photoUrl: "", customerVisible: true, isPrep: false, usage: ["Walls · 2 areas"] }],
 };
-const PRESENTATION = { blocks: [{ kind: "capability_panel", content: { title: "Built for you", cards: [{ label: "Public liability", value: "$20M", note: "" }] } }] };
+const PRESENTATION = { blocks: [{ kind: "capability_panel", content: { title: "A few extra details", cards: [{ icon: "🛡", heading: "$20M public liability", body: "Certificate of currency supplied with this estimate." }] } }] };
 
 async function seed(withPresentation: boolean, extra: { source?: string; account_id?: string; property_id?: string } = {}): Promise<{ id: string; token: string }> {
   const token = `live${withPresentation ? "p" : "n"}${run}${randomBytes(8).toString("hex")}`;
@@ -58,6 +63,13 @@ async function seed(withPresentation: boolean, extra: { source?: string; account
 async function openEstimate(page: Page, token: string) {
   await page.goto(`/e/${token}`);
   await expect(page.locator("details.room").first()).toBeVisible();
+}
+/** Press the card: the phone mounts inside the capability panel. */
+async function openDemo(page: Page) {
+  const tab = page.getByTestId("live-updates-tab");
+  await tab.scrollIntoViewIfNeeded();
+  await tab.click();
+  await expect(page.getByTestId("live-progress")).toBeVisible();
 }
 
 test.describe("the live-progress phone on the estimate", () => {
@@ -106,17 +118,32 @@ test.describe("the live-progress phone on the estimate", () => {
     }
   });
 
-  test("sits directly after the scope of works and before the paint section, and is only the phone", async ({ page }) => {
+  test("one glowing card in 'A few extra details' is the only way in; pressed, it opens the phone and nothing else", async ({ page }) => {
     await openEstimate(page, withPres.token);
-    const sec = page.getByTestId("live-progress");
-    await expect(sec).toBeVisible();
-    // 12b: the next sibling after scope, before paint.
-    const neighbours = await sec.evaluate((el) => ({
-      prev: el.previousElementSibling?.querySelector("h2")?.textContent ?? "",
-      next: el.nextElementSibling?.querySelector("h2")?.textContent ?? "",
+    // Closed until pressed: no phone in the DOM, no other entry points.
+    await expect(page.getByTestId("live-progress")).toHaveCount(0);
+    await expect(page.getByTestId("see-how-you-follow")).toHaveCount(0);
+    await expect(page.getByTestId("step-live-progress-link")).toHaveCount(0);
+    const tab = page.getByTestId("live-updates-tab");
+    await expect(tab).toHaveCount(1);
+    await expect(tab).toContainText("Receive live on-the-job updates as your job progresses");
+    await expect(tab).toContainText("Click here to see a demo of your live updates.");
+    await expect(tab).toHaveAttribute("aria-expanded", "false");
+    // It is a card IN the capability panel's grid, beside the presentation's own cards.
+    const home = await tab.evaluate((el) => ({
+      grid: el.parentElement?.classList.contains("capgrid") ?? false,
+      title: el.closest("section")?.querySelector("h2")?.textContent ?? "",
+      siblings: el.parentElement?.querySelectorAll(".cap").length ?? 0,
     }));
-    expect(neighbours.prev).toMatch(/Scope of works/);
-    expect(neighbours.next).toMatch(/The paint we/);
+    expect(home).toEqual({ grid: true, title: "A few extra details", siblings: 2 });
+    // It glows (an animation on the card, and only on the card).
+    expect(await tab.evaluate((el) => getComputedStyle(el).animationName)).toBe("cv-live-glow");
+
+    await openDemo(page);
+    await expect(tab).toHaveAttribute("aria-expanded", "true");
+    const sec = page.getByTestId("live-progress");
+    // The phone opens in the same grid, full width, right under the cards.
+    expect(await sec.evaluate((el) => el.parentElement?.classList.contains("cap-live-panel") && el.parentElement.parentElement?.classList.contains("capgrid"))).toBe(true);
     // 13: no headline, intro or bullet copy in the section — only the label, the phone, the button and the line.
     // (Headings INSIDE the phone are the portal feed's own card titles.)
     await expect(sec.locator(":scope > h2, :scope > h3, :scope > ul, :scope > ol, :scope > p:not(.pp-label):not(.pp-sr)")).toHaveCount(0);
@@ -124,10 +151,14 @@ test.describe("the live-progress phone on the estimate", () => {
     await expect(page.getByTestId("pp-line")).toContainText("For illustration only.");
     await expect(page.getByTestId("pp-phone")).toHaveAttribute("aria-hidden", "true");
     await expect(page.getByTestId("pp-summary")).toContainText("Text message:");
+    // Pressed again: closed, phone gone.
+    await tab.click();
+    await expect(page.getByTestId("live-progress")).toHaveCount(0);
   });
 
   test("shows their name, address, rooms and own photos; plays to the last text; Play again restarts; then they accept", async ({ page }) => {
     await openEstimate(page, withPres.token);
+    await openDemo(page);
     const sec = page.getByTestId("live-progress");
     await sec.scrollIntoViewIfNeeded();
 
@@ -160,8 +191,8 @@ test.describe("the live-progress phone on the estimate", () => {
     await expect(page.getByTestId("pp-lock")).not.toHaveClass(/gone/);
     await expect(page.getByTestId("pp-lock")).toHaveClass(/gone/, { timeout: 15_000 });
 
-    // §8 tracking: started, completed and replayed landed on the estimate's events (and the CRM log) — once each.
-    await page.getByTestId("see-how-you-follow").click();
+    // §8 tracking: started, completed and replayed landed on the estimate's events (and the CRM log) — once each;
+    // cta_clicked is the card press that opened the demo.
     await expect.poll(async () => {
       const { data } = await db!.from("estimate_events").select("type").eq("estimate_id", withPres.id).like("type", "progress_preview_%");
       return ((data ?? []) as Array<{ type: string }>).map((r) => r.type).sort();
@@ -184,6 +215,9 @@ test.describe("the live-progress phone on the estimate", () => {
   test("reduced motion: nothing animates, the final state shows, label and line still present", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openEstimate(page, withPres.token);
+    // The card does not pulse under reduced motion either.
+    expect(await page.getByTestId("live-updates-tab").evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+    await openDemo(page);
     const sec = page.getByTestId("live-progress");
     await sec.scrollIntoViewIfNeeded();
     await expect(sec.locator(".pp-feed .tl-item:visible")).toHaveCount(5);
@@ -196,6 +230,7 @@ test.describe("the live-progress phone on the estimate", () => {
   test("360 px: no horizontal scroll and the phone fully visible", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 800 });
     await openEstimate(page, withPres.token);
+    await openDemo(page);
     await page.getByTestId("pp-phone").scrollIntoViewIfNeeded();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
@@ -205,14 +240,13 @@ test.describe("the live-progress phone on the estimate", () => {
     expect(box!.x + box!.width).toBeLessThanOrEqual(360);
   });
 
-  test("no presentation attached: no section, no hero button, no step-4 link, none of its images", async ({ page }) => {
+  test("no presentation attached: no card, no section, none of its images", async ({ page }) => {
     const requested: string[] = [];
     page.on("request", (r) => requested.push(r.url()));
     await openEstimate(page, without.token);
+    await expect(page.getByTestId("live-updates-tab")).toHaveCount(0);
     await expect(page.getByTestId("live-progress")).toHaveCount(0);
     await expect(page.locator("[class^='pp-'], [class*=' pp-']")).toHaveCount(0);
-    await expect(page.getByTestId("see-how-you-follow")).toHaveCount(0);
-    await expect(page.getByTestId("step-live-progress-link")).toHaveCount(0);
     // The demo's own script never loads (rule 2). Its stylesheet rides the
     // route's CSS bundle either way — a stylesheet is neither script nor image.
     expect(requested.some((u) => /ProgressPhone/.test(u) && /\.js(\?|$)/.test(u))).toBe(false);
@@ -220,6 +254,7 @@ test.describe("the live-progress phone on the estimate", () => {
 
   test("demo painter from Settings → Website shows by name and photo (F1)", async ({ page }) => {
     await openEstimate(page, withPres.token);
+    await openDemo(page);
     const lead = page.getByTestId("live-progress").locator(".pp-lead");
     await expect(lead).toContainText(DEMO.name);
     await expect(lead).toContainText("Your lead painter");
@@ -229,6 +264,7 @@ test.describe("the live-progress phone on the estimate", () => {
 
   test("a trade account gets the commercial set: organisation, PO on the estimate, stage rail, site photos (F5, acceptance 9)", async ({ page }) => {
     await openEstimate(page, trade.token);
+    await openDemo(page);
     const sec = page.getByTestId("live-progress");
     await expect(sec).toHaveAttribute("data-set", "commercial");
     await expect(page.getByTestId("pp-sms1")).toContainText(`12 Progress Street (PO 4471-${run}): Paint Group signed in on site`);
@@ -246,8 +282,8 @@ test.describe("the live-progress phone on the estimate", () => {
 
   test("a wizard self-built estimate never shows it, presentation or not (F9)", async ({ page }) => {
     await openEstimate(page, wizard.token);
+    await expect(page.getByTestId("live-updates-tab")).toHaveCount(0);
     await expect(page.getByTestId("live-progress")).toHaveCount(0);
-    await expect(page.getByTestId("see-how-you-follow")).toHaveCount(0);
   });
 
   test("as an anonymous customer, nothing staff-only reaches the browser (acceptance 10, rule 5)", async ({ page }) => {
@@ -263,7 +299,7 @@ test.describe("the live-progress phone on the estimate", () => {
       }
     });
     await openEstimate(page, trade.token);
-    await page.getByTestId("live-progress").scrollIntoViewIfNeeded();
+    await openDemo(page);
     await page.waitForTimeout(1500);
     const html = await page.content();
     expect(html).toContain("Example of your live updates");
@@ -277,20 +313,15 @@ test.describe("the live-progress phone on the estimate", () => {
     await signIn(page, staff!, /\/(estimates|crm|quote|home)/);
     await page.goto(`/quote?id=${trade.id}`);
     await page.getByRole("button", { name: /^ESTIMATE$/ }).first().click();
+    // The card arrives once the server action has built the preview.
+    await expect(page.getByTestId("live-updates-tab")).toBeVisible({ timeout: 30_000 });
+    await openDemo(page);
     const sec = page.getByTestId("live-progress");
-    await expect(sec).toBeVisible({ timeout: 30_000 });
     // The preview is rendered by the server action from the estimate's own
     // context, so the trade account's commercial set shows here too.
     await expect(sec).toHaveAttribute("data-set", "commercial");
     await expect(page.getByTestId("pp-label")).toHaveText("Example of your live updates");
     await expect(sec.locator(".pp-feed .tl-item")).toHaveCount(5);
     await expect(sec.locator(".pp-feed .cap").first()).toHaveText("Before · site photo");
-  });
-
-  test("with a presentation: the hero button and the step-4 link point at the section", async ({ page }) => {
-    // The trade estimate: still unaccepted here (an accepted estimate hides its hero buttons by design).
-    await openEstimate(page, trade.token);
-    await expect(page.getByTestId("see-how-you-follow")).toHaveAttribute("href", "#live-progress");
-    await expect(page.getByTestId("step-live-progress-link")).toHaveAttribute("href", "#live-progress");
   });
 });
