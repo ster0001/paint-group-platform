@@ -67,7 +67,7 @@ test("scheduling — staff offers, contractor responds, both sides captured", as
 
   const sCtx = await browser.newContext({ viewport: DESK, deviceScaleFactor: 2 });
   const s = await sCtx.newPage();
-  await signIn(s, staff!, /\/estimates/);
+  await signIn(s, staff!, /\/(home|estimates)/);
   await s.goto("/pc/schedule");
   await expect(s.getByTestId("lane").first()).toBeVisible({ timeout: 30_000 });
   const tray = s.locator(`[data-testid="tray-job"][data-wo-ref]`).filter({ hasText: /Interior repaint/ }).first();

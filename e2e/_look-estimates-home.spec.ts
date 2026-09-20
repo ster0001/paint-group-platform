@@ -15,7 +15,7 @@ test("look: estimates home at 1440", async ({ page }) => {
   test.skip(!staff || !db, "needs staff creds + service key");
   test.setTimeout(180_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await signIn(page, staff!, /\/estimates/);
+  await signIn(page, staff!, /\/(home|estimates)/);
 
   await page.goto("/estimates");
   await page.waitForTimeout(1500);

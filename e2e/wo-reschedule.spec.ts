@@ -219,7 +219,7 @@ test.describe("the board's Approve confirms the customer on the new dates", () =
       p_offer_id: offer.id, p_new_start: iso(D + 2), p_note: "Two days behind",
     })).toBe("proposed");
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/schedule");
     await expect(page.getByTestId("lane").first()).toBeVisible({ timeout: 30_000 });
     const card = page.locator(".jcard", { hasText: woRef }).filter({ hasText: "WANTS TO MOVE THE JOB" });

@@ -87,7 +87,7 @@ test("the estimator's pack opens fast, and shows what was promised", async ({ br
   await page.fill('input[type="email"]', staff.email);
   await page.fill('input[type="password"]', staff.password);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(/estimates/);
+  await page.waitForURL(/\/(home|estimates)/);
 
   const started = Date.now();
   await page.goto(`/quote?id=${req!.estimate_id}&tab=pack`);

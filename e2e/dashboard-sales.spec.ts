@@ -139,7 +139,7 @@ test.describe("dashboard · session 3 · sales, funnel, activity", () => {
   });
 
   test("the master sees the target card and both salespeople", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/home?who=team");
     await expect(page.getByTestId("target-card")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("target-chart")).toBeVisible();

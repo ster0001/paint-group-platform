@@ -73,7 +73,7 @@ test.describe("plan reader pipeline", () => {
   test.skip(process.env.E2E_EXTRACT_READY !== "1", "needs migration 20260910000000 applied");
 
   test("a reading becomes a priceable estimate in the builder", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
 
     // ---- 1. upload: the real route, real storage, real run rows ------------
     const up = await page.request.post("/api/extract/floorplan?kind=floorplan", {

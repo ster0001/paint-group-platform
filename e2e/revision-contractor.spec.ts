@@ -182,7 +182,7 @@ test.describe("the contractor loop — acknowledge, accept, started-work guard",
   });
 
   test("the PC sets the deduction by hand and the contractor sees the figure", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
 
     // The dashboard flags it…
     await page.goto("/pc");

@@ -154,7 +154,7 @@ test.describe("A4 — ledger and final invoice reconcile to the cent", () => {
       p_estimate_id: estimateId, p_state: workingState,
     })).toBe("ok");
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}&mode=revision`);
     await page.getByTestId("draft-variations").click();
     await expect(page.getByTestId("drafted-list").locator("li")).toHaveCount(2, { timeout: 20_000 });

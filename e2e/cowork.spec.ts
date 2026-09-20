@@ -24,7 +24,7 @@ const BRIEF = [
 test("co-work in the builder: paste a brief → the tree lands live → answer gaps → the price moves → reopen re-attaches", async ({ page }) => {
   test.skip(!staff, missingCreds("STAFF"));
   test.setTimeout(300_000);
-  await signIn(page, staff!, /estimates/);
+  await signIn(page, staff!, /\/(home|estimates)/);
 
   // A blank builder: the button makes the draft and reopens on it with the panel open.
   await page.goto("/quote");

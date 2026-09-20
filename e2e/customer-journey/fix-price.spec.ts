@@ -40,7 +40,7 @@ test("send, then fix remotely — the customer's sent screen shows the number", 
   await est.fill('input[type="email"]', staff.email);
   await est.fill('input[type="password"]', staff.password);
   await est.getByRole("button", { name: /sign in/i }).click();
-  await est.waitForURL(/estimates/);
+  await est.waitForURL(/\/(home|estimates)/);
 
   const fix = async () => est.evaluate(async (id) => {
     const r = await fetch(`/api/confirmations/${id}`, {
@@ -95,7 +95,7 @@ test("a fixed price cannot be re-fixed — that is a variation", async ({ browse
   await est.fill('input[type="email"]', staff.email);
   await est.fill('input[type="password"]', staff.password);
   await est.getByRole("button", { name: /sign in/i }).click();
-  await est.waitForURL(/estimates/);
+  await est.waitForURL(/\/(home|estimates)/);
 
   // A DIFFERENT price — the repeat-guard must not mask a real re-fix attempt.
   const res = await est.evaluate(async (id) => {

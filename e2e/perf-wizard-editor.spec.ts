@@ -17,7 +17,7 @@ test("measure wizard-editor removal cost on a 12-room estimate", async ({ page }
   test.skip(!staff, missingCreds("STAFF"));
   test.setTimeout(180_000);
 
-  await signIn(page, staff!, /estimates/);
+  await signIn(page, staff!, /\/(home|estimates)/);
   await page.goto("/wizard");
 
   // Page 1: no plan → quick basics, 5+ bedrooms double storey (11 rooms).

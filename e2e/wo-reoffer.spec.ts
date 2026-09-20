@@ -72,7 +72,7 @@ test.describe("reoffering a lapsed job", () => {
   test.afterAll(async () => { await destroyLoopFixture(db!, job); });
 
   test("a breached offer raises exactly one critical card, with Reoffer on it", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc");
     const card = page.getByTestId(`card-offer-sla:${job!.workOrderId}`);
     await expect(card).toBeVisible();
@@ -138,7 +138,7 @@ test.describe("reoffering a lapsed job", () => {
 
   test("the card clears itself once the job is reoffered", async ({ page }) => {
     test.skip(!secondContractor, "needs a second contractor");
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc");
     // The breach is gone: the live offer is inside its SLA again.
     await expect(page.getByTestId(`card-offer-sla:${job!.workOrderId}`)).toHaveCount(0);

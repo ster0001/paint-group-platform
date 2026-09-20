@@ -188,7 +188,7 @@ test.describe("dashboard 0a · capture on estimates", () => {
 
   test("the builder refuses Send until a lead source is picked, and saves the pick", async ({ page }) => {
     const draft = await estimate({});
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${draft.id}`);
     const picker = page.getByTestId("lead-source-picker");
     await expect(picker).toHaveValue("");
@@ -203,7 +203,7 @@ test.describe("dashboard 0a · capture on estimates", () => {
 
   test("Settings shows a presentation's category and lets the office change it", async ({ page }) => {
     const id = await presentation(`Labelled ${run}`);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings#presentations");
     await expect(page.getByTestId(`presentation-category-${id}`)).toHaveText(`Labelled ${run}`);
 

@@ -185,7 +185,7 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     expect(conversationId).toBeTruthy();
 
     // Staff, on the Estimates list — not the CRM — see it in the corner.
-    await signIn(staffPage, staff!, /estimates/);
+    await signIn(staffPage, staff!, /\/(home|estimates)/);
     await staffPage.goto("/estimates");
     const dock = staffPage.getByTestId("staff-dock");
     await expect(dock).toBeVisible({ timeout: 40_000 });

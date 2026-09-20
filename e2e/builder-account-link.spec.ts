@@ -37,7 +37,7 @@ test.describe("builder account link (3a)", () => {
     await page.fill('input[type="email"]', staff.email);
     await page.fill('input[type="password"]', staff.password);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL(/estimates/);
+    await page.waitForURL(/\/(home|estimates)/);
 
     // A fresh estimate in the real builder.
     await page.goto("/quote");

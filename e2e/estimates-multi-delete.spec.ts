@@ -19,7 +19,7 @@ test("estimates list: tick two rows, bulk delete removes exactly those", async (
   const staff = credentials("STAFF");
   test.skip(!staff, missingCreds("STAFF"));
   test.setTimeout(240_000);
-  await signIn(page, staff!, /estimates/);
+  await signIn(page, staff!, /\/(home|estimates)/);
 
   // Two fresh drafts of our own to delete — newest-first puts them on top.
   await driveNoPlanWizard(page);
@@ -51,7 +51,7 @@ test("estimates list: tick two rows, bulk delete removes exactly those", async (
 test("header tickbox selects the page; accepted rows have no tickbox", async ({ page }) => {
   const staff = credentials("STAFF");
   test.skip(!staff, missingCreds("STAFF"));
-  await signIn(page, staff!, /estimates/);
+  await signIn(page, staff!, /\/(home|estimates)/);
   await page.goto("/estimates");
 
   const rows = page.locator("tbody tr");

@@ -144,7 +144,7 @@ test.describe("prep questions + pass → walkthrough", () => {
     const lastCheck = await passEveryCheck(uiFixture!.workOrderId, true);
     expect(lastCheck).not.toBeNull();
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${uiFixture!.workOrderId}`);
     await expect(page.getByTestId(`qa-${lastCheck}`)).toBeVisible({ timeout: 15_000 });
     await page.getByTestId(`qa-pass-${lastCheck}`).click();

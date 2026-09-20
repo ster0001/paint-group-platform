@@ -108,7 +108,7 @@ test.describe("board and paint usability, 18 Sep", () => {
 
   // -------------------------------------------------------------------------
   test("an employee is never called 'Not offerable', and is never marked down for insurance", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/contractors");
     const badge = page.getByTestId(`badge-${empContractorId}`);
     await expect(badge).toBeVisible({ timeout: 20_000 });
@@ -121,7 +121,7 @@ test.describe("board and paint usability, 18 Sep", () => {
   });
 
   test("'Ready for work only' keeps employees on the board", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/schedule");
     const lane = page.locator(`[data-contractor-id="${empContractorId}"]`);
     await expect(lane).toBeVisible({ timeout: 30_000 });
@@ -143,7 +143,7 @@ test.describe("board and paint usability, 18 Sep", () => {
   });
 
   test("the month, day and date stay locked at the top while the contractors scroll", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     // A short laptop, so the handful of lanes on the test board overflows the
     // timeline. Tom's board has dozens on a full screen — the same condition.
     await page.setViewportSize({ width: 1280, height: 520 });
@@ -205,7 +205,7 @@ test.describe("board and paint usability, 18 Sep", () => {
   });
 
   test("the tray searches, and puts the longest wait at the top", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/schedule");
     const cards = page.locator('[data-testid="tray-job"]');
     await expect(cards.filter({ hasText: TRAY[0].title })).toBeVisible({ timeout: 30_000 });
@@ -238,7 +238,7 @@ test.describe("board and paint usability, 18 Sep", () => {
   });
 
   test("quality checks cycle first jobs → every job → none, and 'none' stops them being scheduled", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/contractors");
     const button = page.getByTestId(`qa-mode-${empContractorId}`);
     await expect(button).toHaveText("QA: first jobs", { timeout: 20_000 });
@@ -300,7 +300,7 @@ test.describe("board and paint usability, 18 Sep", () => {
     const estimateId = (est as { id: string }).id;
 
     try {
-      await signIn(page, staff!, /\/estimates/);
+      await signIn(page, staff!, /\/(home|estimates)/);
       await page.goto(`/quote?id=${estimateId}`);
       await page.waitForLoadState("networkidle");
       // The card is open by default, so the box is simply there.

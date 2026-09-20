@@ -2,7 +2,7 @@
 feature: dashboard
 role: staff
 title: The home dashboard — what you land on, what each tile means, and the numbers the office types in
-summary: /home shows each staff login the sections for their roles — a needs-doing strip, then tiles you can press for the rows behind them and export as CSV; roles are ticked on Settings → Staff logins, and the Dashboard folder in Settings holds the target, marketing spend and thresholds (owner/admin only).
+summary: /home is where every staff login lands — a needs-doing strip, then the sections for your roles as tiles you can press for the rows behind them, an i for what each counts, and Export CSV; roles are ticked on Settings → Staff logins, and the Dashboard folder in Settings holds the target, marketing spend and thresholds (owner/admin only).
 sources: app/(app)/home/page.tsx, app/(app)/home/HomeTiles.tsx, lib/reporting/core.ts, lib/reporting/registry.ts, app/api/reporting/export/route.ts, app/(app)/settings/StaffAccountsManager.tsx, app/(app)/settings/staffActions.ts, app/(app)/settings/DashboardSettings.tsx, lib/reporting/roles.ts
 ---
 
@@ -23,9 +23,9 @@ sources: app/(app)/home/page.tsx, app/(app)/home/HomeTiles.tsx, lib/reporting/co
 
 **Trend cards.** For owner and admin, a period tile that is at least the anomaly threshold (Settings → Dashboard, 25% by default) above or below its comparison becomes an "Amber · trend" card in Needs doing — "Conversion down 18% vs August" — with **See the tile** jumping to it.
 
-**PC Command** (project coordinator, owner, admin) — right-now counts, every one opening its list: Jobs to schedule (accepted, not yet booked, with the money waiting and the oldest wait), In progress (with how many are wrapping up), Quality check (with the checks due, from the console's own cards), Variations open (to price / with customer), Customers awaiting reply (a person's reply, never an automated chase), Awaiting sign-off, Offers past SLA (the console's own cards), Starting this week (colours TBC counted), Booked work ahead ($ and weeks out), and for the period Materials estimated vs actual on signed-off jobs (the engine's budget against matched supplier invoices, ex GST — the same two figures as the job page's Materials card).
+**PC Command** and **Contractors** (project coordinator, owner, admin) — the job-side sections; the project coordinator's guide describes every tile.
 
-**Contractors** (same roles) — Finished on time ("8 of 11 · 73%": last surface ticked on or before the booking's end, extensions included), Silent 3+ days (the console's quiet-site flags at the Settings threshold), QA passed first time (attempt 1), Offers accepted within 24h, Variations raised, Expense claims awaiting approval, and Days on site / Hours vs estimate — blended from the painter's own entry where they are opted in, otherwise the booked days × the standard day; every row names its source and the tile says "actual on 4 of 11 jobs, schedule on 7". Nothing averages the two silently.
+**Definitions.** Every tile carries a small **i**: press it and the tile's definition appears under the row of tiles, with whether it is a right-now count or moves with the period and its GST basis. The same **i** sits on every rows card and in every drill-through.
 
 A **tile** is a number with a name. Tiles marked **right now** are a state count and ignore the period; the others move with it and carry an arrow against the previous period. Press a tile: the rows it was counted from open beneath it, **i** shows exactly what it counts, **Export CSV** downloads those rows (the same route for every list), **Open list** goes to the screen. A section whose module has not shipped yet says *Switches on when … ships* — it never shows a zero in place of a number nobody has captured. This page is the office side: giving a login its dashboard roles, and typing in the figures the dashboard cannot read from anywhere else — the monthly sales target and what was spent on marketing.
 

@@ -40,7 +40,7 @@ test.describe("builder — hold to drag on a touch screen", () => {
 
   test("a still second on the grip lifts the row; a slide straight away scrolls instead", async ({ page }) => {
     test.setTimeout(120_000);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await expect(page.getByTestId("grip-1")).toBeVisible({ timeout: 20_000 });
     expect(await order(page)).toEqual(["Alpha", "Bravo", "Charlie"]);

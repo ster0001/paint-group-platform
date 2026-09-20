@@ -12,7 +12,7 @@ test("look: showcase editor + preview", async ({ page }) => {
   test.skip(!staff || !db, "needs staff creds + service key");
   const run = randomBytes(3).toString("hex");
   await page.setViewportSize({ width: 1400, height: 1000 });
-  await signIn(page, staff!, /\/estimates/);
+  await signIn(page, staff!, /\/(home|estimates)/);
   await page.goto("/settings/showcase/new");
   const PNG = await page.screenshot({ clip: { x: 0, y: 0, width: 800, height: 600 } });
   await page.getByTestId("showcase-hero-upload").setInputFiles({ name: "hero.png", mimeType: "image/png", buffer: PNG });

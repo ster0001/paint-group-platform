@@ -90,7 +90,7 @@ test.describe("the Preparation line", () => {
   });
 
   test("builder: shown first with the Settings default, editable, saved into the state and the snapshot", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${builtId}`);
     await page.waitForLoadState("networkidle");
 
@@ -164,7 +164,7 @@ test.describe("the Preparation line", () => {
   });
 
   test("builder, accepted (locked) estimate: the Preparation line is still shown at the top", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${builtId}`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("Accepted · locked")).toBeVisible();

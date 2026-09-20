@@ -59,7 +59,7 @@ test.describe("PC Command", () => {
   });
 
   test("the queue raises exactly one card for the waiting variation", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc");
 
     const card = page.getByTestId(`card-variation-price:${variationId}`);
@@ -69,7 +69,7 @@ test.describe("PC Command", () => {
   });
 
   test("the tiles agree with the queue, because they come from it", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc");
 
     const waiting = Number(await page.getByTestId("tile-waiting").textContent());
@@ -84,7 +84,7 @@ test.describe("PC Command", () => {
   });
 
   test("the job sits in the lane the model says it sits in", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/flow");
 
     const lane = page.getByTestId("lane-in_progress");
@@ -96,7 +96,7 @@ test.describe("PC Command", () => {
   });
 
   test("the queue action deep-links to the variation it is about", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc");
     await page.getByTestId(`action-variation-price:${variationId}`).click();
     await expect(page).toHaveURL(new RegExp(`/pc/wo/${fixture!.workOrderId}`));
@@ -104,7 +104,7 @@ test.describe("PC Command", () => {
   });
 
   test("the work-order view reads its numbers from the model", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${fixture!.workOrderId}`);
 
     await expect(page.getByTestId("money-contract")).toHaveText("$18,420");
@@ -122,7 +122,7 @@ test.describe("PC Command", () => {
   });
 
   test("the PC prices the variation from the console, and the money is the server's", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${fixture!.workOrderId}`);
 
     // Tom's ruling (25 Aug): the revision builder is the primary path, and the
@@ -150,7 +150,7 @@ test.describe("PC Command", () => {
   });
 
   test("the card clears itself once the variation moves on", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc");
     // It was raised; it is priced now, so the "needs a price" card is gone.
     await expect(page.getByTestId(`card-variation-price:${variationId}`)).toHaveCount(0);
@@ -163,7 +163,7 @@ test.describe("PC Command", () => {
     });
     expect(error).toBeNull();
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc");
 
     const card = page.getByTestId(`card-quiet-site:${fixture!.workOrderId}`);
@@ -189,7 +189,7 @@ test.describe("PC Command", () => {
     }).select("id").single();
     const updateId = (data as { id: string }).id;
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/updates");
 
     await expect(page.getByTestId(`text-${updateId}`)).toContainText("front of the house");

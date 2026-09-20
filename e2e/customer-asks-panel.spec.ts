@@ -58,7 +58,7 @@ test.describe("a customer's own item reaches the staff builder", () => {
     await page.fill('input[type="email"]', staff.email);
     await page.fill('input[type="password"]', staff.password);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL(/estimates/);
+    await page.waitForURL(/\/(home|estimates)/);
 
     await page.goto(`/quote?id=${estimateId}`);
     const panel = page.getByTestId("customer-asks-panel");

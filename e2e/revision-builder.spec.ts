@@ -145,7 +145,7 @@ test.describe("the revision builder — diff → signed variations", () => {
   });
 
   test("opens over a clean clone — no changes, revision badge on", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}&mode=revision`);
     await expect(page.getByTestId("revision-badge")).toBeVisible();
     await expect(page.getByTestId("revision-no-changes")).toBeVisible();
@@ -158,7 +158,7 @@ test.describe("the revision builder — diff → signed variations", () => {
   });
 
   test("every door leads here: invoices tab, money view, locked builder", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
 
     // The Invoicing tab (estimates-style list): the job's ADDRESS is the door.
     await page.goto("/invoices");
@@ -203,7 +203,7 @@ test.describe("the revision builder — diff → signed variations", () => {
     });
     expect(saved).toBe("ok");
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}&mode=revision`);
     await expect(page.getByTestId("revision-changes")).toBeVisible();
     await expect(page.getByTestId("revision-changes").locator("li")).toHaveCount(2);
@@ -300,7 +300,7 @@ test.describe("the revision builder — diff → signed variations", () => {
   });
 
   test("re-drafting after the signature drafts only what goes beyond it", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}&mode=revision`);
     await page.getByTestId("draft-variations").click();
     await expect(page.getByTestId("revision-message")).toBeVisible({ timeout: 20_000 });

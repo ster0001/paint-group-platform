@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { PRESET_LABEL, RANGE_PRESETS, rangeLabel, resolveRange, runMetric, type MetricResult, type RangePreset } from "@/lib/reporting/core";
 import { loadDashboard, loadRoles } from "@/lib/reporting/load";
@@ -10,7 +11,9 @@ import { activityRows, familiesFor } from "@/lib/reporting/metrics/activity";
 import TargetCard from "./TargetCard";
 import FunnelCard from "./FunnelCard";
 import ActivityFeed from "./ActivityFeed";
-import { anomalyCards, buildStrip } from "@/lib/reporting/strip";
+import { anomalyCards, buildStrip, type StripCard } from "@/lib/reporting/strip";
+import type { DashboardRole } from "@/lib/reporting/roles";
+import type { DashboardLoad } from "@/lib/reporting/load";
 import { requestNow } from "@/lib/time/requestClock";
 import { reportError } from "@/lib/monitoring/report";
 import HomeTiles, { type TileData } from "./HomeTiles";
@@ -97,7 +100,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   // Session 5: a period tile off its comparison by the Settings threshold is a strip card (owner/admin).
   const monthOf = (r: MetricResult) => r.compareRange ? new Intl.DateTimeFormat("en-AU", { month: "long", timeZone: "UTC" }).format(new Date(`${r.compareRange.from}T00:00:00Z`)) : "last period";
-  const cards = buildStrip({ ...loaded.strip, extra: anomalyCards(periodResults, loaded.input.thresholds?.anomalyPct ?? 25, monthOf) }, roles);
+  const extraCards = anomalyCards(periodResults, loaded.input.thresholds?.anomalyPct ?? 25, monthOf);
 
   const compareLabel = (() => {
     const first = [...tilesBySection.values()].flat().find((t) => t.compareRange);
@@ -106,7 +109,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const chipHref = (p: RangePreset) => (p === "custom" ? `/home?preset=custom&from=${range.from}&to=${range.to}` : `/home?preset=${p}`);
 
   return (
-    <div className="home wrap" data-testid="home" data-roles={roles.join(" ")}>
+    <div className="home wrap" data-testid="home" data-roles={roles.join(" ")} data-timings={JSON.stringify(loaded.timings ?? {})}>
       <header className="top">
         <h1>
           {greeting(now)}, <span data-testid="home-name">{firstName}</span>
@@ -135,23 +138,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       )}
 
       {roles.length > 0 && (
-        <div className="todo" data-testid="needs-doing">
-          <h2><b data-testid="needs-doing-count">{cards.length} thing{cards.length === 1 ? "" : "s"}</b> need you today</h2>
-          {cards.length === 0 ? (
-            <p className="quiet">Nothing is waiting on you right now.</p>
-          ) : (
-            <div className="cards">
-              {cards.map((c) => (
-                <div key={c.key} className="tcard" data-testid="needs-doing-card">
-                  <div className={`sev ${c.severity === "critical" ? "c" : c.severity === "amber" ? "a" : "i"}`}>{c.label}</div>
-                  <div className="t">{c.title}</div>
-                  <div className="s">{c.detail}</div>
-                  <Link className="act" href={c.action.href}>{c.action.label}</Link>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <Suspense fallback={<div className="todo" data-testid="needs-doing-pending"><h2><b>Working out</b> what needs you today…</h2></div>}>
+          <NeedsDoing queue={loaded.queue} consoleCards={loaded.strip.consoleCards} extra={extraCards} roles={roles} />
+        </Suspense>
       )}
 
       {failures.length > 0 && (
@@ -206,6 +195,37 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <p className="hint" data-testid="home-roles-hint">
           You are seeing the {roles.map((r) => ROLE_LABEL[r]).join(" + ")} view · {METRICS.length} metric{METRICS.length === 1 ? "" : "s"} live · every number reads from the event logs; nothing on this page is typed in.
         </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Session 6: the strip streams. The CRM work queue is the slowest read on the
+ * page (fifteen sequential round trips inside the one evaluator) and nothing
+ * but these cards needs it, so the sections render first and this fills in
+ * when the queue resolves. Same cards, same order, same evaluator.
+ */
+async function NeedsDoing({ queue, consoleCards, extra, roles }: { queue: DashboardLoad["queue"]; consoleCards: DashboardLoad["strip"]["consoleCards"]; extra: StripCard[]; roles: DashboardRole[] }) {
+  const q = queue ? await queue : { items: [], failure: null, ms: 0 };
+  const cards = buildStrip({ workItems: q.items, consoleCards, extra }, roles);
+  return (
+    <div className="todo" data-testid="needs-doing" data-queue-ms={q.ms}>
+      <h2><b data-testid="needs-doing-count">{cards.length} thing{cards.length === 1 ? "" : "s"}</b> need you today</h2>
+      {q.failure && <p className="quiet" data-testid="needs-doing-failure">The CRM work queue could not be read ({q.failure.message}) — these are the job cards only.</p>}
+      {cards.length === 0 ? (
+        <p className="quiet">Nothing is waiting on you right now.</p>
+      ) : (
+        <div className="cards">
+          {cards.map((c) => (
+            <div key={c.key} className="tcard" data-testid="needs-doing-card">
+              <div className={`sev ${c.severity === "critical" ? "c" : c.severity === "amber" ? "a" : "i"}`}>{c.label}</div>
+              <div className="t">{c.title}</div>
+              <div className="s">{c.detail}</div>
+              <Link className="act" href={c.action.href}>{c.action.label}</Link>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

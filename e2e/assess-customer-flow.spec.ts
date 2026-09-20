@@ -22,7 +22,7 @@ test("walk the customer flow and record reality", async ({ page }) => {
     }
   });
 
-  await signIn(page, staff!, /estimates/);
+  await signIn(page, staff!, /\/(home|estimates)/);
 
   // ---- 1. EXTERIOR wizard questions (complaint 7) --------------------------
   await page.goto("/estimate");

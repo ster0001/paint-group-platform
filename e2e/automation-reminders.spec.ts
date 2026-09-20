@@ -100,7 +100,7 @@ test.describe("money and sign-off reminders", () => {
     expect(after).toBe(1);
     // The pending reminder 1, approved from the queue now, is refused: no longer needed.
     const { data: hold } = await db!.from("automation_holds").select("id").eq("invoice_id", invoiceId).single();
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/crm/messages/queue");
     await page.getByTestId(`hold-${hold!.id}`).getByTestId("approve-one").click();
     await expect(page.getByTestId("queue-said")).toContainText("no longer needed", { timeout: 20_000 });

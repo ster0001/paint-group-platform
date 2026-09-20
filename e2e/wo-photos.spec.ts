@@ -102,7 +102,7 @@ test.describe("site photos and live ticks", () => {
   });
 
   test("the job screen shows the photos, including the one on the variation", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${fixture!.workOrderId}`);
 
     const gallery = page.getByTestId("site-photos");
@@ -124,7 +124,7 @@ test.describe("site photos and live ticks", () => {
   });
 
   test("the dashboard shows what came back from site", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc");
 
     const strip = page.getByTestId("latest-photos");
@@ -150,7 +150,7 @@ test.describe("the schedule is the first tab of Projects", () => {
   test.skip(!staff, missingCreds("STAFF"));
 
   test("/schedule lands on the console tab, with the names pinned and the days named", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
 
     // The old route still goes somewhere real.
     await page.goto("/schedule");

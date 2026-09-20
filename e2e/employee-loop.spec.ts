@@ -138,7 +138,7 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
     // The crew painter hasn't tapped, and the job starts today → "Not accepted", a Call painter item.
     const office = await browser.newContext();
     const staffPage = await office.newPage();
-    await signIn(staffPage, staff!, /\/estimates/);
+    await signIn(staffPage, staff!, /\/(home|estimates)/);
     expect(await onToday(staffPage, "followups", new RegExp(`${CREW_NAME} hasn't accepted`))).toBe(true);
     // They tap — nothing is stored or dismissed; the item is simply gone.
     expect(await rpcAs(crew, "acknowledge_assignment", { p_assignment_id: crewAssignmentId })).toMatch(/^ok:/);
@@ -252,7 +252,7 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
       p_started_at: new Date(Date.now() - 30 * 3_600_000).toISOString(), p_finished_at: new Date(Date.now() - 26 * 3_600_000).toISOString(), p_break_minutes: 0,
     });
     expect(rec).toMatch(/^ok:/);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     expect(await onToday(page, "approvals", new RegExp(`1 clocked day from ${LEAD_NAME} waiting on approval`))).toBe(true);
     expect(await rpcAs(staff!, "timesheet_approve", { p_entry_id: rec.slice(3) })).toMatch(/^ok:/);
     expect(await onToday(page, "approvals", new RegExp(`clocked day from ${LEAD_NAME}`))).toBe(false);
@@ -282,7 +282,7 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
     // (wo_assignment_conflict reads approved_at — pinned in the S2 spec; here we prove the flip.)
     const office = await browser.newContext();
     const staffPage = await office.newPage();
-    await signIn(staffPage, staff!, /\/estimates/);
+    await signIn(staffPage, staff!, /\/(home|estimates)/);
     expect(await onToday(staffPage, "approvals", new RegExp(`${CREW_NAME} asked for an RDO`))).toBe(true);
     await staffPage.goto("/pc/timesheets");
     await expect(staffPage.getByTestId(`leave-${rdoId}`)).toContainText("Long weekend");
@@ -344,7 +344,7 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
   });
 
   test("9 · the switch on the Contractors page turns the tick boxes off and on", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/contractors");
     const flag = page.getByTestId("employees-enabled");
     await expect(flag).toBeChecked();

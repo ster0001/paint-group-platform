@@ -113,7 +113,7 @@ test.describe("deleting an estimate", () => {
   test("the button is on the list, and hidden on an accepted estimate", async ({ page }) => {
     const sb = await staffDb();
     const draftId = await makeEstimate(sb, "draft");
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/estimates");
     await expect(page.getByRole("button", { name: /delete E2E delete test \(draft\)/i })).toBeVisible();
     await sb.rpc("delete_estimate", { p_estimate_id: draftId });

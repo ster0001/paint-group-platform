@@ -132,7 +132,7 @@ test("work orders — painter and PC, offer to signed off", async ({ browser, re
 
   const pCtx = await browser.newContext({ viewport: DESK_TALL, deviceScaleFactor: 2 });
   const p = await pCtx.newPage();
-  await signIn(p, staff!, /\/estimates/);
+  await signIn(p, staff!, /\/(home|estimates)/);
   const cCtx = await browser.newContext({ viewport: PHONE, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const c = await cCtx.newPage();
   await signIn(c, contractor!, /\/portal/);

@@ -182,7 +182,7 @@ test.describe("dashboard 0c · capture on work orders", () => {
   test("Settings → Contractors shows the flag and flips it", async ({ page }) => {
     const before = await db!.from("contractors").select("capture_worked_hours").eq("id", contractorId).single();
     expect((before.data as { capture_worked_hours: boolean }).capture_worked_hours).toBe(true);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/contractors");
     const btn = page.getByTestId(`worked-hours-${contractorId}`);
     await expect(btn).toHaveText("Asks for hours");

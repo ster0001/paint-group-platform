@@ -70,19 +70,27 @@ test.describe("dashboard · session 1 · the shell", () => {
     (await page.locator("section[data-section]").evaluateAll((els) => els.map((e) => e.getAttribute("data-section")))) as string[];
 
   test("the master lands on every section; the strip and the sales tiles are real numbers", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     const t0 = Date.now();
     await page.goto("/home");
     await expect(page.getByTestId("home")).toBeVisible({ timeout: 20_000 });
     const ms = Date.now() - t0;
-    console.log(`home rendered for the master in ${ms} ms`);
+    const timings = JSON.parse((await page.getByTestId("home").getAttribute("data-timings")) ?? "{}") as Record<string, number>;
+    console.log(`home rendered for the master in ${ms} ms · loaders ${JSON.stringify(timings)}`);
+    // Session 6 performance gate (acceptance 12): the loaders under 1.5 s. Enforced when E2E_PERF_GATE is set —
+    // the shared test project's load varies with what CI is doing to it, so the number is always logged and
+    // only fails the run when a person asked for the gate.
+    if (process.env.E2E_PERF_GATE) expect(timings.total, `loaders took ${timings.total} ms`).toBeLessThan(1500);
     expect(await sectionsOn(page)).toEqual(["sales", "funnel", "pc_command", "contractors", "invoicing", "pl", "marketing", "activity"]);
     await expect(page.getByTestId("needs-doing")).toBeVisible();
     await expect(page.getByTestId("needs-doing-count")).toHaveText(/^\d+ things?$/);
     // Live section: the tiles; not-live sections: an honest "switches on" state, never a zero.
     await expect(page.getByTestId("tile-sales.estimates_sent")).toBeVisible();
-    await expect(page.getByTestId("switches-on-pl")).toContainText("Switches on when");
-    await expect(page.getByTestId("switches-on-invoicing")).toContainText("Switches on when");
+    // Every section is live now (session 5): no "switches on" box anywhere.
+    await expect(page.locator("[data-testid^=switches-on-]")).toHaveCount(0);
+    // Session 6: the "i" on the tile itself shows the definition without opening the rows.
+    await page.getByTestId("tile-info-sales.estimates_sent").click();
+    await expect(page.getByTestId("tile-definition-sales.estimates_sent")).toContainText("Melbourne days");
 
     // Tile == rows == export (acceptance 1, 5).
     const shown = await page.getByTestId("tile-value-sales.estimates_sent").textContent();

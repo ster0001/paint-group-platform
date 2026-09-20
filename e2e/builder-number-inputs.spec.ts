@@ -33,7 +33,7 @@ test.describe("builder number boxes", () => {
   test.afterAll(async () => { if (estimateId) await db!.from("estimates").delete().eq("id", estimateId); });
 
   test("clear a box and it stays clear; the first digit can be deleted", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await page.waitForLoadState("networkidle");
     await page.getByText("Living room", { exact: true }).first().click();

@@ -108,7 +108,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   }
 
   test("the deposit draft appears on the dashboard without a page-specific write", async ({ page }) => {
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/invoicing?f=draft");
     const row = page.locator(".r", { hasText: ADDRESS });
     await expect(row).toBeVisible();
@@ -118,7 +118,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   });
 
   test("and on the job money view — rail, strip and draft card from data alone", async ({ page }) => {
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
     await expect(page.getByTestId("deposit-draft-card")).toBeVisible();
     await expect(page.getByTestId("stage-rail").locator(".stage").first()).toHaveClass(/draft/);
@@ -128,7 +128,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   // Tom, 17 Sep 2026: the deposit invoice lists every line item of the
   // accepted estimate — for information; the total stays the deposit.
   test("the deposit draft lists the accepted scope without it touching the total", async ({ page }) => {
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/invoicing/inv/${depositInvoiceId}`);
     await expect(page.getByText("Contract works — from accepted estimate")).toBeVisible();
     await expect(page.getByText("Front elevation")).toBeVisible();
@@ -151,7 +151,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   });
 
   test("issue allocates the number, and the database refuses edits after it", async ({ page }) => {
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
     await page.getByTestId("deposit-draft-card").getByRole("button", { name: "Issue & send" }).click();
     // The send sheet (8790fd8, 25 Aug): note + channel, then the real send —
@@ -175,7 +175,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   });
 
   test("a recorded bank payment pays the deposit and every surface follows", async ({ page }) => {
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
     await page.getByRole("button", { name: "Invoices" }).click();
     const card = page.getByTestId("invoice-card-deposit");
@@ -202,7 +202,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   });
 
   test("request payment drafts a 25% progress claim, computed server-side", async ({ page }) => {
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
     await page.getByRole("button", { name: "Request payment" }).click();
     await page.locator(".pchip", { hasText: "25%" }).click();
@@ -229,7 +229,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
       "needs migration 20261113 (invoice draft editing) applied",
     );
 
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
 
     // First: the mockup's deposit-style amend, on the progress draft — the
     // inc-anchored "Amend the amount" path (invoice_set_draft_total).
@@ -342,7 +342,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     test.skip(!(await step3Ready()), "needs migration 20261114 (invoice pdf + token) applied");
     test.setTimeout(180_000);
 
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     const res = await page.request.get(`/invoicing/inv/${depositInvoiceId}/pdf`, { timeout: 120_000 });
     expect(res.ok()).toBeTruthy();
     const body = await res.body();
@@ -373,7 +373,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   // the invoice must not force a send. The 25% progress claim above is still a
   // draft — record the money against it and the server issues it on the way.
   test("a payment recorded on a DRAFT issues it silently — number allocated, nothing sent", async ({ page }) => {
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
     await page.getByRole("button", { name: "Invoices" }).click();
     const card = page.getByTestId("invoice-card-progress");

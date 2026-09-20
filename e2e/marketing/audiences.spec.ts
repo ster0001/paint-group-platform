@@ -102,7 +102,7 @@ test.describe("website audiences (session 8)", () => {
     test.skip(!staff, "needs E2E_STAFF_* creds");
     test.setTimeout(120_000);
     const desk = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
-    await signIn(desk, staff!, /\/estimates/);
+    await signIn(desk, staff!, /\/(home|estimates)/);
     await desk.goto("/settings#site-copy");
     const box = desk.getByTestId("site-copy");
     await expect(box).toBeVisible({ timeout: 20_000 });

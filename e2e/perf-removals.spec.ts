@@ -90,7 +90,7 @@ test("measure builder removal cost on a 12-room estimate", async ({ page }) => {
   page.on("request", (r) => requests.push(r.url()));
 
   try {
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await expect(page.getByText("Room 1").first()).toBeVisible({ timeout: 20_000 });
 

@@ -89,7 +89,7 @@ test.describe("optional substrates in a room", () => {
 
   test("builder: one press makes the doors an option — out of the room's price, into Optional extras, saved", async ({ page }) => {
     test.setTimeout(180_000);
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await openBuilder(page, estimateId);
 
     // Into the room. The row of substrates is the breakdown Tom asked for.
@@ -178,7 +178,7 @@ test.describe("optional substrates in a room", () => {
   test("builder: 'Put back in the estimate' returns the doors to the room in one press", async ({ page }) => {
     test.skip(!doorCents, "the builder test did not run");
     await db!.from("estimates").update({ status: "draft", sent_at: null }).eq("id", estimateId);
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await openBuilder(page, estimateId);
     const card = page.getByTestId(`surface-option-${AREA_ID}`);
     await expect(card).toBeVisible();
@@ -197,7 +197,7 @@ test.describe("optional substrates in a room", () => {
   test("acceptance: a ticked option is on the work order, its pay and the tick list", async ({ page }) => {
     test.skip(!doorCents, "the builder test did not run");
     test.setTimeout(180_000);
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await openBuilder(page, estimateId);
     await page.getByText("Living room", { exact: true }).first().click();
     // The put-back above was never saved, so the doors are still optional on
@@ -270,7 +270,7 @@ test.describe("optional substrates in a room", () => {
     if (est.error) throw new Error(est.error.message);
     const id2 = est.data.id as string;
     try {
-      await signIn(page, staff!, /estimates/);
+      await signIn(page, staff!, /\/(home|estimates)/);
       await openBuilder(page, id2);
       await page.getByTestId("builder-save").click();
       await expect(page.getByText("Saved ✓")).toBeVisible({ timeout: 20_000 });

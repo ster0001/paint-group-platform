@@ -110,7 +110,7 @@ test.describe("the pre-start list — the same on an employee's job as a contrac
     for (const label of REQUIRED_LABELS) expect(labels, `employee job is missing "${label}"`).toContain(label);
 
     // …and the office actually sees them on the job page.
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${assigned!.workOrderId}`);
     await expect(page.getByTestId("pre-start-missing")).toHaveCount(0);
     const body = page.locator("body");
@@ -133,7 +133,7 @@ test.describe("the pre-start list — the same on an employee's job as a contrac
     };
     expect(await labelsFor(offered!.workOrderId)).toEqual(await labelsFor(assigned!.workOrderId));
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${offered!.workOrderId}`);
     await expect(page.getByTestId("pre-start-missing")).toHaveCount(0);
     const body = page.locator("body");
@@ -157,7 +157,7 @@ test.describe("the pre-start list — the same on an employee's job as a contrac
   });
 
   test("the office opening the job builds the missing list, and then it starts", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${assigned!.workOrderId}`);
     await expect(page.getByTestId("pre-start-missing")).toHaveCount(0);
     for (const label of REQUIRED_LABELS) await expect(page.locator("body")).toContainText(label);

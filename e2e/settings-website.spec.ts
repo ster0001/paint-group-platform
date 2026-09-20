@@ -36,7 +36,7 @@ test.describe("Settings → Website", () => {
 
   test("painter + photos saved in Settings show on the homepage; the nav wears logo 1", async ({ page }) => {
     test.setTimeout(120_000);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings#website");
     const png = await page.screenshot({ clip: { x: 0, y: 0, width: 400, height: 300 } });
     const box = page.getByTestId("website-content");

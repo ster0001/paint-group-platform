@@ -1,3 +1,11 @@
+# 20 Sep 2026 (afternoon) — Home dashboard v2, Session 6: finish. Migration 20270183 (indexes only). Branch `feat/home-dashboard-s6-finish`.
+
+/home is the staff landing (87 specs swept); "i" on every tile; the needs-doing strip STREAMS behind the sections
+(the CRM work queue is 15 sequential round trips ≈ 2 s — not rewritten, taken off the critical path); loaders in one
+wave; five range indexes (20270183, on test); loaders 0.9–1.4 s warm as owner (was 3.4 s); 10k-row CSV stream test;
+full-loop e2e asserting exact tile deltas per role through the export route; help split staff/pc. Gates: see the
+session report. Not done: the 25k seed was wiped 20 Sep (gate ran on live test data); real-phone pass is Tom's.
+
 # 20 Sep 2026 (afternoon) — Home dashboard v2, Session 5: P&L + Marketing. NO migration. Branch `feat/home-dashboard-s5-pl`.
 
 Built (owner/admin only, ⚑2 enforced in runMetric → 403): P&L on the Settings basis with the chip on every

@@ -54,6 +54,9 @@ function cell(v: unknown, key: string): string {
 export default function HomeTiles({ tiles: all }: { tiles: TileData[] }) {
   const [open, setOpen] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  /** Session 6: the "i" on the tile itself — the definition without opening the rows. */
+  const [tileInfo, setTileInfo] = useState<string | null>(null);
+  const shownTile = all.find((t) => t.key === tileInfo) ?? null;
   const tiles = all.filter((t) => t.display !== "rows");
   const cards = all.filter((t) => t.display === "rows");
   const active = tiles.find((t) => t.key === open) ?? null;
@@ -65,8 +68,9 @@ export default function HomeTiles({ tiles: all }: { tiles: TileData[] }) {
         {tiles.map((t) => {
           const d = t.kind === "period" ? compareDelta(t.value, t.compare) : null;
           return (
+            <div className="tilewrap" key={t.key}>
             <button
-              key={t.key} type="button"
+              type="button"
               className={`tile${t.kind === "now" ? " now" : ""}${open === t.key ? " open" : ""}`}
               aria-pressed={open === t.key}
               onClick={() => setOpen(open === t.key ? null : t.key)}
@@ -85,9 +89,16 @@ export default function HomeTiles({ tiles: all }: { tiles: TileData[] }) {
                 {t.kind === "period" && t.compare === 0 && t.value > 0 && <span>none in {monthShort(t.compareRange)}</span>}
               </div>
             </button>
+            <button type="button" className="i" aria-pressed={tileInfo === t.key} aria-label={`What ${t.title} counts`} title="What this counts" onClick={() => setTileInfo(tileInfo === t.key ? null : t.key)} data-testid={`tile-info-${t.key}`}>i</button>
+            </div>
           );
         })}
       </div>}
+      {shownTile && (
+        <p className="note tiledef" data-testid={`tile-definition-${shownTile.key}`}>
+          <b>{shownTile.title}</b>{shownTile.kind === "now" ? " · right now" : " · moves with the period"}{shownTile.gst ? ` · ${shownTile.gst === "inc" ? "inc GST" : "ex GST"}` : ""} — {shownTile.definition}
+        </p>
+      )}
 
       {cards.length > 0 && (
         <div className="grid2">

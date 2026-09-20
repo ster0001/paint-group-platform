@@ -34,14 +34,14 @@ test.describe("moving a job forward from the console", () => {
   test.afterAll(async () => { await destroyLoopFixture(db!, job); });
 
   test("a job at pre-start offers 'Start the job'", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
     await expect(page.getByTestId("stage-advance")).toBeVisible();
     await expect(page.getByTestId("advance-in_progress")).toContainText("Start the job");
   });
 
   test("pressing it while the list is outstanding explains why, in the gate's words", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
     await page.getByTestId("advance-in_progress").click();
     await expect(page.getByTestId("stage-message")).toContainText("pre-start item");
@@ -57,7 +57,7 @@ test.describe("moving a job forward from the console", () => {
 
     await completePreStart(db!, staff!, job!.workOrderId);
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
     await page.getByTestId("advance-in_progress").click();
     await expect(page.getByTestId("stage-moved")).toContainText("In progress");
@@ -68,7 +68,7 @@ test.describe("moving a job forward from the console", () => {
   });
 
   test("the console never offers a move the machine would call illegal", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
     // Ruling of 23 Aug (evening): completion prep is not a visible stage.
     // From in_progress there is ONE routed button; the qa-or-signoff split is
@@ -91,7 +91,7 @@ test.describe("moving a job forward from the console", () => {
     await rpcAs(staff!, "wo_seed_checklists", { p_work_order_id: later.workOrderId });
     await completePreStart(db!, staff!, later.workOrderId);
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${later.workOrderId}`);
 
     // First press warns rather than acting.
@@ -160,7 +160,7 @@ test.describe("moving a job forward from the console", () => {
     await db!.from("wo_qa_checks").update({ result: "pass" })
       .eq("work_order_id", job!.workOrderId).is("result", null);
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
     // One routed button at prep — the server picked walkthrough because every
     // check is settled.

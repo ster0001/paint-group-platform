@@ -183,7 +183,7 @@ test.describe("employed painter — the portal", () => {
     // The office sees it on Today as a Reassign item pointing at the board.
     const office = await browser.newContext();
     const staffPage = await office.newPage();
-    await signIn(staffPage, staff!, /\/estimates/);
+    await signIn(staffPage, staff!, /\/(home|estimates)/);
     // The item is a follow-up in the WAITING bucket (due the day before their
     // first day, which is weeks away), and the test project's queue runs to
     // many pages of 50 — so walk the follow-ups pages until it appears.

@@ -377,7 +377,7 @@ test.describe("the whole loop, one job", () => {
   });
 
   test("13 · and the console shows it gone from the open lanes", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/flow");
     for (const stage of ["offered", "pre_start", "in_progress", "qa", "completion_prep", "walkthrough"]) {
       await expect(page.getByTestId(`lane-${stage}`).getByTestId(`job-${job!.workOrderId}`)).toHaveCount(0);

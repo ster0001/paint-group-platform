@@ -22,7 +22,7 @@ test.describe("estimates list — viewed", () => {
   test.afterAll(async () => { await db!.from("estimates").delete().in("id", [viewedId, unviewedId].filter(Boolean)); });
 
   test("the row reads viewed, and the Sent / Viewed tabs split them", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/estimates");
     await expect(page.getByTestId(`status-${viewedId}`)).toHaveText("viewed");
     await expect(page.getByTestId(`status-${unviewedId}`)).toHaveText("sent");

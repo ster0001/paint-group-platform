@@ -54,7 +54,7 @@ test.describe("Settings → Staff logins", () => {
 
   test("the master creates a login that sees only some areas; the rest is out of reach; then removes it", async ({ page, browser }) => {
     test.setTimeout(180_000);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings#staff-logins");
     const form = page.getByTestId("staff-create");
     await expect(form).toBeVisible({ timeout: 20_000 });
@@ -70,7 +70,7 @@ test.describe("Settings → Staff logins", () => {
     // ---- the new login, in its own browser ------------------------------
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const p2 = await ctx.newPage();
-    await signIn(p2, { email, password }, /\/estimates/);
+    await signIn(p2, { email, password }, /\/(home|estimates)/);
     const nav = p2.locator("#staff-nav");
     await expect(nav.getByRole("link", { name: "Estimates" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "Contacts" })).toBeVisible();

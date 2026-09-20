@@ -52,7 +52,7 @@ test.describe("messages to approve", () => {
     const toSkip = await seedHold("pending");
     const held = await seedHold("held");
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     // The test project's Today runs to several pages — walk them until the card shows.
     let found = false;
     for (let p = 1; p <= 4 && !found; p++) {

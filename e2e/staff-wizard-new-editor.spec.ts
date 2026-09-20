@@ -12,7 +12,7 @@ test("staff wizard submit lands in the new confirm-loop editor", async ({ page }
   const staff = credentials("STAFF");
   test.skip(!staff, missingCreds("STAFF"));
   test.setTimeout(240_000);
-  await signIn(page, staff!, /estimates/);
+  await signIn(page, staff!, /\/(home|estimates)/);
 
   await page.goto("/estimates");
   await page.getByRole("button", { name: /New estimate/i }).click();

@@ -103,7 +103,7 @@ test.describe("help centre — search (C2)", () => {
   });
 
   test("the office finds the PC guide by the same phrase", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/help?q=before+photo");
     await expect(page.getByTestId("hit-work-orders-pc")).toBeVisible();
     const html = await page.content();
@@ -115,7 +115,7 @@ test.describe("help centre — office", () => {
   test.skip(!staff, missingCreds("STAFF"));
 
   test("lists staff and pc guides, opens each, and does not list contractor guides", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     const res = await page.goto("/help");
     const html = (await res?.text()) ?? "";
     expect(await page.getByTestId("help-list").locator("a").count()).toBe(officeGuides.length);
@@ -142,7 +142,7 @@ test.describe("help centre — office", () => {
   });
 
   test("Help is in the sidebar", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await expect(page.getByRole("link", { name: "Help" }).first()).toBeVisible();
   });
 });

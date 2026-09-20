@@ -58,7 +58,7 @@ test.describe("offer a job, contractor accepts", () => {
 
     const staffContext = await browser.newContext();
     const staffPage = await staffContext.newPage();
-    await signIn(staffPage, staff!, /\/estimates/);
+    await signIn(staffPage, staff!, /\/(home|estimates)/);
     await staffPage.goto("/pc/schedule");
 
     // The board streams: goto() resolves while the loading skeleton is still on

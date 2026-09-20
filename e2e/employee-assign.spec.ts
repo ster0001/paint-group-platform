@@ -127,7 +127,7 @@ test.describe("employed painters — assignments", () => {
   });
 
   test("the office drags the job onto an employee lane and assigns it — no offer is created", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/schedule?from=${START}&days=14`);
     await expect(page.getByTestId("lane").first()).toBeVisible({ timeout: 30_000 });
 
@@ -178,7 +178,7 @@ test.describe("employed painters — assignments", () => {
   });
 
   test("two more painters join from the block's detail sheet — three lanes, one lead, one confirmation", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/schedule?from=${START}&days=14`);
     await expect(page.getByTestId("lane").first()).toBeVisible({ timeout: 30_000 });
 

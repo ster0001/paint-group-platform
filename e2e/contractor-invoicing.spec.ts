@@ -229,7 +229,7 @@ test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
   });
 
   test("PC: Payables tab → approve → mark paid with bank reference + remittance number", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/invoicing?tab=pay");
 
     await expect(page.getByTestId("tile-to-approve")).not.toHaveText("$0");
@@ -268,7 +268,7 @@ test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
   });
 
   test("RCTI (⚑9): with the agreement signed, staff approve straight from draft", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     // Record the agreement, then draft — the row carries rcti.
     expect(await rpcAs(staff!, "contractor_set_rcti", { p_contractor_id: contractorId, p_signed: true })).toBe("ok");
     const { data } = await db!.rpc("contractor_invoice_draft", { p_work_order_id: fixtureC!.workOrderId });
@@ -357,7 +357,7 @@ test.describe("payment claims — invoice at any time (Tom, 24 Aug)", () => {
   });
 
   test("payables shows the claim with the job's PC stage; paid with a DATE lands in the portal", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/invoicing?tab=pay");
 
     const row = page.getByTestId(`payable-${claimId}`);

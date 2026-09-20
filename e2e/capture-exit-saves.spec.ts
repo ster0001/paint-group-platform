@@ -32,7 +32,7 @@ test.describe("capture → save & exit", () => {
 
   test("a room captured then exited lands in the estimate", async ({ page }) => {
     test.setTimeout(180_000);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote/capture?id=${estimateId}`);
     // Ceiling heights first (hydration takes a beat — wait for the button, don't peek).
     const start = page.getByRole("button", { name: "Start capturing" });

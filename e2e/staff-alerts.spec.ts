@@ -35,7 +35,7 @@ test.describe("Settings → Automations → Staff alerts", () => {
 
   test("three audiences; the six staff alerts; a tick on my own row saves and comes back", async ({ page }) => {
     test.setTimeout(120_000);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings#automations");
     const panel = page.getByTestId("automations");
     await expect(panel).toBeVisible({ timeout: 20_000 });

@@ -183,7 +183,7 @@ test.describe("colour records write path (trade portal v2, session 2B)", () => {
     await page.fill('input[type="email"]', staff.email);
     await page.fill('input[type="password"]', staff.password);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL(/estimates/);
+    await page.waitForURL(/\/(home|estimates)/);
 
     // 1 · Answer the colours question YES on the real pre-start checklist.
     await page.goto(`/pc/wo/${job1.workOrderId}`);

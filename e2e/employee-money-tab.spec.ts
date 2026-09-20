@@ -150,7 +150,7 @@ test.describe("employed painter — expenses, settings, the tick box, the lead",
     // Payables: the personal one is owed back; the company-card one is not.
     const office = await page.context().browser()!.newContext();
     const staffPage = await office.newPage();
-    await signIn(staffPage, staff!, /\/estimates/);
+    await signIn(staffPage, staff!, /\/(home|estimates)/);
     await staffPage.goto("/invoicing?tab=pay");
     await expect(staffPage.getByTestId("reimbursements")).toBeVisible({ timeout: 30_000 });
     await expect(staffPage.getByTestId(`reimbursement-${expenseId}`)).toContainText("$140.00");
@@ -186,7 +186,7 @@ test.describe("employed painter — expenses, settings, the tick box, the lead",
     }).select("id").single();
     if (offer.error) throw new Error(offer.error.message);
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/contractors");
     const box = page.getByTestId(`employee-${flipperCid}`);
     await expect(box).toBeVisible();

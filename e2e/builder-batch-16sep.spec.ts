@@ -57,7 +57,7 @@ test.describe("builder batch, 16 Sep", () => {
 
   test("Save names the estimate after the job address, and an added paint reaches the customer's paints", async ({ page }) => {
     test.setTimeout(180_000);
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await page.waitForLoadState("networkidle");
     const expectedTitle = `${run.slice(0, 2)} Paint Road, Clayton`;
@@ -113,7 +113,7 @@ test.describe("builder batch, 16 Sep", () => {
     bs.blocks[0].description = "<p>Walls — colour to confirm</p>";
     await db!.from("estimates").update({ builder_state: bs }).eq("id", estimateId);
 
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await page.waitForLoadState("networkidle");
     await page.getByText("Hall", { exact: true }).first().click();

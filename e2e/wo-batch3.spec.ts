@@ -148,7 +148,7 @@ test.describe("batch 3 — cadence, finish date, unbooked walkthrough, staff sig
     const { data: wo } = await db!.from("work_orders").select("end_date").eq("id", ui!.workOrderId).maybeSingle();
     expect((wo as { end_date: string }).end_date).toBe(plus(today, 5));
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${ui!.workOrderId}`);
     await expect(page.getByTestId("estimated-finish")).toContainText(/6 days booked/, { timeout: 15_000 });
     await expect(page.getByTestId("walkthrough-pick-date")).toBeVisible();

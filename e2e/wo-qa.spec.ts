@@ -108,7 +108,7 @@ test.describe("QA standards", () => {
 
   test("the console shows the check at stage 04", async ({ page }) => {
     await db!.from("work_orders").update({ stage: "qa" }).eq("id", job!.workOrderId);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
 
     const card = page.getByTestId(`qa-${checkId}`);

@@ -21,7 +21,7 @@ test.describe("staff screens", () => {
   test.skip(!staff, missingCreds("STAFF"));
 
   test("the pricing settings save, and only numbers are offered", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings");
     await page.getByText("Pricing & job numbers").click();
 
@@ -46,7 +46,8 @@ test.describe("staff screens", () => {
   });
 
   test("a deleted estimate leaves the list at once", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto("/estimates");
 
     // Make one to delete, so nothing real is touched. "New estimate" asks how
     // first; a blank one is the quickest draft.
@@ -73,7 +74,7 @@ test.describe("staff screens", () => {
   });
 
   test("the sidebar is a drawer on a phone", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/estimates");
 
@@ -94,7 +95,7 @@ test.describe("staff screens", () => {
 
   test("capture records plastering and raw timber, and they reach the estimate", async ({ page }) => {
     test.setTimeout(240_000);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/estimates");
 
     // Any estimate that still has a Capture link and at least one room in it —

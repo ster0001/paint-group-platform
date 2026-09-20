@@ -122,7 +122,7 @@ test("scheduling · staff walkthrough", async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: DESK, deviceScaleFactor: 1 });
   const s = await ctx.newPage();
   await installCaptions(s);
-  await signIn(s, staff!, /\/estimates/);
+  await signIn(s, staff!, /\/(home|estimates)/);
   const rec = startRecording(s);
 
   await s.goto("/pc/schedule");

@@ -92,7 +92,7 @@ test.describe("dashboard 0d · settings and roles", () => {
   });
 
   test("the master edits a login's roles on Staff logins, and two roles add up", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings#staff-logins");
     const row = page.getByTestId(`staff-row-${salesEmail}`);
     await expect(row).toBeVisible({ timeout: 20_000 });
@@ -108,7 +108,7 @@ test.describe("dashboard 0d · settings and roles", () => {
   });
 
   test("the master saves a target, a spend row and a threshold on the Dashboard folder", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings#dashboard");
     const folder = page.getByTestId("dashboard-settings");
     await expect(folder).toBeVisible({ timeout: 20_000 });

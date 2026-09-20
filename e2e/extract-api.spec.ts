@@ -38,7 +38,7 @@ test("a contractor cannot upload plans", async ({ page }) => {
 
 test("a text file renamed .pdf is refused on its bytes, not its name", async ({ page }) => {
   test.skip(!staff, missingCreds("STAFF"));
-  await signIn(page, staff!, /\/estimates/);
+  await signIn(page, staff!, /\/(home|estimates)/);
 
   const res = await page.request.post("/api/extract/floorplan", {
     multipart: {
@@ -56,7 +56,7 @@ test("a text file renamed .pdf is refused on its bytes, not its name", async ({ 
 test("a real plan is read, classified and stored", async ({ page }) => {
   test.skip(!staff, missingCreds("STAFF"));
   test.skip(process.env.E2E_EXTRACT_READY !== "1", "needs migration 20260910000000 applied");
-  await signIn(page, staff!, /\/estimates/);
+  await signIn(page, staff!, /\/(home|estimates)/);
 
   const res = await page.request.post("/api/extract/floorplan", {
     multipart: { file: { name: "two-page-plan.pdf", mimeType: "application/pdf", buffer: fixture } },

@@ -164,7 +164,7 @@ test.describe("cost capture 6a — the intake pipeline", () => {
     const before = await db!.from("job_costs").select("id").eq("work_order_id", fixture!.workOrderId);
     expect(before.data ?? []).toHaveLength(0);
 
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/invoicing?tab=pay");
     const card = page.getByTestId(`intake-${firstIntakeId}`);
     await expect(card).toBeVisible();
@@ -228,7 +228,7 @@ test.describe("cost capture 6a — the intake pipeline", () => {
     expect(row.duplicate_of).toBe(firstIntakeId);
 
     // Still exactly one cost row; the card dismisses without writing anything.
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/invoicing?tab=pay");
     const card = page.getByTestId(`intake-${row.id}`);
     await expect(card).toContainText("Possible duplicate");
@@ -263,7 +263,7 @@ test.describe("cost capture 6a — the intake pipeline", () => {
     expect(row.extract_status).toBe("failed");
     expect(row.extracted.total_cents ?? null).toBeNull();
 
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/invoicing?tab=pay");
     await expect(page.getByTestId(`intake-failed-${row.id}`)).toContainText("Couldn't read");
 
@@ -346,7 +346,7 @@ test.describe("cost capture 6a — the intake pipeline", () => {
   test("AS STAFF: manual + Add cost requires the document, then marches recorded → approved → paid", async ({ page }) => {
     gate();
     test.skip(!staff, missingCreds("STAFF"));
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/invoicing/job/${fixture!.estimateId}`);
     await page.getByRole("button", { name: "Costs" }).click();
     await page.getByTestId("add-cost-button").click();

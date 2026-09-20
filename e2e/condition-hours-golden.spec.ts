@@ -54,7 +54,7 @@ test.describe("condition → the painter's hours (golden)", () => {
 
   test("a Poor job's work order names the condition and the extra hours", async ({ page }) => {
     test.setTimeout(120_000);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: /^save/i }).first().click();

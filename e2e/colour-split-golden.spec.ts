@@ -73,7 +73,7 @@ test.describe("colour split golden (trade portal v2, session 2A)", () => {
     await page.fill('input[type="email"]', staff.email);
     await page.fill('input[type="password"]', staff.password);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL(/estimates/);
+    await page.waitForURL(/\/(home|estimates)/);
 
     // 1 · The real builder computes the doc; Save persists builder_state.woDoc.
     await page.goto(`/quote?id=${estimateId}`);

@@ -43,7 +43,7 @@ test.describe("the scanner rules", () => {
   test.skip(process.env.E2E_EXTRACT_READY !== "1", "needs migration 20260910000000");
 
   test("nothing uncertain gets priced, and the height is compulsory", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
     await sb.auth.signInWithPassword({ email: staff!.email, password: staff!.password });
 

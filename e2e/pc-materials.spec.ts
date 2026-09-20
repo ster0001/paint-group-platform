@@ -59,7 +59,7 @@ test.describe("PC materials — colours per substrate + budget", () => {
   test.afterAll(async () => { await destroyLoopFixture(db!, f); });
 
   test("the breakdown lists each colour with the substrates painted in it", async ({ page }) => {
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${f!.workOrderId}`);
     const card = page.getByTestId("materials-card");
     await expect(card).toBeVisible();
@@ -75,7 +75,7 @@ test.describe("PC materials — colours per substrate + budget", () => {
   });
 
   test("adjusting a colour rewrites the job sheet — the row, its surfaces and the colours map", async ({ page }) => {
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${f!.workOrderId}`);
     const card = page.getByTestId("materials-card");
     await card.getByTestId(`material-edit-${WHITE}`).click();
@@ -123,7 +123,7 @@ test.describe("PC materials — colours per substrate + budget", () => {
     expect(error).toBeNull();
     expect(ins ?? []).toHaveLength(2);
 
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${f!.workOrderId}`);
     const card = page.getByTestId("materials-card");
     // $660 inc GST → $600 ex GST against the (absent) budget

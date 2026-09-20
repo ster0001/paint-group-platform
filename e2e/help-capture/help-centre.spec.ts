@@ -36,7 +36,7 @@ test("help centre — office screens", async ({ browser }) => {
   test.skip(!staff, missingCreds("STAFF"));
   const ctx = await browser.newContext({ viewport: DESK, deviceScaleFactor: 2 });
   const s = await ctx.newPage();
-  await signIn(s, staff!, /\/estimates/);
+  await signIn(s, staff!, /\/(home|estimates)/);
   await s.goto("/help");
   await expect(s.getByTestId("help-list")).toBeVisible();
   await shot(s, F, "staff", "01");

@@ -52,7 +52,7 @@ test.describe("presentation tick → the customer's copy", () => {
 
   test("ticked, it saves itself and shows on the Estimate tab — no Save click", async ({ page }) => {
     test.setTimeout(120_000);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await page.waitForLoadState("networkidle");
     // Publish once WITHOUT a presentation — the real builder writes the real
@@ -85,7 +85,7 @@ test.describe("presentation tick → the customer's copy", () => {
   });
 
   test("a presentation made while the builder is open is offered on the next focus", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await page.waitForLoadState("networkidle");
     const picker = page.getByTestId("presentation-picker");

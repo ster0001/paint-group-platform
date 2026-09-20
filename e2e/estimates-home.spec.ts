@@ -36,7 +36,7 @@ test.describe("C7b — estimates home", () => {
 
   test("lands on Waiting on you, which is the work queue and nothing else", async ({ page }) => {
     test.skip(!staff, missingCreds("STAFF"));
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/estimates");
     // The default tab is the first one, and it is the queue's cut: either rows
     // from the evaluator or its own empty line — never a status list.
@@ -55,7 +55,7 @@ test.describe("C7b — estimates home", () => {
   test("a wizard estimate: Pack → lands on the Pack tab; Scope is the editor with edges", async ({ page }) => {
     test.skip(!staff, missingCreds("STAFF"));
     test.setTimeout(300_000);
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await driveNoPlanWizard(page);
     const wizardId = new URL(page.url()).searchParams.get("id");
     expect(wizardId).toBeTruthy();
@@ -102,7 +102,7 @@ test.describe("C7b — estimates home", () => {
   test("an in-house estimate: no Pack link, no Pack tab, no strip, no edges", async ({ page }) => {
     test.skip(!staff, missingCreds("STAFF"));
     test.skip(!db || !inhouseId, "needs SUPABASE_SERVICE_ROLE_KEY");
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
 
     await page.goto("/estimates?status=draft&built=inhouse");
     const row = page.locator(`tr:has(a[href="/quote?id=${inhouseId}"])`);
@@ -144,7 +144,7 @@ test.describe("C7b — estimates home", () => {
     const id = r.data.id as string;
     const key = `photo_review:estimate:${id}:photos`;
     try {
-      await signIn(page, staff!, /estimates/);
+      await signIn(page, staff!, /\/(home|estimates)/);
       await page.goto("/estimates");
       const row = page.getByTestId(`waiting-row-${id}`);
       await expect(row).toBeVisible({ timeout: 30_000 });

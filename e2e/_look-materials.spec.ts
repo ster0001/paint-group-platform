@@ -52,7 +52,7 @@ test.describe("look — materials", () => {
 
   test("shots", async ({ page }) => {
     await page.setViewportSize({ width: 1180, height: 1400 });
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${f!.workOrderId}`);
     const card = page.getByTestId("materials-card");
     await expect(card).toBeVisible();

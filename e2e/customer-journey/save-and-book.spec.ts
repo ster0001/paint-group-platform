@@ -88,7 +88,7 @@ test("Save & book from screen 3 keeps the session; staff open it at screen 3", a
   // Staff open the session — it lands on screen 3, under the assisted banner.
   const ctx = await browser.newContext();
   const staffPage = await ctx.newPage();
-  await signIn(staffPage, staff!, /estimates/);
+  await signIn(staffPage, staff!, /\/(home|estimates)/);
   await staffPage.goto(`/estimate?session=${draft.id}`);
   await expect(staffPage.getByTestId("assisted-banner")).toBeVisible({ timeout: 60_000 });
   await expect(staffPage.locator("[data-quick-step='job']")).toBeVisible({ timeout: 60_000 });

@@ -230,7 +230,7 @@ test("work orders · pc walkthrough", async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: DESK, deviceScaleFactor: 1 });
   const p = await ctx.newPage();
   await installCaptions(p);
-  await signIn(p, staff!, /\/estimates/);
+  await signIn(p, staff!, /\/(home|estimates)/);
   const rec = startRecording(p);
   const focus = (sel: string) => p.locator(sel).first().evaluate((el) => el.scrollIntoView({ block: "center" }));
 

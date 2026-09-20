@@ -164,7 +164,7 @@ test.describe("Airtable → CRM import", () => {
   });
 
   test("acceptance 7 · staff: the imported estimate opens read-only with the banner and the PaintScout link", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${justinAccepted}`);
     await expect(page.getByTestId("imported-banner")).toBeVisible();
     await expect(page.getByTestId("paintscout-quote-link")).toHaveAttribute("href", /paintscout/);
@@ -269,7 +269,7 @@ test.describe("Airtable → CRM import", () => {
   });
 
   test("Part B · staff see the tray card and the PaintScout strip", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/schedule");
     const card = page.getByTestId("tray-job").filter({ hasText: "2 Example Crescent stage 3" });
     await expect(card).toBeVisible();
@@ -281,7 +281,7 @@ test.describe("Airtable → CRM import", () => {
 
   test("B3.6 · Revision → Working scope: add a hallway, the diff and the variation price it, the estimate total stands", async ({ page }) => {
     const sb = db!;
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     // Open once so the working scope exists (clone-on-first-open).
     await page.goto(`/quote?id=${bookedEstimateId}&mode=revision`);
     await expect(page.getByTestId("revision-badge")).toBeVisible();
@@ -370,7 +370,7 @@ test.describe("Airtable → CRM import", () => {
 
     const queue = await buildWorkQueue(sb);
     expect(queue.items.some((i) => i.kind === "hours_to_confirm" && i.subjectRef.id === est!.id)).toBe(true);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${est!.id}`);
     await expect(page.getByTestId("hours-pending")).toBeVisible();
   });

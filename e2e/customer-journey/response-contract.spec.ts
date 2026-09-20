@@ -51,7 +51,7 @@ test.describe("R1.1 response contract", () => {
     const staff = credentials("STAFF");
     test.skip(!staff, missingCreds("STAFF"));
     test.setTimeout(180_000);
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await driveNoPlanWizard(page);
     await assertContractHolds(page);
   });

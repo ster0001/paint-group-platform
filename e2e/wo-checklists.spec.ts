@@ -119,7 +119,7 @@ test.describe("pre-offer and pre-start checklists", () => {
   test("the console shows the list on the stage it belongs to", async ({ page }) => {
     // Put it back to pre-start so the card renders.
     await db!.from("work_orders").update({ stage: "pre_start" }).eq("id", job!.workOrderId);
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
 
     const card = page.getByTestId("checklist-pre-start");

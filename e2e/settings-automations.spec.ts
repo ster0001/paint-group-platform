@@ -35,7 +35,7 @@ test.describe("settings buckets + automations", () => {
   });
 
   test("six buckets, a jump bar, and search that narrows the folders", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings");
 
     for (const id of ["company", "communications", "estimates", "pricing", "scope", "money"]) {
@@ -54,7 +54,7 @@ test.describe("settings buckets + automations", () => {
   });
 
   test("#automations opens the folder, lists every automation, and saves a switch + wording", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings#automations");
 
     const auto = page.getByTestId("automations");
@@ -105,7 +105,7 @@ test.describe("automations · channel, mode and the editor", () => {
   test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to restore the settings rows");
 
   test("Text-only / approve-first / sending hours save to the row; the editor previews, counts and resets", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings#automations");
     await expect(page.getByTestId("automations")).toBeVisible();
 

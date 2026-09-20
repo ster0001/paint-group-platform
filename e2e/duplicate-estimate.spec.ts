@@ -57,7 +57,7 @@ test.describe("duplicate an estimate", () => {
   test("Duplicate makes a saved copy with a new number, '(copy)' on the address and no photos", async ({ page }) => {
     test.skip(!staff, missingCreds("STAFF"));
     test.skip(!db, "needs SUPABASE_SERVICE_ROLE_KEY");
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
 
     await page.goto(`/estimates?status=all&q=${encodeURIComponent(title)}`);
     const button = page.getByTestId(`duplicate-${sourceId}`);

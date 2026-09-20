@@ -151,7 +151,7 @@ test.describe("employed painter — timesheets and job cost", () => {
   });
 
   test("the office records a 7.6 h day and approves it: one labour line at the cost rate on the job, and GP moves by exactly that", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/timesheets");
     await expect(page.getByTestId("record-hours")).toBeVisible();
     await page.getByTestId("record-painter").selectOption({ label: PAINTER_NAME });
@@ -212,7 +212,7 @@ test.describe("employed painter — timesheets and job cost", () => {
   });
 
   test("the payroll CSV matches approved entries exactly — hours only, no rate; and it is staff-only", async ({ page, request }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     const res = await page.request.get(`/pc/timesheets/export?from=${today}&to=${today}`);
     expect(res.status()).toBe(200);
     expect(res.headers()["content-type"]).toContain("text/csv");
@@ -282,7 +282,7 @@ test.describe("employed painter — timesheets and job cost", () => {
     expect(rec).toMatch(/^ok:/);
     const id = rec.slice(3);
     expect(await rpcAs(staff!, "timesheet_approve", { p_entry_id: id })).toBe("error:no_rate");
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/timesheets");
     await expect(page.getByTestId(`timesheet-norate-${id}`)).toBeVisible();
     // Rejecting works without a rate and carries the reason to the painter.

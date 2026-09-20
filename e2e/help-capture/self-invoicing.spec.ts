@@ -109,7 +109,7 @@ test("self-invoicing — contractor claims, submits; office approves and pays", 
   // --- the office: Payables → approve → mark paid -------------------------------
   const sCtx = await browser.newContext({ viewport: DESK, deviceScaleFactor: 2 });
   const s = await sCtx.newPage();
-  await signIn(s, staff!, /\/estimates/);
+  await signIn(s, staff!, /\/(home|estimates)/);
   await s.goto("/invoicing?tab=pay");
   await expect(s.getByTestId(`payable-${claimId}`)).toBeVisible();
   await expect(s.getByTestId(`payable-${finalId}`)).toBeVisible();

@@ -72,7 +72,7 @@ test.describe("item counts on the customer's estimate", () => {
 
   test("the builder writes the count into the snapshot and the customer reads it per room", async ({ page, browser }) => {
     test.setTimeout(120_000);
-    await signIn(page, staff!, /estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await page.waitForLoadState("networkidle");
     await page.getByTestId("builder-save").click();

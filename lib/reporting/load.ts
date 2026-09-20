@@ -365,6 +365,14 @@ async function loadPlSlice(supabase: SupabaseClient, range: Range, closedJobs: C
 
 export type DashboardLoad = {
   input: MetricInput;
+  /** Session 6: milliseconds per loader and in total — the performance gate reads it off the page. */
+  timings?: Record<string, number>;
+  /**
+   * Session 6: the CRM work queue is fifteen sequential round trips (~2 s) and
+   * only the needs-doing strip reads it, so it is NOT awaited here — the page
+   * streams the strip in when this resolves and the sections render first.
+   */
+  queue: Promise<{ items: WorkItem[]; failure: LoadFailure | null; ms: number }> | null;
   strip: { workItems: WorkItem[]; consoleCards: QueueCard[] };
   failures: LoadFailure[];
 };
@@ -375,33 +383,45 @@ export async function loadDashboard(
   viewer: ViewerOptions = { userId: null },
 ): Promise<DashboardLoad> {
   const failures: LoadFailure[] = [];
+  const timings: Record<string, number> = {};
+  const timed = async <T,>(name: string, run: PromiseLike<T>): Promise<T> => { const t0 = performance.now(); try { return await run; } finally { timings[name] = Math.round(performance.now() - t0); } };
+  const t0 = performance.now();
   const wantsQueue = roles.length > 0 && sections.includes("needs_doing");
   const wantsConsole = sections.includes("pc_command") || sections.includes("contractors");
   const wantsEstimates = sections.includes("sales") || sections.includes("pl") || sections.includes("marketing");
-  const [wq, console_, est] = await Promise.all([
-    wantsQueue ? buildWorkQueue(supabase, now).catch((e: unknown) => { failure(failures, "work queue", e); return null; }) : null,
-    wantsConsole ? loadConsole(supabase, now).catch((e: unknown) => { failure(failures, "PC console", e); return null; }) : null,
-    wantsEstimates ? loadEstimates(supabase, range) : Promise.resolve({ rows: [] as EstimateRow[], failures: [] as LoadFailure[] }),
+  const wantsClosedJobs = wantsConsole || sections.includes("pl");
+  // Started, not awaited: the strip streams in behind the sections (see DashboardLoad.queue).
+  const queue = wantsQueue
+    ? (async () => { const q0 = performance.now(); try { const wq = await buildWorkQueue(supabase, now); return { items: wq.items, failure: null, ms: Math.round(performance.now() - q0) }; } catch (e: unknown) { const f: LoadFailure[] = []; failure(f, "work queue", e); return { items: [], failure: f[0] ?? null, ms: Math.round(performance.now() - q0) }; } })()
+    : null;
+  // Session 6: one wave for everything that depends on nothing else; the two
+  // that need the console or the closed jobs follow. The critical path is the
+  // slowest single read, not the sum of three stages.
+  const [console_, est, closedJobs, thresholdRes, contractorSlice, salesSlice, funnelSlice, activitySlice, invoicingSlice] = await Promise.all([
+    wantsConsole ? timed("console", loadConsole(supabase, now).catch((e: unknown) => { failure(failures, "PC console", e); return null; })) : null,
+    wantsEstimates ? timed("estimates", loadEstimates(supabase, range)) : Promise.resolve({ rows: [] as EstimateRow[], failures: [] as LoadFailure[] }),
+    wantsClosedJobs ? timed("closed_jobs", loadClosedJobs(supabase, range, failures)) : Promise.resolve([] as ClosedJobRow[]),
+    timed("threshold", supabase.from("settings").select("key, value").eq("key", "dashboard_anomaly_threshold_pct").maybeSingle()),
+    sections.includes("contractors") ? timed("contractors", loadContractorSlice(supabase, range, failures)) : Promise.resolve(null),
+    wantsEstimates ? timed("sales", loadSalesSlice(supabase, range, viewer, roles, failures)) : Promise.resolve(null),
+    sections.includes("funnel") || sections.includes("marketing") ? timed("funnel", loadFunnelSlice(supabase, range, failures)) : Promise.resolve(null),
+    sections.includes("activity") ? timed("activity", loadActivitySlice(supabase, range, roles, viewer, failures)) : Promise.resolve(null),
+    sections.includes("invoicing") ? timed("invoicing", loadInvoicingSlice(supabase, range, now, failures)) : Promise.resolve(null),
   ]);
   failures.push(...est.failures);
-  const wantsClosedJobs = Boolean(console_) || sections.includes("pl");
-  const closedJobs = wantsClosedJobs ? await loadClosedJobs(supabase, range, failures) : [];
-  const thresholdRes = await supabase.from("settings").select("key, value").eq("key", "dashboard_anomaly_threshold_pct").maybeSingle();
   if (thresholdRes.error) failure(failures, "anomaly threshold", thresholdRes.error);
   const anomalyPct = numericSettingValue((thresholdRes.data as { value?: unknown } | null)?.value) ?? 25;
-  const [consoleSlice, contractorSlice, salesSlice, funnelSlice, activitySlice, invoicingSlice] = await Promise.all([
-    console_ ? loadConsoleSlice(supabase, console_, closedJobs, failures) : Promise.resolve(null),
-    sections.includes("contractors") ? loadContractorSlice(supabase, range, failures) : Promise.resolve(null),
-    wantsEstimates || sections.includes("pl") || sections.includes("marketing") ? loadSalesSlice(supabase, range, viewer, roles, failures) : Promise.resolve(null),
-    sections.includes("funnel") || sections.includes("marketing") ? loadFunnelSlice(supabase, range, failures) : Promise.resolve(null),
-    sections.includes("activity") ? loadActivitySlice(supabase, range, roles, viewer, failures) : Promise.resolve(null),
-    sections.includes("invoicing") ? loadInvoicingSlice(supabase, range, now, failures) : Promise.resolve(null),
+  const [consoleSlice, plSlice] = await Promise.all([
+    console_ ? timed("console_slice", loadConsoleSlice(supabase, console_, closedJobs, failures)) : Promise.resolve(null),
+    sections.includes("pl") || sections.includes("marketing") ? timed("pl", loadPlSlice(supabase, range, closedJobs, salesSlice?.history ?? [], failures)) : Promise.resolve(null),
   ]);
-  const plSlice = sections.includes("pl") || sections.includes("marketing") ? await loadPlSlice(supabase, range, closedJobs, salesSlice?.history ?? [], failures) : null;
+  timings.total = Math.round(performance.now() - t0);
   return {
     input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, sales: salesSlice, funnel: funnelSlice, activity: activitySlice, invoicing: invoicingSlice, pl: plSlice, thresholds: { anomalyPct } },
-    strip: { workItems: wq?.items ?? [], consoleCards: consoleSlice?.cards ?? [] },
+    queue,
+    strip: { workItems: [], consoleCards: consoleSlice?.cards ?? [] },
     failures,
+    timings,
   };
 }
 

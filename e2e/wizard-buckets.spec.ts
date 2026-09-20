@@ -72,7 +72,7 @@ test.describe("wizard sessions → buckets", () => {
 
     // Staff: the Estimates page's Wizard tab, the pill, the Journey drawer.
     const staffPage = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
-    await signIn(staffPage, staff!, /\/estimates/);
+    await signIn(staffPage, staff!, /\/(home|estimates)/);
     await staffPage.goto("/estimates?status=wizard&bucket=dropped");
     const pill = staffPage.getByTestId(`wizard-pill-${after.id}`);
     await expect(pill).toContainText("Dropped · The job");
@@ -153,7 +153,7 @@ test.describe("wizard sessions → buckets", () => {
     expect(row.converted_at).toBeTruthy();
 
     const staffPage = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
-    await signIn(staffPage, staff!, /\/estimates/);
+    await signIn(staffPage, staff!, /\/(home|estimates)/);
 
     /**
      * ⚑1's visible consequence in the office. An anonymous quick look gives

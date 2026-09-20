@@ -48,7 +48,7 @@ test.describe("Settings → Showcase editor", () => {
   });
 
   test("create → photo → price → preview → publish → public → replace rank 1 → unpublish", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
 
     // Settings folder → list → new
     await page.goto("/settings#showcase");
@@ -133,7 +133,7 @@ test.describe("Settings → Showcase editor", () => {
   });
 
   test("publish is refused with the checklist when the photo consent is missing", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/settings/showcase/new");
     await page.getByTestId("showcase-title").fill(`E2E unready ${run}`);
     await page.getByTestId("showcase-suburb").fill("Preston");

@@ -83,7 +83,7 @@ test.describe("a painter's detail page, and removing one", () => {
   });
 
   test("the list opens a painter, and their page carries the details, jobs and quality checks", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/contractors");
     await page.getByTestId(`open-${spareContractorId}`).click();
 
@@ -107,7 +107,7 @@ test.describe("a painter's detail page, and removing one", () => {
       .select("id").single();
     if (error) throw new Error(error.message);
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/contractors/${realContractorId}`);
     await expect(page.getByTestId(`job-${fixture.workOrderId}`)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId(`qa-${(check as { id: string }).id}`)).toContainText("E2E detail check");
@@ -117,7 +117,7 @@ test.describe("a painter's detail page, and removing one", () => {
 
   test("Remove refuses a painter with a job behind them, and names it", async ({ page }) => {
     test.skip(!realContractorId || !fixture, "needs the fixture job from the previous step");
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/contractors/${realContractorId}`);
     await page.getByTestId("delete-open").click();
     await page.getByTestId("delete-confirm-input").fill("DELETE");
@@ -132,7 +132,7 @@ test.describe("a painter's detail page, and removing one", () => {
   });
 
   test("Remove takes away a painter who never did anything, and needs the word typed first", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/contractors/${spareContractorId}`);
     await page.getByTestId("delete-open").click();
     // The button stays shut until the word is right.
@@ -183,7 +183,7 @@ test.describe("a painter's detail page, and removing one", () => {
     const back = await db!.from("booking_offers").update({ state: "declined" }).eq("id", (offer.data as { id: string }).id);
     if (back.error) throw new Error(back.error.message);
 
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/contractors/${declinedContractorId}`);
     await page.getByTestId("delete-open").click();
     await page.getByTestId("delete-confirm-input").fill("DELETE");

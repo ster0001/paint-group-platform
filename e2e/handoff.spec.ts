@@ -64,7 +64,7 @@ test.describe("assistant — human handoff", () => {
     await expect(page.getByTestId("support")).toHaveAttribute("data-status", "handed_off", { timeout: 20_000 });
 
     // The card, in Today, with one action: Claim.
-    await signIn(staffPage, staff!, /estimates/);
+    await signIn(staffPage, staff!, /\/(home|estimates)/);
     await staffPage.goto("/crm/today?f=messages");
     // Tom, 7 Sep (item 1): the card says who asked and what to do.
     // Scoped to HER card: the test project's Today lists dozens of stale chats.

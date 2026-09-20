@@ -44,9 +44,27 @@
     },
     {
       "feature": "dashboard",
+      "role": "pc",
+      "title": "The home dashboard for a project coordinator — jobs, painters, and what needs you today",
+      "summary": "/home for a PC login: the needs-doing strip with the console's job cards, PC Command (right-now job counts that each open their list), Contractors (on-time, silent, QA first time, hours vs estimate with the entered/schedule coverage) and the job-side Activity feed — never margin, P&L, targets or marketing.",
+      "path": "docs/help/dashboard/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/(app)/home/page.tsx",
+        "app/(app)/home/HomeTiles.tsx",
+        "lib/reporting/metrics/pc.ts",
+        "lib/reporting/metrics/contractors.ts",
+        "lib/reporting/workedTime.ts",
+        "lib/reporting/roles.ts"
+      ]
+    },
+    {
+      "feature": "dashboard",
       "role": "staff",
       "title": "The home dashboard — what you land on, what each tile means, and the numbers the office types in",
-      "summary": "/home shows each staff login the sections for their roles — a needs-doing strip, then tiles you can press for the rows behind them and export as CSV; roles are ticked on Settings → Staff logins, and the Dashboard folder in Settings holds the target, marketing spend and thresholds (owner/admin only).",
+      "summary": "/home is where every staff login lands — a needs-doing strip, then the sections for your roles as tiles you can press for the rows behind them, an i for what each counts, and Export CSV; roles are ticked on Settings → Staff logins, and the Dashboard folder in Settings holds the target, marketing spend and thresholds (owner/admin only).",
       "path": "docs/help/dashboard/staff.md",
       "walkthrough": null,
       "media": [],

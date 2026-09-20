@@ -21,7 +21,7 @@ import { createClient } from "@/lib/supabase/server";
 // Where a signed-in user belongs, by role. Staff get the estimating app,
 // contractors get the portal, everyone else the customer account (3a-2).
 export async function homeForRole(role: string | null | undefined) {
-  if (role === "staff") return "/estimates";
+  if (role === "staff") return "/home";   // Home dashboard v2 session 6: the landing page for every staff login
   if (role === "contractor") return "/portal";
   return "/account";
 }
