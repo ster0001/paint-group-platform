@@ -31,7 +31,9 @@ function readReducedMotion() { return window.matchMedia(REDUCED_MOTION).matches;
 
 // Steps: 0 lock · 1 first text in · 2 text tapped · 3 app open · 3+k k items shown · FINAL = all shown + last text.
 const STEP_APP = 3;
-const HOLD_BEFORE_LOOP_MS = 6500;
+// Tom, 20 Sep: "speed it up" — the mockup's timings ran ~26 s a loop; these
+// run ~12 s (second cut, same day: "it runs through the steps very slowly"). One place to tune.
+const HOLD_BEFORE_LOOP_MS = 3500;
 
 /** `token` = the real customer page (tracked); null = a preview, never tracked. */
 export default function ProgressPhone({ preview, feed, token = null }: { preview: ProgressPreview; feed: ReactNode; token?: string | null }) {
@@ -184,14 +186,14 @@ function LeadPhoto({ src }: { src: string }) {
   return <img className="pp-av" src={src} alt="" width={42} height={42} loading="lazy" />;
 }
 
-/** The mockup's timings: first text after 0.7 s, read for 3 s, tap 0.32 s, app opens 1.4 s, first item 3.2 s, then 2.7 s each. */
+/** The beats, tuned 20 Sep (mockup was 0.7 / 3 / 0.32 / 1.4 / 3.2 / 2.7): first text after 0.4 s, read 1.4 s, tap 0.25 s, app opens 0.7 s, first item 1.4 s, then 1.2 s each. */
 function delayAfter(step: number, n: number): number {
-  if (step === 0) return 700;
-  if (step === 1) return 3000;
-  if (step === 2) return 320;
-  if (step === 3) return 1400;
+  if (step === 0) return 400;
+  if (step === 1) return 1400;
+  if (step === 2) return 250;
+  if (step === 3) return 700;
   const k = step - STEP_APP; // items shown so far
-  return k === 1 ? 3200 : k <= n ? 2700 : 0;
+  return k === 1 ? 1400 : k <= n ? 1200 : 0;
 }
 
 /** The link in a text shows as a link (display only — the demo goes nowhere). */

@@ -49,12 +49,21 @@ export function contextFromRows(
 }
 
 export async function loadProgressContext(shareToken: string): Promise<ProgressContext> {
+  return loadBy("share_token", shareToken);
+}
+
+/** The builder's preview: the same context, looked up by the estimate's id (a draft may have no token yet). */
+export async function loadProgressContextForEstimate(estimateId: string): Promise<ProgressContext> {
+  return loadBy("id", estimateId);
+}
+
+async function loadBy(column: "share_token" | "id", value: string): Promise<ProgressContext> {
   const svc = createServiceClient();
   if (!svc) return EMPTY_CONTEXT;
 
   const estRes = await svc.from("estimates")
     .select("source, account_id, property_id, accounts(name, account_type)")
-    .eq("share_token", shareToken).maybeSingle();
+    .eq(column, value).maybeSingle();
   reportIfError(estRes, { where: "progressPreview.context.estimate", bestEffort: true });
   const est = (estRes.data ?? null) as EstimateRow | null;
 

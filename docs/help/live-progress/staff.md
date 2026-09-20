@@ -29,10 +29,11 @@ Below **Scope of works, item by item** on a sent estimate, the customer sees a p
 Settings → **Website** → under the painter cards, **Demo painter**. Pick one of the painters listed there. They need a photo, or the option is greyed out. The same person shows as "Your lead painter" on residential estimates and "Site supervisor" on trade ones, and the line under the phone says the painter shown is an example. Leave it on *None* and every phone uses the generic fallback.
 
 ## Steps
-1. Build and send the estimate with a presentation ticked under Job settings.
-2. Open the customer link (`/e/<token>`) and scroll to just below the scope of works. The phone starts playing when it comes into view and loops; **↻ Play again** restarts it.
-3. Check the first text: their name and street. Check the rooms in the updates. Check the photos are theirs.
-4. If the wrong messaging set shows, check the linked account's type on the CRM record (trade vs residential). There is no per-estimate override.
+1. Build the estimate with a presentation ticked under Job settings.
+2. Check it before sending: the builder's **ESTIMATE** tab shows the same phone, below the scope of works, built from the working scope (a moment after each edit). It reads the estimate's linked account, so a trade account shows the commercial set here too.
+3. Send. The customer link (`/e/<token>`) shows the phone below the scope of works; it starts playing when it comes into view and loops, and **↻ Play again** restarts it.
+4. Check the first text: their name and street. Check the rooms in the updates. Check the photos are theirs.
+5. If the wrong messaging set shows, check the linked account's type on the CRM record (trade vs residential). There is no per-estimate override.
 
 ## What the colours and labels mean
 - **Cyan ring** on an update — work under way; **emerald dot** — the final walkthrough / handover milestone.
