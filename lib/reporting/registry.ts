@@ -12,6 +12,7 @@ import type { DashboardSection } from "./roles";
 import { aovByCategory, bySalesperson, conversion, estimatesSent, salesCents, salesCount } from "./metrics/sales";
 import { wizardSessions } from "./metrics/funnel";
 import { activity } from "./metrics/activity";
+import { INVOICING_METRICS } from "./metrics/invoicing";
 import { PC_METRICS } from "./metrics/pc";
 import { CONTRACTOR_METRICS } from "./metrics/contractors";
 
@@ -23,6 +24,7 @@ export const METRICS: ReadonlyArray<AnyMetricDef> = [
   wizardSessions, activity,
   ...PC_METRICS,
   ...CONTRACTOR_METRICS,
+  ...INVOICING_METRICS,
 ];
 
 export function metricByKey(key: string): AnyMetricDef | null {
@@ -35,7 +37,6 @@ export function metricsForSection(section: DashboardSection): AnyMetricDef[] {
 
 /** Honest placeholders: what each section waits on, until its session lands. */
 export const SWITCHES_ON: Partial<Record<DashboardSection, string>> = {
-  invoicing: "session 4 — the invoicing ledger",
   pl: "session 5 — cost capture and the Settings-basis P&L",
   marketing: "session 5 — lead source and marketing spend",
 };

@@ -19,8 +19,9 @@ import { materialsBudgetCents, invoicedExGst } from "@/lib/workorder/materialsBu
 import type { PricingContext } from "@/lib/pricing/estimate";
 import { numericSettingValue } from "@/lib/settings/numeric";
 import {
-  addDays, previousRange, type ActivitySlice, type AwaitingReplyRow, type ConsoleSlice, type ContractorSlice, type EstimateRow, type FunnelSlice, type MaterialsJobRow, type MetricInput, type Range, type SalesSlice,
+  addDays, melbourneDay, previousRange, type ActivitySlice, type AwaitingReplyRow, type ConsoleSlice, type ContractorSlice, type EstimateRow, type FunnelSlice, type InvoicingSlice, type MaterialsJobRow, type MetricInput, type Range, type SalesSlice,
 } from "./core";
+import { loadDashboard as loadInvoicingDashboard, toDerive, toDerivePayments, type InvoiceRow } from "@/app/invoicing/data";
 import { effectiveRoles, isDashboardRole, type DashboardRole, type DashboardSection } from "./roles";
 
 export async function loadRoles(supabase: SupabaseClient): Promise<DashboardRole[]> {
@@ -258,6 +259,45 @@ async function loadActivitySlice(supabase: SupabaseClient, range: Range, roles: 
   };
 }
 
+// ---- invoicing (session 4) — the /invoicing dashboard's own read, shared ---------------
+
+async function loadInvoicingSlice(supabase: SupabaseClient, range: Range, now: Date, failures: LoadFailure[]): Promise<InvoicingSlice> {
+  const today = melbourneDay(now);
+  const empty: InvoicingSlice = { invoices: [], payments: [], contractorInvoices: [], invoiceInfo: {}, paymentsInWindow: [], ageingEdges: [7, 30], today };
+  const dash = await loadInvoicingDashboard(supabase);
+  if (dash.loadError) { failure(failures, "invoices", dash.loadError); return empty; }
+  if (dash.payablesError) failure(failures, "contractor invoices", dash.payablesError);
+  const rows = dash.invoices as InvoiceRow[];
+  // The job's booked start, for "deposits unpaid inside 7 days of start".
+  const estIds = [...new Set(rows.filter((r) => r.kind === "deposit" && r.status !== "paid" && r.status !== "void").map((r) => r.estimate_id))];
+  const wos = estIds.length ? await inSlices(estIds, (s) => supabase.from("work_orders").select("estimate_id, start_date").in("estimate_id", s)) : { rows: [], error: null };
+  if (wos.error) failure(failures, "job start dates", wos.error);
+  const startByEstimate = new Map(((wos.rows ?? []) as { estimate_id: string; start_date: string | null }[]).map((w) => [w.estimate_id, w.start_date]));
+  const invoiceInfo: InvoicingSlice["invoiceInfo"] = {};
+  for (const r of rows) invoiceInfo[r.id] = { number: r.number ?? "", customer: r.estimates?.accepted_name || r.estimates?.title || "", address: r.estimates?.job_address ?? "", start_date: startByEstimate.get(r.estimate_id) ?? null };
+  // Payments in the window (paid_on is a Melbourne day): the period tiles.
+  const { fromIso, toIso } = windowOf(range);
+  const pays = await supabase.from("payments").select("paid_on, amount_cents, method, status, invoice_id, invoices(number, kind, issued_on, estimates(title, accepted_name))")
+    .eq("status", "succeeded").gte("paid_on", fromIso.slice(0, 10)).lte("paid_on", toIso.slice(0, 10)).order("paid_on", { ascending: false }).limit(5000);
+  if (pays.error) failure(failures, "payments received", pays.error);
+  type PayRow = { paid_on: string | null; amount_cents: number; method: string | null; invoice_id: string; invoices: { number: string | null; kind: string; issued_on: string | null; estimates: { title: string | null; accepted_name: string | null } | null } | null };
+  const settings = await supabase.from("settings").select("key, value").in("key", ["dashboard_ageing_edge_days_1", "dashboard_ageing_edge_days_2"]);
+  if (settings.error) failure(failures, "ageing settings", settings.error);
+  const edge = (key: string, dflt: number) => numericSettingValue(((settings.data ?? []) as { key: string; value: unknown }[]).find((s) => s.key === key)?.value) ?? dflt;
+  return {
+    invoices: toDerive(rows),
+    payments: toDerivePayments(dash.payments),
+    contractorInvoices: dash.contractorInvoices.map((c) => ({ id: c.id, number: c.number, status: c.status, totalIncCents: c.total_inc_cents, dueOn: c.due_on, contractor: c.contractors?.company_name ?? "", wo_ref: c.work_orders?.wo_ref ?? "", submitted_at: c.submitted_at })),
+    invoiceInfo,
+    paymentsInWindow: ((pays.data ?? []) as unknown as PayRow[]).filter((p) => p.paid_on).map((p) => ({
+      paid_on: p.paid_on as string, amount_cents: p.amount_cents, method: p.method ?? "other", invoice_id: p.invoice_id,
+      number: p.invoices?.number ?? "", customer: p.invoices?.estimates?.accepted_name || p.invoices?.estimates?.title || "", kind: p.invoices?.kind ?? "", issued_on: p.invoices?.issued_on ?? null,
+    })),
+    ageingEdges: [edge("dashboard_ageing_edge_days_1", 7), edge("dashboard_ageing_edge_days_2", 30)],
+    today,
+  };
+}
+
 // ---- the page's one load ------------------------------------------------------------
 
 export type DashboardLoad = {
@@ -281,15 +321,16 @@ export async function loadDashboard(
     wantsEstimates ? loadEstimates(supabase, range) : Promise.resolve({ rows: [] as EstimateRow[], failures: [] as LoadFailure[] }),
   ]);
   failures.push(...est.failures);
-  const [consoleSlice, contractorSlice, salesSlice, funnelSlice, activitySlice] = await Promise.all([
+  const [consoleSlice, contractorSlice, salesSlice, funnelSlice, activitySlice, invoicingSlice] = await Promise.all([
     console_ ? loadConsoleSlice(supabase, console_, range, failures) : Promise.resolve(null),
     sections.includes("contractors") ? loadContractorSlice(supabase, range, failures) : Promise.resolve(null),
     wantsEstimates ? loadSalesSlice(supabase, range, viewer, roles, failures) : Promise.resolve(null),
     sections.includes("funnel") ? loadFunnelSlice(supabase, range, failures) : Promise.resolve(null),
     sections.includes("activity") ? loadActivitySlice(supabase, range, roles, viewer, failures) : Promise.resolve(null),
+    sections.includes("invoicing") ? loadInvoicingSlice(supabase, range, now, failures) : Promise.resolve(null),
   ]);
   return {
-    input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, sales: salesSlice, funnel: funnelSlice, activity: activitySlice },
+    input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, sales: salesSlice, funnel: funnelSlice, activity: activitySlice, invoicing: invoicingSlice },
     strip: { workItems: wq?.items ?? [], consoleCards: consoleSlice?.cards ?? [] },
     failures,
   };
@@ -297,7 +338,7 @@ export async function loadDashboard(
 
 /** The export route and the cron: the rows a single metric needs, by section. */
 export async function loadMetricInput(
-  supabase: SupabaseClient, range: Range, now = new Date(), sections: ReadonlyArray<DashboardSection> = ["sales", "pc_command", "contractors", "funnel"],
+  supabase: SupabaseClient, range: Range, now = new Date(), sections: ReadonlyArray<DashboardSection> = ["sales", "pc_command", "contractors", "funnel", "invoicing"],
   viewer: ViewerOptions = { userId: null }, roles: ReadonlyArray<DashboardRole> = [],
 ): Promise<{ input: MetricInput; failures: LoadFailure[] }> {
   // Roles here scope the activity feed and "mine"; the work queue is only loaded for the page.

@@ -1,3 +1,15 @@
+# 20 Sep 2026 (mid-morning) — Home dashboard v2, Session 4: Invoicing. NO migration. Branch `feat/home-dashboard-s4-invoicing`.
+
+Built on /invoicing's own read (`app/invoicing/data.ts` loadDashboard → toDerive/toDerivePayments) and its own
+functions (OPEN_STATUSES, invoiceBalanceCents, invoiceIsOverdue, payablesTiles): seven tiles — received (by
+method; cash already existed, ⚑B3 closed), outstanding, overdue (aged by the Settings edges), contractor
+invoices to pay (+ to approve), unsent by stage, deposits unpaid inside 7 days of start, average days to pay a
+final. Tripwire `invoicing.test.ts` = dashboardTiles/payablesTiles cent for cent. Gates: vitest 2850/2850 (invoicing tripwire 8), tsc + eslint clean; `e2e/dashboard-invoicing.spec.ts` 2/2 green on :3103 in one attempt (finance login: Home Outstanding/Overdue = /invoicing tiles to the dollar, to-approve line = Payables tile, the fixture's overdue final in the 8–30 bucket, export 200, sales metric 403).
+Note: /invoicing's read is capped at the latest 400 invoices — Home inherits that cap deliberately (same
+instant, same rows); the P&L (session 5) reads payments by range, not through this cap. Next: SESSION 5 —
+P&L + Marketing (Settings-basis P&L with basis chip, per-job est-vs-actual margin table, lead-source table,
+CPA, spend vs sales, repeat + referral share, anomaly cards into the strip; owner-only gate tests).
+
 # 20 Sep 2026 (morning) — Home dashboard v2, Session 3: Sales + funnel + activity. NO migration. Branch `feat/home-dashboard-s3-sales`.
 
 Built: conversion (cohort by month sent), AOV by presentation category (Uncategorised last), by salesperson

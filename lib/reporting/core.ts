@@ -80,6 +80,23 @@ export type MetricInput = {
   funnel?: FunnelSlice | null;
   /** Session 3: the CRM timeline, role-scoped by the metric. */
   activity?: ActivitySlice | null;
+  /** Session 4: the invoicing dashboard's own rows (app/invoicing/data.ts loadDashboard), plus the period's payments. */
+  invoicing?: InvoicingSlice | null;
+};
+
+export type InvoicingSlice = {
+  /** The same rows /invoicing draws its pulse tiles from — one read, shared. */
+  invoices: import("@/lib/invoicing/derive").DeriveInvoice[];
+  payments: import("@/lib/invoicing/derive").DerivePayment[];
+  contractorInvoices: (import("@/lib/invoicing/derive").DeriveContractorInvoice & { id: string; number: string | null; contractor: string; wo_ref: string; submitted_at: string | null })[];
+  /** Display fields per invoice id: number, customer, address, the job's booked start. */
+  invoiceInfo: Record<string, { number: string; customer: string; address: string; start_date: string | null }>;
+  /** Succeeded payments landing (paid_on) in the window, with their invoice's number and kind — the period tiles. */
+  paymentsInWindow: { paid_on: string; amount_cents: number; method: string; invoice_id: string; number: string; customer: string; kind: string; issued_on: string | null }[];
+  /** Settings: the two ageing edges (1–7 / 8–30 / 31+ by default). */
+  ageingEdges: [number, number];
+  /** Melbourne today, yyyy-mm-dd — the instant the /invoicing tiles are also computed for. */
+  today: string;
 };
 
 export type SalesSlice = {
