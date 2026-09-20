@@ -54,7 +54,7 @@ test.describe("C17 · warehouse → visit booked from the console", () => {
 
   test("the estimator books a visit from the pack's strip; the request is visit_booked; a second click is idempotent and another action is refused", async ({ page }) => {
     test.setTimeout(120_000);
-    await signIn(page, staff!, /estimates|today|quote/);
+    await signIn(page, staff!, /home|estimates|today|quote/);
     await page.goto(`/quote?id=${estimateId}&tab=pack`);
     const strip = page.getByTestId("strip-actions");
     await expect(strip).toBeVisible({ timeout: 30_000 });

@@ -309,7 +309,7 @@ test.describe("Tom's 7 Sep batch", () => {
      */
     signOff = await photoSignOffFixture(db!, stamp);
     const estimateId = signOff.estimateId;
-    await signIn(page, staff!, /\/(estimates|dashboard|crm)/);
+    await signIn(page, staff!, /\/(home|estimates|dashboard|crm)/);
     // Today carries the sign-off as a work item (under Approvals; the test
     // project's queue is long, so the chip narrows it).
     await page.goto("/crm/today?f=approvals");

@@ -131,7 +131,7 @@ test.describe("C15 walk A — the agent", () => {
     {
       const ctx = await browser.newContext({ viewport: DESKTOP });
       const page = await ctx.newPage();
-      await signIn(page, staff!, /estimates|today|quote/);
+      await signIn(page, staff!, /home|estimates|today|quote/);
       const res = await page.request.post(`/api/confirmations/${requestId}`, { data: { action: "fix_price" } });
       expect(res.ok(), await res.text()).toBe(true);
       await ctx.close();

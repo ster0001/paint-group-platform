@@ -102,7 +102,7 @@ test.describe("v3 walkthrough + two-mode sign-off", () => {
 
   test("the booked final pins onto the staff schedule board", async ({ page }) => {
     const { signIn } = await import("./helpers");
-    await signIn(page, staff!, /\/(estimates|pc)/);
+    await signIn(page, staff!, /\/(home|estimates|pc)/);
     await page.goto("/pc/schedule");
     // OUR pin, by href — Tom's real walkthroughs share this board now, and
     // first() was whichever lane sorted higher.

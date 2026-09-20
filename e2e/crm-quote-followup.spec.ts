@@ -41,7 +41,7 @@ test.describe("CRM Today — a sent quote gone quiet is a follow-up", () => {
   test("the quiet quote is a Follow-up card on Today, with its value and one action", async ({ page }) => {
     test.skip(!staff, missingCreds("STAFF"));
     test.skip(!db, "needs SUPABASE_SERVICE_ROLE_KEY");
-    await signIn(page, staff!, /estimates|crm/);
+    await signIn(page, staff!, /home|estimates|crm/);
     // The Follow-ups group; the test project carries hundreds of open items,
     // so walk its pages (50 a page) until the card shows up.
     let card = page.locator(".qitem", { hasText: NAME });

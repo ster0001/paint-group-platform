@@ -12,7 +12,8 @@ import { credentials, missingCreds, signIn } from "./helpers";
 type Entry = { feature: string; role: string; title: string; summary: string; path: string; walkthrough: string | null; media: string[] };
 const index = JSON.parse(readFileSync("docs/help/_index.json", "utf8")) as { files: Entry[] };
 const contractorGuides = index.files.filter((e) => e.role === "contractor");
-const officeGuides = index.files.filter((e) => e.role === "staff" || e.role === "pc");
+// The same role set the office page lists (lib/help/content rolesFor("staff")).
+const officeGuides = index.files.filter((e) => ["staff", "pc", "customer", "commercial", "trade"].includes(e.role));
 
 /**
  * A sentence that exists only in this file: its front-matter summary, which

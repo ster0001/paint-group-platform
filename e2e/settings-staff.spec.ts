@@ -78,9 +78,9 @@ test.describe("Settings → Staff logins", () => {
     await expect(nav.getByRole("link", { name: "Payments" })).toHaveCount(0);
     // direct visits to a hidden area land on the first visible one
     await p2.goto("/crm");
-    await expect(p2).toHaveURL(/\/estimates/, { timeout: 20_000 });
+    await expect(p2).toHaveURL(/\/(home|estimates)/, { timeout: 20_000 });
     await p2.goto("/invoicing");
-    await expect(p2).toHaveURL(/\/estimates/, { timeout: 20_000 });
+    await expect(p2).toHaveURL(/\/(home|estimates)/, { timeout: 20_000 });
     await p2.goto("/contacts");
     await expect(p2).toHaveURL(/\/contacts/, { timeout: 20_000 });
 

@@ -146,7 +146,7 @@ test.describe("dashboard 0d · settings and roles", () => {
   });
 
   test("the sales login never sees the Dashboard folder", async ({ page }) => {
-    await signIn(page, sales, /\/(estimates|crm|pc|contacts|invoic|settings|proving|contractors)/);
+    await signIn(page, sales, /\/(home|estimates|crm|pc|contacts|invoic|settings|proving|contractors)/);
     await page.goto("/settings#staff-logins");
     await expect(page.getByTestId("folder-staff-logins")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("folder-dashboard")).toHaveCount(0);

@@ -78,7 +78,7 @@ test.describe("remote confirmation (v2 phase 6)", () => {
     });
     made.push(id);
 
-    await signIn(page, staff!, /estimates|today|quote/);
+    await signIn(page, staff!, /home|estimates|today|quote/);
     await page.goto(`/quote?id=${id}&tab=pack`);
     // The route sits under app/quote, so it inherits that segment's
     // "Loading estimate…" state, and this page is a server component that
@@ -128,7 +128,7 @@ test.describe("remote confirmation (v2 phase 6)", () => {
     });
     made.push(id);
 
-    await signIn(page, staff!, /estimates|today|quote/);
+    await signIn(page, staff!, /home|estimates|today|quote/);
     await page.goto(`/quote?id=${id}&tab=pack`);
     await expect(page.getByTestId("desk-check")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("desk-check-open")).toContainText("door style");
@@ -148,7 +148,7 @@ test.describe("remote confirmation (v2 phase 6)", () => {
     const id = await seed({ total: 2_500_000, blocks: many });
     made.push(id);
 
-    await signIn(page, staff!, /estimates|today|quote/);
+    await signIn(page, staff!, /home|estimates|today|quote/);
     await page.goto(`/quote?id=${id}&tab=pack`);
     await expect(page.getByTestId("desk-check")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("desk-check-verdict")).toContainText(/needs a visit/i);

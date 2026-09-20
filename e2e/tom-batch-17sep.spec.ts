@@ -104,7 +104,7 @@ test.describe("Tom's 17 Sep batch", () => {
     page.locator("dl div", { has: page.locator("dt", { hasText: new RegExp(`^${label}$`) }) }).first().locator("dd");
 
   test("1 · Invoicing finds a job by the customer's name or the address, on both invoice screens", async ({ page }) => {
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     // The Invoicing list (?q=).
     await page.goto(`/invoices?f=all&q=searchable${run}`);
     await expect(page.getByTestId("invoices-search-input")).toHaveValue(`searchable${run}`);
@@ -138,7 +138,7 @@ test.describe("Tom's 17 Sep batch", () => {
 
   test("2 · 3 · 4 · 6 · the builder: admin notes, the wording, contractor time on the work order, and a single wall", async ({ page }) => {
     test.setTimeout(180_000);
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     await page.goto(`/quote?id=${builtId}`);
     await page.waitForLoadState("networkidle");
 
@@ -213,14 +213,14 @@ test.describe("Tom's 17 Sep batch", () => {
   });
 
   test("5 · clicking away with unsaved work saves first, then opens the page", async ({ page }) => {
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     await page.goto(`/quote?id=${builtId}`);
     await page.waitForLoadState("networkidle");
     const note = `Autosaved on the way out ${run}`;
     await page.getByTestId("admin-notes-input").fill(note);
     // Unsaved — and the sidebar's Estimates link is clicked, not Save.
     await page.locator("nav a[href='/estimates'], a[href='/estimates']").first().click();
-    await expect(page).toHaveURL(/\/estimates/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/(home|estimates)/, { timeout: 30_000 });
     await expect.poll(async () => {
       const { data } = await db!.from("estimates").select("builder_state").eq("id", builtId).single();
       return (data?.builder_state as { adminNotes?: string } | null)?.adminNotes ?? "";
@@ -228,7 +228,7 @@ test.describe("Tom's 17 Sep batch", () => {
   });
 
   test("8 · 9 · the CRM date box opens a calendar, and the saved follow-up shows again on a revisit", async ({ page }) => {
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     await page.goto(`/crm/customers/${accountId}`);
     await expect(page.getByTestId("followup-date-button")).toBeVisible({ timeout: 30_000 });
     // Three weeks out, so it is never "tomorrow" by accident.
@@ -255,7 +255,7 @@ test.describe("Tom's 17 Sep batch", () => {
 
   test("10 · PC Command lists every open variation under Variations for approval", async ({ page }) => {
     test.skip(!fixture, "needs the contractor login to build the job");
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     await page.goto("/pc");
     const sect = page.getByTestId("variations-for-approval");
     await expect(sect).toBeVisible({ timeout: 30_000 });

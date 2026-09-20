@@ -80,7 +80,7 @@ test.describe("8 Sep — chrome, theme, record address, wizard strip", () => {
     await expect(crm).toHaveAttribute("data-theme", "dark");
     const home = page.getByTestId("home-mark");
     await expect(home).toBeVisible();
-    await expect(home).toHaveAttribute("href", /^\/(estimates|proving|pc|invoices|invoicing|contacts|crm|contractors|settings)$/);
+    await expect(home).toHaveAttribute("href", /^\/(home|estimates|proving|pc|invoices|invoicing|contacts|crm|contractors|settings)$/);
     await shot(page, "crm-dark");
     await page.getByTestId("theme-toggle").click();
     await expect(crm).toHaveAttribute("data-theme", "light");

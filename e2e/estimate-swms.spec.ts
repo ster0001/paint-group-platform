@@ -40,7 +40,7 @@ test.describe("SWMS attached to an estimate", () => {
   });
 
   test("staff attach the PDF in Job settings; it saves to the state and the customer's copy", async ({ page }) => {
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     await page.goto(`/quote?id=${id}`);
     await page.waitForLoadState("networkidle");
     const box = page.getByTestId("swms-attachment");
@@ -110,7 +110,7 @@ test.describe("SWMS attached to an estimate", () => {
   });
 
   test("removed in the builder → gone from the customer's copy", async ({ page }) => {
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     await page.goto(`/quote?id=${id}`);
     await page.waitForLoadState("networkidle");
     await page.getByTestId("swms-remove").click();

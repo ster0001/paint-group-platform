@@ -143,7 +143,7 @@ test("4 · the Estimates page searches by customer name or address", async ({ pa
   expect(error).toBeNull();
   const id = ins!.id as string;
   try {
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     // By the customer's name.
     await page.goto(`/estimates?status=all&q=beeble${run}`);
     await expect(page.getByTestId("estimates-search-input")).toHaveValue(`beeble${run}`);
@@ -170,7 +170,7 @@ test("4 · the Estimates page searches by customer name or address", async ({ pa
     // project (64k estimates) and longer on CI's runner. CI #693 attempt 2
     // (20 Sep) failed here twice with the click landing and the URL simply
     // not there within 10 s. Same allowance as the visibility waits above.
-    await expect(page).toHaveURL(/\/estimates$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/(home|estimates)$/, { timeout: 30_000 });
   } finally {
     await db.from("estimates").delete().eq("id", id);
   }

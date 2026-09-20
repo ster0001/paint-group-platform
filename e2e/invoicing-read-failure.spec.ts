@@ -21,7 +21,7 @@ test.describe("Invoicing never shows an empty ledger over a failed read", () => 
   test.skip(!staff, missingCreds("STAFF"));
 
   test("the dashboard lists invoices, with no load-failure banner", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates|\/pc|\/dashboard/);
+    await signIn(page, staff!, /\/home|\/estimates|\/pc|\/dashboard/);
     await page.goto("/invoicing");
 
     // The banner is the tell: if the invoice read failed, it says so here
@@ -40,7 +40,7 @@ test.describe("Invoicing never shows an empty ledger over a failed read", () => 
   });
 
   test("a job's money view lists its invoices, with no load-failure banner", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates|\/pc|\/dashboard/);
+    await signIn(page, staff!, /\/home|\/estimates|\/pc|\/dashboard/);
     await page.goto("/invoicing");
     const firstJob = page.getByTestId("receivable-rows").locator(".r .job a").first();
     await expect(firstJob).toBeVisible({ timeout: 20_000 });

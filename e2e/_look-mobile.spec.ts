@@ -19,7 +19,7 @@ test.describe("mobile look", () => {
   test.use({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   test("staff pages at phone width", async ({ page }) => {
     test.setTimeout(300_000);
-    await signIn(page, credentials("STAFF")!, /\/estimates/);
+    await signIn(page, credentials("STAFF")!, /\/(home|estimates)/);
     const pages = process.env.LOOK_ONLY_BUILDER ? [] : process.env.LOOK_PAGES ? process.env.LOOK_PAGES.split(",") : ["/estimates", "/pc", "/pc/flow", "/pc/schedule", "/invoices", "/invoicing", "/contacts", "/crm", "/contractors", "/settings", "/proving"];
     for (const p of pages) {
       await page.goto(p).catch(() => {});

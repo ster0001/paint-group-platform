@@ -27,7 +27,7 @@ test.describe("emailing a contractor invitation", () => {
   });
 
   test("create & email: the invite exists, the email is recorded, the row says whether it went", async ({ page }) => {
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     await page.goto("/contractors");
     await page.getByRole("button", { name: /Invite a contractor/ }).click();
     await page.locator("input[type=email]").first().fill(EMAIL);
@@ -71,7 +71,7 @@ test.describe("emailing a contractor invitation", () => {
 
   test("Email the link / Email again from the waiting list records a second send", async ({ page }) => {
     test.skip(!inviteId, "needs the invite from the first test");
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     await page.goto("/contractors");
     const btn = page.getByTestId(`invite-email-${inviteId}`);
     await expect(btn).toBeVisible({ timeout: 20_000 });
@@ -85,7 +85,7 @@ test.describe("emailing a contractor invitation", () => {
   test("a revoked invite cannot be emailed", async ({ page }) => {
     test.skip(!inviteId, "needs the invite from the first test");
     await db!.from("contractor_invites").update({ revoked_at: new Date().toISOString() }).eq("id", inviteId);
-    await signIn(page, staff!, /\/(estimates|crm|quote|$)/);
+    await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     await page.goto("/contractors");
     // Revoked invites leave the waiting list; the action refuses on its own too.
     await expect(page.getByTestId(`invite-email-${inviteId}`)).toHaveCount(0);

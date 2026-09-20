@@ -4,7 +4,7 @@ const OUT = process.env.LOOK_OUT ?? "test-results/invoicing-look";
 
 test("invoicing screens on a phone", async ({ page }) => {
   test.skip(!credentials("STAFF"), "set E2E_STAFF_EMAIL / E2E_STAFF_PASSWORD");
-  await signIn(page, credentials("STAFF")!, /\/estimates/);
+  await signIn(page, credentials("STAFF")!, /\/(home|estimates)/);
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/invoicing");
   await page.waitForTimeout(1000);

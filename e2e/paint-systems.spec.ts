@@ -22,7 +22,7 @@ test.describe("paint systems (v2 phase 3)", () => {
 
   test("Settings shows the derived table, blocks a non-covering coat, and saves", async ({ page }) => {
     test.setTimeout(120_000);
-    await signIn(page, staff!, /estimates|today|quote/);
+    await signIn(page, staff!, /home|estimates|today|quote/);
 
     await page.goto("/settings");
     await page.getByRole("button", { name: /^Estimates$/ }).first().click().catch(() => {});
@@ -64,7 +64,7 @@ test.describe("paint systems (v2 phase 3)", () => {
 
   test("the wizard asks for colour intent, not coats", async ({ page }) => {
     test.setTimeout(120_000);
-    await signIn(page, staff!, /estimates|today|quote/);
+    await signIn(page, staff!, /home|estimates|today|quote/);
 
     // The internal wizard is the same component the customer gets.
     await page.goto("/wizard");

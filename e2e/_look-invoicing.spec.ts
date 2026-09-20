@@ -8,7 +8,7 @@ const OUT =
   "/private/tmp/claude-501/-Users-tomroman-Documents-paint-group-platform-/eaffbd88-8e8f-442a-980a-c33284b9766f/scratchpad/shots";
 
 test("invoicing screens on a phone", async ({ page }) => {
-  await signIn(page, credentials("STAFF")!, /\/estimates/);
+  await signIn(page, credentials("STAFF")!, /\/(home|estimates)/);
   await page.setViewportSize({ width: 390, height: 844 });
 
   await page.goto("/invoicing");
