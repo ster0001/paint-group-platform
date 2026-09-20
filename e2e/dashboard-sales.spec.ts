@@ -68,6 +68,15 @@ test.describe("dashboard · session 3 · sales, funnel, activity", () => {
     if (!masterWasOwner) await db.from("profiles").update({ is_owner: false }).eq("id", masterId);
   });
 
+  /** A tile is a client component: after a navigation the first click can land before hydration, so press until the drill answers. */
+  const openTile = async (page: import("@playwright/test").Page, key: string) => {
+    for (let i = 0; i < 4; i++) {
+      await page.getByTestId(`tile-${key}`).click();
+      try { await expect(page.getByTestId(`drill-${key}`)).toBeVisible({ timeout: 2_500 }); return; } catch { /* not hydrated yet — press again */ }
+    }
+    await expect(page.getByTestId(`drill-${key}`)).toBeVisible();
+  };
+
   test("a sales login: Mine by default, Team on request; the funnel and the target's absence", async ({ page }) => {
     await signIn(page, { email: salesEmail, password }, /\/(home|estimates|pc|crm|contacts|invoic|settings|proving|contractors)/);
     await page.goto("/home");
@@ -79,14 +88,14 @@ test.describe("dashboard · session 3 · sales, funnel, activity", () => {
     await expect(bySales).toContainText(`Sarah ${run}`);
     await expect(bySales).not.toContainText("Team");
     // Conversion rows are theirs only.
-    await page.getByTestId("tile-sales.conversion").click();
+    await openTile(page, "sales.conversion");
     const drill = page.getByTestId("drill-sales.conversion");
     await expect(drill).toContainText(`Mine ${run}`);
     await expect(drill).not.toContainText(`Theirs ${run}`);
     // Team shows everyone's.
     await page.getByTestId("who-team").click();
     await expect(page.getByTestId("who-team")).toHaveAttribute("aria-pressed", "true");
-    await page.getByTestId("tile-sales.conversion").click();
+    await openTile(page, "sales.conversion");
     await expect(page.getByTestId("drill-sales.conversion")).toContainText(`Theirs ${run}`);
     // AOV by category: the fixture has no presentation → Uncategorised.
     await expect(page.getByTestId("rows-sales.aov_by_category")).toContainText("Uncategorised");
@@ -124,7 +133,7 @@ test.describe("dashboard · session 3 · sales, funnel, activity", () => {
     await expect(page.getByTestId("activity-feed").locator("[data-testid=activity-row]").first()).toContainText(customer);
     const csv = await page.request.get(`/api/reporting/export?metric=activity.events&preset=this_month&family=estimates&q=${encodeURIComponent(customer)}`);
     expect(csv.status()).toBe(200);
-    const text = await csv.text();
+    const text = (await csv.text()).replace(/^\uFEFF/, "");
     expect(text).toContain(customer);
     expect(text.split("\r\n").filter((l) => l && !l.startsWith("When")).every((l) => l.includes(customer))).toBe(true);
   });
