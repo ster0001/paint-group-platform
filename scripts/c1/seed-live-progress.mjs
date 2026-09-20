@@ -41,7 +41,7 @@ const snapshot = (pres) => ({
     { id: "6", title: "Study", descriptionHtml: "", priceCents: 100000, surfaces: [{ label: "Walls", coats: 2, product: "Dulux Wash & Wear" }], photos: [] },
   ],
   paints: [paint("Expressions Ceiling", "Haymes", "Interior ceilings", "Ceilings"), paint("Wash & Wear", "Dulux", "Interior walls", "Walls")],
-  presentation: pres ? { blocks: [{ kind: "capability_panel", content: { title: "Built for you", cards: [{ label: "Public liability", value: "$20M", note: "" }] } }] } : null,
+  presentation: pres ? { blocks: [{ kind: "capability_panel", content: { title: "A few extra details", cards: [{ icon: "🛡", heading: "$20M public liability", body: "Certificate of currency supplied with this estimate." }] } }] } : null,
 });
 
 const out = [];

@@ -117,7 +117,9 @@ export default function StaffChatDock() {
   const toggleOpen = (v: boolean) => { setOpen(v); try { window.localStorage.setItem(OPEN_KEY, v ? "1" : "0"); } catch { /* fine */ } };
   const toggleSound = () => { const v = !sound; setSound(v); try { window.localStorage.setItem(SOUND_KEY, v ? "on" : "off"); } catch { /* fine */ } };
 
-  if (rows.length === 0 && !open) return null;
+  // Tom, 20 Sep: "always keep the live chat box visible in the bottom
+  // corner, regardless of which page you are on" — the pill stays put with
+  // nothing open too, so it is always where they left it.
   const current = selected ? rows.find((r) => r.conversationId === selected) ?? null : null;
   const waitingCount = rows.filter((r) => r.status === "requested").length;
 
@@ -154,8 +156,8 @@ export default function StaffChatDock() {
       ) : (
         <button type="button" className="dk-pill" onClick={() => toggleOpen(true)} aria-label="Open customer chats" data-testid="dock-pill">
           <span aria-hidden="true">💬</span>
-          <span>{waitingCount ? `${waitingCount} waiting` : `${rows.length} chat${rows.length === 1 ? "" : "s"}`}</span>
-          {unseen.size > 0 ? <span className="dk-badge" data-testid="dock-badge">{unseen.size}</span> : <span className="dk-badge quiet">{rows.length}</span>}
+          <span>{waitingCount ? `${waitingCount} waiting` : rows.length ? `${rows.length} chat${rows.length === 1 ? "" : "s"}` : "Live chat"}</span>
+          {unseen.size > 0 ? <span className="dk-badge" data-testid="dock-badge">{unseen.size}</span> : rows.length > 0 ? <span className="dk-badge quiet">{rows.length}</span> : null}
         </button>
       )}
     </div>

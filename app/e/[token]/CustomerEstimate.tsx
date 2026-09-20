@@ -6,9 +6,9 @@ import { reportIfError } from "@/lib/monitoring/report";
 import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColoursChosen, presentationHasSwmsCard, type BankDetails } from "@/lib/customer/snapshot";
 import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
+import LiveUpdatesCard from "./LiveUpdatesCard";
 import SignaturePad from "@/app/components/SignaturePad";
 import { warrantyAttachmentLine } from "@/lib/warranty/terms";
-import { trackProgressPreview } from "@/lib/progress-preview/track";
 import "../customer.css";
 
 // The public token page keeps this row shape; the builder passes a live snapshot
@@ -106,7 +106,10 @@ export default function CustomerEstimate({
   // A staff reply links the customer to #chat — the effect below opens the
   // chat after mount (an initializer that reads location.hash renders
   // differently on the server and fails hydration).
-  const [panel, setPanel] = useState<null | "accept" | "decline" | "ask" | "chat">(null);
+  const [panel, setPanel] = useState<null | "accept" | "decline">(null);
+  // Tom, 20 Sep: "Ask a question" pops the live chat up in the corner — one
+  // chat, one place, reachable from the hero, the accept panel and #chat.
+  const [chatOpen, setChatOpen] = useState(false);
   const [thread, setThread] = useState<{ id: string; direction: "staff" | "customer"; body: string; author_name: string | null; created_at: string }[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
@@ -114,8 +117,6 @@ export default function CustomerEstimate({
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [declinePick, setDeclinePick] = useState("");
-  const [question, setQuestion] = useState("");
-  const [asked, setAsked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -221,16 +222,6 @@ export default function CustomerEstimate({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function ask() {
-    if (!question.trim()) { setErr("Type your question first."); return; }
-    setBusy(true); setErr("");
-    const supabase = createClient();
-    const { error } = await supabase.rpc("ask_estimate_question", { p_token: token, p_message: question.trim() });
-    setBusy(false);
-    if (error) { setErr(error.message); return; }
-    setAsked(true); setQuestion("");
-  }
-
   // ---- live chat (two-way) --------------------------------------------------
   const loadThread = useCallback(async () => {
     if (!interactive) return;
@@ -245,10 +236,7 @@ export default function CustomerEstimate({
     // fetch, not a synchronous render loop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadThread();
-    if (typeof window !== "undefined" && window.location.hash === "#chat") {
-      setPanel("chat");
-      setTimeout(() => document.getElementById("chatbox")?.scrollIntoView({ behavior: "smooth" }), 200);
-    }
+    if (typeof window !== "undefined" && window.location.hash === "#chat") setChatOpen(true);
     const iv = setInterval(loadThread, 15000); // keep the conversation live
     return () => clearInterval(iv);
   }, [interactive, loadThread]);
@@ -272,7 +260,7 @@ export default function CustomerEstimate({
       <h3>Chat with us</h3>
       <div className="chatthread">
         {thread.length === 0
-          ? <p className="sub" style={{ margin: "4px 0 10px" }}>Ask us anything about your estimate. We&apos;ll reply here and let you know by text and email.</p>
+          ? <p className="sub" style={{ margin: "4px 0 10px" }}>{interactive ? <>Ask us anything about your estimate. We&apos;ll reply here and let you know by text and email.</> : <>Preview: your customer asks their questions here, and the answers land in the same thread.</>}</p>
           : thread.map((m) => (
               <div key={m.id} className={`chatrow ${m.direction === "customer" ? "mine" : "theirs"}`}>
                 <div className="chatbubble">
@@ -290,7 +278,7 @@ export default function CustomerEstimate({
           placeholder="Type your message…"
         />
       </label>
-      <button className="btn btn-primary" onClick={sendMessage} disabled={chatBusy || chatDraft.trim() === ""}>{chatBusy ? "Sending…" : "Send message"}</button>
+      <button className="btn btn-primary" onClick={sendMessage} disabled={!interactive || chatBusy || chatDraft.trim() === ""}>{chatBusy ? "Sending…" : "Send message"}</button>
       {err && <p className="errline">{err}</p>}
     </div>
   );
@@ -410,8 +398,7 @@ export default function CustomerEstimate({
             {!done && !invoiceMode && (
               <div className="cta-row print-hide">
                 <a className="btn btn-primary" href="#accept">Accept estimate</a>
-                <button className="btn btn-ghost" onClick={() => { setPanel("ask"); document.getElementById("accept")?.scrollIntoView(); }}>Ask a question</button>
-                {progressPreview && <a className="btn btn-ghost" href="#live-progress" data-testid="see-how-you-follow" onClick={() => { if (interactive && progressPreviewSet) trackProgressPreview(token, "cta_clicked", progressPreviewSet); }}>See how you&apos;ll follow the job</a>}
+                <button className="btn btn-ghost" onClick={() => setChatOpen(true)} data-testid="ask-a-question">Ask a question</button>
               </div>
             )}
           </div>
@@ -436,8 +423,17 @@ export default function CustomerEstimate({
         </div>
         )}
 
-        {/* PRESENTATION BLOCKS — view-only, between hero and scope */}
-        {!invoiceMode && snap.presentation?.blocks?.length ? <PresentationBlocks blocks={snap.presentation.blocks} swms={snap.swms ?? null} /> : null}
+        {/* PRESENTATION BLOCKS — view-only, between hero and scope. The
+            live-progress phone rides in here as one glowing card in the
+            capability panel ("A few extra details"), opened on a click — the
+            card is its only way in (Tom, 20 Sep: the inline phone was overkill). */}
+        {!invoiceMode && snap.presentation?.blocks?.length ? (
+          <PresentationBlocks
+            blocks={snap.presentation.blocks}
+            swms={snap.swms ?? null}
+            liveUpdates={progressPreview ? <LiveUpdatesCard token={interactive ? token : null} set={progressPreviewSet}>{progressPreview}</LiveUpdatesCard> : null}
+          />
+        ) : null}
 
         {/* PHOTOS */}
         {!invoiceMode && snap.areas.some((a) => a.photos.length) && (
@@ -527,9 +523,6 @@ export default function CustomerEstimate({
             ))}
           </section>
         )}
-
-        {/* LIVE PROGRESS PHONE — between scope and paint (ruled, brief v4 §7) */}
-        {!invoiceMode && progressPreview}
 
         {/* THE PAINT WE'RE SUPPLYING */}
         {(snap.paints?.length ?? 0) > 0 && (() => {
@@ -629,7 +622,7 @@ export default function CustomerEstimate({
             <div className="step"><span className="stepnum" /><div><b>Booking</b><p>We&apos;ll contact you to lock in your start dates.</p></div></div>
             <div className="step"><span className="stepnum" /><div><b>Confirmation</b><p>We&apos;ll send you your lead painter&apos;s name, start date and time, and a handy checklist to help you prepare.</p></div></div>
             <div className="step"><span className="stepnum" /><div><b>Colour consultation</b><p>We provide free, unlimited colour samples. Nothing starts until you&apos;re happy with your colour choices.</p></div></div>
-            <div className="step"><span className="stepnum" /><div><b>Live progress in your portal</b><p>Log in to see updates and track your job&apos;s progress.{progressPreview && <> <a href="#live-progress" className="print-hide" data-testid="step-live-progress-link">See it for your address ↑</a></>}</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Live progress in your portal</b><p>Log in to see updates and track your job&apos;s progress.</p></div></div>
             <div className="step"><span className="stepnum" /><div><b>Final walkthrough</b><p>We walk through every room with you to confirm you&apos;re 100% satisfied before final payment.</p></div></div>
           </div>
         </section>
@@ -674,7 +667,7 @@ export default function CustomerEstimate({
               <h2>Ready when you are</h2>
               <div className="finebtns">
                 <span className="btn btn-primary" style={{ opacity: 0.6, cursor: "default" }}>Accept this estimate</span>
-                <span className="btn btn-ghost" style={{ opacity: 0.6, cursor: "default" }}>Ask a question</span>
+                <button className="btn btn-ghost" onClick={() => setChatOpen(true)}>Ask a question</button>
               </div>
             </div>
           </section>
@@ -686,13 +679,11 @@ export default function CustomerEstimate({
               <p className="sub">Accepting takes under a minute. No payment is taken until you receive your deposit invoice.</p>
               <div className="finebtns print-hide">
                 <button className="btn btn-primary" onClick={() => setPanel(panel === "accept" ? null : "accept")}>Accept this estimate</button>
-                <button className="btn btn-ghost" onClick={() => setPanel(panel === "chat" ? null : "chat")}>
+                <button className="btn btn-ghost" onClick={() => setChatOpen(true)}>
                   {thread.length ? "Open chat" : "Message us"}
-                  {thread.some((m) => m.direction === "staff") && panel !== "chat" ? " ●" : ""}
+                  {thread.some((m) => m.direction === "staff") && !chatOpen ? " ●" : ""}
                 </button>
               </div>
-
-              {panel === "chat" && chatUi}
 
               {panel === "accept" && (
                 <div className="panelbox">
@@ -709,21 +700,6 @@ export default function CustomerEstimate({
                   </p>
                   <button className="btn btn-primary" onClick={accept} disabled={busy}>{busy ? "Accepting…" : "Accept & continue"}</button>
                   {err && <p className="errline">{err}</p>}
-                </div>
-              )}
-
-              {panel === "ask" && (
-                <div className="panelbox">
-                  <h3>Ask a question</h3>
-                  {asked ? (
-                    <div className="confirm">✓ Thanks, we&apos;ll come back to you today.</div>
-                  ) : (
-                    <>
-                      <label className="field"><span>Your question</span><textarea rows={4} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Anything you&apos;d like to check before deciding…" /></label>
-                      <button className="btn btn-primary" onClick={ask} disabled={busy}>{busy ? "Sending…" : "Send question"}</button>
-                      {err && <p className="errline">{err}</p>}
-                    </>
-                  )}
                 </div>
               )}
 
@@ -756,12 +732,11 @@ export default function CustomerEstimate({
               <h2>Questions about your job?</h2>
               <p className="sub">Message us here any time. The conversation also lives in your account under Messages.</p>
               <div className="finebtns print-hide">
-                <button className="btn btn-ghost" onClick={() => setPanel(panel === "chat" ? null : "chat")}>
+                <button className="btn btn-ghost" onClick={() => setChatOpen(true)}>
                   {thread.length ? "Open chat" : "Message us"}
-                  {thread.some((m) => m.direction === "staff") && panel !== "chat" ? " ●" : ""}
+                  {thread.some((m) => m.direction === "staff") && !chatOpen ? " ●" : ""}
                 </button>
               </div>
-              {panel === "chat" && chatUi}
             </div>
           </section>
         )}
@@ -814,6 +789,15 @@ export default function CustomerEstimate({
         <div className="stickybar print-hide">
           <div className="p"><small>Total incl. GST</small>{money0(total)}</div>
           <a className="btn btn-primary" href="#accept">Accept estimate</a>
+        </div>
+      )}
+
+      {/* THE CHAT, POPPED UP (Tom, 20 Sep): the same thread, in the corner,
+          over whatever the customer is reading. */}
+      {chatOpen && !invoiceMode && (
+        <div className="chatpop print-hide" role="dialog" aria-label="Chat with us" data-testid="chat-pop">
+          <button type="button" className="chatpop-x" onClick={() => setChatOpen(false)} aria-label="Close the chat" data-testid="chat-pop-close">×</button>
+          {chatUi}
         </div>
       )}
     </>
