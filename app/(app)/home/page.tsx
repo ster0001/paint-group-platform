@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PRESET_LABEL, RANGE_PRESETS, rangeLabel, resolveRange, runMetric, type MetricResult, type RangePreset } from "@/lib/reporting/core";
-import { loadMetricInput, loadRoles, loadStripSources } from "@/lib/reporting/load";
+import { loadDashboard, loadRoles } from "@/lib/reporting/load";
 import { METRICS, SECTION_TITLE, SWITCHES_ON, metricsForSection } from "@/lib/reporting/registry";
-import { ROLE_LABEL, sectionsFor, type DashboardSection } from "@/lib/reporting/roles";
+import { ROLE_LABEL, sectionsFor, seesMoney, type DashboardSection } from "@/lib/reporting/roles";
+import { buildTarget } from "@/lib/reporting/metrics/target";
+import { buildFunnel } from "@/lib/reporting/metrics/funnel";
+import { activityRows, familiesFor } from "@/lib/reporting/metrics/activity";
+import TargetCard from "./TargetCard";
+import FunnelCard from "./FunnelCard";
+import ActivityFeed from "./ActivityFeed";
 import { buildStrip } from "@/lib/reporting/strip";
 import { requestNow } from "@/lib/time/requestClock";
 import { reportError } from "@/lib/monitoring/report";
@@ -30,7 +36,7 @@ const greeting = (now: Date) => {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 };
 
-export default async function HomePage({ searchParams }: { searchParams: Promise<{ preset?: string; from?: string; to?: string }> }) {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ preset?: string; from?: string; to?: string; who?: string; family?: string; q?: string }> }) {
   const sp = await searchParams;
   const preset: RangePreset = (RANGE_PRESETS as readonly string[]).includes(sp.preset ?? "") ? (sp.preset as RangePreset) : "this_month";
   const now = requestNow();
@@ -45,12 +51,25 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const roles = await loadRoles(supabase);
   const sections = sectionsFor(roles);
 
-  const [strip, metricInput] = await Promise.all([
-    loadStripSources(supabase, roles, now),
-    sections.some((s) => metricsForSection(s).length > 0) ? loadMetricInput(supabase, range, now) : Promise.resolve(null),
-  ]);
-  const cards = buildStrip({ workItems: strip.workItems, consoleCards: strip.consoleCards }, roles);
-  const failures = [...strip.failures, ...(metricInput?.failures ?? [])];
+  const who: "mine" | "team" | undefined = sp.who === "mine" || sp.who === "team" ? sp.who : undefined;
+  const viewer = { userId: user?.id ?? null, who, family: sp.family ?? null, q: sp.q ?? null };
+  const loaded = await loadDashboard(supabase, roles, ["needs_doing", ...sections], range, now, viewer);
+  const cards = buildStrip(loaded.strip, roles);
+  const failures = loaded.failures;
+  const metricInput = roles.length > 0 ? loaded : null;
+
+  const qs = (extra: Record<string, string | null | undefined>) => {
+    const p = new URLSearchParams();
+    p.set("preset", preset); if (sp.from) p.set("from", sp.from); if (sp.to) p.set("to", sp.to);
+    const whoNow = loaded.input.sales?.who; if (whoNow) p.set("who", whoNow);
+    if (sp.family) p.set("family", sp.family); if (sp.q) p.set("q", sp.q);
+    for (const [k, v] of Object.entries(extra)) { if (v == null || v === "") p.delete(k); else p.set(k, v); }
+    return p.toString();
+  };
+  const exportHrefFor = (key: string) => `/api/reporting/export?metric=${encodeURIComponent(key)}&${qs({})}`;
+  const target = metricInput && sections.includes("sales") && seesMoney(roles) ? buildTarget(metricInput.input, range) : null;
+  const funnel = metricInput && sections.includes("funnel") ? buildFunnel(metricInput.input, range) : null;
+  const activityAll = metricInput && sections.includes("activity") ? activityRows(metricInput.input, range) : null;
 
   const tilesBySection = new Map<DashboardSection, TileData[]>();
   if (metricInput) {
@@ -61,10 +80,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           const r: MetricResult = runMetric(def, metricInput.input, range, roles);
           tiles.push({
             key: r.key, kind: r.kind, title: r.title, definition: r.definition, unit: r.unit, gst: r.gst,
-            value: r.value, compare: r.compare, compareRange: r.compareRange, href: r.href,
+            value: r.value, compare: r.compare, compareRange: r.compareRange, note: r.note, href: r.href,
             columns: def.columns.map((c) => ({ key: String(c.key), label: c.label })),
             rows: (r.rows as Record<string, unknown>[]).slice(0, MAX_ROWS_ON_PAGE), rowCount: r.rows.length,
-            exportHref: `/api/reporting/export?metric=${encodeURIComponent(def.key)}&preset=${preset}${sp.from ? `&from=${sp.from}` : ""}${sp.to ? `&to=${sp.to}` : ""}`,
+            exportHref: exportHrefFor(def.key),
+            display: def.display ?? "tile",
           });
         } catch {
           // ForbiddenError: the section map and the metric's roles disagree — the metric wins; the tile is simply absent.
@@ -141,12 +161,32 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         const live = metricsForSection(s).length > 0;
         return (
           <section key={s} data-testid={`section-${s}`} data-section={s}>
-            <h2>
+            <h2 id={`section-${s}`}>
               {SECTION_TITLE[s]}
               <em>{live ? (tiles.some((t) => t.kind === "now") && !tiles.some((t) => t.kind === "period") ? "right now" : "this period") : ""}</em>
             </h2>
             {live ? (
-              <HomeTiles tiles={tiles} />
+              <>
+                {s === "sales" && (
+                  <div className="who" role="group" aria-label="Whose estimates" style={{ marginTop: 10 }}>
+                    <Link href={`/home?${qs({ who: "mine" })}`} className="chip" aria-pressed={loaded.input.sales?.who === "mine"} data-testid="who-mine">Mine</Link>
+                    <Link href={`/home?${qs({ who: "team" })}`} className="chip" aria-pressed={loaded.input.sales?.who === "team"} data-testid="who-team">Team</Link>
+                  </div>
+                )}
+                {s === "activity" && activityAll ? (
+                  <ActivityFeed
+                    rows={activityAll.slice(0, 60)} total={activityAll.length}
+                    families={familiesFor(roles)} family={sp.family ?? null} q={sp.q ?? null}
+                    hrefFor={(p) => `/home?${qs({ family: p.family ?? null, q: p.q === undefined ? sp.q : p.q })}#section-activity`}
+                    exportHref={exportHrefFor("activity.events")} now={now}
+                  />
+                ) : s === "funnel" && funnel ? (
+                  <FunnelCard data={funnel} exportHref={exportHrefFor("funnel.wizard_sessions")} />
+                ) : (
+                  <HomeTiles tiles={tiles} />
+                )}
+                {s === "sales" && target && <TargetCard data={target} />}
+              </>
             ) : (
               <div className="empty" data-testid={`switches-on-${s}`}>
                 <div className="l">Switches on when {SWITCHES_ON[s] ?? "its module"} ships</div>

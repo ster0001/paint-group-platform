@@ -40,20 +40,99 @@ export type MetricDef<Row extends object> = {
   gst: GstBasis;
   /** Who may compute it. Owner and admin are implied by the section map; listed here for the route gate. */
   roles: ReadonlyArray<DashboardRole>;
-  /** How the value is read off the rows — never typed by hand. */
-  aggregate: "count" | { sum: keyof Row & string };
+  /** How the value is read off the rows — never typed by hand.
+   *  count · sum of a column · count of rows where a column is truthy ("8 of 11")
+   *  · a ratio of two column sums as a percentage ("hours vs estimate +6.8%"). */
+  aggregate: Aggregate<Row>;
+  /** One line under the value — "of 11 · 73%", "actual on 4 of 11 jobs" — from the rows. */
+  note?: (rows: Row[], value: number, input: MetricInput, range: Range) => string;
   /** The CSV columns, in order. */
   columns: ReadonlyArray<{ key: keyof Row & string; label: string }>;
   /** Where a tile click goes. */
   href?: string;
+  /** "rows": the mockup's list card (AOV by category, by salesperson, activity) rather than a stat tile. */
+  display?: "tile" | "rows";
   /** Period metrics: the rows that fall in a range. Now metrics: every row (the range is ignored). */
   select: (input: MetricInput, range: Range) => Row[];
 };
+
+export type Aggregate<Row extends object> =
+  | "count"
+  | { sum: keyof Row & string }
+  | { countWhere: keyof Row & string }
+  | { ratioPct: { num: keyof Row & string; den: keyof Row & string } }
+  /** rows where the column is truthy, as a percentage of all rows ("47% of sent") */
+  | { shareWhere: keyof Row & string }
+  /** sum(num) ÷ sum(den) — an average order value from per-group rows */
+  | { divide: { num: keyof Row & string; den: keyof Row & string } };
 
 /** Everything a metric may read. Loaders fill what a page needs; a metric reads only its own slice. */
 export type MetricInput = {
   now: Date;
   estimates: EstimateRow[];
+  /** Session 2: the PC console's own input and cards — the same evaluator the /pc page runs. */
+  console?: ConsoleSlice | null;
+  /** Session 2: the contractor-side rows (0c capture). */
+  contractors?: ContractorSlice | null;
+  /** Session 3: presentations (categories), staff names, targets, 12 months of history, and who is looking. */
+  sales?: SalesSlice | null;
+  /** Session 3: wizard sessions and the estimates they became. */
+  funnel?: FunnelSlice | null;
+  /** Session 3: the CRM timeline, role-scoped by the metric. */
+  activity?: ActivitySlice | null;
+};
+
+export type SalesSlice = {
+  presentations: { id: string; category_label: string }[];
+  staff: { id: string; name: string }[];
+  /** sales_targets rows the viewer may see (owner/admin — RLS); month is yyyy-mm-01. */
+  targets: { month: string; target_cents: number }[];
+  /** Accepted estimates over the last 12 months, for the chart: month yyyy-mm, cents inc GST. */
+  history: { month: string; sales_cents: number; accepted: number }[];
+  viewerUserId: string | null;
+  /** "mine" (a sales login's default) or "team". */
+  who: "mine" | "team";
+};
+
+export type FunnelSlice = {
+  drafts: { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; lead_source: string | null }[];
+  /** The estimates the drafts became, whatever their date. */
+  estimates: FunnelEstimate[];
+};
+export type FunnelEstimate = { id: string; status: string; sent_at: string | null; viewed_at: string | null; accepted_at: string | null; declined_at: string | null; lead_source: string | null };
+
+export type ActivityEvent = { id: string; type: string; payload: Record<string, unknown> | null; occurred_at: string; source: string; account_id: string | null; account_name: string | null };
+export type ActivitySlice = {
+  events: ActivityEvent[];
+  /** The viewer's roles decide which event families the feed shows. */
+  roles: ReadonlyArray<DashboardRole>;
+  /** Optional filters from the page: an event family and free text over customer / detail. */
+  family: string | null;
+  q: string | null;
+};
+
+export type ConsoleSlice = {
+  input: import("@/lib/workorder/console").ConsoleInput;
+  cards: import("@/lib/workorder/console").QueueCard[];
+  /** crm_account_facts where the customer wrote in after the last person replied (0b). */
+  awaitingReply: AwaitingReplyRow[];
+  /** Signed-off jobs in the window with their materials budget (engine) and supplier invoices. */
+  materials: MaterialsJobRow[];
+};
+
+export type AwaitingReplyRow = { account_id: string; name: string; last_inbound_at: string; last_staff_reply_at: string | null };
+export type MaterialsJobRow = { work_order_id: string; wo_ref: string; title: string; closed_on: string; budget_cents: number | null; invoiced_ex_cents: number };
+
+export type ContractorSlice = {
+  contractors: { id: string; name: string; works_saturday: boolean; works_sunday: boolean }[];
+  /** Jobs whose last surface was ticked (wo_events 'all_surfaces_done') — the completion facts. */
+  done: { work_order_id: string; wo_ref: string; title: string; contractor_id: string | null; done_at: string; end_date: string | null; start_date: string | null; hours_allowance: number | null; entered: { days: number; hours: number } | null }[];
+  qaChecks: { work_order_id: string; wo_ref: string; contractor_id: string | null; attempt_no: number; result: string; checked_at: string }[];
+  offers: { work_order_id: string; wo_ref: string; contractor_id: string; offered_at: string; accepted_at: string }[];
+  variations: { work_order_id: string; wo_ref: string; contractor_id: string | null; created_at: string; status: string }[];
+  pendingExpenses: { id: string; work_order_id: string; wo_ref: string; contractor_id: string; amount_cents: number; created_at: string; category: string }[];
+  silentDays: number;
+  dayHours: number;
 };
 
 export type EstimateRow = {
@@ -85,6 +164,7 @@ export type MetricResult<Row extends object = Record<string, unknown>> = {
   range: Range | null;
   compareRange: Range | null;
   rows: Row[];
+  note: string | null;
   href?: string;
 };
 
@@ -93,14 +173,20 @@ export class ForbiddenError extends Error {
   constructor(key: string) { super(`metric ${key} is not available to this login`); }
 }
 
-export function aggregateRows<Row extends object>(rows: Row[], aggregate: MetricDef<Row>["aggregate"]): number {
+const num = (r: object, key: string): number => {
+  const v = (r as Record<string, unknown>)[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+};
+
+export function aggregateRows<Row extends object>(rows: Row[], aggregate: Aggregate<Row>): number {
   if (aggregate === "count") return rows.length;
-  let sum = 0;
-  for (const r of rows) {
-    const v = (r as Record<string, unknown>)[aggregate.sum];
-    if (typeof v === "number" && Number.isFinite(v)) sum += v;
-  }
-  return sum;
+  if ("sum" in aggregate) return rows.reduce((s, r) => s + num(r, aggregate.sum), 0);
+  if ("countWhere" in aggregate) return rows.filter((r) => Boolean((r as Record<string, unknown>)[aggregate.countWhere])).length;
+  if ("shareWhere" in aggregate) return rows.length ? Math.round((rows.filter((r) => Boolean((r as Record<string, unknown>)[aggregate.shareWhere])).length / rows.length) * 1000) / 10 : 0;
+  if ("divide" in aggregate) { const d = rows.reduce((s, r) => s + num(r, aggregate.divide.den), 0); return d > 0 ? Math.round(rows.reduce((s, r) => s + num(r, aggregate.divide.num), 0) / d) : 0; }
+  const numSum = rows.reduce((s, r) => s + num(r, aggregate.ratioPct.num), 0);
+  const denSum = rows.reduce((s, r) => s + num(r, aggregate.ratioPct.den), 0);
+  return denSum > 0 ? Math.round(((numSum - denSum) / denSum) * 1000) / 10 : 0;
 }
 
 /** The one gate every caller goes through. */
@@ -110,15 +196,17 @@ export function runMetric<Row extends object>(
   if (!def.roles.some((r) => roles.includes(r)) || !canSeeSection(roles, def.section)) throw new ForbiddenError(def.key);
   if (def.kind === "now") {
     const rows = def.select(input, range);
+    const value = aggregateRows(rows, def.aggregate);
     return { key: def.key, kind: "now", title: def.title, definition: def.definition, unit: def.unit, gst: def.gst,
-      value: aggregateRows(rows, def.aggregate), compare: null, range: null, compareRange: null, rows, href: def.href };
+      value, compare: null, range: null, compareRange: null, rows, note: def.note?.(rows, value, input, range) || null, href: def.href };
   }
   const rows = def.select(input, range);
   const prev = previousRange(range);
   const compareRows = def.select(input, prev);
+  const value = aggregateRows(rows, def.aggregate);
   return { key: def.key, kind: "period", title: def.title, definition: def.definition, unit: def.unit, gst: def.gst,
-    value: aggregateRows(rows, def.aggregate), compare: aggregateRows(compareRows, def.aggregate),
-    range, compareRange: prev, rows, href: def.href };
+    value, compare: aggregateRows(compareRows, def.aggregate),
+    range, compareRange: prev, rows, note: def.note?.(rows, value, input, range) || null, href: def.href };
 }
 
 // ---- Melbourne calendar days ------------------------------------------------

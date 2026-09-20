@@ -1,3 +1,31 @@
+# 20 Sep 2026 (morning) — Home dashboard v2, Session 3: Sales + funnel + activity. NO migration. Branch `feat/home-dashboard-s3-sales`.
+
+Built: conversion (cohort by month sent), AOV by presentation category (Uncategorised last), by salesperson
+with Mine/Team (sales-only login defaults to Mine; export carries `who`), the target card (Settings target,
+pace, "no target set", twelve-month one-axis bar chart with table toggle — dataviz method, contrast relief),
+the funnel from wizard_drafts + their estimates (per-step counts, drop-off wording, median sent→accepted;
+self-serve tier and per-step stamps NAMED as not captured), Activity from crm_events only with the CRM
+timeline's labels, role-scoped families, chips + search + filtered export. Core: `shareWhere` / `divide`
+aggregates, `display: "rows"` list cards. Gates: vitest 2782/2782 (sales3 9, core/pc/contractors/strip/roles), tsc + eslint clean. `e2e/dashboard-sales.spec.ts` 3/3 green on :3103 (one attempt at 01:40 UTC once the lock freed — CI runs held it from 14:08 to ~01:30 UTC; two harness fixes: press a tile until its drill answers after a navigation, strip the BOM before checking CSV lines).
+Not built: person filter on Activity (search covers customer/detail; a staff-member filter waits for
+actor names on crm_events), the lead-source filter on the funnel (rows carry it; the Marketing section
+filters in session 5). Next: SESSION 4 — Invoicing (tiles from ledger.ts, cash method if ruled ⚑B3,
+ageing 1–7/8–30/31+, unsent pipeline by stage, days-to-pay; tripwire vs the /invoicing pulse tiles).
+
+# 20 Sep 2026 (early) — Home dashboard v2, Session 2: PC Command + Contractors. NO migration. Branch `feat/home-dashboard-s2-pc`.
+
+Built on the evaluators that exist, never beside them: the PC console (`loadConsole` → `ConsoleInput` +
+`buildQueue` cards) loaded ONCE per page and shared by the strip and eleven PC tiles (`metrics/pc.ts`);
+eight Contractors tiles (`metrics/contractors.ts`) over the 0c capture with `workedTime` and its coverage
+line; materials est vs actual from `materialsBudgetCents` + `material_costs` (pricing context per rate
+card, not per job); `loadDashboard` replaces the two separate loads. Core: `countWhere` / `ratioPct`
+aggregates and per-metric `note`. Tripwire `pc.test.ts`: tiles = console cards, stage tiles = pulse open
+jobs. Gates: vitest 2773/2773 (pc tripwire 10, contractors 8, core/strip/roles), tsc + eslint clean; `e2e/dashboard-pc.spec.ts` 2/2 green on :3103 in one attempt after the lock freed (every count tile = its rows; the fixture in progress, finished on time, hours "Entered by the painter"; export 200 / sales 403). One trap of my own: the spec's "today" was the UTC date — it was already tomorrow in Melbourne; now an Intl formatter.
+Not built: silent-contractor derivation from raw events (the console's quiet-site sweep is the source, at
+the Settings threshold); a per-contractor drill-through page (rows carry the painter; a per-painter view is
+session 6 polish). Next: SESSION 3 — Sales + funnel + activity (AOV by category, target tile with pace +
+12-month chart from metrics_daily, by-salesperson mine/team, funnel from wizard_drafts, activity timeline).
+
 # 19 Sep 2026 (small hours, 20 Sep) — Home dashboard v2, Session 1: reporting core + /home shell. ONE migration: 20270180 (`metrics_daily`, additive). Branch `feat/home-dashboard-s1-core`.
 
 Built: `lib/reporting/` core (MetricDef/runMetric, Melbourne ranges + previous-period rule, golden seed,
