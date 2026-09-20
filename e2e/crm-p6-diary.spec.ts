@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { pickDay } from "./helpers";
+import { pickDay, gotoTodayWith } from "./helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
@@ -135,7 +135,7 @@ test.describe("CRM v2 P6 — visits and the Diary", () => {
     const { data: v } = await db!.from("visits").select("status, outcome_note").eq("id", visitId).single();
     expect(v).toMatchObject({ status: "no_show", outcome_note: `Nobody home ${run}` });
 
-    await page.goto("/crm/today?f=followups");
+    await gotoTodayWith(page, "/crm/today?f=followups", page.getByText(`${NAME} — visit was a no-show, rebook it`));
     await expect(page.getByText(`${NAME} — visit was a no-show, rebook it`)).toBeVisible();
     await page.goto(`/crm/customers/${accountId}`);
     await expect(page.getByTestId("status-card")).toContainText("Estimate sent");

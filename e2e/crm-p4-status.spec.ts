@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { pickDay } from "./helpers";
+import { pickDay, gotoTodayWith } from "./helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
@@ -85,7 +85,7 @@ test.describe("CRM v2 P4 — the status model", () => {
 
     // Time passes: the date is behind us.
     await db!.from("accounts").update({ state_until: new Date(Date.now() - 3_600_000).toISOString() }).eq("id", accountId);
-    await page.goto("/crm/today?f=followups");
+    await gotoTodayWith(page, "/crm/today?f=followups", page.getByText(`${NAME} — the delay is up`));
     await expect(page.getByText(`${NAME} — the delay is up`)).toBeVisible();
     await expect(page.getByText(`Ring about the exterior in spring ${run}`)).toBeVisible();
     await page.goto(`/crm/customers/${accountId}`);

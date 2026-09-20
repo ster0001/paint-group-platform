@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
+import { gotoTodayWith } from "./helpers";
 
 /**
  * Phase 2A · the four-tab shell and the derived work queue, driven as staff
@@ -80,8 +81,9 @@ test.describe("CRM shell + work queue (2A)", () => {
     // No fifth destination.
     await expect(rail.getByRole("tab")).toHaveCount(4);
 
-    // The item exists because the fact does — no task row was inserted.
+    // The item exists because the fact does — no task row was inserted. (Walk the pages: the test project's Today is long.)
     const item = page.locator(".qitem", { hasText: `Denise Queue ${run}` });
+    await gotoTodayWith(page, "/crm/today", item);
     await expect(item).toBeVisible();
     await expect(item).toContainText("follow-up reminder due");
     await expect(item).toContainText(NOTE);
@@ -97,12 +99,18 @@ test.describe("CRM shell + work queue (2A)", () => {
     const sb = db!;
     await loginAs(page, staff);
 
-    await page.goto("/crm/today");
-    await expect(page.locator(".qitem", { hasText: `Denise Queue ${run}` })).toBeVisible();
+    const item = page.locator(".qitem", { hasText: `Denise Queue ${run}` });
+    const found = await gotoTodayWith(page, "/crm/today", item);
+    await expect(item).toBeVisible();
 
     await sb.from("accounts").update({ followup_due_at: null, followup_note: null }).eq("id", accountId);
-    await page.reload();
-    await expect(page.locator(".qitem", { hasText: `Denise Queue ${run}` })).toHaveCount(0);
+    // Gone from the page it was on, and not on the first either (an item leaving cannot move later).
+    await page.goto(`/crm/today?page=${found}`);
+    await expect(page.getByTestId("who-chips")).toBeVisible({ timeout: 30_000 });
+    await expect(item).toHaveCount(0);
+    await page.goto("/crm/today");
+    await expect(page.getByTestId("who-chips")).toBeVisible({ timeout: 30_000 });
+    await expect(item).toHaveCount(0);
 
     // Put the fact back for the dismissal test.
     await sb.from("accounts")
@@ -115,8 +123,8 @@ test.describe("CRM shell + work queue (2A)", () => {
     const sb = db!;
     await loginAs(page, staff);
 
-    await page.goto("/crm/today");
     const item = page.locator(".qitem", { hasText: `Denise Queue ${run}` });
+    await gotoTodayWith(page, "/crm/today", item);
     await expect(item).toBeVisible();
 
     await item.getByRole("button", { name: /not this one/i }).click();

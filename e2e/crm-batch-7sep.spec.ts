@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
+import { gotoTodayWith } from "./helpers";
 import { deleteUserByEmail, magicLinkFor } from "./fixtures/portal";
 
 /**
@@ -59,8 +60,8 @@ test.describe("CRM batch — 7 Sep", () => {
 
   test("Today: the phone is on the card and the Log box opens in view", async ({ page }) => {
     await loginAs(page, staff);
-    await page.goto("/crm/today?who=all");
     const card = page.locator(".qitem", { hasText: NAME }).first();
+    await gotoTodayWith(page, "/crm/today?who=all", card);
     await expect(card).toBeVisible();
     await expect(card.getByTestId("item-action")).toBeVisible();
     await expect(card.getByTestId("item-phone")).toHaveAttribute("href", /^tel:(\+61|0)491570/);

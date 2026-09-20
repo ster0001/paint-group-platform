@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export type Credentials = { email: string; password: string };
@@ -92,4 +92,24 @@ export async function pickDay(page: Page, testId: string, day: string) {
   while (delta < 0) { await cal.getByLabel("Previous month").click(); delta += 1; }
   await cal.locator(`[data-day="${day}"]`).click();
   await field.getByTestId(`${testId}-calendar`).waitFor({ state: "hidden" }).catch(() => undefined);
+}
+
+/**
+ * Open the CRM Today queue and walk its pages (50 a page, bucket order) until
+ * `target` is on one — the test project's Today runs to ten pages of leaked
+ * e2e items, so "the card is on page 1" was never the assertion; "the card is
+ * in the queue" is. Resolves to the page number it was found on, or 0 when
+ * the last page was reached without it (assert on the locator after, so the
+ * failure names the card). `url` is the Today URL with its filters.
+ */
+export async function gotoTodayWith(page: Page, url: string, target: Locator, maxPages = 12): Promise<number> {
+  const u = new URL(url, "http://x");
+  for (let p = 1; p <= maxPages; p++) {
+    u.searchParams.set("page", String(p));
+    await page.goto(u.pathname + u.search);
+    await expect(page.getByTestId("who-chips")).toBeVisible({ timeout: 30_000 });
+    if (await target.count()) return p;
+    if (!(await page.getByRole("link", { name: /older/i }).count())) return 0;
+  }
+  return 0;
 }

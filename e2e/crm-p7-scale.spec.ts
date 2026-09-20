@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
+import { gotoTodayWith } from "./helpers";
 
 /**
  * CRM v2 · P7 — the scale gate's screens, and the theme (C1).
@@ -75,16 +76,21 @@ test.describe("CRM v2 P7 — scale gate and theme", () => {
   test("Today: Mine hides another owner's customer, Everyone shows all; one customer's items sit together", async ({ page }) => {
     test.skip(!meId || !otherId, "needs two staff profiles on C1");
     await loginAs(page, staff);
-    await page.goto("/crm/today?f=followups");
+    const mineCard = page.locator(".qitem", { hasText: MINE });
+    const theirsCard = page.locator(".qitem", { hasText: THEIRS });
+    await gotoTodayWith(page, "/crm/today?f=followups", mineCard);
     await expect(page.getByTestId("who-mine")).toHaveClass(/\bon\b/);
-    await expect(page.locator(".qitem", { hasText: MINE })).toBeVisible();
-    await expect(page.locator(".qitem", { hasText: THEIRS })).toHaveCount(0);
-    await page.getByTestId("who-all").click();
-    await expect(page.locator(".qitem", { hasText: THEIRS })).toBeVisible();
-    await expect(page.locator(".qitem", { hasText: MINE })).toBeVisible();
+    await expect(mineCard).toBeVisible();
+    await expect(theirsCard).toHaveCount(0);
+    // Under Mine, walking every page: the other owner's customer is on none of them.
+    expect(await gotoTodayWith(page, "/crm/today?f=followups", theirsCard)).toBe(0);
+    await gotoTodayWith(page, "/crm/today?f=followups&who=all", theirsCard);
+    await expect(theirsCard).toBeVisible();
+    await gotoTodayWith(page, "/crm/today?f=followups&who=all", mineCard);
+    await expect(mineCard).toBeVisible();
     // Grouping: the callback for Mia rides under her follow-up card (or vice versa), not as a second card.
-    await page.goto("/crm/today?who=all");
     const mia = page.locator(".qitem", { hasText: MINE });
+    await gotoTodayWith(page, "/crm/today?who=all", mia);
     await expect(mia).toHaveCount(1);
     await expect(mia.getByTestId("also")).toHaveCount(1);
   });

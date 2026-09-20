@@ -1,7 +1,7 @@
 import { test, expect, type Browser } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { credentials, signIn } from "./helpers";
+import { credentials, signIn, gotoTodayWith } from "./helpers";
 import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
 
 /**
@@ -65,10 +65,10 @@ test.describe("assistant — human handoff", () => {
 
     // The card, in Today, with one action: Claim.
     await signIn(staffPage, staff!, /\/(home|estimates)/);
-    await staffPage.goto("/crm/today?f=messages");
     // Tom, 7 Sep (item 1): the card says who asked and what to do.
-    // Scoped to HER card: the test project's Today lists dozens of stale chats.
+    // Scoped to HER card, walking the pages: the test project's Today lists hundreds of stale chats.
     const card = staffPage.locator(".qitem", { hasText: "Hannah Handoff wants to talk to a person" }).first();
+    await gotoTodayWith(staffPage, "/crm/today?f=messages", card);
     await expect(card).toBeVisible({ timeout: 30_000 });
     const claimLink = card.getByRole("link", { name: /Answer the chat|Open chat/ }).first();
     await claimLink.click();
