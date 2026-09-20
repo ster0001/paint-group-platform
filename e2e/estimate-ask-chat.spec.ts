@@ -12,6 +12,14 @@ import { credentials, missingCreds, signIn } from "./helpers";
  *  2. "Always keep the live chat box visible on the platform in the bottom
  *     corner, regardless of which page you are on." The staff dock's pill is
  *     there with nothing open, on every staff shell.
+ *  3. (later that day) "Add a 'Chat with us' button in the bar at the bottom;
+ *     all messages the customer sends reach the chat in the software; out
+ *     of hours a note says the office hours and that we'll get back to them;
+ *     email and text the office when someone wants to chat." The bar button
+ *     opens the same pop-up; a message becomes a Waiting row in the staff
+ *     dock, where a reply lands on the customer's thread; the office alert
+ *     (`office_estimate_chat`) claims its once-only guard row; and a Sunday
+ *     send shows the after-hours note.
  */
 const db = serviceClient();
 const run = randomBytes(3).toString("hex");
@@ -45,6 +53,9 @@ test.describe("Ask a question opens the chat pop-up; the staff dock never leaves
   });
   test.afterAll(async () => {
     if (estimateId) {
+      const { data: msgs } = await db!.from("estimate_messages").select("id").eq("estimate_id", estimateId);
+      const ids = ((msgs ?? []) as { id: string }[]).map((m) => m.id);
+      if (ids.length) await db!.from("staff_notifications").delete().eq("event_key", "office_estimate_chat").in("entity_id", ids);
       await db!.from("estimate_messages").delete().eq("estimate_id", estimateId);
       await db!.from("estimates").delete().eq("id", estimateId);
     }
@@ -68,8 +79,15 @@ test.describe("Ask a question opens the chat pop-up; the staff dock never leaves
     await pop.getByPlaceholder("Type your message…").fill(`Is the ceiling included? ${run}`);
     await pop.getByRole("button", { name: "Send message" }).click();
     await expect(pop.locator(".chatrow.mine .chatbody")).toContainText(`Is the ceiling included? ${run}`);
-    const { data } = await db!.from("estimate_messages").select("direction, body").eq("estimate_id", estimateId);
-    expect(data).toEqual([{ direction: "customer", body: `Is the ceiling included? ${run}` }]);
+    const { data } = await db!.from("estimate_messages").select("id, direction, body").eq("estimate_id", estimateId);
+    expect(data).toMatchObject([{ direction: "customer", body: `Is the ceiling included? ${run}` }]);
+    // The office alert ran for THIS message: its once-only guard row is claimed
+    // (who it reached depends on Staff logins routing — the guard is the proof the path fired).
+    const msgId = (data as { id: string }[])[0].id;
+    await expect.poll(async () => {
+      const g = await db!.from("staff_notifications").select("id").eq("event_key", "office_estimate_chat").eq("entity_id", msgId);
+      return (g.data ?? []).length;
+    }, { timeout: 15_000 }).toBe(1);
 
     // Close, then the accept panel's button opens the same box.
     await page.getByTestId("chat-pop-close").click();
@@ -82,6 +100,64 @@ test.describe("Ask a question opens the chat pop-up; the staff dock never leaves
     // The #chat deep link (the SMS/email "reply here" link) opens it on load.
     await page.goto(`/e/${token}#chat`);
     await expect(page.getByTestId("chat-pop")).toBeVisible();
+  });
+
+  test("'Chat with us' in the bottom bar opens the same pop-up", async ({ page }) => {
+    await page.goto(`/e/${token}`);
+    await expect(page.locator("details.room").first()).toBeVisible();
+    const bar = page.getByTestId("bar-chat");
+    await expect(bar).toBeVisible();
+    expect(await bar.evaluate((el) => el.closest(".stickybar") != null)).toBe(true);
+    await bar.click();
+    await expect(page.getByTestId("chat-pop")).toBeVisible();
+    await expect(page.getByTestId("chat-pop").locator(".chatrow.mine")).toHaveCount(1); // the thread from the first case
+  });
+
+  test("out of hours (a Sunday), a sent message is answered with the office-hours note", async ({ page }) => {
+    // The browser's clock decides the note (the same Mon–Fri 08:30–16:30 Melbourne rule the server tags the alert with).
+    await page.clock.setFixedTime(new Date("2026-09-20T02:00:00Z")); // Sunday 12:00 AEST
+    await page.goto(`/e/${token}`);
+    await expect(page.locator("details.room").first()).toBeVisible();
+    await page.getByTestId("ask-a-question").click();
+    const pop = page.getByTestId("chat-pop");
+    await expect(pop.getByTestId("chat-after-hours")).toHaveCount(0);
+    await pop.getByPlaceholder("Type your message…").fill(`Sunday question ${run}`);
+    await pop.getByRole("button", { name: "Send message" }).click();
+    await expect(pop.locator(".chatrow.mine .chatbody").last()).toContainText(`Sunday question ${run}`);
+    const note = pop.getByTestId("chat-after-hours");
+    await expect(note).toBeVisible();
+    await expect(note).toContainText("we've received your message");
+    await expect(note).toContainText("Monday to Friday, 8:30am to 4:30pm");
+  });
+
+  test("staff: the customer's chat is a Waiting row in the dock; a reply from there lands on the customer's thread", async ({ page, browser }) => {
+    const staff = credentials("STAFF");
+    test.skip(!staff, missingCreds("STAFF"));
+    await signIn(page, staff!, /\/(estimates|crm|quote|home)/);
+    await page.goto("/estimates");
+    const dock = page.getByTestId("staff-dock");
+    await expect(dock).toBeVisible({ timeout: 30_000 });
+    // A customer line this browser has not seen pops the dock open; otherwise open it.
+    if (await page.getByTestId("dock-pill").count()) await page.getByTestId("dock-pill").click();
+    const row = page.getByTestId("dock-row").filter({ hasText: "Casey Asker" }).first();
+    await expect(row).toBeVisible({ timeout: 30_000 });
+    await expect(row).toContainText("Estimate chat");
+    await expect(row).toContainText("Waiting");
+    await row.click();
+    await expect(page.getByTestId("dock-log")).toContainText(`Is the ceiling included? ${run}`);
+    await page.getByTestId("dock-input").fill(`Yes — the ceilings are in. ${run}`);
+    await page.getByTestId("dock-send").click();
+    await expect(page.getByTestId("dock-log").locator("[data-testid=dock-msg-staff]").last()).toContainText(`Yes — the ceilings are in. ${run}`);
+    const { data } = await db!.from("estimate_messages").select("direction, body").eq("estimate_id", estimateId).order("created_at");
+    expect((data as { direction: string; body: string }[]).at(-1)).toMatchObject({ direction: "staff", body: `Yes — the ceilings are in. ${run}` });
+
+    // The customer sees the reply in their pop-up.
+    const anon = await browser.newContext();
+    const cp = await anon.newPage();
+    try {
+      await cp.goto(`/e/${token}#chat`);
+      await expect(cp.getByTestId("chat-pop").locator(".chatrow.theirs .chatbody").last()).toContainText(`Yes — the ceilings are in. ${run}`);
+    } finally { await anon.close(); }
   });
 
   test("the old 'ask' form is gone — one chat, one place", async ({ page }) => {

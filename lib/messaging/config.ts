@@ -60,6 +60,9 @@ export type MessagingSettings = {
   officeJobAcceptedBody: string;
   officeJobDeclinedSubject: string;
   officeJobDeclinedBody: string;
+  /** Tom, 20 Sep: a customer writes on their estimate's chat. */
+  officeEstimateChatSubject: string;
+  officeEstimateChatBody: string;
   officeInvoicePaidSubject: string;
   officeInvoicePaidBody: string;
   officeVariationRaisedSubject: string;
@@ -190,6 +193,8 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeJobAcceptedBody: "{{painter}} has accepted {{wo_ref}} ({{job}}) starting {{start_date}}.{{proposed_line}}{{note_line}}",
   officeJobDeclinedSubject: "Job declined — {{painter}} · {{job}}",
   officeJobDeclinedBody: "{{painter}} has declined {{wo_ref}} ({{job}}) for {{start_date}}.{{reason_line}}\n\nThe job is back with the office to re-offer.",
+  officeEstimateChatSubject: "Chat from {{customer}} — {{job}}{{hours_tag}}",
+  officeEstimateChatBody: "{{customer}} wrote on the chat for {{job}}:\n\n“{{message}}”\n\nReply from the chat pop-up on any staff page, or open the estimate.{{hours_line}}",
   officeInvoicePaidSubject: "Invoice paid — {{amount}} · {{job}}",
   officeInvoicePaidBody: "{{who}} has paid {{amount}} on invoice {{invoice_number}} for {{job}} ({{method}}).",
   officeVariationRaisedSubject: "Variation raised — {{job}}",
