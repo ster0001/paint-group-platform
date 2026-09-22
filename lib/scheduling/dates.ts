@@ -56,3 +56,44 @@ export function dateRange(from: string, to: string): string[] {
   for (let i = 0, n = dayDiff(from, to); i <= n; i++) out.push(addDays(from, i));
   return out;
 }
+
+// ---- working days (Tom, 22 Sep 2026) ---------------------------------------------
+//
+// "When scheduling work, don't count weekends as working days: a 7-day job that
+// starts on a Monday finishes the following Tuesday." A painter who has ticked
+// "works Saturdays" / "works Sundays" on their profile keeps those days.
+
+export type WorkingWeek = { saturday?: boolean; sunday?: boolean };
+
+/** Monday–Friday, plus the weekend days this painter works. */
+export function isWorkingDay(iso: string, week: WorkingWeek = {}): boolean {
+  const dow = new Date(iso + "T00:00:00Z").getUTCDay();   // 0 = Sunday, 6 = Saturday
+  if (dow === 6) return Boolean(week.saturday);
+  if (dow === 0) return Boolean(week.sunday);
+  return true;
+}
+
+/**
+ * The last calendar day of a span of `days` working days that starts on `start`.
+ * The start day counts as the first working day when it is one; a start on a
+ * day the painter does not work counts from the next day they do.
+ * `days` ≤ 1 gives the first working day on or after `start`.
+ */
+export function addWorkingDays(start: string, days: number, week: WorkingWeek = {}): string {
+  let d = start;
+  let left = Math.max(1, Math.round(days));
+  for (let guard = 0; guard < 4000; guard++) {
+    if (isWorkingDay(d, week)) { left -= 1; if (left === 0) return d; }
+    d = addDays(d, 1);
+  }
+  return d;
+}
+
+/** Working days from `from` to `to`, inclusive — never fewer than one. */
+export function workingDaysBetween(from: string, to: string, week: WorkingWeek = {}): number {
+  if (to < from) return 1;
+  let n = 0;
+  for (const d of dateRange(from, to)) if (isWorkingDay(d, week)) n += 1;
+  return Math.max(1, n);
+}
+
