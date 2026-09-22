@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, userIdFor } from "./helpers";
 import { rpcAsJson, serviceClient } from "./fixtures/woLoop";
+import { fyLabel, fyMonths, fyOf } from "../lib/reporting/financialYear";
 
 /**
  * Home dashboard v2 · session 0d — Settings and roles (B7), Tom's rulings:
@@ -14,6 +15,10 @@ import { rpcAsJson, serviceClient } from "./fixtures/woLoop";
  * write targets (RLS), cannot change its own roles (guard), and never sees
  * the Dashboard folder; the master edits roles on Staff logins and saves a
  * target, a spend row and a threshold through the real screen.
+ * Sales history + financial year (Tom, 20 Sep 2026): the master records a
+ * PaintScout month on the new card (a fixed OLD month, so it never collides
+ * with real data), and a target picked as "January" of the current FY lands
+ * on January of the year that FY ENDS.
  * The temporary login and every row made here are removed in afterAll, and
  * the e2e staff login's master flag is put back the way it was.
  */
@@ -30,6 +35,15 @@ test.describe("dashboard 0d · settings and roles", () => {
   const salesPassword = "painttest123";
   const sales = { email: salesEmail, password: salesPassword };
   const MONTH = "2031-01";
+  const HISTORY_MONTH = "2024-03";                       // long before the platform; no real row can be here
+  // The Melbourne calendar month → the FY the run is in → its January (the FY's END year).
+  const melbourneMonth = (() => {
+    const p = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit" }).formatToParts(new Date());
+    return `${p.find((x) => x.type === "year")!.value}-${p.find((x) => x.type === "month")!.value}`;
+  })();
+  const FY = fyOf(melbourneMonth);
+  const JANUARY = fyMonths(FY)[6];                        // yyyy-01 of the FY's end year
+  const TARGET_MONTH = fyMonths(FY + 1)[11];              // June of NEXT FY: a month the picker offers, far from any real target
   let masterId = ""; let masterWasOwner = false; let salesId = "";
 
   async function asSales(): Promise<SupabaseClient> {
@@ -55,6 +69,8 @@ test.describe("dashboard 0d · settings and roles", () => {
   test.afterAll(async () => {
     if (!db) return;
     await db.from("sales_targets").delete().eq("month", `${MONTH}-01`);
+    for (const m of [JANUARY, TARGET_MONTH]) await db.from("sales_targets").delete().eq("month", `${m}-01`).is("category_label", null).is("salesperson_id", null);
+    await db.from("sales_history_months").delete().eq("month", `${HISTORY_MONTH}-01`);
     await db.from("marketing_spend").delete().eq("month", `${MONTH}-01`);
     await db.from("settings").update({ value: { value: 3, unit: "days", notes: "A painter on an in-progress job with no activity for this many calendar days is \"silent\" (dashboard, ⚑7)." } }).eq("key", "dashboard_silent_contractor_days");
     if (salesId) await db.auth.admin.deleteUser(salesId);
@@ -113,19 +129,22 @@ test.describe("dashboard 0d · settings and roles", () => {
     const folder = page.getByTestId("dashboard-settings");
     await expect(folder).toBeVisible({ timeout: 20_000 });
 
-    await page.getByTestId("target-month").fill(MONTH);
+    // The month is picked by financial year: next FY, then June (its last month).
+    await page.getByTestId("target-fy").selectOption(String(FY + 1));
+    await page.getByTestId("target-month").selectOption(TARGET_MONTH);
     await page.getByTestId("target-amount").fill("120,000");
     await page.getByTestId("target-save").click();
     await expect(page.getByTestId("dashboard-settings-msg")).toContainText("saved");
-    await expect(page.getByTestId(`target-row-${MONTH}`)).toContainText("$120,000", { timeout: 15_000 });
-    const t = await db!.from("sales_targets").select("target_cents, category_label, salesperson_id").eq("month", `${MONTH}-01`).single();
+    await expect(page.getByTestId(`target-row-${TARGET_MONTH}`)).toContainText("$120,000", { timeout: 15_000 });
+    await expect(page.getByTestId(`target-fy-${FY + 1}`)).toContainText(fyLabel(FY + 1));
+    const t = await db!.from("sales_targets").select("target_cents, category_label, salesperson_id").eq("month", `${TARGET_MONTH}-01`).single();
     expect(t.data).toEqual({ target_cents: 12_000_000, category_label: null, salesperson_id: null });
 
     // Saving the same month again updates, never duplicates.
     await page.getByTestId("target-amount").fill("130000");
     await page.getByTestId("target-save").click();
-    await expect(page.getByTestId(`target-row-${MONTH}`)).toContainText("$130,000", { timeout: 15_000 });
-    const again = await db!.from("sales_targets").select("id").eq("month", `${MONTH}-01`);
+    await expect(page.getByTestId(`target-row-${TARGET_MONTH}`)).toContainText("$130,000", { timeout: 15_000 });
+    const again = await db!.from("sales_targets").select("id").eq("month", `${TARGET_MONTH}-01`);
     expect(again.data).toHaveLength(1);
 
     await page.getByTestId("spend-month").fill(MONTH);
@@ -143,6 +162,56 @@ test.describe("dashboard 0d · settings and roles", () => {
       const r = await db!.from("settings").select("value").eq("key", "dashboard_silent_contractor_days").single();
       return (r.data as { value: { value: number } } | null)?.value?.value;
     }, { timeout: 15_000 }).toBe(4);
+  });
+
+  test("the master records a PaintScout month, and January of the current FY is January of the year it ends", async ({ page }) => {
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto("/settings#dashboard");
+    await expect(page.getByTestId("dashboard-settings")).toBeVisible({ timeout: 20_000 });
+
+    // Recorded sales — before the platform: a fixed old month that no real row can occupy.
+    await page.getByTestId("history-month").fill(HISTORY_MONTH);
+    await page.getByTestId("history-amount").fill("98,500");
+    await page.getByTestId("history-accepted").fill("7");
+    await page.getByTestId("history-note").fill("e2e · PaintScout Total Sold");
+    await page.getByTestId("history-save").click();
+    await expect(page.getByTestId("dashboard-settings-msg")).toContainText("saved");
+    const row = page.getByTestId(`history-row-${HISTORY_MONTH}`);
+    await expect(row).toContainText("March 2024", { timeout: 15_000 });
+    await expect(row).toContainText("$98,500");
+    await expect(row).toContainText("7");
+    await expect(row).toContainText("paintscout");
+    const h = await db!.from("sales_history_months").select("sales_cents, accepted, source, note").eq("month", `${HISTORY_MONTH}-01`).single();
+    expect(h.error).toBeNull();
+    expect(h.data).toEqual({ sales_cents: 9_850_000, accepted: 7, source: "paintscout", note: "e2e · PaintScout Total Sold" });
+
+    // Saving the same month again replaces it (one row per month), and a blank count is null, not 0.
+    await page.getByTestId("history-month").fill(HISTORY_MONTH);
+    await page.getByTestId("history-amount").fill("101000");
+    await page.getByTestId("history-save").click();
+    await expect(row).toContainText("$101,000", { timeout: 15_000 });
+    const again = await db!.from("sales_history_months").select("sales_cents, accepted").eq("month", `${HISTORY_MONTH}-01`);
+    expect(again.data).toEqual([{ sales_cents: 10_100_000, accepted: null }]);
+
+    // Financial year: the picker defaults to the current FY; "January" saves as January of the FY's END year.
+    await expect(page.getByTestId("target-fy")).toHaveValue(String(FY));
+    await page.getByTestId("target-month").selectOption({ label: `January ${FY}` });
+    await expect(page.getByTestId("target-month")).toHaveValue(JANUARY);
+    await page.getByTestId("target-amount").fill("90000");
+    await page.getByTestId("target-save").click();
+    await expect(page.getByTestId("dashboard-settings-msg")).toContainText(fyLabel(FY));
+    await expect(page.getByTestId(`target-row-${JANUARY}`)).toContainText(`January ${FY}`, { timeout: 15_000 });
+    const t = await db!.from("sales_targets").select("month").eq("month", `${JANUARY}-01`).is("category_label", null).is("salesperson_id", null);
+    expect(t.error).toBeNull();
+    expect(t.data).toEqual([{ month: `${JANUARY}-01` }]);
+    expect(JANUARY).toBe(`${FY}-01`);
+
+    // Remove puts the month back to the platform's own figures.
+    await page.getByTestId(`history-remove-${HISTORY_MONTH}`).click();
+    await expect(page.getByTestId(`history-row-${HISTORY_MONTH}`)).toHaveCount(0, { timeout: 15_000 });
+    const gone = await db!.from("sales_history_months").select("month").eq("month", `${HISTORY_MONTH}-01`);
+    expect(gone.error).toBeNull();
+    expect(gone.data).toEqual([]);
   });
 
   test("the sales login never sees the Dashboard folder", async ({ page }) => {

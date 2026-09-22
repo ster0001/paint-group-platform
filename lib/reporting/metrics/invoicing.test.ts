@@ -7,8 +7,9 @@
 import { describe, expect, it } from "vitest";
 import { melbourneInstant } from "@/lib/time/businessHours";
 import { dashboardTiles, payablesTiles, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
+import { materialsToMatch, type MaterialToMatch } from "@/lib/invoicing/materialsToMatch";
 import { runMetric, type MetricInput } from "../core";
-import { contractorsToPay, daysToPayFinal, depositsUnpaidSoon, outstanding, overdue, received, unsentInvoices } from "./invoicing";
+import { contractorsToPay, daysToPayFinal, depositsUnpaidSoon, materialsToMatchTile, outstanding, overdue, received, unsentInvoices } from "./invoicing";
 
 const now = melbourneInstant(2026, 9, 19, 14);
 const today = "2026-09-19";
@@ -35,10 +36,16 @@ const cis = [
   { id: "c2", number: "CI-2", status: "submitted", totalIncCents: 80_000, dueOn: null, contractor: "Anh", wo_ref: "WO-2", submitted_at: day(-1) },
   { id: "c3", number: "CI-3", status: "paid", totalIncCents: 70_000, dueOn: day(-10), contractor: "Dean", wo_ref: "WO-3", submitted_at: day(-20) },
 ];
+// Supplier invoices: two with no job yet (one old, one new), one already matched — the Payables "Materials without a job" rows.
+const materials: MaterialToMatch[] = [
+  { id: "m1", work_order_id: null, supplier: "Haymes Moorabbin", amount_cents: 41_280, invoice_date: day(-12), order_ref: "PG-0007", address_text: "", created_at: `${day(-10)}T02:00:00Z` },
+  { id: "m2", work_order_id: "wo-9", supplier: "Dulux Trade", amount_cents: 99_999, invoice_date: day(-3), order_ref: "", address_text: "Ocean St", created_at: `${day(-2)}T02:00:00Z` },
+  { id: "m3", work_order_id: null, supplier: "", amount_cents: 18_700, invoice_date: null, order_ref: "", address_text: "7 Ocean St", created_at: `${day(-1)}T02:00:00Z` },
+];
 const mi: MetricInput = {
   now, estimates: [],
   invoicing: {
-    invoices, payments, contractorInvoices: cis,
+    invoices, payments, contractorInvoices: cis, materialsToMatch: materials,
     invoiceInfo: Object.fromEntries(invoices.map((i, n) => [i.id, { number: `INV-${n + 1}`, customer: `Customer ${n + 1}`, address: `${n + 1} Test St`, start_date: i.id === "i1" ? day(3) : null }])),
     paymentsInWindow: [
       { paid_on: day(-8), amount_cents: 80_000, method: "bank_transfer", invoice_id: "i2", number: "INV-2", customer: "Customer 2", kind: "progress", issued_on: day(-24) },
@@ -75,6 +82,20 @@ describe("Invoicing tiles equal /invoicing (acceptance 2)", () => {
     expect(r.value).toBe(pay.approvedCents);
     expect(r.rows).toHaveLength(pay.approvedCount);
     expect(r.note).toBe(`${pay.toApproveCount} to approve · $800 · ${pay.toPayWeekCount} due this week`);
+  });
+  it("materials to match = the Payables \"Materials without a job\" count, through the one predicate; a matched row never counts", () => {
+    const r = runMetric(materialsToMatchTile, mi, range, finance);
+    // /invoicing's Payables tile is `materialsToMatch(rows).length` over the same loader — pinned here.
+    expect(r.value).toBe(materialsToMatch(materials).length);
+    expect(r.rows).toHaveLength(r.value);
+    expect(r.value).toBe(2);
+    expect(r.unit).toBe("count");
+    expect(r.rows.map((x) => [x.supplier, x.days_waiting, x.reference])).toEqual([["Materials", 1, "7 Ocean St"], ["Haymes Moorabbin", 10, "PG-0007"]]);
+    expect(r.rows.every((x) => x.link === "/invoicing?tab=pay#materials-to-match")).toBe(true);
+    expect(r.note).toBe("$600 unallocated · oldest waiting 10 days");
+    expect(runMetric(materialsToMatchTile, { ...mi, invoicing: { ...mi.invoicing!, materialsToMatch: [] } }, range, finance)).toMatchObject({ value: 0, note: "every supplier invoice is on a job" });
+    // The slice field is optional: a loader that has not filled it reads as nothing to match, never as a crash.
+    expect(runMetric(materialsToMatchTile, { ...mi, invoicing: { ...mi.invoicing!, materialsToMatch: undefined } }, range, finance).value).toBe(0);
   });
   it("unsent invoices by stage; void invoices never count anywhere", () => {
     const r = runMetric(unsentInvoices, mi, range, finance);

@@ -233,16 +233,27 @@ test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
     await page.goto("/invoicing?tab=pay");
 
     await expect(page.getByTestId("tile-to-approve")).not.toHaveText("$0");
-    await expect(page.getByTestId(`payable-${ciId}`)).toBeVisible();
+    const payRow = page.getByTestId(`payable-${ciId}`);
+    await expect(payRow).toBeVisible();
+    // Tom, 20 Sep — colour by state, decided on the server: submitted = amber.
+    await expect(payRow).toHaveClass(/\bci-amber\b/);
+    await expect(payRow).toHaveAttribute("data-tone", "amber");
 
     await page.getByTestId(`approve-ci-${ciId}`).click();
     await expect(page.getByTestId(`pay-ci-${ciId}`)).toBeVisible({ timeout: 15_000 });
+    // Approved and unpaid = OUTSTANDING FOR PAYMENT: clay (the sign-off draft's terms are ahead of today, so not the stronger past-terms clay).
+    await expect(payRow).toHaveClass(/\bci-clay\b/);
+    await expect(payRow).toHaveAttribute("data-tone", "clay");
+    await expect(page.getByTestId(`overdue-ci-${ciId}`)).toHaveCount(0);
 
     // Two prompts now: the bank reference, then the payment date.
     const answers = ["EFT-20260824-01", new Date().toISOString().slice(0, 10)];
     page.on("dialog", (d) => d.accept(answers.shift() ?? ""));
     await page.getByTestId(`pay-ci-${ciId}`).click();
     await expect(page.getByTestId(`payable-${ciId}`)).toContainText("Paid", { timeout: 15_000 });
+    // …and paid = emerald: nothing outstanding.
+    await expect(payRow).toHaveClass(/\bci-emerald\b/);
+    await expect(payRow).toHaveAttribute("data-tone", "emerald");
 
     const { data: ci } = await db!.from("contractor_invoices")
       .select("status, bank_reference, remittance_number, paid_at").eq("id", ciId).single();

@@ -47,6 +47,10 @@ export default function TargetCard({ data }: { data: TargetCardData }) {
           ) : (
             <p className="note" data-testid="target-none">Set a target for {data.label} under Settings → Dashboard to see the pace.</p>
           )}
+          <p className="note" data-testid="target-fy">
+            <b>{data.fy_label} so far:</b> {aud.format(data.fy_sales_cents / 100)}
+            {data.fy_target_cents != null ? ` of ${aud.format(data.fy_target_cents / 100)} (${data.fy_months_with_target} month${data.fy_months_with_target === 1 ? "" : "s"} with a target)` : " · no targets set this financial year"}
+          </p>
         </div>
         <div>
           {table ? (
@@ -63,7 +67,7 @@ export default function TargetCard({ data }: { data: TargetCardData }) {
                     <g key={m.month} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
                       <rect x={x - gap / 2} y={0} width={bw + gap} height={H} fill="transparent" />
                       {m.target_cents != null && <rect x={x} y={y(m.target_cents)} width={bw} height={Math.max(0, H - PAD_BOTTOM - y(m.target_cents))} rx={3} fill="var(--raised)" />}
-                      <rect x={x + 2} y={y(m.sales_cents)} width={Math.max(0, bw - 4)} height={Math.max(0, H - PAD_BOTTOM - y(m.sales_cents))} rx={3} fill="var(--paint-deep)" opacity={hover == null || hover === i ? 1 : 0.55} />
+                      {!m.future && <rect x={x + 2} y={y(m.sales_cents)} width={Math.max(0, bw - 4)} height={Math.max(0, H - PAD_BOTTOM - y(m.sales_cents))} rx={3} fill={m.recorded ? "var(--paint)" : "var(--paint-deep)"} opacity={hover == null || hover === i ? 1 : 0.55} />}
                       {(i === last || i === peak) && m.sales_cents > 0 && (
                         <text x={x + bw / 2} y={y(m.sales_cents) - 4} textAnchor="middle" fontSize="8.5" fill="var(--text)" fontFamily="var(--mono)">{short(m.sales_cents)}</text>
                       )}
@@ -74,11 +78,11 @@ export default function TargetCard({ data }: { data: TargetCardData }) {
               </svg>
               {hover != null && (
                 <div className="tip" role="status">
-                  <b>{data.months[hover].label}</b> · {aud.format(data.months[hover].sales_cents / 100)} from {data.months[hover].accepted} accepted
+                  <b>{data.months[hover].label}</b> · {data.months[hover].future ? "still ahead" : `${aud.format(data.months[hover].sales_cents / 100)} from ${data.months[hover].accepted} accepted${data.months[hover].recorded ? " · recorded from PaintScout" : ""}`}
                   {data.months[hover].target_cents != null ? ` · target ${aud.format((data.months[hover].target_cents ?? 0) / 100)}` : " · no target"}
                 </div>
               )}
-              <div className="legend"><span><i style={{ background: "var(--raised)", border: "1px solid var(--line)" }} />Target</span><span><i style={{ background: "var(--paint-deep)" }} />Actual</span><span>{data.months[0].label} → {data.months[last].label}</span></div>
+              <div className="legend"><span><i style={{ background: "var(--raised)", border: "1px solid var(--line)" }} />Target</span><span><i style={{ background: "var(--paint-deep)" }} />Actual</span>{data.months.some((m) => m.recorded) && <span><i style={{ background: "var(--paint)" }} />Recorded (PaintScout)</span>}<span>{data.fy_label} · {data.months[0].label} → {data.months[last].label}</span></div>
             </div>
           )}
         </div>

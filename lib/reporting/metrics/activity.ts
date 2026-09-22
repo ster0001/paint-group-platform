@@ -75,7 +75,7 @@ export const activity: MetricDef<ActivityRow> = {
   href: "/crm",
   display: "rows",
   select: activityRows,
-  note: (rows, _v, input) => { const today = melbourneDay(input.now); return rows.length ? `${rows.filter((r) => r.day === today).length} today · ${rows.length} in range` : "nothing in this range"; },
+  note: (rows, _v, input) => { const today = melbourneDay(input.now); return rows.length ? `${rows.filter((r) => r.day === today).length} today · ${rows.length}${input.activity?.truncated ? "+ (the newest 5,000 read)" : ""} in range` : "nothing in this range"; },
 };
 
 export type { ActivityEvent };

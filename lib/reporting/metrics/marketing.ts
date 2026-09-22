@@ -6,8 +6,9 @@
  * stored flag; wizard starts by source from the funnel's own rows.
  */
 import { SOURCES } from "@/lib/crm/attribution";
-import { inRange, type MetricDef, type MetricInput, type Range } from "../core";
+import { inRange, type MetricDef, type MetricInput, type Range, melbourneDay } from "../core";
 import { funnelRows } from "./funnel";
+import { inRecordedMonth, recordedInRange, recordedMonths, recordedTitle } from "../recorded";
 import { monthsIn, weeksIn } from "./pl";
 
 const ROLES = ["owner", "admin"] as const;
@@ -65,7 +66,7 @@ export const costPerAcceptedJob: MetricDef<CpaRow> = {
     const accepted = input.estimates.filter((e) => e.status === "accepted" && inRange(e.accepted_at, range));
     const total = spendIn(input, range);
     const share = accepted.length ? Math.round(total.cents / accepted.length) : 0;
-    return accepted.map((e) => ({ accepted_on: (e.accepted_at ?? "").slice(0, 10), title: e.title ?? "", source: label(e.lead_source ?? "unknown"), spend_share_cents: share, one: 1, basis: total.basis }));
+    return accepted.map((e) => ({ accepted_on: (e.accepted_at ? melbourneDay(e.accepted_at) : ""), title: e.title ?? "", source: label(e.lead_source ?? "unknown"), spend_share_cents: share, one: 1, basis: total.basis }));
   },
   note: (rows, _v, input, range) => { const t = spendIn(input, range); return `${aud(t.cents)} spend · ${rows.length} accepted · ${t.basis === "settings" ? "Settings basis" : t.basis === "recorded" ? "recorded spend" : t.basis === "mixed" ? "recorded + Settings" : "no spend recorded or set"}`; },
 };
@@ -86,17 +87,24 @@ export const cpaByChannel: MetricDef<ChannelRow> = {
   note: (rows) => rows.length ? `${rows.length} channel${rows.length === 1 ? "" : "s"} with recorded spend` : "no recorded spend in this range — Settings → Dashboard → Marketing spend",
 };
 
-export type SpendSalesRow = { accepted_on: string; title: string; spend_share_cents: number; sales_cents: number };
+const exGst = (incCents: number) => Math.round(incCents / 1.1);
+export type SpendSalesRow = { accepted_on: string; title: string; spend_share_cents: number; sales_cents: number; recorded?: boolean };
 export const spendVsSales: MetricDef<SpendSalesRow> = {
   key: "mk.spend_vs_sales_pct", kind: "period", section: "marketing", title: "Spend vs sales",
-  definition: "Marketing spend for the range as a share of accepted sales (inc GST) in it. Each row is one accepted estimate with its equal share of the spend against its own total, so the tile is spend ÷ sales over the range. The twelve-month trend is the card beside it.",
-  unit: "pct", gst: null, roles: ROLES, aggregate: { pctOf: { num: "spend_share_cents", den: "sales_cents" } },
-  columns: [{ key: "accepted_on", label: "Accepted" }, { key: "title", label: "Estimate" }, { key: "spend_share_cents", label: "Share of spend (cents)" }, { key: "sales_cents", label: "Accepted (cents, inc GST)" }], href: "/settings#dashboard",
+  definition: "Marketing spend for the range as a share of accepted sales in it, both ex GST (spend is recorded ex GST; the signed totals are ÷ 1.1). Each row is one accepted estimate — or one month recorded from PaintScout — with its equal share of the spend against its own total, so the tile is spend ÷ sales over the range. The twelve-month trend is the card beside it.",
+  unit: "pct", gst: "ex", roles: ROLES, aggregate: { pctOf: { num: "spend_share_cents", den: "sales_cents" } },
+  columns: [{ key: "accepted_on", label: "Accepted" }, { key: "title", label: "Estimate" }, { key: "spend_share_cents", label: "Share of spend (cents)" }, { key: "sales_cents", label: "Accepted (cents, ex GST)" }], href: "/settings#dashboard",
   select: (input, range) => {
-    const accepted = input.estimates.filter((e) => e.status === "accepted" && inRange(e.accepted_at, range));
+    const rec = recordedMonths(input);
+    const accepted = input.estimates.filter((e) => e.status === "accepted" && inRange(e.accepted_at, range) && !inRecordedMonth(rec, e.accepted_at));
+    const months = recordedInRange(input, range);
     const total = spendIn(input, range);
-    const share = accepted.length ? Math.round(total.cents / accepted.length) : 0;
-    return accepted.map((e) => ({ accepted_on: (e.accepted_at ?? "").slice(0, 10), title: e.title ?? "", spend_share_cents: share, sales_cents: e.accepted_total_cents ?? e.total_cents }));
+    const n = accepted.length + months.length;
+    const share = n ? Math.round(total.cents / n) : 0;
+    return [
+      ...accepted.map((e) => ({ accepted_on: (e.accepted_at ? melbourneDay(e.accepted_at) : ""), title: e.title ?? "", spend_share_cents: share, sales_cents: exGst(e.accepted_total_cents ?? e.total_cents) })),
+      ...months.map((r) => ({ accepted_on: r.first_day, title: recordedTitle(r), spend_share_cents: share, sales_cents: exGst(r.sales_in_range_cents), recorded: true })),
+    ];
   },
   note: (rows, _v, input, range) => { const t = spendIn(input, range); return rows.length ? `${aud(t.cents)} against ${aud(rows.reduce((s, r) => s + r.sales_cents, 0))} · ${t.basis === "recorded" ? "recorded spend" : t.basis === "settings" ? "Settings basis" : t.basis === "mixed" ? "recorded + Settings" : "no spend"}` : "nothing accepted in this range"; },
 };
@@ -106,7 +114,7 @@ export const spendVsSalesTrend: MetricDef<TrendRow> = {
   key: "mk.spend_vs_sales_trend", kind: "period", section: "marketing", title: "Spend vs sales, twelve months",
   definition: "Each of the last twelve months: recorded marketing spend (or Settings weekly × 52 ÷ 12 where none is recorded) against that month's accepted totals inc GST, as a percentage.",
   unit: "pct", gst: null, roles: ROLES, aggregate: { pctOf: { num: "spend_cents", den: "sales_cents" } }, display: "rows",
-  columns: [{ key: "month", label: "Month" }, { key: "spend_cents", label: "Spend (cents)" }, { key: "sales_cents", label: "Sales (cents, inc GST)" }, { key: "pct", label: "Spend / sales (%)" }, { key: "basis", label: "Basis" }], href: "/settings#dashboard",
+  columns: [{ key: "month", label: "Month" }, { key: "spend_cents", label: "Spend (cents)" }, { key: "sales_cents", label: "Sales (cents, ex GST)" }, { key: "pct", label: "Spend / sales (%)" }, { key: "basis", label: "Basis" }], href: "/settings#dashboard",
   select: (input, range) => {
     const s = input.pl; if (!s) return [];
     const monthly = s.weeklyMarketingCents != null ? Math.round((s.weeklyMarketingCents * 52) / 12) : null;
@@ -116,7 +124,7 @@ export const spendVsSalesTrend: MetricDef<TrendRow> = {
       const ym = new Date(Date.UTC(y, m - 1 - i, 1)).toISOString().slice(0, 7);
       const recorded = s.spend.filter((x) => x.month.slice(0, 7) === ym).reduce((t, x) => t + x.spend_cents, 0);
       const spend = recorded || monthly || 0;
-      const sales = s.history.find((h) => h.month === ym)?.sales_cents ?? 0;
+      const sales = exGst(s.history.find((h) => h.month === ym)?.sales_cents ?? 0);
       rows.push({ month: ym, spend_cents: spend, sales_cents: sales, pct: sales ? Math.round((spend / sales) * 1000) / 10 : 0, basis: recorded ? "recorded" : monthly ? "Settings" : "none" });
     }
     return rows;
@@ -137,7 +145,7 @@ export const repeatReferralShare: MetricDef<RepeatRow> = {
     return input.estimates.filter((e) => e.status === "accepted" && inRange(e.accepted_at, range)).map((e) => {
       const isRepeat = Boolean(e.account_id && repeat.has(e.account_id)) || e.lead_source === "repeat_customer";
       const isReferral = e.lead_source === "referral";
-      return { accepted_on: (e.accepted_at ?? "").slice(0, 10), title: e.title ?? "", source: label(e.lead_source ?? "unknown"), repeat: isRepeat, referral: isReferral, repeat_or_referral: isRepeat || isReferral, total_cents: e.accepted_total_cents ?? e.total_cents };
+      return { accepted_on: (e.accepted_at ? melbourneDay(e.accepted_at) : ""), title: e.title ?? "", source: label(e.lead_source ?? "unknown"), repeat: isRepeat, referral: isReferral, repeat_or_referral: isRepeat || isReferral, total_cents: e.accepted_total_cents ?? e.total_cents };
     });
   },
   note: (rows) => rows.length ? `${rows.filter((r) => r.repeat).length} repeat · ${rows.filter((r) => r.referral).length} referral · of ${rows.length} accepted` : "nothing accepted in this range",

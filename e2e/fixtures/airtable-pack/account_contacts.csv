@@ -1,0 +1,3 @@
+account_key,name,email,phone,role,is_primary,notes
+acc_e2e0000003,Jennifer Example,,,other,false,Name seen on an Airtable estimate/project under this email
+acc_e2e0000003,Rod Example,,,other,false,Name seen on an Airtable estimate/project under this email

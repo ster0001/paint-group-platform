@@ -11,6 +11,8 @@ import {
   stageDots,
   type DeriveInvoice,
 } from "@/lib/invoicing/derive";
+import { contractorInvoiceTone } from "@/lib/invoicing/contractorInvoiceTone";
+import { materialsToMatch } from "@/lib/invoicing/materialsToMatch";
 import { loadCostCapture, loadDashboard, toDerive, toDerivePayments, type EventRow, type InvoiceRow } from "./data";
 import { STAGE_LANES, visibleStage, type WoStage } from "@/lib/workorder/stages";
 import { accuracyReadout, jobCode, queueRows, SOURCE_LABEL, type ExtractedBill, type IntakeRow, type IntakeSource } from "@/lib/costs/intake";
@@ -81,7 +83,7 @@ export default async function InvoicingDashboardPage({
   const { f, tab } = await searchParams;
   const supabase = await createClient();
   const today = melbourneDate(new Date());
-  const [{ invoices, loadError, payablesError, payments, events, contractorInvoices }, capture] = await Promise.all([
+  const [{ invoices, loadError, payablesError, payments, events, contractorInvoices, materialsToMatch: materialRows }, capture] = await Promise.all([
     loadDashboard(supabase),
     loadCostCapture(supabase),
   ]);
@@ -181,10 +183,15 @@ export default async function InvoicingDashboardPage({
         : due === 0 ? "Approved · due today"
         : `Approved · due in ${due} day${due === 1 ? "" : "s"}`;
       const stage = c.work_orders?.stage as WoStage | undefined;
+      // Tom, 20 Sep: colour by what is outstanding for payment — one decision, server-side.
+      const tone = contractorInvoiceTone({ status: c.status, dueOn: c.due_on }, today);
       return {
         ciId: c.id,
         estimateId: c.work_orders?.estimate_id ?? null,
         company: c.contractors?.company_name ?? "Contractor",
+        tone: tone.tone,
+        toneClass: tone.className,
+        overdueLabel: tone.overdueLabel,
         ref: [
           c.number ?? "Draft (unnumbered)",
           c.auto_draft_source === "claim" ? `claim${c.claim_pct ? ` ${Number(c.claim_pct)}%` : ""}` : null,
@@ -271,7 +278,10 @@ export default async function InvoicingDashboardPage({
     };
   });
 
-  const unmatched: UnmatchedMaterialProp[] = capture.unmatchedMaterials.map((m) => ({
+  // The same rows and the same predicate as the home dashboard's
+  // "Materials to match" tile (lib/reporting/metrics/invoicing.ts).
+  const toMatch = materialsToMatch(materialRows);
+  const unmatched: UnmatchedMaterialProp[] = toMatch.map((m) => ({
     id: m.id,
     label: [m.supplier || "Materials", fmt2(m.amount_cents), m.invoice_date ? shortDay(m.invoice_date) : null]
       .filter(Boolean).join(" · "),
@@ -355,6 +365,7 @@ export default async function InvoicingDashboardPage({
       initialFilter={f ?? "all"}
       initialTab={tab ?? "recv"}
       payables={payables}
+      materialsToMatchCount={toMatch.length}
       payableRows={payableRows}
       costs={{ cards, jobs: jobsForPick, unmatched, costRows, accuracy, expenseClaims, preapprovals: preapprovalCards, reimbursements }}
     />

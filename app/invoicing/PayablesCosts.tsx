@@ -295,7 +295,7 @@ export default function PayablesCosts({
 
       {/* ============ unmatched materials — one-tap assign ============ */}
       {unmatched.length > 0 && (
-        <div className="card" data-testid="unmatched-materials">
+        <div className="card" id="materials-to-match" data-testid="unmatched-materials">
           <div className="row"><h3>Materials without a job</h3><span className="chip draft">{unmatched.length}</span></div>
           {unmatched.map((m) => (
             <div key={m.id} style={{ borderTop: "1px solid var(--line)", padding: "10px 0" }}>

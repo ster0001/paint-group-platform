@@ -93,7 +93,8 @@ export default function MoneyView({
   costsError?: ReadFailure | null;
   costs: {
     offerCents: number; acceptedDeltaCents: number;
-    ci?: { number: string | null; status: string } | null;
+    /** toneClass / overdueLabel from lib/invoicing/contractorInvoiceTone, decided on the server. */
+    ci?: { number: string | null; status: string; toneClass: string; overdueLabel: string | null } | null;
     rows?: JobCostItemProp[];
     materials?: MaterialItemProp[];
     /** Approved/paid contractor expense reimbursements (6c) — job costs too. */
@@ -302,11 +303,11 @@ export default function MoneyView({
           <div className="row">
             <div className="k">Contractor</div>
             <span
-              className={`chip ${costs.ci?.status === "paid" ? "paid" : costs.ci?.status === "approved" ? "approved" : costs.ci?.status === "submitted" ? "submitted" : "awaiting"}`}
+              className={`chip ${costs.ci ? costs.ci.toneClass : "awaiting"}`}
               data-testid="ci-chip"
             >
               {costs.ci
-                ? `${costs.ci.number ?? "Drafted"} · ${costs.ci.status}`
+                ? `${costs.ci.number ?? "Drafted"} · ${costs.ci.status}${costs.ci.overdueLabel ? ` · ${costs.ci.overdueLabel}` : ""}`
                 : "Invoice at sign-off"}
             </span>
           </div>

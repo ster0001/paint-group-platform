@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 import { melbourneInstant } from "@/lib/time/businessHours";
 import { runMetric, type MetricInput } from "../core";
 import { SEED_NOW, SEED_SALESPEOPLE, goldenSeed } from "../seed";
-import { aovByCategory, bySalesperson, conversion } from "./sales";
+import { aovByCategory, bySalesperson, conversion, salesCents, salesCount } from "./sales";
+import { contractsSigned } from "./pl";
 import { buildTarget } from "./target";
 import { buildFunnel, wizardSessions } from "./funnel";
 import { activity, familiesFor, familyOf } from "./activity";
@@ -82,10 +83,23 @@ describe("the target card", () => {
     expect(t.pct_hit).toBe(Math.round((t.sales_cents / 19_000_000) * 100));
     expect(t.pct_month_gone).toBe(Math.round((19 / 30) * 100));
     expect(["ahead", "on pace", "behind"]).toContain(t.pace);
+    // The financial year the month sits in (Tom, 20 Sep): July 2026 → June 2027; months ahead are target-only.
+    expect(t.fy).toBe(2027); expect(t.fy_label).toBe("FY 2026/27");
     expect(t.months).toHaveLength(12);
-    expect(t.months[11].month).toBe("2026-09");
-    expect(t.months[10]).toMatchObject({ month: "2026-08", sales_cents: 8_000_000, accepted: 5, target_cents: null });
-    expect(t.months[0].month).toBe("2025-10");
+    expect(t.months[0].month).toBe("2026-07");
+    expect(t.months[2].month).toBe("2026-09");
+    expect(t.months[1]).toMatchObject({ month: "2026-08", sales_cents: 8_000_000, accepted: 5, target_cents: null, future: false });
+    expect(t.months[3]).toMatchObject({ month: "2026-10", sales_cents: 0, future: true });
+    expect(t.months[11].month).toBe("2027-06");
+    expect(t.fy_sales_cents).toBe(8_000_000 + t.sales_cents);
+    expect(t.fy_target_cents).toBe(19_000_000); expect(t.fy_months_with_target).toBe(1);
+  });
+  it("a month recorded from PaintScout replaces the platform's figure, on the card and in the bars", () => {
+    const t = buildTarget({ ...input, sales: { ...sales, recorded: [{ month: "2026-09-01", sales_cents: 12_345_600, accepted: 9, source: "paintscout" }, { month: "2026-08-01", sales_cents: 20_000_000, accepted: null, source: "paintscout" }] } }, range);
+    expect(t.sales_cents).toBe(12_345_600);
+    expect(t.months[2]).toMatchObject({ month: "2026-09", sales_cents: 12_345_600, accepted: 9, recorded: true });
+    expect(t.months[1]).toMatchObject({ month: "2026-08", sales_cents: 20_000_000, accepted: 0, recorded: true });   // the recorded month wins over the platform's history
+    expect(t.pct_hit).toBe(Math.round((12_345_600 / 19_000_000) * 100));
   });
   it("a month with no target says so — never 0%", () => {
     const t = buildTarget({ ...input, sales: { ...sales, targets: [] } }, range);
@@ -163,5 +177,35 @@ describe("activity — the CRM timeline, role-scoped", () => {
     const all = runMetric(activity, { ...base, activity: { events, roles: ["owner"], family: null, q: null } }, range, owner);
     expect(all.value).toBe(3);
     expect(all.compare).toBe(1);
+  });
+});
+
+describe("recorded sales months (20270186) stand in for the platform's rows", () => {
+  const rec = { ...input, sales: { ...sales, recorded: [{ month: "2026-09-01", sales_cents: 12_345_600, accepted: 9, source: "paintscout" }] } };
+  it("Sales $ and Sales (number) for a recorded month are the recorded figures, as one row", () => {
+    const cents = runMetric(salesCents, rec, range, owner);
+    const count = runMetric(salesCount, rec, range, owner);
+    // 1–19 September is 19 of 30 days of the recorded month.
+    const share = 19 / 30;
+    expect(cents.value).toBe(Math.round(12_345_600 * share));
+    expect(cents.rows).toHaveLength(1);
+    expect(cents.rows[0]).toMatchObject({ recorded: true, lead_source: "recorded", jobs: Math.round(9 * share) });
+    expect(cents.rows[0].title).toContain("PaintScout · September 2026 (recorded, 63% of the month)");
+    expect(count.value).toBe(Math.round(9 * share));
+    expect(cents.note).toBe("1 month recorded from PaintScout");
+  });
+  it("a whole recorded month counts in full; a month with no row is the platform's own rows", () => {
+    const whole = runMetric(salesCents, rec, { from: "2026-09-01", to: "2026-09-30" }, owner);
+    expect(whole.value).toBe(12_345_600);
+    const aug = runMetric(salesCents, rec, { from: "2026-08-01", to: "2026-08-31" }, owner);
+    const platform = seed.estimates.filter((e) => e.status === "accepted" && e.accepted_at && e.accepted_at >= "2026-08" && e.accepted_at < "2026-09");
+    expect(aug.rows.every((r) => !r.recorded)).toBe(true);
+    expect(aug.rows.length).toBe(platform.length);
+  });
+  it("contracts signed (ex GST) and spend vs sales read the same recorded month", () => {
+    const c = runMetric(contractsSigned, { ...rec, pl: { closedJobs: [], weeklyFixedCents: null, weeklyMarketingCents: null, spend: [], payments: [], repeatAccounts: [], history: [] } }, { from: "2026-09-01", to: "2026-09-30" }, owner);
+    expect(c.value).toBe(Math.round(12_345_600 / 1.1));
+    expect(c.rows).toHaveLength(1);
+    expect(c.note).toContain("1 month recorded from PaintScout");
   });
 });
