@@ -159,11 +159,11 @@ async function relayToOffice(
 async function staffNameForEmail(db: ReturnType<typeof createServiceClient> & object, fromEmail: string): Promise<string | null> {
   const wanted = fromEmail.trim().toLowerCase();
   if (!wanted) return null;
-  const { data: rows, error } = await db.from("profiles").select("id, full_name").eq("role", "staff");
+  const { data: rows, error } = await db.from("profiles").select("id, name").eq("role", "staff");
   if (error) throw error;
-  for (const p of ((rows ?? []) as { id: string; full_name: string | null }[])) {
+  for (const p of ((rows ?? []) as { id: string; name: string | null }[])) {
     const { data: u } = await db.auth.admin.getUserById(p.id);
-    if ((u?.user?.email ?? "").trim().toLowerCase() === wanted) return p.full_name ?? "";
+    if ((u?.user?.email ?? "").trim().toLowerCase() === wanted) return p.name ?? "";
   }
   return null;
 }

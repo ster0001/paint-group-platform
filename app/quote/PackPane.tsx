@@ -63,8 +63,8 @@ export default function PackPane({ bundle }: { bundle: PackBundle }) {
             </span>
           </p>
           <p className="mt-1 text-xs text-gray-600">
-            {assignee?.full_name || assignee?.email
-              ? <>Assigned to <b>{assignee.full_name || assignee.email}</b>.</>
+            {assignee?.name
+              ? <>Assigned to <b>{assignee.name}</b>.</>
               : "Not assigned to anyone — nobody covers this postcode, so it is here for whoever picks it up."}
             {request.suggested_action && request.suggested_action !== recommended && (
               <> {" "}The rules suggested <b>{request.suggested_action}</b> at the time; they say <b>{recommended}</b> now.</>

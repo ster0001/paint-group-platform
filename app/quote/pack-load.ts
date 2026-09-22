@@ -47,7 +47,7 @@ export type PackBundle =
       recommended: DeskCheckOutcome;
       /** The latest OPEN request, or null. */
       request: PackRequest | null;
-      assignee: { full_name: string | null; email: string | null } | null;
+      assignee: { name: string | null } | null;
       drift: ReturnType<typeof packDrift>;
       bandPct: number;
       range: { loCents: number; hiCents: number };
@@ -92,7 +92,7 @@ export async function loadPackBundle(supabase: SupabaseClient, id: string | unde
   ]);
   const request = (requestRes?.data ?? null) as PackRequest | null;
   const assignee = request?.assigned_to
-    ? (await supabase.from("profiles").select("full_name, email").eq("id", request.assigned_to).maybeSingle()).data
+    ? (await supabase.from("profiles").select("name").eq("id", request.assigned_to).maybeSingle()).data
     : null;
   /**
    * §2.6: "contact and property history" — what we have quoted this account

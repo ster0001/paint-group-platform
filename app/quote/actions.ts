@@ -218,10 +218,13 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, kind: "error", message: "You don't have permission to do that." };
-  const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).single();
+  // profiles has `name`, not `full_name` — asking for a column that does not exist made this read fail,
+  // the dropped error read as "not staff", and Tom could not answer a customer's chat (22 Sep 2026).
+  const { data: profile, error: profileErr } = await supabase.from("profiles").select("role, name").eq("id", user.id).single();
+  if (profileErr) { reportError(profileErr, { where: "quote.replyToEstimateChat.profile" }); return { ok: false, kind: "error", message: `Couldn't check your login: ${profileErr.message}` }; }
   if (profile?.role !== "staff") return { ok: false, kind: "error", message: "You don't have permission to do that." };
 
-  const authorName = (profile as { full_name?: string | null }).full_name || null;
+  const authorName = (profile as { name?: string | null }).name || null;
   // The insert and the customer's text + email live in lib/estimates/chatReply
   // (Tom, 20 Sep) — the dock and an emailed reply post the same way.
   const r = await postStaffChatReply(supabase, { estimateId, body, authorName });
