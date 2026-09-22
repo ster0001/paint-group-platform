@@ -1,0 +1,377 @@
+[
+ {
+  "paintscout_item": "Walls",
+  "side": "interior",
+  "platform_rate_code": "Walls"
+ },
+ {
+  "paintscout_item": "Ceiling",
+  "side": "interior",
+  "platform_rate_code": "Ceilings"
+ },
+ {
+  "paintscout_item": "Panel Door + Frame",
+  "side": "interior",
+  "platform_rate_code": "4-6 Panel Door and Frame (1 Side)"
+ },
+ {
+  "paintscout_item": "Cornices",
+  "side": "interior",
+  "platform_rate_code": "Standard Cornices"
+ },
+ {
+  "paintscout_item": "Skirting Boards",
+  "side": "interior",
+  "platform_rate_code": "Skirting Boards"
+ },
+ {
+  "paintscout_item": "Windows",
+  "side": "interior",
+  "platform_rate_code": "Fixed / Picture / Window Reveal"
+ },
+ {
+  "paintscout_item": "Windows",
+  "side": "exterior",
+  "platform_rate_code": "Awning / Casement Window"
+ },
+ {
+  "paintscout_item": "Door & Frame",
+  "side": "interior",
+  "platform_rate_code": "Flat Door and Frame (1 Side)"
+ },
+ {
+  "paintscout_item": "Soffits / Eaves",
+  "side": "exterior",
+  "platform_rate_code": "Eaves"
+ },
+ {
+  "paintscout_item": "Fascias",
+  "side": "exterior",
+  "platform_rate_code": "Fascias"
+ },
+ {
+  "paintscout_item": "Rendered Walls",
+  "side": "exterior",
+  "platform_rate_code": "Render"
+ },
+ {
+  "paintscout_item": "Window",
+  "side": "exterior",
+  "platform_rate_code": "Awning / Casement Window"
+ },
+ {
+  "paintscout_item": "Weatherboards",
+  "side": "exterior",
+  "platform_rate_code": "Weatherboards"
+ },
+ {
+  "paintscout_item": "Doors",
+  "side": "exterior",
+  "platform_rate_code": "Standard Door (1 Side)"
+ },
+ {
+  "paintscout_item": "Gutters",
+  "side": "exterior",
+  "platform_rate_code": "Gutters"
+ },
+ {
+  "paintscout_item": "Architrave",
+  "side": "interior",
+  "platform_rate_code": "Architrave (1 Side)"
+ },
+ {
+  "paintscout_item": "Window",
+  "side": "interior",
+  "platform_rate_code": "Fixed / Picture / Window Reveal"
+ },
+ {
+  "paintscout_item": "Walls",
+  "side": "exterior",
+  "platform_rate_code": "Render"
+ },
+ {
+  "paintscout_item": "Door",
+  "side": "interior",
+  "platform_rate_code": "Flat Door and Frame (1 Side)"
+ },
+ {
+  "paintscout_item": "Door & Frame",
+  "side": "exterior",
+  "platform_rate_code": "Standard Door (1 Side)"
+ },
+ {
+  "paintscout_item": "Downpipes",
+  "side": "exterior",
+  "platform_rate_code": "Downpipes"
+ },
+ {
+  "paintscout_item": "Stucco",
+  "side": "exterior",
+  "platform_rate_code": "Stucco"
+ },
+ {
+  "paintscout_item": "Cladding",
+  "side": "exterior",
+  "platform_rate_code": "Weatherboards"
+ },
+ {
+  "paintscout_item": "Window Reveal",
+  "side": "interior",
+  "platform_rate_code": "Fixed / Picture / Window Reveal"
+ },
+ {
+  "paintscout_item": "Flat Doors 1 Side (2 Coats)",
+  "side": "interior",
+  "platform_rate_code": "Flat Door (1 Side)"
+ },
+ {
+  "paintscout_item": "Window Reveal",
+  "side": "exterior",
+  "platform_rate_code": "Fixed / Picture Window"
+ },
+ {
+  "paintscout_item": "Soffits & Eaves",
+  "side": "exterior",
+  "platform_rate_code": "Eaves"
+ },
+ {
+  "paintscout_item": "Walls including cupboard",
+  "side": "interior",
+  "platform_rate_code": "Walls"
+ },
+ {
+  "paintscout_item": "Window shutter box",
+  "side": "exterior",
+  "platform_rate_code": "Awning / Casement Window"
+ },
+ {
+  "paintscout_item": "Weatherboards 2 x coats",
+  "side": "exterior",
+  "platform_rate_code": "Weatherboards"
+ },
+ {
+  "paintscout_item": "Cupboard Door",
+  "side": "interior",
+  "platform_rate_code": "Flat Door and Frame (1 Side)"
+ },
+ {
+  "paintscout_item": "Upper and Lower Cladding",
+  "side": "exterior",
+  "platform_rate_code": "Weatherboards"
+ },
+ {
+  "paintscout_item": "Walls excluding feature wall",
+  "side": "interior",
+  "platform_rate_code": "Walls"
+ },
+ {
+  "paintscout_item": "Deck Application",
+  "side": "exterior",
+  "platform_rate_code": "Deck Painting"
+ },
+ {
+  "paintscout_item": "Security Doors",
+  "side": "exterior",
+  "platform_rate_code": "Standard Door (1 Side)"
+ },
+ {
+  "paintscout_item": "Flat Doors 1 Side (3 Coats)",
+  "side": "interior",
+  "platform_rate_code": "Flat Door (1 Side)"
+ },
+ {
+  "paintscout_item": "Render",
+  "side": "exterior",
+  "platform_rate_code": "Render"
+ },
+ {
+  "paintscout_item": "Skylight window reveal",
+  "side": "interior",
+  "platform_rate_code": "Fixed / Picture / Window Reveal"
+ },
+ {
+  "paintscout_item": "Walls left side",
+  "side": "interior",
+  "platform_rate_code": "Walls"
+ },
+ {
+  "paintscout_item": "Panel Door + Frame  excluding bedroom door",
+  "side": "interior",
+  "platform_rate_code": "4-6 Panel Door and Frame (1 Side)"
+ },
+ {
+  "paintscout_item": "Ceiling exc rose",
+  "side": "interior",
+  "platform_rate_code": "Ceilings"
+ },
+ {
+  "paintscout_item": "Front Door and Frame",
+  "side": "exterior",
+  "platform_rate_code": "Front Door"
+ },
+ {
+  "paintscout_item": "Windows large",
+  "side": "interior",
+  "platform_rate_code": "Fixed / Picture / Window Reveal"
+ },
+ {
+  "paintscout_item": "Door & Frame cupboard",
+  "side": "interior",
+  "platform_rate_code": "Flat Door and Frame (1 Side)"
+ },
+ {
+  "paintscout_item": "Garage Door",
+  "side": "exterior",
+  "platform_rate_code": "Garage Door (1 Car)"
+ },
+ {
+  "paintscout_item": "Cement sheet Right Side",
+  "side": "exterior",
+  "platform_rate_code": "Cement Sheet"
+ },
+ {
+  "paintscout_item": "Rendered upper walls",
+  "side": "exterior",
+  "platform_rate_code": "Render"
+ },
+ {
+  "paintscout_item": "Bagged Walls",
+  "side": "exterior",
+  "platform_rate_code": "Render"
+ },
+ {
+  "paintscout_item": "Flat Doors 1 Side (2 Coats)",
+  "side": "exterior",
+  "platform_rate_code": "Standard Door (1 Side)"
+ },
+ {
+  "paintscout_item": "Cement Sheet",
+  "side": "exterior",
+  "platform_rate_code": "Cement Sheet"
+ },
+ {
+  "paintscout_item": "Cement Sueet",
+  "side": "exterior",
+  "platform_rate_code": "Cement Sheet"
+ },
+ {
+  "paintscout_item": "Cement sheet",
+  "side": "exterior",
+  "platform_rate_code": "Cement Sheet"
+ },
+ {
+  "paintscout_item": "Ceiling (copper effect)",
+  "side": "interior",
+  "platform_rate_code": "Ceilings"
+ },
+ {
+  "paintscout_item": "Window vent",
+  "side": "exterior",
+  "platform_rate_code": "Awning / Casement Window"
+ },
+ {
+  "paintscout_item": "Weatherboards lower 1 x coats",
+  "side": "exterior",
+  "platform_rate_code": "Weatherboards"
+ },
+ {
+  "paintscout_item": "Weatherboards upper 2 x coats",
+  "side": "exterior",
+  "platform_rate_code": "Weatherboards"
+ },
+ {
+  "paintscout_item": "Ceiling",
+  "side": "exterior",
+  "platform_rate_code": "Ceilings"
+ },
+ {
+  "paintscout_item": "Cornices",
+  "side": "exterior",
+  "platform_rate_code": "Standard Cornices"
+ },
+ {
+  "paintscout_item": "Skirting Boards",
+  "side": "exterior",
+  "platform_rate_code": "Skirting Boards"
+ },
+ {
+  "paintscout_item": "Door cabinet both sides",
+  "side": "interior",
+  "platform_rate_code": "Flat Door and Frame (1 Side)"
+ },
+ {
+  "paintscout_item": "Cornices x 1",
+  "side": "interior",
+  "platform_rate_code": "Standard Cornices"
+ },
+ {
+  "paintscout_item": "Walls x 1",
+  "side": "interior",
+  "platform_rate_code": "Walls"
+ },
+ {
+  "paintscout_item": "Rendered walls",
+  "side": "exterior",
+  "platform_rate_code": "Render"
+ },
+ {
+  "paintscout_item": "Panel Door + Frame including fly screens",
+  "side": "interior",
+  "platform_rate_code": "4-6 Panel Door and Frame (1 Side)"
+ },
+ {
+  "paintscout_item": "Brick sills and step",
+  "side": "exterior",
+  "platform_rate_code": "Brick"
+ },
+ {
+  "paintscout_item": "Pergola",
+  "side": "exterior",
+  "platform_rate_code": "Pergola"
+ },
+ {
+  "paintscout_item": "Brick",
+  "side": "exterior",
+  "platform_rate_code": "Brick"
+ },
+ {
+  "paintscout_item": "Walls liquid gold",
+  "side": "interior",
+  "platform_rate_code": "Walls"
+ },
+ {
+  "paintscout_item": "Door & Frame inc inside cupboard doors",
+  "side": "interior",
+  "platform_rate_code": "Flat Door and Frame (1 Side)"
+ },
+ {
+  "paintscout_item": "Door & Frame both sides new",
+  "side": "interior",
+  "platform_rate_code": "Flat Door and Frame (1 Side)"
+ },
+ {
+  "paintscout_item": "Architrave 1 strip",
+  "side": "interior",
+  "platform_rate_code": "Architrave (1 Side)"
+ },
+ {
+  "paintscout_item": "Fascia",
+  "side": "exterior",
+  "platform_rate_code": "Fascias"
+ },
+ {
+  "paintscout_item": "Hand Rails",
+  "side": "exterior",
+  "platform_rate_code": "Hand Rails"
+ },
+ {
+  "paintscout_item": "Gate both sides",
+  "side": "exterior",
+  "platform_rate_code": "Standard Door (1 Side)"
+ },
+ {
+  "paintscout_item": "Walls exc feature wall",
+  "side": "interior",
+  "platform_rate_code": "Walls"
+ }
+]
