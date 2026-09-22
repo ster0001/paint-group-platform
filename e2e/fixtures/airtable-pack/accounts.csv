@@ -1,0 +1,6 @@
+account_key,account_type,name,email,phone_e164,company_name,account_type_reason,relationship_state,lost_reason,temperature,tags,lead_source,first_seen_at,estimates_count,won_cents,last_job_completed_at,last_job_completed_type,other_names,other_phones
+acc_e2e0000001,residential,Justin Example,pg.e2e.airtable.justin@example.com,+61491570101,,,active,,hot,airtable-import,Referral,2025-11-30T23:03:07Z,2,2354201,,,,
+acc_e2e0000002,residential,Lorna Lost,pg.e2e.airtable.lorna@example.com,+61491570102,,,lost,competitor,cold,airtable-import,,2025-06-01T00:00:00Z,1,0,,,,
+acc_e2e0000003,residential,Agnes Agent,pg.e2e.airtable.agnes@example.com,+61491570103,Example & Burton,email domain is a known agency,active,,warm,"agency,airtable-import,kay-and-burton,real-estate",,2025-04-30T11:43:02Z,1,0,,,Jennifer Example; Rod Example,
+acc_e2e0000004,residential,Colin Cold,pg.e2e.airtable.colin@example.com,,,,active,,cold,airtable-import,,2026-05-01T00:00:00Z,1,0,,,,
+acc_e2e0000005,residential,Phoebe Phone,,+61491570105,,,active,,,airtable-import,,2025-07-01T00:00:00Z,1,169675,2025-08-06T00:00:00Z,Interior Residential,,

@@ -1,0 +1,6 @@
+quote_no,area,item,unit,qty,coats,hours,side,rate_code,match,internal_label,client_label
+9623,Kitchen,Ceiling,m2,24,2,3,interior,Ceilings,exact,Ceiling,Ceiling
+9623,Kitchen,Cornices,m,20,2,1.5,interior,Standard Cornices,exact,Cornices,Cornices
+9623,Kitchen,Walls,m2,16,2,4,interior,Walls,exact,Walls,Walls
+9623,Kitchen,Skirting Boards,m,20,2,4.25,interior,Skirting Boards,exact,Skirting Boards,Skirting Boards
+9623,Kitchen,Window Reveal,count,1,2,1.25,interior,Fixed / Picture / Window Reveal,exact,Window Reveal,Window Reveal
