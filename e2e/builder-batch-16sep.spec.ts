@@ -119,6 +119,8 @@ test.describe("builder batch, 16 Sep", () => {
     await page.getByText("Hall", { exact: true }).first().click();
     await page.getByTestId("surface-row-2").click();
     await expect(page.getByLabel("Client Label")).toHaveValue("Walls — colour to confirm");
+    // Tom, 22 Sep: the Materials row carries the client label, not the substrate code.
+    await expect(page.getByTestId("material-row-label-Interior::Walls")).toHaveText("Walls — colour to confirm");
 
     // The button sits inside the field's <label>; click its own text.
     await page.getByText("Change ›").first().click({ force: true });
@@ -128,6 +130,10 @@ test.describe("builder batch, 16 Sep", () => {
 
     await expect(page.getByLabel("Client Label")).toHaveValue("Ceilings");
     await expect(page.getByLabel("Internal Label")).toHaveValue("Ceilings");
+    await expect(page.getByTestId("material-row-label-Interior::Ceilings")).toHaveText("Ceilings");
+    // …and typing a new client label moves the Materials row with it, at once.
+    await page.getByLabel("Client Label").fill("Feature ceiling");
+    await expect(page.getByTestId("material-row-label-Interior::Ceilings")).toHaveText("Feature ceiling");
 
     // Save from the header — it is there on every screen of the builder.
     await page.getByTestId("builder-save").click();

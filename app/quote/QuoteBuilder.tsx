@@ -1246,7 +1246,7 @@ export default function QuoteBuilder({
   // the quote. Auto-builds from the blocks: add a new substrate to any area and a
   // row appears; the row's product cascades to every un-pinned surface of that type.
   const materialRows = useMemo(() => {
-    const map = new Map<string, { key: string; type: "Interior" | "Exterior"; code: string; count: number; customCount: number }>();
+    const map = new Map<string, { key: string; type: "Interior" | "Exterior"; code: string; label: string; labels: Set<string>; count: number; customCount: number }>();
     for (const b of blocks) {
       if (b.kind !== "area") continue;
       for (const s of b.surfaces) {
@@ -1254,12 +1254,17 @@ export default function QuoteBuilder({
         // rows and plastering never make a Materials row.
         if (!s.code || isAllowanceLine(s)) continue;
         const key = `${b.type}::${s.code}`;
-        const row = map.get(key) ?? { key, type: b.type, code: s.code, count: 0, customCount: 0 };
+        const row = map.get(key) ?? { key, type: b.type, code: s.code, label: s.code, labels: new Set<string>(), count: 0, customCount: 0 };
         row.count += 1;
         if (s.productName != null) row.customCount += 1;
+        // Tom, 22 Sep: the Materials row reads the way the customer's copy does —
+        // a surface's Client Label, not the substrate's code, once it has one.
+        const label = s.clientLabel.trim();
+        if (label && label !== s.code) row.labels.add(label);
         map.set(key, row);
       }
     }
+    for (const row of map.values()) if (row.labels.size) row.label = [...row.labels].join(" / ");
     return [...map.values()].sort((a, z) => a.type.localeCompare(z.type) || a.code.localeCompare(z.code));
   }, [blocks]);
   // Reset every pinned (custom) surface of a given type back to the global default.
@@ -2459,9 +2464,9 @@ export default function QuoteBuilder({
                         // is quoted with.
                         const opts = paintOptions(products, { surfaceType: r.type, chosen: globalName, search: paintSearch });
                         return (
-                          <div key={r.key} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2">
+                          <div key={r.key} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2" data-testid={`material-row-${r.key}`}>
                             <div className="flex w-40 shrink-0 items-center gap-1.5">
-                              <span className="text-sm font-medium text-gray-900">{r.code}</span>
+                              <span className="text-sm font-medium text-gray-900" data-testid={`material-row-label-${r.key}`} title={r.label !== r.code ? `Substrate: ${r.code}` : undefined}>{r.label}</span>
                               <span className={`rounded px-1 py-0.5 text-[10px] font-medium ${r.type === "Exterior" ? "bg-orange-100 text-orange-700" : "bg-sky-100 text-sky-700"}`}>
                                 {r.type === "Exterior" ? "Ext" : "Int"}
                               </span>
