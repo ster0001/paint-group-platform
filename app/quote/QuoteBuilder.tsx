@@ -2433,7 +2433,7 @@ export default function QuoteBuilder({
                   (pinned) is skipped and shown as "custom" with a one-tap reset. */}
               {!customerView && materialRows.length > 0 && (
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
-                  <button onClick={() => setMaterialsOpen((v) => !v)} className="flex w-full items-center justify-between text-left">
+                  <button onClick={() => setMaterialsOpen((v) => !v)} className="flex w-full items-center justify-between text-left" data-testid="materials-toggle" aria-expanded={materialsOpen}>
                     <h2 className="text-sm font-semibold">
                       Materials <span className="font-normal text-gray-400">· one product per surface type — change once, applies everywhere</span>
                     </h2>
