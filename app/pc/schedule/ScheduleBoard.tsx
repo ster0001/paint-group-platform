@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { pingGcalSync } from "@/lib/gcal/ping";
 import { pingAppointmentConfirm } from "@/lib/workorder/appointmentPing";
 import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
-import { addDays, dayDiff, todayIso } from "@/lib/scheduling/dates";
+import { addDays, addWorkingDays, dayDiff, todayIso, workingDaysBetween, type WorkingWeek } from "@/lib/scheduling/dates";
 import {
   sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote,
   assignJobAction, reassignDatesAction, setLeadPainterAction, releaseAssignmentAction, type ActionResult,
@@ -224,15 +224,23 @@ export default function ScheduleBoard({
     }
   };
 
+  // Tom, 22 Sep: a span is WORKING days. Weekends are skipped unless this
+  // painter has ticked them on their profile; the end date lands accordingly.
+  const weekFor = useCallback((contractorId: string): WorkingWeek => {
+    const lane = lanes.find((l) => l.contractorId === contractorId);
+    return { saturday: Boolean(lane?.worksSaturday), sunday: Boolean(lane?.worksSunday) };
+  }, [lanes]);
+  const endFor = useCallback((contractorId: string, start: string, spanDays: number) => addWorkingDays(start, spanDays, weekFor(contractorId)), [weekFor]);
+
   // Is this contractor blocked out across the proposed span?
   const spanBlocked = useCallback(
     (contractorId: string, s: string, spanDays: number) => {
-      const e = addDays(s, spanDays - 1);
+      const e = endFor(contractorId, s, spanDays);
       return blocks.some(
         (b) => b.kind === "unavailable" && b.contractorId === contractorId && b.start <= e && b.end >= s,
       );
     },
-    [blocks],
+    [blocks, endFor],
   );
 
   // Only the visual follow lives in rAF. Painting the ghost is the one thing
@@ -246,11 +254,24 @@ export default function ScheduleBoard({
     ghostRef.current.style.transform = `translate3d(${x + 14}px, ${y + 14}px, 0)`;
   }, []);
 
-  /** Pure arithmetic against cached rects — no layout reads, safe per-move. */
+  /**
+   * The day under the pointer. Tom, 22 Sep: "the calendar days don't line up
+   * when dragging and dropping" — the lane rects are cached when the drag
+   * starts, so any scroll of the page or the timeline during the drag (and a
+   * zoom that lands between cell widths) put the arithmetic one or more days
+   * off. Ask the browser which day cell is under the pointer instead; the
+   * cached rects remain the fallback when nothing is hit (the ghost, a gap).
+   */
   const updateTarget = useCallback(
     (x: number, y: number, spanDays: number) => {
-      const hit = laneRects.current.find((l) => y >= l.rect.top && y <= l.rect.bottom);
-      const idx = hit ? Math.floor((x - hit.rect.left) / dayW) : -1;
+      let hit = laneRects.current.find((l) => y >= l.rect.top && y <= l.rect.bottom);
+      let idx = hit ? Math.floor((x - hit.rect.left) / dayW) : -1;
+      if (typeof document !== "undefined" && typeof document.elementsFromPoint === "function") {
+        const under = document.elementsFromPoint(x, y).find((el) => el.classList.contains("bgc") && el.parentElement?.classList.contains("lane")) as HTMLElement | undefined;
+        const laneEl = under?.parentElement ?? null;
+        const lane = laneEl ? laneRects.current.find((l) => l.el === laneEl) : undefined;
+        if (under && lane) { hit = lane; idx = Array.prototype.indexOf.call(laneEl!.children, under); }
+      }
       if (!hit || idx < 0 || idx >= range) {
         clearHot();
         target.current = null;
@@ -315,7 +336,8 @@ export default function ScheduleBoard({
 
       const t = target.current;
       if (d.moved && t) {
-        const startDate = days[t.dayIndex];
+        // Tom, 22 Sep: a drop on a day this painter does not work starts on their next working day.
+        const startDate = addWorkingDays(days[t.dayIndex], 1, weekFor(t.contractorId));
         setPendingDrop({
           kind: d.kind,
           job: d.job,
@@ -337,7 +359,7 @@ export default function ScheduleBoard({
       dragAbort.current?.abort();
       dragAbort.current = null;
     },
-    [days, spanBlocked],
+    [days, spanBlocked, weekFor],
   );
 
   const paintMarquee = useCallback((laneEl: HTMLElement, a: number, b: number) => {
@@ -396,7 +418,7 @@ export default function ScheduleBoard({
     const spanDays =
       payload.kind === "tray"
         ? payload.job.estimatedDays
-        : Math.max(1, dayDiff(payload.block.start, payload.block.end) + 1);
+        : workingDaysBetween(payload.block.start, payload.block.end, weekFor(payload.block.contractorId));
 
     drag.current = {
       kind: payload.kind,
@@ -518,7 +540,7 @@ export default function ScheduleBoard({
       workOrderId: pendingDrop.job.workOrderId,
       contractorId: pendingDrop.contractorId,
       startDate: pendingDrop.startDate,
-      endDate: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
+      endDate: endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays),
       note: offerNote.trim(),
       qaRequired: offerQa,
       walkthroughRequired: !offerNoWalk,
@@ -555,7 +577,7 @@ export default function ScheduleBoard({
       painters: [{
         contractorId: pendingDrop.contractorId,
         startDate: pendingDrop.startDate,
-        endDate: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
+        endDate: endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays),
       }],
       leadContractorId: pendingDrop.contractorId,
       overrideReason: overrideReason.trim() || null,
@@ -584,7 +606,7 @@ export default function ScheduleBoard({
     const r = await reassignDatesAction({
       assignmentId: b.assignmentId,
       startDate: pendingDrop.startDate,
-      endDate: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
+      endDate: endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays),
       overrideReason: overrideReason.trim() || null,
     });
     if (handle(r, "Days moved — they'll be asked to accept again.")) { setPendingDrop(null); setOverrideReason(""); }
@@ -626,7 +648,7 @@ export default function ScheduleBoard({
     const b = pendingDrop.block;
     setBusy(true);
     setErr("");
-    const endDate = addDays(pendingDrop.startDate, pendingDrop.spanDays - 1);
+    const endDate = endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays);
     const expectedState = b.kind === "accepted" ? "accepted" : b.kind === "proposed" ? "proposed" : "offered";
     const reassigning = b.contractorId !== pendingDrop.contractorId;
 
@@ -983,6 +1005,16 @@ export default function ScheduleBoard({
                     {j.finishCode && <span className="fin">{j.finishCode}</span>}
                   </div>
                   <h3>{j.title}</h3>
+                  {/* Tom, 22 Sep: a link to the estimate from the tray. Pointer-down stops here so the link never starts a drag. */}
+                  <a
+                    href={`/quote?id=${j.estimateId}`}
+                    className="jlink"
+                    data-testid="tray-view-estimate"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    View estimate ›
+                  </a>
                   <div className="meta">
                     {j.suburb ? `${j.suburb.toUpperCase()} · ` : ""}
                     {j.estimatedDays} DAY{j.estimatedDays === 1 ? "" : "S"}
@@ -1260,15 +1292,16 @@ export default function ScheduleBoard({
             </div>
             <div className="frow">
               <span className="l">Dates</span>
-              <span className="v">
-                {formatDMY(pendingDrop.startDate)} → {formatDMY(addDays(pendingDrop.startDate, pendingDrop.spanDays - 1))}
+              <span className="v" data-testid="booking-dates" data-start={pendingDrop.startDate} data-end={endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays)}>
+                {formatDMY(pendingDrop.startDate)} → {formatDMY(endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays))}
+                <span style={{ color: "var(--muted)", marginLeft: 6, fontSize: 11 }}>working days · weekends skipped{weekFor(pendingDrop.contractorId).saturday || weekFor(pendingDrop.contractorId).sunday ? " except the days this painter works" : ""}</span>
               </span>
             </div>
             <div className="frow">
               <span className="l">Length</span>
               <span className="v">
                 <button onClick={() => setPendingDrop({ ...pendingDrop, spanDays: Math.max(1, pendingDrop.spanDays - 1) })} style={{ background: "none", border: "1px solid var(--line)", color: "var(--text)", borderRadius: 6, width: 24, height: 24, cursor: "pointer" }}>−</button>
-                <span style={{ margin: "0 10px" }}>{pendingDrop.spanDays} d</span>
+                <span style={{ margin: "0 10px" }} data-testid="booking-span-days" data-days={pendingDrop.spanDays}>{pendingDrop.spanDays} d</span>
                 <button onClick={() => setPendingDrop({ ...pendingDrop, spanDays: pendingDrop.spanDays + 1 })} style={{ background: "none", border: "1px solid var(--line)", color: "var(--text)", borderRadius: 6, width: 24, height: 24, cursor: "pointer" }}>+</button>
               </span>
             </div>
@@ -1350,9 +1383,9 @@ export default function ScheduleBoard({
                     <span style={{ fontSize: 11, color: "var(--muted)", display: "block", marginTop: 4 }}>
                       Estimated final walkthrough:{" "}
                       <button type="button" data-testid="use-suggested-walkthrough"
-                        onClick={() => setWalkDate(addDays(pendingDrop.startDate, pendingDrop.spanDays - 1))}
+                        onClick={() => setWalkDate(endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays))}
                         style={{ background: "none", border: "none", padding: 0, color: "var(--cyan, #22d3ee)", cursor: "pointer", fontSize: 11, textDecoration: "underline" }}>
-                        {formatDMY(addDays(pendingDrop.startDate, pendingDrop.spanDays - 1))}
+                        {formatDMY(endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays))}
                       </button>
                       {" "}(last day on site). Both the date and a time are needed to send —
                       or tick walkthrough not required.
