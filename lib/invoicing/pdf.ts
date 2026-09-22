@@ -29,10 +29,14 @@ import { ciDocumentHeading } from "./ciStateMachine";
 const BUCKET = "invoice-docs";
 
 export function siteUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
-  );
+  // The public address links in texts and emails start with. NEXT_PUBLIC_SITE_URL
+  // first; then Vercel's production domain (never the per-deployment VERCEL_URL,
+  // which sits behind deployment protection and 404s for a painter — Tom, 22 Sep).
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
+  if (configured) return configured;
+  const prod = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (prod) return `https://${prod}`;
+  return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
 }
 
 async function launchBrowser() {

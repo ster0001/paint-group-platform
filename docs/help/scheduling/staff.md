@@ -63,6 +63,7 @@ The scheduling board is where an accepted job gets a painter and dates. Every is
 18. To move one painter's days, drag their block along their row: **Move these days?** → **Move days**. Their Accept is cleared and they are told to accept again. To take a painter off the job, open their block, type a reason and tap **Take … off this job** — future days only; anything they have already ticked stays on the job. The lead cannot be taken off while others remain: name another lead first.
 19. If the painter is already on another job, or is on leave, an RDO or sick those days, the sheet refuses and names the other job or the kind of day. Type an **Override reason** and assign again if you mean it — the reason goes on the job's event log.
 
+- **View estimate from the tray.** Every card in the Unscheduled tray carries a **View estimate ›** link to the builder; pressing it never starts a drag.
 - **Days are working days.** A job's span on the board is counted in working days: weekends are skipped, so a 7-day job dropped on a Monday ends the following Tuesday, and the booking sheet says so under the dates. A painter who has ticked "works Saturdays" or "works Sundays" on their profile keeps those days. The suggested final-walkthrough date is the last working day on site.
 
 ## What the colours and labels mean

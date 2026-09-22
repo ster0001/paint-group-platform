@@ -254,11 +254,24 @@ export default function ScheduleBoard({
     ghostRef.current.style.transform = `translate3d(${x + 14}px, ${y + 14}px, 0)`;
   }, []);
 
-  /** Pure arithmetic against cached rects — no layout reads, safe per-move. */
+  /**
+   * The day under the pointer. Tom, 22 Sep: "the calendar days don't line up
+   * when dragging and dropping" — the lane rects are cached when the drag
+   * starts, so any scroll of the page or the timeline during the drag (and a
+   * zoom that lands between cell widths) put the arithmetic one or more days
+   * off. Ask the browser which day cell is under the pointer instead; the
+   * cached rects remain the fallback when nothing is hit (the ghost, a gap).
+   */
   const updateTarget = useCallback(
     (x: number, y: number, spanDays: number) => {
-      const hit = laneRects.current.find((l) => y >= l.rect.top && y <= l.rect.bottom);
-      const idx = hit ? Math.floor((x - hit.rect.left) / dayW) : -1;
+      let hit = laneRects.current.find((l) => y >= l.rect.top && y <= l.rect.bottom);
+      let idx = hit ? Math.floor((x - hit.rect.left) / dayW) : -1;
+      if (typeof document !== "undefined" && typeof document.elementsFromPoint === "function") {
+        const under = document.elementsFromPoint(x, y).find((el) => el.classList.contains("bgc") && el.parentElement?.classList.contains("lane")) as HTMLElement | undefined;
+        const laneEl = under?.parentElement ?? null;
+        const lane = laneEl ? laneRects.current.find((l) => l.el === laneEl) : undefined;
+        if (under && lane) { hit = lane; idx = Array.prototype.indexOf.call(laneEl!.children, under); }
+      }
       if (!hit || idx < 0 || idx >= range) {
         clearHot();
         target.current = null;
@@ -992,6 +1005,16 @@ export default function ScheduleBoard({
                     {j.finishCode && <span className="fin">{j.finishCode}</span>}
                   </div>
                   <h3>{j.title}</h3>
+                  {/* Tom, 22 Sep: a link to the estimate from the tray. Pointer-down stops here so the link never starts a drag. */}
+                  <a
+                    href={`/quote?id=${j.estimateId}`}
+                    className="jlink"
+                    data-testid="tray-view-estimate"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    View estimate ›
+                  </a>
                   <div className="meta">
                     {j.suburb ? `${j.suburb.toUpperCase()} · ` : ""}
                     {j.estimatedDays} DAY{j.estimatedDays === 1 ? "" : "S"}
