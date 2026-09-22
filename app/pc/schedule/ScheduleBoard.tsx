@@ -323,7 +323,8 @@ export default function ScheduleBoard({
 
       const t = target.current;
       if (d.moved && t) {
-        const startDate = days[t.dayIndex];
+        // Tom, 22 Sep: a drop on a day this painter does not work starts on their next working day.
+        const startDate = addWorkingDays(days[t.dayIndex], 1, weekFor(t.contractorId));
         setPendingDrop({
           kind: d.kind,
           job: d.job,
@@ -345,7 +346,7 @@ export default function ScheduleBoard({
       dragAbort.current?.abort();
       dragAbort.current = null;
     },
-    [days, spanBlocked],
+    [days, spanBlocked, weekFor],
   );
 
   const paintMarquee = useCallback((laneEl: HTMLElement, a: number, b: number) => {
