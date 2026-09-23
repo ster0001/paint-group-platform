@@ -49,13 +49,15 @@ export async function signVariationAction(raw: unknown): Promise<RespondResult> 
     if (service) {
       const token = parsed.data.token;
       after(async () => {
-        const { data: v } = await service
-          .from("wo_variations").select("id").eq("customer_token", token).maybeSingle();
-        const id = (v as { id?: string } | null)?.id;
-        if (id) {
-          await notifyVariationReleased(service, id);
+        // One token is one OFFER (20270192): every row behind it was just
+        // signed, so each gets its own painter ping (idempotent per row).
+        const { data: rows } = await service
+          .from("wo_variations").select("id").eq("customer_token", token)
+          .order("created_at", { ascending: true });
+        for (const v of ((rows ?? []) as { id: string }[])) {
+          await notifyVariationReleased(service, v.id);
           // S7: employed painters on the job hear it in their own words (hours, no price).
-          await notifyEmployeeVariationApproved(service, id);
+          await notifyEmployeeVariationApproved(service, v.id);
         }
       });
     }

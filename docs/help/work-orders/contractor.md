@@ -45,6 +45,10 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
 9. When the customer has approved and signed, the variation shows **YOUR APPROVAL** with the extra pay and hours, for example "Accept $180.00 — 3 hrs". Tap to accept: the chip turns green **ACCEPTED**, the card says how much is added to your payment for this job, and the work is now part of the job. A variation that removes scope shows the affected rows struck through with **Removed from scope**; if it affects your pay, you acknowledge it here.
    ![](media/contractor-08.png)
 
+### Changes to the scope on the job sheet
+10. The office can change a job's scope with the customer after the job sheet was issued. Every change the customer has signed appears on your job sheet under **Changes to the scope**: **Added** with the work and roughly how many hours, or **Removed** (its rows are also struck through above). Each says **In the job** once it is yours, or **Awaiting your accept** while it still needs your tap in **Variations**. There is never a customer price on it.
+11. If the changes were signed before the job was offered to you, they are already in the job: the sheet lists them as **In the job**, and **Your price** on the offer and the job already includes them — the **Payment** line reads "Fixed price incl. approved changes". Nothing to accept.
+
 ### Finishing up
 The second walkthrough film covers this part of the job, from the completion list to the customer's signature:
 

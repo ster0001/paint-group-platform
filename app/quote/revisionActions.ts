@@ -229,16 +229,17 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
     });
   }
 
-  // The RPC returns the signing token; the photo uploader needs the row id.
-  const tokens = drafted.map((d) => d.token).filter((t): t is string => !!t);
-  if (tokens.length > 0) {
+  // The RPC returns the OFFER's token — every pending draft on the job shares
+  // it since 20270192 — so the photo uploader resolves each row's id by block.
+  if (drafted.some((d) => d.token)) {
     const { data: idRows } = await supabase
-      .from("wo_variations").select("id, customer_token")
-      .in("customer_token", tokens);
-    const byToken = new Map(((idRows ?? []) as { id: string; customer_token: string }[])
-      .map((r) => [r.customer_token, r.id]));
+      .from("wo_variations").select("id, revision_block_ref")
+      .eq("work_order_id", scope.work_order_id).eq("status", "priced")
+      .not("revision_block_ref", "is", null);
+    const byRef = new Map(((idRows ?? []) as { id: string; revision_block_ref: string }[])
+      .map((r) => [r.revision_block_ref, r.id]));
     for (const d of drafted) {
-      if (d.token) d.variationId = byToken.get(d.token) ?? null;
+      if (d.token) d.variationId = byRef.get(d.blockRef) ?? null;
     }
   }
 
@@ -266,7 +267,12 @@ export type SendVariationResult = {
  * Tom's follow-up (24 Aug): the signing link goes out through the SAME
  * messaging rails as estimates — email and text, ⚑16 log-driver when
  * unconfigured. Recipient comes from the estimate's own contact; nothing is
- * typed. Re-sending is fine — the link is stable per variation.
+ * typed. Re-sending is fine — the link is stable per offer.
+ *
+ * Since 20270192 the link is the OFFER: every pending change on the job sits
+ * behind one token and the customer signs (or declines) them together, so the
+ * message names the count and the NET figure, and the photo rule holds for
+ * every addition in the list before anything goes out.
  */
 export async function sendVariationForSignatureAction(raw: unknown): Promise<SendVariationResult> {
   const parsed = z.object({
@@ -278,51 +284,82 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
   if (!parsed.success) return { ok: false, message: "Invalid input." };
 
   const supabase = await createClient();
-  const query = supabase
-    .from("wo_variations")
-    .select("id, customer_token, status, price_cents, credit, comment, work_orders(estimate_id, wo_ref)");
-  const { data: v } = await (parsed.data.variationId
-    ? query.eq("id", parsed.data.variationId)
-    : query.eq("customer_token", parsed.data.token!)
-  ).maybeSingle();
-  const variation = v as {
+  type VRow = {
     id: string; customer_token: string | null; status: string;
     price_cents: number | null; credit: boolean; comment: string;
     work_orders: { estimate_id: string; wo_ref: string } | null;
-  } | null;
-  if (!variation?.customer_token) return { ok: false, message: "Price it first — there's no signing link yet." };
-  if (variation.status !== "priced") return { ok: false, message: "This one has already been answered." };
+  };
+  const COLS = "id, customer_token, status, price_cents, credit, comment, work_orders(estimate_id, wo_ref)";
+
+  // Looked up by row id? Widen to the whole offer behind that row's token.
+  let token = parsed.data.token ?? null;
+  if (!token && parsed.data.variationId) {
+    const { data: one } = await supabase.from("wo_variations")
+      .select("customer_token").eq("id", parsed.data.variationId).maybeSingle();
+    token = (one as { customer_token: string | null } | null)?.customer_token ?? null;
+  }
+  if (!token) return { ok: false, message: "Price it first — there's no signing link yet." };
+
+  const { data: rowsRaw, error: rowsError } = await supabase
+    .from("wo_variations").select(COLS).eq("customer_token", token)
+    .order("created_at", { ascending: true });
+  if (rowsError) return { ok: false, message: rowsError.message };
+  const offer = ((rowsRaw ?? []) as unknown as VRow[]);
+  if (offer.length === 0) return { ok: false, message: "Price it first — there's no signing link yet." };
+  const pending = offer.filter((v) => v.status === "priced");
+  if (pending.length === 0) return { ok: false, message: "This one has already been answered." };
 
   // Tom's ruling (1 Sep): a variation goes to the customer WITH a photo of
   // what was found — they sign what they can see. Credits (scope removals)
-  // are exempt; there is nothing on site to photograph.
-  if (!variation.credit) {
-    const { count } = await supabase
-      .from("wo_photos")
-      .select("id", { count: "exact", head: true })
-      .eq("variation_id", variation.id);
-    if (!count) {
+  // are exempt; there is nothing on site to photograph. Every addition in
+  // the offer needs one before the offer goes.
+  const additions = pending.filter((v) => !v.credit);
+  if (additions.length > 0) {
+    const { data: photoRows, error: photoError } = await supabase
+      .from("wo_photos").select("variation_id")
+      .in("variation_id", additions.map((a) => a.id));
+    if (photoError) return { ok: false, message: photoError.message };
+    const withPhoto = new Set(((photoRows ?? []) as { variation_id: string | null }[]).map((p) => p.variation_id));
+    const missing = additions.filter((a) => !withPhoto.has(a.id));
+    if (missing.length > 0) {
       return {
         ok: false,
-        message: "Attach a photo of the change first — the customer signs what they can see.",
+        message: missing.length === 1 && pending.length === 1
+          ? "Attach a photo of the change first — the customer signs what they can see."
+          : `Attach a photo to each addition first (${missing.length} still without one) — the customer signs what they can see.`,
       };
     }
   }
 
-  const [{ data: est }, { data: settingsRows }] = await Promise.all([
+  const variation = pending[0];
+  const netCents = pending.reduce((s, v) => s + (v.credit ? -(v.price_cents ?? 0) : (v.price_cents ?? 0)), 0);
+
+  const [{ data: est, error: estError }, { data: settingsRows }] = await Promise.all([
     supabase.from("estimates").select("builder_state, title").eq("id", variation.work_orders?.estimate_id ?? "").maybeSingle(),
     supabase.from("settings").select("key, value").eq("key", "company_profile").maybeSingle()
       .then((r) => ({ data: r.data ? [r.data] : [] })),
   ]);
+  if (estError) return { ok: false, message: estError.message };
   const contact = ((est?.builder_state as { contact?: { first_name?: string; email?: string; phone?: string } } | null)?.contact) ?? null;
   const company = ((settingsRows?.[0] as { value?: { name?: string; email?: string } } | undefined)?.value) ?? {};
 
-  const link = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app"}/v/${variation.customer_token}`;
-  const money = "$" + (Math.abs(variation.price_cents ?? 0) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
+  const link = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app"}/v/${token}`;
+  const money = "$" + (Math.abs(netCents) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
   const first = contact?.first_name || "there";
-  const what = variation.credit
-    ? `a change that takes ${money} off your job total`
-    : `a change adding ${money} to your job total`;
+  const n = pending.length;
+  const what = n === 1
+    ? (variation.credit
+        ? `a change that takes ${money} off your job total`
+        : `a change adding ${money} to your job total`)
+    : netCents < 0
+      ? `${n} changes that together take ${money} off your job total`
+      : netCents === 0
+        ? `${n} changes that leave your job total where it is`
+        : `${n} changes adding ${money} to your job total`;
+  const described = pending.map((v) => v.comment || "a scope change");
+  const heading = n === 1
+    ? "A change to your job needs your signature"
+    : `${n} changes to your job need your signature`;
 
   const via = parsed.data.via;
   const wantEmail = via !== "sms";
@@ -344,17 +381,18 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
       const sent = await sendEmail({
         ctx: { estimateId: variation.work_orders?.estimate_id ?? null, kind: "variation" },
         to: contact.email,
-        subject: `A change to your job needs your signature — ${company.name ?? "Paint Group"}`,
+        subject: `${heading} — ${company.name ?? "Paint Group"}`,
         replyTo: company.email || undefined,
         html: buildInvoiceEmailHtml({
           companyName: company.name ?? "Paint Group",
-          heading: "A change to your job needs your signature",
+          heading,
           intro:
             `Hello ${first},\n\n` +
-            `There's ${what}: ${variation.comment || "a scope change"}. ` +
-            `Please review and sign it at the link below — nothing changes on your invoice until you do.`,
+            `There's ${what}: ${n === 1 ? described[0] : described.join("; ")}. ` +
+            `Please review and sign ${n === 1 ? "it" : "them"} at the link below — ` +
+            `${n === 1 ? "nothing changes on your invoice until you do." : "they are approved together, and nothing changes on your invoice until you do."}`,
           link,
-          buttonLabel: "Review & sign the change",
+          buttonLabel: n === 1 ? "Review & sign the change" : "Review & sign the changes",
           bank: {},
           reference: null,
         }),
@@ -374,7 +412,7 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
       const sent = await sendSms({
         ctx: { estimateId: variation.work_orders?.estimate_id ?? null, kind: "variation" },
         to,
-        body: `${company.name ?? "Paint Group"}: ${what} on your job needs your signature. Review & sign: ${link}`,
+        body: `${company.name ?? "Paint Group"}: ${what} on your job need${n === 1 ? "s" : ""} your signature. Review & sign: ${link}`,
       });
       result.sms = { status: sent.status, ...("message" in sent ? { message: sent.message } : {}) };
     }

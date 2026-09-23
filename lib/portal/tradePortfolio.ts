@@ -13,6 +13,7 @@
  * haystack of address / reference values / job numbers.
  */
 import { moneyFmt, type MoneyInvoice, type MoneyPayment } from "./money";
+import { pendingOffers } from "@/lib/workorder/scopeChanges";
 import { invoiceIsOverdue, invoiceBalanceCents, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
 import { dayOfJob } from "./home";
 import type { PortfolioVariation, AttentionItem } from "./portfolio";
@@ -147,14 +148,17 @@ export function buildTradePortfolio(input: {
       cta: { label: sentTo ? "See status" : "Review estimate", href: `/account/approvals/${e.id}` },
     });
   }
-  for (const v of input.variations) {
-    if (v.status !== "priced" || !v.customer_token || v.customer_responded_at) continue;
+  // One card per OFFER (every pending change behind one link, 20270192).
+  for (const offer of pendingOffers(input.variations)) {
+    const v = offer.rows[0];
     attention.push({
       key: `variation:${v.id}`,
       address: addrForEstimate(v.estimate_id),
-      meta: "Variation raised — priced, with photos attached",
-      amountCents: v.price_cents,
-      cta: { label: "Review variation", href: `/v/${v.customer_token}` },
+      meta: offer.count === 1
+        ? "Variation raised — priced, with photos attached"
+        : `${offer.count} changes to approve together — priced, with photos attached`,
+      amountCents: offer.netCents,
+      cta: { label: offer.count === 1 ? "Review variation" : "Review changes", href: `/v/${offer.token}` },
     });
   }
   for (const w of input.workOrders) {

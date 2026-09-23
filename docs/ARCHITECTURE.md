@@ -4,6 +4,36 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 23 Sep 2026 — one offer per job for revision changes; approved changes reach the painter
+
+**2026-09-23 · `supabase/migrations/20270192000000_variation_offer_bundle.sql`, `lib/workorder/scopeChanges.ts`,
+`app/quote/RevisionPanel.tsx` + `revisionActions.ts`, `app/v/[token]/*`, `app/w/WorkOrderDoc.tsx` + `[token]/page.tsx`,
+`app/portal/jobs/[id]/page.tsx`, `app/pc/wo/[id]/as-contractor/page.tsx`, `lib/contractor/jobs.ts`,
+`lib/portal/{portfolio,tradePortfolio,timeline,data}.ts`**
+
+**The customer signs a LIST, once.** The row stays the unit of record (one `wo_variations` row per scope block —
+strike, contractor pay, invoice line, /e changes all hang off it), but `customer_token` is no longer unique: every
+pending revision draft on a work order shares one token, so the signing link IS the offer. `wo_draft_revision_variation`
+joins a new draft to the open offer's token; `wo_variation_by_token` returns every row (no `limit 1`);
+`wo_customer_sign_variation` / `wo_customer_respond_variation` loop over every pending row behind the token in one
+transaction. `/v/[token]` lists the changes with their photos and lines, the net figure and job total before → after,
+and one Approve-all / No-thanks. The revision panel shows one offer row (count, net, one link, one Email/Text/Both)
+with the changes under it; photos stay per addition and gate the send. The portal's attention list and timeline group
+pending rows by token (`pendingOffers`) so five rows are one card. Contractor-raised variations priced through
+`wo_price_variation` keep a token of their own (a list of one).
+
+**Approved changes reach the painter.** `wo_has_painter` (named contractor, live/accepted offer, or employee
+assignment). With nobody on the job, a signed change folds in on signature — `contractor_accepted`, event
+`variation_folded_into_offer` — and `send_offer` prices `payment_cents` as base pay + `wo_contractor_variations_cents`
+(the SQL twin of `contractorPay.ts`, pinned by `variationOffer.contract.test.ts`), so the first painter sees one
+figure; the jobs list and the portal sheet's Payment line carry the same adjusted figure. With a painter on the job,
+release/accept is unchanged. Either way the job sheet lists **Changes to the scope** (`scopeChanges` prop: scope and
+hours, never price) from the contractor's own rows on the portal and from `get_work_order_scope_changes_by_token` on
+the token link. The sheet's areas/surfaces are NOT rewritten by a variation — the list is the record, alongside the
+strike. `e2e/revision-builder.spec.ts` drives it as the anonymous customer and the anonymous painter link.
+
+---
+
 ## 4 Sep 2026 — number boxes, capture save-on-exit, office acceptance email
 
 **2026-09-04 · `app/components/NumInput.tsx`, `app/quote/QuoteBuilder.tsx`, `app/quote/capture/CaptureApp.tsx`,

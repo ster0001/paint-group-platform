@@ -6,6 +6,7 @@ import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
 import { STAGE_LANES, stageTitle, type WoStage } from "@/lib/workorder/stages";
 import { SURFACE_STATE_LABEL, type SurfaceState } from "@/lib/workorder/surfaces";
 import type { CrewVariation } from "@/lib/workorder/crew";
+import type { ScopeChange } from "@/lib/workorder/scopeChanges";
 import { WO_PHOTO_KIND_LABEL, groupByKind, officePhotos, type WOPhoto } from "@/lib/workorder/photos";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import AreaPhotoStrip from "@/app/components/wo/AreaPhotoStrip";
@@ -38,7 +39,7 @@ export type WOEdit = {
  * from the frozen snapshot, which is why it is a prop rather than part of Doc.
  * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
  */
-export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [] }: {
+export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [], scopeChanges = [], payInclChanges = null }: {
   doc: Doc; edit?: WOEdit; stage?: WoStage | null;
   /**
    * "crew" is the painter's copy: no payment section, no customer phone. The
@@ -50,6 +51,21 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
   acceptanceMode?: "offered" | "assigned";
   /** Variations for the crew view: the work, never the money. */
   crewVariations?: readonly CrewVariation[];
+  /**
+   * Changes the customer has approved since the sheet was issued (Tom, 23
+   * Sep): scope and hours, never the customer's price. The sheet is frozen at
+   * issue, so without this a painter reads a scope the customer has already
+   * changed. Contractor and employee views; the crew has crewVariations.
+   */
+  scopeChanges?: readonly ScopeChange[];
+  /**
+   * The contractor's pay INCLUDING every accepted variation, when the caller
+   * can compute it (the portal can; the token link cannot). Null falls back
+   * to the frozen figure on the doc. (Named so an employee's page — which
+   * passes null — never serialises a "paymentCents" key: their leak spec
+   * scans the HTML for that string.)
+   */
+  payInclChanges?: number | null;
   /** The live booking, derived from the offer — requested is not confirmed. */
   booking?: Booking | null;
   /**
@@ -322,6 +338,33 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
           </section>
         )}
 
+        {/* CHANGES TO THE SCOPE — approved after issue. The painter is never
+            working to a stale sheet: an addition is listed as work, a signed
+            removal as removed (its rows are also struck above). Hours only —
+            the money for each sits on the contractor's variation card. */}
+        {variant !== "crew" && scopeChanges.length > 0 && (
+          <section data-testid="scope-changes">
+            <h2>Changes to the scope</h2>
+            <p style={{ margin: "0 0 8px", fontSize: 12.5, color: "var(--muted)" }}>
+              Approved by the customer after this sheet was issued. These are part of the job.
+            </p>
+            <ul className="excl">
+              {scopeChanges.map((v) => (
+                <li key={v.id} data-testid={`scope-change-${v.id}`}>
+                  <b>{v.credit ? "Removed" : "Added"}</b>
+                  {v.comment ? ` — ${v.comment}` : ""}
+                  {!v.credit && v.estHours != null && v.estHours > 0 ? ` · ~${v.estHours} h` : ""}
+                  {variant === "contractor" && (
+                    <span style={{ marginLeft: 6, fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)" }}>
+                      {v.status === "contractor_accepted" ? "In the job" : v.credit ? "Awaiting your acknowledgement" : "Awaiting your accept"}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {/* VARIATIONS, crew copy — what changed on site, so the painter is not
             working to a stale scope. Scope only; the money lives on the
             contractor's own view of the variation, never here. */}
@@ -351,8 +394,15 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
           <section>
             <h2>Payment</h2>
             <div className="pay">
-              <div className="l">Contractor payment for this job<small>Fixed price · paid on completion of the scope above</small></div>
-              <div className="v">{money(doc.contractorPaymentCents || 0)}</div>
+              <div className="l">
+                Contractor payment for this job
+                <small>
+                  {payInclChanges != null && payInclChanges !== (doc.contractorPaymentCents || 0)
+                    ? "Fixed price incl. approved changes · paid on completion of the scope above"
+                    : "Fixed price · paid on completion of the scope above"}
+                </small>
+              </div>
+              <div className="v" data-testid="wo-payment">{money(payInclChanges ?? (doc.contractorPaymentCents || 0))}</div>
             </div>
           </section>
         )}

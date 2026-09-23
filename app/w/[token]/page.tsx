@@ -5,6 +5,7 @@ import type { WorkOrderDoc as WODoc } from "@/lib/workorder/snapshot";
 import { ticksBySurfaceKey, type SurfaceState } from "@/lib/workorder/surfaces";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 import { createServiceClient } from "@/lib/supabase/service";
+import { scopeChangesFrom, type ScopeChangeRow } from "@/lib/workorder/scopeChanges";
 import WorkOrderDoc from "../WorkOrderDoc";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,14 @@ export default async function Page({ params }: { params: Promise<{ token: string
     );
   }
 
+  // Changes the customer approved after issue (20270192): the RPC's return
+  // type carries scope and hours only — no price column exists to leak. A
+  // failure degrades to "no changes listed" and is reported, never silent.
+  const { data: changeRows, error: changeErr } = await supabase
+    .rpc("get_work_order_scope_changes_by_token", { p_token: token });
+  reportIfError({ error: changeErr }, { where: "workorder.scopeChanges", bestEffort: true });
+  const scopeChanges = changeErr ? [] : scopeChangesFrom((changeRows as ScopeChangeRow[] | null) ?? []);
+
   const doc: WODoc = { ...row.snapshot, status: row.status ?? row.snapshot.status, startDate: row.start_date ?? row.snapshot.startDate };
-  return <WorkOrderDoc doc={doc} ticks={ticks} removedKeys={removedKeys} photos={officePhotos} />;
+  return <WorkOrderDoc doc={doc} ticks={ticks} removedKeys={removedKeys} photos={officePhotos} scopeChanges={scopeChanges} />;
 }

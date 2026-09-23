@@ -135,7 +135,7 @@ export default function RevisionPanel({
       setDrafted(result.drafted);
       const live = result.drafted.filter((d) => d.state === "drafted").length;
       setMessage(live
-        ? `${live} variation${live === 1 ? "" : "s"} drafted — send the signing link${live === 1 ? "" : "s"} below.`
+        ? `${live} change${live === 1 ? "" : "s"} drafted as one offer — send the signing link below.`
         : "Nothing to draft — the working scope matches what's already signed.");
     } finally {
       setBusy(false);
@@ -232,11 +232,14 @@ export default function RevisionPanel({
         {message && <span className="text-xs text-gray-400" data-testid="revision-message">{message}</span>}
       </div>
 
-      {/* One row per live signing link — freshly drafted this visit, or a
-          draft still awaiting the customer from earlier. Copy it, or fire it
-          straight to their email + mobile through the messaging rails. */}
+      {/* ONE offer for the customer (Tom, 23 Sep): every pending change sits
+          behind one signing link — the list and the net figure, signed or
+          declined together. Freshly drafted this visit, or the drafts still
+          awaiting the customer from earlier. Copy the link, or fire it to
+          their email + mobile through the messaging rails. Photos stay per
+          addition — the customer signs what they can see. */}
       {(() => {
-        const rows: { key: string; title: string; credit: boolean; priceIncCents: number; token: string; variationId: string | null }[] = [
+        const items: { key: string; title: string; credit: boolean; priceIncCents: number; token: string; variationId: string | null }[] = [
           ...(drafted ?? [])
             .filter((d) => d.state === "drafted" && d.token)
             .map((d) => ({ key: d.blockRef, title: d.title, credit: d.credit, priceIncCents: d.priceIncCents, token: d.token!, variationId: d.variationId })),
@@ -249,9 +252,16 @@ export default function RevisionPanel({
                 }))
             : []),
         ];
-        if (rows.length === 0) return null;
+        if (items.length === 0) return null;
+        // Every pending draft on the job shares the offer's token (20270192);
+        // the first is the link. Rows drafted before that migration each
+        // carry their own — sending the first sends the offer they are in.
+        const token = items[0].token;
+        const netCents = items.reduce((s, i) => s + (i.credit ? -i.priceIncCents : i.priceIncCents), 0);
+        const missingPhotos = items.filter((i) => !i.credit && i.variationId && (counts[i.variationId] ?? 0) === 0).length;
+        const blocked = missingPhotos > 0 && !!workOrderId;
         return (
-          <>
+          <div className="mt-3 rounded-lg border border-amber-300/30 p-3" data-testid="drafted-list">
           <input
             ref={fileInput} type="file" hidden
             accept="image/jpeg,image/png,image/webp,image/heic"
@@ -262,8 +272,42 @@ export default function RevisionPanel({
               if (f && target) void uploadPhoto(target, f);
             }}
           />
-          <ul className="mt-3 space-y-1.5" data-testid="drafted-list">
-            {rows.map((d) => {
+          <div className="flex flex-wrap items-center gap-2 text-xs" data-testid="offer-row">
+            <span className="font-semibold">
+              {items.length === 1 ? "1 change" : `${items.length} changes`} · one offer for the customer
+            </span>
+            <span className={`font-mono ${netCents < 0 ? "text-rose-400" : "text-emerald-400"}`} data-testid="offer-total">
+              {netCents < 0 ? "− " : "+ "}{money(netCents)}
+            </span>
+            <span className="text-gray-500">incl. GST · signed or declined together</span>
+            <button
+              type="button"
+              className="rounded border border-white/15 px-2 py-0.5 text-[11px] text-gray-300 hover:bg-white/5"
+              onClick={() => copyLink(token)}
+              data-testid="copy-link-offer"
+            >
+              {copied === token ? "Copied ✓" : "Copy signing link"}
+            </button>
+            {/* The sender chooses the channel (Tom, 24 Aug close-off). */}
+            <span className="inline-flex overflow-hidden rounded border border-cyan-500/60 text-[11px] font-semibold">
+              {([["email", "Email"], ["sms", "Text"], ["both", "Both"]] as const).map(([via, label]) => (
+                <button
+                  key={via}
+                  type="button"
+                  className="bg-cyan-500/90 px-2 py-0.5 text-black hover:bg-cyan-400 disabled:opacity-50 border-r border-cyan-700/40 last:border-r-0"
+                  onClick={() => sendLink(token, via)}
+                  disabled={sending !== null || blocked}
+                  title={blocked ? "Attach a photo to each addition first — the customer signs what they can see." : undefined}
+                  data-testid={`send-${via}-offer`}
+                >
+                  {sending === token + via ? "…" : label}
+                </button>
+              ))}
+            </span>
+            {sentIds.includes(token) && <span className="text-[11px] text-emerald-400">Sent ✓</span>}
+          </div>
+          <ul className="mt-2 space-y-1.5" data-testid="offer-items">
+            {items.map((d) => {
               const photoCount = d.variationId ? (counts[d.variationId] ?? 0) : 0;
               const needsPhoto = !d.credit && photoCount === 0;
               return (
@@ -285,36 +329,11 @@ export default function RevisionPanel({
                       : `📷 ${photoCount} photo${photoCount === 1 ? "" : "s"} — add another`}
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="rounded border border-white/15 px-2 py-0.5 text-[11px] text-gray-300 hover:bg-white/5"
-                  onClick={() => copyLink(d.token)}
-                  data-testid={`copy-link-${d.key.replace(/[^a-z0-9]/gi, "-")}`}
-                >
-                  {copied === d.token ? "Copied ✓" : "Copy signing link"}
-                </button>
-                {/* The sender chooses the channel (Tom, 24 Aug close-off). */}
-                <span className="inline-flex overflow-hidden rounded border border-cyan-500/60 text-[11px] font-semibold">
-                  {([["email", "Email"], ["sms", "Text"], ["both", "Both"]] as const).map(([via, label]) => (
-                    <button
-                      key={via}
-                      type="button"
-                      className="bg-cyan-500/90 px-2 py-0.5 text-black hover:bg-cyan-400 disabled:opacity-50 border-r border-cyan-700/40 last:border-r-0"
-                      onClick={() => sendLink(d.token, via)}
-                      disabled={sending !== null || needsPhoto}
-                      title={needsPhoto ? "Attach a photo of the change first — the customer signs what they can see." : undefined}
-                      data-testid={`send-${via}-${d.key.replace(/[^a-z0-9]/gi, "-")}`}
-                    >
-                      {sending === d.token + via ? "…" : label}
-                    </button>
-                  ))}
-                </span>
-                {sentIds.includes(d.token) && <span className="text-[11px] text-emerald-400">Sent ✓</span>}
               </li>
               );
             })}
           </ul>
-          </>
+          </div>
         );
       })()}
     </section>

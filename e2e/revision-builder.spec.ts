@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import { rpcAs, rpcAsJson, serviceClient } from "./fixtures/woLoop";
-import { credentials, missingCreds, signIn, TINY_SIGNATURE_PNG } from "./helpers";
+import { credentials, drawSignature, missingCreds, signIn } from "./helpers";
 import { priceEstimateTotals, type PricingContext, type BlockInput } from "../lib/pricing/estimate";
 import { diffRevision, type RevisionState } from "../lib/revision/diff";
 import type { RateItem, Product } from "../lib/pricing/types";
@@ -11,9 +11,12 @@ import type { RateItem, Product } from "../lib/pricing/types";
  *
  *   accepted estimate → open ?mode=revision (clone-on-first-open, no changes)
  *   → remove the pergola + add the garage → two ENGINE-priced variations
- *   drafted (credit included) → the customer signs the credit → the pergola's
- *   tick-row is struck and the ledger moves — and through all of it the
- *   accepted estimate row stays byte-identical.
+ *   drafted (credit included) as ONE offer behind one link (20270192) → the
+ *   anonymous customer sees the list and the net figure and signs ONCE → both
+ *   rows are approved, the pergola's tick-row is struck, the ledger moves —
+ *   and because nobody is on the job yet, both changes fold straight in
+ *   (contractor_accepted) and the painter's sheet lists them. Through all of
+ *   it the accepted estimate row stays byte-identical.
  *
  * Every price asserted here is computed by the same lib the server used —
  * the spec never types a dollar figure of its own.
@@ -41,6 +44,8 @@ const workingState = { blocks: [lounge, garage], modSel: MODSEL };
 
 let estimateId = "";
 let workOrderId = "";
+let woShareToken = "";
+let offerToken = "";
 let ctx: PricingContext | null = null;
 let frozenRow: Record<string, unknown> | null = null;
 let estimateShareToken = "";
@@ -121,8 +126,9 @@ test.describe("the revision builder — diff → signed variations", () => {
     });
     if (accepted.data !== "accepted") throw new Error(`accept: ${accepted.data}`);
 
-    const { data: wo } = await sb.from("work_orders").select("id").eq("estimate_id", estimateId).single();
+    const { data: wo } = await sb.from("work_orders").select("id, share_token").eq("estimate_id", estimateId).single();
     workOrderId = (wo as { id: string }).id;
+    woShareToken = (wo as { share_token: string }).share_token;
 
     // The painter's tick list, keyed the way the strike matches.
     const seeded = await rpcAs(staff!, "wo_seed_surfaces", {
@@ -210,23 +216,36 @@ test.describe("the revision builder — diff → signed variations", () => {
 
     await page.getByTestId("draft-variations").click();
     await expect(page.getByTestId("drafted-list")).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId("drafted-list").locator("li")).toHaveCount(2);
+    // Two changes, ONE offer: one row with the net figure and one link, the
+    // two changes listed under it.
+    await expect(page.getByTestId("offer-row")).toHaveCount(1);
+    await expect(page.getByTestId("offer-items").locator("li")).toHaveCount(2);
+    await expect(page.getByTestId("offer-row")).toContainText("2 changes");
+    await expect(page.getByTestId("copy-link-offer")).toHaveCount(1);
+    await expect(page.getByTestId("send-email-offer")).toHaveCount(1);
 
     // The engine is the only authority on the figures.
     const expected = diffRevision(acceptedState as RevisionState, workingState as RevisionState, ctx!);
     expect(expected.changes).toHaveLength(2);
     const expectedRemoval = expected.changes.find((c) => c.kind === "removed")!;
     const expectedAddition = expected.changes.find((c) => c.kind === "added")!;
+    const net = expectedAddition.priceIncCents - expectedRemoval.priceIncCents;
+    await expect(page.getByTestId("offer-total")).toContainText(
+      "$" + (Math.abs(net) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
     const { data: rows } = await db!.from("wo_variations")
-      .select("revision_block_ref, category, status, credit, price_cents, est_hours, contractor_rate_cents, contractor_delta_cents, surface_keys")
+      .select("revision_block_ref, category, status, credit, price_cents, est_hours, contractor_rate_cents, contractor_delta_cents, surface_keys, customer_token")
       .eq("work_order_id", workOrderId).not("revision_block_ref", "is", null);
     const vars = rows as {
       revision_block_ref: string; category: string; status: string; credit: boolean;
       price_cents: number; est_hours: string; contractor_rate_cents: number;
-      contractor_delta_cents: number; surface_keys: string[] | null;
+      contractor_delta_cents: number; surface_keys: string[] | null; customer_token: string;
     }[];
     expect(vars).toHaveLength(2);
+    // One token between them — the offer.
+    expect(vars[0].customer_token).toBe(vars[1].customer_token);
+    expect(vars[0].customer_token.length).toBeGreaterThanOrEqual(24);
+    offerToken = vars[0].customer_token;
 
     const removal = vars.find((v) => v.credit)!;
     expect(removal.revision_block_ref).toBe("block:2");
@@ -246,17 +265,44 @@ test.describe("the revision builder — diff → signed variations", () => {
       .toBe(Math.round(Number(addition.est_hours) * addition.contractor_rate_cents));
   });
 
-  test("the customer signs the credit → strike + ledger move", async () => {
-    const { data: row } = await db!.from("wo_variations")
-      .select("id, customer_token, price_cents").eq("work_order_id", workOrderId)
-      .eq("credit", true).single();
-    const credit = row as { id: string; customer_token: string; price_cents: number };
+  test("the anonymous customer sees the list and the net figure, and signs ONCE", async ({ page }) => {
+    const expected = diffRevision(acceptedState as RevisionState, workingState as RevisionState, ctx!);
+    const removal = expected.changes.find((c) => c.kind === "removed")!;
+    const addition = expected.changes.find((c) => c.kind === "added")!;
+    const net = addition.priceIncCents - removal.priceIncCents;
+    const fmt = (c: number) => "$" + (Math.abs(c) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    const signedResult = await rpcAs(customer!, "wo_customer_sign_variation", {
-      p_token: credit.customer_token, p_name: "Revision Customer",
-      p_signature: TINY_SIGNATURE_PNG,
-    });
-    expect(signedResult).toBe("ok:approved");
+    // No session: the link is the authorisation, exactly as for an estimate.
+    await page.goto(`/v/${offerToken}`);
+    await expect(page.getByTestId("offer-item")).toHaveCount(2);
+    await expect(page.getByTestId("offer-summary")).toBeVisible();
+    await expect(page.getByTestId("offer-summary").getByTestId("variation-price")).toHaveText((net < 0 ? "−" : "") + fmt(net));
+    // One decision for the list — never two approve buttons.
+    await expect(page.getByTestId("approve-variation")).toHaveCount(1);
+    await expect(page.getByTestId("approve-variation")).toContainText("Approve all 2");
+
+    await page.getByTestId("approve-variation").click();
+    await page.getByTestId("sign-name").fill("Revision Customer");
+    await drawSignature(page);
+    await page.getByTestId("confirm-sign").click();
+    await expect(page.getByTestId("variation-outcome")).toContainText("Approved");
+    await expect(page.getByTestId("variation-outcome")).toContainText("All 2 changes");
+
+    // Both rows signed by the one signature; the pergola's row is struck.
+    const { data: rowsAfter } = await db!.from("wo_variations")
+      .select("id, credit, status, signed_name, price_cents, contractor_accepted_at")
+      .eq("work_order_id", workOrderId).not("revision_block_ref", "is", null);
+    const vars = rowsAfter as { id: string; credit: boolean; status: string; signed_name: string | null; price_cents: number; contractor_accepted_at: string | null }[];
+    expect(vars).toHaveLength(2);
+    for (const v of vars) {
+      expect(v.signed_name).toBe("Revision Customer");
+      // Nobody is on this job (no offer, no contractor, no assignment), so a
+      // signed change just gets added in — it lands where a painter's accept
+      // would have put it (Tom, 23 Sep).
+      expect(v.status).toBe("contractor_accepted");
+      expect(v.contractor_accepted_at).not.toBeNull();
+    }
+    const credit = vars.find((v) => v.credit)!;
 
     const { data: surfaces } = await db!.from("wo_surfaces")
       .select("surface_key, removed_from_scope, removed_by_variation")
@@ -266,31 +312,67 @@ test.describe("the revision builder — diff → signed variations", () => {
       { surface_key: "2:21", removed_from_scope: true, removed_by_variation: credit.id },
     ]);
 
-    // adjusted contract = accepted − the signed credit, from the ledger itself.
+    // The fold-in is on the record.
+    const { data: events } = await db!.from("wo_events")
+      .select("type").eq("work_order_id", workOrderId).eq("type", "variation_folded_into_offer");
+    expect(events).toHaveLength(2);
+
+    // adjusted contract = accepted + the signed addition − the signed credit, from the ledger itself.
     const { data: est } = await db!.from("estimates")
       .select("accepted_total_cents").eq("id", estimateId).single();
     const ledger = await rpcAsJson<{ adjusted_contract_cents: number }[]>(
       staff!, "invoice_ledger_staff", { p_estimate_id: estimateId });
     expect(ledger[0].adjusted_contract_cents)
-      .toBe(((est as { accepted_total_cents: number }).accepted_total_cents) - credit.price_cents);
+      .toBe(((est as { accepted_total_cents: number }).accepted_total_cents) + net);
+
+    // A second visit to the same link: answered, no decision offered.
+    await page.goto(`/v/${offerToken}`);
+    await expect(page.getByTestId("approve-variation")).toHaveCount(0);
+    await expect(page.getByTestId("variation-outcome")).toContainText("Approved");
+  });
+
+  test("the painter's token read lists both changes — scope and hours, never a price", async () => {
+    // This fixture accepts without a builder woDoc, so there is no frozen
+    // sheet to render at /w; the RENDERED section is proved on the loop
+    // fixture in wo-variations.spec.ts. Here: the token read the sheet
+    // uses, as the anonymous caller the painter's link is.
+    // The read serves ISSUED jobs only (a sheet nobody has been sent is not a
+    // sheet); this fixture accepted with no woDoc, so issue it here.
+    const issued = await db!.from("work_orders").update({ issued_at: new Date().toISOString() }).eq("id", workOrderId);
+    expect(issued.error).toBeNull();
+
+    const anon = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false } });
+    const { data, error } = await anon.rpc("get_work_order_scope_changes_by_token", { p_token: woShareToken });
+    expect(error).toBeNull();
+    const rows = data as Record<string, unknown>[];
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.credit).sort()).toEqual([false, true]);
+    for (const r of rows) {
+      expect(r.status).toBe("contractor_accepted");
+      expect(Object.keys(r)).not.toContain("price_cents");
+      expect(Object.keys(r)).not.toContain("contractor_delta_cents");
+      expect(Object.keys(r)).not.toContain("priced_lines");
+    }
+    // A stranger's token reads nothing, not an error.
+    const stranger = await anon.rpc("get_work_order_scope_changes_by_token", { p_token: "not-a-token-" + Date.now() });
+    expect(stranger.error).toBeNull();
+    expect(stranger.data).toEqual([]);
   });
 
   test("the customer's own page shows the change and the updated total", async ({ page }) => {
-    // /v for the signed credit now offers the way back…
-    const { data: credit } = await db!.from("wo_variations")
-      .select("customer_token, price_cents").eq("work_order_id", workOrderId)
-      .eq("credit", true).single();
-    const c = credit as { customer_token: string; price_cents: number };
-    await page.goto(`/v/${c.customer_token}`);
+    // /v for the signed offer now offers the way back…
+    await page.goto(`/v/${offerToken}`);
     await expect(page.getByTestId("back-to-invoice")).toBeVisible();
 
-    // …and /e carries the change: the signed credit, the pending addition
-    // with its signing link, and the ledger's adjusted total to the cent.
+    // …and /e carries both changes as signed — nothing left to sign — and
+    // the ledger's adjusted total to the cent.
     await page.goto(`/e/${estimateShareToken}`);
     const section = page.getByTestId("customer-changes");
     await expect(section).toBeVisible();
     await expect(section).toContainText("Signed by Revision Customer");
-    await expect(section.getByRole("link", { name: /Review & sign/ })).toBeVisible();
+    await expect(section.getByRole("link", { name: /Review & sign/ })).toHaveCount(0);
 
     const ledger = await rpcAsJson<{ adjusted_contract_cents: number }[]>(
       staff!, "invoice_ledger_staff", { p_estimate_id: estimateId });
@@ -305,17 +387,17 @@ test.describe("the revision builder — diff → signed variations", () => {
     await page.getByTestId("draft-variations").click();
     await expect(page.getByTestId("revision-message")).toBeVisible({ timeout: 20_000 });
 
-    // The signed credit is untouched; no fresh draft appears for its block
-    // (the working scope still matches what was signed); the addition draft
-    // is still the one row, updated in place.
+    // Both signed rows are untouched and no fresh draft appears for either
+    // block — the working scope matches what was signed.
+    await expect(page.getByTestId("revision-message")).toContainText("Nothing to draft");
     const { data: rows } = await db!.from("wo_variations")
       .select("revision_block_ref, status, credit")
       .eq("work_order_id", workOrderId).not("revision_block_ref", "is", null);
     const vars = rows as { revision_block_ref: string; status: string; credit: boolean }[];
     expect(vars.filter((v) => v.revision_block_ref === "block:2")).toHaveLength(1);
-    expect(vars.find((v) => v.revision_block_ref === "block:2")?.status).toBe("customer_approved");
+    expect(vars.find((v) => v.revision_block_ref === "block:2")?.status).toBe("contractor_accepted");
     expect(vars.filter((v) => v.revision_block_ref === "block:3")).toHaveLength(1);
-    expect(vars.find((v) => v.revision_block_ref === "block:3")?.status).toBe("priced");
+    expect(vars.find((v) => v.revision_block_ref === "block:3")?.status).toBe("contractor_accepted");
   });
 
   test("through all of it, the accepted estimate row is byte-identical", async () => {

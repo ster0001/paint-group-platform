@@ -1,3 +1,4 @@
+import { pendingOffers } from "@/lib/workorder/scopeChanges";
 /**
  * 3a-4 · The Project Timeline: one vertical feed per job, built entirely
  * from what the WO loop already captures. Pure over its inputs; the server
@@ -27,6 +28,8 @@ export type TimelineVariation = {
   category: string;
   comment: string;
   price_cents: number | null;
+  /** A signed removal: subtracts from the offer's net. Absent on older rows = addition. */
+  credit?: boolean | null;
   customer_token: string | null;
   customer_responded_at: string | null;
   created_at: string;
@@ -198,18 +201,27 @@ export function buildTimeline(input: TimelineInput): TimelineItem[] {
     });
   }
 
+  // Pending changes: one entry per OFFER (every pending row behind one link,
+  // 20270192) — the customer signs them together, so they read as one.
+  const offers = pendingOffers(input.variations);
+  const offerOf = new Map(offers.flatMap((o) => o.rows.map((r) => [r.id, o] as const)));
   for (const v of input.variations) {
     const what = VARIATION_CATEGORY[v.category] ?? "Extra work";
     const priced = v.price_cents != null ? ` — ${moneyFmt(v.price_cents)} inc GST` : "";
-    if (v.status === "priced" && v.customer_token && !v.customer_responded_at) {
+    const offer = offerOf.get(v.id);
+    if (offer) {
+      if (offer.rows[0].id !== v.id) continue;
+      const net = ` — ${offer.netCents < 0 ? "−" : ""}${moneyFmt(Math.abs(offer.netCents))} inc GST`;
       push({
         key: `variation:${v.id}`,
         at: v.created_at,
         title: "Something needs your say-so",
-        body: `${what}${v.comment ? `: ${v.comment}` : ""}${priced}. Nothing extra ever happens without your written OK.`,
+        body: offer.count === 1
+          ? `${what}${v.comment ? `: ${v.comment}` : ""}${priced}. Nothing extra ever happens without your written OK.`
+          : `${offer.count} changes to the job, approved together${net}. Nothing extra ever happens without your written OK.`,
         chip: { cls: "amber", label: "Waiting on you" },
         photoIds: [],
-        cta: { label: "Review & approve", href: `/v/${v.customer_token}` },
+        cta: { label: "Review & approve", href: `/v/${offer.token}` },
         amountCents: null,
       });
     } else if ((v.status === "customer_approved" || v.status === "contractor_accepted") && v.customer_token) {

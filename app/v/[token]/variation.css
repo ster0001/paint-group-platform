@@ -40,3 +40,7 @@
 .cv-oldnew em { color: var(--muted); font-style: normal; }
 .cv-incgst { color: var(--muted); font-size: 11px; }
 .cv-signedby { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; }
+
+/* the offer's summary card — the list above, one figure below (20270192) */
+.cv-total { border-color: rgba(58,182,193,.45); }
+.cv-total .cv-price { border-top: 0; padding-top: 0; margin-top: 8px; }

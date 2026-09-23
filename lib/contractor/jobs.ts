@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { suburbOnly } from "@/lib/scheduling/offers";
+import { contractorAdjustedCents, type PayVariation } from "@/lib/workorder/contractorPay";
+import { reportError } from "@/lib/monitoring/report";
 
 // Server-only: reads the signed-in contractor's issued work orders. RLS already
 // restricts this to their own rows (see 20260825000000), but every query filters
@@ -38,6 +40,12 @@ export type ContractorJob = {
   endDate: string | null;
   issuedAt: string | null;
   viewedAt: string | null;
+  /**
+   * The contractor's pay INCLUDING every accepted variation — the one figure
+   * the jobs list and the sheet show (Tom, 23 Sep: a change signed before the
+   * job went out "just gets added in"). `withSurfaceProgress` folds them in;
+   * until then it is the base figure from the row.
+   */
   paymentCents: number | null;
   /** True once the contractor has committed — full address and contact shown. */
   committed: boolean;
@@ -212,8 +220,26 @@ async function withSurfaceProgress(
   const ids = jobs.map((j) => j.id);
   if (ids.length === 0) return jobs;
 
-  const { data } = await supabase
-    .from("wo_surfaces").select("work_order_id, state").in("work_order_id", ids);
+  const [{ data, error: surfacesError }, { data: variationRows, error: variationsError }] = await Promise.all([
+    supabase.from("wo_surfaces").select("work_order_id, state").in("work_order_id", ids),
+    // Accepted variations move the pay (lib/workorder/contractorPay.ts) — one
+    // query for the whole list, like the ticks.
+    supabase.from("wo_variations")
+      .select("work_order_id, status, credit, contractor_delta_cents, deduction_cents, needs_manual_deduction")
+      .in("work_order_id", ids).eq("status", "contractor_accepted"),
+  ]);
+
+  // A rejected read must not render as "nothing ticked, base pay": the list
+  // still draws, but the failure is on the record.
+  if (surfacesError) reportError(surfacesError, { where: "contractor.jobs.surfaces", bestEffort: true });
+  if (variationsError) reportError(variationsError, { where: "contractor.jobs.variations", bestEffort: true });
+
+  const payVars = new Map<string, PayVariation[]>();
+  for (const row of ((variationRows ?? []) as (PayVariation & { work_order_id: string })[])) {
+    const list = payVars.get(row.work_order_id) ?? [];
+    list.push(row);
+    payVars.set(row.work_order_id, list);
+  }
 
   const tally = new Map<string, { done: number; total: number }>();
   for (const row of ((data ?? []) as { work_order_id: string; state: string }[])) {
@@ -225,7 +251,12 @@ async function withSurfaceProgress(
 
   return jobs.map((j) => {
     const t = tally.get(j.id);
-    return t ? { ...j, surfacesDone: t.done, surfacesTotal: t.total } : j;
+    const vars = payVars.get(j.id) ?? [];
+    const paymentCents = j.paymentCents == null || vars.length === 0
+      ? j.paymentCents
+      : contractorAdjustedCents(j.paymentCents, vars);
+    const withPay = paymentCents === j.paymentCents ? j : { ...j, paymentCents };
+    return t ? { ...withPay, surfacesDone: t.done, surfacesTotal: t.total } : withPay;
   });
 }
 

@@ -9,6 +9,8 @@ import PrepChecklist, { type PrepItem } from "@/app/portal/jobs/[id]/PrepCheckli
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 import { reportError } from "@/lib/monitoring/report";
+import { scopeChangesFrom } from "@/lib/workorder/scopeChanges";
+import { contractorAdjustedCents, type PayVariation } from "@/lib/workorder/contractorPay";
 import "@/app/portal/portal.css";
 
 export const dynamic = "force-dynamic";
@@ -60,7 +62,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_photos").select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
       supabase.from("wo_variations")
-        .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at")
+        .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, customer_responded_at, created_at, deduction_cents, needs_manual_deduction")
         .eq("work_order_id", id).order("created_at", { ascending: false }),
       supabase.from("wo_checklist_items")
         .select("id, label, detail, required, done_at, kind, item_key, answer, answer_note")
@@ -84,15 +86,26 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
   const headingMeta: Record<string, string> = {};
   for (const s of surfaces) if (s.heading_meta) headingMeta[s.heading] = s.heading_meta;
 
-  const variations: VariationView[] = ((variationRows as {
+  type VRow = {
     id: string; category: string; comment: string; status: VariationView["status"];
     contractor_delta_cents: number | null; est_hours: string | null; released_at: string | null;
-  }[] | null) ?? []).map((v) => ({
+    credit: boolean; customer_responded_at: string | null; created_at: string;
+    deduction_cents: number | null; needs_manual_deduction: boolean;
+  };
+  const vRows = (variationRows as VRow[] | null) ?? [];
+  const variations: VariationView[] = vRows.map((v) => ({
     id: v.id, category: v.category, comment: v.comment, status: v.status,
     contractorDeltaCents: v.contractor_delta_cents,
     estHours: v.est_hours === null ? null : Number(v.est_hours),
     released: v.released_at !== null,
+    credit: v.credit,
   }));
+  // What the painter's sheet shows of the approved changes, and their pay
+  // with those changes in — the same reads the portal makes (20270192).
+  const scopeChanges = scopeChangesFrom(vRows);
+  const paymentCents = row.contractor_payment_cents == null
+    ? null
+    : contractorAdjustedCents(row.contractor_payment_cents, vRows as PayVariation[]);
 
   const prepItems: PrepItem[] = ((prepRows as {
     id: string; label: string; detail: string | null; required: boolean; done_at: string | null;
@@ -140,7 +153,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
       <Variations workOrderId={id} variations={variations} />
 
       {job.doc ? (
-        <WorkOrderDoc doc={job.doc} photos={officePhotos} />
+        <WorkOrderDoc doc={job.doc} photos={officePhotos} scopeChanges={scopeChanges} payInclChanges={paymentCents} />
       ) : (
         <div className="card" style={{ marginTop: 12 }} data-testid="no-snapshot">
           <b>No job sheet yet</b>
