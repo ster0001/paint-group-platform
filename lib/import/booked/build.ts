@@ -34,7 +34,7 @@ import { priceEstimateTotals, type BlockInput, type PricingContext } from "@/lib
 import { adjustmentsFrom } from "@/lib/pricing/context";
 import type { CustomerSnapshot, SnapshotArea, SnapshotLine } from "@/lib/customer/snapshot";
 import { DEFAULT_PROOF } from "@/lib/customer/snapshot";
-import type { WOArea, WorkOrderDoc } from "@/lib/workorder/snapshot";
+import type { WOArea, WOMaterial, WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import type { BookedItem, BookedJob, SubstrateMapRow } from "./types";
 
@@ -215,6 +215,8 @@ export function buildBookedJob(
   const blocks: ImportBlock[] = [];
   const roundingNotes: string[] = [];
   const hoursPrepByArea: Record<string, number> = {};
+  /** surface id → the product PaintScout printed on that line (work-order page only). */
+  const productBySurface = new Map<number, string>();
   let nextId = 1;
   let customLines = 0;
 
@@ -238,8 +240,10 @@ export function buildBookedJob(
         const r = resolved[i];
         if (r.custom) customLines++;
         const qty = typeof it.qty === "number" && it.qty > 0 ? it.qty : 0;
+        const id = nextId++;
+        if (it.product) productBySurface.set(id, it.product);
         return {
-          id: nextId++, code: r.code, internalLabel: r.internalLabel, clientLabel: r.clientLabel,
+          id, code: r.code, internalLabel: r.internalLabel, clientLabel: r.clientLabel,
           coats: typeof it.coats === "number" && it.coats > 0 ? Math.round(it.coats) : 1,
           count: qty, size: null, hidden: false, isOption: false, media: [],
           measureL: null, measureH: null, qtyOverride: qty > 0 ? qty : null, rateOverride: null,
@@ -387,10 +391,18 @@ export function buildBookedJob(
   const woAreas: WOArea[] = blocks.filter((b): b is ImportArea => b.kind === "area").map((b) => ({
     id: String(b.id), title: b.name, photos: [], finishCode, finishOverridden: false,
     surfaces: b.surfaces.map((s) => ({
-      key: `${b.id}:${s.id}`, label: s.clientLabel || s.code, coats: s.coats, product: "",
+      key: `${b.id}:${s.id}`, label: s.clientLabel || s.code, coats: s.coats, product: productBySurface.get(s.id) ?? "",
       prep: s.crewNote || "", hours: s.paintingHrOverride, paintingHours: s.paintingHrOverride, prepHours: 0, conditionHours: 0,
       status: "not_started" as const,
     })),
+  }));
+  // The work-order page names a product per line and estimates litres per
+  // product; the job sheet prints both (materials-first). Colour is TBC —
+  // PaintScout's work order never carries a colour, and the office confirms
+  // it on the console as for any job.
+  const materials: WOMaterial[] = (job.materials ?? []).map((m) => ({
+    product: m.product, colourKey: m.product, photoUrl: "", litres: m.litres, coverageMissing: m.litres == null,
+    colourName: "", colourHex: "", colourStatus: "tbc" as const,
   }));
   const woDoc: WorkOrderDoc = {
     version: 1,
@@ -408,7 +420,7 @@ export function buildBookedJob(
     condition: null,
     contractorName: "",
     contractorPaymentCents: job.contractor_offer_cents ?? totals.contractorOfferCents,
-    materials: [],
+    materials,
     areas: woAreas,
     exclusions: [],
     inclusions: [],

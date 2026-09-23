@@ -21,7 +21,7 @@ The import runs once, at cutover. Nothing here is edited by hand afterwards — 
 7. On **Today**, an imported open quote raises a follow-up card only when the customer is hot or warm. A cold or unrated one waits until someone touches it.
 8. Open **PC → Schedule**. The 35 jobs signed in PaintScout sit in the **Unscheduled** tray as ordinary jobs, each with a note beginning **Airtable:** — the dates and painter Airtable had planned, and whether that painter had accepted. Send the offer to the painter the note names, exactly as for any other job. No offer, email or text was sent by the import.
 9. Open one of those estimates from the tray or the record. The amber strip says **Imported from PaintScout** with links to the quote and the work order. The price is the signed price to the cent; every surface and line carries its PaintScout hours and price, and the rate card never re-prices it. To change the scope, use **Revision → Working scope** as for any accepted job: the diff prices the change and drafts the variation for signature.
-10. A job that arrives through the Airtable feed after cutover carries **Hours to confirm** on its strip and a card on Today: open the work order and type each area's hours from the PaintScout work order before offering it.
+10. A job that arrives through the Airtable feed after cutover carries **Hours to confirm** on its strip and a card on Today. Its lines and hours are on the PaintScout work order, and Tom brings them across in one step: send him the job's **Work order ↗** link from the strip (or the PaintScout page's share link). Once it is in, the strip loses **Hours to confirm**, the card leaves Today, the job sheet lists every area with its lines, hours and products, and the tick list is rebuilt — offer the job as usual. Until then, the work order tab still lets you type an area's hours by hand if a painter is waiting.
 
 ## What the colours and labels mean
 - **Imported from Airtable** (grey, on the record) — the customer came from the import; their details are real, their marketing permissions are unknown.
@@ -33,6 +33,7 @@ The import runs once, at cutover. Nothing here is edited by hand afterwards — 
 - **A customer appears twice** — the import attached history to an existing email rather than creating a second record; if two records still exist, use the duplicate banner on the record to merge them.
 - **A PaintScout link is missing** — Airtable held no link for 23 projects; they are listed in the import's exceptions file. There is nothing to add on screen.
 - **A tray job shows the wrong hours or price** — open the estimate; the figures are the PaintScout ones. Raise it with Tom rather than editing, because the customer signed that price.
+- **Hours to confirm will not go away** — the work order has not been brought across yet, or one of its areas has no matching price on the quote (the job still fills; that area carries its hours at $0). Send Tom the work-order link and say which job.
 - **A follow-up card appears for a customer who was never chased** — the card is raised from the imported sent date; log the call or dismiss the card as usual.
 
 ## Related

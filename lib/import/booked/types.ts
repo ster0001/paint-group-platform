@@ -19,6 +19,9 @@ export const bookedItemSchema = z.object({
   unit: z.enum(["m2", "m", "count"]),
   hours: nullableNum,
   coats: nullableNum,
+  /** The product PaintScout printed on the line ("Dulux Weathershield"); the
+   *  work-order page carries it, the pack and the Zap feed do not. */
+  product: nstr(120).optional(),
 });
 export type BookedItem = z.infer<typeof bookedItemSchema>;
 
@@ -79,6 +82,9 @@ export const bookedJobSchema = z.object({
   import_note: nstr(1000),
   dims: z.record(z.string(), z.unknown()).optional(),
   areas: z.array(bookedAreaSchema).min(1),
+  /** The work-order page's "Product Description" block: each product and
+   *  PaintScout's estimated litres. Absent from the pack and the Zap feed. */
+  materials: z.array(z.object({ product: z.string().trim().min(1).max(120), litres: nullableNum })).optional(),
 });
 export type BookedJob = z.infer<typeof bookedJobSchema>;
 

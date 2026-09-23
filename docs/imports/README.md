@@ -63,7 +63,23 @@ The write is one RPC, `import_booked_job` — the estimate accepted by hand unde
 
 ## Part C — the handover door
 
-`POST /api/inbound/airtable-jobs` (`Authorization: Bearer AIRTABLE_SYNC_SECRET`) takes the Zap's record plus the PaintScout quote and writes it through the same path. The quote has area prices and the job's total hours but no per-line hours, so the job arrives with `external_ref.hours_pending = true` and an "hours to confirm" item on Today; the office types the per-area hours from the PaintScout work order (Tom's C-1 ruling). A second post for the same record refreshes the tray note only. The Zap setup is in brief §C2.
+`POST /api/inbound/airtable-jobs` (`Authorization: Bearer AIRTABLE_SYNC_SECRET`) takes the Zap's record plus the PaintScout quote and writes it through the same path. The quote has area prices and the job's total hours but no per-line hours, so the job arrives with `external_ref.hours_pending = true` and an "hours to confirm" item on Today; the hours come from the PaintScout work order — `fill-work-order.ts` below (Tom's C-1 ruling, and 22 Sep). A second post for the same record refreshes the tray note only. The Zap setup is in brief §C2.
+
+## Filling the hours from the PaintScout work order (Tom, 22 Sep 2026)
+
+A handover job arrives with the quote's area prices and no lines (`external_ref.hours_pending = true`, "Hours to confirm" on its strip and on Today). The lines, hours and products are on the PaintScout **work-order** share page (`…/view/?view=work-order&u=…`). `scripts/import/fill-work-order.ts` reads that page headless, joins it to the signed prices and writes the result through `import_booked_job_set_scope` (migration 20270187, service role only):
+
+```sh
+# what the page says — no database, no target
+npx tsx scripts/import/fill-work-order.ts parse 'https://app.paintscout.com/view/?view=work-order&u=…'
+
+# production (Tom): the join and the proof, nothing written; then the write
+set -a; source .env.local; set +a
+IMPORT_ALLOW_PRODUCTION=1 npx tsx scripts/import/fill-work-order.ts check 'https://…' 'https://…' --save-dir /tmp/wo
+IMPORT_ALLOW_PRODUCTION=1 npx tsx scripts/import/fill-work-order.ts run   /tmp/wo/3613.txt /tmp/wo/3639.txt
+```
+
+The rules, each printed by `check` (`lib/import/booked/fill.ts`): a work-order area takes the price of the first unconsumed quote area with the same name (PaintScout repeats a name for a second pass over a side, in the same order on both documents); a work-order area with hours and no priced twin goes in at $0 with its hours on the sheet, and is reported; a quote area the work order does not show keeps its price as a line with no hours, and is reported. `buildBookedJob` then proves the signed subtotal and total to the cent over the joined scope — the same proof as the pack import — and the page's Total Hours banner must equal its lines or the job is refused. `run` writes the builder scope, the customer document, the job sheet (with the products and PaintScout's estimated litres, colours TBC) and re-seeds the tick list; `hours_pending` clears, the Today card leaves, and a `scope_imported` event and an account note say what happened. A filled job is skipped on a second run (`--refill` rewrites it); a job past pre_start, or with any surface ticked, is refused by the function itself. `--save-dir` keeps each page's text, so a run can be repeated from the file without loading the page again (every load registers a "viewed" on PaintScout's side).
 
 ## Releasing imported jobs to the tray (Tom, 20 Sep 2026)
 

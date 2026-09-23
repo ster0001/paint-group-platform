@@ -2,6 +2,8 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { serviceClient } from "./fixtures/woLoop";
 import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
@@ -332,7 +334,7 @@ test.describe("Airtable → CRM import", () => {
     await expect(page.locator("body")).toContainText("2,032.80");
   });
 
-  test("Part C · the handover door: a Zap record lands in the tray once, with hours to confirm", async ({ page, request }) => {
+  test("Part C · the handover door: a Zap record lands in the tray once, with hours to confirm; the work order fills them", async ({ page, request, browser }) => {
     const secret = process.env.AIRTABLE_SYNC_SECRET ?? "";
     test.skip(!secret, "AIRTABLE_SYNC_SECRET is not set for this stack");
     const record = {
@@ -374,5 +376,73 @@ test.describe("Airtable → CRM import", () => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${est!.id}`);
     await expect(page.getByTestId("hours-pending")).toBeVisible();
+
+    // Tom, 22 Sep 2026: the hours come from the PaintScout work order. The
+    // page's text (as a browser copies it) goes through the filler: the lines
+    // and hours join the signed prices, the total is proved to the cent, the
+    // sheet and the tick list are rebuilt, and "hours to confirm" goes away.
+    const woFile = resolve(tmpdir(), `pg-e2e-wo-${run}.txt`);
+    writeFileSync(woFile, workOrderPage(HANDOVER_QUOTE));
+    const check = loader("fill-work-order.ts", ["check", woFile]);
+    expect(check.ok, check.out).toBe(true);
+    expect(check.out).toContain("nothing written");
+    const fill = loader("fill-work-order.ts", ["run", woFile]);
+    expect(fill.ok, fill.out).toBe(true);
+    expect(fill.out).toMatch(/^ok\s+/m);
+    // Twice is once.
+    const again2 = loader("fill-work-order.ts", ["run", woFile]);
+    expect(again2.ok, again2.out).toBe(true);
+    expect(again2.out).toContain("skip:filled");
+
+    const { data: filled } = await sb.from("estimates").select("total_cents, external_ref, builder_state").eq("id", est!.id).single();
+    expect(filled!.total_cents).toBe(330000);
+    expect((filled!.external_ref as { hours_pending: boolean }).hours_pending).toBe(false);
+    const { data: wo } = await sb.from("work_orders").select("id, share_token, stage, wo_snapshot").eq("estimate_id", est!.id).single();
+    const sheet = wo!.wo_snapshot as { areas: Array<{ title: string; surfaces: Array<{ label: string; hours: number; product: string }> }>; materials: Array<{ product: string; litres: number | null }> };
+    expect(sheet.areas.map((a) => a.title)).toEqual(["Interior Preparation", "Lounge", "Cleaning"]);
+    expect(sheet.areas.flatMap((a) => a.surfaces).reduce((n, s) => n + s.hours, 0)).toBe(20);
+    expect(sheet.areas[1].surfaces.map((s) => [s.label, s.hours, s.product])).toEqual([["Walls", 10, "Dulux Wash&Wear"], ["Skirting Boards", 5, "Dulux Aquanamel"]]);
+    expect(sheet.materials.map((m) => [m.product, m.litres])).toEqual([["Dulux Wash&Wear", 10], ["Dulux Aquanamel", 2]]);
+    expect(wo!.stage).toBe("offered");
+    const { count: ticks } = await sb.from("wo_surfaces").select("id", { count: "exact", head: true }).eq("work_order_id", wo!.id);
+    expect(ticks).toBe(4);
+    const { data: ev } = await sb.from("wo_events").select("type, meta").eq("work_order_id", wo!.id).eq("type", "scope_imported").maybeSingle();
+    expect(ev).not.toBeNull();
+
+    const queueAfter = await buildWorkQueue(sb);
+    expect(queueAfter.items.some((i) => i.kind === "hours_to_confirm" && i.subjectRef.id === est!.id)).toBe(false);
+    await page.reload();
+    await expect(page.getByTestId("paintscout-strip")).toBeVisible();
+    await expect(page.getByTestId("hours-pending")).toHaveCount(0);
+
+    // The painter, with nothing but the link, sees the lines and their hours.
+    const painter = await browser.newContext();
+    const sheetPage = await painter.newPage();
+    await sheetPage.goto(`/w/${wo!.share_token}`);
+    await expect(sheetPage.getByText("Skirting Boards")).toBeVisible();
+    await expect(sheetPage.locator(".hval", { hasText: /^10$/ })).toBeVisible();
+    await expect(sheetPage.getByText("Dulux Wash&Wear")).toBeVisible();
+    await painter.close();
   });
 });
+
+/** A PaintScout work-order share page as `document.body.innerText` gives it,
+ *  for the Zap record above: three of its priced areas, twenty hours. */
+function workOrderPage(quoteNo: string): string {
+  return [
+    "Hours", "20 hr", "Work Order", "Accepted",
+    "Job Address", "Hana's Address", "14 Handover Street", "Testville",
+    "Estimate ID", quoteNo, "Date",
+    "Total Hours", "20",
+    "Product Description", "Dulux Wash&Wear  (Estimated: 10 Litre - $200.00)", "Dulux Aquanamel  (Estimated: 2 Litre - $60.00)",
+    "Total Dimensions (m²)", "Walls: 40", "m: 20",
+    "Areas",
+    "Interior Preparation", "hr", "Interior Preparation", "We will cover and protect all floors.", "3", "Total", "Painting: 3", "=", "3",
+    "Lounge", "(4'x3'x2.4')", "hr",
+    "Walls (40m²)", "Walls 2 Coats", "Dulux Wash&Wear  - 5.00 Litre - $100.00", "Coats: 2", "10",
+    "Skirting Boards (20m)", "Dulux Aquanamel  - 2.00 Litre - $60.00", "Coats: 2", "5",
+    "Total", "Painting: 15", "=", "15",
+    "Cleaning", "hr", "Cleaning", "Allowance for site cleaning.", "2", "Total", "Painting: 2", "=", "2",
+    "Media", "Amazing On-Site Estimation",
+  ].join("\n");
+}
