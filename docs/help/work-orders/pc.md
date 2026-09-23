@@ -36,6 +36,19 @@ The PC console (**Projects** in the sidebar) reads every open work order and tel
 7. At **03 In progress** the **Scope & ticks** card shows the painter's list live, with the amber before-photo prompts until each area has its photo.
    ![](media/pc-07.png)
 
+### Photos for the painter
+The **Photos for the painter** card on the job page is how you put a picture in front of whoever is doing the work: the elevation the scaffold goes on, where the gear lives, the colour to match, the bit of the brief a sentence never quite carries.
+
+Pick the area it belongs to (or leave it on **Whole job**), type what the painter should notice, and choose the file. It appears on their job sheet under **From the office**, above the scope, the moment it uploads — on their phone, in the portal, and on the job-sheet link.
+
+This matters most on a **handover job from PaintScout**. Those come in without any of the estimator's photos, and the sheet's own photos are frozen at acceptance, so before this there was nothing to show the painter at all. On those jobs these are the only pictures of the job there are.
+
+**Remove** takes one back off the sheet. It only ever removes photos the office added: the painter's own before, progress, quality-check and completion shots are their record of the work and the button cannot touch them — they live further down under **Site photos**.
+
+A caption is worth writing. "Scaffold this side" on the right elevation saves a phone call; an uncaptioned photo makes the painter guess what they are looking at.
+
+The card disappears once a job is closed — a closed job's sheet is final.
+
 ### The level of finish on a job that is already out
 The **Level of finish** card on the job page says which PG standard this job sheet holds the painter to — **PG-2 Utility**, **PG-3 Premium** or **PG-4 Showcase** — and, in brackets, the level the job was priced at.
 

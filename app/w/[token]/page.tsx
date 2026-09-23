@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { reportIfError } from "@/lib/monitoring/report";
 import type { WorkOrderDoc as WODoc } from "@/lib/workorder/snapshot";
 import { ticksBySurfaceKey, type SurfaceState } from "@/lib/workorder/surfaces";
+import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
+import { createServiceClient } from "@/lib/supabase/service";
 import WorkOrderDoc from "../WorkOrderDoc";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +40,23 @@ export default async function Page({ params }: { params: Promise<{ token: string
   // silently shorter list. Degrades to none before migration 20261118.
   const removedKeys = tickList.filter((t) => t.removed && t.surface_key).map((t) => t.surface_key!);
 
+  // The photos the office attached for this painter (20270190). The token has
+  // already been proved above; this RPC hands back ONLY 'reference' rows for
+  // that work order, and only their storage PATHS. Signing needs the service
+  // client because anon has no read on the private bucket — so the paths the
+  // RPC allowed are the only ones ever signed, and this route is server-only.
+  const { data: officeRows, error: officeErr } = await supabase
+    .rpc("get_work_order_office_photos_by_token", { p_token: token });
+  reportIfError({ error: officeErr }, { where: "workorder.officePhotos", bestEffort: true });
+  let officePhotos: WOPhoto[] = [];
+  const svc = createServiceClient();
+  if (!officeErr && svc && (officeRows as unknown[] | null)?.length) {
+    officePhotos = await signPhotos(
+      svc,
+      (officeRows as WOPhotoRow[]).map((r) => ({ ...r, kind: "reference" })),
+    );
+  }
+
   const doc: WODoc = { ...row.snapshot, status: row.status ?? row.snapshot.status, startDate: row.start_date ?? row.snapshot.startDate };
-  return <WorkOrderDoc doc={doc} ticks={ticks} removedKeys={removedKeys} />;
+  return <WorkOrderDoc doc={doc} ticks={ticks} removedKeys={removedKeys} photos={officePhotos} />;
 }

@@ -6,7 +6,7 @@ import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
 import { STAGE_LANES, stageTitle, type WoStage } from "@/lib/workorder/stages";
 import { SURFACE_STATE_LABEL, type SurfaceState } from "@/lib/workorder/surfaces";
 import type { CrewVariation } from "@/lib/workorder/crew";
-import { WO_PHOTO_KIND_LABEL, groupByKind, type WOPhoto } from "@/lib/workorder/photos";
+import { WO_PHOTO_KIND_LABEL, groupByKind, officePhotos, type WOPhoto } from "@/lib/workorder/photos";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import AreaPhotoStrip from "@/app/components/wo/AreaPhotoStrip";
 import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, type Booking } from "@/lib/workorder/booking";
@@ -64,6 +64,11 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
   /** Site photos already signed — see lib/workorder/photos.ts. */
   photos?: readonly WOPhoto[];
 }) {
+  // The office's instructions and the painter's own record come out of the same
+  // table, so they are split ONCE, here, and each section reads its own half.
+  const officeShots = officePhotos(photos);
+  const siteShots = photos.filter((p) => p.kind !== "reference");
+
   return (
     <div className="wo">
       <div className="wrap">
@@ -205,6 +210,23 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
           </section>
         )}
 
+        {/* FROM THE OFFICE (Tom, 23 Sep 2026) — photos we attached for the
+            painter: the elevation the scaffold goes on, where the gear lives,
+            the colour to match. It sits ABOVE the scope because it is an
+            instruction about the work, not a record of it, and on a PaintScout
+            handover it is often the only picture of the job there is. Fed
+            through officePhotos() so the painter's own record can never be
+            rendered back at them as though we had sent it. */}
+        {officeShots.length > 0 && (
+          <section className="print-hide" data-testid="wo-office-photos">
+            <h2>From the office <em className="wo-count">{officeShots.length}</em></h2>
+            <p className="wo-office-note">
+              Photos we&rsquo;ve attached for this job. Tap one to see it full size.
+            </p>
+            <PhotoGrid photos={officeShots} showKind={false} />
+          </section>
+        )}
+
         {/* SCOPE BY AREA */}
         {doc.areas.length > 0 && (
           <section>
@@ -285,10 +307,10 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
         {/* SITE PHOTOS — what actually came back from site. Signed, short-lived
             URLs into the private bucket; staff and the assigned contractor see
             them, nobody else. Print drops them (see photogrid.css). */}
-        {photos.length > 0 && (
+        {siteShots.length > 0 && (
           <section className="print-hide" data-testid="wo-site-photos">
             <h2>Site photos</h2>
-            {groupByKind(photos).map((g) => (
+            {groupByKind(siteShots).map((g) => (
               <div className="wo-photoset" key={g.kind}>
                 <div className="wo-photoset-h">
                   {WO_PHOTO_KIND_LABEL[g.kind]}

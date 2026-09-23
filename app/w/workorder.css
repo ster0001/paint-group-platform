@@ -209,3 +209,10 @@
 /* The colour swatch outlines itself against the sheet, not against black. */
 .wo[data-theme="light"] .mat-colour .swatch,
 .pt[data-theme="light"] .wo .mat-colour .swatch { border-color: rgba(18, 22, 26, 0.2); }
+
+/* From the office (Tom, 23 Sep 2026) — the photos we attached for the painter.
+   Deliberately above the scope and visually quieter than a warning: it is
+   context for the work, not an alert. */
+.wo .wo-office-note{margin:2px 0 10px;font-size:12px;color:var(--wo-muted,#6b7280)}
+.wo h2 .wo-count{font-style:normal;font-family:var(--mono,ui-monospace);font-size:10px;
+  letter-spacing:.06em;color:var(--wo-muted,#6b7280);margin-left:8px}

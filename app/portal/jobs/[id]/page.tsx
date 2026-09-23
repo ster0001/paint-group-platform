@@ -305,6 +305,21 @@ export default async function PortalJobPage({
     ? qaList.filter((q) => q.result === "fail")
         .sort((a, b) => (b.checked_at ?? "").localeCompare(a.checked_at ?? ""))[0] ?? null
     : null;
+  // The photos the office attached for this painter (20270190). RLS already
+  // scopes wo_photos to the assigned contractor via wo_photo_access, so this is
+  // the contractor's OWN session reading them — no service client, and a kind
+  // filter so their own before/progress record is never handed back to them as
+  // though it came from us.
+  const { data: officeRows, error: officeErr } = await supabase
+    .from("wo_photos")
+    .select("id, work_order_id, kind, area, caption, storage_path, created_at")
+    .eq("work_order_id", id).eq("kind", "reference")
+    .order("created_at", { ascending: true });
+  if (officeErr) reportError(officeErr, { where: "portal.job.officePhotos", bestEffort: true, extra: { workOrderId: id } });
+  const officePhotos: WOPhoto[] = officeErr
+    ? []
+    : await signPhotos(supabase, (officeRows ?? []) as WOPhotoRow[]);
+
   let qaFailPhotos: WOPhoto[] = [];
   if (failedCheck) {
     const { data: qaPhotoRows } = await supabase
@@ -587,7 +602,7 @@ export default async function PortalJobPage({
         </div>
       )}
 
-      <WorkOrderDoc doc={job.doc} booking={woBooking}
+      <WorkOrderDoc doc={job.doc} booking={woBooking} photos={officePhotos}
         variant={assignment ? "employee" : "contractor"}
         acceptanceMode={assignment ? "assigned" : "offered"} />
     </div>

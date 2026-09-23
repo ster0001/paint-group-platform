@@ -7,7 +7,8 @@ import { sniffKind, MAX_UPLOAD_BYTES } from "@/lib/extract/normalise";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
- * Work-order site photos — the before/progress/QA/completion record.
+ * Work-order site photos — the before/progress/QA/completion record, plus the
+ * 'reference' photos the OFFICE attaches for the painter (Tom, 23 Sep 2026).
  *
  * Two stages, the remediated upload path: POST hands out a signed upload URL
  * into the private wo-photos bucket, the phone PUTs the bytes straight to
@@ -22,7 +23,7 @@ import { reportError } from "@/lib/monitoring/report";
 
 export const runtime = "nodejs";
 
-const KINDS = ["before", "progress", "qa", "completion", "variation"] as const;
+const KINDS = ["before", "progress", "qa", "completion", "variation", "reference"] as const;
 
 const signBody = z.object({
   workOrderId: z.string().uuid(),
@@ -100,14 +101,25 @@ export async function PUT(request: Request) {
     return fail(400, "That doesn't look like a photo. Take it again, or pick a JPEG or PNG.");
   }
 
-  const { data: result, error } = await supabase.rpc("wo_record_photo", {
-    p_work_order_id: v.workOrderId,
-    p_kind: v.kind,
-    p_storage_path: v.path,
-    p_surface_id: v.surfaceId ?? null,
-    p_area: v.area,
-    p_caption: v.caption,
-  });
+  // A 'reference' photo is the OFFICE telling the painter something, so it goes
+  // through its own staff-gated function (20270190). wo_record_photo is granted
+  // to every authenticated caller and would happily let a contractor file one
+  // as though it came from us.
+  const { data: result, error } = v.kind === "reference"
+    ? await supabase.rpc("wo_record_reference_photo", {
+        p_work_order_id: v.workOrderId,
+        p_storage_path: v.path,
+        p_area: v.area,
+        p_caption: v.caption,
+      })
+    : await supabase.rpc("wo_record_photo", {
+        p_work_order_id: v.workOrderId,
+        p_kind: v.kind,
+        p_storage_path: v.path,
+        p_surface_id: v.surfaceId ?? null,
+        p_area: v.area,
+        p_caption: v.caption,
+      });
   if (error) {
     reportError(error, { where: "wo.photos.record", extra: { path: v.path } });
     return fail(502, "The photo uploaded but we couldn't file it — try again.");
@@ -117,6 +129,8 @@ export async function PUT(request: Request) {
   if (!s.startsWith("ok:")) {
     await supabase.storage.from("wo-photos").remove([v.path]).catch(() => {});
     if (s.includes("not_yours")) return fail(403, "That job isn't yours.");
+    if (s.includes("not_staff")) return fail(403, "Only the office can attach a photo to a job sheet.");
+    if (s.includes("closed")) return fail(409, "This job is closed — its job sheet is final.");
     return fail(400, "We couldn't file that photo.");
   }
   const photoId = s.slice(3);

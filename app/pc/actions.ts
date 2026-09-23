@@ -815,3 +815,27 @@ export async function setFinishLevel(raw: unknown): Promise<PcResult> {
   }
   return r;
 }
+
+// ---- Photos the office attaches for the painter (Tom, 23 Sep 2026) ---------
+
+/**
+ * Remove a photo WE attached. Scoped to reference photos at the database
+ * (20270190): the painter's own before/progress/qa/completion shots are their
+ * record of the work and are not the office's to delete through this door.
+ * Adding one goes through /api/wo/photos, which sniffs the real bytes first.
+ */
+export async function deleteReferencePhoto(raw: unknown): Promise<PcResult> {
+  const p = z.object({ photoId: uuid }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Invalid input." };
+
+  const r = await call("wo_delete_reference_photo", { p_photo_id: p.data.photoId }, "Removed.");
+  if (!r.ok && /wo_delete_reference_photo/.test(r.message)) {
+    return { ok: false, message: "Photo edits need database migration 20270190 run first — nothing was changed." };
+  }
+  if (!r.ok && r.message === "not a reference photo") {
+    return { ok: false, message: "That's the painter's own photo — it isn't ours to delete." };
+  }
+  if (!r.ok && r.message === "not staff") return { ok: false, message: "Only the office can do that." };
+  if (r.ok) revalidatePath("/portal/jobs");
+  return r;
+}

@@ -16,15 +16,16 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const WO_PHOTO_KINDS = ["before", "progress", "qa", "completion", "variation"] as const;
+export const WO_PHOTO_KINDS = ["reference", "before", "progress", "qa", "completion", "variation"] as const;
 export type WOPhotoKind = (typeof WO_PHOTO_KINDS)[number];
 
 /** Display order — the job's own order, not the enum's. */
 export const WO_PHOTO_KIND_ORDER: readonly WOPhotoKind[] = [
-  "before", "progress", "variation", "qa", "completion",
+  "reference", "before", "progress", "variation", "qa", "completion",
 ];
 
 export const WO_PHOTO_KIND_LABEL: Record<WOPhotoKind, string> = {
+  reference: "From the office",
   before: "Before",
   progress: "Progress",
   variation: "Variation",
@@ -105,6 +106,23 @@ export function groupByKind(photos: readonly WOPhoto[]): { kind: WOPhotoKind; ph
   return WO_PHOTO_KIND_ORDER
     .map((kind) => ({ kind, photos: photos.filter((p) => p.kind === kind) }))
     .filter((g) => g.photos.length > 0);
+}
+
+/**
+ * The photos the OFFICE attached for the painter — and only those.
+ *
+ * Every contractor-facing surface feeds its office-photos section through this,
+ * never through a raw wo_photos read: the same table holds the painter's own
+ * before/progress/qa/completion record, and a widened select is how that record
+ * would end up rendered back at them as though the office had sent it.
+ */
+export function officePhotos(photos: readonly WOPhoto[]): WOPhoto[] {
+  return photos.filter((p) => p.kind === "reference");
+}
+
+/** Office photos for one area, plus the ones pinned to the job generally. */
+export function officePhotosForArea(photos: readonly WOPhoto[], area: string): WOPhoto[] {
+  return officePhotos(photos).filter((p) => p.area === area || p.area === "");
 }
 
 /** The photos attached to one variation, newest first. */
