@@ -21,6 +21,10 @@ const SQL = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20270190000000_wo_reference_photos.sql"),
   "utf8",
 );
+const CREW_SQL = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20270191000000_wo_office_photos_crew_token.sql"),
+  "utf8",
+);
 
 const photo = (kind: string, area = "", caption = ""): WOPhoto => ({
   id: `${kind}-${area}-${caption}`, workOrderId: "w1", url: "u", kind: kind as WOPhoto["kind"],
@@ -123,5 +127,21 @@ describe("the SQL keeps the promises the TypeScript makes", () => {
 
   it("starts with a lock timeout so a busy table fails loudly", () => {
     expect(SQL).toMatch(/^set lock_timeout = '15s';/m);
+  });
+});
+
+describe("the crew link gets the same read, keyed by the crew token (20270191)", () => {
+  it("is anonymous, crew-token keyed, reference-only, and only while issued", () => {
+    expect(CREW_SQL).toContain("create or replace function public.get_work_order_office_photos_by_crew_token(p_token text)");
+    expect(CREW_SQL).toContain("where w.crew_token = p_token");
+    expect(CREW_SQL).toContain("and w.issued_at is not null");
+    expect(CREW_SQL).toMatch(/p\.kind::text = 'reference'/);
+    expect(CREW_SQL).toContain("grant execute on function public.get_work_order_office_photos_by_crew_token(text) to anon, authenticated");
+  });
+  it("returns paths, never URLs, and registers itself", () => {
+    expect(CREW_SQL).toContain("p.storage_path");
+    expect(CREW_SQL).not.toMatch(/signed|https?:/i);
+    expect(CREW_SQL).toContain("insert into public._prod_migrations(name) values ('20270191000000_wo_office_photos_crew_token.sql') on conflict (name) do nothing");
+    expect(CREW_SQL).toMatch(/^set lock_timeout = '15s';/m);
   });
 });

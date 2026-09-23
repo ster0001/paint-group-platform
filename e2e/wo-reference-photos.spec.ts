@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn } from "./helpers";
 import {
@@ -32,6 +33,7 @@ const db: SupabaseClient | null = serviceClient();
 
 let fixture: LoopFixture | null = null;
 let shareToken = "";
+let crewToken = "";
 
 // A real 1×1 PNG. The bytes must exist in the bucket: a signed URL over a
 // missing object fails, and the grid drops what it cannot sign — so a row-only
@@ -70,6 +72,13 @@ test.describe("photos the office attaches to a job already out", () => {
 
     await painterPhoto("before", "Front");
     await painterPhoto("qa", "Front");
+
+    // The crew link — the contractor mints it for their own painters. The
+    // fixture sets the token directly; the page under test is the sheet.
+    crewToken = randomBytes(32).toString("base64url");
+    const { error: crewErr } = await db!.from("work_orders")
+      .update({ crew_token: crewToken }).eq("id", fixture.workOrderId);
+    if (crewErr) throw new Error(`fixture crew token: ${crewErr.message}`);
   });
 
   test.afterAll(async () => {
@@ -96,6 +105,13 @@ test.describe("photos the office attaches to a job already out", () => {
     await expect(card.getByTestId("reference-photo-msg")).toContainText(/job sheet/i, { timeout: 30_000 });
     await expect(card.getByTestId("reference-photo-row")).toHaveCount(1);
 
+    // ---- Painter's view — the office's mirror of the contractor's page ------
+    // This is where the office CHECKS what the painter sees, so it must carry
+    // them too; it was the first place the feature looked broken from.
+    await page.goto(`/pc/wo/${fixture!.workOrderId}/as-contractor`);
+    await expect(page.getByTestId("wo-office-photos")).toBeVisible();
+    await expect(page.getByTestId("wo-office-photos")).toContainText("Scaffold goes on this elevation");
+
     // ---- the painter's sheet, no session ------------------------------------
     await page.context().clearCookies();
     await page.goto(`/w/${shareToken}`);
@@ -107,6 +123,17 @@ test.describe("photos the office attaches to a job already out", () => {
     // ---- and NOTHING of the painter's own record leaked into it -------------
     await expect(section).not.toContainText("painter before shot");
     await expect(section).not.toContainText("painter qa shot");
+
+    // ---- the crew link, one rung further down the trust ladder --------------
+    // A reference photo is an instruction about the work — exactly what the
+    // crew whitelist exists to carry. Same leak test, same anonymous read.
+    await page.goto(`/crew/${crewToken}`);
+    const crew = page.getByTestId("wo-office-photos");
+    await expect(crew).toBeVisible();
+    await expect(crew).toContainText("Scaffold goes on this elevation");
+    await expect(crew.locator("img")).toHaveCount(1);
+    await expect(crew).not.toContainText("painter before shot");
+    await expect(crew).not.toContainText("painter qa shot");
   });
 
   test("a painter cannot pass one off as the office's", async () => {

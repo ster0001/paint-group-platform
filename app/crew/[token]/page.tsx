@@ -4,6 +4,8 @@ import type { WorkOrderDoc as WODoc } from "@/lib/workorder/snapshot";
 import { crewDoc, type CrewVariation } from "@/lib/workorder/crew";
 import { ticksBySurfaceKey, type SurfaceState } from "@/lib/workorder/surfaces";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
+import { createServiceClient } from "@/lib/supabase/service";
+import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 
 export const dynamic = "force-dynamic";
 
@@ -43,11 +45,26 @@ export default async function Page({ params }: { params: Promise<{ token: string
     { category: string; comment: string; est_hours: number | null; status: string }[] | null) ?? [])
     .map((v) => ({ category: v.category, comment: v.comment, estHours: v.est_hours, status: v.status }));
 
+  // The office's reference photos (20270190/91): an instruction about the work
+  // is exactly what the crew whitelist carries. The crew token has already
+  // been proved above; the RPC returns only reference rows for that job, as
+  // PATHS, and the service client signs only what the RPC allowed. A failure
+  // here degrades to no photos rather than failing the crew's sheet.
+  const { data: officeRows, error: officeErr } = await supabase
+    .rpc("get_work_order_office_photos_by_crew_token", { p_token: token });
+  const svc = createServiceClient();
+  let officePhotos: WOPhoto[] = [];
+  if (!officeErr && svc && (officeRows as unknown[] | null)?.length) {
+    officePhotos = await signPhotos(
+      svc, (officeRows as WOPhotoRow[]).map((r) => ({ ...r, kind: "reference" })),
+    );
+  }
+
   const doc = crewDoc({
     ...row.snapshot,
     status: row.status ?? row.snapshot.status,
     startDate: row.start_date ?? row.snapshot.startDate,
   });
 
-  return <WorkOrderDoc doc={doc} ticks={ticks} variant="crew" crewVariations={variations} />;
+  return <WorkOrderDoc doc={doc} ticks={ticks} variant="crew" crewVariations={variations} photos={officePhotos} />;
 }
