@@ -21,6 +21,7 @@ import StageAdvance from "./StageAdvance";
 import RebuildTicks from "./RebuildTicks";
 import SetDeduction from "./SetDeduction";
 import MaterialsCard, { type MaterialRowProp } from "./MaterialsCard";
+import FinishLevelCard from "./FinishLevelCard";
 import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
 import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
 
@@ -503,6 +504,21 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             coloursNo={checklist.some((c) => c.phase === "pre_start" && c.itemKey === "colours" && c.answer === "no")}
             canEdit={row.stage !== "closed"}
           />
+
+          {/* Level of finish (Tom, 23 Sep): the job sheet's standard is frozen
+              at issue and the revision builder cannot reach it — this is the
+              only door from "we agreed Level 2" to what the painter is held to.
+              Document only; the money rides the variation. */}
+          {snapshotDoc && row.stage !== "closed" && (
+            <FinishLevelCard
+              workOrderId={id}
+              finishCode={snapshotDoc.finishCode ?? null}
+              levelOfFinish={snapshotDoc.levelOfFinish ?? ""}
+              overriddenAreas={(snapshotDoc.areas ?? [])
+                .filter((a) => a.finishOverridden)
+                .map((a) => a.title)}
+            />
+          )}
 
           {/* Materials (Tom, 4 Sep): colours per substrate, adjustable here,
               and the budget against matched supplier invoices. */}

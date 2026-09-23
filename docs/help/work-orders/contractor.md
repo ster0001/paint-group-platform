@@ -81,6 +81,7 @@ If the office has switched it on for you, the **All surfaces done** card asks **
 
 ## What the colours and labels mean
 - **TO DO / PREPPED / DONE** on a row — not started (grey), prepped (cyan), finished (green).
+- **PG-2 Utility / PG-3 Premium / PG-4 Showcase** at the top of the job sheet — the standard this job is being done to, and what the walkthrough judges the work against. Tap it for the prep and the acceptance test at that level. An area shown with its own level beside it is a deliberate exception and overrides the job's. The office can correct the level after a job has gone out, so if it changes between the offer and the start, the new one is what you are held to — the job sheet always shows the current standard.
 - **Before photo of … — needed before the first tick** (amber) — the area cannot be ticked until you take it.
 - **Rectify** (amber, on a row) — the quality check or the customer flagged this; it needs putting right.
 - **WITH THE OFFICE** (amber, on a variation) — raised, not yet priced. **YOUR APPROVAL** (amber) — approved by the customer, waiting on your accept. **ACCEPTED** (green) — part of the job, with the amount added to your payment. **Removed from scope** — struck from the job by a signed credit.

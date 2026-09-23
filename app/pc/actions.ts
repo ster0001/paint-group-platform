@@ -7,6 +7,7 @@ import { WO_STAGES } from "@/lib/workorder/stages";
 import { seedRowsFromDoc } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { humaniseGate } from "@/lib/workorder/gateText";
+import { isCorrectableFinishModifier } from "@/lib/workorder/finish";
 import { onChecklistAnswered } from "@/lib/colourRecords/transitions";
 import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -761,5 +762,56 @@ export async function setMaterial(raw: unknown): Promise<PcResult> {
   if (!r.ok && r.message === "closed") return { ok: false, message: "This job is closed — its job sheet is final." };
   if (!r.ok && r.message === "no such material") return { ok: false, message: "That material isn't on this job sheet any more — reload the page." };
   if (r.ok) { revalidatePath("/portal/jobs"); revalidatePath(`/pc/wo/${p.data.workOrderId}`); }
+  return r;
+}
+
+// ---- Level of finish on an issued job sheet (Tom, 23 Sep 2026) --------------
+
+const finishLevelInput = z.object({
+  workOrderId: uuid,
+  modifierCode: z.string().trim().toUpperCase()
+    .refine(isCorrectableFinishModifier, "level"),
+});
+
+/**
+ * Correct what the painter is held to on a job that is already out.
+ *
+ * The level chosen in the revision builder reaches the money and stops there:
+ * wo_snapshot is written only from the frozen accepted estimate, so without
+ * this the job sheet keeps its issue-time standard for ever. The RPC (20270188)
+ * rewrites the snapshot the contractor actually reads and cascades to the areas
+ * that never carried an override of their own.
+ *
+ * Money is NOT touched here — the multiplier is priced and signed as a
+ * variation, which is what keeps the invoicing ledger reconciling.
+ */
+export async function setFinishLevel(raw: unknown): Promise<PcResult> {
+  const p = finishLevelInput.safeParse(raw);
+  if (!p.success) {
+    const level = p.error.issues.some((i) => i.message === "level");
+    return {
+      ok: false,
+      message: level
+        ? "Pick Level 2, 3 or 4 — Level 1 has no contractor standard to hold a painter to."
+        : "Check the level and try again.",
+    };
+  }
+  const r = await call("wo_set_finish_level", {
+    p_work_order_id: p.data.workOrderId,
+    p_modifier_code: p.data.modifierCode,
+  }, "Saved — the painter's job sheet carries the new level.");
+
+  if (!r.ok && /wo_set_finish_level/.test(r.message)) {
+    return { ok: false, message: "Level-of-finish edits need database migration 20270189 run first — nothing was changed." };
+  }
+  if (!r.ok && r.message === "closed") return { ok: false, message: "This job is closed — its job sheet is final." };
+  if (!r.ok && r.message === "not issued") return { ok: false, message: "This job sheet hasn't been issued yet — set the level on the estimate instead." };
+  if (!r.ok && r.message === "bad level") return { ok: false, message: "That isn't a level a contractor can be held to." };
+  if (!r.ok && r.message === "no such level") return { ok: false, message: "That level isn't on the rate card any more — reload the page." };
+  if (r.ok) {
+    revalidatePath("/portal/jobs");
+    revalidatePath("/portal/requests");
+    revalidatePath(`/pc/wo/${p.data.workOrderId}`);
+  }
   return r;
 }

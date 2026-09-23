@@ -36,6 +36,17 @@ The PC console (**Projects** in the sidebar) reads every open work order and tel
 7. At **03 In progress** the **Scope & ticks** card shows the painter's list live, with the amber before-photo prompts until each area has its photo.
    ![](media/pc-07.png)
 
+### The level of finish on a job that is already out
+The **Level of finish** card on the job page says which PG standard this job sheet holds the painter to — **PG-2 Utility**, **PG-3 Premium** or **PG-4 Showcase** — and, in brackets, the level the job was priced at.
+
+Those two can disagree. The level is frozen onto the job sheet when the job is issued, and changing it in the revision builder moves the **money** without touching the sheet: the painter goes on reading the standard the job went out with. That is what this card is for. Pick the level the job is actually being done to and **Save to the job sheet**; the painter's copy, the offer and the portal all change straight away.
+
+Two things it deliberately does not do. **It does not change the price** — the level multiplier is priced and signed as a variation in **Revise scope**, so correcting the sheet here and sending the variation there are two separate jobs, and both need doing. And it leaves any area that carries a level of its own alone: the card names those areas before you save, and everything else follows the job. If an area was pinned to the level you are now moving the whole job to, it stops reading as an exception.
+
+**Level 1** is not offered. It has no contractor standard, and calling a Level 1 job PG-2 would hold a painter to more prep than the customer paid for.
+
+The card disappears once a job is closed — a closed job's sheet is final.
+
 ### Variations for approval
 The Dashboard's second section, **Variations for approval**, lists every open variation across every job: the ones **waiting on you** (raised, no price yet — amber, **Price it**) first, then those priced and waiting on the customer, then those the customer has approved and the painter has not yet accepted. The heading counts them ("3 open · 1 waiting on you"); each row names the category, the amount once priced, the job and the painter's words, and opens the variation on the job page. A declined, cancelled or accepted variation leaves the list on its own.
 
