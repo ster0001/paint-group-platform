@@ -45,6 +45,8 @@ This matters most on a **handover job from PaintScout**. Those come in without a
 
 **Remove** takes one back off the sheet. It only ever removes photos the office added: the painter's own before, progress, quality-check and completion shots are their record of the work and the button cannot touch them — they live further down under **Site photos**.
 
+**Painter's view** on the job page shows the sheet exactly as the painter has it, photos included — check there rather than the builder's job-sheet tab, which is the office's copy.
+
 A caption is worth writing. "Scaffold this side" on the right elevation saves a phone call; an uncaptioned photo makes the painter guess what they are looking at.
 
 The card disappears once a job is closed — a closed job's sheet is final.

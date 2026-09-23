@@ -7,6 +7,8 @@ import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "@/app/portal/jobs/[id]/Variations";
 import PrepChecklist, { type PrepItem } from "@/app/portal/jobs/[id]/PrepChecklist";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
+import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
+import { reportError } from "@/lib/monitoring/report";
 import "@/app/portal/portal.css";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +53,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
   // tolerates a missing snapshot, so the button rendered and the click died.
   // Render what exists and say plainly why the job sheet is absent.
 
-  const [{ data: surfaceRows }, { data: photoRows }, { data: variationRows }, { data: prepRows }] =
+  const [{ data: surfaceRows }, { data: photoRows }, { data: variationRows }, { data: prepRows }, { data: officeRows, error: officeErr }] =
     await Promise.all([
       supabase.from("wo_surfaces")
         .select("id, heading, heading_meta, label, state, rectification")
@@ -63,7 +65,16 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
       supabase.from("wo_checklist_items")
         .select("id, label, detail, required, done_at, kind, item_key, answer, answer_note")
         .eq("work_order_id", id).eq("phase", "completion_prep").order("sort"),
+      // The photos the office attached (20270190) — this view exists so the
+      // coordinator sees what the painter sees, so it must carry them too.
+      supabase.from("wo_photos")
+        .select("id, work_order_id, kind, area, caption, storage_path, created_at")
+        .eq("work_order_id", id).eq("kind", "reference").order("created_at", { ascending: true }),
     ]);
+  // A rejected read must not render as "the office attached nothing" — that is
+  // the invoicing-outage shape. Report it; the sheet still renders, minus photos.
+  if (officeErr) reportError(officeErr, { where: "pc.asContractor.officePhotos", bestEffort: true, extra: { workOrderId: id } });
+  const officePhotos: WOPhoto[] = officeErr ? [] : await signPhotos(supabase, (officeRows ?? []) as WOPhotoRow[]);
 
   const surfaces = ((surfaceRows ?? []) as {
     id: string; heading: string; heading_meta: string; label: string;
@@ -129,7 +140,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
       <Variations workOrderId={id} variations={variations} />
 
       {job.doc ? (
-        <WorkOrderDoc doc={job.doc} />
+        <WorkOrderDoc doc={job.doc} photos={officePhotos} />
       ) : (
         <div className="card" style={{ marginTop: 12 }} data-testid="no-snapshot">
           <b>No job sheet yet</b>
