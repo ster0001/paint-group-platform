@@ -121,3 +121,47 @@ export function finishLevel(code: string | null | undefined): FinishLevel | null
 }
 
 export const FINISH_ORDER: FinishCode[] = ["PG-2", "PG-3", "PG-4"];
+
+/**
+ * The pricing modifiers that HAVE a contractor-facing standard, in rung order.
+ * FIN-1 is deliberately absent — see note 2 at the top of this file. The office
+ * correcting an issued job sheet picks from exactly this list, and the RPC
+ * refuses anything else rather than guessing a level for a painter.
+ */
+export const CORRECTABLE_FINISH_MODIFIERS = ["FIN-2", "FIN-3", "FIN-4"] as const;
+export type CorrectableFinishModifier = typeof CORRECTABLE_FINISH_MODIFIERS[number];
+
+export function isCorrectableFinishModifier(code: string): code is CorrectableFinishModifier {
+  return (CORRECTABLE_FINISH_MODIFIERS as readonly string[]).includes(code);
+}
+
+/**
+ * The document-side half of wo_set_finish_level, kept in TypeScript so the SQL
+ * can be tested against the same rule (the pattern lib/workorder/materials.ts
+ * set for wo_set_material).
+ *
+ * The job's standard changes, and every area that never carried an override of
+ * its own follows it down — which is the cascade the builder already assumes:
+ * onAreaFinish stores NOTHING for an area on the job's level, precisely "so
+ * changing the job level still cascades". An area that WAS overridden keeps its
+ * own code, but `finishOverridden` is recomputed against the new job level, so
+ * an override that now agrees with the job stops being flagged as a difference
+ * — the same expression computeWorkOrderParts uses when it builds the document.
+ */
+export function applyFinishLevelEdit<
+  T extends {
+    levelOfFinish: string;
+    finishCode: string | null;
+    areas?: { finishCode?: string | null; finishOverridden?: boolean }[];
+  },
+>(doc: T, finishCode: FinishCode, levelLabel: string): T {
+  const areas = (doc.areas ?? []).map((a) => {
+    const override = a.finishOverridden ? (a.finishCode ?? null) : null;
+    return {
+      ...a,
+      finishCode: override ?? finishCode,
+      finishOverridden: Boolean(override && override !== finishCode),
+    };
+  });
+  return { ...doc, levelOfFinish: levelLabel, finishCode, ...(doc.areas ? { areas } : {}) };
+}
