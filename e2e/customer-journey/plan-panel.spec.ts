@@ -39,6 +39,15 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
   await expect(page.getByTestId("ql-plan-upload")).toContainText(/Floorplan uploaded/i, { timeout: 240_000 });
   await expect(page.getByTestId("ql-plan-done")).toBeVisible();
   await quickNext(page); // the job
+  // The job step needs a SCOPE before it will move on, and a preset opens the
+  // "anything NOT being painted?" strip (Tom, 14 Sep evening) — every other
+  // journey spec taps both; this one called a bare Continue and sat on
+  // "What's the job?" until the rooms assertion timed out. Whole interior: the
+  // plan's rooms are what the next step confirms.
+  await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("ql-scope-whole").click();
+  await page.getByTestId("ql-excl-none").click();
+  await quickNext(page);
   // 14 Sep (evening): confirm the rooms — the plan's, once read; the starter list until then.
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
