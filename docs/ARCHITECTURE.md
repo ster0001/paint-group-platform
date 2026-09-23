@@ -29,8 +29,19 @@ assignment). With nobody on the job, a signed change folds in on signature — `
 figure; the jobs list and the portal sheet's Payment line carry the same adjusted figure. With a painter on the job,
 release/accept is unchanged. Either way the job sheet lists **Changes to the scope** (`scopeChanges` prop: scope and
 hours, never price) from the contractor's own rows on the portal and from `get_work_order_scope_changes_by_token` on
-the token link. The sheet's areas/surfaces are NOT rewritten by a variation — the list is the record, alongside the
-strike. `e2e/revision-builder.spec.ts` drives it as the anonymous customer and the anonymous painter link.
+the token link. The sheet's frozen areas are not rewritten by a variation — the list is the record, alongside the strike.
+`e2e/revision-builder.spec.ts` drives it as the anonymous customer and the anonymous painter link.
+
+**Approved variations are tick rows (20270193, same day: "make the variations tick items").** `lib/revision/diff.ts`
+now carries `addedSurfaces` (key `areaId:surfaceId`, heading, label — every surface of a new area, the new surfaces
+of a changed one, never a line item) and the draft action stores them on `priced_inputs.surfaces`. A trigger on
+`wo_variations` (update of status, and insert for rows born approved) calls `wo_apply_variation_surfaces`: for a
+non-credit variation with `est_hours > 0` it upserts those rows into `wo_surfaces` under the area's heading, marked
+`added_by_variation`; a keyless variation (raised on site / quick-priced) becomes ONE row under "Variations" in the
+painter's words, keyed `variation:<id>`. A row a credit struck and a later addition brings back is un-struck, not
+duplicated; ticks are never reset. `wo_seed_surfaces` keeps `added_by_variation` rows across a re-issue. Rows count
+toward progress, the before-photo gate and `wo_gate_blocked` like any other. Backfilled for open jobs in the
+migration. Pinned by `variationTickRows.contract.test.ts`; driven in `revision-builder` and `wo-variations` specs.
 
 ---
 

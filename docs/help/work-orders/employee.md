@@ -37,7 +37,7 @@ On a job that came in from PaintScout these are often the only photos there are,
 
 ### Found something? Raise a variation
 7. Rot, damage, extra scope, or something the customer asked for on the day: raise it from the job with a category, a note and a photo. The office prices it and the customer approves it. When it is approved you will see **Variation approved** on the job with the added scope and hours so the work can go ahead; if it is not, **Not going ahead** with the office's note. There is no price on it and nothing for you to accept.
-8. Changes the office agrees with the customer after the job was issued also appear on your job sheet under **Changes to the scope** — **Added** with the hours, or **Removed** — so the sheet is never behind what the customer has signed.
+8. Changes the office agrees with the customer after the job was issued also appear on your job sheet under **Changes to the scope** — **Added** with the hours, or **Removed** — so the sheet is never behind what the customer has signed. Approved work is on your tick list too: a new area under its own heading, a variation you raised under **Variations**. Tick it like any other row.
 
 ### Finishing up
 8. When every surface is done, the **finishing-up list** appears on the same screen: rubbish, equipment for collection, a note for the customer. Answer it and tap **Finish**. The job routes itself to the quality check or the walkthrough — nothing customer-facing for you to press.

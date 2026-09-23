@@ -46,6 +46,13 @@ export type RevisionChange = {
   hoursDelta: number;
   /** wo_surfaces keys ("areaId:surfaceId") this change removes — the strike. */
   surfaceKeys: string[];
+  /**
+   * The tick rows this change ADDS (Tom, 23 Sep 2026: approved variations
+   * become tick items). Every surface of a new area, or the new surfaces of a
+   * changed one — the same shape wo_seed_surfaces takes, stored on the
+   * variation's priced_inputs and applied on approval (20270193).
+   */
+  addedSurfaces: { key: string; heading: string; label: string }[];
   /** The engine's line detail for the /v page. */
   pricedLines: { label: string; cents: number }[];
 };
@@ -76,28 +83,39 @@ const blocksOf = (state: RevisionState): RevBlock[] =>
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+type AddedRow = { key: string; heading: string; label: string };
+const addedRow = (area: RevArea, s: RevSurface): AddedRow => ({
+  key: `${area.id}:${s.id}`, heading: blockName(area, "Area"), label: surfaceLabel(s),
+});
+
 /** Human summary of what changed inside one area block. */
 function areaDetail(a: RevArea | undefined, w: RevArea | undefined): {
-  detail: string; removedKeys: string[];
+  detail: string; removedKeys: string[]; addedRows: AddedRow[];
 } {
   if (!a && w) {
     const labels = w.surfaces.map((s) => surfaceLabel(s)).join(", ");
-    return { detail: labels ? `New area — ${labels}` : "New area", removedKeys: [] };
+    return {
+      detail: labels ? `New area — ${labels}` : "New area",
+      removedKeys: [],
+      addedRows: w.surfaces.map((s) => addedRow(w, s)),
+    };
   }
   if (a && !w) {
     return {
       detail: "Whole area removed from scope",
       removedKeys: a.surfaces.map((s) => `${a.id}:${s.id}`),
+      addedRows: [],
     };
   }
-  if (!a || !w) return { detail: "", removedKeys: [] };
+  if (!a || !w) return { detail: "", removedKeys: [], addedRows: [] };
 
   const before = new Map(a.surfaces.map((s) => [s.id, s]));
   const after = new Map(w.surfaces.map((s) => [s.id, s]));
   const bits: string[] = [];
   const removedKeys: string[] = [];
+  const addedRows: AddedRow[] = [];
   for (const [id, s] of after) {
-    if (!before.has(id)) bits.push(`added ${surfaceLabel(s)}`);
+    if (!before.has(id)) { bits.push(`added ${surfaceLabel(s)}`); addedRows.push(addedRow(w, s)); }
     else if (JSON.stringify(before.get(id)) !== JSON.stringify(s))
       bits.push(`changed ${surfaceLabel(s)}`);
   }
@@ -109,7 +127,7 @@ function areaDetail(a: RevArea | undefined, w: RevArea | undefined): {
   }
   const dims =
     a.L !== w.L || a.W !== w.W || a.H !== w.H ? ["measurements changed"] : [];
-  return { detail: [...bits, ...dims].join(" · ") || "details changed", removedKeys };
+  return { detail: [...bits, ...dims].join(" · ") || "details changed", removedKeys, addedRows };
 }
 
 export function diffRevision(
@@ -155,9 +173,11 @@ export function diffRevision(
     const kind: RevisionChange["kind"] = !a ? "added" : !w ? "removed" : "changed";
     const name = blockName(w ?? a, (w ?? a)?.kind === "line" ? "Line item" : "Area");
     const isArea = (w ?? a)?.kind === "area";
-    const { detail, removedKeys } = isArea
+    // Line items are never tick rows (lib/workorder/surfaces.ts) — an added
+    // line carries no addedRows.
+    const { detail, removedKeys, addedRows } = isArea
       ? areaDetail(a as RevArea | undefined, w as RevArea | undefined)
-      : { detail: kind === "changed" ? "amount or details changed" : "", removedKeys: [] };
+      : { detail: kind === "changed" ? "amount or details changed" : "", removedKeys: [], addedRows: [] };
 
     if (deltaInc !== 0 || hours > 0) {
       changes.push({
@@ -174,6 +194,7 @@ export function diffRevision(
         hours,
         hoursDelta,
         surfaceKeys: removedKeys,
+        addedSurfaces: deltaInc < 0 ? [] : addedRows,
         pricedLines: [
           {
             label:
@@ -207,6 +228,7 @@ export function diffRevision(
         hours,
         hoursDelta,
         surfaceKeys: [],
+        addedSurfaces: [],
         pricedLines: [{ label: "Job-level adjustment", cents: deltaInc }],
       });
     }
