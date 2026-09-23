@@ -46,6 +46,31 @@ function windowOf(range: Range): { fromIso: string; toIso: string } {
   return { fromIso: `${addDays(prev.from, -1)}T00:00:00Z`, toIso: `${addDays(range.to, 1)}T23:59:59Z` };
 }
 
+/**
+ * Every row, or the error — never the first 1000. PostgREST returns at most
+ * 1000 rows per response whatever `.limit()` asks (postgrest-row-cap), so a
+ * capped read on a busy month or a year range silently under-counts; the
+ * 20 Sep audit found six of them. Same shape as a bare select so the
+ * `failure` handling around each read stays as it was.
+ */
+async function pageAll<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>, maxPages = Infinity): Promise<{ data: T[]; error: { message: string } | null; truncated: boolean }> {
+  try { return { ...(await fetchPages<T>(query, maxPages)), error: null }; }
+  catch (e: unknown) { return { data: [], error: { message: e instanceof Error ? e.message : String(e) }, truncated: false }; }
+}
+/** `fetchAllRows` with a ceiling: a feed (activity, wizard sessions) is read newest-first and SAYS when it stopped, never silently. */
+async function fetchPages<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>, maxPages: number): Promise<{ data: T[]; truncated: boolean }> {
+  if (!Number.isFinite(maxPages)) return { data: await fetchAllRows<T>(query), truncated: false };
+  const PAGE = 1000; const out: T[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const { data, error } = await query(page * PAGE, page * PAGE + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+    if (rows.length < PAGE) return { data: out, truncated: false };
+  }
+  return { data: out, truncated: true };
+}
+
 const failure = (failures: LoadFailure[], where: string, e: unknown) => {
   reportError(e, { where: `reporting.${where}` });
   failures.push({ where, message: e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e) });
@@ -80,9 +105,9 @@ async function loadConsoleSlice(supabase: SupabaseClient, console_: ConsoleData,
 }
 
 async function loadAwaitingReply(supabase: SupabaseClient, failures: LoadFailure[]): Promise<AwaitingReplyRow[]> {
-  const { data, error } = await supabase.from("crm_account_facts")
+  const { data, error } = await pageAll<{ account_id: string; name: string | null; last_inbound_at: string; last_staff_reply_at: string | null }>((from, to) => supabase.from("crm_account_facts")
     .select("account_id, name, last_inbound_at, last_staff_reply_at")
-    .not("last_inbound_at", "is", null).order("last_inbound_at", { ascending: true }).limit(2000);
+    .not("last_inbound_at", "is", null).order("last_inbound_at", { ascending: false }).order("account_id").range(from, to));
   if (error) { failure(failures, "customers awaiting reply", error); return []; }
   return ((data ?? []) as { account_id: string; name: string | null; last_inbound_at: string; last_staff_reply_at: string | null }[])
     .filter((r) => r.last_inbound_at > (r.last_staff_reply_at ?? ""))
@@ -98,9 +123,9 @@ async function loadAwaitingReply(supabase: SupabaseClient, failures: LoadFailure
 /** Signed-off jobs in the window, with the engine's estimate and every recorded cost — one read for the PC materials card AND the P&L. */
 async function loadClosedJobs(supabase: SupabaseClient, range: Range, failures: LoadFailure[]): Promise<ClosedJobRow[]> {
   const { fromIso, toIso } = windowOf(range);
-  const wos = await supabase.from("work_orders")
+  const wos = await pageAll<WoRefRow>((from, to) => supabase.from("work_orders")
     .select("id, wo_ref, estimate_id, stage, stage_entered_at, title:wo_snapshot->>jobTitle")
-    .eq("stage", "closed").gte("stage_entered_at", fromIso).lte("stage_entered_at", toIso).order("stage_entered_at", { ascending: false }).limit(300);
+    .eq("stage", "closed").gte("stage_entered_at", fromIso).lte("stage_entered_at", toIso).order("stage_entered_at", { ascending: false }).order("id").range(from, to));
   if (wos.error) { failure(failures, "signed-off jobs", wos.error); return []; }
   const jobs = (wos.data ?? []) as WoRefRow[];
   if (jobs.length === 0) return [];
@@ -154,7 +179,7 @@ async function loadClosedJobs(supabase: SupabaseClient, range: Range, failures: 
       }
     } catch (e) { reportError(e, { where: "reporting.closedJobs.engine", bestEffort: true, extra: { workOrderId: j.id } }); }
     return {
-      work_order_id: j.id, wo_ref: j.wo_ref, title: j.title ?? "", closed_on: (j.stage_entered_at ?? "").slice(0, 10), estimate_id: j.estimate_id,
+      work_order_id: j.id, wo_ref: j.wo_ref, title: j.title ?? "", closed_on: j.stage_entered_at ? melbourneDay(j.stage_entered_at) : "", estimate_id: j.estimate_id,
       category: (est?.presentation_id && catLabel.get(est.presentation_id)) || "Uncategorised", size_band: est?.size_band ?? "", account_id: est?.account_id ?? null, lead_source: est?.lead_source ?? null,
       est: engine,
       actual: { contractor_cents: ciByWo.get(j.id) ?? 0, materials_cents: invoicedExGst(invoicedByWo.get(j.id) ?? 0), job_costs_cents: jcByWo.get(j.id) ?? 0, expenses_cents: exByWo.get(j.id) ?? 0 },
@@ -231,49 +256,55 @@ export type ViewerOptions = { userId: string | null; who?: "mine" | "team"; fami
 
 type HistoryRow = { id: string; accepted_at: string; accepted_total_cents: number | null; total_cents: number };
 const monthFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit" });
-/** Accepted totals by Melbourne month — the target card's twelve bars; recomputed after the exclusions are applied. */
-function salesHistory(rows: readonly HistoryRow[]): SalesSlice["history"] {
+/** Accepted totals by Melbourne month — the target card's bars; recomputed after the exclusions are applied. A recorded month (20270186) replaces the platform's figure. */
+function salesHistory(rows: readonly HistoryRow[], recorded: NonNullable<SalesSlice["recorded"]> = []): SalesSlice["history"] {
   const monthly = new Map<string, { sales_cents: number; accepted: number }>();
   for (const e of rows) {
     const mo = monthFmt.format(new Date(e.accepted_at)).slice(0, 7);
     const g = monthly.get(mo) ?? { sales_cents: 0, accepted: 0 };
     g.sales_cents += e.accepted_total_cents ?? e.total_cents; g.accepted += 1; monthly.set(mo, g);
   }
+  for (const r of recorded) monthly.set(r.month.slice(0, 7), { sales_cents: r.sales_cents, accepted: r.accepted ?? 0 });
   return [...monthly.entries()].map(([month, g]) => ({ month, ...g })).sort((a, b) => a.month.localeCompare(b.month));
 }
 
 async function loadSalesSlice(supabase: SupabaseClient, range: Range, viewer: ViewerOptions, roles: ReadonlyArray<DashboardRole>, failures: LoadFailure[]): Promise<SalesSlice> {
   const [y, m] = range.to.slice(0, 7).split("-").map(Number);
   const historyFrom = new Date(Date.UTC(y, m - 12, 1)).toISOString();
-  const [pres, staff, targets, history] = await Promise.all([
+  const [pres, staff, targets, history, recorded] = await Promise.all([
     supabase.from("presentations").select("id, category_label, name"),
     supabase.from("profiles").select("id, name").eq("role", "staff"),
     // Targets are owner/admin only (RLS) — a sales login reads an empty list, and the card is not rendered for them.
     supabase.from("sales_targets").select("month, target_cents").is("category_label", null).is("salesperson_id", null).gte("month", historyFrom.slice(0, 10)),
     fetchAllRows<HistoryRow>((from, to) =>
       supabase.from("estimates").select("id, accepted_at, accepted_total_cents, total_cents").eq("status", "accepted").gte("accepted_at", historyFrom).order("accepted_at").range(from, to)).then((rows) => ({ data: rows, error: null as null | { message: string } })).catch((e: unknown) => ({ data: [] as HistoryRow[], error: { message: e instanceof Error ? e.message : String(e) } })),
+    // 20270186: the months recorded from PaintScout — small, every staff login may read them.
+    supabase.from("sales_history_months").select("month, sales_cents, accepted, source").order("month"),
   ]);
-  for (const [where, r] of [["presentations", pres], ["staff names", staff], ["sales history", history]] as const) if (r.error) failure(failures, where, r.error);
+  for (const [where, r] of [["presentations", pres], ["staff names", staff], ["sales history", history], ["recorded sales months", recorded]] as const) if (r.error) failure(failures, where, r.error);
   if (targets.error && targets.error.code !== "42501") failure(failures, "sales targets", targets.error);
   const salesOnly = roles.length > 0 && roles.every((r) => r === "sales");
+  const recordedRows = ((recorded.data ?? []) as { month: string; sales_cents: number | string; accepted: number | null; source: string }[]).map((r) => ({ month: r.month, sales_cents: Number(r.sales_cents), accepted: r.accepted == null ? null : Number(r.accepted), source: r.source }));
   return {
     presentations: ((pres.data ?? []) as { id: string; category_label: string | null; name: string }[]).map((p) => ({ id: p.id, category_label: p.category_label || p.name })),
     staff: ((staff.data ?? []) as { id: string; name: string | null }[]).map((s) => ({ id: s.id, name: s.name || "Staff" })),
     targets: ((targets.data ?? []) as { month: string; target_cents: number }[]).map((t) => ({ month: t.month, target_cents: Number(t.target_cents) })),
-    history: salesHistory(history.data ?? []),
+    recorded: recordedRows,
+    history: salesHistory(history.data ?? [], recordedRows),
     historyRows: history.data ?? [],
     viewerUserId: viewer.userId,
     who: viewer.who ?? (salesOnly ? "mine" : "team"),
   };
 }
 
+type DraftRow = { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; accounts: { lead_source: string | null } | null };
 async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures: LoadFailure[]): Promise<FunnelSlice> {
   const { fromIso, toIso } = windowOf(range);
-  const drafts = await supabase.from("wizard_drafts").select("id, started_at, email, estimate_id, converted_at, last_seen_at, accounts(lead_source)")
-    .gte("started_at", fromIso).lte("started_at", toIso).order("started_at", { ascending: false }).limit(5000);
+  const drafts = await pageAll<DraftRow>((from, to) => supabase.from("wizard_drafts").select("id, started_at, email, estimate_id, converted_at, last_seen_at, accounts(lead_source)")
+    .gte("started_at", fromIso).lte("started_at", toIso).order("started_at", { ascending: false }).order("id").range(from, to), 10);
+  if (drafts.truncated) failure(failures, "wizard sessions", new Error("more than 10,000 sessions in the window — the funnel counts the newest 10,000"));
   if (drafts.error) { failure(failures, "wizard sessions", drafts.error); return { drafts: [], estimates: [] }; }
-  type DraftRow = { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; accounts: { lead_source: string | null } | null };
-  const rows = (drafts.data ?? []) as unknown as DraftRow[];
+  const rows = drafts.data;
   const estIds = [...new Set(rows.map((d) => d.estimate_id).filter((x): x is string => Boolean(x)))];
   const ests = estIds.length ? await inSlices(estIds, (s) => supabase.from("estimates").select("id, status, sent_at, viewed_at, accepted_at, declined_at, lead_source").in("id", s)) : { rows: [], error: null };
   if (ests.error) failure(failures, "estimates behind wizard sessions", ests.error);
@@ -285,12 +316,14 @@ async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures:
 
 async function loadActivitySlice(supabase: SupabaseClient, range: Range, roles: ReadonlyArray<DashboardRole>, viewer: ViewerOptions, failures: LoadFailure[]): Promise<ActivitySlice> {
   const { fromIso, toIso } = windowOf(range);
-  const ev = await supabase.from("crm_events").select("id, type, payload, occurred_at, source, account_id, accounts(name)")
-    .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).limit(2000);
-  if (ev.error) { failure(failures, "activity", ev.error); return { events: [], roles, family: viewer.family ?? null, q: viewer.q ?? null }; }
   type EvRow = { id: string; type: string; payload: Record<string, unknown> | null; occurred_at: string; source: string; account_id: string | null; accounts: { name: string | null } | null };
+  // A feed, not a figure: the newest 5,000 events of the window are enough for the timeline, and the slice says when there were more.
+  const ev = await pageAll<EvRow>((from, to) => supabase.from("crm_events").select("id, type, payload, occurred_at, source, account_id, accounts(name)")
+    .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).order("id").range(from, to), 5);
+  if (ev.error) { failure(failures, "activity", ev.error); return { events: [], roles, family: viewer.family ?? null, q: viewer.q ?? null }; }
   return {
-    events: ((ev.data ?? []) as unknown as EvRow[]).map((e) => ({ id: e.id, type: e.type, payload: e.payload, occurred_at: e.occurred_at, source: e.source, account_id: e.account_id, account_name: e.accounts?.name ?? null })),
+    truncated: ev.truncated,
+    events: ev.data.map((e) => ({ id: e.id, type: e.type, payload: e.payload, occurred_at: e.occurred_at, source: e.source, account_id: e.account_id, account_name: e.accounts?.name ?? null })),
     roles, family: viewer.family ?? null, q: viewer.q ?? null,
   };
 }
@@ -313,10 +346,10 @@ async function loadInvoicingSlice(supabase: SupabaseClient, range: Range, now: D
   for (const r of rows) invoiceInfo[r.id] = { number: r.number ?? "", customer: r.estimates?.accepted_name || r.estimates?.title || "", address: r.estimates?.job_address ?? "", start_date: startByEstimate.get(r.estimate_id) ?? null };
   // Payments in the window (paid_on is a Melbourne day): the period tiles.
   const { fromIso, toIso } = windowOf(range);
-  const pays = await supabase.from("payments").select("paid_on, amount_cents, method, status, invoice_id, invoices(number, kind, issued_on, estimates(title, accepted_name))")
-    .eq("status", "succeeded").gte("paid_on", fromIso.slice(0, 10)).lte("paid_on", toIso.slice(0, 10)).order("paid_on", { ascending: false }).limit(5000);
-  if (pays.error) failure(failures, "payments received", pays.error);
   type PayRow = { paid_on: string | null; amount_cents: number; method: string | null; invoice_id: string; invoices: { number: string | null; kind: string; issued_on: string | null; estimates: { title: string | null; accepted_name: string | null } | null } | null };
+  const pays = await pageAll<PayRow>((from, to) => supabase.from("payments").select("paid_on, amount_cents, method, status, invoice_id, invoices(number, kind, issued_on, estimates(title, accepted_name))")
+    .eq("status", "succeeded").gte("paid_on", fromIso.slice(0, 10)).lte("paid_on", toIso.slice(0, 10)).order("paid_on", { ascending: false }).order("id").range(from, to));
+  if (pays.error) failure(failures, "payments received", pays.error);
   const settings = await supabase.from("settings").select("key, value").in("key", ["dashboard_ageing_edge_days_1", "dashboard_ageing_edge_days_2"]);
   if (settings.error) failure(failures, "ageing settings", settings.error);
   const edge = (key: string, dflt: number) => numericSettingValue(((settings.data ?? []) as { key: string; value: unknown }[]).find((s) => s.key === key)?.value) ?? dflt;
@@ -325,12 +358,13 @@ async function loadInvoicingSlice(supabase: SupabaseClient, range: Range, now: D
     payments: toDerivePayments(dash.payments),
     contractorInvoices: dash.contractorInvoices.map((c) => ({ id: c.id, number: c.number, status: c.status, totalIncCents: c.total_inc_cents, dueOn: c.due_on, contractor: c.contractors?.company_name ?? "", wo_ref: c.work_orders?.wo_ref ?? "", submitted_at: c.submitted_at })),
     invoiceInfo,
-    paymentsInWindow: ((pays.data ?? []) as unknown as PayRow[]).filter((p) => p.paid_on).map((p) => ({
+    paymentsInWindow: pays.data.filter((p) => p.paid_on).map((p) => ({
       paid_on: p.paid_on as string, amount_cents: p.amount_cents, method: p.method ?? "other", invoice_id: p.invoice_id,
       number: p.invoices?.number ?? "", customer: p.invoices?.estimates?.accepted_name || p.invoices?.estimates?.title || "", kind: p.invoices?.kind ?? "", issued_on: p.invoices?.issued_on ?? null,
     })),
     ageingEdges: [edge("dashboard_ageing_edge_days_1", 7), edge("dashboard_ageing_edge_days_2", 30)],
     today,
+    materialsToMatch: dash.materialsToMatch,
   };
 }
 
@@ -343,28 +377,31 @@ async function loadPlSlice(supabase: SupabaseClient, range: Range, closedJobs: C
   const [settings, spend, pays] = await Promise.all([
     supabase.from("settings").select("key, value").in("key", ["Weekly fixed costs", "Weekly marketing"]),
     supabase.from("marketing_spend").select("month, channel, spend_cents").gte("month", spendFrom),
-    supabase.from("payments").select("paid_on, amount_cents, invoice_id").eq("status", "succeeded").gte("paid_on", fromIso.slice(0, 10)).lte("paid_on", toIso.slice(0, 10)).limit(5000),
+    pageAll<{ paid_on: string | null; amount_cents: number; invoice_id: string | null }>((from, to) => supabase.from("payments").select("paid_on, amount_cents, invoice_id").eq("status", "succeeded").gte("paid_on", fromIso.slice(0, 10)).lte("paid_on", toIso.slice(0, 10)).order("paid_on").order("id").range(from, to)),
   ]);
   if (settings.error) failure(failures, "overhead settings", settings.error);
   if (spend.error && spend.error.code !== "42501") failure(failures, "marketing spend", spend.error);
   if (pays.error) failure(failures, "payments received", pays.error);
   const val = (key: string) => numericSettingValue(((settings.data ?? []) as { key: string; value: unknown }[]).find((s) => s.key === key)?.value);
-  // Repeat customers: the accounts accepted in the window that had an accepted estimate before it.
-  const accepted = await supabase.from("estimates").select("account_id, accepted_at").eq("status", "accepted").gte("accepted_at", fromIso).lte("accepted_at", toIso).not("account_id", "is", null).limit(5000);
+  // Repeat customers: an account accepted in the window whose EARLIEST acceptance anywhere is before
+  // the one in the window — an earlier acceptance inside the comparison period counts too (20 Sep audit).
+  const accepted = await pageAll<{ account_id: string; accepted_at: string }>((from, to) => supabase.from("estimates").select("account_id, accepted_at").eq("status", "accepted").gte("accepted_at", fromIso).lte("accepted_at", toIso).not("account_id", "is", null).order("accepted_at").order("id").range(from, to));
   if (accepted.error) failure(failures, "accepted estimates", accepted.error);
-  const firstInWindow = new Map<string, string>();
-  for (const e of (accepted.data ?? []) as { account_id: string; accepted_at: string }[]) if (!firstInWindow.has(e.account_id) || e.accepted_at < firstInWindow.get(e.account_id)!) firstInWindow.set(e.account_id, e.accepted_at);
-  const accountIds = [...firstInWindow.keys()];
-  const earlier = accountIds.length ? await inSlices(accountIds, (s) => supabase.from("estimates").select("account_id, accepted_at").eq("status", "accepted").in("account_id", s).lt("accepted_at", fromIso)) : { rows: [], error: null };
-  if (earlier.error) failure(failures, "earlier acceptances", earlier.error);
+  const latestInWindow = new Map<string, string>();
+  for (const e of accepted.data) if (!latestInWindow.has(e.account_id) || e.accepted_at > latestInWindow.get(e.account_id)!) latestInWindow.set(e.account_id, e.accepted_at);
+  const accountIds = [...latestInWindow.keys()];
+  const earliest = accountIds.length ? await inSlices(accountIds, (s) => supabase.from("estimates").select("account_id, accepted_at").eq("status", "accepted").in("account_id", s).order("accepted_at")) : { rows: [], error: null };
+  if (earliest.error) failure(failures, "earlier acceptances", earliest.error);
+  const firstEver = new Map<string, string>();
+  for (const e of (earliest.rows ?? []) as { account_id: string; accepted_at: string }[]) if (!firstEver.has(e.account_id) || e.accepted_at < firstEver.get(e.account_id)!) firstEver.set(e.account_id, e.accepted_at);
   const repeat = new Set<string>();
-  for (const e of (earlier.rows ?? []) as { account_id: string; accepted_at: string }[]) if ((firstInWindow.get(e.account_id) ?? "") > e.accepted_at) repeat.add(e.account_id);
+  for (const [acct, latest] of latestInWindow) { const first = firstEver.get(acct); if (first && first < latest) repeat.add(acct); }
   return {
     closedJobs,
     weeklyFixedCents: (() => { const v = val("Weekly fixed costs"); return v == null ? null : Math.round(v * 100); })(),
     weeklyMarketingCents: (() => { const v = val("Weekly marketing"); return v == null ? null : Math.round(v * 100); })(),
     spend: ((spend.data ?? []) as { month: string; channel: string; spend_cents: number }[]).map((r) => ({ month: r.month, channel: r.channel, spend_cents: Number(r.spend_cents) })),
-    payments: ((pays.data ?? []) as { paid_on: string | null; amount_cents: number; invoice_id: string | null }[]).filter((p) => p.paid_on).map((p) => ({ paid_on: p.paid_on as string, amount_cents: p.amount_cents, invoice_id: p.invoice_id })),
+    payments: pays.data.filter((p) => p.paid_on).map((p) => ({ paid_on: p.paid_on as string, amount_cents: p.amount_cents, invoice_id: p.invoice_id })),
     repeatAccounts: [...repeat],
     history,
   };
@@ -469,7 +506,7 @@ export async function loadDashboard(
   if (console_) console_.input = excludeConsole(console_.input, x.workOrderIds);
   const contractorSlice = contractorRaw ? excludeContractors(contractorRaw, x.workOrderIds) : null;
   const historyRows = salesRaw ? without(salesRaw.historyRows, (h) => h.id, x.estimateIds) : [];
-  const salesSlice = salesRaw ? { ...salesRaw, historyRows, history: salesHistory(historyRows) } : null;
+  const salesSlice = salesRaw ? { ...salesRaw, historyRows, history: salesHistory(historyRows, salesRaw.recorded ?? []) } : null;
   const funnelSlice = funnelRaw ? { ...funnelRaw, estimates: without(funnelRaw.estimates, (e) => e.id, x.estimateIds) } : null;
   const invoicingSlice = invoicingRaw ? excludeInvoicing(invoicingRaw, x) : null;
   const anomalyPct = numericSettingValue((thresholdRes.data as { value?: unknown } | null)?.value) ?? 25;

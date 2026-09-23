@@ -1,5 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 import { credentials, missingCreds, signIn } from "./helpers";
+import { serviceClient } from "./fixtures/woLoop";
+import { addWorkingDays, workingDaysBetween } from "@/lib/scheduling/dates";
+
+const db = serviceClient();
 
 /**
  * The critical path named in the audit: offer a job → the contractor accepts.
@@ -89,6 +93,17 @@ test.describe("offer a job, contractor accepts", () => {
     // Dropping opens a confirmation — it never fires an offer by itself.
     const sendOffer = staffPage.getByRole("button", { name: "Send offer" });
     await expect(sendOffer).toBeVisible();
+    // Tom, 22 Sep: the span is WORKING days — the end date skips the weekend
+    // (a 7-day job from a Monday ends the following Tuesday). The e2e painter
+    // works no weekends, so the sheet's end must be addWorkingDays(start, days).
+    const dates = staffPage.getByTestId("booking-dates");
+    const spanDays = Number(await staffPage.getByTestId("booking-span-days").getAttribute("data-days"));
+    const start = (await dates.getAttribute("data-start")) ?? "";
+    const end = (await dates.getAttribute("data-end")) ?? "";
+    expect(spanDays).toBeGreaterThanOrEqual(1);
+    expect(end).toBe(addWorkingDays(start, spanDays));
+    expect(workingDaysBetween(start, end)).toBe(spanDays);
+    for (const d of [start, end]) expect([0, 6]).not.toContain(new Date(d + "T00:00:00Z").getUTCDay());
     // The sheet refuses to send until the final walkthrough is confirmed
     // (date AND time) or waived (Tom, 1 Sep). Confirm it with the suggested
     // date so the walkthrough path stays exercised.
@@ -96,8 +111,12 @@ test.describe("offer a job, contractor accepts", () => {
     await staffPage.locator('[data-testid="walkthrough-time"]').fill("15:00");
     await sendOffer.click();
 
-    // The job leaves the tray and appears on the board as a live offer.
+    // The job leaves the tray and appears on the board as a live offer, booked for exactly those days.
     await expect(staffPage.locator(`[data-testid="tray-job"][data-wo-ref="${woRef}"]`)).toHaveCount(0);
+    test.skip(!db, "service key needed to read the booking back");
+    const booked = await db!.from("booking_offers").select("start_date, end_date, work_orders!inner(wo_ref)").eq("work_orders.wo_ref", woRef).order("offered_at", { ascending: false }).limit(1).maybeSingle();
+    if (booked.error) throw new Error(booked.error.message);
+    expect(booked.data).toMatchObject({ start_date: start, end_date: end });
     await expect(staffPage.locator(".blk.offered").first()).toBeVisible();
 
     // --- contractor: the offer is waiting, with the address still redacted ---

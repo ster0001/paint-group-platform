@@ -34,7 +34,10 @@ describe("Melbourne calendar days", () => {
     // 19 Sep 2026 is a Saturday: the week runs from Monday the 14th, compared with the same days of the week before.
     expect(resolveRange("week", SEED_NOW)).toEqual({ from: "2026-09-14", to: "2026-09-19", compare: { from: "2026-09-07", to: "2026-09-12" } });
     expect(resolveRange("quarter", SEED_NOW)).toEqual({ from: "2026-07-01", to: "2026-09-19", compare: { from: "2026-04-01", to: "2026-06-20" } });
-    expect(resolveRange("year", SEED_NOW)).toEqual({ from: "2026-01-01", to: "2026-09-19", compare: { from: "2025-01-01", to: "2025-09-19" } });
+    // The financial year (Tom, 20 Sep): 1 July → today, against the same stretch of the FY before.
+    expect(resolveRange("year", SEED_NOW)).toEqual({ from: "2026-07-01", to: "2026-09-19", compare: { from: "2025-07-01", to: "2025-09-19" } });
+    expect(resolveRange("custom", SEED_NOW, { from: "2025-07-01", to: "2026-06-30" })).toEqual({ from: "2025-07-01", to: "2026-06-30", compare: { from: "2024-07-01", to: "2025-06-30" } });
+    expect(rangeShortLabel({ from: "2025-07-01", to: "2026-06-30" })).toBe("FY 25/26");
     expect(resolveRange("custom", SEED_NOW, { from: "2026-08-10", to: "2026-08-03" })).toEqual({ from: "2026-08-03", to: "2026-08-10" });
     expect(resolveRange("custom", SEED_NOW, { from: "nope" })).toEqual({ from: "2026-09-01", to: "2026-09-19" });
     // A custom range that is exactly a quarter or a year compares with the whole one before.

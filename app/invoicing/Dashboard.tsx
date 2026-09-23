@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { DashboardTiles, PayablesTiles } from "@/lib/invoicing/derive";
+import type { CiTone } from "@/lib/invoicing/contractorInvoiceTone";
 import type { ReadFailure } from "@/lib/invoicing/loadFailure";
 import ReadFailureNotice from "./ReadFailureNotice";
 import { fmt0, fmt2 } from "./format";
@@ -46,6 +47,11 @@ export type PayableRowProp = {
   status: "draft" | "submitted" | "approved" | "paid";
   amtCents: number;
   dueLabel: string;
+  /** lib/invoicing/contractorInvoiceTone — decided on the server, rendered as a class (Tom, 20 Sep). */
+  tone: CiTone;
+  toneClass: string;
+  /** "overdue 3 d" once an approved invoice is past its terms; null otherwise. */
+  overdueLabel: string | null;
   rcti: boolean;
   /** The job's stage from PC control — the Payables row carries it (Tom, 24 Aug). */
   stageLabel: string;
@@ -66,7 +72,7 @@ const BUCKET_COLOURS = ["var(--paint)", "var(--clay)", "var(--clay)", "var(--cla
 
 export default function Dashboard({
   tiles, buckets, rows, activity, initialFilter, initialTab,
-  payables = null, payableRows = [], costs = null, loadError = null, costsError = null,
+  payables = null, materialsToMatchCount = 0, payableRows = [], costs = null, loadError = null, costsError = null,
 }: {
   tiles: DashboardTiles;
   buckets: [number, number, number, number, number];
@@ -79,6 +85,8 @@ export default function Dashboard({
   initialFilter: string;
   initialTab: string;
   payables?: PayablesTiles | null;
+  /** Supplier invoices with no job yet — `materialsToMatch(rows).length`, the same function as the home tile. */
+  materialsToMatchCount?: number;
   payableRows?: PayableRowProp[];
   costs?: {
     cards: IntakeCardProp[];
@@ -267,6 +275,12 @@ export default function Dashboard({
               <div className="v" data-testid="tile-to-pay">{fmt0(payables.toPayWeekCents)}</div>
               <div className="m">{payables.approvedCount ? `${payables.toPayWeekCount} of ${payables.approvedCount} approved` : "nothing approved"}</div>
             </div>
+            {/* Tom, 20 Sep: the number of supplier invoices still to match to a job — a count, not a sum. */}
+            <a className={`tile match ${materialsToMatchCount ? "pending" : ""}`} href="#materials-to-match" data-testid="tile-materials-to-match-link">
+              <div className="k">Materials to match</div>
+              <div className="v" data-testid="tile-materials-to-match">{materialsToMatchCount}</div>
+              <div className="m">{materialsToMatchCount ? `supplier invoice${materialsToMatchCount === 1 ? "" : "s"} with no job yet` : "every supplier invoice is on a job"}</div>
+            </a>
           </div>
         )}
 
@@ -282,16 +296,17 @@ export default function Dashboard({
 
         <div className="rows" data-testid="payable-rows">
           {payableRows.map((p) => (
-            <div key={p.ciId} className="r" data-testid={`payable-${p.ciId}`}>
+            <div key={p.ciId} className={`r ${p.toneClass}`} data-tone={p.tone} data-testid={`payable-${p.ciId}`}>
               <div className="body">
                 <div className="job">
                   {p.estimateId
                     ? <Link href={`/invoicing/job/${p.estimateId}`}>{p.company}</Link>
                     : p.company}
                   {p.rcti && <span className="chip draft" style={{ marginLeft: 8 }}>RCTI</span>}
+                  {p.overdueLabel && <span className={`chip ${p.toneClass}`} style={{ marginLeft: 8 }} data-testid={`overdue-ci-${p.ciId}`}>{p.overdueLabel}</span>}
                 </div>
                 <div className="ref">{p.ref}</div>
-                <div className={`age ${p.status === "submitted" ? "amber" : p.status === "approved" ? "cyan" : p.status === "paid" ? "emerald" : ""}`}>
+                <div className={`age ${p.toneClass}`}>
                   {p.dueLabel}
                   {p.stageLabel ? <span style={{ opacity: 0.75 }}> · job: {p.stageLabel}</span> : null}
                 </div>

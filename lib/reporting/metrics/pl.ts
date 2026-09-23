@@ -9,7 +9,8 @@
  * materials card reads (`ClosedJobRow`), with the engine's own
  * `marginCents` on the estimate side and the recorded costs on the actual.
  */
-import { daysBetween, inRange, type MetricDef, type MetricInput, type Range } from "../core";
+import { daysBetween, inRange, melbourneDay, type MetricDef, type MetricInput, type Range } from "../core";
+import { inRecordedMonth, recordedInRange, recordedMonths, recordedNote, recordedTitle } from "../recorded";
 
 const ROLES = ["owner", "admin"] as const;
 const aud = (cents: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(cents / 100);
@@ -19,18 +20,21 @@ export const BASIS_CHIP = "Settings basis until MYOB";
 
 // ---- contracts signed, revenue received -----------------------------------------------
 
-export type SignedRow = { accepted_on: string; title: string; category: string; contract_ex_cents: number; lead_source: string };
+export type SignedRow = { accepted_on: string; title: string; category: string; contract_ex_cents: number; lead_source: string; recorded?: boolean };
 export const contractsSigned: MetricDef<SignedRow> = {
   key: "pl.contracts_signed_ex", kind: "period", section: "pl", title: "Contracts signed",
-  definition: "The signed totals of estimates accepted on a day in the range, ex GST (the inc-GST figure ÷ 1.1) — the same acceptances as Sales $, on the P&L's basis.",
+  definition: "The signed totals of estimates accepted on a day in the range, ex GST (the inc-GST figure ÷ 1.1) — the same acceptances as Sales $, on the P&L's basis; a month recorded from PaintScout stands in for its platform rows, as on Sales $.",
   unit: "cents", gst: "ex", roles: ROLES, aggregate: { sum: "contract_ex_cents" },
   columns: [{ key: "accepted_on", label: "Accepted" }, { key: "title", label: "Estimate" }, { key: "category", label: "Category" }, { key: "contract_ex_cents", label: "Contract (cents, ex GST)" }, { key: "lead_source", label: "Lead source" }], href: "/estimates?status=accepted",
   select: (input, range) => {
     const label = new Map((input.sales?.presentations ?? []).map((p) => [p.id, p.category_label || "Uncategorised"]));
-    return input.estimates.filter((e) => e.status === "accepted" && inRange(e.accepted_at, range))
-      .map((e) => ({ accepted_on: (e.accepted_at ?? "").slice(0, 10), title: e.title ?? "", category: (e.presentation_id && label.get(e.presentation_id)) || "Uncategorised", contract_ex_cents: exGst(e.accepted_total_cents ?? e.total_cents), lead_source: e.lead_source ?? "unknown" }));
+    const recorded = recordedMonths(input);
+    const platform: SignedRow[] = input.estimates.filter((e) => e.status === "accepted" && inRange(e.accepted_at, range) && !inRecordedMonth(recorded, e.accepted_at))
+      .map((e) => ({ accepted_on: e.accepted_at ? melbourneDay(e.accepted_at) : "", title: e.title ?? "", category: (e.presentation_id && label.get(e.presentation_id)) || "Uncategorised", contract_ex_cents: exGst(e.accepted_total_cents ?? e.total_cents), lead_source: e.lead_source ?? "unknown" }));
+    const months: SignedRow[] = recordedInRange(input, range).map((r) => ({ accepted_on: r.first_day, title: recordedTitle(r), category: "Recorded", contract_ex_cents: exGst(r.sales_in_range_cents), lead_source: "recorded", recorded: true }));
+    return [...platform, ...months];
   },
-  note: (rows) => rows.length ? `${rows.length} accepted · ${BASIS_CHIP}` : BASIS_CHIP,
+  note: (rows) => [rows.length ? `${rows.filter((r) => !r.recorded).length} accepted` : "", recordedNote(rows), BASIS_CHIP].filter(Boolean).join(" · "),
 };
 
 export type ReceivedExRow = { paid_on: string; amount_ex_cents: number };

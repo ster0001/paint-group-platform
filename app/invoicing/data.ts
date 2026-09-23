@@ -3,6 +3,7 @@ import type { DeriveInvoice, DerivePayment, InvoiceKind } from "@/lib/invoicing/
 import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
 import { loadFailure, paymentsFailure, costsFailure, firstFailure } from "@/lib/invoicing/loadFailure";
 import { inSlices } from "@/lib/supabase/inSlices";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 /**
  * Server-side row fetching + mapping for the §7 screens. Read-only: every
@@ -227,7 +228,10 @@ export async function loadCostCapture(supabase: SupabaseClient) {
       .eq("contractors.employment_type", "employee")
       .order("decided_at", { ascending: true }).limit(100),
   ]);
-  const [intake, jobCosts, unmatched, jobs] = await Promise.all([
+  // The unmatched material invoices moved to `loadDashboard` (20 Sep): the
+  // home dashboard's "Materials to match" tile reads that loader, and the
+  // Payables tile + card must count the SAME rows — one read, two readers.
+  const [intake, jobCosts, jobs] = await Promise.all([
     supabase.from("cost_intake")
       .select("id, source, raw_doc_path, from_email, subject, extracted, extract_status, proposed_vendor_id, proposed_wo_id, match_reason, status, duplicate_of, confirmed_wo_id, confirmed_at, created_at")
       .order("created_at", { ascending: false })
@@ -236,11 +240,6 @@ export async function loadCostCapture(supabase: SupabaseClient) {
       .select("id, work_order_id, category, description, amount_ex_cents, gst_cents, doc_path, estimate_line_ref, status, paid_with, reimburse_to, invoice_no, invoice_date, intake_id, created_at, vendors(name), work_orders(estimate_id, wo_ref, job_no, job_address:wo_snapshot->>jobAddress)")
       .order("created_at", { ascending: false })
       .limit(200),
-    supabase.from("material_costs")
-      .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at")
-      .is("work_order_id", null)
-      .order("created_at", { ascending: false })
-      .limit(100),
     // The job picker behind the "matched job" search box (Tom, 4 Sep): every
     // open job, plus jobs closed in the last 60 days — supplier invoices
     // routinely arrive after the painter has finished.
@@ -259,14 +258,12 @@ export async function loadCostCapture(supabase: SupabaseClient) {
     reimbursements: (reimbursements.error ? [] : reimbursements.data ?? []) as unknown as ReimbursementRow[],
     intake: (intake.error ? [] : intake.data ?? []) as unknown as IntakeDbRow[],
     jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as JobCostRow[],
-    unmatchedMaterials: (unmatched.error ? [] : unmatched.data ?? []) as unknown as MaterialCostRow[],
     jobs: (jobs.error ? [] : jobs.data ?? []) as unknown as JobPickRow[],
     loadError: costsFailure([
       { label: "contractor expense claims", error: expenses.error },
       { label: "expense pre-approvals", error: preapprovals.error },
       { label: "the supplier-invoice intake queue", error: intake.error },
       { label: "job costs", error: jobCosts.error },
-      { label: "unmatched material invoices", error: unmatched.error },
       { label: "the job picker", error: jobs.error },
     ]),
   };
@@ -304,14 +301,43 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
   };
 }
 
-/** Everything the dashboard needs, four round trips. */
+const CI_SELECT = "id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, auto_draft_source, claim_pct, invoice_pdf_path, contractors(company_name), work_orders(wo_ref, estimate_id, stage, job_address:wo_snapshot->>jobAddress)";
+async function loadContractorInvoices(supabase: SupabaseClient): Promise<{ data: unknown[] | null; error: { message: string } | null }> {
+  try {
+    const unpaid = await fetchAllRows<unknown>((from, to) => supabase.from("contractor_invoices").select(CI_SELECT).neq("status", "paid").order("created_at", { ascending: false }).order("id").range(from, to));
+    const paid = await supabase.from("contractor_invoices").select(CI_SELECT).eq("status", "paid").order("created_at", { ascending: false }).limit(CI_SETTLED_KEEP);
+    if (paid.error) return { data: null, error: paid.error };
+    return { data: [...unpaid, ...(paid.data ?? [])], error: null };
+  } catch (e: unknown) { return { data: null, error: { message: e instanceof Error ? e.message : String(e) } }; }
+}
+
+/** The newest N settled rows kept for the lists; every LIVE row is always read (20 Sep audit). */
+const SETTLED_KEEP = 400;
+const CI_SETTLED_KEEP = 200;
+
+/**
+ * Everything the dashboard needs, four round trips.
+ *
+ * 20 Sep 2026 audit: `.limit(400)` newest-first cut the OLDEST open invoices
+ * — exactly the ones Overdue exists to show — once production passed 400,
+ * and the "Home equals /invoicing" tripwire could not see it because both
+ * read the same truncated set. Now every invoice with money still moving
+ * (anything but paid / void / written off) is read in full, paged past the
+ * 1000-row cap, and only the settled ones are capped to the newest 400 for
+ * the lists. Same for contractor invoices: every unpaid one, the newest 200
+ * paid.
+ */
 export async function loadDashboard(supabase: SupabaseClient) {
-  const { data: invoices, error: invoicesError } = await supabase
-    .from("invoices")
-    .select(`${INVOICE_SELECT}, estimates(title, accepted_name, accepted_total_cents, job_address:sent_snapshot->>jobAddress)`)
-    .order("created_at", { ascending: false })
-    .limit(400);
-  const rows = (invoices ?? []) as unknown as InvoiceRow[];
+  const invoiceSelect = `${INVOICE_SELECT}, estimates(title, accepted_name, accepted_total_cents, job_address:sent_snapshot->>jobAddress)`;
+  let live: InvoiceRow[] = []; let invoicesError: { message: string } | null = null;
+  try {
+    live = await fetchAllRows<InvoiceRow>((from, to) => supabase.from("invoices").select(invoiceSelect)
+      .not("status", "in", "(paid,void,written_off)").order("created_at", { ascending: false }).order("id").range(from, to));
+  } catch (e: unknown) { invoicesError = { message: e instanceof Error ? e.message : String(e) }; }
+  const settled = invoicesError ? { data: null, error: null } : await supabase.from("invoices").select(invoiceSelect)
+    .in("status", ["paid", "void", "written_off"]).order("created_at", { ascending: false }).limit(SETTLED_KEEP);
+  if (settled.error) invoicesError = settled.error;
+  const rows = [...live, ...((settled.data ?? []) as unknown as InvoiceRow[])].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
 
   const ids = rows.map((r) => r.id);
   // In SLICES: every invoice id in one `.in(...)` is a ~15 KB URL at 400
@@ -320,7 +346,7 @@ export async function loadDashboard(supabase: SupabaseClient) {
   // Same fix the CRM work queue already had. See lib/supabase/inSlices.ts.
   // `events` is the Activity feed only — a failure there costs a reader nothing
   // they'd act on, so it stays tolerant and unreported. `cis` is money out.
-  const [paymentsRes, { data: events }, { data: cis, error: cisError }] = await Promise.all([
+  const [paymentsRes, { data: events }, { data: cis, error: cisError }, { data: materials, error: materialsError }] = await Promise.all([
     inSlices<PaymentRow>(ids, (slice) =>
       supabase.from("payments")
         .select("id, invoice_id, amount_cents, surcharge_cents, status, method, paid_on, receipt_number, reference")
@@ -329,11 +355,16 @@ export async function loadDashboard(supabase: SupabaseClient) {
       .select("id, invoice_id, type, actor_kind, meta, created_at")
       .order("created_at", { ascending: false })
       .limit(60),
-    // Step 5: the Payables tab — contractor invoices across every job.
-    supabase.from("contractor_invoices")
-      .select("id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, auto_draft_source, claim_pct, invoice_pdf_path, contractors(company_name), work_orders(wo_ref, estimate_id, stage, job_address:wo_snapshot->>jobAddress)")
+    // Step 5: the Payables tab — contractor invoices across every job: every unpaid one, the newest paid.
+    loadContractorInvoices(supabase),
+    // Supplier (materials) invoices with no job yet — the "Materials to match"
+    // tile on Payables AND on the home dashboard (lib/invoicing/materialsToMatch
+    // holds the predicate; the filter here is the same one, at the database).
+    supabase.from("material_costs")
+      .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at")
+      .is("work_order_id", null)
       .order("created_at", { ascending: false })
-      .limit(200),
+      .limit(100),
   ]);
 
   return {
@@ -344,7 +375,11 @@ export async function loadDashboard(supabase: SupabaseClient) {
     payments: paymentsRes.rows,
     events: (events ?? []) as EventRow[],
     contractorInvoices: (cis ?? []) as unknown as ContractorInvoiceRow[],
-    payablesError: costsFailure([{ label: "contractor invoices", error: cisError }]),
+    materialsToMatch: (materialsError ? [] : materials ?? []) as unknown as MaterialCostRow[],
+    payablesError: costsFailure([
+      { label: "contractor invoices", error: cisError },
+      { label: "unmatched material invoices", error: materialsError },
+    ]),
   };
 }
 
@@ -384,7 +419,7 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
       : Promise.resolve({ data: [] }),
     woId
       ? supabase.from("contractor_invoices")
-          .select("id, number, status, total_inc_cents")
+          .select("id, number, status, total_inc_cents, due_on")
           .eq("work_order_id", woId).order("created_at", { ascending: false }).limit(1).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
@@ -409,7 +444,7 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
     }[],
     wo: wo as { id: string; wo_ref: string; stage: string; contractor_payment: string | null } | null,
     contractorInvoice: ciRow as {
-      id: string; number: string | null; status: string; total_inc_cents: number;
+      id: string; number: string | null; status: string; total_inc_cents: number; due_on: string | null;
     } | null,
   };
 }

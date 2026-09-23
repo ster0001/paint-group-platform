@@ -389,3 +389,6 @@
 .pc[data-theme="light"] .sb .err{color:#7A2E24}
 .pc[data-theme="light"] .sb .scrim{background:rgba(20,30,40,.35)}
 .pc[data-theme="light"] .sb .blk.dragging{box-shadow:0 12px 28px rgba(20,30,40,.2)}
+/* Tom, 22 Sep: the tray card's link to the estimate. */
+.sb .jcard .jlink { display: inline-block; margin: 2px 0 4px; font-size: 11px; color: var(--cyan); text-decoration: none; }
+.sb .jcard .jlink:hover { text-decoration: underline; }

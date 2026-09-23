@@ -42,7 +42,8 @@ export async function GET(request: Request) {
     try {
       const { input, failures: loadFailures } = await loadMetricInput(service, range, now);
       if (loadFailures.length) { failures.push({ day, message: loadFailures.map((f) => f.where).join(", ") }); continue; }
-      const rows = METRICS.filter((m) => m.kind === "period").map((m) => {
+      // Activity is a feed, not a figure, and its slice is not loaded here — rolling it up stored a zero every day (20 Sep audit).
+      const rows = METRICS.filter((m) => m.kind === "period" && m.section !== "activity").map((m) => {
         const r: MetricResult = runMetric(m, input, range, DASHBOARD_ROLES);   // the cron holds every role: it is the owner's cache
         return { day, metric_key: m.key, value: r.value, rows: r.rows.length, unit: m.unit, computed_at: now.toISOString() };
       });

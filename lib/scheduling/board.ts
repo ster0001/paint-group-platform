@@ -34,6 +34,9 @@ export type Lane = {
   crewSize: number;
   /** Employed painters (S2): an employee lane takes ASSIGNMENTS, a contractor lane takes OFFERS. */
   employmentType: "contractor" | "employee";
+  /** Tom, 22 Sep: the days this painter works besides Monday–Friday; a booking's end date skips the rest. */
+  worksSaturday?: boolean;
+  worksSunday?: boolean;
 };
 
 /** `assigned` = an employee's assignment (S2). Hollow until they tap Accept. */
@@ -201,7 +204,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   ] = await Promise.all([
       supabase
         .from("contractors")
-        .select("id, tier, active, offerable, company_name, crew_size, employment_type, profiles ( name )")
+        .select("id, tier, active, offerable, company_name, crew_size, employment_type, works_saturday, works_sunday, profiles ( name )")
         .order("company_name"),
       // Drafts included on purpose — see TrayJob.needsIssuing. Open jobs all
       // come (the tray and pins need them regardless of dates); CLOSED jobs
@@ -276,7 +279,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     aErr && `assignments: ${aErr}`,
   ].filter(Boolean) as string[];
 
-  type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; employment_type?: string | null; profiles: { name: string | null } | null };
+  type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; employment_type?: string | null; works_saturday?: boolean | null; works_sunday?: boolean | null; profiles: { name: string | null } | null };
   const lanes: Lane[] = ((contractors as CRow[] | null) ?? []).map((c) => ({
     contractorId: c.id,
     name: c.profiles?.name || c.company_name || "Contractor",
@@ -285,6 +288,9 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     offerable: c.offerable,
     active: c.active,
     crewSize: c.crew_size ?? 1,
+    // Tom, 22 Sep: a booking's end date skips the days this painter does not work.
+    worksSaturday: Boolean(c.works_saturday),
+    worksSunday: Boolean(c.works_sunday),
     // Anything but the literal 'employee' is a contractor — lib/painters/capabilities rule.
     employmentType: c.employment_type === "employee" ? "employee" : "contractor",
   }));

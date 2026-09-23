@@ -6,8 +6,8 @@
  * test asserts that pinning worked; without it the rest would pass vacuously on
  * a machine set to UTC and the bug could come back unnoticed.
  */
-import { test, expect } from "vitest";
-import { addDays, dayDiff, todayIso, localIso, isDateString, dateRange } from "./dates.ts";
+import { describe, it, test, expect } from "vitest";
+import { addDays, dayDiff, todayIso, localIso, isDateString, dateRange, addWorkingDays, workingDaysBetween, isWorkingDay } from "./dates.ts";
 
 test("the suite is running east of Greenwich, or these tests prove nothing", () => {
   const offsetMinutes = -new Date("2026-09-01T00:00:00Z").getTimezoneOffset();
@@ -92,3 +92,27 @@ test("dateRange is inclusive at both ends", () => {
   expect(dateRange("2026-09-01", "2026-09-01")).toEqual(["2026-09-01"]);
   expect(dateRange("2026-09-03", "2026-09-01")).toEqual([]);
 });
+
+describe("working days (Tom, 22 Sep 2026: weekends are not working days)", () => {
+  // 21 Sep 2026 is a Monday.
+  it("a 7-day job starting on a Monday finishes the following Tuesday", () => {
+    expect(addWorkingDays("2026-09-21", 7)).toBe("2026-09-29");
+    expect(workingDaysBetween("2026-09-21", "2026-09-29")).toBe(7);
+  });
+  it("five days from a Monday is the Friday; one day is the day itself; a Friday plus two is Monday", () => {
+    expect(addWorkingDays("2026-09-21", 5)).toBe("2026-09-25");
+    expect(addWorkingDays("2026-09-21", 1)).toBe("2026-09-21");
+    expect(addWorkingDays("2026-09-25", 2)).toBe("2026-09-28");
+  });
+  it("a start on a weekend counts from the next working day", () => {
+    expect(addWorkingDays("2026-09-26", 1)).toBe("2026-09-28");   // Saturday → Monday
+    expect(workingDaysBetween("2026-09-26", "2026-09-27")).toBe(1); // never fewer than one
+  });
+  it("a painter who works Saturdays keeps them", () => {
+    expect(isWorkingDay("2026-09-26", { saturday: true })).toBe(true);
+    expect(isWorkingDay("2026-09-27", { saturday: true })).toBe(false);
+    expect(addWorkingDays("2026-09-21", 7, { saturday: true })).toBe("2026-09-28");   // Mon–Sat + Mon
+    expect(addWorkingDays("2026-09-21", 7, { saturday: true, sunday: true })).toBe("2026-09-27");
+  });
+});
+

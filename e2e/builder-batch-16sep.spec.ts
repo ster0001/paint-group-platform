@@ -116,6 +116,10 @@ test.describe("builder batch, 16 Sep", () => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await page.waitForLoadState("networkidle");
+    // Tom, 22 Sep: the Materials row carries the client label, not the substrate code.
+    // (The card sits on the main builder page, not inside the Edit Surface panel.)
+    if ((await page.getByTestId("materials-toggle").getAttribute("aria-expanded")) !== "true") await page.getByTestId("materials-toggle").click();
+    await expect(page.getByTestId("material-row-label-Interior::Walls")).toHaveText("Walls — colour to confirm");
     await page.getByText("Hall", { exact: true }).first().click();
     await page.getByTestId("surface-row-2").click();
     await expect(page.getByLabel("Client Label")).toHaveValue("Walls — colour to confirm");
@@ -128,6 +132,12 @@ test.describe("builder batch, 16 Sep", () => {
 
     await expect(page.getByLabel("Client Label")).toHaveValue("Ceilings");
     await expect(page.getByLabel("Internal Label")).toHaveValue("Ceilings");
+    // …and a new client label moves the Materials row with it: type it, close the panel, read the card.
+    await page.getByLabel("Client Label").fill("Feature ceiling");
+    await page.getByRole("button", { name: "Done" }).first().click();   // closes the surface → the area page
+    await page.getByText("← All areas", { exact: true }).click();        // back to the builder, where the Materials card is
+    if ((await page.getByTestId("materials-toggle").getAttribute("aria-expanded")) !== "true") await page.getByTestId("materials-toggle").click();
+    await expect(page.getByTestId("material-row-label-Interior::Ceilings")).toHaveText("Feature ceiling");
 
     // Save from the header — it is there on every screen of the builder.
     await page.getByTestId("builder-save").click();
@@ -136,10 +146,10 @@ test.describe("builder batch, 16 Sep", () => {
       const { data } = await db!.from("estimates").select("builder_state, sent_snapshot").eq("id", estimateId).single();
       const b = data?.builder_state as typeof bs | null;
       return b?.blocks[0].surfaces[0].clientLabel ?? null;
-    }, { timeout: 20_000 }).toBe("Ceilings");
+    }, { timeout: 20_000 }).toBe("Feature ceiling");   // the label typed above; the description line stays the substrate's
     const { data } = await db!.from("estimates").select("builder_state, sent_snapshot").eq("id", estimateId).single();
     expect((data!.builder_state as typeof bs).blocks[0].description).toContain("<p>Ceilings</p>");
     const snap = data!.sent_snapshot as { areas: Array<{ surfaces: Array<{ label: string }> }> };
-    expect(snap.areas[0].surfaces.map((x) => x.label)).toEqual(["Ceilings"]);
+    expect(snap.areas[0].surfaces.map((x) => x.label)).toEqual(["Feature ceiling"]);
   });
 });

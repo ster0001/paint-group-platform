@@ -4,6 +4,7 @@
  * tile is the count or sum of, and nothing computed anywhere else.
  */
 import { inRange, type EstimateRow, type MetricDef, type MetricInput } from "../core";
+import { inRecordedMonth, recordedInRange, recordedMonths, recordedNote, recordedTitle } from "../recorded";
 
 export type SentEstimateRow = {
   id: string; title: string; sent_on: string; status: string; total_cents: number;
@@ -13,36 +14,59 @@ export type SentEstimateRow = {
 export type AcceptedEstimateRow = {
   id: string; title: string; accepted_on: string; sent_on: string; accepted_total_cents: number;
   lead_source: string; sent_by_user_id: string;
+  /** 1 for a signed estimate; for a recorded month, the jobs PaintScout says were signed (0 when not recorded). */
+  jobs: number;
+  /** True for the one row a recorded month contributes (20270186). */
+  recorded?: boolean;
 };
 
 const day = (iso: string | null) => (iso ? new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso)) : "");
 
-const sentRows = (estimates: EstimateRow[], range: { from: string; to: string }): SentEstimateRow[] =>
-  estimates
-    .filter((e) => inRange(e.sent_at, range))
+/** "Mine" for a sales-only login: the rows narrow to the estimates they sent. Applied to EVERY Sales tile (20 Sep audit). */
+const mine = (input: MetricInput, e: EstimateRow) => input.sales?.who !== "mine" || !input.sales.viewerUserId || e.sent_by_user_id === input.sales.viewerUserId;
+
+const sentRows = (input: MetricInput, range: { from: string; to: string }): SentEstimateRow[] =>
+  input.estimates
+    .filter((e) => inRange(e.sent_at, range) && mine(input, e))
     .map((e) => ({
       id: e.id, title: e.title ?? "", sent_on: day(e.sent_at), status: e.status, total_cents: e.total_cents,
       lead_source: e.lead_source ?? "unknown", sent_by_user_id: e.sent_by_user_id ?? "",
     }))
     .sort((a, b) => (a.sent_on < b.sent_on ? 1 : a.sent_on > b.sent_on ? -1 : a.id.localeCompare(b.id)));
 
-const acceptedRows = (estimates: EstimateRow[], range: { from: string; to: string }): AcceptedEstimateRow[] =>
-  estimates
-    .filter((e) => e.status === "accepted" && inRange(e.accepted_at, range))
+/**
+ * The sales in the range: every estimate accepted on a day in it — except in
+ * a month recorded from PaintScout (20270186), where the month's one recorded
+ * row stands in for the platform's rows. Tile = sum of these rows, always.
+ */
+export const acceptedRows = (input: MetricInput, range: { from: string; to: string }): AcceptedEstimateRow[] => {
+  const recorded = recordedMonths(input);
+  const platform: AcceptedEstimateRow[] = input.estimates
+    .filter((e) => e.status === "accepted" && inRange(e.accepted_at, range) && !inRecordedMonth(recorded, e.accepted_at) && mine(input, e))
     .map((e) => ({
       id: e.id, title: e.title ?? "", accepted_on: day(e.accepted_at), sent_on: day(e.sent_at),
       // The figure the customer signed. A pre-snapshot row falls back to the estimate's total.
       accepted_total_cents: e.accepted_total_cents ?? e.total_cents,
-      lead_source: e.lead_source ?? "unknown", sent_by_user_id: e.sent_by_user_id ?? "",
-    }))
-    .sort((a, b) => (a.accepted_on < b.accepted_on ? 1 : a.accepted_on > b.accepted_on ? -1 : a.id.localeCompare(b.id)));
+      lead_source: e.lead_source ?? "unknown", sent_by_user_id: e.sent_by_user_id ?? "", jobs: 1,
+    }));
+  const months: AcceptedEstimateRow[] = recordedInRange(input, range).map((r) => ({
+    id: `recorded:${r.month}`, title: recordedTitle(r), accepted_on: r.first_day, sent_on: "",
+    accepted_total_cents: r.sales_in_range_cents, lead_source: "recorded", sent_by_user_id: "", jobs: r.accepted_in_range ?? 0, recorded: true,
+  }));
+  return [...platform, ...months].sort((a, b) => (a.accepted_on < b.accepted_on ? 1 : a.accepted_on > b.accepted_on ? -1 : a.id.localeCompare(b.id)));
+};
+const salesNote = (rows: AcceptedEstimateRow[]) => {
+  const rec = recordedNote(rows);
+  const unknown = rows.filter((r) => r.recorded && !r.jobs).length;
+  return [rec, unknown ? `${unknown} without a jobs count` : ""].filter(Boolean).join(" · ");
+};
 
 export const estimatesSent: MetricDef<SentEstimateRow> = {
   key: "sales.estimates_sent",
   kind: "period",
   section: "sales",
   title: "Estimates sent",
-  definition: "Estimates whose send happened on a day in the range (estimates.sent_at, Melbourne days). Re-sends do not count twice: sent_at is the first send. Compared with the previous period of the same length.",
+  definition: "Estimates whose send happened on a day in the range (estimates.sent_at, Melbourne days). Re-sends do not count twice: sent_at is the first send. A sales login on Mine sees only the estimates they sent. Compared with the previous period of the same length.",
   unit: "count",
   gst: null,
   roles: ["owner", "admin", "sales"],
@@ -52,7 +76,7 @@ export const estimatesSent: MetricDef<SentEstimateRow> = {
     { key: "total_cents", label: "Total (cents, inc GST)" }, { key: "lead_source", label: "Lead source" }, { key: "sent_by_user_id", label: "Sent by (user id)" },
   ],
   href: "/estimates?status=sent",
-  select: (input, range) => sentRows(input.estimates, range),
+  select: (input, range) => sentRows(input, range),
 };
 
 export const salesCount: MetricDef<AcceptedEstimateRow> = {
@@ -60,17 +84,18 @@ export const salesCount: MetricDef<AcceptedEstimateRow> = {
   kind: "period",
   section: "sales",
   title: "Sales (number)",
-  definition: "Estimates accepted on a day in the range (estimates.accepted_at, Melbourne days), whatever month they were sent. Compared with the previous period of the same length.",
+  definition: "Estimates accepted on a day in the range (estimates.accepted_at, Melbourne days), whatever month they were sent. In a month recorded from PaintScout (Settings → Dashboard → Recorded sales) the recorded jobs-signed count stands in for the platform's rows; a recorded month with no count adds nothing and the line says so. Compared with the previous period of the same length.",
   unit: "count",
   gst: null,
   roles: ["owner", "admin", "sales"],
-  aggregate: "count",
+  aggregate: { sum: "jobs" },
   columns: [
-    { key: "accepted_on", label: "Accepted" }, { key: "sent_on", label: "Sent" }, { key: "title", label: "Estimate" },
+    { key: "accepted_on", label: "Accepted" }, { key: "sent_on", label: "Sent" }, { key: "title", label: "Estimate" }, { key: "jobs", label: "Jobs" },
     { key: "accepted_total_cents", label: "Accepted total (cents, inc GST)" }, { key: "lead_source", label: "Lead source" }, { key: "sent_by_user_id", label: "Sent by (user id)" },
   ],
   href: "/estimates?status=accepted",
-  select: (input, range) => acceptedRows(input.estimates, range),
+  select: (input, range) => acceptedRows(input, range),
+  note: (rows) => salesNote(rows),
 };
 
 export const salesCents: MetricDef<AcceptedEstimateRow> = {
@@ -78,14 +103,15 @@ export const salesCents: MetricDef<AcceptedEstimateRow> = {
   kind: "period",
   section: "sales",
   title: "Sales $",
-  definition: "The signed totals, inc GST, of estimates accepted on a day in the range — recognised on the acceptance date, not when invoiced or paid. Compared with the previous period of the same length.",
+  definition: "The signed totals, inc GST, of estimates accepted on a day in the range — recognised on the acceptance date, not when invoiced or paid. In a month recorded from PaintScout (Settings → Dashboard → Recorded sales) the recorded month's total stands in for the platform's rows (pro-rated by days when the range covers part of the month). Compared with the previous period of the same length.",
   unit: "cents",
   gst: "inc",
   roles: ["owner", "admin", "sales"],
   aggregate: { sum: "accepted_total_cents" },
   columns: salesCount.columns,
   href: "/estimates?status=accepted",
-  select: (input, range) => acceptedRows(input.estimates, range),
+  select: (input, range) => acceptedRows(input, range),
+  note: (rows) => salesNote(rows),
 };
 
 // ---- session 3 ---------------------------------------------------------------
@@ -93,9 +119,6 @@ export const salesCents: MetricDef<AcceptedEstimateRow> = {
 const money = (cents: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(cents / 100);
 const median = (xs: number[]): number => { if (!xs.length) return 0; const s = [...xs].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
 const daysBetweenIso = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000 * 10) / 10;
-
-/** "Mine" for a sales-only login: the rows narrow to the estimates they sent. */
-const mine = (input: MetricInput, e: EstimateRow) => input.sales?.who !== "mine" || !input.sales.viewerUserId || e.sent_by_user_id === input.sales.viewerUserId;
 
 export type ConversionRow = { title: string; sent_on: string; outcome: string; accepted: boolean; accepted_on: string; days_to_accept: number; accepted_total_cents: number; lead_source: string; sent_by: string };
 const staffName = (input: MetricInput, id: string | null) => (id ? input.sales?.staff.find((s) => s.id === id)?.name ?? id.slice(0, 8) : "Wizard (self-serve)");
@@ -105,7 +128,7 @@ export const conversion: MetricDef<ConversionRow> = {
   kind: "period",
   section: "sales",
   title: "Conversion",
-  definition: "Accepted ÷ sent, as a cohort by the month SENT: every estimate sent on a day in the range, and how many of those went on to be accepted (whenever). \"Still open\" is sent and neither accepted nor declined. Compared with the previous period's cohort.",
+  definition: "Accepted ÷ sent, as a cohort by the month SENT: every estimate sent on a day in the range, and how many of those went on to be accepted (whenever). \"Still open\" is sent and neither accepted nor declined. Estimates only — a month recorded from PaintScout carries no per-estimate rows here. Compared with the previous period's cohort.",
   unit: "pct",
   gst: null,
   roles: ["owner", "admin", "sales"],
