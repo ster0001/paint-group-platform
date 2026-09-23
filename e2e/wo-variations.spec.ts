@@ -197,6 +197,17 @@ test.describe("a variation, end to end", () => {
     expect(v.signature).toMatch(/^data:image\/png;base64,/);
     // A drawn squiggle is real image data, not a token-size stub.
     expect((v.signature ?? "").length).toBeGreaterThan(500);
+
+    // Approved with site hours → it is now a TICK ROW in the painter's own
+    // words (20270193), under "Variations", keyed so a re-run cannot double it.
+    const { data: rows } = await db!.from("wo_surfaces")
+      .select("heading, label, surface_key, state, added_by_variation")
+      .eq("work_order_id", fixture!.workOrderId).eq("added_by_variation", variationId);
+    expect(rows).toEqual([{
+      heading: "Variations",
+      label: "Three lower boards on the left side are gone at the bottom edge.",
+      surface_key: `variation:${variationId}`, state: "todo", added_by_variation: variationId,
+    }]);
   });
 
   test("declining needs no signature and changes nothing on the job", async ({ page }) => {
@@ -290,6 +301,14 @@ test.describe("a variation, end to end", () => {
     // …and the sheet's payment line carries the accepted addition.
     await expect(page.getByTestId("wo-payment")).toContainText("$");
     await expect(page.locator("text=Fixed price incl. approved changes")).toBeVisible();
+
+    // …and the variation is on the TICK LIST, under Variations, in their words.
+    const { data: row } = await db!.from("wo_surfaces").select("id")
+      .eq("work_order_id", fixture!.workOrderId).eq("added_by_variation", variationId).single();
+    const tick = page.getByTestId(`tick-${(row as { id: string }).id}`);
+    await expect(tick).toBeVisible();
+    await expect(page.getByTestId("tick-list")).toContainText("Variations");
+    await expect(page.getByTestId("tick-list")).toContainText("Three lower boards");
   });
 
   test("both approvals are on the record, in order", async () => {

@@ -304,12 +304,18 @@ test.describe("the revision builder — diff → signed variations", () => {
     }
     const credit = vars.find((v) => v.credit)!;
 
+    // The strike on the pergola — and the garage's walls are now a TICK ROW
+    // under their own heading (20270193), marked by the addition that
+    // brought them, so the painter's list, progress and stage gate all
+    // carry the work the customer just signed for.
+    const additionRow = vars.find((v) => !v.credit)!;
     const { data: surfaces } = await db!.from("wo_surfaces")
-      .select("surface_key, removed_from_scope, removed_by_variation")
+      .select("surface_key, heading, label, state, removed_from_scope, removed_by_variation, added_by_variation")
       .eq("work_order_id", workOrderId).order("surface_key");
     expect(surfaces).toEqual([
-      { surface_key: "1:11", removed_from_scope: false, removed_by_variation: null },
-      { surface_key: "2:21", removed_from_scope: true, removed_by_variation: credit.id },
+      { surface_key: "1:11", heading: "Lounge", label: "Walls", state: "todo", removed_from_scope: false, removed_by_variation: null, added_by_variation: null },
+      { surface_key: "2:21", heading: "Pergola", label: "Walls", state: "todo", removed_from_scope: true, removed_by_variation: credit.id, added_by_variation: null },
+      { surface_key: "3:31", heading: "Garage", label: "Walls", state: "todo", removed_from_scope: false, removed_by_variation: null, added_by_variation: additionRow.id },
     ]);
 
     // The fold-in is on the record.

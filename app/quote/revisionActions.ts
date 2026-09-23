@@ -179,6 +179,9 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
         signedOffsetIncCents: signedInc,
         rateCardId: cardId,
         incGst: true,
+        // The tick rows this addition brings (20270193): applied to
+        // wo_surfaces by the database the moment the customer signs.
+        surfaces: credit ? [] : change.addedSurfaces,
       },
       p_priced_lines: pricedLines,
       p_hours: draftHours,
