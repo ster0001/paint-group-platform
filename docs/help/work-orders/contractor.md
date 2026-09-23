@@ -79,6 +79,13 @@ The second walkthrough film covers this part of the job, from the completion lis
 ## How long were you on site (some painters only)
 If the office has switched it on for you, the **All surfaces done** card asks **How long were you on site?** before the job moves on — days on site and hours in total, pre-filled from your booking. Change it to what actually happened. It goes on your invoice as a note ("Time on site — as entered by the painter") and it never changes what you are paid. Tick **Skip** to leave it and the booked days are used instead. If you never see the question, it is not switched on for you — nothing to do.
 
+### Photos from the office
+Near the top of the job sheet, above the scope, a **From the office** section holds photos we have attached for you — the elevation the scaffold goes on, where the gear lives, the colour to match. Each one says which area it belongs to, or **Whole job** when it is about the site generally, with a line about what to notice. Tap one to see it full size.
+
+On a job that came to us from PaintScout these are often the only photos of the job, so it is worth a look before you start. They can be added or changed after you accept, so check again on the morning.
+
+They are separate from your own photos: your before, progress and completion shots stay under **Site photos** and are yours. Nothing you upload appears in **From the office**.
+
 ## What the colours and labels mean
 - **TO DO / PREPPED / DONE** on a row — not started (grey), prepped (cyan), finished (green).
 - **PG-2 Utility / PG-3 Premium / PG-4 Showcase** at the top of the job sheet — the standard this job is being done to, and what the walkthrough judges the work against. Tap it for the prep and the acceptance test at that level. An area shown with its own level beside it is a deliberate exception and overrides the job's. The office can correct the level after a job has gone out, so if it changes between the offer and the start, the new one is what you are held to — the job sheet always shows the current standard.

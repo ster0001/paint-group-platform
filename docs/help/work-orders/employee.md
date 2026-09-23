@@ -27,6 +27,11 @@ Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is 
 4. Now tick. The row turns cyan **PREPPED** on the first tap and green **DONE** on the second. Your ticks are recorded under your name, and the office's daily update to the customer is drafted from them.
 5. When you are about to tick the last surface in an area as done, the list asks for a **finished shot** of that area from the same angle as the before. Take it, then tick.
 
+### Photos from the office
+Near the top of the job sheet, above the scope, a **From the office** section holds photos the office has attached for this job — the elevation the scaffold goes on, where the gear lives, the colour to match. Each says which area it belongs to (or **Whole job**) and what to notice. Tap one to see it full size.
+
+On a job that came in from PaintScout these are often the only photos there are, so check them before you start. They can be added after the job is booked, so look again on the morning. They are separate from the photos you take, which stay under **Site photos**.
+
 ### Photos and notes from site
 6. **Photos & notes** is for anything else: progress or finished photos not tied to a tick, and a short note for the office. A note is for information that is not a variation — something you noticed, a question about access.
 

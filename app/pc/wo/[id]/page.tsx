@@ -16,12 +16,13 @@ import ColourMatchCard from "@/app/components/wo/ColourMatchCard";
 import { humaniseGate } from "@/lib/workorder/gateText";
 import TickList from "@/app/components/wo/TickList";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
-import { WO_PHOTO_KIND_LABEL, forVariation, groupByKind, signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
+import { WO_PHOTO_KIND_LABEL, forVariation, groupByKind, officePhotos, signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
 import StageAdvance from "./StageAdvance";
 import RebuildTicks from "./RebuildTicks";
 import SetDeduction from "./SetDeduction";
 import MaterialsCard, { type MaterialRowProp } from "./MaterialsCard";
 import FinishLevelCard from "./FinishLevelCard";
+import ReferencePhotosCard from "./ReferencePhotosCard";
 import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
 import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
 
@@ -504,6 +505,18 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             coloursNo={checklist.some((c) => c.phase === "pre_start" && c.itemKey === "colours" && c.answer === "no")}
             canEdit={row.stage !== "closed"}
           />
+
+          {/* Photos for the painter (Tom, 23 Sep): a handover job's estimate
+              carries none and the sheet's own photos froze at acceptance, so
+              without this there is nothing to show them. Hidden once closed —
+              a closed job's sheet is final. */}
+          {row.stage !== "closed" && (
+            <ReferencePhotosCard
+              workOrderId={id}
+              areas={(snapshotDoc?.areas ?? []).map((a) => a.title).filter(Boolean)}
+              photos={officePhotos(photos)}
+            />
+          )}
 
           {/* Level of finish (Tom, 23 Sep): the job sheet's standard is frozen
               at issue and the revision builder cannot reach it — this is the
