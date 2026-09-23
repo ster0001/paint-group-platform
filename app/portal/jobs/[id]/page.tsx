@@ -7,6 +7,7 @@ import { getContractorJob } from "@/lib/contractor/jobs";
 import { getEmployeeJob } from "@/lib/contractor/employeeJobs";
 import AssignmentCard from "./AssignmentCard";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
+import { scopeChangesFrom } from "@/lib/workorder/scopeChanges";
 import RescheduleRequest from "./RescheduleRequest";
 import OfferBar from "./OfferBar";
 import StartJob from "./StartJob";
@@ -197,7 +198,7 @@ export default async function PortalJobPage({
 
   const { data: variationRows } = employee ? { data: null } : await supabase
     .from("wo_variations")
-    .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, needs_manual_deduction, deduction_cents, deduction_note, contractor_acknowledged_at")
+    .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, needs_manual_deduction, deduction_cents, deduction_note, contractor_acknowledged_at, customer_responded_at, created_at")
     .eq("work_order_id", id)
     .order("created_at", { ascending: false });
 
@@ -228,12 +229,15 @@ export default async function PortalJobPage({
     if (!flagsError) cantMakeItFlagged = String(flags ?? "") === "flagged";
   }
 
-  const variations: VariationView[] = ((variationRows as {
+  type VRow = {
     id: string; category: string; comment: string; status: VariationView["status"];
     contractor_delta_cents: number | null; est_hours: number | null; released_at: string | null;
     credit: boolean; needs_manual_deduction: boolean; deduction_cents: number | null;
     deduction_note: string; contractor_acknowledged_at: string | null;
-  }[] | null) ?? []).map((v) => ({
+    customer_responded_at: string | null; created_at: string;
+  };
+  const vRows = (variationRows as VRow[] | null) ?? [];
+  const variations: VariationView[] = vRows.map((v) => ({
     id: v.id, category: v.category, comment: v.comment, status: v.status,
     contractorDeltaCents: v.contractor_delta_cents,
     estHours: v.est_hours === null ? null : Number(v.est_hours),
@@ -602,9 +606,19 @@ export default async function PortalJobPage({
         </div>
       )}
 
+      {/* The approved changes on the sheet itself (Tom, 23 Sep) — scope and
+          hours for both kinds of painter; the pay line carries the accepted
+          variations for a contractor, and an employee's sheet has no pay. */}
       <WorkOrderDoc doc={job.doc} booking={woBooking} photos={officePhotos}
         variant={assignment ? "employee" : "contractor"}
-        acceptanceMode={assignment ? "assigned" : "offered"} />
+        acceptanceMode={assignment ? "assigned" : "offered"}
+        scopeChanges={employee
+          ? employeeVariations.filter((v) => v.outcome === "approved").map((v) => ({
+              id: v.id, category: v.category, comment: v.comment, estHours: v.estHours,
+              credit: v.credit, status: "contractor_accepted", approvedAt: null,
+            }))
+          : scopeChangesFrom(vRows)}
+        payInclChanges={employee ? null : claimJob.adjustedCents} />
     </div>
   );
 }

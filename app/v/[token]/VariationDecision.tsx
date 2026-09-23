@@ -16,10 +16,14 @@ const dateFmt = (iso: string) =>
  * one-tap it always was — nobody signs to say no.
  */
 export default function VariationDecision({
-  token, priceCents, credit, status, signedName, signedAt, estimateToken = null, dashboardHref = null,
+  token, priceCents, credit, status, signedName, signedAt, estimateToken = null, dashboardHref = null, count = 1,
 }: {
-  token: string; priceCents: number; credit: boolean; status: string;
+  token: string;
+  /** The offer's NET figure, unsigned; `credit` says which way it goes. */
+  priceCents: number; credit: boolean; status: string;
   signedName: string | null; signedAt: string | null;
+  /** How many changes sit behind this one signature (20270192). */
+  count?: number;
   /** Their own /e page — the fallback landing for pre-portal customers. */
   estimateToken?: string | null;
   /** The dashboard invoicing view (Tom, 1 Sep) — wins over /e when they have an account. */
@@ -56,9 +60,15 @@ export default function VariationDecision({
       <div className="cv-done approved" data-testid="variation-outcome">
         <b>Approved — thank you.</b>
         <p>
-          {credit
-            ? `We'll take that out of the scope, and the ${money(priceCents)} comes off your final invoice.`
-            : `We'll get straight on with it. The extra ${money(priceCents)} will appear on your final invoice.`}
+          {count > 1
+            ? (priceCents === 0
+                ? `All ${count} changes are approved. Your job total stays where it is.`
+                : credit
+                  ? `All ${count} changes are approved, and the ${money(priceCents)} comes off your final invoice.`
+                  : `All ${count} changes are approved. The extra ${money(priceCents)} will appear on your final invoice.`)
+            : credit
+              ? `We'll take that out of the scope, and the ${money(priceCents)} comes off your final invoice.`
+              : `We'll get straight on with it. The extra ${money(priceCents)} will appear on your final invoice.`}
         </p>
         {doneName && (
           <p className="cv-signedby" data-testid="variation-signedby">
@@ -83,7 +93,11 @@ export default function VariationDecision({
     return (
       <div className="cv-done declined" data-testid="variation-outcome">
         <b>Declined.</b>
-        <p>No problem — we&rsquo;ll leave that as it is and carry on with the rest of the job.</p>
+        <p>
+          {count > 1
+            ? "No problem — we\u2019ll leave all of those as they are and carry on with the rest of the job."
+            : "No problem — we\u2019ll leave that as it is and carry on with the rest of the job."}
+        </p>
       </div>
     );
   }
@@ -147,14 +161,14 @@ export default function VariationDecision({
           {/* ⚑1 (addendum §4): wording drafted in-session, flagged for the same
               legal review batch as the deposit-cap / deemed-sign-off clauses. */}
           <p className="cv-fine">
-            By signing, I approve this variation to my accepted quote and agree the
+            By signing, I approve {count > 1 ? `these ${count} variations` : "this variation"} to my accepted quote and agree the
             contract price changes by {(credit ? "−" : "") + money(priceCents)} incl. GST.
             This approval forms part of my contract, and I confirm I&rsquo;m authorised
             to make it.
           </p>
           <button type="button" className="cv-btn primary" disabled={pending}
             onClick={sign} data-testid="confirm-sign">
-            {pending ? "Sending…" : `Sign and approve ${(credit ? "−" : "") + money(priceCents)}`}
+            {pending ? "Sending…" : `Sign and approve ${count > 1 ? `all ${count} · ` : ""}${(credit ? "−" : "") + money(priceCents)}`}
           </button>
           <button type="button" className="cv-btn link" onClick={() => setPanel("none")}>
             Back
@@ -164,16 +178,18 @@ export default function VariationDecision({
         <>
           <button type="button" className="cv-btn primary" disabled={pending}
             onClick={() => setPanel("sign")} data-testid="approve-variation">
-            {`Approve ${(credit ? "−" : "") + money(priceCents)}`}
+            {count > 1 ? `Approve all ${count} · ${(credit ? "−" : "") + money(priceCents)}` : `Approve ${(credit ? "−" : "") + money(priceCents)}`}
           </button>
           <button type="button" className="cv-btn ghost" disabled={pending}
             onClick={() => setPanel("decline")} data-testid="decline-variation">
             No thanks
           </button>
           <p className="cv-fine">
-            {credit
-              ? "Nothing to pay — approving takes this off your final invoice."
-              : "Nothing is charged until the work is done, and it appears on your final invoice."}
+            {count > 1
+              ? "The changes are approved or declined together — one signature covers the list above. Nothing is charged until the work is done, and it appears on your final invoice."
+              : credit
+                ? "Nothing to pay — approving takes this off your final invoice."
+                : "Nothing is charged until the work is done, and it appears on your final invoice."}
           </p>
         </>
       )}

@@ -277,6 +277,19 @@ test.describe("a variation, end to end", () => {
     const v = data as { status: string; contractor_accepted_at: string | null };
     expect(v.status).toBe("contractor_accepted");
     expect(v.contractor_accepted_at).not.toBeNull();
+
+    // The job SHEET now lists it too (Tom, 23 Sep): the work and the hours,
+    // "In the job" once accepted — and never the customer's price.
+    await page.reload();
+    const changes = page.getByTestId("scope-changes");
+    await expect(changes).toBeVisible();
+    await expect(changes.getByTestId(`scope-change-${variationId}`)).toContainText("Added");
+    await expect(changes.getByTestId(`scope-change-${variationId}`)).toContainText("In the job");
+    await expect(changes.getByTestId(`scope-change-${variationId}`)).toContainText("3 h");
+    await expect(changes).not.toContainText("$");
+    // …and the sheet's payment line carries the accepted addition.
+    await expect(page.getByTestId("wo-payment")).toContainText("$");
+    await expect(page.locator("text=Fixed price incl. approved changes")).toBeVisible();
   });
 
   test("both approvals are on the record, in order", async () => {

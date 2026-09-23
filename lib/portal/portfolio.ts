@@ -11,11 +11,15 @@ import { invoiceIsOverdue, invoiceBalanceCents, type DeriveInvoice, type DeriveP
  * reads; a trade account is residential plus aggregation, never new schema.
  */
 
+import { pendingOffers } from "@/lib/workorder/scopeChanges";
+
 export type PortfolioVariation = {
   id: string;
   estimate_id: string;
   status: string;
   price_cents: number | null;
+  /** A signed removal: subtracts from the offer's net. Absent on older rows = addition. */
+  credit?: boolean | null;
   customer_token: string | null;
   customer_responded_at: string | null;
 };
@@ -74,17 +78,21 @@ export function buildPortfolio(input: {
 
   const attention: AttentionItem[] = [];
 
-  // 1 · Variations waiting on the client — the mockup's lead card.
-  for (const v of variations) {
-    if (v.status !== "priced" || !v.customer_token || v.customer_responded_at) continue;
+  // 1 · Variations waiting on the client — the mockup's lead card. One card
+  //     per OFFER (every pending change behind one link, 20270192), never one
+  //     per row: five rows would be five cards to the same page.
+  for (const offer of pendingOffers(variations)) {
+    const v = offer.rows[0];
     const e = estById.get(v.estimate_id);
     if (!e) continue;
     attention.push({
       key: `variation:${v.id}`,
       address: addr(e),
-      meta: "Something extra to approve — priced, with photos attached",
-      amountCents: v.price_cents,
-      cta: { label: "Review & approve", href: `/v/${v.customer_token}` },
+      meta: offer.count === 1
+        ? "Something extra to approve — priced, with photos attached"
+        : `${offer.count} changes to approve together — priced, with photos attached`,
+      amountCents: offer.netCents,
+      cta: { label: "Review & approve", href: `/v/${offer.token}` },
     });
   }
 

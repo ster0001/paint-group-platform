@@ -285,7 +285,7 @@ async function projectForWo(
         .eq("work_order_id", wo.id).in("kind", ["before", "progress", "completion"])
         .order("created_at", { ascending: false }).limit(40),
       svc.from("wo_variations")
-        .select("id, status, category, comment, price_cents, customer_token, customer_responded_at, created_at")
+        .select("id, status, category, comment, price_cents, credit, customer_token, customer_responded_at, created_at")
         .eq("work_order_id", wo.id),
       svc.from("wo_qa_checks").select("checked_at").eq("work_order_id", wo.id)
         .eq("result", "pass").order("checked_at", { ascending: false }).limit(1),
@@ -468,18 +468,18 @@ export async function getPortalVariations(accountIds: string[]): Promise<Portfol
   if (!svc) return [];
   const { data } = await svc
     .from("wo_variations")
-    .select("id, status, price_cents, customer_token, customer_responded_at, work_orders!inner(estimate_id, estimates!inner(account_id))")
+    .select("id, status, price_cents, credit, customer_token, customer_responded_at, work_orders!inner(estimate_id, estimates!inner(account_id))")
     .in("work_orders.estimates.account_id", accountIds)
     .order("created_at", { ascending: false })
     .limit(200);
   return ((data ?? []) as unknown as Array<{
-    id: string; status: string; price_cents: number | null; customer_token: string | null;
+    id: string; status: string; price_cents: number | null; credit: boolean | null; customer_token: string | null;
     customer_responded_at: string | null; work_orders: { estimate_id: string } | null;
   }>)
     .filter((v) => v.work_orders?.estimate_id)
     .map((v) => ({
       id: v.id, estimate_id: v.work_orders!.estimate_id, status: v.status,
-      price_cents: v.price_cents, customer_token: v.customer_token,
+      price_cents: v.price_cents, credit: Boolean(v.credit), customer_token: v.customer_token,
       customer_responded_at: v.customer_responded_at,
     }));
 }

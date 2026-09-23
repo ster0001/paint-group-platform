@@ -157,33 +157,41 @@ test.describe("A4 — ledger and final invoice reconcile to the cent", () => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}&mode=revision`);
     await page.getByTestId("draft-variations").click();
-    await expect(page.getByTestId("drafted-list").locator("li")).toHaveCount(2, { timeout: 20_000 });
+    // Two changes drafted as ONE offer (20270192): one link, two items.
+    await expect(page.getByTestId("offer-items").locator("li")).toHaveCount(2, { timeout: 20_000 });
+    await expect(page.getByTestId("offer-row")).toHaveCount(1);
 
     const { data: rows } = await db!.from("wo_variations")
       .select("id, credit, customer_token").eq("work_order_id", workOrderId)
       .not("revision_block_ref", "is", null);
     const vars = rows as { id: string; credit: boolean; customer_token: string }[];
     expect(vars).toHaveLength(2);
+    expect(vars[0].customer_token).toBe(vars[1].customer_token);
     creditId = vars.find((v) => v.credit)!.id;
     additionId = vars.find((v) => !v.credit)!.id;
   });
 
-  async function signOnPage(page: import("@playwright/test").Page, token: string, name: string) {
+  test("the customer signs BOTH with one signature on the drawn pad", async ({ page }) => {
+    const { data: row } = await db!.from("wo_variations")
+      .select("customer_token").eq("id", additionId).single();
+    const token = (row as { customer_token: string }).customer_token;
+
     await page.goto(`/v/${token}`);
+    await expect(page.getByTestId("offer-item")).toHaveCount(2);
     await page.getByTestId("approve-variation").click();
-    await page.getByTestId("sign-name").fill(name);
+    await page.getByTestId("sign-name").fill("A4 Customer");
     await drawSignature(page);
     await page.getByTestId("confirm-sign").click();
     await expect(page.getByTestId("variation-outcome")).toContainText("Approved");
-  }
 
-  test("the customer signs BOTH on the drawn pad", async ({ page }) => {
-    const { data: rows } = await db!.from("wo_variations")
-      .select("id, customer_token").in("id", [creditId, additionId]);
-    const tokenOf = new Map((rows as { id: string; customer_token: string }[]).map((r) => [r.id, r.customer_token]));
-
-    await signOnPage(page, tokenOf.get(additionId)!, "A4 Customer");
-    await signOnPage(page, tokenOf.get(creditId)!, "A4 Customer");
+    // Both rows carry the signature; a contractor IS on this job, so neither
+    // folds in — they wait for the painter's accept/acknowledge below.
+    const { data: after } = await db!.from("wo_variations")
+      .select("id, status, signed_name").in("id", [creditId, additionId]);
+    for (const v of after as { status: string; signed_name: string | null }[]) {
+      expect(v.status).toBe("customer_approved");
+      expect(v.signed_name).toBe("A4 Customer");
+    }
 
     // The credit's strike landed; the addition struck nothing.
     const { data: struck } = await db!.from("wo_surfaces")
