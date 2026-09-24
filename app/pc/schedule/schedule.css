@@ -185,7 +185,16 @@
 .sb .cinfo .bd .no { color: var(--clay); border-color: rgba(179, 87, 74, 0.4); }
 
 .sb .lane { position: relative; display: grid; grid-template-columns: repeat(var(--days), var(--day-w)); }
-.sb .lane .bgc { border-right: 1px solid rgba(36, 43, 50, 0.35); }
+.sb .lane .bgc { position: relative; border-right: 1px solid rgba(36, 43, 50, 0.35); }
+/* Tom, 24 Sep: the date pop-up on the day a job is being dragged over — the
+   cell says its own date, inside the row so the scroller never clips it. */
+.sb .lane .bgc.hot::after {
+  content: attr(data-label); position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+  background: var(--cyan); color: #06181c; font: 700 11px/1 var(--mono); letter-spacing: 0.02em;
+  padding: 5px 8px; border-radius: 6px; white-space: nowrap; z-index: 6; pointer-events: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.sb .lane.blocked .bgc.hot::after { background: var(--clay); color: #fff; }
 .sb .lane .bgc.we { background: rgba(255, 255, 255, 0.018); }
 /* Drop target — a single class toggle, no per-cell restyling during a drag. */
 .sb .lane .bgc.hot { background: rgba(59, 216, 233, 0.1); box-shadow: inset 0 0 0 1px rgba(59, 216, 233, 0.35); }
@@ -234,7 +243,7 @@
 }
 .sb .ghost .g1 { font-weight: 600; white-space: nowrap; }
 .sb .ghost .g2 { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
-.sb .ghost .g3 { font-family: var(--mono); font-size: 11px; color: var(--cyan); margin-top: 4px; white-space: nowrap; font-weight: 600; }
+.sb .ghost .g3 { font-family: var(--mono); font-size: 14px; color: var(--cyan); margin-top: 6px; white-space: nowrap; font-weight: 700; }
 .sb .ghost.blocked { border-color: var(--clay); }
 .sb .ghost.blocked .g2 { color: var(--clay); }
 

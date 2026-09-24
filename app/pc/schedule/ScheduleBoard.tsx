@@ -31,6 +31,12 @@ function monthRuns(days: string[]) {
 }
 
 /** Render a date cell without letting the timezone move it. */
+/** "Thu 24 Sep" — the day as a person says it, for the drag pop-up (Tom, 24 Sep). */
+const dayLabel = (s: string) => {
+  const d = new Date(s + "T00:00:00Z");
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+};
+
 const dayParts = (s: string) => {
   const d = new Date(s + "T00:00:00Z");
   return {
@@ -1183,7 +1189,8 @@ export default function ScheduleBoard({
                     >
                       {days.map((d) => {
                         const dow = dayParts(d).dow;
-                        return <div key={d} data-day={d} className={`bgc ${dow === 0 || dow === 6 ? "we" : ""}`} />;
+                        // data-label is what the hovered cell's pop-up says while a job is dragged over it (schedule.css .bgc.hot::after).
+                        return <div key={d} data-day={d} data-label={dayLabel(d)} className={`bgc ${dow === 0 || dow === 6 ? "we" : ""}`} />;
                       })}
 
                       {/* §4b: walkthrough pins — the sign-off visit, on the
@@ -1272,7 +1279,7 @@ export default function ScheduleBoard({
           <div className="g2">{ghostBlocked ? "BLOCKED OUT — DROP TO OVERRIDE" : ghost.sub}</div>
           {ghostDates && (
             <div className="g3" data-testid="ghost-dates" data-start={ghostDates.start} data-end={ghostDates.end}>
-              {ghostDates.start === ghostDates.end ? formatDMY(ghostDates.start) : `${formatDMY(ghostDates.start)} → ${formatDMY(ghostDates.end)}`}
+              {ghostDates.start === ghostDates.end ? `Starts ${dayLabel(ghostDates.start)}` : `${dayLabel(ghostDates.start)} → ${dayLabel(ghostDates.end)}`}
             </div>
           )}
         </div>
