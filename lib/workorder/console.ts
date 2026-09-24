@@ -78,6 +78,11 @@ export type ConsoleInput = {
   qaChecks?: { workOrderId: string; kind: string; scheduledFor: string | null; createdAt: string }[];
   /** Work orders with a final walkthrough BOOKED. */
   walkthroughBooked?: string[];
+  /**
+   * Work orders a quality check has PASSED on (Tom, 24 Sep 2026): the office
+   * signs these off — no customer walkthrough to book, no signature to chase.
+   */
+  staffSignoffJobs?: string[];
   /** Latest approved/sent customer update per job (ISO time). */
   lastUpdateAt?: Record<string, string>;
   /** Card keys a person has closed off (Tom, 25 Aug) — dropped from the queue. */
@@ -436,7 +441,7 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
       severity: "warning",
       title: atQa ? "Quality check to do" : "Mid-job quality check due",
       detail: atQa
-        ? `The painter has finished — ${checks.length} check${checks.length === 1 ? "" : "s"} to log (${kinds}) before the customer walkthrough.`
+        ? `The painter has finished — ${checks.length} check${checks.length === 1 ? "" : "s"} to log (${kinds}) before the job can be signed off.`
         : `Booked for ${dated[0].scheduledFor === today ? "today" : dated[0].scheduledFor} — log it on the job page.`,
       ref: label(woId),
       workOrderId: woId,
@@ -494,8 +499,9 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
   // 5e. Call the customer — the walkthrough isn't booked and the job is at
   // Walkthrough (or within two days of its last booked day).
   const booked = new Set(input.walkthroughBooked ?? []);
+  const officeSigns = new Set(input.staffSignoffJobs ?? []);
   for (const w of input.workOrders) {
-    if (booked.has(w.id) || w.walkthroughRequired === false) continue;
+    if (booked.has(w.id) || w.walkthroughRequired === false || officeSigns.has(w.id)) continue;
     const atWalk = w.stage === "walkthrough";
     const nearEnd = (w.stage === "in_progress" || w.stage === "completion_prep" || w.stage === "qa")
       && !!w.endDate && daysUntil(w.endDate, now) <= 2;

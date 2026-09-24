@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { advanceStage, closeWithoutWalkthrough, confirmPrepStaff, deliverEvidencePack, reopenSignoff, startNow } from "../../actions";
+import { advanceStage, closeWithoutWalkthrough, confirmPrepStaff, deliverEvidencePack, reopenSignoff, staffComplete, startNow } from "../../actions";
 import { STAGE_LANES, nextStages, type WoStage } from "@/lib/workorder/stages";
 
 /**
@@ -14,7 +14,7 @@ import { STAGE_LANES, nextStages, type WoStage } from "@/lib/workorder/stages";
  * which it then explains in the gate's own words.
  */
 export default function StageAdvance({
-  workOrderId, stage, startDate, today, walkthroughRequired = true,
+  workOrderId, stage, startDate, today, walkthroughRequired = true, staffSignsOff = false,
 }: {
   workOrderId: string; stage: WoStage;
   /** The booked start date, so starting early can be recognised as such. */
@@ -23,6 +23,11 @@ export default function StageAdvance({
   today: string;
   /** False = "walkthrough not required" on the booking: prep/QA close the job. */
   walkthroughRequired?: boolean;
+  /**
+   * True when a quality check passed on this job (Tom, 24 Sep 2026): the
+   * OFFICE signs it off at 05 Walkthrough — the customer is not asked to.
+   */
+  staffSignsOff?: boolean;
 }) {
   const early = stage === "pre_start" && startDate !== null && startDate > today;
   const [confirmEarly, setConfirmEarly] = useState(false);
@@ -110,10 +115,16 @@ export default function StageAdvance({
     if (to === "in_progress" && early && !confirmEarly) { setConfirmEarly(true); return; }
     startTransition(async () => {
       // Prep -> walkthrough mints the customer's link and starts their clock.
+      // From the walkthrough stage, "closed" is one of three things: the
+      // no-walkthrough close (flag off — Tom, 24 Sep: even once the job is
+      // already here), the office's sign-off after a quality check, or the
+      // plain move. Each writes the record a signing would.
       const result = to === "walkthrough"
         ? await deliverEvidencePack({ workOrderId })
-        : to === "closed" && stage !== "walkthrough"
+        : to === "closed" && !walkthroughRequired
           ? await closeWithoutWalkthrough({ workOrderId })
+          : to === "closed" && stage === "walkthrough" && staffSignsOff
+            ? await staffComplete({ workOrderId, note: "" })
           : to === "in_progress" && early
             ? await startNow({ workOrderId })
             : await advanceStage({ workOrderId, to });
@@ -159,6 +170,8 @@ export default function StageAdvance({
           <button key={t.to} type="button" className="btn primary" disabled={pending}
             onClick={() => go(t.to)} data-testid={`advance-${t.to}`}>
             {pending ? "Working…" : t.to === "walkthrough" ? "Send the pack to the customer"
+              : t.to === "closed" && !walkthroughRequired ? "Close the job — no walkthrough required"
+              : t.to === "closed" && stage === "walkthrough" && staffSignsOff ? "Sign off as complete — quality check passed"
               : t.to === "closed" && stage !== "walkthrough" ? "Close the job — no walkthrough required"
               : t.to === "in_progress" ? "Start the job"
               : t.to === "qa" ? "Send to quality check"
@@ -177,6 +190,8 @@ export default function StageAdvance({
               ? "Every scheduled check has to be logged as a pass."
               : "Every scheduled check has to be logged as a pass — then the job closes (no walkthrough on this booking).")
           : stage === "completion_prep" ? "The completion list has to be ticked before the customer is asked to look."
+          : stage === "walkthrough" && !walkthroughRequired ? "No walkthrough on this booking — closing writes the report, starts the warranty and drafts the invoice."
+          : stage === "walkthrough" && staffSignsOff ? "The quality check passed, so the office signs this one off — the customer isn't asked to sign. They receive the completion report."
           : ""}
       </p>
     </div>

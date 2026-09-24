@@ -33,7 +33,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   const fortnightAgo = new Date(now.getTime() - 14 * 86_400_000).toISOString();
 
   const [woRows, offers, variations, updates, signoffs, flags, closed, tickRows, contractors, settings, coloursTickedRows, collections,
-         qaOpen, walkBooked, sentUpdateRows] =
+         qaOpen, walkBooked, qaPassed, sentUpdateRows] =
     await Promise.all([
       fetchAll<WoRow>((from, to) => supabase.from("work_orders")
         .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, end_date, walkthrough_required, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
@@ -87,6 +87,10 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       // Tom, 23 Aug: quality checks to do, walkthroughs not booked, updates due.
       supabase.from("wo_qa_checks").select("work_order_id, kind, scheduled_for, created_at").is("result", null),
       supabase.from("wo_walkthroughs").select("work_order_id").eq("kind", "final").eq("status", "booked"),
+      // Tom, 24 Sep: a passed check makes the job the office's to sign off —
+      // open jobs only; closed ones accumulate for ever.
+      supabase.from("wo_qa_checks").select("work_order_id, work_orders!inner(stage)")
+        .eq("result", "pass").neq("work_orders.stage", "closed"),
       // Sent updates accumulate for ever, and a truncated set here would
       // false-flag "update due" on jobs whose last update fell off the page.
       fetchAll<{ work_order_id: string; approved_at: string | null; sent_at: string | null; created_at: string }>(
@@ -258,6 +262,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       qaChecks: ((qaOpen.data ?? []) as { work_order_id: string; kind: string; scheduled_for: string | null; created_at: string }[])
         .map((c) => ({ workOrderId: c.work_order_id, kind: c.kind, scheduledFor: c.scheduled_for, createdAt: c.created_at })),
       walkthroughBooked: ((walkBooked.data ?? []) as { work_order_id: string }[]).map((w) => w.work_order_id),
+      staffSignoffJobs: [...new Set(((qaPassed.data ?? []) as { work_order_id: string }[]).map((q) => q.work_order_id))],
       lastUpdateAt: sentUpdateRows
         .reduce<Record<string, string>>((acc, u) => {
           const at = u.sent_at ?? u.approved_at ?? u.created_at;

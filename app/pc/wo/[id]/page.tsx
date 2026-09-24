@@ -2,7 +2,9 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/monitoring/report";
 import { STAGE_LANES, stageTitle, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
-import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
+import { photoScopeFor, progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
+import { staffSignsOff as staffSignsOffFor, supersededQaIds } from "@/lib/workorder/qa";
+import PhotosOptionalToggle from "./PhotosOptionalToggle";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
 import PriceVariation from "./PriceVariation";
@@ -36,14 +38,14 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, qa_required, walkthrough_required, colours, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
   const row = wo as unknown as {
     id: string; wo_ref: string; stage: WoStage; blocked_reason: string | null;
     contractor_payment_cents: number | null; start_date: string | null; end_date: string | null;
-    qa_required: boolean | null; walkthrough_required: boolean | null;
+    qa_required: boolean | null; qa_waived: boolean | null; walkthrough_required: boolean | null;
     colours: Record<string, { status?: string; match?: { code?: string; brand?: string; canSize?: string; by?: string } }> | null;
     wo_snapshot: { jobTitle?: string; jobAddress?: string } | null;
     contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
@@ -77,10 +79,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     await supabase.rpc("wo_seed_checklists", { p_work_order_id: id }).then(() => {}, () => {});
   }
 
-  const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
+  const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: qaLinkRows, error: qaLinkErr }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
     await Promise.all([
       supabase.from("wo_surfaces")
-        .select("id, heading, heading_meta, label, state, rectification, removed_from_scope")
+        .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_variations")
         .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents")
@@ -90,6 +92,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
       supabase.from("wo_qa_checks")
         .select("id, kind, result, thin_record, scheduled_for, wo_qa_items(id, label, detail, sort, done_at)")
         .eq("work_order_id", id),
+      // The re-check link (migration 20270196) on its own, so the QA section
+      // survives a stack that has not run it yet: a missing column fails THIS
+      // query only, and the links read as "none" — reported, never silent.
+      supabase.from("wo_qa_checks").select("id, retry_of").eq("work_order_id", id),
       supabase.from("wo_checklist_items")
         .select("id, phase, label, detail, required, done_at, auto_key, kind, item_key, answer, answer_note, handled_at")
         .eq("work_order_id", id).order("phase").order("sort"),
@@ -122,7 +128,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     });
     if (String(seeded ?? "").startsWith("ok:")) {
       const { data: fresh } = await supabase.from("wo_surfaces")
-        .select("id, heading, heading_meta, label, state, rectification, sort")
+        .select("id, heading, heading_meta, label, state, rectification, sort, photos_optional")
         .eq("work_order_id", id).order("sort");
       healedSurfaceRows = fresh as typeof surfaceRows;
     }
@@ -269,14 +275,41 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     };
   });
 
+  // A FAIL spawns its re-check (same kind, `retry_of` = the failed check —
+  // migration 20270196). The failed card stays as the record; the re-check is
+  // the card with controls. Ordered so a re-check sits under what it re-checks.
+  if (qaLinkErr) reportError(qaLinkErr, { where: "pc.wo.qaLinks", bestEffort: true, extra: { workOrderId: id } });
+  const retryOf = new Map(((qaLinkErr ? [] : qaLinkRows ?? []) as { id: string; retry_of: string | null }[])
+    .map((r) => [r.id, r.retry_of] as const));
+  const superseded = supersededQaIds([...retryOf].map(([qid, rof]) => ({ id: qid, result: null, retryOf: rof })));
   const qaChecks: QaCheckView[] = ((qaRows ?? []) as unknown as {
     id: string; kind: string; result: string | null; thin_record: boolean;
     wo_qa_items: { id: string; label: string; detail: string; sort: number; done_at: string | null }[] | null;
   }[]).map((c) => ({
     id: c.id, kind: c.kind, result: c.result, thinRecord: c.thin_record,
+    retryOf: retryOf.get(c.id) ?? null,
+    superseded: superseded.has(c.id),
     standards: [...(c.wo_qa_items ?? [])].sort((a, b) => a.sort - b.sort)
       .map((i) => ({ id: i.id, label: i.label, detail: i.detail, done: i.done_at !== null })),
   }));
+  {
+    const at = new Map(qaChecks.map((c, i) => [c.id, i]));
+    const rootAndDepth = (c: QaCheckView): [number, number] => {
+      let cur = c; let depth = 0;
+      while (cur.retryOf && at.has(cur.retryOf) && depth < 20) { cur = qaChecks[at.get(cur.retryOf)!]; depth += 1; }
+      return [at.get(cur.id) ?? 0, depth];
+    };
+    qaChecks.sort((a, b) => {
+      const [ra, da] = rootAndDepth(a); const [rb, db] = rootAndDepth(b);
+      return ra - rb || da - db;
+    });
+  }
+  // Tom, 24 Sep: a job that went through a quality check is the office's to
+  // sign off — derived from the checks, same rule as wo_staff_signs_off.
+  const staffSignsOff = staffSignsOffFor(qaChecks);
+  // One before + one finished photo on a short job (Tom, 24 Sep) — the same
+  // arithmetic wo_photo_scope runs, so the prompt and the gate agree.
+  const photoScope = photoScopeFor(row.start_date, row.end_date);
 
   const forPhase = (phase: string) => checklist.filter((c) => c.phase === phase);
   const outstanding = (phase: string) =>
@@ -288,8 +321,8 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   const surfaces = ((liveSurfaceRows ?? []) as {
     id: string; heading: string; heading_meta: string; label: string;
-    state: SurfaceRow["state"]; rectification: boolean; removed_from_scope?: boolean;
-  }[]).map((s) => ({ ...s, removed: s.removed_from_scope ?? false }));
+    state: SurfaceRow["state"]; rectification: boolean; removed_from_scope?: boolean; photos_optional?: boolean | null;
+  }[]).map((s) => ({ ...s, removed: s.removed_from_scope ?? false, photosOptional: Boolean(s.photos_optional) }));
   const progress = progressOf(surfaces);
   const byHeading = progressByHeading(surfaces);
   const headings = [...new Set(surfaces.map((s) => s.heading))];
@@ -429,7 +462,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             workOrderId={id}
             surfaces={surfaces.map((s) => ({
               id: s.id, heading: s.heading, label: s.label, state: s.state,
-              rectification: s.rectification, removed: s.removed,
+              rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional,
             }))}
             headingsWithBeforePhoto={headingsWithBeforePhoto}
             headingsWithAfterPhoto={headingsWithAfterPhoto}
@@ -437,6 +470,8 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               surfaces.map((s) => [s.heading, s.heading_meta]).filter(([, m]) => m),
             )}
             surface="console"
+            photoScope={photoScope}
+            canWaivePhotos
           />
         ) : (
           <div className="card">
@@ -460,7 +495,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                         <i className={s.state === "done" ? "a" : s.state === "prepped" ? "b" : ""} />
                         <i className={s.state === "done" ? "a" : ""} />
                       </span>
-                      <p style={s.removed ? { textDecoration: "line-through" } : undefined}>{s.label}</p>
+                      <p style={s.removed ? { textDecoration: "line-through" } : undefined}>
+                        {s.label}
+                        {s.photosOptional && <span className="pill" style={{ marginLeft: 6 }} data-testid={`no-photos-${s.id}`}>No photos</span>}
+                      </p>
+                      {/* Tom, 24 Sep: a line that isn't a surface need not be
+                          photographed — set it here before the job starts. */}
+                      {!s.removed && row.stage !== "closed" && (
+                        <PhotosOptionalToggle surfaceId={s.id} label={s.label} optional={s.photosOptional} />
+                      )}
                       <span className={`pill ${s.removed ? "p-amber" : s.state === "done" ? "p-em" : s.state === "prepped" ? "p-cy" : s.rectification ? "p-amber" : ""}`}>
                         {s.removed ? "Removed from scope" : s.rectification && s.state !== "done" ? "Rectify" : s.state === "done" ? "Done" : s.state === "prepped" ? "Prepped" : "To do"}
                       </span>
@@ -489,6 +532,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
             }).format(new Date())}
             walkthroughRequired={row.walkthrough_required !== false}
+            staffSignsOff={staffSignsOff}
           />
 
           {/* Colour matches (Tom, 23 Aug): flagged by the estimator or opened by
@@ -605,7 +649,9 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               at the start of the process — usually while booking the job in —
               not remembered at the end. Blank date still means last day on
               site, so an early booking follows the schedule automatically. */}
-          {(row.stage === "pre_start" || row.stage === "in_progress" || row.stage === "qa"
+          {/* Tom, 24 Sep: from the OFFER too — "walkthrough not required" is a
+              decision the office may take the moment the job is approved. */}
+          {(row.stage === "offered" || row.stage === "pre_start" || row.stage === "in_progress" || row.stage === "qa"
             || row.stage === "completion_prep" || row.stage === "walkthrough") && (
             <WalkthroughCard
               workOrderId={id}
@@ -617,6 +663,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               endDate={row.end_date}
               stage={row.stage}
               walkthroughRequired={row.walkthrough_required !== false}
+              staffSignsOff={staffSignsOff}
             />
           )}
 
@@ -636,8 +683,13 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
           {/* The checks stay on screen past the pass (walkthrough, closed):
               the last PASS sends the pack and refreshes this page — the card
-              must survive that, or its "pack sent" message vanishes with it. */}
-          {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed") && qaChecks.map((c) => (
+              must survive that, or its "pack sent" message vanishes with it.
+              Same for a FAIL, which sends the job back to In progress: the
+              logged record (and where its re-check went) stays in view while
+              the painter rectifies; the unlogged re-check itself waits for
+              their next finish before it is drawn. */}
+          {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
+            && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null).map((c) => (
             <QaCheck key={c.id} check={c} workOrderId={id} />
           ))}
           {/* Dashboard 0c: reviews requested → received, a person's tick until the API. */}
@@ -767,19 +819,20 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             <h3>Job facts</h3>
             <div className="tick"><p>Start date</p><span className="pill">{row.start_date ?? "TBC"}</span></div>
             <div className="tick"><p>Quality checks</p>
-              <span className={`pill ${(qaRows ?? []).length === 0 ? "" : "p-cy"}`}>
-                {(qaRows ?? []).length === 0 ? "Not required — established" : `${(qaRows ?? []).length} scheduled`}
+              <span className={`pill ${(qaRows ?? []).length === 0 ? "" : "p-cy"}`} data-testid="qa-facts-pill">
+                {row.qa_waived ? "Not required — waived by the office"
+                  : (qaRows ?? []).length === 0 ? "Not required — established" : `${(qaRows ?? []).length} scheduled`}
               </span>
             </div>
             {((qaRows ?? []) as { id: string; kind: string; result: string | null; thin_record: boolean; scheduled_for: string | null }[]).map((q) => (
               <div className="tick" key={q.id}>
-                <p>{q.kind === "mid" ? "mid-job" : q.kind.replace(/_/g, " ")}{q.scheduled_for ? ` · ${q.scheduled_for}` : ""}</p>
+                <p>{q.kind === "mid" ? "mid-job" : q.kind.replace(/_/g, " ")}{retryOf.get(q.id) ? " · re-check" : ""}{q.scheduled_for ? ` · ${q.scheduled_for}` : ""}</p>
                 <span className={`pill ${q.result === "pass" ? "p-em" : q.result === "fail" ? "p-clay" : "p-amber"}`}>
-                  {q.result ?? "due"}{q.thin_record ? " · thin record" : ""}
+                  {q.result ?? "due"}{q.result === "fail" && superseded.has(q.id) ? " · re-checked" : ""}{q.thin_record ? " · thin record" : ""}
                 </span>
               </div>
             ))}
-            <QaControls workOrderId={id} qaRequired={Boolean(row.qa_required)}
+            <QaControls workOrderId={id} qaRequired={Boolean(row.qa_required)} qaWaived={Boolean(row.qa_waived)}
               scheduledCount={(qaRows ?? []).length} closed={row.stage === "closed"} />
           </div>
         </div>

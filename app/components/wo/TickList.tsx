@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { tickSurfaceAction } from "./tickAction";
+import { setSurfacePhotosOptionalAction, tickSurfaceAction } from "./tickAction";
 import {
   nextState, needsBeforePhoto, needsAfterPhoto, progressByHeading, progressOf,
-  type SurfaceRow, type SurfaceState,
+  tickNeedsAfterPhoto, tickNeedsBeforePhoto,
+  type PhotoScope, type SurfaceRow, type SurfaceState,
 } from "@/lib/workorder/surfaces";
 
 /**
@@ -31,13 +32,24 @@ type Props = {
    * same photo gate and the same events as the painter.
    */
   surface?: "portal" | "console";
+  /**
+   * How photos are counted on this job (Tom, 24 Sep 2026): per area, or ONE
+   * before and ONE finished shot for a short job. Computed on the server from
+   * the booking (photoScopeFor) so the prompt and the RPC agree.
+   */
+  photoScope?: PhotoScope;
+  /**
+   * Console only: the office can mark a line "photos not required" (a fuel
+   * allowance, a set-up line). The RPC refuses anyone who is not staff.
+   */
+  canWaivePhotos?: boolean;
 };
 
 const LABEL: Record<SurfaceState, string> = { todo: "To do", prepped: "Prepped", done: "Done" };
 
 export default function TickList({
   workOrderId, surfaces, headingsWithBeforePhoto, headingsWithAfterPhoto = [],
-  headingMeta, surface = "portal",
+  headingMeta, surface = "portal", photoScope = "area", canWaivePhotos = false,
 }: Props) {
   const c = surface === "console" ? "pcw" : "";
   const [rows, setRows] = useState<SurfaceRow[]>(surfaces);
@@ -50,6 +62,7 @@ export default function TickList({
   const [message, setMessage] = useState<{ text: string; heading?: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [waiving, setWaiving] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const fileInput = useRef<HTMLInputElement | null>(null);
   const pendingHeading = useRef<string | null>(null);
@@ -63,18 +76,49 @@ export default function TickList({
   const overall = progressOf(rows);
   const byHeading = progressByHeading(rows);
 
+  // A short job needs one shot of each for the whole job, so the words say so
+  // — the photo is still filed under the heading it was taken from.
+  const shortJob = photoScope === "job";
+
   function askForPhoto(heading: string) {
     pendingHeading.current = heading;
     pendingKind.current = "before";
-    setMessage({ text: `Before photo of ${heading} — one shot before you start.`, heading });
+    setMessage({
+      text: shortJob
+        ? "Before photo of the job — one shot is enough on a short job."
+        : `Before photo of ${heading} — one shot before you start.`,
+      heading,
+    });
     fileInput.current?.click();
   }
 
   function askForAfterPhoto(heading: string) {
     pendingHeading.current = heading;
     pendingKind.current = "completion";
-    setMessage({ text: `Finished shot of ${heading} — same angle as the before, if you can.`, heading });
+    setMessage({
+      text: shortJob
+        ? "Finished shot of the job — one is enough on a short job, same angle as the before if you can."
+        : `Finished shot of ${heading} — same angle as the before, if you can.`,
+      heading,
+    });
     fileInput.current?.click();
+  }
+
+  function waivePhotos(row: SurfaceRow) {
+    setWaiving(row.id);
+    setMessage(null);
+    startTransition(async () => {
+      const r = await setSurfacePhotosOptionalAction({ surfaceId: row.id, optional: !row.photosOptional });
+      if (r.ok) {
+        setRows((rs) => rs.map((x) => (x.id === row.id ? { ...x, photosOptional: r.optional } : x)));
+        setMessage({ text: r.optional
+          ? `${row.label}: no photos asked for on this line.`
+          : `${row.label}: photos asked for again on this line.` });
+      } else {
+        setMessage({ text: r.message });
+      }
+      setWaiving(null);
+    });
   }
 
   async function onPhotoPicked(file: File) {
@@ -107,10 +151,10 @@ export default function TickList({
 
       if (pendingKind.current === "completion") {
         setAfterHeadings((h) => [...h, heading]);
-        setMessage({ text: `Finished shot saved for ${heading}. Nice one.` });
+        setMessage({ text: shortJob ? "Finished shot saved. Nice one." : `Finished shot saved for ${heading}. Nice one.` });
       } else {
         setPhotoHeadings((h) => [...h, heading]);
-        setMessage({ text: `Before photo saved for ${heading}. Tick away.` });
+        setMessage({ text: shortJob ? "Before photo saved. Tick away." : `Before photo saved for ${heading}. Tick away.` });
       }
     } catch (e) {
       setMessage({ text: e instanceof Error && e.message !== "upload" ? e.message : "That photo didn't upload — check your signal and try again." });
@@ -122,8 +166,9 @@ export default function TickList({
 
   function tap(row: SurfaceRow) {
     const to = nextState(row.state);
-    // Ask for the photo before the tap, not after the refusal.
-    if (to !== "todo" && needsBeforePhoto(row.heading, rows, photoHeadings)) {
+    // Ask for the photo before the tap, not after the refusal. A "photos not
+    // required" line never asks; a short job is covered by one shot anywhere.
+    if (to !== "todo" && tickNeedsBeforePhoto(row, rows, photoHeadings, photoScope)) {
       askForPhoto(row.heading);
       return;
     }
@@ -131,12 +176,9 @@ export default function TickList({
     // the tap that would complete the area opens the picker instead, and the
     // tick goes through on the next tap once the photo is up. The server
     // enforces the same rule, so two phones can't race past it.
-    if (to === "done" && !afterHeadings.includes(row.heading)) {
-      const others = rows.filter((r) => r.heading === row.heading && !r.removed && r.id !== row.id);
-      if (others.every((r) => r.state === "done")) {
-        askForAfterPhoto(row.heading);
-        return;
-      }
+    if (to === "done" && tickNeedsAfterPhoto(row, rows, afterHeadings, photoScope)) {
+      askForAfterPhoto(row.heading);
+      return;
     }
     setBusy(row.id);
     setMessage(null);
@@ -182,8 +224,8 @@ export default function TickList({
 
       {headings.map((heading) => {
         const p = byHeading.get(heading);
-        const wants = needsBeforePhoto(heading, rows, photoHeadings);
-        const wantsAfter = needsAfterPhoto(heading, rows, afterHeadings);
+        const wants = needsBeforePhoto(heading, rows, photoHeadings, photoScope);
+        const wantsAfter = needsAfterPhoto(heading, rows, afterHeadings, photoScope);
         return (
           <div className="elev" key={heading}>
             <div className="eh">
@@ -200,7 +242,9 @@ export default function TickList({
                 disabled={uploading === heading}
                 data-testid={`photo-prompt-${heading}`}
               >
-                {uploading === heading ? "Uploading…" : `📷 Before photo of ${heading} — needed before the first tick`}
+                {uploading === heading ? "Uploading…"
+                  : shortJob ? "📷 Before photo of the job — one is enough on a short job, needed before the first tick"
+                  : `📷 Before photo of ${heading} — needed before the first tick`}
               </button>
             )}
 
@@ -215,7 +259,9 @@ export default function TickList({
                 disabled={uploading === heading}
                 data-testid={`after-photo-prompt-${heading}`}
               >
-                {uploading === heading ? "Uploading…" : `📷 Finished photo of ${heading} — needed to complete the area`}
+                {uploading === heading ? "Uploading…"
+                  : shortJob ? "📷 Finished photo of the job — one is enough on a short job, needed to complete it"
+                  : `📷 Finished photo of ${heading} — needed to complete the area`}
               </button>
             )}
 
@@ -254,6 +300,9 @@ export default function TickList({
                   <span className="tickrow-label">
                     {row.label}
                     {row.rectification ? <span className="chip amb" style={{ marginLeft: 6 }}>Rectify</span> : null}
+                    {row.photosOptional ? (
+                      <span className="chip" style={{ marginLeft: 6 }} data-testid={`no-photos-${row.id}`}>No photos</span>
+                    ) : null}
                   </span>
                   <span className={`chip ${row.state === "done" ? "grn" : row.state === "prepped" ? "cyn" : ""}`}>
                     {LABEL[row.state]}
@@ -261,6 +310,20 @@ export default function TickList({
                 </button>
               ),
             )}
+
+            {/* Console only (Tom, 24 Sep): a line that is not a surface — a
+                fuel allowance, a set-up line — need not be photographed. One
+                small control per line; the RPC refuses anyone but staff. */}
+            {canWaivePhotos && rows.filter((r) => r.heading === heading && !r.removed).map((row) => (
+              <button key={`waive-${row.id}`} type="button" className="btn dim"
+                style={{ fontSize: 11, padding: "3px 8px", margin: "0 0 4px 0" }}
+                disabled={waiving === row.id} onClick={() => waivePhotos(row)}
+                data-testid={`photos-optional-${row.id}`}>
+                {waiving === row.id ? "Saving…" : row.photosOptional
+                  ? `Photos required again — ${row.label}`
+                  : `Photos not required — ${row.label}`}
+              </button>
+            ))}
           </div>
         );
       })}

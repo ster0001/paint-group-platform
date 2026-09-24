@@ -78,7 +78,7 @@ export default function WalkthroughBar({ workOrderId, phase, prepLeft, flaggedAr
       if (r.to === "walkthrough") {
         if (await openWalkthrough()) return;
       } else if (r.to === "qa") {
-        setMessage("Nice work. Paint Group will quality check the job now — the walkthrough opens here the moment it passes.");
+        setMessage("Nice work. Paint Group will quality check the job now — once it passes, the office signs the job off.");
       } else {
         setMessage("Nice work — no walkthrough on this job, so it's complete. Paint Group will invoice the customer.");
       }
@@ -94,7 +94,7 @@ export default function WalkthroughBar({ workOrderId, phase, prepLeft, flaggedAr
       ? `The customer flagged ${flaggedAreas.join(", ")}. Once put right and ticked, this completes the job and sends them the report — no second walkthrough.`
       : prepLeft > 0
       ? `${prepLeft} finishing-up item${prepLeft === 1 ? "" : "s"} still to tick below — then this sends the job on.`
-      : "Every surface is done. This finishes the job and opens the walkthrough — after a quality check, if one is due.";
+      : "Every surface is done. This finishes the job and opens the walkthrough — or sends it for a quality check, if one is due (the office signs a checked job off).";
 
   return (
     <div ref={barRef} data-testid="walkthrough-bar" data-phase={phase}

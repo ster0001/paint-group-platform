@@ -24,7 +24,8 @@ import WalkthroughStart from "./WalkthroughStart";
 import WalkthroughBar from "./WalkthroughBar";
 import CrewShare from "./CrewShare";
 import SitePhotos from "./SitePhotos";
-import type { SurfaceRow } from "@/lib/workorder/surfaces";
+import { photoScopeFor, type SurfaceRow } from "@/lib/workorder/surfaces";
+import { qaAllClear, staffSignsOff as staffSignsOffFor } from "@/lib/workorder/qa";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 import type { Booking } from "@/lib/workorder/booking";
@@ -119,9 +120,9 @@ export default async function PortalJobPage({
 
   // The tick list and the before-photos already logged. RLS scopes both to this
   // contractor's own jobs, so an id that isn't theirs simply returns nothing.
-  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }, { data: signoffRow }] = await Promise.all([
+  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }, { data: signoffRow }, { data: qaLinkRows, error: qaLinkErr }] = await Promise.all([
     supabase.from("wo_surfaces")
-      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope")
+      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional")
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos")
       .select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
@@ -136,7 +137,11 @@ export default async function PortalJobPage({
     supabase.from("wo_qa_checks")
       .select("id, result, kind, scheduled_for, notes, checked_at").eq("work_order_id", id),
     supabase.from("wo_signoff").select("signed_at, signed_name, areas, evidence_pack_sent_at").eq("work_order_id", id).maybeSingle(),
+    // Re-check links (migration 20270196), on their own so a stack without the
+    // column loses only the links, never the page. Reported, never silent.
+    supabase.from("wo_qa_checks").select("id, retry_of").eq("work_order_id", id),
   ]);
+  if (qaLinkErr) reportError(qaLinkErr, { where: "portal.job.qaLinks", bestEffort: true, extra: { workOrderId: id } });
 
   // Requested or confirmed — derived from the live offer, never stored twice.
   const { data: bookingRows } = await supabase.rpc("wo_booking", { p_work_order_id: id });
@@ -267,8 +272,11 @@ export default async function PortalJobPage({
   };
 
   const surfaces: SurfaceRow[] = ((surfaceRows as
-    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean }[] | null) ?? [])
-    .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope }));
+    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean; photos_optional?: boolean | null }[] | null) ?? [])
+    .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope, photosOptional: Boolean(r.photos_optional) }));
+  // One before + one finished photo on a short job (Tom, 24 Sep 2026) — the
+  // same arithmetic wo_photo_scope runs, so the prompt and the gate agree.
+  const photoScope = photoScopeFor(woBooking.startDate, woBooking.endDate);
 
   const headingMeta: Record<string, string> = {};
   for (const r of (surfaceRows as { heading: string; heading_meta: string }[] | null) ?? []) {
@@ -300,7 +308,13 @@ export default async function PortalJobPage({
   // the moment anyone looks — the painter never presses anything customer-
   // facing (Tom, 23 Aug). A pack-gate refusal is shown in its own words.
   const qaList = ((qaRows ?? []) as { id: string; result: string | null; notes?: string | null; checked_at?: string | null }[]);
-  const qaPassed = qaList.length > 0 && qaList.every((q) => q.result === "pass");
+  // A failed check is settled once its re-check has passed (20270196): the
+  // record keeps the FAIL, the job is not held by it.
+  const qaRetryOf = new Map(((qaLinkErr ? [] : qaLinkRows ?? []) as { id: string; retry_of: string | null }[]).map((r) => [r.id, r.retry_of] as const));
+  const qaPassed = qaAllClear(qaList.map((q) => ({ id: q.id, result: q.result, retryOf: qaRetryOf.get(q.id) ?? null })));
+  // Tom, 24 Sep: a quality-checked job is signed off by the OFFICE — the
+  // painter runs no walkthrough on it, and the customer is not asked to sign.
+  const staffSignsOff = staffSignsOffFor(qaList);
 
   // A failed check with areas still to put right (Tom, 1 Sep #2): show the
   // inspector's notes, the missed areas and their photos right on the job.
@@ -374,7 +388,10 @@ export default async function PortalJobPage({
   // Tom (17 Sep): every box ticked → a Start-the-walkthrough bar pinned under
   // the header, so the next step is never a scroll away. It stays through the
   // finish and the walkthrough stage; the quality check has its own notice.
-  const showWalkthroughBar = job.committed && (atWalkthrough || canPrep || (canTick && allSurfacesDone));
+  // A quality-checked job at the sign-off stage is the office's: no bar, a notice instead.
+  // ...and a job whose walkthrough was switched off after it got here (Tom,
+  // 24 Sep) has none to start either — the office closes it.
+  const showWalkthroughBar = job.committed && ((atWalkthrough && !staffSignsOff && walkthroughRequired) || canPrep || (canTick && allSurfacesDone));
   const prepLeft = prepItems.filter((i) => i.required && !i.done).length;
   // Tom (17 Sep): areas the customer flagged at their walkthrough and nobody
   // has yet marked put right. While any exist on an in-progress job, the
@@ -498,6 +515,7 @@ export default async function PortalJobPage({
             workOrderId={id}
             surfaces={surfaces}
             headingsWithBeforePhoto={headingsWithBeforePhoto}
+            photoScope={photoScope}
             headingsWithAfterPhoto={headingsWithAfterPhoto}
             headingMeta={headingMeta}
           />
@@ -530,7 +548,7 @@ export default async function PortalJobPage({
             <p className="hint" style={{ padding: 0, marginTop: 6 }}>
               {qaHold
                 ? `The quality check has passed. The walkthrough is waiting on the office: ${qaHold}.`
-                : "Paint Group is quality checking this job before sign-off. The walkthrough opens here the moment it passes — nothing for you to do unless something comes back to fix."}
+                : "Paint Group is quality checking this job before sign-off. Once it passes, the office signs the job off — nothing for you to do unless something comes back to fix."}
             </p>
           </div>
         </div>
@@ -566,18 +584,31 @@ export default async function PortalJobPage({
           <div className="card" data-testid="no-walkthrough">
             <div className="tick-head"><b>No customer walkthrough on this job</b></div>
             <p className="hint" style={{ padding: 0, marginTop: 6 }}>
-              Once you&rsquo;ve finished (and any quality check has passed) the job closes on its own —
-              Paint Group invoices the customer. Nothing to book.
+              {atWalkthrough
+                ? "Nothing to run on your phone — the office closes this job off and invoices the customer."
+                : "Once you\u2019ve finished (and any quality check has passed) the job closes on its own — Paint Group invoices the customer. Nothing to book."}
             </p>
           </div>
         </div>
       )}
 
       {/* §4b Mode A: at the walkthrough stage the painter runs the sign-off
-          from their own phone. */}
-      {atWalkthrough && job.committed && (
+          from their own phone — unless the job was quality checked (Tom,
+          24 Sep): then the office signs it off and there is nothing to run. */}
+      {atWalkthrough && job.committed && !staffSignsOff && walkthroughRequired && (
         <div style={{ padding: "0 16px" }}>
           <WalkthroughStart workOrderId={id} finalDate={bookedFinal} />
+        </div>
+      )}
+      {atWalkthrough && job.committed && staffSignsOff && (
+        <div style={{ padding: "0 16px" }}>
+          <div className="card" data-testid="staff-signoff-notice">
+            <div className="tick-head"><b>Quality check passed</b></div>
+            <p className="hint" style={{ padding: 0, marginTop: 6 }}>
+              Paint Group signs this job off from the office — no walkthrough to run on your phone.
+              The customer receives the completion report when it&rsquo;s signed, and the job reads complete here.
+            </p>
+          </div>
         </div>
       )}
 

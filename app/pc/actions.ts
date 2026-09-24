@@ -462,7 +462,9 @@ export async function recordQa(raw: unknown): Promise<QaResult> {
   }
   revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath("/pc/updates");
   const thin = s.endsWith(":thin_record") ? " (thin photo record)" : "";
-  if (s.startsWith("ok:fail")) return { ok: true, message: `Failed — rectification is on the painter's list.${thin}` };
+  if (s.startsWith("ok:fail")) {
+    return { ok: true, message: `Failed — rectification is on the painter's list. A re-check is scheduled: it comes back here when they finish again.${thin}` };
+  }
   if (s.startsWith("ok:pass:walkthrough")) {
     return { ok: true, to: "walkthrough", message: `Passed — all checks clear. The customer has their walkthrough; sign-off is running.${thin}` };
   }
@@ -482,6 +484,62 @@ export async function setQaRequired(raw: unknown): Promise<PcResult> {
   if (!parsed.success) return { ok: false, message: "Invalid input." };
   return call("wo_set_qa_required", { p_work_order_id: parsed.data.workOrderId, p_required: parsed.data.required },
     parsed.data.required ? "Quality check scheduled for this job." : "Flag cleared.");
+}
+
+/**
+ * "Quality check not required" on ONE job (Tom, 24 Sep 2026) — the office's
+ * override for a new contractor's cadence. The RPC removes the job's unlogged
+ * checks and, if it was parked at Quality check, routes it on the way a pass
+ * would (the pack, or straight to closed). Turning it back on clears the
+ * waiver and schedules again if a check is due.
+ */
+export async function setQaWaived(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, waived: z.boolean() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_set_qa_waived", {
+    p_work_order_id: parsed.data.workOrderId, p_waived: parsed.data.waived,
+  });
+  if (error) {
+    if (/wo_set_qa_waived/.test(error.message)) {
+      return { ok: false, message: "This needs database migration 20270197 run first — nothing was changed." };
+    }
+    return { ok: false, message: error.message };
+  }
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) {
+    revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+    if (s === "ok:waived:walkthrough") return { ok: true, message: "No quality check on this job — the pack has gone to the customer, sign-off is running." };
+    if (s === "ok:waived:closed") return { ok: true, message: "No quality check on this job — no walkthrough either, so it's closed: invoice stage." };
+    if (s.startsWith("ok:waived:error:gate:")) return { ok: true, message: `No quality check on this job — but the handover can't go yet: ${humaniseGate(s.slice("ok:waived:error:gate:".length))}` };
+    if (s.startsWith("ok:waived")) return { ok: true, message: "No quality check on this job. Any check that was due is off the books." };
+    return { ok: true, message: "Quality check back on this job — scheduled if one is due." };
+  }
+  if (s === "error:closed") return { ok: false, message: "This job is closed." };
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+}
+
+/**
+ * The office signs a quality-checked job off as complete (Tom, 24 Sep 2026:
+ * "when a job goes to quality check, only staff need to sign the job off").
+ * Rides wo_staff_sign: areas approved on our behalf, report frozen, warranty
+ * started, invoice drafted, job closed. The name on the record is the staff
+ * member's own; the customer receives the completion report.
+ */
+export async function staffComplete(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, note: z.string().max(1000).default("") }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const r = await call("wo_staff_complete",
+    { p_work_order_id: parsed.data.workOrderId, p_note: parsed.data.note },
+    "Signed off and closed — warranty started, report sent to the customer, invoice drafted.");
+  if (!r.ok && /wo_staff_complete/.test(r.message)) {
+    return { ok: false, message: "This needs database migration 20270197 run first — nothing was changed." };
+  }
+  if (!r.ok && r.message === "not quality checked") return { ok: false, message: "This job had no quality check — the customer signs it off, or record their approval manually." };
+  if (!r.ok && r.message === "qa open") return { ok: false, message: "A quality check is still open on this job." };
+  if (!r.ok && r.message === "not at walkthrough") return { ok: false, message: "The job isn't at the sign-off stage yet." };
+  if (r.ok) revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+  return r;
 }
 
 /** "Walkthrough not required" on a job — it closes after finish (+ QA). */
@@ -511,6 +569,8 @@ export async function closeWithoutWalkthrough(raw: unknown): Promise<PcResult> {
     "Closed — invoice stage. Report frozen, warranty started.");
   if (!r.ok && r.message.startsWith("gate:")) return { ok: false, message: humaniseGate(r.message.slice(5)) };
   if (!r.ok && r.message === "walkthrough required") return { ok: false, message: "This job has a walkthrough — send the pack instead." };
+  if (!r.ok && r.message === "already signed") return { ok: false, message: "This job is already signed off." };
+  if (r.ok) revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
   return r;
 }
 

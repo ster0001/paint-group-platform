@@ -80,3 +80,36 @@ export async function tickSurfaceAction(raw: unknown): Promise<TickResult> {
   if (reason === "not_yours") return { ok: false, message: "That job isn't yours." };
   return { ok: false, message: "Couldn't save that tick." };
 }
+
+/**
+ * "Photos not required" on one line of the scope (Tom, 24 Sep 2026) — a fuel
+ * allowance, a site set-up line. Staff only (the RPC refuses anyone else); the
+ * painter's list stops asking for a before/finished shot on that row and the
+ * heading's photo gates are counted over the rows that still need them.
+ */
+export type PhotosOptionalResult = { ok: true; optional: boolean } | { ok: false; message: string };
+
+export async function setSurfacePhotosOptionalAction(raw: unknown): Promise<PhotosOptionalResult> {
+  const parsed = z.object({ surfaceId: z.string().uuid(), optional: z.boolean() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_set_surface_photos_optional", {
+    p_surface_id: parsed.data.surfaceId, p_optional: parsed.data.optional,
+  });
+  if (error) {
+    if (/wo_set_surface_photos_optional/.test(error.message)) {
+      return { ok: false, message: "This needs database migration 20270198 run first — nothing was changed." };
+    }
+    return { ok: false, message: error.message };
+  }
+  const s = String(data ?? "");
+  if (s === "ok:true" || s === "ok:false") {
+    revalidatePath("/portal/jobs");
+    revalidatePath("/pc");
+    return { ok: true, optional: s === "ok:true" };
+  }
+  if (s === "error:not_staff") return { ok: false, message: "Staff only." };
+  if (s === "error:closed") return { ok: false, message: "This job is closed — its tick list is final." };
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") || "That didn't save." };
+}
