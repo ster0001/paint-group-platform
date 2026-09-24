@@ -1031,11 +1031,16 @@ export default function QuoteBuilder({
       try {
         const result = await saveWorkingScopeAction({
           estimateId: quoteId,
-          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview },
+          // Tom, 24 Sep: the computed job sheet rides the working state too
+          // (`woDoc`, the shape acceptance freezes) so the server can fold
+          // the COLOURS chosen here into the live job — the customer's
+          // colour card and the painter's sheet read the snapshot, not this.
+          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc() },
         });
         // Tom, 24 Sep: the painter's price follows the working scope's contractor rate until the job is sent out.
         const payNote = !result.ok ? "" : result.pay === "ok:synced" ? " · painter's price updated" : result.pay === "ok:live" ? " · painter already has this job, their price unchanged" : "";
-        setSaveMsg(result.ok ? `Saved ✓ (working scope)${payNote}` : result.message);
+        const colourNote = !result.ok || !result.colours?.startsWith("ok:synced") ? "" : " · colours updated on the job for the customer and the painter";
+        setSaveMsg(result.ok ? `Saved ✓ (working scope)${payNote}${colourNote}` : result.message);
       } finally {
         setSaving(false);
       }

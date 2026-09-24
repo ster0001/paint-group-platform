@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  bookWalkthrough, markClientUnavailable, setWalkthroughRequired, setWalkthroughStatus, staffSign, staffStartWalkthrough,
+  bookWalkthrough, markClientUnavailable, setWalkthroughRequired, setWalkthroughStatus, staffComplete, staffSign, staffStartWalkthrough,
 } from "../../actions";
 
 export type WalkthroughRow = {
@@ -24,6 +24,7 @@ export type WalkthroughRow = {
  */
 export default function WalkthroughCard({
   workOrderId, walkthroughs, clientUnavailable, signedAt, startDate, endDate, stage, walkthroughRequired = true,
+  staffSignsOff = false,
 }: {
   workOrderId: string;
   walkthroughs: WalkthroughRow[];
@@ -35,6 +36,12 @@ export default function WalkthroughCard({
   stage: string;
   /** False = "walkthrough not required" on the booking (Tom, 23 Aug). */
   walkthroughRequired?: boolean;
+  /**
+   * A quality check passed on this job (Tom, 24 Sep 2026): the OFFICE signs it
+   * off. No customer signature is asked for, no remote path, no nudges — they
+   * receive the completion report when it is signed.
+   */
+  staffSignsOff?: boolean;
 }) {
   const router = useRouter();
   const dateRef = useRef<HTMLInputElement>(null);
@@ -45,6 +52,7 @@ export default function WalkthroughCard({
   const [signing, setSigning] = useState(false);
   const [signName, setSignName] = useState("");
   const [signNote, setSignNote] = useState("");
+  const [completeNote, setCompleteNote] = useState("");
 
   const run = (fn: () => Promise<{ ok: boolean; message?: string }>) =>
     startTransition(async () => {
@@ -111,22 +119,56 @@ export default function WalkthroughCard({
         </div>
       )}
 
+      {/* The flag, as a button (Tom, 24 Sep: "in case circumstances change
+          after the job has been approved") — at every open stage, and it can
+          still be pressed once the job is already at the walkthrough: the
+          Next-step card then closes the job without one. */}
       {!signedAt && stage !== "closed" && (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, margin: "8px 0", cursor: "pointer" }}>
-          <input type="checkbox" checked={!walkthroughRequired} disabled={pending} data-testid="walkthrough-not-required"
-            onChange={(e) => run(() => setWalkthroughRequired({ workOrderId, required: !e.target.checked }))} />
-          Walkthrough not required — the job closes (invoice stage) once it&rsquo;s finished and checked
-        </label>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0", flexWrap: "wrap" }}>
+          <button type="button" className={`btn ${walkthroughRequired ? "dim" : ""}`} disabled={pending}
+            data-testid="walkthrough-not-required"
+            aria-pressed={!walkthroughRequired}
+            onClick={() => run(() => setWalkthroughRequired({ workOrderId, required: !walkthroughRequired }))}>
+            {pending ? "Saving…" : walkthroughRequired
+              ? "Walkthrough not required"
+              : "Walkthrough not required ✓ — require it again"}
+          </button>
+          <span className="note" style={{ margin: 0 }}>
+            {walkthroughRequired
+              ? "Press if the customer won't be walking through — the job closes (invoice stage) once it's finished and checked."
+              : "No customer walkthrough on this booking."}
+          </span>
+        </div>
       )}
 
       {!signedAt && !walkthroughRequired && (
         <p className="note" data-testid="no-walkthrough-note">
           No customer walkthrough on this booking. When the painter finishes (and any quality
           check passes) the job closes itself — report frozen, warranty started.
+          {stage === "walkthrough" && " It's already at the walkthrough stage: use the Next-step card to close it now."}
         </p>
       )}
 
-      {!signedAt && walkthroughRequired && (
+      {/* Tom, 24 Sep: a quality-checked job is the office's to sign off. */}
+      {!signedAt && walkthroughRequired && staffSignsOff && stage === "walkthrough" && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }} data-testid="staff-complete">
+          <p className="note">
+            The quality check passed, so <b>the office signs this job off</b> — the customer isn&rsquo;t
+            asked to sign and isn&rsquo;t chased. They receive the completion report the moment it&rsquo;s signed.
+          </p>
+          <textarea className="edit" rows={2} value={completeNote} data-testid="staff-complete-note"
+            placeholder="Note for the record (optional) — e.g. checked on site 3:10pm, all standards met"
+            onChange={(e) => setCompleteNote(e.target.value)} />
+          <div className="row">
+            <button className="btn primary" disabled={pending} data-testid="staff-complete-sign"
+              onClick={() => run(() => staffComplete({ workOrderId, note: completeNote.trim() }))}>
+              {pending ? "Signing…" : "Sign off as complete — quality check passed"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!signedAt && walkthroughRequired && !(staffSignsOff && stage === "walkthrough") && (
         <>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
             <input ref={dateRef} type="date" value={date} onChange={(e) => setDate(e.target.value)}

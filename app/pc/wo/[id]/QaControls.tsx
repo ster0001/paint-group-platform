@@ -2,20 +2,26 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addQaCheck, setQaRequired } from "../../actions";
+import { addQaCheck, setQaRequired, setQaWaived } from "../../actions";
 
 /**
  * Quality-check controls on the staff job page (Tom, 23 Aug):
  *   · "Quality check required" — the job-level flag, for an established
  *     painter's job that should be checked anyway (also a tick when booking);
  *   · "Add a mid-job check" — one standard check is the final; a mid-job one
- *     is added here, with a date the painter sees on their job page.
+ *     is added here, with a date the painter sees on their job page;
+ *   · "Quality check not required" (Tom, 24 Sep 2026) — the override for ONE
+ *     job: a new contractor's cadence would schedule a check, and the office
+ *     says not on this one. Removes any due check; a job parked at Quality
+ *     check moves on the way a pass would. Flagging a check on again, or
+ *     adding a mid-job check, clears it.
  */
 export default function QaControls({
-  workOrderId, qaRequired, scheduledCount, closed,
-}: { workOrderId: string; qaRequired: boolean; scheduledCount: number; closed: boolean }) {
+  workOrderId, qaRequired, qaWaived = false, scheduledCount, closed,
+}: { workOrderId: string; qaRequired: boolean; qaWaived?: boolean; scheduledCount: number; closed: boolean }) {
   const router = useRouter();
   const [required, setRequired] = useState(qaRequired);
+  const [waived, setWaived] = useState(qaWaived);
   const [date, setDate] = useState("");
   const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -32,12 +38,29 @@ export default function QaControls({
             startTransition(async () => {
               setMessage(null);
               const r = await setQaRequired({ workOrderId, required: next });
-              if (r.ok) { setRequired(next); router.refresh(); } else setMessage(r.message);
+              if (r.ok) { setRequired(next); if (next) setWaived(false); router.refresh(); } else setMessage(r.message);
             });
           }} />
         Quality check required on this job
-        {scheduledCount === 0 && !required && <span className="pill">none scheduled</span>}
+        {scheduledCount === 0 && !required && !waived && <span className="pill">none scheduled</span>}
       </label>
+
+      <button type="button" className={`btn ${waived ? "" : "dim"}`} style={{ justifySelf: "start" }}
+        disabled={pending} data-testid="qa-not-required"
+        onClick={() => startTransition(async () => {
+          setMessage(null);
+          const next = !waived;
+          const r = await setQaWaived({ workOrderId, waived: next });
+          if (r.ok) { setWaived(next); if (next) setRequired(false); setMessage(r.message ?? null); router.refresh(); }
+          else setMessage(r.message);
+        })}>
+        {pending ? "Saving…" : waived ? "Quality check not required ✓ — turn back on" : "Quality check not required on this job"}
+      </button>
+      {waived && (
+        <p className="note" style={{ margin: 0 }} data-testid="qa-waived-note">
+          No quality check on this job, whatever the painter&rsquo;s record says. The customer signs it off as usual.
+        </p>
+      )}
 
       {adding ? (
         <div className="row" style={{ alignItems: "center" }}>

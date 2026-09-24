@@ -30,8 +30,11 @@ import { buildInvoiceEmailHtml } from "@/lib/invoicing/sendInvoice";
 
 const uuid = z.string().uuid();
 
-/** `pay`: what wo_sync_contractor_pay answered — "ok:synced" (the painter's figure moved), "ok:live" (a painter has it; untouched), "ok:unchanged", or why it was skipped. */
-export type SaveScopeResult = { ok: true; pay?: string } | { ok: false; message: string };
+/**
+ * `pay`: what wo_sync_contractor_pay answered — "ok:synced" (the painter's figure moved), "ok:live" (a painter has it; untouched), "ok:unchanged", or why it was skipped.
+ * `colours`: what wo_sync_scope_colours answered — "ok:synced:N" (N colour rows moved onto the job), "ok:unchanged", or why it was skipped.
+ */
+export type SaveScopeResult = { ok: true; pay?: string; colours?: string } | { ok: false; message: string };
 
 const saveInput = z.object({
   estimateId: uuid,
@@ -98,6 +101,26 @@ async function syncContractorPay(supabase: Db, estimateId: string): Promise<stri
   return String(data ?? "");
 }
 
+/**
+ * Tom, 24 Sep 2026: "if colours are added in the revise scope section, after
+ * a client has accepted a job, this needs to be updated on the client's
+ * profile, as well as for the contractor." The customer's Colours tab, the
+ * painter's job sheet and the PC Materials card all read work_orders.
+ * wo_snapshot; the builder saves its computed sheet as working_state.woDoc and
+ * wo_sync_scope_colours (20270199) folds the colour fields — never money or
+ * scope — into the live snapshot. Best effort: a hiccup here is reported,
+ * never a failed save.
+ */
+async function syncScopeColours(supabase: Db, estimateId: string): Promise<string> {
+  const { data, error } = await supabase.rpc("wo_sync_scope_colours", { p_estimate_id: estimateId });
+  if (error) {
+    // A stack without the migration yet: the save still stands.
+    if (!/wo_sync_scope_colours/.test(error.message)) reportError(error, { where: "revision.syncColours.rpc", extra: { estimateId } });
+    return "error:rpc";
+  }
+  return String(data ?? "");
+}
+
 export async function saveWorkingScopeAction(raw: unknown): Promise<SaveScopeResult> {
   const parsed = saveInput.safeParse(raw);
   if (!parsed.success) return { ok: false, message: "That didn't look like a working scope." };
@@ -110,10 +133,14 @@ export async function saveWorkingScopeAction(raw: unknown): Promise<SaveScopeRes
   if (error) return { ok: false, message: error.message };
   const s = String(data ?? "");
   if (s === "ok") {
-    const synced = await syncContractorPay(supabase, parsed.data.estimateId);
+    const [synced, colours] = await Promise.all([
+      syncContractorPay(supabase, parsed.data.estimateId),
+      syncScopeColours(supabase, parsed.data.estimateId),
+    ]);
     revalidatePath("/quote");
     revalidatePath("/pc/schedule");
-    return { ok: true, pay: synced };
+    if (colours.startsWith("ok:synced")) { revalidatePath("/portal/jobs"); revalidatePath("/account"); }
+    return { ok: true, pay: synced, colours };
   }
   if (s === "error:not_found") return { ok: false, message: "Open the revision again — the working scope isn't there yet." };
   if (s === "error:not_staff") return { ok: false, message: "Staff only." };

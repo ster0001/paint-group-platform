@@ -27,11 +27,11 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
 ### Ticking surfaces off
 2. **Scope & ticks** lists every area on the job sheet and its surfaces. Each row has three squares: to do, prepped, done. Tap a row once to mark it **PREPPED**, again to mark it **DONE**. The count at the top tracks the whole job.
    ![](media/contractor-02.png)
-3. **Before you can tick anything in an area, that area needs a before photo.** If you tap a row first, the list tells you: "Before photo of Front — one shot before you start." Tap the amber **Before photo of … — needed before the first tick** button, take the shot, and the message changes to "Before photo saved… Tick away."
+3. **Before you can tick anything in an area, that area needs a before photo.** If you tap a row first, the list tells you: "Before photo of Front — one shot before you start." Tap the amber **Before photo of … — needed before the first tick** button, take the shot, and the message changes to "Before photo saved… Tick away." Two exceptions: a row marked **No photos** by the office (a fuel allowance, a set-up line) ticks without any photo and does not count towards the area's photos; and on a job booked for three days or fewer the prompt reads **Before photo of the job — one is enough on a short job**, and that one shot covers every area.
    ![](media/contractor-03.png)
 4. Now tick. The row turns cyan **PREPPED** on the first tap and green **DONE** on the second.
    ![](media/contractor-04.png)
-5. When you are about to tick the last surface in an area as done, the list asks for a **finished shot** of that area from the same angle as the before. Take it, then tick. Every area ends up with a before and an after.
+5. When you are about to tick the last surface in an area as done, the list asks for a **finished shot** of that area from the same angle as the before. Take it, then tick. Every area ends up with a before and an after — except on a short job (three booked days or fewer), where one finished shot covers the whole job, and rows marked **No photos**, which never ask.
 
 ### Photos and notes from site
 6. **Photos & notes** is for anything else: progress or finished photos not tied to a tick, and a short note for the office. A note is for information that is not a variation, for example something you noticed that is not part of the job.
@@ -62,14 +62,14 @@ The second walkthrough film covers this part of the job, from the completion lis
 12. The same moment every surface is done, an **ALL SURFACES DONE · Start the walkthrough** bar pins itself under the Paint Group header and stays there while you scroll. It is the same next step as the card, one tap from anywhere on the page: it finishes the job, and if no quality check is due it opens the walkthrough straight away. While finishing-up items are still unticked the bar says how many are left, and the tap is refused until they are done.
 
 ### The quality check
-13. If a check is due, the job page shows **Quality check** and says the office is checking before sign-off; there is nothing for you to do unless something comes back to fix.
+13. If a check is due, the job page shows **Quality check** and says the office is checking before sign-off; there is nothing for you to do unless something comes back to fix. A job that has been quality checked is signed off by the office, not at a walkthrough on your phone: once it passes the page reads **Quality check passed — Paint Group signs this job off from the office**, and the job reads complete when they do.
     ![](media/contractor-11.png)
 14. If the check finds something, the page shows a red **QUALITY CHECK — AREAS TO PUT RIGHT** card naming the area and what needs doing, with any photos, and the item appears on your tick list with an amber **RECTIFY** chip under that area (marked "raised by QA"). Put it right, tick it done, and tap **All done — next step** again. The job goes back to **Quality check** for the office to look at the fix.
     ![](media/contractor-12.png)
     ![](media/contractor-13.png)
 
 ### Walkthrough and sign-off on your phone
-15. Once the check passes (or no check was due), **Walkthrough & sign-off** appears with the booked date: "Walk the job with the customer on your phone: they approve each area and sign with their own name, right there." The **Finish & walkthrough** card above it also lists the quality check and its result. The pinned bar at the top now reads **READY TO SIGN OFF** and carries the same button, so you do not have to scroll to the card. With the customer beside you, tap **Start the walkthrough** on either.
+15. When no check was due, **Walkthrough & sign-off** appears with the booked date: "Walk the job with the customer on your phone: they approve each area and sign with their own name, right there." The **Finish & walkthrough** card above it also lists the quality check and its result. The pinned bar at the top now reads **READY TO SIGN OFF** and carries the same button, so you do not have to scroll to the card. With the customer beside you, tap **Start the walkthrough** on either.
     ![](media/contractor-14.png)
 16. Your phone switches to the customer's view, headed **READY FOR YOUR LOOK — Your job is finished**, with your customer note at the top. Hand it over. For each area they tap **Happy with this**, or **Something's not right** and say what they have spotted. The bottom of the page lists what is still to look at.
     ![](media/contractor-15.png)

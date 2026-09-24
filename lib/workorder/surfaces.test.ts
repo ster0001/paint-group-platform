@@ -215,3 +215,68 @@ describe("asking for the after photo", () => {
   expect(needsAfterPhoto("Ghost", [] as never, [])).toBe(false);
 });
 });
+
+// ---------------------------------------------------------------------------
+// Photo rules (Tom, 24 Sep 2026): "photos not required" lines, and one
+// before + one finished shot for a short job. Twins of wo_tick_surface's
+// arithmetic in migration 20270198.
+// ---------------------------------------------------------------------------
+import { photoRows, photoScopeFor, tickNeedsAfterPhoto, tickNeedsBeforePhoto } from "./surfaces";
+
+describe("photos not required on a line", () => {
+  const fuel: SurfaceRow = { id: "f", heading: "Allowances", label: "Fuel allowance", state: "todo", photosOptional: true };
+  const walls: SurfaceRow = { id: "w", heading: "Front", label: "Walls", state: "todo" };
+  const trims: SurfaceRow = { id: "t", heading: "Front", label: "Trims", state: "todo", photosOptional: true };
+
+  it("a heading made only of optional lines asks for nothing", () => {
+    expect(photoRows([fuel], "Allowances")).toEqual([]);
+    expect(needsBeforePhoto("Allowances", [fuel], [])).toBe(false);
+    expect(needsAfterPhoto("Allowances", [{ ...fuel, state: "done" }], [])).toBe(false);
+  });
+
+  it("ticking an optional row never needs the before shot; the photo row still does", () => {
+    expect(tickNeedsBeforePhoto(fuel, [fuel], [])).toBe(false);
+    expect(tickNeedsBeforePhoto(trims, [walls, trims], [])).toBe(false);
+    expect(tickNeedsBeforePhoto(walls, [walls, trims], [])).toBe(true);
+    expect(tickNeedsBeforePhoto(walls, [walls, trims], ["Front"])).toBe(false);
+  });
+
+  it("the finished shot is asked for when the PHOTO rows complete, whatever the optional ones say", () => {
+    // Trims (optional) still to do — Walls is the last photo row, so the shot is due.
+    expect(tickNeedsAfterPhoto(walls, [walls, trims], [])).toBe(true);
+    // Marking the optional row done never asks.
+    expect(tickNeedsAfterPhoto(trims, [{ ...walls, state: "done" }, trims], [])).toBe(false);
+    // The heading-level prompt reads the same way.
+    expect(needsAfterPhoto("Front", [{ ...walls, state: "done" }, trims], [])).toBe(true);
+    expect(needsAfterPhoto("Front", [{ ...walls, state: "done" }, trims], ["Front"])).toBe(false);
+  });
+});
+
+describe("one before and one finished photo on a short job", () => {
+  it("three booked days or fewer counts photos for the job; longer per area", () => {
+    expect(photoScopeFor("2026-09-28", "2026-09-30")).toBe("job");
+    expect(photoScopeFor("2026-09-28", "2026-09-28")).toBe("job");
+    expect(photoScopeFor("2026-09-28", "2026-10-01")).toBe("area");
+    expect(photoScopeFor("2026-09-28", "2026-10-01", 4)).toBe("job");
+  });
+
+  it("an unbooked job keeps the per-area rule — nothing is guessed", () => {
+    expect(photoScopeFor(null, "2026-09-30")).toBe("area");
+    expect(photoScopeFor("2026-09-28", null)).toBe("area");
+  });
+
+  it("one before shot anywhere covers every heading; none covers none", () => {
+    const list = rows([["Front", "Walls", "todo"], ["Left", "Eaves", "todo"]]);
+    expect(needsBeforePhoto("Left", list, ["Front"], "job")).toBe(false);
+    expect(needsBeforePhoto("Left", list, ["Front"], "area")).toBe(true);
+    expect(needsBeforePhoto("Left", list, [], "job")).toBe(true);
+  });
+
+  it("one finished shot anywhere covers every heading's completing tick", () => {
+    const list = rows([["Front", "Walls", "done"], ["Left", "Eaves", "prepped"]]);
+    const eaves = list[1];
+    expect(tickNeedsAfterPhoto(eaves, list, ["Front"], "job")).toBe(false);
+    expect(tickNeedsAfterPhoto(eaves, list, ["Front"], "area")).toBe(true);
+    expect(needsAfterPhoto("Front", list, ["Left"], "job")).toBe(false);
+  });
+});
