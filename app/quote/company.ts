@@ -9,8 +9,12 @@ export type CompanyProfile = {
   phoneHours: string;
   abn: string;
   logoUrl: string;
-  /** A logo for LIGHT backgrounds (email, quote PDF). Falls back to logoUrl. */
+  /** A logo for LIGHT backgrounds (the quote PDF, light-mode staff screens). Falls back to logoUrl. */
   logoUrlLight: string;
+  /** Tom, 24 Sep 2026: the logo EVERY email uses — one that carries its own
+   * background, so a mail client's dark mode cannot invert it away. Falls back
+   * to logoUrlLight, then logoUrl (lib/messaging/logo.ts). */
+  logoUrlEmail: string;
   estimatorName: string;
   estimatorTitle: string;
   estimatorPhone: string;
@@ -67,6 +71,7 @@ export const DEFAULT_COMPANY: CompanyProfile = {
   abn: "",
   logoUrl: "",
   logoUrlLight: "",
+  logoUrlEmail: "",
   estimatorName: "",
   estimatorTitle: "",
   estimatorPhone: "",

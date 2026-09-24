@@ -20,6 +20,7 @@ import { matchesAudience } from "@/lib/crm/audience";
 import { getSegment } from "@/lib/crm/segmentsStore";
 import { delayHolds } from "@/lib/crm/states";
 import { buildEvent, dedupeKey } from "@/lib/crm/events";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 export type DeliverOptions = {
   /** A person pressed approve (or did so earlier — approved_at on the row). */
@@ -189,7 +190,7 @@ export async function deliverMessage(db: SupabaseClient, messageId: string, opts
 
   // Send.
   const { sendCampaignEmail, resolveRecipientLinks } = await import("./send");
-  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string; logoUrlLight?: string };
+  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string; logoUrlLight?: string; logoUrlEmail?: string };
   const companyName = company.name || "Paint Group";
   const [links, tokens] = await Promise.all([
     resolveRecipientLinks(db, account.id as string, opts.baseUrl),
@@ -211,7 +212,7 @@ export async function deliverMessage(db: SupabaseClient, messageId: string, opts
       accountId: account.id as string,
       template: personaliseTemplate(parsed.data, tokens),
       // White card → the light-background logo (the black wordmark).
-      brand: { companyName, logoUrl: company.logoUrlLight || company.logoUrl || null },
+      brand: { companyName, logoUrl: emailLogoUrl(company) ?? null },
       links,
       campaignMessageId: messageId,
       baseUrl: opts.baseUrl,

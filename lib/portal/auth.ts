@@ -4,6 +4,7 @@ import { ensureAccount } from "@/lib/accounts/link";
 import { normaliseEmail } from "@/lib/accounts/identity";
 import { buildEstimateEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
 import { reportError } from "@/lib/monitoring/report";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * 3a-2 · Magic-link sign-in (⚑3: passwordless by default).
@@ -83,7 +84,7 @@ export async function sendMagicLink(opts: {
 
   const { data: companyRow } = await svc
     .from("settings").select("value").eq("key", "company_profile").maybeSingle();
-  const company = (companyRow?.value ?? {}) as { name?: string; phone?: string; logoUrl?: string; logoUrlLight?: string };
+  const company = (companyRow?.value ?? {}) as { name?: string; phone?: string; logoUrl?: string; logoUrlLight?: string; logoUrlEmail?: string };
   const companyName = company.name || "Paint Group";
 
   const intro =
@@ -100,7 +101,7 @@ export async function sendMagicLink(opts: {
       companyName,
       // Email renders on a white background — the LIGHT-background logo
       // (Settings "Logo for light backgrounds"), same rule as estimate sends.
-      logoUrl: company.logoUrlLight || company.logoUrl,
+      logoUrl: emailLogoUrl(company),
       companyPhone: company.phone,
       buttonLabel: opts.buttonLabel ?? "Open my account",
     }),

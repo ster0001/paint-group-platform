@@ -6,6 +6,7 @@ import { isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * Final-walkthrough calendar invites (Tom, 1 Sep). SERVER ONLY — service client.
@@ -173,7 +174,7 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
             heading,
             message,
             companyName,
-            logoUrl: company.logoUrlLight || company.logoUrl,
+            logoUrl: emailLogoUrl(company),
             companyPhone: company.phone,
           }),
           attachments: [{

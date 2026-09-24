@@ -20,6 +20,7 @@ import { sendAutomation } from "@/lib/automations/dispatch";
 import { claimRung } from "@/lib/automations/reminders";
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { buildPlainEmailHtml } from "@/lib/messaging/send";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 const money = (c: number | null | undefined) => "$" + ((c ?? 0) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -66,7 +67,7 @@ export async function notifyOfficeOfAcceptance(service: SupabaseClient, estimate
     } else {
       const r = await sendEmail({
         to, subject,
-        html: buildEstimateEmailHtml({ intro, link, companyName: vars.company_name, logoUrl: company.logoUrlLight || company.logoUrl, buttonLabel: "Open the estimate" }),
+        html: buildEstimateEmailHtml({ intro, link, companyName: vars.company_name, logoUrl: emailLogoUrl(company), buttonLabel: "Open the estimate" }),
       });
       outcome = r.status;
       if (r.status === "error") reportError(new Error(r.message), { where: "officeAccept.send", extra: { estimateId } });
@@ -126,7 +127,7 @@ export async function sendCustomerWelcome(service: SupabaseClient, estimateId: s
     const r = await sendAutomation(service, {
       key: "customer_accepted_welcome",
       to: { email, phone },
-      email: { subject, html: buildPlainEmailHtml({ heading: subject, message: renderTemplate(messaging.welcomeBody, vars), companyName: vars.company_name, logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone }) },
+      email: { subject, html: buildPlainEmailHtml({ heading: subject, message: renderTemplate(messaging.welcomeBody, vars), companyName: vars.company_name, logoUrl: emailLogoUrl(company), companyPhone: company.phone }) },
       sms: { body: renderTemplate(messaging.welcomeSms, vars) },
       ctx: { accountId: est.account_id, estimateId, kind: "job_welcome" },
     });

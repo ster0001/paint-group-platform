@@ -7,6 +7,7 @@ import { SAMPLE_VARS } from "@/lib/automations/controls";
 import { DEFAULT_MESSAGING, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { buildPlainEmailHtml, sendEmail, sendSms } from "@/lib/messaging/send";
 import { loadMessaging } from "@/lib/messaging/load";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * "Send test to me" on Settings → Automations (Session 1). Renders the
@@ -62,7 +63,7 @@ export async function sendTestAutomation(raw: z.input<typeof input>): Promise<Te
   if (!to) return { ok: false, message: "Your login has no email address." };
   const subject = `[TEST] ${renderTemplate(String((s ? cfg[s.field] : "") ?? DEFAULT_MESSAGING.emailSubject), vars)}`;
   const body = renderTemplate(String((b ? cfg[b.field] : "") ?? ""), vars);
-  const html = buildPlainEmailHtml({ heading: subject.replace(/^\[TEST\] /, ""), message: body, companyName: company.name || "Paint Group", logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone });
+  const html = buildPlainEmailHtml({ heading: subject.replace(/^\[TEST\] /, ""), message: body, companyName: company.name || "Paint Group", logoUrl: emailLogoUrl(company), companyPhone: company.phone });
   const r = await sendEmail({ to, subject, html, ctx: { skipRecord: true } });
   return r.status === "sent" ? { ok: true, message: `Test email sent to ${to}.` }
     : r.status === "not_configured" ? { ok: false, message: "Email is not configured on this server (Resend)." }

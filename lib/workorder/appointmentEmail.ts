@@ -4,6 +4,7 @@ import { buildPlainEmailHtml } from "@/lib/messaging/send";
 import { dispatched, outcomeWord, sendAutomation } from "@/lib/automations/dispatch";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * The appointment confirmation email (Tom, 1 Sep). SERVER ONLY — service client.
@@ -80,7 +81,7 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
     ...((rows.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingSettings>) ?? {}),
   };
   const company = (rows.find((r) => r.key === "company_profile")?.value as {
-    name?: string; phone?: string; email?: string; logoUrl?: string; logoUrlLight?: string;
+    name?: string; phone?: string; email?: string; logoUrl?: string; logoUrlLight?: string; logoUrlEmail?: string;
   } | null) ?? {};
 
   const contractor = c as { company_name: string | null; profiles: { name: string | null } | null } | null;
@@ -126,7 +127,7 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
       subject, replyTo: company.email || undefined,
       html: buildPlainEmailHtml({
         heading: subject, message: body, companyName: vars.company_name,
-        logoUrl: company.logoUrlLight || company.logoUrl || undefined,
+        logoUrl: emailLogoUrl(company),
         companyPhone: company.phone || undefined,
       }),
     },

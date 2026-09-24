@@ -14,6 +14,7 @@ import { isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
 import { LEAD_SOURCE_REQUIRED } from "@/lib/estimate/leadSource";
 import { postStaffChatReply } from "@/lib/estimates/chatReply";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 const replyInput = z.object({
   estimateId: z.string().uuid(),
@@ -155,7 +156,7 @@ async function deliver(
           link,
           companyName: company.name,
           // Email sits on a white card — prefer the light-background logo.
-          logoUrl: company.logoUrlLight || company.logoUrl || undefined,
+          logoUrl: emailLogoUrl(company),
           estimatorName: company.estimatorName || undefined,
           estimatorTitle: company.estimatorTitle || undefined,
           estimatorPhone: company.estimatorPhone || undefined,

@@ -203,6 +203,10 @@ export default function ScheduleBoard({
 
   const [ghost, setGhost] = useState<null | { title: string; sub: string }>(null);
   const [ghostBlocked, setGhostBlocked] = useState(false);
+  // Tom, 24 Sep: "show the date pop up while dragging so I know the drop is
+  // for the correct date" — the day under the pointer (snapped to the
+  // painter's working week) and the end it implies, drawn on the ghost.
+  const [ghostDates, setGhostDates] = useState<null | { start: string; end: string }>(null);
 
   // Dragging across EMPTY lane space marks a contractor unavailable for that
   // run of days — far quicker than a form, and it reads the same as the drag
@@ -275,6 +279,7 @@ export default function ScheduleBoard({
       if (!hit || idx < 0 || idx >= range) {
         clearHot();
         target.current = null;
+        setGhostDates((prev) => (prev === null ? prev : null));
         return;
       }
       const cell = hit.el.children[idx] as HTMLElement | undefined;
@@ -285,10 +290,14 @@ export default function ScheduleBoard({
         hit.el.classList.toggle("blocked", blocked);
         setGhostBlocked((prev) => (prev === blocked ? prev : blocked));
         hotCell.current = cell;
+        // The same arithmetic the drop uses, so what the ghost says IS the booking.
+        const start = addWorkingDays(days[idx], 1, weekFor(hit.id));
+        const end = endFor(hit.id, start, spanDays);
+        setGhostDates((prev) => (prev && prev.start === start && prev.end === end ? prev : { start, end }));
       }
       target.current = { contractorId: hit.id, dayIndex: idx };
     },
-    [dayW, range, days, spanBlocked],
+    [dayW, range, days, spanBlocked, weekFor, endFor],
   );
 
   const onPointerMove = useCallback(
@@ -354,6 +363,7 @@ export default function ScheduleBoard({
       drag.current = null;
       setGhost(null);
       setGhostBlocked(false);
+      setGhostDates(null);
       // One abort tears down both listeners, so neither handler has to reference
       // the other to unsubscribe.
       dragAbort.current?.abort();
@@ -1173,7 +1183,7 @@ export default function ScheduleBoard({
                     >
                       {days.map((d) => {
                         const dow = dayParts(d).dow;
-                        return <div key={d} className={`bgc ${dow === 0 || dow === 6 ? "we" : ""}`} />;
+                        return <div key={d} data-day={d} className={`bgc ${dow === 0 || dow === 6 ? "we" : ""}`} />;
                       })}
 
                       {/* §4b: walkthrough pins — the sign-off visit, on the
@@ -1260,6 +1270,11 @@ export default function ScheduleBoard({
         <div ref={ghostRef} className={`ghost ${ghostBlocked ? "blocked" : ""}`}>
           <div className="g1">{ghost.title}</div>
           <div className="g2">{ghostBlocked ? "BLOCKED OUT — DROP TO OVERRIDE" : ghost.sub}</div>
+          {ghostDates && (
+            <div className="g3" data-testid="ghost-dates" data-start={ghostDates.start} data-end={ghostDates.end}>
+              {ghostDates.start === ghostDates.end ? formatDMY(ghostDates.start) : `${formatDMY(ghostDates.start)} → ${formatDMY(ghostDates.end)}`}
+            </div>
+          )}
         </div>
       )}
 
@@ -1293,7 +1308,19 @@ export default function ScheduleBoard({
             <div className="frow">
               <span className="l">Dates</span>
               <span className="v" data-testid="booking-dates" data-start={pendingDrop.startDate} data-end={endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays)}>
-                {formatDMY(pendingDrop.startDate)} → {formatDMY(endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays))}
+                {/* Tom, 24 Sep: the start is adjustable here — a drop one day
+                    out is fixed in the sheet, not by dragging again. A date the
+                    painter does not work snaps to their next working day. */}
+                <input
+                  type="date" value={pendingDrop.startDate} data-testid="booking-start"
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const startDate = addWorkingDays(e.target.value, 1, weekFor(pendingDrop.contractorId));
+                    setPendingDrop({ ...pendingDrop, startDate, blocked: spanBlocked(pendingDrop.contractorId, startDate, pendingDrop.spanDays) });
+                  }}
+                  style={{ marginRight: 6 }}
+                />
+                → {formatDMY(endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays))}
                 <span style={{ color: "var(--muted)", marginLeft: 6, fontSize: 11 }}>working days · weekends skipped{weekFor(pendingDrop.contractorId).saturday || weekFor(pendingDrop.contractorId).sunday ? " except the days this painter works" : ""}</span>
               </span>
             </div>

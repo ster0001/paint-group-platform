@@ -36,6 +36,9 @@ You need a staff login. Texts need a mobile number and email needs an address on
 - **Sign-off overdue** alerts the staff who ticked it, 72 hours after the pack went out unsigned.
 - **Customer wrote on the estimate chat** (20 Sep) emails and texts the staff who ticked **Customer chat message** under Staff logins the moment a customer sends a chat message from their estimate — or the office address when nobody has. Out of hours the subject says *(after hours)*. See `docs/help/estimate-chat/staff.md`.
 
+## Which logo the emails use
+Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
+
 ## What the colours and labels mean
 - **Automatic** (green) — fires on its own; has the switch.
 - **You press send** (blue) — a person sends it; listed so the picture is complete.

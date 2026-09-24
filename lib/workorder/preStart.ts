@@ -3,6 +3,7 @@ import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, renderTemplate, type Me
 import { buildPlainEmailHtml } from "@/lib/messaging/send";
 import { dispatched, outcomeWord, sendAutomation } from "@/lib/automations/dispatch";
 import { melbourneDate } from "./console";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * The pre-start checklist email (Tom, 23 Aug).
@@ -26,7 +27,7 @@ export async function sendPreStartChecklists(db: SupabaseClient, now = new Date(
   // Settings → Automations: "Pre-start checklist". Off = nothing sent, and
   // nothing recorded either, so switching it back on sends to jobs still due.
   if (!automationOn(messaging, "pre_start_checklist")) return 0;
-  const company = (rows.find((r) => r.key === "company_profile")?.value as { name?: string; phone?: string; logoUrl?: string; logoUrlLight?: string; email?: string; estimatorName?: string } | null) ?? {};
+  const company = (rows.find((r) => r.key === "company_profile")?.value as { name?: string; phone?: string; logoUrl?: string; logoUrlLight?: string; logoUrlEmail?: string; email?: string; estimatorName?: string } | null) ?? {};
   const ids = [...new Set(((ticked ?? []) as { work_order_id: string }[]).map((t) => t.work_order_id))];
   if (ids.length === 0) return 0;
 
@@ -80,7 +81,7 @@ export async function sendPreStartChecklists(db: SupabaseClient, now = new Date(
           heading: subject, message: body, companyName: vars.company_name,
           // Tom, 5 Sep: this one carries logo 1 (paint in white) on a dark
           // header band, not the dark-on-light logo the other emails use.
-          logoUrl: company.logoUrl || company.logoUrlLight || undefined,
+          logoUrl: emailLogoUrl(company),
           header: "ink",
           companyPhone: company.phone || undefined,
         }),

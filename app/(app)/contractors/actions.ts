@@ -8,6 +8,7 @@ import { buildPlainEmailHtml, sendEmail } from "@/lib/messaging/send";
 import { reportError } from "@/lib/monitoring/report";
 import { createServiceClient } from "@/lib/supabase/service";
 import { PASSWORD_MIN, sendPasswordResetLink, setPasswordForUser } from "@/lib/auth/adminPassword";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * Tom, 18 Sep 2026: "send an invitation link to them when registering on the
@@ -68,7 +69,7 @@ export async function emailContractorInvite(inviteId: string): Promise<InviteEma
   ].join("\n\n");
   const html = buildPlainEmailHtml({
     heading: subject, message, companyName,
-    logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone,
+    logoUrl: emailLogoUrl(company), companyPhone: company.phone,
   });
 
   const r = await sendEmail({

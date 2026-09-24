@@ -6,6 +6,7 @@ import { loadMessaging } from "@/lib/messaging/load";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * Contractor notifications (Tom, 1 Sep #2). SERVER ONLY — service client.
@@ -94,7 +95,7 @@ export async function notifyJobOffer(service: SupabaseClient, workOrderId: strin
         subject: renderTemplate(messaging.offerEmailSubject, vars),
         html: buildEstimateEmailHtml({
           companyName,
-          logoUrl: company.logoUrlLight || company.logoUrl,
+          logoUrl: emailLogoUrl(company),
           intro: renderTemplate(messaging.offerEmailIntro, vars),
           link,
           buttonLabel: "Open your portal",
@@ -160,7 +161,7 @@ export async function notifyAssignment(
           subject: renderTemplate(messaging.assignmentEmailSubject, vars),
           html: buildEstimateEmailHtml({
             companyName,
-            logoUrl: company.logoUrlLight || company.logoUrl,
+            logoUrl: emailLogoUrl(company),
             intro: renderTemplate(messaging.assignmentEmailIntro, vars),
             link,
             buttonLabel: "Open your work order",
