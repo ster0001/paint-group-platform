@@ -118,6 +118,8 @@ export type MessagingSettings = {
   leaveDecidedSms: string;
   /** Painter: an approved addition is waiting for their acceptance. */
   variationReleasedSms: string;
+  /** Painter: a change from the revision working scope the customer signed is on their job — told, not asked (Tom, 24 Sep 2026). */
+  variationAddedSms: string;
   /** Painter: a failed quality check, areas to put right. */
   qaFailSms: string;
   /** P6 — Customer: the estimator visit, confirmed with a calendar invite; and the text the evening before. */
@@ -285,6 +287,8 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}}: your {{kind_word}} request for {{dates}} was {{decision}}.{{reason_line}}",
   variationReleasedSms:
     "{{company_name}}: a variation on {{wo_ref}} is approved and waiting on you — {{action}} it in your dashboard: {{link}}",
+  variationAddedSms:
+    "{{company_name}}: the customer approved a change to {{wo_ref}}. It's on your job sheet and tick list{{pay_line}}: {{link}}",
   qaFailSms:
     "{{company_name}}: the quality check on {{wo_ref}} found areas that need rectifying. The details and photos are on the job in your portal: {{link}}",
   visitConfirmSubject: "Your visit is booked — {{visit_when}}",
@@ -412,6 +416,8 @@ export type TemplateVars = {
   method?: string;
   category?: string;
   hours_line?: string;
+  /** Painter: " — $180.00 added to your payment" on a signed revision change; empty when nothing moves. */
+  pay_line?: string;
   comment?: string;
   who_asked?: string;
   agency_line?: string;

@@ -91,6 +91,7 @@ const P = {
   offerReminder: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{start_date}}", "{{expiry_time}}", "{{link}}"],
   assignment: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{start_date}}", "{{dates}}", "{{link}}"],
   variation: ["{{company_name}}", "{{wo_ref}}", "{{action}}", "{{link}}"],
+  variationAdded: ["{{company_name}}", "{{wo_ref}}", "{{pay_line}}", "{{link}}"],
   leadChanged: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{link}}"],
   employeeVariation: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{hours_line}}", "{{link}}"],
   expenseDecided: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{wo_ref}}", "{{decision}}", "{{reason_line}}"],
@@ -314,6 +315,13 @@ export const AUTOMATIONS: Automation[] = [
     key: "variation_auto_release", name: "Approved variations go straight to the painter", audience: "painter", channels: [], kind: "automatic",
     trigger: "The customer signs a priced addition. On: it lands on the painter's home page for their acceptance at once. Off: the office releases it from the job page.",
     special: "variation_release",
+  },
+  {
+    key: "contractor_variation_added", name: "A signed change is on your job", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "variation_added", capExempt: true,
+    trigger: "The customer signs a change from the revision working scope on a job a contractor already has. It lands on their job sheet, tick list and pay — they are told, not asked (Tom, 24 Sep 2026).",
+    templates: [{ field: "variationAddedSms", label: "Text message", kind: "sms", placeholders: P.variationAdded }],
+    guard: "Once per change.",
   },
   {
     key: "contractor_variation_released", name: "Variation waiting on you", audience: "painter", channels: ["sms"], kind: "automatic",

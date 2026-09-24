@@ -211,6 +211,50 @@ export async function notifyVariationReleased(service: SupabaseClient, variation
   }
 }
 
+/**
+ * "The customer approved a change — it's on your job" (Tom, 24 Sep 2026).
+ * A change from the REVISION working scope lands contractor_accepted at the
+ * customer's signature whether or not a painter is on the job (20270195);
+ * a contractor who has the job is told, not asked. Once per change; a
+ * painter-raised variation (no revision_block_ref) is the release path's.
+ */
+export async function notifyVariationAddedToJob(service: SupabaseClient, variationId: string): Promise<void> {
+  try {
+    const { data: v, error: vErr } = await service
+      .from("wo_variations")
+      .select("id, status, credit, revision_block_ref, contractor_delta_cents, needs_manual_deduction, work_order_id, work_orders(wo_ref, contractor_id)")
+      .eq("id", variationId)
+      .maybeSingle();
+    if (vErr) throw vErr;
+    const row = v as {
+      id: string; status: string; credit: boolean; revision_block_ref: string | null;
+      contractor_delta_cents: number | null; needs_manual_deduction: boolean | null;
+      work_order_id: string; work_orders: { wo_ref: string; contractor_id: string | null } | null;
+    } | null;
+    if (!row?.work_orders?.contractor_id || !row.revision_block_ref || row.status !== "contractor_accepted") return;
+    if (await isEmployeePainter(service, row.work_orders.contractor_id)) return; // employees hear it in their own words
+    if (!(await once(service, row.work_order_id, "variation_added_notified", { variation_id: row.id }))) return;
+    const { messaging, company } = await loadMessaging(service);
+    if (!automationOn(messaging, "contractor_variation_added")) return;
+
+    const c = await contactFor(service, row.work_orders.contractor_id);
+    const link = `${siteUrl()}/portal/jobs/${row.work_order_id}`;
+    const cents = Math.abs(row.contractor_delta_cents ?? 0);
+    const money = "$" + (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const payLine = cents === 0 || row.needs_manual_deduction ? "" : row.credit ? ` — ${money} comes off your payment` : ` — ${money} added to your payment`;
+    const body = renderTemplate(messaging.variationAddedSms, {
+      company_name: company.name || "Paint Group", wo_ref: row.work_orders.wo_ref, pay_line: payLine, link,
+    });
+    await sendAutomation(service, {
+      key: "contractor_variation_added", to: { phone: c.phone }, sms: { body },
+      ctx: { workOrderId: row.work_order_id, kind: "variation_added" }, contractorId: row.work_orders.contractor_id,
+    });
+    await record(service, row.work_order_id, "variation_added_notified", { variation_id: row.id });
+  } catch (e) {
+    reportError(e, { where: "notify.variationAddedToJob", extra: { variationId } });
+  }
+}
+
 /** "Areas need rectifying" — text after a failed quality check, once per check. */
 export async function notifyQaFail(service: SupabaseClient, checkId: string): Promise<void> {
   try {

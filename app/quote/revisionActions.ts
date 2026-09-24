@@ -370,27 +370,7 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
   const pending = offer.filter((v) => v.status === "priced");
   if (pending.length === 0) return { ok: false, message: "This one has already been answered." };
 
-  // Tom's ruling (1 Sep): a variation goes to the customer WITH a photo of
-  // what was found — they sign what they can see. Credits (scope removals)
-  // are exempt; there is nothing on site to photograph. Every addition in
-  // the offer needs one before the offer goes.
-  const additions = pending.filter((v) => !v.credit);
-  if (additions.length > 0) {
-    const { data: photoRows, error: photoError } = await supabase
-      .from("wo_photos").select("variation_id")
-      .in("variation_id", additions.map((a) => a.id));
-    if (photoError) return { ok: false, message: photoError.message };
-    const withPhoto = new Set(((photoRows ?? []) as { variation_id: string | null }[]).map((p) => p.variation_id));
-    const missing = additions.filter((a) => !withPhoto.has(a.id));
-    if (missing.length > 0) {
-      return {
-        ok: false,
-        message: missing.length === 1 && pending.length === 1
-          ? "Attach a photo of the change first — the customer signs what they can see."
-          : `Attach a photo to each addition first (${missing.length} still without one) — the customer signs what they can see.`,
-      };
-    }
-  }
+  // Photos are optional (Tom, 24 Sep 2026): nothing waits on one.
 
   const variation = pending[0];
   const netCents = pending.reduce((s, v) => s + (v.credit ? -(v.price_cents ?? 0) : (v.price_cents ?? 0)), 0);

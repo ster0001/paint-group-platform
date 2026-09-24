@@ -70,9 +70,9 @@ export default function RevisionPanel({
   const fileInput = useRef<HTMLInputElement | null>(null);
   const uploadTarget = useRef<string | null>(null);
 
-  // Tom's ruling (1 Sep): a change goes to the customer WITH a photo — they
-  // sign what they can see. The server refuses too; this keeps the buttons
-  // honest. Credits (scope removals) are exempt.
+  // Photos are OPTIONAL (Tom, 24 Sep 2026 — reversing the 1 Sep rule that a
+  // change goes out WITH a photo). A photo still helps the customer sign what
+  // they can see; nothing waits on one.
   async function uploadPhoto(variationId: string, file: File) {
     if (!workOrderId) return;
     setUploadingFor(variationId);
@@ -261,8 +261,6 @@ export default function RevisionPanel({
         // carry their own — sending the first sends the offer they are in.
         const token = items[0].token;
         const netCents = items.reduce((s, i) => s + (i.credit ? -i.priceIncCents : i.priceIncCents), 0);
-        const missingPhotos = items.filter((i) => !i.credit && i.variationId && (counts[i.variationId] ?? 0) === 0).length;
-        const blocked = missingPhotos > 0 && !!workOrderId;
         return (
           <div className="mt-3 rounded-lg border border-amber-300/30 p-3" data-testid="drafted-list">
           <input
@@ -299,8 +297,7 @@ export default function RevisionPanel({
                   type="button"
                   className="bg-cyan-500/90 px-2 py-0.5 text-black hover:bg-cyan-400 disabled:opacity-50 border-r border-cyan-700/40 last:border-r-0"
                   onClick={() => sendLink(token, via)}
-                  disabled={sending !== null || blocked}
-                  title={blocked ? "Attach a photo to each addition first — the customer signs what they can see." : undefined}
+                  disabled={sending !== null}
                   data-testid={`send-${via}-offer`}
                 >
                   {sending === token + via ? "…" : label}
@@ -312,7 +309,7 @@ export default function RevisionPanel({
           <ul className="mt-2 space-y-1.5" data-testid="offer-items">
             {items.map((d) => {
               const photoCount = d.variationId ? (counts[d.variationId] ?? 0) : 0;
-              const needsPhoto = !d.credit && photoCount === 0;
+              const noPhotoYet = !d.credit && photoCount === 0;
               return (
               <li key={d.key} className="flex flex-wrap items-center gap-2 text-xs">
                 <span className={`font-mono ${d.credit ? "text-rose-400" : "text-emerald-400"}`}>
@@ -322,13 +319,13 @@ export default function RevisionPanel({
                 {!d.credit && d.variationId && workOrderId && (
                   <button
                     type="button"
-                    className={`rounded border px-2 py-0.5 text-[11px] ${needsPhoto ? "border-amber-400/70 text-amber-300" : "border-white/15 text-gray-300"} hover:bg-white/5 disabled:opacity-50`}
+                    className={`rounded border px-2 py-0.5 text-[11px] ${noPhotoYet ? "border-white/25 text-gray-300" : "border-white/15 text-gray-300"} hover:bg-white/5 disabled:opacity-50`}
                     onClick={() => { uploadTarget.current = d.variationId; fileInput.current?.click(); }}
                     disabled={uploadingFor !== null}
                     data-testid={`variation-photo-${d.key.replace(/[^a-z0-9]/gi, "-")}`}
                   >
                     {uploadingFor === d.variationId ? "Uploading…"
-                      : needsPhoto ? "📷 Add a photo — needed before sending"
+                      : noPhotoYet ? "📷 Add a photo (optional)"
                       : `📷 ${photoCount} photo${photoCount === 1 ? "" : "s"} — add another`}
                   </button>
                 )}

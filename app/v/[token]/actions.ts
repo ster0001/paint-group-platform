@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { notifyEmployeeVariationApproved, notifyVariationReleased } from "@/lib/contractor/notify";
+import { notifyEmployeeVariationApproved, notifyVariationAddedToJob, notifyVariationReleased } from "@/lib/contractor/notify";
 
 /**
  * The customer's answer to a priced variation. Token-only, exactly like the
@@ -56,6 +56,8 @@ export async function signVariationAction(raw: unknown): Promise<RespondResult> 
           .order("created_at", { ascending: true });
         for (const v of ((rows ?? []) as { id: string }[])) {
           await notifyVariationReleased(service, v.id);
+          // Tom, 24 Sep: a revision change folds straight in — the contractor is told, not asked.
+          await notifyVariationAddedToJob(service, v.id);
           // S7: employed painters on the job hear it in their own words (hours, no price).
           await notifyEmployeeVariationApproved(service, v.id);
         }

@@ -7,11 +7,16 @@ import {
 import { credentials, missingCreds, signIn, TINY_SIGNATURE_PNG } from "./helpers";
 
 /**
- * Addendum A3, AS CONTRACTOR (rulings 2–3):
+ * Addendum A3, AS CONTRACTOR (rulings 2–3), as amended 24 Sep 2026 (Tom:
+ * a change from the revision working scope must not go to the painter for
+ * approval "and then back to the customer again"):
  *
  *   a signed clean removal → the tick-row is STRUCK (visible, not deleted),
- *   the painter ACKNOWLEDGES (no veto) and the pay delta is the engine's;
- *   an addition still travels release → ACCEPT with engine hours;
+ *   the change is IN THE JOB at the signature (no acknowledge tap) and the
+ *   pay delta is the engine's;
+ *   a signed addition is IN THE JOB at the signature too — no release, no
+ *   accept — with engine hours and pay, and the release/accept RPCs have
+ *   nothing left to do;
  *   a removal that hits started work routes to the PC, who sets the deduction
  *   by hand — and the contractor sees the figure, told not asked.
  */
@@ -66,7 +71,7 @@ test.describe("the contractor loop — acknowledge, accept, started-work guard",
     return result.slice(3); // the customer token
   }
 
-  test("a signed clean removal strikes the row and asks for acknowledgement", async ({ page }) => {
+  test("a signed clean removal strikes the row and is in the job at the signature", async ({ page }) => {
     const token = await draft("block:pergola", {
       credit: true, surfaceKeys: ["a1:0"], priceCents: 48_000, hours: 2,
       comment: "Pergola — removed from scope",
@@ -81,7 +86,8 @@ test.describe("the contractor loop — acknowledge, accept, started-work guard",
       .eq("work_order_id", fixture!.workOrderId).eq("credit", true).single();
     const row = v as { id: string; status: string; needs_manual_deduction: boolean; contractor_delta_cents: number };
     cleanCreditId = row.id;
-    expect(row.status).toBe("customer_approved");
+    // Told, not asked: the customer's signature is the last word on a revision change.
+    expect(row.status).toBe("contractor_accepted");
     expect(row.needs_manual_deduction).toBe(false);
     expect(row.contractor_delta_cents).toBe(2 * HOURS_RATE);
 
@@ -99,20 +105,13 @@ test.describe("the contractor loop — acknowledge, accept, started-work guard",
     await expect(struckRow).toContainText("Removed from scope");
     await expect(page.getByTestId("tick-progress")).toHaveText("0 / 2");
 
-    // Acknowledge — no veto, and the figure is the engine's.
-    const ack = page.getByTestId(`acknowledge-${cleanCreditId}`);
-    await expect(ack).toContainText("− $120.00");
-    await ack.click();
+    // Nothing to acknowledge — the figure is already the engine's, and shown.
+    await expect(page.getByTestId(`acknowledge-${cleanCreditId}`)).toHaveCount(0);
     await expect(page.getByTestId(`delta-${cleanCreditId}`)).toContainText("comes off your payment");
-
-    const { data: after } = await db!.from("wo_variations")
-      .select("status, contractor_acknowledged_at").eq("id", cleanCreditId).single();
-    const a = after as { status: string; contractor_acknowledged_at: string | null };
-    expect(a.status).toBe("contractor_accepted");
-    expect(a.contractor_acknowledged_at).not.toBeNull();
+    expect(await rpcAs(contractor!, "wo_contractor_acknowledge_variation", { p_variation_id: cleanCreditId })).toMatch(/^error:/);
   });
 
-  test("an addition still travels release → accept, with engine hours", async ({ page }) => {
+  test("a signed addition is in the job at the signature — no release, no accept", async ({ page }) => {
     const token = await draft("block:porch", {
       credit: false, surfaceKeys: [], priceCents: 84_000, hours: 3,
       comment: "Front porch — added",
@@ -122,22 +121,24 @@ test.describe("the contractor loop — acknowledge, accept, started-work guard",
     }))).toBe("ok:approved");
 
     const { data: v } = await db!.from("wo_variations")
-      .select("id").eq("work_order_id", fixture!.workOrderId)
-      .eq("revision_block_ref", "block:porch").single();
-    additionId = (v as { id: string }).id;
+      .select("id, status, released_at, contractor_accepted_at, contractor_delta_cents")
+      .eq("work_order_id", fixture!.workOrderId).eq("revision_block_ref", "block:porch").single();
+    const row = v as { id: string; status: string; released_at: string | null; contractor_accepted_at: string | null; contractor_delta_cents: number };
+    additionId = row.id;
+    expect(row.status).toBe("contractor_accepted");
+    expect(row.contractor_accepted_at).not.toBeNull();
+    expect(row.contractor_delta_cents).toBe(3 * HOURS_RATE);
+    const { data: ev } = await db!.from("wo_events").select("type").eq("work_order_id", fixture!.workOrderId).eq("type", "variation_added_to_job");
+    expect((ev ?? []).length).toBeGreaterThanOrEqual(1);
 
-    // Sign-first (flag 2): release is only possible after the signature —
-    // proven by the accept refusals in wo-variations.spec; here the happy
-    // path. Since 3 Sep 2026 the sign itself releases when the setting says
-    // auto (variation-auto-release.spec.ts), so the office's release is
-    // either the act or a no-op — never a refusal.
-    expect(["ok:released", "ok:already"]).toContain(await rpcAs(staff!, "wo_release_variation", { p_variation_id: additionId }));
+    // The release/accept doors are shut — there is nothing left to do behind them.
+    expect(await rpcAs(staff!, "wo_release_variation", { p_variation_id: additionId })).not.toBe("ok:released");
+    expect(await rpcAs(contractor!, "wo_contractor_accept_variation", { p_variation_id: additionId })).toMatch(/^error:/);
 
+    // The painter sees it accepted, with the pay, and no button to press.
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${fixture!.workOrderId}`);
-    const accept = page.getByTestId(`accept-${additionId}`);
-    await expect(accept).toContainText("Accept $180.00 — 3 hrs");
-    await accept.click();
+    await expect(page.getByTestId(`accept-${additionId}`)).toHaveCount(0);
     await expect(page.getByTestId(`delta-${additionId}`)).toContainText("$180.00 added to your payment");
   });
 
