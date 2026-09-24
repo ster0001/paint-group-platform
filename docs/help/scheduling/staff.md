@@ -64,6 +64,7 @@ The scheduling board is where an accepted job gets a painter and dates. Every is
 19. If the painter is already on another job, or is on leave, an RDO or sick those days, the sheet refuses and names the other job or the kind of day. Type an **Override reason** and assign again if you mean it — the reason goes on the job's event log.
 
 - **View estimate from the tray.** Every card in the Unscheduled tray carries a **View estimate ›** link to the builder; pressing it never starts a drag.
+- **Their price follows the builder's contractor rate until the job is sent out.** Open the accepted estimate's revision (Revise scope), change **Contractor rate ($/hr)** in the job settings and press Save: the message says *painter's price updated*, and the tray card and the **Their price** line on the offer sheet show the new figure. Any revision changes on the job are repriced at the same rate. Once a painter has the job (offered, accepted or assigned), the rate they were given stands: the save says *painter already has this job, their price unchanged*.
 - **Days are working days.** A job's span on the board is counted in working days: weekends are skipped, so a 7-day job dropped on a Monday ends the following Tuesday, and the booking sheet says so under the dates. A painter who has ticked "works Saturdays" or "works Sundays" on their profile keeps those days. The suggested final-walkthrough date is the last working day on site.
 
 ## What the colours and labels mean

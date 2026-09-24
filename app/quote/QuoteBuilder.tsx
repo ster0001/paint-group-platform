@@ -1033,7 +1033,9 @@ export default function QuoteBuilder({
           estimateId: quoteId,
           state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview },
         });
-        setSaveMsg(result.ok ? "Saved ✓ (working scope)" : result.message);
+        // Tom, 24 Sep: the painter's price follows the working scope's contractor rate until the job is sent out.
+        const payNote = !result.ok ? "" : result.pay === "ok:synced" ? " · painter's price updated" : result.pay === "ok:live" ? " · painter already has this job, their price unchanged" : "";
+        setSaveMsg(result.ok ? `Saved ✓ (working scope)${payNote}` : result.message);
       } finally {
         setSaving(false);
       }
@@ -3029,7 +3031,7 @@ export default function QuoteBuilder({
                           <label className="block">
                             <span className="text-gray-500">Contractor rate ($/hr) · what you pay the crew (margin only)</span>
                             <NumInput
-                              min={0} value={contractorRateOverride}
+                              min={0} value={contractorRateOverride} data-testid="contractor-rate"
                               placeholder={String((contractorHourlyCents / 100).toFixed(0))}
                               onCommit={(n) => setContractorRateOverride(n)}
                               className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"

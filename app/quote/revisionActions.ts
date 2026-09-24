@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { PricingContext } from "@/lib/pricing/estimate";
 import type { RateItem, Product } from "@/lib/pricing/types";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
+import { revisionContractorPay } from "@/lib/revision/contractorRate";
+import { reportError } from "@/lib/monitoring/report";
 import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { buildInvoiceEmailHtml } from "@/lib/invoicing/sendInvoice";
@@ -28,12 +30,73 @@ import { buildInvoiceEmailHtml } from "@/lib/invoicing/sendInvoice";
 
 const uuid = z.string().uuid();
 
-export type SaveScopeResult = { ok: true } | { ok: false; message: string };
+/** `pay`: what wo_sync_contractor_pay answered — "ok:synced" (the painter's figure moved), "ok:live" (a painter has it; untouched), "ok:unchanged", or why it was skipped. */
+export type SaveScopeResult = { ok: true; pay?: string } | { ok: false; message: string };
 
 const saveInput = z.object({
   estimateId: uuid,
   state: z.record(z.string(), z.unknown()),
 });
+
+type Db = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * The estimate's own pricing context. rate_card_id can be null on ancient
+ * rows — fall back to the active card, which is then also what the builder
+ * showed. Never the active card for an estimate that HAS one: a signed job
+ * must not silently reprice on a newer card.
+ */
+async function estimatePricingContext(supabase: Db, rateCardId: string | null): Promise<{ ctx: PricingContext; cardId: string | null }> {
+  let cardId = rateCardId;
+  if (!cardId) {
+    const { data: active } = await supabase.from("rate_cards").select("id").eq("is_active", true).single();
+    cardId = active?.id ?? null;
+  }
+  const [rateItemsRes, productsRes, modifiersRes, settingsRes] = await Promise.all([
+    supabase.from("rate_items").select("*").eq("rate_card_id", cardId ?? ""),
+    supabase.from("products").select("*"),
+    supabase.from("modifiers").select("*").eq("active", true),
+    supabase.from("settings").select("key, value"),
+  ]);
+  for (const r of [rateItemsRes, productsRes, modifiersRes, settingsRes]) {
+    if (r.error) reportError(r.error, { where: "revision.pricingContext", bestEffort: true });
+  }
+  const ctx: PricingContext = {
+    rateItems: (rateItemsRes.data ?? []) as unknown as RateItem[],
+    products: (productsRes.data ?? []) as unknown as Product[],
+    modifiers: (modifiersRes.data ?? []) as PricingContext["modifiers"],
+    settings: (settingsRes.data ?? []) as PricingContext["settings"],
+  };
+  return { ctx, cardId };
+}
+
+/**
+ * Tom, 24 Sep 2026: "if I adjust the contractor rate in the revision working
+ * scope before I send it out to them in the schedule, the rate the contractor
+ * sees is the new rate." After every working-scope save, the job's base pay
+ * (the accepted scope at the working scope's rate) and its revision
+ * variations' deltas are moved to that rate — by wo_sync_contractor_pay,
+ * which refuses to touch a job that already has a painter. Best effort: a
+ * hiccup here is reported, never a failed save.
+ */
+async function syncContractorPay(supabase: Db, estimateId: string): Promise<string> {
+  const [{ data: scope, error: scopeErr }, { data: estimate, error: estErr }] = await Promise.all([
+    supabase.from("wo_working_scopes").select("accepted_state, working_state").eq("estimate_id", estimateId).maybeSingle(),
+    supabase.from("estimates").select("rate_card_id").eq("id", estimateId).maybeSingle(),
+  ]);
+  if (scopeErr || estErr) { reportError(scopeErr ?? estErr, { where: "revision.syncPay.read", bestEffort: true }); return "error:read"; }
+  if (!scope || !estimate) return "skipped:no_scope";
+  const { ctx } = await estimatePricingContext(supabase, estimate.rate_card_id as string | null);
+  if (ctx.rateItems.length === 0) return "skipped:no_rate_items";
+  const { rateCents, baseCents } = revisionContractorPay(
+    (scope.accepted_state ?? {}) as RevisionState,
+    (scope.working_state ?? {}) as RevisionState,
+    ctx,
+  );
+  const { data, error } = await supabase.rpc("wo_sync_contractor_pay", { p_estimate_id: estimateId, p_base_cents: baseCents, p_rate_cents: rateCents });
+  if (error) { reportError(error, { where: "revision.syncPay.rpc", extra: { estimateId } }); return "error:rpc"; }
+  return String(data ?? "");
+}
 
 export async function saveWorkingScopeAction(raw: unknown): Promise<SaveScopeResult> {
   const parsed = saveInput.safeParse(raw);
@@ -46,7 +109,12 @@ export async function saveWorkingScopeAction(raw: unknown): Promise<SaveScopeRes
   });
   if (error) return { ok: false, message: error.message };
   const s = String(data ?? "");
-  if (s === "ok") { revalidatePath("/quote"); return { ok: true }; }
+  if (s === "ok") {
+    const synced = await syncContractorPay(supabase, parsed.data.estimateId);
+    revalidatePath("/quote");
+    revalidatePath("/pc/schedule");
+    return { ok: true, pay: synced };
+  }
   if (s === "error:not_found") return { ok: false, message: "Open the revision again — the working scope isn't there yet." };
   if (s === "error:not_staff") return { ok: false, message: "Staff only." };
   return { ok: false, message: "Couldn't save the working scope." };
@@ -94,27 +162,16 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
     return { ok: false, message: "Revisions only exist on accepted estimates." };
   }
 
-  // The estimate's own card. rate_card_id can be null on ancient rows — fall
-  // back to the active card, which is then also what the builder showed.
-  let cardId = estimate.rate_card_id as string | null;
-  if (!cardId) {
-    const { data: active } = await supabase.from("rate_cards").select("id").eq("is_active", true).single();
-    cardId = active?.id ?? null;
-  }
-
-  const [rateItemsRes, productsRes, modifiersRes, settingsRes] = await Promise.all([
-    supabase.from("rate_items").select("*").eq("rate_card_id", cardId ?? ""),
-    supabase.from("products").select("*"),
-    supabase.from("modifiers").select("*").eq("active", true),
-    supabase.from("settings").select("key, value"),
-  ]);
-  const ctx: PricingContext = {
-    rateItems: (rateItemsRes.data ?? []) as unknown as RateItem[],
-    products: (productsRes.data ?? []) as unknown as Product[],
-    modifiers: (modifiersRes.data ?? []) as PricingContext["modifiers"],
-    settings: (settingsRes.data ?? []) as PricingContext["settings"],
-  };
+  const { ctx, cardId } = await estimatePricingContext(supabase, estimate.rate_card_id as string | null);
   if (ctx.rateItems.length === 0) return { ok: false, message: "The estimate's rate card has no items — cannot price the diff." };
+
+  // Tom, 24 Sep: the working scope's contractor rate prices every change's
+  // contractor delta — the estimate's override, else the card's rate.
+  const { rateCents } = revisionContractorPay(
+    (scope.accepted_state ?? {}) as RevisionState,
+    (scope.working_state ?? {}) as RevisionState,
+    ctx,
+  );
 
   const diff = diffRevision(
     (scope.accepted_state ?? {}) as RevisionState,
@@ -185,6 +242,7 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
       },
       p_priced_lines: pricedLines,
       p_hours: draftHours,
+      p_contractor_rate_cents: rateCents,
     });
 
     const s = String(data ?? "");
