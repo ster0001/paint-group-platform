@@ -126,7 +126,7 @@ test.describe("quality-check overrides and the office's sign-off", () => {
     expect((nudges ?? []).length).toBe(0);
 
     // The PC job page: the office's button, not the customer-signature controls.
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${id}`);
     await expect(page.getByTestId("staff-complete")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("staff-signoff")).toHaveCount(0);

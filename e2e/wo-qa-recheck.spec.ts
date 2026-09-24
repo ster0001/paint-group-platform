@@ -136,7 +136,7 @@ test.describe("QA fail → rectify → re-check → pass → walkthrough, on the
   });
 
   test("2 · the PC fails it — rectification raised, a linked re-check exists, the job is back with the painter", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
     const card = page.locator('.card[data-testid^="qa-"]').filter({ has: page.locator('[data-testid^="qa-item-"]') }).first();
     await expect(card).toBeVisible({ timeout: 60_000 });
@@ -207,7 +207,7 @@ test.describe("QA fail → rectify → re-check → pass → walkthrough, on the
   });
 
   test("4 · the PC works the re-check card and passes it — the job moves to walkthrough on its own", async ({ page }) => {
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
 
     // The failed card is the record: it stays, without controls.

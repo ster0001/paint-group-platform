@@ -67,7 +67,7 @@ test.describe("photo rules on the tick list", () => {
 
   test("the office marks a line 'photos not required' on the PC job page", async ({ page }) => {
     const fuel = surfaceId(lines!, "Fuel allowance");
-    await signIn(page, staff!, /\/estimates/);
+    await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${lines!.workOrderId}`);
     await page.getByTestId(`photos-optional-${fuel}`).click();
     await expect(page.getByTestId(`no-photos-${fuel}`)).toBeVisible({ timeout: 30_000 });

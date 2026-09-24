@@ -331,6 +331,10 @@ test.describe("the whole loop, one job", () => {
     await page.goto(`/s/${signoffToken}`);
     await page.getByTestId("approve-Front").click();
     await page.getByTestId("approve-Left").click();
+    // Step 4's approved variation is a tick row under "Variations" (20270193),
+    // so the customer has a third area to look at before they can sign.
+    const variationsArea = page.getByTestId("approve-Variations");
+    if (await variationsArea.count()) await variationsArea.click();
     await page.getByTestId("sign-name").fill("Melissa Hartley");
     await page.getByTestId("sign").click();
     await expect(page.getByTestId("signed")).toContainText("Signed off");
