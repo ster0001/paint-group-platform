@@ -6,6 +6,7 @@ import { buildEstimateEmailHtml, emailConfigured, sendEmail } from "@/lib/messag
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
 import { officeOpenAt, OFFICE_HOURS_LINE } from "@/lib/messaging/officeHours";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * A customer's message on their estimate chat (Tom, 20 Sep 2026): "all
@@ -77,7 +78,7 @@ async function emailOfficeFallback(service: SupabaseClient, estimateId: string, 
   const intro = renderTemplate(messaging.officeEstimateChatBody, { ...vars, link });
   await sendEmail({
     to, subject,
-    html: buildEstimateEmailHtml({ intro, link, companyName: company.name || "Paint Group", logoUrl: company.logoUrlLight || company.logoUrl, buttonLabel: "Open the estimate" }),
+    html: buildEstimateEmailHtml({ intro, link, companyName: company.name || "Paint Group", logoUrl: emailLogoUrl(company), buttonLabel: "Open the estimate" }),
     ctx: { estimateId, kind: "staff_alert" },
   });
 }

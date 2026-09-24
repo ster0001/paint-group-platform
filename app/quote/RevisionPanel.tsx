@@ -28,9 +28,12 @@ export type ExistingRevisionVariation = {
   contractor_accepted_at?: string | null;
 };
 
-/** Where a signed change is, in the office's words. */
+/** Where a signed change is, in the office's words. Tom, 24 Sep: a change the
+ * customer signed reads "customer approved" — it used to say "painter
+ * accepted", which is what the status column is called once the change has
+ * folded into the painter's work order, but the customer is who approved it. */
 export function signedVariationState(v: ExistingRevisionVariation): string {
-  if (v.status === "contractor_accepted") return v.credit ? "painter acknowledged" : "painter accepted";
+  if (v.status === "contractor_accepted") return v.credit ? "customer approved · credit" : "customer approved";
   if (v.credit) return "with the painter to acknowledge";
   return v.released_at ? "with the painter to accept" : "awaiting release to the painter";
 }

@@ -37,6 +37,7 @@ import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { melbourneDateKey } from "../controls";
 import { melbourneInstant, melbourneParts } from "@/lib/time/businessHours";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 const OPEN = ["issued", "sent", "viewed", "partially_paid"];
 const money = (c: number) => `$${(c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -218,7 +219,7 @@ export async function runMoneySignoffSweep(db: SupabaseClient, now = new Date(),
   };
   const { messaging, company } = await loadMessaging(db);
   const companyName = company.name || "Paint Group";
-  const brand = { companyName, logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone };
+  const brand = { companyName, logoUrl: emailLogoUrl(company), companyPhone: company.phone };
 
   await timed("invoices", () => invoiceReminders(db, messaging, brand, now, out));
   await timed("deposits", () => depositReminders(db, messaging, brand, now, out));

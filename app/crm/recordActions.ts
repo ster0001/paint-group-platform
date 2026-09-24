@@ -13,6 +13,7 @@ import { normalisePhoneAU } from "@/lib/messaging/config";
 import { LOST_REASONS, PERMIT_CHANNELS, PERMIT_VALUES, RELATIONSHIP_STATES, type PermitChannel, type PermitValue, type RelationshipState } from "@/lib/crm/states";
 import type { CrmResult } from "./actions";
 import { CONTACT_ROLES, LOG_KINDS, type LogKind } from "./recordTypes";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * CRM v2 P2 — the customer record's writes (deep dive §4.1). Every one is an
@@ -266,7 +267,7 @@ export async function sendReply(accountId: string, input: ReplyInput): Promise<C
   if (!a.email) return { ok: false, message: "No email address on this record." };
   const { company } = await loadMessaging(supabase);
   const subject = input.subject.trim() || `A note from ${company.name || "Paint Group"}`;
-  const html = buildPlainEmailHtml({ heading: subject, message: body, companyName: company.name || "Paint Group", logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone });
+  const html = buildPlainEmailHtml({ heading: subject, message: body, companyName: company.name || "Paint Group", logoUrl: emailLogoUrl(company), companyPhone: company.phone });
   const r = await sendEmail({ to: a.email, subject, html, replyTo: company.email, ctx });
   revalidateRecord(accountId);
   if (r.status === "sent") return { ok: true, message: "Email sent." };

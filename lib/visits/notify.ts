@@ -21,6 +21,7 @@ import { melbourneParts } from "@/lib/time/businessHours";
 import { toE164Au } from "@/lib/campaigns/sms";
 import { reportError } from "@/lib/monitoring/report";
 import { VISIT_KINDS, type VisitRow } from "./types";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 const two = (n: number) => String(n).padStart(2, "0");
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -104,7 +105,7 @@ export async function sendVisitConfirmation(db: SupabaseClient, visitId: string)
     to: { email: ctx.customerEmail },
     email: {
       subject, replyTo: company.email || undefined,
-      html: buildPlainEmailHtml({ heading: `Visit booked — ${visitWhen(visit.starts_at)}`, message: body, companyName, logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone }),
+      html: buildPlainEmailHtml({ heading: `Visit booked — ${visitWhen(visit.starts_at)}`, message: body, companyName, logoUrl: emailLogoUrl(company), companyPhone: company.phone }),
       attachments: [{ filename: "visit.ics", content: Buffer.from(ics, "utf8").toString("base64"), contentType: "text/calendar; method=REQUEST" }],
     },
     ctx: { accountId: visit.account_id, estimateId: visit.estimate_id, kind: "visit_confirmation" },
@@ -133,7 +134,7 @@ export async function sendVisitCancellation(db: SupabaseClient, visitId: string)
     to: { email: ctx.customerEmail },
     email: {
       subject: `Visit cancelled — ${visitWhen(ctx.visit.starts_at)}`, replyTo: company.email || undefined,
-      html: buildPlainEmailHtml({ heading: "Visit cancelled", message: `The visit on ${visitWhen(ctx.visit.starts_at)} has been taken out of the calendar. We'll be in touch to find another time.`, companyName, logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone }),
+      html: buildPlainEmailHtml({ heading: "Visit cancelled", message: `The visit on ${visitWhen(ctx.visit.starts_at)} has been taken out of the calendar. We'll be in touch to find another time.`, companyName, logoUrl: emailLogoUrl(company), companyPhone: company.phone }),
       attachments: [{ filename: "visit-cancelled.ics", content: Buffer.from(ics, "utf8").toString("base64"), contentType: "text/calendar; method=CANCEL" }],
     },
     ctx: { accountId: ctx.visit.account_id, estimateId: ctx.visit.estimate_id, kind: "visit_cancelled" },

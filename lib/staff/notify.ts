@@ -21,6 +21,7 @@ import { buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigu
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
 import { parseStaffNotify, wantsChannel, type StaffEventKey, type StaffNotifyChannel } from "./notifyEvents";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 export type StaffAlert = {
   key: StaffEventKey;
@@ -102,7 +103,7 @@ export async function notifyStaff(service: SupabaseClient, alert: StaffAlert): P
     const companyName = company.name || "Paint Group";
     const html = buildEstimateEmailHtml({
       intro: alert.message, link: alert.link, companyName,
-      logoUrl: company.logoUrlLight || company.logoUrl, buttonLabel: "Open it",
+      logoUrl: emailLogoUrl(company), buttonLabel: "Open it",
     });
     const smsBody = `${companyName}: ${alert.subject}\n${alert.link}`;
     const ctx = { kind: "staff_alert", estimateId: alert.estimateId ?? null };

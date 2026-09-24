@@ -12,7 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, type MessagingSettings } from "./config";
 
 export type CompanyForMessages = {
-  name?: string; email?: string; phone?: string; logoUrl?: string; logoUrlLight?: string; estimatorName?: string;
+  name?: string; email?: string; phone?: string; logoUrl?: string; logoUrlLight?: string; logoUrlEmail?: string; estimatorName?: string;
 };
 
 export async function loadMessaging(db: SupabaseClient): Promise<{ messaging: MessagingSettings; company: CompanyForMessages }> {

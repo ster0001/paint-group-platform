@@ -13,6 +13,7 @@ import { sendAutomation } from "@/lib/automations/dispatch";
 import { reportError } from "@/lib/monitoring/report";
 import { DEFAULT_MESSAGING, automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 export function signedReportEmail(vars: {
   firstName: string; jobTitle: string; signedName: string; link: string; company: string;
@@ -86,7 +87,7 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
       signedName: String(s.signed_kind ?? "") === "rectified" ? "" : String(s.signed_name ?? ""),
       link: `${origin}/s/${customerToken}`,
       company: snap?.company?.name || "Paint Group",
-      logoUrl: company.logoUrlLight || company.logoUrl,
+      logoUrl: emailLogoUrl(company),
       companyPhone: company.phone,
       templates: messaging,
     });
@@ -118,7 +119,7 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
           warrantyYears: r.warranty_years,
           companyName: snap?.company?.name || "Paint Group",
           companyPhone: company.phone,
-          logoUrl: company.logoUrlLight || company.logoUrl,
+          logoUrl: emailLogoUrl(company),
           reportUrl: `${origin}/s/${customerToken}`,
           referencesLine,
         }));

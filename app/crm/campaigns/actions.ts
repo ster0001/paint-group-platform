@@ -8,6 +8,7 @@ import { generateEmail } from "@/lib/campaigns/ai";
 import { resolveRecipientLinks, sendCampaignEmail } from "@/lib/campaigns/send";
 import { getSegment } from "@/lib/crm/segmentsStore";
 import { exampleValues, fillTokens, personaliseTemplate } from "@/lib/campaigns/personalise";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 export type StudioResult<T = undefined> =
   | { ok: true; message: string; data?: T }
@@ -223,7 +224,7 @@ export async function sendTestEmail(id: string): Promise<StudioResult<{ to: stri
   if (parsed.data.blocks.length === 0) return { ok: false, message: "There's nothing in it to send." };
   if (!parsed.data.subject.trim()) return { ok: false, message: "It needs a subject line first." };
 
-  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string; logoUrlLight?: string };
+  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string; logoUrlLight?: string; logoUrlEmail?: string };
 
   // A test carries the STAFF member's own account id in the unsubscribe link,
   // if they have one — so clicking it in a test unsubscribes the tester and
@@ -241,7 +242,7 @@ export async function sendTestEmail(id: string): Promise<StudioResult<{ to: stri
     accountId: (account?.id as string) ?? "00000000-0000-0000-0000-000000000000",
     template: personaliseTemplate(parsed.data, exampleValues(company.name || "Paint Group")),
     // White card → the light-background logo (the black wordmark).
-    brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrlLight || company.logoUrl || null },
+    brand: { companyName: company.name || "Paint Group", logoUrl: emailLogoUrl(company) ?? null },
     isTest: true,
     // A test resolves the tokens against the TESTER, so the buttons in the
     // test email are clickable and honest about where they'd go.

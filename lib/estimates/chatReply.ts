@@ -4,6 +4,7 @@ import { buildChatEmailHtml, type DeliveryResult } from "@/lib/messaging/send";
 import { sendAutomation } from "@/lib/automations/dispatch";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "@/app/quote/company";
 import { siteUrl } from "@/lib/invoicing/pdf";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * A staff reply on the estimate chat — ONE implementation (Tom, 20 Sep) for
@@ -60,7 +61,7 @@ export async function postStaffChatReply(
         html: buildChatEmailHtml({
           message: body, link,
           companyName: company.name,
-          logoUrl: company.logoUrlLight || company.logoUrl || undefined,
+          logoUrl: emailLogoUrl(company),
           estimatorName: company.estimatorName || undefined,
           companyPhone: company.phone || undefined,
         }),

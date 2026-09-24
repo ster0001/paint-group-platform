@@ -5,6 +5,7 @@ import { templateSchema, type Template } from "@/lib/campaigns/blocks";
 import { getSegment } from "@/lib/crm/segmentsStore";
 import Studio from "./Studio";
 import SmsStudio from "./SmsStudio";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
     : null);
   if (!row) notFound();
 
-  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string; logoUrlLight?: string };
+  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string; logoUrlLight?: string; logoUrlEmail?: string };
   // A stored draft is parsed leniently: a block a later version stopped
   // understanding must not take the whole email down.
   const parsed = templateSchema.safeParse({
@@ -65,7 +66,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
         // The campaign email sits on a white card, so it takes the
         // light-background logo (the black wordmark) like every other
         // customer-facing document; the dark-header logo is the fallback.
-        brand={{ companyName: company.name || "Paint Group", logoUrl: company.logoUrlLight || company.logoUrl || null }}
+        brand={{ companyName: company.name || "Paint Group", logoUrl: emailLogoUrl(company) ?? null }}
       />
     </>
   );

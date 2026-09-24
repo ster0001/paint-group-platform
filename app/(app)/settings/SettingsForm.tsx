@@ -14,7 +14,7 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
 
   // Upload a logo to the shared public estimate-media bucket and store its URL.
   // Remember to click Save to keep it — like every other field here.
-  async function uploadLogo(file: File | null | undefined, which: "logoUrl" | "logoUrlLight" = "logoUrl") {
+  async function uploadLogo(file: File | null | undefined, which: "logoUrl" | "logoUrlLight" | "logoUrlEmail" = "logoUrl") {
     if (!file) return;
     const bad = checkUpload(file, "image");
     if (bad) { setMsg(bad); return; }
@@ -112,7 +112,32 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
             {c.logoUrlLight && (
               <button onClick={() => set("logoUrlLight", "")} className="w-fit text-xs text-gray-400 hover:text-red-600">Remove</button>
             )}
-            <span className="text-[11px] text-gray-400">Used on emails, the quote PDF, and the CRM, Projects and Payments in light mode. If empty, the main logo is used.</span>
+            <span className="text-[11px] text-gray-400">Used on the quote PDF, and the CRM, Projects and Payments in light mode. If empty, the main logo is used.</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tom, 24 Sep 2026: mail clients in dark mode invert or recolour a
+          transparent logo, so emails showed it sometimes light, sometimes dark.
+          ONE logo with its own background, used by every email. */}
+      <div className="mt-3">
+        <span className="text-xs text-gray-500">Logo for emails</span>
+        <div className="mt-1 flex items-center gap-3 rounded-md border border-gray-200 p-3">
+          <div className="flex h-14 w-40 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-100">
+            {c.logoUrlEmail
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={c.logoUrlEmail} alt="Email logo" className="max-h-12 max-w-full object-contain" data-testid="logo-email-preview" />
+              : <span className="text-[10px] tracking-widest text-gray-300">FALLS BACK TO LIGHT</span>}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="inline-flex w-fit cursor-pointer items-center rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
+              {uploading ? "Uploading…" : c.logoUrlEmail ? "Replace" : "Upload email logo"}
+              <input type="file" accept={acceptAttr("image")} className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0], "logoUrlEmail")} data-testid="logo-email-file" />
+            </label>
+            {c.logoUrlEmail && (
+              <button onClick={() => set("logoUrlEmail", "")} className="w-fit text-xs text-gray-400 hover:text-red-600">Remove</button>
+            )}
+            <span className="text-[11px] text-gray-400">Used on every email we send. Upload a version with its own solid background (not transparent) so it reads the same whether the reader&rsquo;s mail app is in light or dark mode. If empty, the light-background logo is used.</span>
           </div>
         </div>
       </div>
