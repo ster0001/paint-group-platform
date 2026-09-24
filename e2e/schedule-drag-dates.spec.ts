@@ -70,8 +70,12 @@ test.describe("board: dates while dragging, start date in the sheet", () => {
     await page.goto("/pc/schedule");
     await expect(page.getByTestId("lane").first()).toBeVisible({ timeout: 30_000 });
 
+    // The tray is longest-wait first, so a job accepted just now sits at the
+    // bottom, off screen — narrow the tray to it so it has a box to drag from.
+    await page.getByTestId("tray-search").fill(TITLE);
     const card = page.getByTestId("tray-job").filter({ hasText: TITLE });
     await expect(card).toHaveCount(1);
+    await card.scrollIntoViewIfNeeded();
     const lane = page.getByTestId("lane").first();
 
     // A midweek cell, so the snapped start IS the cell whatever this painter's weekend flags say.
@@ -99,6 +103,12 @@ test.describe("board: dates while dragging, start date in the sheet", () => {
     const ghostEnd = (await ghost.getAttribute("data-end")) ?? "";
     expect(ghostStart).toBe(cellDay);
     expect(ghostEnd >= ghostStart).toBe(true);
+    // Said as a person says it — "Thu 24 Sep" — on the card and on the cell itself.
+    const label = new Date(cellDay + "T00:00:00Z").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+    await expect(ghost).toContainText(label);
+    await expect(cells.nth(cellIdx)).toHaveClass(/hot/);
+    await expect(cells.nth(cellIdx)).toHaveAttribute("data-label", label);
+    await page.screenshot({ path: test.info().outputPath("ghost-over-cell.png") });
     await page.mouse.up();
 
     // ---- the sheet opens on the same dates ---------------------------------
@@ -113,6 +123,7 @@ test.describe("board: dates while dragging, start date in the sheet", () => {
     await page.getByTestId("booking-start").fill(later);
     await expect(dates).toHaveAttribute("data-start", later);
     await expect(dates).toHaveAttribute("data-end", addWorkingDays(later, spanDays));
+    await page.screenshot({ path: test.info().outputPath("sheet-start-changed.png") });
 
     // ---- a Sunday snaps to the next working day (this painter or not, Monday at the latest) ----
     const sunday = addDays(later, (7 - new Date(later + "T00:00:00Z").getUTCDay()) % 7);
