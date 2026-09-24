@@ -26,8 +26,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/account/login?error=link", request.url));
   }
 
+  // Tom, 24 Sep: staff and painters click magic links too now (a password
+  // reset lands here). Joining THEM to a customer account chain would mint a
+  // customer account for an office address — membership is for customers.
+  const { data: profile, error: profileError } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
+  if (profileError) reportError(profileError, { where: "account.auth.role", bestEffort: true });
+  const isCustomer = profile?.role !== "staff" && profile?.role !== "contractor";
+
   try {
-    await ensureMembership(data.user.id, data.user.email);
+    if (isCustomer) await ensureMembership(data.user.id, data.user.email);
   } catch (err) {
     // Membership is retried on the next visit by the portal gate — a hiccup
     // here must not cost the customer their sign-in.

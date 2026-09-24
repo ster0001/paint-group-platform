@@ -8,6 +8,7 @@ import { reportError } from "@/lib/monitoring/report";
 import { STAFF_AREA_KEYS, parseStaffAccess, type StaffAccess } from "@/lib/staff/access";
 import { STAFF_EVENT_KEYS, parseStaffNotify, type StaffNotifyMap } from "@/lib/staff/notifyEvents";
 import { normalisePhoneAU } from "@/lib/messaging/config";
+import { findAuthUserByEmail, isBanned, sendPasswordResetLink, setPasswordForUser, PASSWORD_MIN } from "@/lib/auth/adminPassword";
 
 /**
  * Settings → Company → Staff logins (Tom, 5 Sep 2026).
@@ -136,18 +137,29 @@ export async function createStaffAction(input: { email: string; name: string; ph
   const svc = createServiceClient()!;
   try {
     const res = await svc.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: name ? { name } : undefined });
+    let userId = res.data.user?.id;
+    let revived = false;
     if (res.error) {
-      if (/already been registered|already exists/i.test(res.error.message)) {
+      if (!/already been registered|already exists/i.test(res.error.message)) throw new Error(res.error.message);
+      // Tom, 24 Sep: "when a staff member is deleted I can't re-create them".
+      // Remove login's fallback (rows they created refuse the delete) bans
+      // the auth user and demotes it, so the address stays taken. A banned
+      // user IS a removed login — lift the ban, set the new password and
+      // make it staff again; their old records keep pointing at the same id.
+      const existing = await findAuthUserByEmail(svc, email);
+      if (!existing || !isBanned(existing)) {
         return { status: "error", message: `${email} already has a login. Remove it first, or use a different address.` };
       }
-      throw new Error(res.error.message);
+      const lift = await svc.auth.admin.updateUserById(existing.id, { ban_duration: "none", password, email_confirm: true, user_metadata: name ? { name } : undefined });
+      if (lift.error) throw new Error(lift.error.message);
+      userId = existing.id;
+      revived = true;
     }
-    const userId = res.data.user?.id;
     if (!userId) throw new Error("no user id back from auth");
     // handle_new_user made a customer profile on insert; make it staff.
     const upd = await svc.from("profiles").upsert({ id: userId, role: "staff", name: name || null, is_owner: isOwner, staff_access: isOwner ? {} : access, staff_roles: isOwner ? [] : roles, ...(phone !== undefined ? { phone: phone || null } : {}) }, { onConflict: "id" });
     if (upd.error) throw new Error(upd.error.message);
-    return { status: "ok", message: `${email} can sign in at /login with that password.${isOwner ? " They are a master user." : ""}` };
+    return { status: "ok", message: `${email} can sign in at /login with that password.${revived ? " (Their earlier login was restored — anything they did before is still on file under their name.)" : ""}${isOwner ? " They are a master user." : ""}` };
   } catch (e) {
     reportError(e, { where: "settings.createStaff" });
     return { status: "error", message: e instanceof Error ? e.message : "Something went wrong." };
@@ -222,4 +234,43 @@ export async function removeStaffAction(input: { id: string }): Promise<StaffWri
   const demote = await svc.from("profiles").update({ role: "customer", is_owner: false, staff_access: {} }).eq("id", input.id);
   if (ban.error || demote.error) return { status: "error", message: ban.error?.message ?? demote.error?.message ?? del.error.message };
   return { status: "ok", message: "Login locked out and its staff access removed (their records stay on file)." };
+}
+
+// ---- Tom, 24 Sep: passwords by hand + reset links ---------------------------
+
+const passwordSchema = z.object({ id: z.string().uuid(), password: z.string().min(PASSWORD_MIN).max(200) });
+
+/** Only the master may act, and only on a staff login. Answers the auth user (for the email) or a refusal. */
+async function staffTarget(id: string): Promise<{ status: "ok"; svc: NonNullable<ReturnType<typeof createServiceClient>>; email: string; name: string } | { status: "error"; message: string }> {
+  const c = await caller();
+  if (!c) return { status: "error", message: "Staff only." };
+  if (!c.isOwner) return { status: "error", message: "Only the master user can change a staff login's password." };
+  const svc = createServiceClient()!;
+  const { data: target, error } = await svc.from("profiles").select("role, name").eq("id", id).maybeSingle();
+  if (error) return { status: "error", message: error.message };
+  if (target?.role !== "staff") return { status: "error", message: "That is not a staff login." };
+  const { data: u, error: uError } = await svc.auth.admin.getUserById(id);
+  if (uError || !u.user) return { status: "error", message: "Couldn't find that login." };
+  return { status: "ok", svc, email: u.user.email ?? "", name: (target.name as string | null) ?? "" };
+}
+
+/** The master types a new password for a staff login and hands it over in person. */
+export async function setStaffPasswordAction(input: { id: string; password: string }): Promise<StaffWriteResult> {
+  const parsed = passwordSchema.safeParse(input);
+  if (!parsed.success) return { status: "error", message: `The password needs at least ${PASSWORD_MIN} characters.` };
+  const t = await staffTarget(parsed.data.id);
+  if (t.status === "error") return t;
+  const r = await setPasswordForUser(t.svc, parsed.data.id, parsed.data.password);
+  if (!r.ok) return { status: "error", message: r.message };
+  return { status: "ok", message: `Password changed for ${t.email}. They sign in at /login with it — hand it over in person or by phone.` };
+}
+
+/** Email a staff login a link that lands on /reset-password. */
+export async function sendStaffResetLinkAction(input: { id: string }): Promise<StaffWriteResult> {
+  const parsed = z.object({ id: z.string().uuid() }).safeParse(input);
+  if (!parsed.success) return { status: "error", message: "Check the details." };
+  const t = await staffTarget(parsed.data.id);
+  if (t.status === "error") return t;
+  const r = await sendPasswordResetLink({ email: t.email, firstName: t.name });
+  return r.ok ? { status: "ok", message: r.message } : { status: "error", message: r.message };
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { STAFF_AREAS, type StaffAreaKey } from "@/lib/staff/access";
 import { DASHBOARD_ROLES, ROLE_LABEL, type DashboardRole } from "@/lib/reporting/roles";
-import { createStaffAction, listStaffAction, removeStaffAction, updateStaffAction, type StaffRow } from "./staffActions";
+import { createStaffAction, listStaffAction, removeStaffAction, sendStaffResetLinkAction, setStaffPasswordAction, updateStaffAction, type StaffRow } from "./staffActions";
 
 /**
  * Settings → Company → Staff logins (Tom, 5 Sep 2026).
@@ -58,6 +58,21 @@ export default function StaffAccountsManager() {
     setBusy(false);
     setMsg(r ? { ok: r.status === "ok", text: r.message } : { ok: false, text: "That didn't save — try again." });
     if (r?.status === "ok") load();
+  };
+  // Tom, 24 Sep: a password by hand, or a reset link by email, per login.
+  const [newPw, setNewPw] = useState<Record<string, string>>({});
+  const setPw = async (row: StaffRow) => {
+    setMsg(null); setBusy(true);
+    const r = await setStaffPasswordAction({ id: row.id, password: newPw[row.id] ?? "" }).catch(() => null);
+    setBusy(false);
+    setMsg(r ? { ok: r.status === "ok", text: r.message } : { ok: false, text: "That didn't save — try again." });
+    if (r?.status === "ok") setNewPw((m) => ({ ...m, [row.id]: "" }));
+  };
+  const sendReset = async (row: StaffRow) => {
+    setMsg(null); setBusy(true);
+    const r = await sendStaffResetLinkAction({ id: row.id }).catch(() => null);
+    setBusy(false);
+    setMsg(r ? { ok: r.status === "ok", text: r.message } : { ok: false, text: "That didn't send — try again." });
   };
   const remove = async (row: StaffRow) => {
     if (!window.confirm(`Remove ${row.email || row.name}'s login? They will not be able to sign in.`)) return;
@@ -139,6 +154,25 @@ export default function StaffAccountsManager() {
                 <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">{row.isOwner ? "A master user holds every dashboard role" : "Dashboard roles (sections they see — several add up)"}</div>
                 {roleTicks(row.roles, (r, v) => setRows((rs) => rs.map((x) => (x.id === row.id ? { ...x, roles: withRole(x.roles, r, v) } : x))), !isOwner || row.isOwner, `${row.email}-`)}
               </div>
+              {isOwner && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+                  <span className="text-[10px] uppercase tracking-wide text-gray-400">Password</span>
+                  <input
+                    type="password" autoComplete="new-password" minLength={8} placeholder="New password (8+ characters)"
+                    className="w-56 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                    value={newPw[row.id] ?? ""} onChange={(e) => setNewPw((m) => ({ ...m, [row.id]: e.target.value }))}
+                    data-testid={`staff-newpw-${row.email}`}
+                  />
+                  <button type="button" disabled={busy || (newPw[row.id] ?? "").length < 8} onClick={() => setPw(row)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-50" data-testid={`staff-setpw-${row.email}`}>
+                    Set password
+                  </button>
+                  <button type="button" disabled={busy || !row.email} onClick={() => sendReset(row)}
+                    className="rounded-md border border-cyan-600 px-3 py-1.5 text-sm text-cyan-700 hover:bg-cyan-50 disabled:opacity-50" data-testid={`staff-reset-${row.email}`}>
+                    Email a reset link
+                  </button>
+                </div>
+              )}
               {isOwner && (
                 <div className="mt-3 flex gap-2">
                   <button type="button" disabled={busy} onClick={() => save(row)} className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">Save</button>

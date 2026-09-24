@@ -35,6 +35,9 @@ The office uses this when a new painter is joining. Each invite is a private lin
 10. A painter with a job, an assignment, an offer they **accepted**, an invoice, an expense claim or a clocked day behind them **cannot be removed**, and the message names what is stopping it. That is deliberate. Deleting them would strip their jobs of a painter and take their insurance certificates with them. Use **Suspend access** instead, which keeps every record and stops them being offered work.
 11. An offer they **turned down or let lapse** does not stop it. The job keeps its own record of what happened, so there is nothing to strand.
 
+### Their login: a new password or a reset link
+12. Below their jobs, the **Their login** card shows the email they sign in with. **Set password** lets you type one (8 or more characters) and read it out over the phone; **Email a reset link** sends them a 60-minute link that signs them in and asks them to choose their own. Full detail, including what they see: logins/staff.md. The card only appears once they have joined.
+
 ## Asking a painter for their hours
 Each painter's row has an **Asks for hours / Hours from schedule** button. Switched on, that painter's **All surfaces done** press asks for days on site and hours in total (pre-filled from the booking; they can skip). Their entry shows on their self-invoice as a note and feeds the dashboard's hours-versus-estimate. Switched off (the default), the dashboard uses the booked days × the standard day length from Settings (**worked_day_hours**, 8) and says so. Switching a painter on or off changes only what their *next* finished job asks — nothing already entered moves.
 
@@ -56,3 +59,4 @@ Each painter's row has an **Asks for hours / Hours from schedule** button. Switc
 
 ## Related
 - Contractor side: work-orders/contractor.md
+- Passwords and reset links, for staff and painters: logins/staff.md
