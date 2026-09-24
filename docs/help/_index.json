@@ -274,6 +274,40 @@
       "sources": []
     },
     {
+      "feature": "logins",
+      "role": "contractor",
+      "title": "Locked out? Get back into your portal",
+      "summary": "What to do when you cannot sign in — ask the office for a reset link or a new password, what the emailed link does, and how to choose your new password.",
+      "path": "docs/help/logins/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/reset-password/page.tsx",
+        "app/reset-password/ResetPasswordForm.tsx",
+        "app/account/auth/route.ts"
+      ]
+    },
+    {
+      "feature": "logins",
+      "role": "staff",
+      "title": "Change a password or send a reset link, for staff and for painters",
+      "summary": "Where the master user sets a staff login's password by hand or emails a reset link, where any staff member does the same for a painter from the painter's page, what the reset link does when it is clicked, and why a removed staff login can be created again with the same address.",
+      "path": "docs/help/logins/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/(app)/settings/StaffAccountsManager.tsx",
+        "app/(app)/settings/staffActions.ts",
+        "app/(app)/contractors/[id]/ContractorLogin.tsx",
+        "app/(app)/contractors/actions.ts",
+        "lib/auth/adminPassword.ts",
+        "app/reset-password/page.tsx",
+        "app/account/auth/route.ts"
+      ]
+    },
+    {
       "feature": "message-queue",
       "role": "staff",
       "title": "Approve, change or skip an automatic message before it goes",

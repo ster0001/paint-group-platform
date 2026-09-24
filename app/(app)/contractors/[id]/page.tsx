@@ -8,6 +8,7 @@ import { CONTRACTOR_COLUMNS, DOC_COLUMNS, DOC_LABEL, daysUntil, docState, type C
 import { formatDMY } from "@/lib/scheduling/offers";
 import { isEmploymentType } from "@/lib/painters/capabilities";
 import DeleteContractor from "./DeleteContractor";
+import ContractorLogin from "./ContractorLogin";
 
 export const dynamic = "force-dynamic";
 
@@ -283,6 +284,12 @@ export default async function ContractorDetailPage({ params }: { params: Promise
             ))}
           </ul>
         </section>
+      )}
+
+      {c.profile_id && (
+        <div className="mt-4">
+          <ContractorLogin id={c.id} email={email} />
+        </div>
       )}
 
       <div className="mt-6">

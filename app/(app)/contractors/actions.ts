@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { loadMessaging } from "@/lib/messaging/load";
 import { buildPlainEmailHtml, sendEmail } from "@/lib/messaging/send";
 import { reportError } from "@/lib/monitoring/report";
+import { createServiceClient } from "@/lib/supabase/service";
+import { PASSWORD_MIN, sendPasswordResetLink, setPasswordForUser } from "@/lib/auth/adminPassword";
 
 /**
  * Tom, 18 Sep 2026: "send an invitation link to them when registering on the
@@ -128,4 +130,53 @@ export async function deleteContractorAction(raw: unknown): Promise<DeleteContra
   if (what === "preapprovals") return { ok: false, message: `They have ${detail} spending request${detail === "1" ? "" : "s"} on file. ${keep}` };
   if (what === "timesheets") return { ok: false, message: `They have ${detail} clocked day${detail === "1" ? "" : "s"} on file, which payroll needs. ${keep}` };
   return { ok: false, message: DELETE_WORDING[s.replace("error:", "")] ?? "Couldn't remove them just now." };
+}
+
+// ---- Tom, 24 Sep: a painter's password, by hand or by reset link -----------
+
+export type LoginToolResult = { ok: true; message: string } | { ok: false; message: string };
+
+/**
+ * The painter behind a contractors row, read through the CALLER's session:
+ * the table is staff-RLS, so a non-staff caller simply finds no row and gets
+ * the refusal. Only then does the service client touch auth.
+ */
+async function painterLogin(contractorId: string): Promise<{ ok: true; svc: NonNullable<ReturnType<typeof createServiceClient>>; userId: string; email: string; name: string } | { ok: false; message: string }> {
+  if (!uuid.safeParse(contractorId).success) return { ok: false, message: "Couldn't find that painter." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Sign in again." };
+  const { data: me, error: meError } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (meError) return { ok: false, message: "Couldn't check who you are — try again." };
+  if (me?.role !== "staff") return { ok: false, message: "You don't have permission to do that." };
+  const { data: row, error } = await supabase.from("contractors").select("profile_id, profiles ( name )").eq("id", contractorId).maybeSingle();
+  if (error) { reportError(error, { where: "painterLogin.read", extra: { contractorId } }); return { ok: false, message: "Couldn't read that painter — try again." }; }
+  const c = row as { profile_id: string | null; profiles: { name: string | null } | null } | null;
+  if (!c) return { ok: false, message: "Couldn't find that painter." };
+  if (!c.profile_id) return { ok: false, message: "They haven't joined yet — there is no login to change. Send them the invite link instead." };
+  const svc = createServiceClient();
+  if (!svc) return { ok: false, message: "This server can't manage logins (no service key)." };
+  const { data: u, error: uError } = await svc.auth.admin.getUserById(c.profile_id);
+  if (uError || !u.user) return { ok: false, message: "Their login isn't on the system any more." };
+  return { ok: true, svc, userId: c.profile_id, email: u.user.email ?? "", name: c.profiles?.name ?? "" };
+}
+
+/** The office types a new password for a painter and tells them by phone. */
+export async function setContractorPasswordAction(raw: unknown): Promise<LoginToolResult> {
+  const parsed = z.object({ id: z.string().uuid(), password: z.string().min(PASSWORD_MIN).max(200) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: `The password needs at least ${PASSWORD_MIN} characters.` };
+  const t = await painterLogin(parsed.data.id);
+  if (!t.ok) return t;
+  const r = await setPasswordForUser(t.svc, t.userId, parsed.data.password);
+  if (!r.ok) return r;
+  return { ok: true, message: `Password changed${t.email ? ` for ${t.email}` : ""}. They sign in at /login with it — tell them by phone, not by text.` };
+}
+
+/** Email the painter a link that lands on /reset-password. */
+export async function sendContractorResetLinkAction(raw: unknown): Promise<LoginToolResult> {
+  const parsed = z.object({ id: z.string().uuid() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't find that painter." };
+  const t = await painterLogin(parsed.data.id);
+  if (!t.ok) return t;
+  return sendPasswordResetLink({ email: t.email, firstName: t.name });
 }
