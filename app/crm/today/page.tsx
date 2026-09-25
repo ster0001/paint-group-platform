@@ -39,6 +39,7 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   hours_to_confirm: "Hours to confirm",
   employee_reassign: "Reassign",
   employee_unaccepted: "Not accepted", leave_request: "Time off", timesheet_approval: "Timesheets",
+  job_checkin: "Check-in", job_followup: "Follow-up",
 };
 
 const GROUP_ICON: Record<Exclude<FilterGroup, "all">, string> = {

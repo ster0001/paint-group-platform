@@ -11,7 +11,8 @@ import {
 } from "@/lib/wizard/policy";
 import { sortQueue } from "@/lib/wizard/confirmation";
 import { DEFAULT_TURNAROUND_SETTING, isOverdue, turnaroundFromSettings, type TurnaroundSetting } from "@/lib/wizard/confirmation-actions";
-import { addBusinessHours, nextBusinessMorning } from "@/lib/time/businessHours";
+import { addBusinessHours, melbourneInstant, nextBusinessMorning } from "@/lib/time/businessHours";
+import { customerCheckins, dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
 import { melbourneDayStartUtc } from "@/lib/workorder/console";
 
 /**
@@ -86,6 +87,14 @@ export const WORK_ITEM_KINDS = [
   "leave_request",
   /** S7: clocked days waiting on the office for more than a day. */
   "timesheet_approval",
+  /**
+   * Tom, 25 Sep 2026: ring the customer part-way through a job — half way on
+   * a 3–6 day job, 35% and 70% on a longer one. High importance: a customer
+   * mid-job with a question nobody asked for is how a review goes wrong.
+   */
+  "job_checkin",
+  /** Tom, 25 Sep 2026: a 1–2 day job is done — ring and check they are happy. */
+  "job_followup",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -161,6 +170,8 @@ const CUSTOMER_VISIBLE: ReadonlySet<WorkItemKind> = new Set([
   "wizard_ready",
   "wizard_help",
   "photo_review",
+  "job_checkin",
+  "job_followup",
 ]);
 
 export function isCustomerVisible(kind: WorkItemKind): boolean {
@@ -207,6 +218,10 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   leave_request: 12,
   // Payroll waits on this, but a day, not an hour.
   timesheet_approval: 10,
+  // Tom, 25 Sep: mid-job check-ins are HIGH importance — top of the customer band.
+  job_checkin: 30,
+  // A courtesy call after a short job; ranks with the other follow-ups.
+  job_followup: 14,
 };
 
 export type PriorityInput = {
@@ -300,7 +315,88 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   employee_unaccepted: "followups",
   leave_request: "approvals",
   timesheet_approval: "approvals",
+  job_checkin: "followups",
+  job_followup: "followups",
 };
+
+// ---- source: customer check-ins on a running job (Tom, 25 Sep 2026) ----------
+
+export type JobCheckinRow = {
+  id: string; wo_ref: string; stage: string; start_date: string | null; end_date: string | null;
+  wo_snapshot: { jobTitle?: string | null; jobAddress?: string | null } | null;
+  estimates: { account_id: string | null; accepted_name: string | null; title: string | null } | null;
+  contractors: { company_name: string | null; works_saturday: boolean | null; works_sunday: boolean | null; profiles: { name: string | null } | null } | null;
+};
+
+const MELB_DAY_KEY = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" });
+const melbInstant = (date: string, hour: number, minute = 0) => {
+  const [y, m, d] = date.split("-").map(Number);
+  return melbourneInstant(y, m, d, hour, minute);
+};
+
+/**
+ * The office's check-ins with the customer, derived from the booking and the
+ * stage — never stored (the one-work-queue rule). The moments come from
+ * lib/workorder/jobRhythm.ts, the same planner the painter's reminder texts
+ * use, so "half way" means the same day to both.
+ *
+ *   · mid-job (3+ day jobs): listed from the morning of that day while the
+ *     job is under way; due by 5 pm; gone when the job closes or the office
+ *     dismisses it from the queue;
+ *   · after a 1–2 day job: due the next business morning after the last
+ *     booked day, once the job has passed that day; kept for ten days.
+ */
+export function buildJobCheckinItems(rows: readonly JobCheckinRow[], now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  const today = MELB_DAY_KEY.format(now);
+  for (const w of rows) {
+    if (w.stage === "offered") continue;
+    const days = jobDays(w.start_date, w.end_date, {
+      worksSaturday: Boolean(w.contractors?.works_saturday), worksSunday: Boolean(w.contractors?.works_sunday),
+    });
+    if (days.length === 0) continue;
+    const customer = w.estimates?.accepted_name?.trim() || w.estimates?.title?.trim() || "The customer";
+    const where = w.wo_snapshot?.jobAddress || w.wo_snapshot?.jobTitle || w.wo_ref;
+    const painter = w.contractors?.profiles?.name || w.contractors?.company_name || null;
+    const href = `/pc/wo/${w.id}`;
+    for (const c of customerCheckins(days)) {
+      if (c.kind === "mid") {
+        if (w.stage === "closed") continue;
+        if (today < c.date) continue;               // not yet that day
+        if (c.date < days[0]) continue;
+        const dueAt = melbInstant(c.date, 17).toISOString();
+        items.push(finish({
+          key: itemKey("job_checkin", "work_order", w.id, c.id),
+          kind: "job_checkin",
+          accountId: w.estimates?.account_id ?? null,
+          subjectRef: { type: "work_order", id: w.id },
+          title: `${customer} — mid-job check-in (${c.pct}% through, ${dayLabel(days, c.date)})`,
+          detail: `${w.wo_ref} · ${where}${painter ? ` · ${painter} on site` : ""}. Ring them: how is it going, anything they have noticed? HIGH IMPORTANCE.`,
+          since: melbInstant(c.date, 8).toISOString(),
+          dueAt,
+          action: { label: "Ring them", href },
+        }, { valueCents: null, promisedToCustomer: false }, now));
+      } else {
+        // After the job: once its last booked day has passed (or it closed).
+        if (w.stage !== "closed" && today <= c.date) continue;
+        const due = nextBusinessMorning(melbInstant(c.date, 17));
+        if (now.getTime() - due.getTime() > 10 * 86_400_000) continue;   // ten days, then it is history
+        items.push(finish({
+          key: itemKey("job_followup", "work_order", w.id, c.id),
+          kind: "job_followup",
+          accountId: w.estimates?.account_id ?? null,
+          subjectRef: { type: "work_order", id: w.id },
+          title: `${customer} — job done, check they are happy`,
+          detail: `${w.wo_ref} · ${where} · a ${days.length}-day job${painter ? ` by ${painter}` : ""}. A quick call: happy with everything, anything to put right?`,
+          since: melbInstant(c.date, 17).toISOString(),
+          dueAt: due.toISOString(),
+          action: { label: "Ring them", href },
+        }, { valueCents: null, promisedToCustomer: false }, now));
+      }
+    }
+  }
+  return items;
+}
 
 // ---- source: employee_reassign (employed painters S3, ruling 11) ------------
 
@@ -1505,6 +1601,16 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   ]);
   const leaveRows = (leaveRes.error ? [] : (leaveRes.data ?? [])) as LeaveRequestRow[];
   const tsRows = (tsRes.error ? [] : (tsRes.data ?? [])) as TimesheetPendingRow[];
+  // Tom, 25 Sep: customer check-ins on running jobs, and the after-job call on
+  // short ones. Booked jobs whose last day is within the last fortnight.
+  const checkinRes = await supabase.from("work_orders")
+    .select("id, wo_ref, stage, start_date, end_date, wo_snapshot, estimates(account_id, accepted_name, title), contractors(company_name, works_saturday, works_sunday, profiles(name))")
+    .not("start_date", "is", null).not("end_date", "is", null).neq("stage", "offered")
+    .gte("end_date", new Date(now.getTime() - 14 * 86_400_000).toISOString().slice(0, 10))
+    .lte("start_date", now.toISOString().slice(0, 10))
+    .order("start_date", { ascending: true }).limit(300);
+  if (checkinRes.error) truncated.push("job_checkins: read failed");
+  const checkinRows = (checkinRes.error ? [] : (checkinRes.data ?? [])) as unknown as JobCheckinRow[];
   const flagPainterIds = [...new Set([
     ...flagRows.map((f) => f.meta?.contractor_id),
     ...activeRows.filter((a) => !a.accepted_at).map((a) => a.contractor_id),
@@ -1640,6 +1746,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildEmployeeUnacceptedItems(activeRows, painterNames, now),
     ...buildLeaveRequestItems(leaveRows, painterNames, now),
     ...buildTimesheetApprovalItems(tsRows, painterNames, now),
+    ...buildJobCheckinItems(checkinRows, now),
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),

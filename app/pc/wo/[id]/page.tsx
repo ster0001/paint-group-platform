@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/monitoring/report";
 import { STAGE_LANES, stageTitle, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
-import { photoScopeFor, progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
+import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
 import { staffSignsOff as staffSignsOffFor, supersededQaIds } from "@/lib/workorder/qa";
 import PhotosOptionalToggle from "./PhotosOptionalToggle";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
@@ -307,9 +307,6 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   // Tom, 24 Sep: a job that went through a quality check is the office's to
   // sign off — derived from the checks, same rule as wo_staff_signs_off.
   const staffSignsOff = staffSignsOffFor(qaChecks);
-  // One before + one finished photo on a short job (Tom, 24 Sep) — the same
-  // arithmetic wo_photo_scope runs, so the prompt and the gate agree.
-  const photoScope = photoScopeFor(row.start_date, row.end_date);
 
   const forPhase = (phase: string) => checklist.filter((c) => c.phase === phase);
   const outstanding = (phase: string) =>
@@ -470,7 +467,6 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               surfaces.map((s) => [s.heading, s.heading_meta]).filter(([, m]) => m),
             )}
             surface="console"
-            photoScope={photoScope}
             canWaivePhotos
           />
         ) : (

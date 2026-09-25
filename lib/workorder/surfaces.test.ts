@@ -217,11 +217,10 @@ describe("asking for the after photo", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Photo rules (Tom, 24 Sep 2026): "photos not required" lines, and one
-// before + one finished shot for a short job. Twins of wo_tick_surface's
-// arithmetic in migration 20270198.
+// Photo rules (Tom, 24 Sep 2026): "photos not required" lines. The twin of
+// wo_tick_surface's arithmetic (20270198, per-area again since 20270200).
 // ---------------------------------------------------------------------------
-import { photoRows, photoScopeFor, tickNeedsAfterPhoto, tickNeedsBeforePhoto } from "./surfaces";
+import { photoRows, tickNeedsAfterPhoto, tickNeedsBeforePhoto } from "./surfaces";
 
 describe("photos not required on a line", () => {
   const fuel: SurfaceRow = { id: "f", heading: "Allowances", label: "Fuel allowance", state: "todo", photosOptional: true };
@@ -249,34 +248,5 @@ describe("photos not required on a line", () => {
     // The heading-level prompt reads the same way.
     expect(needsAfterPhoto("Front", [{ ...walls, state: "done" }, trims], [])).toBe(true);
     expect(needsAfterPhoto("Front", [{ ...walls, state: "done" }, trims], ["Front"])).toBe(false);
-  });
-});
-
-describe("one before and one finished photo on a short job", () => {
-  it("three booked days or fewer counts photos for the job; longer per area", () => {
-    expect(photoScopeFor("2026-09-28", "2026-09-30")).toBe("job");
-    expect(photoScopeFor("2026-09-28", "2026-09-28")).toBe("job");
-    expect(photoScopeFor("2026-09-28", "2026-10-01")).toBe("area");
-    expect(photoScopeFor("2026-09-28", "2026-10-01", 4)).toBe("job");
-  });
-
-  it("an unbooked job keeps the per-area rule — nothing is guessed", () => {
-    expect(photoScopeFor(null, "2026-09-30")).toBe("area");
-    expect(photoScopeFor("2026-09-28", null)).toBe("area");
-  });
-
-  it("one before shot anywhere covers every heading; none covers none", () => {
-    const list = rows([["Front", "Walls", "todo"], ["Left", "Eaves", "todo"]]);
-    expect(needsBeforePhoto("Left", list, ["Front"], "job")).toBe(false);
-    expect(needsBeforePhoto("Left", list, ["Front"], "area")).toBe(true);
-    expect(needsBeforePhoto("Left", list, [], "job")).toBe(true);
-  });
-
-  it("one finished shot anywhere covers every heading's completing tick", () => {
-    const list = rows([["Front", "Walls", "done"], ["Left", "Eaves", "prepped"]]);
-    const eaves = list[1];
-    expect(tickNeedsAfterPhoto(eaves, list, ["Front"], "job")).toBe(false);
-    expect(tickNeedsAfterPhoto(eaves, list, ["Front"], "area")).toBe(true);
-    expect(needsAfterPhoto("Front", list, ["Left"], "job")).toBe(false);
   });
 });

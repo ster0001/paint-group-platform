@@ -5,7 +5,7 @@ import { setSurfacePhotosOptionalAction, tickSurfaceAction } from "./tickAction"
 import {
   nextState, needsBeforePhoto, needsAfterPhoto, progressByHeading, progressOf,
   tickNeedsAfterPhoto, tickNeedsBeforePhoto,
-  type PhotoScope, type SurfaceRow, type SurfaceState,
+  type SurfaceRow, type SurfaceState,
 } from "@/lib/workorder/surfaces";
 
 /**
@@ -33,12 +33,6 @@ type Props = {
    */
   surface?: "portal" | "console";
   /**
-   * How photos are counted on this job (Tom, 24 Sep 2026): per area, or ONE
-   * before and ONE finished shot for a short job. Computed on the server from
-   * the booking (photoScopeFor) so the prompt and the RPC agree.
-   */
-  photoScope?: PhotoScope;
-  /**
    * Console only: the office can mark a line "photos not required" (a fuel
    * allowance, a set-up line). The RPC refuses anyone who is not staff.
    */
@@ -49,7 +43,7 @@ const LABEL: Record<SurfaceState, string> = { todo: "To do", prepped: "Prepped",
 
 export default function TickList({
   workOrderId, surfaces, headingsWithBeforePhoto, headingsWithAfterPhoto = [],
-  headingMeta, surface = "portal", photoScope = "area", canWaivePhotos = false,
+  headingMeta, surface = "portal", canWaivePhotos = false,
 }: Props) {
   const c = surface === "console" ? "pcw" : "";
   const [rows, setRows] = useState<SurfaceRow[]>(surfaces);
@@ -76,31 +70,17 @@ export default function TickList({
   const overall = progressOf(rows);
   const byHeading = progressByHeading(rows);
 
-  // A short job needs one shot of each for the whole job, so the words say so
-  // — the photo is still filed under the heading it was taken from.
-  const shortJob = photoScope === "job";
-
   function askForPhoto(heading: string) {
     pendingHeading.current = heading;
     pendingKind.current = "before";
-    setMessage({
-      text: shortJob
-        ? "Before photo of the job — one shot is enough on a short job."
-        : `Before photo of ${heading} — one shot before you start.`,
-      heading,
-    });
+    setMessage({ text: `Before photo of ${heading} — one shot before you start.`, heading });
     fileInput.current?.click();
   }
 
   function askForAfterPhoto(heading: string) {
     pendingHeading.current = heading;
     pendingKind.current = "completion";
-    setMessage({
-      text: shortJob
-        ? "Finished shot of the job — one is enough on a short job, same angle as the before if you can."
-        : `Finished shot of ${heading} — same angle as the before, if you can.`,
-      heading,
-    });
+    setMessage({ text: `Finished shot of ${heading} — same angle as the before, if you can.`, heading });
     fileInput.current?.click();
   }
 
@@ -151,10 +131,10 @@ export default function TickList({
 
       if (pendingKind.current === "completion") {
         setAfterHeadings((h) => [...h, heading]);
-        setMessage({ text: shortJob ? "Finished shot saved. Nice one." : `Finished shot saved for ${heading}. Nice one.` });
+        setMessage({ text: `Finished shot saved for ${heading}. Nice one.` });
       } else {
         setPhotoHeadings((h) => [...h, heading]);
-        setMessage({ text: shortJob ? "Before photo saved. Tick away." : `Before photo saved for ${heading}. Tick away.` });
+        setMessage({ text: `Before photo saved for ${heading}. Tick away.` });
       }
     } catch (e) {
       setMessage({ text: e instanceof Error && e.message !== "upload" ? e.message : "That photo didn't upload — check your signal and try again." });
@@ -167,8 +147,8 @@ export default function TickList({
   function tap(row: SurfaceRow) {
     const to = nextState(row.state);
     // Ask for the photo before the tap, not after the refusal. A "photos not
-    // required" line never asks; a short job is covered by one shot anywhere.
-    if (to !== "todo" && tickNeedsBeforePhoto(row, rows, photoHeadings, photoScope)) {
+    // required" line never asks.
+    if (to !== "todo" && tickNeedsBeforePhoto(row, rows, photoHeadings)) {
       askForPhoto(row.heading);
       return;
     }
@@ -176,7 +156,7 @@ export default function TickList({
     // the tap that would complete the area opens the picker instead, and the
     // tick goes through on the next tap once the photo is up. The server
     // enforces the same rule, so two phones can't race past it.
-    if (to === "done" && tickNeedsAfterPhoto(row, rows, afterHeadings, photoScope)) {
+    if (to === "done" && tickNeedsAfterPhoto(row, rows, afterHeadings)) {
       askForAfterPhoto(row.heading);
       return;
     }
@@ -224,8 +204,8 @@ export default function TickList({
 
       {headings.map((heading) => {
         const p = byHeading.get(heading);
-        const wants = needsBeforePhoto(heading, rows, photoHeadings, photoScope);
-        const wantsAfter = needsAfterPhoto(heading, rows, afterHeadings, photoScope);
+        const wants = needsBeforePhoto(heading, rows, photoHeadings);
+        const wantsAfter = needsAfterPhoto(heading, rows, afterHeadings);
         return (
           <div className="elev" key={heading}>
             <div className="eh">
@@ -242,9 +222,7 @@ export default function TickList({
                 disabled={uploading === heading}
                 data-testid={`photo-prompt-${heading}`}
               >
-                {uploading === heading ? "Uploading…"
-                  : shortJob ? "📷 Before photo of the job — one is enough on a short job, needed before the first tick"
-                  : `📷 Before photo of ${heading} — needed before the first tick`}
+                {uploading === heading ? "Uploading…" : `📷 Before photo of ${heading} — needed before the first tick`}
               </button>
             )}
 
@@ -259,9 +237,7 @@ export default function TickList({
                 disabled={uploading === heading}
                 data-testid={`after-photo-prompt-${heading}`}
               >
-                {uploading === heading ? "Uploading…"
-                  : shortJob ? "📷 Finished photo of the job — one is enough on a short job, needed to complete it"
-                  : `📷 Finished photo of ${heading} — needed to complete the area`}
+                {uploading === heading ? "Uploading…" : `📷 Finished photo of ${heading} — needed to complete the area`}
               </button>
             )}
 
