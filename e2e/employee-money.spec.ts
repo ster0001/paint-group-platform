@@ -193,9 +193,13 @@ test.describe("an employed painter never sees money", () => {
   test("the same session still reads the job's surfaces — the exclusion is money, not the job", async () => {
     // wo_visible_jobs (owner-rights view) still lists the job for its painter,
     // so the tick list, photos and checklists carry on working for employees.
-    const { rows, error } = await readAsEmployee(`wo_surfaces?work_order_id=eq.${fixture!.workOrderId}&select=id,label`);
+    const { rows, error } = await readAsEmployee(`wo_surfaces?work_order_id=eq.${fixture!.workOrderId}&select=id,label,heading`);
     expect(error).toBeNull();
-    expect(rows?.length).toBe(2);
+    // The two seeded surfaces, plus the tick row 20270193 adds under
+    // "Variations" for the customer_approved variation this file inserts.
+    const labels = (rows as { label: string; heading: string }[]).map((r) => r.label);
+    expect(labels).toEqual(expect.arrayContaining(["Walls", "Ceiling"]));
+    expect((rows as { heading: string }[]).filter((r) => r.heading !== "Variations")).toHaveLength(2);
     expect(findMoneyKeys(rows)).toEqual([]);
   });
 });
