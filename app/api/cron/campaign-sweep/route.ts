@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { runSweep } from "@/lib/campaigns/runSweep";
 import { releaseDueHolds } from "@/lib/automations/dispatch";
 import { runMoneySignoffSweep } from "@/lib/automations/sweeps/moneySignoff";
+import { runJobReminderSweep } from "@/lib/automations/sweeps/jobReminders";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -42,6 +43,9 @@ export async function GET(req: Request) {
     // 22:00–04:59 Melbourne night window — the same word the wo-sweep uses.
     // Nothing else is forced: an offer still has to be live and its rung due.
     const reminders = await runMoneySignoffSweep(db, now, { ignoreOfferWindow: params.get("force") === "1" });
+    // Tom, 25 Sep: the painter's "update your work order" texts — day 1,
+    // mid-job and last-day moments by job length (lib/workorder/jobRhythm.ts).
+    const jobReminders = await runJobReminderSweep(db, now);
     // Session 1: automatic job messages held for quiet hours or the daily
     // cap are released here — every 30 minutes, so a held text goes at the
     // opening, not at the next daily sweep. Only messages the office already
@@ -53,6 +57,7 @@ export async function GET(req: Request) {
       outcomes,
       released,
       reminders,
+      jobReminders,
       note: "Campaign steps are queued only. Held automatic messages whose time has come are sent.",
     });
   } catch (e) {

@@ -100,6 +100,8 @@ export type MessagingSettings = {
   offerEmailIntro: string;
   /** Painter (Session 4): the offer is still waiting — 12 h and 20 h after it went out. */
   offerReminderSms: string;
+  /** Painter (Tom, 25 Sep 2026): update your work order — day 1, mid-job and last-day texts. */
+  contractorJobUpdateSms: string;
   /** Employee (employed-painters S2): a job is assigned — open it and tap Accept. */
   assignmentSms: string;
   assignmentEmailSubject: string;
@@ -266,6 +268,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}} has offered you a job ({{wo_ref}}). The offer holds for 24 hours — " +
     "sign in to your portal to see the dates, the price and the job sheet, and give your answer.",
   offerReminderSms: "Job offer at {{suburb}} ({{start_date}}) is still waiting and expires at {{expiry_time}}. Accept or decline: {{link}}",
+  contractorJobUpdateSms: "{{company_name}}: {{wo_ref}} at {{suburb}}, {{day_label}} — please update your work order: tick what's done and add today's photos. {{link}}",
   assignmentSms:
     "{{company_name}}: you're on {{wo_ref}} from {{start_date}} ({{address}}). Open your work order and tap Accept: {{link}}",
   assignmentEmailSubject: "You're on a job — {{wo_ref}}, from {{start_date}}",
@@ -387,6 +390,9 @@ export type TemplateVars = {
   visit_when?: string;
   // Automations (3 Sep) — each template documents which of these it uses.
   wo_ref?: string;
+  /** Painter texts: the job's suburb (never the full address in a reminder) and "day 3 of 5". */
+  suburb?: string;
+  day_label?: string;
   action?: string;
   customer_name?: string;
   painter_first_name?: string;

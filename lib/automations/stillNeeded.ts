@@ -53,6 +53,14 @@ CHECKERS.signoff_reminder = async (db, hold) => {
   const { data } = await db.from("wo_signoff").select("signed_at").eq("work_order_id", hold.work_order_id).maybeSingle();
   return (data as { signed_at: string | null } | null)?.signed_at ? { ok: false, reason: "Signed off." } : { ok: true };
 };
+// Tom, 25 Sep: an "update your work order" text held for approval is moot once the job has moved on.
+CHECKERS.contractor_job_update_reminder = async (db, hold) => {
+  if (!hold.work_order_id) return { ok: true };
+  const { data, error } = await db.from("work_orders").select("stage").eq("id", hold.work_order_id).maybeSingle();
+  if (error) throw error;   // a checker that throws is "still needed" — a hiccup never loses a message
+  const s = (data as { stage?: string } | null)?.stage;
+  return s && ["pre_start", "in_progress", "completion_prep"].includes(s) ? { ok: true } : { ok: false, reason: `The job is at ${s ?? "gone"}.` };
+};
 CHECKERS.contractor_invoice_prompt = async (db, hold) => {
   if (!hold.work_order_id) return { ok: true };
   const { data } = await db.from("contractor_invoices").select("status").eq("work_order_id", hold.work_order_id).eq("auto_draft_source", "signoff").limit(1).maybeSingle();

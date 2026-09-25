@@ -24,7 +24,7 @@ import WalkthroughStart from "./WalkthroughStart";
 import WalkthroughBar from "./WalkthroughBar";
 import CrewShare from "./CrewShare";
 import SitePhotos from "./SitePhotos";
-import { photoScopeFor, type SurfaceRow } from "@/lib/workorder/surfaces";
+import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import { qaAllClear, staffSignsOff as staffSignsOffFor } from "@/lib/workorder/qa";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
@@ -274,9 +274,6 @@ export default async function PortalJobPage({
   const surfaces: SurfaceRow[] = ((surfaceRows as
     { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean; photos_optional?: boolean | null }[] | null) ?? [])
     .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope, photosOptional: Boolean(r.photos_optional) }));
-  // One before + one finished photo on a short job (Tom, 24 Sep 2026) — the
-  // same arithmetic wo_photo_scope runs, so the prompt and the gate agree.
-  const photoScope = photoScopeFor(woBooking.startDate, woBooking.endDate);
 
   const headingMeta: Record<string, string> = {};
   for (const r of (surfaceRows as { heading: string; heading_meta: string }[] | null) ?? []) {
@@ -515,7 +512,6 @@ export default async function PortalJobPage({
             workOrderId={id}
             surfaces={surfaces}
             headingsWithBeforePhoto={headingsWithBeforePhoto}
-            photoScope={photoScope}
             headingsWithAfterPhoto={headingsWithAfterPhoto}
             headingMeta={headingMeta}
           />

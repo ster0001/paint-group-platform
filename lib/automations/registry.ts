@@ -97,6 +97,7 @@ const P = {
   expenseDecided: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{wo_ref}}", "{{decision}}", "{{reason_line}}"],
   leaveDecided: ["{{first_name}}", "{{company_name}}", "{{kind_word}}", "{{dates}}", "{{decision}}", "{{reason_line}}"],
   qaFail: ["{{company_name}}", "{{wo_ref}}", "{{link}}"],
+  jobUpdate: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{day_label}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
   signed: ["{{first_name}}", "{{job_title}}", "{{signed_by}}", "{{company_name}}"],
@@ -329,6 +330,16 @@ export const AUTOMATIONS: Automation[] = [
     trigger: "An approved variation is released to the painter (automatically at signing, or by the office).",
     templates: [{ field: "variationReleasedSms", label: "Text message", kind: "sms", placeholders: P.variation }],
     guard: "Once per variation.",
+  },
+  {
+    key: "contractor_job_update_reminder", name: "Update your work order — reminders", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "job_update_reminder", quietExempt: true, capExempt: true,
+    trigger: "A booked job is under way. Day 1 at 7:30 am, then by job length: 1–2 days — day 2 at 3:30 pm; 3–6 days — half way and the last day at 3:30 pm; 7 days or more — 30%, 60% and the last day at 3:30 pm. Every painter on the job (the contractor and any assigned crew) gets the text, asking them to tick what is done and add the day's photos.",
+    templates: [
+      { field: "contractorJobUpdateSms", label: "Text message", kind: "sms", placeholders: P.jobUpdate },
+    ],
+    guard: "Each moment once per job; stops once the job reaches its quality check, walkthrough or close. The days are the painter's booked working days (weekends only if they work them).",
+    note: "7:30 am is before the office's sending hours, so this text is exempt from quiet hours by design.",
   },
   {
     key: "contractor_qa_fail", name: "Quality check — put right", audience: "painter", channels: ["sms"], kind: "automatic",

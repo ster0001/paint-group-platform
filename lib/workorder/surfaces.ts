@@ -126,33 +126,12 @@ export type SurfaceRow = {
   photosOptional?: boolean;
 };
 
-/**
- * How photos are counted on a job (Tom, 24 Sep 2026): one before and one
- * finished shot PER AREA as standard, or ONE of each for the WHOLE JOB when the
- * booking is short. The TS twin of `wo_photo_scope` (20270198): the booked span
- * in calendar days against Settings → photoMinimums.shortJobDays (default 3).
- */
-export type PhotoScope = "area" | "job";
-
-export function photoScopeFor(
-  startDate: string | null | undefined,
-  endDate: string | null | undefined,
-  shortJobDays = 3,
-): PhotoScope {
-  if (!startDate || !endDate) return "area";
-  const days = Math.round((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86_400_000) + 1;
-  return Number.isFinite(days) && days >= 1 && days <= shortJobDays ? "job" : "area";
-}
-
 /** The rows on a heading that photos are counted over — "photos not required" rows are out. */
 export function photoRows(surfaces: readonly SurfaceRow[], heading: string): SurfaceRow[] {
   return surfaces.filter((s) => s.heading === heading && !s.photosOptional);
 }
 
-/** Whether a heading's before/finished photo is already on record under the scope. */
-function photoCovered(heading: string, headingsWithPhoto: readonly string[], scope: PhotoScope): boolean {
-  return scope === "job" ? headingsWithPhoto.length > 0 : headingsWithPhoto.includes(heading);
-}
+
 
 export type Progress = { done: number; total: number; pct: number };
 
@@ -191,13 +170,12 @@ export function needsBeforePhoto(
   heading: string,
   surfaces: readonly SurfaceRow[],
   headingsWithBeforePhoto: readonly string[],
-  scope: PhotoScope = "area",
 ): boolean {
   // Only the rows photos are counted over: a heading of "photos not required"
   // lines asks for nothing at all.
   const mine = photoRows(surfaces, heading);
   if (mine.length === 0) return false;
-  if (photoCovered(heading, headingsWithBeforePhoto, scope)) return false;
+  if (headingsWithBeforePhoto.includes(heading)) return false;
   // The gate is on the FIRST tick of an elevation: once anything there has moved
   // off todo, the photo requirement has already been met (or waived by staff).
   return mine.every((s) => s.state === "todo");
@@ -208,10 +186,9 @@ export function tickNeedsBeforePhoto(
   row: SurfaceRow,
   surfaces: readonly SurfaceRow[],
   headingsWithBeforePhoto: readonly string[],
-  scope: PhotoScope = "area",
 ): boolean {
   if (row.photosOptional) return false;
-  return needsBeforePhoto(row.heading, surfaces, headingsWithBeforePhoto, scope);
+  return needsBeforePhoto(row.heading, surfaces, headingsWithBeforePhoto);
 }
 
 /**
@@ -230,14 +207,13 @@ export function needsAfterPhoto(
   heading: string,
   surfaces: readonly SurfaceRow[],
   headingsWithAfterPhoto: readonly string[],
-  scope: PhotoScope = "area",
 ): boolean {
   // Struck-from-scope rows don't count — an elevation whose only unticked rows
   // were removed by a signed credit IS finished (same rule as progressOf).
   // Nor do "photos not required" rows: the shot pairs with the work, not the allowance.
   const mine = photoRows(surfaces, heading).filter((s) => !s.removed);
   if (mine.length === 0) return false;
-  if (photoCovered(heading, headingsWithAfterPhoto, scope)) return false;
+  if (headingsWithAfterPhoto.includes(heading)) return false;
   return mine.every((s) => s.state === "done");
 }
 
@@ -250,10 +226,9 @@ export function tickNeedsAfterPhoto(
   row: SurfaceRow,
   surfaces: readonly SurfaceRow[],
   headingsWithAfterPhoto: readonly string[],
-  scope: PhotoScope = "area",
 ): boolean {
   if (row.photosOptional || row.removed) return false;
-  if (photoCovered(row.heading, headingsWithAfterPhoto, scope)) return false;
+  if (headingsWithAfterPhoto.includes(row.heading)) return false;
   const others = photoRows(surfaces, row.heading).filter((s) => !s.removed && s.id !== row.id);
   return others.every((s) => s.state === "done");
 }

@@ -7,7 +7,6 @@ import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "@/app/portal/jobs/[id]/Variations";
 import PrepChecklist, { type PrepItem } from "@/app/portal/jobs/[id]/PrepChecklist";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
-import { photoScopeFor } from "@/lib/workorder/surfaces";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 import { reportError } from "@/lib/monitoring/report";
 import { scopeChangesFrom } from "@/lib/workorder/scopeChanges";
@@ -138,7 +137,6 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
             id: s.id, heading: s.heading, label: s.label, state: s.state, rectification: s.rectification,
             photosOptional: Boolean(s.photos_optional),
           }))}
-          photoScope={photoScopeFor(row.start_date, row.end_date)}
           headingsWithBeforePhoto={[...new Set(
             ((photoRows as { area: string; kind: string }[] | null) ?? [])
               .filter((p) => p.kind === "before").map((p) => p.area).filter(Boolean),

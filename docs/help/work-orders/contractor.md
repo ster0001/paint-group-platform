@@ -25,13 +25,14 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
    ![](media/contractor-01.png)
 
 ### Ticking surfaces off
+1b. While the job is under way you get a text asking you to update your work order — tick what is done and add the day's photos — on day 1 at 7:30 am, then part-way through and on the last day at 3:30 pm (how many depends on the job's length). The link opens this page.
 2. **Scope & ticks** lists every area on the job sheet and its surfaces. Each row has three squares: to do, prepped, done. Tap a row once to mark it **PREPPED**, again to mark it **DONE**. The count at the top tracks the whole job.
    ![](media/contractor-02.png)
-3. **Before you can tick anything in an area, that area needs a before photo.** If you tap a row first, the list tells you: "Before photo of Front — one shot before you start." Tap the amber **Before photo of … — needed before the first tick** button, take the shot, and the message changes to "Before photo saved… Tick away." Two exceptions: a row marked **No photos** by the office (a fuel allowance, a set-up line) ticks without any photo and does not count towards the area's photos; and on a job booked for three days or fewer the prompt reads **Before photo of the job — one is enough on a short job**, and that one shot covers every area.
+3. **Before you can tick anything in an area, that area needs a before photo.** If you tap a row first, the list tells you: "Before photo of Front — one shot before you start." Tap the amber **Before photo of … — needed before the first tick** button, take the shot, and the message changes to "Before photo saved… Tick away." One exception: a row marked **No photos** by the office (a fuel allowance, a set-up line) ticks without any photo and does not count towards the area's photos.
    ![](media/contractor-03.png)
 4. Now tick. The row turns cyan **PREPPED** on the first tap and green **DONE** on the second.
    ![](media/contractor-04.png)
-5. When you are about to tick the last surface in an area as done, the list asks for a **finished shot** of that area from the same angle as the before. Take it, then tick. Every area ends up with a before and an after — except on a short job (three booked days or fewer), where one finished shot covers the whole job, and rows marked **No photos**, which never ask.
+5. When you are about to tick the last surface in an area as done, the list asks for a **finished shot** of that area from the same angle as the before. Take it, then tick. Every area ends up with a before and an after; rows marked **No photos** never ask.
 
 ### Photos and notes from site
 6. **Photos & notes** is for anything else: progress or finished photos not tied to a tick, and a short note for the office. A note is for information that is not a variation, for example something you noticed that is not part of the job.
