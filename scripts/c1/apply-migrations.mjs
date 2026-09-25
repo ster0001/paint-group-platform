@@ -65,6 +65,9 @@ await client.connect();
 
 await client.query(`create table if not exists public._c1_migrations (
   filename text primary key, applied_at timestamptz not null default now())`);
+// The ledger is a bookkeeping table for this runner only; RLS on (no policies) keeps it
+// service-role-only and off the Security Advisor's "RLS disabled" error list.
+await client.query("alter table public._c1_migrations enable row level security");
 
 const { rows: done } = await client.query("select filename from public._c1_migrations");
 const applied = new Set(done.map((r) => r.filename));
