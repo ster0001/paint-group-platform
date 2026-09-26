@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { reportError } from "@/lib/monitoring/report";
+import { isVideoPath } from "@/lib/workorder/photos";
 
 /**
  * 3a-4 · Portal photo serving, per the volume laws (§10.3): the timeline
@@ -16,6 +17,8 @@ export type PortalPhoto = {
   caption: string;
   thumbUrl: string;
   fullUrl: string;
+  /** A video (Tom, 26 Sep 2026) is signed as-is — the image transform has nothing to resize. */
+  media: "image" | "video";
 };
 
 export type PortalPhotoRow = {
@@ -42,13 +45,17 @@ export async function signPortalPhotos(
   await Promise.all(
     rows.filter((r) => r.storage_path).map(async (r) => {
       try {
-        const thumb = await bucket.createSignedUrl(r.storage_path, TTL_SECONDS, { transform: { width: THUMB_WIDTH } });
+        const video = isVideoPath(r.storage_path);
+        const thumb = video
+          ? await bucket.createSignedUrl(r.storage_path, TTL_SECONDS)
+          : await bucket.createSignedUrl(r.storage_path, TTL_SECONDS, { transform: { width: THUMB_WIDTH } });
         const thumbUrl = thumb.data?.signedUrl;
         if (!thumbUrl) return;
         out.set(r.id, {
           id: r.id, kind: r.kind, area: r.area, caption: r.caption,
           thumbUrl,
           fullUrl: `/account/photo/${r.id}`,
+          media: video ? "video" : "image",
         });
       } catch (err) {
         reportError(err, { where: "portal.photos.sign", bestEffort: true });
@@ -60,7 +67,8 @@ export async function signPortalPhotos(
 
 /** The large rendition for the on-demand route. */
 export async function signFullPhoto(svc: SupabaseClient, storagePath: string): Promise<string | null> {
-  const { data } = await svc.storage.from("wo-photos")
-    .createSignedUrl(storagePath, TTL_SECONDS, { transform: { width: FULL_WIDTH } });
+  const { data } = isVideoPath(storagePath)
+    ? await svc.storage.from("wo-photos").createSignedUrl(storagePath, TTL_SECONDS)
+    : await svc.storage.from("wo-photos").createSignedUrl(storagePath, TTL_SECONDS, { transform: { width: FULL_WIDTH } });
   return data?.signedUrl ?? null;
 }

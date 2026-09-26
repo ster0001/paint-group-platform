@@ -35,14 +35,19 @@ const PNG = Buffer.from(
   "base64",
 );
 
+// A minimal MP4: an `ftyp` box with the isom brand — what the ingest sniffs
+// for (Tom, 26 Sep 2026: videos beside photos). Not playable, but a real
+// object with a video extension, which is all the grid needs to draw a tile.
+const MP4 = Buffer.from([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, 0, 0, 2, 0, 0x69, 0x73, 0x6f, 0x6d, 0x6d, 0x70, 0x34, 0x32, 0, 0, 0, 8, 0x6d, 0x64, 0x61, 0x74]);
+
 async function putPhoto(
   workOrderId: string,
   name: string,
-  row: { kind: string; area?: string; caption?: string },
+  row: { kind: string; area?: string; caption?: string; video?: boolean },
 ): Promise<string> {
-  const path = `wo/${workOrderId}/${name}.png`;
+  const path = `wo/${workOrderId}/${name}.${row.video ? "mp4" : "png"}`;
   const { error } = await db!.storage.from("wo-photos")
-    .upload(path, PNG, { contentType: "image/png", upsert: true });
+    .upload(path, row.video ? MP4 : PNG, { contentType: row.video ? "video/mp4" : "image/png", upsert: true });
   if (error) throw new Error(`fixture photo upload: ${error.message}`);
 
   const { data, error: rowErr } = await db!.from("wo_photos").insert({
@@ -79,6 +84,8 @@ test.describe("site photos and live ticks", () => {
 
     const photoId = await putPhoto(fixture.workOrderId, "variation", { kind: "variation", area: "Left" });
     await db!.from("wo_photos").update({ variation_id: variationId }).eq("id", photoId);
+    // And a progress VIDEO from the Photos & notes card (Tom, 26 Sep).
+    await putPhoto(fixture.workOrderId, "clip", { kind: "progress", area: "Front", caption: "walk-round", video: true });
 
     const { data: woRow } = await db!.from("work_orders")
       .select("share_token").eq("id", fixture.workOrderId).single();
@@ -96,6 +103,7 @@ test.describe("site photos and live ticks", () => {
       await db!.storage.from("wo-photos").remove([
         `wo/${fixture.workOrderId}/before.png`,
         `wo/${fixture.workOrderId}/variation.png`,
+        `wo/${fixture.workOrderId}/clip.mp4`,
       ]);
     }
     await destroyLoopFixture(db!, fixture);
@@ -107,10 +115,22 @@ test.describe("site photos and live ticks", () => {
 
     const gallery = page.getByTestId("site-photos");
     await expect(gallery).toBeVisible();
-    await expect(gallery.getByTestId("wo-photo")).toHaveCount(2);
+    await expect(gallery.getByTestId("wo-photo")).toHaveCount(3);
     // Grouped by kind, so the office can see what stage each photo came from.
     await expect(gallery.getByText("Before", { exact: true })).toBeVisible();
     await expect(gallery.getByText("Variation", { exact: true })).toBeVisible();
+    await expect(gallery.getByText("Progress", { exact: true })).toBeVisible();
+
+    // The video is a tile like any photo — a poster frame with a play badge —
+    // and it plays in the lightbox, streamed from storage by signed URL.
+    const clip = gallery.locator('[data-testid="wo-photo"][data-media="video"]');
+    await expect(clip).toHaveCount(1);
+    expect(await clip.locator("video").getAttribute("src")).toContain("token=");
+    await clip.click();
+    const player = page.getByTestId("lightbox-video");
+    await expect(player).toBeVisible();
+    await expect(player).toHaveAttribute("controls", "");
+    await page.getByTestId("lightbox-close").click();
 
     // The variation's own photo sits with the variation being priced.
     const card = page.getByTestId(`variation-${variationId}`);

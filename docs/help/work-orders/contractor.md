@@ -35,11 +35,11 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
 5. When you are about to tick the last surface in an area as done, the list asks for a **finished shot** of that area from the same angle as the before. Take it, then tick. Every area ends up with a before and an after; rows marked **No photos** never ask.
 
 ### Photos and notes from site
-6. **Photos & notes** is for anything else: progress or finished photos not tied to a tick, and a short note for the office. A note is for information that is not a variation, for example something you noticed that is not part of the job.
+6. **Photos & notes** is for anything else: progress or finished photos not tied to a tick, a short video where a photo does not tell the story (a walk round a room, a leak, a piece of movement), and a short note for the office. **Take a photo or video** opens your camera roll; MP4 and MOV videos up to 200 MB are fine, and they show for the office and the customer beside the photos. A note is for information that is not a variation, for example something you noticed that is not part of the job.
    ![](media/contractor-05.png)
 
 ### Found something? Raise a variation
-7. Anything not on the job sheet, rot, damage, extra scope or a customer request, goes through **Variations → + FOUND SOMETHING** before you work on it. Pick the category (Rot / substrate, Damage, Extra scope, Customer request), describe it in plain words (the office reads it to the customer), take at least one photo, and add roughly how long it would take. Tap **Send to the office**.
+7. Anything not on the job sheet, rot, damage, extra scope or a customer request, goes through **Variations → + FOUND SOMETHING** before you work on it. Pick the category (Rot / substrate, Damage, Extra scope, Customer request), describe it in plain words (the office reads it to the customer), take at least one photo or a short video, and add roughly how long it would take. Tap **Send to the office**.
    ![](media/contractor-06.png)
 8. The variation shows as **WITH THE OFFICE**. The office prices it and sends it to the customer; nothing on it is to be done until it comes back approved.
    ![](media/contractor-07.png)

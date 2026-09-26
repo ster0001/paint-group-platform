@@ -34,6 +34,44 @@ export type PageClass =
 /** 25 MB, per the brief. The bucket enforces the same number server-side. */
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
+/**
+ * Site VIDEOS (Tom, 26 Sep 2026: painters may send a video as well as a photo
+ * from the Variations and Photos & notes cards). Sniffed separately from
+ * `sniffKind` so every other upload (plans, bills, documents) keeps refusing
+ * them. MP4 / MOV are ISO-BMFF with a video brand; WebM is Matroska (EBML).
+ * A short phone clip is tens of MB; the cap is generous but finite, and the
+ * wo-photos bucket's own size limit still applies underneath.
+ */
+export type VideoKind = "mp4" | "mov" | "webm";
+export const MAX_VIDEO_UPLOAD_BYTES = 200 * 1024 * 1024;
+export const VIDEO_KIND_MIME: Record<VideoKind, string> = { mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
+export const VIDEO_EXTENSIONS: readonly string[] = ["mp4", "mov", "webm", "m4v"];
+const MP4_BRANDS = ["isom", "iso2", "iso3", "iso4", "iso5", "iso6", "mp41", "mp42", "avc1", "av01", "M4V ", "M4VP", "3gp4", "3gp5", "3gp6", "3gp7", "dash", "mmp4"];
+
+export function sniffVideoKind(bytes: Uint8Array): VideoKind | null {
+  if (bytes.length < 12) return null;
+  // Matroska / WebM: EBML header.
+  if (startsWith(bytes, [0x1a, 0x45, 0xdf, 0xa3])) return "webm";
+  // ISO-BMFF: "ftyp" at offset 4, brand at 8..12.
+  if (startsWith(bytes, [0x66, 0x74, 0x79, 0x70], 4)) {
+    const brand = String.fromCharCode(...bytes.slice(8, 12));
+    if (brand === "qt  ") return "mov";
+    if (MP4_BRANDS.includes(brand)) return "mp4";
+  }
+  return null;
+}
+
+/** The storage-path extension for a declared video type, or null for anything else. */
+export function videoExtensionFor(contentType: string | null | undefined): string | null {
+  switch ((contentType ?? "").toLowerCase()) {
+    case "video/mp4": return "mp4";
+    case "video/quicktime": return "mov";
+    case "video/webm": return "webm";
+    case "video/x-m4v": return "m4v";
+    default: return null;
+  }
+}
+
 export const KIND_MIME: Record<FileKind, string> = {
   pdf: "application/pdf",
   jpeg: "image/jpeg",

@@ -47,11 +47,24 @@ export type WOPhotoRow = {
   variation_id?: string | null;
 };
 
-/** The row as a screen wants it: a URL it can put in an `img`. */
+export type WOMedia = "image" | "video";
+
+/**
+ * A video is told apart by its storage path's extension (Tom, 26 Sep 2026):
+ * the sign step names a video object `.mp4` / `.mov` / `.webm` and the ingest
+ * refuses bytes that disagree, so the path is the record. Photo paths carry no
+ * extension at all, which is what every row before this date has.
+ */
+export function isVideoPath(storagePath: string): boolean {
+  return /\.(mp4|mov|webm|m4v)$/i.test(storagePath);
+}
+
+/** The row as a screen wants it: a URL it can put in an `img` — or a `video`. */
 export type WOPhoto = {
   id: string;
   workOrderId: string;
   url: string;
+  media: WOMedia;
   kind: WOPhotoKind;
   /** The elevation/room the photo is of — "" when it is of the job generally. */
   area: string;
@@ -91,6 +104,7 @@ export async function signPhotos(
       id: r.id,
       workOrderId: r.work_order_id ?? "",
       url,
+      media: isVideoPath(r.storage_path) ? "video" : "image",
       kind: isKind(r.kind) ? r.kind : "progress",
       area: r.area ?? "",
       caption: r.caption ?? "",

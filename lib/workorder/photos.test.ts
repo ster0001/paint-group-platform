@@ -76,7 +76,7 @@ describe("signing site photos", () => {
 
 describe("grouping", () => {
   const photo = (over: Partial<WOPhoto>): WOPhoto => ({
-    id: "x", workOrderId: "wo1", url: "u", kind: "progress", area: "", caption: "",
+    id: "x", workOrderId: "wo1", url: "u", media: "image", kind: "progress", area: "", caption: "",
     takenAt: "2026-08-22T00:14:00Z", variationId: null, ...over,
   });
 
@@ -101,7 +101,7 @@ describe("grouping", () => {
 
 describe("labels", () => {
   const p: WOPhoto = {
-    id: "x", workOrderId: "wo1", url: "u", kind: "before", area: "Front elevation",
+    id: "x", workOrderId: "wo1", url: "u", media: "image", kind: "before", area: "Front elevation",
     caption: "before start", takenAt: "2026-08-22T00:14:00Z", variationId: null,
   };
 
@@ -114,5 +114,18 @@ describe("labels", () => {
 
   it("reads as where, what, when", () => {
     expect(photoCaption(p)).toBe("Front elevation · before start · " + photoWhen(p));
+  });
+});
+
+// ---- Videos beside photos (Tom, 26 Sep 2026) -----------------------------------
+import { isVideoPath } from "./photos";
+
+describe("a video is told from a photo by its storage path", () => {
+  it("video extensions, any case; a bare photo path is an image", () => {
+    expect(isVideoPath("wo/abc/1727-deadbeef.mp4")).toBe(true);
+    expect(isVideoPath("wo/abc/1727-deadbeef.MOV")).toBe(true);
+    expect(isVideoPath("wo/abc/1727-deadbeef.webm")).toBe(true);
+    expect(isVideoPath("wo/abc/1727-deadbeef")).toBe(false);
+    expect(isVideoPath("wo/abc/1727-deadbeef.jpg")).toBe(false);
   });
 });

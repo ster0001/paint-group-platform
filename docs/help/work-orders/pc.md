@@ -43,7 +43,7 @@ Pick the area it belongs to (or leave it on **Whole job**), type what the painte
 
 This matters most on a **handover job from PaintScout**. Those come in without any of the estimator's photos, and the sheet's own photos are frozen at acceptance, so before this there was nothing to show the painter at all. On those jobs these are the only pictures of the job there are.
 
-**Remove** takes one back off the sheet. It only ever removes photos the office added: the painter's own before, progress, quality-check and completion shots are their record of the work and the button cannot touch them — they live further down under **Site photos**.
+**Remove** takes one back off the sheet. It only ever removes photos the office added: the painter's own before, progress, quality-check and completion shots are their record of the work and the button cannot touch them — they live further down under **Site photos**. A painter can send a video as well as a photo from their Variations and Photos & notes cards: it appears as a tile with a play badge and plays full-size when tapped.
 
 **Painter's view** on the job page shows the sheet exactly as the painter has it, photos included — check there rather than the builder's job-sheet tab, which is the office's copy.
 
