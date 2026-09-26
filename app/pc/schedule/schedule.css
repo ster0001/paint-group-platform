@@ -184,7 +184,13 @@
 .sb .cinfo .bd .q { color: var(--emerald); border-color: rgba(47, 164, 107, 0.4); }
 .sb .cinfo .bd .no { color: var(--clay); border-color: rgba(179, 87, 74, 0.4); }
 
-.sb .lane { position: relative; display: grid; grid-template-columns: repeat(var(--days), var(--day-w)); }
+/* Tom, 26 Sep: the console's own `.pc .lane` (a flex column, 9px gap — the
+   Projects lanes) leaks onto the board's lanes, which share the class name.
+   The gap widened every day cell to 73px against 64px header columns, so the
+   highlighted day drifted a column to the right across a week and the drop
+   pop-up named a date the header disagreed with. Pin the gap and span the day
+   columns explicitly. */
+.pc .sb .lane, .sb .lane { position: relative; display: grid; grid-template-columns: repeat(var(--days), var(--day-w)); gap: 0; grid-column: 2 / -1; }
 .sb .lane .bgc { position: relative; border-right: 1px solid rgba(36, 43, 50, 0.35); }
 /* Tom, 24 Sep: the date pop-up on the day a job is being dragged over — the
    cell says its own date, inside the row so the scroller never clips it. */

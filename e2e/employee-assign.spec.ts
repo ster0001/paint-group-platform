@@ -253,6 +253,42 @@ test.describe("employed painters — assignments", () => {
     expect((changed[0].meta.to as { start_date: string }).start_date).toBe("2026-11-04");
   });
 
+  test("a crew member's own days can be changed from their block — they need not match the lead (Tom, 26 Sep)", async ({ page }) => {
+    const charlie = employees[2];
+    const plusOne = new Date(Date.parse(`${START}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`/pc/schedule?from=${START}&days=14`);
+    await expect(page.getByTestId("lane").first()).toBeVisible({ timeout: 30_000 });
+
+    // Charlie's block, on Charlie's lane — not the lead's.
+    await page.locator(`[data-contractor-id="${charlie.contractorId}"] [data-testid="assignment-block"]`).first().click();
+    const detail = page.getByTestId("assignment-detail");
+    await expect(detail).toBeVisible();
+    const editor = detail.getByTestId("assignment-dates");
+    await expect(editor).toContainText(/need(n't| not) match the rest of the crew/);
+    await editor.getByTestId("assignment-start").fill(plusOne);
+    await editor.getByTestId("assignment-end").fill(plusOne);
+    await editor.getByTestId("assignment-dates-save").click();
+    await expect(page.locator(".sheet.open")).toHaveCount(0, { timeout: 15_000 });
+
+    // Charlie is on the second day only; the lead's days and the job's span are untouched.
+    const rows = await assignments();
+    const mine = rows.find((r) => r.contractor_id === charlie.contractorId)!;
+    expect(mine.start_date).toBe(plusOne);
+    expect(mine.end_date).toBe(plusOne);
+    expect(mine.status).toBe("assigned");
+    expect(mine.accepted_at).toBeNull();
+    const lead = rows.find((r) => r.is_lead)!;
+    expect(lead.start_date).toBe(START);
+    // The job's span is the crew's: earliest start to latest finish (an earlier
+    // test moved Bravo later, so the end is theirs).
+    const { data: wo } = await db!.from("work_orders").select("start_date, end_date").eq("id", fixture!.workOrderId).single();
+    expect((wo as { start_date: string }).start_date).toBe(rows.map((r) => r.start_date).sort()[0]);
+    expect((wo as { end_date: string }).end_date).toBe(rows.map((r) => r.end_date).sort().reverse()[0]);
+    const changed = (await events("assignment_dates_changed")).filter((e) => e.meta.assignment_id === mine.id);
+    expect(changed).toHaveLength(1);
+  });
+
   test("an overlap is refused naming the conflicting job; an override is logged", async () => {
     // Alfa is on the main job over START..START+1. Assign Alfa to the other job on the same days.
     const clash = await rpcAs(staff!, "assign_job", {
