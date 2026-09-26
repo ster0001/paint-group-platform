@@ -510,6 +510,17 @@ export default function ScheduleBoard({
   const [offerNoWalk, setOfferNoWalk] = useState(false);
   const [toast, setToast] = useState("");
   const [detail, setDetail] = useState<Block | null>(null);
+  // Tom, 26 Sep: a crew member's own days, editable — "sometimes the job
+  // doesn't require 2 painters to be on at the same time". Seeded from the
+  // block when the sheet opens; saved through reassign_dates, which re-spans
+  // the job to the crew's earliest start and latest end.
+  // Derived, not synced: the edit belongs to ONE block; another block opening
+  // starts from its own dates.
+  const [edit, setEdit] = useState<{ blockId: string; start: string; end: string } | null>(null);
+  const editStart = edit && detail && edit.blockId === detail.id ? edit.start : (detail?.start ?? "");
+  const editEnd = edit && detail && edit.blockId === detail.id ? edit.end : (detail?.end ?? "");
+  const setEditStart = (v: string) => { if (detail) setEdit({ blockId: detail.id, start: v, end: editEnd }); };
+  const setEditEnd = (v: string) => { if (detail) setEdit({ blockId: detail.id, start: editStart, end: v }); };
   // Employed painters (S2): the detail sheet's "add a painter" picker.
   const [addPainterId, setAddPainterId] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
@@ -626,6 +637,19 @@ export default function ScheduleBoard({
       overrideReason: overrideReason.trim() || null,
     });
     if (handle(r, "Days moved — they'll be asked to accept again.")) { setPendingDrop(null); setOverrideReason(""); }
+    setBusy(false);
+  }
+
+  /** Tom, 26 Sep: change ONE painter's start and end on a crew job, independently of the lead. */
+  async function saveAssignmentDates(b: Block) {
+    if (!b.assignmentId || !editStart || !editEnd || editEnd < editStart) return;
+    setBusy(true);
+    setErr("");
+    const r = await reassignDatesAction({
+      assignmentId: b.assignmentId, startDate: editStart, endDate: editEnd,
+      overrideReason: overrideReason.trim() || null,
+    });
+    if (handle(r, "Days changed — they'll be asked to accept again.")) { setDetail(null); setEdit(null); setOverrideReason(""); }
     setBusy(false);
   }
 
@@ -1497,6 +1521,26 @@ export default function ScheduleBoard({
                   <div className="frow">
                     <span className="l">Crew</span>
                     <span className="v">{crew.map((b) => `${b.isLead ? "★ " : ""}${nameOf(b.contractorId)}`).join(" · ").toUpperCase()}</span>
+                  </div>
+                  <div className="frow" style={{ display: "block", marginTop: 10 }} data-testid="assignment-dates">
+                    <span className="l" style={{ display: "block", marginBottom: 6 }}>
+                      {nameOf(detail.contractorId)}&rsquo;s days on this job{crew.length > 1 ? " — they needn't match the rest of the crew" : ""}
+                    </span>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <input type="date" value={editStart} max={editEnd || undefined} data-testid="assignment-start"
+                        onChange={(e) => e.target.value && setEditStart(e.target.value)} />
+                      <span className="l">→</span>
+                      <input type="date" value={editEnd} min={editStart || undefined} data-testid="assignment-end"
+                        onChange={(e) => e.target.value && setEditEnd(e.target.value)} />
+                      <button className="btn dim" data-testid="assignment-dates-save"
+                        disabled={busy || !editStart || !editEnd || editEnd < editStart || (editStart === detail.start && editEnd === detail.end)}
+                        onClick={() => saveAssignmentDates(detail)}>
+                        {busy ? "Saving…" : "Save days"}
+                      </button>
+                    </div>
+                    <span className="l" style={{ display: "block", marginTop: 6 }}>
+                      The job&rsquo;s span follows the crew: earliest start to latest finish. They&rsquo;re asked to accept the new days.
+                    </span>
                   </div>
                   {!detail.isLead && (
                     <button className="btn dim" disabled={busy} data-testid="make-lead"

@@ -108,6 +108,15 @@ test.describe("board: dates while dragging, start date in the sheet", () => {
     await expect(ghost).toContainText(label);
     await expect(cells.nth(cellIdx)).toHaveClass(/hot/);
     await expect(cells.nth(cellIdx)).toHaveAttribute("data-label", label);
+    // Tom, 26 Sep: the highlighted day must sit under ITS header date. The
+    // console's `.pc .lane` gap once widened every cell by 9px, so the hot cell
+    // drifted a column right of the header across a week.
+    const headerCell = page.locator(".sb .dh .cell").nth(cellIdx + 1);
+    const headerBox = await headerCell.boundingBox();
+    const hotBox = await cells.nth(cellIdx).boundingBox();
+    if (!headerBox || !hotBox) throw new Error("no header/hot box");
+    expect(Math.abs(headerBox.x - hotBox.x)).toBeLessThan(2);
+    expect(Math.abs(headerBox.width - hotBox.width)).toBeLessThan(2);
     await page.screenshot({ path: test.info().outputPath("ghost-over-cell.png") });
     await page.mouse.up();
 
