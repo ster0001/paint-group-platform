@@ -73,7 +73,9 @@ export default function Variations({
     try {
       const signRes = await fetch("/api/wo/photos", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workOrderId, size: file.size }),
+        // The declared type names a video object with its extension (the route
+        // still reads the bytes); a photo path stays bare.
+        body: JSON.stringify({ workOrderId, size: file.size, contentType: file.type || undefined }),
       });
       const sign = await signRes.json();
       if (!signRes.ok) throw new Error(sign.error ?? "upload");
@@ -92,7 +94,7 @@ export default function Variations({
       if (!ingest.ok) throw new Error(done.error ?? "upload");
       setPhotoIds((ids) => [...ids, done.id]);
     } catch (e) {
-      setMessage(e instanceof Error && e.message !== "upload" ? e.message : "That photo didn't upload — try again.");
+      setMessage(e instanceof Error && e.message !== "upload" ? e.message : `That ${file.type.startsWith("video/") ? "video" : "photo"} didn't upload — try again.`);
     } finally {
       setUploading(false);
     }
@@ -177,14 +179,14 @@ export default function Variations({
           {/* No `capture` — the OS offers camera OR photo library (Tom, 1 Sep). */}
           <input
             ref={fileInput} type="file" hidden
-            accept="image/jpeg,image/png,image/webp,image/heic"
+            accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm"
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadPhoto(f); }}
           />
           <button type="button" className="var-photo" onClick={() => fileInput.current?.click()}
             disabled={uploading} data-testid="variation-photo">
             {uploading ? "Uploading…" : photoIds.length === 0
-              ? "📷 Photos — needed before this can go to the office"
-              : `📷 ${photoIds.length} photo${photoIds.length === 1 ? "" : "s"} added — take another`}
+              ? "📷 Photos or a video — needed before this can go to the office"
+              : `📷 ${photoIds.length} added — add another photo or video`}
           </button>
 
           <label className="var-label">

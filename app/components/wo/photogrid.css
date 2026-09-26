@@ -14,7 +14,12 @@
   position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; overflow: hidden;
   border-radius: 10px; border: 1px solid rgba(140, 149, 157, 0.28); background: rgba(140, 149, 157, 0.08);
 }
-.wophoto .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wophoto .shot img, .wophoto .shot video { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A video tile: the first frame with a play badge; it plays in the lightbox. */
+.wophoto .shot .play {
+  position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7); pointer-events: none;
+}
 .wophoto:hover .shot { border-color: rgba(59, 216, 233, 0.6); }
 
 .wophoto .kind {
@@ -41,10 +46,11 @@
   background: rgba(6, 9, 13, .93); padding: 24px; overscroll-behavior: contain; touch-action: pan-y pinch-zoom;
 }
 .wolightbox figure { margin: 0; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; gap: 10px; }
-.wolightbox img {
+.wolightbox img, .wolightbox video {
   max-width: min(1400px, 96vw); max-height: 82vh; width: auto; height: auto;
   object-fit: contain; border-radius: 8px; display: block; margin: 0 auto;
 }
+.wolightbox video { background: #000; min-width: min(640px, 90vw); }
 .wolightbox figcaption {
   color: #C8CFD6; font-size: 13px; line-height: 1.5; text-align: center;
   display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;

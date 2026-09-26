@@ -123,3 +123,29 @@ test("classification always explains itself", () => {
     expect(classifyPage(text).reasons.length).toBeGreaterThan(0);
   }
 });
+
+// ---- Site videos (Tom, 26 Sep 2026) -------------------------------------------
+import { sniffVideoKind, videoExtensionFor, sniffKind as sniffImageKind } from "./normalise";
+
+const box = (brand: string) => new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, ...brand.split("").map((c) => c.charCodeAt(0)), 0, 0, 2, 0, 0x69, 0x73, 0x6f, 0x6d, 0x6d, 0x70, 0x34, 0x32]);
+
+test("MP4 and MOV are ISO-BMFF with a video brand; WebM is EBML", () => {
+  expect(sniffVideoKind(box("isom"))).toBe("mp4");
+  expect(sniffVideoKind(box("mp42"))).toBe("mp4");
+  expect(sniffVideoKind(box("qt  "))).toBe("mov");
+  expect(sniffVideoKind(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4, 5, 6, 7, 8, 9]))).toBe("webm");
+});
+
+test("a HEIC photo is not a video, and a video is not a photo — the two sniffers never overlap", () => {
+  expect(sniffVideoKind(box("heic"))).toBe(null);
+  expect(sniffImageKind(box("heic"))).toBe("heic");
+  expect(sniffImageKind(box("isom"))).toBe(null); // plan/bill uploads keep refusing video
+  expect(sniffVideoKind(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))).toBe(null);
+});
+
+test("the declared type names the object's extension; anything else stays a bare photo path", () => {
+  expect(videoExtensionFor("video/mp4")).toBe("mp4");
+  expect(videoExtensionFor("video/quicktime")).toBe("mov");
+  expect(videoExtensionFor("image/jpeg")).toBe(null);
+  expect(videoExtensionFor(undefined)).toBe(null);
+});

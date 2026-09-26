@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef } from "react";
  * shown as-is and never handed to next/image, which would cache a signature
  * that expires.
  */
-export type LightboxPhoto = { id: string; url: string; alt: string; caption: string };
+export type LightboxPhoto = { id: string; url: string; alt: string; caption: string; media?: "image" | "video" };
 
 export default function PhotoLightbox({
   photos, openAt, onClose, onNavigate,
@@ -102,8 +102,13 @@ export default function PhotoLightbox({
 
       {/* Stop the click on the image itself from closing — only the backdrop does. */}
       <figure onClick={(e) => e.stopPropagation()}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={photo.url} alt={photo.alt} data-testid="lightbox-image" />
+        {photo.media === "video" ? (
+          // Signed URL straight from storage; the browser streams it (never through the app).
+          <video src={photo.url} controls autoPlay playsInline data-testid="lightbox-video" aria-label={photo.alt} />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photo.url} alt={photo.alt} data-testid="lightbox-image" />
+        )}
         <figcaption>
           {photo.caption}
           {photos.length > 1 && <span className="count">{openAt + 1} / {photos.length}</span>}

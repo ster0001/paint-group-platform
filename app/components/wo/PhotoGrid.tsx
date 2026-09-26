@@ -40,6 +40,7 @@ export default function PhotoGrid({
   const full: LightboxPhoto[] = photos.map((p) => ({
     id: p.id,
     url: p.url,
+    media: p.media,
     alt: photoCaption(p) || "Site photo",
     caption: [p.area, p.caption, WO_PHOTO_KIND_LABEL[p.kind], photoWhen(p)].filter(Boolean).join(" · "),
   }));
@@ -54,11 +55,19 @@ export default function PhotoGrid({
           onClick={() => setOpenAt(i)}
           data-testid="wo-photo"
           data-kind={p.kind}
+          data-media={p.media}
         >
           <figure>
             <span className="shot">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.url} alt={photoCaption(p) || "Site photo"} loading="lazy" />
+              {p.media === "video" ? (
+                // A poster frame, not a player: the tile shows the first frame
+                // and a play badge; the lightbox is where it plays (Tom, 26 Sep).
+                <video src={p.url} muted playsInline preload="metadata" aria-label={photoCaption(p) || "Site video"} />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={p.url} alt={photoCaption(p) || "Site photo"} loading="lazy" />
+              )}
+              {p.media === "video" && <span className="play" aria-hidden="true">▶</span>}
               {showKind && <span className="kind">{WO_PHOTO_KIND_LABEL[p.kind]}</span>}
             </span>
             <figcaption>

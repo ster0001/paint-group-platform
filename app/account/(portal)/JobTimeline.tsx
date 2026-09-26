@@ -54,7 +54,7 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
     photoIds
       .map((id) => photosById.get(id))
       .filter((p): p is NonNullable<typeof p> => !!p)
-      .map((p) => ({ id: p.id, thumbUrl: p.thumbUrl, fullUrl: p.fullUrl, caption: p.caption, area: p.area }));
+      .map((p) => ({ id: p.id, thumbUrl: p.thumbUrl, fullUrl: p.fullUrl, caption: p.caption, area: p.area, media: p.media }));
 
   // Day headings render once per day — derived up front (render stays pure).
   const withHeadings = items.map((item, i) => ({

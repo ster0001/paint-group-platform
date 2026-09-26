@@ -27,7 +27,7 @@ const CREW_SQL = readFileSync(
 );
 
 const photo = (kind: string, area = "", caption = ""): WOPhoto => ({
-  id: `${kind}-${area}-${caption}`, workOrderId: "w1", url: "u", kind: kind as WOPhoto["kind"],
+  id: `${kind}-${area}-${caption}`, workOrderId: "w1", url: "u", media: "image", kind: kind as WOPhoto["kind"],
   area, caption, takenAt: "2026-09-23T01:00:00Z", variationId: null,
 });
 
