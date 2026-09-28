@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { isMissingRpc } from "@/lib/supabase/missingRpc";
 import { WO_STAGES } from "@/lib/workorder/stages";
 import { seedRowsFromDoc } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
@@ -135,7 +136,7 @@ export async function dismissUpdate(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ updateId: uuid, reason: z.string().max(300).default("") }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
   const r = await call("wo_dismiss_update", { p_update_id: parsed.data.updateId, p_reason: parsed.data.reason }, "Deleted — it won't be sent.");
-  if (!r.ok && /wo_dismiss_update/.test(r.message)) return { ok: false, message: "This needs database migration 20270203 run first — nothing was changed." };
+  if (!r.ok && isMissingRpc(r.message, "wo_dismiss_update")) return { ok: false, message: "This needs database migration 20270203 run first — nothing was changed." };
   if (!r.ok && r.message === "already sent") return { ok: false, message: "That update has already gone to the customer — it stays on the record." };
   if (r.ok) { revalidatePath("/pc/updates"); revalidatePath("/pc"); }
   return r;
@@ -146,7 +147,7 @@ export async function dismissUpdatesForClosedJobs(): Promise<PcResult & { count?
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("wo_dismiss_updates_for_closed_jobs");
   if (error) {
-    if (/wo_dismiss_updates_for_closed_jobs/.test(error.message)) return { ok: false, message: "This needs database migration 20270203 run first — nothing was changed." };
+    if (isMissingRpc(error.message, "wo_dismiss_updates_for_closed_jobs")) return { ok: false, message: "This needs database migration 20270203 run first — nothing was changed." };
     return { ok: false, message: error.message };
   }
   const s = String(data ?? "");
@@ -531,7 +532,7 @@ export async function setQaWaived(raw: unknown): Promise<PcResult> {
     p_work_order_id: parsed.data.workOrderId, p_waived: parsed.data.waived,
   });
   if (error) {
-    if (/wo_set_qa_waived/.test(error.message)) {
+    if (isMissingRpc(error.message, "wo_set_qa_waived")) {
       return { ok: false, message: "This needs database migration 20270197 run first — nothing was changed." };
     }
     return { ok: false, message: error.message };
@@ -562,7 +563,7 @@ export async function staffComplete(raw: unknown): Promise<PcResult> {
   const r = await call("wo_staff_complete",
     { p_work_order_id: parsed.data.workOrderId, p_note: parsed.data.note },
     "Signed off and closed — warranty started, report sent to the customer, invoice drafted.");
-  if (!r.ok && /wo_staff_complete/.test(r.message)) {
+  if (!r.ok && isMissingRpc(r.message, "wo_staff_complete")) {
     return { ok: false, message: "This needs database migration 20270197 run first — nothing was changed." };
   }
   if (!r.ok && r.message === "not quality checked") return { ok: false, message: "This job had no quality check — the customer signs it off, or record their approval manually." };
@@ -846,7 +847,7 @@ export async function setMaterial(raw: unknown): Promise<PcResult> {
     p_status: p.data.colourStatus,
     p_litres: p.data.litres,
   }, "Saved — the job sheet carries the new colour.");
-  if (!r.ok && /wo_set_material/.test(r.message)) {
+  if (!r.ok && isMissingRpc(r.message, "wo_set_material")) {
     return { ok: false, message: "Material edits need database migration 20261231 run first — nothing was changed." };
   }
   if (!r.ok && r.message === "closed") return { ok: false, message: "This job is closed — its job sheet is final." };

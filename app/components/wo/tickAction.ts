@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { isMissingRpc } from "@/lib/supabase/missingRpc";
 import { SURFACE_STATES } from "@/lib/workorder/surfaces";
 import { applyColourRecordsForTick } from "@/lib/colourRecords/transitions";
 import { draftUpdateFromTodaysTicks } from "@/lib/workorder/draftFromTicks";
@@ -98,7 +99,7 @@ export async function setSurfacePhotosOptionalAction(raw: unknown): Promise<Phot
     p_surface_id: parsed.data.surfaceId, p_optional: parsed.data.optional,
   });
   if (error) {
-    if (/wo_set_surface_photos_optional/.test(error.message)) {
+    if (isMissingRpc(error.message, "wo_set_surface_photos_optional")) {
       return { ok: false, message: "This needs database migration 20270198 run first — nothing was changed." };
     }
     return { ok: false, message: error.message };
