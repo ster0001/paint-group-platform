@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds } from "./helpers";
+import { credentials, missingCreds, signIn } from "./helpers";
 import {
   contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   rpcAs, serviceClient, type LoopFixture,
@@ -241,5 +241,68 @@ test.describe("daily updates and the silent site", () => {
     const { data: ticks } = await db!.from("wo_events")
       .select("id").eq("work_order_id", silent!.workOrderId).eq("type", "surface_tick");
     expect((ticks ?? []).length).toBeGreaterThan(0);
+  });
+});
+
+// ---- Tom, 29 Sep 2026: delete a draft that will never go ----------------------
+test.describe("deleting drafted updates", () => {
+  test.skip(!staff || !contractor, missingCreds("STAFF"));
+  test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to build the fixture job");
+  let done: LoopFixture | null = null;
+
+  test.beforeAll(async () => {
+    const cid = (await contractorIdForEmail(db!, contractor!.email))!;
+    done = await createLoopFixture(db!, cid, [{ heading: "Front", labels: ["Walls"] }]);
+  });
+  test.afterAll(async () => { await destroyLoopFixture(db!, done); });
+
+  test("a draft is deleted and logged; a sent one is refused; drafts on closed jobs clear in one press", async ({ page }) => {
+    const id = done!.workOrderId;
+    const draft = async (day: string) => {
+      const r = await rpcAs(staff!, "wo_draft_update", { p_work_order_id: id, p_for_date: day, p_text: `Draft for ${day}.`, p_tick_ids: [], p_photo_count: 0 });
+      expect(r).toMatch(/^ok:/);
+      return r.slice(3).split(":")[0];
+    };
+    const a = await draft("2026-09-20");
+    const b = await draft("2026-09-21");
+    const c = await draft("2026-09-22");
+
+    // One draft deleted by RPC: gone, and the job's log says who and why.
+    expect(await rpcAs(staff!, "wo_dismiss_update", { p_update_id: a, p_reason: "test" })).toBe("ok:dismissed");
+    const { data: gone } = await db!.from("wo_updates").select("id").eq("id", a).maybeSingle();
+    expect(gone).toBeNull();
+    const { data: ev } = await db!.from("wo_events").select("meta").eq("work_order_id", id).eq("type", "update_dismissed");
+    expect((ev ?? []).length).toBe(1);
+    // A sent one is a record — refused.
+    expect(await rpcAs(staff!, "wo_approve_update", { p_update_id: b, p_final_text: null })).toBe("ok:approved");
+    expect(await rpcAs(staff!, "wo_send_update", { p_update_id: b })).toBe("ok:sent");
+    expect(await rpcAs(staff!, "wo_dismiss_update", { p_update_id: b, p_reason: "" })).toBe("error:already_sent");
+    // The painter cannot delete the office's drafts.
+    expect(await rpcAs(contractor!, "wo_dismiss_update", { p_update_id: c, p_reason: "" })).toBe("error:not_staff");
+
+    // On the screen: the job completes, the card says too late, Delete needs two presses.
+    await db!.from("work_orders").update({ stage: "closed" }).eq("id", id);
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto("/pc/updates");
+    const card = page.getByTestId(`update-${c}`);
+    await expect(card).toBeVisible({ timeout: 30_000 });
+    await expect(card.getByTestId(`too-late-${c}`)).toBeVisible();
+    await card.getByTestId(`delete-${c}`).click();
+    await expect(card.getByTestId(`delete-${c}`)).toContainText(/Yes, delete/);
+    await card.getByTestId(`delete-${c}`).click();
+    await expect(card.getByTestId(`deleted-${c}`)).toBeVisible({ timeout: 15_000 });
+    const { data: goneToo } = await db!.from("wo_updates").select("id").eq("id", c).maybeSingle();
+    expect(goneToo).toBeNull();
+
+    // Two fresh drafts on the closed job → the top card clears them in one press.
+    await draft("2026-09-23"); await draft("2026-09-24");
+    await page.goto("/pc/updates");
+    const clear = page.getByTestId("clear-closed");
+    await expect(clear).toBeVisible({ timeout: 30_000 });
+    await clear.getByTestId("clear-closed-go").click();
+    await clear.getByTestId("clear-closed-go").click();
+    await expect(clear).toContainText(/Deleted \d+ draft/, { timeout: 15_000 });
+    const { data: left } = await db!.from("wo_updates").select("id").eq("work_order_id", id).in("status", ["drafted", "approved"]);
+    expect((left ?? []).length).toBe(0);
   });
 });

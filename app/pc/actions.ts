@@ -126,6 +126,36 @@ export async function approveUpdate(raw: unknown): Promise<PcResult> {
     { p_update_id: parsed.data.updateId, p_final_text: parsed.data.text ?? null }, "Approved.");
 }
 
+/**
+ * Delete a drafted update that will never go (Tom, 29 Sep 2026: the job has
+ * already completed). Drafted or approved only — a sent update is a record and
+ * the RPC refuses it. The removal is written to the job's event log.
+ */
+export async function dismissUpdate(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ updateId: uuid, reason: z.string().max(300).default("") }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const r = await call("wo_dismiss_update", { p_update_id: parsed.data.updateId, p_reason: parsed.data.reason }, "Deleted — it won't be sent.");
+  if (!r.ok && /wo_dismiss_update/.test(r.message)) return { ok: false, message: "This needs database migration 20270203 run first — nothing was changed." };
+  if (!r.ok && r.message === "already sent") return { ok: false, message: "That update has already gone to the customer — it stays on the record." };
+  if (r.ok) { revalidatePath("/pc/updates"); revalidatePath("/pc"); }
+  return r;
+}
+
+/** Every unsent draft on a job that has already closed, gone in one press. */
+export async function dismissUpdatesForClosedJobs(): Promise<PcResult & { count?: number }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_dismiss_updates_for_closed_jobs");
+  if (error) {
+    if (/wo_dismiss_updates_for_closed_jobs/.test(error.message)) return { ok: false, message: "This needs database migration 20270203 run first — nothing was changed." };
+    return { ok: false, message: error.message };
+  }
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+  const n = Number(s.slice(3)) || 0;
+  revalidatePath("/pc/updates"); revalidatePath("/pc");
+  return { ok: true, count: n, message: n === 0 ? "No drafts on completed jobs." : `Deleted ${n} draft${n === 1 ? "" : "s"} on completed jobs.` };
+}
+
 export async function approveAndSendUpdate(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ updateId: uuid, text: z.string().max(4000).optional() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
