@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds } from "./helpers";
+import { credentials, missingCreds, drawSignature } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   rpcAs, rpcAsJson, serviceClient, type LoopFixture,
@@ -125,7 +125,7 @@ test.describe("walkthrough and sign-off", () => {
     await page.getByTestId("approve-Left").click();
     await expect(page.getByTestId("ok-Left")).toBeVisible();
 
-    await page.getByTestId("sign-name").fill("Melissa Hartley");
+    await drawSignature(page);
     await page.getByTestId("sign").click();
     await expect(page.getByTestId("signed")).toContainText("Signed off");
   });

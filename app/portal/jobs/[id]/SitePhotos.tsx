@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { addJobNote } from "./tickActions";
+import { isVideoFile, uploadFailureText, uploadWorkOrderMedia } from "@/lib/workorder/uploadMedia";
 
 /**
  * Photos and notes from site, once the job is running.
@@ -25,33 +26,11 @@ export default function SitePhotos({ workOrderId, areas }: { workOrderId: string
     setBusy(true);
     setMessage(null);
     try {
-      const signRes = await fetch("/api/wo/photos", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        // The declared type names a video object with its extension (the route
-        // still reads the bytes); a photo path stays bare.
-        body: JSON.stringify({ workOrderId, size: file.size, contentType: file.type || undefined }),
-      });
-      const sign = await signRes.json();
-      if (!signRes.ok) throw new Error(sign.error ?? "upload");
-
-      const put = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/wo-photos/${sign.path}?token=${sign.token}`,
-        { method: "PUT", body: file },
-      );
-      if (!put.ok) throw new Error("upload");
-
-      const ingest = await fetch("/api/wo/photos", {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workOrderId, path: sign.path, kind, area }),
-      });
-      const done = await ingest.json();
-      if (!ingest.ok) throw new Error(done.error ?? "upload");
-
+      await uploadWorkOrderMedia({ workOrderId, file, kind, area });
       setCount((c) => c + 1);
-      setMessage(`${file.type.startsWith("video/") ? "Video" : "Photo"} added${area ? ` to ${area}` : ""}.`);
+      setMessage(`${isVideoFile(file) ? "Video" : "Photo"} added${area ? ` to ${area}` : ""}.`);
     } catch (e) {
-      setMessage(e instanceof Error && e.message !== "upload"
-        ? e.message : `That ${file.type.startsWith("video/") ? "video" : "photo"} didn't upload — check your signal and try again.`);
+      setMessage(uploadFailureText(e, file));
     } finally {
       setBusy(false);
     }

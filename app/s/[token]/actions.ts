@@ -46,8 +46,13 @@ export async function walkthroughAreaAction(raw: unknown): Promise<AreaResult> {
 }
 
 export async function signAction(raw: unknown): Promise<SignResult> {
-  const parsed = z.object({ token, name: z.string().trim().min(2).max(120) }).safeParse(raw);
-  if (!parsed.success) return { ok: false, message: "Please type your full name to sign." };
+  // Tom, 28 Sep: a DRAWN signature, the same pad the estimate is signed on.
+  // The signer's name is the job's own (the accepted estimate) — nothing typed.
+  const parsed = z.object({
+    token,
+    signature: z.string().startsWith("data:image/png;base64,").min(100).max(400_000),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Please sign in the box to sign off." };
 
   const supabase = await createClient();
 
@@ -61,10 +66,13 @@ export async function signAction(raw: unknown): Promise<SignResult> {
       ).maybeSingle()
     : { data: null };
 
-  const { data, error } = await supabase.rpc("wo_sign", {
-    p_token: parsed.data.token, p_name: parsed.data.name, p_kind: "remote", p_device: "web",
+  const { data, error } = await supabase.rpc("wo_sign_drawn", {
+    p_token: parsed.data.token, p_signature: parsed.data.signature, p_device: "web",
   });
-  if (error) return { ok: false, message: "We couldn't record your sign-off — please try again." };
+  if (error) {
+    if (/wo_sign_drawn/.test(error.message)) return { ok: false, message: "Signing isn't switched on yet — please give us a call and we'll sort it." };
+    return { ok: false, message: "We couldn't record your sign-off — please try again." };
+  }
 
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
@@ -94,7 +102,15 @@ export async function signAction(raw: unknown): Promise<SignResult> {
       message: `Please have a look at ${outstanding.join(", ")} before signing.`,
     };
   }
-  if (s === "error:no_name") return { ok: false, message: "Please type your full name to sign." };
+  if (s === "error:signature_required" || s === "error:no_name") return { ok: false, message: "Please sign in the box to sign off." };
+  if (s === "error:signature_too_big") return { ok: false, message: "That signature is a little too detailed — clear it and sign again." };
+  // The final walkthrough is still booked ahead (Mode B): they are meant to
+  // walk it with the painter first. Say so, rather than a blank error.
+  if (s === "error:walkthrough_first") {
+    return { ok: false, message: "Your final walkthrough with the painter is still booked — sign-off happens there. If you can't make it, give us a call and we'll open this link for you." };
+  }
+  if (s === "error:not_found") return { ok: false, message: "This link has expired — please use the link in your email, or give us a call." };
+  if (s === "ok:already") return { ok: true, onDevice: false };
   // The job is not at walkthrough — something is still with the painter
   // (17 Sep: a signature must never half-land on a job that cannot close).
   if (s.startsWith("error:not_at_walkthrough:")) {

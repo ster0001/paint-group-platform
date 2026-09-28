@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { contractorIdForEmail, customerIdForEmail, rpcAs, serviceClient, type LoopFixture } from "../fixtures/woLoop";
-import { credentials, missingCreds, signIn } from "../helpers";
+import { credentials, missingCreds, signIn, drawSignature } from "../helpers";
 import { DESK_TALL, PHONE, createHelpJob, destroyHelpJob, frame, placeholderPng, shot } from "./rig";
 
 /**
@@ -384,7 +384,7 @@ test("work orders — painter and PC, offer to signed off", async ({ browser, re
     const btn = c.getByTestId(`approve-${h}`);
     if (await btn.count()) { await btn.click(); await c.waitForTimeout(800); }
   }
-  await c.getByTestId("sign-name").fill("Daniel Okafor");
+  await drawSignature(c);
   await frame(c, c.getByTestId("sign"));
   await shot(c, F, "contractor", "16");
   await c.getByTestId("sign").click();

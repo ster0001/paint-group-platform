@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { completePrep, contractorIdForEmail, customerIdForEmail, rpcAs, serviceClient, type LoopFixture } from "../fixtures/woLoop";
-import { credentials, missingCreds, signIn } from "../helpers";
+import { credentials, missingCreds, signIn, drawSignature } from "../helpers";
 import {
   DESK, PHONE, caption, createHelpJob, daysFromNow, destroyHelpJob, installCaptions, iso, startRecording,
   tapWithPhoto, uploadPhoto, writeGif,
@@ -194,8 +194,8 @@ test("work orders · contractor walkthrough 2 — finishing and sign-off", async
     const btn = c.getByTestId(`approve-${h}`);
     if (await btn.count()) { await btn.click(); await c.waitForTimeout(900); }
   }
-  await caption(c, "5 · They type their full name and Sign off the job.", { bottom: 20 });
-  await c.getByTestId("sign-name").fill("Daniel Okafor");
+  await caption(c, "5 · They sign in the box and Sign off the job.", { bottom: 20 });
+  await drawSignature(c);
   await c.waitForTimeout(900);
   await c.getByTestId("sign").click();
   await expect(c.getByTestId("signed")).toBeVisible({ timeout: 30_000 });

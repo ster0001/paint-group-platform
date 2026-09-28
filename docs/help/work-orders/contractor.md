@@ -70,11 +70,11 @@ The second walkthrough film covers this part of the job, from the completion lis
     ![](media/contractor-13.png)
 
 ### Walkthrough and sign-off on your phone
-15. When no check was due, **Walkthrough & sign-off** appears with the booked date: "Walk the job with the customer on your phone: they approve each area and sign with their own name, right there." The **Finish & walkthrough** card above it also lists the quality check and its result. The pinned bar at the top now reads **READY TO SIGN OFF** and carries the same button, so you do not have to scroll to the card. With the customer beside you, tap **Start the walkthrough** on either.
+15. When no check was due, **Walkthrough & sign-off** appears with the booked date: "Walk the job with the customer on your phone: they approve each area and sign in the box, right there." The **Finish & walkthrough** card above it also lists the quality check and its result. The pinned bar at the top now reads **READY TO SIGN OFF** and carries the same button, so you do not have to scroll to the card. With the customer beside you, tap **Start the walkthrough** on either.
     ![](media/contractor-14.png)
 16. Your phone switches to the customer's view, headed **READY FOR YOUR LOOK — Your job is finished**, with your customer note at the top. Hand it over. For each area they tap **Happy with this**, or **Something's not right** and say what they have spotted. The bottom of the page lists what is still to look at.
     ![](media/contractor-15.png)
-17. When every area shows **HAPPY**, they type their full name and tap **Sign off the job**. The page tells them signing confirms the work is done and starts their two-year warranty. **I'm away at the moment** is for a customer who wants to come back to it later.
+17. When every area shows **HAPPY**, they sign in the signature box (there is nothing to type — the sign-off is recorded in the name the job was booked under) and tap **Sign off the job**. The page tells them signing confirms the work is done and starts their two-year warranty. **I'm away at the moment** is for a customer who wants to come back to it later.
     ![](media/contractor-16.png)
 18. The screen reads **Signed off — thank you**, and says the completion report and warranty are on their way. Take your phone back; it returns to the job on its own, or tap **Back to the job**.
     ![](media/contractor-17.png)

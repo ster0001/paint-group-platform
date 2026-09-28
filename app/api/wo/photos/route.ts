@@ -135,8 +135,18 @@ export async function PUT(request: Request) {
   // ingest at somebody else's object.
   if (!v.path.startsWith(`wo/${v.workOrderId}/`)) return fail(400, "That file isn't part of this job.");
 
-  const bytes = await headBytes(supabase, v.path);
-  if (!bytes) return fail(400, "We couldn't find that upload — please try again.");
+  // The Range read is the cheap path; a store that answers it oddly falls back
+  // to the whole object (a photo — a video is only ever read by Range).
+  let bytes = await headBytes(supabase, v.path);
+  if ((!bytes || bytes.length < 12) && !isVideoPath(v.path)) {
+    const { data: blob, error: dlError } = await supabase.storage.from("wo-photos").download(v.path);
+    if (dlError) reportError(dlError, { where: "wo.photos.ingest.download", bestEffort: true, extra: { path: v.path } });
+    if (blob) bytes = new Uint8Array(await blob.arrayBuffer()).slice(0, 64);
+  }
+  if (!bytes || bytes.length < 12) {
+    reportError(new Error("wo.photos.ingest: staged object unreadable"), { where: "wo.photos.ingest", extra: { path: v.path } });
+    return fail(400, "We couldn't read that upload back from the photo store — please try again.");
+  }
 
   // The name says what the bytes must be: a video extension needs a video
   // signature, a bare photo path needs a photo signature. Anything else goes.

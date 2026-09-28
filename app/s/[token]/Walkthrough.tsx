@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { requestExtensionAction, signAction, walkthroughAreaAction } from "./actions";
+import SignaturePad from "@/app/components/SignaturePad";
 
 type AreaState = { approved?: boolean; flagged?: boolean; note?: string };
 
@@ -14,9 +15,11 @@ type AreaState = { approved?: boolean; flagged?: boolean; note?: string };
  * weeks later, and by then the painter has gone.
  */
 export default function Walkthrough({
-  token, headings, initial, signedName, signedKind = null, backHref = null,
+  token, headings, initial, signedName, signedKind = null, backHref = null, signatureUrl = null,
 }: {
   token: string; headings: string[]; initial: Record<string, AreaState>; signedName: string | null;
+  /** The drawn signature on record (Tom, 28 Sep), shown back on the signed page. */
+  signatureUrl?: string | null;
   /** How it completed — a rectified completion reads differently from a signature. */
   signedKind?: string | null;
   /** Set on an on-device walkthrough: where this device returns after signing. */
@@ -26,7 +29,8 @@ export default function Walkthrough({
   const [goBack, setGoBack] = useState(false);
   const [areas, setAreas] = useState<Record<string, AreaState>>(initial);
   const [signed, setSigned] = useState<string | null>(signedName);
-  const [name, setName] = useState("");
+  const [signature, setSignature] = useState<string | null>(null);
+  const [drawn, setDrawn] = useState<string | null>(signatureUrl);
   const [message, setMessage] = useState<string | null>(null);
   const [flagging, setFlagging] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -41,12 +45,17 @@ export default function Walkthrough({
   if (signed) {
     return (
       <div className="cv-done approved" data-testid="signed">
-        <b>{signedKind === "rectified" ? "Complete — the areas you flagged have been put right." : `Signed off — thank you, ${signed}.`}</b>
+        <b>{signedKind === "rectified" ? "Complete — the areas you flagged have been put right." : signed === "and all done" ? "Signed off — thank you." : `Signed off — thank you, ${signed}.`}</b>
         <p>
           {signedKind === "rectified"
             ? "Your completion report below shows what you flagged and what was done, and your two-year warranty has started. If anything comes up later, that warranty still covers you."
             : "Your completion report and two-year warranty are on their way. If anything comes up later, that warranty still covers you."}
         </p>
+        {drawn && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={drawn} alt="Your signature" data-testid="signed-signature"
+            style={{ display: "block", maxWidth: 260, maxHeight: 90, marginTop: 10, background: "#fff", borderRadius: 8, padding: 6 }} />
+        )}
         {goBack && backHref && (
           <p className="cv-fine" style={{ marginTop: 10 }}>
             <button type="button" className="cv-btn primary" data-testid="back-to-job"
@@ -75,11 +84,13 @@ export default function Walkthrough({
   }
 
   function sign() {
+    if (!signature) { setMessage("Please sign in the box to sign off."); return; }
     setMessage(null);
     startTransition(async () => {
-      const result = await signAction({ token, name });
+      const result = await signAction({ token, signature });
       if (result.ok) {
-        setSigned(name);
+        setDrawn(signature);
+        setSigned(signedName || "and all done");
         // On-device: this session token is spent; the device goes back to the
         // job page (painter's or staff's), which now shows it complete.
         if (result.onDevice && backHref) setGoBack(true);
@@ -144,16 +155,18 @@ export default function Walkthrough({
       })}
 
       <div className="wt-sign">
-        <label className="cv-label" htmlFor="sign-name">
+        <label className="cv-label">
           {outstanding.length === 0
-            ? "Type your full name to sign off"
+            ? "Sign in the box to sign off the job"
             : `Still to look at: ${outstanding.join(", ")}`}
         </label>
-        <input id="sign-name" className="cv-note" value={name} data-testid="sign-name"
-          onChange={(e) => setName(e.target.value)} placeholder="Your full name"
-          disabled={outstanding.length > 0} />
+        {/* Tom, 28 Sep: the same drawn-signature pad the estimate is signed on;
+            nothing to type — the signer is the person the job is for. */}
+        <div data-testid="sign-pad" style={outstanding.length > 0 ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
+          <SignaturePad onChange={setSignature} />
+        </div>
         <button type="button" className="cv-btn primary" data-testid="sign"
-          disabled={pending || outstanding.length > 0 || name.trim().length < 2}
+          disabled={pending || outstanding.length > 0 || !signature}
           onClick={sign}>
           {pending ? "Signing…" : "Sign off the job"}
         </button>

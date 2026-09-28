@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds, signIn, TINY_SIGNATURE_PNG } from "./helpers";
+import { credentials, missingCreds, signIn, TINY_SIGNATURE_PNG, drawSignature } from "./helpers";
 import {
   completePreStart, completePrep, contractorIdForEmail, createLoopFixture, customerIdForEmail,
   destroyLoopFixture, rpcAs, serviceClient, type LoopFixture,
@@ -335,7 +335,7 @@ test.describe("the whole loop, one job", () => {
     // so the customer has a third area to look at before they can sign.
     const variationsArea = page.getByTestId("approve-Variations");
     if (await variationsArea.count()) await variationsArea.click();
-    await page.getByTestId("sign-name").fill("Melissa Hartley");
+    await drawSignature(page);
     await page.getByTestId("sign").click();
     await expect(page.getByTestId("signed")).toContainText("Signed off");
   });

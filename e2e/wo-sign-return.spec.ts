@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, drawSignature } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   rpcAs, serviceClient, type LoopFixture,
@@ -25,6 +25,13 @@ test.describe("on-device sign-off returns to the job, shown complete", () => {
   test.beforeAll(async () => {
     const cid = (await contractorIdForEmail(db!, contractor!.email))!;
     f = await createLoopFixture(db!, cid, [{ heading: "Front", labels: ["Walls"] }]);
+    // The signer's name is the job's own now (Tom, 28 Sep: a drawn signature,
+    // nothing typed) — the accepted estimate names the customer.
+    await db!.from("estimates").update({ accepted_name: "Melissa Hartley" }).eq("id", f.estimateId);
+    // This story is the CUSTOMER signing on the painter's phone. A job that went
+    // through a quality check is the office's to sign off (24 Sep) and shows no
+    // walkthrough button — so the office waives the check on this one.
+    expect(await rpcAs(staff!, "wo_set_qa_waived", { p_work_order_id: f.workOrderId, p_waived: true })).toMatch(/^ok:waived/);
     await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
     await completePrep(db!, staff!, f.workOrderId);
     expect(await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: f.workOrderId })).toMatch(/^ok:completion_prep/);
@@ -49,7 +56,7 @@ test.describe("on-device sign-off returns to the job, shown complete", () => {
 
     await page.getByTestId("approve-Front").click();
     await expect(page.getByTestId("ok-Front")).toBeVisible({ timeout: 15_000 });
-    await page.getByTestId("sign-name").fill("Melissa Hartley");
+    await drawSignature(page);
     await page.getByTestId("sign").click();
     await expect(page.getByTestId("signed")).toBeVisible({ timeout: 15_000 });
 

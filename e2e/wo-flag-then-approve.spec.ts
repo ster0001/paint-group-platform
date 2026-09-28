@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, drawSignature } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   rpcAs, serviceClient, type LoopFixture,
@@ -70,7 +70,7 @@ test.describe("flag, change of mind, sign", () => {
       .eq("work_order_id", fixture!.workOrderId).eq("rectification", true);
     expect((rect ?? []).length).toBe(0);
 
-    await page.getByTestId("sign-name").fill("Melissa Hartley");
+    await drawSignature(page);
     await page.getByTestId("sign").click();
     await expect(page.getByTestId("signed")).toContainText("Signed off", { timeout: 15_000 });
 

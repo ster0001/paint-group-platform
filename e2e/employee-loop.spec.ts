@@ -230,7 +230,7 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
     await expect(page).toHaveURL(/\/s\//, { timeout: 20_000 });
     await page.getByTestId("approve-Front").click();
     await page.getByTestId("approve-Left").click();
-    await page.getByTestId("sign-name").fill("Melissa Hartley");
+    await drawSignature(page);
     await page.getByTestId("sign").click();
     await expect(page.getByTestId("signed")).toContainText("Signed off", { timeout: 20_000 });
 

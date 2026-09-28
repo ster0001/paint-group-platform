@@ -51,16 +51,19 @@ export default async function WalkthroughPage({
   // painter only — first name, never the crew. The lead is the work order's
   // contractor_id; read on the server, by the token the page already holds.
   let leadPainter: string | null = null;
+  let signatureUrl: string | null = null;
   if (row.signed_at) {
     const service = createServiceClient();
     if (service) {
       const { data: lead, error: leadError } = await service
-        .from("wo_signoff").select("work_orders(contractor_id, contractors(profiles(name)))")
+        .from("wo_signoff").select("signature, work_orders(contractor_id, contractors(profiles(name)))")
         .eq("customer_token", token).maybeSingle();
       if (leadError) reportError(leadError, { where: "signoff.leadPainter" });
-      const name = (lead as { work_orders?: { contractors?: { profiles?: { name?: string | null } | null } | null } | null } | null)
-        ?.work_orders?.contractors?.profiles?.name;
+      const l = lead as { signature?: string | null; work_orders?: { contractors?: { profiles?: { name?: string | null } | null } | null } | null } | null;
+      const name = l?.work_orders?.contractors?.profiles?.name;
       leadPainter = name?.trim().split(/\s+/)[0] || null;
+      // The drawn signature (Tom, 28 Sep) — shown back to the customer on their record.
+      signatureUrl = l?.signature && l.signature.startsWith("data:image/png;base64,") ? l.signature : null;
     }
     const { data: rep } = await supabase.rpc("wo_report_by_token", { p_token: token });
     const r = ((rep as { report: Report; warranty_ends: string | null; warranty_years: number | null }[] | null) ?? [])[0];
@@ -114,6 +117,7 @@ export default async function WalkthroughPage({
           headings={row.headings ?? []}
           initial={initial}
           signedName={row.signed_at ? row.signed_name : null}
+          signatureUrl={signatureUrl}
           signedKind={report?.signed_kind ?? null}
           backHref={backHref}
         />
