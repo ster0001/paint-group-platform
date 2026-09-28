@@ -81,7 +81,7 @@ The Dashboard's second section, **Variations for approval**, lists every open va
 11d. Drafting again after a signature drafts only what goes beyond it, and joins any offer still waiting on the customer; a change that nets back to nothing retires its draft.
 
 ### Customer updates from the painter's ticks
-12. Each day's ticks and photos become a drafted customer update. **Updates** lists **Updates waiting on you**; read it, edit if needed, then **Approve & send**. Nothing goes to the customer until a person approves it. On the job page, **Send the customer an update** comes pre-written from the latest ticks with the site photos ready to attach; edit the words and tap **Send update — email & text**.
+12. Each day's ticks and photos become a drafted customer update. **Updates** lists **Updates waiting on you**; read it, edit if needed, then **Approve & send**. Nothing goes to the customer until a person approves it. A draft that will never go — the job has since completed — has a **Delete** button (press twice; the second press confirms); the removal is logged on the job. When any drafts sit on completed jobs, a card at the top says how many and **Delete them all** clears them in one press. A sent update cannot be deleted; it is the record of what the customer received. On the job page, **Send the customer an update** comes pre-written from the latest ticks with the site photos ready to attach; edit the words and tap **Send update — email & text**.
     ![](media/pc-11.png)
 
 ### Quality check
