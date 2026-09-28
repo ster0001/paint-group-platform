@@ -139,7 +139,8 @@ export async function PUT(request: Request) {
   // to the whole object (a photo — a video is only ever read by Range).
   let bytes = await headBytes(supabase, v.path);
   if ((!bytes || bytes.length < 12) && !isVideoPath(v.path)) {
-    const { data: blob } = await supabase.storage.from("wo-photos").download(v.path);
+    const { data: blob, error: dlError } = await supabase.storage.from("wo-photos").download(v.path);
+    if (dlError) reportError(dlError, { where: "wo.photos.ingest.download", bestEffort: true, extra: { path: v.path } });
     if (blob) bytes = new Uint8Array(await blob.arrayBuffer()).slice(0, 64);
   }
   if (!bytes || bytes.length < 12) {
