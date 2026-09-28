@@ -8,6 +8,7 @@ import type { RateItem, Product } from "@/lib/pricing/types";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
 import { revisionContractorPay } from "@/lib/revision/contractorRate";
 import { reportError } from "@/lib/monitoring/report";
+import { isMissingRpc } from "@/lib/supabase/missingRpc";
 import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { buildInvoiceEmailHtml } from "@/lib/invoicing/sendInvoice";
@@ -115,7 +116,7 @@ async function syncScopeColours(supabase: Db, estimateId: string): Promise<strin
   const { data, error } = await supabase.rpc("wo_sync_scope_colours", { p_estimate_id: estimateId });
   if (error) {
     // A stack without the migration yet: the save still stands.
-    if (!/wo_sync_scope_colours/.test(error.message)) reportError(error, { where: "revision.syncColours.rpc", extra: { estimateId } });
+    if (!isMissingRpc(error.message, "wo_sync_scope_colours")) reportError(error, { where: "revision.syncColours.rpc", extra: { estimateId } });
     return "error:rpc";
   }
   return String(data ?? "");

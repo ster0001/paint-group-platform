@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { isMissingRpc } from "@/lib/supabase/missingRpc";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendSignedReportEmail } from "@/lib/workorder/signEmail";
 import { trustedOrigin } from "@/lib/security/trustedOrigin";
@@ -70,7 +71,7 @@ export async function signAction(raw: unknown): Promise<SignResult> {
     p_token: parsed.data.token, p_signature: parsed.data.signature, p_device: "web",
   });
   if (error) {
-    if (/wo_sign_drawn/.test(error.message)) return { ok: false, message: "Signing isn't switched on yet — please give us a call and we'll sort it." };
+    if (isMissingRpc(error.message, "wo_sign_drawn")) return { ok: false, message: "Signing isn't switched on yet — please give us a call and we'll sort it." };
     return { ok: false, message: "We couldn't record your sign-off — please try again." };
   }
 
