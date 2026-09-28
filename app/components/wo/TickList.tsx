@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { setSurfacePhotosOptionalAction, tickSurfaceAction } from "./tickAction";
+import { uploadFailureText, uploadWorkOrderMedia } from "@/lib/workorder/uploadMedia";
 import {
   nextState, needsBeforePhoto, needsAfterPhoto, progressByHeading, progressOf,
   tickNeedsAfterPhoto, tickNeedsBeforePhoto,
@@ -107,28 +108,9 @@ export default function TickList({
     setUploading(heading);
     setMessage(null);
     try {
-      const signRes = await fetch("/api/wo/photos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workOrderId, size: file.size }),
-      });
-      const sign = await signRes.json();
-      if (!signRes.ok) throw new Error(sign.error ?? "upload");
-
-      const put = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/wo-photos/${sign.path}?token=${sign.token}`,
-        { method: "PUT", body: file },
-      );
-      if (!put.ok) throw new Error("upload");
-
-      const ingest = await fetch("/api/wo/photos", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workOrderId, path: sign.path, kind: pendingKind.current, area: heading }),
-      });
-      const done = await ingest.json();
-      if (!ingest.ok) throw new Error(done.error ?? "upload");
-
+      // One upload path for every card (lib/workorder/uploadMedia.ts): the
+      // storage reply is read back and said plainly, never "check your signal".
+      await uploadWorkOrderMedia({ workOrderId, file, kind: pendingKind.current, area: heading });
       if (pendingKind.current === "completion") {
         setAfterHeadings((h) => [...h, heading]);
         setMessage({ text: `Finished shot saved for ${heading}. Nice one.` });
@@ -137,7 +119,7 @@ export default function TickList({
         setMessage({ text: `Before photo saved for ${heading}. Tick away.` });
       }
     } catch (e) {
-      setMessage({ text: e instanceof Error && e.message !== "upload" ? e.message : "That photo didn't upload — check your signal and try again." });
+      setMessage({ text: uploadFailureText(e, file), heading });
     } finally {
       setUploading(null);
       pendingHeading.current = null;

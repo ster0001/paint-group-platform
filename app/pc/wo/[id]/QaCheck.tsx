@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { recordQa, tickQaItem } from "../../actions";
+import { uploadFailureText, uploadWorkOrderMedia } from "@/lib/workorder/uploadMedia";
 
 export type QaStandard = { id: string; label: string; detail: string; done: boolean };
 export type QaCheckView = {
@@ -48,30 +49,14 @@ export default function QaCheck({ check, workOrderId }: { check: QaCheckView; wo
     setUploading(true);
     setMessage(null);
     try {
-      const signRes = await fetch("/api/wo/photos", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workOrderId, size: file.size }),
+      await uploadWorkOrderMedia({
+        workOrderId, file, kind: "qa",
+        area: heading.trim() || "Rectification",
+        caption: label.trim() ? `QA fail — ${label.trim().slice(0, 280)}` : "QA fail",
       });
-      const sign = await signRes.json();
-      if (!signRes.ok) throw new Error(sign.error ?? "upload");
-      const put = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/wo-photos/${sign.path}?token=${sign.token}`,
-        { method: "PUT", body: file },
-      );
-      if (!put.ok) throw new Error("upload");
-      const ingest = await fetch("/api/wo/photos", {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workOrderId, path: sign.path, kind: "qa",
-          area: heading.trim() || "Rectification",
-          caption: label.trim() ? `QA fail — ${label.trim().slice(0, 280)}` : "QA fail",
-        }),
-      });
-      const done = await ingest.json();
-      if (!ingest.ok) throw new Error(done.error ?? "upload");
       setFailPhotos((n) => n + 1);
     } catch (e) {
-      setMessage(e instanceof Error && e.message !== "upload" ? e.message : "That photo didn't upload — try again.");
+      setMessage(uploadFailureText(e, file));
     } finally {
       setUploading(false);
     }

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, drawSignature } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   rpcAs, serviceClient, type LoopFixture,
@@ -49,7 +49,7 @@ test.describe("on-device sign-off returns to the job, shown complete", () => {
 
     await page.getByTestId("approve-Front").click();
     await expect(page.getByTestId("ok-Front")).toBeVisible({ timeout: 15_000 });
-    await page.getByTestId("sign-name").fill("Melissa Hartley");
+    await drawSignature(page);
     await page.getByTestId("sign").click();
     await expect(page.getByTestId("signed")).toBeVisible({ timeout: 15_000 });
 
