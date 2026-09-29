@@ -842,6 +842,11 @@ function PrintQuote({
   const surfaceLine = (a: CustomerSnapshot["areas"][number]) =>
     a.surfaces.map((s) => `${s.label}${showCount(s.count) ? ` × ${s.count}` : ""} (${s.coats} ${s.coats === 1 ? "coat" : "coats"}${s.product ? ` · ${s.product}` : ""})`).join("; ");
   const opts = snap.options.filter((o) => selectedIds.has(o.id));
+  // Tom, 29 Sep (48A Jupiter St): the PDF is what the customer read on their
+  // phone, and it listed only the options already TICKED — an unticked one
+  // was nowhere on the page. The rest print under the table, priced, marked
+  // as not in the total.
+  const unticked = invoiceMode ? [] : snap.options.filter((o) => !selectedIds.has(o.id));
   const preparation = preparationLineFor(snap);
   return (
     <div className="printdoc">
@@ -916,6 +921,24 @@ function PrintQuote({
           <tr className="pd-total"><td className="pd-tlabel">Total incl. GST</td><td className="pd-amt">{money2(total)}</td></tr>
         </tfoot>
       </table>
+
+      {unticked.length > 0 && (
+        <div className="pd-block pd-options" data-testid="print-options">
+          <div className="pd-h">Optional extras — not included in the total above</div>
+          <table className="pd-table pd-opttable"><tbody>
+            {unticked.map((o) => (
+              <tr key={o.id}>
+                <td>
+                  <div className="pd-item">{o.title}</div>
+                  {o.descriptionHtml && <div className="pd-sub">{o.descriptionHtml.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}</div>}
+                </td>
+                <td className="pd-amt">+ {money2(o.priceCents)} ex GST</td>
+              </tr>
+            ))}
+          </tbody></table>
+          <div className="pd-sub">Add any of these on your online estimate — the total updates as you tick them, and your choice is saved when you accept.</div>
+        </div>
+      )}
 
       <div className="pd-deposit">
         <b>Deposit payable ({depositPct}%): {money2(deposit)}</b>, payable in full prior to work commencement. Balance on completion after your walkthrough.

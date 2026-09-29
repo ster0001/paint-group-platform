@@ -174,6 +174,42 @@ test.describe("Tom's 29 Sep batch", () => {
     await expect(page).toHaveURL(/\/invoicing$/);
   });
 
+  test("14 (48A Jupiter St): an unticked option is on the printed quote, priced, outside the total", async ({ page }) => {
+    // Anonymous customer: the PDF the customer downloads is the print
+    // stylesheet's paper quote, which used to list only TICKED options.
+    const token = `opt${run}${randomBytes(8).toString("hex")}`;
+    const company = { name: "Paint Group Pty Ltd", addressLine1: "1 Example St", addressLine2: "", phone: "", abn: "11 222 333 444", email: "", estimatorName: "", estimatorTitle: "", estimatorPhone: "", logoUrl: "" };
+    const r = await db!.from("estimates").insert({
+      title: `Options print ${run}`, status: "sent", source: "manual", level_of_finish: 3, share_token: token,
+      sent_at: new Date().toISOString(), total_cents: 110000,
+      builder_state: { blocks: [], modSel: { "Level of Finish": "FIN-3" }, materials: {} },
+      sent_snapshot: {
+        version: 1, company, estRef: `EST-O${run}`, contactName: "Options Customer", contactEmail: "", jobTitle: "Interior repaint", jobAddress: `48A Option St ${run}`,
+        gstRatePct: 10, depositPct: 10, lineItems: [], paints: [], inclusions: [], exclusions: [], terms: "",
+        discountMode: "pct", discountPct: 0, discountFixedCents: 0, baseSubtotalCents: 100000,
+        proof: { rating: "5.0", reviews: "93+", liability: "$20M", warranty: "2-year", accreditations: [] },
+        areas: [{ id: "1", title: "Lounge", descriptionHtml: "", priceCents: 100000, surfaces: [{ label: "Walls", coats: 2, product: "" }], photos: [] }],
+        options: [{ id: "101", title: `Living option ${run}`, descriptionHtml: "", priceCents: 196528 }],
+      },
+    }).select("id").single();
+    if (r.error) throw new Error(r.error.message);
+    try {
+      await page.goto(`/e/${token}`);
+      await expect(page.getByRole("heading", { name: "Optional extras" })).toBeVisible({ timeout: 30_000 });
+      // The print document is in the DOM (shown only by @media print).
+      const printed = page.locator(".printdoc");
+      await expect(printed.getByTestId("print-options")).toContainText(`Living option ${run}`);
+      await expect(printed.getByTestId("print-options")).toContainText("not included in the total");
+      await expect(printed.getByTestId("print-options")).toContainText("1,965.28");
+      // Tick it: it moves into the table and leaves the not-included block.
+      await page.locator(".option-toggle").first().click();
+      await expect(printed.getByTestId("print-options")).toHaveCount(0);
+      await expect(printed.locator(".pd-table")).toContainText(`Living option ${run}`);
+    } finally {
+      await db!.from("estimates").delete().eq("id", r.data.id);
+    }
+  });
+
   test("11: the chat dock has a volume beside the bell", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/estimates");
