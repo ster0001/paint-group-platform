@@ -31,13 +31,26 @@ type Msg = { id: string; role: "user" | "assistant" | "staff" | "system"; text: 
 const SEEN_KEY = "pg-dock-seen";      // conversationId → last customer line id this browser has seen
 const OPEN_KEY = "pg-dock-open";      // "1" while expanded
 const SOUND_KEY = "pg-dock-sound";    // "off" to mute
+const VOLUME_KEY = "pg-dock-volume";  // 0–100 (Tom, 29 Sep: a volume for the chime)
+const DEFAULT_VOLUME = 50;
+/** The stored volume, clamped; the default when nothing is stored or storage is blocked. */
+function readVolume(): number {
+  try {
+    const n = Number(window.localStorage.getItem(VOLUME_KEY));
+    return Number.isFinite(n) && n >= 0 && n <= 100 && window.localStorage.getItem(VOLUME_KEY) !== null ? Math.round(n) : DEFAULT_VOLUME;
+  } catch { return DEFAULT_VOLUME; }
+}
 
 function readSeen(): Record<string, string> { try { return JSON.parse(window.localStorage.getItem(SEEN_KEY) ?? "{}"); } catch { return {}; } }
 function writeSeen(v: Record<string, string>) { try { window.localStorage.setItem(SEEN_KEY, JSON.stringify(v)); } catch { /* fine */ } }
 
 /** A short two-note chime from the Web Audio API — no file to host, no
  *  autoplay download; browsers allow it once the person has clicked anything. */
-function chime() {
+function chime(volume = DEFAULT_VOLUME) {
+  // 0–100 → gain. The old fixed 0.25 sits at 50; the curve is gentle at the
+  // bottom so "quiet" is quiet, and 100 is twice the old level.
+  const gain = Math.max(0, Math.min(1, volume / 100)) ** 1.6 * 0.5;
+  if (gain <= 0.0002) return;
   try {
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;
@@ -45,7 +58,7 @@ function chime() {
     const play = (freq: number, at: number) => {
       const o = ctx.createOscillator(); const g = ctx.createGain();
       o.type = "sine"; o.frequency.value = freq;
-      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.25, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
+      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(gain, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
       o.connect(g); g.connect(ctx.destination); o.start(at); o.stop(at + 0.4);
     };
     play(880, ctx.currentTime); play(1175, ctx.currentTime + 0.18);
@@ -64,6 +77,8 @@ export default function StaffChatDock() {
   const [selected, setSelected] = useState<string | null>(null);
   const [unseen, setUnseen] = useState<Set<string>>(new Set());
   const [sound, setSound] = useState(true);
+  const [volume, setVolume] = useState(DEFAULT_VOLUME);
+  const volumeRef = useRef(DEFAULT_VOLUME);
   const seenRef = useRef<Record<string, string>>({});
   const firstLoad = useRef(true);
 
@@ -72,7 +87,7 @@ export default function StaffChatDock() {
   useEffect(() => {
     seenRef.current = readSeen();
     const t = setTimeout(() => {
-      try { setOpen(window.localStorage.getItem(OPEN_KEY) === "1"); setSound(window.localStorage.getItem(SOUND_KEY) !== "off"); } catch { /* fine */ }
+      try { setOpen(window.localStorage.getItem(OPEN_KEY) === "1"); setSound(window.localStorage.getItem(SOUND_KEY) !== "off"); setVolume(readVolume()); } catch { /* fine */ }
     }, 0);
     return () => clearTimeout(t);
   }, []);
@@ -95,7 +110,7 @@ export default function StaffChatDock() {
         setOpen(true);
         // Quiet on the very first load only when nothing is new; a customer
         // already waiting when the page opens still deserves the chime.
-        if (sound) chime();
+        if (sound) chime(volumeRef.current);
       }
       firstLoad.current = false;
     } catch { /* the next poll retries */ }
@@ -119,6 +134,9 @@ export default function StaffChatDock() {
   };
   const toggleOpen = (v: boolean) => { setOpen(v); try { window.localStorage.setItem(OPEN_KEY, v ? "1" : "0"); } catch { /* fine */ } };
   const toggleSound = () => { const v = !sound; setSound(v); try { window.localStorage.setItem(SOUND_KEY, v ? "on" : "off"); } catch { /* fine */ } };
+  // Tom, 29 Sep: a volume for the chime. Dragging the slider plays it at the
+  // new level (on release), so the setting is heard, not guessed.
+  const setVolumeAndKeep = (v: number) => { setVolume(v); volumeRef.current = v; try { window.localStorage.setItem(VOLUME_KEY, String(v)); } catch { /* fine */ } };
 
   // Tom, 20 Sep: "always keep the live chat box visible in the bottom
   // corner, regardless of which page you are on" — the pill stays put with
@@ -139,7 +157,15 @@ export default function StaffChatDock() {
               <div className="dk-head">
                 <b>Customer chats</b>
                 <span className="dk-sub">{waitingCount ? `${waitingCount} waiting for a person` : rows.length ? "Live" : "Nothing open"}</span>
-                <button type="button" className="dk-sound" onClick={toggleSound} title={sound ? "Mute the chime" : "Chime on a new message"}>{sound ? "🔔 on" : "🔕 off"}</button>
+                <span className="dk-vol" title="Chime volume">
+                  <button type="button" className="dk-sound" onClick={toggleSound} title={sound ? "Mute the chime" : "Chime on a new message"} data-testid="dock-sound">{sound ? "🔔" : "🔕"}</button>
+                  <input type="range" min={0} max={100} step={5} value={sound ? volume : 0} disabled={!sound}
+                    onChange={(e) => setVolumeAndKeep(Number(e.target.value))}
+                    onMouseUp={() => { if (sound) chime(volumeRef.current); }}
+                    onTouchEnd={() => { if (sound) chime(volumeRef.current); }}
+                    onKeyUp={(e) => { if (sound && /^Arrow/.test(e.key)) chime(volumeRef.current); }}
+                    aria-label="Chime volume" data-testid="dock-volume" />
+                </span>
                 <button type="button" className="dk-x" onClick={() => toggleOpen(false)} aria-label="Minimise" data-testid="dock-minimise">—</button>
               </div>
               <div className="dk-list" data-testid="dock-list">

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import type { DashboardTiles, PayablesTiles } from "@/lib/invoicing/derive";
+import type { DashboardTiles, InvoiceKind, PayablesTiles } from "@/lib/invoicing/derive";
 import type { CiTone } from "@/lib/invoicing/contractorInvoiceTone";
 import type { ReadFailure } from "@/lib/invoicing/loadFailure";
 import ReadFailureNotice from "./ReadFailureNotice";
@@ -28,6 +28,12 @@ export type RowProp = {
   customer: string;
   ref: string;
   filter: "overdue" | "awaiting" | "partial" | "draft" | "paid" | "other";
+  /** Tom, 29 Sep: the invoice's milestone (deposit / progress / final …) so the page can filter by it. */
+  kind: InvoiceKind;
+  /** Money still collectable: an open status with a balance above zero (lib/invoicing/derive). */
+  outstanding: boolean;
+  /** Days until due (negative = overdue), null when the invoice has no due date or is settled. */
+  dueIn: number | null;
   ageLabel: string;
   ageTone: "clay" | "amber" | "cyan" | "emerald" | "";
   amtCents: number;
@@ -60,6 +66,7 @@ export type PayableRowProp = {
 
 const FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "All" },
+  { key: "outstanding", label: "Outstanding" },
   { key: "overdue", label: "Overdue" },
   { key: "awaiting", label: "Awaiting" },
   { key: "partial", label: "Partially paid" },
@@ -67,12 +74,42 @@ const FILTERS: { key: string; label: string }[] = [
   { key: "paid", label: "Paid" },
 ];
 
+/**
+ * Tom, 29 Sep: "a view for final payments outstanding and more filters at the
+ * top of the page". Three rows of chips, each mirrored into the URL so a view
+ * is a link: status (above), milestone (`k`) and due window (`d`). A VIEW is a
+ * named combination of the three — one press sets all of them.
+ */
+const KINDS: { key: string; label: string; kinds: InvoiceKind[] }[] = [
+  { key: "all", label: "Any milestone", kinds: [] },
+  { key: "deposit", label: "Deposit", kinds: ["deposit"] },
+  { key: "progress", label: "Progress", kinds: ["progress"] },
+  { key: "final", label: "Final", kinds: ["final"] },
+  { key: "variation", label: "Variation", kinds: ["variation"] },
+  { key: "standalone", label: "Standalone", kinds: ["standalone"] },
+];
+const DUE: { key: string; label: string; test: (dueIn: number | null) => boolean }[] = [
+  { key: "any", label: "Any time", test: () => true },
+  { key: "week", label: "Due within 7 days", test: (d) => d !== null && d >= 0 && d <= 7 },
+  { key: "month", label: "Due within 30 days", test: (d) => d !== null && d >= 0 && d <= 30 },
+  { key: "over7", label: "Overdue 7+ days", test: (d) => d !== null && d <= -7 },
+  { key: "over30", label: "Overdue 30+ days", test: (d) => d !== null && d <= -30 },
+];
+export const VIEWS: { key: string; label: string; filter: string; kind: string; due: string }[] = [
+  { key: "final-outstanding", label: "Final payments outstanding", filter: "outstanding", kind: "final", due: "any" },
+  { key: "deposits-outstanding", label: "Deposits outstanding", filter: "outstanding", kind: "deposit", due: "any" },
+  { key: "progress-outstanding", label: "Progress payments outstanding", filter: "outstanding", kind: "progress", due: "any" },
+  { key: "overdue-30", label: "Overdue 30+ days", filter: "overdue", kind: "all", due: "over30" },
+];
+const rowMatchesFilter = (r: RowProp, f: string) => f === "all" ? true : f === "outstanding" ? r.outstanding : r.filter === f;
+
 const BUCKET_LABELS = ["current", "1–7 d", "8–14 d", "15–30 d", "30+ d"];
 const BUCKET_COLOURS = ["var(--paint)", "var(--clay)", "var(--clay)", "var(--clay)", "var(--clay)"];
 
 export default function Dashboard({
   tiles, buckets, rows, activity, initialFilter, initialTab,
   payables = null, materialsToMatchCount = 0, payableRows = [], costs = null, loadError = null, costsError = null,
+  initialKind = "all", initialDue = "any",
 }: {
   tiles: DashboardTiles;
   buckets: [number, number, number, number, number];
@@ -84,6 +121,9 @@ export default function Dashboard({
   costsError?: ReadFailure | null;
   initialFilter: string;
   initialTab: string;
+  /** Milestone (`k`) and due-window (`d`) chips, from the URL. */
+  initialKind?: string;
+  initialDue?: string;
   payables?: PayablesTiles | null;
   /** Supplier invoices with no job yet — `materialsToMatch(rows).length`, the same function as the home tile. */
   materialsToMatchCount?: number;
@@ -103,6 +143,8 @@ export default function Dashboard({
   const router = useRouter();
   const [tab, setTab] = useState(initialTab === "pay" || initialTab === "act" ? initialTab : "recv");
   const [filter, setFilter] = useState(FILTERS.some((f) => f.key === initialFilter) ? initialFilter : "all");
+  const [kind, setKind] = useState(KINDS.some((k) => k.key === initialKind) ? initialKind : "all");
+  const [due, setDue] = useState(DUE.some((d) => d.key === initialDue) ? initialDue : "any");
   // Tom, 17 Sep: search the receivables by customer name or property address.
   const [search, setSearch] = useState("");
   const [payMessage, setPayMessage] = useState<string | null>(null);
@@ -139,19 +181,40 @@ export default function Dashboard({
     });
   }
 
-  const setUrl = (nextTab: string, nextFilter: string) => {
+  const setUrl = (nextTab: string, nextFilter: string, nextKind = kind, nextDue = due) => {
     const q = new URLSearchParams();
     if (nextTab !== "recv") q.set("tab", nextTab);
     if (nextFilter !== "all") q.set("f", nextFilter);
+    if (nextKind !== "all") q.set("k", nextKind);
+    if (nextDue !== "any") q.set("d", nextDue);
     router.replace(`/invoicing${q.size ? `?${q}` : ""}`, { scroll: false });
   };
+  const applyView = (v: (typeof VIEWS)[number]) => {
+    setFilter(v.filter); setKind(v.kind); setDue(v.due);
+    setUrl(tab, v.filter, v.kind, v.due);
+  };
+  const activeView = VIEWS.find((v) => v.filter === filter && v.kind === kind && v.due === due)?.key ?? null;
 
-  const counts: Record<string, number> = { all: rows.length };
-  for (const f of FILTERS.slice(1)) counts[f.key] = rows.filter((r) => r.filter === f.key).length;
+  // Each chip's count is taken with the OTHER two rows applied, so a number
+  // on a chip is what pressing it will show.
+  const kindDef = KINDS.find((k) => k.key === kind) ?? KINDS[0];
+  const dueDef = DUE.find((d) => d.key === due) ?? DUE[0];
+  const byKind = (r: RowProp) => kindDef.kinds.length === 0 || kindDef.kinds.includes(r.kind);
+  const byDue = (r: RowProp) => dueDef.test(r.dueIn);
+  const counts: Record<string, number> = {};
+  for (const f of FILTERS) counts[f.key] = rows.filter((r) => rowMatchesFilter(r, f.key) && byKind(r) && byDue(r)).length;
+  const kindCounts: Record<string, number> = {};
+  for (const k of KINDS) kindCounts[k.key] = rows.filter((r) => rowMatchesFilter(r, filter) && (k.kinds.length === 0 || k.kinds.includes(r.kind)) && byDue(r)).length;
+  const dueCounts: Record<string, number> = {};
+  for (const d of DUE) dueCounts[d.key] = rows.filter((r) => rowMatchesFilter(r, filter) && byKind(r) && d.test(r.dueIn)).length;
 
   const needle = search.trim().toLowerCase();
-  const visible = (filter === "all" ? rows : rows.filter((r) => r.filter === filter))
+  const visible = rows.filter((r) => rowMatchesFilter(r, filter) && byKind(r) && byDue(r))
     .filter((r) => !needle || `${r.customer} ${r.job} ${r.ref}`.toLowerCase().includes(needle));
+  // The sum over what is showing — the figure a "final payments outstanding"
+  // view exists to answer. Balances only: a paid row carries 0.
+  const visibleCents = visible.reduce((a, r) => a + r.amtCents, 0);
+  const filtered = filter !== "all" || kind !== "all" || due !== "any";
   const bucketTotal = buckets.reduce((a, b) => a + b, 0);
   const sparkMax = Math.max(...tiles.collectedSpark, 1);
 
@@ -207,13 +270,51 @@ export default function Dashboard({
           />
           {search && <button type="button" onClick={() => setSearch("")} data-testid="payments-search-clear">Clear</button>}
         </div>
-        <div className="filters">
+        <div className="filters views" data-testid="payments-views" aria-label="Views">
+          <span className="fl">Views</span>
+          {VIEWS.map((v) => (
+            <button key={v.key} className={`f ${activeView === v.key ? "on" : ""}`} data-testid={`payments-view-${v.key}`}
+              onClick={() => applyView(v)}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+        <div className="filters" data-testid="payments-filters" aria-label="Status">
+          <span className="fl">Status</span>
           {FILTERS.map((fx) => (
-            <button key={fx.key} className={`f ${filter === fx.key ? "on" : ""}`}
+            <button key={fx.key} className={`f ${filter === fx.key ? "on" : ""}`} data-testid={`payments-filter-${fx.key}`}
               onClick={() => { setFilter(fx.key); setUrl(tab, fx.key); }}>
               {fx.label}<b>{counts[fx.key] ?? 0}</b>
             </button>
           ))}
+        </div>
+        <div className="filters" data-testid="payments-kinds" aria-label="Milestone">
+          <span className="fl">Milestone</span>
+          {KINDS.map((k) => (
+            <button key={k.key} className={`f ${kind === k.key ? "on" : ""}`} data-testid={`payments-kind-${k.key}`}
+              onClick={() => { setKind(k.key); setUrl(tab, filter, k.key, due); }}>
+              {k.label}<b>{kindCounts[k.key] ?? 0}</b>
+            </button>
+          ))}
+        </div>
+        <div className="filters" data-testid="payments-due" aria-label="Due">
+          <span className="fl">Due</span>
+          {DUE.map((d) => (
+            <button key={d.key} className={`f ${due === d.key ? "on" : ""}`} data-testid={`payments-due-${d.key}`}
+              onClick={() => { setDue(d.key); setUrl(tab, filter, kind, d.key); }}>
+              {d.label}<b>{dueCounts[d.key] ?? 0}</b>
+            </button>
+          ))}
+        </div>
+        <div className="sumline" data-testid="payments-sum">
+          <span>{visible.length} invoice{visible.length === 1 ? "" : "s"}{filtered ? " on this view" : ""}{needle ? ` matching “${search.trim()}”` : ""}</span>
+          <b data-testid="payments-sum-cents">{fmt0(visibleCents)}</b>
+          {filtered && (
+            <button type="button" className="mini" data-testid="payments-clear-filters"
+              onClick={() => { setFilter("all"); setKind("all"); setDue("any"); setUrl(tab, "all", "all", "any"); }}>
+              Clear filters
+            </button>
+          )}
         </div>
 
         <div className="rows" data-testid="receivable-rows">
@@ -242,8 +343,10 @@ export default function Dashboard({
             <div className="card"><div className="hint">{loadError
               ? "Nothing can be listed until the read above succeeds — this is not an empty ledger."
               : needle
-                ? `No invoice matches “${search.trim()}” on this filter.`
-                : "Nothing here — change the filter, or accept an estimate and the deposit draft appears on its own."}</div></div>
+                ? `No invoice matches “${search.trim()}” on this view.`
+                : filtered
+                  ? "No invoice matches these filters — clear one, or pick another view."
+                  : "Nothing here — accept an estimate and the deposit draft appears on its own."}</div></div>
           )}
         </div>
 

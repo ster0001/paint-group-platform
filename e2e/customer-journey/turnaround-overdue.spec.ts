@@ -53,7 +53,7 @@ test.describe("C17 · a request older than the turnaround", () => {
   test("shows in the OVERDUE bucket and says the promise has passed", async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page, staff!, /home|estimates|today|quote/);
-    await page.goto("/estimates");
+    await page.goto("/estimates?status=waiting");
     const row = page.getByTestId(`waiting-row-${estimateId}`);
     await expect(row).toBeVisible({ timeout: 30_000 });
     await expect(row).toHaveAttribute("data-bucket", "overdue");

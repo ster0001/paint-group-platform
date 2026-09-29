@@ -18,19 +18,30 @@ import { useRouter } from "next/navigation";
  * `dirty` and `save` are read through refs, so the caller passes fresh
  * closures every render without re-installing the listeners.
  */
-export function useSaveBeforeLeave({ dirty, save }: {
+export type LeaveChoice = "save" | "leave" | "stay";
+
+export function useSaveBeforeLeave({ dirty, save, ask }: {
   dirty: () => boolean;
   /** Resolve true when the work is saved (or there was nothing to save). */
   save: () => Promise<boolean>;
+  /**
+   * Tom, 29 Sep: "a reminder to save if you leave the page without saving".
+   * When given, a held click ASKS before anything happens — save and go,
+   * leave without saving, or stay — instead of saving silently. Without it
+   * the 17 Sep behaviour stands: save, then go.
+   */
+  ask?: () => Promise<LeaveChoice>;
 }) {
   const router = useRouter();
   const dirtyRef = useRef(dirty);
   const saveRef = useRef(save);
+  const askRef = useRef(ask);
   const savingRef = useRef(false);
   // Fresh closures after every commit; the listeners below read the refs.
   useEffect(() => {
     dirtyRef.current = dirty;
     saveRef.current = save;
+    askRef.current = ask;
   });
 
   useEffect(() => {
@@ -53,10 +64,17 @@ export function useSaveBeforeLeave({ dirty, save }: {
       if (savingRef.current) return;
       savingRef.current = true;
       void (async () => {
+        const go = () => router.push(url.pathname + url.search + url.hash);
+        let choice: LeaveChoice = "save";
+        if (askRef.current) {
+          try { choice = await askRef.current(); } catch { choice = "stay"; }
+        }
+        if (choice === "stay") { savingRef.current = false; return; }
+        if (choice === "leave") { savingRef.current = false; go(); return; }
         let ok = false;
         try { ok = await saveRef.current(); } catch { ok = false; }
         savingRef.current = false;
-        if (ok) router.push(url.pathname + url.search + url.hash);
+        if (ok) go();
       })();
     };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {

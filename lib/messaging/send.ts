@@ -70,7 +70,8 @@ export function smsConfigured(): boolean {
 const DEFAULT_FROM = "Paint Group <email@paintgroup.com.au>";
 
 export async function sendEmail(opts: {
-  to: string;
+  /** One address, or several (Tom, 29 Sep: the secondary contact) — one email, every address on it. */
+  to: string | string[];
   subject: string;
   html: string;
   replyTo?: string;
@@ -87,15 +88,22 @@ export async function sendEmail(opts: {
   // thread (reply+<token>@…) instead of a mailbox the platform cannot see.
   const routedReplyTo = replyAddress(token);
   const off = await customerSwitchedOff(opts.ctx, "email");
-  const result: DeliveryResult = off ? { status: "suppressed", message: off } : await sendEmailRaw({ ...opts, replyTo: routedReplyTo ?? opts.replyTo });
+  const recipients = recipientList(opts.to);
+  const result: DeliveryResult = off ? { status: "suppressed", message: off }
+    : recipients.length === 0 ? { status: "error", message: "No email address to send to." }
+    : await sendEmailRaw({ ...opts, to: recipients, replyTo: routedReplyTo ?? opts.replyTo });
   await recordMessage({
     channel: "email", direction: "out", subject: opts.subject,
     body: htmlToPlain(opts.html), bodyHtml: opts.html,
     provider: "resend", providerMessageId: result.status === "sent" ? result.id ?? null : null,
     status: result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : result.status === "suppressed" ? "suppressed" : "failed",
-    toAddress: opts.to, fromAddress: process.env.EMAIL_FROM || DEFAULT_FROM,
+    // The row is the FIRST address (the account match reads it); the rest ride meta.
+    toAddress: recipients[0] ?? null, fromAddress: process.env.EMAIL_FROM || DEFAULT_FROM,
     replyToken: routedReplyTo && !off ? token : null,
-    meta: result.status === "error" ? { error: result.message } : result.status === "suppressed" ? { suppressed: result.message } : {},
+    meta: {
+      ...(recipients.length > 1 ? { alsoTo: recipients.slice(1) } : {}),
+      ...(result.status === "error" ? { error: result.message } : result.status === "suppressed" ? { suppressed: result.message } : {}),
+    },
     ...(opts.ctx ?? {}),
   });
   return result;
@@ -118,8 +126,22 @@ export async function forwardEmail(opts: {
   return sendEmailRaw(opts);
 }
 
+/** Trimmed, de-duplicated (case-blind), empties dropped — in the order given. */
+export function recipientList(to: string | string[] | null | undefined): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of Array.isArray(to) ? to : [to ?? ""]) {
+    const v = (raw ?? "").trim();
+    const k = v.toLowerCase();
+    if (!v || seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+  }
+  return out;
+}
+
 async function sendEmailRaw(opts: {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   replyTo?: string;
@@ -135,7 +157,7 @@ async function sendEmailRaw(opts: {
       },
       body: JSON.stringify({
         from: process.env.EMAIL_FROM || DEFAULT_FROM,
-        to: [opts.to],
+        to: recipientList(opts.to),
         subject: opts.subject,
         html: opts.html,
         ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),

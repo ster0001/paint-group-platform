@@ -82,6 +82,14 @@ export default function EstimateHeader({
               )}
               {contact.email && <div>{contact.email}</div>}
               {contact.phone && <div>{contact.phone}</div>}
+              {contact.landline && <div>{contact.landline} <span className="text-gray-400">landline</span></div>}
+              {contact.secondary_name && (
+                <div className="mt-1 text-gray-600" data-testid="contact-secondary">
+                  <span className="text-gray-400">Also:</span> {contact.secondary_name}
+                  {contact.secondary_email ? ` · ${contact.secondary_email}` : ""}
+                  {contact.secondary_phone ? ` · ${contact.secondary_phone}` : ""}
+                </div>
+              )}
             </div>
           ) : readOnly ? (
             <span className="text-gray-400">—</span>
@@ -166,11 +174,11 @@ function Modal({ title, onClose, children, footer }: { title: string; onClose: (
   );
 }
 
-function Field({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
+function Field({ label, value, onChange, type = "text", testid }: { label: string; value: string; onChange: (v: string) => void; type?: string; testid?: string }) {
   return (
     <label className="block text-xs">
       <span className="text-gray-500">{label}</span>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" data-testid={testid} />
     </label>
   );
 }
@@ -214,6 +222,9 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
         first_name: c.first_name || "Unnamed", last_name: c.last_name || null, company: c.company || null,
         email: c.email || null, phone: c.phone || null, address: c.address || null,
         city: c.city || null, state: c.state || null, postal: c.postal || null,
+        // Tom, 29 Sep: landline + second person (migration 20270205).
+        landline: c.landline || null,
+        secondary_name: c.secondary_name || null, secondary_email: c.secondary_email || null, secondary_phone: c.secondary_phone || null,
       };
       if (c.id) {
         const { error } = await supabase.from("contacts").update(row).eq("id", c.id);
@@ -265,10 +276,11 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
       <div className="grid grid-cols-2 gap-3">
         <Field label="First name" value={c.first_name} onChange={(v) => set({ first_name: v })} />
         <Field label="Last name" value={c.last_name} onChange={(v) => set({ last_name: v })} />
-        <Field label="Company" value={c.company} onChange={(v) => set({ company: v })} />
-        <Field label="Phone" value={c.phone} onChange={(v) => set({ phone: v })} />
+        {/* Tom, 29 Sep: mobile before company; a landline of its own (texts never go to it). */}
+        <Field label="Mobile" value={c.phone} onChange={(v) => set({ phone: v })} testid="contact-phone" />
+        <Field label="Company" value={c.company} onChange={(v) => set({ company: v })} testid="contact-company" />
         <Field label="Email" value={c.email} onChange={(v) => set({ email: v })} type="email" />
-        <div />
+        <Field label="Landline" value={c.landline ?? ""} onChange={(v) => set({ landline: v })} testid="contact-landline" />
         <div className="relative col-span-2">
           <label className="block text-xs">
             <span className="text-gray-500">Address</span>
@@ -302,6 +314,18 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
         <Field label="City" value={c.city} onChange={(v) => set({ city: v })} />
         <Field label="State" value={c.state} onChange={(v) => set({ state: v })} />
         <Field label="Postcode" value={c.postal} onChange={(v) => set({ postal: v })} />
+      </div>
+      {/* Tom, 29 Sep: a second person — partner, agent, site contact — who can be
+          sent the estimate and the invoices alongside the first. */}
+      <div className="mt-4 border-t border-gray-200 pt-3">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Secondary contact <span className="font-normal normal-case text-gray-400">(optional — also gets what you send)</span></div>
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <Field label="Name" value={c.secondary_name ?? ""} onChange={(v) => set({ secondary_name: v })} testid="contact-secondary-name" />
+          <Field label="Mobile" value={c.secondary_phone ?? ""} onChange={(v) => set({ secondary_phone: v })} testid="contact-secondary-phone" />
+          <div className="col-span-2">
+            <Field label="Email" value={c.secondary_email ?? ""} onChange={(v) => set({ secondary_email: v })} type="email" testid="contact-secondary-email" />
+          </div>
+        </div>
       </div>
     </Modal>
   );

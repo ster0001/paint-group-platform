@@ -23,6 +23,15 @@ Both invoice screens have a search box. On **Invoicing** it sits at the top besi
 
 If the invoice was still a draft, it is issued at that moment: it gets its number, its totals are fixed and it can no longer be edited. Nothing is emailed except the receipt. You can still send the invoice later from the invoice page if the customer wants a copy.
 
+## Views and filters on Payments
+The Payments page (**Payments** in the sidebar) opens on every receivable. Above the rows sit four lines of chips:
+- **Views** — one press sets everything below it. **Final payments outstanding** is the one for "who still owes us their last payment": every final-milestone invoice that is issued and not yet paid in full. **Deposits outstanding** and **Progress payments outstanding** are the same for the other milestones; **Overdue 30+ days** is the chase list.
+- **Status** — All, **Outstanding** (any invoice with money still to come), Overdue, Awaiting, Partially paid, Draft, Paid.
+- **Milestone** — Any, Deposit, Progress, Final, Variation, Standalone.
+- **Due** — Any time, due within 7 or 30 days, overdue 7+ or 30+ days.
+
+The number on every chip is what pressing it will show with the other two rows as they are. Under the chips a line says how many invoices are showing and their balances added up — on the final-payments view, that figure is the money still to collect on finals. The URL carries the choice (`?f=outstanding&k=final`), so a view can be bookmarked or sent to someone. **Clear filters** takes you back to All.
+
 ## What a deposit invoice shows
 A deposit invoice lists every line item from the accepted estimate under **Contract works — from your accepted estimate**, then the deposit itself under **This invoice**. The scope lines are there so the customer can see what the job covers. They are not added into the deposit's total, and you cannot edit them on the invoice: the deposit's figure is changed with **Amend the amount**, and the scope itself is changed by revising the estimate.
 

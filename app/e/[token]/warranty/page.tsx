@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { formatEstimateNumber } from "@/lib/estimate/number";
 import type { CustomerSnapshot } from "@/lib/customer/snapshot";
 import { ACL_LINE, warrantyClauses, warrantyLimit, warrantyPromise, WARRANTY_TERMS_VERSION } from "@/lib/warranty/terms";
 import PrintButton from "@/app/account/(portal)/PrintButton";
@@ -29,7 +30,7 @@ export default async function WarrantyAttachmentPage({
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc("get_estimate_by_token", { p_token: token });
-  const row = (Array.isArray(data) ? data[0] : data) as { snapshot?: CustomerSnapshot } | undefined;
+  const row = (Array.isArray(data) ? data[0] : data) as { snapshot?: CustomerSnapshot; number?: number | null } | undefined;
   if (error || !row || !row.snapshot) notFound();
   const snap = row.snapshot as Partial<CustomerSnapshot>;
   if (snap.version !== 1) notFound();
@@ -54,7 +55,7 @@ export default async function WarrantyAttachmentPage({
         <div className="brandline">{c.name || "Paint Group"}</div>
         <h1>Two-year workmanship warranty</h1>
         <p className="docmeta">
-          Attached to {snap.estRef ? `estimate ${snap.estRef}` : "your estimate"}
+          Attached to {row.number != null ? `estimate ${formatEstimateNumber(row.number)}` : snap.estRef ? `estimate ${snap.estRef}` : "your estimate"}
           {snap.jobAddress ? ` · ${snap.jobAddress}` : ""} · terms version {WARRANTY_TERMS_VERSION}
         </p>
       </header>

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
+import { emailConfigured, sendEmail, sendSms, smsConfigured, recipientList } from "@/lib/messaging/send";
 import { automationOn, normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
 import { outcomeWord, sendAutomation } from "@/lib/automations/dispatch";
 import { loadMessaging } from "@/lib/messaging/load";
@@ -105,18 +105,20 @@ export async function sendInvoiceEmail(
 ): Promise<InvoiceSendOutcome> {
   const { data } = await service
     .from("invoices")
-    .select("id, number, kind, status, total_inc_cents, due_on, token, estimates(accepted_name, contact_email:sent_snapshot->>contactEmail, job_address:sent_snapshot->>jobAddress)")
+    .select("id, number, kind, status, total_inc_cents, due_on, token, estimates(accepted_name, contact_email:sent_snapshot->>contactEmail, contact_email2:sent_snapshot->>contactEmail2, job_address:sent_snapshot->>jobAddress)")
     .eq("id", invoiceId)
     .maybeSingle();
   const inv = data as {
     id: string; number: string | null; kind: string; status: string;
     total_inc_cents: number; due_on: string | null; token: string;
-    estimates: { accepted_name: string | null; contact_email: string | null; job_address: string | null } | null;
+    estimates: { accepted_name: string | null; contact_email: string | null; contact_email2: string | null; job_address: string | null } | null;
   } | null;
   if (!inv || inv.status === "draft" || !inv.number) return { status: "error", message: "not issued" };
 
   const to = inv.estimates?.contact_email?.trim() ?? "";
   if (!to) return { status: "no_recipient" };
+  // Tom, 29 Sep: the second contact gets the same invoice.
+  const recipients = recipientList([to, inv.estimates?.contact_email2 ?? ""]);
 
   const { data: settings } = await service
     .from("settings").select("key, value").in("key", ["invoicing_entity", "invoicing_bank"]);
@@ -156,7 +158,7 @@ export async function sendInvoiceEmail(
     console.log(`[invoice-send:log-driver] to=${to} subject="Invoice ${inv.number}" link=${link}`);
     return { status: "not_configured", to };
   }
-  const result = await sendEmail({ to, subject: `Invoice ${inv.number} from Paint Group`, html, ctx: { invoiceId: inv.id, kind: "invoice" } });
+  const result = await sendEmail({ to: recipients, subject: `Invoice ${inv.number} from Paint Group`, html, ctx: { invoiceId: inv.id, kind: "invoice" } });
   if (result.status === "sent") return { status: "sent", to };
   if (result.status === "not_configured") return { status: "not_configured", to };
   reportError(new Error(result.message), { where: "sendInvoiceEmail", extra: { invoiceId } });
@@ -176,17 +178,20 @@ export async function sendInvoiceSms(
 ): Promise<InvoiceSendOutcome> {
   const { data } = await service
     .from("invoices")
-    .select("id, number, status, total_inc_cents, token, estimates(accepted_name, contact_phone:builder_state->contact->>phone)")
+    .select("id, number, status, total_inc_cents, token, estimates(accepted_name, contact_phone:builder_state->contact->>phone, contact_phone2:builder_state->contact->>secondary_phone)")
     .eq("id", invoiceId)
     .maybeSingle();
   const inv = data as {
     id: string; number: string | null; status: string; total_inc_cents: number; token: string;
-    estimates: { accepted_name: string | null; contact_phone: string | null } | null;
+    estimates: { accepted_name: string | null; contact_phone: string | null; contact_phone2: string | null } | null;
   } | null;
   if (!inv || inv.status === "draft" || !inv.number) return { status: "error", message: "not issued" };
 
   const phone = normalisePhoneAU(inv.estimates?.contact_phone ?? "");
   if (!phone) return { status: "no_recipient" };
+  // Tom, 29 Sep: the second contact's mobile, when there is one and it differs.
+  const phone2 = normalisePhoneAU(inv.estimates?.contact_phone2 ?? "");
+  const extraPhones = phone2 && phone2 !== phone ? [phone2] : [];
 
   const link = `${siteUrl()}/i/${inv.token}`;
   const firstName = (inv.estimates?.accepted_name ?? "").split(" ")[0] || "there";
@@ -200,6 +205,10 @@ export async function sendInvoiceSms(
     return { status: "not_configured", to: phone };
   }
   const result = await sendSms({ to: phone, body, ctx: { invoiceId: inv.id, kind: "invoice" } });
+  for (const extra of extraPhones) {
+    const r = await sendSms({ to: extra, body, ctx: { invoiceId: inv.id, kind: "invoice" } });
+    if (r.status === "error") reportError(new Error(r.message), { where: "sendInvoiceSms.secondary", extra: { invoiceId } });
+  }
   if (result.status === "sent") return { status: "sent", to: phone };
   if (result.status === "not_configured") return { status: "not_configured", to: phone };
   reportError(new Error(result.message), { where: "sendInvoiceSms", extra: { invoiceId } });

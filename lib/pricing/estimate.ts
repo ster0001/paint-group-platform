@@ -92,6 +92,20 @@ export type AreaInput = {
   surfaces: SurfaceInput[];
 };
 
+/**
+ * Tom, 29 Sep: a material LINKED to a line item — a product from the
+ * catalogue and the litres it needs. Charged like a substrate's paint:
+ * litres × the product's price per litre, at cost for margin and with the
+ * materials markup on the customer's price. Rides the line into the work
+ * order and the customer's paint cards.
+ */
+export type LineMaterialInput = {
+  productName: string;
+  litres: number;
+  /** $ per litre typed over the catalogue price; null = catalogue. */
+  unitPriceOverride?: number | null;
+};
+
 export type LineInput = {
   kind: "line";
   type: "Interior" | "Exterior";
@@ -107,6 +121,7 @@ export type LineInput = {
   /** 3rd-party cost (carpentry, scaffolding): the customer pays us and we pay
    * the supplier, so both sides sit OUTSIDE the gross margin on our own work. */
   subcontractorExpense?: boolean;
+  materials?: LineMaterialInput[];
 };
 
 export type BlockInput = AreaInput | LineInput;
@@ -187,7 +202,14 @@ export type SurfaceResult = {
   totalCents: number;
 };
 
-export type LineResult = { priceCents: number; hours: number; costCents: number };
+export type LineResult = {
+  priceCents: number;
+  hours: number;
+  costCents: number;
+  /** The linked materials' share of costCents / priceCents (0 when none). */
+  materialsCostCents: number;
+  materialsPriceCents: number;
+};
 
 export type EstimateTotals = {
   subtotalCents: number;
@@ -461,15 +483,47 @@ export function priceSurface(
   };
 }
 
-export function priceLine(l: LineInput): LineResult {
+/** Cost and marked-up price of a line's linked materials, in cents. */
+export function lineMaterialsCents(
+  materials: readonly LineMaterialInput[] | undefined,
+  productsByName: Map<string, Product> | undefined,
+  markup: number,
+): { costCents: number; priceCents: number } {
+  let costCents = 0;
+  for (const m of materials ?? []) {
+    const litres = Number.isFinite(m.litres) && m.litres > 0 ? m.litres : 0;
+    if (!litres || !m.productName) continue;
+    const product = productsByName?.get(m.productName);
+    const unitCents = m.unitPriceOverride != null ? Math.round(m.unitPriceOverride * 100) : product?.price_per_litre ?? 0;
+    costCents += Math.round(litres * unitCents);
+  }
+  return { costCents, priceCents: Math.round(costCents * (1 + markup)) };
+}
+
+/**
+ * A line's price, hours and cost. Linked materials (Tom, 29 Sep) are ADDED
+ * to whatever the line's mode prices — the typed figure stays the labour /
+ * service, the paint rides on top at cost + the materials markup. Without
+ * `opts` (no catalogue) materials price at zero, which is what a line with
+ * none has always done.
+ */
+export function priceLine(l: LineInput, opts?: { productsByName?: Map<string, Product>; markup?: number }): LineResult {
+  const mats = lineMaterialsCents(l.materials, opts?.productsByName, opts?.markup ?? 0);
+  const withMats = (base: { priceCents: number; hours: number; costCents: number }): LineResult => ({
+    priceCents: base.priceCents + mats.priceCents,
+    hours: base.hours,
+    costCents: base.costCents + mats.costCents,
+    materialsCostCents: mats.costCents,
+    materialsPriceCents: mats.priceCents,
+  });
   if (l.mode === "hourly") {
     // Labour is paid through the contractor offer, so it carries no separate cost.
-    return { priceCents: Math.round(l.hours * l.rate * 100), hours: l.hours, costCents: 0 };
+    return withMats({ priceCents: Math.round(l.hours * l.rate * 100), hours: l.hours, costCents: 0 });
   }
   if (l.mode === "quantity") {
-    return { priceCents: Math.round(l.qty * l.unitPrice * 100), hours: l.woHours, costCents: Math.round(l.cost * 100) };
+    return withMats({ priceCents: Math.round(l.qty * l.unitPrice * 100), hours: l.woHours, costCents: Math.round(l.cost * 100) });
   }
-  return { priceCents: Math.round(l.custom * 100), hours: l.woHours, costCents: Math.round(l.cost * 100) };
+  return withMats({ priceCents: Math.round(l.custom * 100), hours: l.woHours, costCents: Math.round(l.cost * 100) });
 }
 
 // ---------------------------------------------------------------------------
@@ -508,7 +562,7 @@ export function priceEstimateTotals(
         materialsCost += c.matCostCents;
       }
     } else {
-      const c = priceLine(b);
+      const c = priceLine(b, { productsByName, markup: rates.markup });
       subtotal += c.priceCents;
       contractorHours += c.hours;
       // A 3rd-party line is a pass-through: its cost is NOT a gross-margin

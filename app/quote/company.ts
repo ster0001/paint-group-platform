@@ -32,7 +32,14 @@ export type Contact = {
   last_name: string;
   company: string;
   email: string;
+  /** Mobile — the number a text goes to. */
   phone: string;
+  /** Tom, 29 Sep: a landline, kept apart from the mobile so no text is ever sent to it. Optional; absent on older saves. */
+  landline?: string;
+  /** Tom, 29 Sep: a second person on the job (partner, agent, site contact) who can be sent the same estimate and invoices. Optional; absent on older saves. */
+  secondary_name?: string;
+  secondary_email?: string;
+  secondary_phone?: string;
   address: string;
   city: string;
   state: string;
@@ -83,6 +90,7 @@ export const DEFAULT_COMPANY: CompanyProfile = {
   bank: "",
 };
 export const EMPTY_CONTACT: Contact = {
-  first_name: "", last_name: "", company: "", email: "", phone: "", address: "", city: "", state: "", postal: "",
+  first_name: "", last_name: "", company: "", email: "", phone: "", landline: "", secondary_name: "", secondary_email: "", secondary_phone: "",
+  address: "", city: "", state: "", postal: "",
 };
 export const EMPTY_JOB: JobAddress = { address: "", city: "", state: "", postal: "" };

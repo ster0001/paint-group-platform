@@ -148,7 +148,8 @@ async function deliver(
     } else {
       result = await sendEmail({
         ctx: { estimateId: v.estimateId, kind: "estimate" },
-        to: v.email.to,
+        // The second contact rides the same email (Tom, 29 Sep).
+        to: [v.email.to, ...(v.email.alsoTo ?? [])],
         subject: v.email.subject,
         replyTo: company.email || undefined,
         html: buildEstimateEmailHtml({
@@ -165,7 +166,7 @@ async function deliver(
       });
     }
     outcome.email = { status: result.status, ...("message" in result ? { message: result.message } : {}) };
-    await logDelivery(supabase, v.estimateId, "email", v.email.to, result);
+    await logDelivery(supabase, v.estimateId, "email", [v.email.to, ...(v.email.alsoTo ?? [])].join(", "), result);
   }
 
   if (v.sms) {
@@ -177,6 +178,15 @@ async function deliver(
       result = { status: "error", message: "That mobile number doesn't look like an Australian number." };
     } else {
       result = await sendSms({ to, body: renderTemplate(messaging.smsTemplate, vars), ctx: { estimateId: v.estimateId, kind: "estimate" } });
+      // The second contact's text (Tom, 29 Sep) — its own send, its own log
+      // line; a bad second number never fails the first.
+      for (const extra of v.sms.alsoTo ?? []) {
+        const extraTo = normalisePhoneAU(extra);
+        const r = extraTo
+          ? await sendSms({ to: extraTo, body: renderTemplate(messaging.smsTemplate, vars), ctx: { estimateId: v.estimateId, kind: "estimate" } })
+          : { status: "error" as const, message: "The second contact's mobile doesn't look like an Australian number." };
+        await logDelivery(supabase, v.estimateId, "sms", extra, r);
+      }
     }
     outcome.sms = { status: result.status, ...("message" in result ? { message: result.message } : {}) };
     await logDelivery(supabase, v.estimateId, "sms", v.sms.to, result);

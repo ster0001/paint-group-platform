@@ -8,6 +8,7 @@ import { reportError } from "@/lib/monitoring/report";
 import { forwardEmail } from "@/lib/messaging/send";
 import { loadMessaging } from "@/lib/messaging/load";
 import { postStaffChatReply, stripQuotedReply } from "@/lib/estimates/chatReply";
+import { forwardedOrigin } from "@/lib/messaging/forwarded";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -96,6 +97,21 @@ export async function POST(req: Request) {
       }
     }
   }
+  // Tom, 29 Sep: a customer's email to the OFFICE mailbox (info@) reaches the
+  // CRM by a mailbox rule that forwards it here. The forward is from the
+  // office; the customer is named in the body's forwarded-message header.
+  // Read them back out, record the row against the customer, and do not
+  // relay a copy to the mailbox it just came from.
+  const { company } = await loadMessaging(db);
+  const officeAddresses = [company.email, process.env.INBOUND_FORWARD_TO, process.env.EMAIL_FROM]
+    .map((a) => (a ?? "").replace(/^.*<([^>]+)>.*$/, "$1").trim().toLowerCase()).filter(Boolean);
+  const fromOffice = officeAddresses.includes(email.fromEmail.trim().toLowerCase()) || (await staffNameForEmail(db, email.fromEmail)) !== null;
+  const origin = fromOffice && !token ? forwardedOrigin(email.text, officeAddresses) : null;
+  if (origin) {
+    email.fromEmail = origin.fromEmail;
+    if (origin.subject) email.subject = origin.subject;
+    if (origin.body) { email.text = origin.body; email.html = ""; }
+  }
   if (!accountId) accountId = await resolveAccount(db, { email: email.fromEmail });
 
   try {
@@ -103,10 +119,11 @@ export async function POST(req: Request) {
       channel: "email", direction: "in", subject: email.subject, body: email.text, bodyHtml: email.html || null,
       provider: "resend", providerMessageId: email.messageId, status: "received",
       fromAddress: email.fromEmail, toAddress: firstTo(json), accountId, threadId, estimateId,
-      kind: "reply", meta: { resendEmailId: email.emailId },
+      kind: "reply", meta: { resendEmailId: email.emailId, ...(origin ? { forwardedByOffice: true, forwardedFromName: origin.fromName } : {}) },
     }, db);
-    const forwarded = await relayToOffice(db, email, { accountId, messageId: id });
-    return NextResponse.json({ received: true, id, matched: accountId != null, forwarded });
+    // A forward from the office already sits in the office mailbox.
+    const forwarded = origin ? false : await relayToOffice(db, email, { accountId, messageId: id });
+    return NextResponse.json({ received: true, id, matched: accountId != null, forwarded, viaOfficeForward: Boolean(origin) });
   } catch (e) {
     reportError(e, { where: "inboundMessages", extra: { messageId: email.messageId } });
     return new NextResponse("Storage failed.", { status: 500 });

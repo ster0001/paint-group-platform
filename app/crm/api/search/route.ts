@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { LANES } from "@/lib/crm/stage";
 import type { SearchHit } from "../../Search";
+import { formatEstimateNumber, parseEstimateNumber } from "@/lib/estimate/number";
 
 /**
  * P2 — global search. Staff session + RLS; the facts table carries a search
@@ -31,11 +32,13 @@ export async function GET(request: Request) {
       .order("needs_you", { ascending: false })
       .order("last_activity_at", { ascending: false, nullsFirst: false })
       .limit(8),
-    supabase.from("estimates")
-      .select("id, title, status, total_cents, account_id")
-      .ilike("title", `%${needle}%`)
-      .order("created_at", { ascending: false })
-      .limit(5),
+    // Tom, 29 Sep: a typed number ("42", "0042", "#42") finds that estimate;
+    // anything else matches the title as before.
+    (() => {
+      const n = parseEstimateNumber(q);
+      const base = supabase.from("estimates").select("id, number, title, status, total_cents, account_id");
+      return n != null ? base.eq("number", n).limit(5) : base.ilike("title", `%${needle}%`).order("created_at", { ascending: false }).limit(5);
+    })(),
   ]);
 
   const laneLabel = (k: string) => LANES.find((l) => l.key === k)?.label ?? k;
@@ -48,12 +51,12 @@ export async function GET(request: Request) {
         line: [a.phone, a.suburb, laneLabel(a.stage), a.because].filter(Boolean).join(" · "),
         stage: a.stage,
       })),
-    ...((estimates.data ?? []) as Array<{ id: string; title: string | null; status: string; total_cents: number | null; account_id: string | null }>)
+    ...((estimates.data ?? []) as Array<{ id: string; number: number | null; title: string | null; status: string; total_cents: number | null; account_id: string | null }>)
       .map((e) => ({
         kind: "estimate" as const,
         id: e.id,
         accountId: e.account_id,
-        title: e.title || "Untitled estimate",
+        title: `${e.number != null ? `#${formatEstimateNumber(e.number)} · ` : ""}${e.title || "Untitled estimate"}`,
         line: [e.status, money(e.total_cents)].filter(Boolean).join(" · "),
       })),
   ];

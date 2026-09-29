@@ -9,6 +9,7 @@ import DuplicateEstimateButton from "./DuplicateEstimateButton";
 import { displayStatus } from "@/lib/estimate/displayStatus";
 import type { WizardJourney } from "@/lib/wizard/journey";
 import type { ListRow } from "@/lib/estimate/listRows";
+import { formatEstimateNumber } from "@/lib/estimate/number";
 import { TONE } from "./WizardPill";
 import JourneyDrawer from "./JourneyDrawer";
 
@@ -220,6 +221,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                     className="block truncate font-medium hover:underline"
                     title={e.title || "Untitled estimate"}
                   >
+                    {e.number != null && <span className="mr-2 font-mono text-xs text-gray-500" data-testid={`estimate-number-${e.id}`}>#{formatEstimateNumber(e.number)}</span>}
                     {e.title || "Untitled estimate"}
                   </Link>
                   {/* Tom, 15 Sep: the customer under the title, so a search hit makes sense. */}

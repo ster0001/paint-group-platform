@@ -26,11 +26,14 @@ export const sendEstimateInput = z.object({
       to: z.string().trim().email("That email address doesn't look right."),
       subject: z.string().trim().min(1).max(200),
       message: z.string().trim().min(1).max(5000),
+      /** Tom, 29 Sep: the secondary contact — the same email, to both. */
+      alsoTo: z.array(z.string().trim().email("The second contact's email doesn't look right.")).max(3).optional(),
     })
     .nullish(),
   sms: z
     .object({
       to: z.string().trim().min(6, "That phone number doesn't look right.").max(20),
+      alsoTo: z.array(z.string().trim().min(6, "The second contact's mobile doesn't look right.").max(20)).max(3).optional(),
     })
     .nullish(),
 });

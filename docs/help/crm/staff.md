@@ -28,6 +28,12 @@ You need a staff login with the CRM area ticked (Settings → Staff logins). If 
 ## When a customer replies to an email
 An email sent from the record (Messages → Email) carries a reply address that routes straight back into the CRM: the reply appears on the record as "They wrote" and on Today as a Message card. A copy of every reply is also sent on to the office mailbox (Settings → Company email, or the `INBOUND_FORWARD_TO` address), with the customer as the reply-to, so answering from the mailbox reaches them directly. This needs the reply domain and inbound webhook set up in Resend (`REPLY_DOMAIN`, `MESSAGES_INBOUND_SECRET`); without them replies go to the company mailbox only, as before.
 
+## A customer email that came to the office mailbox
+Replies to the reply address land in the CRM on their own. An email that arrived at the office mailbox instead (a reply to an older email, or a fresh one) reaches the CRM when the mailbox forwards it to the receiving domain: the CRM reads the customer's address out of the forwarded-message header the mail program wrote, records the row against that customer (or on Today as unmatched), and does not send a copy back to the mailbox it came from. Set up once in the mailbox: a rule that forwards mail from outside the company to `crm@<the reply domain>`. What the customer wrote is what shows; the forwarding wrapper is stripped.
+
+## The chat chime
+The customer-chat dock in the bottom corner chimes when a customer writes. Open it and the bell in the header mutes it; the slider beside the bell sets how loud, and plays the chime at the new level when you let go. Both are remembered on this browser.
+
 ## What counts as a reply
 A customer's message — an email reply, a text, a portal message, the chat on their estimate — sits on Today as a Message card until a **person** answers it: a reply typed on the record or in the builder's Chat tab, an email or text you send them, or a call you log. An automated message (a quote follow-up, a deposit reminder, any of Settings → Automations) does **not** clear the card — the customer is still waiting for you. Failed or suppressed sends never count either. The record's Messages tab shows a reply as read once the customer has opened the thread; for emails, an open is the best signal there is and is marked as such.
 
