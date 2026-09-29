@@ -34,12 +34,15 @@ test.describe("C7b — estimates home", () => {
     if (db && inhouseId) await db.from("estimates").delete().eq("id", inhouseId);
   });
 
-  test("lands on Waiting on you, which is the work queue and nothing else", async ({ page }) => {
+  test("opens on All; Waiting on you is the work queue and nothing else", async ({ page }) => {
     test.skip(!staff, missingCreds("STAFF"));
     await signIn(page, staff!, /\/(home|estimates)/);
+    // Tom, 29 Sep: the bare page opens on All, not Waiting.
     await page.goto("/estimates");
-    // The default tab is the first one, and it is the queue's cut: either rows
-    // from the evaluator or its own empty line — never a status list.
+    await expect(page.getByTestId("estimates-tab-all")).toHaveClass(/border-gray-900/);
+    await page.getByTestId("estimates-tab-waiting").click();
+    // The Waiting tab is the queue's cut: either rows from the evaluator or
+    // its own empty line — never a status list.
     await expect(page.getByTestId("estimates-tab-waiting")).toHaveClass(/border-gray-900/);
     const table = page.getByTestId("waiting-table");
     const empty = page.getByTestId("waiting-empty");
@@ -145,7 +148,7 @@ test.describe("C7b — estimates home", () => {
     const key = `photo_review:estimate:${id}:photos`;
     try {
       await signIn(page, staff!, /\/(home|estimates)/);
-      await page.goto("/estimates");
+      await page.goto("/estimates?status=waiting");
       const row = page.getByTestId(`waiting-row-${id}`);
       await expect(row).toBeVisible({ timeout: 30_000 });
       await expect(page.getByTestId("waiting-bulk-bar")).toHaveCount(0);

@@ -409,7 +409,7 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
       .then((r) => ({ data: r.data ? [r.data] : [] })),
   ]);
   if (estError) return { ok: false, message: estError.message };
-  const contact = ((est?.builder_state as { contact?: { first_name?: string; email?: string; phone?: string } } | null)?.contact) ?? null;
+  const contact = ((est?.builder_state as { contact?: { first_name?: string; email?: string; phone?: string; secondary_email?: string; secondary_phone?: string } } | null)?.contact) ?? null;
   const company = ((settingsRows?.[0] as { value?: { name?: string; email?: string } } | undefined)?.value) ?? {};
 
   const link = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app"}/v/${token}`;
@@ -449,7 +449,8 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
     } else {
       const sent = await sendEmail({
         ctx: { estimateId: variation.work_orders?.estimate_id ?? null, kind: "variation" },
-        to: contact.email,
+        // Tom, 29 Sep: the second contact signs off on the same link.
+        to: [contact.email, contact.secondary_email ?? ""],
         subject: `${heading} — ${company.name ?? "Paint Group"}`,
         replyTo: company.email || undefined,
         html: buildInvoiceEmailHtml({
@@ -478,11 +479,16 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
     } else if (!to) {
       result.sms = { status: "error", message: "That mobile number doesn't look Australian." };
     } else {
+      const smsBody = `${company.name ?? "Paint Group"}: ${what} on your job need${n === 1 ? "s" : ""} your signature. Review & sign: ${link}`;
       const sent = await sendSms({
         ctx: { estimateId: variation.work_orders?.estimate_id ?? null, kind: "variation" },
         to,
-        body: `${company.name ?? "Paint Group"}: ${what} on your job need${n === 1 ? "s" : ""} your signature. Review & sign: ${link}`,
+        body: smsBody,
       });
+      const to2 = normalisePhoneAU(contact.secondary_phone ?? "");
+      if (to2 && to2 !== to) {
+        await sendSms({ ctx: { estimateId: variation.work_orders?.estimate_id ?? null, kind: "variation" }, to: to2, body: smsBody });
+      }
       result.sms = { status: sent.status, ...("message" in sent ? { message: sent.message } : {}) };
     }
   }

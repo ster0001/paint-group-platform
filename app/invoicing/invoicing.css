@@ -187,6 +187,12 @@
 .invx .f b{color:var(--text);font-weight:500;margin-left:4px}
 .invx .f.on{background:var(--raised);border-color:var(--cyan);color:var(--cyan)}
 .invx .f.on b{color:var(--cyan)}
+/* Tom, 29 Sep: labelled filter rows (Views / Status / Milestone / Due) + the sum over what is showing */
+.invx .filters .fl{flex:none;align-self:center;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);min-width:64px}
+.invx .filters.views .f{border-style:dashed}
+.invx .filters.views .f.on{border-style:solid}
+.invx .sumline{display:flex;gap:10px;align-items:center;padding:8px 2px 0;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.invx .sumline b{color:var(--text);font-size:13px;font-weight:600}
 .invx .rows{margin-top:8px}
 .invx .r{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:13px;background:var(--graphite);
   padding:12px 13px;margin-top:9px;cursor:pointer}

@@ -77,6 +77,9 @@ export type CustomerSnapshot = {
   estRef: string; // short EST reference
   contactName: string;
   contactEmail: string; // the customer's own email (used only for the portal magic-link match)
+  /** Tom, 29 Sep: the second person on the contact — invoices and updates go to both. Absent before then. */
+  contactName2?: string;
+  contactEmail2?: string;
   jobAddress: string;
   jobTitle: string;
   gstRatePct: number; // e.g. 10

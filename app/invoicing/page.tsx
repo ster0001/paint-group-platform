@@ -12,6 +12,7 @@ import {
   type DeriveInvoice,
 } from "@/lib/invoicing/derive";
 import { contractorInvoiceTone } from "@/lib/invoicing/contractorInvoiceTone";
+import { OPEN_STATUSES } from "@/lib/invoicing/stateMachine";
 import { materialsToMatch } from "@/lib/invoicing/materialsToMatch";
 import { loadCostCapture, loadDashboard, toDerive, toDerivePayments, type EventRow, type InvoiceRow } from "./data";
 import { STAGE_LANES, visibleStage, type WoStage } from "@/lib/workorder/stages";
@@ -78,9 +79,9 @@ function eventLine(e: EventRow, byId: Map<string, InvoiceRow>): ActivityProp {
 export default async function InvoicingDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ f?: string; tab?: string }>;
+  searchParams: Promise<{ f?: string; tab?: string; k?: string; d?: string }>;
 }) {
-  const { f, tab } = await searchParams;
+  const { f, tab, k, d: dueParam } = await searchParams;
   const supabase = await createClient();
   const today = melbourneDate(new Date());
   const [{ invoices, loadError, payablesError, payments, events, contractorInvoices, materialsToMatch: materialRows }, capture] = await Promise.all([
@@ -152,6 +153,9 @@ export default async function InvoicingDashboardPage({
       customer: r.estimates?.accepted_name ?? "",
       ref: refBits.join(" · "),
       filter, ageLabel, ageTone,
+      kind: r.kind,
+      outstanding: OPEN_STATUSES.includes(r.status) && balance > 0,
+      dueIn: age ? ("overdueDays" in age ? -age.overdueDays : age.dueInDays) : null,
       amtCents: filter === "paid" ? 0 : balance > 0 ? balance : r.total_inc_cents,
       dots, overdue: filter === "overdue", draft: filter === "draft",
       sortKey,
@@ -364,6 +368,8 @@ export default async function InvoicingDashboardPage({
       activity={activity}
       initialFilter={f ?? "all"}
       initialTab={tab ?? "recv"}
+      initialKind={k ?? "all"}
+      initialDue={dueParam ?? "any"}
       payables={payables}
       materialsToMatchCount={toMatch.length}
       payableRows={payableRows}

@@ -66,6 +66,7 @@ export default async function Page({
   return (
     <CustomerEstimate
       snapshot={row.snapshot}
+      estimateNumber={row.number ?? null}
       bank={bank}
       token={token}
       status={row.status}

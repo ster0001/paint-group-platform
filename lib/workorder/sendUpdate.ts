@@ -11,7 +11,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
+import { emailConfigured, sendEmail, sendSms, smsConfigured, recipientList } from "@/lib/messaging/send";
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "@/lib/invoicing/pdf";
@@ -43,7 +43,7 @@ export async function deliverCustomerUpdate(
 
   const { data: w } = await service
     .from("work_orders")
-    .select("estimate_id, wo_snapshot, estimates(share_token, account_id, accepted_name, contact_email:sent_snapshot->>contactEmail, contact_phone:builder_state->contact->>phone, job_address:sent_snapshot->>jobAddress)")
+    .select("estimate_id, wo_snapshot, estimates(share_token, account_id, accepted_name, contact_email:sent_snapshot->>contactEmail, contact_email2:sent_snapshot->>contactEmail2, contact_phone:builder_state->contact->>phone, contact_phone2:builder_state->contact->>secondary_phone, job_address:sent_snapshot->>jobAddress)")
     .eq("id", update.work_order_id)
     .maybeSingle();
   const wo = w as {
@@ -52,6 +52,7 @@ export async function deliverCustomerUpdate(
     estimates: {
       share_token: string | null; account_id: string | null; accepted_name: string | null;
       contact_email: string | null; contact_phone: string | null; job_address: string | null;
+      contact_email2: string | null; contact_phone2: string | null;
     } | null;
   } | null;
   if (!wo?.estimates) return out;
@@ -117,7 +118,8 @@ export async function deliverCustomerUpdate(
   </td></tr>
 </table></td></tr></table>
 </body></html>`;
-      const r = await sendEmail({ to, subject: `An update on your painting at ${address}`, html, ctx: { accountId: wo.estimates.account_id, estimateId: wo.estimate_id, kind: "job_update" } });
+      // Tom, 29 Sep: the second contact gets the same update.
+      const r = await sendEmail({ to: recipientList([to, wo.estimates.contact_email2 ?? ""]), subject: `An update on your painting at ${address}`, html, ctx: { accountId: wo.estimates.account_id, estimateId: wo.estimate_id, kind: "job_update" } });
       out.email = r.status === "sent" ? "sent" : r.status === "not_configured" ? "not_configured" : "error";
       out.to = to;
       if (out.email === "error") {
@@ -136,6 +138,11 @@ export async function deliverCustomerUpdate(
         `${text.slice(0, 180)}${text.length > 180 ? "…" : ""}` +
         `${link ? ` See photos and details: ${link}` : ""}`;
       const r = await sendSms({ to: phone, body, ctx: { accountId: wo.estimates.account_id, estimateId: wo.estimate_id, kind: "job_update" } });
+      const phone2 = normalisePhoneAU(wo.estimates.contact_phone2 ?? "");
+      if (phone2 && phone2 !== phone) {
+        const r2 = await sendSms({ to: phone2, body, ctx: { accountId: wo.estimates.account_id, estimateId: wo.estimate_id, kind: "job_update" } });
+        if (r2.status === "error") reportError(new Error("update sms (secondary) failed"), { where: "deliverCustomerUpdate.sms2", extra: { updateId } });
+      }
       out.sms = r.status === "sent" ? "sent" : r.status === "not_configured" ? "not_configured" : "error";
       if (out.sms === "error") {
         reportError(new Error("update sms failed"), { where: "deliverCustomerUpdate.sms", extra: { updateId } });

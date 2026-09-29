@@ -14,6 +14,8 @@ import { isPhotoKind } from "@/lib/wizard/documents";
 /** What the page's select returns for one estimate (embeds included). */
 export type RawListRow = {
   id: string;
+  /** estimates.number (migration 20270204). */
+  number?: number | null;
   title: string | null;
   status: string;
   total_cents: number | null;
@@ -40,6 +42,8 @@ export type RawListRow = {
 
 export type ListRow = {
   id: string;
+  /** Tom, 29 Sep: the 4-digit estimate number, shown before the title and matched by the search box. */
+  number: number | null;
   title: string | null;
   status: string;
   created_at: string;
@@ -123,6 +127,7 @@ export function buildListRow(
   const address = [raw.job_street, raw.job_city].map((x) => (x ?? "").trim()).filter(Boolean).join(", ") || null;
   return {
     id: raw.id,
+    number: raw.number ?? null,
     customer, address, title: raw.title, status: raw.status, created_at: raw.created_at, viewed_at: raw.viewed_at, source: raw.source,
     hasWizard, pill, action, value, wizard: deps.wizard,
   };
@@ -135,7 +140,7 @@ export function buildListRow(
  * rather than the whole tree.
  */
 export const LIST_SELECT =
-  "id, title, status, total_cents, created_at, viewed_at, accepted_at, valid_until, source, account_id, "
+  "id, number, title, status, total_cents, created_at, viewed_at, accepted_at, valid_until, source, account_id, "
   + "wizard_job:builder_state->wizard->state->>jobType, snapshot:builder_state->wizard->snapshot, "
   + "requests:confirmation_requests(kind, status, requested_at, suggested_action, fixed_price_cents), "
   + "views:estimate_views(updated_at), work_orders(id), sources:estimate_sources(kind), "

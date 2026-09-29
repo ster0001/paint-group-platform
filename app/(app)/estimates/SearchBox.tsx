@@ -31,6 +31,22 @@ export default function SearchBox({ q }: { q: string }) {
     const qs = p.toString();
     router.push(`/estimates${qs ? `?${qs}` : ""}`);
   };
+  // Tom, 29 Sep: "start searching automatically without a Search button".
+  // A short pause after the last keystroke runs the search; Enter runs it at
+  // once. `q` (from the URL) is the last needle that ran, so typing back to
+  // it, or mounting with it, does not fire a redundant navigation.
+  useEffect(() => {
+    if (value.trim() === q.trim()) return;
+    const t = setTimeout(() => go(value), 350);
+    return () => clearTimeout(t);
+    // go() reads router + params; both are stable for a given URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  // The URL changed under us (a tab click keeps `q`, Clear drops it): follow
+  // it — adjusted during render, the React-sanctioned shape for "state
+  // derived from a prop that changed".
+  const [seenQ, setSeenQ] = useState(q);
+  if (seenQ !== q) { setSeenQ(q); setValue(q); }
   return (
     <form className="flex items-center gap-2" role="search" data-testid="estimates-search" data-ready={ready ? "1" : undefined} onSubmit={(e) => { e.preventDefault(); go(value); }}>
       <input
@@ -42,7 +58,6 @@ export default function SearchBox({ q }: { q: string }) {
         data-testid="estimates-search-input"
         className="w-64 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-gray-900 focus:outline-none"
       />
-      <button type="submit" className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50" data-testid="estimates-search-go">Search</button>
       {q && (
         <button type="button" className="text-sm text-gray-500 hover:underline" data-testid="estimates-search-clear" onClick={() => { setValue(""); go(""); }}>Clear</button>
       )}

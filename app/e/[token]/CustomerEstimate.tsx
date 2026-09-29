@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
+import { formatEstimateNumber } from "@/lib/estimate/number";
 import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColoursChosen, presentationHasSwmsCard, type BankDetails } from "@/lib/customer/snapshot";
 import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
@@ -25,6 +26,8 @@ export type EstimateRow = {
   sent_at: string | null;
   viewed_at: string | null;
   selected_options: string[] | null;
+  /** estimates.number (migration 20270204) — null on rows the RPC predates. */
+  number?: number | null;
 };
 
 const money2 = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -57,11 +60,12 @@ const PHOTOS_SHOWN = 9;
 const showCount = (count: number | undefined): boolean => count != null && count > 1;
 
 export default function CustomerEstimate({
-  snapshot: snap, token, status = "sent", acceptedName = null,
+  snapshot: snap, token, status = "sent", acceptedName = null, estimateNumber = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
   changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null, bank = null, progressPreview = null, progressPreviewSet = null,
 }: {
   snapshot: CustomerSnapshot;
+  estimateNumber?: number | null;
   token?: string;
   status?: string;
   acceptedName?: string | null;
@@ -301,7 +305,9 @@ export default function CustomerEstimate({
     ? <span className="status declined">Declined</span>
     : <span className="status">Awaiting your approval</span>;
 
-  const est = `EST-${snap.estRef}`;
+  // Tom, 29 Sep: the estimate NUMBER (0042), the same one staff see; the
+  // token-derived EST- code only for a row the numbering has not reached.
+  const est = estimateNumber != null ? `Estimate ${formatEstimateNumber(estimateNumber)}` : `EST-${snap.estRef}`;
 
   return (
     <>

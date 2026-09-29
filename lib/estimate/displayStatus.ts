@@ -25,6 +25,8 @@ export function displayStatus(row: { status: string; viewed_at?: string | null }
  */
 export const LIST_FILTERS = ["waiting", "all", "draft", "sent", "viewed", "accepted", "declined", "expired", "wizard"] as const;
 export type ListFilter = (typeof LIST_FILTERS)[number];
+/** Tom, 29 Sep: the list opens on All, not Waiting. */
+export const DEFAULT_LIST_FILTER: ListFilter = "all";
 
 /** Translate a tab into the query: which DB status, and whether viewed_at must be set/null. */
 export function filterQuery(filter: string | undefined): { status?: string; viewed?: boolean } {

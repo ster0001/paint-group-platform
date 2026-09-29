@@ -5,8 +5,9 @@ import { DEFAULT_MESSAGING, renderTemplate, type MessagingSettings, type Templat
 import type { CompanyProfile, Contact } from "./company";
 
 export type SendDelivery = {
-  email?: { to: string; subject: string; message: string };
-  sms?: { to: string };
+  /** `alsoTo` (Tom, 29 Sep): the secondary contact, when ticked — the same email / text goes to both. */
+  email?: { to: string; subject: string; message: string; alsoTo?: string[] };
+  sms?: { to: string; alsoTo?: string[] };
 };
 
 /**
@@ -63,14 +64,21 @@ export default function SendDialog({
   const [message, setMessage] = useState(() => renderTemplate(m.emailIntro, vars));
   const [smsOn, setSmsOn] = useState(m.smsEnabled && !isResend && Boolean(contact?.phone));
   const [smsTo, setSmsTo] = useState(contact?.phone ?? "");
+  // Tom, 29 Sep: the second person on the contact — ticked by default when
+  // there is one, because that is what adding them was for.
+  const secondaryName = (contact?.secondary_name ?? "").trim();
+  const secondaryEmail = (contact?.secondary_email ?? "").trim();
+  const secondaryPhone = (contact?.secondary_phone ?? "").trim();
+  const [emailSecondary, setEmailSecondary] = useState(Boolean(secondaryEmail) && !isResend);
+  const [smsSecondary, setSmsSecondary] = useState(Boolean(secondaryPhone) && !isResend);
 
   const smsPreview = renderTemplate(m.smsTemplate, { ...vars, link: "(link to the estimate)" });
   const canSend = (!emailOn || emailTo.trim().length > 3) && (!smsOn || smsTo.trim().length > 5);
 
   function submit() {
     const delivery: SendDelivery = {};
-    if (emailOn) delivery.email = { to: emailTo.trim(), subject: subject.trim(), message: message.trim() };
-    if (smsOn) delivery.sms = { to: smsTo.trim() };
+    if (emailOn) delivery.email = { to: emailTo.trim(), subject: subject.trim(), message: message.trim(), ...(emailSecondary && secondaryEmail ? { alsoTo: [secondaryEmail] } : {}) };
+    if (smsOn) delivery.sms = { to: smsTo.trim(), ...(smsSecondary && secondaryPhone ? { alsoTo: [secondaryPhone] } : {}) };
     onSend(delivery);
   }
 
@@ -99,6 +107,12 @@ export default function SendDialog({
                 placeholder="customer@email.com"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
+              {secondaryEmail && (
+                <label className="mt-1.5 flex items-center gap-2 text-xs text-gray-700">
+                  <input type="checkbox" checked={emailSecondary} onChange={(e) => setEmailSecondary(e.target.checked)} data-testid="send-email-secondary" />
+                  Also email {secondaryName || "the second contact"} ({secondaryEmail})
+                </label>
+              )}
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500">Subject</label>
@@ -135,6 +149,12 @@ export default function SendDialog({
                 placeholder="04xx xxx xxx"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
+              {secondaryPhone && (
+                <label className="mt-1.5 flex items-center gap-2 text-xs text-gray-700">
+                  <input type="checkbox" checked={smsSecondary} onChange={(e) => setSmsSecondary(e.target.checked)} data-testid="send-sms-secondary" />
+                  Also text {secondaryName || "the second contact"} ({secondaryPhone})
+                </label>
+              )}
             </div>
             <p className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">{smsPreview}</p>
           </div>

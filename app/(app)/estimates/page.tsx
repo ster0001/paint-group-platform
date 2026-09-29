@@ -6,7 +6,8 @@ import NewEstimateButton, { type TemplateMeta } from "./NewEstimateButton";
 import SearchBox from "./SearchBox";
 import EstimatesTable from "./EstimatesTable";
 import AssistantFab from "@/app/quote/AssistantFab";
-import { LIST_FILTERS as FILTERS, filterQuery, SOURCE_FILTERS, SOURCE_LABEL, sourceFilterOf, sourceQuery } from "@/lib/estimate/displayStatus";
+import { parseEstimateNumber } from "@/lib/estimate/number";
+import { DEFAULT_LIST_FILTER, LIST_FILTERS as FILTERS, filterQuery, SOURCE_FILTERS, SOURCE_LABEL, sourceFilterOf, sourceQuery } from "@/lib/estimate/displayStatus";
 import { buildListRow, hasWizardData, LIST_SELECT, type RawListRow } from "@/lib/estimate/listRows";
 import { loopProgress } from "@/lib/wizard/confirm-state";
 import { bandsFromSettings } from "@/lib/wizard/policy";
@@ -42,11 +43,11 @@ export default async function EstimatesPage({
   const tabs = (
     <div className="mt-4 flex flex-wrap gap-1 border-b border-gray-200">
       {FILTERS.map((f) => {
-        const active = (status ?? "waiting") === f;
+        const active = (status ?? DEFAULT_LIST_FILTER) === f;
         return (
           <Link
             key={f}
-            href={f === "waiting" ? "/estimates" : `/estimates?status=${f}${sourceFilter !== "all" ? `&built=${sourceFilter}` : ""}`}
+            href={f === DEFAULT_LIST_FILTER && sourceFilter === "all" ? "/estimates" : `/estimates?status=${f}${sourceFilter !== "all" ? `&built=${sourceFilter}` : ""}`}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize ${
               active ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800"
             }`}
@@ -60,7 +61,8 @@ export default async function EstimatesPage({
   );
 
   /**
-   * C7b — "Waiting on you", first and default.
+   * C7b — "Waiting on you", first. Tom, 29 Sep: the page opens on "All"
+   * (DEFAULT_LIST_FILTER) — Waiting stays the first tab, one click away.
    *
    * `getWorkQueue()` is the SAME call CRM Today makes (`app/crm/today/page.tsx`),
    * through the one evaluator in `lib/crm/work-queue.ts`. This tab does not
@@ -70,7 +72,7 @@ export default async function EstimatesPage({
    * any other, and two answers to "what needs attention?" is the bug class
    * phase 0 spent itself removing.
    */
-  if ((status ?? "waiting") === "waiting") {
+  if (status === "waiting") {
     const queue = await getWorkQueue();
     // Tom, 15 Sep: rows a staff member took off THIS list. Read here, on the
     // page, and nowhere near the evaluator — the queue must not know this
@@ -205,7 +207,9 @@ export default async function EstimatesPage({
   const bands = bandsFromSettings(bandsRow?.value);
   const now = new Date();
   const rows = estimates.map((e) => buildListRow(e, { wizard: sessionOf.get(e.id) ?? null, loop: loopOf.get(e.id) ?? null, bands, now }))
-    .filter((r) => hit(r.title, r.customer, r.address, r.wizard?.name, r.wizard?.address, r.wizard?.suburb));
+    .filter((r) => hit(r.title, r.customer, r.address, r.wizard?.name, r.wizard?.address, r.wizard?.suburb)
+      // Tom, 29 Sep: "0042", "#42" or "42" finds estimate 42.
+      || (parseEstimateNumber(q) != null && r.number === parseEstimateNumber(q)));
 
   // C7b (brief 2.5): the source filter, a segmented control under the tabs.
   const sourceControl = (

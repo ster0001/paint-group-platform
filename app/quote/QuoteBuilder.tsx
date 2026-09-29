@@ -25,7 +25,8 @@ import {
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import NumInput from "@/app/components/NumInput";
-import { useSaveBeforeLeave } from "@/app/components/useSaveBeforeLeave";
+import { useSaveBeforeLeave, type LeaveChoice } from "@/app/components/useSaveBeforeLeave";
+import { formatEstimateNumber } from "@/lib/estimate/number";
 import type { BackTo } from "@/lib/navigation/backTo";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
@@ -196,6 +197,22 @@ type LineBlock = {
   media: MediaItem[];
   open: boolean;
   detailsOpen: boolean;
+  /** Tom, 29 Sep: materials linked to this line — priced with it, on the
+   * painter's sheet and the customer's paint cards. Absent on older saves. */
+  materials?: LineMaterial[];
+};
+/** A product tied to a line item, with the litres it needs and (optionally) its colour. */
+type LineMaterial = {
+  id: number;
+  productName: string;
+  litres: number;
+  /** $ per litre typed over the catalogue price; null = catalogue price. */
+  unitPriceOverride: number | null;
+  sheen: string;
+  colourName: string;
+  colourHex: string;
+  /** What it is for, in the estimator's words — the customer's usage chip. */
+  note: string;
 };
 type Block = Area | LineBlock;
 type SurfaceCalc = {
@@ -301,7 +318,7 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   areaNames: AreaNameRef[];
-  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; lead_source?: string | null; sent_snapshot?: unknown; selected_options?: string[] | null; reporting_excluded_at?: string | null; reporting_excluded_reason?: string | null } | null;
+  initial: { id: string | null; number?: number | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; lead_source?: string | null; sent_snapshot?: unknown; selected_options?: string[] | null; reporting_excluded_at?: string | null; reporting_excluded_reason?: string | null } | null;
   company: CompanyProfile;
   contacts: Contact[];
   inclusionTemplates?: InclusionTemplate[];
@@ -518,6 +535,8 @@ export default function QuoteBuilder({
   const [discountFixedCents, setDiscountFixedCents] = useState<number>(() => loaded?.discountFixedCents ?? 0);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
+  // estimates.number — set by trigger on insert (migration 20270204), read back on the first save.
+  const [estimateNumber, setEstimateNumber] = useState<number | null>(initial?.number ?? null);
   /** Capture on an unsaved estimate saves first — this is that moment. */
   const [capturing, setCapturing] = useState(false);
   const router = useRouter();
@@ -632,9 +651,34 @@ export default function QuoteBuilder({
     | { type: "line"; id: number }
     | { type: "surface"; areaId: number; sid: number };
   const [view, setView] = useState<View | null>(null);
-  // Whenever you drill into (or out of) a folder, jump to the top so a surface
-  // always opens on its starting view rather than mid-scroll.
-  useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);
+  // Drilling INTO a folder opens it at the top; coming back OUT lands where
+  // you were (Tom, 29 Sep: "when you come out of a substrate or line item, it
+  // stays in the same place in the estimate to save scrolling down again").
+  // The position is remembered per level — the list, and each area — because
+  // the list unmounts while a folder is open, so the browser has nothing to
+  // restore on its own.
+  const scrollMemo = useRef<Map<string, number>>(new Map());
+  const prevViewKey = useRef<string>("list");
+  const viewKey = view === null ? "list" : view.type === "area" ? `area:${view.id}` : view.type === "surface" ? `surface:${view.areaId}:${view.sid}` : `line:${view.id}`;
+  useEffect(() => {
+    const from = prevViewKey.current;
+    if (from === viewKey) return;
+    prevViewKey.current = viewKey;
+    const remembered = scrollMemo.current.get(viewKey);
+    // Coming back up to a level seen before restores it after the list has
+    // painted; anything else (a fresh folder) starts at the top.
+    if (remembered != null && remembered > 0) {
+      scrollMemo.current.delete(viewKey);
+      requestAnimationFrame(() => window.scrollTo({ top: remembered }));
+    } else {
+      window.scrollTo({ top: 0 });
+    }
+  }, [viewKey]);
+  /** Every drill-down goes through here so the level being left remembers its scroll. */
+  const goView = (next: View | null) => {
+    scrollMemo.current.set(prevViewKey.current, window.scrollY);
+    setView(next);
+  };
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
   // Surface (substrate) folder picker: which area, and whether adding new or changing an existing surface.
   const [surfacePicker, setSurfacePicker] = useState<{ areaId: number; sid: number | null } | null>(null);
@@ -759,7 +803,7 @@ export default function QuoteBuilder({
     };
   }
   function newLine(): LineBlock {
-    return { id: nextId++, kind: "line", name: "", type: "Interior", mode: "hourly", hours: 0, rate: 85, qty: 1, unitPrice: 0, custom: 0, cost: 0, woHours: 0, description: "", clientNote: "", crewNote: "", hidden: false, isOption: false, subcontractorExpense: false, media: [], open: true, detailsOpen: false };
+    return { id: nextId++, kind: "line", name: "", type: "Interior", mode: "hourly", hours: 0, rate: 85, qty: 1, unitPrice: 0, custom: 0, cost: 0, woHours: 0, description: "", clientNote: "", crewNote: "", hidden: false, isOption: false, subcontractorExpense: false, media: [], open: true, detailsOpen: false, materials: [] };
   }
 
   const patchBlock = (id: number, patch: Partial<Area> | Partial<LineBlock>) =>
@@ -909,7 +953,7 @@ export default function QuoteBuilder({
     );
     return { ...r, item: itemsIdx.get(`${area.type}::${s.code}`) };
   };
-  const lineCalc = (l: LineBlock) => priceLine(l as unknown as LineInput);
+  const lineCalc = (l: LineBlock) => priceLine(l as unknown as LineInput, { productsByName: productByName, markup: rates.markup });
 
   const totals = useMemo(() => {
     const t = priceEstimateTotals(blocks as unknown as BlockInput[], pricingCtx, adjustments);
@@ -969,7 +1013,9 @@ export default function QuoteBuilder({
   const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, presentationId, leadSource, photoReview, extraPaints });
 
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
-  dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
+  // A new estimate (no row yet) with edits is unsaved work too (29 Sep) — the
+  // fingerprint is recorded on the first render, so "changed since" is enough.
+  dirtyRef.current = () => Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
   const unsaved = Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
 
   // Live-progress phone in the builder's customer preview (Tom, 20 Sep: "I want
@@ -1014,10 +1060,16 @@ export default function QuoteBuilder({
     return () => registerBuilder(null);
   });
   // Tom, 17 Sep: clicking away with unsaved work saves first, then opens the
-  // page that was clicked. A failed save stays here with its message showing.
+  // page that was clicked. Tom, 29 Sep: "add a reminder to save if you leave
+  // the page without saving" — the click now pauses on a small prompt (Save
+  // and continue / Leave without saving / Stay) instead of saving silently,
+  // so a new estimate that has no row yet gets the reminder too. A failed
+  // save stays here with its message showing.
+  const [leaveAsk, setLeaveAsk] = useState<((choice: LeaveChoice) => void) | null>(null);
   useSaveBeforeLeave({
     dirty: () => !locked && dirtyRef.current(),
     save: async () => { await save(); return !dirtyRef.current(); },
+    ask: () => new Promise<LeaveChoice>((resolve) => { setLeaveAsk(() => (c: LeaveChoice) => { setLeaveAsk(null); resolve(c); }); }),
   });
   async function save(): Promise<{ id: string | null; token: string | null }> {
     if (locked) { setSaveMsg("This estimate is accepted and locked."); return { id: quoteId, token: shareToken }; }
@@ -1041,6 +1093,10 @@ export default function QuoteBuilder({
         const payNote = !result.ok ? "" : result.pay === "ok:synced" ? " · painter's price updated" : result.pay === "ok:live" ? " · painter already has this job, their price unchanged" : "";
         const colourNote = !result.ok || !result.colours?.startsWith("ok:synced") ? "" : " · colours updated on the job for the customer and the painter";
         setSaveMsg(result.ok ? `Saved ✓ (working scope)${payNote}${colourNote}` : result.message);
+        // The working scope is now what the screen shows — the leave guard
+        // and the "unsaved" banner read this. Without it every link click
+        // after a revision save was held forever (29 Sep).
+        if (result.ok) savedStateRef.current = builderFingerprint;
       } finally {
         setSaving(false);
       }
@@ -1087,10 +1143,11 @@ export default function QuoteBuilder({
         const { error } = await supabase.from("estimates").update(base).eq("id", id);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.from("estimates").insert({ ...base, status: "draft" }).select("id").single();
+        const { data, error } = await supabase.from("estimates").insert({ ...base, status: "draft" }).select("id, number").single();
         if (error) throw error;
         id = data.id;
         setQuoteId(id);
+        if (typeof data.number === "number") setEstimateNumber(data.number);
         window.history.replaceState(null, "", `/quote?id=${id}`);
       }
       setShareToken(token);
@@ -1386,9 +1443,19 @@ export default function QuoteBuilder({
         })),
       });
     }
+    // Tom, 29 Sep: a line item's linked materials, with the line (or the
+    // note) as the usage — after the substrate cards, before the hand-adds.
+    const lineUses: ExtraPaint[] = [];
+    for (const b of blocks) {
+      if (b.kind !== "line" || b.isOption || b.hidden) continue;
+      for (const m of b.materials ?? []) {
+        if (!m.productName) continue;
+        lineUses.push({ productName: m.productName, usage: m.note.trim() || b.name || "Line item" });
+      }
+    }
     // Tom, 16 Sep: the paints added by hand. A product already on a card is
     // not repeated; the estimator's note is its usage chip.
-    for (const x of extraPaints) {
+    for (const x of [...lineUses, ...extraPaints]) {
       const pname = x.productName.trim();
       if (!pname || paints.some((c) => c.name === pname || `${c.brand} ${c.name}`.trim() === pname)) continue;
       const p = productByName.get(pname);
@@ -1474,6 +1541,8 @@ export default function QuoteBuilder({
       estRef: token.slice(0, 8).toUpperCase(),
       contactName: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.company || "" : "",
       contactEmail: contact?.email ?? "",
+      contactName2: contact?.secondary_name ?? "",
+      contactEmail2: contact?.secondary_email ?? "",
       jobAddress: jobAddress ? [jobAddress.address, jobAddress.city, jobAddress.state, jobAddress.postal].filter(Boolean).join(", ") : "",
       jobTitle: title || "Painting estimate",
       gstRatePct: Math.round(gstRate * 100),
@@ -1505,7 +1574,21 @@ export default function QuoteBuilder({
    * slice through the SAME code, so what the customer ticks reaches the crew
    * priced, coloured and coated exactly as it would have been (Tom, 16 Sep).
    */
-  function computeWorkOrderParts(areaFilter: (b: Area) => boolean, pick: (b: Area, s: Surface) => boolean) {
+  /** The order rows a line item's linked materials contribute (Tom, 29 Sep). */
+  function lineMaterialRows(b: LineBlock): MaterialSurfaceRow[] {
+    return (b.materials ?? [])
+      .filter((m) => m.productName && m.litres > 0)
+      .map((m) => ({
+        product: m.productName,
+        finish: m.sheen || undefined,
+        volume: m.litres,
+        photoUrl: productByName.get(m.productName)?.photo_url ?? productByName.get(m.productName)?.image_url ?? "",
+        colourName: m.colourName,
+        colourHex: m.colourHex,
+        match: null,
+      }));
+  }
+  function computeWorkOrderParts(areaFilter: (b: Area) => boolean, pick: (b: Area, s: Surface) => boolean, lineFilter: (b: LineBlock) => boolean = (b) => !b.isOption) {
     // Materials aggregate per PRODUCT × COLOUR (ruling 1, 30 Aug): two rooms
     // in different colours with the same product are two order lines. The
     // per-surface truth also rides each doc surface (colourName/colourKey).
@@ -1572,6 +1655,10 @@ export default function QuoteBuilder({
         finishCode: areaOverride ?? jobFinishCode,
         finishOverridden: Boolean(areaOverride && areaOverride !== jobFinishCode),
       });
+    }
+    // Line items' linked materials: same aggregation, keyed by product × colour.
+    for (const b of blocks) {
+      if (b.kind === "line" && lineFilter(b)) matRows.push(...lineMaterialRows(b));
     }
     const materials: WOMaterial[] = aggregateMaterials(matRows, {
       roundUpLitres,
@@ -1652,11 +1739,15 @@ export default function QuoteBuilder({
     for (const b of blocks) {
       if (b.kind === "line") {
         if (!b.isOption) continue;
-        out[String(b.id)] = { id: String(b.id), title: b.name || "Line item", areas: [], materials: [], contractorPaymentCents: payFor([{ ...b, isOption: false }]), conditionHours: 0 };
+        const lineMaterials = aggregateMaterials(lineMaterialRows(b), {
+          roundUpLitres,
+          statusFor: (key, product) => lookupColourEntry(woColours, key, product)?.status ?? "tbc",
+        });
+        out[String(b.id)] = { id: String(b.id), title: b.name || "Line item", areas: [], materials: lineMaterials, contractorPaymentCents: payFor([{ ...b, isOption: false }]), conditionHours: 0 };
         continue;
       }
       if (b.isOption) {
-        const parts = computeWorkOrderParts((x) => x.id === b.id, () => true);
+        const parts = computeWorkOrderParts((x) => x.id === b.id, () => true, () => false);
         out[String(b.id)] = {
           id: String(b.id), title: b.name || "Area", areas: parts.areasDoc, materials: parts.materials,
           contractorPaymentCents: payFor([{ ...b, isOption: false, surfaces: b.surfaces.map((s) => ({ ...s, isOption: false })) }]),
@@ -1666,7 +1757,7 @@ export default function QuoteBuilder({
       }
       const opt = optionSurfacesOf(b);
       if (!opt.length) continue;
-      const parts = computeWorkOrderParts((x) => x.id === b.id, (_x, s) => s.isOption === true);
+      const parts = computeWorkOrderParts((x) => x.id === b.id, (_x, s) => s.isOption === true, () => false);
       out[surfaceOptionId(b)] = {
         id: surfaceOptionId(b), title: surfaceOptionTitle(b), areas: parts.areasDoc, materials: parts.materials,
         contractorPaymentCents: payFor([{ ...b, surfaces: opt.map((s) => ({ ...s, isOption: false })) }]),
@@ -1759,26 +1850,27 @@ export default function QuoteBuilder({
     <AreaCard
       area={b}
       calc={(s) => surfaceCalc(b, s)}
-      onDone={() => setView(null)}
+      onDone={() => goView(null)}
       onPatch={(patch) => patchBlock(b.id, patch)}
-      onOpenSurface={(sid) => setView({ type: "surface", areaId: b.id, sid })}
+      onOpenSurface={(sid) => goView({ type: "surface", areaId: b.id, sid })}
       onAddSurface={() => setSurfacePicker({ areaId: b.id, sid: null })}
       onRemoveSurface={(sid) => patchBlock(b.id, { surfaces: b.surfaces.filter((x) => x.id !== sid) })}
       onDuplicateSurface={(sid) => duplicateSurface(b.id, sid)}
       onDuplicate={() => duplicateBlock(b.id)}
-      onRemove={() => { removeBlock(b.id); setView(null); }}
+      onRemove={() => { removeBlock(b.id); goView(null); }}
     />
   );
   const renderLineFolder = (b: LineBlock) => (
     <LineCard
       line={b}
       calc={lineCalc(b)}
+      products={products}
       lineItems={lineItems}
       chargeFor={chargeFor}
-      onDone={() => setView(null)}
+      onDone={() => goView(null)}
       onPatch={(patch) => patchBlock(b.id, patch)}
       onDuplicate={() => duplicateBlock(b.id)}
-      onRemove={() => { removeBlock(b.id); setView(null); }}
+      onRemove={() => { removeBlock(b.id); goView(null); }}
     />
   );
 
@@ -1795,7 +1887,7 @@ export default function QuoteBuilder({
         : "";
     const lineDesc = b.kind === "line" ? b.description ?? "" : "";
     const lineHasDesc = !!lineDesc && lineDesc.replace(/<[^>]*>/g, "").trim() !== "";
-    const open = () => setView(b.kind === "area" ? { type: "area", id: b.id } : { type: "line", id: b.id });
+    const open = () => goView(b.kind === "area" ? { type: "area", id: b.id } : { type: "line", id: b.id });
     const stop = (e: React.MouseEvent) => e.stopPropagation();
     return (
       <section
@@ -1901,8 +1993,8 @@ export default function QuoteBuilder({
             areaName={area.name || "area"}
             onChangeSelection={() => setSurfacePicker({ areaId: area.id, sid: s.id })}
             onPatch={(patch) => patchSurface(area.id, s.id, patch)}
-            onDone={() => setView({ type: "area", id: area.id })}
-            onRemove={() => { patchBlock(area.id, { surfaces: area.surfaces.filter((x) => x.id !== s.id) }); setView({ type: "area", id: area.id }); }}
+            onDone={() => goView({ type: "area", id: area.id })}
+            onRemove={() => { patchBlock(area.id, { surfaces: area.surfaces.filter((x) => x.id !== s.id) }); goView({ type: "area", id: area.id }); }}
           />
         );
       }
@@ -1915,6 +2007,19 @@ export default function QuoteBuilder({
 
   return (
     <main className="mx-auto max-w-6xl p-6">
+      {leaveAsk && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="leave-title" data-testid="leave-prompt">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+            <h2 id="leave-title" className="text-lg font-semibold text-gray-900">You haven&rsquo;t saved this {revision ? "working scope" : "estimate"}</h2>
+            <p className="mt-1 text-sm text-gray-600">Leaving now loses the changes since the last save. Save first, or leave without saving.</p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => leaveAsk("stay")} className="rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50" data-testid="leave-stay">Stay here</button>
+              <button type="button" onClick={() => leaveAsk("leave")} className="rounded-md border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50" data-testid="leave-discard">Leave without saving</button>
+              <button type="button" onClick={() => leaveAsk("save")} className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700" data-testid="leave-save">Save and continue</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-xl bg-ink px-5 py-4 text-white">
         <div>
           {/* Where you came from, not always the estimates list — you may have
@@ -1927,6 +2032,10 @@ export default function QuoteBuilder({
             ← {backTo?.label ?? "Estimates"}
           </Link>
           <div className="mt-1 flex flex-wrap items-center gap-3">
+            {/* Tom, 29 Sep: the estimate number, to the left of the address. */}
+            {estimateNumber != null && (
+              <span className="rounded-md bg-white/10 px-2 py-0.5 font-mono text-lg font-semibold tracking-wider text-gray-200" data-testid="builder-estimate-number">#{formatEstimateNumber(estimateNumber)}</span>
+            )}
             <h1 className="text-2xl font-semibold tracking-tight">{title || "New estimate"}</h1>
             {/* Tom, 7 Sep (item 12): the status, at the very top, in the dark box. */}
             {(() => {
@@ -1958,7 +2067,7 @@ export default function QuoteBuilder({
             ] as const).map((t) => (
               <button
                 key={t.key}
-                onClick={() => { if (t.key === "builder") setEditing(true); setViewMode(t.key); setView(null); }}
+                onClick={() => { if (t.key === "builder") setEditing(true); setViewMode(t.key); goView(null); }}
                 className={`px-3 py-2 text-[11px] font-medium tracking-wider ${viewMode === t.key ? "bg-accent text-accentink" : "text-gray-300 hover:bg-white/5"}`}
               >
                 {t.label}
@@ -1990,7 +2099,9 @@ export default function QuoteBuilder({
               type="button"
               disabled={capturing}
               onClick={async () => {
-                if (quoteId) { router.push(`/quote/capture?id=${quoteId}`); return; }
+                // Unsaved edits would be lost on the way to capture (29 Sep) —
+                // save first whenever there is something to save.
+                if (quoteId && !dirtyRef.current()) { router.push(`/quote/capture?id=${quoteId}`); return; }
                 setCapturing(true);
                 const { id } = await save();
                 if (id) router.push(`/quote/capture?id=${id}`);
@@ -2295,7 +2406,7 @@ export default function QuoteBuilder({
               const firstLine = a?.address?.trim() ?? "";
               if (firstLine && title.trim() === "") setTitle(firstLine);
             }}
-            estimateId={quoteId ? quoteId.slice(0, 8) : "New"}
+            estimateId={estimateNumber != null ? formatEstimateNumber(estimateNumber) : quoteId ? "Unnumbered" : "New"}
             dateStr={new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
           />
         </div>
@@ -2758,7 +2869,7 @@ export default function QuoteBuilder({
                         </div>
                         {!customerView && (
                           <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-2">
-                            <button onClick={() => setView({ type: "area", id: b.id })} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Edit {b.name || "area"} →</button>
+                            <button onClick={() => goView({ type: "area", id: b.id })} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Edit {b.name || "area"} →</button>
                             <button onClick={() => includeSurfacesAgain(b.id)} className="text-xs text-gray-500 hover:text-gray-900 hover:underline" data-testid={`surface-option-include-${b.id}`}>Put back in the estimate</button>
                           </div>
                         )}
@@ -2773,7 +2884,7 @@ export default function QuoteBuilder({
                   <button onClick={() => setAreaPickerOpen(true)} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
                     + Add area
                   </button>
-                  <button onClick={() => { const l = newLine(); setBlocks((bs) => [...bs, l]); setView({ type: "line", id: l.id }); }} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
+                  <button onClick={() => { const l = newLine(); setBlocks((bs) => [...bs, l]); goView({ type: "line", id: l.id }); }} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
                     + Add line item
                   </button>
                 </div>
@@ -4165,10 +4276,11 @@ function Check({ checked, onChange, label, hint }: { checked: boolean; onChange:
 
 // ---------------- Line item folder screen ----------------
 function LineCard({
-  line: l, calc, lineItems, chargeFor, onDone, onPatch, onDuplicate, onRemove,
+  line: l, calc, products, lineItems, chargeFor, onDone, onPatch, onDuplicate, onRemove,
 }: {
   line: LineBlock;
-  calc: { priceCents: number; hours: number; costCents: number };
+  calc: { priceCents: number; hours: number; costCents: number; materialsCostCents: number; materialsPriceCents: number };
+  products: Product[];
   lineItems: LineItemRef[];
   chargeFor: (t: string) => number;
   onDone: () => void;
@@ -4274,6 +4386,8 @@ function LineCard({
         </div>
       </div>
 
+      <LineMaterials line={l} products={products} calc={calc} onPatch={onPatch} />
+
       <div className="mt-3">
         <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Description (shown on the estimate)</div>
         <RichTextEditor
@@ -4312,6 +4426,103 @@ function LineCard({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Tom, 29 Sep: "update all line items to allow to add materials to link to
+ * that line item". Each row is a catalogue product with the litres it needs;
+ * the line's price carries them at cost + the materials markup (lib/pricing
+ * `priceLine`), the painter's sheet orders them under the line's heading and
+ * the customer's paint cards list them with the note as the usage chip.
+ */
+function LineMaterials({ line: l, products, calc, onPatch }: {
+  line: LineBlock;
+  products: Product[];
+  calc: { materialsCostCents: number; materialsPriceCents: number };
+  onPatch: (patch: Partial<LineBlock>) => void;
+}) {
+  const rows = l.materials ?? [];
+  const [search, setSearch] = useState("");
+  const setRows = (next: LineMaterial[]) => onPatch({ materials: next });
+  const patchRow = (id: number, patch: Partial<LineMaterial>) => setRows(rows.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  const add = () => setRows([...rows, { id: Date.now() + Math.floor(Math.random() * 1000), productName: "", litres: 0, unitPriceOverride: null, sheen: "", colourName: "", colourHex: "", note: "" }]);
+  const opts = (chosen: string) => paintOptions(products, { surfaceType: l.type, chosen, search });
+  return (
+    <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3" data-testid="line-materials">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-gray-400">Materials for this line</div>
+          <div className="text-[11px] text-gray-500">
+            {rows.length === 0
+              ? "None linked — the line prices as typed."
+              : `Cost ${fmt(calc.materialsCostCents)} · charged ${fmt(calc.materialsPriceCents)} on top of the line`}
+          </div>
+        </div>
+        <button type="button" onClick={add} className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium hover:bg-gray-100" data-testid="line-material-add">+ Add material</button>
+      </div>
+      {rows.length > 0 && (
+        <input
+          className="mt-2 w-full rounded-md border border-gray-300 px-2 py-1 text-xs"
+          placeholder="Filter the catalogue…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Filter products"
+        />
+      )}
+      {rows.map((m, i) => {
+        const product = products.find((p) => p.name === m.productName);
+        const list = opts(m.productName);
+        return (
+          <div key={m.id} className="mt-2 rounded-md border border-gray-200 bg-white p-2" data-testid={`line-material-${i}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="min-w-[12rem] flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                value={m.productName}
+                onChange={(e) => patchRow(m.id, { productName: e.target.value })}
+                aria-label="Product"
+                data-testid={`line-material-product-${i}`}
+              >
+                {m.productName === "" && <option value="">— choose a product —</option>}
+                {m.productName !== "" && !list.some((p) => p.name === m.productName) && <option value={m.productName}>{m.productName} (not in catalogue)</option>}
+                {list.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+              </select>
+              <label className="flex items-center gap-1 text-xs text-gray-600">
+                <NumInput className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm" value={m.litres || null} empty={0} onCommit={(n) => patchRow(m.id, { litres: n ?? 0 })} data-testid={`line-material-litres-${i}`} />
+                L
+              </label>
+              <label className="flex items-center gap-1 text-xs text-gray-600" title="Price per litre — blank uses the catalogue price">
+                $/L
+                <NumInput className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm" value={m.unitPriceOverride} empty={null} onCommit={(n) => patchRow(m.id, { unitPriceOverride: n })} placeholder={product ? (product.price_per_litre / 100).toFixed(2) : ""} />
+              </label>
+              {m.productName && (
+                <select
+                  className="w-28 shrink-0 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  value={m.sheen}
+                  onChange={(e) => patchRow(m.id, { sheen: e.target.value })}
+                  aria-label="Sheen"
+                >
+                  <option value="">— sheen —</option>
+                  {m.sheen && !SHEEN_LEVELS.includes(m.sheen) && <option value={m.sheen}>{m.sheen}</option>}
+                  {SHEEN_LEVELS.map((sh) => <option key={sh} value={sh}>{sh}</option>)}
+                </select>
+              )}
+              {m.productName && (
+                <ColourPicker value={m.colourName ? { name: m.colourName, hex: m.colourHex } : null} onChange={(c) => patchRow(m.id, { colourName: c.name, colourHex: c.hex })} compact />
+              )}
+              <button type="button" onClick={() => setRows(rows.filter((x) => x.id !== m.id))} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove material">×</button>
+            </div>
+            <input
+              className="mt-1.5 w-full rounded-md border border-gray-300 px-2 py-1 text-xs"
+              placeholder="What it's for (shown to the customer as the usage, e.g. “Feature wall, entry”)"
+              value={m.note}
+              onChange={(e) => patchRow(m.id, { note: e.target.value })}
+              aria-label="Usage note"
+            />
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

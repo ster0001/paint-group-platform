@@ -39,4 +39,8 @@
 .pgdock .dk-input button:disabled { opacity: .5; cursor: default; }
 .pgdock .dk-err { color: #f27d7d; font-size: 12.5px; padding: 0 12px 8px; margin: 0; }
 .pgdock .dk-sound { font-size: 11px; color: #8C959D; background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+/* Tom, 29 Sep: the chime's volume, beside the bell. */
+.pgdock .dk-vol { display: inline-flex; align-items: center; gap: 4px; }
+.pgdock .dk-vol input[type="range"] { width: 64px; height: 14px; accent-color: #3bd8e9; cursor: pointer; }
+.pgdock .dk-vol input[type="range"]:disabled { opacity: .35; cursor: default; }
 @media (max-width: 767px) { .pgdock { left: 8px; bottom: calc(8px + var(--dock-lift, 0px) + env(safe-area-inset-bottom, 0px)); } }
