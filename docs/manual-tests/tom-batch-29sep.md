@@ -56,4 +56,8 @@ Both end by writing their `_prod_migrations` row; no row means the paste did not
   four digits going forward. Issued numbers are never rewritten.
 - Automated reminders (invoice chase, sign-off nudges, appointment and pre-start emails) still go to the
   primary contact only.
-- 8A Jupiter Street options: not diagnosed — see the session report.
+- 48A Jupiter Street options: DIAGNOSED (29 Sep, later). The live link shows the "Living" option on
+  desktop and on a phone; the customer's last looks (14:12 Melbourne, two PDF downloads from an iPhone)
+  came BEFORE the option was saved (15:54). The PDF also only listed TICKED options — fixed on
+  `fix/print-unticked-options-29sep`: unticked options print under the table, priced, outside the total.
+  Ask the customer to reopen the link (not the PDF they saved).

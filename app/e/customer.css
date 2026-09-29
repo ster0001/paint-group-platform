@@ -332,6 +332,9 @@
    ========================================================================= */
 /* the itemised paper quote is print-only */
 .cv .printdoc { display: none; }
+/* Tom, 29 Sep: unticked options print under the table, priced, outside the total. */
+.cv .pd-options .pd-opttable { margin-top: 6px; }
+.cv .pd-options .pd-opttable td { border-top: 0; }
 
 @media print {
   @page { margin: 16mm 14mm; }
