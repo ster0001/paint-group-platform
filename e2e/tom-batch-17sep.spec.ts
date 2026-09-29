@@ -220,6 +220,10 @@ test.describe("Tom's 17 Sep batch", () => {
     await page.getByTestId("admin-notes-input").fill(note);
     // Unsaved — and the sidebar's Estimates link is clicked, not Save.
     await page.locator("nav a[href='/estimates'], a[href='/estimates']").first().click();
+    // Tom, 29 Sep: the click now pauses on a reminder; Save and continue is the
+    // 17 Sep behaviour (save, then go).
+    await expect(page.getByTestId("leave-prompt")).toBeVisible();
+    await page.getByTestId("leave-save").click();
     await expect(page).toHaveURL(/\/(home|estimates)/, { timeout: 30_000 });
     await expect.poll(async () => {
       const { data } = await db!.from("estimates").select("builder_state").eq("id", builtId).single();

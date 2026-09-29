@@ -37,6 +37,7 @@ const SNAPSHOT = {
 test.describe("the warranty on the customer's estimate", () => {
   test.skip(!db, "needs the service key");
   let id = "";
+  let number: number | null = null;
   const token = `warr${run}${randomBytes(8).toString("hex")}`;
 
   test.beforeAll(async () => {
@@ -45,9 +46,10 @@ test.describe("the warranty on the customer's estimate", () => {
       sent_at: new Date().toISOString(), total_cents: 110000,
       builder_state: { blocks: [], modSel: { "Level of Finish": "FIN-3" }, materials: {} },
       sent_snapshot: { ...SNAPSHOT, estRef: `EST-W${run}`, jobAddress: `7 Warranty St ${run}` },
-    }).select("id").single();
+    }).select("id, number").single();
     if (r.error) throw new Error(r.error.message);
     id = r.data.id;
+    number = (r.data as { number?: number | null }).number ?? null;
   });
   test.afterAll(async () => { if (id) await db!.from("estimates").delete().eq("id", id); });
 
@@ -95,7 +97,9 @@ test.describe("the warranty on the customer's estimate", () => {
     await expect(terms).toContainText(/Australian Consumer Law/i);
 
     // It says which estimate it is attached to, and saves as a PDF.
-    await expect(page.getByTestId("warranty-attachment")).toContainText(`EST-W${run}`);
+    // Tom, 29 Sep: the 4-digit estimate number (migration 20270204); the
+    // token code only while a row has none.
+    await expect(page.getByTestId("warranty-attachment")).toContainText(number != null ? `estimate ${String(number).padStart(4, "0")}` : `EST-W${run}`);
     await expect(page.getByRole("button", { name: "Download as PDF" }).first()).toBeVisible();
 
     // Approved 19 Sep 2026 — no watermark anywhere a customer can reach.
