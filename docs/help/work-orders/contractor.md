@@ -2,7 +2,7 @@
 feature: work-orders
 role: contractor
 title: Run a job from the first tick to the customer's signature
-summary: How a booked job works on your phone — the pre-start list, photos before ticks, ticking surfaces off, raising a variation, the finishing-up list, the quality check, and handing the phone to the customer to sign off.
+summary: How a booked job works on your phone in four steps — before photos in one batch, ticking surfaces off, after photos of every room or side, and finishing — plus raising a variation, the quality check, and handing the phone to the customer to sign off.
 walkthrough: media/contractor-walkthrough.gif
 sources: app/portal/jobs/[id]/FinishUp.tsx, lib/reporting/workedTime.ts, app/portal/jobs, app/components/wo, app/s, lib/workorder
 verified_at_commit: 3a6848a2fd
@@ -28,14 +28,14 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
 1b. While the job is under way you get a text asking you to update your work order — tick what is done and add the day's photos — on day 1 at 7:30 am, then part-way through and on the last day at 3:30 pm (how many depends on the job's length). The link opens this page.
 2. **Scope & ticks** lists every area on the job sheet and its surfaces. Each row has three squares: to do, prepped, done. Tap a row once to mark it **PREPPED**, again to mark it **DONE**. The count at the top tracks the whole job.
    ![](media/contractor-02.png)
-3. **Before you can tick anything in an area, that area needs a before photo.** If you tap a row first, the list tells you: "Before photo of Front — one shot before you start." Tap the amber **Before photo of … — needed before the first tick** button, take the shot, and the message changes to "Before photo saved… Tick away." One exception: a row marked **No photos** by the office (a fuel allowance, a set-up line) ticks without any photo and does not count towards the area's photos.
+3. **Step 1 · Upload the before photos.** The job runs in four numbered steps, shown across the top of the page. Until the job has its before photos the scope list is locked and says so. Tap **Take photos or choose from your phone** on the **Step 1 · Upload the before photos** card, pick every before photo at once, camera or library, then press **Done — upload the before photos**. They go up in one batch with a count ("Uploading 3 of 8"); a photo that fails stays in the list with **Retry**. Take photos of all rooms or all sides, as you found them. Short videos are fine too. The moment they land, every row on the job unlocks. One exception: a row marked **No photos** by the office (a fuel allowance, a set-up line) ticks without any photo and a job made only of such rows asks for nothing.
    ![](media/contractor-03.png)
 4. Now tick. The row turns cyan **PREPPED** on the first tap and green **DONE** on the second.
    ![](media/contractor-04.png)
-5. When you are about to tick the last surface in an area as done, the list asks for a **finished shot** of that area from the same angle as the before. Take it, then tick. Every area ends up with a before and an after; rows marked **No photos** never ask.
+5. **Step 3 · Upload the after photos.** When every surface is **DONE** the **Step 3 · Upload the after photos** card appears. Take photos of all rooms or all sides now the work is finished, the same views as your before photos where you can, pick them all and press **Done**. Nothing asks for a finished shot per area any more; the job asks once. Step 4 stays locked, on your phone and on the server, until these are in.
 
 ### Photos and notes from site
-6. **Photos & notes** is for anything else: progress or finished photos not tied to a tick, a short video where a photo does not tell the story (a walk round a room, a leak, a piece of movement), and a short note for the office. **Take a photo or video** opens your camera roll; MP4 and MOV videos up to 200 MB are fine, and they show for the office and the customer beside the photos. A note is for information that is not a variation, for example something you noticed that is not part of the job.
+6. **Got a question, or found something?** is the card under the steps. It is for questions only: a photo or short video of an item you are unsure about, or something the office should see, with a note. Do not put before or after photos here; those go in Step 1 and Step 3.
    ![](media/contractor-05.png)
 
 ### Found something? Raise a variation
@@ -56,7 +56,7 @@ The second walkthrough film covers this part of the job, from the completion lis
 
 ![](media/contractor-walkthrough-2.gif)
 
-10. When every surface is **DONE**, the **All surfaces done** card and the **Completion prep** list appear on the same screen. Work through it: **Touch-up sweep done**, **Site left clean**, **Rubbish for collection?** (Yes tells the office to organise a collection), **Equipment for collection?** (Yes asks you to list what needs collecting), **Final photos taken of every area**, **All work completed to the level required**, and **Any notes for the customer**, which is optional and is shown to the customer at sign-off. Ticking the list is your confirmation that the work is complete to the job sheet.
+10. When every surface is **DONE** and the after photos are in, the **Step 4 · Finish the job** card and the **Completion prep** list appear on the same screen. Work through it: **Touch-up sweep done**, **Site left clean**, **Rubbish for collection?** (Yes tells the office to organise a collection), **Equipment for collection?** (Yes asks you to list what needs collecting), **Final photos taken of every area**, **All work completed to the level required**, and **Any notes for the customer**, which is optional and is shown to the customer at sign-off. Ticking the list is your confirmation that the work is complete to the job sheet.
     ![](media/contractor-09.png)
 11. Tap **All done — next step**. The job routes itself: to a **quality check** if one is due on this job, straight to the **walkthrough** if not, or to complete if the booking has no customer walkthrough. The message tells you which.
     ![](media/contractor-10.png)
@@ -79,7 +79,7 @@ The second walkthrough film covers this part of the job, from the completion lis
 18. The screen reads **Signed off — thank you**, and says the completion report and warranty are on their way. Take your phone back; it returns to the job on its own, or tap **Back to the job**.
     ![](media/contractor-17.png)
 19. The job now reads **Job complete · signed off**, with who signed and when, and the work order header says **COMPLETE**. **Invoice this job** is waiting below (see the invoicing guide). If an area was flagged instead, the job comes back to you as In progress with the flagged area on your tick list — see the next step.
-20. **A flagged area, put right.** The customer's flag sits on your tick list as a **RECTIFY** row with what they said. Fix it, take the finished shot, and tick it. The pinned bar at the top now reads **FLAGGED AREAS PUT RIGHT · Fixed — send the report**, and the card below says the same. One tap completes the job: the customer is emailed their completion report with a **What you flagged, and what we did** section, their two-year warranty starts, and the job reads **Job complete**. There is no second walkthrough — they already looked at everything and told you what was wrong.
+20. **A flagged area, put right.** The customer's flag sits on your tick list as a **RECTIFY** row with what they said. Fix it, add an after photo of it (Step 3's card, **add more**), and tick it. The pinned bar at the top now reads **FLAGGED AREAS PUT RIGHT · Fixed — send the report**, and the card below says the same. One tap completes the job: the customer is emailed their completion report with a **What you flagged, and what we did** section, their two-year warranty starts, and the job reads **Job complete**. There is no second walkthrough — they already looked at everything and told you what was wrong.
     ![](media/contractor-18.png)
 
 ## How long were you on site (some painters only)
@@ -95,7 +95,7 @@ They are separate from your own photos: your before, progress and completion sho
 ## What the colours and labels mean
 - **TO DO / PREPPED / DONE** on a row — not started (grey), prepped (cyan), finished (green).
 - **PG-2 Utility / PG-3 Premium / PG-4 Showcase** at the top of the job sheet — the standard this job is being done to, and what the walkthrough judges the work against. Tap it for the prep and the acceptance test at that level. An area shown with its own level beside it is a deliberate exception and overrides the job's. The office can correct the level after a job has gone out, so if it changes between the offer and the start, the new one is what you are held to — the job sheet always shows the current standard.
-- **Before photo of … — needed before the first tick** (amber) — the area cannot be ticked until you take it.
+- **🔒 Locked until Step 1** — the scope cannot be ticked until the before photos are uploaded. **🔒 Step 3 first** on the finish card means the after photos are still to come.
 - **Rectify** (amber, on a row) — the quality check or the customer flagged this; it needs putting right.
 - **WITH THE OFFICE** (amber, on a variation) — raised, not yet priced. **YOUR APPROVAL** (amber) — a variation you raised, approved by the customer, waiting on your accept. **ACCEPTED** (green) — part of the job, with the amount added to your payment; a change the office made with the customer arrives already green. **Removed from scope** — struck from the job by a signed credit.
 - **Quality check** — the office is checking; **QUALITY CHECK — AREAS TO PUT RIGHT** (red) — something failed and is on your list.
@@ -104,7 +104,7 @@ They are separate from your own photos: your before, progress and completion sho
 - **REQUESTED / CONFIRMED** on the booking card — offer waiting on you / booking accepted.
 
 ## If something goes wrong
-- **"Before photo of … — one shot before you start."** Not an error: tap the amber photo button, take the shot, then tick.
+- **"Step 1 first — upload the before photos, then every row unlocks."** Not an error: go to the Step 1 card, pick the photos, press Done, then tick.
 - **The photo did not upload.** "That photo didn't upload — check your signal and try again." Move to better signal and tap the button again; nothing is lost.
 - **Start the job is greyed out.** The office has pre-start items still to tick. Ring them if the start date is close.
 - **The card says the office has not set the pre-start list up yet.** The list is missing on this job rather than unfinished. Ring the office — the job cannot start until it is there.

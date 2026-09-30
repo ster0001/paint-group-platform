@@ -2,7 +2,7 @@
 feature: work-orders
 role: employee
 title: Run a job from the first tick to the customer's signature
-summary: How an assigned job works on your phone as an employed painter — the pre-start list, photos before ticks, ticking surfaces off, the finishing-up list, the quality check and the walkthrough — the same as every painter, with no money on it.
+summary: How an assigned job works on your phone as an employed painter — the pre-start list, before photos in one batch, ticking surfaces off, after photos of every room or side, the finishing-up list, the quality check and the walkthrough — the same as every painter, with no money on it.
 sources: app/portal/jobs, app/components/wo, app/s, lib/workorder, lib/contractor/employeeJobs.ts
 verified_at_commit: 3a6848a2fd
 ---
@@ -23,9 +23,9 @@ Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is 
 
 ### Ticking surfaces off
 2. **Scope & ticks** lists every area on the job sheet and its surfaces. Each row has three squares: to do, prepped, done. Tap a row once to mark it **PREPPED**, again to mark it **DONE**. The count at the top is the job's live progress.
-3. **Before you can tick anything in an area, that area needs a before photo.** If you tap a row first, the list tells you: "Before photo of Lounge — one shot before you start." Tap the amber **Before photo** button, take the shot, and the rows in that area unlock. One photo per area is enough, whoever on the crew takes it.
+3. **Step 1 · Upload the before photos.** The job runs in four numbered steps. Until the job has its before photos the scope list is locked and says so. On the **Step 1** card pick every before photo at once, camera or library, and press **Done**; they upload as one batch with a count. Take photos of all rooms or all sides. Whoever on the crew uploads them, the moment they land every row on the job unlocks.
 4. Now tick. The row turns cyan **PREPPED** on the first tap and green **DONE** on the second. Your ticks are recorded under your name, and the office's daily update to the customer is drafted from them.
-5. When you are about to tick the last surface in an area as done, the list asks for a **finished shot** of that area from the same angle as the before. Take it, then tick.
+5. **Step 3 · Upload the after photos.** When every surface is **DONE** the Step 3 card appears: photos of all rooms or all sides now the work is finished, picked together, one Done. The job asks once, not per area, and Step 4 stays locked until they are in.
 
 ### Photos from the office
 Near the top of the job sheet, above the scope, a **From the office** section holds photos the office has attached for this job — the elevation the scaffold goes on, where the gear lives, the colour to match. Each says which area it belongs to (or **Whole job**) and what to notice. Tap one to see it full size.
@@ -33,7 +33,7 @@ Near the top of the job sheet, above the scope, a **From the office** section ho
 On a job that came in from PaintScout these are often the only photos there are, so check them before you start. They can be added after the job is booked, so look again on the morning. They are separate from the photos you take, which stay under **Site photos**.
 
 ### Photos and notes from site
-6. **Photos & notes** is for anything else: progress or finished photos not tied to a tick, and a short note for the office. A note is for information that is not a variation — something you noticed, a question about access.
+6. **Got a question, or found something?** is the card under the steps, for questions only: a photo of an item you are unsure about and a short note for the office. Before and after photos go in Step 1 and Step 3, not here.
 
 ### Found something? Raise a variation
 7. Rot, damage, extra scope, or something the customer asked for on the day: raise it from the job with a category, a note and a photo. The office prices it and the customer approves it. When it is approved you will see **Variation approved** on the job with the added scope and hours so the work can go ahead; if it is not, **Not going ahead** with the office's note. There is no price on it and nothing for you to accept.
@@ -52,7 +52,7 @@ On a job that came in from PaintScout these are often the only photos there are,
 If the office has switched it on for you, the **All surfaces done** card asks for your days on site and hours in total before the job moves on. Change the pre-filled numbers to what actually happened, or tick **Skip** to use the booked days. It is for the office's hours-versus-estimate figures and changes nothing about your pay.
 
 ## What the colours and labels mean
-- **Amber "Before photo" button** — that area needs its before shot before anything in it can be ticked.
+- **🔒 Locked until Step 1** — the scope cannot be ticked until the job's before photos are uploaded.
 - **Cyan PREPPED / green DONE** — a surface's live state, shared by everyone on the job.
 - **Quality check** notice — the office is checking; the walkthrough opens when it passes.
 - **Job complete** — signed off and closed.
@@ -60,7 +60,7 @@ If the office has switched it on for you, the **All surfaces done** card asks fo
 ## If something goes wrong
 - **Start the job is greyed out.** The office still has pre-start items to tick — the number is on the button's card. Ring them if you are already on site.
 - **The card says the office has not set the pre-start list up yet.** The list is missing on this job rather than unfinished. Nothing you can do from here — ring the office, especially if you are due on site.
-- **A tick is refused with "before photo required".** Take the area's before photo first; the rule is the server's, not the screen's.
+- **A tick is refused with "Step 1 first".** Upload the job's before photos on the Step 1 card; the rule is the server's, not the screen's.
 - **The job page has gone.** You have been taken off the job, or it has closed. Your ticks stay on the record either way.
 
 ## Related

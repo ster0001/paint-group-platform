@@ -3,8 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
-  rpcAs, serviceClient, type LoopFixture,
-} from "./fixtures/woLoop";
+  rpcAs, serviceClient, type LoopFixture, photosIn } from "./fixtures/woLoop";
 
 /**
  * Tom, 23 Aug — the finishing-up list becomes questions, and a passed quality
@@ -32,6 +31,7 @@ let painterFixture: LoopFixture | null = null; // the painter sends a passed job
 
 async function allDone(f: LoopFixture) {
   await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
+  await photosIn(db!, f.workOrderId);
 }
 
 async function passEveryCheck(workOrderId: string, leaveOne = false): Promise<string | null> {

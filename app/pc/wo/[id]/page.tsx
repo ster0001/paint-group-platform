@@ -227,16 +227,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     .order("created_at", { ascending: false })
     .limit(120);
   const photos = await signPhotos(supabase, (photoRows as WOPhotoRow[] | null) ?? []);
-  const headingsWithBeforePhoto = [...new Set(
-    ((photoRows as WOPhotoRow[] | null) ?? [])
-      .filter((p) => p.kind === "before").map((p) => p.area ?? "").filter(Boolean),
-  )];
-  // Without this the finished-photo prompt would keep asking for shots that
-  // are already in — the prop defaults to "none logged".
-  const headingsWithAfterPhoto = [...new Set(
-    ((photoRows as WOPhotoRow[] | null) ?? [])
-      .filter((p) => p.kind === "completion").map((p) => p.area ?? "").filter(Boolean),
-  )];
+  // Tom, 30 Sep: the gate is per JOB — any before photo unlocks the list. Asked
+  // without the gallery's limit, so an old first photo never falls off the end.
+  const { data: gateRows, error: gateError } = await supabase.from("wo_photos").select("kind").eq("work_order_id", id).eq("kind", "before").limit(1);
+  const hasBeforePhoto = !gateError && ((gateRows as { kind: string }[] | null) ?? []).length > 0;
 
   // Materials (Tom, 4 Sep): the colour breakdown per substrate off the frozen
   // job sheet, and the budget — the estimate's engine materials cost against
@@ -461,8 +455,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               id: s.id, heading: s.heading, label: s.label, state: s.state,
               rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional,
             }))}
-            headingsWithBeforePhoto={headingsWithBeforePhoto}
-            headingsWithAfterPhoto={headingsWithAfterPhoto}
+            hasBeforePhoto={hasBeforePhoto}
             headingMeta={Object.fromEntries(
               surfaces.map((s) => [s.heading, s.heading_meta]).filter(([, m]) => m),
             )}
@@ -795,8 +788,8 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             <h3>From site <em data-testid="photo-count">{photos.length} photo{photos.length === 1 ? "" : "s"}</em></h3>
             {photos.length === 0 ? (
               <p className="note">
-                Nothing sent in yet. Before-photos arrive with the first tick on
-                each elevation; progress, quality-check and completion photos follow.
+                Nothing sent in yet. The painter&rsquo;s before photos arrive as Step 1
+                of the job; progress, quality-check and after photos follow.
               </p>
             ) : (
               groupByKind(photos).map((g) => (

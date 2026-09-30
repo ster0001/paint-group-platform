@@ -248,6 +248,8 @@ export async function contractorFinish(raw: unknown): Promise<FinishResult> {
   // the confirm.
   const s = String(data ?? "");
   if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  // Tom, 30 Sep: Step 3 — the after photos of every room or side — before the job can finish.
+  if (s === "error:after_photos_required") return { ok: false, message: "Step 3 first — upload the after photos: all rooms or all sides. Then send the job on." };
   if (!s.startsWith("ok:") && s !== "error:not_in_progress") {
     return { ok: false, message: "Couldn't finish up just now." };
   }

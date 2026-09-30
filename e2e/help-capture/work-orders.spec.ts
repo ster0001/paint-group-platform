@@ -34,6 +34,14 @@ async function uploadVia(page: Page, trigger: Locator, name: string) {
   await (await chooser).setFiles({ name, mimeType: "image/png", buffer: placeholderPng(480, 360, photoSeed++) });
 }
 
+/** Step 1 / Step 3: pick several files on the batch card and press Done, then wait for the page to refresh. */
+async function uploadBatch(page: Page, step: "before" | "after", names: string[]) {
+  await page.getByTestId(`${step}-input`).setInputFiles(names.map((name) => ({ name, mimeType: "image/png", buffer: placeholderPng(480, 360, photoSeed++) })));
+  await page.getByTestId(`${step}-done`).click();
+  // The page refreshes when the last one lands and the card folds away.
+  await expect(page.getByTestId(`${step}-uploader`)).toHaveCount(0, { timeout: 90_000 });
+}
+
 /** Rows of one heading, by id — the DOM grouping is not something to guess at. */
 async function surfaceIds(heading: string): Promise<string[]> {
   const { data } = await db!.from("wo_surfaces").select("id").eq("work_order_id", job!.workOrderId).eq("heading", heading).order("sort");
@@ -197,10 +205,11 @@ test("work orders — painter and PC, offer to signed off", async ({ browser, re
   const frontIds = await surfaceIds("Front");
   const firstRow = list.getByTestId(`tick-${frontIds[0]}`);
   await firstRow.click();
-  await expect(c.getByTestId("tick-message")).toContainText("Before photo", { timeout: 10_000 });
+  await expect(c.getByTestId("tick-message")).toContainText("Step 1 first", { timeout: 10_000 });
   await shot(c, F, "contractor", "03");
-  await uploadVia(c, list.getByTestId("photo-prompt-Front"), "front-before.png");
-  await expect(c.getByTestId("tick-message")).toContainText("saved", { timeout: 20_000 });
+  // Step 1: the before photos, as one batch (Tom, 30 Sep).
+  await uploadBatch(c, "before", ["front-before.png", "left-before.png"]);
+  await expect(c.getByTestId("tick-locked")).toHaveCount(0, { timeout: 30_000 });
   await firstRow.click();
   await expect(firstRow).toHaveClass(/prepped/, { timeout: 10_000 });
   await shot(c, F, "contractor", "04");
@@ -264,6 +273,10 @@ test("work orders — painter and PC, offer to signed off", async ({ browser, re
 
   // ---- painter: finish every surface, answer the completion list ---------------
   for (const h of HEADINGS) await finishHeading(c, h);
+  // Step 3: the after photos of every side, as one batch, before the finish.
+  await expect(c.getByTestId("after-uploader")).toBeVisible({ timeout: 20_000 });
+  await uploadBatch(c, "after", HEADINGS.map((h) => `${h}-after.png`));
+  await expect(c.getByTestId("finish-blocked")).toHaveCount(0, { timeout: 30_000 });
   await expect(c.getByTestId("finish-up")).toBeVisible({ timeout: 20_000 });
   const prep = c.getByTestId("prep-checklist");
   await frame(c, prep);

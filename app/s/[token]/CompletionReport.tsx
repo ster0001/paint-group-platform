@@ -88,7 +88,10 @@ export default function CompletionReport({
         <div className="cv-rectified" data-testid="report-rectified">
           <h3>What you flagged, and what we did</h3>
           {report.rectified!.map((r) => {
-            const areaPhotos = photos.filter((p) => p.kind === "completion" && p.area === r.area);
+            // After photos are per JOB since 30 Sep (area may be blank): show the
+            // area's own when tagged, else the job-wide set.
+            const tagged = photos.filter((p) => p.kind === "completion" && p.area === r.area);
+            const areaPhotos = tagged.length ? tagged : photos.filter((p) => p.kind === "completion" && !p.area);
             return (
               <div className="cv-area" key={r.area} data-testid={`report-rectified-${r.area}`}>
                 <b>{r.area}</b>

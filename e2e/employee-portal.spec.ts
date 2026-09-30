@@ -129,9 +129,9 @@ test.describe("employed painter — the portal", () => {
     await page.getByTestId("start-job-button").click();
     await expect(page.getByTestId("tick-list")).toBeVisible({ timeout: 20_000 });
 
-    // Before-photo gate, then the tick — the same rule as a contractor's job.
+    // Step 1's before photos gate the job, then the tick — the same rule as a contractor's job.
     const lounge = fixture!.surfaces.find((s) => s.heading === "Lounge")!;
-    await expect(page.getByTestId("photo-prompt-Lounge")).toBeVisible();
+    await expect(page.getByTestId("tick-locked")).toBeVisible();
     await db!.from("wo_photos").insert({ work_order_id: fixture!.workOrderId, kind: "before", area: "Lounge", storage_path: `wo/${fixture!.workOrderId}/e2e-before.jpg` });
     await page.reload();
     const row = page.getByTestId(`tick-${lounge.id}`);

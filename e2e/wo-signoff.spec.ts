@@ -3,8 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, drawSignature } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
-  rpcAs, rpcAsJson, serviceClient, type LoopFixture,
-} from "./fixtures/woLoop";
+  rpcAs, rpcAsJson, serviceClient, type LoopFixture, photosIn } from "./fixtures/woLoop";
 
 /**
  * Step 5, driven AS THE CUSTOMER — both paths.
@@ -27,6 +26,7 @@ let token = "";
 async function readyForWalkthrough(f: LoopFixture): Promise<string> {
   // Every surface done, prep list ticked — the two gates before a walkthrough.
   await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
+  await photosIn(db!, f.workOrderId);
   await completePrep(db!, staff!, f.workOrderId);
   await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: f.workOrderId, p_to: "completion_prep" });
   const result = await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: f.workOrderId });
@@ -63,6 +63,7 @@ test.describe("walkthrough and sign-off", () => {
     const contractorId = await contractorIdForEmail(db!, contractor!.email);
     const raw = await createLoopFixture(db!, contractorId!, [{ heading: "Right", labels: ["Walls"] }]);
     await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", raw.workOrderId);
+    await photosIn(db!, raw.workOrderId);
     await rpcAs(staff!, "wo_seed_prep_checklist", { p_work_order_id: raw.workOrderId });
     await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: raw.workOrderId, p_to: "completion_prep" });
 
@@ -116,6 +117,7 @@ test.describe("walkthrough and sign-off", () => {
   test("once put right, they approve every area and sign", async ({ page }) => {
     // The painter fixes it and the job comes back round.
     await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", fixture!.workOrderId);
+    await photosIn(db!, fixture!.workOrderId);
     await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: fixture!.workOrderId, p_to: "completion_prep" });
     await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: fixture!.workOrderId, p_to: "walkthrough" });
 

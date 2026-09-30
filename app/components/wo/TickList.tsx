@@ -1,11 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { setSurfacePhotosOptionalAction, tickSurfaceAction } from "./tickAction";
-import { uploadFailureText, uploadWorkOrderMedia, uploadingLabel } from "@/lib/workorder/uploadMedia";
 import {
-  nextState, needsBeforePhoto, needsAfterPhoto, progressByHeading, progressOf,
-  tickNeedsAfterPhoto, tickNeedsBeforePhoto,
+  jobNeedsBeforePhotos, nextState, progressByHeading, progressOf, tickNeedsBeforePhotos,
   type SurfaceRow, type SurfaceState,
 } from "@/lib/workorder/surfaces";
 
@@ -13,18 +11,18 @@ import {
  * The tick list on the contractor's phone.
  *
  * One tap cycles TO DO → PREPPED → DONE, and round to TO DO again so a mis-tap
- * is fixable without hunting for an undo. The before-photo rule is enforced by
- * the server; this asks for the photo BEFORE the first tap on an elevation so
- * the painter meets it as a prompt rather than an error. If the server refuses
- * anyway (a photo was deleted, two phones at once) the message still lands here.
+ * is fixable without hunting for an undo. The photo rule (Tom, 30 Sep: per
+ * JOB — Step 1's before photos unlock every row) is enforced by the server;
+ * until the job has one this list is shown LOCKED with a line saying so, and
+ * a tap says it too. If the server refuses anyway (a photo was deleted, two
+ * phones at once) the message still lands here.
  */
 
 type Props = {
   workOrderId: string;
   surfaces: SurfaceRow[];
-  headingsWithBeforePhoto: string[];
-  /** Elevations that already have a finished shot — see needsAfterPhoto. */
-  headingsWithAfterPhoto?: string[];
+  /** Step 1 done: a before photo exists anywhere on the job. */
+  hasBeforePhoto: boolean;
   headingMeta: Record<string, string>;
   /**
    * Which chrome this is rendering in. The two surfaces have different
@@ -43,25 +41,16 @@ type Props = {
 const LABEL: Record<SurfaceState, string> = { todo: "To do", prepped: "Prepped", done: "Done" };
 
 export default function TickList({
-  workOrderId, surfaces, headingsWithBeforePhoto, headingsWithAfterPhoto = [],
+  surfaces, hasBeforePhoto,
   headingMeta, surface = "portal", canWaivePhotos = false,
 }: Props) {
   const c = surface === "console" ? "pcw" : "";
   const [rows, setRows] = useState<SurfaceRow[]>(surfaces);
-  const [photoHeadings, setPhotoHeadings] = useState<string[]>(headingsWithBeforePhoto);
-  const [afterHeadings, setAfterHeadings] = useState<string[]>(headingsWithAfterPhoto);
-  // Which kind the file picker is currently collecting. The picker is one
-  // element shared by both prompts, so the kind has to ride alongside the
-  // heading rather than being assumed to be "before".
-  const pendingKind = useRef<"before" | "completion">("before");
   const [message, setMessage] = useState<{ text: string; heading?: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [progress, setProgress] = useState<number | null>(null);
   const [waiving, setWaiving] = useState<string | null>(null);
   const [, startTransition] = useTransition();
-  const fileInput = useRef<HTMLInputElement | null>(null);
-  const pendingHeading = useRef<string | null>(null);
+  const locked = jobNeedsBeforePhotos(rows, hasBeforePhoto);
 
   const headings = useMemo(() => {
     const seen: string[] = [];
@@ -71,20 +60,6 @@ export default function TickList({
 
   const overall = progressOf(rows);
   const byHeading = progressByHeading(rows);
-
-  function askForPhoto(heading: string) {
-    pendingHeading.current = heading;
-    pendingKind.current = "before";
-    setMessage({ text: `Before photo of ${heading} — one shot before you start.`, heading });
-    fileInput.current?.click();
-  }
-
-  function askForAfterPhoto(heading: string) {
-    pendingHeading.current = heading;
-    pendingKind.current = "completion";
-    setMessage({ text: `Finished shot of ${heading} — same angle as the before, if you can.`, heading });
-    fileInput.current?.click();
-  }
 
   function waivePhotos(row: SurfaceRow) {
     setWaiving(row.id);
@@ -103,45 +78,12 @@ export default function TickList({
     });
   }
 
-  async function onPhotoPicked(file: File) {
-    const heading = pendingHeading.current;
-    if (!heading) return;
-    setUploading(heading);
-    setMessage(null);
-    try {
-      // One upload path for every card (lib/workorder/uploadMedia.ts): the
-      // storage reply is read back and said plainly, never "check your signal".
-      await uploadWorkOrderMedia({ workOrderId, file, kind: pendingKind.current, area: heading, onProgress: setProgress });
-      if (pendingKind.current === "completion") {
-        setAfterHeadings((h) => [...h, heading]);
-        setMessage({ text: `Finished shot saved for ${heading}. Nice one.` });
-      } else {
-        setPhotoHeadings((h) => [...h, heading]);
-        setMessage({ text: `Before photo saved for ${heading}. Tick away.` });
-      }
-    } catch (e) {
-      setMessage({ text: uploadFailureText(e, file), heading });
-    } finally {
-      setUploading(null);
-      setProgress(null);
-      pendingHeading.current = null;
-    }
-  }
-
   function tap(row: SurfaceRow) {
     const to = nextState(row.state);
-    // Ask for the photo before the tap, not after the refusal. A "photos not
-    // required" line never asks.
-    if (to !== "todo" && tickNeedsBeforePhoto(row, rows, photoHeadings)) {
-      askForPhoto(row.heading);
-      return;
-    }
-    // The finished shot is REQUIRED before the last tick lands (Tom, 1 Sep):
-    // the tap that would complete the area opens the picker instead, and the
-    // tick goes through on the next tap once the photo is up. The server
-    // enforces the same rule, so two phones can't race past it.
-    if (to === "done" && tickNeedsAfterPhoto(row, rows, afterHeadings)) {
-      askForAfterPhoto(row.heading);
+    // Say it before the tap, not after the refusal. A "photos not required"
+    // line never asks.
+    if (to !== "todo" && tickNeedsBeforePhotos(row, hasBeforePhoto)) {
+      setMessage({ text: "Step 1 first — upload the before photos, then every row unlocks.", heading: row.heading });
       return;
     }
     setBusy(row.id);
@@ -151,9 +93,7 @@ export default function TickList({
       if (result.ok) {
         setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, state: to } : r)));
       } else {
-        setMessage({ text: result.message, heading: result.needsPhoto ?? result.needsAfterPhoto });
-        if (result.needsPhoto) setPhotoHeadings((h) => h.filter((x) => x !== result.needsPhoto));
-        if (result.needsAfterPhoto) setAfterHeadings((h) => h.filter((x) => x !== result.needsAfterPhoto));
+        setMessage({ text: result.message, heading: row.heading });
       }
       setBusy(null);
     });
@@ -167,29 +107,18 @@ export default function TickList({
       </div>
       <div className="tick-prog"><i style={{ width: `${overall.pct}%` }} /></div>
 
+      {locked && (
+        <p className="tick-msg locked" role="status" data-testid="tick-locked">
+          🔒 Locked until Step 1 — upload the before photos above, then tick each surface here.
+        </p>
+      )}
+
       {message && (
         <p className="tick-msg" role="status" data-testid="tick-message">{message.text}</p>
       )}
 
-      {/* No `capture` attribute on purpose (Tom, 1 Sep): with it the phone
-          jumps straight to the camera; without it the OS offers Take Photo /
-          Photo Library, so the painter can pick either. */}
-      <input
-        ref={fileInput}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/heic"
-        hidden
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          if (f) void onPhotoPicked(f);
-        }}
-      />
-
       {headings.map((heading) => {
         const p = byHeading.get(heading);
-        const wants = needsBeforePhoto(heading, rows, photoHeadings);
-        const wantsAfter = needsAfterPhoto(heading, rows, afterHeadings);
         return (
           <div className="elev" key={heading}>
             <div className="eh">
@@ -197,33 +126,6 @@ export default function TickList({
               {headingMeta[heading] ? <em>{headingMeta[heading]}</em> : null}
               <span className="ct">{p ? `${p.done}/${p.total}` : ""}{p && p.done === p.total ? " ✓" : ""}</span>
             </div>
-
-            {wants && (
-              <button
-                type="button"
-                className="tick-photo"
-                onClick={() => askForPhoto(heading)}
-                disabled={uploading === heading}
-                data-testid={`photo-prompt-${heading}`}
-              >
-                {uploading === heading ? uploadingLabel(progress) : `📷 Before photo of ${heading} — needed before the first tick`}
-              </button>
-            )}
-
-            {/* The other end of the job: this elevation is finished, so ask for
-                the shot that pairs with the before. Sits under the rows rather
-                than above them — it is what you do after the last tick. */}
-            {wantsAfter && (
-              <button
-                type="button"
-                className="tick-photo after"
-                onClick={() => askForAfterPhoto(heading)}
-                disabled={uploading === heading}
-                data-testid={`after-photo-prompt-${heading}`}
-              >
-                {uploading === heading ? uploadingLabel(progress) : `📷 Finished photo of ${heading} — needed to complete the area`}
-              </button>
-            )}
 
             {rows.filter((r) => r.heading === heading).map((row) =>
               row.removed ? (
@@ -246,7 +148,7 @@ export default function TickList({
                 <button
                   key={row.id}
                   type="button"
-                  className={`tickrow ${row.state}`}
+                  className={`tickrow ${row.state}${locked && !row.photosOptional ? " locked" : ""}`}
                   onClick={() => tap(row)}
                   disabled={busy === row.id}
                   data-testid={`tick-${row.id}`}

@@ -3,8 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
-  rpcAs, serviceClient, type LoopFixture,
-} from "./fixtures/woLoop";
+  rpcAs, serviceClient, type LoopFixture, photosIn } from "./fixtures/woLoop";
 
 /**
  * Tom, 23 Aug (batch 4) — needs 20261109 + 20261110 live:
@@ -27,6 +26,7 @@ let cm: LoopFixture | null = null;       // colour-match gate
 
 async function allDone(f: LoopFixture) {
   await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
+  await photosIn(db!, f.workOrderId);
 }
 
 async function passAll(workOrderId: string) {

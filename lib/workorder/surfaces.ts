@@ -126,13 +126,6 @@ export type SurfaceRow = {
   photosOptional?: boolean;
 };
 
-/** The rows on a heading that photos are counted over — "photos not required" rows are out. */
-export function photoRows(surfaces: readonly SurfaceRow[], heading: string): SurfaceRow[] {
-  return surfaces.filter((s) => s.heading === heading && !s.photosOptional);
-}
-
-
-
 export type Progress = { done: number; total: number; pct: number };
 
 /** "18 / 34" and the bar width — derivable from the data alone, per the brief.
@@ -162,75 +155,37 @@ export function nextState(current: SurfaceState): SurfaceState {
 }
 
 /**
- * The photo gate, mirrored for the UI so it can prompt BEFORE the tap rather
- * than explaining a server error afterwards. The server decides; this only
+ * The photo gates, mirrored for the UI so it can say what is needed BEFORE a
+ * tap rather than explain a server error afterwards. The server decides
+ * (wo_tick_surface / wo_contractor_finish, migration 20270207); this only
  * decides what to show.
- */
-export function needsBeforePhoto(
-  heading: string,
-  surfaces: readonly SurfaceRow[],
-  headingsWithBeforePhoto: readonly string[],
-): boolean {
-  // Only the rows photos are counted over: a heading of "photos not required"
-  // lines asks for nothing at all.
-  const mine = photoRows(surfaces, heading);
-  if (mine.length === 0) return false;
-  if (headingsWithBeforePhoto.includes(heading)) return false;
-  // The gate is on the FIRST tick of an elevation: once anything there has moved
-  // off todo, the photo requirement has already been met (or waived by staff).
-  return mine.every((s) => s.state === "todo");
-}
-
-/** Would ticking THIS row need the before shot first? An optional row never does. */
-export function tickNeedsBeforePhoto(
-  row: SurfaceRow,
-  surfaces: readonly SurfaceRow[],
-  headingsWithBeforePhoto: readonly string[],
-): boolean {
-  if (row.photosOptional) return false;
-  return needsBeforePhoto(row.heading, surfaces, headingsWithBeforePhoto);
-}
-
-/**
- * An elevation that is finished but has no "after" shot yet.
  *
- * The mirror of needsBeforePhoto, at the other end of the work. Before-photos
- * were prompted per elevation and after-photos were not prompted at all — the
- * only route to one was the generic "Photos & notes" panel, which a painter has
- * no reason to open (Tom, 22 Aug). Without them the completion report has a
- * before and nothing to compare it to.
- *
- * Asked for only once every surface on the elevation is done, so it reads as
- * "you've finished this one, snap it" rather than nagging mid-job.
+ * Tom, 30 Sep: both gates are on the whole JOB. One batch of before photos
+ * (Step 1) unlocks every row; one batch of after photos of all rooms or all
+ * sides (Step 3) is needed before the job can finish. A row the office
+ * marked "photos not required" never counts — a job of only such rows asks
+ * for nothing.
  */
-export function needsAfterPhoto(
-  heading: string,
-  surfaces: readonly SurfaceRow[],
-  headingsWithAfterPhoto: readonly string[],
-): boolean {
-  // Struck-from-scope rows don't count — an elevation whose only unticked rows
-  // were removed by a signed credit IS finished (same rule as progressOf).
-  // Nor do "photos not required" rows: the shot pairs with the work, not the allowance.
-  const mine = photoRows(surfaces, heading).filter((s) => !s.removed);
-  if (mine.length === 0) return false;
-  if (headingsWithAfterPhoto.includes(heading)) return false;
-  return mine.every((s) => s.state === "done");
+export function gatedRows(surfaces: readonly SurfaceRow[]): SurfaceRow[] {
+  return surfaces.filter((s) => !s.photosOptional && !s.removed);
 }
 
-/**
- * Would marking THIS row done complete its heading's photo rows — and so need
- * the finished shot first? The tap that would finish the area opens the picker
- * instead (Tom, 1 Sep); an optional row never does.
- */
-export function tickNeedsAfterPhoto(
-  row: SurfaceRow,
-  surfaces: readonly SurfaceRow[],
-  headingsWithAfterPhoto: readonly string[],
-): boolean {
-  if (row.photosOptional || row.removed) return false;
-  if (headingsWithAfterPhoto.includes(row.heading)) return false;
-  const others = photoRows(surfaces, row.heading).filter((s) => !s.removed && s.id !== row.id);
-  return others.every((s) => s.state === "done");
+/** Step 1 still to do: rows that want photos, and no before photo on the job yet. */
+export function jobNeedsBeforePhotos(surfaces: readonly SurfaceRow[], hasBeforePhoto: boolean): boolean {
+  return !hasBeforePhoto && gatedRows(surfaces).length > 0;
+}
+
+/** Would ticking THIS row be refused for want of the job's before photos? An optional row never is. */
+export function tickNeedsBeforePhotos(row: SurfaceRow, hasBeforePhoto: boolean): boolean {
+  return !row.photosOptional && !hasBeforePhoto;
+}
+
+/** Step 3 still to do: every working row done, rows that want photos, and no after photo on the job yet. */
+export function jobNeedsAfterPhotos(surfaces: readonly SurfaceRow[], hasAfterPhoto: boolean): boolean {
+  if (hasAfterPhoto) return false;
+  const working = surfaces.filter((s) => !s.removed);
+  if (working.length === 0 || !working.every((s) => s.state === "done")) return false;
+  return gatedRows(surfaces).length > 0;
 }
 
 /** Every surface done — the gate out of in_progress. */

@@ -3,8 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
-  rpcAs, serviceClient, type LoopFixture,
-} from "./fixtures/woLoop";
+  rpcAs, serviceClient, type LoopFixture, photosIn } from "./fixtures/woLoop";
 
 /**
  * The QA ruling (Tom, 23 Aug), failing-first until 20261030 is pasted:
@@ -26,6 +25,7 @@ let uiFixture: LoopFixture | null = null;
 
 async function allDone(f: LoopFixture) {
   await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
+  await photosIn(db!, f.workOrderId);
 }
 
 test.describe("QA ruling — finish, route, gate", () => {

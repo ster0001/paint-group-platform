@@ -48,12 +48,17 @@ test.describe("work order ticks", () => {
     await expect(page.getByTestId("tick-progress")).toHaveText("0 / 3");
   });
 
-  test("an elevation with no before photo asks for one before the first tick", async ({ page }) => {
+  test("a job with no before photo shows Step 1 and a locked list (Tom, 30 Sep: per job, not per side)", async ({ page }) => {
     await signIn(page, creds!, /\/portal/);
     await page.goto(`/portal/jobs/${fixture!.workOrderId}`);
 
-    await expect(page.getByTestId("photo-prompt-Front")).toBeVisible();
-    await expect(page.getByTestId("photo-prompt-Left")).toBeVisible();
+    await expect(page.getByTestId("job-steps")).toHaveAttribute("data-step", "1");
+    await expect(page.getByTestId("before-uploader")).toBeVisible();
+    await expect(page.getByTestId("tick-locked")).toBeVisible();
+    // A tap on a row says so rather than ticking.
+    const front = fixture!.surfaces.find((s) => s.heading === "Front")!;
+    await page.getByTestId(`tick-${front.id}`).click();
+    await expect(page.getByTestId("tick-message")).toContainText("Step 1 first");
   });
 
   test("the SERVER refuses the first tick without a photo, not just the screen", async () => {
@@ -78,7 +83,7 @@ test.describe("work order ticks", () => {
       body: JSON.stringify({ p_surface_id: front.id, p_to: "prepped" }),
     }).then((r) => r.json());
 
-    expect(String(result)).toBe("error:before_photo_required:Front");
+    expect(String(result)).toBe("error:before_photo_required:job");
 
     // And nothing moved.
     const { data } = await db!.from("wo_surfaces").select("state").eq("id", front.id).single();
@@ -102,9 +107,9 @@ test.describe("work order ticks", () => {
     await signIn(page, creds!, /\/portal/);
     await page.goto(`/portal/jobs/${fixture!.workOrderId}`);
 
-    // Front no longer asks; Left still does — the gate is per elevation.
-    await expect(page.getByTestId("photo-prompt-Front")).toHaveCount(0);
-    await expect(page.getByTestId("photo-prompt-Left")).toBeVisible();
+    // One before photo on the job unlocks EVERY row — Left too (Tom, 30 Sep).
+    await expect(page.getByTestId("tick-locked")).toHaveCount(0);
+    await expect(page.getByTestId("job-steps")).toHaveAttribute("data-step", "2");
 
     const front = fixture!.surfaces.find((s) => s.heading === "Front")!;
     const row = page.getByTestId(`tick-${front.id}`);

@@ -15,8 +15,10 @@ export type HoursAsk = {
   hours: number | null;
 };
 
-export default function FinishUp({ workOrderId, flaggedAreas = [], hoursAsk = null }: {
+export default function FinishUp({ workOrderId, flaggedAreas = [], hoursAsk = null, blockedBy = null }: {
   workOrderId: string;
+  /** Tom, 30 Sep: Step 4 waits on Step 3 — the line that says so, or null when the button may fire. */
+  blockedBy?: string | null;
   /**
    * Dashboard 0c (Tom, 19 Sep): present only for a painter whose office flag
    * is on — the final tick asks for days on site and hours. Skipping is
@@ -73,7 +75,8 @@ export default function FinishUp({ workOrderId, flaggedAreas = [], hoursAsk = nu
 
   return (
     <div className="card" data-testid="finish-up">
-      <div className="tick-head"><b>{rectified ? "Flagged areas put right" : "All surfaces done"}</b></div>
+      <div className="tick-head"><b>{rectified ? "Flagged areas put right" : "Step 4 · Finish the job"}</b></div>
+      {blockedBy && <p className="tick-msg locked" role="status" data-testid="finish-blocked">🔒 {blockedBy}</p>}
       <p className="hint" style={{ padding: 0, marginTop: 6 }}>
         {rectified
           ? `The customer flagged ${flaggedAreas.join(", ")} at their walkthrough. With those put right and ticked, this completes the job and sends them the completion report — what they flagged and what was done — with no second walkthrough.`
@@ -102,7 +105,7 @@ export default function FinishUp({ workOrderId, flaggedAreas = [], hoursAsk = nu
         </div>
       )}
       {message && <p className="tick-msg" role="status" data-testid="finish-msg">{message}</p>}
-      <button type="button" className="btn" disabled={busy} onClick={() => void finish()}
+      <button type="button" className="btn" disabled={busy || Boolean(blockedBy)} onClick={() => void finish()}
         data-testid="finish-job" style={{ marginTop: 10 }}>
         {busy ? (rectified ? "Finishing…" : "Sending…") : rectified ? "Fixed — send the report" : "All done — next step"}
       </button>

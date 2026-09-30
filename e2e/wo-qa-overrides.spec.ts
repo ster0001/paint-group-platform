@@ -3,8 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, userIdFor } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
-  rpcAs, rpcAsJson, serviceClient, type LoopFixture,
-} from "./fixtures/woLoop";
+  rpcAs, rpcAsJson, serviceClient, type LoopFixture, photosIn } from "./fixtures/woLoop";
 
 /**
  * Tom, 24 Sep 2026 — the quality-check overrides and the office's sign-off
@@ -41,6 +40,7 @@ const openChecks = async (id: string) => {
 /** Every surface done and the finishing-up list answered — the two gates before the check/pack. */
 async function finishTheWork(f: LoopFixture) {
   await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
+  await photosIn(db!, f.workOrderId);
   await completePrep(db!, staff!, f.workOrderId);
 }
 
