@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { get as httpsGet } from "node:https";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
@@ -73,20 +74,28 @@ function photoPath(workOrderId: string, videoExt: string | null): string {
 async function headBytes(supabase: Awaited<ReturnType<typeof createClient>>, path: string, n = 64): Promise<Uint8Array | null> {
   const { data: signed, error } = await supabase.storage.from("wo-photos").createSignedUrl(path, 60);
   if (error || !signed?.signedUrl) return null;
-  const res = await fetch(signed.signedUrl, { headers: { Range: `bytes=0-${n - 1}` } }).catch(() => null);
-  if (!res || !res.ok || !res.body) return null;
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = []; let got = 0;
-  while (got < n) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    if (value) { chunks.push(value); got += value.length; }
-  }
-  await reader.cancel().catch(() => {});
-  const out = new Uint8Array(got);
-  let at = 0;
-  for (const c of chunks) { out.set(c, at); at += c.length; }
-  return out.slice(0, n);
+  // Tom, 30 Sep: this read went through the runtime's patched fetch and never
+  // came back — the ingest sat after "auth" for ever and the painter saw
+  // "Uploading…" with no end (C1 server log, 30 Sep). Node's own client,
+  // untouched by the framework: ask for the first bytes, take what arrives,
+  // drop the socket. A store that ignores Range answers 200 with the whole
+  // body; only the first chunk is kept and the request is destroyed.
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (v: Uint8Array | null) => { if (!settled) { settled = true; resolve(v); } };
+    const timer = setTimeout(() => { req.destroy(); finish(null); }, 8_000);
+    const req = httpsGet(signed.signedUrl, { headers: { Range: `bytes=0-${n - 1}` } }, (res) => {
+      if (!res.statusCode || res.statusCode >= 300) { res.resume(); clearTimeout(timer); return finish(null); }
+      const chunks: Buffer[] = []; let got = 0;
+      res.on("data", (c: Buffer) => {
+        chunks.push(c); got += c.length;
+        if (got >= n) { clearTimeout(timer); finish(new Uint8Array(Buffer.concat(chunks)).slice(0, n)); req.destroy(); }
+      });
+      res.on("end", () => { clearTimeout(timer); finish(got ? new Uint8Array(Buffer.concat(chunks)).slice(0, n) : null); });
+      res.on("error", () => { clearTimeout(timer); finish(got ? new Uint8Array(Buffer.concat(chunks)).slice(0, n) : null); });
+    });
+    req.on("error", () => { clearTimeout(timer); finish(null); });
+  });
 }
 
 export async function POST(request: Request) {
@@ -123,11 +132,25 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  // Tom, 30 Sep: uploads sat on "Uploading…" with the ingest never answering.
+  // Every phase is timed; anything over five seconds is logged with the split
+  // so the slow step is named in the server log, not guessed at.
+  const t0 = Date.now();
+  const marks: Record<string, number> = {};
+  let last = t0;
+  const mark = (k: string) => { const now = Date.now(); marks[k] = now - last; last = now; };
+  const done = (res: NextResponse) => {
+    const total = Date.now() - t0;
+    if (total > 5_000) console.warn(`[wo.photos.ingest] slow ${total} ms`, JSON.stringify(marks));
+    return res;
+  };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return fail(403, "Sign in to add photos.");
+  mark("auth");
 
   const parsed = ingestBody.safeParse(await request.json().catch(() => null));
+  mark("parse");
   if (!parsed.success) return fail(400, "That photo is missing something we need.");
   const v = parsed.data;
 
@@ -138,10 +161,12 @@ export async function PUT(request: Request) {
   // The Range read is the cheap path; a store that answers it oddly falls back
   // to the whole object (a photo — a video is only ever read by Range).
   let bytes = await headBytes(supabase, v.path);
+  mark("head");
   if ((!bytes || bytes.length < 12) && !isVideoPath(v.path)) {
     const { data: blob, error: dlError } = await supabase.storage.from("wo-photos").download(v.path);
     if (dlError) reportError(dlError, { where: "wo.photos.ingest.download", bestEffort: true, extra: { path: v.path } });
     if (blob) bytes = new Uint8Array(await blob.arrayBuffer()).slice(0, 64);
+    mark("download");
   }
   if (!bytes || bytes.length < 12) {
     reportError(new Error("wo.photos.ingest: staged object unreadable"), { where: "wo.photos.ingest", extra: { path: v.path } });
@@ -182,9 +207,10 @@ export async function PUT(request: Request) {
         p_area: v.area,
         p_caption: v.caption,
       });
+  mark("record");
   if (error) {
     reportError(error, { where: "wo.photos.record", extra: { path: v.path } });
-    return fail(502, "The photo uploaded but we couldn't file it — try again.");
+    return done(fail(502, "The photo uploaded but we couldn't file it — try again."));
   }
 
   const s = String(result ?? "");
@@ -221,5 +247,5 @@ export async function PUT(request: Request) {
     }
   }
 
-  return NextResponse.json({ id: photoId, path: v.path });
+  return done(NextResponse.json({ id: photoId, path: v.path }));
 }

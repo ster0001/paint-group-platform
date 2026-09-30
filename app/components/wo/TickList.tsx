@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { setSurfacePhotosOptionalAction, tickSurfaceAction } from "./tickAction";
-import { uploadFailureText, uploadWorkOrderMedia } from "@/lib/workorder/uploadMedia";
+import { uploadFailureText, uploadWorkOrderMedia, uploadingLabel } from "@/lib/workorder/uploadMedia";
 import {
   nextState, needsBeforePhoto, needsAfterPhoto, progressByHeading, progressOf,
   tickNeedsAfterPhoto, tickNeedsBeforePhoto,
@@ -57,6 +57,7 @@ export default function TickList({
   const [message, setMessage] = useState<{ text: string; heading?: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
   const [waiving, setWaiving] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -110,7 +111,7 @@ export default function TickList({
     try {
       // One upload path for every card (lib/workorder/uploadMedia.ts): the
       // storage reply is read back and said plainly, never "check your signal".
-      await uploadWorkOrderMedia({ workOrderId, file, kind: pendingKind.current, area: heading });
+      await uploadWorkOrderMedia({ workOrderId, file, kind: pendingKind.current, area: heading, onProgress: setProgress });
       if (pendingKind.current === "completion") {
         setAfterHeadings((h) => [...h, heading]);
         setMessage({ text: `Finished shot saved for ${heading}. Nice one.` });
@@ -122,6 +123,7 @@ export default function TickList({
       setMessage({ text: uploadFailureText(e, file), heading });
     } finally {
       setUploading(null);
+      setProgress(null);
       pendingHeading.current = null;
     }
   }
@@ -204,7 +206,7 @@ export default function TickList({
                 disabled={uploading === heading}
                 data-testid={`photo-prompt-${heading}`}
               >
-                {uploading === heading ? "Uploading…" : `📷 Before photo of ${heading} — needed before the first tick`}
+                {uploading === heading ? uploadingLabel(progress) : `📷 Before photo of ${heading} — needed before the first tick`}
               </button>
             )}
 
@@ -219,7 +221,7 @@ export default function TickList({
                 disabled={uploading === heading}
                 data-testid={`after-photo-prompt-${heading}`}
               >
-                {uploading === heading ? "Uploading…" : `📷 Finished photo of ${heading} — needed to complete the area`}
+                {uploading === heading ? uploadingLabel(progress) : `📷 Finished photo of ${heading} — needed to complete the area`}
               </button>
             )}
 

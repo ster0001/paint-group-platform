@@ -1,6 +1,6 @@
 "use client";
 
-import { uploadFailureText, uploadWorkOrderMedia } from "@/lib/workorder/uploadMedia";
+import { uploadFailureText, uploadWorkOrderMedia, uploadingLabel } from "@/lib/workorder/uploadMedia";
 
 import { useRef, useState, useTransition } from "react";
 import { acceptVariationAction, acknowledgeVariationAction, raiseVariationAction } from "./variationActions";
@@ -66,6 +66,7 @@ export default function Variations({
   const [photoIds, setPhotoIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
   const fileInput = useRef<HTMLInputElement | null>(null);
 
@@ -73,12 +74,13 @@ export default function Variations({
     setUploading(true);
     setMessage(null);
     try {
-      const { id } = await uploadWorkOrderMedia({ workOrderId, file, kind: "variation" });
+      const { id } = await uploadWorkOrderMedia({ workOrderId, file, kind: "variation", onProgress: setProgress });
       setPhotoIds((ids) => [...ids, id]);
     } catch (e) {
       setMessage(uploadFailureText(e, file));
     } finally {
       setUploading(false);
+      setProgress(null);
     }
   }
 
@@ -166,7 +168,7 @@ export default function Variations({
           />
           <button type="button" className="var-photo" onClick={() => fileInput.current?.click()}
             disabled={uploading} data-testid="variation-photo">
-            {uploading ? "Uploading…" : photoIds.length === 0
+            {uploading ? uploadingLabel(progress) : photoIds.length === 0
               ? "📷 Photos or a video — needed before this can go to the office"
               : `📷 ${photoIds.length} added — add another photo or video`}
           </button>
