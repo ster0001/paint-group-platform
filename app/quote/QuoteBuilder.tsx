@@ -3267,7 +3267,12 @@ export default function QuoteBuilder({
         <AreaPicker
           areaNames={areaNames}
           onPick={(preset) => {
-            setBlocks((bs) => [...bs, newArea(preset)]);
+            // Tom, 30 Sep: a picked or typed room opens straight away — the
+            // picker closes and the new area is the folder on screen.
+            const area = newArea(preset);
+            setBlocks((bs) => [...bs, area]);
+            setAreaPickerOpen(false);
+            goView({ type: "area", id: area.id });
           }}
           onClose={() => setAreaPickerOpen(false)}
         />
@@ -3388,7 +3393,6 @@ function AreaPicker({
   onPick: (preset?: { name: string; type: "Interior" | "Exterior" }) => void;
   onClose: () => void;
 }) {
-  const [added, setAdded] = useState(0);
   const [query, setQuery] = useState("");
   const groups: { label: "Interior" | "Exterior"; names: string[] }[] = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -3401,9 +3405,15 @@ function AreaPicker({
   }, [areaNames, query]);
 
   const areaSearchRef = useFocusIfMouse<HTMLInputElement>();
-  const add = (name: string, type: "Interior" | "Exterior") => {
-    onPick({ name, type });
-    setAdded((n) => n + 1);
+  const add = (name: string, type: "Interior" | "Exterior") => onPick({ name, type });
+  // Tom, 30 Sep: a typed name IS a room. Enter (or the button) adds it under
+  // that name and opens it; an exact match on a standard area uses that one.
+  const typed = query.trim();
+  const exact = typed ? areaNames.find((a) => a.area.toLowerCase() === typed.toLowerCase()) : undefined;
+  const addTyped = () => {
+    if (!typed) return;
+    if (exact) add(exact.area, exact.type === "exterior" ? "Exterior" : "Interior");
+    else add(typed, "Interior");
   };
 
   return (
@@ -3415,7 +3425,7 @@ function AreaPicker({
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold">Add an area</h2>
-            <p className="text-xs text-gray-500">Pick from your standard areas, or start a blank one. Click as many as you need.</p>
+            <p className="text-xs text-gray-500">Pick a standard area, or type a name and press Enter. The room opens straight away.</p>
           </div>
           <button onClick={onClose} className="rounded-md px-2 py-1 text-2xl leading-none text-gray-400 hover:text-gray-700" aria-label="Close">×</button>
         </div>
@@ -3424,10 +3434,22 @@ function AreaPicker({
           <input
             ref={areaSearchRef}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            placeholder="Search areas…"
+            placeholder="Type a room name, or search…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTyped(); } }}
+            data-testid="area-picker-input"
           />
+          {typed && (
+            <button
+              type="button"
+              onClick={addTyped}
+              className="mt-2 w-full rounded-md bg-gray-900 px-3 py-2 text-left text-sm font-medium text-white hover:bg-gray-700"
+              data-testid="area-picker-add-typed"
+            >
+              + Add &ldquo;{exact ? exact.area : typed}&rdquo; and open it
+            </button>
+          )}
         </div>
 
         <div className="max-h-[55vh] space-y-5 overflow-y-auto px-5 py-4">
@@ -3441,6 +3463,7 @@ function AreaPicker({
                       key={name}
                       onClick={() => add(name, g.label)}
                       className="rounded-full border border-gray-300 px-3 py-1.5 text-sm hover:border-gray-900 hover:bg-gray-900 hover:text-white"
+                      data-testid={`area-picker-${name}`}
                     >
                       {name}
                     </button>
@@ -3450,7 +3473,7 @@ function AreaPicker({
             ),
           )}
           {groups.every((g) => g.names.length === 0) && (
-            <p className="text-sm text-gray-500">No standard areas match “{query}”. Use “Blank area” below, or add areas in Settings later.</p>
+            <p className="text-sm text-gray-500">No standard area is called “{query}” — press Enter to add it under that name.</p>
           )}
         </div>
 
@@ -3461,12 +3484,9 @@ function AreaPicker({
           >
             + Blank area
           </button>
-          <div className="flex items-center gap-3">
-            {added > 0 && <span className="text-sm text-green-600">{added} added</span>}
-            <button onClick={onClose} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
-              Done
-            </button>
-          </div>
+          <button onClick={onClose} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
+            Cancel
+          </button>
         </div>
       </div>
     </div>
