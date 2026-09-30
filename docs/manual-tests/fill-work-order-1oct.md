@@ -21,3 +21,5 @@ Expect `ok` ×2. Afterwards each job sits in the Unscheduled tray at Offer with 
   ```bash
   cd /Users/tomroman/Documents/paint-group-platform && export PATH="$HOME/.nvm/versions/node/v24.19.0/bin:$PATH" && set -a && source .env.local && set +a && IMPORT_ALLOW_PRODUCTION=1 npx tsx scripts/import/fill-work-order.ts run /tmp/wo/3666.txt
   ```
+
+**Result 1 Oct:** 20270208 pasted on prod (read-back true,true,true,true,false); `run3666` → `ok 3666 74 Champion Street 29 h · 5 tick-list rows`. 3096 still waits on the Zap.
