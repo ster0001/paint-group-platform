@@ -43,7 +43,7 @@ test.describe("add a room and land in it", () => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${id}`);
     await page.getByRole("button", { name: "+ Add area" }).click();
-    const first = page.locator('[data-testid^="area-picker-"]').filter({ hasNot: page.getByTestId("area-picker-input") }).locator("visible=true").first();
+    const first = page.locator('[data-testid^="area-picker-"]:not([data-testid="area-picker-input"]):not([data-testid="area-picker-add-typed"])').first();
     const name = (await first.innerText()).trim();
     await first.click();
     await expect(page.getByTestId("area-picker-input")).toHaveCount(0);

@@ -44,7 +44,8 @@ test("the rooms are confirmed before the range: untick one, add one, and the edi
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   const names = page.locator("[data-testid^='room-rename-btn-']");
-  await expect(names).toHaveCount(n); // n − 1 kept + the one added
+  await expect(names).toHaveCount(n + 1); // n − 1 kept + the two added
   await expect(page.getByLabel("Rename Dining room")).toBeVisible();
+  await expect(page.getByLabel("Rename Kids bath")).toBeVisible();
   await expect(page.getByLabel(`Rename ${dropped}`)).toHaveCount(0);
 });
