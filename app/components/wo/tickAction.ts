@@ -67,7 +67,7 @@ export async function tickSurfaceAction(raw: unknown): Promise<TickResult> {
     return {
       ok: false,
       needsPhoto: "job",
-      message: "Step 1 first — upload the before photos, then every row unlocks.",
+      message: "Step 1 first — tap the green Upload photos button above, then every row unlocks.",
     };
   }
   if (reason.startsWith("not_in_progress:")) return { ok: false, message: "This job isn't open for ticking yet." };

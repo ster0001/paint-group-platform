@@ -37,7 +37,6 @@ async function uploadVia(page: Page, trigger: Locator, name: string) {
 /** Step 1 / Step 3: pick several files on the batch card and press Done, then wait for the page to refresh. */
 async function uploadBatch(page: Page, step: "before" | "after", names: string[]) {
   await page.getByTestId(`${step}-input`).setInputFiles(names.map((name) => ({ name, mimeType: "image/png", buffer: placeholderPng(480, 360, photoSeed++) })));
-  await page.getByTestId(`${step}-done`).click();
   // The page refreshes when the last one lands and the card folds away.
   await expect(page.getByTestId(`${step}-uploader`)).toHaveCount(0, { timeout: 90_000 });
 }

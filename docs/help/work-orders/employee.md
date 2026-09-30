@@ -23,9 +23,9 @@ Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is 
 
 ### Ticking surfaces off
 2. **Scope & ticks** lists every area on the job sheet and its surfaces. Each row has three squares: to do, prepped, done. Tap a row once to mark it **PREPPED**, again to mark it **DONE**. The count at the top is the job's live progress.
-3. **Step 1 · Upload the before photos.** The job runs in four numbered steps. Until the job has its before photos the scope list is locked and says so. On the **Step 1** card pick every before photo at once, camera or library, and press **Done**; they upload as one batch with a count. Take photos of all rooms or all sides. Whoever on the crew uploads them, the moment they land every row on the job unlocks.
+3. **Step 1 · Upload the before photos.** The job runs in four numbered steps. Until the job has its before photos the scope list is locked and says so. On the **Step 1** card tap the green **Upload photos** button and pick every before photo at once, camera or library; they upload the moment you choose them, with a count. Take photos of all rooms or all sides. Whoever on the crew uploads them, the moment they land every row on the job unlocks.
 4. Now tick. The row turns cyan **PREPPED** on the first tap and green **DONE** on the second. Your ticks are recorded under your name, and the office's daily update to the customer is drafted from them.
-5. **Step 3 · Upload the after photos.** When every surface is **DONE** the Step 3 card appears: photos of all rooms or all sides now the work is finished, picked together, one Done. The job asks once, not per area, and Step 4 stays locked until they are in.
+5. **Step 3 · Upload the after photos.** When every surface is **DONE** the Step 3 card appears: tap the green **Upload photos** button for photos of all rooms or all sides now the work is finished. The job asks once, not per area, and Step 4 stays locked until they are in.
 
 ### Photos from the office
 Near the top of the job sheet, above the scope, a **From the office** section holds photos the office has attached for this job — the elevation the scaffold goes on, where the gear lives, the colour to match. Each says which area it belongs to (or **Whole job**) and what to notice. Tap one to see it full size.

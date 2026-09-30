@@ -83,7 +83,7 @@ export default function TickList({
     // Say it before the tap, not after the refusal. A "photos not required"
     // line never asks.
     if (to !== "todo" && tickNeedsBeforePhotos(row, hasBeforePhoto)) {
-      setMessage({ text: "Step 1 first — upload the before photos, then every row unlocks.", heading: row.heading });
+      setMessage({ text: "Step 1 first — tap the green Upload photos button above, then every row unlocks.", heading: row.heading });
       return;
     }
     setBusy(row.id);
@@ -109,7 +109,7 @@ export default function TickList({
 
       {locked && (
         <p className="tick-msg locked" role="status" data-testid="tick-locked">
-          🔒 Locked until Step 1 — upload the before photos above, then tick each surface here.
+          🔒 Locked until Step 1 — tap the green Upload photos button above, then tick each surface here.
         </p>
       )}
 

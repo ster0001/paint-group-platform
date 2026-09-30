@@ -7,20 +7,18 @@ import { isVideoFile, uploadFailureText, uploadWorkOrderMedia, type UploadKind }
 /**
  * Tom, 30 Sep 2026: "a 'Step 1 · upload before photos' button — they will be
  * using this on their phone — allow them to upload multiple images using
- * their camera or files on the phone, followed by clicking Done to upload
- * them in one batch."
- *
- * One tap opens the phone's own picker with multi-select (camera or library —
- * no `capture`, so the OS offers both). The picks queue on the card with a
- * count; Done sends them one after another through the one upload path,
- * showing "3 of 8", and a file that fails stays in the list with Retry so
- * nothing is lost to a bad patch of signal. When the last one lands the page
- * refreshes, so the server's own gate opens the next step.
+ * their camera or files on the phone." Tom, 1 Oct (Saulius, Cootamundra:
+ * photos chosen, never sent — the second "Done" press was the trap): ONE
+ * tap. The big green button opens the phone's picker (camera or library,
+ * multi-select) and the moment the picks come back they upload, one after
+ * another, with "2 of 5 · 43%" on the button. Nothing to confirm. A file
+ * that fails stays listed with Retry; when the last one lands the page
+ * refreshes so the server's own gate opens the next step.
  */
 type Item = { id: number; file: File; status: "queued" | "uploading" | "done" | "failed"; progress: number; error?: string };
 
 export default function BatchUploader({
-  workOrderId, kind, title, hint, areas = [], doneLabel = "Done — upload them", testId = "batch",
+  workOrderId, kind, title, hint, areas = [], testId = "batch", buttonLabel = "Upload photos",
   onUploaded,
 }: {
   workOrderId: string;
@@ -29,9 +27,9 @@ export default function BatchUploader({
   hint: string;
   /** Optional area chips — a batch can be tagged with one; blank = the whole job. */
   areas?: string[];
-  doneLabel?: string;
   testId?: string;
-  /** Called with how many landed once a Done run finishes with nothing failed. */
+  buttonLabel?: string;
+  /** Called with how many landed once a batch finishes with nothing failed. */
   onUploaded?: (count: number) => void;
 }) {
   const router = useRouter();
@@ -42,25 +40,15 @@ export default function BatchUploader({
   const [uploadedTotal, setUploadedTotal] = useState(0);
   const nextId = useRef(1);
 
-  const queued = items.filter((i) => i.status === "queued" || i.status === "failed");
-  const doneCount = items.filter((i) => i.status === "done").length;
-  const failedCount = items.filter((i) => i.status === "failed").length;
-
-  function pick(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    const add: Item[] = Array.from(files).map((file) => ({ id: nextId.current++, file, status: "queued", progress: 0 }));
-    setItems((cur) => [...cur, ...add]);
-  }
-
   const patch = (id: number, p: Partial<Item>) => setItems((cur) => cur.map((i) => (i.id === id ? { ...i, ...p } : i)));
 
-  async function run() {
-    if (running) return;
+  /** Upload these items in order. Called the moment the picker returns, and by Retry. */
+  async function run(batch: Item[]) {
+    if (running || batch.length === 0) return;
     setRunning(true);
     let landed = 0;
     let anyFailed = false;
-    for (const item of items) {
-      if (item.status === "done" || item.status === "uploading") continue;
+    for (const item of batch) {
       patch(item.id, { status: "uploading", progress: 0, error: undefined });
       try {
         await uploadWorkOrderMedia({ workOrderId, file: item.file, kind, area, onProgress: (f) => patch(item.id, { progress: f }) });
@@ -73,12 +61,23 @@ export default function BatchUploader({
     }
     setRunning(false);
     setUploadedTotal((n) => n + landed);
+    // The page re-reads the job: the server's gate is what unlocks the next step.
     if (landed > 0) router.refresh();
     if (!anyFailed && landed > 0) onUploaded?.(landed);
   }
 
-  const total = items.length;
+  function picked(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const add: Item[] = Array.from(files).map((file) => ({ id: nextId.current++, file, status: "queued", progress: 0 }));
+    setItems((cur) => [...cur, ...add]);
+    void run(add);
+  }
+
+  const failed = items.filter((i) => i.status === "failed");
+  const doneCount = items.filter((i) => i.status === "done").length;
   const inFlight = items.find((i) => i.status === "uploading");
+  const total = items.length;
+  const allLanded = total > 0 && !running && failed.length === 0;
 
   return (
     <div className="card batch" data-testid={`${testId}-uploader`}>
@@ -97,41 +96,42 @@ export default function BatchUploader({
       <input ref={input} type="file" hidden multiple
         accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm"
         data-testid={`${testId}-input`}
-        onChange={(e) => { pick(e.target.files); e.target.value = ""; }} />
+        onChange={(e) => { picked(e.target.files); e.target.value = ""; }} />
 
-      <button type="button" className="var-photo" disabled={running} onClick={() => input.current?.click()} data-testid={`${testId}-pick`}>
-        📷 {total === 0 ? "Take photos or choose from your phone" : "Add more"}
+      <button type="button" className="btn-upload" disabled={running} onClick={() => input.current?.click()} data-testid={`${testId}-pick`}>
+        {running
+          ? `Uploading ${Math.min(doneCount + 1, total)} of ${total}${inFlight ? ` · ${Math.round(inFlight.progress * 100)}%` : ""}`
+          : `📷 ${buttonLabel}${allLanded ? " — add more" : ""}`}
       </button>
 
-      {total > 0 && (
+      {allLanded && (
+        <p className="tick-msg ok" role="status" data-testid={`${testId}-message`}>
+          ✓ {uploadedTotal} uploaded. {kind === "before" ? "The scope below is unlocking — tick away." : "Thanks — carry on below."}
+        </p>
+      )}
+
+      {(running || failed.length > 0) && (
         <ul className="batch-list" data-testid={`${testId}-list`}>
-          {items.map((i) => (
+          {items.filter((i) => i.status !== "done").map((i) => (
             <li key={i.id} className={`batch-item ${i.status}`} data-testid={`${testId}-item`} data-status={i.status}>
               <span className="batch-name">{isVideoFile(i.file) ? "🎬" : "🖼"} {i.file.name}</span>
               <span className="batch-state">
-                {i.status === "queued" && "ready"}
+                {i.status === "queued" && "waiting"}
                 {i.status === "uploading" && `${Math.round(i.progress * 100)}%`}
-                {i.status === "done" && "✓"}
-                {i.status === "failed" && <button type="button" className="batch-retry" onClick={() => void run()} disabled={running}>Retry</button>}
+                {i.status === "failed" && <button type="button" className="batch-retry" onClick={() => void run([i])} disabled={running} data-testid={`${testId}-retry`}>Retry</button>}
               </span>
               {i.status === "failed" && i.error && <span className="batch-err">{i.error}</span>}
-              {i.status !== "uploading" && i.status !== "done" && (
+              {i.status === "failed" && (
                 <button type="button" className="batch-x" aria-label="Remove" onClick={() => setItems((cur) => cur.filter((x) => x.id !== i.id))}>×</button>
               )}
             </li>
           ))}
         </ul>
       )}
-
-      {(queued.length > 0 || running) && (
-        <button type="button" className="btn" disabled={running || queued.length === 0} onClick={() => void run()} data-testid={`${testId}-done`} style={{ marginTop: 10 }}>
-          {running
-            ? `Uploading ${Math.min(doneCount + 1, total)} of ${total}${inFlight ? ` · ${Math.round(inFlight.progress * 100)}%` : ""}`
-            : failedCount > 0 ? `Retry ${failedCount} that didn't upload` : `${doneLabel} (${queued.length})`}
+      {failed.length > 1 && !running && (
+        <button type="button" className="btn" onClick={() => void run(failed)} data-testid={`${testId}-retry-all`} style={{ marginTop: 8 }}>
+          Retry the {failed.length} that didn&rsquo;t upload
         </button>
-      )}
-      {!running && uploadedTotal > 0 && queued.length === 0 && (
-        <p className="tick-msg ok" role="status" data-testid={`${testId}-message`}>{uploadedTotal} uploaded. {kind === "before" ? "The scope below is unlocked — tick away." : "Thanks — carry on below."}</p>
       )}
     </div>
   );
