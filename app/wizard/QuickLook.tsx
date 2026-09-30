@@ -300,16 +300,21 @@ export default function QuickLook({
           <Cards options={SCOPE_PRESETS} value={quick.scope} onPick={(scope) => onQuick({ scope, excluded: [], changing: changingForScope(scope, []) })} name="scope" />
           {tag("scope")}
 
-          {/* Tom, 14 Sep (evening, items 3, 5, 7) → Tom, 15 Sep: "anything NOT being
-              painted?" sits INLINE under the preset — the popup is gone. */}
+          {/* Tom, 14 Sep (evening, items 3, 5, 7) → Tom, 15 Sep: inline under the
+              preset. Tom, 30 Sep: asked the POSITIVE way — "What's being painted?",
+              every tile ticked, untick what we are not doing. The old "anything
+              NOT being painted?" (tick = excluded) sat next to "what's changing
+              colour?" (tick = new colour) and read the same, so unticking window
+              frames in the colour tiles was taken as "windows out" — they stayed
+              in at one coat. The state is still `excluded`. */}
           {exclusionOptions(quick.scope).length > 0 && (
             <div className="wz-excl" data-testid="ql-excl">
-              <p className="wz-qhead">Anything NOT being painted? <span className="wz-opt">TICK ALL THAT APPLY — OR LEAVE IT AS THE LOT</span></p>
+              <p className="wz-qhead">What&rsquo;s being painted? <span className="wz-opt">ALL TICKED — UNTICK ANYTHING WE&rsquo;RE NOT DOING</span></p>
               <div className="wz-chips" data-testid="ql-excl-options">
                 {exclusionOptions(quick.scope).map((o) => {
-                  const on = quick.excluded.includes(o.value);
+                  const painted = !quick.excluded.includes(o.value);
                   return (
-                    <button key={o.value} type="button" className={`wz-tile ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-excl-${o.value}`}
+                    <button key={o.value} type="button" className={`wz-tile ${painted ? "on" : ""}`} aria-pressed={painted} data-testid={`ql-excl-${o.value}`}
                       onClick={() => { const next = toggleExcluded(quick.excluded, o.value); onQuick({ excluded: next, changing: changingForScope(quick.scope, next) }); }}>
                       {o.label}
                     </button>
@@ -317,7 +322,7 @@ export default function QuickLook({
                 })}
                 <button type="button" className={`wz-tile ${quick.excluded.length === 0 ? "on" : ""}`} aria-pressed={quick.excluded.length === 0} data-testid="ql-excl-none"
                   onClick={() => onQuick({ excluded: [], changing: changingForScope(quick.scope, []) })}>
-                  Painting the lot ✓
+                  The lot ✓
                 </button>
               </div>
               <p className="wz-chint" data-testid="ql-excl-line" style={{ marginTop: 6 }}>
@@ -336,9 +341,10 @@ export default function QuickLook({
             coats and prep per surface group from that (lib/pricing/systems.ts);
             the customer never referees a paint system.
           */}
-          <p className="wz-qhead">What&rsquo;s changing colour?</p>
+          <p className="wz-qhead">Of those, what&rsquo;s changing colour?</p>
           <p className="wz-chint" style={{ marginTop: 0, marginBottom: 8 }}>
-            Tick what&rsquo;s getting a new colour. Anything you leave unticked is painted the same colour it is now.
+            Tick what&rsquo;s getting a new colour. Anything unticked here is <b>still painted</b>, in the colour it is now.
+            To leave something out of the job, untick it above.
           </p>
           <Multi options={CHANGING_GROUPS.filter((o) => visibleChanging(quick.scope, quick.excluded).includes(o.value))} on={visibleChanging(quick.scope, quick.excluded).filter((k) => quick.changing[k])} name="changing"
             onPick={(k) => onQuick({ changing: toggleChanging(quick, k) })} />
