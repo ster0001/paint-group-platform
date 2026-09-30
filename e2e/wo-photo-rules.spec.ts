@@ -58,7 +58,7 @@ test.describe("photo rules on the tick list", () => {
     expect(await rpcAs(contractor!, "wo_set_surface_photos_optional", { p_surface_id: fuel, p_optional: false })).toBe("error:not_staff");
   });
 
-  test("an optional line ticks without a photo; the photo rows keep their gates", async () => {
+  test("an optional line ticks without a photo; the photo rows keep the job's gates", async () => {
     const id = lines!.workOrderId;
     const fuel = surfaceId(lines!, "Fuel allowance");
     const walls = surfaceId(lines!, "Walls");
@@ -66,18 +66,19 @@ test.describe("photo rules on the tick list", () => {
 
     expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: fuel, p_to: "prepped" })).toBe("ok:prepped");
     expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: fuel, p_to: "done" })).toBe("ok:done");
-    // Front still wants its before shot.
-    expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: walls, p_to: "prepped" })).toBe("error:before_photo_required:Front");
+    // The job still wants its before photos (per job since 20270207).
+    expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: walls, p_to: "prepped" })).toBe("error:before_photo_required:job");
 
     // Windows is not a surface either, says the office — Front's photo rows are Walls alone.
     expect(await rpcAs(staff!, "wo_set_surface_photos_optional", { p_surface_id: windows, p_optional: true })).toBe("ok:true");
     await photo(id, "before", "Front");
     expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: walls, p_to: "prepped" })).toBe("ok:prepped");
-    // Walls done completes Front's photo rows → the finished shot is due first.
-    expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: walls, p_to: "done" })).toBe("error:after_photo_required:Front");
-    // Windows (optional) is never gated, whatever the state of the heading.
-    expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: windows, p_to: "done" })).toBe("ok:done");
-    await photo(id, "completion", "Front");
+    // Ticking done never asks for a finished shot any more — the after photos
+    // are Step 3, asked once for the job, at the FINISH.
     expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: walls, p_to: "done" })).toBe("ok:done");
+    expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: windows, p_to: "done" })).toBe("ok:done");
+    expect(await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: id })).toBe("error:after_photos_required");
+    await photo(id, "completion", "");
+    expect(String(await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: id }))).toMatch(/^ok:completion_prep/);
   });
 });

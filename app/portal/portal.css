@@ -506,6 +506,29 @@
 .pt .prep-note { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
 .pt .prep-note textarea { margin:0; }
 
+/* ---- the job in numbered steps (Tom, 30 Sep) ---------------------------- */
+.pt .steps { display: flex; gap: 6px; list-style: none; margin: 12px 0 8px; padding: 0; }
+.pt .steps li { flex: 1; display: flex; align-items: center; gap: 6px; padding: 8px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--graphite); color: var(--muted); font-size: 11.5px; min-width: 0; }
+.pt .steps li b { flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; background: rgba(255,255,255,.08); }
+.pt .steps li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt .steps li.now { border-color: var(--cyan); color: var(--cyan); background: rgba(59,216,233,.08); }
+.pt .steps li.now b { background: var(--cyan); color: var(--on-cyan, #04161a); }
+.pt .steps li.done { color: var(--green, #2FA46B); border-color: rgba(47,164,107,.45); }
+.pt .steps li.done b { background: var(--green, #2FA46B); color: #04160c; }
+.pt .tick-msg.locked { color: var(--muted); }
+.pt .tick-msg.ok { color: var(--green, #2FA46B); }
+.pt .tickrow.locked { opacity: .55; }
+.pt .card.slim summary { cursor: pointer; font-size: 13px; color: var(--muted); list-style: none; }
+.pt .card.slim summary::-webkit-details-marker { display: none; }
+.pt .batch-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.pt .batch-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
+.pt .batch-item.done { border-color: rgba(47,164,107,.45); }
+.pt .batch-item.failed { border-color: rgba(163,70,58,.6); }
+.pt .batch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt .batch-state { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.pt .batch-err { flex-basis: 100%; font-size: 11.5px; color: var(--amber); }
+.pt .batch-retry, .pt .batch-x { background: none; border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer; font-family: inherit; }
+
 /* The finished-photo prompt. Green rather than amber: the before-photo prompt
    is a gate blocking the first tick, this is an invitation once an elevation is
    already done — a different feeling, so a different colour. */

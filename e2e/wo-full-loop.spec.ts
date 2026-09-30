@@ -122,7 +122,7 @@ test.describe("the whole loop, one job", () => {
     const first = (surfaces as { id: string }[])[0];
 
     const refused = await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: first.id, p_to: "prepped" });
-    expect(refused).toBe("error:before_photo_required:Front");
+    expect(refused).toBe("error:before_photo_required:job");
 
     await photoFor(job!.workOrderId, "before", "Front");
     const allowed = await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: first.id, p_to: "done" });
@@ -179,9 +179,8 @@ test.describe("the whole loop, one job", () => {
     const { data: rest } = await db!.from("wo_surfaces")
       .select("id, heading").eq("work_order_id", job!.workOrderId).neq("state", "done");
     for (const s of (rest as { id: string; heading: string }[])) {
-      await photoFor(job!.workOrderId, "before", s.heading);
-      // The tick that completes an area needs the finished shot in first
-      // (Tom, 1 Sep — migration 20261220's after-photo gate).
+      // Before photos are per job now (20270207); the after photos are asked
+      // for once, at the finish — put one in so the finish below goes through.
       await photoFor(job!.workOrderId, "completion", s.heading);
       expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: s.id, p_to: "done" })).toBe("ok:done");
     }
@@ -335,6 +334,10 @@ test.describe("the whole loop, one job", () => {
     // so the customer has a third area to look at before they can sign.
     const variationsArea = page.getByTestId("approve-Variations");
     if (await variationsArea.count()) await variationsArea.click();
+    // The pad ignores strokes while any area is still to look at; the last
+    // approval is a server action, so wait for the pad to open before drawing
+    // (a stroke drawn a beat early leaves the box blank and Sign disabled).
+    await expect(page.getByTestId("sign-pad")).toHaveCSS("pointer-events", "auto", { timeout: 15_000 });
     await drawSignature(page);
     await page.getByTestId("sign").click();
     await expect(page.getByTestId("signed")).toContainText("Signed off");

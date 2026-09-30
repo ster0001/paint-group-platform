@@ -137,14 +137,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
             id: s.id, heading: s.heading, label: s.label, state: s.state, rectification: s.rectification,
             photosOptional: Boolean(s.photos_optional),
           }))}
-          headingsWithBeforePhoto={[...new Set(
-            ((photoRows as { area: string; kind: string }[] | null) ?? [])
-              .filter((p) => p.kind === "before").map((p) => p.area).filter(Boolean),
-          )]}
-          headingsWithAfterPhoto={[...new Set(
-            ((photoRows as { area: string; kind: string }[] | null) ?? [])
-              .filter((p) => p.kind === "completion").map((p) => p.area).filter(Boolean),
-          )]}
+          hasBeforePhoto={((photoRows as { area: string; kind: string }[] | null) ?? []).some((p) => p.kind === "before")}
           headingMeta={headingMeta}
         />
       )}

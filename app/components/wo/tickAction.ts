@@ -61,20 +61,13 @@ export async function tickSurfaceAction(raw: unknown): Promise<TickResult> {
   }
 
   const reason = s.replace("error:", "");
+  // Tom, 30 Sep: the gate is on the JOB (migration 20270207) — Step 1's
+  // before photos unlock every row. The heading part of the code is "job".
   if (reason.startsWith("before_photo_required:")) {
-    const heading = reason.slice("before_photo_required:".length);
     return {
       ok: false,
-      needsPhoto: heading,
-      message: `Take a before photo of ${heading} first — it goes on the record for this job.`,
-    };
-  }
-  if (reason.startsWith("after_photo_required:")) {
-    const heading = reason.slice("after_photo_required:".length);
-    return {
-      ok: false,
-      needsAfterPhoto: heading,
-      message: `Take a finished photo of ${heading} first — it completes the area's record.`,
+      needsPhoto: "job",
+      message: "Step 1 first — upload the before photos, then every row unlocks.",
     };
   }
   if (reason.startsWith("not_in_progress:")) return { ok: false, message: "This job isn't open for ticking yet." };

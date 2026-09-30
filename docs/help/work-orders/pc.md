@@ -33,7 +33,7 @@ The PC console (**Projects** in the sidebar) reads every open work order and tel
    ![](media/pc-05.png)
 6. **Next step** offers **Start the job** once the list is true, with the gate's wording underneath while it is not. You can start early; the console warns that starting moves the start date to today and asks you to press again. Otherwise the job starts itself on its booked date once the list is done.
    ![](media/pc-06.png)
-7. At **03 In progress** the **Scope & ticks** card shows the painter's list live, with the amber before-photo prompts until each area has its photo. Under each line is a small **Photos not required — …** button: press it on a line that is not a surface (a fuel allowance, a site set-up line) and the painter is never asked for a before or finished shot of it; the row shows **No photos** and the button reads **Photos required again**. The same button sits on the read-only scope list before the job starts. Every area still needs its own before and finished photo, whatever the job's length — only a line you mark **Photos not required** is exempt.
+7. At **03 In progress** the **Scope & ticks** card shows the painter's list live, locked with a 🔒 line until the painter's Step 1 before photos are in (one batch for the whole job, since 30 Sep 2026). Under each line is a small **Photos not required — …** button: press it on a line that is not a surface (a fuel allowance, a site set-up line) and the painter is never asked for a before or finished shot of it; the row shows **No photos** and the button reads **Photos required again**. The same button sits on the read-only scope list before the job starts. The photo rule is per job: one batch of before photos unlocks every row, and one batch of after photos of all rooms or all sides is needed before the painter can finish — only a line you mark **Photos not required** is exempt.
    ![](media/pc-07.png)
 
 ### Photos for the painter
@@ -128,7 +128,7 @@ The Dashboard's second section, **Variations for approval**, lists every open va
 - **"Every surface has to be ticked off first."** The painter has rows not yet Done. Check **Scope & ticks**, or tick on their behalf from **Painter's view** if you have confirmed the work on site.
 - **"N quality checks still open."** Log every scheduled check as a pass before the pack can go. A logged **FAIL** is not what is holding it: the fail schedules its own re-check, and it is the re-check (or a mid-job check you added) that is still unlogged. The card with the standards is the one to work. If the job is at Quality check and the only card reads Logged: FAIL, the painter has not finished again yet — the re-check card appears when they tap **All done — next step**.
 - **A job sits at Quality check with no card.** No check was due; use **All done — next step** to route it on.
-- **The painter says they cannot tick.** Their area has no before photo yet, or the job is not at In progress.
+- **The painter says they cannot tick.** The job has no before photo yet (Step 1 on their phone), or the job is not at In progress. **They cannot finish:** the after photos (Step 3) are not in.
 - **The customer never received the variation link.** Check the contact's email and phone on the estimate, then **Text the link** or **Both**.
 
 ## Related

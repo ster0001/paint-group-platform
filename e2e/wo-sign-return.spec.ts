@@ -3,8 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, drawSignature } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
-  rpcAs, serviceClient, type LoopFixture,
-} from "./fixtures/woLoop";
+  rpcAs, serviceClient, type LoopFixture, photosIn } from "./fixtures/woLoop";
 
 /**
  * Tom, 23 Aug: "after the completion report is filled in it goes to a 404".
@@ -33,6 +32,7 @@ test.describe("on-device sign-off returns to the job, shown complete", () => {
     // walkthrough button — so the office waives the check on this one.
     expect(await rpcAs(staff!, "wo_set_qa_waived", { p_work_order_id: f.workOrderId, p_waived: true })).toMatch(/^ok:waived/);
     await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
+    await photosIn(db!, f.workOrderId);
     await completePrep(db!, staff!, f.workOrderId);
     expect(await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: f.workOrderId })).toMatch(/^ok:completion_prep/);
     // Pass whatever checks exist, then confirm → walkthrough (pack delivered).

@@ -14,7 +14,9 @@ import { isVideoFile, uploadFailureText, uploadingLabel, uploadWorkOrderMedia } 
  */
 export default function SitePhotos({ workOrderId, areas }: { workOrderId: string; areas: string[] }) {
   const [area, setArea] = useState(areas[0] ?? "");
-  const [kind, setKind] = useState<"progress" | "completion">("progress");
+  // Tom, 30 Sep: this card is for QUESTIONS only — before and after photos
+  // have their own steps. Everything here files as a progress photo.
+  const kind = "progress" as const;
   const [note, setNote] = useState("");
   const [count, setCount] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
@@ -40,7 +42,11 @@ export default function SitePhotos({ workOrderId, areas }: { workOrderId: string
 
   return (
     <div className="card" style={{ marginTop: 12 }} data-testid="site-photos">
-      <div className="tick-head"><b>Photos &amp; notes</b></div>
+      <div className="tick-head"><b>Got a question, or found something?</b></div>
+      <p className="hint" style={{ padding: 0, marginTop: 6 }} data-testid="site-photos-hint">
+        Only add photos here if you have a question about an item on the job, or something the office should see.
+        Before and after photos go in Step 1 and Step 3 above, not here.
+      </p>
 
       {message && <p className="tick-msg" role="status" data-testid="photos-message">{message}</p>}
 
@@ -53,13 +59,6 @@ export default function SitePhotos({ workOrderId, areas }: { workOrderId: string
         </div>
       )}
 
-      <div className="var-chips">
-        <button type="button" className={`var-chip ${kind === "progress" ? "on" : ""}`}
-          onClick={() => setKind("progress")} data-testid="photo-kind-progress">Progress</button>
-        <button type="button" className={`var-chip ${kind === "completion" ? "on" : ""}`}
-          onClick={() => setKind("completion")} data-testid="photo-kind-completion">Finished</button>
-      </div>
-
       {/* No `capture` — the OS offers camera OR photo library (Tom, 1 Sep). */}
       <input ref={fileInput} type="file" hidden
         accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm"
@@ -67,11 +66,11 @@ export default function SitePhotos({ workOrderId, areas }: { workOrderId: string
 
       <button type="button" className="var-photo" disabled={busy}
         onClick={() => fileInput.current?.click()} data-testid="add-photo">
-        {busy ? uploadingLabel(progress) : count > 0 ? `📷 ${count} added — add another photo or video` : "📷 Take a photo or video"}
+        {busy ? uploadingLabel(progress) : count > 0 ? `📷 ${count} sent — add another for your question` : "📷 Photo or video for your question"}
       </button>
 
       <textarea className="var-note" rows={3} value={note} data-testid="job-note"
-        placeholder="A note for the office — anything worth saying that isn't a variation."
+        placeholder="Your question or note for the office — anything worth saying that isn't a variation."
         onChange={(e) => setNote(e.target.value)} />
       <button type="button" className="var-send" disabled={pending || note.trim().length < 3}
         data-testid="send-note"

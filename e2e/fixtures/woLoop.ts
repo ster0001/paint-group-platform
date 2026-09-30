@@ -263,6 +263,21 @@ export async function customerIdForEmail(db: SupabaseClient, email: string): Pro
  * are ticked, the yes/no questions are answered, the optional note is left.
  * Seeds the list first (idempotent). Returns the number of items handled.
  */
+/**
+ * Tom, 30 Sep (20270207): the photo gates are per JOB — one before photo
+ * unlocks the ticks, one after photo lets the job finish. A spec that marks
+ * every surface done by hand and then finishes needs both on record, exactly
+ * as a painter's Step 1 and Step 3 would leave them. Idempotent.
+ */
+export async function photosIn(db: SupabaseClient, workOrderId: string): Promise<void> {
+  const { data } = await db.from("wo_photos").select("kind").eq("work_order_id", workOrderId).in("kind", ["before", "completion"]);
+  const have = new Set(((data ?? []) as { kind: string }[]).map((r) => r.kind));
+  const rows = (["before", "completion"] as const)
+    .filter((k) => !have.has(k))
+    .map((kind) => ({ work_order_id: workOrderId, kind, area: "", storage_path: `wo/${workOrderId}/e2e-${kind}.jpg` }));
+  if (rows.length) await db.from("wo_photos").insert(rows);
+}
+
 export async function completePrep(
   db: SupabaseClient,
   who: { email: string; password: string },

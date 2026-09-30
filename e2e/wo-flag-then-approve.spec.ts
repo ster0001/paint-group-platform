@@ -3,8 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, drawSignature } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
-  rpcAs, serviceClient, type LoopFixture,
-} from "./fixtures/woLoop";
+  rpcAs, serviceClient, type LoopFixture, photosIn } from "./fixtures/woLoop";
 
 /**
  * Flag, then "Happy with this" straight after, then sign (Tom, 17 Sep 2026):
@@ -26,6 +25,7 @@ let fixture: LoopFixture | null = null;
 
 async function readyAtWalkthrough(f: LoopFixture) {
   await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
+  await photosIn(db!, f.workOrderId);
   await completePrep(db!, staff!, f.workOrderId);
   await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: f.workOrderId, p_to: "completion_prep" });
   expect(await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: f.workOrderId })).toMatch(/^ok:/);

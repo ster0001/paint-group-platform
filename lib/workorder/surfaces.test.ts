@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  allSurfacesDone, describeArea, needsBeforePhoto, nextState,
+  allSurfacesDone, describeArea, gatedRows, jobNeedsAfterPhotos, jobNeedsBeforePhotos, nextState,
   progressByHeading, progressOf, seedRowsFromDoc, statusFromState,
-  ticksBySurfaceKey, SURFACE_STATE_LABEL, needsAfterPhoto, type SurfaceRow,
+  ticksBySurfaceKey, SURFACE_STATE_LABEL, tickNeedsBeforePhotos, type SurfaceRow,
 } from "./surfaces";
 import type { WorkOrderDoc, WOArea } from "./snapshot";
 
@@ -135,25 +135,23 @@ describe("the tap cycle", () => {
   });
 });
 
-describe("the before-photo prompt", () => {
-  const front = rows([["Front", "Walls", "todo"], ["Front", "Windows", "todo"]]);
+describe("the before photos, per job (Tom, 30 Sep)", () => {
+  const two = rows([["Front", "Walls", "todo"], ["Right", "Walls", "todo"]]);
 
-  it("asks for a photo before the first tick on an elevation", () => {
-    expect(needsBeforePhoto("Front", front, [])).toBe(true);
+  it("asks once for the job, not per elevation", () => {
+    expect(jobNeedsBeforePhotos(two, false)).toBe(true);
+    expect(jobNeedsBeforePhotos(two, true)).toBe(false);
   });
 
-  it("stops asking once the photo is in", () => {
-    expect(needsBeforePhoto("Front", front, ["Front"])).toBe(false);
+  it("one before photo anywhere unlocks every row", () => {
+    expect(tickNeedsBeforePhotos(two[1], true)).toBe(false);
+    expect(tickNeedsBeforePhotos(two[1], false)).toBe(true);
   });
 
-  it("stops asking once work on that elevation has started", () => {
-    const started = rows([["Front", "Walls", "prepped"], ["Front", "Windows", "todo"]]);
-    expect(needsBeforePhoto("Front", started, [])).toBe(false);
-  });
-
-  it("gates each elevation on its own photo, not the job's", () => {
-    const both = rows([["Front", "Walls", "prepped"], ["Right", "Walls", "todo"]]);
-    expect(needsBeforePhoto("Right", both, ["Front"])).toBe(true);
+  it("a job of only 'photos not required' rows asks for nothing", () => {
+    const fuel = rows([["Site", "Fuel allowance", "todo"]]).map((r) => ({ ...r, photosOptional: true }));
+    expect(jobNeedsBeforePhotos(fuel, false)).toBe(false);
+    expect(tickNeedsBeforePhotos(fuel[0], false)).toBe(false);
   });
 });
 
@@ -184,69 +182,54 @@ describe("live ticks on the job sheet", () => {
 
 // ---- the finished-photo prompt ----------------------------------------------
 
-describe("asking for the after photo", () => {
+describe("the after photos, per job (Tom, 30 Sep)", () => {
+  const rowsOf = (state: "todo" | "prepped" | "done") => [
+    { id: "1", heading: "Front", label: "Render", state, rectification: false },
+    { id: "2", heading: "Left", label: "Trim", state, rectification: false },
+  ] as SurfaceRow[];
 
-  it("asks for a finished photo once every surface on the elevation is done", () => {
-  const rows = [
-    { id: "1", heading: "Front", label: "Render", state: "done", rectification: false },
-    { id: "2", heading: "Front", label: "Trim", state: "done", rectification: false },
-  ] as never;
-  expect(needsAfterPhoto("Front", rows, [])).toBe(true);
-});
+  it("asks once every working row is done, and not before", () => {
+    expect(jobNeedsAfterPhotos(rowsOf("done"), false)).toBe(true);
+    expect(jobNeedsAfterPhotos(rowsOf("prepped"), false)).toBe(false);
+  });
 
-  it("does not ask mid-job", () => {
-  const rows = [
-    { id: "1", heading: "Front", label: "Render", state: "done", rectification: false },
-    { id: "2", heading: "Front", label: "Trim", state: "prepped", rectification: false },
-  ] as never;
-  expect(needsAfterPhoto("Front", rows, [])).toBe(false);
-});
+  it("stops asking once an after photo is on the job", () => {
+    expect(jobNeedsAfterPhotos(rowsOf("done"), true)).toBe(false);
+  });
 
-  it("stops asking once a finished photo is in", () => {
-  const rows = [
-    { id: "1", heading: "Front", label: "Render", state: "done", rectification: false },
-  ] as never;
-  expect(needsAfterPhoto("Front", rows, ["Front"])).toBe(false);
-});
+  it("a removed row does not hold the job back", () => {
+    const rows = [...rowsOf("done"), { id: "3", heading: "Left", label: "Gate", state: "todo", removed: true } as SurfaceRow];
+    expect(jobNeedsAfterPhotos(rows, false)).toBe(true);
+  });
 
-  it("an elevation with no surfaces is not 'finished'", () => {
-  // every() is true for an empty list — without the length guard a heading with
-  // no rows would ask for a photo of nothing.
-  expect(needsAfterPhoto("Ghost", [] as never, [])).toBe(false);
-});
+  it("no surfaces is not 'finished'", () => {
+    expect(jobNeedsAfterPhotos([], false)).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
-// Photo rules (Tom, 24 Sep 2026): "photos not required" lines. The twin of
-// wo_tick_surface's arithmetic (20270198, per-area again since 20270200).
+// Photo rules (Tom, 24 Sep 2026): "photos not required" lines — the twin of
+// wo_tick_surface's arithmetic (per JOB since 20270207).
 // ---------------------------------------------------------------------------
-import { photoRows, tickNeedsAfterPhoto, tickNeedsBeforePhoto } from "./surfaces";
-
 describe("photos not required on a line", () => {
   const fuel: SurfaceRow = { id: "f", heading: "Allowances", label: "Fuel allowance", state: "todo", photosOptional: true };
   const walls: SurfaceRow = { id: "w", heading: "Front", label: "Walls", state: "todo" };
   const trims: SurfaceRow = { id: "t", heading: "Front", label: "Trims", state: "todo", photosOptional: true };
 
-  it("a heading made only of optional lines asks for nothing", () => {
-    expect(photoRows([fuel], "Allowances")).toEqual([]);
-    expect(needsBeforePhoto("Allowances", [fuel], [])).toBe(false);
-    expect(needsAfterPhoto("Allowances", [{ ...fuel, state: "done" }], [])).toBe(false);
+  it("optional rows are not gated rows", () => {
+    expect(gatedRows([fuel, walls, trims]).map((r) => r.id)).toEqual(["w"]);
   });
 
-  it("ticking an optional row never needs the before shot; the photo row still does", () => {
-    expect(tickNeedsBeforePhoto(fuel, [fuel], [])).toBe(false);
-    expect(tickNeedsBeforePhoto(trims, [walls, trims], [])).toBe(false);
-    expect(tickNeedsBeforePhoto(walls, [walls, trims], [])).toBe(true);
-    expect(tickNeedsBeforePhoto(walls, [walls, trims], ["Front"])).toBe(false);
+  it("ticking an optional row never needs the before photos; the photo row does", () => {
+    expect(tickNeedsBeforePhotos(fuel, false)).toBe(false);
+    expect(tickNeedsBeforePhotos(trims, false)).toBe(false);
+    expect(tickNeedsBeforePhotos(walls, false)).toBe(true);
+    expect(tickNeedsBeforePhotos(walls, true)).toBe(false);
   });
 
-  it("the finished shot is asked for when the PHOTO rows complete, whatever the optional ones say", () => {
-    // Trims (optional) still to do — Walls is the last photo row, so the shot is due.
-    expect(tickNeedsAfterPhoto(walls, [walls, trims], [])).toBe(true);
-    // Marking the optional row done never asks.
-    expect(tickNeedsAfterPhoto(trims, [{ ...walls, state: "done" }, trims], [])).toBe(false);
-    // The heading-level prompt reads the same way.
-    expect(needsAfterPhoto("Front", [{ ...walls, state: "done" }, trims], [])).toBe(true);
-    expect(needsAfterPhoto("Front", [{ ...walls, state: "done" }, trims], ["Front"])).toBe(false);
+  it("the after photos are asked for when the PHOTO rows complete, whatever the optional ones say", () => {
+    expect(jobNeedsAfterPhotos([{ ...walls, state: "done" }, trims, fuel], false)).toBe(false); // trims/fuel still todo → not all working rows done
+    expect(jobNeedsAfterPhotos([{ ...walls, state: "done" }, { ...trims, state: "done" }, { ...fuel, state: "done" }], false)).toBe(true);
+    expect(jobNeedsAfterPhotos([{ ...fuel, state: "done" }], false)).toBe(false);
   });
 });

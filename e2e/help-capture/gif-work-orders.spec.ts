@@ -4,7 +4,7 @@ import { completePrep, contractorIdForEmail, customerIdForEmail, rpcAs, serviceC
 import { credentials, missingCreds, signIn, drawSignature } from "../helpers";
 import {
   DESK, PHONE, caption, createHelpJob, daysFromNow, destroyHelpJob, installCaptions, iso, startRecording,
-  tapWithPhoto, uploadPhoto, writeGif,
+  placeholderPng, tapWithPhoto, uploadPhoto, writeGif,
 } from "./rig";
 
 /**
@@ -89,15 +89,16 @@ test("work orders · contractor walkthrough 1 — ticks and a variation", async 
   await c.waitForTimeout(1500);
   const front = await surfaceIds(job.workOrderId, "Front");
   const first = list.getByTestId(`tick-${front[0]}`);
-  await caption(c, "2 · Tap a row before its area has a before photo, and the list asks for one.");
+  await caption(c, "2 · The list is locked until Step 1: the before photos of every room or side.");
   await first.click();
-  await expect(c.getByTestId("tick-message")).toContainText("Before photo", { timeout: 10_000 });
+  await expect(c.getByTestId("tick-message")).toContainText("Step 1 first", { timeout: 10_000 });
   await c.waitForTimeout(1500);
-  await caption(c, "3 · Take the before photo of the area.");
-  await uploadPhoto(c, list.getByTestId("photo-prompt-Front"), "front-before.png");
-  await expect(c.getByTestId("tick-message")).toContainText("saved", { timeout: 20_000 });
+  await caption(c, "3 · Step 1: pick all the before photos at once, then Done.");
+  await c.getByTestId("before-input").setInputFiles(["front-before.png", "left-before.png"].map((name) => ({ name, mimeType: "image/png", buffer: placeholderPng(480, 360, 900 + Math.floor(Math.random() * 1000)) })));
+  await c.getByTestId("before-done").click();
+  await expect(c.getByTestId("tick-locked")).toHaveCount(0, { timeout: 60_000 });
   await c.waitForTimeout(800);
-  await caption(c, "4 · Tap once for PREPPED, again for DONE. The last tick asks for the finished shot.");
+  await caption(c, "4 · Tap once for PREPPED, again for DONE.");
   for (const id of front) {
     const row = list.getByTestId(`tick-${id}`);
     for (let i = 0; i < 6; i++) {

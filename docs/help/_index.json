@@ -584,7 +584,7 @@
       "feature": "work-orders",
       "role": "contractor",
       "title": "Run a job from the first tick to the customer's signature",
-      "summary": "How a booked job works on your phone — the pre-start list, photos before ticks, ticking surfaces off, raising a variation, the finishing-up list, the quality check, and handing the phone to the customer to sign off.",
+      "summary": "How a booked job works on your phone in four steps — before photos in one batch, ticking surfaces off, after photos of every room or side, and finishing — plus raising a variation, the quality check, and handing the phone to the customer to sign off.",
       "path": "docs/help/work-orders/contractor.md",
       "walkthrough": "media/contractor-walkthrough.gif",
       "media": [
@@ -622,7 +622,7 @@
       "feature": "work-orders",
       "role": "employee",
       "title": "Run a job from the first tick to the customer's signature",
-      "summary": "How an assigned job works on your phone as an employed painter — the pre-start list, photos before ticks, ticking surfaces off, the finishing-up list, the quality check and the walkthrough — the same as every painter, with no money on it.",
+      "summary": "How an assigned job works on your phone as an employed painter — the pre-start list, before photos in one batch, ticking surfaces off, after photos of every room or side, the finishing-up list, the quality check and the walkthrough — the same as every painter, with no money on it.",
       "path": "docs/help/work-orders/employee.md",
       "walkthrough": null,
       "media": [],

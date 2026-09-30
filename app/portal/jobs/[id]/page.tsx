@@ -24,6 +24,8 @@ import WalkthroughStart from "./WalkthroughStart";
 import WalkthroughBar from "./WalkthroughBar";
 import CrewShare from "./CrewShare";
 import SitePhotos from "./SitePhotos";
+import BatchUploader from "@/app/components/wo/BatchUploader";
+import { jobNeedsAfterPhotos, jobNeedsBeforePhotos } from "@/lib/workorder/surfaces";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import { qaAllClear, staffSignsOff as staffSignsOffFor } from "@/lib/workorder/qa";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
@@ -280,14 +282,11 @@ export default async function PortalJobPage({
     if (r.heading_meta) headingMeta[r.heading] = r.heading_meta;
   }
 
+  // Tom, 30 Sep: the photo gates are per JOB — any before photo unlocks every
+  // row (Step 1); any after photo lets the job finish (Step 3).
   const photoAreas = (photoRows as { area: string; kind: string }[] | null) ?? [];
-  const headingsWithBeforePhoto = [...new Set(
-    photoAreas.filter((p) => p.kind === "before").map((p) => p.area).filter(Boolean),
-  )];
-  // The finished shots already in, so a done elevation stops asking.
-  const headingsWithAfterPhoto = [...new Set(
-    photoAreas.filter((p) => p.kind === "completion").map((p) => p.area).filter(Boolean),
-  )];
+  const hasBeforePhoto = photoAreas.some((p) => p.kind === "before");
+  const hasAfterPhoto = photoAreas.some((p) => p.kind === "completion");
 
   // Ticking only makes sense once the job is under way — before that the list is
   // still worth seeing, so it renders read-only via the server's own refusal.
@@ -506,17 +505,63 @@ export default async function PortalJobPage({
         </div>
       )}
 
-      {canTick && surfaces.length > 0 && (
-        <div style={{ padding: "0 16px" }}>
-          <TickList
-            workOrderId={id}
-            surfaces={surfaces}
-            headingsWithBeforePhoto={headingsWithBeforePhoto}
-            headingsWithAfterPhoto={headingsWithAfterPhoto}
-            headingMeta={headingMeta}
-          />
-        </div>
-      )}
+      {/* Tom, 30 Sep: the job in four numbered steps, one at a time —
+          1 before photos (one batch unlocks the scope), 2 tick the work,
+          3 after photos of all rooms or all sides, 4 finish. */}
+      {canTick && surfaces.length > 0 && (() => {
+        const step1 = jobNeedsBeforePhotos(surfaces, hasBeforePhoto);
+        const step3 = jobNeedsAfterPhotos(surfaces, hasAfterPhoto);
+        const current = step1 ? 1 : !allSurfacesDone ? 2 : step3 ? 3 : 4;
+        const areas = [...new Set(surfaces.map((s) => s.heading))];
+        return (
+          <div style={{ padding: "0 16px" }}>
+            <ol className="steps" data-testid="job-steps" data-step={current}>
+              {["Before photos", "Tick the work", "After photos", "Finish"].map((label, i) => (
+                <li key={label} className={i + 1 < current ? "done" : i + 1 === current ? "now" : ""} data-testid={`job-step-${i + 1}`}>
+                  <b>{i + 1}</b><span>{label}</span>
+                </li>
+              ))}
+            </ol>
+
+            {step1 ? (
+              <BatchUploader
+                workOrderId={id} kind="before" testId="before"
+                title="Step 1 · Upload the before photos"
+                hint="Take photos of all rooms or all sides before you start — every one, as you found them. Pick as many as you like from your camera or your phone, then press Done to send them in one go. Short videos are fine too."
+                areas={areas}
+                doneLabel="Done — upload the before photos"
+              />
+            ) : (
+              <details className="card slim" data-testid="before-more">
+                <summary>Step 1 ✓ Before photos are in — add more</summary>
+                <BatchUploader workOrderId={id} kind="before" testId="before-more" title="More before photos" hint="Only if a room or side was missed." areas={areas} />
+              </details>
+            )}
+
+            <TickList
+              workOrderId={id}
+              surfaces={surfaces}
+              hasBeforePhoto={hasBeforePhoto}
+              headingMeta={headingMeta}
+            />
+
+            {allSurfacesDone && (step3 ? (
+              <BatchUploader
+                workOrderId={id} kind="completion" testId="after"
+                title="Step 3 · Upload the after photos"
+                hint="Take photos of all rooms or all sides now the work is finished — the same views as your before photos where you can. Pick them all, then press Done. Short videos are fine too."
+                areas={areas}
+                doneLabel="Done — upload the after photos"
+              />
+            ) : (
+              <details className="card slim" data-testid="after-more">
+                <summary>Step 3 ✓ After photos are in — add more</summary>
+                <BatchUploader workOrderId={id} kind="completion" testId="after-more" title="More after photos" hint="Only if a room or side was missed." areas={areas} />
+              </details>
+            ))}
+          </div>
+        );
+      })()}
 
       {(canTick || canPrep) && (
         <div style={{ padding: "0 16px" }}>
@@ -527,11 +572,12 @@ export default async function PortalJobPage({
       {/* Every surface done → the finishing-up list joins the tick-off step,
           and one press routes the job (the hidden prep stage is the server's
           business, not the painter's). A job staff parked mid-hand-over gets
-          the same screen. */}
+          the same screen. Step 4 waits on Step 3's after photos. */}
       {((canTick && allSurfacesDone) || canPrep) && (
         <div style={{ padding: "0 16px" }}>
           {prepItems.length > 0 && <PrepChecklist items={prepItems} />}
-          <FinishUp workOrderId={id} flaggedAreas={rectifiedPhase ? flaggedAreas : []} hoursAsk={hoursAsk} />
+          <FinishUp workOrderId={id} flaggedAreas={rectifiedPhase ? flaggedAreas : []} hoursAsk={hoursAsk}
+            blockedBy={canTick && jobNeedsAfterPhotos(surfaces, hasAfterPhoto) ? "Step 3 first — upload the after photos of all rooms or all sides, then send the job on." : null} />
         </div>
       )}
 
