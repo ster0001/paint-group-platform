@@ -558,3 +558,37 @@ export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook[
   if (jobType === "both") return ["start", "both", "place", "job", ...rooms, "condition", "outside", "sides"];
   return ["start", "place", "job", ...rooms, "condition"];
 }
+
+/**
+ * Tom, 30 Sep: on the rooms step a typed name IS the room — "Dining", "Kids
+ * bath", "Front hall" — so the kind (which sizes it from the typicals) is
+ * read off the words, and the kind tiles become an optional correction. A
+ * name nothing matches sizes as a bedroom: the middle of the typicals, and
+ * the estimator confirms every room's size at the gate anyway.
+ */
+export const ADD_ROOM_TYPES: Array<{ value: string; label: string }> = [
+  { value: "hallway", label: "Hallway" }, { value: "bedroom", label: "Bedroom" }, { value: "bathroom", label: "Bathroom" }, { value: "dining", label: "Dining" },
+  { value: "living", label: "Living" }, { value: "kitchen", label: "Kitchen" }, { value: "laundry", label: "Laundry" }, { value: "study", label: "Study" },
+  { value: "wc", label: "WC" }, { value: "storage", label: "Storage" }, { value: "garage", label: "Garage" },
+];
+const ROOM_TYPE_WORDS: Array<[RegExp, string]> = [
+  [/\b(wc|toilet|powder|loo)\b/i, "wc"],
+  [/\b(bath|ensuite|ens|shower)/i, "bathroom"],
+  [/\b(bed|master|nursery|kids?|guest)\b/i, "bedroom"],
+  [/\b(kitchen|kitchenette|scullery)\b/i, "kitchen"],
+  [/\b(dining|meals|breakfast)\b/i, "dining"],
+  [/\b(living|lounge|family|rumpus|theatre|theater|media|sitting|sunroom|sun room)\b/i, "living"],
+  [/\b(laundry|utility)\b/i, "laundry"],
+  [/\b(study|office|library)\b/i, "study"],
+  [/\b(hall|hallway|entry|entrance|foyer|passage|landing|stair)/i, "hallway"],
+  [/\b(garage|carport)\b/i, "garage"],
+  [/\b(store|storage|robe|wir|pantry|cupboard|linen|walk-in)/i, "storage"],
+];
+export function roomTypeForName(name: string): string {
+  const n = name.trim();
+  if (!n) return "bedroom";
+  const exact = ADD_ROOM_TYPES.find((t) => t.label.toLowerCase() === n.toLowerCase() || t.value === n.toLowerCase());
+  if (exact) return exact.value;
+  for (const [re, type] of ROOM_TYPE_WORDS) if (re.test(n)) return type;
+  return "bedroom";
+}

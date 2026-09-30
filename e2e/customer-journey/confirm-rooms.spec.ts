@@ -29,6 +29,13 @@ test("the rooms are confirmed before the range: untick one, add one, and the edi
   await page.getByTestId("ql-add-room-name").fill("Dining room");
   await page.getByTestId("ql-add-room-go").click();
   await expect(page.getByTestId("ql-room-added-0")).toContainText("Dining room");
+  // Tom, 30 Sep: type a name and press Enter — no kind to click first; the
+  // kind is read off the words ("bath" → bathroom).
+  await page.getByTestId("ql-add-room-open").click();
+  await page.getByTestId("ql-add-room-name").fill("Kids bath");
+  await expect(page.getByTestId("ql-add-room-kind")).toContainText("Bathroom");
+  await page.getByTestId("ql-add-room-name").press("Enter");
+  await expect(page.getByTestId("ql-room-added-1")).toContainText("Kids bath");
   await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
@@ -37,7 +44,8 @@ test("the rooms are confirmed before the range: untick one, add one, and the edi
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   const names = page.locator("[data-testid^='room-rename-btn-']");
-  await expect(names).toHaveCount(n); // n − 1 kept + the one added
+  await expect(names).toHaveCount(n + 1); // n − 1 kept + the two added
   await expect(page.getByLabel("Rename Dining room")).toBeVisible();
+  await expect(page.getByLabel("Rename Kids bath")).toBeVisible();
   await expect(page.getByLabel(`Rename ${dropped}`)).toHaveCount(0);
 });
