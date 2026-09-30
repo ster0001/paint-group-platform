@@ -638,8 +638,8 @@
     {
       "feature": "work-orders",
       "role": "pc",
-      "title": "Run jobs through the six stages from the PC console",
-      "summary": "The project coordinator's console — the attention queue and what its colours mean, the six lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.",
+      "title": "Run jobs through the seven lanes from the PC console",
+      "summary": "The project coordinator's console — the attention queue and what its colours mean, the seven lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.",
       "path": "docs/help/work-orders/pc.md",
       "walkthrough": "media/pc-walkthrough.gif",
       "media": [
@@ -662,7 +662,7 @@
         "media/pc-17.png",
         "media/pc-18.png"
       ],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "d804b59a9c",
       "sources": [
         "app/pc/wo/[id]/ReviewCard.tsx",
         "app/pc",

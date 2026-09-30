@@ -1,6 +1,10 @@
 /**
  * The seven-stage work-order loop, mirrored from the database.
  *
+ * (Seven enum stages; the screens show seven LANES too since 1 Oct 2026, but a
+ * different seven — completion_prep folds into In progress and pre_start splits
+ * by start date into Booking confirmed / Pre-start. See `laneFor`.)
+ *
  * `wo_stage_transitions`, re-seeded canonically in
  * 20261110000000_wo_no_walkthrough_colour_match.sql, is the source of truth — the RPC reads that table, so the database is what actually
  * decides. This module exists so the UI can offer only the moves that exist and
@@ -71,16 +75,75 @@ export const VISIBLE_STAGES =
 export const visibleStage = (s: WoStage): VisibleStage =>
   s === "completion_prep" ? "in_progress" : s;
 
-/** Console lane numbering and wording — six lanes on screen since 23 Aug. */
-export const STAGE_LANES: Record<WoStage, { n: string; title: string }> = {
+/**
+ * The LANES on the project-progress bar (Tom, 1 Oct 2026): a booked job whose
+ * start is more than a week away sits in **Booking confirmed**, between Offer
+ * and Pre-start; **Pre-start** holds only the jobs due to start within the
+ * next seven days (or already past their start date and not yet started).
+ *
+ * It is a display split of the `pre_start` stage, not a stage of its own: the
+ * enum, the transition table and every gate are unchanged. "Due within a
+ * week" is a fact about the calendar, so it is derived at render from the
+ * start date and today's Melbourne date — a stored stage would need a sweep
+ * to move jobs every morning, and would be wrong for the hours in between.
+ */
+export type Lane = VisibleStage | "booking_confirmed";
+export const LANES: readonly Lane[] = [
+  "offered", "booking_confirmed", "pre_start", "in_progress", "qa", "walkthrough", "closed",
+];
+
+/** How many days ahead a job may start and still count as Pre-start. */
+export const PRE_START_WINDOW_DAYS = 7;
+
+/** Whole days from one yyyy-mm-dd date to another; the strings are calendar
+ *  dates so no zone is involved. */
+const daysBetween = (from: string, to: string): number => {
+  const utc = (d: string) => {
+    const [y, m, day] = d.split("-").map(Number);
+    return Date.UTC(y, m - 1, day);
+  };
+  return Math.round((utc(to) - utc(from)) / 86_400_000);
+};
+
+/**
+ * The lane a job sits in. `today` is the Melbourne calendar date (yyyy-mm-dd)
+ * — never `toISOString().slice(0, 10)`, which is the UTC date.
+ *
+ * A booked job with no start date is not due within a week of anything, so it
+ * sits in Booking confirmed until one is set.
+ */
+export function laneFor(stage: WoStage, startDate: string | null, today: string): Lane {
+  if (stage !== "pre_start") return visibleStage(stage);
+  if (startDate === null) return "booking_confirmed";
+  return daysBetween(today, startDate) <= PRE_START_WINDOW_DAYS ? "pre_start" : "booking_confirmed";
+}
+
+/** Lane numbering and wording on the project-progress bar and the stage rail. */
+export const LANE_LABELS: Record<Lane, { n: string; title: string }> = {
   offered: { n: "01", title: "Offer" },
-  pre_start: { n: "02", title: "Pre-start" },
-  in_progress: { n: "03", title: "In progress" },
-  qa: { n: "04", title: "Quality check" },
+  booking_confirmed: { n: "02", title: "Booking confirmed" },
+  pre_start: { n: "03", title: "Pre-start" },
+  in_progress: { n: "04", title: "In progress" },
+  qa: { n: "05", title: "Quality check" },
+  walkthrough: { n: "06", title: "Walkthrough" },
+  closed: { n: "07", title: "Closed — final invoice sent" },
+};
+
+/**
+ * Stage numbering and wording where only the STAGE is known (a badge on the
+ * job sheet, an invoice row). Pre-start carries its lane number; a job that
+ * would display in Booking confirmed is labelled by `laneFor` where the start
+ * date is to hand.
+ */
+export const STAGE_LANES: Record<WoStage, { n: string; title: string }> = {
+  offered: LANE_LABELS.offered,
+  pre_start: LANE_LABELS.pre_start,
+  in_progress: LANE_LABELS.in_progress,
+  qa: LANE_LABELS.qa,
   // Display identity of in_progress — never shown as its own lane or rail stop.
-  completion_prep: { n: "03", title: "In progress" },
-  walkthrough: { n: "05", title: "Walkthrough" },
-  closed: { n: "06", title: "Closed — final invoice sent" },
+  completion_prep: LANE_LABELS.in_progress,
+  walkthrough: LANE_LABELS.walkthrough,
+  closed: LANE_LABELS.closed,
 };
 
 /**
@@ -89,9 +152,9 @@ export const STAGE_LANES: Record<WoStage, { n: string; title: string }> = {
  * left stage 1 (`acceptance_mode: 'assigned'` on the stage_changed event, or
  * simply the presence of assignments) — the enum value never changes.
  */
-export function stageTitle(stage: WoStage, mode: "offered" | "assigned" = "offered"): string {
+export function stageTitle(stage: WoStage | Lane, mode: "offered" | "assigned" = "offered"): string {
   if (stage === "offered" && mode === "assigned") return "Assigned";
-  return STAGE_LANES[stage].title;
+  return stage === "completion_prep" ? STAGE_LANES[stage].title : LANE_LABELS[stage].title;
 }
 
 export function findTransition(from: WoStage, to: WoStage): WoTransition | undefined {

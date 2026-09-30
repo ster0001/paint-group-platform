@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/monitoring/report";
-import { STAGE_LANES, stageTitle, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
+import { LANES, LANE_LABELS, laneFor, stageTitle, type WoStage } from "@/lib/workorder/stages";
 import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
 import { staffSignsOff as staffSignsOffFor, supersededQaIds } from "@/lib/workorder/qa";
 import PhotosOptionalToggle from "./PhotosOptionalToggle";
@@ -361,7 +361,12 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     ? { sentAt: reviewRow.sent_at, sentVia: reviewRow.sent_via, receivedAt: reviewRow.received_at, rating: reviewRow.rating }
     : null;
 
-  const stageIndex = VISIBLE_STAGES.indexOf(visibleStage(row.stage));
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+  // The rail's current stop is the LANE, so a job booked weeks out lights
+  // 02 Booking confirmed and moves to 03 Pre-start on its own a week before.
+  const stageIndex = LANES.indexOf(laneFor(row.stage, row.start_date, today));
   const update = ((updateRows ?? []) as { id: string; draft_text: string; final_text: string | null; status: string; for_date: string }[])[0];
 
   return (
@@ -390,10 +395,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         </div>
 
         <div className="rail7" data-testid="stage-rail">
-          {VISIBLE_STAGES.map((stage, i) => (
+          {LANES.map((stage, i) => (
             <span className={`st ${i < stageIndex ? "p" : i === stageIndex ? "c" : ""}`} key={stage}
               data-testid={`rail-${stage}`}>
-              <i /><span>{STAGE_LANES[stage].n} {stageTitle(stage, acceptanceMode)}</span>
+              <i /><span>{LANE_LABELS[stage].n} {stageTitle(stage, acceptanceMode)}</span>
             </span>
           ))}
         </div>
@@ -524,9 +529,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             workOrderId={id}
             stage={row.stage}
             startDate={row.start_date}
-            today={new Intl.DateTimeFormat("en-CA", {
-              timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
-            }).format(new Date())}
+            today={today}
             walkthroughRequired={row.walkthrough_required !== false}
             staffSignsOff={staffSignsOff}
           />
