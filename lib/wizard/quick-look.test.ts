@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CONDITION_BANDS, COLOUR_INTENTS, DEFAULT_QUICK_LOOK, SCOPE_PRESETS,
-  assumedList, quickLookToState, restatement, stepCount, stepsFor, type QuickLook, exclusionOptions, paintedSurfaces, visibleChanging, changingForScope, toggleExcluded
+  assumedList, quickLookToState, restatement, stepCount, stepsFor, type QuickLook, exclusionOptions, paintedSurfaces, visibleChanging, changingForScope, toggleExcluded,
+  roomTypeForName,
 } from "./quick-look";
 import { defaultWizardState, wizardStateSchema } from "./state";
 import { answersFromState, evaluateGuardrails } from "./policy";
@@ -305,5 +306,22 @@ describe("Tom, 14 Sep (evening) — window frames, exclusions and the colour til
   it("the restatement names the window frames and what is not being painted", () => {
     const only = q({ scope: "whole", changing: { walls: false, ceilings: false, trims: false, windows: true } });
     expect(restatement(only)).toContain("window frames");
+  });
+});
+
+
+describe("a typed room name says what kind of room it is (Tom, 30 Sep)", () => {
+  it("reads the kind off the words", () => {
+    expect(roomTypeForName("Dining room")).toBe("dining");
+    expect(roomTypeForName("Kids bath")).toBe("bathroom");
+    expect(roomTypeForName("Front hall")).toBe("hallway");
+    expect(roomTypeForName("Master bed")).toBe("bedroom");
+    expect(roomTypeForName("Rumpus")).toBe("living");
+    expect(roomTypeForName("Powder room")).toBe("wc");
+    expect(roomTypeForName("WIR")).toBe("storage");
+  });
+  it("a kind's own label is that kind; an unknown name is sized as a bedroom", () => {
+    expect(roomTypeForName("Laundry")).toBe("laundry");
+    expect(roomTypeForName("Zen nook")).toBe("bedroom");
   });
 });

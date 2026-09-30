@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import {
   CHANGING_GROUPS, CONDITION_BANDS, JOB_TYPES, OCCUPIED, PROPERTY_KINDS,
-  SCOPE_PRESETS, STOREYS, changingForScope, stepCount, toggleChanging, visibleChanging, type Choice, type QuickLook, type QuickLookStep, exclusionOptions, toggleExcluded,
+  ADD_ROOM_TYPES, SCOPE_PRESETS, STOREYS, changingForScope, roomTypeForName, stepCount, toggleChanging, visibleChanging, type Choice, type QuickLook, type QuickLookStep, exclusionOptions, toggleExcluded,
 } from "@/lib/wizard/quick-look";
 import {
   EXTERIOR_PROMISE, EXT_ACCESS, EXT_COLOURS, EXT_ELEMENTS, EXT_MATERIALS, EXT_SIDES, EXT_STANDALONE, EXT_STOREYS, EXT_WINDOW_TYPES, ALL_SIDES,
@@ -694,34 +694,43 @@ function Cards<T extends string>({ options, value, onPick, name }: {
   );
 }
 
-/** Tom, 14 Sep (evening): "add a room" on the confirm step — a type and a name; the size comes from the typicals. */
-const ADD_ROOM_TYPES: Array<{ value: string; label: string }> = [
-  { value: "hallway", label: "Hallway" }, { value: "bedroom", label: "Bedroom" }, { value: "bathroom", label: "Bathroom" }, { value: "dining", label: "Dining" },
-  { value: "living", label: "Living" }, { value: "kitchen", label: "Kitchen" }, { value: "laundry", label: "Laundry" }, { value: "study", label: "Study" },
-  { value: "wc", label: "WC" }, { value: "storage", label: "Storage" }, { value: "garage", label: "Garage" },
-];
 function AddRoomInline({ onAdd }: { onAdd: (room: { name: string; roomType: string }) => void }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<string | null>(null);
   const [name, setName] = useState("");
+  // Tom, 30 Sep: type the name and add — the kind is read off the words
+  // (roomTypeForName); the tiles only correct it.
+  const guessed = roomTypeForName(name);
+  const effective = type ?? guessed;
+  const canAdd = name.trim().length > 0 || type != null;
+  const submit = () => {
+    if (!canAdd) return;
+    onAdd({ name: name.trim() || (ADD_ROOM_TYPES.find((t) => t.value === effective)?.label ?? effective), roomType: effective });
+    setOpen(false); setType(null); setName("");
+  };
   return (
     <div className="wz-addroom" data-testid="ql-add-room">
       {!open ? (
         <button type="button" className="wz-tile" data-testid="ql-add-room-open" onClick={() => setOpen(true)}>+ Add a room</button>
       ) : (
         <>
-          <p className="wz-qhead">Which kind of room?</p>
+          <div className="wz-addroom-row">
+            <input className="wz-field" placeholder="Name it — e.g. Dining, Kids bath, Front hall" maxLength={60} value={name} data-testid="ql-add-room-name" autoFocus
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }} />
+            <button type="button" className="wz-btn" disabled={!canAdd} data-testid="ql-add-room-go" onClick={submit}>Add it</button>
+            <button type="button" className="wz-linkish" onClick={() => { setOpen(false); setType(null); setName(""); }}>Cancel</button>
+          </div>
+          <p className="wz-chint" data-testid="ql-add-room-kind" style={{ marginTop: 6 }}>
+            {name.trim()
+              ? <>Sized as a <b>{ADD_ROOM_TYPES.find((t) => t.value === effective)?.label ?? effective}</b>{type ? "" : " — tap below if that's wrong"}. Press Enter or Add it.</>
+              : <>Type the room&rsquo;s name, or pick a kind below.</>}
+          </p>
           <div className="wz-chips">
             {ADD_ROOM_TYPES.map((t) => (
-              <button key={t.value} type="button" className={`wz-tile ${type === t.value ? "on" : ""}`} aria-pressed={type === t.value} data-testid={`ql-add-room-type-${t.value}`}
-                onClick={() => { setType(t.value); if (!name) setName(t.label); }}>{t.label}</button>
+              <button key={t.value} type="button" className={`wz-tile ${effective === t.value ? "on" : ""}`} aria-pressed={effective === t.value} data-testid={`ql-add-room-type-${t.value}`}
+                onClick={() => setType(t.value)}>{t.label}</button>
             ))}
-          </div>
-          <div className="wz-addroom-row">
-            <input className="wz-field" placeholder="Name it — e.g. Dining" maxLength={60} value={name} data-testid="ql-add-room-name" onChange={(e) => setName(e.target.value)} />
-            <button type="button" className="wz-btn" disabled={!type} data-testid="ql-add-room-go"
-              onClick={() => { if (!type) return; onAdd({ name: name.trim() || (ADD_ROOM_TYPES.find((t) => t.value === type)?.label ?? type), roomType: type }); setOpen(false); setType(null); setName(""); }}>Add it</button>
-            <button type="button" className="wz-linkish" onClick={() => setOpen(false)}>Cancel</button>
           </div>
         </>
       )}

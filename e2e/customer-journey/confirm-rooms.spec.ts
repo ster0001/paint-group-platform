@@ -29,6 +29,13 @@ test("the rooms are confirmed before the range: untick one, add one, and the edi
   await page.getByTestId("ql-add-room-name").fill("Dining room");
   await page.getByTestId("ql-add-room-go").click();
   await expect(page.getByTestId("ql-room-added-0")).toContainText("Dining room");
+  // Tom, 30 Sep: type a name and press Enter — no kind to click first; the
+  // kind is read off the words ("bath" → bathroom).
+  await page.getByTestId("ql-add-room-open").click();
+  await page.getByTestId("ql-add-room-name").fill("Kids bath");
+  await expect(page.getByTestId("ql-add-room-kind")).toContainText("Bathroom");
+  await page.getByTestId("ql-add-room-name").press("Enter");
+  await expect(page.getByTestId("ql-room-added-1")).toContainText("Kids bath");
   await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
