@@ -13,7 +13,7 @@ Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is 
 ## Before you start
 - The job is on your **Jobs** tab with your days and a time budget — see [Your assigned jobs](../scheduling/employee.md). Tap **Accept** first so the office knows you have seen it.
 - The office works through the **pre-start list**: colours confirmed, materials ordered and so on. Your job page shows how many items are still to be ticked by the office. The **Start the job** button unlocks when that list is done.
-- Photos are taken with your phone's camera from the job page. Make sure you have signal on site; a photo that does not upload says so and can be retried.
+- Photos are taken with your phone's camera from the job page. A big photo is shrunk on your phone before it goes, so it is quick even on one bar of signal. While it goes the button shows a percentage; a photo that does not upload says why ("stalled — nothing moved for 45 seconds", "sign out and back in") and can be retried. Nothing sits on "Uploading…" for ever.
 - If several painters share the job, every one of you can tick, photograph and raise a variation. Progress is the job's, not yours alone.
 
 ## Steps

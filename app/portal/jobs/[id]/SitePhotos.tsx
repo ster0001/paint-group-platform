@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { addJobNote } from "./tickActions";
-import { isVideoFile, uploadFailureText, uploadWorkOrderMedia } from "@/lib/workorder/uploadMedia";
+import { isVideoFile, uploadFailureText, uploadingLabel, uploadWorkOrderMedia } from "@/lib/workorder/uploadMedia";
 
 /**
  * Photos and notes from site, once the job is running.
@@ -19,6 +19,7 @@ export default function SitePhotos({ workOrderId, areas }: { workOrderId: string
   const [count, setCount] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
   const fileInput = useRef<HTMLInputElement | null>(null);
 
@@ -26,13 +27,14 @@ export default function SitePhotos({ workOrderId, areas }: { workOrderId: string
     setBusy(true);
     setMessage(null);
     try {
-      await uploadWorkOrderMedia({ workOrderId, file, kind, area });
+      await uploadWorkOrderMedia({ workOrderId, file, kind, area, onProgress: setProgress });
       setCount((c) => c + 1);
       setMessage(`${isVideoFile(file) ? "Video" : "Photo"} added${area ? ` to ${area}` : ""}.`);
     } catch (e) {
       setMessage(uploadFailureText(e, file));
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -65,7 +67,7 @@ export default function SitePhotos({ workOrderId, areas }: { workOrderId: string
 
       <button type="button" className="var-photo" disabled={busy}
         onClick={() => fileInput.current?.click()} data-testid="add-photo">
-        {busy ? "Uploading…" : count > 0 ? `📷 ${count} added — add another photo or video` : "📷 Take a photo or video"}
+        {busy ? uploadingLabel(progress) : count > 0 ? `📷 ${count} added — add another photo or video` : "📷 Take a photo or video"}
       </button>
 
       <textarea className="var-note" rows={3} value={note} data-testid="job-note"
