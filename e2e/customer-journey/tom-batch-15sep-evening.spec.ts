@@ -44,7 +44,11 @@ test("3 · the exclusions are inline under the preset, and 2 · bold asks which 
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByTestId("ql-excl-done")).toHaveCount(0);
   await expect(page.getByTestId("ql-excl-none")).toHaveAttribute("aria-pressed", "true");
+  // Tom, 30 Sep: the tiles are the POSITIVE list — every one ticked means
+  // painted; unticking window frames takes them out of the job.
+  await expect(page.getByTestId("ql-excl-windows")).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("ql-excl-windows").click();
+  await expect(page.getByTestId("ql-excl-windows")).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId("ql-excl-line")).toContainText(/Not painting: window frames/i);
   await expect(page.getByTestId("ql-excl-none")).toHaveAttribute("aria-pressed", "false");
   await page.getByTestId("ql-excl-none").click();
