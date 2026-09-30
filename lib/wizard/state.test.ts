@@ -223,3 +223,20 @@ describe("the staff contact block", () => {
     if (r.success) expect(r.data.contact.email).toBe("bianca@example.com");
   });
 });
+
+describe("the quick look's room list holds a whole plan (Tom, 30 Sep)", () => {
+  const quickLook = (rooms: string[]) => ({
+    jobType: "interior", propertyKind: "house", bedrooms: 4, storeys: "double", scope: "some_rooms", colour: "new",
+    changing: { walls: true, ceilings: true, trims: true, windows: true }, excluded: [], bold: false, boldGroups: [],
+    undecided: false, condition: "good", occupied: "yes", rooms,
+  });
+  it("accepts as many rooms as the plan reader can return (60), not 20", () => {
+    const rooms = Array.from({ length: 60 }, (_, i) => `Room ${i + 1}`);
+    const r = wizardStateSchema.safeParse({ ...valid(), quickLook: quickLook(rooms) });
+    expect(r.success, JSON.stringify(r.success ? null : r.error.issues)).toBe(true);
+  });
+  it("still refuses an absurd list", () => {
+    const rooms = Array.from({ length: 61 }, (_, i) => `Room ${i + 1}`);
+    expect(wizardStateSchema.safeParse({ ...valid(), quickLook: quickLook(rooms) }).success).toBe(false);
+  });
+});
