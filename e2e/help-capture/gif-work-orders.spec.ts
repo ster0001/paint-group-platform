@@ -93,9 +93,8 @@ test("work orders · contractor walkthrough 1 — ticks and a variation", async 
   await first.click();
   await expect(c.getByTestId("tick-message")).toContainText("Step 1 first", { timeout: 10_000 });
   await c.waitForTimeout(1500);
-  await caption(c, "3 · Step 1: pick all the before photos at once, then Done.");
+  await caption(c, "3 · Step 1: tap the green button, pick all the before photos — they upload straight away.");
   await c.getByTestId("before-input").setInputFiles(["front-before.png", "left-before.png"].map((name) => ({ name, mimeType: "image/png", buffer: placeholderPng(480, 360, 900 + Math.floor(Math.random() * 1000)) })));
-  await c.getByTestId("before-done").click();
   await expect(c.getByTestId("tick-locked")).toHaveCount(0, { timeout: 60_000 });
   await c.waitForTimeout(800);
   await caption(c, "4 · Tap once for PREPPED, again for DONE.");

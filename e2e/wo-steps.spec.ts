@@ -43,10 +43,8 @@ test.describe("the job in steps (Tom, 30 Sep)", () => {
       { name: "front.png", mimeType: "image/png", buffer: png() },
       { name: "left.png", mimeType: "image/png", buffer: png() },
     ]);
-    await expect(page.getByTestId("before-item")).toHaveCount(2);
-    await page.getByTestId("before-done").click();
-    // When the last one lands the page refreshes: the Step 1 card folds away
-    // and the list unlocks.
+    // Tom, 1 Oct: picking IS uploading — no Done press. When the last one
+    // lands the page refreshes: the Step 1 card folds away and the list unlocks.
     await expect(page.getByTestId("tick-locked")).toHaveCount(0, { timeout: 90_000 });
     await expect(page.getByTestId("before-more")).toBeVisible();
     await expect(page.getByTestId("job-steps")).toHaveAttribute("data-step", "2");
@@ -72,7 +70,6 @@ test.describe("the job in steps (Tom, 30 Sep)", () => {
     expect(await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: fixture!.workOrderId })).toBe("error:after_photos_required");
 
     await page.getByTestId("after-input").setInputFiles([{ name: "after.png", mimeType: "image/png", buffer: png() }]);
-    await page.getByTestId("after-done").click();
     await expect(page.getByTestId("finish-blocked")).toHaveCount(0, { timeout: 90_000 });
     await expect(page.getByTestId("job-steps")).toHaveAttribute("data-step", "4");
     await expect(page.getByTestId("finish-job")).toBeEnabled();

@@ -516,6 +516,10 @@
 .pt .steps li.done { color: var(--green, #2FA46B); border-color: rgba(47,164,107,.45); }
 .pt .steps li.done b { background: var(--green, #2FA46B); color: #04160c; }
 .pt .tick-msg.locked { color: var(--muted); }
+/* Tom, 1 Oct: ONE bright green button — tap, pick, and they upload. */
+.pt .btn-upload { display: block; width: 100%; margin-top: 12px; padding: 18px 16px; border: 0; border-radius: 14px; background: #22c55e; color: #052e16; font-family: inherit; font-size: 17px; font-weight: 700; text-align: center; cursor: pointer; box-shadow: 0 6px 18px rgba(34,197,94,.35); }
+.pt .btn-upload:disabled { opacity: .8; cursor: default; box-shadow: none; }
+.pt .btn-upload:active { transform: translateY(1px); }
 .pt .tick-msg.ok { color: var(--green, #2FA46B); }
 .pt .tickrow.locked { opacity: .55; }
 .pt .card.slim summary { cursor: pointer; font-size: 13px; color: var(--muted); list-style: none; }

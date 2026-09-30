@@ -28,11 +28,11 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
 1b. While the job is under way you get a text asking you to update your work order — tick what is done and add the day's photos — on day 1 at 7:30 am, then part-way through and on the last day at 3:30 pm (how many depends on the job's length). The link opens this page.
 2. **Scope & ticks** lists every area on the job sheet and its surfaces. Each row has three squares: to do, prepped, done. Tap a row once to mark it **PREPPED**, again to mark it **DONE**. The count at the top tracks the whole job.
    ![](media/contractor-02.png)
-3. **Step 1 · Upload the before photos.** The job runs in four numbered steps, shown across the top of the page. Until the job has its before photos the scope list is locked and says so. Tap **Take photos or choose from your phone** on the **Step 1 · Upload the before photos** card, pick every before photo at once, camera or library, then press **Done — upload the before photos**. They go up in one batch with a count ("Uploading 3 of 8"); a photo that fails stays in the list with **Retry**. Take photos of all rooms or all sides, as you found them. Short videos are fine too. The moment they land, every row on the job unlocks. One exception: a row marked **No photos** by the office (a fuel allowance, a set-up line) ticks without any photo and a job made only of such rows asks for nothing.
+3. **Step 1 · Upload the before photos.** The job runs in four numbered steps, shown across the top of the page. Until the job has its before photos the scope list is locked and says so. Tap the big green **Upload photos** button on the **Step 1 · Before photos** card, pick every before photo at once, camera or library, and they upload the moment you choose them — the button counts "Uploading 3 of 8". A photo that fails stays listed with **Retry**. Take photos of all rooms or all sides, as you found them. Short videos are fine too. The moment they land, every row on the job unlocks. One exception: a row marked **No photos** by the office (a fuel allowance, a set-up line) ticks without any photo and a job made only of such rows asks for nothing.
    ![](media/contractor-03.png)
 4. Now tick. The row turns cyan **PREPPED** on the first tap and green **DONE** on the second.
    ![](media/contractor-04.png)
-5. **Step 3 · Upload the after photos.** When every surface is **DONE** the **Step 3 · Upload the after photos** card appears. Take photos of all rooms or all sides now the work is finished, the same views as your before photos where you can, pick them all and press **Done**. Nothing asks for a finished shot per area any more; the job asks once. Step 4 stays locked, on your phone and on the server, until these are in.
+5. **Step 3 · Upload the after photos.** When every surface is **DONE** the **Step 3 · After photos** card appears. Tap the green **Upload photos** button and pick photos of all rooms or all sides now the work is finished, the same views as your before photos where you can; they upload straight away. Nothing asks for a finished shot per area any more; the job asks once. Step 4 stays locked, on your phone and on the server, until these are in.
 
 ### Photos and notes from site
 6. **Got a question, or found something?** is the card under the steps. It is for questions only: a photo or short video of an item you are unsure about, or something the office should see, with a note. Do not put before or after photos here; those go in Step 1 and Step 3.
@@ -104,7 +104,7 @@ They are separate from your own photos: your before, progress and completion sho
 - **REQUESTED / CONFIRMED** on the booking card — offer waiting on you / booking accepted.
 
 ## If something goes wrong
-- **"Step 1 first — upload the before photos, then every row unlocks."** Not an error: go to the Step 1 card, pick the photos, press Done, then tick.
+- **"Step 1 first — upload the before photos, then every row unlocks."** Not an error: tap the green Upload photos button on the Step 1 card, pick the photos, then tick.
 - **The photo did not upload.** "That photo didn't upload — check your signal and try again." Move to better signal and tap the button again; nothing is lost.
 - **Start the job is greyed out.** The office has pre-start items still to tick. Ring them if the start date is close.
 - **The card says the office has not set the pre-start list up yet.** The list is missing on this job rather than unfinished. Ring the office — the job cannot start until it is there.

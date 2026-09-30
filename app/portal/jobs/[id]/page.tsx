@@ -526,10 +526,9 @@ export default async function PortalJobPage({
             {step1 ? (
               <BatchUploader
                 workOrderId={id} kind="before" testId="before"
-                title="Step 1 · Upload the before photos"
-                hint="Take photos of all rooms or all sides before you start — every one, as you found them. Pick as many as you like from your camera or your phone, then press Done to send them in one go. Short videos are fine too."
+                title="Step 1 · Before photos"
+                hint="Tap the green button, pick photos of all rooms or all sides as you found them, and they upload straight away. Short videos are fine too."
                 areas={areas}
-                doneLabel="Done — upload the before photos"
               />
             ) : (
               <details className="card slim" data-testid="before-more">
@@ -548,10 +547,9 @@ export default async function PortalJobPage({
             {allSurfacesDone && (step3 ? (
               <BatchUploader
                 workOrderId={id} kind="completion" testId="after"
-                title="Step 3 · Upload the after photos"
-                hint="Take photos of all rooms or all sides now the work is finished — the same views as your before photos where you can. Pick them all, then press Done. Short videos are fine too."
+                title="Step 3 · After photos"
+                hint="Tap the green button and pick photos of all rooms or all sides now the work is finished — the same views as your before photos where you can. They upload straight away."
                 areas={areas}
-                doneLabel="Done — upload the after photos"
               />
             ) : (
               <details className="card slim" data-testid="after-more">
