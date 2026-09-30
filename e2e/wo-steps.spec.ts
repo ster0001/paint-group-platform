@@ -39,6 +39,10 @@ test.describe("the job in steps (Tom, 30 Sep)", () => {
     // Step 1: locked list, one uploader, two photos in one batch.
     await expect(page.getByTestId("job-steps")).toHaveAttribute("data-step", "1");
     await expect(page.getByTestId("tick-locked")).toBeVisible();
+    // Tom, 1 Oct: while Step 1 waits, the question card offers NO camera —
+    // the green button is the only way a photo goes in.
+    await expect(page.getByTestId("add-photo")).toHaveCount(0);
+    await expect(page.getByTestId("add-photo-after-step-1")).toBeVisible();
     await page.getByTestId("before-input").setInputFiles([
       { name: "front.png", mimeType: "image/png", buffer: png() },
       { name: "left.png", mimeType: "image/png", buffer: png() },
@@ -74,8 +78,9 @@ test.describe("the job in steps (Tom, 30 Sep)", () => {
     await expect(page.getByTestId("job-steps")).toHaveAttribute("data-step", "4");
     await expect(page.getByTestId("finish-job")).toBeEnabled();
 
-    // The question card says what it is for.
+    // The question card says what it is for, and has its camera back now Step 1 is in.
     await expect(page.getByTestId("site-photos-hint")).toContainText("Only add photos here if you have a question");
+    await expect(page.getByTestId("add-photo")).toBeVisible();
     await expect(page.getByTestId("photo-kind-completion")).toHaveCount(0);
   });
 });
