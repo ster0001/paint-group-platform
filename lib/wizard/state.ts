@@ -118,7 +118,7 @@ export const wizardStateShapeSchema = z.object({
   /** A signed preview of the plan page, for the confirm step. */
   planPreviewUrl: z.string().max(2000).nullable().default(null),
   /** Rooms the customer added on the confirm step — a type and a name; sized from the typicals. */
-  addedRooms: z.array(z.object({ name: z.string().max(60), roomType: z.string().max(40) })).max(20).default([]),
+  addedRooms: z.array(z.object({ name: z.string().max(60), roomType: z.string().max(40) })).max(40).default([]),
   /** R5: the customer's OWN condition photos, kept without a plan run
    * (/api/extract/photos). They are already stored; these ids let submit
    * claim them for the estimate, so they show on the editor and cascade with
@@ -182,7 +182,8 @@ export const wizardStateShapeSchema = z.object({
     condition: z.enum(["good", "wear", "needs_work"]),
     occupied: z.enum(["yes", "no"]),
     /** 14 Sep: "Some rooms" — the starter rooms the customer ticked, by name. Null = every room. */
-    rooms: z.array(z.string().max(40)).max(20).nullable().default(null),
+    /** Tom, 30 Sep: a plan can carry up to 60 rooms (lib/extract/schema.ts) — the tick list must hold every one, or the upload fails with "expected array to have <=20 items". */
+    rooms: z.array(z.string().max(40)).max(60).nullable().default(null),
   }).nullable().default(null),
   basics: basicsSchema.nullable().default(null),
   /**
