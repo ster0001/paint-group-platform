@@ -563,7 +563,8 @@ export default async function PortalJobPage({
 
       {(canTick || canPrep) && (
         <div style={{ padding: "0 16px" }}>
-          <SitePhotos workOrderId={id} areas={[...new Set(surfaces.map((s) => s.heading))]} />
+          <SitePhotos workOrderId={id} areas={[...new Set(surfaces.map((s) => s.heading))]}
+            photosAllowed={!(canTick && jobNeedsBeforePhotos(surfaces, hasBeforePhoto))} />
         </div>
       )}
 
