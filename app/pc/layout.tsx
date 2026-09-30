@@ -8,6 +8,7 @@ import HomeMark from "@/app/components/HomeMark";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme/cookie";
 import PcNav from "./PcNav";
+import PcSearch from "./PcSearch";
 import "./pc.css";
 import StaffChatDock from "@/app/components/StaffChatDock";
 
@@ -41,6 +42,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
         <div className="topbar">
           <HomeMark href={firstVisibleHref(vis)} logos={logos} suffix="Projects" />
           <span className="meta"><span className="d">Dashboard · {today}</span></span>
+          <PcSearch />
           <ThemeToggle initial={theme} rootSelector=".pc" />
           <span className="who">
             <span className="role">Project coordinator<b>PC view</b></span>

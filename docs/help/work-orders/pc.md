@@ -26,6 +26,10 @@ The PC console (**Projects** in the sidebar) reads every open work order and tel
 3. Open a job. The header carries the stage rail, the money line (contract inc GST, variations, contractor pay, estimated GP, deposit) and the view switch: **PC view**, **Painter's view** (the same tick list the painter sees, which you can tick on their behalf), **Edit job sheet**, **Revise scope**, **Money view**.
    ![](media/pc-03.png)
 
+
+### Finding a project
+3a. The search box in the top bar is on every console page — Schedule, Dashboard, Project progress, Updates, Timesheets. Type any part of the job's reference, its title or address, the customer's name, the estimate's title or its number (**42**, **#0042**). Matches drop down under the box with their stage; open jobs come first and closed ones are greyed. Click a match, or arrow to it and press **Enter**, to open the job's console page. **⌘K** (Ctrl+K on Windows) or **/** jumps to the box from anywhere on the page; **Esc** closes the list. "No project matches" means the words are not on any job; a line saying the read was refused means the search itself failed, not that the job is missing.
+
 ### Pre-start
 4. Scroll to the **Pre-start** card (the counter reads **N TO GO**, then **ALL DONE**). It is the same card whether the job is **offered** to a contractor or **assigned** to an employee — the list belongs to the job, not to who is painting it, and it is built the moment the job is issued and again when a painter goes on it. Answer **Colour schedule finalised** with **Yes**, or **No** if any colour still needs a colour match, then tick **Materials ordered** (it needs the colours first), **Equipment movements booked** and **Access details recorded**. **Pre-start checklist** and **SWMS / induction attached** are optional on a residential job; ticking the first emails the customer the pre-start checklist, and the second is required on commercial and body corporate jobs. An item that ticks itself is marked **auto**.
    ![](media/pc-04.png)

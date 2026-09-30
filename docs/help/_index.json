@@ -21,6 +21,17 @@
       "sources": []
     },
     {
+      "feature": "contacts",
+      "role": "staff",
+      "title": "Find a saved contact",
+      "summary": "The Contacts page lists everyone saved from an estimate's Contact card; the search box finds one by name, company, email, phone or suburb.",
+      "path": "docs/help/contacts/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "52d4f8aae8",
+      "sources": []
+    },
+    {
       "feature": "contractors",
       "role": "staff",
       "title": "Invite a painter, open their record, and remove one who should never have been there",
