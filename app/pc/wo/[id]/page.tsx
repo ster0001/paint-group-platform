@@ -82,7 +82,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: qaLinkRows, error: qaLinkErr }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
     await Promise.all([
       supabase.from("wo_surfaces")
-        .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional")
+        .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_variations")
         .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents")
@@ -119,10 +119,17 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   // keeps what exists). The refetch is a DIFFERENT select shape on purpose:
   // Next memoises identical fetches within a request and would hand back the
   // pre-seed empty list.
+  // 87 Trenerry Crescent (1 Oct): two variation rows had landed BEFORE the
+  // job was ever opened here, so "no rows at all" was false and the six rooms
+  // on the job sheet were never seeded — the painter saw two lines. The test
+  // is now "no row that came from the job sheet" (a doc row carries its
+  // surface_key; a variation's or a rectification's does not).
   let healedSurfaceRows: typeof surfaceRows = null;
   const snapshotDoc = row.wo_snapshot as WorkOrderDoc | null;
+  const docKeys = new Set(snapshotDoc?.areas?.length ? seedRowsFromDoc(snapshotDoc).map((r) => r.surfaceKey).filter(Boolean) : []);
+  const hasDocRow = ((surfaceRows ?? []) as Array<{ surface_key?: string | null }>).some((r) => r.surface_key && docKeys.has(r.surface_key));
   if ((row.stage === "pre_start" || row.stage === "in_progress")
-      && (surfaceRows ?? []).length === 0 && (snapshotDoc?.areas?.length ?? 0) > 0) {
+      && !hasDocRow && docKeys.size > 0) {
     const { data: seeded } = await supabase.rpc("wo_seed_surfaces", {
       p_work_order_id: id, p_rows: seedRowsFromDoc(snapshotDoc!),
     });
