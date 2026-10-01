@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { advanceStage, closeWithoutWalkthrough, confirmPrepStaff, deliverEvidencePack, reopenSignoff, staffComplete, startNow } from "../../actions";
-import { STAGE_LANES, nextStages, type WoStage } from "@/lib/workorder/stages";
+import { LANE_LABELS, STAGE_LANES, laneFor, nextStages, type WoStage } from "@/lib/workorder/stages";
 
 /**
  * Moving a job to its next stage — the control that was missing.
@@ -25,11 +25,14 @@ export default function StageAdvance({
   walkthroughRequired?: boolean;
   /**
    * True when a quality check passed on this job (Tom, 24 Sep 2026): the
-   * OFFICE signs it off at 05 Walkthrough — the customer is not asked to.
+   * OFFICE signs it off at 06 Walkthrough — the customer is not asked to.
    */
   staffSignsOff?: boolean;
 }) {
   const early = stage === "pre_start" && startDate !== null && startDate > today;
+  // Header wording follows the lane: a job booked weeks out reads
+  // "02 Booking confirmed", not "03 Pre-start" (Tom, 1 Oct 2026).
+  const here = LANE_LABELS[laneFor(stage, startDate, today)];
   const [confirmEarly, setConfirmEarly] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [moved, setMoved] = useState<WoStage | null>(null);
@@ -52,7 +55,7 @@ export default function StageAdvance({
       <div className="card" data-testid="stage-advance">
         <h3>Stage <em>moved</em></h3>
         <p className="note" data-testid="stage-moved">
-          Now at {STAGE_LANES[moved].n} {STAGE_LANES[moved].title}. {message ?? ""}
+          Now at {LANE_LABELS[laneFor(moved, startDate, today)].n} {LANE_LABELS[laneFor(moved, startDate, today)].title}. {message ?? ""}
         </p>
       </div>
     );
@@ -63,7 +66,7 @@ export default function StageAdvance({
   if (stage === "closed") {
     return (
       <div className="card" data-testid="stage-advance">
-        <h3>Next step <em>06 Closed — final invoice sent</em></h3>
+        <h3>Next step <em>07 Closed — final invoice sent</em></h3>
         <p className="note">This job is finished and signed off.</p>
         {message && <p className="note" style={{ color: "var(--amber)" }} data-testid="stage-message">{message}</p>}
         {reopening ? (
@@ -135,7 +138,7 @@ export default function StageAdvance({
 
   return (
     <div className="card" data-testid="stage-advance">
-      <h3>Next step <em>{STAGE_LANES[stage].n} {STAGE_LANES[stage].title}</em></h3>
+      <h3>Next step <em>{here.n} {here.title}</em></h3>
 
       {message && <p className="note" style={{ color: "var(--amber)" }} data-testid="stage-message">{message}</p>}
 

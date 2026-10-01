@@ -2,13 +2,18 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  LANES,
+  LANE_LABELS,
   TRANSITIONS,
   WO_STAGES,
   type WoStage,
   deriveStatus,
   findTransition,
   isLegalTransition,
+  laneFor,
   nextStages,
+  stageTitle,
+  visibleStage,
 } from "./stages";
 
 // The canonical seed moved when 'system' was allowed to start a job on its
@@ -221,5 +226,60 @@ describe("transition metadata", () => {
 
   it("gives every move at least one actor", () => {
     for (const t of TRANSITIONS) expect(t.actors.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Booking confirmed (Tom, 1 Oct 2026): a display split of pre_start by start
+// date. Only a job due to start within the next seven days is in Pre-start.
+// ---------------------------------------------------------------------------
+describe("the Booking confirmed lane", () => {
+  const today = "2026-10-01";
+
+  it("sits between Offer and Pre-start, seven lanes on screen", () => {
+    expect(LANES).toEqual([
+      "offered", "booking_confirmed", "pre_start", "in_progress", "qa", "walkthrough", "closed",
+    ]);
+    expect(LANE_LABELS.booking_confirmed).toEqual({ n: "02", title: "Booking confirmed" });
+    expect(LANE_LABELS.pre_start.n).toBe("03");
+    expect(LANE_LABELS.closed.n).toBe("07");
+  });
+
+  it("holds a booked job whose start is more than a week away", () => {
+    expect(laneFor("pre_start", "2026-10-09", today)).toBe("booking_confirmed");
+    expect(laneFor("pre_start", "2026-11-20", today)).toBe("booking_confirmed");
+  });
+
+  it("moves a job into Pre-start once its start is within seven days, inclusive", () => {
+    expect(laneFor("pre_start", "2026-10-08", today)).toBe("pre_start"); // day 7
+    expect(laneFor("pre_start", "2026-10-02", today)).toBe("pre_start");
+    expect(laneFor("pre_start", "2026-10-01", today)).toBe("pre_start"); // starts today
+  });
+
+  it("keeps a job that is past its start date and not started in Pre-start", () => {
+    expect(laneFor("pre_start", "2026-09-28", today)).toBe("pre_start");
+  });
+
+  it("parks a booked job with no start date in Booking confirmed", () => {
+    expect(laneFor("pre_start", null, today)).toBe("booking_confirmed");
+  });
+
+  it("is never derived across a month boundary by string comparison", () => {
+    // 31 Oct → 3 Nov is three days, whatever the strings look like.
+    expect(laneFor("pre_start", "2026-11-03", "2026-10-31")).toBe("pre_start");
+  });
+
+  it("leaves every other stage where visibleStage puts it", () => {
+    for (const s of WO_STAGES) {
+      if (s === "pre_start") continue;
+      expect(laneFor(s, "2026-12-01", today)).toBe(visibleStage(s));
+    }
+    expect(laneFor("completion_prep", null, today)).toBe("in_progress");
+  });
+
+  it("titles a lane the same way the rail does", () => {
+    expect(stageTitle("booking_confirmed")).toBe("Booking confirmed");
+    expect(stageTitle("offered", "assigned")).toBe("Assigned");
+    expect(stageTitle("completion_prep")).toBe("In progress");
   });
 });
