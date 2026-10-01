@@ -25,3 +25,5 @@ Expect `ok` ×2. Afterwards each job sits in the Unscheduled tray at Offer with 
 **Result 1 Oct:** 20270208 pasted on prod (read-back true,true,true,true,false); `run3666` → `ok 3666 74 Champion Street 29 h · 5 tick-list rows`. 3096 still waits on the Zap.
 
 **Lonsdale St (1 Oct, later):** the platform job at 9/552 Lonsdale St was handed over as quote **3083** (PS-3083, 71.5 h); the work order Tom sent is quote **3096** (92.75 h, two coats). Tom: the job is right and 3096 is its work order. `fill-work-order.ts --for 3096=3083` fills the 3083 job from the 3096 page; the money proof runs against the job's own prices; `external_ref.work_order_quote_no = "3096"` records where the scope came from. Wrapper: `zsh /tmp/wo/fill.sh check3096` then `run3096`.
+
+**Result (Lonsdale St):** `refill3096` → `ok 3083 … 92.75 h · 36 tick-list rows`, proves $12,086.73, 20 areas, Female toilets takes the quote's second "Male toilets" price via `--area 'Female toilets=Male toilets'`; the $0 block the first fill wrote is dropped. Both of Tom's 1 Oct work orders are now on their jobs.
