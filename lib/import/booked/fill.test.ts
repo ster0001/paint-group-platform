@@ -151,6 +151,17 @@ describe("jobFromWorkOrder", () => {
   const wo = parseWorkOrderText(WO_TEXT);
   const r = jobFromWorkOrder(existing, wo, { workOrderUrl: "https://example.com/w" });
 
+  it("takes a named quote area's price for a work-order area with no twin (--area), consuming it", () => {
+    const aliased = jobFromWorkOrder(existing, wo, { areaAliases: { "Fall protection": "Scaffolding" } });
+    const fall = aliased.job.areas.find((a) => a.name === "Fall protection");
+    expect(fall?.price_ex_gst_cents).toBe(110000);
+    expect(fall?.hours_total).toBe(15.75);
+    // The quote's own "Scaffolding" line is consumed, so it is not kept a second time.
+    expect(aliased.job.areas.filter((a) => a.name === "Scaffolding")).toHaveLength(0);
+    expect(aliased.mapping.find((m) => m.startsWith("Fall protection"))).toContain('its "Scaffolding" price');
+    expect(aliased.warnings).toEqual([]);
+  });
+
   it("gives each work-order area the price of its first unconsumed twin on the quote, repeated names in order", () => {
     const byName = r.job.areas.map((a) => [a.name, a.price_ex_gst_cents, a.items.length, a.hours_total]);
     expect(byName).toEqual([

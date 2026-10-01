@@ -19,6 +19,8 @@
  *                           as quote 3083 from the work order printed as quote 3096 (Tom, 1 Oct 2026 —
  *                           9/552 Lonsdale St: the signed job is 3083's prices, the painter's scope is 3096's
  *                           work order). The money proof still runs against the job's own prices.
+ *     --area <wo>=<quote>[,…]  a work-order area with no same-named price takes the named quote area's
+ *                           price: "Female toilets=Male toilets" when the quote named the room twice.
  *
  * A URL is loaded headless (Playwright's Chromium — the share page is
  * client-rendered and its API resists replay); a file is the page's text as
@@ -44,7 +46,7 @@ const flag = (name: string): string | undefined => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const has = (name: string) => argv.includes(name);
-const VALUE_FLAGS = new Set(["--save-dir", "--name-map", "--for"]);
+const VALUE_FLAGS = new Set(["--save-dir", "--name-map", "--for", "--area"]);
 const positional = argv.filter((a, i) => !a.startsWith("--") && !(i > 0 && VALUE_FLAGS.has(argv[i - 1])));
 const [cmd, ...sources] = positional;
 const IMPORTS = ["paintscout-booked", "airtable-handover"];
@@ -136,10 +138,24 @@ function quoteAliases(): Map<string, string> {
   return out;
 }
 
+/** --area "Female toilets=Male toilets[,…]": work-order area → quote area whose price it takes. */
+function areaAliases(): Record<string, string> {
+  const raw = flag("--area");
+  const out: Record<string, string> = {};
+  if (!raw) return out;
+  for (const pair of raw.split(",")) {
+    const i = pair.indexOf("=");
+    if (i <= 0 || i === pair.length - 1) throw new Error(`--area expects <workOrderArea>=<quoteArea>, got "${pair}"`);
+    out[pair.slice(0, i).trim()] = pair.slice(i + 1).trim();
+  }
+  return out;
+}
+
 async function main() {
   if (!cmd || !["parse", "check", "run"].includes(cmd) || sources.length === 0) usage();
   const saveDir = flag("--save-dir");
   const aliases = quoteAliases();
+  const areaMap = areaAliases();
 
   const pages: Array<{ source: string; url: string; wo: ParsedWorkOrder }> = [];
   for (const s of sources) {
@@ -169,7 +185,7 @@ async function main() {
     if (jobQuote !== wo.quoteNo) console.log(`\nwork order ${wo.quoteNo} applies to the job handed over as quote ${jobQuote} (--for)`);
     console.log(`\nquote ${jobQuote} → ${row.title} · estimate ${row.estimateId} · work order ${row.workOrderId} · stage ${row.stage} · hours ${row.hoursPending ? "PENDING" : "already filled"}`);
     if (!row.hoursPending && !has("--refill")) { console.log(`  skip:filled — the hours are already in; pass --refill to rewrite the scope (refused once the job is worked)`); skipped++; continue; }
-    const joined = jobFromWorkOrder(row, wo, { workOrderUrl: url || undefined });
+    const joined = jobFromWorkOrder(row, wo, { workOrderUrl: url || undefined, areaAliases: areaMap });
     for (const m of joined.mapping) console.log(`  ${m}`);
     for (const w of joined.warnings) console.log(`  ⚠ ${w}`);
     if (joined.hoursDisagree) { refusals.push(`quote ${wo.quoteNo}: the page's Total Hours and its lines disagree — read the page before trusting either`); continue; }

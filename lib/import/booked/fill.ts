@@ -85,7 +85,18 @@ export type FillResult = {
   hoursDisagree: boolean;
 };
 
-export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOrder, opts: { workOrderUrl?: string } = {}): FillResult {
+export type FillOptions = {
+  workOrderUrl?: string;
+  /**
+   * Tom, 1 Oct 2026 (9/552 Lonsdale St): the quote named an area twice ("Male
+   * toilets" ×2) where the work order says "Male toilets" + "Female toilets".
+   * work-order area name → quote area name to take the price from, used only
+   * when no same-named quote area is free; the first unconsumed one is taken.
+   */
+  areaAliases?: Record<string, string>;
+};
+
+export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOrder, opts: FillOptions = {}): FillResult {
   const ref = existing.externalRef;
   const state = existing.builderState && typeof existing.builderState === "object" ? (existing.builderState as Record<string, unknown>) : {};
   const contact = state.contact && typeof state.contact === "object" ? (state.contact as Record<string, unknown>) : {};
@@ -98,14 +109,16 @@ export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOr
   const warnings: string[] = [];
 
   const areas: BookedArea[] = wo.areas.map((a) => {
-    const twin = pool.find((p) => !p.used && normName(p.name) === normName(a.name));
+    const aliasEntry = Object.entries(opts.areaAliases ?? {}).find(([from]) => normName(from) === normName(a.name));
+    const twin = pool.find((p) => !p.used && normName(p.name) === normName(a.name))
+      ?? (aliasEntry ? pool.find((p) => !p.used && normName(p.name) === normName(aliasEntry[1])) : undefined);
     if (twin) twin.used = true;
     const items: BookedItem[] = a.items.map((it) => ({
       item: it.item, qty: it.qty, unit: it.unit, hours: it.hours, coats: it.coats, product: it.product || "",
     }));
     const hours = items.length > 0 ? items.reduce((n, it) => n + (it.hours ?? 0), 0) : a.hours_total ?? 0;
     const price = twin ? twin.priceCents : null;
-    if (twin) mapping.push(`${a.name}: $${(twin.priceCents / 100).toFixed(2)} from the quote · ${items.length} line${items.length === 1 ? "" : "s"} · ${hours} h`);
+    if (twin) mapping.push(`${a.name}: $${(twin.priceCents / 100).toFixed(2)} from the quote${normName(twin.name) !== normName(a.name) ? ` (its "${twin.name}" price, by --area)` : ""} · ${items.length} line${items.length === 1 ? "" : "s"} · ${hours} h`);
     else if (hours > 0) {
       mapping.push(`${a.name}: no priced twin on the quote · ${items.length} line${items.length === 1 ? "" : "s"} · ${hours} h at $0`);
       warnings.push(`"${a.name}" carries ${hours} h on the work order but the quote has no area of that name — it goes in at $0 (its price sits inside another area).`);
