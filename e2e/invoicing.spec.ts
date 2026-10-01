@@ -2,6 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { rpcAs, serviceClient } from "./fixtures/woLoop";
 import { credentials, missingCreds, signIn } from "./helpers";
+import { melbourneDate } from "../lib/workorder/console";
+import { addDays } from "../lib/scheduling/dates";
 
 /**
  * Invoicing Step 2 — the §8 e2e, AS STAFF, in the real browser against the
@@ -122,7 +124,28 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     await openMoneyView(page);
     await expect(page.getByTestId("deposit-draft-card")).toBeVisible();
     await expect(page.getByTestId("stage-rail").locator(".stage").first()).toHaveClass(/draft/);
-    await expect(page.getByTestId("strip-balance")).toHaveText("$18,500");
+    // Tom, 1 Oct: every figure on the job's payments page carries its cents.
+    await expect(page.getByTestId("strip-balance")).toHaveText("$18,500.00");
+    await expect(page.getByTestId("money-strip")).toContainText("$18,500.00");
+  });
+
+  // Tom, 1 Oct: a job opened from Invoicing goes BACK to Invoicing — with the
+  // filter it was opened under — not to PC Command. Opened any other way, the
+  // crumb still reads PC Command.
+  test("the money view's crumb returns to where it was opened from", async ({ page }) => {
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto("/invoicing?f=draft");
+    const row = page.locator(".r", { hasText: ADDRESS });
+    await row.getByRole("link", { name: ADDRESS }).click();
+    await expect(page.getByRole("heading", { name: ADDRESS })).toBeVisible();
+    const back = page.getByTestId("money-back");
+    await expect(back).toHaveText(/Invoicing/);
+    await expect(back).toHaveAttribute("href", "/invoicing?f=draft");
+    await back.click();
+    await expect(page).toHaveURL(/\/invoicing\?f=draft$/);
+
+    await openMoneyView(page);
+    await expect(page.getByTestId("money-back")).toHaveText(/PC Command/);
   });
 
   // Tom, 17 Sep 2026: the deposit invoice lists every line item of the
@@ -181,16 +204,22 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     const card = page.getByTestId("invoice-card-deposit");
     await card.getByRole("button", { name: "Record payment" }).click();
     await page.getByTestId("record-amount").fill("1850.00");
+    // Tom, 1 Oct: the date the money arrived is typed in, defaulting to today
+    // (Melbourne). Three days back here, so the saved row proves it was read.
+    const paidOn = addDays(melbourneDate(new Date()), -3);
+    await expect(page.getByTestId("record-date")).toHaveValue(melbourneDate(new Date()));
+    await page.getByTestId("record-date").fill(paidOn);
     await page.getByRole("button", { name: /^Record \$/ }).click();
 
     // The rail flips to paid, the strip's Paid and Balance move — from data.
     await expect(page.getByTestId("stage-rail").locator(".stage").first()).toHaveClass(/paid/, { timeout: 15_000 });
-    await expect(page.getByTestId("strip-balance")).toHaveText("$16,650");
+    await expect(page.getByTestId("strip-balance")).toHaveText("$16,650.00");
 
-    // Receipt allocated, payment row real.
+    // Receipt allocated, payment row real, dated the day it was received.
     const { data: pay } = await db!.from("payments")
-      .select("receipt_number, status, method").eq("invoice_id", depositInvoiceId!).single();
+      .select("receipt_number, status, method, paid_on").eq("invoice_id", depositInvoiceId!).single();
     expect((pay as { receipt_number: string }).receipt_number).toMatch(/^RCT-\d{4}$/);
+    expect((pay as { paid_on: string }).paid_on).toBe(paidOn);
 
     // And the dashboard row reads Paid with its stage dot filled.
     await page.goto("/invoicing?f=paid");

@@ -3,6 +3,7 @@ import { addDays } from "./dates";
 import { reportIfError } from "@/lib/monitoring/report";
 import { OFFER_COLUMNS, effectiveState, isLive, type BookingOffer } from "./offers";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
+import { estimatedHours } from "@/lib/workorder/hours";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 /**
@@ -515,7 +516,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     .filter((w) => !acceptedByWo.has(w.id) && !liveWoIds.has(w.id) && !(w.contractor_id && w.start_date))
     .map((w) => {
       const doc = snapshotOf(w.wo_snapshot);
-      const hours = doc ? doc.areas.flatMap((a) => a.surfaces).reduce((n, s) => n + (s.hours ?? 0), 0) : 0;
+      const hours = estimatedHours(doc); // the same sum the job sheet prints as "Estimated hours"
       const idealPainters = doc?.idealPainters && doc.idealPainters > 0 ? Math.floor(doc.idealPainters) : null;
       return {
         workOrderId: w.id,

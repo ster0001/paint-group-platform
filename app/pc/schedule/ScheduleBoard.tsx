@@ -87,6 +87,10 @@ export default function ScheduleBoard({
   const [dayW, setDayW] = useState(64);
   const [range, setRange] = useState(rangeDays);
   const [start, setStart] = useState(from);
+  // Tom, 1 Oct: the builder's top-left link says "Back to the schedule" and
+  // returns to THIS window of dates. Validated on the way back in by
+  // lib/navigation/backTo, so the query here is a plain same-site path.
+  const fromHere = `&from=${encodeURIComponent(`/pc/schedule?from=${start}&days=${range}`)}`;
   const tlRef = useRef<HTMLElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -468,6 +472,50 @@ export default function ScheduleBoard({
     window.addEventListener("scroll", onScroll, true);
     return () => window.removeEventListener("scroll", onScroll, true);
   }, [cacheLaneRects]);
+
+  /**
+   * Tom, 1 Oct: open an estimate from the board and come back, and the board
+   * is where you left it — not flicked back to the top-left. The estimate links
+   * are full navigations, so React state is gone when we return; the page
+   * scroll AND the timeline's own scroller (it is the scrollport, see above)
+   * are kept in sessionStorage — per tab, gone when the tab closes — and put
+   * back once on the next mount. Saved on every scroll (rAF-throttled) so a
+   * tap on a link never has to run first.
+   */
+  useEffect(() => {
+    const tl = tlRef.current;
+    if (!tl) return;
+    const KEY = "pc-schedule:scroll";
+    try {
+      const raw = sessionStorage.getItem(KEY);
+      if (raw) {
+        sessionStorage.removeItem(KEY); // restore once; a fresh visit starts at the top
+        const v = JSON.parse(raw) as { y?: number; tlx?: number; tly?: number };
+        if (typeof v.tlx === "number") tl.scrollLeft = v.tlx;
+        if (typeof v.tly === "number") tl.scrollTop = v.tly;
+        if (typeof v.y === "number") window.scrollTo(0, v.y);
+      }
+    } catch { /* storage blocked — the board still works, it just opens at the top */ }
+    const write = () => {
+      try {
+        sessionStorage.setItem(KEY, JSON.stringify({ y: window.scrollY, tlx: tl.scrollLeft, tly: tl.scrollTop }));
+      } catch { /* as above */ }
+    };
+    let raf = 0;
+    const save = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = 0; write(); });
+    };
+    window.addEventListener("scroll", save, { passive: true });
+    tl.addEventListener("scroll", save, { passive: true });
+    window.addEventListener("pagehide", write); // no frame comes after this one — write now
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", save);
+      tl.removeEventListener("scroll", save);
+      window.removeEventListener("pagehide", write);
+    };
+  }, []);
 
   // ---- commit ---------------------------------------------------------------
   const [busy, setBusy] = useState(false);
@@ -1026,7 +1074,7 @@ export default function ScheduleBoard({
                     Open it once and it fixes itself — no need to press anything. Jobs
                     accepted from now on arrive here ready to drag.
                   </div>
-                  <a className="btn gh" style={{ marginTop: 10, padding: 9, fontSize: 12.5 }} href={`/quote?id=${j.estimateId}&view=workorder`}>
+                  <a className="btn gh" style={{ marginTop: 10, padding: 9, fontSize: 12.5 }} href={`/quote?id=${j.estimateId}&view=workorder${fromHere}`}>
                     Open it once
                   </a>
                 </div>
@@ -1047,7 +1095,7 @@ export default function ScheduleBoard({
                   <h3>{j.title}</h3>
                   {/* Tom, 22 Sep: a link to the estimate from the tray. Pointer-down stops here so the link never starts a drag. */}
                   <a
-                    href={`/quote?id=${j.estimateId}`}
+                    href={`/quote?id=${j.estimateId}${fromHere}`}
                     className="jlink"
                     data-testid="tray-view-estimate"
                     onPointerDown={(e) => e.stopPropagation()}
@@ -1632,7 +1680,7 @@ export default function ScheduleBoard({
             ) : detail.estimateId ? (
               <a
                 className="btn gh"
-                href={`/quote?id=${detail.estimateId}&view=workorder`}
+                href={`/quote?id=${detail.estimateId}&view=workorder${fromHere}`}
                 style={{ display: "block", textAlign: "center", textDecoration: "none" }}
               >
                 Open the work order

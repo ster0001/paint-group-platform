@@ -114,9 +114,18 @@ test.describe("offer a job, contractor accepts", () => {
     // The job leaves the tray and appears on the board as a live offer, booked for exactly those days.
     await expect(staffPage.locator(`[data-testid="tray-job"][data-wo-ref="${woRef}"]`)).toHaveCount(0);
     test.skip(!db, "service key needed to read the booking back");
-    const booked = await db!.from("booking_offers").select("start_date, end_date, work_orders!inner(wo_ref)").eq("work_orders.wo_ref", woRef).order("offered_at", { ascending: false }).limit(1).maybeSingle();
+    const booked = await db!.from("booking_offers").select("start_date, end_date, payment_cents, work_orders!inner(id, wo_ref, contractor_payment_cents, wo_snapshot)").eq("work_orders.wo_ref", woRef).order("offered_at", { ascending: false }).limit(1).maybeSingle();
     if (booked.error) throw new Error(booked.error.message);
     expect(booked.data).toMatchObject({ start_date: start, end_date: end });
+
+    // Tom, 1 Oct: the offer carries the painter's pay. The frozen document had
+    // the figure all along; the work order's column and the offer must too —
+    // 20270208 fills both however the work order was created.
+    const bookedWo = (booked.data as unknown as { payment_cents: number | null; work_orders: { id: string; contractor_payment_cents: number | null; wo_snapshot: { contractorPaymentCents?: number } } }).work_orders;
+    const docPay = Number(bookedWo.wo_snapshot?.contractorPaymentCents ?? 0);
+    expect(docPay, "the fixture's document prices the painter").toBeGreaterThan(0);
+    expect(bookedWo.contractor_payment_cents).toBe(docPay);
+    expect((booked.data as unknown as { payment_cents: number | null }).payment_cents).toBe(docPay);
     await expect(staffPage.locator(".blk.offered").first()).toBeVisible();
 
     // --- contractor: the offer is waiting, with the address still redacted ---
@@ -125,6 +134,17 @@ test.describe("offer a job, contractor accepts", () => {
     // Until they accept, the customer's street address must not be in the page
     // at all — this is the privacy gate, checked against the response body.
     expect(html).toMatch(/awaiting your answer|accept/i);
+
+    // The job's own page says the offered amount in those words, and the job
+    // sheet carries the total estimated hours at the top (Tom, 1 Oct).
+    await contractorPage.goto(`/portal/jobs/${bookedWo.id}?from=requests`);
+    const amount = contractorPage.getByTestId("offer-amount");
+    await expect(amount).toContainText("Offered amount");
+    await expect(amount).toContainText(`$${(docPay / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 })}`);
+    const hours = contractorPage.getByTestId("wo-estimated-hours");
+    await expect(hours).toContainText("Estimated hours");
+    await expect(hours).toContainText(/\d+(\.\d)? h/);
+    await contractorPage.goto("/portal/requests");
 
     const accept = contractorPage.getByRole("button", { name: /accept/i }).first();
     await expect(accept).toBeVisible();

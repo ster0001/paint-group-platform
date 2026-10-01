@@ -35,10 +35,23 @@ export function scopesCanRead(scopes: string | null | undefined): boolean {
   return typeof scopes === "string" && scopes.split(/\s+/).includes(GCAL_READ_SCOPE);
 }
 
-export function gcalEnv(): { clientId: string; clientSecret: string; redirectUri: string } | null {
+/**
+ * `origin` is the scheme+host the person is actually on (from the request).
+ * The callback MUST land on that same host: the signed state rides an
+ * httpOnly cookie set there, and so does the Supabase session the callback
+ * needs to know whose row to write. With NEXT_PUBLIC_SITE_URL on the
+ * vercel.app address and painters signed in at login.paintgroup.com.au, Google
+ * sent them back to the OTHER host — no cookie, "state mismatch", and the card
+ * said "Connecting to Google didn't work" (Jacob at DJ Decor, 1 Oct). An
+ * explicit GOOGLE_REDIRECT_URI still wins; the site URL is the last resort.
+ * Every host used this way must be an Authorised redirect URI on the OAuth
+ * client (docs/gcal-setup.md).
+ */
+export function gcalEnv(origin?: string | null): { clientId: string; clientSecret: string; redirectUri: string } | null {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI
+    || (origin ? `${origin.replace(/\/+$/, "")}/api/gcal/callback` : null)
     || (process.env.NEXT_PUBLIC_SITE_URL ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/gcal/callback` : null);
   if (!clientId || !clientSecret || !redirectUri) return null;
   return { clientId, clientSecret, redirectUri };
@@ -142,9 +155,12 @@ async function tokenRequest(form: Record<string, string>): Promise<GcalTokens> {
   };
 }
 
-export function exchangeCode(code: string): Promise<GcalTokens> {
+export function exchangeCode(code: string, redirectUri?: string): Promise<GcalTokens> {
   const env = gcalEnv();
   if (!env) throw new Error("gcal env missing");
+  // Google requires the SAME redirect_uri as the authorize step — the
+  // callback passes the one it was reached on.
+  if (redirectUri) env.redirectUri = redirectUri;
   return tokenRequest({
     client_id: env.clientId,
     client_secret: env.clientSecret,

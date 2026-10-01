@@ -15,9 +15,10 @@ export const dynamic = "force-dynamic";
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ gcal?: string }>;
+  searchParams: Promise<{ gcal?: string; why?: string }>;
 }) {
   const { contractor, capabilities } = await requireContractor();
+  const sp = await searchParams;
 
   if (!contractor) {
     return (
@@ -106,7 +107,7 @@ export default async function CalendarPage({
           assignments are not pushed yet (employed-painters ledger), so the
           card would promise something it cannot do. */}
       {capabilities.acceptsOffers && (
-        <GoogleSyncCard status={await gcalStatus(contractor.id)} flash={(await searchParams).gcal} />
+        <GoogleSyncCard status={await gcalStatus(contractor.id)} flash={sp.gcal} flashWhy={sp.why} />
       )}
     </div>
   );

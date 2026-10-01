@@ -139,9 +139,12 @@ export async function recordPaymentAction(raw: unknown): Promise<InvoicingResult
       method: z.enum(["bank_transfer", "cash", "other"]),
       amountCents: z.number().int().positive().max(100_000_000),
       reference: z.string().max(120).default(""),
+      // Tom, 1 Oct: the day the money actually arrived, not the day it was
+      // typed in. A bare yyyy-mm-dd Melbourne calendar day; absent = today.
+      receivedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     })
     .safeParse(raw);
-  if (!p.success) return { ok: false, message: "Check the amount and try again." };
+  if (!p.success) return { ok: false, message: "Check the amount and date and try again." };
   const result = await call(
     "invoice_record_payment",
     {
@@ -149,6 +152,7 @@ export async function recordPaymentAction(raw: unknown): Promise<InvoicingResult
       p_method: p.data.method,
       p_amount_cents: p.data.amountCents,
       p_reference: p.data.reference,
+      p_received_on: p.data.receivedOn ?? null,
     },
     { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId },
     "Payment recorded — receipt on its way.",
