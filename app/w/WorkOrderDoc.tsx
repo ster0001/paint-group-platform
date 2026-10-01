@@ -10,6 +10,7 @@ import type { ScopeChange } from "@/lib/workorder/scopeChanges";
 import { WO_PHOTO_KIND_LABEL, groupByKind, officePhotos, type WOPhoto } from "@/lib/workorder/photos";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import AreaPhotoStrip from "@/app/components/wo/AreaPhotoStrip";
+import { estimatedHours, formatHours } from "@/lib/workorder/hours";
 import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, type Booking } from "@/lib/workorder/booking";
 import FinishChip from "@/app/components/FinishChip";
 import { conditionAllowanceLine } from "@/lib/workorder/conditionAllowance";
@@ -126,6 +127,12 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
           <div className="fact">
             <div className="k">Customer</div>
             <div className="v">{doc.contactFirstName || "—"}{doc.contactPhone ? ` · ${doc.contactPhone}` : ""}</div>
+          </div>
+          {/* Tom, 1 Oct: the job's total estimated hours at the top, in those
+              words. The same sum the scheduler sizes the booking from. */}
+          <div className="fact" data-testid="wo-estimated-hours">
+            <div className="k">Estimated hours</div>
+            <div className="v">{formatHours(estimatedHours(doc))}</div>
           </div>
           <div className="fact">
             <div className="k">Start date</div>

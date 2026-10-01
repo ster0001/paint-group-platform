@@ -25,7 +25,8 @@ export async function GET(request: Request) {
     if (!session.contractor) return NextResponse.redirect(new URL("/portal", base));
   }
 
-  const env = gcalEnv();
+  // The callback lands on the host the painter is on (see gcalEnv).
+  const env = gcalEnv(new URL(request.url).origin);
   if (!env) {
     // Friendly bounce — the Calendar card explains it isn't set up yet.
     return NextResponse.redirect(new URL(staffFlow ? "/crm/diary?gcal=unconfigured" : "/portal/calendar?gcal=unconfigured", base));

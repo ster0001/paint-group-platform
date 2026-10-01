@@ -41,9 +41,14 @@ editor and run it. The read-backs at the bottom should show both tables with
      painter's connection dies after 7 days.
 5. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
    - Application type: **Web application**, name `Paint Group Platform`.
-   - **Authorised redirect URIs** — add BOTH:
+   - **Authorised redirect URIs** — add ONE PER HOST the app is reached on.
+     The callback lands on whichever host the painter pressed Connect from
+     (the sign-in cookies live there), so every host needs its own entry:
+     - `https://login.paintgroup.com.au/api/gcal/callback` (the live address painters use)
      - `https://paint-group-platform.vercel.app/api/gcal/callback`
      - `http://localhost:3000/api/gcal/callback`
+     A host missing from this list fails on Google's side with
+     `redirect_uri_mismatch` naming the exact URI to add.
    - Create, then copy the **Client ID** and **Client secret**.
 
 ## 3 · Add the keys
@@ -74,3 +79,28 @@ on it. Full test script: `docs/manual-tests/gcal-sync.md`.
   it there.
 - If a painter deletes the "Paint Group Jobs" calendar by hand, the next sync
   recreates it with all current bookings.
+
+## A painter can't connect (1 Oct 2026, Jacob at DJ Decor)
+
+Zero contractors had ever connected — only the office's own test from August.
+Two things to check, in order:
+
+1. **The redirect URI for the live host.** Until 1 Oct the callback was built
+   from `NEXT_PUBLIC_SITE_URL` (the vercel.app address) while painters sign in
+   at `login.paintgroup.com.au`. Google sent them back to the other host, where
+   neither the state cookie nor their sign-in existed → "Connecting to Google
+   didn't work". The code now returns to the host the painter started on; that
+   host must be in the OAuth client's **Authorised redirect URIs** (step 2.5).
+2. **Audience / publishing status** on the OAuth consent screen. It must be
+   **External** and **In production**. *Internal* lets only Paint Group
+   Workspace accounts through (a painter's Gmail gets "Error 403:
+   org_internal" on Google's own page); *Testing* lets only listed test users
+   through and expires their connection after 7 days. Note the staff Diary's
+   read scope is "sensitive": with External + unverified, STAFF see Google's
+   "unverified app" interstitial (Advanced → continue) — painters never do,
+   their scope isn't sensitive.
+
+When it fails on OUR side the Calendar card now says why in a sentence and
+gives the painter a short code to read out ("calendar: state cookie",
+"calendar: exchange", or Google's own wording); the same code is on the
+Sentry event under `gcal.callback`.
