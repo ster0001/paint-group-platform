@@ -164,7 +164,7 @@ export default async function InvoicesPage({
                         view — add, request or delete payment requests there.
                         The revision builder keeps its own door on the row. */}
                     <Link
-                      href={`/invoicing/job/${job.estimateId}`}
+                      href={`/invoicing/job/${job.estimateId}?from=${encodeURIComponent("/invoices")}`}
                       className="font-medium text-gray-900 hover:underline"
                       data-testid={`payments-${job.estimateId}`}
                     >

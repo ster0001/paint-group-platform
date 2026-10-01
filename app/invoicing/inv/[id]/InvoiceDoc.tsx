@@ -17,6 +17,7 @@ import {
 } from "../../actions";
 import { fmt2, fmtSigned2, kindLabelWithContext, STATUS_LABEL } from "../../format";
 import SendInvoiceSheet from "../../SendInvoiceSheet";
+import { melbourneDate } from "@/lib/workorder/console";
 import { useSaveBeforeLeave } from "@/app/components/useSaveBeforeLeave";
 
 /**
@@ -74,6 +75,8 @@ export default function InvoiceDoc({
   const [payMethod, setPayMethod] = useState<"bank_transfer" | "cash" | "other">("bank_transfer");
   const [payDollars, setPayDollars] = useState("");
   const [payRef, setPayRef] = useState("");
+  // Tom, 1 Oct: the day the money arrived; today in Melbourne by default.
+  const [payDate, setPayDate] = useState(() => melbourneDate(new Date()));
 
   const run = (fn: () => Promise<InvoicingResult>) =>
     startTransition(async () => {
@@ -397,12 +400,17 @@ export default function InvoiceDoc({
         <input type="number" inputMode="decimal" min={0.01} step="0.01" placeholder="Amount received (dollars)"
           value={payDollars} onChange={(e) => setPayDollars(e.target.value)} />
         <input type="text" placeholder="Reference (optional)" value={payRef} onChange={(e) => setPayRef(e.target.value)} />
+        <label className="field-date">
+          <span>Payment date</span>
+          <input type="date" value={payDate} max={melbourneDate(new Date())}
+            onChange={(e) => setPayDate(e.target.value)} data-testid="record-date" />
+        </label>
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
           <button className="btn ghost" onClick={() => setPaySheet(false)}>Cancel</button>
-          <button className="btn primary" disabled={busy || !(Number(payDollars) > 0)}
+          <button className="btn primary" disabled={busy || !(Number(payDollars) > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(payDate)}
             onClick={() => run(() => recordPaymentAction({
               invoiceId, estimateId, method: payMethod,
-              amountCents: Math.round(Number(payDollars) * 100), reference: payRef,
+              amountCents: Math.round(Number(payDollars) * 100), reference: payRef, receivedOn: payDate,
             }))}>
             Record
           </button>

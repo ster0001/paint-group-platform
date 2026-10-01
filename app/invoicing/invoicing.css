@@ -145,6 +145,9 @@
 .invx .preview .k{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .invx .preview .v{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--cyan);margin-top:5px}
 .invx .preview .g{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:4px}
+.invx .sheet .field-date{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;font-size:13px;color:var(--muted)}
+.invx .sheet .field-date input[type="date"]{appearance:none;-webkit-appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;color-scheme:dark}
+.invx[data-theme="light"] .sheet .field-date input[type="date"]{color-scheme:light}
 .invx .sheet input[type="number"],.invx .sheet input[type="text"]{width:100%;margin-top:12px;appearance:none;
   border:1px solid var(--line);background:var(--graphite);color:var(--text);font-family:var(--mono);
   font-size:14px;padding:11px 12px;border-radius:10px}
