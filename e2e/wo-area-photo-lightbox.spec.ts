@@ -57,6 +57,18 @@ test.describe("area photos on the contractor's work order", () => {
     await expect(box).toContainText("1 / 2");
     await expect(box).toContainText("Front");
 
+    // Tom, 1 Oct: "photos come up as small tiles". The lightbox renders inside
+    // the strip, and the strip's 72px thumbnail rule used to catch its image
+    // too — so the enlarged photo was a tile the size of the one just tapped.
+    // Full size means the lightbox's own sizing wins: contain, not a fixed box.
+    const sizing = await box.getByTestId("lightbox-image").evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { objectFit: cs.objectFit, height: cs.height, maxHeight: cs.maxHeight };
+    });
+    expect(sizing.objectFit).toBe("contain");
+    expect(sizing.height).not.toMatch(/^(72|96)px$/);
+    expect(sizing.maxHeight).not.toBe("none");
+
     // Arrow button.
     await box.getByTestId("lightbox-next").click();
     await expect(box.getByTestId("lightbox-image")).toHaveAttribute("src", BLUE);
