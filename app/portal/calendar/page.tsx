@@ -9,6 +9,7 @@ import { gcalStatus } from "@/lib/gcal/sync";
 import GoogleSyncCard from "./GoogleSyncCard";
 import TimeOffCard, { type TimeOffRow } from "./TimeOffCard";
 import { reportError } from "@/lib/monitoring/report";
+import { addDays } from "@/lib/scheduling/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,24 @@ export default async function CalendarPage({
   // job), through the money-free RPC; a contractor's are their bookings.
   const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
   const jobDays: PortalJobDay[] = jobDaysFor(jobs);
+
+  // Tom, 1 Oct: a job the office booked a SECOND visit for — "back to finish
+  // the ceilings" — occupies those days too. Own rows only (RLS); the job's
+  // own label and status, so the calendar reads "this job, again". A failed
+  // read is reported, not drawn as a free day.
+  const { data: visits, error: visitError } = await supabase
+    .from("wo_appointments")
+    .select("id, work_order_id, start_date, end_date")
+    .eq("contractor_id", contractor.id);
+  if (visitError) reportError(visitError, { where: "portal.calendar.appointments" });
+  const jobById = new Map(jobs.map((j) => [j.id, j]));
+  for (const v of ((visits ?? []) as { id: string; work_order_id: string; start_date: string; end_date: string }[])) {
+    const job = jobById.get(v.work_order_id);
+    if (!job) continue; // a job this painter can no longer see has no days to draw
+    for (let d = v.start_date; d <= v.end_date; d = addDays(d, 1)) {
+      jobDays.push({ date: d, label: job.doc?.jobTitle || job.woRef, status: job.status, id: job.id });
+    }
+  }
 
   // §4b: booked walkthroughs on the calendar, tap-through to the job. They
   // ride as jobDays — a walkthrough IS a site visit — labelled so the painter

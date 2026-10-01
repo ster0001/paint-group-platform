@@ -4,7 +4,7 @@ role: employee
 title: Your assigned jobs — accepting one, your calendar, and what to do if you can't make a day
 summary: How a job reaches you as an employed painter — it lands in your calendar already booked, you tap Accept once to say you've seen it, several of you can share one job with one lead painter, and you can flag days you can't make.
 sources: app/portal/jobs, app/portal/calendar, app/portal/jobs/[id]/AssignmentCard.tsx, lib/contractor/employeeJobs.ts
-verified_at_commit: 0a07c92452
+verified_at_commit: b75c8dc899
 ---
 
 ## What this is for
@@ -27,7 +27,7 @@ As one of Paint Group's own painters you are never offered a job and never asked
 5. Exactly one painter on every job is the **lead**. The customer's confirmation carries the lead's name, the walkthrough prompt comes to the lead, and the lead is who the office rings first. Everyone on the job can tick surfaces, add photos and raise a variation regardless. The office chooses the lead and can change it; you will see **Lead** on your card when it is you.
 
 ### Your calendar
-6. **Calendar** shows every day you are on a job, in the job's colour, with a walkthrough day marked separately. Tap a booked day to open the job. You do not block days out yourself — time off is asked for, under the calendar (next section).
+6. **Calendar** shows every day you are on a job, in the job's colour, with a walkthrough day marked separately. A second visit the office adds to a job you already have — coming back later to finish it — shows on those days too, under the same job name. Tap a booked day to open the job. You do not block days out yourself — time off is asked for, under the calendar (next section).
 
 ### Time off — leave, an RDO, or a sick day
 7. Under the calendar, the **Time off** card. Choose **Leave** or **RDO**, pick the first and last day, add a word on why if you like, and tap **Ask the office**. It shows in your list as **Requested** and on the office's queue; when they decide you get a text and the entry reads **Approved** or **Declined** (with their note). An approved day is off-limits on the office's board; a declined one is not a day off. Tap **Cancel** on a request that has not started if plans change.

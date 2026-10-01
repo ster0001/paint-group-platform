@@ -5,7 +5,7 @@ title: Answer a job offer and manage your booked dates
 summary: How a job offer reaches you in the portal, what the 24-hour clock means, how to accept, propose a different start date or decline, and how to ask to move a job you have already accepted.
 walkthrough: media/contractor-walkthrough.gif
 sources: app/portal/requests, app/portal/calendar, app/portal/jobs/[id]/RescheduleRequest.tsx, lib/scheduling, lib/contractor/offers.ts
-verified_at_commit: 0a07c92452
+verified_at_commit: b75c8dc899
 ---
 
 ## What this is for
@@ -41,7 +41,7 @@ Paint Group offers you jobs through the contractor portal. Each offer comes with
    ![](media/contractor-08.png)
 10. The job page now shows the full address and the customer's first name and phone. The **Ready to start?** card tells you how many pre-start items the office still has to tick before **Start the job** unlocks. **Finish & walkthrough** shows the day the customer walkthrough is booked for.
     ![](media/contractor-09.png)
-11. Open **Calendar**. Your booked days are green, with the job name on the first day and the walkthrough marked. Tap a free day to block it out. Booked days cannot be blocked here, so call the office if something has changed. You can also connect Google Calendar so accepted jobs appear in your own calendar.
+11. Open **Calendar**. Your booked days are green, with the job name on the first day and the walkthrough marked. If the office books you back onto a job for a second visit — a day or two later to finish it — those days show in the same colour under the same job name. Tap a free day to block it out. Booked days cannot be blocked here, so call the office if something has changed. You can also connect Google Calendar so accepted jobs appear in your own calendar.
     ![](media/contractor-10.png)
 
 ### Asking to move a job you have already accepted
