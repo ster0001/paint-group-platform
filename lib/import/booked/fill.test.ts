@@ -162,6 +162,20 @@ describe("jobFromWorkOrder", () => {
     expect(aliased.warnings).toEqual([]);
   });
 
+  it("an alias wins over a same-named $0 block from an earlier fill, and that block is dropped", () => {
+    const state = JSON.parse(JSON.stringify(existing.builderState)) as { blocks: Array<Record<string, unknown>> };
+    // A visible $0 custom line, as the first fill writes for an area it could not price.
+    const refilled = { ...existing, builderState: { ...state, blocks: [...state.blocks, { kind: "custom", name: "Fall protection", custom: 0, hidden: false }] } };
+    expect(pricedBlocksOf(refilled.builderState).filter((b) => b.name === "Fall protection")).toEqual([{ name: "Fall protection", priceCents: 0, kind: "line" }]);
+    const r2 = jobFromWorkOrder(refilled, wo, { areaAliases: { "Fall protection": "Scaffolding" } });
+    const fall = r2.job.areas.filter((a) => a.name === "Fall protection");
+    expect(fall).toHaveLength(1);
+    expect(fall[0].price_ex_gst_cents).toBe(110000);
+    expect(r2.job.areas.filter((a) => a.name === "Scaffolding")).toHaveLength(0);
+    expect(r2.mapping).toContain("Fall protection: $0.00 on the quote, not on the work order · dropped");
+    expect(r2.warnings).toEqual([]);
+  });
+
   it("gives each work-order area the price of its first unconsumed twin on the quote, repeated names in order", () => {
     const byName = r.job.areas.map((a) => [a.name, a.price_ex_gst_cents, a.items.length, a.hours_total]);
     expect(byName).toEqual([

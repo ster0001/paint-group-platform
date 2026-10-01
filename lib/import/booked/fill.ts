@@ -109,9 +109,12 @@ export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOr
   const warnings: string[] = [];
 
   const areas: BookedArea[] = wo.areas.map((a) => {
+    // An explicit alias wins over a same-named block: a refill meets the $0
+    // block the first fill wrote under this very name, and the alias is the
+    // person saying which price this area really carries.
     const aliasEntry = Object.entries(opts.areaAliases ?? {}).find(([from]) => normName(from) === normName(a.name));
-    const twin = pool.find((p) => !p.used && normName(p.name) === normName(a.name))
-      ?? (aliasEntry ? pool.find((p) => !p.used && normName(p.name) === normName(aliasEntry[1])) : undefined);
+    const twin = (aliasEntry ? pool.find((p) => !p.used && normName(p.name) === normName(aliasEntry[1])) : undefined)
+      ?? pool.find((p) => !p.used && normName(p.name) === normName(a.name));
     if (twin) twin.used = true;
     const items: BookedItem[] = a.items.map((it) => ({
       item: it.item, qty: it.qty, unit: it.unit, hours: it.hours, coats: it.coats, product: it.product || "",
@@ -134,6 +137,9 @@ export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOr
     // Heading-only quote rows ($0, hidden) that the work order also lacks add
     // nothing; a priced one keeps its money.
     if (p.kind === "heading") continue;
+    // A $0 line the work order no longer names carries no money and no scope
+    // (typically a block an earlier fill wrote for an area now aliased away).
+    if (p.priceCents === 0) { mapping.push(`${p.name}: $0.00 on the quote, not on the work order · dropped`); continue; }
     areas.push({ name: p.name, price_ex_gst_cents: p.priceCents, hours_prep: null, hours_paint: null, hours_total: null, length_m: null, width_m: null, height_m: null, items: [] });
     mapping.push(`${p.name}: $${(p.priceCents / 100).toFixed(2)} on the quote, not on the work order · kept as a line with no hours`);
     warnings.push(`"${p.name}" is priced on the quote but the work order has no area of that name — kept as a priced line with no hours.`);
