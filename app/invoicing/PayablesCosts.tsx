@@ -407,7 +407,7 @@ export default function PayablesCosts({
             <div key={r.id} className="r" data-testid={`job-cost-${r.id}`}>
               <div className="body">
                 <div className="job">
-                  {r.estimateId ? <Link href={`/invoicing/job/${r.estimateId}`}>{r.vendor}</Link> : r.vendor}
+                  {r.estimateId ? <Link href={`/invoicing/job/${r.estimateId}?from=${encodeURIComponent("/invoicing?tab=pay")}`}>{r.vendor}</Link> : r.vendor}
                 </div>
                 <div className="ref">{r.ref}</div>
                 <div className={`age ${r.status === "paid" ? "emerald" : r.status === "approved" ? "cyan" : "amber"}`}>

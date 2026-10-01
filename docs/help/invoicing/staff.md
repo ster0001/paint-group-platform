@@ -2,7 +2,7 @@
 feature: invoicing
 role: staff
 title: Record a customer payment, including one that arrives before you send the invoice
-summary: How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, what happens when the invoice is still a draft, what the customer receives, the Payables tiles including Materials to match, and what each contractor invoice colour means.
+summary: How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, including the date it arrived, what happens when the invoice is still a draft, what the customer receives, the Payables tiles including Materials to match, and what each contractor invoice colour means.
 ---
 
 ## What this is for
@@ -19,7 +19,13 @@ Both invoice screens have a search box. On **Invoicing** it sits at the top besi
 1. Open the job from **Invoicing** and choose the **Invoices** tab, or open the invoice itself.
 2. On the invoice's card press **Record payment**. A draft shows the button beside **Issue & send**.
 3. Pick the method (**Bank**, **Cash** or **Other**), check the amount, add the reference if you have one.
-4. Press **Record**.
+4. Check the **Payment date**. It starts as today; change it to the day the money actually landed if you are recording it later. The date goes on the receipt and the payment row, and it cannot be in the future.
+5. Press **Record**.
+
+The job's payments page shows every figure — the stage rail, Contract, Variations, Invoiced, Paid and Balance — to the cent, so a payment that leaves a few cents owing is visible as such.
+
+### Getting back
+Open a job from **Payments** (any tab or filter) or from the **Invoicing** list and the link at the top left of the job's payments page goes **back to the page you came from, with the same filter**. Opened any other way it reads **PC Command**, with the work order's reference when the job has one, and goes to that work order.
 
 If the invoice was still a draft, it is issued at that moment: it gets its number, its totals are fixed and it can no longer be edited. Nothing is emailed except the receipt. You can still send the invoice later from the invoice page if the customer wants a copy.
 
