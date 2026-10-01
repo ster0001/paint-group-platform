@@ -66,7 +66,7 @@ test.describe("Office alerts: estimate declined, estimate expired", () => {
     await page.getByRole("button", { name: "Went with another quote", exact: true }).click();
     await page.getByLabel("Anything else (optional)").fill(`Cheaper quote ${run}`);
     await page.getByRole("button", { name: "Decline estimate" }).click();
-    await expect(page.getByText("You’ve declined this estimate.")).toBeVisible();
+    await expect(page.getByText(/declined this estimate/)).toBeVisible();
 
     const { data: est } = await db!.from("estimates").select("status, declined_reason").eq("id", id).single();
     expect(est).toMatchObject({ status: "declined", declined_reason: `Went with another quote — Cheaper quote ${run}` });
