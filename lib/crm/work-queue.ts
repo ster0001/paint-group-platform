@@ -14,6 +14,7 @@ import { DEFAULT_TURNAROUND_SETTING, isOverdue, turnaroundFromSettings, type Tur
 import { addBusinessHours, melbourneInstant, nextBusinessMorning } from "@/lib/time/businessHours";
 import { customerCheckins, dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
 import { melbourneDayStartUtc } from "@/lib/workorder/console";
+import { openHolds } from "@/lib/scheduling/holds";
 
 /**
  * The work queue (shell brief §3) — the one answer to "what needs a human?".
@@ -95,6 +96,12 @@ export const WORK_ITEM_KINDS = [
   "job_checkin",
   /** Tom, 25 Sep 2026: a 1–2 day job is done — ring and check they are happy. */
   "job_followup",
+  /**
+   * Tom, 1 Oct 2026: the office is HOLDING a painter's days (pink on the
+   * board) while the client decides, and the days are now close. Book it or
+   * release it — the hold is the reminder, this is the nudge.
+   */
+  "hold_pending",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -222,6 +229,8 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   job_checkin: 30,
   // A courtesy call after a short job; ranks with the other follow-ups.
   job_followup: 14,
+  // Days reserved for a client who hasn't said yes — chase them before the painter loses the week.
+  hold_pending: 16,
 };
 
 export type PriorityInput = {
@@ -317,6 +326,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   timesheet_approval: "approvals",
   job_checkin: "followups",
   job_followup: "followups",
+  hold_pending: "followups",
 };
 
 // ---- source: customer check-ins on a running job (Tom, 25 Sep 2026) ----------
@@ -501,6 +511,46 @@ export function buildEmployeeUnacceptedItems(active: ActiveAssignmentRow[], pain
       since: now.toISOString(),
       dueAt: new Date(startsAt).toISOString(),
       action: { label: "Call painter", href: "/contractors" },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
+// ---- source: hold_pending (Tom, 1 Oct 2026) ---------------------------------
+
+export type HoldQueueRow = {
+  id: string; contractor_id: string; start_date: string; end_date: string;
+  work_order_id: string | null; note: string; created_at: string; released_at: string | null;
+  work_orders: { wo_ref: string | null; wo_snapshot: { jobTitle?: string | null } | null } | null;
+};
+
+/** How far ahead a hold starts nagging. A week: long enough to ring the client twice. */
+export const HOLD_NUDGE_DAYS = 7;
+
+/**
+ * One item per open hold whose first day is within a week (or has begun and
+ * not yet passed). A hold answered by a booking of its job — to anyone — is
+ * resolved and raises nothing; so is a released one. Due two days before the
+ * first held day, so it lands in Overdue with time to re-offer the week.
+ */
+export function buildHoldItems(rows: readonly HoldQueueRow[], bookedWorkOrderIds: ReadonlySet<string>, painterNames: Map<string, string>, now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const h of openHolds(rows, bookedWorkOrderIds)) {
+    const startsAt = Date.parse(melbourneDayStartUtc(new Date(`${h.start_date}T12:00:00Z`)));
+    const endsAt = Date.parse(melbourneDayStartUtc(new Date(`${h.end_date}T12:00:00Z`))) + 86_400_000;
+    if (startsAt - now.getTime() > HOLD_NUDGE_DAYS * 86_400_000 || endsAt <= now.getTime()) continue;
+    const who = painterNames.get(h.contractor_id) ?? "A painter";
+    const job = h.work_orders?.wo_snapshot?.jobTitle || h.work_orders?.wo_ref || null;
+    items.push(finish({
+      key: itemKey("hold_pending", h.work_order_id ? "work_order" : "event", h.work_order_id ?? h.id, h.id),
+      kind: "hold_pending",
+      accountId: null,
+      subjectRef: h.work_order_id ? { type: "work_order", id: h.work_order_id } : { type: "event", id: h.id },
+      title: `${who}'s days are held${job ? ` for ${job}` : ""} — ${daysOf(h.start_date, h.end_date)}`,
+      detail: h.note ? `"${h.note}" — book it or release the days.` : "Waiting on the client. Book it or release the days — it's the pink block on the board.",
+      since: h.created_at,
+      dueAt: new Date(startsAt - 2 * 86_400_000).toISOString(),
+      action: { label: "Open the board", href: `/pc/schedule?from=${h.start_date}&days=14` },
     }, { valueCents: null, promisedToCustomer: false }, now));
   }
   return items;
@@ -1601,6 +1651,23 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   ]);
   const leaveRows = (leaveRes.error ? [] : (leaveRes.data ?? [])) as LeaveRequestRow[];
   const tsRows = (tsRes.error ? [] : (tsRes.data ?? [])) as TimesheetPendingRow[];
+  // Tom, 1 Oct: open holds starting within the week, and whether their job
+  // has since been booked (which resolves them). Staff-only table; a table
+  // that predates 20270209 simply yields nothing.
+  const todayMel = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const holdRes = await supabase.from("schedule_holds")
+    .select("id, contractor_id, start_date, end_date, work_order_id, note, created_at, released_at, work_orders(wo_ref, wo_snapshot)")
+    .is("released_at", null)
+    .gte("end_date", todayMel)
+    .lte("start_date", new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now.getTime() + HOLD_NUDGE_DAYS * 86_400_000)))
+    .order("start_date", { ascending: true }).limit(200);
+  const holdRows = (holdRes.error ? [] : (holdRes.data ?? [])) as unknown as HoldQueueRow[];
+  const holdWoIds = [...new Set(holdRows.map((h) => h.work_order_id).filter((x): x is string => !!x))];
+  const [holdOffers, holdAssignments] = await Promise.all([
+    inSlices(holdWoIds, (ids) => supabase.from("booking_offers").select("work_order_id").in("work_order_id", ids).in("state", ["offered", "proposed", "accepted"])),
+    inSlices(holdWoIds, (ids) => supabase.from("wo_assignments").select("work_order_id").in("work_order_id", ids).neq("status", "released")),
+  ]);
+  const holdBooked = new Set<string>([...holdOffers, ...holdAssignments].map((r) => (r as { work_order_id: string }).work_order_id));
   // Tom, 25 Sep: customer check-ins on running jobs, and the after-job call on
   // short ones. Booked jobs whose last day is within the last fortnight.
   const checkinRes = await supabase.from("work_orders")
@@ -1616,6 +1683,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...activeRows.filter((a) => !a.accepted_at).map((a) => a.contractor_id),
     ...leaveRows.map((r) => r.contractor_id),
     ...tsRows.map((r) => r.contractor_id),
+    ...holdRows.map((h) => h.contractor_id),
   ].filter((x): x is string => !!x))];
   const flagPainters = await inSlices(flagPainterIds, (ids) => supabase.from("contractors").select("id, company_name, profiles(name)").in("id", ids));
   const painterNames = new Map((flagPainters as unknown as Array<{ id: string; company_name: string | null; profiles: { name: string | null } | null }>)
@@ -1746,6 +1814,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildEmployeeUnacceptedItems(activeRows, painterNames, now),
     ...buildLeaveRequestItems(leaveRows, painterNames, now),
     ...buildTimesheetApprovalItems(tsRows, painterNames, now),
+    ...buildHoldItems(holdRows, holdBooked, painterNames, now),
     ...buildJobCheckinItems(checkinRows, now),
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),

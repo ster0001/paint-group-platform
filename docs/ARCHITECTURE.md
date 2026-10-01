@@ -4,6 +4,29 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 1 Oct 2026 — a second visit on a booked job; pink holds while the client decides
+
+**2026-10-01 · `supabase/migrations/20270209000000_schedule_holds_and_extra_visits.sql`, `lib/scheduling/holds.ts`,
+`lib/scheduling/board.ts`, `app/pc/schedule/ScheduleBoard.tsx` + `actions.ts` + `schedule.css`, `lib/validation/booking.ts`,
+`app/portal/calendar/page.tsx`, `lib/crm/work-queue.ts`**
+
+Two small tables beside the booking state machine, which is unchanged. **`wo_appointments`** is a second run of days
+on a job the painter already has (Tom: "a small job in between a job"): `schedule_add_appointment` refuses unless the
+painter is named on the work order, holds a live/accepted offer for it, or is assigned to it; move/remove are RPCs too,
+each logged on `wo_events`. The board draws a visit in the job's own colour (`Block.appointmentId`, `.blk.visit`), and
+the painter's portal calendar reads their own rows (RLS `contractor_id = current_contractor_id()`). Google Calendar is
+one event per work order and does not carry visits. **`schedule_holds`** is the office reserving a painter's days
+while the client decides — staff-only RLS, the painter has no policy — drawn bright pink (`BlockKind "hold"`,
+`--hold: #ff2d9b`). A hold is **resolved by the booking it waits on, not by a tick**: `openHolds()` drops a hold whose
+`work_order_id` has a live/accepted offer, an assignment or a dated contractor; a hold with no job stays until
+`schedule_release_hold`. The drag across empty lane space now opens a three-mode sheet (Block out · Extra visit · Hold);
+the tray-drop sheet gains **Hold these dates instead**; a hold's own sheet has **Book it now** (re-opens the drop sheet
+on the held dates) and **Release**. Holds and visits drag along their own row (`moveHeldOrVisit`). Work queue: a new
+`hold_pending` item a week before the first held day (`buildHoldItems`, due two days before), label **Held dates** on
+Today. Specs: `e2e/schedule-hold-visit.spec.ts`; unit `lib/scheduling/holds.test.ts`, `lib/crm/work-queue-holds.test.ts`.
+
+---
+
 ## 23 Sep 2026 — one offer per job for revision changes; approved changes reach the painter
 
 **2026-09-23 · `supabase/migrations/20270192000000_variation_offer_bundle.sql`, `lib/workorder/scopeChanges.ts`,

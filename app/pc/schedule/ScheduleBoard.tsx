@@ -9,7 +9,9 @@ import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/s
 import { addDays, addWorkingDays, dayDiff, todayIso, workingDaysBetween, type WorkingWeek } from "@/lib/scheduling/dates";
 import {
   sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote,
-  assignJobAction, reassignDatesAction, setLeadPainterAction, releaseAssignmentAction, type ActionResult,
+  assignJobAction, reassignDatesAction, setLeadPainterAction, releaseAssignmentAction,
+  addAppointmentAction, moveAppointmentAction, removeAppointmentAction, holdDatesAction, moveHoldAction, releaseHoldAction,
+  type ActionResult,
 } from "./actions";
 import type { Block, BoardWalkthrough, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
@@ -213,6 +215,9 @@ export default function ScheduleBoard({
 
   const [ghost, setGhost] = useState<null | { title: string; sub: string }>(null);
   const [ghostBlocked, setGhostBlocked] = useState(false);
+  // Tom, 1 Oct: the days under the pointer are HELD (pink). Not a refusal —
+  // the drop goes ahead and a hold for this same job resolves itself.
+  const [ghostHeld, setGhostHeld] = useState(false);
   // Tom, 24 Sep: "show the date pop up while dragging so I know the drop is
   // for the correct date" — the day under the pointer (snapped to the
   // painter's working week) and the end it implies, drawn on the ghost.
@@ -223,6 +228,14 @@ export default function ScheduleBoard({
   // used to place a job.
   const marquee = useRef<null | { contractorId: string; anchor: number; laneEl: HTMLElement; pointerId: number; moved: boolean }>(null);
   const [pendingBlock, setPendingBlock] = useState<null | { contractorId: string; start: string; end: string }>(null);
+  // Tom, 1 Oct: the same drag across empty space can also add a SECOND VISIT
+  // to a job this painter already has, or HOLD the days while the client
+  // decides. Block-out stays the default so nothing about it changes.
+  const [blockMode, setBlockMode] = useState<"block" | "visit" | "hold">("block");
+  const [visitWo, setVisitWo] = useState("");
+  const [visitNote, setVisitNote] = useState("");
+  const [holdWo, setHoldWo] = useState("");
+  const [holdNote, setHoldNote] = useState("");
 
   const cacheLaneRects = useCallback(() => {
     laneRects.current = [...laneRefs.current.entries()]
@@ -252,6 +265,17 @@ export default function ScheduleBoard({
       const e = endFor(contractorId, s, spanDays);
       return blocks.some(
         (b) => b.kind === "unavailable" && b.contractorId === contractorId && b.start <= e && b.end >= s,
+      );
+    },
+    [blocks, endFor],
+  );
+
+  /** Is a hold (another job's, or no job's) sitting on these days? The block being dragged doesn't count. */
+  const spanHeld = useCallback(
+    (contractorId: string, s: string, spanDays: number, ignoreId?: string) => {
+      const e = endFor(contractorId, s, spanDays);
+      return blocks.some(
+        (b) => b.kind === "hold" && b.id !== ignoreId && b.contractorId === contractorId && b.start <= e && b.end >= s,
       );
     },
     [blocks, endFor],
@@ -299,6 +323,8 @@ export default function ScheduleBoard({
         const blocked = spanBlocked(hit.id, days[idx], spanDays);
         hit.el.classList.toggle("blocked", blocked);
         setGhostBlocked((prev) => (prev === blocked ? prev : blocked));
+        const held = spanHeld(hit.id, days[idx], spanDays, drag.current?.block?.id);
+        setGhostHeld((prev) => (prev === held ? prev : held));
         hotCell.current = cell;
         // The same arithmetic the drop uses, so what the ghost says IS the booking.
         const start = addWorkingDays(days[idx], 1, weekFor(hit.id));
@@ -307,7 +333,7 @@ export default function ScheduleBoard({
       }
       target.current = { contractorId: hit.id, dayIndex: idx };
     },
-    [dayW, range, days, spanBlocked, weekFor, endFor],
+    [dayW, range, days, spanBlocked, spanHeld, weekFor, endFor],
   );
 
   const onPointerMove = useCallback(
@@ -340,6 +366,8 @@ export default function ScheduleBoard({
     startDate: string;
     spanDays: number;
     blocked: boolean;
+    /** Tom, 1 Oct: a hold sits on these days — say so, don't refuse. */
+    held?: boolean;
   }>(null);
 
   const onPointerUp = useCallback(
@@ -365,6 +393,7 @@ export default function ScheduleBoard({
           startDate,
           spanDays: d.spanDays,
           blocked: spanBlocked(t.contractorId, startDate, d.spanDays),
+          held: spanHeld(t.contractorId, startDate, d.spanDays, d.block?.id),
         });
       }
 
@@ -373,13 +402,14 @@ export default function ScheduleBoard({
       drag.current = null;
       setGhost(null);
       setGhostBlocked(false);
+      setGhostHeld(false);
       setGhostDates(null);
       // One abort tears down both listeners, so neither handler has to reference
       // the other to unsubscribe.
       dragAbort.current?.abort();
       dragAbort.current = null;
     },
-    [days, spanBlocked, weekFor],
+    [days, spanBlocked, spanHeld, weekFor],
   );
 
   const paintMarquee = useCallback((laneEl: HTMLElement, a: number, b: number) => {
@@ -455,7 +485,10 @@ export default function ScheduleBoard({
     setGhost(
       payload.kind === "tray"
         ? { title: payload.job.title, sub: `${payload.job.woRef} · ${spanDays} day${spanDays === 1 ? "" : "s"}` }
-        : { title: payload.block.title, sub: `${payload.block.woRef} · move booking` },
+        : {
+            title: payload.block.title,
+            sub: payload.block.holdId ? "move hold" : payload.block.appointmentId ? `${payload.block.woRef} · move visit` : `${payload.block.woRef} · move booking`,
+          },
     );
     dragAbort.current?.abort();
     const ac = new AbortController();
@@ -763,6 +796,109 @@ export default function ScheduleBoard({
     setBusy(false);
   }
 
+  /** Tom, 1 Oct: drag a pink hold or an extra visit along its own row. */
+  async function moveHeldOrVisit() {
+    if (!pendingDrop?.block) return;
+    const b = pendingDrop.block;
+    if (b.contractorId !== pendingDrop.contractorId) {
+      setErr(b.holdId
+        ? "Drag moves the hold's days, not the painter. Release this one and hold the other painter's days instead."
+        : "Drag moves the visit's days, not the painter. Remove this one and add a visit on the other painter's job.");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    const endDate = endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays);
+    const r = b.holdId
+      ? await moveHoldAction({ id: b.holdId, startDate: pendingDrop.startDate, endDate })
+      : await moveAppointmentAction({ id: b.appointmentId!, startDate: pendingDrop.startDate, endDate });
+    if (handle(r, b.holdId ? "Hold moved." : "Visit moved — it's in their calendar on the new days.")) setPendingDrop(null);
+    setBusy(false);
+  }
+
+  /** The jobs this painter already has on the board — what an extra visit can be added to. */
+  const bookedJobsFor = useCallback((contractorId: string) => {
+    const seen = new Map<string, Block>();
+    for (const b of blocks) {
+      if (b.contractorId !== contractorId || !b.workOrderId) continue;
+      if (b.kind !== "accepted" && b.kind !== "in_progress" && b.kind !== "assigned" && b.kind !== "offered" && b.kind !== "proposed") continue;
+      if (!seen.has(b.workOrderId)) seen.set(b.workOrderId, b);
+    }
+    return [...seen.values()].sort((a, b) => a.start.localeCompare(b.start));
+  }, [blocks]);
+
+  /** Tom, 1 Oct: a second run of days on a job this painter already has. */
+  async function saveVisit() {
+    if (!pendingBlock) return;
+    if (!visitWo) { setErr("Pick the job the visit is for."); return; }
+    setBusy(true);
+    setErr("");
+    const r = await addAppointmentAction({
+      workOrderId: visitWo, contractorId: pendingBlock.contractorId,
+      startDate: pendingBlock.start, endDate: pendingBlock.end, note: visitNote,
+    });
+    if (handle(r, "Visit added — it's on the board and in their calendar.")) {
+      setPendingBlock(null); setVisitWo(""); setVisitNote(""); setBlockMode("block");
+    }
+    setBusy(false);
+  }
+
+  /** Tom, 1 Oct: hold the days (pink) while the client decides. */
+  async function hold(contractorId: string, start: string, end: string, workOrderId: string | null, note: string) {
+    setBusy(true);
+    setErr("");
+    const ok = handle(
+      await holdDatesAction({ contractorId, startDate: start, endDate: end, workOrderId, note }),
+      "Held — pink on the board until you book it or let it go.",
+    );
+    setBusy(false);
+    return ok;
+  }
+
+  async function saveHold() {
+    if (!pendingBlock) return;
+    if (await hold(pendingBlock.contractorId, pendingBlock.start, pendingBlock.end, holdWo || null, holdNote)) {
+      setPendingBlock(null); setHoldWo(""); setHoldNote(""); setBlockMode("block");
+    }
+  }
+
+  /** From the drop sheet: reserve the dates for this job instead of sending the offer yet. */
+  async function holdFromDrop() {
+    if (!pendingDrop?.job) return;
+    const end = endFor(pendingDrop.contractorId, pendingDrop.startDate, pendingDrop.spanDays);
+    if (await hold(pendingDrop.contractorId, pendingDrop.startDate, end, pendingDrop.job.workOrderId, offerNote.trim())) {
+      setPendingDrop(null); setOfferNote(""); setOfferQa(false); setOfferNoWalk(false); setWalkDate(""); setWalkTime("");
+    }
+  }
+
+  async function releaseHold(holdId: string, reason: string) {
+    setBusy(true);
+    setErr("");
+    if (handle(await releaseHoldAction({ id: holdId, reason }), "Hold released — the days are free again.")) {
+      setDetail(null); setCancelReason("");
+    }
+    setBusy(false);
+  }
+
+  async function removeVisit(appointmentId: string) {
+    setBusy(true);
+    setErr("");
+    if (handle(await removeAppointmentAction({ id: appointmentId }), "Visit removed.")) setDetail(null);
+    setBusy(false);
+  }
+
+  /** A hold's "book it": the tray job, dropped on the held days, through the usual sheet. */
+  function bookHeld(b: Block) {
+    const job = b.workOrderId ? tray.find((j) => j.workOrderId === b.workOrderId) : undefined;
+    if (!job) return;
+    setDetail(null);
+    setPendingDrop({
+      kind: "tray", job, contractorId: b.contractorId, startDate: b.start,
+      spanDays: Math.max(1, workingDaysBetween(b.start, b.end, weekFor(b.contractorId))),
+      blocked: spanBlocked(b.contractorId, b.start, 1), held: false,
+    });
+  }
+
   const KIND_DONE: Record<string, string> = {
     other: "Days blocked out.", sick: "Marked sick — any booked day is on Today to reassign.",
     leave: "Leave recorded — it's on the board as time off.", rdo: "RDO recorded — it's on the board as time off.",
@@ -863,7 +999,7 @@ export default function ScheduleBoard({
       let peak = 0;
       for (let i = 0; i < range; i++) {
         const day = days[i];
-        const n = mine.filter((b) => b.kind !== "unavailable" && b.start <= day && b.end >= day).length;
+        const n = mine.filter((b) => b.kind !== "unavailable" && b.kind !== "hold" && b.start <= day && b.end >= day).length;
         if (n > peak) peak = n;
       }
 
@@ -976,6 +1112,7 @@ export default function ScheduleBoard({
           <span><i style={{ background: "var(--cyan)" }} />In progress</span>
           <span><i style={{ background: "repeating-linear-gradient(45deg,var(--amber) 0 3px,transparent 3px 6px)" }} />Offered (24h)</span>
           <span><i style={{ background: "repeating-linear-gradient(45deg,#8C959D 0 3px,transparent 3px 6px)" }} />Unavailable</span>
+          <span><i style={{ background: "var(--hold)" }} />Held · waiting on the client</span>
         </div>
       </header>
 
@@ -1292,13 +1429,16 @@ export default function ScheduleBoard({
                         const offset = Math.max(0, dayDiff(start, b.start));
                         const endIdx = Math.min(range - 1, dayDiff(start, b.end));
                         const span = Math.max(1, endIdx - offset + 1);
-                        const movable = b.kind === "accepted" || b.kind === "offered" || b.kind === "proposed" || b.kind === "assigned";
+                        const movable = b.kind === "accepted" || b.kind === "offered" || b.kind === "proposed" || b.kind === "assigned" || b.kind === "hold" || Boolean(b.appointmentId);
                         return (
                           <div
                             key={b.id}
-                            className={`blk ${b.kind}${b.assignmentId && !b.acceptedAt ? " hollow" : ""}`}
-                            data-testid={b.assignmentId ? "assignment-block" : undefined}
+                            className={`blk ${b.kind}${b.assignmentId && !b.acceptedAt ? " hollow" : ""}${b.appointmentId ? " visit" : ""}`}
+                            data-testid={b.assignmentId ? "assignment-block" : b.holdId ? "hold-block" : b.appointmentId ? "visit-block" : undefined}
                             data-assignment-id={b.assignmentId}
+                            data-hold-id={b.holdId}
+                            data-appointment-id={b.appointmentId}
+                            data-work-order-id={b.workOrderId ?? undefined}
                             data-lead={b.isLead ? "1" : undefined}
                             data-accepted={b.acceptedAt ? "1" : undefined}
                             style={{
@@ -1314,7 +1454,11 @@ export default function ScheduleBoard({
                             <div className="m">
                               {b.kind === "unavailable"
                                 ? (b.source === "staff" ? "BLOCKED BY OFFICE" : "UNAVAILABLE")
-                                : b.woRef}
+                                : b.kind === "hold"
+                                  ? `HELD · WAITING ON CLIENT${b.woRef ? ` · ${b.woRef}` : ""}`
+                                  : b.appointmentId
+                                    ? `${b.woRef} · EXTRA VISIT`
+                                    : b.woRef}
                               {b.assignmentId && (b.crewSize ?? 1) > 1 && (
                                 <span className="crew">{b.crewIndex} OF {b.crewSize}</span>
                               )}
@@ -1346,9 +1490,9 @@ export default function ScheduleBoard({
 
       {/* drag ghost — moved by transform only */}
       {ghost && (
-        <div ref={ghostRef} className={`ghost ${ghostBlocked ? "blocked" : ""}`}>
+        <div ref={ghostRef} className={`ghost ${ghostBlocked ? "blocked" : ghostHeld ? "held" : ""}`}>
           <div className="g1">{ghost.title}</div>
-          <div className="g2">{ghostBlocked ? "BLOCKED OUT — DROP TO OVERRIDE" : ghost.sub}</div>
+          <div className="g2">{ghostBlocked ? "BLOCKED OUT — DROP TO OVERRIDE" : ghostHeld ? "DAYS HELD — DROP TO BOOK OVER THE HOLD" : ghost.sub}</div>
           {ghostDates && (
             <div className="g3" data-testid="ghost-dates" data-start={ghostDates.start} data-end={ghostDates.end}>
               {ghostDates.start === ghostDates.end ? `Starts ${dayLabel(ghostDates.start)}` : `${dayLabel(ghostDates.start)} → ${dayLabel(ghostDates.end)}`}
@@ -1367,14 +1511,18 @@ export default function ScheduleBoard({
         {pendingDrop && (
           <>
             <h3>
-              {isEmployeeLane(pendingDrop.contractorId) || pendingDrop.block?.assignmentId
-                ? (pendingDrop.kind === "tray" ? "Assign this job?" : "Move these days?")
-                : (pendingDrop.kind === "tray" ? "Send this offer?" : "Move this booking?")}
+              {pendingDrop.block?.holdId ? "Move this hold?"
+                : pendingDrop.block?.appointmentId ? "Move this visit?"
+                : isEmployeeLane(pendingDrop.contractorId) || pendingDrop.block?.assignmentId
+                  ? (pendingDrop.kind === "tray" ? "Assign this job?" : "Move these days?")
+                  : (pendingDrop.kind === "tray" ? "Send this offer?" : "Move this booking?")}
             </h3>
             <p className="slab">
-              {isEmployeeLane(pendingDrop.contractorId) || pendingDrop.block?.assignmentId
-                ? "Straight into their calendar — they tap Accept when they've seen it"
-                : "Nothing reaches the customer until the contractor accepts"}
+              {pendingDrop.block?.holdId ? "Internal only — the painter never sees a hold"
+                : pendingDrop.block?.appointmentId ? "More days on a job they already have — it moves in their calendar"
+                : isEmployeeLane(pendingDrop.contractorId) || pendingDrop.block?.assignmentId
+                  ? "Straight into their calendar — they tap Accept when they've seen it"
+                  : "Nothing reaches the customer until the contractor accepts"}
             </p>
             <div className="frow">
               <span className="l">Job</span>
@@ -1507,6 +1655,12 @@ export default function ScheduleBoard({
                 they told you they&rsquo;re not available.
               </div>
             )}
+            {pendingDrop.held && (
+              <div className="held-note" data-testid="drop-held-note">
+                These days are <b>held</b> (pink) on this row. Booking goes ahead; a hold for this
+                same job clears itself, a hold for another job stays until you release it.
+              </div>
+            )}
             {err && <div className="err">{err}</div>}
 
             <button
@@ -1516,14 +1670,24 @@ export default function ScheduleBoard({
               onClick={
                 pendingDrop.kind === "tray"
                   ? (isEmployeeLane(pendingDrop.contractorId) ? assignJob : sendOffer)
+                  : (pendingDrop.block?.holdId || pendingDrop.block?.appointmentId) ? moveHeldOrVisit
                   : (pendingDrop.block?.assignmentId ? moveAssignment : moveBooking)
               }
             >
               {busy ? "Working…"
                 : pendingDrop.kind === "tray"
                   ? (isEmployeeLane(pendingDrop.contractorId) ? "Assign job" : "Send offer")
+                  : pendingDrop.block?.holdId ? "Move hold"
+                  : pendingDrop.block?.appointmentId ? "Move visit"
                   : (pendingDrop.block?.assignmentId ? "Move days" : "Move booking")}
             </button>
+            {/* Tom, 1 Oct: "hold the date for the contractor while we are waiting
+                for confirmation from the client" — same drop, no offer yet. */}
+            {pendingDrop.kind === "tray" && (
+              <button className="btn hold" disabled={busy} data-testid="drop-hold" onClick={holdFromDrop}>
+                Hold these dates instead — waiting on the client
+              </button>
+            )}
             <button className="btn gh" onClick={() => {
               // Reset EVERYTHING — a cancelled sheet must not leak one job's
               // walkthrough date or ticks onto the next drop.
@@ -1539,7 +1703,9 @@ export default function ScheduleBoard({
         {detail && (
           <>
             <h3>{detail.title}</h3>
-            <p className="slab">{detail.kind.replace("_", " ")}</p>
+            <p className="slab">
+              {detail.holdId ? "held — waiting on the client" : detail.appointmentId ? `extra visit · ${detail.kind.replace("_", " ")}` : detail.kind.replace("_", " ")}
+            </p>
             <div className="frow"><span className="l">Dates</span><span className="v">{formatDMY(detail.start)} → {formatDMY(detail.end)}</span></div>
             {detail.woRef && <div className="frow"><span className="l">Reference</span><span className="v">{detail.woRef}</span></div>}
             {detail.paymentCents != null && <div className="frow"><span className="l">Their price</span><span className="v">{money(detail.paymentCents)}</span></div>}
@@ -1631,6 +1797,41 @@ export default function ScheduleBoard({
                 </div>
               );
             })()}
+            {/* Tom, 1 Oct: a hold — book it, or let the days go. */}
+            {detail.holdId && (
+              <div data-testid="hold-detail">
+                {detail.holdNote && <div className="frow"><span className="l">Note</span><span className="v">{detail.holdNote}</span></div>}
+                <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>
+                  The office is holding these days{detail.workOrderId ? " for this job" : ""} while the client decides.
+                  The painter can&rsquo;t see it. {detail.workOrderId ? "Booking the job — to anyone — clears it on its own." : "Release it when the days are no longer needed."}
+                </p>
+                {detail.workOrderId && tray.some((j) => j.workOrderId === detail.workOrderId) && (
+                  <button className="btn cy" disabled={busy} data-testid="hold-book" onClick={() => bookHeld(detail)}>
+                    Book it now — {isEmployeeLane(detail.contractorId) ? "assign" : "send the offer"} for these dates
+                  </button>
+                )}
+                <label className="ctrl-lab" style={{ display: "block", marginTop: 16, marginBottom: 6 }}>
+                  Reason (optional, goes on the record)
+                </label>
+                <input type="text" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="e.g. client went elsewhere" style={{ width: "100%" }} />
+                <button className="btn dim" disabled={busy} data-testid="hold-release" onClick={() => releaseHold(detail.holdId!, cancelReason)}>
+                  Release this hold
+                </button>
+              </div>
+            )}
+            {/* Tom, 1 Oct: an extra visit — remove it; the job's own booking is untouched. */}
+            {detail.appointmentId && (
+              <div data-testid="visit-detail">
+                {detail.reason && <div className="frow"><span className="l">Note</span><span className="v">{detail.reason}</span></div>}
+                <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>
+                  A second run of days on this job. Drag it along the row to move it. Removing it leaves the job&rsquo;s own booking as it was.
+                </p>
+                <button className="btn dim" disabled={busy} data-testid="visit-remove" onClick={() => removeVisit(detail.appointmentId!)}>
+                  Remove this visit
+                </button>
+              </div>
+            )}
             {detail.kind === "unavailable" && (
               <>
                 <div className="frow"><span className="l">Set by</span><span className="v">{detail.source === "staff" ? "THE OFFICE" : "THE CONTRACTOR"}</span></div>
@@ -1695,17 +1896,75 @@ export default function ScheduleBoard({
       <div className={`sheet ${pendingBlock ? "open" : ""}`}>
         {pendingBlock && (
           <>
-            <h3>Block these days out?</h3>
-            <p className="slab">The contractor sees this in their calendar</p>
+            <h3>
+              {blockMode === "visit" ? "Add a visit on a booked job?" : blockMode === "hold" ? "Hold these days?" : "Block these days out?"}
+            </h3>
+            <p className="slab">
+              {blockMode === "visit" ? "A second run of days on a job this painter already has"
+                : blockMode === "hold" ? "Internal only — pink on the board until you book it or let it go"
+                : "The contractor sees this in their calendar"}
+            </p>
+            {/* Tom, 1 Oct: the same drag across empty space does three things now. */}
+            <div className="seg modes" data-testid="empty-drag-mode">
+              <button className={blockMode === "block" ? "on" : ""} onClick={() => { setBlockMode("block"); setErr(""); }} data-testid="mode-block">Block out</button>
+              <button className={blockMode === "visit" ? "on" : ""} onClick={() => { setBlockMode("visit"); setErr(""); }} data-testid="mode-visit">Extra visit</button>
+              <button className={blockMode === "hold" ? "on" : ""} onClick={() => { setBlockMode("hold"); setErr(""); }} data-testid="mode-hold">Hold</button>
+            </div>
             <div className="frow">
               <span className="l">Contractor</span>
               <span className="v">{lanes.find((l) => l.contractorId === pendingBlock.contractorId)?.name.toUpperCase()}</span>
             </div>
             <div className="frow">
               <span className="l">Days</span>
-              <span className="v">{formatDMY(pendingBlock.start)}{pendingBlock.end !== pendingBlock.start ? ` → ${formatDMY(pendingBlock.end)}` : ""}</span>
+              <span className="v" data-testid="empty-drag-dates" data-start={pendingBlock.start} data-end={pendingBlock.end}>{formatDMY(pendingBlock.start)}{pendingBlock.end !== pendingBlock.start ? ` → ${formatDMY(pendingBlock.end)}` : ""}</span>
             </div>
-            {isEmployeeLane(pendingBlock.contractorId) && (
+            {blockMode === "visit" && (() => {
+              const jobs = bookedJobsFor(pendingBlock.contractorId);
+              return (
+                <>
+                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Which job</label>
+                  {jobs.length === 0 ? (
+                    <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
+                      Nothing booked on this row yet. Drop a job from the tray first — a visit is extra days on a job they already have.
+                    </p>
+                  ) : (
+                    <select value={visitWo} onChange={(e) => setVisitWo(e.target.value)} data-testid="visit-job" style={{ width: "100%" }}>
+                      <option value="">Pick the job…</option>
+                      {jobs.map((j) => (
+                        <option key={j.workOrderId!} value={j.workOrderId!}>
+                          {j.title} · {j.woRef} · {formatDMY(j.start)}{j.end !== j.start ? `–${formatDMY(j.end)}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Note (optional)</label>
+                  <input type="text" value={visitNote} onChange={(e) => setVisitNote(e.target.value)} data-testid="visit-note"
+                    placeholder="e.g. back to finish the ceilings" style={{ width: "100%" }} maxLength={300} />
+                  {err && <div className="err">{err}</div>}
+                  <button className="btn cy" disabled={busy || jobs.length === 0} data-testid="visit-save" onClick={saveVisit}>Add the visit</button>
+                  <button className="btn gh" onClick={() => { setPendingBlock(null); setVisitWo(""); setVisitNote(""); setErr(""); setBlockMode("block"); }}>Cancel</button>
+                </>
+              );
+            })()}
+            {blockMode === "hold" && (
+              <>
+                <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Waiting on which job <span style={{ opacity: 0.6 }}>(optional)</span></label>
+                <select value={holdWo} onChange={(e) => setHoldWo(e.target.value)} data-testid="hold-job" style={{ width: "100%" }}>
+                  <option value="">No job yet — just hold the days</option>
+                  {tray.map((j) => <option key={j.workOrderId} value={j.workOrderId}>{j.title} · {j.woRef}{j.suburb ? ` · ${j.suburb}` : ""}</option>)}
+                </select>
+                <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Note (optional)</label>
+                <input type="text" value={holdNote} onChange={(e) => setHoldNote(e.target.value)} data-testid="hold-note"
+                  placeholder="e.g. Sarah confirming with her husband by Friday" style={{ width: "100%" }} maxLength={300} />
+                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+                  The painter never sees a hold. Book the job and the hold clears on its own; otherwise release it from the pink block.
+                </p>
+                {err && <div className="err">{err}</div>}
+                <button className="btn hold" disabled={busy} data-testid="hold-save" onClick={saveHold}>Hold these days</button>
+                <button className="btn gh" onClick={() => { setPendingBlock(null); setHoldWo(""); setHoldNote(""); setErr(""); setBlockMode("block"); }}>Cancel</button>
+              </>
+            )}
+            {blockMode === "block" && isEmployeeLane(pendingBlock.contractorId) && (
               <>
                 <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>What kind of day</label>
                 <select value={blockKind} onChange={(e) => setBlockKind(e.target.value as typeof blockKind)} data-testid="block-kind" style={{ width: "100%" }}>
@@ -1716,11 +1975,15 @@ export default function ScheduleBoard({
                 </select>
               </>
             )}
-            <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Reason (optional)</label>
-            <input type="text" value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="e.g. training, annual leave" style={{ width: "100%" }} />
-            {err && <div className="err">{err}</div>}
-            <button className="btn cy" disabled={busy} onClick={saveBlockOut}>Block them out</button>
-            <button className="btn gh" onClick={() => { setPendingBlock(null); setBlockReason(""); }}>Cancel</button>
+            {blockMode === "block" && (
+              <>
+                <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Reason (optional)</label>
+                <input type="text" value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="e.g. training, annual leave" style={{ width: "100%" }} />
+                {err && <div className="err">{err}</div>}
+                <button className="btn cy" disabled={busy} onClick={saveBlockOut}>Block them out</button>
+                <button className="btn gh" onClick={() => { setPendingBlock(null); setBlockReason(""); }}>Cancel</button>
+              </>
+            )}
           </>
         )}
       </div>

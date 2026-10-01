@@ -16,6 +16,11 @@ import {
   reassignOfferInput,
   moveBookingInput,
   blockOutInput,
+  addAppointmentInput,
+  moveSpanInput,
+  removeAppointmentInput,
+  holdDatesInput,
+  releaseHoldInput,
   assignJobInput,
   reassignDatesInput,
   setLeadPainterInput,
@@ -52,6 +57,8 @@ const CONFLICT_WORDING: Record<string, string> = {
   // Employed painters (Session 2)
   contractor_job: "This job is out with a contractor. Withdraw or cancel that first — a job is either a contractor's or a crew of employees', never both.",
   already_assigned: "That painter is already on this job.",
+  // Holds (Tom, 1 Oct)
+  released: "This hold has already been released. Refresh.",
 };
 
 const ERROR_WORDING: Record<string, string> = {
@@ -72,6 +79,8 @@ const ERROR_WORDING: Record<string, string> = {
   closed: "This job is closed.",
   released: "That painter has already been taken off the job.",
   not_found: "That assignment no longer exists.",
+  // Extra visits (Tom, 1 Oct)
+  not_booked_on_job: "That painter isn't booked on this job. Drop the job on their row first — an extra visit is more days on a job they already have.",
 };
 
 /**
@@ -431,4 +440,71 @@ export async function deleteBookingNote(raw: unknown): Promise<ActionResult> {
   revalidatePath("/pc/schedule");
   revalidatePath("/pc");
   return { ok: true, state: "deleted" };
+}
+
+// ---------------------------------------------------------------------------
+// Holds and extra visits (Tom, 1 Oct 2026).
+//
+// An EXTRA VISIT is a second run of days on a job the painter already has —
+// "a small job in between a job" means the big job needs two spans. A HOLD is
+// an internal reservation of a painter's days while the client decides: pink
+// on the board, invisible to the painter, released by hand or answered by the
+// booking. Neither carries money; both go through small staff-only RPCs so a
+// browser can never put a visit on a job the painter is not on.
+// ---------------------------------------------------------------------------
+
+export async function addAppointmentAction(raw: unknown): Promise<ActionResult> {
+  const parsed = addAppointmentInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  const r = await run("schedule_add_appointment", {
+    p_work_order_id: v.workOrderId, p_contractor_id: v.contractorId,
+    p_start: v.startDate, p_end: v.endDate, p_note: v.note,
+  });
+  if (r.ok) revalidatePath("/portal/calendar");
+  return r;
+}
+
+export async function moveAppointmentAction(raw: unknown): Promise<ActionResult> {
+  const parsed = moveSpanInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  const r = await run("schedule_move_appointment", { p_id: v.id, p_start: v.startDate, p_end: v.endDate });
+  if (r.ok) revalidatePath("/portal/calendar");
+  return r;
+}
+
+export async function removeAppointmentAction(raw: unknown): Promise<ActionResult> {
+  const parsed = removeAppointmentInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const r = await run("schedule_remove_appointment", { p_id: parsed.data.id });
+  if (r.ok) revalidatePath("/portal/calendar");
+  return r;
+}
+
+export async function holdDatesAction(raw: unknown): Promise<ActionResult> {
+  const parsed = holdDatesInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  const r = await run("schedule_hold_dates", {
+    p_contractor_id: v.contractorId, p_start: v.startDate, p_end: v.endDate,
+    p_work_order_id: v.workOrderId ?? null, p_note: v.note,
+  });
+  if (r.ok) revalidatePath("/crm/today");
+  return r;
+}
+
+export async function moveHoldAction(raw: unknown): Promise<ActionResult> {
+  const parsed = moveSpanInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  return run("schedule_move_hold", { p_id: v.id, p_start: v.startDate, p_end: v.endDate });
+}
+
+export async function releaseHoldAction(raw: unknown): Promise<ActionResult> {
+  const parsed = releaseHoldInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const r = await run("schedule_release_hold", { p_id: parsed.data.id, p_reason: parsed.data.reason });
+  if (r.ok) revalidatePath("/crm/today");
+  return r;
 }
