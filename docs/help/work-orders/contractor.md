@@ -12,7 +12,8 @@ verified_at_commit: 3a6848a2fd
 Once you have accepted a booking, the job page in **Jobs** is where the work is recorded. You tick each surface as you prep and finish it, photograph before and after, raise anything you find that is not on the job sheet, and finish with a short completion list. Your ticks and photos are what the office and the customer see, so the office writes the customer's progress updates from them. The job ends with the customer approving each area and signing on your phone.
 
 ## Before you start
-- The job must be booked (you accepted the offer). Until then the job page shows the offer clock and the suburb only.
+- The job must be booked (you accepted the offer). Until then the job page shows the offer clock, the **Offered amount** and the suburb only.
+- The job sheet's facts at the top include **Estimated hours** — the total of every surface's hours allowance, the same figure the office sized the booking from.
 - The office works through the **pre-start list** for the job: colours confirmed, materials ordered and so on. Your job page shows how many items are still to be ticked by the office. You cannot start the job until that list is done.
 - Photos are taken with your phone's camera from the job page. A big photo is shrunk on your phone before it goes, so it is quick even on one bar of signal. While it goes the button shows a percentage; a photo that does not upload says why ("stalled — nothing moved for 45 seconds", "sign out and back in") and can be retried. Nothing sits on "Uploading…" for ever.
 - Any photo on the job sheet can be tapped to see it full size. Swipe left or right, or use the arrows, to move through the set; tap outside the photo to close it.

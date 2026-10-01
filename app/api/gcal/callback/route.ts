@@ -26,31 +26,37 @@ export async function GET(request: Request) {
   const home = staffUser ? "/crm/diary" : "/portal/calendar";
 
   const url = new URL(request.url);
-  const fail = (why: string, tag = "failed") => {
-    reportError(new Error(why), { where: "gcal.callback" });
-    return NextResponse.redirect(new URL(`${home}?gcal=${tag}`, request.url));
+  // `code` is a short enumerated reason the card turns into a sentence (Tom,
+  // 1 Oct: a painter "getting an error message" had nothing to tell us). Only
+  // [a-z_] ever reaches the URL.
+  const fail = (why: string, code: string) => {
+    reportError(new Error(why), { where: "gcal.callback", extra: { code, host: url.host } });
+    return NextResponse.redirect(new URL(`${home}?gcal=failed&why=${code.replace(/[^a-z_]/g, "")}`, request.url));
   };
 
-  if (!staffUser && !session?.contractor) return fail("gcal callback without contractors row");
-  if (url.searchParams.get("error")) {
-    // Cancel on Google's consent screen — not an error.
-    return NextResponse.redirect(new URL(`${home}?gcal=denied`, request.url));
+  if (!staffUser && !session?.contractor) return fail("gcal callback without contractors row", "no_session");
+  const googleError = url.searchParams.get("error");
+  if (googleError) {
+    // access_denied is the person pressing Cancel on the consent screen — not
+    // an error. Anything else Google sends back is.
+    if (googleError === "access_denied") return NextResponse.redirect(new URL(`${home}?gcal=denied`, request.url));
+    return fail(`google returned ${googleError}`, `google_${googleError.toLowerCase()}`);
   }
 
-  const env = gcalEnv();
+  const env = gcalEnv(url.origin);
   const admin = createServiceClient();
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const cookieState = request.headers.get("cookie")?.match(/gcal_oauth_state=([^;]+)/)?.[1] ?? null;
 
-  if (!env || !admin || !code) return fail("gcal callback missing env or code");
+  if (!env || !admin || !code) return fail("gcal callback missing env or code", "missing_env");
   if (!verifyState(env.clientSecret, state) || state !== cookieState) {
-    return fail("gcal callback state mismatch");
+    return fail(`gcal callback state mismatch (cookie ${cookieState ? "present" : "absent"})`, cookieState ? "state" : "state_cookie");
   }
 
   try {
-    const tokens = await exchangeCode(code);
-    if (!tokens.refreshToken) return fail("gcal exchange returned no refresh token");
+    const tokens = await exchangeCode(code, env.redirectUri);
+    if (!tokens.refreshToken) return fail("gcal exchange returned no refresh token", "no_refresh");
     if (staffUser) {
       await saveStaffConnection(admin, staffUser.id, tokens.refreshToken, tokens.email, tokens.scope);
       forgetGoogleReads(staffUser.id);
@@ -63,7 +69,7 @@ export async function GET(request: Request) {
       await reconcileContractorCalendar(session!.contractor!.id);
     }
   } catch (e) {
-    return fail(e instanceof Error ? e.message : "gcal exchange failed");
+    return fail(e instanceof Error ? e.message : "gcal exchange failed", "exchange");
   }
 
   const res = NextResponse.redirect(new URL(`${home}?gcal=connected`, request.url));
