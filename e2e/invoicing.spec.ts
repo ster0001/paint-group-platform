@@ -437,7 +437,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     expect(types.find((e) => e.type === "payment_received")?.meta.paid_before_send).toBe(true);
   });
 
-  test("the customer's Pay button opens the bank-details box — amount, bank, invoice number as reference", async ({ browser }) => {
+  test("the customer's Pay button opens the bank-details box — amount, bank, invoice number as reference", async ({ page, browser }) => {
     // Tom, 4 Oct 2026: card payments are OFF unless Settings turns them on.
     // Pin the switch off for this test so the box is bank transfer alone,
     // whatever the server's Stripe env says.
@@ -447,9 +447,18 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
       { key: "invoicing", value: { ...prior, cardPaymentsEnabled: false } }, { onConflict: "key" },
     );
 
-    // Issue the progress draft so there is an OPEN invoice with a balance.
-    const { data: prog } = await db!.from("invoices")
-      .select("id, token, number").eq("estimate_id", estimateId!).eq("kind", "progress").single();
+    // The first progress claim was paid in full by the test above, so draft a
+    // SECOND one as staff and issue it: an OPEN invoice with a balance.
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await openMoneyView(page);
+    await page.getByRole("button", { name: "Request payment" }).click();
+    await page.locator(".pchip", { hasText: "25%" }).click();
+    await page.getByRole("button", { name: "Draft invoice" }).click();
+    await expect(page.getByText("Draft created.")).toBeVisible({ timeout: 15_000 });
+    const { data: prog, error: progErr } = await db!.from("invoices")
+      .select("id, token, number").eq("estimate_id", estimateId!).eq("kind", "progress")
+      .eq("status", "draft").single();
+    expect(progErr).toBeNull();
     const progress = prog as { id: string; token: string; number: string | null };
     const issued = await rpcAs(staff!, "invoice_issue", { p_invoice_id: progress.id });
     expect(String(issued)).toContain("ok");
@@ -460,41 +469,41 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     const owed = "$" + (row.total_inc_cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
 
     const ctx = await browser.newContext();
-    const page = await ctx.newPage();
-    await page.goto(`/i/${token}`);
-    await expect(page.getByTestId("invoice-sheet")).toBeVisible();
+    const customer = await ctx.newPage();
+    await customer.goto(`/i/${token}`);
+    await expect(customer.getByTestId("invoice-sheet")).toBeVisible();
 
     // On screen: no static box, one Pay button carrying the balance.
-    await expect(page.getByText("How to pay — bank transfer")).toHaveCount(0);
-    const payButton = page.getByTestId("pay-button");
+    await expect(customer.getByText("How to pay — bank transfer")).toHaveCount(0);
+    const payButton = customer.getByTestId("pay-button");
     await expect(payButton).toHaveText(`Pay ${owed}`);
-    await expect(page.getByTestId("pay-dialog")).toBeHidden();
+    await expect(customer.getByTestId("pay-dialog")).toBeHidden();
 
     await payButton.click();
-    const dialog = page.getByTestId("pay-dialog");
+    const dialog = customer.getByTestId("pay-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("Payment due");
-    await expect(page.getByTestId("pay-dialog-amount")).toHaveText(owed);
+    await expect(customer.getByTestId("pay-dialog-amount")).toHaveText(owed);
     await expect(dialog).toContainText("Bank transfer");
     await expect(dialog).toContainText("Account name");
-    await expect(page.getByTestId("pay-dialog-reference")).toHaveText(row.number);
+    await expect(customer.getByTestId("pay-dialog-reference")).toHaveText(row.number);
     // Card payments are off: no card option in the box.
-    await expect(page.getByTestId("pay-panel")).toHaveCount(0);
+    await expect(customer.getByTestId("pay-panel")).toHaveCount(0);
     await dialog.getByRole("button", { name: "Done" }).click();
     await expect(dialog).toBeHidden();
 
     // The PDF print keeps the static box — a printout has nothing to press.
-    await page.goto(`/i/${token}?print=1`);
-    await expect(page.getByText("How to pay — bank transfer")).toBeVisible();
-    await expect(page.getByTestId("pay-button")).toHaveCount(0);
+    await customer.goto(`/i/${token}?print=1`);
+    await expect(customer.getByText("How to pay — bank transfer")).toBeVisible();
+    await expect(customer.getByTestId("pay-button")).toHaveCount(0);
 
     // The checkout route refuses while the switch is off, and the webhook
     // answers honestly when it has no secret.
-    const checkout = await page.request.post(`/i/${token}/checkout`);
+    const checkout = await customer.request.post(`/i/${token}/checkout`);
     expect(checkout.status()).toBe(503);
     expect(await checkout.text()).toContain("bank transfer");
     if (!process.env.STRIPE_WEBHOOK_SECRET) {
-      const webhook = await page.request.post("/api/webhooks/stripe", { data: "{}" });
+      const webhook = await customer.request.post("/api/webhooks/stripe", { data: "{}" });
       expect(webhook.status()).toBe(503);
     }
     await ctx.close();
