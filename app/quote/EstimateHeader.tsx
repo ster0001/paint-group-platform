@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { type CompanyProfile, type Contact, type JobAddress, EMPTY_CONTACT, EMPTY_JOB } from "./company";
 import { contactFieldProblems } from "@/lib/validation/contact";
+import { matchContacts } from "@/lib/contacts/match";
 import { useAddressLookup, type AddressSuggestion } from "@/app/components/useAddressLookup";
 
 const contactName = (c: Contact) =>
@@ -187,6 +188,8 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
   const [c, setC] = useState<Contact>(initial);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [q, setQ] = useState("");
+  const hits = matchContacts(contacts, q);
   const set = (patch: Partial<Contact>) => setC((x) => ({ ...x, ...patch }));
   // The same address lookup as the job modal and the wizard — one brain.
   const { suggestions, open, setOpen, lookup, resolve } = useAddressLookup();
@@ -213,8 +216,16 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
     return false;
   }
 
+  /** Tom, 4 Oct 2026: "when adding a new contact, please always save to
+   * contacts". Use on estimate IS the save — there is no path that puts a
+   * person on an estimate without a Contacts row. A refused save keeps the
+   * modal open with the reason; the estimate never gets an unsaved contact. */
   async function saveToContacts() {
     if (refuseBadFields()) return;
+    if (!c.first_name.trim() && !c.last_name.trim() && !c.company.trim() && !c.email.trim() && !c.phone.trim()) {
+      setMsg("Enter at least a name, a mobile or an email.");
+      return;
+    }
     setSaving(true); setMsg("");
     try {
       const supabase = createClient();
@@ -248,31 +259,59 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
         <>
           {msg && <span className="mr-auto text-xs text-red-600">{msg}</span>}
           <button onClick={onClose} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">Cancel</button>
-          <button onClick={() => { if (!refuseBadFields()) onSave(c); }} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">Use on estimate</button>
-          <button onClick={saveToContacts} disabled={saving} className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">
-            {saving ? "Saving…" : "Save to Contacts"}
+          <button onClick={saveToContacts} disabled={saving} data-testid="contact-use" className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">
+            {saving ? "Saving…" : "Use on estimate"}
           </button>
         </>
       }
     >
-      {contacts.length > 0 && (
-        <label className="mb-4 block text-xs">
-          <span className="text-gray-500">Pick an existing contact</span>
-          <select
-            className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-            value={c.id ?? ""}
-            onChange={(e) => {
-              const found = contacts.find((x) => x.id === e.target.value);
-              if (found) setC(found);
-            }}
-          >
-            <option value="">— new contact —</option>
-            {contacts.map((x) => (
-              <option key={x.id} value={x.id}>{contactName(x)}{x.city ? ` · ${x.city}` : ""}</option>
-            ))}
-          </select>
+      {/* Tom, 4 Oct 2026: a search bar at the top — every CRM customer is in
+          Contacts now (migration 20270210), so the list is long; the old
+          dropdown was unusable at that length. */}
+      <div className="mb-4" data-testid="contact-search">
+        <label className="block text-xs">
+          <span className="text-gray-500">Find an existing contact</span>
+          <input
+            type="search"
+            value={q}
+            autoFocus
+            autoComplete="off"
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by name, company, email, phone or suburb"
+            aria-label="Search contacts"
+            data-testid="contact-search-input"
+            className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-gray-900 focus:outline-none"
+          />
         </label>
-      )}
+        {q.trim() && (
+          <div className="mt-1 overflow-hidden rounded-md border border-gray-200" data-testid="contact-search-results">
+            {hits.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-gray-500" data-testid="contact-search-empty">
+                No contact matches “{q.trim()}” — fill in the details below and it will be added to Contacts.
+              </div>
+            ) : hits.map((x) => (
+              <button
+                key={x.id}
+                type="button"
+                data-testid="contact-search-hit"
+                className={`block w-full border-b border-gray-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-gray-50 ${x.id === c.id ? "bg-gray-50" : ""}`}
+                onClick={() => { setC({ ...EMPTY_CONTACT, ...x }); setQ(""); setMsg(""); }}
+              >
+                <span className="font-medium">{contactName(x)}</span>
+                <span className="text-gray-500">
+                  {[x.company && x.company !== contactName(x) ? x.company : "", x.phone, x.email, x.city].filter(Boolean).map((s) => ` · ${s}`).join("")}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        {c.id && !q.trim() && (
+          <div className="mt-1 flex items-center justify-between text-xs text-gray-500" data-testid="contact-picked">
+            <span>Editing <b className="text-gray-700">{contactName(c)}</b> from Contacts — changes save back to the list.</span>
+            <button type="button" className="hover:underline" onClick={() => { setC(EMPTY_CONTACT); setMsg(""); }}>Start a new contact</button>
+          </div>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="First name" value={c.first_name} onChange={(v) => set({ first_name: v })} />
         <Field label="Last name" value={c.last_name} onChange={(v) => set({ last_name: v })} />

@@ -107,6 +107,9 @@ export const OWNED = Object.freeze([
   "public.estimate_sources.created_by",
   "public.extraction_runs.created_by",
   "public.defect_observations.confirmed_by",
+  // 20270210: a contact mirrored from an account is the account's — SET NULL
+  // would leave an orphan Contacts row per e2e customer, for ever.
+  "public.contacts.account_id",
 ]);
 
 /**
@@ -127,9 +130,10 @@ export const OWNED = Object.freeze([
 export function fkAction(fk, owned = OWNED) {
   const rule = String(fk.rule ?? "").toUpperCase();
   if (rule === "CASCADE") return "descend";
+  const key = `${fk.child}.${fk.column}`;
+  if ((rule === "SET NULL" || rule === "SET DEFAULT") && owned.includes(key)) return "purge";
   if (rule === "SET NULL" || rule === "SET DEFAULT") return "leave";
   if (rule === "RESTRICT") return "purge";
-  const key = `${fk.child}.${fk.column}`;
   if (owned.includes(key) || fk.nullable === false) return "purge";
   return "nullify";
 }

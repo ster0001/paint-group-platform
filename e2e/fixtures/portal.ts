@@ -73,6 +73,8 @@ export async function destroyAccountChain(sb: SupabaseClient, email: string) {
     }
   }
   await sb.from("properties").delete().eq("account_id", accountId);
+  // 20270210: every account is mirrored into Contacts by trigger — take the mirror with it.
+  await sb.from("contacts").delete().eq("account_id", accountId);
   await sb.from("account_users").delete().eq("account_id", accountId);
   // 3a-5: warranty_issues.account_id is RESTRICT — clear them or the account
   // delete fails silently and the fixture leaks.

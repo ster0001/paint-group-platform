@@ -21,6 +21,22 @@
       "sources": []
     },
     {
+      "feature": "contacts",
+      "role": "staff",
+      "title": "Contacts — every customer in one list, and how a contact gets onto an estimate",
+      "summary": "The Contacts list holds every CRM customer and every person ever used on an estimate; the estimate's Contact card has a search bar at the top to find them, and whatever you put on an estimate is saved to the list by itself.",
+      "path": "docs/help/contacts/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/(app)/contacts/page.tsx",
+        "app/quote/EstimateHeader.tsx",
+        "lib/contacts/match.ts",
+        "supabase/migrations/20270210000000_contacts_from_crm_accounts.sql"
+      ]
+    },
+    {
       "feature": "contractors",
       "role": "staff",
       "title": "Invite a painter, open their record, and remove one who should never have been there",
@@ -147,6 +163,8 @@
       "verified_at_commit": "65054fe00d",
       "sources": [
         "app/(app)/estimates/WaitingTable.tsx",
+        "app/quote/EstimateHeader.tsx",
+        "lib/contacts/match.ts",
         "app/(app)/estimates/actions.ts",
         "app/quote/PackPane.tsx",
         "app/quote/StripActions.tsx",
