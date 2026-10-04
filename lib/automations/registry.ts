@@ -395,6 +395,29 @@ export const AUTOMATIONS: Automation[] = [
     ],
     guard: "Once per chat message.",
   },
+  // Tom, 1 Oct 2026: "staff to receive email if an offered estimate is
+  // rejected / expires". Same path as the other office alerts: the master
+  // switch here, who gets it per login under Staff logins.
+  {
+    key: "office_estimate_declined", name: "Estimate declined by the customer", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "email", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "A customer presses Decline on their estimate page. Staff who ticked Estimate declined under Staff logins are told, with the customer's reason and a link to the estimate.",
+    templates: [
+      { field: "officeEstimateDeclinedSubject", label: "Email subject", kind: "subject", placeholders: ["{{customer}}", "{{job}}", "{{total}}", "{{reason_line}}", "{{link}}"] },
+      { field: "officeEstimateDeclinedBody", label: "Message", kind: "body", placeholders: ["{{customer}}", "{{job}}", "{{total}}", "{{reason_line}}", "{{link}}"] },
+    ],
+    guard: "Once per estimate.",
+  },
+  {
+    key: "office_estimate_expired", name: "Estimate expired without an answer", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "email", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "The daily CRM sweep finds a sent estimate past its valid-until date and marks it expired. Staff who ticked Estimate expired under Staff logins are told, with a link to the estimate.",
+    templates: [
+      { field: "officeEstimateExpiredSubject", label: "Email subject", kind: "subject", placeholders: ["{{customer}}", "{{job}}", "{{total}}", "{{valid_until}}", "{{link}}"] },
+      { field: "officeEstimateExpiredBody", label: "Message", kind: "body", placeholders: ["{{customer}}", "{{job}}", "{{total}}", "{{valid_until}}", "{{link}}"] },
+    ],
+    guard: "Once per estimate.",
+  },
   {
     key: "office_job_declined", name: "Job declined by the painter", audience: "office", channels: ["email", "sms"], kind: "automatic",
     defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,

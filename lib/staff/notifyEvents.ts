@@ -23,6 +23,9 @@ export const STAFF_EVENTS = [
   { key: "office_signoff_overdue",     label: "Sign-off overdue",         short: "Sign-off" },
   /** Tom, 20 Sep 2026: a customer wrote on their estimate's chat. */
   { key: "office_estimate_chat",       label: "Customer chat message",    short: "Chat" },
+  /** Tom, 1 Oct 2026: a customer declines their estimate; a sent estimate lapses past its valid-until. */
+  { key: "office_estimate_declined",   label: "Estimate declined",        short: "Declined" },
+  { key: "office_estimate_expired",    label: "Estimate expired",         short: "Expired" },
 ] as const;
 
 export type StaffEventKey = (typeof STAFF_EVENTS)[number]["key"];
