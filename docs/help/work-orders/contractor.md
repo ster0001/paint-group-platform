@@ -5,7 +5,7 @@ title: Run a job from the first tick to the customer's signature
 summary: How a booked job works on your phone in four steps — before photos in one batch, ticking surfaces off, after photos of every room or side, and finishing — plus raising a variation, the quality check, and handing the phone to the customer to sign off.
 walkthrough: media/contractor-walkthrough.gif
 sources: app/portal/jobs/[id]/FinishUp.tsx, lib/reporting/workedTime.ts, app/portal/jobs, app/components/wo, app/s, lib/workorder
-verified_at_commit: 3a6848a2fd
+verified_at_commit: 4ef1a0aa72
 ---
 
 ## What this is for

@@ -1,3 +1,4 @@
+import EstimatorNotes from "@/app/components/estimator-notes/EstimatorNotes";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/monitoring/report";
@@ -458,6 +459,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
           </div>
         </div>
       )}
+
+      {/* Tom, 4 Oct: what the estimator wrote or said about this job — internal,
+          staff only, loaded client-side so no note text sits in this page's HTML. */}
+      {estimateId && <EstimatorNotes estimateId={estimateId} surface="console" who="the project coordinator" />}
 
       <div className="grid2">
         {row.stage === "in_progress" ? (

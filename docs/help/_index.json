@@ -128,7 +128,7 @@
       "path": "docs/help/estimator/commercial.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "e4fed27318",
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/wizard/CommercialScreens.tsx",
         "lib/wizard/segments.ts",
@@ -144,7 +144,7 @@
       "path": "docs/help/estimator/customer.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "e4fed27318",
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/estimate/page.tsx",
         "app/wizard/WizardApp.tsx",
@@ -161,7 +161,7 @@
       "path": "docs/help/estimator/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "e4fed27318",
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/(app)/estimates/WaitingTable.tsx",
         "app/quote/EstimateHeader.tsx",
@@ -184,7 +184,7 @@
       "path": "docs/help/estimator/trade.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "e4fed27318",
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/account/(portal)/TradePortfolioHome.tsx",
         "app/account/(portal)/quote/new/page.tsx",
@@ -627,7 +627,7 @@
         "media/contractor-18.png",
         "media/contractor-walkthrough-2.gif"
       ],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/portal/jobs/[id]/FinishUp.tsx",
         "lib/reporting/workedTime.ts",
@@ -645,7 +645,7 @@
       "path": "docs/help/work-orders/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/portal/jobs",
         "app/components/wo",
@@ -681,7 +681,7 @@
         "media/pc-17.png",
         "media/pc-18.png"
       ],
-      "verified_at_commit": "d804b59a9c",
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/pc/wo/[id]/ReviewCard.tsx",
         "app/pc",

@@ -4,7 +4,7 @@ role: staff
 title: Online estimates from the office side — the queue, the pack, and the three things you can do with a request
 summary: Every online quote lands in Waiting on you with a promise clock; the Pack tab shows what the customer built and what they assumed; you fix the price, ask a question or book a visit from the strip, and the measured tree goes to the property when you fix.
 sources: app/(app)/estimates/WaitingTable.tsx, app/quote/EstimateHeader.tsx, lib/contacts/match.ts, app/(app)/estimates/actions.ts, app/quote/PackPane.tsx, app/quote/StripActions.tsx, app/api/confirmations/[id]/route.ts, lib/crm/work-queue.ts, app/quote/QuoteBuilder.tsx, lib/estimate/leadSource.ts, app/(app)/settings/PresentationsManager.tsx
-verified_at_commit: e4fed27318
+verified_at_commit: 4ef1a0aa72
 ---
 
 ## What this is for
@@ -26,7 +26,8 @@ A staff login with the Estimates area. If you take visits, the office should tic
 7. **Trade requests** likewise always come to you. Fixing one puts the tree on the property's file; the agent's next quote on that property is seeded from it.
 
 ## In the builder
-- **Admin notes** is the first card, above Job settings — anything the office knows that helps price the job (what the customer said on the phone, access, budget). Staff only: never on the customer's copy or the work order. Saved with the estimate.
+- **Estimator notes** sits at the very top of the builder, above the estimate header, as a collapsible bar reading **Estimator notes · internal**. Open it to type a note (**Add note**, or ⌘↵) or tap **● Record voice note**, speak, then **■ Stop & save** — the browser asks for the microphone the first time. Each note is dated and signed; a voice note plays back in place and shows its length. **Delete** removes one. These notes are internal: PC command shows the same list on the project page, and nothing from them ever reaches the customer's copy, the painter's job sheet or the portal. A brand-new estimate has to be saved once before notes can be added.
+- **Admin notes** is the next card, above Job settings — anything the office knows that helps price the job (what the customer said on the phone, access, budget). Staff only: never on the customer's copy or the work order. Saved with the estimate.
 - **Preparation** reads "Allowance for time/ materials for job site set up, fillers and consumables". The amount is the Settings allowance (type your own to change it for this job). **Contractor time** on the same card is hours for site set-up: they are charged to the customer at the charge-out rate on the Preparation line, and they go to the painter's work order as a **Preparation** area at the top, so the offer's hours and the pay carry them.
 - **A single wall.** On a walls row inside a room-measured area, switch **Room L×W×H** to **Single wall W×H** to price one wall on its own — a feature wall, or a wall needing extra coats. Type its width (the height comes from the room), pick its coats, and it prices as W × H. Add another Walls row for the rest of the room. Switching back to Room clears the wall's own size.
 - **SWMS for this job.** Under Job settings, below the Presentation picker: **Attach SWMS (PDF)** uploads this job's Safe Work Method Statement (PDF only, up to the upload limit). Save, and the customer's copy carries a **Download SWMS** button: on the presentation's **SWMS & site inductions** card (right beside the public liability card) when the presentation has one, otherwise as its own **SWMS** card under "Why Melburnians choose us". **Replace PDF** swaps it; **Remove** takes it off with the next save. The presentation's own capability cards stay the same for every job — this one is for this estimate alone.

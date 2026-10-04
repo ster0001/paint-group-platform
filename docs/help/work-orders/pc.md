@@ -5,7 +5,7 @@ title: Run jobs through the seven lanes from the PC console
 summary: The project coordinator's console — the attention queue and what its colours mean, the seven lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.
 walkthrough: media/pc-walkthrough.gif
 sources: app/pc/wo/[id]/ReviewCard.tsx, app/pc, app/components/wo, lib/workorder
-verified_at_commit: d804b59a9c
+verified_at_commit: 4ef1a0aa72
 ---
 
 ## What this is for
@@ -25,6 +25,9 @@ The PC console (**Projects** in the sidebar) reads every open work order and tel
    ![](media/pc-02.png)
 3. Open a job. The header carries the stage rail, the money line (contract inc GST, variations, contractor pay, estimated GP, deposit) and the view switch: **PC view**, **Painter's view** (the same tick list the painter sees, which you can tick on their behalf), **Edit job sheet**, **Revise scope**, **Money view**.
    ![](media/pc-03.png)
+
+### What the estimator noted
+Under the header, before the tick list, an **Estimator notes · internal** card lists everything the estimator typed or recorded about this job in the builder — dated, signed, voice notes with a player. Add your own note or recording here too; the estimator sees it in the builder. Internal only: nothing in this card reaches the painter's job sheet, the portal or the customer.
 
 ### Booking confirmed and Pre-start
 4. Scroll to the **Pre-start** card (the counter reads **N TO GO**, then **ALL DONE**). It is the same card whether the job is **offered** to a contractor or **assigned** to an employee — the list belongs to the job, not to who is painting it, and it is built the moment the job is issued and again when a painter goes on it. Answer **Colour schedule finalised** with **Yes**, or **No** if any colour still needs a colour match, then tick **Materials ordered** (it needs the colours first), **Equipment movements booked** and **Access details recorded**. **Pre-start checklist** and **SWMS / induction attached** are optional on a residential job; ticking the first emails the customer the pre-start checklist, and the second is required on commercial and body corporate jobs. An item that ticks itself is marked **auto**.
