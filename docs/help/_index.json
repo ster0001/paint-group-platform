@@ -21,6 +21,23 @@
       "sources": []
     },
     {
+      "feature": "contacts",
+      "role": "staff",
+      "title": "Contacts — every customer in one list, and how a contact gets onto an estimate",
+      "summary": "The Contacts list holds every CRM customer and every person ever used on an estimate; the estimate's Contact card has a search bar at the top to find them, and whatever you put on an estimate is saved to the list by itself.",
+      "path": "docs/help/contacts/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "e4fed27318",
+      "sources": [
+        "app/(app)/contacts/page.tsx",
+        "app/quote/EstimateHeader.tsx",
+        "app/quote/actions.ts",
+        "lib/contacts/match.ts",
+        "supabase/migrations/20270210000000_contacts_from_crm_accounts.sql"
+      ]
+    },
+    {
       "feature": "contractors",
       "role": "staff",
       "title": "Invite a painter, open their record, and remove one who should never have been there",
@@ -111,7 +128,7 @@
       "path": "docs/help/estimator/commercial.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "e4fed27318",
       "sources": [
         "app/wizard/CommercialScreens.tsx",
         "lib/wizard/segments.ts",
@@ -127,7 +144,7 @@
       "path": "docs/help/estimator/customer.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "e4fed27318",
       "sources": [
         "app/estimate/page.tsx",
         "app/wizard/WizardApp.tsx",
@@ -144,9 +161,11 @@
       "path": "docs/help/estimator/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "65054fe00d",
+      "verified_at_commit": "e4fed27318",
       "sources": [
         "app/(app)/estimates/WaitingTable.tsx",
+        "app/quote/EstimateHeader.tsx",
+        "lib/contacts/match.ts",
         "app/(app)/estimates/actions.ts",
         "app/quote/PackPane.tsx",
         "app/quote/StripActions.tsx",
@@ -165,7 +184,7 @@
       "path": "docs/help/estimator/trade.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "e4fed27318",
       "sources": [
         "app/account/(portal)/TradePortfolioHome.tsx",
         "app/account/(portal)/quote/new/page.tsx",

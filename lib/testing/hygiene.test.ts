@@ -61,6 +61,7 @@ describe("what a foreign key means when its parent goes (brief step 2: the order
     ["NO ACTION on an owned column: the estimate chain goes before the user", fk("public.estimates", "created_by", "NO ACTION"), "purge"],
     ["NO ACTION on an audit column is nulled, not deleted", fk("public.estimates", "site_check_cleared_by", "NO ACTION"), "nullify"],
     ["NO ACTION on a NOT NULL column cannot be nulled, so it is purged", fk("public.contacts", "created_by", "NO ACTION", false), "purge"],
+    ["SET NULL on an OWNED column is purged — the mirrored contact goes with its account (20270210)", fk("public.contacts", "account_id", "SET NULL"), "purge"],
   ])("%s", (_name, f, want) => {
     expect(fkAction(f)).toBe(want);
   });
@@ -72,7 +73,7 @@ describe("what a foreign key means when its parent goes (brief step 2: the order
     const actions = six.map(([child, column]) => fkAction(fk(child, column, "NO ACTION")));
     expect(actions.filter((a) => a === "purge")).toHaveLength(5);
     expect(actions.filter((a) => a === "nullify")).toHaveLength(1);
-    expect(OWNED).toHaveLength(5);
+    expect(OWNED).toHaveLength(6); // the five, plus contacts.account_id (20270210)
   });
 });
 

@@ -15,6 +15,7 @@ import { reportError } from "@/lib/monitoring/report";
 import { LEAD_SOURCE_REQUIRED } from "@/lib/estimate/leadSource";
 import { postStaffChatReply } from "@/lib/estimates/chatReply";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { contactSearchOr } from "@/lib/contacts/match";
 
 const replyInput = z.object({
   estimateId: z.string().uuid(),
@@ -370,5 +371,27 @@ export async function setReportingExcludedAction(raw: unknown): Promise<{ ok: tr
   if (error) { reportError(error, { where: "quote.setReportingExcluded" }); return { ok: false, error: "Could not save that — try again." }; }
   if (data !== "ok") return { ok: false, error: data === "error:not_staff" ? "Staff only." : "That estimate could not be found." };
   return { ok: true, excludedAt: v.data.excluded ? new Date().toISOString() : null };
+}
+
+// ---------------------------------------------------------------------------
+// Tom, 4 Oct 2026: the Contact modal's search bar. Runs on the server under
+// the staff session (contacts RLS is the authority) because the table now
+// holds every CRM customer (20270210) and is past the row cap a page load
+// could carry. The `error` is kept and shown — an empty result must never be
+// mistaken for "nobody by that name" when the read was refused.
+const searchContactsInput = z.object({ q: z.string().max(80) });
+
+export async function searchContactsAction(raw: unknown): Promise<{ ok: true; contacts: Contact[] } | { ok: false; message: string }> {
+  const v = searchContactsInput.safeParse(raw);
+  if (!v.success) return { ok: false, message: "That search isn't valid." };
+  const filter = contactSearchOr(v.data.q);
+  if (!filter) return { ok: true, contacts: [] };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("contacts").select("*").or(filter).order("last_name").order("first_name").limit(8);
+  if (error) {
+    reportError(error, { where: "quote.searchContacts" });
+    return { ok: false, message: `Couldn't search Contacts: ${error.message}` };
+  }
+  return { ok: true, contacts: (data as Contact[] | null) ?? [] };
 }
 
