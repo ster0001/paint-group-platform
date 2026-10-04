@@ -63,6 +63,11 @@ export type MessagingSettings = {
   /** Tom, 20 Sep: a customer writes on their estimate's chat. */
   officeEstimateChatSubject: string;
   officeEstimateChatBody: string;
+  /** Tom, 1 Oct: a customer declines their estimate / a sent estimate lapses. */
+  officeEstimateDeclinedSubject: string;
+  officeEstimateDeclinedBody: string;
+  officeEstimateExpiredSubject: string;
+  officeEstimateExpiredBody: string;
   officeInvoicePaidSubject: string;
   officeInvoicePaidBody: string;
   officeVariationRaisedSubject: string;
@@ -199,6 +204,10 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeJobDeclinedBody: "{{painter}} has declined {{wo_ref}} ({{job}}) for {{start_date}}.{{reason_line}}\n\nThe job is back with the office to re-offer.",
   officeEstimateChatSubject: "Chat from {{customer}} — {{job}}{{hours_tag}}",
   officeEstimateChatBody: "{{customer}} wrote on the chat for {{job}}:\n\n“{{message}}”\n\nReply from the chat pop-up on any staff page, or open the estimate.{{hours_line}}",
+  officeEstimateDeclinedSubject: "Estimate declined — {{customer}} · {{job}}",
+  officeEstimateDeclinedBody: "{{customer}} has declined the estimate for {{job}} ({{total}}).{{reason_line}}\n\nOpen the estimate to follow up or close it off.",
+  officeEstimateExpiredSubject: "Estimate expired — {{customer}} · {{job}}",
+  officeEstimateExpiredBody: "The estimate for {{job}} ({{total}}) sent to {{customer}} passed its valid-until date ({{valid_until}}) without an answer.\n\nIt is on the CRM follow-up list — open it to extend, re-send or close it.",
   officeInvoicePaidSubject: "Invoice paid — {{amount}} · {{job}}",
   officeInvoicePaidBody: "{{who}} has paid {{amount}} on invoice {{invoice_number}} for {{job}} ({{method}}).",
   officeVariationRaisedSubject: "Variation raised — {{job}}",

@@ -225,6 +225,15 @@ export default function CustomerEstimate({
     const { error } = await supabase.rpc("decline_estimate", { p_token: token, p_reason: reason });
     setBusy(false);
     if (error) { setErr(error.message); return; }
+    // Tell the office (Tom, 1 Oct 2026: "staff to receive email if an offered
+    // estimate is rejected"). Fire and forget, like the accept ping — the
+    // server re-checks the status and sends once.
+    try {
+      void fetch("/api/estimates/declined", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }), keepalive: true,
+      }).catch(() => undefined);
+    } catch { /* never in the way of the decline */ }
     setDone("declined"); setPanel(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }

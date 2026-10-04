@@ -45,7 +45,9 @@ test.describe("Settings → Automations → Staff alerts", () => {
       await expect(panel.getByRole("heading", { level: 3, name: label, exact: true })).toBeVisible();
     }
     // Each staff alert is a switchable automation.
-    for (const key of ["office_estimate_accepted", "office_job_accepted", "office_job_declined", "office_invoice_paid", "office_variation_raised", "office_contractor_invoice"]) {
+    for (const key of ["office_estimate_accepted", "office_job_accepted", "office_job_declined", "office_invoice_paid", "office_variation_raised", "office_contractor_invoice",
+      // Tom, 1 Oct 2026
+      "office_estimate_declined", "office_estimate_expired"]) {
       await expect(page.getByTestId(`switch-${key}`)).toBeVisible();
     }
 
