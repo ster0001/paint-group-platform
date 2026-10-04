@@ -19,6 +19,9 @@ export async function POST(_req: Request, ctx: { params: Promise<{ token: string
     if (result.reason === "not_payable") {
       return new NextResponse("This invoice isn't open for payment.", { status: 409 });
     }
+    if (result.reason === "switched_off") {
+      return new NextResponse("Card payments aren't offered just now — the bank transfer details are on your invoice.", { status: 503 });
+    }
     return new NextResponse("Card payments aren't available just now — the bank transfer details are on your invoice.", { status: 503 });
   }
   return NextResponse.redirect(result.url, 303);

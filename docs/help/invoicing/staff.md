@@ -2,7 +2,7 @@
 feature: invoicing
 role: staff
 title: Record a customer payment, including one that arrives before you send the invoice
-summary: How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, including the date it arrived, what happens when the invoice is still a draft, what the customer receives, the Payables tiles including Materials to match, and what each contractor invoice colour means.
+summary: How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, including the date it arrived, what happens when the invoice is still a draft, what the customer sees when they press Pay, the one Settings button that adds or removes card payments, the Payables tiles including Materials to match, and what each contractor invoice colour means.
 ---
 
 ## What this is for
@@ -28,6 +28,16 @@ The job's payments page shows every figure — the stage rail, Contract, Variati
 Open a job from **Payments** (any tab or filter) or from the **Invoicing** list and the link at the top left of the job's payments page goes **back to the page you came from, with the same filter**. Opened any other way it reads **PC Command**, with the work order's reference when the job has one, and goes to that work order.
 
 If the invoice was still a draft, it is issued at that moment: it gets its number, its totals are fixed and it can no longer be edited. Nothing is emailed except the receipt. You can still send the invoice later from the invoice page if the customer wants a copy.
+
+## Card payments — the one button in Settings
+Open **Settings → Money → Invoicing** and find **Card payments (Stripe)**. The line under the heading says whether card payments are **on** or **off**, and the button beside it does the one thing:
+- **Add card payments** turns them on. The customer's Pay box gains an **Or pay online by card** option with the surcharge disclosed, and card payments record themselves when Stripe confirms them.
+- **Remove card payments** turns them off. The Pay box shows bank transfer only, and a customer who still has an old card link sees "Card payments aren't offered just now — the bank transfer details are on your invoice."
+
+The change saves the moment the button is pressed; there is no separate save. If the line says card payments are on but an amber note says no Stripe key is configured on the server, customers still see bank transfer only until the key is added to the deployment. A card payment already in progress when you turn them off still records.
+
+## What the customer sees when they press Pay
+On the invoice page a customer presses **Pay $amount** and a box opens with the amount due for that document (**Deposit due**, **Payment due** or **Final balance due**), our account name, bank, BSB and account number, and the invoice number as the **Reference** with a **Copy** button beside it. That is what you tell a customer who rings asking how to pay: press Pay, the details are in the box. The printed invoice and the PDF keep the bank details on the page instead, since there is nothing to press on paper.
 
 ## Views and filters on Payments
 The Payments page (**Payments** in the sidebar) opens on every receivable. Above the rows sit four lines of chips:

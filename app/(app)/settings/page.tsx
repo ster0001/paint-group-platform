@@ -24,6 +24,8 @@ import { onlineEstimatesFrom, WIZARD_PUBLIC_KEY } from "@/lib/wizard/publicFlag"
 import PaintSystemsSettings from "./PaintSystemsSettings";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import InvoicingSettings from "./InvoicingSettings";
+import { cardPaymentsEnabledFromSettings } from "@/lib/invoicing/cardPayments";
+import { stripeConfigured } from "@/lib/invoicing/stripe";
 import CostIntakeSettings from "./CostIntakeSettings";
 import { COST_INTAKE_KEY } from "@/lib/costs/intake";
 import { MESSAGING_KEY, type MessagingSettings as MessagingValues } from "@/lib/messaging/config";
@@ -501,6 +503,10 @@ export default async function SettingsPage() {
               initialEntity={(allSettings.find((r) => r.key === "invoicing_entity")?.value as Record<string, string> | undefined) ?? null}
               initialBank={(allSettings.find((r) => r.key === "invoicing_bank")?.value as Record<string, string> | undefined) ?? null}
               initialCore={(allSettings.find((r) => r.key === "invoicing")?.value as Record<string, number> | undefined) ?? null}
+              initialCardPaymentsOn={cardPaymentsEnabledFromSettings(
+                allSettings.find((r) => r.key === "invoicing")?.value as Record<string, unknown> | undefined,
+              )}
+              stripeKeyConfigured={stripeConfigured()}
             />
           ) },
         { id: "accounting", title: "Accounting — MYOB", subtitle: "Connect MYOB Business and choose which ledger accounts the platform's money posts to",

@@ -261,9 +261,20 @@
     },
     {
       "feature": "invoicing",
+      "role": "customer",
+      "title": "Pay an invoice — press Pay for the amount, our bank details and the reference to use",
+      "summary": "What happens when you press Pay on an invoice from Paint Group: a box with the amount due, the bank transfer details and the invoice number to use as the reference, plus a card option when it is offered.",
+      "path": "docs/help/invoicing/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
+      "feature": "invoicing",
       "role": "staff",
       "title": "Record a customer payment, including one that arrives before you send the invoice",
-      "summary": "How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, including the date it arrived, what happens when the invoice is still a draft, what the customer receives, the Payables tiles including Materials to match, and what each contractor invoice colour means.",
+      "summary": "How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, including the date it arrived, what happens when the invoice is still a draft, what the customer sees when they press Pay, the one Settings button that adds or removes card payments, the Payables tiles including Materials to match, and what each contractor invoice colour means.",
       "path": "docs/help/invoicing/staff.md",
       "walkthrough": null,
       "media": [],

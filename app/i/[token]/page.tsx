@@ -3,7 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { stripeConfigured } from "@/lib/invoicing/stripe";
 import { surchargeCents, surchargeFromSettings } from "@/lib/invoicing/surcharge";
+import { cardPaymentsEnabledFromSettings } from "@/lib/invoicing/cardPayments";
 import PayPanel from "./PayPanel";
+import PayBox from "./PayBox";
 import Toolbar from "./Toolbar";
 import InvoiceSheet, { KIND_HEADING } from "./InvoiceSheet";
 import "./invoice.css";
@@ -111,17 +113,23 @@ export default async function CustomerInvoicePage({
   const balance = doc.total_inc_cents - doc.paid_cents;
   const open = ["issued", "sent", "viewed", "partially_paid"].includes(doc.status);
 
-  // Card payments (§5): the surcharge is server-computed and DISCLOSED here,
-  // before any checkout. No Stripe key configured → bank transfer only.
-  const stripeOn = stripeConfigured() && open && balance > 0 && !printMode;
+  // Card payments (§5): only when the office has switched them on in
+  // Settings AND the server holds a Stripe key. The surcharge is
+  // server-computed and DISCLOSED here, before any checkout. Otherwise the
+  // Pay button offers bank transfer alone.
+  let stripeOn = false;
   let cardSurchargeCents = 0;
-  if (stripeOn) {
+  if (stripeConfigured() && open && balance > 0 && !printMode) {
     const service = createServiceClient();
     const { data: invSetting } = service
       ? await service.from("settings").select("value").eq("key", "invoicing").maybeSingle()
       : { data: null };
-    const { pctBps, fixedCents } = surchargeFromSettings(invSetting?.value as Record<string, unknown> | null);
-    cardSurchargeCents = surchargeCents(balance, pctBps, fixedCents);
+    const invValue = invSetting?.value as Record<string, unknown> | null;
+    stripeOn = cardPaymentsEnabledFromSettings(invValue);
+    if (stripeOn) {
+      const { pctBps, fixedCents } = surchargeFromSettings(invValue);
+      cardSurchargeCents = surchargeCents(balance, pctBps, fixedCents);
+    }
   }
   const payState = pay === "success" ? "success" : pay === "cancelled" ? "cancelled" : null;
 
@@ -147,14 +155,19 @@ export default async function CustomerInvoicePage({
           entity={entity}
           bank={bank}
           printMode={printMode}
-          payPanel={(stripeOn || payState === "success") && !printMode ? (
-            <PayPanel
+          payBox={!printMode && open && balance > 0 ? (
+            <PayBox
               token={token}
+              kind={doc.kind}
+              number={doc.number}
               balanceCents={balance}
-              surchargeCents={cardSurchargeCents}
-              payState={payState}
-              initialPaidCents={doc.paid_cents}
+              bank={bank}
+              card={stripeOn ? { surchargeCents: cardSurchargeCents } : null}
+              cancelled={payState === "cancelled"}
             />
+          ) : null}
+          payPanel={payState === "success" && !printMode ? (
+            <PayPanel token={token} initialPaidCents={doc.paid_cents} />
           ) : null}
         />
       </div>
