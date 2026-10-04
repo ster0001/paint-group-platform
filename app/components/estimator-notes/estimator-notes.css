@@ -35,3 +35,12 @@
 .enotes-del:hover { color: #dc2626; opacity: 1; }
 .enotes-audio { display: block; width: 100%; max-width: 420px; margin-top: 8px; height: 36px; }
 .enotes-text { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; }
+
+/* Tom, 4 Oct: the "microphone is blocked" popup — how to unblock, and Try again. */
+.enotes-modal-scrim { position: fixed; inset: 0; z-index: 1000; background: rgba(10, 11, 13, 0.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.enotes-modal { width: min(480px, 100%); border-radius: 14px; background: #fff; color: #111827; padding: 20px 22px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35); }
+.enotes-modal h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; }
+.enotes-modal p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.5; }
+.enotes-modal ol { margin: 0 0 10px 18px; padding: 0; font-size: 13.5px; line-height: 1.6; }
+.enotes-modal .enotes-actions { margin-top: 14px; }
+.enotes-modal .enotes-btn.primary { background: #111827; color: #fff; border-color: #111827; }
