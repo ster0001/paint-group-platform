@@ -291,7 +291,6 @@ export default function QuoteBuilder({
   areaNames,
   initial,
   company,
-  contacts,
   inclusionTemplates = [],
   exclusionTemplates = [],
   terms = "",
@@ -320,7 +319,6 @@ export default function QuoteBuilder({
   areaNames: AreaNameRef[];
   initial: { id: string | null; number?: number | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; lead_source?: string | null; sent_snapshot?: unknown; selected_options?: string[] | null; reporting_excluded_at?: string | null; reporting_excluded_reason?: string | null } | null;
   company: CompanyProfile;
-  contacts: Contact[];
   inclusionTemplates?: InclusionTemplate[];
   exclusionTemplates?: InclusionTemplate[];
   terms?: string;
@@ -2395,7 +2393,6 @@ export default function QuoteBuilder({
           <EstimateHeader
             docTitle={revision ? "Invoice" : "Estimate"}
             company={company}
-            contacts={contacts}
             contact={contact}
             jobAddress={jobAddress}
             onContact={setContact}

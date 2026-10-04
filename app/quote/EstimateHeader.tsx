@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { type CompanyProfile, type Contact, type JobAddress, EMPTY_CONTACT, EMPTY_JOB } from "./company";
 import { contactFieldProblems } from "@/lib/validation/contact";
-import { matchContacts } from "@/lib/contacts/match";
+import { searchContactsAction } from "./actions";
 import { useAddressLookup, type AddressSuggestion } from "@/app/components/useAddressLookup";
 
 const contactName = (c: Contact) =>
@@ -12,7 +12,6 @@ const contactName = (c: Contact) =>
 
 export default function EstimateHeader({
   company,
-  contacts,
   contact,
   jobAddress,
   onContact,
@@ -23,7 +22,6 @@ export default function EstimateHeader({
   docTitle = "Estimate",
 }: {
   company: CompanyProfile;
-  contacts: Contact[];
   contact: Contact | null;
   jobAddress: JobAddress | null;
   onContact: (c: Contact) => void;
@@ -128,7 +126,6 @@ export default function EstimateHeader({
 
       {modal === "contact" && (
         <ContactModal
-          contacts={contacts}
           initial={contact ?? EMPTY_CONTACT}
           onClose={() => setModal(null)}
           onSave={(c) => { onContact(c); setModal(null); }}
@@ -184,12 +181,30 @@ function Field({ label, value, onChange, type = "text", testid }: { label: strin
   );
 }
 
-function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contact[]; initial: Contact; onClose: () => void; onSave: (c: Contact) => void }) {
+function ContactModal({ initial, onClose, onSave }: { initial: Contact; onClose: () => void; onSave: (c: Contact) => void }) {
   const [c, setC] = useState<Contact>(initial);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [q, setQ] = useState("");
-  const hits = matchContacts(contacts, q);
+  // The search runs on the server (the table holds every CRM customer now —
+  // far past what a page load could carry): a short pause after the last
+  // keystroke asks for up to eight matches; a refused read is shown, not
+  // drawn as "no match".
+  const [result, setResult] = useState<{ q: string; hits: Contact[]; error: string }>({ q: "", hits: [], error: "" });
+  useEffect(() => {
+    const needle = q.trim();
+    if (!needle) return;
+    let live = true;
+    const t = setTimeout(async () => {
+      const r = await searchContactsAction({ q: needle });
+      if (!live) return;
+      setResult(r.ok ? { q: needle, hits: r.contacts, error: "" } : { q: needle, hits: [], error: r.message });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [q]);
+  const settled = result.q === q.trim();
+  const hits = settled ? result.hits : [];
+  const searchError = settled ? result.error : "";
   const set = (patch: Partial<Contact>) => setC((x) => ({ ...x, ...patch }));
   // The same address lookup as the job modal and the wizard — one brain.
   const { suggestions, open, setOpen, lookup, resolve } = useAddressLookup();
@@ -285,7 +300,11 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
         </label>
         {q.trim() && (
           <div className="mt-1 overflow-hidden rounded-md border border-gray-200" data-testid="contact-search-results">
-            {hits.length === 0 ? (
+            {searchError ? (
+              <div className="px-3 py-2 text-xs text-red-700" data-testid="contact-search-failed">{searchError}</div>
+            ) : !settled ? (
+              <div className="px-3 py-2 text-xs text-gray-400">Searching…</div>
+            ) : hits.length === 0 ? (
               <div className="px-3 py-2 text-xs text-gray-500" data-testid="contact-search-empty">
                 No contact matches “{q.trim()}” — fill in the details below and it will be added to Contacts.
               </div>
@@ -318,7 +337,7 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
         {/* Tom, 29 Sep: mobile before company; a landline of its own (texts never go to it). */}
         <Field label="Mobile" value={c.phone} onChange={(v) => set({ phone: v })} testid="contact-phone" />
         <Field label="Company" value={c.company} onChange={(v) => set({ company: v })} testid="contact-company" />
-        <Field label="Email" value={c.email} onChange={(v) => set({ email: v })} type="email" />
+        <Field label="Email" value={c.email} onChange={(v) => set({ email: v })} type="email" testid="contact-email" />
         <Field label="Landline" value={c.landline ?? ""} onChange={(v) => set({ landline: v })} testid="contact-landline" />
         <div className="relative col-span-2">
           <label className="block text-xs">

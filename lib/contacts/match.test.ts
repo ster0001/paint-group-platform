@@ -1,34 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { matchContacts } from "./match";
+import { contactSearchNeedle, contactSearchOr } from "./match";
 
-const list = [
-  { id: "a", first_name: "Zelda", last_name: "Fitzgerald", company: "", email: "zelda@example.com", phone: "0400 111 222", city: "Brunswick" },
-  { id: "b", first_name: "Harcourts", last_name: "", company: "Harcourts Northcote", email: "sales@harcourts.example", phone: "03 9481 0000", city: "Northcote" },
-  { id: "c", first_name: "Ford", last_name: "Prefect", company: "", email: "ford@example.com", phone: "0400 333 444", landline: "03 9555 1234", city: "Fitzroy" },
-];
+describe("contactSearchNeedle", () => {
+  it("is null for a blank query", () => {
+    expect(contactSearchNeedle("")).toBeNull();
+    expect(contactSearchNeedle("   ")).toBeNull();
+  });
+  it("lower-cases, caps and strips what would break the filter", () => {
+    expect(contactSearchNeedle("  Zelda ")).toBe("zelda");
+    expect(contactSearchNeedle("a%b_c,d(e)")).toBe("abcde");
+    expect(contactSearchNeedle("x".repeat(100))).toHaveLength(80);
+  });
+});
 
-describe("matchContacts", () => {
-  it("is empty for a blank query", () => {
-    expect(matchContacts(list, "")).toEqual([]);
-    expect(matchContacts(list, "   ")).toEqual([]);
+describe("contactSearchOr", () => {
+  it("is null for a blank query", () => {
+    expect(contactSearchOr("")).toBeNull();
   });
-  it("matches name, company, email and suburb, case-insensitively", () => {
-    expect(matchContacts(list, "zel").map((c) => c.id)).toEqual(["a"]);
-    expect(matchContacts(list, "NORTHCOTE").map((c) => c.id)).toEqual(["b"]);
-    expect(matchContacts(list, "ford@").map((c) => c.id)).toEqual(["c"]);
-    expect(matchContacts(list, "fitz").map((c) => c.id)).toEqual(["a", "c"]); // Fitzgerald + Fitzroy
+  it("asks every text field the office searches by", () => {
+    const f = contactSearchOr("Fitz")!;
+    for (const col of ["first_name", "last_name", "company", "email", "city"]) {
+      expect(f).toContain(`${col}.ilike.%fitz%`);
+    }
+    expect(f).not.toContain("phone"); // letters are never a phone search
+    expect(f.split(",")).toHaveLength(5);
   });
-  it("matches a phone with or without its spaces, and the landline too", () => {
-    expect(matchContacts(list, "0400111").map((c) => c.id)).toEqual(["a"]);
-    expect(matchContacts(list, "0400 111 2").map((c) => c.id)).toEqual(["a"]);
-    expect(matchContacts(list, "9555 1234").map((c) => c.id)).toEqual(["c"]);
+  it("matches a phone on its digits whatever the spacing, typed or stored", () => {
+    const f = contactSearchOr("0400 111")!;
+    expect(f).toContain("phone_digits.ilike.%0400111%");
+    expect(f).toContain("landline_digits.ilike.%0400111%");
+    expect(f).not.toContain("phone.ilike");
   });
   it("never treats one or two digits as a phone search", () => {
-    expect(matchContacts(list, "04")).toEqual([]);
+    expect(contactSearchOr("04")).not.toContain("phone");
   });
-  it("caps the list", () => {
-    const many = Array.from({ length: 20 }, (_, i) => ({ id: String(i), first_name: "Sam", last_name: `Same${i}` }));
-    expect(matchContacts(many, "sam")).toHaveLength(8);
-    expect(matchContacts(many, "sam", 3)).toHaveLength(3);
+  it("never lets a comma or bracket split the filter list", () => {
+    const f = contactSearchOr("smith, (jane)")!;
+    expect(f.split(",").every((p) => /^[a-z_]+\.ilike\./.test(p))).toBe(true);
   });
 });

@@ -7,7 +7,7 @@ Branch `feat/estimate-contact-search-crm-import`. Automated: `e2e/estimate-conta
 
 `supabase/migrations/20270210000000_contacts_from_crm_accounts.sql` — paste the whole file. It prints
 TWO result rows: first `backfilled` (how many CRM customers were added to Contacts — on the test
-project it was 1,089), then the read-back row. Expect `account_col 1`, `trigger_on 1`,
+project it was 1,089), then the read-back row. Expect `new_cols 3`, `trigger_on 1`,
 `accounts_without_contact 0`, `fn_grants 0`, `rls_on true`. The last line writes the `_prod_migrations`
 row. Safe to paste before or after the deploy: the trigger and backfill need no app change, and the
 new modal works without the column (it only inserts the columns it always did).

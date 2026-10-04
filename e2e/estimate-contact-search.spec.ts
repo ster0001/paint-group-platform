@@ -10,6 +10,8 @@ import { credentials, missingCreds, signIn } from "./helpers";
  *   1. a search bar at the top of the Contact modal,
  *   2. every CRM account in the Contacts list (migration 20270210),
  *   3. a contact used on an estimate is ALWAYS saved to Contacts.
+ * The search runs on the server — the list is past the row cap a page load
+ * could carry — so the planted row is found however many contacts exist.
  * Driven as staff against the real builder; the CRM half is asserted through
  * the service client (a trigger, not a screen). Everything planted here is
  * removed in afterAll — by the run marker, never by pattern.
@@ -61,7 +63,7 @@ test.describe("estimate contact: search bar, always saved, CRM mirrored", () => 
     await page.screenshot({ path: test.info().outputPath("contact-modal-search.png") });
     await hit.click();
     await expect(page.locator("label", { hasText: "First name" }).locator("input")).toHaveValue("Zelda");
-    await expect(page.locator("label", { hasText: "Email" }).locator("input")).toHaveValue(planted.email);
+    await expect(page.getByTestId("contact-email")).toHaveValue(planted.email);
     await expect(page.getByTestId("contact-picked")).toContainText(`Zelda Planted${run}`);
 
     // By phone, spaces or not.
@@ -89,7 +91,7 @@ test.describe("estimate contact: search bar, always saved, CRM mirrored", () => 
 
     await page.locator("label", { hasText: "First name" }).locator("input").fill("Typed");
     await page.locator("label", { hasText: "Last name" }).locator("input").fill(`Person${run}`);
-    await page.locator("label", { hasText: "Email" }).locator("input").fill(typedEmail);
+    await page.getByTestId("contact-email").fill(typedEmail);
     await page.getByTestId("contact-phone").fill("0400 333 444");
     await page.getByTestId("contact-use").click();
 

@@ -36,9 +36,17 @@ alter table public.contacts
 comment on column public.contacts.account_id is
   'The CRM account this contact is. Set by contacts_sync_from_account (trigger on accounts). One contact per account.';
 
+-- The search bar matches a phone by its digits whatever spacing it was typed
+-- or stored with ("0400 111 222" is found by "0400111"); a PostgREST `or()`
+-- filter cannot strip the column, so the digits are a stored generated column.
+alter table public.contacts
+  add column if not exists phone_digits    text generated always as (nullif(regexp_replace(coalesce(phone, ''), '[^0-9+]', '', 'g'), '')) stored,
+  add column if not exists landline_digits text generated always as (nullif(regexp_replace(coalesce(landline, ''), '[^0-9+]', '', 'g'), '')) stored;
+
 create unique index if not exists contacts_account_key on public.contacts (account_id) where account_id is not null;
 create index if not exists contacts_email_lower_idx on public.contacts (lower(email)) where email is not null;
 create index if not exists contacts_phone_e164_idx on public.contacts (public.phone_e164_au(phone)) where phone is not null;
+create index if not exists contacts_phone_digits_idx on public.contacts (phone_digits) where phone_digits is not null;
 
 -- ---- 2 · the one rule --------------------------------------------------------
 create or replace function public.contacts_sync_from_account(p_account public.accounts)
@@ -127,7 +135,8 @@ select count(public.contacts_sync_from_account(a)) as backfilled
 -- ---- 5 · read-back: compare to _expect_ before calling this live ------------
 select
   (select count(*) from information_schema.columns
-     where table_schema = 'public' and table_name = 'contacts' and column_name = 'account_id') as account_col, 1 as _expect_account_col,
+     where table_schema = 'public' and table_name = 'contacts'
+       and column_name in ('account_id', 'phone_digits', 'landline_digits')) as new_cols, 3 as _expect_new_cols,
   (select count(*) from pg_trigger where tgname = 't_accounts_sync_contact' and not tgisinternal) as trigger_on, 1 as _expect_trigger_on,
   (select count(*) from public.accounts a
      where not exists (select 1 from public.contacts c where c.account_id = a.id)) as accounts_without_contact, 0 as _expect_accounts_without_contact,
