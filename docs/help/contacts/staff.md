@@ -4,6 +4,7 @@ role: staff
 title: Contacts — every customer in one list, and how a contact gets onto an estimate
 summary: The Contacts list holds every CRM customer and every person ever used on an estimate; the estimate's Contact card has a search bar at the top to find them, and whatever you put on an estimate is saved to the list by itself.
 sources: app/(app)/contacts/page.tsx, app/quote/EstimateHeader.tsx, app/quote/actions.ts, lib/contacts/match.ts, supabase/migrations/20270210000000_contacts_from_crm_accounts.sql
+verified_at_commit: e4fed27318
 ---
 
 ## What this is for

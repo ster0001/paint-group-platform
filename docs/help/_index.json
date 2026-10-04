@@ -28,10 +28,11 @@
       "path": "docs/help/contacts/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "e4fed27318",
       "sources": [
         "app/(app)/contacts/page.tsx",
         "app/quote/EstimateHeader.tsx",
+        "app/quote/actions.ts",
         "lib/contacts/match.ts",
         "supabase/migrations/20270210000000_contacts_from_crm_accounts.sql"
       ]
@@ -127,7 +128,7 @@
       "path": "docs/help/estimator/commercial.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "e4fed27318",
       "sources": [
         "app/wizard/CommercialScreens.tsx",
         "lib/wizard/segments.ts",
@@ -143,7 +144,7 @@
       "path": "docs/help/estimator/customer.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "e4fed27318",
       "sources": [
         "app/estimate/page.tsx",
         "app/wizard/WizardApp.tsx",
@@ -160,7 +161,7 @@
       "path": "docs/help/estimator/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "65054fe00d",
+      "verified_at_commit": "e4fed27318",
       "sources": [
         "app/(app)/estimates/WaitingTable.tsx",
         "app/quote/EstimateHeader.tsx",
@@ -183,7 +184,7 @@
       "path": "docs/help/estimator/trade.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "e4fed27318",
       "sources": [
         "app/account/(portal)/TradePortfolioHome.tsx",
         "app/account/(portal)/quote/new/page.tsx",

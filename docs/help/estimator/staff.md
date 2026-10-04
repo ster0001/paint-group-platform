@@ -4,7 +4,7 @@ role: staff
 title: Online estimates from the office side — the queue, the pack, and the three things you can do with a request
 summary: Every online quote lands in Waiting on you with a promise clock; the Pack tab shows what the customer built and what they assumed; you fix the price, ask a question or book a visit from the strip, and the measured tree goes to the property when you fix.
 sources: app/(app)/estimates/WaitingTable.tsx, app/quote/EstimateHeader.tsx, lib/contacts/match.ts, app/(app)/estimates/actions.ts, app/quote/PackPane.tsx, app/quote/StripActions.tsx, app/api/confirmations/[id]/route.ts, lib/crm/work-queue.ts, app/quote/QuoteBuilder.tsx, lib/estimate/leadSource.ts, app/(app)/settings/PresentationsManager.tsx
-verified_at_commit: 65054fe00d
+verified_at_commit: e4fed27318
 ---
 
 ## What this is for
