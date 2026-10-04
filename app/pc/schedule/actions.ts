@@ -562,6 +562,6 @@ export async function searchProjectsAction(raw: unknown): Promise<{ ok: true; hi
       customer: r.estimates?.accepted_name || "",
     });
   }
-  const hits = [...seen.values()].sort((a, b) => Number(a.stage === "closed") - Number(b.stage === "closed"));
+  const hits = [...seen.values()].sort((a, b) => Number(a.lifecycle === "closed") - Number(b.lifecycle === "closed"));
   return { ok: true, hits: hits.slice(0, 15) };
 }
