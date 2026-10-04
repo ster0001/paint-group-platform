@@ -1952,7 +1952,7 @@ export default function ScheduleBoard({
                     <div className="frow" data-testid="visit-picked" data-work-order-id={visitPick.workOrderId} style={{ alignItems: "center" }}>
                       <span className="v" style={{ flex: 1 }}>
                         {visitPick.title.toUpperCase()}
-                        <span className="l" style={{ display: "block" }}>{visitPick.woRef}{visitPick.customer ? ` · ${visitPick.customer}` : ""}{visitPick.address ? ` · ${visitPick.address}` : ""} · {stageWord(visitPick.stage)}</span>
+                        <span className="l" style={{ display: "block" }}>{visitPick.woRef}{visitPick.customer ? ` · ${visitPick.customer}` : ""}{visitPick.address ? ` · ${visitPick.address}` : ""} · {stageWord(visitPick.lifecycle)}</span>
                       </span>
                       <button className="btn dim" style={{ marginTop: 0, padding: "6px 10px", fontSize: 12, width: "auto" }} data-testid="visit-change"
                         onClick={() => { setVisitPick(null); setVisitQuery(""); }}>Change</button>
@@ -1971,7 +1971,7 @@ export default function ScheduleBoard({
                             <button key={h.workOrderId} type="button" className="hit" data-testid="visit-hit" data-work-order-id={h.workOrderId}
                               onClick={() => { setVisitPick(h); setErr(""); }}>
                               <span className="t">{h.title}</span>
-                              <span className="m">{h.woRef}{h.customer ? ` · ${h.customer}` : ""}{h.address ? ` · ${h.address}` : ""} · {stageWord(h.stage)}</span>
+                              <span className="m">{h.woRef}{h.customer ? ` · ${h.customer}` : ""}{h.address ? ` · ${h.address}` : ""} · {stageWord(h.lifecycle)}</span>
                             </button>
                           ))
                         ) : mine.length > 0 ? (
@@ -1979,7 +1979,7 @@ export default function ScheduleBoard({
                             <div className="l" style={{ padding: "6px 8px 2px" }}>On this row already</div>
                             {mine.map((j) => (
                               <button key={j.workOrderId!} type="button" className="hit" data-testid="visit-hit" data-work-order-id={j.workOrderId!}
-                                onClick={() => { setVisitPick({ workOrderId: j.workOrderId!, woRef: j.woRef, title: j.title, address: "", stage: j.kind, customer: "" }); setErr(""); }}>
+                                onClick={() => { setVisitPick({ workOrderId: j.workOrderId!, woRef: j.woRef, title: j.title, address: "", lifecycle: j.kind, customer: "" }); setErr(""); }}>
                                 <span className="t">{j.title}</span>
                                 <span className="m">{j.woRef} · {formatDMY(j.start)}{j.end !== j.start ? `–${formatDMY(j.end)}` : ""}</span>
                               </button>

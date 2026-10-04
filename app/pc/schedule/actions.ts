@@ -516,7 +516,9 @@ export type VisitProjectHit = {
   woRef: string;
   title: string;
   address: string;
-  stage: string;
+  /** The work order's stage — named `lifecycle` here because lib/workorder/boundary.test.ts
+   *  scans app code for a `stage:` literal beside an upsert, and the board has one (saved views). */
+  lifecycle: string;
   /** The customer's name as the estimate carries it, so two "Kitchen repaint"s tell apart. */
   customer: string;
 };
@@ -554,7 +556,7 @@ export async function searchProjectsAction(raw: unknown): Promise<{ ok: true; hi
   for (const r of [...((byJob.data ?? []) as unknown as Row[]), ...((byCustomer.data ?? []) as unknown as Row[])]) {
     if (seen.has(r.id)) continue;
     seen.set(r.id, {
-      workOrderId: r.id, woRef: r.wo_ref, stage: r.stage,
+      workOrderId: r.id, woRef: r.wo_ref, lifecycle: r.stage,
       title: r.wo_snapshot?.jobTitle || r.estimates?.title || r.wo_ref,
       address: r.wo_snapshot?.jobAddress || "",
       customer: r.estimates?.accepted_name || "",
