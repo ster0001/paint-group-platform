@@ -1,0 +1,37 @@
+/* Estimator notes — one component, two homes. Colours lean on currentColor and
+   translucent overlays so the same markup reads on the builder's white card and
+   the console's dark/light card. */
+.enotes { border-radius: 12px; border: 1px solid rgba(127, 127, 127, 0.35); overflow: hidden; }
+.enotes-builder { background: #fff; color: #111827; }
+.enotes-console { background: inherit; color: inherit; margin-bottom: 14px; }
+.enotes-head { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; color: inherit; padding: 12px 14px; cursor: pointer; font: inherit; }
+.enotes-head:hover { background: rgba(127, 127, 127, 0.07); }
+.enotes-title { flex: 1; font-size: 14px; font-weight: 600; }
+.enotes-sub { font-weight: 400; opacity: 0.6; font-size: 12px; }
+.enotes-badge { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: rgba(217, 70, 239, 0.14); color: #a21caf; }
+.enotes-console .enotes-badge { color: #f0abfc; background: rgba(217, 70, 239, 0.22); }
+.enotes-chev { opacity: 0.5; font-size: 12px; }
+.enotes-body { padding: 0 14px 14px; }
+.enotes-compose textarea { width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid rgba(127, 127, 127, 0.4); background: rgba(127, 127, 127, 0.06); color: inherit; padding: 8px 10px; font: inherit; font-size: 13px; line-height: 1.45; resize: vertical; }
+.enotes-compose textarea:focus { outline: none; border-color: #a21caf; }
+.enotes-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.enotes-btn { border-radius: 8px; border: 1px solid rgba(127, 127, 127, 0.4); background: none; color: inherit; padding: 7px 12px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.enotes-btn:disabled { opacity: 0.45; cursor: default; }
+.enotes-btn.primary { background: #111827; color: #fff; border-color: #111827; }
+.enotes-console .enotes-btn.primary { background: #3bd8e9; color: #03272d; border-color: #3bd8e9; }
+.enotes-btn.rec { border-color: #dc2626; color: #dc2626; }
+.enotes-btn.rec.on { background: #dc2626; color: #fff; animation: enotes-pulse 1.2s ease-in-out infinite; }
+.enotes-time { font-variant-numeric: tabular-nums; margin-left: 6px; opacity: 0.9; }
+@keyframes enotes-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45); } 50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); } }
+.enotes-hint { font-size: 11.5px; opacity: 0.6; margin: 6px 0 0; }
+.enotes-err { margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; background: rgba(220, 38, 38, 0.1); color: #b91c1c; border: 1px solid rgba(220, 38, 38, 0.35); }
+.enotes-console .enotes-err { color: #fca5a5; }
+.enotes-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.enotes-item { border-radius: 10px; border: 1px solid rgba(127, 127, 127, 0.28); padding: 10px 12px; background: rgba(127, 127, 127, 0.05); }
+.enotes-item.voice { border-left: 3px solid #a21caf; }
+.enotes-meta { display: flex; align-items: center; gap: 8px; font-size: 11px; opacity: 0.75; }
+.enotes-kind { font-weight: 700; letter-spacing: 0.03em; }
+.enotes-del { margin-left: auto; background: none; border: 0; color: inherit; font: inherit; font-size: 11px; text-decoration: underline; cursor: pointer; opacity: 0.8; }
+.enotes-del:hover { color: #dc2626; opacity: 1; }
+.enotes-audio { display: block; width: 100%; max-width: 420px; margin-top: 8px; height: 36px; }
+.enotes-text { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; }

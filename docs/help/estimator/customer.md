@@ -4,7 +4,7 @@ role: customer
 title: Get a painting price online, in about two minutes
 summary: Four quick screens give you a guide range; then you can tighten it room by room, fix the price online if it qualifies, or send it to your estimator to confirm.
 sources: app/estimate/page.tsx, app/wizard/WizardApp.tsx, app/wizard/QuickLook.tsx, app/wizard/Reveal.tsx, app/estimate/scope/ScopeEditor.tsx
-verified_at_commit: e4fed27318
+verified_at_commit: 4ef1a0aa72
 ---
 
 ## What this is for

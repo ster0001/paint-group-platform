@@ -24,6 +24,7 @@ import {
 } from "@/lib/pricing/estimate";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import EstimatorNotes from "@/app/components/estimator-notes/EstimatorNotes";
 import NumInput from "@/app/components/NumInput";
 import { useSaveBeforeLeave, type LeaveChoice } from "@/app/components/useSaveBeforeLeave";
 import { formatEstimateNumber } from "@/lib/estimate/number";
@@ -2383,6 +2384,15 @@ export default function QuoteBuilder({
           >
             Back to the estimate
           </button>
+        </div>
+      )}
+
+      {/* Tom, 4 Oct: estimator notes AT THE TOP — typed or spoken, internal,
+          read again on the project's PC command page. Never on the customer's
+          copy or the work order; the component loads its list staff-side. */}
+      {!folderEl && !customerView && !workOrderView && (
+        <div className="mt-6">
+          <EstimatorNotes estimateId={quoteId} surface="builder" who="PC command" />
         </div>
       )}
 

@@ -4,6 +4,24 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 4 Oct 2026 — estimator notes: typed or spoken, builder ↔ PC command, never the painter
+
+**2026-10-04 · `supabase/migrations/20270211000000_estimator_notes.sql`, `app/components/estimator-notes/`
+(`EstimatorNotes.tsx`, `actions.ts`, `estimator-notes.css`), `lib/estimate/notesBucket.ts`, `app/quote/QuoteBuilder.tsx`,
+`app/pc/wo/[id]/page.tsx`**
+
+Tom: "an estimator notes section at the top … notes or a voice recording … in the PC command page … not for
+contractors". Table `estimate_notes` (kind text|voice, body, audio_path, duration) with a staff-only `for all` policy
+and plain writes (the wo_booking_notes shape), plus private bucket `estimator-notes` (audio MIME, 25 MB, staff-only
+object policies). One client component in both places, `surface="builder" | "console"`, which loads its list through a
+staff-only server action AFTER mount — so no note text is in any page's server HTML — and records with MediaRecorder,
+uploading the blob from the browser straight into the bucket (`<estimateId>/<ts>.<ext>`); `addVoiceNoteAction`
+refuses a path outside that estimate's folder. Voice notes play from hour-long signed URLs. The older free-text
+"Admin notes" box (`builder_state.adminNotes`) is unchanged. Spec `e2e/estimator-notes.spec.ts` records with
+Chromium's fake microphone and asserts `/w/[token]` and `/e/[token]` HTML carry none of it.
+
+---
+
 ## 4 Oct 2026 — an extra visit on any project, found by search
 
 **2026-10-04 · `supabase/migrations/20270210000000_extra_visit_any_project.sql`, `app/pc/schedule/actions.ts`

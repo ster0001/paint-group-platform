@@ -4,7 +4,7 @@ role: commercial
 title: A price for an office, warehouse, shop or building — online where we can, a quick visit where we can't
 summary: Pick the kind of place; offices, warehouses and shops get a guide range in two screens that an estimator confirms; strata, hospitals and any outside work get a short brief and a booked visit instead.
 sources: app/wizard/CommercialScreens.tsx, lib/wizard/segments.ts, lib/wizard/commercial.ts, app/api/wizard/brief-book/route.ts
-verified_at_commit: e4fed27318
+verified_at_commit: 4ef1a0aa72
 ---
 
 ## What this is for
