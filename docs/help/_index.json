@@ -391,7 +391,7 @@
         "media/contractor-12.png",
         "media/contractor-13.png"
       ],
-      "verified_at_commit": "b75c8dc899",
+      "verified_at_commit": "327435ea3a",
       "sources": [
         "app/portal/requests",
         "app/portal/calendar",
@@ -408,7 +408,7 @@
       "path": "docs/help/scheduling/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "b75c8dc899",
+      "verified_at_commit": "327435ea3a",
       "sources": [
         "app/portal/jobs",
         "app/portal/calendar",
@@ -434,7 +434,7 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": "b75c8dc899",
+      "verified_at_commit": "327435ea3a",
       "sources": [
         "app/pc/schedule",
         "lib/scheduling",

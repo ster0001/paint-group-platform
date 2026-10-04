@@ -5,7 +5,7 @@ title: Offer a job to a painter and manage the booking on the scheduling board
 summary: How the Schedule tab works — drag an accepted job onto a contractor's row to send a 24-hour offer, or onto an employed painter's row to assign it (several painters, one lead), handle proposals and reschedule requests, cancel or move a booking, and what the customer receives.
 walkthrough: media/staff-walkthrough.gif
 sources: app/pc/schedule, lib/scheduling, lib/workorder/appointmentEmail.ts
-verified_at_commit: b75c8dc899
+verified_at_commit: 327435ea3a
 ---
 
 ## What this is for
@@ -59,8 +59,8 @@ The scheduling board is where an accepted job gets a painter and dates. Every is
 ### A second visit on a job already booked
 Sometimes a painter has to break off a job for a day or two — a small job in between — and come back to it later. The job needs a **second run of days** on the board, not a new booking.
 1. Drag across **empty space** on the painter's row, over the days of the return visit. The sheet that opens has three tabs at the top: **Block out**, **Extra visit** and **Hold**. Tap **Extra visit**.
-2. Under **Which job**, pick the job the visit belongs to. Only jobs this painter already has on the board are listed; if the list is empty, drop the job from the tray first.
-3. Add a note if it helps ("back to finish the ceilings") and tap **Add the visit**. The job appears a second time on the row, in its own colour (green, cyan or dashed-green exactly as the first block), labelled **EXTRA VISIT** with a dotted left edge. The painter sees the extra days in their portal calendar.
+2. Under **Which project**, type two or more letters of the job's reference, title, address or the customer's name. Every project is searched, whatever its status — a finished job counts, for a touch-up — and open jobs list first. Tap the result; **Change** picks a different one. With the box empty, the jobs already on this painter's row are offered as quick picks. You can add as many visits to a row as you need, for the same project or different ones.
+3. Add a note if it helps ("back to finish the ceilings") and tap **Add the visit**. The job appears on the row in its colour (green, or cyan while in progress), labelled **EXTRA VISIT** with a dotted left edge. The painter sees the days in their portal calendar; on a project they are not otherwise on, the day shows as **Extra visit** with your note.
 4. Drag the visit along the row to move it (**Move this visit?** → **Move visit**). Click it and tap **Remove this visit** to take it off; the job's own booking is untouched. An extra visit does not change the painter's price — it is more days on a job they already have.
 
 ### Holding days while the client decides
@@ -101,7 +101,6 @@ When a client is close to saying yes and you want to keep the painter's week for
 - **"This contractor has blocked these days out."** You can still send, but expect a decline or a proposal. Better to pick different days or another row.
 - **The send fails with a message about the walkthrough.** Enter both a date and a time, or tick **Walkthrough not required**.
 - **The contractor cannot be offered a job.** Check **Contractors** in the sidebar: their insurance has lapsed or they are suspended. They upload a new certificate in their portal profile.
-- **"That painter isn't booked on this job."** An extra visit can only go on a job the painter already has. Drop the job on their row first, then add the visit.
 - **A pink hold is still there after the job was booked.** It clears on its own only when the job it names is booked. A hold with no job, or one for a different job, is released by hand from the block.
 - **A job you expected is not in the tray.** It has a live offer or an accepted booking already (look along the rows), or its work order has not been issued.
 - **The customer did not get a confirmation.** Check **Settings → Messaging** is configured and the automation is on; the overnight sweep resends anything missed.

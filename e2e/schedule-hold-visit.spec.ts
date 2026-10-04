@@ -140,7 +140,10 @@ test.describe("board: a second visit on a booked job, and a pink hold", () => {
     expect(await dates.getAttribute("data-end")).toBe(visitEnd);
 
     await page.getByTestId("mode-visit").click();
-    await page.getByTestId("visit-job").selectOption(bookedWo);
+    // Tom, 4 Oct: the project is SEARCHED, not picked from this row's jobs.
+    await page.getByTestId("visit-search").fill(bookedRef);
+    await page.locator(`[data-testid="visit-hit"][data-work-order-id="${bookedWo}"]`).click();
+    await expect(page.getByTestId("visit-picked")).toHaveAttribute("data-work-order-id", bookedWo);
     await page.getByTestId("visit-note").fill("back to finish the ceilings");
     await page.getByTestId("visit-save").click();
 
@@ -165,6 +168,36 @@ test.describe("board: a second visit on a booked job, and a pink hold", () => {
     await expect(visit).toHaveCount(0, { timeout: 20_000 });
     const { data: after } = await db!.from("wo_appointments").select("id").eq("work_order_id", bookedWo);
     expect(after ?? []).toHaveLength(0);
+  });
+
+  test("an extra visit can go on ANY project — one this painter isn't on, found by its title — and a second one after it", async ({ page }) => {
+    test.setTimeout(120_000);
+    const lane = await openBoard(page);
+    const visitStart = addDays(bookedStart, 2); // Wednesday
+    const second = addDays(bookedStart, 14);   // the Monday a fortnight on
+
+    await dragEmpty(page, lane, visitStart, visitStart);
+    await page.getByTestId("mode-visit").click();
+    // The waiting job has no painter at all; search by title, not reference.
+    await page.getByTestId("visit-search").fill(WAITING.slice(0, 18));
+    await page.locator(`[data-testid="visit-hit"][data-work-order-id="${waitingWo}"]`).click();
+    await page.getByTestId("visit-save").click();
+    const visit = lane.locator(`[data-testid="visit-block"][data-work-order-id="${waitingWo}"]`);
+    await expect(visit).toBeVisible({ timeout: 20_000 });
+
+    // "Currently it only allows one" — a second visit on the same row goes in too.
+    await dragEmpty(page, lane, second, second);
+    await page.getByTestId("mode-visit").click();
+    await page.getByTestId("visit-search").fill(bookedRef);
+    await page.locator(`[data-testid="visit-hit"][data-work-order-id="${bookedWo}"]`).click();
+    await page.getByTestId("visit-save").click();
+    await expect(lane.locator(`[data-testid="visit-block"][data-work-order-id="${bookedWo}"]`)).toBeVisible({ timeout: 20_000 });
+    await expect(lane.locator('[data-testid="visit-block"]')).toHaveCount(2);
+
+    const { data: rows } = await db!.from("wo_appointments").select("work_order_id").eq("contractor_id", contractorId).in("work_order_id", [bookedWo, waitingWo]);
+    expect((rows ?? []).map((r) => r.work_order_id).sort()).toEqual([bookedWo, waitingWo].sort());
+    // Leave the board clean for the hold tests.
+    await db!.from("wo_appointments").delete().in("work_order_id", [bookedWo, waitingWo]);
   });
 
   test("drag empty space → Hold → a bright pink block the painter never sees; releasing it clears the days", async ({ page }) => {
