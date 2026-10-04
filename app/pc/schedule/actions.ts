@@ -80,7 +80,8 @@ const ERROR_WORDING: Record<string, string> = {
   released: "That painter has already been taken off the job.",
   not_found: "That assignment no longer exists.",
   // Extra visits (Tom, 1 Oct)
-  not_booked_on_job: "That painter isn't booked on this job. Drop the job on their row first — an extra visit is more days on a job they already have.",
+  // Kept for an un-migrated database; 20270210 lets a visit go on any project.
+  not_booked_on_job: "That painter isn't booked on this job. Paste migration 20270210 to allow a visit on any project.",
 };
 
 /**
@@ -507,4 +508,58 @@ export async function releaseHoldAction(raw: unknown): Promise<ActionResult> {
   const r = await run("schedule_release_hold", { p_id: parsed.data.id, p_reason: parsed.data.reason });
   if (r.ok) revalidatePath("/crm/today");
   return r;
+}
+
+/** A project as the Extra visit search lists it (Tom, 4 Oct): any work order, any stage. */
+export type VisitProjectHit = {
+  workOrderId: string;
+  woRef: string;
+  title: string;
+  address: string;
+  stage: string;
+  /** The customer's name as the estimate carries it, so two "Kitchen repaint"s tell apart. */
+  customer: string;
+};
+
+/**
+ * Tom, 4 Oct: "a search bar where you can search from all projects regardless
+ * of their status". Reference, job title, address, or the customer's name;
+ * open jobs first, then closed. Staff only — the board is staff only, and RLS
+ * on work_orders says the same. Two bounded reads merged by work order.
+ */
+export async function searchProjectsAction(raw: unknown): Promise<{ ok: true; hits: VisitProjectHit[] } | { ok: false; message: string }> {
+  const parsed = z.object({ q: z.string().trim().min(2).max(80) }).safeParse(raw);
+  if (!parsed.success) return { ok: true, hits: [] };
+  const { supabase, ok } = await requireStaff();
+  if (!ok) return { ok: false, message: ERROR_WORDING.not_staff };
+  // PostgREST's or() grammar: commas separate branches, so a comma in the
+  // needle would split the filter — strip it; a reference never has one.
+  const needle = parsed.data.q.replace(/[,()]/g, " ").trim();
+  if (!needle) return { ok: true, hits: [] };
+  const like = `*${needle}*`;
+  type Row = { id: string; wo_ref: string; stage: string; wo_snapshot: { jobTitle?: string | null; jobAddress?: string | null } | null; estimates: { title: string | null; accepted_name: string | null } | null };
+  const [byJob, byCustomer] = await Promise.all([
+    supabase.from("work_orders")
+      .select("id, wo_ref, stage, wo_snapshot, estimates ( title, accepted_name )")
+      .or(`wo_ref.ilike.${like},wo_snapshot->>jobTitle.ilike.${like},wo_snapshot->>jobAddress.ilike.${like}`)
+      .order("created_at", { ascending: false }).limit(12),
+    supabase.from("work_orders")
+      .select("id, wo_ref, stage, wo_snapshot, estimates!inner ( title, accepted_name )")
+      .or(`title.ilike.${like},accepted_name.ilike.${like}`, { referencedTable: "estimates" })
+      .order("created_at", { ascending: false }).limit(12),
+  ]);
+  if (byJob.error) return { ok: false, message: byJob.error.message };
+  if (byCustomer.error) return { ok: false, message: byCustomer.error.message };
+  const seen = new Map<string, VisitProjectHit>();
+  for (const r of [...((byJob.data ?? []) as unknown as Row[]), ...((byCustomer.data ?? []) as unknown as Row[])]) {
+    if (seen.has(r.id)) continue;
+    seen.set(r.id, {
+      workOrderId: r.id, woRef: r.wo_ref, stage: r.stage,
+      title: r.wo_snapshot?.jobTitle || r.estimates?.title || r.wo_ref,
+      address: r.wo_snapshot?.jobAddress || "",
+      customer: r.estimates?.accepted_name || "",
+    });
+  }
+  const hits = [...seen.values()].sort((a, b) => Number(a.stage === "closed") - Number(b.stage === "closed"));
+  return { ok: true, hits: hits.slice(0, 15) };
 }

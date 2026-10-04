@@ -4,6 +4,21 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 4 Oct 2026 — an extra visit on any project, found by search
+
+**2026-10-04 · `supabase/migrations/20270210000000_extra_visit_any_project.sql`, `app/pc/schedule/actions.ts`
+(`searchProjectsAction`), `app/pc/schedule/ScheduleBoard.tsx`, `lib/scheduling/board.ts`, `app/portal/calendar/page.tsx`**
+
+Tom: the Extra visit picker "only allows one"; make it "a search bar where you can search from all projects regardless
+of their status". `schedule_add_appointment` drops the painter-is-on-the-job and not-closed guards (staff-only, logged
+as before). The sheet's dropdown became a debounced search (`searchProjectsAction`: two bounded reads — work order
+ref/title/address, and estimate title/customer via `estimates!inner` — merged by work order, open first); this row's
+own jobs stay as quick picks when the box is empty. The board joins each visit's `work_orders` row in the same read so
+a visit on a closed job outside the board's work-order window still draws. The portal calendar draws a visit on a
+project the painter is not otherwise on from the visit itself, labelled "Extra visit — <note>".
+
+---
+
 ## 1 Oct 2026 — a second visit on a booked job; pink holds while the client decides
 
 **2026-10-01 · `supabase/migrations/20270209000000_schedule_holds_and_extra_visits.sql`, `lib/scheduling/holds.ts`,

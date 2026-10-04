@@ -279,9 +279,12 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       // Tom, 1 Oct: extra visits on booked jobs, and the office's holds. Both
       // small and windowed; both staff-readable only (the painter reads their
       // own visits in the portal, never a hold).
+      // The job rides along: a visit can be on ANY project (Tom, 4 Oct — a
+      // touch-up on a finished job), so it cannot rely on the board's own
+      // work-order read, which leaves closed jobs out.
       supabase
         .from("wo_appointments")
-        .select("id, work_order_id, contractor_id, start_date, end_date, note")
+        .select("id, work_order_id, contractor_id, start_date, end_date, note, work_orders ( id, estimate_id, wo_ref, stage, status, wo_snapshot, issued_at, estimates ( title ) )")
         .lte("start_date", to)
         .gte("end_date", from),
       supabase
@@ -441,9 +444,10 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
 
   // --- extra visits: more days on a job the painter already has (Tom, 1 Oct) ---
   // Same colour as the job's own block, so the board reads "this job, again".
-  for (const a of ((appointmentRows ?? []) as AppointmentRow[])) {
-    const w = woById.get(a.work_order_id);
-    if (!w || w.stage === "closed") continue;
+  type ApptJoin = AppointmentRow & { work_orders: Pick<WRow, "id" | "estimate_id" | "wo_ref" | "stage" | "status" | "wo_snapshot" | "issued_at" | "estimates"> | null };
+  for (const a of ((appointmentRows ?? []) as unknown as ApptJoin[])) {
+    const w = woById.get(a.work_order_id) ?? a.work_orders;
+    if (!w) continue; // the job was deleted under it; the row cascades away
     const doc = snapshotOf(w.wo_snapshot);
     const asEmployee = (assignmentsByWo.get(a.work_order_id) ?? []).some((x) => x.contractor_id === a.contractor_id);
     blocks.push({
@@ -453,7 +457,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       contractorId: a.contractor_id,
       start: a.start_date,
       end: a.end_date,
-      title: doc?.jobTitle || w.wo_ref,
+      title: doc?.jobTitle || w.estimates?.title || w.wo_ref,
       woRef: w.wo_ref,
       workOrderId: w.id,
       offerId: null,

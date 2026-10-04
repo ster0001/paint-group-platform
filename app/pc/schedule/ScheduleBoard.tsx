@@ -11,7 +11,7 @@ import {
   sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote,
   assignJobAction, reassignDatesAction, setLeadPainterAction, releaseAssignmentAction,
   addAppointmentAction, moveAppointmentAction, removeAppointmentAction, holdDatesAction, moveHoldAction, releaseHoldAction,
-  type ActionResult,
+  searchProjectsAction, type ActionResult, type VisitProjectHit,
 } from "./actions";
 import type { Block, BoardWalkthrough, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
@@ -232,8 +232,32 @@ export default function ScheduleBoard({
   // to a job this painter already has, or HOLD the days while the client
   // decides. Block-out stays the default so nothing about it changes.
   const [blockMode, setBlockMode] = useState<"block" | "visit" | "hold">("block");
-  const [visitWo, setVisitWo] = useState("");
+  // Tom, 4 Oct: the visit's project comes from a SEARCH over every project,
+  // any status — not a list of what this painter already has.
+  const [visitPick, setVisitPick] = useState<VisitProjectHit | null>(null);
+  const [visitQuery, setVisitQuery] = useState("");
+  const [visitHits, setVisitHits] = useState<VisitProjectHit[]>([]);
+  const [visitSearching, setVisitSearching] = useState(false);
+  const [visitSearchErr, setVisitSearchErr] = useState("");
   const [visitNote, setVisitNote] = useState("");
+  // Debounced; every state write happens inside the timer, never synchronously
+  // in the effect (react-hooks/set-state-in-effect). Stale hits for a query
+  // that has since been shortened are simply not rendered.
+  useEffect(() => {
+    const needle = visitQuery.trim();
+    if (needle.length < 2) return;
+    let live = true;
+    const t = setTimeout(() => {
+      setVisitSearching(true);
+      searchProjectsAction({ q: needle }).then((r) => {
+        if (!live) return;
+        setVisitSearching(false);
+        if (r.ok) { setVisitHits(r.hits); setVisitSearchErr(""); }
+        else { setVisitHits([]); setVisitSearchErr(r.message); }
+      });
+    }, 220);
+    return () => { live = false; clearTimeout(t); };
+  }, [visitQuery]);
   const [holdWo, setHoldWo] = useState("");
   const [holdNote, setHoldNote] = useState("");
 
@@ -830,15 +854,15 @@ export default function ScheduleBoard({
   /** Tom, 1 Oct: a second run of days on a job this painter already has. */
   async function saveVisit() {
     if (!pendingBlock) return;
-    if (!visitWo) { setErr("Pick the job the visit is for."); return; }
+    if (!visitPick) { setErr("Search for the project the visit is for, then pick it."); return; }
     setBusy(true);
     setErr("");
     const r = await addAppointmentAction({
-      workOrderId: visitWo, contractorId: pendingBlock.contractorId,
+      workOrderId: visitPick.workOrderId, contractorId: pendingBlock.contractorId,
       startDate: pendingBlock.start, endDate: pendingBlock.end, note: visitNote,
     });
     if (handle(r, "Visit added — it's on the board and in their calendar.")) {
-      setPendingBlock(null); setVisitWo(""); setVisitNote(""); setBlockMode("block");
+      setPendingBlock(null); setVisitPick(null); setVisitQuery(""); setVisitHits([]); setVisitNote(""); setBlockMode("block");
     }
     setBusy(false);
   }
@@ -1919,30 +1943,60 @@ export default function ScheduleBoard({
               <span className="v" data-testid="empty-drag-dates" data-start={pendingBlock.start} data-end={pendingBlock.end}>{formatDMY(pendingBlock.start)}{pendingBlock.end !== pendingBlock.start ? ` → ${formatDMY(pendingBlock.end)}` : ""}</span>
             </div>
             {blockMode === "visit" && (() => {
-              const jobs = bookedJobsFor(pendingBlock.contractorId);
+              const mine = bookedJobsFor(pendingBlock.contractorId);
+              const stageWord = (st: string) => st === "closed" ? "FINISHED" : st.replace(/_/g, " ").toUpperCase();
               return (
                 <>
-                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Which job</label>
-                  {jobs.length === 0 ? (
-                    <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
-                      Nothing booked on this row yet. Drop a job from the tray first — a visit is extra days on a job they already have.
-                    </p>
+                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Which project</label>
+                  {visitPick ? (
+                    <div className="frow" data-testid="visit-picked" data-work-order-id={visitPick.workOrderId} style={{ alignItems: "center" }}>
+                      <span className="v" style={{ flex: 1 }}>
+                        {visitPick.title.toUpperCase()}
+                        <span className="l" style={{ display: "block" }}>{visitPick.woRef}{visitPick.customer ? ` · ${visitPick.customer}` : ""}{visitPick.address ? ` · ${visitPick.address}` : ""} · {stageWord(visitPick.stage)}</span>
+                      </span>
+                      <button className="btn dim" style={{ marginTop: 0, padding: "6px 10px", fontSize: 12, width: "auto" }} data-testid="visit-change"
+                        onClick={() => { setVisitPick(null); setVisitQuery(""); }}>Change</button>
+                    </div>
                   ) : (
-                    <select value={visitWo} onChange={(e) => setVisitWo(e.target.value)} data-testid="visit-job" style={{ width: "100%" }}>
-                      <option value="">Pick the job…</option>
-                      {jobs.map((j) => (
-                        <option key={j.workOrderId!} value={j.workOrderId!}>
-                          {j.title} · {j.woRef} · {formatDMY(j.start)}{j.end !== j.start ? `–${formatDMY(j.end)}` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    <>
+                      {/* Tom, 4 Oct: every project, any status — reference, job title, address or customer. */}
+                      <input type="search" value={visitQuery} onChange={(e) => setVisitQuery(e.target.value)} data-testid="visit-search"
+                        placeholder="Search any project — reference, title, address or customer" style={{ width: "100%" }} autoFocus />
+                      <div className="visit-hits" data-testid="visit-hits">
+                        {visitQuery.trim().length >= 2 ? (
+                          visitSearchErr ? <div className="err" style={{ margin: 8 }}>{visitSearchErr}</div>
+                          : visitSearching && visitHits.length === 0 ? <div className="l" style={{ padding: 8 }}>Searching…</div>
+                          : visitHits.length === 0 ? <div className="l" style={{ padding: 8 }}>No project matches that.</div>
+                          : visitHits.map((h) => (
+                            <button key={h.workOrderId} type="button" className="hit" data-testid="visit-hit" data-work-order-id={h.workOrderId}
+                              onClick={() => { setVisitPick(h); setErr(""); }}>
+                              <span className="t">{h.title}</span>
+                              <span className="m">{h.woRef}{h.customer ? ` · ${h.customer}` : ""}{h.address ? ` · ${h.address}` : ""} · {stageWord(h.stage)}</span>
+                            </button>
+                          ))
+                        ) : mine.length > 0 ? (
+                          <>
+                            <div className="l" style={{ padding: "6px 8px 2px" }}>On this row already</div>
+                            {mine.map((j) => (
+                              <button key={j.workOrderId!} type="button" className="hit" data-testid="visit-hit" data-work-order-id={j.workOrderId!}
+                                onClick={() => { setVisitPick({ workOrderId: j.workOrderId!, woRef: j.woRef, title: j.title, address: "", stage: j.kind, customer: "" }); setErr(""); }}>
+                                <span className="t">{j.title}</span>
+                                <span className="m">{j.woRef} · {formatDMY(j.start)}{j.end !== j.start ? `–${formatDMY(j.end)}` : ""}</span>
+                              </button>
+                            ))}
+                          </>
+                        ) : (
+                          <div className="l" style={{ padding: 8 }}>Type two letters of a reference, title, address or customer. Finished jobs count too.</div>
+                        )}
+                      </div>
+                    </>
                   )}
                   <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Note (optional)</label>
                   <input type="text" value={visitNote} onChange={(e) => setVisitNote(e.target.value)} data-testid="visit-note"
                     placeholder="e.g. back to finish the ceilings" style={{ width: "100%" }} maxLength={300} />
                   {err && <div className="err">{err}</div>}
-                  <button className="btn cy" disabled={busy || jobs.length === 0} data-testid="visit-save" onClick={saveVisit}>Add the visit</button>
-                  <button className="btn gh" onClick={() => { setPendingBlock(null); setVisitWo(""); setVisitNote(""); setErr(""); setBlockMode("block"); }}>Cancel</button>
+                  <button className="btn cy" disabled={busy || !visitPick} data-testid="visit-save" onClick={saveVisit}>Add the visit</button>
+                  <button className="btn gh" onClick={() => { setPendingBlock(null); setVisitPick(null); setVisitQuery(""); setVisitHits([]); setVisitNote(""); setErr(""); setBlockMode("block"); }}>Cancel</button>
                 </>
               );
             })()}
