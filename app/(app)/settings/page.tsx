@@ -49,6 +49,8 @@ import { AUTOMATIONS } from "@/lib/automations/registry";
 import WebsiteContentManager from "./WebsiteContentManager";
 import CrmSettings, { type TagRow as CrmTagRow } from "./CrmSettings";
 import VisitsSettingsPanel from "./VisitsSettings";
+import VisitZonesSettings from "./VisitZonesSettings";
+import { loadVisitZonesData } from "@/lib/visits/zones";
 import { loadStaffAvailability, loadVisitsSettings } from "@/lib/visits/book";
 import { DEFAULT_VISITS_SETTINGS } from "@/lib/visits/types";
 const mergeVisitsSettingsSafe = () => DEFAULT_VISITS_SETTINGS;
@@ -220,6 +222,8 @@ export default async function SettingsPage() {
   const crmTagsRes = await supabase.from("crm_tags").select("key, label, colour, sort_order").order("sort_order").order("label");
   const crmTags = ((crmTagsRes.error ? [] : crmTagsRes.data) ?? []) as CrmTagRow[];
   // P6: estimator visits — who takes them, when, and the wizard's windows.
+  // Visit booking addendum A S1: the suburb → zone list and who covers each zone.
+  const visitZones = await loadVisitZonesData(supabase);
   const [visitsSettings, staffAvailability] = await Promise.all([
     loadVisitsSettings(supabase).catch(() => mergeVisitsSettingsSafe()),
     loadStaffAvailability(supabase).catch(() => []),
@@ -279,6 +283,8 @@ export default async function SettingsPage() {
         ...(dashboardFolder ? [dashboardFolder] : []),
         { id: "estimator-visits", title: "Estimator visits", subtitle: "Who takes site visits, their days and hours, and the morning / afternoon windows customers can book online", count: staffAvailability.filter((s) => s.takesVisits).length,
           content: <VisitsSettingsPanel initial={visitsSettings} staff={staffAvailability} /> },
+        { id: "visit-zones", title: "Visit zones", subtitle: "Which suburb is in which zone for site visits — bookable zones 1 to 5, pre-arranged areas and out of area — the far-edge tick, and which estimator covers each zone", count: visitZones.unmapped.length || undefined,
+          content: <VisitZonesSettings initial={visitZones} /> },
         { id: "trade-accounts", title: "Trade accounts", subtitle: "Create a trade login or grant an existing customer the trade workspace — office-side only, never self-serve",
           content: (
             <>

@@ -1,3 +1,14 @@
+# 5 Oct 2026 — Visit booking, addendum A: S1 zones. Branch `feat/visit-booking-s1` (stacked on S0). Migration 20270212 (TEST only).
+
+Report: `docs/briefs/visit-booking-s1-report.md`. Tables `visit_zones` / `visit_suburbs` / `visit_unmapped_suburbs`
+(staff-only RLS, read-back 5/3/1 matched on C1); resolver `lib/visits/zones.ts` by suburb AND postcode; outline test
+`lib/visits/zoneGeo.ts`; seed `scripts/seed-visit-zones.ts` from Proctor's CC0 postcode dataset (3,482 VIC rows, review
+CSV committed, 5 outline-vs-CSV disagreements listed); Settings → Company → Visit zones; work-queue kind
+`unmapped_suburb`. Two S0 bugs fixed (#reach links → /estimate/book; Save & book address keys). Unit 244 green, tsc +
+lint clean. **e2e NOT run — C1 lock held by a CI run (11:23Z); one try, no loop.** Tom's S0 answers: pre-range → website
+chat, post-range → estimate chat, shown TOGETHER on the staff side (S4); weekday helpers honour holidays; lead-paint
+flags no longer bar booking. Next: S2 schedule + availability function.
+
 # 5 Oct 2026 — Visit booking, addendum A: S0 read-and-report. Branch `feat/visit-booking-s0`. NO code, NO migration.
 
 Five reference files committed (addendum, mockup 4, zone map draft 2, zone GeoJSON, 210-suburb rulings CSV — the CSV

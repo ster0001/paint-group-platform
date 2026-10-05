@@ -578,6 +578,17 @@
       ]
     },
     {
+      "feature": "visit-zones",
+      "role": "staff",
+      "title": "Decide which suburbs can book a site visit, and in which zone",
+      "summary": "Settings → Visit zones is the list of every Victorian suburb with its status — a bookable zone, pre-arranged, or out of area — the far-edge tick, who covers each zone, and a box to check what a customer at any address would be offered.",
+      "path": "docs/help/visit-zones/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "857c0e4f15b5a63358f101dc7440da29a82fa976",
+      "sources": []
+    },
+    {
       "feature": "warranty",
       "role": "customer",
       "title": "Your two-year workmanship warranty — what it covers, how long it lasts and how to make a claim",

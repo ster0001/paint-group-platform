@@ -271,18 +271,18 @@ export default function Finish({
       </ul>
 
       {/* C9 — the same derived lines the reveal and the editor show, read-only. */}
-      <WhatWeDo lines={whatWeDoLines(input.systems)} tellUsHref={`/estimate/scope?id=${estimateId}#reach`} />
+      <WhatWeDo lines={whatWeDoLines(input.systems)} tellUsHref={`/estimate/book?id=${estimateId}`} />
 
       <p className="wz-notincluded" data-testid="finish-excluded">{NOT_INCLUDED}</p>
 
       {/* C11 — the person is in the screen, on the finish line too. */}
-      <EstimatorStrip estimator={estimator} suburb={suburb} companyPhone={companyPhone} bookHref={`/estimate/scope?id=${estimateId}#reach`} />
+      <EstimatorStrip estimator={estimator} suburb={suburb} companyPhone={companyPhone} bookHref={`/estimate/book?id=${estimateId}`} />
 
       {companyPhone && (
         <p className="wz-reveal-call">
           <a href={`tel:${companyPhone.replace(/[^0-9+]/g, "")}`}>Call {companyPhone}</a>
           {" · "}
-          <a href={`/estimate/scope?id=${estimateId}#reach`}>Request a call back</a>
+          <a href={`/estimate/book?id=${estimateId}`}>Request a call back</a>
         </p>
       )}
       <p className="wz-reveal-call">

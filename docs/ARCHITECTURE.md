@@ -4,6 +4,31 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 5 Oct 2026 — visit booking S1: suburb → zone list, the resolver, Settings → Visit zones
+
+**2026-10-05 · `supabase/migrations/20270212000000_visit_zones.sql`, `lib/visits/zones.ts`, `lib/visits/zoneGeo.ts`,
+`scripts/seed-visit-zones.ts`, `app/(app)/settings/VisitZonesSettings.tsx` + `visitZonesActions.ts`, `lib/crm/work-queue.ts`**
+
+First build session of `docs/briefs/claude-code-brief-visit-booking-addendum-a.md`. Three staff-only tables:
+`visit_zones` (the five zones, each with the estimator who covers it — R11), `visit_suburbs` (every Victorian
+suburb + postcode with a status `zone_1…zone_5 | pre_arranged | out_of_area`, the R18 far-edge tick, a reviewed flag
+and the basis), and `visit_unmapped_suburbs` (the FACT behind the "unmapped suburb" work item — a Victorian suburb a
+customer typed that the list did not know; resolved when the suburb is added in Settings). The resolver
+`resolveZone()` looks up by **suburb and postcode together** (Glen Waverley / Wheelers Hill share 3150) and runs on
+the server with the service client for a customer; `resolveFromList()` is the pure rule the tests drive. The seed is
+Matthew Proctor's Australian postcodes dataset (CC0), Victorian delivery areas with a 3xxx postcode, each precise
+centre point tested against `docs/briefs/data/visit-zones-draft2.geojson` by ascending priority, then the rulings CSV
+applied on top (it always wins; the five disagreements are listed in the review CSV and the session report).
+`docs/briefs/data/visit-zones-review.csv` is what the seed reads — never hand-written inserts. Settings → Company →
+Visit zones: filter by status, move one or many, far-edge tick, bulk approve, add a suburb, answer an unmapped
+suburb, and "Check an address", which answers from the live table so a move is live for the next customer at once.
+The work queue gained the kind `unmapped_suburb` (one source function, derived from the fact table, due the next
+business morning). Pre-existing bugs fixed in passing: the range screen's "Book your estimator" / "Tell us" links
+pointed at `/estimate/scope#reach`, an anchor that only renders on `/estimate/book` — they now go to the Book page;
+and Save & book read the builder's `{address, city, postal}` keys off the wizard state (which uses
+`{street, suburb, postcode}`), so it never linked a property — `propertyAddressFromState()` in
+`lib/wizard/save-and-book.ts`.
+
 ## 4 Oct 2026 — estimator notes: typed or spoken, builder ↔ PC command, never the painter
 
 **2026-10-04 · `supabase/migrations/20270211000000_estimator_notes.sql`, `app/components/estimator-notes/`
