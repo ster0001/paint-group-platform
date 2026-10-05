@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paint Group visit booking, mockup 4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#0A0B0D; --surface:#12161A; --raised:#171C21; --line:#242B32; --text:#EDF0F2; --muted:#8C959D;
+  --cyan:#3BD8E9; --on-cyan:#03272D; --amber:#E0A83C; --on-amber:#2A1C00; --emerald:#2FA46B; --clay:#C9695B;
+  --z1:#3BD8E9; --z2:#2FA46B; --z3:#6F95F7; --z4:#A98DF0; --z5:#E06AAE; --on-z:#06080A;
+  --sans:"Switzer","Geist",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"Martian Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#F2F4F5; --surface:#FFFFFF; --raised:#F3F5F7; --line:#DCE1E5; --text:#0A0B0D; --muted:#5B646C;
+    --cyan:#0E8FA0; --on-cyan:#FFFFFF; --amber:#B87706; --on-amber:#FFFFFF; --emerald:#1F8A56; --clay:#B3574A;
+    --z1:#12A9BB; --z2:#1F8A56; --z3:#3A66DD; --z4:#7B58D6; --z5:#C4398A; --on-z:#FFFFFF;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#F2F4F5; --surface:#FFFFFF; --raised:#F3F5F7; --line:#DCE1E5; --text:#0A0B0D; --muted:#5B646C;
+  --cyan:#0E8FA0; --on-cyan:#FFFFFF; --amber:#B87706; --on-amber:#FFFFFF; --emerald:#1F8A56; --clay:#B3574A;
+  --z1:#12A9BB; --z2:#1F8A56; --z3:#3A66DD; --z4:#7B58D6; --z5:#C4398A; --on-z:#FFFFFF;
+}
+:root[data-theme="dark"]{
+  --bg:#0A0B0D; --surface:#12161A; --raised:#171C21; --line:#242B32; --text:#EDF0F2; --muted:#8C959D;
+  --cyan:#3BD8E9; --on-cyan:#03272D; --amber:#E0A83C; --on-amber:#2A1C00; --emerald:#2FA46B; --clay:#C9695B;
+  --z1:#3BD8E9; --z2:#2FA46B; --z3:#6F95F7; --z4:#A98DF0; --z5:#E06AAE; --on-z:#06080A;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.page{max-width:520px;margin:0 auto;padding:0 16px 48px}
+.head{padding:20px 0 12px}
+.stamp{font-family:var(--mono);font-size:11px;color:var(--amber);display:block;margin-bottom:10px}
+h1{font-size:30px;line-height:1.05;letter-spacing:-.03em;font-weight:600;margin:0 0 6px}
+.head p{margin:0;color:var(--muted);font-size:15px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin:8px 0 18px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 6px);z-index:5}
+.tabs button{border:0;background:none;border-radius:9px;padding:10px 4px;font-size:14px;font-weight:600;color:var(--muted);min-height:44px}
+.tabs button[aria-selected="true"]{background:var(--raised);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+.view{display:none}.view.on{display:block}
+h2{font-size:21px;letter-spacing:-.02em;font-weight:600;margin:0 0 4px;line-height:1.15}
+h3{font-size:16px;font-weight:600;margin:22px 0 8px;letter-spacing:-.01em}
+.lead{margin:0 0 14px;color:var(--muted);font-size:15px}
+
+/* mockup controls */
+.mc{border:1.5px dashed var(--amber);border-radius:12px;padding:12px;margin-bottom:14px}
+.mc .t{font-family:var(--mono);font-size:10.5px;color:var(--amber);display:block;margin-bottom:8px}
+.mc label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
+.mc select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px;min-height:44px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.seg button{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:9px 6px;font-size:13.5px;font-weight:500;min-height:44px}
+.seg button.on{border-color:var(--amber);color:var(--amber)}
+.note{border-left:2px solid var(--amber);padding:2px 0 2px 10px;color:var(--muted);font-size:13px;margin:12px 0 0}
+.note b{color:var(--amber);font-family:var(--mono);font-size:10.5px;font-weight:500;display:block}
+
+/* customer screen */
+.phone{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:20px 18px 22px;min-height:420px}
+.brand{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);margin-bottom:18px}
+.brand b{color:var(--text);font-weight:600;letter-spacing:-.01em;font-size:15px}
+.phone h2{font-size:24px;letter-spacing:-.025em;margin-bottom:6px}
+.phone p{margin:0 0 14px;color:var(--muted);font-size:15px}
+.range{font-size:34px;font-weight:600;letter-spacing:-.03em;line-height:1.1;margin:10px 0 2px}
+.gst{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px;display:block}
+.act{display:grid;gap:8px;margin-top:6px}
+.btn{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--raised);border-radius:12px;padding:13px 14px;min-height:52px}
+.btn b{display:block;font-weight:600;font-size:16px}
+.btn small{display:block;color:var(--muted);font-size:13.5px;line-height:1.3}
+.btn.pri{background:var(--cyan);border-color:var(--cyan);color:var(--on-cyan);text-align:center;font-weight:600}
+.btn.pri:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:none;text-align:center;font-weight:500}
+.link{background:none;border:0;padding:8px 0;color:var(--cyan);font-weight:500;text-decoration:underline;text-underline-offset:3px}
+.fld{display:block;margin:0 0 12px}
+.fld span{display:block;font-size:13.5px;color:var(--muted);margin-bottom:4px}
+.fld input,.fld textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:48px}
+.fld textarea{min-height:84px;resize:vertical}
+.fld input.bad{border-color:var(--clay)}
+.err{color:var(--clay);font-size:13.5px;margin:-4px 0 12px}
+.days{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;margin:0 -18px;padding-left:18px;padding-right:18px;scrollbar-width:none}
+.days::-webkit-scrollbar{display:none}
+.day{flex:0 0 auto;border:1px solid var(--line);background:var(--raised);border-radius:12px;padding:8px 12px;min-width:66px;text-align:center;min-height:62px}
+.day i{display:block;font-style:normal;font-size:12px;color:var(--muted)}
+.day b{display:block;font-size:19px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
+.day.on{border-color:var(--cyan);background:none}.day.on i{color:var(--cyan)}
+.times{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 4px}
+.time{border:1px solid var(--line);background:var(--raised);border-radius:12px;padding:13px 8px;font-weight:600;font-size:16px;min-height:50px}
+.time.on{background:var(--cyan);border-color:var(--cyan);color:var(--on-cyan)}
+.sumry{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 14px;background:var(--bg)}
+.sumry b{display:block;font-size:17px;font-weight:600;letter-spacing:-.01em}
+.sumry span{display:block;color:var(--muted);font-size:14px}
+.code{letter-spacing:.5em;text-align:center;font-family:var(--mono);font-size:22px !important}
+.ok{width:44px;height:44px;border-radius:50%;background:var(--emerald);display:grid;place-items:center;margin-bottom:14px;color:#fff;font-size:22px;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.chip{border:1px solid var(--line);background:var(--raised);border-radius:999px;padding:9px 14px;font-size:14.5px;font-weight:500;min-height:44px}
+.chip.on{border-color:var(--cyan);color:var(--cyan)}
+.steps{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:8px;display:block}
+.fake{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;color:var(--muted);font-size:15px;display:flex;gap:10px;align-items:center}
+.fake::before{content:"";width:18px;height:18px;border:1.5px solid var(--line);border-radius:5px;flex:0 0 auto}
+.help{border-top:1px solid var(--line);margin-top:18px;padding-top:14px}
+.help p{font-size:14px;margin-bottom:8px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.row3 button{border:1px solid var(--line);background:var(--raised);border-radius:10px;padding:10px 4px;font-size:13.5px;font-weight:600;min-height:52px;line-height:1.2}
+
+/* schedule */
+.est{display:flex;gap:8px;margin-bottom:12px}
+.est button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;min-height:44px}
+.est button.on{border-color:var(--cyan);color:var(--cyan)}
+.dtabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px}
+.dtabs button{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:9px 0;font-size:14px;font-weight:600;min-height:44px}
+.dtabs button.on{background:var(--raised);border-color:var(--text)}
+.slots{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.slot+.slot{border-top:1px solid var(--line)}
+.slot>button{display:grid;grid-template-columns:104px 1fr;gap:10px;align-items:center;width:100%;border:0;background:none;text-align:left;padding:12px 14px;min-height:56px}
+.slot .tm{font-family:var(--mono);font-size:12.5px;font-weight:500}
+.zs{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.z{width:26px;height:26px;border-radius:7px;display:inline-grid;place-items:center;font:600 12px var(--mono);color:var(--on-z)}
+.z.z1{background:var(--z1)}.z.z2{background:var(--z2)}.z.z3{background:var(--z3)}.z.z4{background:var(--z4)}.z.z5{background:var(--z5)}
+.z.off{background:none;border:1.5px dashed var(--line);color:var(--muted)}
+.cond{font-size:12.5px;color:var(--muted);flex-basis:100%;line-height:1.3;margin-top:2px}
+.none{font-size:13px;color:var(--clay)}
+.edit{display:none;padding:2px 14px 14px;border-top:1px dashed var(--line)}
+.slot.open .edit{display:block}
+.edit p{font-size:13px;color:var(--muted);margin:10px 0 6px}
+.zt{display:flex;gap:8px}
+.zt button{width:44px;height:44px;border-radius:10px;border:1.5px dashed var(--line);background:none;font:600 14px var(--mono);color:var(--muted)}
+.zt button.on{border-style:solid;border-color:transparent;color:var(--on-z)}
+.zt button.on.z1{background:var(--z1)}.zt button.on.z2{background:var(--z2)}.zt button.on.z3{background:var(--z3)}.zt button.on.z4{background:var(--z4)}.zt button.on.z5{background:var(--z5)}
+.rm{margin-top:12px;border:1px solid var(--line);background:none;border-radius:9px;padding:9px 12px;font-size:13.5px;color:var(--clay);min-height:44px}
+.add{margin-top:8px;width:100%;border:1.5px dashed var(--line);background:none;border-radius:12px;padding:12px;font-weight:600;font-size:14.5px;min-height:48px}
+.tot{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tot div{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 4px;text-align:center}
+.tot b{display:block;font-size:22px;font-weight:600;letter-spacing:-.02em;line-height:1.1;margin-top:6px}
+.tot small{font-size:11.5px;color:var(--muted)}
+.set{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.set div{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px 14px;font-size:14.5px;align-items:center}
+.set div+div{border-top:1px solid var(--line)}
+.set em{font-style:normal;font-weight:600;text-align:right}
+.set em.g{color:var(--amber)}
+.list{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.list>div{padding:11px 14px;font-size:14.5px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.list>div+div{border-top:1px solid var(--line)}
+.list small{display:block;color:var(--muted);font-size:13px}
+.tag{font-family:var(--mono);font-size:10px;border-radius:6px;padding:4px 7px;white-space:nowrap}
+.tag.g{background:var(--emerald);color:#fff}.tag.a{background:var(--amber);color:var(--on-amber)}
+.new{box-shadow:inset 3px 0 0 var(--cyan)}
+.empty{color:var(--muted);font-size:14px;padding:12px 14px}
+
+/* decisions */
+.dec{display:grid;gap:8px}
+.dec div{display:grid;grid-template-columns:30px 1fr;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.dec .n{width:28px;height:28px;border-radius:50%;background:var(--amber);color:var(--on-amber);display:grid;place-items:center;font:600 12px var(--mono)}
+.dec b{display:block;font-weight:600;font-size:15.5px}
+.dec span.d{display:block;color:var(--muted);font-size:14px;line-height:1.4;margin-top:2px}
+.dec span.a{display:block;font-size:13px;margin-top:6px;color:var(--amber)}
+.dec.done .n{background:var(--emerald);color:#fff}
+.btn.hero{background:var(--cyan);border-color:var(--cyan);color:var(--on-cyan)}.btn.hero small{color:var(--on-cyan);opacity:.82}
+.tick{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--muted);margin:0 0 14px}.tick input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--cyan);flex:0 0 auto}
+@media (prefers-reduced-motion:no-preference){.phone.enter>*{animation:in .18s ease-out}@keyframes in{from{opacity:0;transform:translateY(4px)}}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="head">
+    <span class="stamp">Mockup 4, 5 Oct 2026. Built on your rulings</span>
+    <h1>Visit booking</h1>
+    <p>What the customer sees when they book a site visit, and the week you control behind it.</p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-v="cust">Customer</button>
+    <button role="tab" aria-selected="false" data-v="week">Your week</button>
+    <button role="tab" aria-selected="false" data-v="dec">Rulings</button>
+  </div>
+
+  <!-- CUSTOMER -->
+  <section class="view on" id="v-cust">
+    <div class="mc">
+      <span class="t">Mockup controls, not part of the product</span>
+      <label for="place">Customer's address is in</label>
+      <select id="place"></select>
+      <label>Where they are in the wizard</label>
+      <div class="seg"><button id="st-mid" type="button">Part-way, no price yet</button><button id="st-price" type="button" class="on">Has seen the price range</button></div>
+      <label>Size of the job</label>
+      <div class="seg"><button id="sz-small" type="button" class="on">Small, can finalise by phone</button><button id="sz-large" type="button">Larger job</button></div>
+      <p class="note" style="margin-top:10px">It is Monday 5 October, 10:15 am in this mockup.</p>
+    </div>
+    <div class="phone" id="phone" aria-live="polite"></div>
+  </section>
+
+  <!-- WEEK -->
+  <section class="view" id="v-week">
+    <h2>Visit schedule</h2>
+    <p class="lead">This is your week as I've read it. It would live in Settings. Tap a slot to change which zones can book it. Changes show straight away on the Customer tab.</p>
+    <div class="est" id="est"></div>
+    <div id="estnote"></div>
+    <div class="dtabs" id="dtabs"></div>
+    <div class="slots" id="slots"></div>
+    <button class="add" id="addslot" type="button">Add a slot</button>
+
+    <h3>Slots a week each zone can book</h3>
+    <div class="tot" id="tot"></div>
+    <p class="note">Slots shared between zones are counted for each zone, so a slot goes to whichever customer books first.</p>
+
+    <h3>Booking rules</h3>
+    <div class="set">
+      <div>Slot length, visit plus travel<em>1 hr 30 min</em></div>
+      <div>Visit length the customer sees<em>1 hour</em></div>
+      <div>Same-day booking<em>On</em></div>
+      <div>Text code before a visit is booked<em>On</em></div>
+            <div>Shortest notice for a same-day slot<em>2 hours</em></div>
+      <div>How far ahead customers can book<em>3 weeks</em></div>
+      <div>Google Calendar account<em>info@paintgroup.com.au</em></div>
+      <div>Private events in that calendar hide slots<em>On</em></div>
+      <div>Customer cancels by declining the invite<em>On</em></div>
+      <div>Far edge of Zone 4 and far edge of Zone 3 back to back<em>Not allowed</em></div>
+      <div>Reply to requests<em>One working day, not counting public holidays</em></div>
+      <div>Reminder text to the customer<em>6:00 pm the day before</em></div>
+      <div>Speak with us offered up to<em>$6,000 interior, $12,000 exterior</em></div>
+      <div>Customer messages emailed to<em>Office, copy to customer</em></div>
+      <div>Gate order, switched by hand<em>Details first</em></div>
+    </div>
+
+    <h3>Booked visits</h3>
+    <div class="list" id="booked"></div>
+    <h3>Requests waiting for you</h3>
+    <div class="list" id="reqs"></div>
+    <p class="note">Requests come from pre-arranged areas, from customers who ask for a visit before reaching their price range, from customers who can't see a time that suits, and from customers who ask for a call. Each one is due a reply within one working day.</p>
+  </section>
+
+  <!-- DECISIONS -->
+  <section class="view" id="v-dec">
+    <h2>Still open</h2>
+    <p class="lead">Neither of these stops the build. Each has a starting value you can change later.</p>
+    <div class="dec" id="open"></div>
+    <h2 style="margin-top:26px">Your rulings</h2>
+    <p class="lead">Settled on 5 October. The mockup and the brief both follow these.</p>
+    <div class="dec done" id="dec"></div>
+  </section>
+</div>
+
+<script>
+// ---------- data
+const PLACES = [
+  {s:'Hawthorn', pc:'3122', z:1}, {s:'Coburg', pc:'3058', z:2}, {s:'Ringwood', pc:'3134', z:3}, {s:'Lilydale', pc:'3140', z:3, far:true},
+  {s:'Frankston', pc:'3199', z:4}, {s:'Mornington', pc:'3931', z:4, far:true}, {s:'Footscray', pc:'3011', z:5},
+  {s:'Sorrento', pc:'3943', z:'pre'}, {s:'Werribee', pc:'3030', z:'out'}
+];
+const DAYN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'], DAY3 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MON = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const SLOT = 90, VISIT = 60, NOTICE = 120, HORIZON = 21;
+const NOW = {date: new Date(2026, 9, 5), mins: 10 * 60 + 15};
+// week template: start time in minutes, zones that can book it
+const S = (h, m, z, cond) => ({start: h * 60 + m, zones: z, cond: cond || null});
+let week = {
+  1: [S(8,0,[5,2,1]), S(9,30,[5,2,1]), S(11,0,[1]), S(12,30,[1]), S(14,0,[1]), S(15,30,[1])],
+  2: [S(8,0,[1,2,3,4,5]), S(15,0,[3,4,1])],
+  3: [S(8,0,[1,2,5]), S(9,30,[2]), S(11,0,[2]), S(12,30,[2]), S(14,0,[5,1])],
+  4: [S(8,0,[1,2,3,4,5]), S(16,30,[1,2,3,4,5])],
+  5: [S(8,0,[4,3,1]), S(9,30,[3,1]), S(11,0,[1,2]), S(12,30,[2],{zone:1, ifPrev:1}), S(14,0,[2,5]), S(15,30,[2,5,1])]
+};
+const key = (d, start) => d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() + '@' + start;
+const D = n => new Date(2026, 9, 5 + n);
+let bookings = [
+  {d:D(0), start:750, zone:1, who:'Sample customer', where:'Kew'},
+  {d:D(1), start:480, zone:4, who:'Sample customer', where:'Chelsea'},
+  {d:D(2), start:660, zone:2, who:'Sample customer', where:'Preston'},
+  {d:D(3), start:990, zone:5, who:'Sample customer', where:'Yarraville'},
+  {d:D(4), start:480, zone:3, who:'Sample customer', where:'Boronia'},
+  {d:D(4), start:660, zone:1, who:'Sample customer', where:'Camberwell'},
+  {d:D(11), start:480, zone:4, far:true, who:'Sample customer', where:'Mount Eliza'}
+];
+const FAR_PAIRS = [[4, 3]];
+let requests = [];
+const DECISIONS = [
+  ['Same-day notice','A slot can be booked up to 2 hours before it starts.'],
+  ['Booking ahead','Customers can book up to 3 weeks ahead.'],
+  ['Far edges','A visit at the far edge of Zone 4 cannot sit back to back with a visit at the far edge of Zone 3. The starting list of far-edge suburbs is approved.'],
+  ['Request a time','If the times shown don\u2019t suit, the customer can request a time.'],
+  ['Monday\u2019s last slot','Starts 3:30 pm and finishes by 5:00 pm.'],
+  ['Google Calendar','Bookings go into info@paintgroup.com.au. A private event in that calendar makes the time unavailable.'],
+  ['The gate','Name and contact details are the last question before the price range. Drop-outs are tracked closely. The order is switched by hand to test both.'],
+  ['Who can book','Everyone who has seen their range can book a visit, but the screen encourages finishing online.'],
+  ['Cancelling','The customer cancels by declining the calendar invitation. That cancels the visit in the platform too.'],
+  ['Requests','Replied to within one working day.'],
+  ['Map','Draft 2 is approved, including spots A to D.'],
+  ['New estimators','Zones are redrawn when a new estimator joins. Each estimator has their own week.'],
+  ['Range screen options','Tighten my price (\u201cGet a more accurate quote now\u201d), Speak with us, Book a site visit, Send us a message. Request a quote is removed.'],
+  ['Speak with us','Requests a call to finalise the booking. Only offered when the job is within the range that can be finalised by phone.'],
+  ['Send us a message','Ask for details if we don\u2019t hold them, then open a message box. The message goes into the chat in the platform and is also sent by email.'],
+  ['Changes you make in Google Calendar','Deleting a visit cancels it and tells the customer. Moving it changes nothing and is flagged for you to confirm with them.'],
+  ['Reminders','A text the evening before, as well as the calendar invitation.'],
+  ['\u201cAuthorised to commission\u201d tick','Left out.'],
+  ['What the customer sees','A one-hour visit, on screen, in the text, the email and the invitation. The 30 minutes after it is travel, blocked in your calendar only.'],
+  ['Public holidays','Victorian public holidays do not count towards \u201cone working day\u201d.'],
+  ['Phone range','Speak with us is offered when the top of the guide range is at or under $6,000 for interior or $12,000 for straightforward exterior, including GST.'],
+  ['Message emails','Emailed to the office, with a copy to the customer.'],
+  ['Reminder time','6:00 pm the day before. No reminder if the visit was booked after that.']
+];
+const OPEN = [
+  ['Bookings on public holidays','Now that the platform knows the public holidays, should customers be able to book a visit on one?','No. Slots are not offered on a public holiday.'],
+  ['Which calendar inside info@paintgroup.com.au','If that account has more than one calendar.','The main one.']
+];
+
+// ---------- helpers
+const $ = id => document.getElementById(id);
+const h = (tag, attrs, ...kids) => { const e = document.createElement(tag); for (const k in (attrs || {})) { if (k === 'class') e.className = attrs[k]; else if (k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]); else if (attrs[k] !== false && attrs[k] != null) e.setAttribute(k, attrs[k]); } kids.flat().forEach(c => { if (c == null || c === false) return; e.append(c.nodeType ? c : document.createTextNode(c)); }); return e; };
+const tfmt = m => { const hh = Math.floor(m / 60), mm = m % 60, ap = hh >= 12 ? 'pm' : 'am', h12 = hh % 12 || 12; return h12 + ':' + String(mm).padStart(2, '0') + ' ' + ap; };
+const t24 = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+const dfmt = d => DAYN[d.getDay()] + ' ' + d.getDate() + ' ' + MON[d.getMonth()];
+const booked = (d, start) => bookings.find(b => key(b.d, b.start) === key(d, start));
+function farClash(zone, far, d, slots, i) {
+  if (!far) return false;
+  return [i - 1, i + 1].some(j => { const n = slots[j]; if (!n || Math.abs(n.start - slots[i].start) !== SLOT) return false; const b = booked(d, n.start); return !!b && b.far && FAR_PAIRS.some(p => (p[0] === zone && p[1] === b.zone) || (p[1] === zone && p[0] === b.zone)); });
+}
+function slotOpenFor(zone, d, slots, i, far) {
+  const s = slots[i]; if (booked(d, s.start)) return false;
+  if (+d === +NOW.date && s.start < NOW.mins + NOTICE) return false;
+  if (farClash(zone, far, d, slots, i)) return false;
+  if (s.zones.includes(zone)) return true;
+  if (s.cond && s.cond.zone === zone && i > 0) { const p = booked(d, slots[i - 1].start); if (p && p.zone === s.cond.ifPrev) return true; }
+  return false;
+}
+function availability(zone, far) {
+  const out = [];
+  for (let n = 0; n < HORIZON; n++) { const d = D(n), slots = week[d.getDay()] || []; const open = slots.filter((s, i) => slotOpenFor(zone, d, slots, i, far)); if (open.length) out.push({d, open}); }
+  return out;
+}
+
+// ---------- customer flow
+const SAMPLE = () => ({name: 'Alex Morgan', address: addr(), email: 'alex@example.com', mobile: '0412 345 678', note: ''});
+const st = {place: 0, stage: 'price', screen: 'price', small: true, known: true, consent: false, intent: null, det: {name:'', address:'', email:'', mobile:'', note:''}, err: '', day: 0, pick: null, code: '', prefs: [], part: ''};
+const P = () => PLACES[st.place];
+const addr = () => '12 Sample Street, ' + P().s + ' VIC ' + P().pc;
+function go(screen) { st.screen = screen; st.err = ''; render(); const p = $('phone'); p.classList.remove('enter'); void p.offsetWidth; p.classList.add('enter'); const r = p.getBoundingClientRect(); if (r.top < 60 || r.top > innerHeight * 0.6) scrollTo({top: scrollY + r.top - 70, behavior: 'auto'}); }
+function resetFlow() { const seen = st.stage === 'price'; st.screen = seen ? 'price' : 'wizard'; st.known = seen; st.consent = false; st.intent = null; st.pick = null; st.code = ''; st.day = 0; st.prefs = []; st.part = ''; st.err = ''; st.det = seen ? SAMPLE() : {name:'', address: addr(), email:'', mobile:'', note:''}; render(); }
+function routeVisit() { const z = P().z; if (z === 'out') return go('out'); if (z === 'pre') return go('request'); return go(availability(z, P().far).length ? 'calendar' : 'request'); }
+function choose(intent) { st.intent = intent; if (!st.known) return go('details'); if (intent === 'visit') return routeVisit(); if (intent === 'message') { st.det.note = ''; return go('msg'); } if (intent === 'speak') requests.unshift({who: st.det.name, where: P().s, kind: 'Call request, to finalise by phone', zone: P().z}); go('sent'); }
+const validDet = () => { const d = st.det; return d.name.trim() && d.address.trim() && /.+@.+\..+/.test(d.email) && d.mobile.replace(/\D/g, '').length >= 10; };
+function passGate() { if (!validDet()) { st.err = 'Please fill in your name, email and mobile number.'; render(); return; } st.known = true; go('price'); }
+function afterDetails() {
+  const d = st.det;
+  if (!validDet()) { st.err = 'Please fill in your name, address, email and mobile number.'; render(); return; }
+  const z = P().z;
+  if (st.intent === 'visit') { if (z === 'out') return go('out'); requests.unshift({who: d.name, where: P().s, kind: 'Visit request, wizard not finished', zone: z}); return go('sent'); }
+  st.det.note = ''; go('msg');
+}
+const mask = m => { const x = m.replace(/\D/g, ''); return x.slice(0, 4) + ' \u2022\u2022\u2022 ' + x.slice(-3); };
+const brand = () => h('div', {class: 'brand'}, h('b', {}, 'Paint Group'), h('span', {}, 'Your estimate'));
+const back = (to) => h('button', {class: 'link', type: 'button', onclick: () => go(to)}, 'Back');
+const mnote = (t) => h('p', {class: 'note'}, h('b', {}, 'Mockup note'), t);
+const fld = (label, k, type, ph) => h('label', {class: 'fld'}, h('span', {}, label), h('input', {type: type || 'text', value: st.det[k], placeholder: ph || '', autocomplete: 'off', oninput: e => { st.det[k] = e.target.value; }}));
+
+const SCREENS = {
+  wizard: () => [brand(), h('span', {class: 'steps'}, 'Step 3 of 5'), h('h2', {}, 'What are we painting?'), h('p', {}, 'Tick everything that applies.'),
+    ['Walls', 'Ceilings', 'Doors and frames', 'Skirting boards'].map(x => h('div', {class: 'fake'}, x)),
+    h('button', {class: 'btn pri', type: 'button', style: 'margin-top:6px', onclick: () => go('gate')}, 'Continue to the last question'),
+    h('div', {class: 'help'}, h('p', {}, 'Would you rather talk it through?'), h('div', {class: 'row3'},
+      h('button', {type: 'button', onclick: () => choose('visit')}, 'Request a site visit'), h('button', {type: 'button', onclick: () => go('call')}, 'Call us'), h('button', {type: 'button', onclick: () => choose('message')}, 'Send a message'))),
+    mnote('No contact details have been asked for yet. These three options sit on every step before the price range. A visit asked for here is a request, not a booking.')],
+  gate: () => [brand(), h('span', {class: 'steps'}, 'Last question'), h('h2', {}, 'Where shall we send your estimate?'), h('p', {}, 'Enter your details to see your guide price. We will save your estimate so you can come back to it.'),
+    fld('Full name', 'name'), fld('Email', 'email', 'email'), fld('Mobile number', 'mobile', 'tel', '04'),
+    h('label', {class: 'tick'}, h('input', {type: 'checkbox', checked: st.consent ? '' : null, onchange: e => { st.consent = e.target.checked; }}), h('span', {}, 'Send me occasional news and offers from Paint Group (optional)')),
+    st.err ? h('p', {class: 'err', role: 'alert'}, st.err) : null,
+    h('button', {class: 'btn pri', type: 'button', onclick: passGate}, 'Show my guide price'),
+    h('button', {class: 'link', type: 'button', onclick: () => { st.det = SAMPLE(); st.err = ''; render(); }}, 'Fill with sample details'),
+    mnote('This is the gate. A switch in Settings can show the range first instead, so you can test both. Every visitor is recorded against the version they saw and the step they left on.'), back('wizard')],
+  price: () => [brand(), h('h2', {}, 'Your guide price'), h('div', {class: 'range'}, st.small ? '$3,800 to $4,300' : '$6,400 to $7,200'), h('span', {class: 'gst'}, 'AUD, including GST'),
+    h('p', {}, 'This is based on what you have told us so far. One of our team confirms every price with you before it is fixed.'),
+    h('div', {class: 'act'},
+      h('button', {class: 'btn hero', type: 'button', onclick: () => choose('tighten')}, h('b', {}, 'Tighten my price'), h('small', {}, 'Get a more accurate quote now')),
+      st.small ? h('button', {class: 'btn', type: 'button', onclick: () => choose('speak')}, h('b', {}, 'Speak with us'), h('small', {}, 'Request a call to finalise your booking')) : null,
+      h('button', {class: 'btn', type: 'button', onclick: () => choose('visit')}, h('b', {}, 'Book a site visit'), h('small', {}, 'Choose a time for us to see the property')),
+      h('button', {class: 'btn', type: 'button', onclick: () => choose('message')}, h('b', {}, 'Send us a message'), h('small', {}, 'Ask a question about your estimate'))),
+    mnote(st.small ? 'This job is within the range you can finalise by phone, so Speak with us is offered. Switch the control above to a larger job and it disappears.' : 'This job is above the range you can finalise by phone, so Speak with us is not offered.')],
+  call: () => [brand(), h('h2', {}, 'Call us'), h('p', {}, 'We are happy to talk your project through.'), h('button', {class: 'btn pri', type: 'button'}, 'Call Paint Group'), mnote('Dials the office line. No details are asked for.'), back(st.stage === 'price' ? 'price' : 'wizard')],
+  details: () => { const pre = true; return [brand(), h('h2', {}, 'A few details first'),
+    h('p', {}, st.intent === 'visit' ? (pre ? 'Tell us where the property is and how to reach you, and we will arrange a visit.' : 'We need these to book your visit and send your confirmation.') : 'So we can save your estimate and reply to you.'),
+    fld('Full name', 'name'), fld('Address of the property', 'address'), fld('Email', 'email', 'email'), fld('Mobile number', 'mobile', 'tel', '04'),
+    st.intent === 'visit' ? h('label', {class: 'fld'}, h('span', {}, 'What would you like painted? (optional)'), h('textarea', {oninput: e => { st.det.note = e.target.value; }}, st.det.note)) : null,
+    st.err ? h('p', {class: 'err', role: 'alert'}, st.err) : null,
+    h('button', {class: 'btn pri', type: 'button', onclick: afterDetails}, st.intent === 'visit' ? 'Send my request' : 'Continue to your message'),
+    h('button', {class: 'link', type: 'button', onclick: () => { st.det = {...SAMPLE(), note: st.det.note}; st.err = ''; render(); }}, 'Fill with sample details'),
+    mnote(st.intent === 'visit' ? 'Asked for before the price range, so this becomes a request for you to follow up. The address decides the zone. In this mockup it follows the control above.' : 'We don\u2019t hold their details yet, so we ask first. The message box opens next.'), back('wizard')]; },
+  calendar: () => { const av = availability(P().z, P().far); if (!av.length) { st.screen = 'request'; return SCREENS.request(); } if (st.day >= av.length) st.day = 0; const cur = av[st.day];
+    return [brand(), h('h2', {}, 'Choose a time for your site visit'), h('p', {}, 'These are the times we are in ' + P().s + ' and nearby.'),
+      h('div', {class: 'days'}, av.map((a, i) => h('button', {class: 'day' + (i === st.day ? ' on' : ''), type: 'button', onclick: () => { st.day = i; st.pick = null; render(); }}, h('i', {}, +a.d === +NOW.date ? 'Today' : DAY3[a.d.getDay()]), h('b', {}, a.d.getDate()), h('i', {}, MON[a.d.getMonth()].slice(0, 3))))),
+      h('div', {class: 'times'}, cur.open.map(s => h('button', {class: 'time' + (st.pick && +st.pick.d === +cur.d && st.pick.start === s.start ? ' on' : ''), type: 'button', onclick: () => { st.pick = {d: cur.d, start: s.start}; render(); }}, tfmt(s.start)))),
+      h('button', {class: 'btn pri', type: 'button', disabled: !st.pick, style: 'margin-top:12px', onclick: () => go('code')}, st.pick ? 'Book ' + DAYN[st.pick.d.getDay()] + ' at ' + tfmt(st.pick.start) : 'Choose a time'),
+      h('button', {class: 'link', type: 'button', onclick: () => go('request')}, 'None of these suit? Request a different time'),
+      h('p', {style: 'margin:10px 0 0;font-size:14px'}, 'Rather not wait for a visit? ', h('button', {class: 'link', type: 'button', style: 'padding:0', onclick: () => choose('tighten')}, 'Tighten your price online')),
+      mnote('Zone ' + P().z + (P().far ? ', far edge' : '') + '. Only this zone\u2019s free slots show, for the next 3 weeks. Slots already booked, or inside 2 hours from now, are hidden.' + (P().far && P().z === 3 ? ' Friday 16 October at 9:30 am is hidden here, because the 8:00 am visit that day is at the far edge of Zone 4.' : '')), back('price')]; },
+  code: () => [brand(), h('h2', {}, 'Confirm it\u2019s you'), h('div', {class: 'sumry'}, h('b', {}, dfmt(st.pick.d) + ', ' + tfmt(st.pick.start) + ' to ' + tfmt(st.pick.start + VISIT)), h('span', {}, st.det.address)),
+    h('p', {}, 'We have sent a 6-digit code by text to ' + mask(st.det.mobile) + '. Enter it to book your visit.'),
+    h('label', {class: 'fld'}, h('span', {}, 'Code from your text'), h('input', {class: 'code', inputmode: 'numeric', maxlength: 6, value: st.code, oninput: e => { st.code = e.target.value.replace(/\D/g, ''); e.target.value = st.code; $('cbtn').disabled = st.code.length !== 6; }})),
+    h('button', {class: 'btn pri', id: 'cbtn', type: 'button', disabled: st.code.length !== 6, onclick: () => { bookings.push({d: st.pick.d, start: st.pick.start, zone: P().z, far: !!P().far, who: st.det.name, where: P().s, fresh: true}); renderWeek(); go('done'); }}, 'Book my visit'),
+    h('button', {class: 'link', type: 'button'}, 'Send a new code'), h('span', {}, ' '), back('calendar'),
+    mnote('Any 6 digits work here. The time is held for 10 minutes while they enter the code, then released.')],
+  done: () => [brand(), h('div', {class: 'ok'}, '\u2713'), h('h2', {}, 'Your site visit is booked'), h('div', {class: 'sumry'}, h('b', {}, dfmt(st.pick.d) + ', ' + tfmt(st.pick.start) + ' to ' + tfmt(st.pick.start + VISIT)), h('span', {}, st.det.address)),
+    h('p', {}, 'We have sent the details by text, and a calendar invitation by email. We will send a reminder by text the evening before. If you need to cancel, decline the invitation or call us.'),
+    mnote('The customer\u2019s invitation shows one hour. The 30 minutes after it is blocked as travel in your calendar only. If they decline the invitation, the visit is cancelled here too and the slot reopens.'), h('button', {class: 'link', type: 'button', onclick: resetFlow}, 'Start again')],
+  request: () => { const pre = P().z === 'pre'; return [brand(), h('h2', {}, pre ? 'We visit ' + P().s + ' by arrangement' : 'Request a time'), h('p', {}, pre ? 'Tell us which days suit you and we will confirm a time with you.' : 'Tell us which days suit you and we will come back to you with a time.'),
+    h('span', {class: 'steps'}, 'Days that suit'), h('div', {class: 'chips'}, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map(d => h('button', {class: 'chip' + (st.prefs.includes(d) ? ' on' : ''), type: 'button', 'aria-pressed': st.prefs.includes(d), onclick: () => { st.prefs = st.prefs.includes(d) ? st.prefs.filter(x => x !== d) : [...st.prefs, d]; render(); }}, d))),
+    h('span', {class: 'steps'}, 'Time of day'), h('div', {class: 'chips'}, ['Morning', 'Afternoon', 'Either'].map(d => h('button', {class: 'chip' + (st.part === d ? ' on' : ''), type: 'button', 'aria-pressed': st.part === d, onclick: () => { st.part = d; render(); }}, d))),
+    h('button', {class: 'btn pri', type: 'button', disabled: !st.prefs.length || !st.part, onclick: () => { requests.unshift({who: st.det.name, where: P().s, kind: 'Time request, ' + st.prefs.join(' ') + ', ' + st.part.toLowerCase(), zone: P().z}); st.intent = 'visit'; renderWeek(); go('sent'); }}, 'Send my request'),
+    mnote(pre ? 'Pre-arranged area. No calendar is shown. The request lands with you to confirm a time.' : 'Shown when no slot suits, or when the zone has nothing free in the next 3 weeks.'), back(pre || !availability(P().z, P().far).length ? 'price' : 'calendar')]; },
+  sent: () => { const m = {visit: ['Thank you, we have your request', 'We will be in touch within one working day to arrange your site visit.'], message: ['Thank you, your message is with us', 'We will reply within one working day.'], tighten: ['Thank you', 'Your estimate is saved. Next, a few more questions to narrow your price.'], speak: ['Thank you, we will call you', 'We will call you on ' + st.det.mobile + ' within one working day to finalise your booking.']}[st.intent];
+    renderWeek();
+    return [brand(), h('div', {class: 'ok'}, '\u2713'), h('h2', {}, m[0]), h('p', {}, m[1]),
+      mnote(st.intent === 'visit' ? 'This arrives as a request on the Your week tab, due a reply within one working day. Nothing is booked until you confirm a time.' : st.intent === 'tighten' ? 'The wizard carries on from here. Not part of this mockup.' : st.intent === 'speak' ? 'This arrives as a call request on the Your week tab, due within one working day.' : 'The message is in the customer\u2019s chat in the platform and has been emailed as well.'),
+      h('button', {class: 'link', type: 'button', onclick: resetFlow}, 'Start again')]; },
+  msg: () => [brand(), h('h2', {}, 'Send us a message'), h('p', {}, 'Tell us a little about your project and we will reply by email or phone.'),
+    h('label', {class: 'fld'}, h('span', {}, 'Your message'), h('textarea', {oninput: e => { st.det.note = e.target.value; }}, st.det.note)),
+    st.err ? h('p', {class: 'err', role: 'alert'}, st.err) : null,
+    h('button', {class: 'btn pri', type: 'button', onclick: () => { if (!st.det.note.trim()) { st.err = 'Please write your message first.'; render(); return; } st.intent = 'message'; requests.unshift({who: st.det.name, where: P().s, kind: 'Message, in the chat and by email', zone: P().z}); go('sent'); }}, 'Send my message'),
+    mnote('The message lands in this customer\u2019s chat in the platform and is also sent by email.'), back(P().z === 'out' ? 'out' : st.known ? 'price' : 'wizard')],
+  out: () => [brand(), h('h2', {}, 'We don\u2019t currently visit ' + P().s), h('p', {}, 'We are sorry, this address is outside the area we cover for site visits. You are welcome to send us a message and we will let you know if we can help.'),
+    h('button', {class: 'btn pri', type: 'button', onclick: () => { st.intent = 'message'; st.det.note = ''; go('msg'); }}, 'Send us a message'),
+    mnote('Out of area. No calendar and no request form. Their details are still saved as a lead.'), h('button', {class: 'link', type: 'button', onclick: resetFlow}, 'Start again')]
+};
+function render() { const p = $('phone'); p.replaceChildren(...SCREENS[st.screen]().flat().filter(Boolean)); }
+
+// mockup controls
+PLACES.forEach((p, i) => $('place').append(h('option', {value: i}, p.s + (typeof p.z === 'number' ? ', Zone ' + p.z + (p.far ? ' far edge' : '') : p.z === 'pre' ? ', pre-arranged' : ', out of area'))));
+$('place').onchange = e => { st.place = +e.target.value; resetFlow(); };
+const setStage = s => { st.stage = s; $('st-mid').classList.toggle('on', s === 'mid'); $('st-price').classList.toggle('on', s === 'price'); resetFlow(); };
+$('st-mid').onclick = () => setStage('mid'); $('st-price').onclick = () => setStage('price');
+const setSize = s => { st.small = s; $('sz-small').classList.toggle('on', s); $('sz-large').classList.toggle('on', !s); resetFlow(); };
+$('sz-small').onclick = () => setSize(true); $('sz-large').onclick = () => setSize(false);
+
+// ---------- your week
+let wd = 1, openSlot = -1, est = 0;
+const zchip = (n, off) => h('span', {class: 'z z' + n + (off ? ' off' : '')}, n);
+function renderWeek() {
+  $('est').replaceChildren(h('button', {class: est === 0 ? 'on' : '', type: 'button', onclick: () => { est = 0; renderWeek(); }}, 'Tom'), h('button', {class: est === 1 ? 'on' : '', type: 'button', onclick: () => { est = 1; renderWeek(); }}, 'Add an estimator'));
+  $('estnote').replaceChildren(est === 1 ? h('p', {class: 'note', style: 'margin:0 0 12px'}, h('b', {}, 'Mockup note'), 'A new estimator gets their own week, their own zones and their own Google Calendar. Customers see everyone\u2019s free times together.') : '');
+  $('dtabs').replaceChildren(...[1, 2, 3, 4, 5].map(d => h('button', {class: d === wd ? 'on' : '', type: 'button', onclick: () => { wd = d; openSlot = -1; renderWeek(); }}, DAY3[d])));
+  const slots = week[wd];
+  $('slots').replaceChildren(...(slots.length ? slots.map((s, i) => h('div', {class: 'slot' + (i === openSlot ? ' open' : '')},
+    h('button', {type: 'button', 'aria-expanded': i === openSlot, onclick: () => { openSlot = openSlot === i ? -1 : i; renderWeek(); }},
+      h('span', {class: 'tm'}, t24(s.start) + ' to ' + t24(s.start + SLOT)),
+      h('span', {class: 'zs'}, s.zones.length ? [...s.zones].sort().map(z => zchip(z)) : h('span', {class: 'none'}, 'No zones, nobody can book this'), s.cond ? h('span', {class: 'cond'}, 'Zone ' + s.cond.zone + ' too, if the visit before is Zone ' + s.cond.ifPrev) : null)),
+    h('div', {class: 'edit'}, h('p', {}, 'Zones that can book this slot'),
+      h('div', {class: 'zt'}, [1, 2, 3, 4, 5].map(z => h('button', {class: 'z' + z + (s.zones.includes(z) ? ' on' : ''), type: 'button', 'aria-pressed': s.zones.includes(z), 'aria-label': 'Zone ' + z, onclick: () => { s.zones = s.zones.includes(z) ? s.zones.filter(x => x !== z) : [...s.zones, z]; renderWeek(); if (st.screen === 'calendar') render(); }}, z))),
+      h('button', {class: 'rm', type: 'button', onclick: () => { slots.splice(i, 1); openSlot = -1; renderWeek(); if (st.screen === 'calendar') render(); }}, 'Remove this slot')))) : [h('div', {class: 'empty'}, 'No slots on this day.')]));
+  const last = slots.length ? slots[slots.length - 1].start + SLOT : 480;
+  $('addslot').disabled = last + SLOT > 18 * 60 + 30; $('addslot').textContent = last + SLOT > 18 * 60 + 30 ? 'Day is full' : 'Add a slot at ' + t24(last);
+  $('addslot').onclick = () => { slots.push({start: last, zones: [], cond: null}); openSlot = slots.length - 1; renderWeek(); };
+  $('tot').replaceChildren(...[1, 2, 3, 4, 5].map(z => { let n = 0; for (const d in week) week[d].forEach(s => { if (s.zones.includes(z)) n++; }); return h('div', {}, zchip(z), h('b', {}, n), h('small', {}, 'a week')); }));
+  const bs = [...bookings].sort((a, b) => a.d - b.d || a.start - b.start);
+  $('booked').replaceChildren(...bs.map(b => h('div', {class: b.fresh ? 'new' : ''}, h('span', {}, DAY3[b.d.getDay()] + ' ' + b.d.getDate() + ' ' + MON[b.d.getMonth()].slice(0, 3) + ', ' + tfmt(b.start) + ' to ' + tfmt(b.start + VISIT), h('small', {}, b.who + ', ' + b.where + ', Zone ' + b.zone + (b.far ? ' far edge' : ''))), h('span', {class: 'tag g'}, 'In Google Calendar'))));
+  $('reqs').replaceChildren(...(requests.length ? requests.map(r => h('div', {class: 'new'}, h('span', {}, r.who + ', ' + r.where, h('small', {}, r.kind)), h('span', {class: 'tag a'}, r.zone === 'pre' ? 'Pre-arranged' : r.zone === 'out' ? 'Out of area' : 'Zone ' + r.zone))) : [h('div', {class: 'empty'}, 'Nothing waiting. Try a Sorrento address on the Customer tab.')]));
+}
+
+// ---------- decisions + tabs
+$('dec').replaceChildren(...DECISIONS.map((d, i) => h('div', {}, h('span', {class: 'n'}, i + 1), h('span', {}, h('b', {}, d[0]), h('span', {class: 'd'}, d[1])))));
+$('open').replaceChildren(...OPEN.map((d, i) => h('div', {}, h('span', {class: 'n'}, i + 1), h('span', {}, h('b', {}, d[0]), h('span', {class: 'd'}, d[1]), h('span', {class: 'a'}, 'For now: ' + d[2])))));
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', x === b)); document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + b.dataset.v)); if (b.dataset.v === 'week') renderWeek(); window.scrollTo(0, 0); });
+st.det = SAMPLE(); render(); renderWeek();
+</script>
+</body>
+</html>

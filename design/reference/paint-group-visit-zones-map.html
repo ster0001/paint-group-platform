@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paint Group visit zones, approved</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#0A0B0D; --surface:#12161A; --raised:#171C21; --line:#242B32; --text:#EDF0F2; --muted:#8C959D;
+  --water:#0C1216; --land:#1D242A; --river:#0C1216;
+  --z1:#26828D; --z2:#24764F; --z3:#324F97; --z4:#604E91; --z5:#863864;
+  --z1b:#3BD8E9; --z2b:#2FA46B; --z3b:#6F95F7; --z4b:#A98DF0; --z5b:#E06AAE;
+  --amber:#E0A83C; --on-amber:#2A1C00; --halo:rgba(10,11,13,.82); --mk:#EDF0F2; --ctx:#8C959D;
+  --sans:"Switzer","Geist",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"Martian Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#F2F4F5; --surface:#FFFFFF; --raised:#F7F9FA; --line:#DCE1E5; --text:#0A0B0D; --muted:#5B646C;
+    --water:#C9DBE2; --land:#E8ECEE; --river:#C9DBE2;
+    --z1:#76E4F0; --z2:#78C49F; --z3:#94B0F8; --z4:#C2B0F2; --z5:#E89AC5;
+    --z1b:#12A9BB; --z2b:#1F8A56; --z3b:#3A66DD; --z4b:#7B58D6; --z5b:#C4398A;
+    --amber:#C2820A; --on-amber:#FFFFFF; --halo:rgba(255,255,255,.86); --mk:#0A0B0D; --ctx:#5B646C;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#F2F4F5; --surface:#FFFFFF; --raised:#F7F9FA; --line:#DCE1E5; --text:#0A0B0D; --muted:#5B646C;
+  --water:#C9DBE2; --land:#E8ECEE; --river:#C9DBE2;
+  --z1:#76E4F0; --z2:#78C49F; --z3:#94B0F8; --z4:#C2B0F2; --z5:#E89AC5;
+  --z1b:#12A9BB; --z2b:#1F8A56; --z3b:#3A66DD; --z4b:#7B58D6; --z5b:#C4398A;
+  --amber:#C2820A; --on-amber:#FFFFFF; --halo:rgba(255,255,255,.86); --mk:#0A0B0D; --ctx:#5B646C;
+}
+:root[data-theme="dark"]{
+  --bg:#0A0B0D; --surface:#12161A; --raised:#171C21; --line:#242B32; --text:#EDF0F2; --muted:#8C959D;
+  --water:#0C1216; --land:#1D242A; --river:#0C1216;
+  --z1:#26828D; --z2:#24764F; --z3:#324F97; --z4:#604E91; --z5:#863864;
+  --z1b:#3BD8E9; --z2b:#2FA46B; --z3b:#6F95F7; --z4b:#A98DF0; --z5b:#E06AAE;
+  --amber:#E0A83C; --on-amber:#2A1C00; --halo:rgba(10,11,13,.82); --mk:#EDF0F2; --ctx:#8C959D;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+.page{max-width:1080px;margin:0 auto}
+.head{padding:20px 18px 14px}
+.head h1{font-size:30px;line-height:1.05;letter-spacing:-.03em;font-weight:600;margin:0 0 6px}
+.head p{margin:0;color:var(--muted);font-size:15px;max-width:52ch}
+.stamp{font-family:var(--mono);font-size:11px;color:var(--amber);margin:0 0 10px;display:block}
+
+.mapwrap{position:relative;background:var(--water);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#map{display:block;width:100%;height:62vh;height:62svh;min-height:400px;max-height:760px;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#map.drag{cursor:grabbing}
+.ctrl{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px}
+.ctrl button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:22px;line-height:1;font-weight:500;cursor:pointer}
+.ctrl button.txt{font-family:var(--mono);font-size:10px;font-weight:500}
+.ctrl button:focus-visible,.row>button:focus-visible,.flag:focus-visible,.clear:focus-visible{outline:2px solid var(--z1b);outline-offset:2px}
+.selchip{position:absolute;left:10px;top:10px;display:none;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px 8px 12px;font-size:14px;font-weight:600;max-width:calc(100% - 20px)}
+.selchip.show{display:flex}
+.clear{border:0;background:var(--raised);border-radius:8px;padding:6px 10px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.key{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 18px 0;font-size:13px;color:var(--muted)}
+.key span{display:inline-flex;align-items:center;gap:7px}
+.key i{display:inline-block;width:10px;height:10px;border-radius:50%}
+.key .ky{background:var(--text)} .key .km{border:2px solid var(--text)} .key .kf{background:var(--amber);width:16px;height:16px;font:600 9px/16px var(--mono);color:var(--on-amber);text-align:center;font-style:normal}
+.hint{padding:6px 18px 0;font-size:13px;color:var(--muted);margin:0}
+
+section{padding:26px 18px 0}
+section h2{font-size:21px;letter-spacing:-.02em;font-weight:600;margin:0 0 4px;line-height:1.15}
+section>p{margin:0 0 14px;color:var(--muted);font-size:15px;max-width:60ch}
+.rows{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+.row+.row{border-top:1px solid var(--line)}
+.row>button{display:grid;grid-template-columns:34px 1fr 18px;gap:12px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:13px 14px;cursor:pointer;min-height:60px}
+.sw{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font:600 14px var(--mono);color:#fff}
+.sw.z1{background:var(--z1)}.sw.z2{background:var(--z2)}.sw.z3{background:var(--z3)}.sw.z4{background:var(--z4)}.sw.z5{background:var(--z5)}
+.sw.z1,.sw.z2,.sw.z3,.sw.z4,.sw.z5{color:var(--text)}
+.sw.pre{background:repeating-linear-gradient(135deg,var(--amber) 0 2px,transparent 2px 7px),var(--land);border:1.5px solid var(--amber)}
+.sw.out{background:var(--land);border:1.5px dashed var(--muted)}
+.row b{display:block;font-weight:600;font-size:16px;letter-spacing:-.01em}
+.row small{display:block;color:var(--muted);font-size:13.5px;line-height:1.35}
+.chev{width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);justify-self:center;transition:transform .15s}
+.row.open .chev{transform:rotate(-135deg)}
+.det{display:none;padding:0 14px 16px 60px;font-size:14.5px}
+.row.open .det{display:block}
+.det dt{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin:10px 0 2px}
+.det dd{margin:0}
+.det .sees{display:inline-block;background:var(--raised);border-radius:8px;padding:6px 10px;font-size:13.5px;margin-top:2px}
+
+.flags{display:grid;gap:8px}
+.flag{display:grid;grid-template-columns:30px 1fr;gap:12px;align-items:start;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;width:100%}
+.flag.hit{border-color:var(--amber)}
+.flag .n{width:28px;height:28px;border-radius:50%;background:var(--amber);color:var(--on-amber);display:grid;place-items:center;font:600 12px var(--mono)}
+.flag b{display:block;font-weight:600;font-size:15.5px}
+.flag span.d{display:block;color:var(--muted);font-size:14px;line-height:1.4;margin-top:2px}
+.chg{margin:10px 0 0;padding:0 0 0 20px;font-size:15px;max-width:62ch}.chg li{margin:0 0 6px}.chg li::marker{color:var(--amber)}
+#map[data-l="3"] .ar{display:none}
+.foot{padding:22px 18px 40px;color:var(--muted);font-size:13.5px;max-width:64ch}
+@media (min-width:820px){
+  .head{padding:34px 24px 18px}.head h1{font-size:40px}
+  section,.foot{padding-left:24px;padding-right:24px}.key,.hint{padding-left:24px}
+  .mapwrap{border:1px solid var(--line);border-radius:16px;overflow:hidden;margin:0 24px}
+  .flags{grid-template-columns:1fr 1fr}
+}
+
+/* map */
+.land{fill:var(--land)} .isl{fill:var(--land)}
+.zn{stroke:var(--land);stroke-width:1.4;vector-effect:non-scaling-stroke;cursor:pointer;transition:opacity .2s}
+.zn.z1{fill:var(--z1)}.zn.z2{fill:var(--z2)}.zn.z3{fill:var(--z3)}.zn.z4{fill:var(--z4)}.zn.z5{fill:var(--z5)}
+.zn.pre{fill:url(#hatch);stroke:var(--amber);stroke-width:1.2}
+#hatch line{stroke:var(--amber);stroke-width:1.5}
+#map.dim .zn:not(.on){opacity:.22}
+.riv{fill:none;stroke:var(--river);stroke-width:1.6;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round;opacity:.9;pointer-events:none}
+.mk{transform:scale(var(--k,1))}
+.lb{pointer-events:none}
+.lb text{font-family:var(--sans);font-size:11px;font-weight:600;fill:var(--mk);stroke:var(--halo);stroke-width:3px;paint-order:stroke;stroke-linejoin:round;letter-spacing:-.01em}
+.lb circle{fill:var(--mk);stroke:var(--halo);stroke-width:1.5}
+.lb.s-m text{font-weight:500}
+.lb.s-m circle{fill:var(--halo);stroke:var(--mk);stroke-width:1.5}
+.lb.s-c text{font-weight:400;fill:var(--ctx)} .lb.s-c circle{fill:var(--ctx);stroke:none}
+#map[data-l="1"] .t2,#map[data-l="1"] .t3,#map[data-l="2"] .t3{display:none}
+.ar text{font-family:var(--mono);font-size:10px;font-weight:500;text-anchor:middle;stroke:var(--halo);stroke-width:3px;paint-order:stroke;pointer-events:none}
+.ar.pre text{fill:var(--amber)} .ar.out text{fill:var(--ctx)}
+.wt text{font-family:var(--sans);font-style:italic;font-size:12px;fill:var(--ctx);text-anchor:middle;pointer-events:none;opacity:.8}
+.bd{pointer-events:none}
+.bd circle{stroke:var(--bg);stroke-width:2.5}
+.bd.z1 circle{fill:var(--z1b)}.bd.z2 circle{fill:var(--z2b)}.bd.z3 circle{fill:var(--z3b)}.bd.z4 circle{fill:var(--z4b)}.bd.z5 circle{fill:var(--z5b)}
+.bd text{font-family:var(--mono);font-size:15px;font-weight:600;text-anchor:middle;fill:#06080A}
+.fl{cursor:pointer}
+.fl circle{fill:var(--amber);stroke:var(--bg);stroke-width:2}
+.fl text{font-family:var(--mono);font-size:10px;font-weight:600;text-anchor:middle;fill:var(--on-amber);pointer-events:none}
+.fl.hit circle{stroke:var(--text);stroke-width:3}
+@media (prefers-reduced-motion:reduce){.zn,.chev{transition:none}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="head">
+    <span class="stamp">Draft 2, approved by Tom on 5 Oct 2026</span>
+    <h1>Visit zones</h1>
+    <p>Five zones customers can book in, the areas that need a time arranged with you first, and everything out of area.</p>
+  </header>
+
+  <div class="mapwrap">
+    <svg id="map" viewBox="0 0 927 996" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Map of Melbourne showing five visit zones, pre-arranged areas and out of area">
+      <defs>
+        <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7"/></pattern>
+        <clipPath id="landclip"><path d="M-529.5 -480.0 L1361.7 -480.0 L1361.7 1320.0 L983.4 1320.0 L775.4 1104.0 L813.2 984.0 L917.2 972.0 L936.2 840.0 L936.2 792.0 L888.9 756.0 L775.4 738.0 L709.2 750.0 L652.5 762.0 L619.4 798.0 L600.5 840.0 L614.6 888.0 L628.8 930.0 L605.2 960.0 L567.4 954.0 L529.5 948.0 L482.3 984.0 L463.4 1002.0 L435.0 1050.0 L416.1 1062.0 L312.1 1068.0 L283.7 1008.0 L236.4 960.0 L170.2 912.0 L132.4 882.0 L87.0 842.4 L144.7 860.4 L172.1 884.4 L203.3 909.6 L247.8 921.6 L274.2 926.4 L326.2 906.0 L349.9 896.4 L383.0 878.4 L401.9 858.0 L406.6 834.0 L425.5 798.0 L435.0 768.0 L444.4 735.6 L458.6 726.0 L487.0 702.0 L505.9 684.0 L522.0 669.6 L527.7 654.0 L534.3 606.0 L530.5 572.4 L527.7 556.8 L522.9 542.4 L516.3 525.6 L509.7 511.2 L496.4 489.6 L485.1 475.2 L472.8 465.6 L458.6 470.4 L444.4 474.0 L428.4 453.6 L423.6 441.6 L418.9 422.4 L413.2 408.0 L404.7 392.4 L400.0 369.6 L400.0 348.0 L394.3 340.8 L389.6 321.6 L378.2 306.0 L359.3 294.0 L345.1 294.0 L335.7 288.0 L326.2 278.4 L323.4 294.0 L326.2 308.4 L332.9 325.2 L307.3 322.8 L288.4 316.8 L269.5 320.4 L250.6 326.4 L226.9 348.0 L212.8 396.0 L170.2 426.0 L122.9 450.0 L66.2 468.0 L-37.8 516.0 L-113.5 564.0 L-160.8 600.0 L-189.1 654.0 L-151.3 678.0 L-122.9 636.0 L-56.7 666.0 L0.0 660.0 L85.1 612.0 L146.6 648.0 L151.3 684.0 L132.4 744.0 L99.3 798.0 L52.0 828.0 L-37.8 804.0 L-66.2 822.0 L-226.9 876.0 L-349.9 972.0 L-529.5 1044.0Z"/></clipPath>
+      </defs>
+      <path class="land" d="M-529.5 -480.0 L1361.7 -480.0 L1361.7 1320.0 L983.4 1320.0 L775.4 1104.0 L813.2 984.0 L917.2 972.0 L936.2 840.0 L936.2 792.0 L888.9 756.0 L775.4 738.0 L709.2 750.0 L652.5 762.0 L619.4 798.0 L600.5 840.0 L614.6 888.0 L628.8 930.0 L605.2 960.0 L567.4 954.0 L529.5 948.0 L482.3 984.0 L463.4 1002.0 L435.0 1050.0 L416.1 1062.0 L312.1 1068.0 L283.7 1008.0 L236.4 960.0 L170.2 912.0 L132.4 882.0 L87.0 842.4 L144.7 860.4 L172.1 884.4 L203.3 909.6 L247.8 921.6 L274.2 926.4 L326.2 906.0 L349.9 896.4 L383.0 878.4 L401.9 858.0 L406.6 834.0 L425.5 798.0 L435.0 768.0 L444.4 735.6 L458.6 726.0 L487.0 702.0 L505.9 684.0 L522.0 669.6 L527.7 654.0 L534.3 606.0 L530.5 572.4 L527.7 556.8 L522.9 542.4 L516.3 525.6 L509.7 511.2 L496.4 489.6 L485.1 475.2 L472.8 465.6 L458.6 470.4 L444.4 474.0 L428.4 453.6 L423.6 441.6 L418.9 422.4 L413.2 408.0 L404.7 392.4 L400.0 369.6 L400.0 348.0 L394.3 340.8 L389.6 321.6 L378.2 306.0 L359.3 294.0 L345.1 294.0 L335.7 288.0 L326.2 278.4 L323.4 294.0 L326.2 308.4 L332.9 325.2 L307.3 322.8 L288.4 316.8 L269.5 320.4 L250.6 326.4 L226.9 348.0 L212.8 396.0 L170.2 426.0 L122.9 450.0 L66.2 468.0 L-37.8 516.0 L-113.5 564.0 L-160.8 600.0 L-189.1 654.0 L-151.3 678.0 L-122.9 636.0 L-56.7 666.0 L0.0 660.0 L85.1 612.0 L146.6 648.0 L151.3 684.0 L132.4 744.0 L99.3 798.0 L52.0 828.0 L-37.8 804.0 L-66.2 822.0 L-226.9 876.0 L-349.9 972.0 L-529.5 1044.0Z"/><path class="isl" d="M680.8 828.0 L756.5 816.0 L841.6 840.0 L870.0 912.0 L794.3 960.0 L699.8 948.0 L661.9 888.0Z"/><path class="isl" d="M548.5 1020.0 L652.5 1008.0 L756.5 1032.0 L747.0 1104.0 L652.5 1116.0 L529.5 1092.0Z"/>
+      <g clip-path="url(#landclip)" id="zones">
+        <path class="zn pre" data-id="pre" d="M401.9 108.0 L340.4 105.6 L321.5 99.6 L288.4 96.0 L255.3 120.0 L208.0 108.0 L151.3 120.0 L127.7 168.0 L132.4 210.0 L151.3 228.0 L189.1 246.0 L226.9 258.0 L255.3 258.0 L293.1 258.0 L302.6 228.0 L321.5 180.0 L359.3 156.0 L401.9 156.0Z"/><path class="zn pre" data-id="pre" d="M416.1 774.0 L496.4 774.0 L482.3 816.0 L458.6 852.0 L416.1 894.0 L378.2 912.0 L340.4 930.0 L307.3 948.0 L283.7 960.0 L283.7 1032.0 L132.4 1032.0 L75.6 876.0 L80.4 835.2 L132.4 840.0 L302.6 840.0 L387.7 816.0Z"/><path class="zn pre" data-id="pre" d="M401.9 114.0 L406.6 78.0 L449.2 74.4 L455.8 102.0 L454.8 122.4 L416.1 120.0Z"/><path class="zn pre" data-id="pre" d="M529.5 180.0 L518.2 153.6 L517.3 134.4 L534.3 126.0 L548.5 114.0 L572.1 108.0 L591.0 132.0 L614.6 144.0 L652.5 138.0 L699.8 138.0 L704.5 156.0 L709.2 180.0 L699.8 240.0 L557.9 240.0Z"/><path class="zn pre" data-id="pre" d="M747.0 516.0 L770.7 516.0 L794.3 516.0 L832.1 522.0 L888.9 528.0 L931.4 534.0 L931.4 600.0 L860.5 606.0 L780.1 618.0 L780.1 678.0 L718.7 684.0 L709.2 648.0 L661.9 642.0 L638.3 642.0 L614.6 600.0 L652.5 552.0 L699.8 528.0Z"/>
+        <path class="zn z4" data-id="z4" d="M482.3 468.0 L576.8 468.0 L605.2 516.0 L685.6 528.0 L683.7 537.6 L679.0 561.6 L663.8 570.0 L657.2 590.4 L628.8 594.0 L631.7 630.0 L638.3 642.0 L638.3 690.0 L619.4 714.0 L600.5 735.6 L557.9 738.0 L539.0 732.0 L505.9 738.0 L496.4 780.0 L444.4 782.4 L406.6 780.0 L463.4 600.0 L453.9 480.0Z"/>
+        <path class="zn z3" data-id="z3" d="M557.9 240.0 L609.9 228.0 L614.6 213.6 L638.3 206.4 L661.9 194.4 L685.6 188.4 L690.3 168.0 L718.7 159.6 L770.7 162.0 L794.3 192.0 L799.0 228.0 L789.6 264.0 L784.9 306.0 L784.9 342.0 L770.7 372.0 L765.9 408.0 L747.0 444.0 L761.2 480.0 L770.7 516.0 L765.9 546.0 L728.1 552.0 L687.5 554.4 L683.7 537.6 L643.0 536.4 L619.4 540.0 L595.7 534.0 L595.7 504.0 L559.8 506.4 L559.8 474.0 L529.5 420.0 L529.5 300.0Z"/>
+        <path class="zn z5" data-id="z5" d="M297.9 195.6 L289.4 198.0 L274.2 202.8 L266.7 201.6 L264.8 234.0 L260.0 246.0 L250.6 270.0 L245.9 294.0 L226.9 312.0 L226.9 360.0 L349.9 360.0 L349.9 192.0Z"/>
+        <path class="zn z2" data-id="z2" d="M332.9 247.2 L329.1 240.0 L328.1 228.0 L326.2 213.6 L314.9 201.6 L297.9 195.6 L296.0 180.0 L297.9 162.0 L310.2 153.6 L326.2 144.0 L331.0 139.2 L349.9 140.4 L373.5 144.0 L392.4 146.4 L397.2 126.0 L406.6 111.6 L444.4 110.4 L453.9 120.0 L461.5 134.4 L468.1 141.6 L496.4 140.4 L505.9 150.0 L518.2 153.6 L522.0 164.4 L539.0 162.0 L557.9 168.0 L574.9 159.6 L586.3 180.0 L591.0 194.4 L600.5 210.0 L609.9 228.0 L611.8 247.2 L605.2 264.0 L340.4 264.0Z"/>
+        <path class="zn z1" data-id="z1" d="M335.7 247.2 L364.1 247.2 L389.6 248.4 L408.5 250.8 L427.4 253.2 L421.7 240.0 L419.9 228.0 L435.0 224.4 L449.2 220.8 L472.8 213.6 L487.0 213.6 L510.6 224.4 L524.8 231.6 L539.0 234.0 L562.6 236.4 L586.3 240.0 L602.4 246.0 L611.8 247.2 L612.8 264.0 L616.5 288.0 L610.9 308.4 L605.2 330.0 L601.4 351.6 L583.4 351.6 L583.4 363.6 L572.1 362.4 L565.5 405.6 L573.0 408.0 L573.0 438.0 L567.4 462.0 L559.8 474.0 L529.5 476.4 L510.6 475.2 L503.1 478.8 L489.8 482.4 L463.4 504.0 L406.6 468.0 L368.8 360.0 L345.1 306.0 L332.9 288.0 L326.2 267.6Z"/>
+      </g>
+      
+      <g id="overlay"></g>
+    </svg>
+    <div class="selchip" id="selchip"><span id="selname"></span><button class="clear" id="clear" type="button">Show all</button></div>
+    <div class="ctrl">
+      <button type="button" id="zin" aria-label="Zoom in">+</button>
+      <button type="button" id="zout" aria-label="Zoom out">&minus;</button>
+      <button type="button" id="zfit" class="txt" aria-label="Show whole map">All</button>
+    </div>
+  </div>
+  <div class="key">
+    <span><i class="ky"></i>Named by you</span>
+    <span><i class="km"></i>Filled in between</span>
+    <span><i class="kf">A</i>Approved spot</span>
+  </div>
+  <p class="hint">Drag to move, pinch or use + to zoom. More suburb names appear as you zoom in.</p>
+
+  <section>
+    <h2>Changed in draft 2</h2>
+    <ul class="chg">
+      <li>Pakenham, Officer and Clyde added as pre-arranged.</li>
+      <li>Lynbrook, Langwarrin and Baxter added to Zone 4.</li>
+      <li>The west now stops at Caroline Springs and Taylors Lakes. Werribee, Tarneit and everything west of Altona are out of area.</li>
+      <li>Thomastown and Eltham confirmed as pre-arranged. Parkdale confirmed in Zone 1.</li>
+      <li>Your other answers (3 to 7, 10 and 11) are confirmed as drawn.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>What each colour means</h2>
+    <p>Tap a row to see it on its own, with the suburbs you named and the ones filled in between them.</p>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <section>
+    <h2 id="flagh">Spots that need your call</h2>
+    <p>You approved these as drawn on 5 October. They are kept here for the record.</p>
+    <div class="flags" id="flags"></div>
+  </section>
+
+  <p class="foot">This map is drawn by hand from your description so we could agree the areas. In the build, each zone becomes a list of suburbs you can edit in Settings, so the edges follow real suburb boundaries. It has to be suburbs rather than postcodes, because some postcodes are split between zones. Glen Waverley and Wheelers Hill share 3150, and Parkdale and Mordialloc share 3195.</p>
+</div>
+
+<script>
+const D = {"W":927,"H":996,"labels":[{"n":"CBD","x":381.1,"y":256.8,"c":"z1","s":"y","t":1,"p":"l"},{"n":"Port Melbourne","x":357.4,"y":285.6,"c":"z1","s":"m","t":3,"p":"r"},{"n":"St Kilda","x":399.0,"y":316.8,"c":"z1","s":"m","t":2,"p":"r"},{"n":"Richmond","x":416.1,"y":266.4,"c":"z1","s":"m","t":3,"p":"r"},{"n":"Brighton","x":413.2,"y":367.2,"c":"z1","s":"m","t":2,"p":"r"},{"n":"Sandringham","x":426.5,"y":421.2,"c":"z1","s":"m","t":3,"p":"r"},{"n":"Beaumaris","x":450.1,"y":459.6,"c":"z1","s":"m","t":3,"p":"l"},{"n":"Mentone","x":480.4,"y":459.6,"c":"z1","s":"y","t":2,"p":"t"},{"n":"Parkdale","x":492.7,"y":471.6,"c":"z1","s":"y","t":3,"p":"r"},{"n":"Cheltenham","x":468.1,"y":436.8,"c":"z1","s":"m","t":3,"p":"r"},{"n":"Dingley Village","x":541.8,"y":457.2,"c":"z1","s":"y","t":2,"p":"r"},{"n":"Springvale","x":558.9,"y":418.8,"c":"z1","s":"y","t":2,"p":"l"},{"n":"Springvale South","x":551.3,"y":446.4,"c":"z1","s":"m","t":3,"p":"t"},{"n":"Clayton","x":529.5,"y":390.0,"c":"z1","s":"y","t":2,"p":"l"},{"n":"Oakleigh","x":501.2,"y":360.0,"c":"z1","s":"m","t":3,"p":"r"},{"n":"Caulfield","x":439.7,"y":336.0,"c":"z1","s":"m","t":3,"p":"r"},{"n":"Bentleigh","x":449.2,"y":381.6,"c":"z1","s":"m","t":3,"p":"r"},{"n":"Malvern","x":449.2,"y":308.4,"c":"z1","s":"m","t":3,"p":"r"},{"n":"Camberwell","x":482.3,"y":285.6,"c":"z1","s":"m","t":3,"p":"r"},{"n":"Mount Waverley","x":538.1,"y":332.4,"c":"z1","s":"m","t":3,"p":"l"},{"n":"Glen Waverley","x":572.1,"y":333.6,"c":"z1","s":"y","t":2,"p":"t"},{"n":"Burwood","x":524.8,"y":300.0,"c":"z1","s":"m","t":3,"p":"r"},{"n":"Vermont","x":600.5,"y":283.2,"c":"z1","s":"y","t":2,"p":"l"},{"n":"Vermont South","x":589.1,"y":307.2,"c":"z1","s":"m","t":3,"p":"b"},{"n":"Box Hill","x":532.4,"y":262.8,"c":"z1","s":"y","t":2,"p":"t"},{"n":"Blackburn","x":559.8,"y":254.4,"c":"z1","s":"m","t":3,"p":"t"},{"n":"Nunawading","x":578.7,"y":266.4,"c":"z1","s":"m","t":3,"p":"l"},{"n":"Mitcham","x":598.6,"y":254.4,"c":"z1","s":"m","t":3,"p":"b"},{"n":"Balwyn","x":491.7,"y":252.0,"c":"z1","s":"y","t":2,"p":"b"},{"n":"Balwyn North","x":497.4,"y":229.2,"c":"z1","s":"m","t":3,"p":"l"},{"n":"Kew","x":445.4,"y":247.2,"c":"z1","s":"y","t":2,"p":"b"},{"n":"Hawthorn","x":449.2,"y":268.8,"c":"z1","s":"m","t":3,"p":"b"},{"n":"Doncaster","x":535.2,"y":222.0,"c":"z2","s":"y","t":2,"p":"t"},{"n":"Doncaster East","x":567.4,"y":213.6,"c":"z2","s":"m","t":3,"p":"t"},{"n":"Donvale","x":592.0,"y":231.6,"c":"z2","s":"m","t":3,"p":"l"},{"n":"Templestowe","x":557.9,"y":188.4,"c":"z2","s":"y","t":2,"p":"l"},{"n":"Bulleen","x":496.4,"y":200.4,"c":"z2","s":"m","t":3,"p":"r"},{"n":"Rosanna","x":478.5,"y":169.2,"c":"z2","s":"y","t":2,"p":"t"},{"n":"Heidelberg","x":474.7,"y":187.2,"c":"z2","s":"m","t":3,"p":"r"},{"n":"Ivanhoe","x":458.6,"y":202.8,"c":"z2","s":"m","t":3,"p":"r"},{"n":"Viewbank","x":505.9,"y":168.0,"c":"z2","s":"m","t":3,"p":"b"},{"n":"Macleod","x":482.3,"y":151.2,"c":"z2","s":"m","t":3,"p":"t"},{"n":"Kingsbury","x":448.2,"y":134.4,"c":"z2","s":"m","t":3,"p":"l"},{"n":"Reservoir","x":422.7,"y":140.4,"c":"z2","s":"y","t":2,"p":"b"},{"n":"Preston","x":416.1,"y":170.4,"c":"z2","s":"m","t":3,"p":"r"},{"n":"Northcote","x":416.1,"y":204.0,"c":"z2","s":"m","t":3,"p":"r"},{"n":"Coburg","x":383.0,"y":172.8,"c":"z2","s":"y","t":2,"p":"b"},{"n":"Brunswick","x":378.2,"y":200.4,"c":"z2","s":"m","t":3,"p":"r"},{"n":"Carlton","x":384.9,"y":240.0,"c":"z2","s":"m","t":3,"p":"t"},{"n":"North Melbourne","x":363.1,"y":238.8,"c":"z2","s":"m","t":3,"p":"b"},{"n":"Kensington","x":347.0,"y":232.8,"c":"z2","s":"m","t":3,"p":"l"},{"n":"Ascot Vale","x":342.3,"y":214.8,"c":"z2","s":"m","t":3,"p":"r"},{"n":"Pascoe Vale","x":357.4,"y":152.4,"c":"z2","s":"y","t":2,"p":"r"},{"n":"Essendon","x":336.6,"y":182.4,"c":"z2","s":"y","t":2,"p":"l"},{"n":"Moonee Ponds","x":341.4,"y":199.2,"c":"z2","s":"y","t":2,"p":"l"},{"n":"Strathmore","x":336.6,"y":160.8,"c":"z2","s":"m","t":3,"p":"l"},{"n":"Niddrie","x":313.0,"y":165.6,"c":"z2","s":"m","t":3,"p":"b"},{"n":"Ringwood","x":632.6,"y":258.0,"c":"z3","s":"y","t":1,"p":"r"},{"n":"Ringwood North","x":633.6,"y":228.0,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Croydon","x":681.8,"y":234.0,"c":"z3","s":"y","t":2,"p":"r"},{"n":"Mooroolbark","x":711.1,"y":222.0,"c":"z3","s":"y","t":2,"p":"t"},{"n":"Chirnside Park","x":716.8,"y":182.4,"c":"z3","s":"m","t":3,"p":"l"},{"n":"Lilydale","x":750.8,"y":188.4,"c":"z3","s":"y","t":1,"p":"b"},{"n":"Mount Evelyn","x":780.1,"y":219.6,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Montrose","x":742.3,"y":252.0,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Olinda","x":764.1,"y":306.0,"c":"z3","s":"m","t":3,"p":"l"},{"n":"Dandenong Ranges","x":748.9,"y":278.4,"c":"z3","s":"y","t":2,"p":"t"},{"n":"Belgrave","x":751.8,"y":370.8,"c":"z3","s":"y","t":2,"p":"l"},{"n":"Ferntree Gully","x":695.0,"y":339.6,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Boronia","x":685.6,"y":313.2,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Bayswater","x":669.5,"y":290.4,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Wantirna","x":631.7,"y":300.0,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Scoresby","x":635.5,"y":358.8,"c":"z3","s":"y","t":2,"p":"r"},{"n":"Rowville","x":638.3,"y":393.6,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Wheelers Hill","x":594.8,"y":372.0,"c":"z3","s":"y","t":2,"p":"r"},{"n":"Mulgrave","x":586.3,"y":393.6,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Noble Park","x":584.4,"y":440.4,"c":"z3","s":"y","t":2,"p":"r"},{"n":"Keysborough","x":580.6,"y":471.6,"c":"z3","s":"y","t":2,"p":"b"},{"n":"Dandenong","x":619.4,"y":464.4,"c":"z3","s":"y","t":1,"p":"r"},{"n":"Dandenong South","x":619.4,"y":506.4,"c":"z3","s":"y","t":2,"p":"b"},{"n":"Endeavour Hills","x":661.0,"y":450.0,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Hallam","x":671.4,"y":483.6,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Hampton Park","x":661.9,"y":522.0,"c":"z3","s":"m","t":3,"p":"b"},{"n":"Narre Warren","x":702.6,"y":513.6,"c":"z3","s":"y","t":2,"p":"t"},{"n":"Berwick","x":743.3,"y":519.6,"c":"z3","s":"y","t":1,"p":"t"},{"n":"Lysterfield","x":699.8,"y":402.0,"c":"z3","s":"m","t":3,"p":"r"},{"n":"Mordialloc","x":500.2,"y":487.2,"c":"z4","s":"y","t":1,"p":"r"},{"n":"Aspendale","x":513.5,"y":511.2,"c":"z4","s":"m","t":3,"p":"r"},{"n":"Chelsea","x":526.7,"y":542.4,"c":"z4","s":"m","t":2,"p":"r"},{"n":"Patterson Lakes","x":551.3,"y":566.4,"c":"z4","s":"m","t":3,"p":"r"},{"n":"Carrum","x":533.3,"y":573.6,"c":"z4","s":"m","t":3,"p":"l"},{"n":"Carrum Downs","x":581.6,"y":600.0,"c":"z4","s":"m","t":3,"p":"b"},{"n":"Seaford","x":540.9,"y":604.8,"c":"z4","s":"m","t":3,"p":"l"},{"n":"Frankston","x":535.2,"y":654.0,"c":"z4","s":"m","t":1,"p":"l"},{"n":"Mount Eliza","x":503.1,"y":706.8,"c":"z4","s":"m","t":2,"p":"r"},{"n":"Mornington","x":453.9,"y":741.6,"c":"z4","s":"y","t":1,"p":"r"},{"n":"Williamstown","x":316.8,"y":314.4,"c":"z5","s":"y","t":1,"p":"b"},{"n":"Newport","x":305.4,"y":291.6,"c":"z5","s":"m","t":3,"p":"l"},{"n":"Yarraville","x":312.1,"y":259.2,"c":"z5","s":"m","t":3,"p":"l"},{"n":"Footscray","x":320.6,"y":240.0,"c":"z5","s":"y","t":2,"p":"b"},{"n":"Maribyrnong","x":311.1,"y":208.8,"c":"z5","s":"y","t":2,"p":"b"},{"n":"Braybrook","x":279.0,"y":222.0,"c":"z5","s":"y","t":2,"p":"b"},{"n":"Altona North","x":272.3,"y":284.4,"c":"z5","s":"m","t":3,"p":"l"},{"n":"Altona","x":255.3,"y":319.2,"c":"z5","s":"y","t":2,"p":"t"},{"n":"Fawkner","x":380.1,"y":126.0,"c":"pre","s":"y","t":2,"p":"t"},{"n":"Glenroy","x":337.6,"y":124.8,"c":"pre","s":"y","t":2,"p":"t"},{"n":"Hadfield","x":361.2,"y":130.8,"c":"pre","s":"m","t":3,"p":"b"},{"n":"Tullamarine","x":302.6,"y":120.0,"c":"pre","s":"y","t":1,"p":"l"},{"n":"Airport West","x":302.6,"y":146.4,"c":"pre","s":"m","t":3,"p":"l"},{"n":"Keilor East","x":285.6,"y":174.0,"c":"pre","s":"m","t":3,"p":"l"},{"n":"Avondale Heights","x":283.7,"y":192.0,"c":"pre","s":"m","t":3,"p":"l"},{"n":"Keilor","x":260.0,"y":144.0,"c":"pre","s":"y","t":2,"p":"l"},{"n":"Taylors Lakes","x":217.5,"y":120.0,"c":"pre","s":"y","t":2,"p":"l"},{"n":"St Albans","x":226.9,"y":174.0,"c":"pre","s":"m","t":3,"p":"l"},{"n":"Sunshine","x":257.2,"y":225.6,"c":"pre","s":"m","t":2,"p":"l"},{"n":"Deer Park","x":198.6,"y":204.0,"c":"pre","s":"m","t":3,"p":"l"},{"n":"Caroline Springs","x":167.4,"y":168.0,"c":"pre","s":"y","t":2,"p":"t"},{"n":"Laverton","x":198.6,"y":314.4,"c":"out","s":"c","t":3,"p":"t"},{"n":"Altona Meadows","x":209.9,"y":338.4,"c":"out","s":"c","t":3,"p":"b"},{"n":"Point Cook","x":179.7,"y":374.4,"c":"out","s":"c","t":3,"p":"l"},{"n":"Tarneit","x":122.9,"y":282.0,"c":"out","s":"c","t":3,"p":"t"},{"n":"Werribee","x":96.5,"y":360.0,"c":"out","s":"c","t":2,"p":"b"},{"n":"Thomastown","x":429.3,"y":96.0,"c":"pre","s":"y","t":2,"p":"l"},{"n":"Eltham","x":556.0,"y":135.6,"c":"pre","s":"y","t":2,"p":"t"},{"n":"Lower Plenty","x":527.7,"y":157.2,"c":"pre","s":"m","t":3,"p":"r"},{"n":"Montmorency","x":530.5,"y":136.8,"c":"pre","s":"m","t":3,"p":"b"},{"n":"Warrandyte","x":626.0,"y":168.0,"c":"pre","s":"y","t":2,"p":"l"},{"n":"Park Orchards","x":618.4,"y":201.6,"c":"pre","s":"m","t":3,"p":"r"},{"n":"Wonga Park","x":671.4,"y":168.0,"c":"pre","s":"y","t":2,"p":"r"},{"n":"Mount Martha","x":431.2,"y":800.4,"c":"pre","s":"m","t":2,"p":"r"},{"n":"Dromana","x":383.9,"y":883.2,"c":"pre","s":"m","t":3,"p":"b"},{"n":"Rosebud","x":326.2,"y":909.6,"c":"pre","s":"m","t":2,"p":"b"},{"n":"Rye","x":248.7,"y":927.6,"c":"pre","s":"m","t":3,"p":"b"},{"n":"Sorrento","x":172.1,"y":889.2,"c":"pre","s":"y","t":1,"p":"t"},{"n":"Portsea","x":143.7,"y":862.8,"c":"pre","s":"m","t":3,"p":"t"},{"n":"Greensborough","x":513.5,"y":124.8,"c":"out","s":"y","t":2,"p":"t"},{"n":"Bundoora","x":474.7,"y":120.0,"c":"out","s":"y","t":2,"p":"l"},{"n":"Broadmeadows","x":342.3,"y":96.0,"c":"out","s":"c","t":3,"p":"t"},{"n":"Epping","x":444.4,"y":60.0,"c":"out","s":"c","t":3,"p":"t"},{"n":"Craigieburn","x":359.3,"y":14.4,"c":"out","s":"c","t":3,"p":"b"},{"n":"Diamond Creek","x":565.5,"y":90.0,"c":"out","s":"c","t":3,"p":"t"},{"n":"Coldstream","x":775.4,"y":150.0,"c":"out","s":"c","t":3,"p":"t"},{"n":"Monbulk","x":805.7,"y":330.0,"c":"out","s":"c","t":3,"p":"r"},{"n":"Emerald","x":832.1,"y":398.4,"c":"out","s":"c","t":3,"p":"b"},{"n":"Beaconsfield","x":780.1,"y":540.0,"c":"pre","s":"m","t":3,"p":"b"},{"n":"Pakenham","x":860.5,"y":566.4,"c":"pre","s":"y","t":2,"p":"t"},{"n":"Cranbourne","x":683.7,"y":600.0,"c":"pre","s":"m","t":2,"p":"r"},{"n":"Lyndhurst","x":645.9,"y":573.6,"c":"z4","s":"m","t":3,"p":"l"},{"n":"Langwarrin","x":600.5,"y":663.6,"c":"z4","s":"y","t":2,"p":"r"},{"n":"Baxter","x":572.1,"y":720.0,"c":"z4","s":"y","t":2,"p":"r"},{"n":"Somerville","x":584.4,"y":758.4,"c":"out","s":"c","t":3,"p":"b"},{"n":"Hastings","x":591.0,"y":846.0,"c":"out","s":"c","t":3,"p":"l"},{"n":"Red Hill","x":435.0,"y":912.0,"c":"out","s":"c","t":3,"p":"r"},{"n":"Melbourne Airport","x":266.7,"y":81.6,"c":"out","s":"c","t":3,"p":"t"},{"n":"Sydenham","x":191.0,"y":120.0,"c":"pre","s":"m","t":3,"p":"t"},{"n":"Derrimut","x":200.5,"y":236.4,"c":"pre","s":"m","t":3,"p":"b"},{"n":"Lynbrook","x":660.0,"y":548.4,"c":"z4","s":"y","t":2,"p":"r"},{"n":"Skye","x":617.5,"y":609.6,"c":"z4","s":"m","t":3,"p":"r"},{"n":"Officer","x":803.8,"y":552.0,"c":"pre","s":"y","t":2,"p":"t"},{"n":"Clyde","x":732.9,"y":636.0,"c":"pre","s":"y","t":2,"p":"r"},{"n":"Clyde North","x":747.0,"y":600.0,"c":"pre","s":"m","t":3,"p":"r"},{"n":"Pearcedale","x":643.0,"y":720.0,"c":"out","s":"c","t":3,"p":"r"}],"badges":[{"n":"1","x":472.8,"y":357.6,"c":"z1"},{"n":"2","x":442.5,"y":188.4,"c":"z2"},{"n":"3","x":699.8,"y":426.0,"c":"z3"},{"n":"4","x":565.5,"y":630.0,"c":"z4"},{"n":"5","x":285.6,"y":266.4,"c":"z5"}],"areas":[{"n":"Pre-arranged","x":217.5,"y":199.2,"c":"pre"},{"n":"Pre-arranged","x":269.5,"y":894.0,"c":"pre"},{"n":"Pre-arranged","x":669.5,"y":148.8,"c":"pre"},{"n":"Pre-arranged","x":748.9,"y":662.4,"c":"pre"},{"n":"Out of area","x":605.2,"y":48.0,"c":"out"},{"n":"Out of area","x":132.4,"y":48.0,"c":"out"},{"n":"Out of area","x":132.4,"y":324.0,"c":"out"},{"n":"Out of area","x":718.7,"y":708.0,"c":"out"},{"n":"Out of area","x":756.5,"y":74.4,"c":"out"},{"n":"Out of area","x":524.8,"y":882.0,"c":"out"},{"n":"Out of area","x":860.5,"y":432.0,"c":"out"}],"waters":[{"n":"Port Phillip Bay","x":283.7,"y":600.0},{"n":"Western Port","x":780.1,"y":786.0}],"flags":[{"id":"A","t":"Cranbourne","d":"Not in your lists, but it now sits between Lynbrook, Langwarrin and Clyde. Drawn as pre-arranged so it isn't an out-of-area island.","pins":[[676.1,624.0]]},{"id":"B","t":"Lyndhurst, Sandhurst and Skye","d":"They sit between Carrum Downs, Lynbrook and Langwarrin, so I've drawn them in Zone 4 to keep the zone in one piece.","pins":[[641.1,590.4]]},{"id":"C","t":"Beaconsfield and Clyde North","d":"Beaconsfield sits between Berwick and Officer. Clyde North sits between Berwick and Clyde. Both drawn as pre-arranged.","pins":[[767.8,573.6]]},{"id":"D","t":"Where the west stops","d":"Sunshine, St Albans, Deer Park and Derrimut stay pre-arranged, because they join Braybrook to Caroline Springs. South of that, Laverton North, Truganina, Laverton, Altona Meadows and Point Cook are out.","pins":[[209.9,266.4]]}],"zones":[{"id":"z1","num":"1","name":"Zone 1","sub":"CBD, bayside to Mentone and the inner east","sees":"Picks a slot on this zone's visit days","box":[317,204,312,294],"you":"CBD, bayside down to Mentone and Parkdale, Dingley Village, Springvale, Clayton, Glen Waverley, Vermont, Box Hill, Balwyn, Kew","me":"Springvale South, Vermont South, Blackburn, Nunawading, Mitcham, Balwyn North, Kew East, Richmond, East Melbourne, Docklands, Port Melbourne","edge":"North edge is Victoria Street, then the Eastern Freeway. East edge is Dandenong Creek. South edge is Lower Dandenong Road."},{"id":"z2","num":"2","name":"Zone 2","sub":"North and inner north","sees":"Picks a slot on this zone's visit days","box":[288,96,331,158],"you":"Doncaster, Templestowe, Rosanna, Reservoir, Coburg, Essendon, Moonee Ponds, Pascoe Vale","me":"Carlton, Fitzroy, Collingwood, Abbotsford, North Melbourne, Kensington, Flemington, Ascot Vale, Brunswick, Northcote, Thornbury, Preston, Ivanhoe, Heidelberg, Bulleen, Viewbank, Macleod, Kingsbury, Doncaster East, Donvale, Strathmore, Oak Park, Niddrie, Aberfeldie","edge":"South edge is Victoria Street, then the Eastern Freeway. West edge is the Maribyrnong River. North edge is the top of Pascoe Vale, Coburg North and Reservoir."},{"id":"z3","num":"3","name":"Zone 3","sub":"Outer east and south east","sees":"Picks a slot on this zone's visit days","box":[548,150,260,414],"you":"Ringwood, Croydon, Mooroolbark, Lilydale, Dandenong Ranges, Belgrave, Berwick, Narre Warren, Dandenong, Dandenong South, Keysborough, Noble Park, Wheelers Hill, Scoresby","me":"Mulgrave, Rowville, Wantirna, Bayswater, Boronia, Ferntree Gully, Heathmont, Ringwood North, Warranwood, Croydon North, Chirnside Park, Kilsyth, Montrose, Mount Evelyn, Olinda, Kallista, Lysterfield, Endeavour Hills, Hallam, Hampton Park, Narre Warren North and South","edge":"West edge is Dandenong Creek, then the Springvale and Noble Park border. Outer edge runs Lilydale, Mount Evelyn, Olinda, Belgrave, Berwick."},{"id":"z4","num":"4","name":"Zone 4","sub":"Bayside, Mordialloc to Mornington, inland to Lynbrook","sees":"Picks a slot on this zone's visit days","box":[426,462,269,330],"you":"The rest of bayside, from Mordialloc to Mornington. Lynbrook, Langwarrin and Baxter","me":"Aspendale, Edithvale, Chelsea, Bonbeach, Carrum, Seaford, Frankston, Frankston South, Mount Eliza. Inland: Braeside, Aspendale Gardens, Chelsea Heights, Patterson Lakes, Carrum Downs, Karingal, Sandhurst, Skye, Lyndhurst, Langwarrin South","edge":"Runs inland as far as Lynbrook, Langwarrin and Baxter. Stops at the southern edge of Mornington."},{"id":"z5","num":"5","name":"Zone 5","sub":"Inner west","sees":"Picks a slot on this zone's visit days","box":[217,186,123,168],"you":"Williamstown, Altona, Footscray, Maribyrnong, Braybrook","me":"Newport, Spotswood, Yarraville, Seddon, Kingsville, West Footscray, Maidstone, Tottenham, Brooklyn, Altona North, Seaholme","edge":"East and north edge is the Maribyrnong River. West edge is the western side of Braybrook, Brooklyn and Altona."},{"id":"pre","num":"","name":"Pre-arranged","sub":"In area, but no calendar","sees":"Requests a time, and you confirm it","box":[0,0,927,996],"you":"Mornington to Sorrento. West of Braybrook, as far as Caroline Springs and Taylors Lakes. Fawkner, Glenroy, Tullamarine, Keilor. Thomastown, Eltham, Warrandyte, Wonga Park. Pakenham, Clyde, Officer","me":"Mount Martha, Safety Beach, Dromana, Rosebud, Rye, Blairgowrie, Portsea. Sunshine, St Albans, Deer Park, Derrimut, Sydenham, Taylors Hill, Hillside. Hadfield, Airport West, Keilor East, Avondale Heights. Lower Plenty, Montmorency, North Warrandyte, Park Orchards. Beaconsfield, Clyde North, Cranbourne","edge":""},{"id":"out","num":"","name":"Out of area","sub":"Everything left uncoloured","sees":"No calendar. Can still send a message","box":[0,0,927,996],"you":"Greensborough, Bundoora. Werribee, Tarneit and everything west of Altona","me":"Everything not coloured, for example Laverton, Point Cook, Truganina, Melton, Sunbury, Broadmeadows, Epping, Diamond Creek, the Yarra Valley, Monbulk, Emerald, Pearcedale, Somerville and Hastings","edge":""}]};
+const W = D.W, H = D.H, NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('map'), ov = document.getElementById('overlay');
+const el = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- overlay: water names, area names, suburbs, zone badges, flags
+D.waters.forEach(w => { const g = el('g', {class:'wt', transform:`translate(${w.x},${w.y})`}, ov); const m = el('g', {class:'mk'}, g); el('text', {}, m).textContent = w.n; });
+D.areas.forEach(a => { const g = el('g', {class:'ar '+a.c, transform:`translate(${a.x},${a.y})`}, ov); const m = el('g', {class:'mk'}, g); el('text', {}, m).textContent = a.n; });
+const POS = {r:[7,3.8,'start'], l:[-7,3.8,'end'], t:[0,-7,'middle'], b:[0,14,'middle']};
+D.labels.forEach(l => {
+  const g = el('g', {class:`lb t${l.t} s-${l.s}`, transform:`translate(${l.x},${l.y})`}, ov), m = el('g', {class:'mk'}, g);
+  el('circle', {r: l.s === 'c' ? 2 : 3}, m);
+  const p = POS[l.p]; el('text', {x:p[0], y:p[1], 'text-anchor':p[2]}, m).textContent = l.n;
+});
+D.badges.forEach(b => { const g = el('g', {class:'bd '+b.c, transform:`translate(${b.x},${b.y})`}, ov), m = el('g', {class:'mk'}, g); el('circle', {r:13}, m); el('text', {y:5.3}, m).textContent = b.n; });
+D.flags.forEach(f => f.pins.forEach(p => {
+  const g = el('g', {class:'fl', 'data-id':f.id, transform:`translate(${p[0]},${p[1]})`, tabindex:0, role:'button', 'aria-label':'Flag '+f.id+': '+f.t}, ov), m = el('g', {class:'mk'}, g);
+  el('circle', {r:9}, m); el('text', {y:3.6}, m).textContent = f.id;
+}));
+
+// ---------- view
+let v = {x:0, y:0, w:W, h:H}, home = v, anim = 0;
+const rect = () => svg.getBoundingClientRect();
+function fitBox(b, pad) { const r = rect(), ar = r.width / r.height; let w = b[2] * pad, h = b[3] * pad; if (w / h < ar) w = h * ar; else h = w / ar; return {x: b[0] + b[2] / 2 - w / 2, y: b[1] + b[3] / 2 - h / 2, w, h}; }
+function clamp() {
+  const r = rect(), ar = r.width / r.height;
+  v.w = Math.max(home.w / 16, Math.min(home.w, v.w)); v.h = v.w / ar;
+  let cx = v.x + v.w / 2, cy = v.y + v.h / 2;
+  cx = Math.max(0, Math.min(W, cx)); cy = Math.max(0, Math.min(H, cy));
+  if (v.w >= home.w * 0.999) { cx = W / 2; cy = H / 2; }
+  v.x = cx - v.w / 2; v.y = cy - v.h / 2;
+}
+function apply() {
+  clamp();
+  svg.setAttribute('viewBox', `${v.x.toFixed(2)} ${v.y.toFixed(2)} ${v.w.toFixed(2)} ${v.h.toFixed(2)}`);
+  const s = rect().width / v.w, z = home.w / v.w;
+  const px = Math.min(14.5, 10 + 1.9 * Math.log2(Math.max(1, z)));
+  svg.style.setProperty('--k', (px / (11 * s)).toFixed(4));
+  svg.dataset.l = s < 0.75 ? 1 : s < 1.45 ? 2 : 3;
+}
+function fly(t) {
+  cancelAnimationFrame(anim);
+  if (reduce) { v = t; apply(); return; }
+  const a = {...v}, t0 = performance.now();
+  const step = now => { const p = Math.min(1, (now - t0) / 380), e = 1 - Math.pow(1 - p, 3);
+    v = {x: a.x + (t.x - a.x) * e, y: a.y + (t.y - a.y) * e, w: a.w + (t.w - a.w) * e, h: a.h + (t.h - a.h) * e}; apply();
+    if (p < 1) anim = requestAnimationFrame(step); };
+  anim = requestAnimationFrame(step);
+}
+function toUnits(cx, cy) { const r = rect(), s = r.width / v.w; return [v.x + (cx - r.left) / s, v.y + (cy - r.top) / s]; }
+function zoomAt(cx, cy, f) { const [ux, uy] = toUnits(cx, cy); const nw = Math.max(home.w / 16, Math.min(home.w, v.w / f)), k = nw / v.w; v = {x: ux - (ux - v.x) * k, y: uy - (uy - v.y) * k, w: nw, h: v.h * k}; apply(); }
+function zoomBtn(f) { const r = rect(); const nw = Math.max(home.w / 16, Math.min(home.w, v.w / f)), k = nw / v.w, cx = v.x + v.w / 2, cy = v.y + v.h / 2; fly({x: cx - v.w * k / 2, y: cy - v.h * k / 2, w: nw, h: v.h * k}); }
+function reset() { home = fitBox([0, 0, W, H], 1); }
+reset(); v = {...home}; apply();
+addEventListener('resize', () => { const cx = v.x + v.w / 2, cy = v.y + v.h / 2, zf = v.w / home.w; reset(); const r = rect(); v.w = home.w * zf; v.h = v.w * r.height / r.width; v.x = cx - v.w / 2; v.y = cy - v.h / 2; apply(); });
+document.getElementById('zin').onclick = () => zoomBtn(1.7);
+document.getElementById('zout').onclick = () => zoomBtn(1 / 1.7);
+document.getElementById('zfit').onclick = () => fly({...home});
+
+// ---------- drag, pinch, wheel
+const pts = new Map(); let moved = 0, last = null, pinch = 0;
+svg.addEventListener('pointerdown', e => { cancelAnimationFrame(anim); pts.set(e.pointerId, {x: e.clientX, y: e.clientY}); if (pts.size === 1) { moved = 0; last = {x: e.clientX, y: e.clientY}; } if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); } });
+svg.addEventListener('pointermove', e => {
+  if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  const s = rect().width / v.w;
+  if (pts.size === 1) { const dx = e.clientX - last.x, dy = e.clientY - last.y; moved += Math.abs(dx) + Math.abs(dy); if (moved > 6) { try { svg.setPointerCapture(e.pointerId); } catch (_) {} svg.classList.add('drag'); v.x -= dx / s; v.y -= dy / s; apply(); } last = {x: e.clientX, y: e.clientY}; }
+  else if (pts.size === 2) { moved = 99; const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch > 0) zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinch); pinch = d; }
+});
+const up = e => { pts.delete(e.pointerId); svg.classList.remove('drag'); if (pts.size === 1) { const p = [...pts.values()][0]; last = {x: p.x, y: p.y}; } };
+svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0016)); }, {passive: false});
+
+// ---------- zones: legend rows and selection
+const rows = document.getElementById('rows'), chip = document.getElementById('selchip'), selname = document.getElementById('selname'); let sel = null;
+function select(id, scroll, stay) {
+  sel = sel === id ? null : id;
+  svg.classList.toggle('dim', !!sel);
+  svg.querySelectorAll('.zn').forEach(p => p.classList.toggle('on', p.dataset.id === sel));
+  rows.querySelectorAll('.row').forEach(r => { const on = r.dataset.id === sel; r.classList.toggle('open', on); r.firstElementChild.setAttribute('aria-expanded', on); });
+  chip.classList.toggle('show', !!sel);
+  if (sel) { const z = D.zones.find(z => z.id === sel); selname.textContent = z.name + (z.num ? ', ' + z.sub.toLowerCase().replace('cbd', 'CBD') : ''); fly(fitBox(z.box, 1.12)); if (scroll) svg.scrollIntoView({behavior: reduce ? 'auto' : 'smooth', block: 'start'}); }
+  else if (!stay) fly({...home});
+}
+D.zones.forEach(z => {
+  const r = document.createElement('div'); r.className = 'row'; r.dataset.id = z.id;
+  const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-expanded', 'false');
+  b.innerHTML = `<span class="sw ${z.id}">${z.num}</span><span><b></b><small></small></span><span class="chev"></span>`;
+  b.querySelector('b').textContent = z.name; b.querySelector('small').textContent = z.sub;
+  b.onclick = () => select(z.id, false);
+  const d = document.createElement('dl'); d.className = 'det';
+  const add = (t, x, cls) => { if (!x) return; const dt = document.createElement('dt'); dt.textContent = t; const dd = document.createElement('dd'); dd.textContent = x; if (cls) { dd.textContent = ''; const s = document.createElement('span'); s.className = cls; s.textContent = x; dd.appendChild(s); } d.append(dt, dd); };
+  add('What the customer sees', z.sees, 'sees'); add('Named by you', z.you); add('Filled in between', z.me); add('Where the edges are', z.edge);
+  r.append(b, d); rows.appendChild(r);
+});
+document.getElementById('clear').onclick = () => select(sel, false);
+svg.querySelectorAll('.zn').forEach(p => p.addEventListener('click', () => { if (moved <= 6) select(p.dataset.id === sel ? sel : p.dataset.id, false); }));
+
+// ---------- flags
+const fwrap = document.getElementById('flags');
+document.getElementById('flagh').textContent = 'Spots A to D, approved as drawn';
+function hit(id) { fwrap.querySelectorAll('.flag').forEach(f => f.classList.toggle('hit', f.dataset.id === String(id))); svg.querySelectorAll('.fl').forEach(f => f.classList.toggle('hit', f.dataset.id === String(id))); }
+D.flags.forEach(f => {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'flag'; b.dataset.id = f.id;
+  b.innerHTML = '<span class="n"></span><span><b></b><span class="d"></span></span>';
+  b.querySelector('.n').textContent = f.id; b.querySelector('b').textContent = f.t; b.querySelector('.d').textContent = f.d;
+  b.onclick = () => { if (sel) select(sel, false, true); hit(f.id); const xs = f.pins.map(p => p[0]), ys = f.pins.map(p => p[1]); const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys); const pad = 85;
+    fly(fitBox([x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad], 1)); svg.scrollIntoView({behavior: reduce ? 'auto' : 'smooth', block: 'start'}); };
+  fwrap.appendChild(b);
+});
+svg.querySelectorAll('.fl').forEach(g => { const go = () => { const id = g.dataset.id; hit(id); const c = fwrap.querySelector(`.flag[data-id="${id}"]`); c.scrollIntoView({behavior: reduce ? 'auto' : 'smooth', block: 'center'}); };
+  g.addEventListener('click', () => { if (moved <= 6) go(); }); g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }); });
+</script>
+</body>
+</html>
