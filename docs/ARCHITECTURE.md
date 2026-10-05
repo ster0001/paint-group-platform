@@ -1787,7 +1787,10 @@ Access Allowance row, interior damage tier ≥2→COND-POOR, worst multiplier
 winning one Condition slot; the sides loop's Condition card arrives pre-answered
 from the wizard (builder_state.sidesLoop seed). In the sides editor a wall mix
 may total UNDER 100% (part glass/garage — sides.confirmSide refuses only >100%
-or 0), a ticked freestanding extra IS the extras answer
+or 0; 5 Oct: `sides.wallSharePct` is the one rule for an UNSHARED line — a lone
+line reads 100 so a weatherboard-only side confirms untouched, an unchosen
+split reads 0 each — and the gate, `syncWallMeasures` and the card's tiles all
+read it), a ticked freestanding extra IS the extras answer
 (scope-editor.hasFreestandingExtras; "Nothing else" no longer demanded on top),
 and both sweeps' "+ Something else" opens a text box whose name rides the amber
 deferral (loop_sweep/iloop_sweep add). Exterior can build FROM SCRATCH
@@ -4038,3 +4041,16 @@ Tom: "staff to receive email if an offered estimate is rejected / expires". Two 
 
 Tom: a search bar at the top of the estimate's contact window, every CRM customer in the Contacts list, and a contact used on an estimate always saved to Contacts. Migration `20270210000000_contacts_from_crm_accounts.sql`: `contacts.account_id` (unique where set, SET NULL on delete so a merge never loses an office-typed row) and `contacts_sync_from_account(accounts)` — the ONE rule that turns an account into a Contacts row: find by account, then by `lower(email)`, then by `phone_e164_au(phone)`; fill only the blanks of a found row; otherwise insert, splitting a residential name into first/last (a trade name becomes the company) and taking the account's latest property as the address. An AFTER trigger on `accounts` (insert, and update of name/email/phone) runs it, so the wizard, Quick add, the builder's account link and the imports all land in Contacts with no second code path; the backfill in the same file runs it once over every existing account (read-back expects `accounts_without_contact = 0`). The function is SECURITY DEFINER and granted to nobody. `ContactModal` (`app/quote/EstimateHeader.tsx`) replaces the dropdown with a search box that asks the SERVER — `searchContactsAction` (`app/quote/actions.ts`, zod, staff session, eight rows, `error` surfaced in the box) over the `or()` filter from `lib/contacts/match.ts` (`contactSearchOr`: first/last name, company, email, suburb; a phone by typed digits against the stored generated `phone_digits` / `landline_digits` columns, since an `or()` filter cannot strip spaces on the column side). The builder no longer loads the Contacts table at page time: with the CRM mirrored in, that read passed PostgREST's 1,000-row cap and anyone past the first thousand surnames was unfindable (the first e2e run caught it). The modal has one action: **Use on estimate** inserts or updates the Contacts row FIRST and only then calls `onContact`; a refused save (validation, RLS, network) keeps the modal open, so `builder_state.contact` can no longer hold a person who is not in Contacts. The e2e fixture `destroyAccountChain` and the hygiene sweep (`OWNED` gains `public.contacts.account_id`; `fkAction` purges an owned SET NULL child) remove the mirrored row with its account. Pinned by `lib/contacts/match.test.ts`, `lib/testing/hygiene.test.ts` and `e2e/estimate-contact-search.spec.ts` (search by name and phone, the always-save path, the trigger).
 
+
+## Wizard estimator = Settings → Estimator; one strip on the booking page; a lone wall line is 100% (5 Oct 2026)
+
+Tom: "update your estimator details in the wizard to Tom Roman", the name shown twice behind **Book a time**, and
+"I have to click what % of wall area even though I have only ticked weatherboards". Three small fixes, no migration.
+`lib/wizard/estimator.resolveEstimator` keeps the staff-patch match first but its Settings fallback now reads
+`company_profile.estimatorName` / `estimatorPhone` (the Estimator section — the person every estimate says it was
+prepared by) and only then the Project coordinator; `estimator.test.ts` pins it. `/estimate/book` dropped its own
+`EstimatorStrip` — `ReachStrip` already renders the strip (and now takes `suburb`), so the name appears once
+(`finalise-gate.spec.ts` counts it). `lib/wizard/sides.wallSharePct` is the one rule for a wall line with no share
+written: alone it is 100, in an unchosen split 0 each; `wallSumPct`, `syncWallMeasures`, `normaliseShares` and
+`sidesView` all read it, so the gate and the card agree and a weatherboard-only side confirms untouched
+(`sides.test.ts`, `sides-editor.spec.ts`). The card's 0% line now asks for the split in words.

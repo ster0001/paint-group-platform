@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import EstimatorStrip from "@/app/wizard/EstimatorStrip";
 import ReachStrip from "@/app/estimate/scope/ReachStrip";
 import type { ContactRequest } from "@/app/estimate/scope/ContactCard";
 
@@ -40,7 +39,9 @@ export default function Book({ estimateId, estimator, companyPhone, phoneHours, 
     <main className="wz-wrap sc-book" data-testid="book-page">
       <p className="wz-kick">Book a time</p>
       <h1>Pick how you&rsquo;d like to finalise your price</h1>
-      <EstimatorStrip estimator={estimator} suburb={suburb} companyPhone={companyPhone} bookHref="#reach" />
+      {/* Tom, 5 Oct: the estimator is named ONCE on this page — the reach
+          strip carries the strip (its Book button opens the slot picker), so
+          a second one above it read as the same name twice. */}
       {done ? (
         <div className="sc-done-banner sent" data-testid="book-done" role="status">
           <b>{done}</b>
@@ -48,7 +49,7 @@ export default function Book({ estimateId, estimator, companyPhone, phoneHours, 
         </div>
       ) : (
         <ReachStrip
-          estimator={estimator} companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone}
+          estimator={estimator} suburb={suburb} companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone}
           visitSlots={visitSlots} busy={busy}
           onBookSlot={(slot) => void post({ action: "book_visit", slot }, `Booked — ${slot}. A calendar invite is on its way.`)}
           onContact={(req: ContactRequest) => void post({ action: "request_contact", ...req }, req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back to finalise your price.")}

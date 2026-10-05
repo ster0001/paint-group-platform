@@ -489,6 +489,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                   <p className={`sd-wallsum ${s.wallSum > 100 ? "bad" : ""}`}>
                     {s.wallSum === 100 ? "Adds up to 100% ✓"
                       : s.wallSum > 100 ? `Adds up to ${s.wallSum}% — bring it back to 100% or less before confirming`
+                      // 5 Oct: more than one surface and no share picked yet — the split is theirs to make.
+                      : s.wallSum === 0 ? "Roughly what share is each surface? Tap a % on each — they can add up to less than 100"
                       : `Painting ${s.wallSum}% of this side's walls ✓ — the rest (windows, glass, garage door) isn't charged`}
                   </p>
                 </div>
