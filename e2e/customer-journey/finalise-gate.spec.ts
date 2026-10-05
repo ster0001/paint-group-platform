@@ -41,6 +41,10 @@ test("two buttons, the estimator up top, and the finalise prompt when questions 
   await expect(page).toHaveURL(/\/estimate\/book\?id=/, { timeout: 60_000 });
   await expect(page.getByTestId("book-page")).toBeVisible();
   await expect(page.getByTestId("reach-strip")).toBeVisible();
+  // Tom, 5 Oct: the estimator is named ONCE on the booking page — the reach
+  // strip's header is the strip; there is no second one above it.
+  await expect(page.getByTestId("estimator-strip")).toHaveCount(1);
+  await expect(page.getByTestId("estimator-name")).toHaveCount(1);
   await expect(page.getByTestId("reach-visit")).toBeVisible();
   await expect(page.getByTestId("reach-callback")).toBeVisible();
   await page.getByTestId("book-back").click();

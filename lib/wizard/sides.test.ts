@@ -309,7 +309,7 @@ test("a side confirms with wall shares under 100% — only over 100% refuses", (
   (findSide(zero, "front")!.surfaces![0] as { sharePct?: number }).sharePct = 0;
   const empty = confirmSide(zero, "front") as { ok: false; error: string };
   assert.equal(empty.ok, false);
-  assert.match(empty.error, /at least one wall/i);
+  assert.match(empty.error, /what share each wall surface/i);
 });
 
 // ---- Tom's 8 Sep batch ------------------------------------------------------
@@ -497,4 +497,40 @@ test("15 Sep: the mirror never overwrites a side the customer has answered or co
   blocks = (applySideDims(blocks, "front", { lengthM: 20, heightM: 5 }) as { blocks: LooseBlock[] }).blocks;
   assert.equal(findSide(blocks, "back")!.L, 12, "'not sure' is an answer — no mirror");
   assert.equal(findSide(blocks, "back")!.customer?.mirroredFrom ?? null, null);
+});
+
+// ---- 5 Oct 2026: a lone wall line needs no share tap ------------------------
+
+/** The wizard's scaffold: wall lines arrive with NO share written. */
+const scaffolded = (codes: string[]): LooseBlock[] => [{
+  id: 1, kind: "area", name: "Exterior - Front", type: "Exterior", areaType: "surface",
+  L: 12, H: 2.6, surfaces: codes.map((code, i) => ({ id: 2 + i, code })),
+  customer: { include: true, size: "adjusted", confirmed: false },
+}];
+
+test("5 Oct: weatherboards alone IS the whole wall — gate, measures and tile all read 100 with nothing tapped", () => {
+  const blocks = scaffolded(["Weatherboards"]);
+  assert.equal(wallSumPct(findSide(blocks, "front")!), 100);
+  const view = sidesView(blocks, defaultSidesLoop())!;
+  assert.deepEqual(view.sides[0]!.walls.map((w) => w.pct), [100]);
+  assert.equal(view.sides[0]!.wallSum, 100);
+  assert.ok(confirmSide(blocks, "front").ok, "confirms with no share tapped");
+  // Typing the size prices the whole length, never 0 m for an untouched share.
+  const dims = applySideDims(blocks, "front", { lengthM: 12, heightM: 2.6 }) as { blocks: LooseBlock[] };
+  assert.equal(findSide(dims.blocks, "front")!.surfaces![0]!.measureL, 12);
+});
+
+test("5 Oct: two substrates and no share chosen — the split is the customer's, so the confirm asks for it", () => {
+  const blocks = scaffolded(["Weatherboards", "Render"]);
+  assert.equal(wallSumPct(findSide(blocks, "front")!), 0);
+  const view = sidesView(blocks, defaultSidesLoop())!;
+  assert.deepEqual(view.sides[0]!.walls.map((w) => w.pct), [0, 0], "no tile lights up over an unmade choice");
+  assert.equal(view.sides[0]!.wallSum, 0);
+  const refused = confirmSide(blocks, "front");
+  assert.ok(!refused.ok && /share/i.test(refused.error));
+  // One tap settles it — 75 on the weatherboards is an under-100 answer (Tom, 31 Aug) and confirms.
+  const shared = applyWallShare(blocks, "front", 2, 75) as { blocks: LooseBlock[] };
+  assert.equal(wallSumPct(findSide(shared.blocks, "front")!), 75);
+  assert.equal(findSide(shared.blocks, "front")!.surfaces![1]!.sharePct, 0, "the untouched line of a split is written as 0, not 100");
+  assert.ok(confirmSide(shared.blocks, "front").ok);
 });

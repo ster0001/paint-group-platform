@@ -26,10 +26,12 @@ type Mode = "idle" | "visit" | "callback";
 
 
 export default function ReachStrip({
-  estimator = null, prefix = "sc", companyPhone, phoneHours, visitSlots, defaultPhone = null, busy = false, onBookSlot, onContact }: {
+  estimator = null, suburb = null, prefix = "sc", companyPhone, phoneHours, visitSlots, defaultPhone = null, busy = false, onBookSlot, onContact }: {
   prefix?: "sc" | "sd";
   /** C11 — the resolved estimator for the strip header, or null. */
   estimator?: { name: string | null; phone: string | null; covers: boolean } | null;
+  /** The customer's suburb, named on the strip only when the estimator covers it. */
+  suburb?: string | null;
   companyPhone: string | null;
   /** When the office answers — Settings → Company details owns the wording. */
   phoneHours?: string | null;
@@ -72,7 +74,7 @@ export default function ReachStrip({
         under a heading. The estimator is named and present; the three ways
         to reach them are plain buttons under the name.
       */}
-      <EstimatorStrip estimator={estimator} companyPhone={companyPhone} onBook={() => toggle("visit")} compact />
+      <EstimatorStrip estimator={estimator} suburb={suburb} companyPhone={companyPhone} onBook={() => toggle("visit")} compact />
       <div className={`${p}-reach-row`}>
         <button type="button" className={`${p}-contact-opt${mode === "visit" ? " on" : ""}`} onClick={() => toggle("visit")} data-testid="reach-visit">
           Book a site visit
