@@ -129,10 +129,10 @@ export default function Editor({ initial, roomTypes }: Props) {
           <div className="wz-score">
             <div className="wz-scring">
               <svg width="52" height="52">
-                <circle cx="26" cy="26" r="22" fill="none" stroke="#242B32" strokeWidth="4" />
+                <circle cx="26" cy="26" r="22" fill="none" stroke="#D9E0E6" strokeWidth="4" />
                 <circle
                   cx="26" cy="26" r="22" fill="none"
-                  stroke={accuracy >= 90 ? "#2FA46B" : "#E0A83C"}
+                  stroke={accuracy >= 90 ? "#1F8A55" : "#A86A12"}
                   strokeWidth="4" strokeLinecap="round"
                   strokeDasharray={arc} strokeDashoffset={(arc * (1 - accuracy / 100)).toFixed(1)}
                 />
@@ -154,7 +154,7 @@ export default function Editor({ initial, roomTypes }: Props) {
           </div>
           <div className="wz-money">
             <small>MARGIN · INTERNAL</small>
-            <div className="wz-r" style={{ color: payload.totals.marginCents >= 0 ? "#2FA46B" : "#B3574A" }}>
+            <div className="wz-r" style={{ color: payload.totals.marginCents >= 0 ? "#1F8A55" : "#B3574A" }}>
               {money(payload.totals.marginCents)}
             </div>
           </div>

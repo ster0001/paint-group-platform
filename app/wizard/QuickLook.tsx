@@ -480,6 +480,30 @@ export default function QuickLook({
           <ExteriorPickTiles options={EXT_STANDALONE} on={outside.standalone} name="ext-sep"
             onPick={(v) => onOutside({ standalone: toggleIn(outside.standalone, v) })} />
 
+          {/* Tom, 5 Oct 2026: a pergola is priced on its top's footprint, not
+              per pergola — length and width, then Confirm, right under the tick. */}
+          {outside.standalone.includes("pergola") && (() => {
+            const pg = outside.pergola ?? { lengthM: null, widthM: null, confirmed: false };
+            const num = (v: string) => { const m = parseFloat(v.replace(/[^0-9.]/g, "")); return isNaN(m) ? null : Math.min(30, Math.max(0.5, m)); };
+            const ready = pg.lengthM != null && pg.widthM != null;
+            return (
+              <div className="wz-follow" data-testid="ext-pergola-q">
+                <p className="wz-q">Roughly how big is the pergola top?</p>
+                <p className="wz-chint" style={{ marginTop: 0 }}>Length and width in metres — near enough is fine. It&rsquo;s priced on the top&rsquo;s area, not per pergola.</p>
+                <div className="wz-seg" style={{ alignItems: "center" }}>
+                  <input className="wz-field" style={{ flex: "0 1 150px", marginBottom: 0 }} inputMode="decimal" placeholder="length m" data-testid="ext-pergola-length"
+                    defaultValue={pg.lengthM ?? ""} onBlur={(e) => onOutside({ pergola: { ...pg, lengthM: num(e.target.value), confirmed: false } })} />
+                  <input className="wz-field" style={{ flex: "0 1 150px", marginBottom: 0 }} inputMode="decimal" placeholder="width m" data-testid="ext-pergola-width"
+                    defaultValue={pg.widthM ?? ""} onBlur={(e) => onOutside({ pergola: { ...pg, widthM: num(e.target.value), confirmed: false } })} />
+                  <button type="button" className={`wz-btn wz-bs2 ${pg.confirmed ? "on" : ""}`} data-testid="ext-pergola-confirm" disabled={!ready}
+                    onClick={() => onOutside({ pergola: { ...pg, confirmed: true } })}>
+                    {pg.confirmed ? "Confirmed ✓" : "Confirm"}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
           {outside.elements.includes("body") && (
             <div data-testid="ext-body-q">
               <p className="wz-qhead">What are the walls made of? <span className="wz-opt">TICK EVERYTHING THAT NEEDS PAINTING</span></p>
@@ -585,7 +609,7 @@ export default function QuickLook({
             <div className="wz-pick sc-tiles wz-exttiles" data-testid="ql-ext-sides">
               <button type="button" className={`wz-pk ${all ? "on" : ""}`} aria-pressed={all} data-testid="ql-ext-side-all"
                 onClick={() => onOutside({ sides: [...ALL_SIDES] })}>
-                <svg viewBox="0 0 60 64"><rect x="10" y="10" width="40" height="44" fill="#12161A" stroke="#2FB9CB" strokeWidth="4" /></svg>
+                <svg viewBox="0 0 60 64"><rect x="10" y="10" width="40" height="44" fill="#EEF2F5" stroke="#0E9FB4" strokeWidth="4" /></svg>
                 <small>The full exterior</small><em className="wz-pksub">all four sides</em>
               </button>
               {EXT_SIDES.map((o) => {
@@ -594,11 +618,11 @@ export default function QuickLook({
                   <button key={o.value} type="button" className={`wz-pk ${on ? "on" : ""}`} aria-pressed={on}
                     data-testid={`ql-ext-side-${o.value}`} onClick={() => toggle(o.value)}>
                     <svg viewBox="0 0 60 64">
-                      <rect x="10" y="10" width="40" height="44" fill="#12161A" stroke="#39424B" />
-                      {o.value === "front" && <line x1="10" y1="54" x2="50" y2="54" stroke="#2FB9CB" strokeWidth="4" />}
-                      {o.value === "back" && <line x1="10" y1="10" x2="50" y2="10" stroke="#2FB9CB" strokeWidth="4" />}
-                      {o.value === "left" && <line x1="10" y1="10" x2="10" y2="54" stroke="#2FB9CB" strokeWidth="4" />}
-                      {o.value === "right" && <line x1="50" y1="10" x2="50" y2="54" stroke="#2FB9CB" strokeWidth="4" />}
+                      <rect x="10" y="10" width="40" height="44" fill="#EEF2F5" stroke="#B9C2CB" />
+                      {o.value === "front" && <line x1="10" y1="54" x2="50" y2="54" stroke="#0E9FB4" strokeWidth="4" />}
+                      {o.value === "back" && <line x1="10" y1="10" x2="50" y2="10" stroke="#0E9FB4" strokeWidth="4" />}
+                      {o.value === "left" && <line x1="10" y1="10" x2="10" y2="54" stroke="#0E9FB4" strokeWidth="4" />}
+                      {o.value === "right" && <line x1="50" y1="10" x2="50" y2="54" stroke="#0E9FB4" strokeWidth="4" />}
                     </svg>
                     <small>{o.label}</small>
                     {o.hint && <em className="wz-pksub">{o.hint}</em>}

@@ -4054,3 +4054,21 @@ prepared by) and only then the Project coordinator; `estimator.test.ts` pins it.
 written: alone it is 100, in an unchosen split 0 each; `wallSumPct`, `syncWallMeasures`, `normaliseShares` and
 `sidesView` all read it, so the gate and the card agree and a weatherboard-only side confirms untouched
 (`sides.test.ts`, `sides-editor.spec.ts`). The card's 0% line now asks for the split in words.
+
+## Pergola on the outside screen, priced on its top; condition answers explained; the wizard goes light (5 Oct 2026)
+
+Tom's batch. (1, 2, 4) **Pergola** is a tile under "Any other areas being painted?" on the exterior quick look
+(`EXT_STANDALONE`, `targets: "pergola"`) and on the page set's "What are we painting?"; ticking it asks the top's
+length and width and a **Confirm** (quick look `ExteriorQuickLook.pergola`, state `exterior.pergola`), and the gate
+refuses Continue until it is confirmed. The card's Pergola row is "Hours Per Item", so the size is priced as
+item-equivalents through ONE helper, `lib/pricing/pergola.ts` (`PERGOLA_ITEM_M2` = 10 m² of top per card item;
+`pergolaItemsForTop` → `qtyOverride`, which the engine never scales; the line is relabelled "Pergola — top approx.
+L × W m"). `scope-editor.applyPergolaSize` does the write for the wizard's submit (`exteriorAnswers`, which also
+drops the "measure on site" deferral) and for the sides editor's new `set_pergola` action (length, width, Confirm
+under the Freestanding extras card; `CustomerExteriorView.pergola` reads it back). The old per-number stepper is
+gone for pergolas; the Extras page keeps balustrades only. (3) The three **condition** answers carry a line of
+meaning each — the wizard's cards and the sides editor's chips (`Chip` takes `hint`). (5) **Light mode**: `.wz`'s
+token block is light (`color-scheme: light`, `--bar` for the sticky bars, the `--wz-*` aliases defined so no dark
+fallback can win), every hardcoded dark value in `wizard.css` became a token, the drawings' hexes moved to light
+equivalents, the chat bubble is overridden light inside `.wz` only (the marketing site stays dark), and the header
+prefers the light-background logo (`logoUrlLight`, then `logoUrl`).

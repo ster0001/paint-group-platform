@@ -25,7 +25,7 @@ import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEF
 import { reconcileRoomAllowances, type AllowanceBlock } from "@/lib/wizard/allowances";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow, FENCE_CODE, FENCE_TYPE_LABEL } from "@/lib/wizard/starter";
 import {
-  applyCoats, applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
+  applyCoats, applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyPergolaSize, applyRename, applyToggle, applyWallsShare,
   customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, applyFenceType } from "@/lib/wizard/scope-editor";
 import { bookWizardSlot, wizardVisitSlots } from "@/lib/visits/wizard";
 import { ladderFor, mayFixOnline, requiresSiteCheck } from "@/lib/wizard/ladder";
@@ -321,6 +321,8 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_extent"), extent: z.enum(["whole", "front", "front_sides"]) }),
   /** metres sets the fence length; null = "not sure" → amber note. */
   z.object({ action: z.literal("set_fence"), metres: z.number().min(1).max(500).nullable() }),
+  /** Tom, 5 Oct: the pergola top's length × width — it is priced on the area, never per pergola. */
+  z.object({ action: z.literal("set_pergola"), lengthM: z.number().min(0.5).max(30), widthM: z.number().min(0.5).max(30) }),
   /** Fence type — paling, picket brushed or picket sprayed (Tom, 5 Sep). */
   z.object({ action: z.literal("set_fence_type"), type: z.enum(["paling", "picket_hand", "picket_spray"]) }),
   /** Customer accepted online (self-serve tier) — desk check follows. */
@@ -987,7 +989,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       blocks = result.blocks as LooseBlock[];
     }
 
-    if (act.action === "toggle_exterior" || act.action === "set_extent" || act.action === "set_fence") {
+    if (act.action === "toggle_exterior" || act.action === "set_extent" || act.action === "set_fence" || act.action === "set_pergola") {
       let next = Math.max(0, ...blocks.flatMap((b) => [
         Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
       ])) + 1;
@@ -1001,6 +1003,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         const result =
           act.action === "toggle_exterior" ? applyExteriorToggle(blocks, act.key, act.on, () => next++)
           : act.action === "set_extent" ? applyExtent(blocks, act.extent)
+          : act.action === "set_pergola" ? applyPergolaSize(blocks, act.lengthM, act.widthM)
           : applyFenceLength(blocks, act.metres as number);
         if (!result.ok) return { error: result.error, status: 400 };
         blocks = result.blocks as LooseBlock[];

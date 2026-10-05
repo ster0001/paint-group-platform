@@ -42,10 +42,27 @@ test("nothing pre-ticked, the questions follow the ticks, storeys once, and no b
   for (const el of ["body", "windows", "doors", "fascias", "gutters", "eaves"]) {
     await expect(page.getByTestId(`ql-ext-el-${el}`)).toHaveAttribute("aria-pressed", "false");
   }
-  // Tom, 15 Sep: "Any other areas being painted?" — the six standalone keys.
-  for (const s of ["garage_door", "paling_fence", "picket_fence", "deck", "shed", "wall"]) {
+  // Tom, 15 Sep: "Any other areas being painted?" — the standalone keys (pergola since 5 Oct).
+  for (const s of ["garage_door", "paling_fence", "picket_fence", "deck", "pergola", "shed", "wall"]) {
     await expect(page.getByTestId(`ql-ext-sep-${s}`)).toHaveAttribute("aria-pressed", "false");
   }
+  // Tom, 5 Oct: the wizard is LIGHT, like the rest of the customer surfaces.
+  const bg = await page.locator(".wz").first().evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(bg).toBe("rgb(244, 246, 248)");
+  // Tom, 5 Oct: a ticked pergola asks for its top's size and will not continue without a Confirm.
+  await page.getByTestId("ql-ext-sep-pergola").click();
+  await expect(page.getByTestId("ext-pergola-q")).toBeVisible();
+  await expect(page.getByTestId("ext-pergola-confirm")).toBeDisabled();
+  await page.getByTestId("ql-next").click();
+  await expect(page.getByTestId("ql-error")).toContainText(/how big is the pergola top/i);
+  await page.getByTestId("ext-pergola-length").fill("6");
+  await page.getByTestId("ext-pergola-length").blur();
+  await page.getByTestId("ext-pergola-width").fill("4");
+  await page.getByTestId("ext-pergola-width").blur();
+  await page.getByTestId("ext-pergola-confirm").click();
+  await expect(page.getByTestId("ext-pergola-confirm")).toHaveText(/Confirmed/);
+  await page.getByTestId("ql-ext-sep-pergola").click(); // untick — the question goes with it
+  await expect(page.getByTestId("ext-pergola-q")).toHaveCount(0);
   // The gated questions are absent until their element is ticked.
   await expect(page.getByTestId("ext-body-q")).toHaveCount(0);
   await expect(page.getByTestId("ext-windows-q")).toHaveCount(0);

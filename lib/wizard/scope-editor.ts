@@ -1,4 +1,5 @@
 import { makeDraftSurface } from "@/lib/extract/draft";
+import { PERGOLA_DIM_MAX_M, PERGOLA_DIM_MIN_M, pergolaDimsOk, pergolaItemsForTop, pergolaTopLabel } from "@/lib/pricing/pergola";
 import { substrateKeyForRateCode, substrateLabel, type SubstrateKey } from "@/lib/estimate/substrates";
 import {
   ARCHITRAVE_CODE, SURFACE_TO_RATE_CODE, doorCodeFor, doorLineLabel, doorScopeOfCode,
@@ -529,6 +530,8 @@ export type CustomerExteriorView = {
   fenceLengthM: number | null;
   /** The fence line's rate code (Paling Fence / Picket Fence (Hand Paint) / (Spray)) — null when no fence. */
   fenceCode: string | null;
+  /** 5 Oct: the pergola top the price was built on — null until the customer sizes it. */
+  pergola: { lengthM: number; widthM: number } | null;
 };
 
 const EXT_GROUPS: Array<{ group: ExteriorGroup["group"]; label: string; keys: string[] }> = [
@@ -569,15 +572,19 @@ export function customerExteriorView(blocks: LooseBlock[]): CustomerExteriorView
     let on = false;
     let count = 0;
     let fenceLen: number | null = null;
+    let pergola: { lengthM: number; widthM: number } | null = null;
     for (const b of ext) {
       for (const s of (b.surfaces ?? [])) {
         if (substrateKeyForRateCode(String(s.code ?? ""), "exterior") !== key) continue;
         on = true;
         count += Number(s.count) || 1;
         if (key === "fence" && s.measureL != null) fenceLen = Number(s.measureL);
+        const pl = Number((s as { pergolaLengthM?: unknown }).pergolaLengthM);
+        const pw = Number((s as { pergolaWidthM?: unknown }).pergolaWidthM);
+        if (key === "pergola" && pl > 0 && pw > 0) pergola = { lengthM: pl, widthM: pw };
       }
     }
-    return { on, count: Math.max(1, count), fenceLen };
+    return { on, count: Math.max(1, count), fenceLen, pergola };
   };
 
   // Extent reads off which elevations are parked as options.
@@ -588,12 +595,14 @@ export function customerExteriorView(blocks: LooseBlock[]): CustomerExteriorView
     : "front_sides";
 
   let fenceLengthM: number | null = null;
+  let pergola: CustomerExteriorView["pergola"] = null;
   const groups: ExteriorGroup[] = EXT_GROUPS.map((g) => ({
     group: g.group,
     label: g.label,
     tiles: g.keys.flatMap((key) => {
       const st = stateFor(key);
       if (key === "fence") fenceLengthM = st.fenceLen;
+      if (key === "pergola") pergola = st.pergola;
       // Body claddings the job doesn't have are noise, not choices.
       if (g.group === "body" && !st.on) return [];
       const countable = EXT_COUNTABLE.has(key);
@@ -614,7 +623,7 @@ export function customerExteriorView(blocks: LooseBlock[]): CustomerExteriorView
   const fenceCode = ext.flatMap((b) => b.surfaces ?? []).map((s) => String(s.code ?? ""))
     .find((c) => substrateKeyForRateCode(c) === "fence") ?? null;
 
-  return { groups, extent, storeys: Math.max(1, storeys), fenceLengthM, fenceCode };
+  return { groups, extent, storeys: Math.max(1, storeys), fenceLengthM, fenceCode, pergola };
 }
 
 /** Exterior on/off applies across EVERY elevation at once — gutters off means
@@ -718,6 +727,41 @@ export function applyFenceLength(blocks: LooseBlock[], metres: number): ScopeTog
     }
   }
   return { ok: false, error: "Turn the fence on first." };
+}
+
+/**
+ * Tom, 5 Oct 2026: a pergola is priced on its TOP's length × width, never per
+ * pergola. The size becomes card item-equivalents on `qtyOverride`
+ * (lib/pricing/pergola.ts — the engine never scales an override), the line is
+ * relabelled with the size it was priced on, and the dims ride the line so
+ * the tighten screen can show them back. Works on the wizard's placeholder
+ * and on a line the sides editor toggled on.
+ */
+export function applyPergolaSize(blocks: LooseBlock[], lengthM: number, widthM: number): ScopeToggleResult {
+  if (!pergolaDimsOk(lengthM, widthM)) return { ok: false, error: `Pergola length and width in metres, please — ${PERGOLA_DIM_MIN_M} to ${PERGOLA_DIM_MAX_M} m each.` };
+  const out = [...blocks];
+  for (let i = 0; i < out.length; i++) {
+    const b = out[i];
+    if (!isExtArea(b)) continue;
+    const surfaces = [...(b.surfaces ?? [])];
+    for (let j = 0; j < surfaces.length; j++) {
+      if (substrateKeyForRateCode(String(surfaces[j].code ?? ""), "exterior") !== "pergola") continue;
+      const label = pergolaTopLabel(lengthM, widthM);
+      const assumed = Array.isArray(surfaces[j].assumedFields) ? (surfaces[j].assumedFields as string[]) : [];
+      surfaces[j] = {
+        ...surfaces[j],
+        count: 1,
+        qtyOverride: pergolaItemsForTop(lengthM, widthM),
+        pergolaLengthM: lengthM, pergolaWidthM: widthM,
+        internalLabel: label, clientLabel: label,
+        origin: "customer_stated", confidence: 0.85,
+        assumedFields: assumed.filter((f) => f !== "exterior_envelope"),
+      };
+      out[i] = { ...b, surfaces };
+      return { ok: true, blocks: out };
+    }
+  }
+  return { ok: false, error: "Tick the pergola first." };
 }
 
 /** The visit slots offered — next three weekdays 9:00/14:00 unless Settings

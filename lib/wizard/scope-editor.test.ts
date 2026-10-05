@@ -139,7 +139,7 @@ describe("applyRename", () => {
 });
 
 // ---- B2: exterior ----------------------------------------------------------
-import { applyExtent, applyExteriorToggle, applyFenceLength, customerExteriorView, hasFreestandingExtras } from "./scope-editor";
+import { applyExtent, applyExteriorToggle, applyFenceLength, applyPergolaSize, customerExteriorView, hasFreestandingExtras } from "./scope-editor";
 
 const extArea = (id: number, name: string, codes: string[], isOption = false) => ({
   id, kind: "area", name: `Exterior - ${name}`, type: "Exterior", areaType: "surface",
@@ -200,6 +200,25 @@ describe("applyExteriorToggle / applyExtent / applyFenceLength (B2)", () => {
       expect(applyFenceLength(withFence.blocks, 0).ok).toBe(false);
     }
     expect(applyFenceLength(extBlocks(), 24).ok).toBe(false); // not on yet
+  });
+  it("5 Oct: a pergola takes its top's length × width — item-equivalents on qtyOverride, the size in the label, read back by the view", () => {
+    let id = 900;
+    const on = applyExteriorToggle(extBlocks(), "pergola", true, () => id++);
+    expect(on.ok).toBe(true);
+    if (!on.ok) return;
+    const sized = applyPergolaSize(on.blocks, 6, 4);
+    expect(sized.ok).toBe(true);
+    if (!sized.ok) return;
+    const line = sized.blocks.flatMap((b) => (b.surfaces ?? []) as Array<Record<string, unknown>>).find((s) => s.code === "Pergola")!;
+    expect(line.qtyOverride).toBe(2.4);
+    expect(line.count).toBe(1);
+    expect(line.clientLabel).toBe("Pergola — top approx. 6 × 4 m (24 m²)");
+    expect(line.origin).toBe("customer_stated");
+    expect(customerExteriorView(sized.blocks)?.pergola).toEqual({ lengthM: 6, widthM: 4 });
+    // Bounds and "not on yet" refuse in words.
+    expect(applyPergolaSize(on.blocks, 0, 4).ok).toBe(false);
+    expect(applyPergolaSize(extBlocks(), 6, 4).ok).toBe(false);
+    expect(customerExteriorView(on.blocks)?.pergola).toBeNull();
   });
 });
 

@@ -945,8 +945,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             <div className="sc-score">
               <div className={`sc-ring ${pendingCount > 0 ? "live" : ""}`} data-live={pendingCount > 0 ? "1" : "0"}>
                 <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx="24" cy="24" r="20" fill="none" stroke="#242B32" strokeWidth="4" />
-                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 90 ? "#2FA46B" : "#E0A83C"}
+                  <circle cx="24" cy="24" r="20" fill="none" stroke="#D9E0E6" strokeWidth="4" />
+                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 90 ? "#1F8A55" : "#A86A12"}
                     strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
                     strokeDashoffset={(125.6 * Math.max(0, Math.min(1, (payload.bandPct - (payload.tightPct ?? 4)) / Math.max(1, (payload.widePct ?? 15) - (payload.tightPct ?? 4))))).toFixed(1)} />
                 </svg>

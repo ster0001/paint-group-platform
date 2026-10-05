@@ -22,7 +22,7 @@ type Session = {
 
 const CSS = `
 .pgw{position:fixed;right:16px;bottom:calc(16px + var(--chat-lift,0px) + env(safe-area-inset-bottom,0px));z-index:70;font-family:inherit}
-.pgw-launch{border:0;border-radius:999px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer;background:#39D9E6;color:#0b1116;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.pgw-launch{border:0;border-radius:999px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer;background:#0E9FB4;color:#0b1116;box-shadow:0 8px 24px rgba(0,0,0,.35)}
 .pgw-launch:hover{filter:brightness(1.06)}
 .pgw-panel{position:absolute;right:0;bottom:56px;width:min(380px,calc(100vw - 32px));max-height:min(72vh,640px);display:flex;flex-direction:column;background:#0f151a;color:#e8edf1;border:1px solid rgba(255,255,255,.12);border-radius:16px;box-shadow:0 18px 48px rgba(0,0,0,.5);overflow:hidden}
 .pgw-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.1)}
@@ -34,12 +34,12 @@ const CSS = `
 .pgw .sub{font-size:12.5px;color:#9aa7b2;margin:0 0 8px}
 .pgw .msgs{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
 .pgw .msg{max-width:92%;border-radius:12px;padding:8px 11px;font-size:14px;line-height:1.45;white-space:pre-wrap}
-.pgw .msg.mine{align-self:flex-end;background:#39D9E6;color:#0b1116}
+.pgw .msg.mine{align-self:flex-end;background:#0E9FB4;color:#0b1116}
 .pgw .msg.theirs{align-self:flex-start;background:rgba(255,255,255,.07)}
 .pgw .msg .sub{margin:0 0 2px;font-size:11px}
 .pgw input,.pgw select{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);color:inherit;border-radius:9px;padding:8px 10px;font:inherit;font-size:14px}
 .pgw .btn{border:1px solid rgba(255,255,255,.14);background:transparent;color:inherit;border-radius:999px;padding:7px 12px;font-size:12.5px;cursor:pointer;text-decoration:none;display:inline-block}
-.pgw .btn-cyan{background:#39D9E6;color:#0b1116;border-color:#39D9E6;font-weight:700}
+.pgw .btn-cyan{background:#0E9FB4;color:#0b1116;border-color:#0E9FB4;font-weight:700}
 .pgw .btn[disabled]{opacity:.5;cursor:default}
 `;
 

@@ -34,7 +34,9 @@ export default async function WizardPage() {
     // Staff session reads settings under its own RLS — the header logo.
     supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle(),
   ]);
-  const logoUrl = ((profileRow?.value ?? {}) as { logoUrl?: string }).logoUrl || null;
+  // 5 Oct: the wizard is light, so the light-background logo leads (the dark one if that is all there is).
+  const companyProfile = (profileRow?.value ?? {}) as { logoUrl?: string; logoUrlLight?: string };
+  const logoUrl = companyProfile.logoUrlLight || companyProfile.logoUrl || null;
   const roomTypes = [...new Set((rules ?? []).map((r) => r.room_type as string))]
     .filter((t) => !["exterior", "unknown", "excluded", "exterior_excluded"].includes(t))
     .sort();
