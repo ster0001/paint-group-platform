@@ -11,7 +11,7 @@ verified_at_commit: 4ef1a0aa72
 The customer does the typing; you do the confirming. This page is the office side of the online estimate: where requests appear, what you are looking at, and what each button does.
 
 ## Before you start
-A staff login with the Estimates area. If you take visits, the office should tick you under Settings → Estimator visits and set your patch postcodes so requests from your area name you.
+A staff login with the Estimates area. If you take visits, the office should tick you under Settings → Estimator visits and set your patch postcodes so requests from your area name you. Where no patch covers the postcode, the customer's wizard names whoever is in Settings → Company → **Estimator** (name and phone) — the same person the estimate says it was prepared by.
 
 ## Steps
 1. **Estimates → Waiting on you.** Every online request is a row with a bucket: **Overdue** (past the turnaround we told the customer), **Today**, or **Waiting**. The sentence on the row is the queue's own — it says what we promised and whether that has passed. The turnaround comes from Settings → `confirmation_turnaround`; change it there and every row follows.
