@@ -20,7 +20,10 @@ const nextConfig: NextConfig = {
       { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-      { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=()" },
+      // microphone=(self): the estimator's voice notes (4 Oct 2026) record in the
+      // builder and PC command. `()` here blocked getUserMedia site-wide, in every
+      // browser, and the record button could only ever say "blocked".
+      { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()" },
       { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
     ];
     const robots = process.env.SITE_INDEXABLE === "1" ? [] : [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
