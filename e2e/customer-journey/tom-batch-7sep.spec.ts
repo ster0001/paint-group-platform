@@ -138,6 +138,8 @@ test.describe("Tom's 7 Sep batch", () => {
     await expect(page.getByTestId("ext-target-house")).toHaveClass(/\bon\b/);
     await page.getByTestId("ext-target-fence").click();
     await page.getByTestId("ext-target-shed").click();
+    // Tom, 5 Oct: the pergola is a target here too, priced on its top's size.
+    await page.getByTestId("ext-target-pergola").click();
     await expect(page.getByText(/What.s the house made of/)).toBeVisible();
     for (const k of ["render", "weatherboards", "brick", "stucco", "colorbond", "other", "none"]) {
       await expect(page.getByTestId(`ext-cladding-${k}`)).toBeVisible();
@@ -159,6 +161,16 @@ test.describe("Tom's 7 Sep batch", () => {
     await page.getByTestId("ext-fence-metres").blur();
     await expect(page.getByTestId("ext-shed")).toBeVisible();
     await page.getByTestId("ext-shed-cladding").getByRole("button", { name: "Colorbond" }).click();
+    // Tom, 5 Oct: the pergola top — length, width, Confirm; Continue refuses until it is confirmed.
+    await expect(page.getByTestId("ext-pergola")).toBeVisible();
+    await page.getByTestId("ext-pergola-length").fill("4");
+    await page.getByTestId("ext-pergola-length").blur();
+    await page.getByTestId("ext-pergola-width").fill("3");
+    await page.getByTestId("ext-pergola-width").blur();
+    await page.getByRole("button", { name: /Continue|Nearly there/ }).first().click();
+    await expect(page.locator(".wz-err")).toContainText(/how big is the pergola top/i);
+    await page.getByTestId("ext-pergola-confirm").click();
+    await expect(page.getByTestId("ext-pergola-confirm")).toHaveText(/Confirmed/);
 
     // Page 4 — condition + access (unchanged).
     await next();
@@ -208,6 +220,11 @@ test.describe("Tom's 7 Sep batch", () => {
     expect(bs.aiDeferred?.some((d) => d.what === "shed" && /Colorbond/.test(d.needs))).toBe(true);
     expect(bs.blocks?.some((b) => b.surfaces?.some((s) => /Fence/.test(s.code)))).toBe(false);
     expect(bs.blocks?.find((b) => b.name === "Exterior - Extras")?.surfaces?.some((s) => s.code === "Shed")).toBe(true);
+    // Tom, 5 Oct: the pergola arrives sized and priced on its top, with the size in its label — no "measure on site" deferral.
+    const pergola = bs.blocks?.find((b) => b.name === "Exterior - Extras")?.surfaces?.find((s) => s.code === "Pergola") as { internalLabel?: string; qtyOverride?: number } | undefined;
+    expect(pergola?.internalLabel).toBe("Pergola — top approx. 4 × 3 m (12 m²)");
+    expect(pergola?.qtyOverride).toBe(1.2);
+    expect(bs.aiDeferred?.some((d) => /pergola/i.test(d.what))).toBe(false);
     /**
      * ⚑ CHANGED BEHAVIOUR, 11 Sep. This asserted that an unticked side arrives
      * as a block marked `isOption` — an exclusion the customer could SEE on the
@@ -221,7 +238,7 @@ test.describe("Tom's 7 Sep batch", () => {
      * used to be on the quote and now is not recorded anywhere.
      */
     expect(bs.blocks?.some((b) => /Rear/.test(b.name ?? ""))).toBe(false);
-    expect(bs.wizard?.state?.exterior?.targets).toEqual(["house", "fence", "shed"]);
+    expect(bs.wizard?.state?.exterior?.targets).toEqual(["house", "fence", "shed", "pergola"]);
     expect(bs.wizard?.state?.exterior?.sides).toEqual(["front"]);
   });
 

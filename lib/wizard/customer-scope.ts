@@ -182,7 +182,9 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
       envelope: envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: snap.success ? snap.data : null, ctx, adj: adjustmentsFrom(state), bands: bandsRow, widenPct: widen.widenPct, confirmed: loopState.states }),
     },
   );
-  const headerLogoUrl = ((settingValue(ctx.settings, "company_profile") ?? {}) as { logoUrl?: string }).logoUrl || null;
+  // 5 Oct: the wizard family is light — the light-background logo leads.
+  const headerProfile = (settingValue(ctx.settings, "company_profile") ?? {}) as { logoUrl?: string; logoUrlLight?: string };
+  const headerLogoUrl = headerProfile.logoUrlLight || headerProfile.logoUrl || null;
   const profile = (settingValue(ctx.settings, "company_profile") ?? {}) as { phone?: string; phoneHours?: string };
   const companyPhone = profile.phone?.trim() || null;
   // Tom, 8 Sep: "it needs to be clear that our lines are open from

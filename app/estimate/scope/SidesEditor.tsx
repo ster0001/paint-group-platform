@@ -52,8 +52,13 @@ const snapshotFalse = () => false;
 
 /** A selectable chip — a real component so its onClick is a handler in the
  * linter's eyes (the old render-time chip() helper tripped react-hooks/refs). */
-function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
-  return <button className={`sd-chip ${on ? "on" : ""}`} onClick={onClick}>{label}</button>;
+function Chip({ on, label, hint, onClick }: { on: boolean; label: string; hint?: string; onClick: () => void }) {
+  return (
+    <button className={`sd-chip ${on ? "on" : ""}${hint ? " has-hint" : ""}`} onClick={onClick}>
+      {label}
+      {hint && <small className="sd-chip-hint">{hint}</small>}
+    </button>
+  );
 }
 
 export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, estimator = null, customerSuburb = null }: {
@@ -95,6 +100,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const [metres, setMetres] = useState<Record<string, string>>({});
   const [customText, setCustomText] = useState("");
   const [fenceText, setFenceText] = useState("");
+  // Tom, 5 Oct: the pergola top's size — priced on length × width, never per pergola.
+  const [pergolaL, setPergolaL] = useState(initialExterior?.pergola ? String(initialExterior.pergola.lengthM) : "");
+  const [pergolaW, setPergolaW] = useState(initialExterior?.pergola ? String(initialExterior.pergola.widthM) : "");
   const [sweepOtherOpen, setSweepOtherOpen] = useState(false);
   const [sweepOtherText, setSweepOtherText] = useState("");
   const [prompt, setPrompt] = useState(false);
@@ -778,9 +786,10 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       hint: "Your range prices this from good to peeling until you answer.",
       body: (
         <div className="sd-chips" data-testid="cond-chips">
-          <Chip on={sel("cond:cond", mc.cond === "good", "good")} label={"Good overall"} onClick={() => condAct({ action: "loop_cond", cond: "good" }, { describe: withDelta("Good to hear — noted"), opt: ["cond:cond", "good"] })} />
-          <Chip on={sel("cond:cond", mc.cond === "weathered", "weathered")} label={"Weathered"} onClick={() => condAct({ action: "loop_cond", cond: "weathered" }, { describe: withDelta("Extra prep allowed for weathered paintwork"), opt: ["cond:cond", "weathered"] })} />
-          <Chip on={sel("cond:cond", mc.cond === "peeling", "peeling")} label={"Peeling & flaking"} onClick={() => condAct({ action: "loop_cond", cond: "peeling" }, { describe: withDelta("Extra prep allowed for peeling paintwork — and a lead-safe check is part of our visit"), opt: ["cond:cond", "peeling"] })} />
+          {/* Tom, 5 Oct: a line under each answer says what it means in practice. */}
+          <Chip on={sel("cond:cond", mc.cond === "good", "good")} label={"Good overall"} hint="A few spots to fill and the odd mark, but mostly sound — a repaint, not a rescue." onClick={() => condAct({ action: "loop_cond", cond: "good" }, { describe: withDelta("Good to hear — noted"), opt: ["cond:cond", "good"] })} />
+          <Chip on={sel("cond:cond", mc.cond === "weathered", "weathered")} label={"Weathered"} hint="Chalky, faded or thin in places — more sanding and spot-priming allowed for." onClick={() => condAct({ action: "loop_cond", cond: "weathered" }, { describe: withDelta("Extra prep allowed for weathered paintwork"), opt: ["cond:cond", "weathered"] })} />
+          <Chip on={sel("cond:cond", mc.cond === "peeling", "peeling")} label={"Peeling & flaking"} hint="Lifting or flaking with bare timber showing — scraped back and properly prepared before any paint goes on." onClick={() => condAct({ action: "loop_cond", cond: "peeling" }, { describe: withDelta("Extra prep allowed for peeling paintwork — and a lead-safe check is part of our visit"), opt: ["cond:cond", "peeling"] })} />
         </div>
       ),
     },
@@ -958,8 +967,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             <div className="sc-score">
               <div className={`sc-ring ${pendingCount > 0 ? "live" : ""}`} data-live={pendingCount > 0 ? "1" : "0"}>
                 <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx="24" cy="24" r="20" fill="none" stroke="#242B32" strokeWidth="4" />
-                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 85 ? "#2FA46B" : "#E0A83C"}
+                  <circle cx="24" cy="24" r="20" fill="none" stroke="#D9E0E6" strokeWidth="4" />
+                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 85 ? "#1F8A55" : "#A86A12"}
                     strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
                     strokeDashoffset={(125.6 * Math.max(0, Math.min(1, (payload.bandPct - (payload.tightPct ?? 4)) / Math.max(1, (payload.widePct ?? 15) - (payload.tightPct ?? 4))))).toFixed(1)} />
                 </svg>
@@ -1000,12 +1009,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             <div className="sd-visual">
               <p className="sd-t">YOUR HOME FROM ABOVE · TAP A SIDE</p>
               <svg viewBox="0 0 300 240" className="sd-house">
-                <rect x="62" y="52" width="176" height="136" fill="#12161A" stroke="#242B32" />
+                <rect x="62" y="52" width="176" height="136" fill="#EEF2F5" stroke="#D9E0E6" />
                 <line className={edgeClass("back")} x1="66" y1="52" x2="234" y2="52" onClick={() => setOpen("back")} />
                 <line className={edgeClass("left")} x1="62" y1="56" x2="62" y2="184" onClick={() => setOpen("left")} />
                 <line className={edgeClass("right")} x1="238" y1="56" x2="238" y2="184" onClick={() => setOpen("right")} />
                 <line className={edgeClass("front")} x1="66" y1="188" x2="234" y2="188" onClick={() => setOpen("front")} />
-                <rect x="138" y="180" width="24" height="8" fill="#152A31" stroke="#3BD8E9" strokeWidth="1" />
+                <rect x="138" y="180" width="24" height="8" fill="#D6F1F5" stroke="#0E9FB4" strokeWidth="1" />
                 <text x="124" y="212">FRONT · STREET</text>
                 <text x="132" y="42">BACK</text>
                 <text x="14" y="124">LEFT</text>
@@ -1031,7 +1040,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               <div className="sd-legend">
                 <span><i style={{ background: "var(--amber)" }} />TO CONFIRM</span>
                 <span><i style={{ background: "var(--cyan)" }} />CONFIRMED</span>
-                <span><i style={{ background: "#39424B" }} />NOT PAINTING</span>
+                <span><i style={{ background: "#B9C2CB" }} />NOT PAINTING</span>
               </div>
             </div>
           </div>
@@ -1085,6 +1094,30 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                     >
                       Set
                     </button>
+                  </div>
+                )}
+                {/* Tom, 5 Oct: the pergola is priced on its top's length × width — never per pergola. */}
+                {extrasTiles.some((t) => t.key === "pergola" && t.on) && (
+                  <div data-testid="pergola-size" style={{ marginTop: 9 }}>
+                    <p className="sd-help" style={{ margin: "0 0 6px" }}>
+                      {exterior?.pergola
+                        ? `Priced on a top of about ${exterior.pergola.lengthM} × ${exterior.pergola.widthM} m. Change it below and confirm.`
+                        : "Roughly how big is the pergola top? Length and width in metres, then Confirm — it's priced on the area."}
+                    </p>
+                    <div className="sd-mrow" style={{ display: "flex", flexWrap: "wrap" }}>
+                      <input placeholder="top length m" inputMode="decimal" value={pergolaL} onChange={(e) => setPergolaL(e.target.value)} data-testid="pergola-length" />
+                      <input placeholder="top width m" inputMode="decimal" value={pergolaW} onChange={(e) => setPergolaW(e.target.value)} data-testid="pergola-width" />
+                      <button data-testid="pergola-confirm"
+                        onClick={() => {
+                          const L = parseFloat(pergolaL.replace(/[^0-9.]/g, ""));
+                          const W = parseFloat(pergolaW.replace(/[^0-9.]/g, ""));
+                          if (!(L > 0 && W > 0)) return;
+                          act({ action: "set_pergola", lengthM: L, widthM: W }, { done: `Pergola top ${L} × ${W} m — repriced.` });
+                        }}
+                      >
+                        Confirm
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

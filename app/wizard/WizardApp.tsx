@@ -1307,6 +1307,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (pageKey === "house" && (ext?.targets.length ?? 0) === 0) return "What are we painting? Tick at least one.";
       if (pageKey === "house" && ext?.targets.includes("house") && ext.substrates.length === 0) return "What's the house made of? Tick at least one — or “None” if the walls aren't being painted.";
       if (pageKey === "scope" && ext && !Object.values(ext.painting).some(Boolean)) return "Tick at least one thing we're painting.";
+      if (pageKey === "scope" && ext?.targets.includes("pergola") && !(ext.pergola?.confirmed && ext.pergola.lengthM != null && ext.pergola.widthM != null)) return "Roughly how big is the pergola top? Length and width in metres, then Confirm.";
       if (pageKey === "ext_condition" && ext?.condition == null) return "How's the paintwork holding up overall?";
       return null;
     }
@@ -1536,6 +1537,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // pre-ticked, so an untouched screen is not an answer.
     if (quickStep === "outside" && !paintsSomething(outside)) {
       setError("Tick at least one thing we're painting — on the house, or standing on its own.");
+      return;
+    }
+    // Tom, 5 Oct: a ticked pergola is priced on its top — the size has to be confirmed.
+    if (quickStep === "outside" && outside.standalone.includes("pergola") && !(outside.pergola?.confirmed && outside.pergola.lengthM != null && outside.pergola.widthM != null)) {
+      setError("Roughly how big is the pergola top? Length and width in metres, then Confirm.");
       return;
     }
     // Tom, 15 Sep (late): the sides screen comes next — it starts with all four
@@ -2713,20 +2719,20 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, stepNo = 4, a
       <p className="wz-qhead">What type of doors, mostly?</p>
       <div className="wz-pick">
         <button className={`wz-pk ${d.doorStyle === "panel" ? "on" : ""}`} onClick={() => set({ details: { ...d, doorStyle: "panel" } })}>
-          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B" /><rect x="19" y="9" width="10" height="16" fill="#12161A" stroke="#39424B" /><rect x="31" y="9" width="10" height="16" fill="#12161A" stroke="#39424B" /><rect x="19" y="29" width="10" height="26" fill="#12161A" stroke="#39424B" /><rect x="31" y="29" width="10" height="26" fill="#12161A" stroke="#39424B" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#D5DCE3" stroke="#B9C2CB" /><rect x="19" y="9" width="10" height="16" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="31" y="9" width="10" height="16" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="19" y="29" width="10" height="26" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="31" y="29" width="10" height="26" fill="#EEF2F5" stroke="#B9C2CB" /></svg>
           <small>Panel</small>
         </button>
         <button className={`wz-pk ${d.doorStyle === "flat" ? "on" : ""}`} onClick={() => set({ details: { ...d, doorStyle: "flat" } })}>
-          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B" /><circle cx="41" cy="33" r="1.8" fill="#8C959D" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#D5DCE3" stroke="#B9C2CB" /><circle cx="41" cy="33" r="1.8" fill="#6B7A86" /></svg>
           <small>Flat</small>
         </button>
         <button className={`wz-pk ${d.doorStyle === "unsure" ? "on" : ""}`} onClick={() => set({ details: { ...d, doorStyle: "unsure" } })}>
-          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B" /><text x="30" y="40" textAnchor="middle" fill="#8C959D" fontSize="22">?</text></svg>
+          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#D5DCE3" stroke="#B9C2CB" /><text x="30" y="40" textAnchor="middle" fill="#6B7A86" fontSize="22">?</text></svg>
           <small>Not sure</small>
         </button>
         <button className={`wz-pk ${d.doorStyle === "na" ? "on" : ""}`} onClick={() => set({ details: { ...d, doorStyle: "na" } })}
           data-testid="door-style-na">
-          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B" /><line x1="20" y1="50" x2="40" y2="14" stroke="#8C959D" strokeWidth="2" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#D5DCE3" stroke="#B9C2CB" /><line x1="20" y1="50" x2="40" y2="14" stroke="#6B7A86" strokeWidth="2" /></svg>
           <small>Not applicable</small>
         </button>
       </div>
@@ -2788,28 +2794,28 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, stepNo = 4, a
       <p className="wz-qhead">What type of windows, mostly?</p>
       <div className="wz-pick">
         <button className={`wz-pk ${d.windowStyle === "casement" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "casement" } })}>
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><line x1="30" y1="8" x2="30" y2="56" stroke="#39424B" /><path d="M30 12 L46 32 L30 52" fill="none" stroke="#2F3941" strokeDasharray="3 2" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><line x1="30" y1="8" x2="30" y2="56" stroke="#B9C2CB" /><path d="M30 12 L46 32 L30 52" fill="none" stroke="#C9D1D8" strokeDasharray="3 2" /></svg>
           <small>Casement</small>
         </button>
         <button className={`wz-pk ${d.windowStyle === "sash" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "sash" } })}>
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><rect x="13" y="11" width="34" height="20" fill="none" stroke="#39424B" /><rect x="13" y="33" width="34" height="20" fill="none" stroke="#39424B" /><line x1="10" y1="32" x2="50" y2="32" stroke="#4A555F" strokeWidth="2" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="13" y="11" width="34" height="20" fill="none" stroke="#B9C2CB" /><rect x="13" y="33" width="34" height="20" fill="none" stroke="#B9C2CB" /><line x1="10" y1="32" x2="50" y2="32" stroke="#8A97A3" strokeWidth="2" /></svg>
           <small>Sash</small>
         </button>
         <button className={`wz-pk ${d.windowStyle === "colonial" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "colonial" } })}>
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><line x1="30" y1="8" x2="30" y2="56" stroke="#39424B" /><line x1="10" y1="24" x2="50" y2="24" stroke="#39424B" /><line x1="10" y1="40" x2="50" y2="40" stroke="#39424B" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><line x1="30" y1="8" x2="30" y2="56" stroke="#B9C2CB" /><line x1="10" y1="24" x2="50" y2="24" stroke="#B9C2CB" /><line x1="10" y1="40" x2="50" y2="40" stroke="#B9C2CB" /></svg>
           <small>Colonial</small>
         </button>
         <button className={`wz-pk ${d.windowStyle === "winder" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "winder" } })}>
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><rect x="10" y="40" width="40" height="16" fill="#1A2027" stroke="#39424B" /><path d="M14 52 L30 43 L46 52" fill="none" stroke="#2F3941" strokeDasharray="3 2" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="10" y="40" width="40" height="16" fill="#EEF2F5" stroke="#B9C2CB" /><path d="M14 52 L30 43 L46 52" fill="none" stroke="#C9D1D8" strokeDasharray="3 2" /></svg>
           <small>Winder</small>
         </button>
         <button className={`wz-pk ${d.windowStyle === "unsure" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "unsure" } })}>
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><text x="30" y="40" textAnchor="middle" fill="#8C959D" fontSize="22">?</text></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><text x="30" y="40" textAnchor="middle" fill="#6B7A86" fontSize="22">?</text></svg>
           <small>Not sure</small>
         </button>
         <button className={`wz-pk ${d.windowStyle === "na" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "na" } })}
           data-testid="window-style-na">
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><line x1="16" y1="50" x2="44" y2="14" stroke="#8C959D" strokeWidth="2" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><line x1="16" y1="50" x2="44" y2="14" stroke="#6B7A86" strokeWidth="2" /></svg>
           <small>Not applicable</small>
         </button>
       </div>
@@ -3059,8 +3065,10 @@ function PageExteriorHouse({ state, set, substrates, stepsTotal, stepNo = 2 }: {
       ...ext.extras,
       deck: targets.includes("deck"),
       fence: targets.includes("fence"),
+      pergola: targets.includes("pergola"),
       ...(targets.includes("fence") ? {} : { fenceMetres: null }),
     },
+    pergola: targets.includes("pergola") ? (ext.pergola ?? { lengthM: null, widthM: null, confirmed: false }) : null,
     shed: targets.includes("shed") ? (ext.shed ?? { substrate: "colorbond" }) : null,
     wall: targets.includes("wall") ? (ext.wall ?? { substrate: "brick", metres: null }) : null,
     floor: targets.includes("floor") ? (ext.floor ?? { m2: null }) : null,
@@ -3134,6 +3142,7 @@ function PageExteriorHouse({ state, set, substrates, stepsTotal, stepNo = 2 }: {
         {target("fence", "Fence")}
         {target("floor", "Floor coatings")}
         {target("deck", "Deck")}
+        {target("pergola", "Pergola", "priced on the top's size")}
         {target("shed", "Garage / workshop / shed")}
         {target("wall", "Wall", "a boundary or retaining wall")}
       </div>
@@ -3143,12 +3152,12 @@ function PageExteriorHouse({ state, set, substrates, stepsTotal, stepNo = 2 }: {
           <p className="wz-qhead">Single or double storey?</p>
           <div className="wz-pick">
             <button className={`wz-pk ${ext.storeys === "single" ? "on" : ""}`} onClick={() => setExt({ storeys: "single" })}>
-              <svg viewBox="0 0 60 64"><polygon points="8,28 30,12 52,28" fill="#1F262C" stroke="#39424B" /><rect x="12" y="28" width="36" height="24" fill="#12161A" stroke="#39424B" /><rect x="26" y="38" width="8" height="14" fill="#152A31" stroke="#2FB9CB" /></svg>
+              <svg viewBox="0 0 60 64"><polygon points="8,28 30,12 52,28" fill="#D5DCE3" stroke="#B9C2CB" /><rect x="12" y="28" width="36" height="24" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="26" y="38" width="8" height="14" fill="#D6F1F5" stroke="#0E9FB4" /></svg>
               <small>Single storey</small>
               <em className="wz-pksub">up to 4 metres</em>
             </button>
             <button className={`wz-pk ${ext.storeys === "double" ? "on" : ""}`} onClick={() => setExt({ storeys: "double" })}>
-              <svg viewBox="0 0 60 64"><polygon points="8,20 30,6 52,20" fill="#1F262C" stroke="#39424B" /><rect x="12" y="20" width="36" height="36" fill="#12161A" stroke="#39424B" /><line x1="12" y1="38" x2="48" y2="38" stroke="#39424B" /><rect x="26" y="44" width="8" height="12" fill="#152A31" stroke="#2FB9CB" /></svg>
+              <svg viewBox="0 0 60 64"><polygon points="8,20 30,6 52,20" fill="#D5DCE3" stroke="#B9C2CB" /><rect x="12" y="20" width="36" height="36" fill="#EEF2F5" stroke="#B9C2CB" /><line x1="12" y1="38" x2="48" y2="38" stroke="#B9C2CB" /><rect x="26" y="44" width="8" height="12" fill="#D6F1F5" stroke="#0E9FB4" /></svg>
               <small>Double storey</small>
               <em className="wz-pksub">over 4 metres</em>
             </button>
@@ -3292,6 +3301,24 @@ function PageExteriorScope({ state, set, substrates, stepsTotal, stepNo = 3 }: {
         </div>
       )}
 
+      {/* Tom, 5 Oct 2026: a pergola is priced on its top's footprint — length
+          and width, then Confirm — never per pergola. */}
+      {ext.targets.includes("pergola") && (
+        <div className="wz-follow" data-testid="ext-pergola">
+          <p className="wz-q">Roughly how big is the pergola top?</p>
+          <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "0 0 8px" }}>Length and width in metres — near enough is fine. It&rsquo;s priced on the top&rsquo;s area, not per pergola.</p>
+          <div className="wz-seg" style={{ alignItems: "center" }}>
+            {metresInput(ext.pergola?.lengthM ?? null, (v) => setExt({ pergola: { lengthM: v == null ? null : Math.min(30, v), widthM: ext.pergola?.widthM ?? null, confirmed: false } }), "length m", "ext-pergola-length")}
+            {metresInput(ext.pergola?.widthM ?? null, (v) => setExt({ pergola: { lengthM: ext.pergola?.lengthM ?? null, widthM: v == null ? null : Math.min(30, v), confirmed: false } }), "width m", "ext-pergola-width")}
+            <button type="button" className={`wz-btn wz-bs2 ${ext.pergola?.confirmed ? "on" : ""}`} data-testid="ext-pergola-confirm"
+              disabled={!(ext.pergola?.lengthM != null && ext.pergola?.widthM != null)}
+              onClick={() => setExt({ pergola: { lengthM: ext.pergola?.lengthM ?? null, widthM: ext.pergola?.widthM ?? null, confirmed: true } })}>
+              {ext.pergola?.confirmed ? "Confirmed ✓" : "Confirm"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {ext.targets.includes("deck") && (
         <div className="wz-follow" data-testid="ext-deck">
           <p className="wz-q">Deck — noted.</p>
@@ -3342,9 +3369,9 @@ function PageExteriorCondition({ state, set, stepsTotal, stepNo = 4 }: {
 
       <p className="wz-qhead">How&rsquo;s the paintwork holding up?</p>
       <div className="wz-cards">
-        {cond("good", "Good overall", "Sound paint, the odd mark — a repaint, not a rescue.")}
-        {cond("weathered", "Weathered", "Chalky or faded in places — extra preparation allowed for.")}
-        {cond("peeling", "Peeling & flaking", "Coming away in places — needs a proper look before a fixed price.")}
+        {cond("good", "Good overall", "A few spots to fill and the odd mark, but mostly sound — a wash, a light sand and a repaint rather than a rescue.")}
+        {cond("weathered", "Weathered", "Chalky, faded or thin in places, maybe a little lifting on the sunny side — more sanding and spot-priming is allowed for.")}
+        {cond("peeling", "Peeling & flaking", "Paint lifting or flaking with bare timber showing through — scraping back and proper preparation before any paint goes on, and a closer look before a fixed price.")}
       </div>
 
       {/* Tom, 7 Sep (late): the "built before 1970" question is gone — the office finds the build year itself. */}
@@ -3404,9 +3431,10 @@ const GEAR_LABEL: Record<WizardExterior["accessEquipment"][number], string> = {
 
 function PageExteriorExtras({ state, set, stepsTotal, stepNo = 5, embedPaint = true }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number; stepNo?: number; embedPaint?: boolean }) {
   const { ext, setExt } = useExt(state, set);
-  // Tom, 7 Sep: deck and fence are answered on "What are we painting?" now;
-  // this page keeps the things that are easy to forget.
-  const extra = (k: "pergola" | "balustrade", label: string) => (
+  // Tom, 7 Sep: deck and fence are answered on "What are we painting?" now —
+  // and the pergola since 5 Oct (it is sized there); this page keeps the
+  // things that are easy to forget.
+  const extra = (k: "balustrade", label: string) => (
     <button
       key={k}
       className={`wz-tile ${ext.extras[k] ? "on" : ""}`}
@@ -3421,7 +3449,6 @@ function PageExteriorExtras({ state, set, stepsTotal, stepNo = 5, embedPaint = t
       <h1>Anything else out there?</h1>
       <p className="wz-sub">The things that are easy to forget.</p>
       <div className="wz-tiles">
-        {extra("pergola", "Pergola")}
         {extra("balustrade", "Balustrades & hand rails")}
       </div>
       {embedPaint && <PagePaint state={state} set={set} embedded stepsTotal={stepsTotal} />}

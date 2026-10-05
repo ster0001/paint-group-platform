@@ -418,7 +418,7 @@ export const wizardStateShapeSchema = z.object({
     substrates: z.array(z.enum(["weatherboards", "render", "concrete", "brick", "stucco", "cement_sheet", "colorbond", "other", "none"])).default(["weatherboards"]),
     /** Tom, 7 Sep: "What are we painting? tick all that apply" — the house,
      * and/or the freestanding things. Absent (older states) = the house. */
-    targets: z.array(z.enum(["house", "fence", "floor", "deck", "shed", "wall"])).default(["house"]),
+    targets: z.array(z.enum(["house", "fence", "floor", "deck", "shed", "wall", "pergola"])).default(["house"]),
     /** Tom, 7 Sep: the house's trims, one tick each (windows / doors / eaves /
      * fascias / gutters / garage door). Absent (older states) = derived from
      * `painting` below, which stays the summary the scaffold reads. */
@@ -452,6 +452,14 @@ export const wizardStateShapeSchema = z.object({
     }).nullable().default(null),
     /** Floor coatings — rough area; priced by the estimator (no rate row). */
     floor: z.object({ m2: z.number().min(1).max(2000).nullable().default(null) }).nullable().default(null),
+    /** Tom, 5 Oct 2026: a pergola is priced on its TOP's footprint, not per
+     * pergola — the customer gives the length and width and confirms them
+     * (lib/pricing/pergola.ts turns that into card items). */
+    pergola: z.object({
+      lengthM: z.number().min(0.5).max(30).nullable().default(null),
+      widthM: z.number().min(0.5).max(30).nullable().default(null),
+      confirmed: z.boolean().default(false),
+    }).nullable().default(null),
     /** What are we painting — roofline pre-ticked per the standard scope. */
     painting: z.object({
       body: z.boolean().default(true),
@@ -657,7 +665,7 @@ export function defaultExterior(): WizardExterior {
     storeys: "single",
     substrates: ["weatherboards"],
     targets: ["house"],
-    shed: null, wall: null, floor: null,
+    shed: null, wall: null, floor: null, pergola: null,
     painting: { body: true, windowsDoors: true, roofline: true, garage: false },
     condition: null,
     access: [],
@@ -688,7 +696,7 @@ export function exteriorSurfaceKeys(ext: WizardExterior): WizardSurfaceKey[] {
   if (house && el.garage) keys.push("garage_doors");
   if (ext.extras.deck || ext.targets.includes("deck")) keys.push("deck");
   if ((ext.extras.fence || ext.targets.includes("fence")) && ext.extras.fenceType !== "metal") keys.push("fence");
-  if (ext.extras.pergola) keys.push("pergola");
+  if (ext.extras.pergola || ext.targets.includes("pergola")) keys.push("pergola");
   if (ext.extras.balustrade) keys.push("balustrade");
   return [...new Set(keys)];
 }

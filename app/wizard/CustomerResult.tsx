@@ -137,10 +137,10 @@ export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl, co
           <div className="wz-score">
             <div className="wz-scring">
               <svg width="52" height="52">
-                <circle cx="26" cy="26" r="22" fill="none" stroke="#242B32" strokeWidth="4" />
+                <circle cx="26" cy="26" r="22" fill="none" stroke="#D9E0E6" strokeWidth="4" />
                 <circle
                   cx="26" cy="26" r="22" fill="none"
-                  stroke={payload.tightBand ? "#2FA46B" : "#E0A83C"}
+                  stroke={payload.tightBand ? "#1F8A55" : "#A86A12"}
                   strokeWidth="4" strokeLinecap="round"
                   strokeDasharray={arc} strokeDashoffset={(arc * (1 - payload.accuracyPct / 100)).toFixed(1)}
                 />

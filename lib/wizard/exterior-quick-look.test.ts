@@ -276,3 +276,30 @@ describe("Tom, 15 Sep (late): condition leaves the quick look; sides get their o
     expect(exteriorRestatement(q({ ...typical(), sides: ["front", "left", "back"] }))).toMatch(/the front, left side and back/);
   });
 });
+
+describe("5 Oct: a pergola under 'Any other areas being painted?', priced on its top", () => {
+  it("ticking it opens the top's size; the size and its Confirm round-trip and reach the state", () => {
+    const before = q({ elements: ["body"], materials: ["weatherboards"], standalone: ["pergola"], pergola: { lengthM: 6, widthM: 4, confirmed: true } });
+    const s = applyExteriorQuickLook(before, base());
+    expect(s.exterior?.targets).toContain("pergola");
+    expect(s.exterior?.extras.pergola).toBe(true);
+    expect(s.exterior?.pergola).toEqual({ lengthM: 6, widthM: 4, confirmed: true });
+    expect(exteriorSurfaceKeys(s.exterior!)).toContain("pergola");
+    expect(exteriorQuickLookFromState(s.exterior)).toEqual({ ...before, doorCount: DEFAULT_EXTERIOR_QUICK_LOOK.doorCount, windowCount: DEFAULT_EXTERIOR_QUICK_LOOK.windowCount });
+    const parsed = wizardStateSchema.safeParse({
+      ...s,
+      customer: { ...s.customer!, suburb: "Murrumbeena", postcode: "3163" },
+      contact: { ...s.contact, name: "A", email: "a@example.com", phone: "0400000000" },
+    });
+    expect(parsed.success, JSON.stringify(parsed.success ? {} : parsed.error.issues)).toBe(true);
+  });
+
+  it("unticking the pergola clears its size, and an untouched tick is 'not sized yet'", () => {
+    const on = applyExteriorQuickLook(q({ elements: ["body"], materials: ["weatherboards"], standalone: ["pergola"] }), base());
+    expect(on.exterior?.pergola).toEqual({ lengthM: null, widthM: null, confirmed: false });
+    const off = applyExteriorQuickLook(q({ elements: ["body"], materials: ["weatherboards"], standalone: [] }), on);
+    expect(off.exterior?.pergola).toBeNull();
+    expect(off.exterior?.extras.pergola).toBe(false);
+    expect(exteriorSurfaceKeys(off.exterior!)).not.toContain("pergola");
+  });
+});
