@@ -1,3 +1,14 @@
+# 5 Oct 2026 — Visit booking, addendum A: S0 read-and-report. Branch `feat/visit-booking-s0`. NO code, NO migration.
+
+Five reference files committed (addendum, mockup 4, zone map draft 2, zone GeoJSON, 210-suburb rulings CSV — the CSV
+force-added past the blanket `*.csv` ignore). Report: `docs/briefs/visit-booking-s0-report.md`. Headlines: there is
+NO contact gate today (`/api/wizard/submit` returns the range with no details — R5 is new enforcement, not a re-enable);
+`wizard_sessions` IS `wizard_drafts` and records none of the gate/range/version facts 4.7 wants; `visits` table + RPCs +
+Diary already exist and are kept (holds/codes/zones/slots are new beside them); `settings.visits` becomes Booking rules;
+Google scopes today cannot write to the main calendar (decision a: Workspace → `calendar.events`, else app-created
+calendar); no OTP, no public-holiday list, rate limits in-memory only; office phone/email settings exist (no STOP).
+Rulings CSV has no postcode column — S1 joins by suburb name. Waiting on Tom's go-ahead before S1.
+
 # 21 Sep 2026 — CRM Today specs red on the test project: orphans, not code. Branch `fix/crm-today-specs-walk-pages`. No migration.
 
 Seven CRM specs looked for their fresh card on page one of Today; the test project's Today held ~500 capped items
