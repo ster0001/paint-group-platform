@@ -69,6 +69,11 @@ export default function EstimatorNotes({ estimateId, surface, who = "the office"
   const timer = useRef<number | null>(null);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  // Tom, 4 Oct: "if the browser blocks the microphone it pops up with a popup
+  // allowing to unblock". A site cannot re-ask once the browser has said no —
+  // only the person can flip it in the address bar — so the popup tells them
+  // exactly where for THEIR browser, and Try again re-asks the moment they have.
+  const [micHelp, setMicHelp] = useState<null | { state: "denied" | "prompt" | "unknown" }>(null);
   const canRecord = typeof window !== "undefined" && typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 
   async function startRecording() {
@@ -92,10 +97,50 @@ export default function EstimatorNotes({ estimateId, surface, who = "the office"
       rec.start(1000);
       setRecording(true);
     } catch (e) {
-      setErr(e instanceof Error && e.name === "NotAllowedError"
-        ? "The browser blocked the microphone. Allow it for this site and try again."
-        : `Couldn't start recording — ${e instanceof Error ? e.message : String(e)}`);
+      if (e instanceof Error && (e.name === "NotAllowedError" || e.name === "SecurityError" || e.name === "NotFoundError")) {
+        let state: "denied" | "prompt" | "unknown" = "unknown";
+        try {
+          const q = await navigator.permissions?.query?.({ name: "microphone" as PermissionName });
+          if (q?.state === "denied" || q?.state === "prompt") state = q.state;
+        } catch { /* Safari has no microphone permission query — the steps below still apply */ }
+        setMicHelp({ state: e.name === "NotFoundError" ? "unknown" : state });
+        setErr("");
+        return;
+      }
+      setErr(`Couldn't start recording — ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  /** Which browser's unblock steps to show. UA sniffing is fine here: it only picks the wording. */
+  function browserSteps(): { name: string; steps: string[] } {
+    const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+    const iOS = /iPhone|iPad|iPod/.test(ua);
+    if (/Firefox\//.test(ua)) return { name: "Firefox", steps: [
+      "Click the microphone (or padlock) icon at the left of the address bar.",
+      "Next to Microphone, click the ✕ to clear \"Blocked\".",
+      "Press Try again below and choose Allow when Firefox asks.",
+    ] };
+    if (/Safari\//.test(ua) && !/Chrome|Chromium|CriOS|Edg/.test(ua)) return iOS
+      ? { name: "Safari on iPhone / iPad", steps: [
+          "Tap the \"AA\" (or the page icon) at the left of the address bar.",
+          "Tap Website Settings, then Microphone, then Allow.",
+          "Come back here and press Try again.",
+        ] }
+      : { name: "Safari", steps: [
+          "In the Safari menu, choose \"Settings for This Website…\" (or right-click the address bar).",
+          "Set Microphone to Allow.",
+          "Press Try again below.",
+        ] };
+    if (/Edg\//.test(ua)) return { name: "Microsoft Edge", steps: [
+      "Click the padlock at the left of the address bar.",
+      "Switch Microphone to Allow (or open Permissions for this site and allow it).",
+      "Press Try again below — no reload needed.",
+    ] };
+    return { name: /CriOS|Android/.test(ua) ? "Chrome on your phone" : "Chrome", steps: [
+      "Click the icon at the left of the address bar (a padlock or two small sliders).",
+      "Turn Microphone on — or open Site settings and set Microphone to Allow.",
+      "Press Try again below — no reload needed.",
+    ] };
   }
 
   function stopRecording() {
@@ -181,6 +226,30 @@ export default function EstimatorNotes({ estimateId, surface, who = "the office"
                 </div>
                 {err && <div className="enotes-err" data-testid="estimator-note-error">{err}</div>}
               </div>
+
+              {micHelp && (() => {
+                const b = browserSteps();
+                return (
+                  <div className="enotes-modal-scrim" role="dialog" aria-modal="true" aria-labelledby="enotes-mic-title" data-testid="mic-help" onClick={() => setMicHelp(null)}>
+                    <div className="enotes-modal" onClick={(e) => e.stopPropagation()}>
+                      <h3 id="enotes-mic-title">{micHelp.state === "prompt" ? "The microphone wasn't allowed" : "The microphone is blocked for this site"}</h3>
+                      <p>
+                        {micHelp.state === "prompt"
+                          ? `${b.name} asked and the answer was no (or the prompt was closed). Press Try again and choose Allow.`
+                          : `${b.name} remembers a \"no\" for this site, so it won't ask again on its own. Unblock it here:`}
+                      </p>
+                      {micHelp.state !== "prompt" && (
+                        <ol>{b.steps.map((st, i) => <li key={i}>{st}</li>)}</ol>
+                      )}
+                      <p className="enotes-hint">Recording needs a secure address (https, or localhost) and a microphone the computer can see.</p>
+                      <div className="enotes-actions">
+                        <button type="button" className="enotes-btn primary" data-testid="mic-help-retry" onClick={() => { setMicHelp(null); void startRecording(); }}>Try again</button>
+                        <button type="button" className="enotes-btn" data-testid="mic-help-close" onClick={() => setMicHelp(null)}>Not now</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {loadErr && <div className="enotes-err">{loadErr}</div>}
               {notes && notes.length === 0 && !loadErr && (

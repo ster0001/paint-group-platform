@@ -26,15 +26,20 @@ let workOrderId = "";
 let shareToken = "";
 let estimateToken = "";
 
+// A fake microphone so the Record button has something to record. Top-level
+// on purpose: Playwright refuses launchOptions inside a describe block.
+test.use({
+  viewport: { width: 1400, height: 900 },
+  // Full Chromium (new headless), not the headless shell: the shell has no
+  // media capture, so getUserMedia answers NotAllowedError whatever is granted.
+  channel: "chromium",
+  launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] },
+  permissions: ["microphone"],
+});
+
 test.describe("estimator notes: typed + voice, builder → PC command, never the painter", () => {
   test.skip(!staff, missingCreds("STAFF"));
   test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to provision the estimate");
-  // A fake microphone so the Record button has something to record.
-  test.use({
-    viewport: { width: 1400, height: 900 },
-    launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] },
-    permissions: ["microphone"],
-  });
 
   test.beforeAll(async () => {
     estimateToken = `${run}en${"t".repeat(24)}`.slice(0, 32);
@@ -72,17 +77,22 @@ test.describe("estimator notes: typed + voice, builder → PC command, never the
     if (estimateId) await db.from("estimates").delete().eq("id", estimateId);
   });
 
-  test("type a note and record a memo at the top of the builder; both read on the PC project page", async ({ page }) => {
+  test("type a note and record a memo at the top of the builder; both read on the PC project page", async ({ page, context }) => {
     test.setTimeout(150_000);
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
+    // The microphone permission is per origin; grant it for the app we are on
+    // (the top-level test.use grant does not reach it under E2E_BASE_URL).
+    await context.grantPermissions(["microphone"], { origin: new URL(page.url()).origin });
 
     const card = page.getByTestId("estimator-notes");
     await expect(card).toBeVisible({ timeout: 30_000 });
-    // At the top: before the estimate header.
+    // At the top: above the builder's own first card (Admin notes, which sits
+    // above Job settings) — the estimate header is between the two.
     const cardBox = await card.boundingBox();
-    const headerBox = await page.locator("text=Estimate").first().boundingBox();
-    if (cardBox && headerBox) expect(cardBox.y).toBeLessThanOrEqual(headerBox.y + 1);
+    const adminBox = await page.getByTestId("admin-notes").boundingBox();
+    if (!cardBox || !adminBox) throw new Error("no boxes to compare");
+    expect(cardBox.y).toBeLessThan(adminBox.y);
     await card.getByTestId("estimator-notes-toggle").click();
 
     await page.getByTestId("estimator-note-input").fill(SECRET);
