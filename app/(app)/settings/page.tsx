@@ -50,7 +50,10 @@ import WebsiteContentManager from "./WebsiteContentManager";
 import CrmSettings, { type TagRow as CrmTagRow } from "./CrmSettings";
 import VisitsSettingsPanel from "./VisitsSettings";
 import VisitZonesSettings from "./VisitZonesSettings";
+import VisitScheduleSettings from "./VisitScheduleSettings";
+import BookingRulesSettings from "./BookingRulesSettings";
 import { loadVisitZonesData } from "@/lib/visits/zones";
+import { loadVisitScheduleData } from "@/lib/visits/scheduleDb";
 import { loadStaffAvailability, loadVisitsSettings } from "@/lib/visits/book";
 import { DEFAULT_VISITS_SETTINGS } from "@/lib/visits/types";
 const mergeVisitsSettingsSafe = () => DEFAULT_VISITS_SETTINGS;
@@ -223,7 +226,7 @@ export default async function SettingsPage() {
   const crmTags = ((crmTagsRes.error ? [] : crmTagsRes.data) ?? []) as CrmTagRow[];
   // P6: estimator visits — who takes them, when, and the wizard's windows.
   // Visit booking addendum A S1: the suburb → zone list and who covers each zone.
-  const visitZones = await loadVisitZonesData(supabase);
+  const [visitZones, visitSchedule] = await Promise.all([loadVisitZonesData(supabase), loadVisitScheduleData(supabase)]);
   const [visitsSettings, staffAvailability] = await Promise.all([
     loadVisitsSettings(supabase).catch(() => mergeVisitsSettingsSafe()),
     loadStaffAvailability(supabase).catch(() => []),
@@ -285,6 +288,10 @@ export default async function SettingsPage() {
           content: <VisitsSettingsPanel initial={visitsSettings} staff={staffAvailability} /> },
         { id: "visit-zones", title: "Visit zones", subtitle: "Which suburb is in which zone for site visits — bookable zones 1 to 5, pre-arranged areas and out of area — the far-edge tick, and which estimator covers each zone", count: visitZones.unmapped.length || undefined,
           content: <VisitZonesSettings initial={visitZones} /> },
+        { id: "visit-schedule", title: "Visit schedule", subtitle: "Each estimator's week of site-visit slots — which zones can book each one, the conditional rule, and a live count per zone", count: visitSchedule.estimators.reduce((n, e) => n + e.slots.length, 0) || undefined,
+          content: <VisitScheduleSettings estimators={visitSchedule.estimators} rules={visitSchedule.rules} loadError={visitSchedule.loadError} /> },
+        { id: "booking-rules", title: "Booking rules", subtitle: "Same-day booking, notice, how far ahead, hold time, slot and visit length, the Speak-with-us limits, the reminder time, public holidays, far-edge pairs and the gate order",
+          content: <BookingRulesSettings initial={visitSchedule.rules} /> },
         { id: "trade-accounts", title: "Trade accounts", subtitle: "Create a trade login or grant an existing customer the trade workspace — office-side only, never self-serve",
           content: (
             <>

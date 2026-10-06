@@ -4,6 +4,29 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 6 Oct 2026 — visit booking S2: each estimator's week, booking rules, THE availability function
+
+**2026-10-06 · `supabase/migrations/20270213000000_visit_slots_and_booking_rules.sql`, `lib/visits/schedule.ts`,
+`lib/visits/scheduleDb.ts`, `app/(app)/settings/VisitScheduleSettings.tsx`, `BookingRulesSettings.tsx`,
+`visitScheduleActions.ts`, `scripts/seed-visit-week.ts`**
+
+`visit_slots` holds one row per named slot of an estimator's week (weekday, start minutes, run length, the zones
+that can book it, an optional R14 conditional "also Zone X if the slot before is a Zone Y visit"), with a btree_gist
+exclusion constraint so two slots of one estimator never overlap (section 8 test 18; the server action checks first
+and says which slot it ran into). `visits` gained `zone` and `far_edge`, frozen at booking, because R14 and R18 read
+what zone a CONFIRMED visit was in. The booking rules are one `settings` row, `visit_booking_rules` (same-day,
+notice, window, hold, slot and visit length, the R34 phone caps, reminder time, public holidays, far-edge pairs, gate
+order), created by the migration with the brief's starting values and edited at Settings → Booking rules. The
+public-holiday list starts empty; S4 seeds it. `availability()` in `lib/visits/schedule.ts` is the ONE function that
+says which slots a customer may see: pure, takes the week, confirmed bookings, live holds, busy times, the rules, the
+customer's zone and far-edge flag and "now", applies §4.2's seven rules in order and returns days of offered slots
+with the one-hour visit end (R32) and the 90-minute block end. Melbourne wall-clock throughout via `melbourneInstant`,
+so the Monday after a DST change still offers 08:00. The nineteen golden tests in `schedule.test.ts` are the brief's
+S2 "done when" list verbatim. `STANDARD_WEEK` (section 5, 21 slots, totals 16/13/6/5/9) is seeded per estimator by
+`scripts/seed-visit-week.ts --estimator <email>` or the "Load the standard week" button in Settings — never by SQL
+inserts. The old half-day engine (`lib/visits/availability.ts`, `settings.visits`) still serves `/estimate/book`
+until S3 replaces the customer path; the Estimator visits panel now points at Booking rules for the numbers.
+
 ## 5 Oct 2026 — visit booking S1: suburb → zone list, the resolver, Settings → Visit zones
 
 **2026-10-05 · `supabase/migrations/20270212000000_visit_zones.sql`, `lib/visits/zones.ts`, `lib/visits/zoneGeo.ts`,

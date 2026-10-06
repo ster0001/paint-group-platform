@@ -1,3 +1,13 @@
+# 6 Oct 2026 — Visit booking, addendum A: S2 schedule + availability. Branch `feat/visit-booking-s2` (stacked on S1). Migration 20270213 (TEST only).
+
+Report: `docs/briefs/visit-booking-s2-report.md`. `visit_slots` (exclusion constraint, no overlap), `visits.zone/far_edge`,
+`settings.visit_booking_rules` seeded with the brief's values. `lib/visits/schedule.ts` = STANDARD_WEEK + THE pure
+`availability()` (§4.2 seven rules, Melbourne wall-clock, DST-proof); 19 golden tests verbatim from the brief. Settings →
+Visit schedule + Booking rules. e2e 8/8 on C1 (schedule 3, zones 4 — S1's spec first run, reveal link 1). Two bugs
+caught by e2e and fixed: PostgREST 1,000-row cap on the suburb read (now paged), and "Add as…" on an unmapped suburb
+saving as Zone 1. Old half-day engine + settings.visits untouched until S3. Next: S3 walking skeleton (holds, hashed
+text code, one booking transaction, section 8 tests 1–9, anonymous e2e).
+
 # 5 Oct 2026 — Visit booking, addendum A: S1 zones. Branch `feat/visit-booking-s1` (stacked on S0). Migration 20270212 (TEST only).
 
 Report: `docs/briefs/visit-booking-s1-report.md`. Tables `visit_zones` / `visit_suburbs` / `visit_unmapped_suburbs`

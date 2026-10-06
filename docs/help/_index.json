@@ -578,6 +578,17 @@
       ]
     },
     {
+      "feature": "visit-schedule",
+      "role": "staff",
+      "title": "Set each estimator's week of site-visit slots, and the booking rules behind the calendar",
+      "summary": "Settings → Visit schedule is each estimator's week — the slots, which zones can book each one, and the Friday 12:30 rule. Settings → Booking rules holds the numbers the calendar follows, the public holidays and the far-edge pairs.",
+      "path": "docs/help/visit-schedule/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "7884fcc94a226d6d2c98062cbed1a0e62721d750",
+      "sources": []
+    },
+    {
       "feature": "visit-zones",
       "role": "staff",
       "title": "Decide which suburbs can book a site visit, and in which zone",

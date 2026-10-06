@@ -185,11 +185,27 @@ export type VisitZonesData = {
   loadError: string | null;
 };
 
+/**
+ * PostgREST caps a read at 1,000 rows whatever `limit` says (the row-cap trap:
+ * the first e2e run showed Zone 1 with 71 suburbs of 174). Page through in
+ * 1,000-row ranges until a short page comes back.
+ */
+async function readAllSuburbs(db: SupabaseClient): Promise<{ data: SuburbRow[] | null; error: { message: string; code?: string } | null }> {
+  const out: SuburbRow[] = [];
+  for (let from = 0; from < 20_000; from += 1000) {
+    const { data, error } = await db.from("visit_suburbs").select(SUBURB_SELECT).order("suburb").order("postcode").range(from, from + 999);
+    if (error) return { data: null, error };
+    out.push(...((data ?? []) as SuburbRow[]));
+    if ((data ?? []).length < 1000) break;
+  }
+  return { data: out, error: null };
+}
+
 /** Everything Settings → Visit zones shows. Every read checks its error. */
 export async function loadVisitZonesData(db: SupabaseClient): Promise<VisitZonesData> {
   const [zones, suburbs, unmapped, staff] = await Promise.all([
     db.from("visit_zones").select("key, label, estimator_id").order("key"),
-    db.from("visit_suburbs").select(SUBURB_SELECT).order("suburb").limit(5000),
+    readAllSuburbs(db),
     db.from("visit_unmapped_suburbs").select("id, suburb, postcode, state, first_seen_at, last_seen_at, hits, last_estimate_id").is("resolved_at", null).order("first_seen_at").limit(200),
     db.from("profiles").select("id, name").eq("role", "staff").order("name").limit(50),
   ]);

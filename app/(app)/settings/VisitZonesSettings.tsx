@@ -95,8 +95,10 @@ export default function VisitZonesSettings({ initial }: { initial: VisitZonesDat
     if (!ids.length) { setMsg("Everything shown is already reviewed."); return; }
     await run(`Approved ${ids.length} suburb${ids.length === 1 ? "" : "s"}.`, () => approveSuburbsAction({ ids }), () => patchRows(ids, { reviewed: true }));
   }
-  async function addOne(unmappedId?: string, preset?: { suburb: string; postcode: string }) {
-    const body = preset ? { ...add, ...preset } : add;
+  async function addOne(unmappedId?: string, preset?: { suburb: string; postcode: string; status: ZoneStatus }) {
+    // The preset carries the status the row's own select chose — reading it
+    // from state here saved everything as Zone 1 (first e2e run, 6 Oct).
+    const body = preset ? { ...add, ...preset, farEdge: false } : add;
     await run(`Added ${body.suburb} ${body.postcode} as ${ZONE_STATUS_LABEL[body.status]}.`,
       () => addSuburbAction({ ...body, unmappedId }),
       () => {
@@ -160,7 +162,7 @@ export default function VisitZonesSettings({ initial }: { initial: VisitZonesDat
                 <span className="font-medium text-gray-900">{u.suburb}{u.postcode ? ` ${u.postcode}` : ""}</span>
                 <span className="text-xs text-gray-500">{u.hits} hit{u.hits === 1 ? "" : "s"}</span>
                 <select className="rounded-md border border-gray-300 px-2 py-0.5 text-xs" defaultValue="" disabled={busy || !u.postcode}
-                  onChange={(e) => { if (e.target.value) void addOne(u.id, { suburb: u.suburb, postcode: u.postcode }).then(() => undefined); setAdd((a) => ({ ...a, status: e.target.value as ZoneStatus })); }}>
+                  onChange={(e) => { if (e.target.value) void addOne(u.id, { suburb: u.suburb, postcode: u.postcode, status: e.target.value as ZoneStatus }); }}>
                   <option value="">Add as…</option>
                   {ZONE_STATUSES.map((st) => <option key={st} value={st}>{ZONE_STATUS_LABEL[st]}</option>)}
                 </select>
