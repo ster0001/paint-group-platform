@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/monitoring/report";
 import { LANES, LANE_LABELS, laneFor, stageTitle, type WoStage } from "@/lib/workorder/stages";
-import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
+import { jobNeedsAfterPhotos, progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
 import { staffSignsOff as staffSignsOffFor, supersededQaIds } from "@/lib/workorder/qa";
 import PhotosOptionalToggle from "./PhotosOptionalToggle";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
@@ -239,6 +239,16 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   // without the gallery's limit, so an old first photo never falls off the end.
   const { data: gateRows, error: gateError } = await supabase.from("wo_photos").select("kind").eq("work_order_id", id).eq("kind", "before").limit(1);
   const hasBeforePhoto = !gateError && ((gateRows as { kind: string }[] | null) ?? []).length > 0;
+  // The finish gate (Step 3) reads the same way; and the office's waiver of it
+  // (Tom, 6 Oct, migration 20270215) is an event on the job, never a column.
+  const [{ data: afterRows, error: afterError }, { data: waiverRows, error: waiverError }] = await Promise.all([
+    supabase.from("wo_photos").select("kind").eq("work_order_id", id).eq("kind", "completion").limit(1),
+    supabase.from("wo_events").select("id").eq("work_order_id", id).eq("type", "after_photos_waived").limit(1),
+  ]);
+  if (afterError) reportError(afterError, { where: "pc.wo.afterPhotoGate", bestEffort: true, extra: { workOrderId: id } });
+  if (waiverError) reportError(waiverError, { where: "pc.wo.afterPhotoWaiver", bestEffort: true, extra: { workOrderId: id } });
+  const hasAfterPhoto = !afterError && ((afterRows as { kind: string }[] | null) ?? []).length > 0;
+  const afterPhotosWaived = !waiverError && ((waiverRows as { id: string }[] | null) ?? []).length > 0;
 
   // Materials (Tom, 4 Sep): the colour breakdown per substrate off the frozen
   // job sheet, and the budget — the estimate's engine materials cost against
@@ -537,6 +547,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             today={today}
             walkthroughRequired={row.walkthrough_required !== false}
             staffSignsOff={staffSignsOff}
+            readiness={row.stage === "in_progress" || row.stage === "completion_prep" ? {
+              surfacesLeft: progress.total - progress.done,
+              surfacesTotal: progress.total,
+              needsAfterPhotos: jobNeedsAfterPhotos(surfaces, hasAfterPhoto),
+              afterPhotosWaived,
+              prepLeft: outstanding("completion_prep"),
+              variationsWaiting: variations.filter((v) => v.status === "raised" || v.status === "priced" || v.status === "customer_approved").length,
+              areas: headings,
+            } : null}
           />
 
           {/* Colour matches (Tom, 23 Aug): flagged by the estimator or opened by
