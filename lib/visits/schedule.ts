@@ -156,9 +156,22 @@ export type AvailabilityInput = {
   holds: readonly ScheduleHold[];
   busy: readonly ScheduleBusy[];
   rules: BookingRules;
-  customer: { zone: ZoneKey; farEdge: boolean };
+  /** `"any"` is the STAFF view (§4.4: staff may offer any free slot, whatever its zone list). Far edges still apply. */
+  customer: { zone: ZoneKey | "any"; farEdge: boolean };
   now: Date;
 };
+
+/**
+ * R25 / R34: "Speak with us" is offered when the TOP of the guide range is at
+ * or under the phone limit — interior for an inside job, the exterior limit
+ * for anything with an outside. Decided on the server; the browser only
+ * shows or hides the button.
+ */
+export function speakWithUsFor(jobType: "interior" | "exterior" | "both" | string | null | undefined, hiCents: number | null | undefined, rules: Pick<BookingRules, "speakInteriorCapCents" | "speakExteriorCapCents">): boolean {
+  if (hiCents == null || !Number.isFinite(hiCents) || hiCents <= 0) return false;
+  const cap = jobType === "interior" ? rules.speakInteriorCapCents : rules.speakExteriorCapCents;
+  return hiCents <= cap;
+}
 
 export type OfferedSlot = {
   /** YYYY-MM-DD, Melbourne. */
@@ -204,6 +217,7 @@ function isFarEdgeClash(
 ): boolean {
   if (!customer.farEdge) return false;
   const paired = (z: ZoneKey | null) => !!z && rules.farEdgePairs.some(([a, b]) => (a === customer.zone && b === z) || (b === customer.zone && a === z));
+  if (customer.zone === "any") return false;
   for (const j of [i - 1, i + 1]) {
     const n = daySlots[j];
     if (!n) continue;
@@ -223,7 +237,8 @@ function isFarEdgeClash(
  */
 export function availability(input: AvailabilityInput): OfferedDay[] {
   const { week, rules, customer, now } = input;
-  if (!isZoneKey(customer.zone)) return [];
+  const any = customer.zone === "any";
+  if (!any && !isZoneKey(customer.zone)) return [];
   const nowMs = now.getTime();
   const earliest = nowMs + rules.minNoticeMinutes * 60_000;
   const latest = dayAfter(now, rules.windowDays);
@@ -253,7 +268,7 @@ export function availability(input: AvailabilityInput): OfferedDay[] {
       // 4 — notice and window.
       if (startMs < earliest || startMs > latestMs) return;
       // 2 — the slot's zone list, or its conditional rule on a CONFIRMED booking before it.
-      let allowed = slot.zones.includes(customer.zone);
+      let allowed = any || slot.zones.includes(customer.zone as ZoneKey);
       if (!allowed && slot.cond && slot.cond.zone === customer.zone && i > 0) {
         const prev = bookingAt(daySlots[i - 1].startMinutes);
         allowed = !!prev && prev.zone === slot.cond.ifPrevZone;

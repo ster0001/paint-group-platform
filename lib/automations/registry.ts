@@ -102,6 +102,10 @@ const P = {
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
   visitCode: ["{{code}}", "{{company_name}}"],
   visitBooked: ["{{first_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
+  requestReceived: ["{{first_name}}", "{{address}}", "{{company_name}}"],
+  callReceived: ["{{first_name}}", "{{mobile}}", "{{company_name}}"],
+  timeOffered: ["{{first_name}}", "{{visit_when}}", "{{address}}", "{{estimator_name}}", "{{company_name}}"],
+  customerMessage: ["{{customer}}", "{{job}}", "{{message}}"],
   signed: ["{{first_name}}", "{{job_title}}", "{{signed_by}}", "{{company_name}}"],
   chat: ["{{company_name}}", "{{link}}"],
   receipt: ["{{first_name}}", "{{amount}}", "{{invoice_number}}", "{{receipt_number}}", "{{company_name}}"],
@@ -187,6 +191,46 @@ export const AUTOMATIONS: Automation[] = [
     trigger: "A customer confirms a site visit online with the text code (visit booking S3). The calendar invitation goes by email through 'Visit booked — calendar invite'.",
     templates: [{ field: "visitBookedSms", label: "Text", kind: "sms", placeholders: P.visitBooked }],
     guard: "Once per booking.",
+  },
+  {
+    key: "request_received", name: "Request received — email", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", sendKind: "request_received", quietExempt: true,
+    trigger: "A customer asks for a site visit before the price range, requests a time (pre-arranged area, none of the times suit, or a suburb we do not know), from the wizard (visit booking S4).",
+    templates: [
+      { field: "requestReceivedSubject", label: "Subject", kind: "subject", placeholders: P.requestReceived },
+      { field: "requestReceivedBody", label: "Email", kind: "body", placeholders: P.requestReceived },
+    ],
+    guard: "Once per request.",
+  },
+  {
+    key: "call_request_received", name: "Call request received — email", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", sendKind: "call_request_received", quietExempt: true,
+    trigger: "A customer taps Speak with us on the guide range (visit booking S4, R25).",
+    templates: [
+      { field: "callRequestReceivedSubject", label: "Subject", kind: "subject", placeholders: P.callReceived },
+      { field: "callRequestReceivedBody", label: "Email", kind: "body", placeholders: P.callReceived },
+    ],
+    guard: "Once per request.",
+  },
+  {
+    key: "time_offered", name: "Time offered by staff — text and email", audience: "customer", channels: ["sms", "email", "ics"], kind: "automatic",
+    defaultChannel: "both", sendKind: "time_offered", quietExempt: true,
+    trigger: "Staff answer a request by booking a time for the customer (visit booking S4, 4.4). No text code is needed.",
+    templates: [
+      { field: "timeOfferedSms", label: "Text", kind: "sms", placeholders: P.timeOffered },
+      { field: "timeOfferedSubject", label: "Email subject", kind: "subject", placeholders: P.timeOffered },
+      { field: "timeOfferedBody", label: "Email", kind: "body", placeholders: P.timeOffered },
+    ],
+    guard: "Once per offered visit; the invitation rides on the email.",
+  },
+  {
+    key: "customer_message", name: "Customer message — email to the office, copy to the customer", audience: "customer", channels: ["email"], kind: "manual",
+    trigger: "A customer sends a message from the wizard or the guide range (visit booking S4, R26/R35). The message is posted into their chat in the platform AND emailed to the office address with a copy to the customer. Always on.",
+    templates: [
+      { field: "customerMessageSubject", label: "Subject", kind: "subject", placeholders: P.customerMessage },
+      { field: "customerMessageBody", label: "Email", kind: "body", placeholders: P.customerMessage },
+    ],
+    guard: "Once per message (a retry with the same client id is not sent again).",
   },
   {
     key: "visit_reminder", name: "Visit reminder text", audience: "customer", channels: ["sms"], kind: "automatic",

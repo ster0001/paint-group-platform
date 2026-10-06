@@ -1,3 +1,17 @@
+# 6 Oct 2026 — Visit booking, addendum A: S4 requests, pre-arranged, out of area, Speak with us, messages, holidays. Branch `feat/visit-booking-s4`. Migration 20270215 LIVE prod (Tom pasted).
+
+Report: `docs/briefs/visit-booking-s4-report.md`. `visit_requests` + `customer_message_receipts`; `lib/visits/requests.ts`
+(createVisitRequest / answerWithTime / markAnswered / postCustomerMessage); `lib/time/workingDays.ts` (end of next
+working day, holidays excluded; businessHours helpers take an optional holiday set); R3 three options on EVERY quick
+step (`TalkSheet.tsx`); range doors Speak with us (server-decided, `guideRange` stored on builder_state) + Send us a
+message; visit page request-a-time + out-of-area message screens; staff `/crm/visit-requests/[id]` offer a time
+(availability zone "any", existing `visit_book` RPC); work-queue kinds `visit_request`, `holidays_next_year`; messages →
+estimate chat (post-range) / website chat + handoff (pre-range), one email office+customer, idempotent per clientId.
+Holidays: Business Victoria 2026+2027 (28 dates; 2027 AFL Friday pending) in `docs/briefs/data/vic-public-holidays.json`,
+seeded on TEST; Tom runs `scripts/seed-public-holidays.ts --prod`. Unit 1,223 green, tsc + lint clean. **e2e
+(`visit-requests.spec.ts`) NOT run — C1 lock held by CI; one try.** Next: S5 Google Calendar (needs Workspace-vs-Gmail
+answer).
+
 # 6 Oct 2026 — Visit booking, addendum A: S3 walking skeleton. Branch `feat/visit-booking-s3` (stacked on S2). Migration 20270214 (TEST; sent to Tom).
 
 Report: `docs/briefs/visit-booking-s3-report.md`. `/estimate/visit?id=` — details (if none held) → calendar → 10-min hold →

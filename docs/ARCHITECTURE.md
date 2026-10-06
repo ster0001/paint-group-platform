@@ -4,6 +4,35 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 6 Oct 2026 — visit booking S4: requests, pre-arranged and out of area, Speak with us, messages, public holidays
+
+**2026-10-06 · `supabase/migrations/20270215000000_visit_requests.sql`, `lib/visits/requests.ts`, `lib/time/workingDays.ts`,
+`app/api/visits/{request,message}`, `app/wizard/TalkSheet.tsx`, `app/crm/visit-requests/[id]/`, `scripts/seed-public-holidays.ts`,
+`docs/briefs/data/vic-public-holidays.json`**
+
+Everything that creates a REQUEST rather than a booking (addendum §4.4) is one `visit_requests` row: a time request
+(pre-arranged address, "None of these suit", nothing free, an unmapped suburb), a visit asked for before the price
+range (R3/R4 — the three options "Request a site visit / Call us / Send a message" now sit on EVERY quick-look step,
+`TalkSheet.tsx`), or a call from "Speak with us" (R25). The row carries `due_at` = the end of the next working day
+(`lib/time/workingDays.ts`: Monday to Friday, Melbourne, the public-holiday list excluded — R23/R33), and the work
+queue derives its `visit_request` card from the open rows; the wizard session's outcome note starts "Requested
+online:" so no second card is raised for the same fact. Staff answer on `/crm/visit-requests/[id]`: every free slot of
+every estimator (`availability()` with zone `"any"` — §4.4 lets staff pick any slot whatever its zone list, far edges
+kept), and "Offer this time" books it through the existing `visit_book` RPC, freezes the zone, marks the request
+answered and sends the `time_offered` text and email with the invitation; no code. "Speak with us" is decided on the
+server: the submit route now stores `guideRange` on `builder_state` and returns `speakWithUs` from
+`speakWithUsFor(jobType, top of range, Booking rules caps)` (R34); the call-request route checks it again (test 16).
+"Send us a message" (R26/R35) posts into the EXISTING chat — the estimate chat after the range (a draft gets a share
+token if it has none), the website chat (`agent_conversations` + handoff) before it, and the submit route links such a
+conversation to the estimate once it exists so staff see one conversation per customer — and emails the office address
+with the customer on the same email; `customer_message_receipts` makes a retry with the same client id a no-op (test
+17). Public holidays: `docs/briefs/data/vic-public-holidays.json` is the Business Victoria list read on 6 Oct 2026
+(2026 complete; 2027 without the AFL Grand Final Friday, which the page says is subject to the AFL schedule),
+merged into `visit_booking_rules.publicHolidays` by `scripts/seed-public-holidays.ts`; the existing weekday-only
+helpers in `lib/time/businessHours.ts` take an optional holiday set (Tom, decision c); a `holidays_next_year`
+work-queue item appears from 1 November while next year's list is empty. The old pre-range "Save & book" sheet no
+longer fetches the half-day windows (R3: a pre-range visit is a request, never a slot).
+
 ## 6 Oct 2026 — visit booking S3: book a visit from the range — hold, text code, one transaction
 
 **2026-10-06 · `supabase/migrations/20270214000000_visit_holds.sql`, `lib/visits/holds.ts`, `lib/visits/ownedEstimate.ts`,

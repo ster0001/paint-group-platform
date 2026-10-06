@@ -589,6 +589,17 @@
       "sources": []
     },
     {
+      "feature": "visit-requests",
+      "role": "staff",
+      "title": "Answer a request for a visit, a time or a call",
+      "summary": "Customers who cannot book a slot themselves — pre-arranged areas, a suburb we don't know, nothing that suits, or a visit asked for before the price — send a request. It lands on CRM Today, due within one working day. You answer it by offering a time, which books the visit and tells the customer, or by marking it answered.",
+      "path": "docs/help/visit-requests/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "d67bcb3227475926c412dfa2f918c54ba8169d20",
+      "sources": []
+    },
+    {
       "feature": "visit-schedule",
       "role": "staff",
       "title": "Set each estimator's week of site-visit slots, and the booking rules behind the calendar",

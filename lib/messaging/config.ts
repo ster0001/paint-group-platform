@@ -136,6 +136,16 @@ export type MessagingSettings = {
   /** Visit booking addendum A (S3): the 6-digit code, and the "booked" text. */
   visitCodeSms: string;
   visitBookedSms: string;
+  /** Visit booking S4: requests, the staff-offered time, and the customer's own message copy. */
+  requestReceivedSubject: string;
+  requestReceivedBody: string;
+  callRequestReceivedSubject: string;
+  callRequestReceivedBody: string;
+  timeOfferedSms: string;
+  timeOfferedSubject: string;
+  timeOfferedBody: string;
+  customerMessageSubject: string;
+  customerMessageBody: string;
   /** Customer + painter: the final walkthrough calendar invite. */
   walkthroughInviteSubject: string;
   walkthroughInviteCustomerBody: string;
@@ -316,6 +326,15 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}}: a reminder that {{estimator_name}} is visiting {{address}} tomorrow, {{visit_when}}. Reply or call us if anything's changed.",
   visitCodeSms: "{{code}} is your {{company_name}} code to book your site visit. It expires in 10 minutes.",
   visitBookedSms: "{{company_name}}: your site visit is booked for {{visit_when}} at {{address}}. A calendar invitation is on its way by email. We will text a reminder the evening before. To cancel, decline the invitation or call us.",
+  requestReceivedSubject: "We have your request — {{company_name}}",
+  requestReceivedBody: "Hi {{first_name}},\n\nThank you, we have your request for a site visit at {{address}}. We will be in touch within one working day to arrange a time.\n\n{{company_name}}",
+  callRequestReceivedSubject: "We will call you — {{company_name}}",
+  callRequestReceivedBody: "Hi {{first_name}},\n\nThank you. We will call you on {{mobile}} within one working day to finalise your booking.\n\n{{company_name}}",
+  timeOfferedSms: "{{company_name}}: we have booked your site visit for {{visit_when}} at {{address}}. A calendar invitation is on its way by email. We will text a reminder the evening before. To change it, reply or call us.",
+  timeOfferedSubject: "Your site visit — {{visit_when}}",
+  timeOfferedBody: "Hi {{first_name}},\n\nFollowing your request, we have booked your site visit for {{visit_when}} at {{address}}. {{estimator_name}} will be there. A calendar invitation is attached.\n\nIf that time does not suit, reply to this email or call us and we will find another.\n\n{{company_name}}",
+  customerMessageSubject: "Message from {{customer}} — {{job}}",
+  customerMessageBody: "{{customer}} wrote:\n\n“{{message}}”\n\nReply from the chat in the platform, or to this email. The customer has this copy too and we will reply within one working day.",
   walkthroughInviteSubject: "Final walk through — ({{customer_name}} x {{painter_name}})",
   walkthroughInviteCustomerBody:
     "Hello {{first_name}},\n\n" +
@@ -404,6 +423,8 @@ export type TemplateVars = {
   visit_when?: string;
   /** S3: the 6-digit text code. */
   code?: string;
+  /** S4: the mobile a call request named. */
+  mobile?: string;
   // Automations (3 Sep) — each template documents which of these it uses.
   wo_ref?: string;
   /** Painter texts: the job's suburb (never the full address in a reminder) and "day 3 of 5". */

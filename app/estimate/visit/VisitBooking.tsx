@@ -15,7 +15,9 @@ import type { ZoneOutcome } from "@/lib/visits/zones";
 type Hold = { id: string; startsAt: string; expiresAt: string; maskedMobile: string };
 type Slot = OfferedDay["slots"][number];
 type SlotWords = { startsAt: string; dayWords: string; timeWords: string; visitEndWords: string; address: string };
-type Screen = "details" | "calendar" | "code" | "done" | "expired" | "pre_arranged" | "out_of_area" | "unmapped";
+type Screen = "details" | "calendar" | "code" | "done" | "expired" | "request" | "request_sent" | "out_of_area" | "message" | "message_sent";
+const DAYS = [["Mon", 1], ["Tue", 2], ["Wed", 3], ["Thu", 4], ["Fri", 5]] as const;
+const PARTS = [["Morning", "morning"], ["Afternoon", "afternoon"], ["Either", "either"]] as const;
 
 const endWords = (s: Slot) => {
   const d = new Date(s.visitEndsAt);
@@ -47,10 +49,16 @@ export default function VisitBooking(props: {
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [screen, setScreen] = useState<Screen>(() => {
-    if (props.zone === "pre_arranged" || props.zone === "out_of_area" || props.zone === "unmapped") return props.zone;
+    if (props.zone === "out_of_area") return "out_of_area";
     if (!props.hasContact) return "details";
+    if (props.zone === "pre_arranged" || props.zone === "unmapped") return "request";
     return props.hold ? "code" : "calendar";
   });
+  const [prefs, setPrefs] = useState<number[]>([]);
+  const [part, setPart] = useState<"morning" | "afternoon" | "either" | "">("");
+  const [message, setMessage] = useState("");
+  const [clientId] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`));
+  const notBookable = props.zone === "pre_arranged" || props.zone === "unmapped";
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   // The hold's clock. When it runs out the customer is told plainly (4.3).
@@ -69,7 +77,6 @@ export default function VisitBooking(props: {
   const cur = days[Math.min(dayIx, Math.max(0, days.length - 1))];
   const tel = props.companyPhone ? `tel:${props.companyPhone.replace(/\s+/g, "")}` : null;
   const tightenHref = `/estimate/scope?id=${estimateId}`;
-  const requestHref = `/estimate/book?id=${estimateId}`;
 
   async function post<T>(path: string, body: Record<string, unknown>): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string; code: string; attemptsLeft?: number | null }> {
     setBusy(true); setErr("");
@@ -98,8 +105,25 @@ export default function VisitBooking(props: {
     const r = await post("/api/visits/details", { name: det.name, email: det.email, mobile: det.mobile, ...(props.hasAddress ? {} : { street: det.address }) });
     if (!r.ok) { setErr(r.error); return; }
     setHasContact(true);
+    if (props.zone === "out_of_area") { setScreen("message"); return; }
+    if (notBookable) { setScreen("request"); return; }
     await refresh();
     setScreen("calendar");
+  }
+
+  async function sendRequest() {
+    if (!prefs.length || !part) return;
+    const r = await post("/api/visits/request", { kind: "time", name: det.name || props.known.name || "", email: det.email || props.known.email || "", mobile: det.mobile || props.known.mobile || "", preferredDays: prefs, timeOfDay: part });
+    if (!r.ok) { if (r.code === "no_contact" || r.code === "invalid") { setScreen("details"); setErr(r.error); return; } setErr(r.error); return; }
+    setScreen("request_sent");
+  }
+  async function sendMessage() {
+    if (!message.trim()) { setErr("Please write your message first."); return; }
+    const body: Record<string, unknown> = { clientId, body: message.trim() };
+    if (!hasContact) body.contact = { name: det.name, email: det.email, mobile: det.mobile, ...(props.hasAddress ? {} : { street: det.address }) };
+    const r = await post("/api/visits/message", body);
+    if (!r.ok) { setErr(r.error); return; }
+    setScreen("message_sent");
   }
 
   async function book() {
@@ -161,13 +185,40 @@ export default function VisitBooking(props: {
     );
   }
 
-  if (screen === "pre_arranged" || screen === "unmapped") {
+  if (screen === "request") {
+    const pre = props.zone === "pre_arranged";
     return (
       <main className="wz-wrap" data-testid="visit-request">
         {brand}
-        <h1>{screen === "pre_arranged" && props.suburb ? `We visit ${props.suburb} by arrangement` : "Request a time"}</h1>
-        <p>{screen === "pre_arranged" ? "Tell us which days suit you and we will confirm a time with you." : "Tell us which days suit you and we will come back to you with a time."}</p>
-        <a className="wz-btn" href={requestHref} data-testid="visit-request-go">Request a time</a>
+        <h1>{pre && props.suburb ? `We visit ${props.suburb} by arrangement` : "Request a time"}</h1>
+        <p>{pre ? "Tell us which days suit you and we will confirm a time with you." : "Tell us which days suit you and we will come back to you with a time."}</p>
+        <p className="wz-lbl">Days that suit</p>
+        <div className="wz-chips" data-testid="visit-pref-days">
+          {DAYS.map(([label, d]) => (
+            <button key={d} type="button" className={`wz-chip${prefs.includes(d) ? " on" : ""}`} aria-pressed={prefs.includes(d)} data-testid={`visit-day-${d}`}
+              onClick={() => setPrefs((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d]))}>{label}</button>
+          ))}
+        </div>
+        <p className="wz-lbl">Time of day</p>
+        <div className="wz-chips" data-testid="visit-pref-part">
+          {PARTS.map(([label, key]) => (
+            <button key={key} type="button" className={`wz-chip${part === key ? " on" : ""}`} aria-pressed={part === key} data-testid={`visit-part-${key}`} onClick={() => setPart(key)}>{label}</button>
+          ))}
+        </div>
+        {err && <p className="wz-err" role="alert" data-testid="visit-error">{err}</p>}
+        <button type="button" className="wz-btn" disabled={busy || !prefs.length || !part} onClick={() => void sendRequest()} data-testid="visit-request-send">Send my request</button>
+        <p className="wz-chint">{notBookable ? <a className="wz-linkish" href={tightenHref}>Back to your estimate</a> : <button type="button" className="wz-linkish" onClick={() => setScreen("calendar")} data-testid="visit-request-back">Back to the calendar</button>}</p>
+      </main>
+    );
+  }
+
+  if (screen === "request_sent") {
+    return (
+      <main className="wz-wrap" data-testid="visit-request-sent">
+        {brand}
+        <div className="wz-sent-status" aria-hidden="true">✓</div>
+        <h1>Thank you, we have your request</h1>
+        <p>We will be in touch within one working day to arrange your site visit.</p>
         <p className="wz-chint"><a className="wz-linkish" href={tightenHref}>Back to your estimate</a></p>
       </main>
     );
@@ -179,7 +230,33 @@ export default function VisitBooking(props: {
         {brand}
         <h1>We don&rsquo;t currently visit {props.suburb ?? "that area"}</h1>
         <p>We are sorry, this address is outside the area we cover for site visits. You are welcome to send us a message and we will let you know if we can help.</p>
-        <a className="wz-btn" href={requestHref} data-testid="visit-message-go">Send us a message</a>
+        <button type="button" className="wz-btn" onClick={() => setScreen(hasContact ? "message" : "details")} data-testid="visit-message-go">Send us a message</button>
+        <p className="wz-chint"><a className="wz-linkish" href={tightenHref}>Back to your estimate</a></p>
+      </main>
+    );
+  }
+
+  if (screen === "message") {
+    return (
+      <main className="wz-wrap" data-testid="visit-message">
+        {brand}
+        <h1>Send us a message</h1>
+        <p>Tell us a little about your project and we will reply by email or phone.</p>
+        <label className="wz-field"><span>Your message</span><textarea value={message} rows={5} onChange={(e) => setMessage(e.target.value)} data-testid="visit-message-text" /></label>
+        {err && <p className="wz-err" role="alert" data-testid="visit-error">{err}</p>}
+        <button type="button" className="wz-btn" disabled={busy} onClick={() => void sendMessage()} data-testid="visit-message-send">Send my message</button>
+        <p className="wz-chint"><button type="button" className="wz-linkish" onClick={() => setScreen(props.zone === "out_of_area" ? "out_of_area" : "calendar")}>Back</button></p>
+      </main>
+    );
+  }
+
+  if (screen === "message_sent") {
+    return (
+      <main className="wz-wrap" data-testid="visit-message-sent">
+        {brand}
+        <div className="wz-sent-status" aria-hidden="true">✓</div>
+        <h1>Thank you, your message is with us</h1>
+        <p>We will reply within one working day.</p>
         <p className="wz-chint"><a className="wz-linkish" href={tightenHref}>Back to your estimate</a></p>
       </main>
     );
@@ -239,7 +316,7 @@ export default function VisitBooking(props: {
         {brand}
         <h1>Request a time</h1>
         <p>We have nothing free in {props.suburb ?? "your area"} in the next three weeks. Tell us which days suit you and we will come back to you with a time.</p>
-        <a className="wz-btn" href={requestHref} data-testid="visit-request-go">Request a time</a>
+        <button type="button" className="wz-btn" onClick={() => setScreen("request")} data-testid="visit-request-go">Request a time</button>
         <p className="wz-chint">Rather not wait for a visit? <a className="wz-linkish" href={tightenHref}>Tighten your price online</a></p>
       </main>
     );
@@ -270,7 +347,7 @@ export default function VisitBooking(props: {
       <button type="button" className="wz-btn" disabled={!pick || busy || !hasContact && false} onClick={() => void book()} data-testid="visit-book">
         {pick ? `Book ${pick.dayWords.split(" ")[0]} at ${pick.timeWords}` : "Choose a time"}
       </button>
-      <p className="wz-chint"><a className="wz-linkish" href={requestHref} data-testid="visit-none-suit">None of these suit? Request a different time</a></p>
+      <p className="wz-chint"><button type="button" className="wz-linkish" onClick={() => setScreen("request")} data-testid="visit-none-suit">None of these suit? Request a different time</button></p>
       <p className="wz-chint">Rather not wait for a visit? <a className="wz-linkish" href={tightenHref} data-testid="visit-tighten">Tighten your price online</a></p>
       {tel && <p className="wz-chint">Or call us on <a className="wz-linkish" href={tel}>{props.companyPhone}</a>.</p>}
     </main>

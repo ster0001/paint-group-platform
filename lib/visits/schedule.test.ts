@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { melbourneInstant, melbourneParts } from "@/lib/time/businessHours";
-import { DEFAULT_BOOKING_RULES, STANDARD_WEEK, availability, mergeBookingRules, overlaps, slotsPerZone, timeWords, type AvailabilityInput, type WeekSlot } from "./schedule";
+import { DEFAULT_BOOKING_RULES, STANDARD_WEEK, availability, mergeBookingRules, overlaps, slotsPerZone, speakWithUsFor, timeWords, type AvailabilityInput, type WeekSlot } from "./schedule";
 
 /**
  * S2 golden tests — addendum A §7, S2 "done when". Fixed inputs, no database.
@@ -165,5 +165,22 @@ describe("rules and overlaps", () => {
     expect(overlaps(a, { weekday: 1, startMinutes: 570, lengthMinutes: 90 })).toBe(false);
     expect(overlaps(a, { weekday: 1, startMinutes: 420, lengthMinutes: 90 })).toBe(true);
     expect(overlaps(a, { weekday: 2, startMinutes: 480, lengthMinutes: 90 })).toBe(false);
+  });
+});
+
+describe("S4 additions", () => {
+  it("speakWithUsFor: top of range at or under the cap, by job type (R34)", () => {
+    const r = { speakInteriorCapCents: 600_000, speakExteriorCapCents: 1_200_000 };
+    expect(speakWithUsFor("interior", 430_000, r)).toBe(true);
+    expect(speakWithUsFor("interior", 600_000, r)).toBe(true);
+    expect(speakWithUsFor("interior", 720_000, r)).toBe(false);
+    expect(speakWithUsFor("exterior", 1_150_000, r)).toBe(true);
+    expect(speakWithUsFor("both", 1_250_000, r)).toBe(false);
+    expect(speakWithUsFor("interior", null, r)).toBe(false);
+  });
+  it("the staff view ('any') offers every free slot whatever its zone list, far edges aside", () => {
+    const d = availability({ week: STANDARD_WEEK, bookings: [], holds: [], busy: [], rules, customer: { zone: "any", farEdge: false }, now: MON(6) });
+    expect(d.find((x) => x.date === "2026-10-07")!.slots.map((s) => s.timeWords)).toEqual(["8:00 am", "9:30 am", "11:00 am", "12:30 pm", "2:00 pm"]);
+    expect(d.find((x) => x.date === "2026-10-09")!.slots.map((s) => s.timeWords)).toContain("12:30 pm");
   });
 });

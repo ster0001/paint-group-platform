@@ -1,0 +1,10 @@
+import pg from "pg";
+import { loadTestEnv, refuseProduction } from "./env.mjs";
+loadTestEnv();
+const url = process.env.E2E_DATABASE_URL || process.env.C1_DATABASE_URL || "";
+refuseProduction(url);
+const c = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+await c.connect();
+const r = await c.query(`select l.pid, a.application_name, a.state, a.backend_type, a.client_addr::text, to_char(a.backend_start,'HH24:MI:SS') as started, to_char(a.state_change,'HH24:MI:SS') as state_change, to_char(now(),'HH24:MI:SS') as now_utc, extract(epoch from now()-a.state_change)::int as idle_s, left(a.query,80) as query from pg_locks l join pg_stat_activity a on a.pid=l.pid where l.locktype='advisory' and l.objid=x'70676532'::int`);
+console.log(r.rows.length ? r.rows : "FREE");
+await c.end();

@@ -11,7 +11,9 @@ import {
 } from "@/lib/wizard/policy";
 import { sortQueue } from "@/lib/wizard/confirmation";
 import { DEFAULT_TURNAROUND_SETTING, isOverdue, turnaroundFromSettings, type TurnaroundSetting } from "@/lib/wizard/confirmation-actions";
-import { addBusinessHours, melbourneInstant, nextBusinessMorning } from "@/lib/time/businessHours";
+import { addBusinessHours, melbourneInstant, melbourneParts, nextBusinessMorning } from "@/lib/time/businessHours";
+import { nextYearHolidaysMissing } from "@/lib/time/workingDays";
+import { mergeBookingRules } from "@/lib/visits/schedule";
 import { customerCheckins, dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
 import { melbourneDayStartUtc } from "@/lib/workorder/console";
 import { openHolds } from "@/lib/scheduling/holds";
@@ -55,6 +57,10 @@ export const WORK_ITEM_KINDS = [
   "handoff_requested",
   /** Visit booking addendum A §4.1: a Victorian suburb the zone list does not know. */
   "unmapped_suburb",
+  /** Visit booking addendum A §4.4: a request (time / visit before the range / call) waiting for a reply. */
+  "visit_request",
+  /** Visit booking addendum A §4.4: it is November and next year's public holidays are not in Settings yet. */
+  "holidays_next_year",
   /** Buckets brief §4: a wizard session that asked for a call or a visit (A). */
   "wizard_ready",
   /** Buckets brief §4: a wizard session that asked a question or for help (B). */
@@ -178,6 +184,7 @@ const CUSTOMER_VISIBLE: ReadonlySet<WorkItemKind> = new Set([
   "handoff_requested",
   "wizard_ready",
   "wizard_help",
+  "visit_request",
   "photo_review",
   "job_checkin",
   "job_followup",
@@ -193,6 +200,8 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
  */
 export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   unmapped_suburb: 16,
+  visit_request: 24,
+  holidays_next_year: 8,
   message_unanswered: 26,
   callback_requested: 24,
   message_unmatched: 18,
@@ -300,6 +309,8 @@ export type FilterGroup = (typeof FILTER_GROUPS)[number];
 
 export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = {
   unmapped_suburb: "followups",
+  visit_request: "followups",
+  holidays_next_year: "approvals",
   message_unanswered: "messages",
   message_unmatched: "messages",
   callback_requested: "messages",
@@ -844,6 +855,8 @@ export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventR
       // the Diary (a visits row, an invite sent) — the note says "Booked: …"
       // and no "book visit" card is raised on top of it.
       if (visit && (r.outcome_note ?? "").startsWith("Booked:")) continue;
+      // Visit booking S4: a request made online is its own row (visit_requests) and its own card.
+      if ((r.outcome_note ?? "").startsWith("Requested online:")) continue;
       items.push(finish({
         ...base,
         key: itemKey("wizard_ready", "wizard_session", r.id, visit ? "visit" : "call"),
@@ -1118,6 +1131,71 @@ export function buildUnmappedSuburbItems(rows: UnmappedSuburbRow[], now: Date): 
       action: { label: "Add the suburb", href: "/settings#visit-zones" },
     }, { valueCents: null, promisedToCustomer: true }, now);
   });
+}
+
+// ---- source: visit_request + holidays_next_year (visit booking addendum A §4.4) --
+
+/** A row of `visit_requests` with no `answered_at`. */
+export type VisitRequestRow = {
+  id: string;
+  kind: "time" | "visit" | "call";
+  account_id: string | null;
+  estimate_id: string | null;
+  zone: string;
+  suburb: string | null;
+  name: string;
+  mobile: string | null;
+  note: string | null;
+  preferred_days: number[];
+  time_of_day: string | null;
+  created_at: string;
+  due_at: string;
+};
+
+const DAY3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const ZONE_WORDS: Record<string, string> = { zone_1: "Zone 1", zone_2: "Zone 2", zone_3: "Zone 3", zone_4: "Zone 4", zone_5: "Zone 5", pre_arranged: "pre-arranged area", out_of_area: "out of area", unmapped: "unmapped suburb" };
+
+/**
+ * One item per open request, due at the row's `due_at` — the end of the next
+ * working day after it was made, public holidays excluded (R23, R33). Staff
+ * answer it by offering a time, which books the slot and sets `answered_at`.
+ */
+export function buildVisitRequestItems(rows: VisitRequestRow[], now: Date): WorkItem[] {
+  return rows.map((r) => {
+    const where = [r.suburb, ZONE_WORDS[r.zone] ?? r.zone].filter(Boolean).join(", ");
+    const prefs = r.kind === "time" && (r.preferred_days.length || r.time_of_day)
+      ? ` — ${r.preferred_days.map((d) => DAY3[d] ?? "").filter(Boolean).join(" ")}${r.time_of_day ? `, ${r.time_of_day}` : ""}`
+      : "";
+    const title = r.kind === "call" ? `Call ${r.name} to finalise by phone` : r.kind === "visit" ? `Arrange a site visit — ${r.name}` : `Offer a visit time — ${r.name}`;
+    return finish({
+      key: itemKey("visit_request", "event", r.id, r.kind),
+      kind: "visit_request",
+      accountId: r.account_id,
+      subjectRef: r.estimate_id ? { type: "estimate", id: r.estimate_id } : { type: "event", id: r.id },
+      since: r.created_at,
+      title,
+      detail: [where, r.mobile, prefs ? `prefers${prefs}` : null, r.note].filter(Boolean).join(" · ") || "Reply within one working day",
+      dueAt: r.due_at,
+      action: { label: r.kind === "call" ? "Call" : "Offer a time", href: `/crm/visit-requests/${r.id}` },
+    }, { valueCents: null, promisedToCustomer: true }, now);
+  });
+}
+
+/** From 1 November, until next year's public holidays are in Settings → Booking rules. */
+export function buildHolidaysItem(holidays: readonly string[], now: Date): WorkItem[] {
+  if (!nextYearHolidaysMissing(holidays, now)) return [];
+  const year = melbourneParts(now).y + 1;
+  return [finish({
+    key: itemKey("holidays_next_year", "event", `holidays-${year}`, "settings"),
+    kind: "holidays_next_year",
+    accountId: null,
+    subjectRef: { type: "event", id: `holidays-${year}` },
+    since: now.toISOString(),
+    title: `Add the ${year} Victorian public holidays`,
+    detail: "Booking rules has none for next year yet. Customers could book visits on a holiday and request replies would be due on one.",
+    dueAt: null,
+    action: { label: "Open Booking rules", href: "/settings#booking-rules" },
+  }, { valueCents: null, promisedToCustomer: false }, now)];
 }
 
 // ---- assembly --------------------------------------------------------------
@@ -1565,7 +1643,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // read that fills its cap is reported on the queue rather than dropped silently.
   const CAP = { followups: 500, invoices: 500, callbacks: 200, wizard: 300, lapsed: 300, inbound: 400, rebook: 200, quotes: 500 };
   const truncated: string[] = [];
-  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds, unmappedSuburbs] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds, unmappedSuburbs, visitRequests, bookingRules] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -1640,6 +1718,12 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .is("resolved_at", null)
       .order("first_seen_at", { ascending: true })
       .limit(CAP.callbacks),
+    supabase.from("visit_requests")
+      .select("id, kind, account_id, estimate_id, zone, suburb, name, mobile, note, preferred_days, time_of_day, created_at, due_at")
+      .is("answered_at", null)
+      .order("due_at", { ascending: true })
+      .limit(CAP.callbacks),
+    supabase.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle(),
   ]);
   const delayedRows = ((delayedAcc.error ? [] : (delayedAcc.data ?? [])) as Array<DelayedAccountRow & { relationship_state: string }>);
   const hit = (name: string, rows: unknown[] | null | undefined, cap: number) => { if ((rows?.length ?? 0) >= cap) truncated.push(name); };
@@ -1857,6 +1941,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildHoursPendingItems(hoursRows, now),
     // A read that fails before migration 20270212 is on the database adds nothing (same shape as handoffs above).
     ...buildUnmappedSuburbItems(((unmappedSuburbs.error ? [] : unmappedSuburbs.data) ?? []) as UnmappedSuburbRow[], now),
+    ...buildVisitRequestItems(((visitRequests.error ? [] : visitRequests.data) ?? []) as unknown as VisitRequestRow[], now),
+    ...buildHolidaysItem(bookingRules.error ? [] : mergeBookingRules(bookingRules.data?.value).publicHolidays, now),
     ...buildEmployeeReassignItems(flagRows, activeRows, moveRows, painterNames, now),
     ...buildEmployeeUnacceptedItems(activeRows, painterNames, now),
     ...buildLeaveRequestItems(leaveRows, painterNames, now),

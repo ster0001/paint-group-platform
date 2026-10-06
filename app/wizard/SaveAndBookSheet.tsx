@@ -42,9 +42,10 @@ export default function SaveAndBookSheet({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    fetch("/api/wizard/save-and-book")
-      .then((r) => r.json()).then((j: { slots?: string[] }) => { if (!cancelled) setSlots(j.slots ?? []); })
-      .catch(() => { /* no slots is fine — "call me back" still works */ });
+    // Visit booking S4 (R3): a visit asked for before the range is a REQUEST,
+    // never a slot — the old windows are not fetched any more. The sheet saves
+    // the session and asks for a call back.
+    setSlots([]);
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => { cancelled = true; window.removeEventListener("keydown", onKey); };

@@ -42,6 +42,7 @@ import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import QuickLook from "./QuickLook";
 import SaveAndBookSheet from "./SaveAndBookSheet";
+import TalkSheet, { type TalkMode } from "./TalkSheet";
 import ConditionBox from "./ConditionBox";
 import Reveal from "./Reveal";
 import {
@@ -356,6 +357,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [quickOutOfArea, setQuickOutOfArea] = useState(false);
   /** C8 — the Save & book sheet, reachable from every screen. */
   const [bookOpen, setBookOpen] = useState(false);
+  /** Visit booking S4: the talk sheet (request a site visit / send a message) and the range screen's "sent" screen. */
+  const [talk, setTalk] = useState<{ mode: TalkMode } | null>(null);
+  const [sent, setSent] = useState<{ title: string; line: string } | null>(null);
   /** The revealed range, held on the client so the three doors can act on it. */
   const [reveal, setReveal] = useState<{ payload: CustomerPayload; estimateId: string } | null>(null);
 
@@ -1607,6 +1611,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    */
   function openBook() {
     flushDraft(lastScreen);
+    // R3: before the range a visit is a REQUEST — the talk sheet, never the old window picker.
+    if (isCustomer && !reveal) { setTalk({ mode: "visit" }); return; }
     setBookOpen(true);
   }
 
@@ -1664,6 +1670,25 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           estimateId={reveal.estimateId}
           prefill={{ email: prefill?.email ?? state.contact.email, phone: prefill?.phone ?? state.contact.phone, name: prefill?.name ?? state.contact.name }}
         />
+        {talk && (
+          <TalkSheet
+            open mode={talk.mode}
+            onClose={() => setTalk(null)}
+            estimateId={reveal.estimateId}
+            prefill={{ name: prefill?.name ?? state.contact.name, email: prefill?.email ?? state.contact.email, mobile: prefill?.phone ?? state.contact.phone }}
+            hasContact={Boolean(state.contact.email && state.contact.phone && state.contact.name)}
+            address={state.address?.formatted ?? state.title ?? ""}
+          />
+        )}
+        {sent ? (
+          <main className="wz-wrap" data-testid="reveal-sent">
+            <p className="wz-kick">Your estimate</p>
+            <div className="wz-sent-status" aria-hidden="true">✓</div>
+            <h1>{sent.title}</h1>
+            <p>{sent.line}</p>
+            <p className="wz-chint"><button type="button" className="wz-linkish" onClick={() => setSent(null)} data-testid="reveal-sent-back">Back to your guide price</button></p>
+          </main>
+        ) : (
         <Reveal
           payload={reveal.payload}
           quick={quick}
@@ -1678,8 +1703,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           // back — you were at Scope" over a brand-new job.
           onTighten={() => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
           onBook={() => { clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
+          speakWithUs={Boolean((reveal.payload as { speakWithUs?: boolean }).speakWithUs)}
+          onSpeak={() => setTalk({ mode: "call" })}
+          onMessage={() => setTalk({ mode: "message" })}
           prefillEmail={prefill?.email}
         />
+        )}
       </div>
     );
   }
@@ -1709,6 +1738,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         <p className="wz-assisted" data-testid="assisted-banner">
           <b>Assisted session</b> — {assisted.who}&rsquo;s answers, picked up {assisted.screen ? `at ${assisted.screen.replace(/^quick:/, "").replace(/^page:/, "")}` : "where they left off"}. Nothing here changes their saved copy.
         </p>
+      )}
+      {isCustomer && talk && (
+        <TalkSheet
+          open mode={talk.mode}
+          onClose={() => setTalk(null)}
+          estimateId={reveal?.estimateId ?? null}
+          prefill={{ name: prefill?.name ?? state.contact.name, email: prefill?.email ?? state.contact.email, mobile: prefill?.phone ?? state.contact.phone }}
+          address={state.address?.formatted ?? state.title ?? ""}
+        />
       )}
       {isCustomer && (
         <SaveAndBookSheet
@@ -1819,6 +1857,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 onBack={page > 1 ? quickBack : null}
                 onNext={quickNext}
                 onBook={openBook}
+                onMessage={() => { flushDraft(lastScreen); setTalk({ mode: "message" }); }}
                 onChooseBoth={chooseBoth}
                 phone={companyPhone}
                 outside={outside}
