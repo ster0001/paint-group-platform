@@ -4249,3 +4249,23 @@ and a waiver — migration `20270215000000_wo_after_photos_waiver.sql` adds `wo_
 no column) and re-creates `wo_contractor_finish` to honour `wo_after_photos_waived()`. The painter's rule is unchanged.
 Spec: `e2e/wo-stage-advance.spec.ts` ("the office's next step from In progress"). Diagnostic for a stuck live job:
 `node scripts/diag/wo-next-step.mjs "<address>"` (read-only).
+
+
+**Check-ins worked from PC Command (6 Oct 2026).** Tom: "move all job check-ins out of the CRM system and into PC
+Command." Still one queue: `lib/crm/work-queue.ts` gains `homeOf(kind)` ("crm" | "pc"; `job_checkin` and
+`job_followup` are PC-homed), `crmItems`/`pcItems`, and `buildPcWorkItems(supabase, now)` — two bounded reads (the
+check-in work orders, the dismissals) returning `{ items, failure }`. `buildWorkQueue` builds every kind as before
+(the keys are what dismissals hang off) and then assembles `crmItems(...)`, so Today, the tab badge and the home
+dashboard no longer carry check-ins. `app/pc/page.tsx` renders the PC items as cards at the top of its queue with
+**Open the job** and `app/pc/CheckinDone.tsx` (**Rang them** = dismiss for good, **Tomorrow** = one day), both
+through the CRM's own `dismissWorkItem` → `crm_dismiss_work_item`. No migration. Spec `e2e/pc-checkins.spec.ts`;
+units in `lib/crm/work-queue-jobs.test.ts`.
+
+**Final invoice skips a variation already billed (6 Oct 2026).** 568 Collins Street: the last quality-check pass
+routed the no-walkthrough close, whose `invoice_draft_final` wrote a line for every signed variation — including
+one already on an issued progress invoice — and `invoice_lines_variation_once` (§3.1) refused, rolling the pass
+back with "duplicate key value violates unique constraint". Migration
+`20270216000000_final_invoice_skips_billed_variations.sql` re-creates `invoice_draft_final` (20270156 body) with one
+predicate: a variation with a live (`not parent_void`) line on another invoice is not written again; the ledger has
+already netted what that invoice took, and the "Less previously invoiced" adjustment balances the draft. Spec
+`e2e/invoice-final-variation-once.spec.ts` closes a fixture job whose variation sits on an issued progress invoice.

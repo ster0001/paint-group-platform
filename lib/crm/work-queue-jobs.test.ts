@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildJobCheckinItems, isCustomerVisible, KIND_WEIGHT, type JobCheckinRow } from "./work-queue";
+import { buildJobCheckinItems, crmItems, homeOf, isCustomerVisible, KIND_WEIGHT, pcItems, type JobCheckinRow } from "./work-queue";
 import { melbourneInstant } from "@/lib/time/businessHours";
 
 // Mon 5 Oct → Fri 9 Oct 2026: five booked days → one mid-job check-in on Wed 7 Oct.
@@ -66,5 +66,20 @@ describe("the after-job call on a 1–2 day job", () => {
   });
   it("no mid-job check-in on a short job", () => {
     expect(buildJobCheckinItems([short], melbourneInstant(2026, 10, 6, 9)).some((i) => i.kind === "job_checkin")).toBe(false);
+  });
+});
+
+describe("check-ins are worked on PC Command, not the CRM (Tom, 6 Oct 2026)", () => {
+  it("homes both check-in kinds on the PC console and everything else on the CRM", () => {
+    expect(homeOf("job_checkin")).toBe("pc");
+    expect(homeOf("job_followup")).toBe("pc");
+    expect(homeOf("followup_due")).toBe("crm");
+    expect(homeOf("invoice_action")).toBe("crm");
+  });
+  it("splits one list two ways without losing an item", () => {
+    const items = buildJobCheckinItems([row()], melbourneInstant(2026, 10, 7, 9));
+    expect(items.length).toBe(1);
+    expect(crmItems(items)).toEqual([]);
+    expect(pcItems(items)).toEqual(items);
   });
 });

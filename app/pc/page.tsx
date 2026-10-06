@@ -5,6 +5,8 @@ import { buildQueue, headline, pulseTiles, sparkline, variationsForApproval } fr
 import DismissCard from "./DismissCard";
 import ReofferDialog from "./ReofferDialog";
 import CollectionDone from "./CollectionDone";
+import CheckinDone from "./CheckinDone";
+import { buildPcWorkItems } from "@/lib/crm/work-queue";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 
@@ -25,6 +27,12 @@ export default async function DashboardPage() {
   const { input, signedOffThisWeek, ticksByDay, expiringDocs } = await loadConsole(supabase);
 
   const queue = buildQueue(input);
+  // Tom, 6 Oct 2026: the customer check-ins and after-job calls are worked
+  // from here, not the CRM. Same evaluator and dismissals as Today — a
+  // different screen over the one queue, not a second queue.
+  const checkins = await buildPcWorkItems(supabase, input.now);
+  const dueWord = (item: { bucket: string; dueAt: string | null }) =>
+    item.bucket === "overdue" ? "overdue" : item.bucket === "today" ? "by 5 pm today" : "waiting";
 
   // Who a lapsed job can go to: compliant contractors only. send_offer enforces
   // it too, but offering someone who will be refused is a wasted tap.
@@ -175,6 +183,26 @@ export default async function DashboardPage() {
         </div>
 
         <div className="stack" data-testid="queue">
+          {checkins.failure && (
+            <p className="empty" data-testid="checkins-failure" style={{ color: "var(--amber)" }}>{checkins.failure}</p>
+          )}
+          {checkins.items.map((item) => (
+            <div className={`al ${item.bucket === "overdue" ? "al-crit" : "al-warn"}`} key={item.key}
+              data-testid={`checkin-${item.key}`}>
+              <span className="rail" />
+              <span className="ic">◷</span>
+              <div className="bd">
+                <div className="hd">
+                  <strong>{item.title}</strong>
+                  <span className="ref">{item.kind === "job_checkin" ? "Check-in" : "Follow-up"} · {dueWord(item)}</span>
+                </div>
+                <p>{item.detail}</p>
+              </div>
+              <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
+              <Link className="btn" href={item.action.href} data-testid={`checkin-open-${item.key}`}>Open the job</Link>
+              <CheckinDone itemKey={item.key} accountId={item.accountId} />
+            </div>
+          ))}
           {queue.map((card) => (
             <div className={`al al-${card.severity === "critical" ? "crit" : card.severity === "warning" ? "warn" : "info"}`}
               key={card.key} data-testid={`card-${card.key}`}>
@@ -212,7 +240,7 @@ export default async function DashboardPage() {
             </div>
           ))}
 
-          {queue.length === 0 && (
+          {queue.length === 0 && checkins.items.length === 0 && (
             <p className="empty" data-testid="queue-empty">
               Nothing needs you. Every job is where it should be.
             </p>

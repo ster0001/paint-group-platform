@@ -14,7 +14,8 @@ for (const needle of needles) {
   const ests = must(await db.from("estimates").select("id, number, title").ilike("title", `%${needle}%`).limit(5), "estimates");
   if (ests.length === 0) { console.log(`\nno estimate matched ${JSON.stringify(needle)}`); continue; }
   for (const e of ests) {
-    const wos = must(await db.from("work_orders").select("id, wo_ref, stage, stage_entered_at, walkthrough_required").eq("estimate_id", e.id), "work_orders");
+    const wos = must(await db.from("work_orders").select("id, wo_ref, stage, stage_entered_at, walkthrough_required, wo_snapshot, colours").eq("estimate_id", e.id), "work_orders");
+    if (wos.length === 0) console.log(`\n=== #${e.number} ${e.title} — no work order on this estimate`);
     for (const w of wos) {
       console.log(`\n=== #${e.number} ${e.title} | ${w.wo_ref} | stage=${w.stage} since ${String(w.stage_entered_at).slice(0, 16)} | walkthrough_required=${w.walkthrough_required}`);
       const surfaces = must(await db.from("wo_surfaces").select("heading, label, state, removed_from_scope, photos_optional").eq("work_order_id", w.id).order("sort"), "wo_surfaces");
@@ -32,6 +33,20 @@ for (const needle of needles) {
       console.log(`variations waiting: ${vars.length}` + (vars.length ? " — " + vars.map((v) => `${v.status}: ${String(v.comment).slice(0, 60)}`).join("; ") : ""));
       const qa = must(await db.from("wo_qa_checks").select("kind, result").eq("work_order_id", w.id), "wo_qa_checks");
       console.log(`quality checks: ${qa.length} (${qa.filter((c) => c.result === null).length} unlogged)`);
+      // The colour-match gate on every exit from prep (mirrors wo_colour_match_outstanding).
+      const colourNo = must(await db.from("wo_checklist_items").select("answer").eq("work_order_id", w.id).eq("phase", "pre_start").eq("item_key", "colours"), "pre_start colours").some((i) => i.answer === "no");
+      const mats = Array.isArray(w.wo_snapshot?.materials) ? w.wo_snapshot.materials : [];
+      const colourMatch = mats.filter((m) => {
+        const product = String(m.product ?? "");
+        const flagged = Boolean(m.colourMatch?.required);
+        const colour = String(m.colourName ?? "");
+        const snapCode = String(m.colourMatch?.code ?? "");
+        const woCode = String(w.colours?.[product]?.match?.code ?? "");
+        return (flagged || (colourNo && colour === "")) && snapCode === "" && woCode === "" && !/fuel|consumable/i.test(product);
+      }).map((m) => m.product);
+      console.log(`colour match: pre-start colours answered no=${colourNo}; codes still needed for: ${colourMatch.length ? colourMatch.join(", ") : "none"}`);
+      const signoff = must(await db.from("wo_signoff").select("signed_at, evidence_pack_sent_at").eq("work_order_id", w.id), "wo_signoff")[0];
+      console.log(`sign-off row: ${signoff ? `signed_at=${signoff.signed_at} pack_sent=${signoff.evidence_pack_sent_at}` : "none"}`);
       const waived = must(await db.from("wo_events").select("id").eq("work_order_id", w.id).eq("type", "after_photos_waived"), "wo_events").length > 0;
       const events = must(await db.from("wo_events").select("type, actor_kind, meta, created_at").eq("work_order_id", w.id).order("created_at", { ascending: false }).limit(8), "wo_events");
       for (const ev of events) console.log(`   ev ${String(ev.created_at).slice(0, 16)} ${ev.type} (${ev.actor_kind}) ${JSON.stringify(ev.meta ?? {}).slice(0, 140)}`);
@@ -41,6 +56,8 @@ for (const needle of needles) {
         : w.stage === "in_progress" && !byKind.completion && !waived && wantPhotos.length > 0 ? "AFTER PHOTOS MISSING — the finish refuses (upload them on the PC card, or waive with a reason)"
         : openItems.length > 0 ? `${openItems.length} finishing-up item(s) still to tick or answer`
         : vars.length > 0 ? `${vars.length} variation(s) still waiting on a decision`
+        : colourMatch.length > 0 ? `COLOUR MATCH CODES still needed for ${colourMatch.join(", ")} — enter the code on the job sheet's colours (or answer the pre-start colours question yes), then press again`
+        : signoff?.signed_at ? "sign-off row already signed — the close refuses (already_signed); tell whoever looks after the platform"
         : "nothing in the way of the finish — press All done — next step (a quality check may be due next)";
       console.log("VERDICT:", verdict);
     }
