@@ -5,7 +5,7 @@ title: Run jobs through the seven lanes from the PC console
 summary: The project coordinator's console — the attention queue and what its colours mean, the seven lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.
 walkthrough: media/pc-walkthrough.gif
 sources: app/pc/wo/[id]/ReviewCard.tsx, app/pc, app/components/wo, lib/workorder
-verified_at_commit: 4ef1a0aa72
+verified_at_commit: 780c451640
 ---
 
 ## What this is for
