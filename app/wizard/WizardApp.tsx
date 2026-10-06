@@ -1677,7 +1677,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           // resumed from the local cache after this point was a stale "Welcome
           // back — you were at Scope" over a brand-new job.
           onTighten={() => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
-          onBook={() => { clearResume(); router.push(`/estimate/book?id=${reveal.estimateId}`); }}
+          onBook={() => { clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           prefillEmail={prefill?.email}
         />
       </div>

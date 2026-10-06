@@ -27,6 +27,8 @@ export type DriveOptions = {
   /** A suburb unique to this run — the handle an ANONYMOUS walk is known by
    *  now that no email is asked for before the price (⚑1). */
   suburb?: string;
+  /** With `suburb`: the postcode the fallback field gets (default 3163). */
+  postcode?: string;
 };
 
 /**
@@ -52,7 +54,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   // postcode the service-area check hands the job off.
   await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
   await page.getByPlaceholder("Suburb").fill(opts.suburb ?? "Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
+  await page.getByPlaceholder("Postcode").fill(opts.postcode ?? "3163");
   if (opts.jobType && opts.jobType !== "interior") {
     await page.getByTestId(`ql-jobtype-${opts.jobType}`).click();
   }

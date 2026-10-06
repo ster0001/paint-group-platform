@@ -4,6 +4,35 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 6 Oct 2026 — visit booking S3: book a visit from the range — hold, text code, one transaction
+
+**2026-10-06 · `supabase/migrations/20270214000000_visit_holds.sql`, `lib/visits/holds.ts`, `lib/visits/ownedEstimate.ts`,
+`app/api/visits/{details,hold,confirm,resend,availability}`, `app/estimate/visit/`**
+
+The walking skeleton of the addendum: Book your estimator → `/estimate/visit?id=` → (details, only when we hold none)
+→ calendar → ten-minute hold → 6-digit code by text → "Your site visit is booked". `visit_holds` carries the hold
+(hashed code, attempts, resends, expiry; a partial unique index makes one LIVE hold per slot per estimator, so the
+race between two customers is settled by the database) and `visit_code_sends` is the fact behind the per-mobile and
+per-IP limits. Four definer RPCs, granted to service_role only: `visit_hold_place`, `visit_hold_resend`,
+`visit_hold_release` and `visit_hold_confirm`. Confirm is the one transaction: code check (five wrong ends the hold),
+an advisory lock per estimator-day, one active wizard visit per estimate, the full 90-minute run clear of confirmed
+visits (test 19), the R18 far-edge pairing against confirmed neighbours (test 13), then the `visits` row — status
+booked, source wizard, `zone` and `far_edge` frozen, `ends_at` = start + 60 (what the customer sees; the 90-minute
+block is the slot rule) — whose trigger writes `visit_booked` on `crm_events`. `lib/visits/holds.ts` is the server
+side: `loadVisitContext` (address → `resolveZone` → the zone's estimator → `availability()` fed by the week, confirmed
+visits, live holds and the estimator's Google busy times), `placeHold` (re-runs availability so a slot the zone list
+does not allow is refused however it was asked for — the body cannot even carry a zone), `confirmHold` (re-runs
+availability with the customer's own hold set aside, then the RPC) and `resendCode`. `lib/visits/ownedEstimate.ts`
+is the one door for the routes: anonymous customers only on the draft their session created
+(`customerOwnsDraft`), staff on any. Messaging: `visit_code` (text, always on, never held — `visitCodeSms`) and
+`visit_booked` (text, `visitBookedSms`); the email with the .ics invitation is the existing `visit_confirmation`,
+whose `visit_when` now reads "Monday 5 October, 2:00 pm to 3:00 pm" (R32). The old half-day windows are no longer
+offered to customers: the Book page's "Book a site visit" and the reveal's door both go to the new page; "None of
+these suit" and the pre-arranged / out-of-area screens hand off to the Book page's request-a-call-back until S4
+builds the real request screens. The customer's e2e (`e2e/customer-journey/visit-booking.spec.ts`) reads the code
+back from the `messages` row the adapter records (the test stack has no Twilio); the section-8 API tests live in
+`e2e/visit-booking-api.spec.ts`.
+
 ## 6 Oct 2026 — visit booking S2: each estimator's week, booking rules, THE availability function
 
 **2026-10-06 · `supabase/migrations/20270213000000_visit_slots_and_booking_rules.sql`, `lib/visits/schedule.ts`,

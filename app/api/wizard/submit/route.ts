@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { parseAddressText } from "@/lib/wizard/addressText";
 import { z } from "zod";
 import { attributionSchema } from "@/lib/crm/attribution";
 import { buildEvent, dedupeKey } from "@/lib/crm/events";
@@ -655,6 +656,17 @@ export async function POST(request: Request) {
         city: state.address.suburb,
         state: state.address.state,
         postal: state.address.postcode,
+      },
+    } : state.customer?.suburb || state.customer?.postcode ? {
+      // Visit booking S3 (6 Oct 2026): a TYPED address — no Places pick — still
+      // needs to reach the estimate, or the booking page cannot tell which zone
+      // the property is in. The suburb and postcode are the typed fallback
+      // fields; the street is whatever parses out of the typed line.
+      jobAddress: {
+        address: parseAddressText(state.title)?.street || state.title.trim(),
+        city: state.customer.suburb ?? "",
+        state: "VIC",
+        postal: state.customer.postcode ?? "",
       },
     } : {}),
     // The full answers ride along: the editor's add-room re-applies them, and

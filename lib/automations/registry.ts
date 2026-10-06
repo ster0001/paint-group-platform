@@ -100,6 +100,8 @@ const P = {
   jobUpdate: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{day_label}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
+  visitCode: ["{{code}}", "{{company_name}}"],
+  visitBooked: ["{{first_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
   signed: ["{{first_name}}", "{{job_title}}", "{{signed_by}}", "{{company_name}}"],
   chat: ["{{company_name}}", "{{link}}"],
   receipt: ["{{first_name}}", "{{amount}}", "{{invoice_number}}", "{{receipt_number}}", "{{company_name}}"],
@@ -172,6 +174,19 @@ export const AUTOMATIONS: Automation[] = [
       { field: "visitConfirmBody", label: "Email", kind: "body", placeholders: P.visit },
     ],
     guard: "One per booking (and one per move), recorded on the visit.",
+  },
+  {
+    key: "visit_code", name: "Text code to book a visit", audience: "customer", channels: ["sms"], kind: "manual",
+    trigger: "A customer picks a site-visit time online (visit booking S3). Always on and never held — without it nobody can book.",
+    templates: [{ field: "visitCodeSms", label: "Text", kind: "sms", placeholders: P.visitCode }],
+    guard: "One per hold plus up to three resends; five per mobile and fifteen per address every ten minutes.",
+  },
+  {
+    key: "visit_booked", name: "Visit booked — text", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "visit_booked", quietExempt: true,
+    trigger: "A customer confirms a site visit online with the text code (visit booking S3). The calendar invitation goes by email through 'Visit booked — calendar invite'.",
+    templates: [{ field: "visitBookedSms", label: "Text", kind: "sms", placeholders: P.visitBooked }],
+    guard: "Once per booking.",
   },
   {
     key: "visit_reminder", name: "Visit reminder text", audience: "customer", channels: ["sms"], kind: "automatic",
