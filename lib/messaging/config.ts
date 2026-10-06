@@ -146,6 +146,8 @@ export type MessagingSettings = {
   timeOfferedBody: string;
   customerMessageSubject: string;
   customerMessageBody: string;
+  /** S5: the visit was cancelled — the guest declined, or the estimator deleted it in Google. */
+  visitCancelledSms: string;
   /** Customer + painter: the final walkthrough calendar invite. */
   walkthroughInviteSubject: string;
   walkthroughInviteCustomerBody: string;
@@ -335,6 +337,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   timeOfferedBody: "Hi {{first_name}},\n\nFollowing your request, we have booked your site visit for {{visit_when}} at {{address}}. {{estimator_name}} will be there. A calendar invitation is attached.\n\nIf that time does not suit, reply to this email or call us and we will find another.\n\n{{company_name}}",
   customerMessageSubject: "Message from {{customer}} — {{job}}",
   customerMessageBody: "{{customer}} wrote:\n\n“{{message}}”\n\nReply from the chat in the platform, or to this email. The customer has this copy too and we will reply within one working day.",
+  visitCancelledSms: "{{company_name}}: your site visit on {{visit_when}} is cancelled. If you would like another time, book again from your estimate or call us.",
   walkthroughInviteSubject: "Final walk through — ({{customer_name}} x {{painter_name}})",
   walkthroughInviteCustomerBody:
     "Hello {{first_name}},\n\n" +

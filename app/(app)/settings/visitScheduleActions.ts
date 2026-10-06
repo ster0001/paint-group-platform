@@ -123,6 +123,7 @@ const rulesSchema = z.object({
   publicHolidays: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(200),
   farEdgePairs: z.array(z.tuple([zone, zone])).max(10),
   gateOrder: z.enum(["details_first", "range_first"]),
+  calendarRequired: z.boolean().default(true),
 });
 
 export async function saveBookingRulesAction(raw: unknown): Promise<Result> {

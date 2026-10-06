@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   if (isResponse(owned)) return owned;
   const ctx = await loadVisitContext(owned.svc, owned.est, { record: false });
   return NextResponse.json({
-    estimateId: ctx.estimateId, zone: ctx.zone.outcome, farEdge: ctx.zone.farEdge, suburb: ctx.address?.suburb ?? null,
+    estimateId: ctx.estimateId, calendar: ctx.calendar, zone: ctx.zone.outcome, farEdge: ctx.zone.farEdge, suburb: ctx.address?.suburb ?? null,
     hasContact: !!ctx.contact, estimatorName: ctx.estimatorName, days: ctx.days, hold: ctx.hold, rules: ctx.rules,
   });
 }

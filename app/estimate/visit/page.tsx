@@ -56,6 +56,7 @@ export default async function VisitPage({ searchParams }: { searchParams: Promis
         known={ctx.known}
         hasContact={!!ctx.contact}
         zone={ctx.zone.outcome}
+        calendar={ctx.calendar}
         days={ctx.days}
         hold={ctx.hold}
         companyPhone={company.phone ?? null}

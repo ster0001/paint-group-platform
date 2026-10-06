@@ -44,6 +44,11 @@ export async function ensureEstimator(sb: SupabaseClient): Promise<{ staffId: st
   const { data: zones } = await sb.from("visit_zones").select("key, estimator_id");
   const before = new Map((zones ?? []).map((z) => [z.key as string, z.estimator_id as string | null]));
   await sb.from("visit_zones").update({ estimator_id: staffId }).is("estimator_id", null);
+  // S5: a real booking needs the estimator's Google Calendar; the test project has
+  // none, so the rule is switched off for the run and put back after.
+  const { data: rulesRow } = await sb.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle();
+  const rulesBefore = (rulesRow?.value ?? {}) as Record<string, unknown>;
+  await sb.from("settings").upsert({ key: "visit_booking_rules", value: { ...rulesBefore, calendarRequired: false } }, { onConflict: "key" });
   const { data: slots } = await sb.from("visit_slots").select("id").eq("estimator_id", staffId).limit(1);
   const hadWeek = !!slots?.length;
   if (!hadWeek) {
@@ -53,6 +58,7 @@ export async function ensureEstimator(sb: SupabaseClient): Promise<{ staffId: st
   return {
     staffId,
     restore: async () => {
+      await sb.from("settings").upsert({ key: "visit_booking_rules", value: rulesBefore }, { onConflict: "key" });
       for (const [key, est] of before) if (est === null) await sb.from("visit_zones").update({ estimator_id: null }).eq("key", key);
       if (!hadWeek) await sb.from("visit_slots").delete().eq("estimator_id", staffId);
     },

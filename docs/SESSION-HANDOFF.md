@@ -1,3 +1,18 @@
+# 6 Oct 2026 — Visit booking, addendum A: S5 Google Calendar. Branch `feat/visit-booking-s5` (stacked on S4). Migration 20270216 (TEST; to paste after 20270215).
+
+Report: `docs/briefs/visit-booking-s5-report.md`. info@ = Google WORKSPACE → staff scope + `calendar.events`, visits in
+the PRIMARY calendar: one-hour event with the customer as guest (sendUpdates=all) + 30-min Travel block, both tagged
+`extendedProperties.private.pgKind` (busy reader skips them). `lib/gcal/visitEvents.ts` (pure builders + classifier
+gone/declined/moved/same), `lib/gcal/inbound.ts` (syncStaffFromGoogle, ensureWatch, stopWatch, sweepAllStaff),
+`/api/gcal/webhook` (token = HMAC(channel id, CRON_SECRET)), `/api/cron/gcal-sweep` every 5 min. Decline/delete →
+visit_set_status cancelled (cancel_reason declined_invitation / deleted_in_google) + cancel email + `visit_cancelled`
+text + `visit_declined` card; move → `google_start` on the mapping row + `visit_moved_in_google` card, platform
+unchanged (R27). Booking rules `calendarRequired` (default ON): no write-capable connection → request path +
+`estimator_calendar_missing` card; Google unreachable → `CalendarUnavailable` → request path, hold released. e2e
+specs switch the rule off per run (`visitHelpers.ensureEstimator`). Unit 3,156 green, tsc + lint clean. **e2e NOT run —
+C1 lock held by CI (S4 PR), one try.** Real-Google checks = `docs/manual-tests/visit-gcal.md` (Outlook/Apple Mail
+declines = STOP condition if they fail). Next: S6 the gate.
+
 # 6 Oct 2026 — Visit booking, addendum A: S4 requests, pre-arranged, out of area, Speak with us, messages, holidays. Branch `feat/visit-booking-s4`. Migration 20270215 LIVE prod (Tom pasted).
 
 Report: `docs/briefs/visit-booking-s4-report.md`. `visit_requests` + `customer_message_receipts`; `lib/visits/requests.ts`

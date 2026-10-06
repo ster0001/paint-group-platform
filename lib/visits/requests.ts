@@ -25,6 +25,7 @@ import { sendAutomation } from "@/lib/automations/dispatch";
 import { logCrmEvent } from "@/lib/crm/events";
 import { postCustomerChatMessage } from "@/lib/estimates/chat";
 import { readGoogleBusyForStaff } from "@/lib/gcal/read";
+import { reconcileForVisit } from "@/lib/gcal/staff";
 import { normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 import { buildPlainEmailHtml, sendEmail } from "@/lib/messaging/send";
@@ -245,6 +246,7 @@ export async function answerWithTime(svc: SupabaseClient, input: { requestId: st
   } catch (e) {
     reportError(e, { where: "visits.requests.timeOffered", bestEffort: true, extra: { requestId: req.id } });
   }
+  await reconcileForVisit([input.estimatorId]).catch((e) => reportError(e, { where: "visits.requests.gcal", bestEffort: true, extra: { visitId: vid } }));
   return { ok: true, visitId: vid };
 }
 
