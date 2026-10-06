@@ -4,6 +4,62 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 7 Oct 2026 — visit booking S6: the gate — details before the range, the switch, the tracking, the report
+
+**2026-10-07 · `supabase/migrations/20270217000000_wizard_gate.sql`, `lib/wizard/quick-look.ts`, `lib/wizard/state.ts`,
+`app/wizard/QuickLook.tsx`, `app/wizard/WizardApp.tsx`, `app/wizard/Reveal.tsx`, `app/wizard/TalkSheet.tsx`,
+`app/api/wizard/submit/route.ts`, `app/api/wizard/draft/route.ts`, `app/api/wizard/range-option`, `lib/reporting/metrics/funnel.ts`**
+
+R5 reverses the estimator-journey-v2 ruling that took the email gate out from in front of the price: under
+"details first" (the default, Booking rules → gate order) the quick look's last question is the GATE — "Where
+shall we send your estimate?", full name, email, mobile, an optional unticked marketing tick, "Show my guide
+price" — appended by `stepsFor(..., gate)` and enforced on the SERVER: the submit route answers 409
+`gate_required` when the session's version is details first and the state carries no complete contact. The
+version is the session's, frozen on `wizard_drafts.gate_version` at the first save (the client keeps it on
+`state.gateVersion`; the autosave writes the column only when null), so flipping the switch mid-session changes
+nothing for it (R6). "Range first" leaves the steps alone and asks for the details on the range screen instead
+(R7): Book goes through the visit page's details screen, Speak with us and Send us a message through the talk
+sheet, and Tighten my price through the sheet's new "details" mode, which saves them and then carries on. The
+range screen follows R24 — Tighten my price (the hero, "Get a more accurate quote now"), Speak with us, Book a site
+visit, Send us a message — and the old "Keep this estimate" email door shows only while no contact is held.
+Tracking on `wizard_drafts`: `gate_shown_at` (the autosave sees `quick:gate`), `gate_completed_at` (submit with a
+contact; or details given after the range through `markGateCompleted`), `range_shown_at` (submit), `range_option`
+(+ `_at`, the first door tapped, via `/api/wizard/range-option`). The dashboard's "Where estimates go" card gained
+"The gate" by version — sessions, reached, completed, lost at the gate, saw the range, what next — from
+`buildGateReport`, with `funnel.gate_sessions` as its CSV export through the one export route. The marketing tick
+records a `marketing` consent through the existing `recordConsent` once the account exists. The e2e drive helper
+fills the gate when it appears (`opts.email` lands there now, so the keep door is skipped when absent).
+
+## 6 Oct 2026 — visit booking S5: Google Calendar — the visit in the estimator's main calendar, decline cancels, move raises a card
+
+**2026-10-06 · `supabase/migrations/20270216000000_gcal_visits.sql`, `lib/gcal/oauth.ts`, `lib/gcal/client.ts`, `lib/gcal/visitEvents.ts`,
+`lib/gcal/staff.ts`, `lib/gcal/inbound.ts`, `lib/gcal/read.ts`, `app/api/gcal/webhook`, `app/api/cron/gcal-sweep`, `lib/visits/holds.ts`**
+
+info@paintgroup.com.au is a Google Workspace account (Tom, 6 Oct), so the staff connection asks for a third scope,
+`calendar.events`, and `reconcileStaffCalendar` writes booked visits into the estimator's MAIN calendar instead of
+the app-created "Paint Group Visits" one: a one-hour event (R32) with the property as location and the customer as a
+guest (`sendUpdates=all`, so Google sends the invitation and records the reply), a popup reminder on the estimator's
+copy only (the API's `reminders` are "for the authenticated user"), and a separate 30-minute "Travel" block with no
+guests (`lib/gcal/visitEvents.ts`, pure, unit-tested). Both carry `extendedProperties.private.pgKind`, and the busy
+reader (`read.ts`) skips anything so marked, so a booking never blocks itself (4.6 "Read"). Booked jobs still go to
+the app calendar when `push_jobs` is on. Inbound (`inbound.ts`): `syncStaffFromGoogle` re-reads each visit event
+and `classifyGoogleEvent` says gone / declined / moved / same — gone (Tom deleted it) or declined (the guest said no)
+cancels the visit through the Diary's `visit_set_status` RPC with `cancel_reason` `deleted_in_google` /
+`declined_invitation`, removes both events, sends the cancel email and the `visit_cancelled` text; moved writes
+`google_start` / `moved_seen_at` on the mapping row and NOTHING else changes (R27) — the work queue raises
+`visit_moved_in_google` until staff move the visit on the Diary or dismiss it. Changes arrive two ways: a push channel
+on the primary calendar (`events.watch`, token = HMAC of the channel id with CRON_SECRET, posting to
+`/api/gcal/webhook`, renewed a day before expiry) and `/api/cron/gcal-sweep` every five minutes, which also re-runs
+the write side (a failed insert is retried; `gcal_sync_failed` card while `sync_error` is set). Booking rules gained
+`calendarRequired` (default ON): a zone whose estimator has no connection with the write scope offers the request
+path, not the calendar, and `estimator_calendar_missing` tells staff why; if Google cannot be reached when a customer
+looks or confirms, `CalendarUnavailable` sends them to request-a-time and nothing books blind. Confirming a booking
+or offering a time calls `reconcileForVisit` at once ("within a minute"). The test project has no Google: its e2e
+runs switch the rule off for the run (`visitHelpers.ensureEstimator`) and put it back; `e2e/visit-calendar-gating.spec.ts`
+drives the no-calendar and dead-token paths. Declines from non-Google mailboxes (Outlook, Apple Mail) are Google's
+iMIP handling and could not be tested here — Tom's manual script covers it, and the brief's fallback (a cancel link in
+the text) needs his ruling if they do not arrive.
+
 ## 6 Oct 2026 — visit booking S4: requests, pre-arranged and out of area, Speak with us, messages, public holidays
 
 **2026-10-06 · `supabase/migrations/20270215000000_visit_requests.sql`, `lib/visits/requests.ts`, `lib/time/workingDays.ts`,

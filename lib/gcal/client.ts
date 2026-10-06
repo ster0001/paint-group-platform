@@ -161,8 +161,13 @@ export type RawCalendar = { id: string; summary?: string; primary?: boolean; sel
 export type RawEvent = {
   id?: string; status?: string; summary?: string; transparency?: string; eventType?: string;
   start?: { date?: string; dateTime?: string }; end?: { date?: string; dateTime?: string };
-  attendees?: Array<{ self?: boolean; responseStatus?: string }>;
+  attendees?: Array<{ self?: boolean; email?: string; responseStatus?: string }>;
+  /** S5: our own events carry pgKind (visit | travel) and pgVisitId, so a read never counts them as busy. */
+  extendedProperties?: { private?: Record<string, string> };
 };
+
+export const PG_EVENT_KIND = "pgKind";
+export const PG_VISIT_ID = "pgVisitId";
 
 /** Every calendar the account can see (their own, and ones shared with them). */
 export async function listCalendars(accessToken: string): Promise<RawCalendar[]> {
@@ -177,8 +182,61 @@ export async function listEvents(accessToken: string, calendarId: string, timeMi
   const q = new URLSearchParams({
     singleEvents: "true", orderBy: "startTime", maxResults: "250",
     timeMin: timeMin.toISOString(), timeMax: timeMax.toISOString(),
-    fields: "items(id,status,summary,transparency,eventType,start,end,attendees(self,responseStatus))",
+    fields: "items(id,status,summary,transparency,eventType,start,end,attendees(self,email,responseStatus),extendedProperties)",
   });
   const r = await call<{ items?: RawEvent[] }>(accessToken, "GET", `/calendars/${encodeURIComponent(calendarId)}/events?${q}`);
   return r.items ?? [];
+}
+
+// ---- S5: events in the estimator's own calendar, with guests ---------------------
+
+export type SendUpdates = "all" | "externalOnly" | "none";
+
+/** Any Google event body — the S5 builders (lib/gcal/visitEvents.ts) shape it; this just sends it. */
+export async function insertEventBody(accessToken: string, calendarId: string, body: Record<string, unknown>, sendUpdates: SendUpdates): Promise<{ id: string }> {
+  return call<{ id: string }>(accessToken, "POST", `/calendars/${encodeURIComponent(calendarId)}/events?sendUpdates=${sendUpdates}`, body);
+}
+
+export async function patchEventBody(accessToken: string, calendarId: string, eventId: string, body: Record<string, unknown>, sendUpdates: SendUpdates): Promise<void> {
+  await call(accessToken, "PATCH", `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=${sendUpdates}`, body);
+}
+
+/** Delete, telling the guests when asked; already-gone is success. */
+export async function deleteEventNotify(accessToken: string, calendarId: string, eventId: string, sendUpdates: SendUpdates): Promise<void> {
+  try {
+    await call(accessToken, "DELETE", `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=${sendUpdates}`);
+  } catch (e) {
+    if (e instanceof GcalApiError && (e.status === 404 || e.status === 410)) return;
+    throw e;
+  }
+}
+
+/** One event as Google holds it now — null when it is gone. Status "cancelled" means deleted by the owner. */
+export async function getEvent(accessToken: string, calendarId: string, eventId: string): Promise<RawEvent | null> {
+  try {
+    return await call<RawEvent>(accessToken, "GET", `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?fields=id,status,summary,start,end,attendees(self,email,responseStatus),extendedProperties`);
+  } catch (e) {
+    if (e instanceof GcalApiError && (e.status === 404 || e.status === 410)) return null;
+    throw e;
+  }
+}
+
+export type WatchChannel = { id: string; resourceId: string; expiration: number };
+
+/** Push notifications for a calendar's events (4.6). `address` must be HTTPS with a valid certificate. */
+export async function watchEvents(accessToken: string, calendarId: string, input: { id: string; address: string; token: string; expirationMs: number }): Promise<WatchChannel> {
+  const r = await call<{ id: string; resourceId: string; expiration?: string }>(accessToken, "POST", `/calendars/${encodeURIComponent(calendarId)}/events/watch`, {
+    id: input.id, type: "web_hook", address: input.address, token: input.token, expiration: String(input.expirationMs),
+  });
+  return { id: r.id, resourceId: r.resourceId, expiration: Number(r.expiration ?? input.expirationMs) };
+}
+
+/** Stop a channel; a channel already gone is fine. */
+export async function stopChannel(accessToken: string, id: string, resourceId: string): Promise<void> {
+  try {
+    await call(accessToken, "POST", "/channels/stop", { id, resourceId });
+  } catch (e) {
+    if (e instanceof GcalApiError && (e.status === 404 || e.status === 410)) return;
+    throw e;
+  }
 }

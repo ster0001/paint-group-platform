@@ -28,11 +28,25 @@ export const GCAL_SCOPE = "openid email https://www.googleapis.com/auth/calendar
  * the narrow scope above — a painter's own calendar is never read.
  */
 export const GCAL_READ_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
-export const GCAL_STAFF_SCOPE = `${GCAL_SCOPE} ${GCAL_READ_SCOPE}`;
+/**
+ * Visit booking S5 (6 Oct 2026): info@paintgroup.com.au is a Google WORKSPACE
+ * account, so the OAuth app is Internal and the staff connection may also
+ * WRITE events to the estimator's own calendars (calendar.events). A booked
+ * visit then goes into the MAIN calendar as a one-hour event with the customer
+ * as a guest (R21, R32), followed by a 30-minute travel block. Contractors are
+ * untouched: their scope stays the narrow one above.
+ */
+export const GCAL_EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+export const GCAL_STAFF_SCOPE = `${GCAL_SCOPE} ${GCAL_READ_SCOPE} ${GCAL_EVENTS_SCOPE}`;
 
 /** Did Google grant reading? Null scopes = a connection made before 8 Sep 2026. */
 export function scopesCanRead(scopes: string | null | undefined): boolean {
   return typeof scopes === "string" && scopes.split(/\s+/).includes(GCAL_READ_SCOPE);
+}
+
+/** Did Google grant writing to the person's own calendars (S5)? A connection from before 6 Oct 2026 must reconnect. */
+export function scopesCanWritePrimary(scopes: string | null | undefined): boolean {
+  return typeof scopes === "string" && scopes.split(/\s+/).includes(GCAL_EVENTS_SCOPE);
 }
 
 /**

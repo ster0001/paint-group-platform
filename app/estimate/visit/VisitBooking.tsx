@@ -32,6 +32,8 @@ export default function VisitBooking(props: {
   estimateId: string; suburb: string | null; address: string; hasAddress: boolean;
   known: { name?: string; email?: string; mobile?: string }; hasContact: boolean;
   zone: ZoneOutcome; days: OfferedDay[]; hold: Hold | null; companyPhone: string | null;
+  /** S5: "ok", or why no live times are shown ("none" = no connected calendar, "unavailable" = Google could not be reached). */
+  calendar?: "ok" | "none" | "unavailable";
 }) {
   const { estimateId } = props;
   const [days, setDays] = useState(props.days);
@@ -52,13 +54,14 @@ export default function VisitBooking(props: {
     if (props.zone === "out_of_area") return "out_of_area";
     if (!props.hasContact) return "details";
     if (props.zone === "pre_arranged" || props.zone === "unmapped") return "request";
+    if (props.calendar && props.calendar !== "ok") return "request";
     return props.hold ? "code" : "calendar";
   });
   const [prefs, setPrefs] = useState<number[]>([]);
   const [part, setPart] = useState<"morning" | "afternoon" | "either" | "">("");
   const [message, setMessage] = useState("");
   const [clientId] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`));
-  const notBookable = props.zone === "pre_arranged" || props.zone === "unmapped";
+  const notBookable = props.zone === "pre_arranged" || props.zone === "unmapped" || (props.calendar !== undefined && props.calendar !== "ok");
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   // The hold's clock. When it runs out the customer is told plainly (4.3).
@@ -131,6 +134,7 @@ export default function VisitBooking(props: {
     const r = await post<Hold & { holdId: string; slot: SlotWords }>("/api/visits/hold", { startsAt: pick.startsAt });
     if (!r.ok) {
       if (r.code === "no_contact") { setScreen("details"); return; }
+      if (r.code === "calendar_unavailable") { setErr(r.error); setScreen("request"); return; }
       setErr(r.error);
       if (r.code === "taken" || r.code === "not_offered") await refresh();
       return;
@@ -145,6 +149,7 @@ export default function VisitBooking(props: {
     const r = await post<{ visitId: string; slot: SlotWords }>("/api/visits/confirm", { holdId: hold.id, code });
     if (!r.ok) {
       if (r.code === "expired" || r.code === "ended") { setScreen("expired"); return; }
+      if (r.code === "calendar_unavailable") { setErr(r.error); setScreen("request"); return; }
       if (r.code === "unavailable") { setErr(r.error); await refresh(); setScreen("calendar"); return; }
       setErr(r.error); setCode("");
       return;
@@ -191,7 +196,8 @@ export default function VisitBooking(props: {
       <main className="wz-wrap" data-testid="visit-request">
         {brand}
         <h1>{pre && props.suburb ? `We visit ${props.suburb} by arrangement` : "Request a time"}</h1>
-        <p>{pre ? "Tell us which days suit you and we will confirm a time with you." : "Tell us which days suit you and we will come back to you with a time."}</p>
+        <p>{pre ? "Tell us which days suit you and we will confirm a time with you." : props.calendar === "unavailable" ? "We can't show live times just now. Tell us which days suit you and we will come back to you with a time." : "Tell us which days suit you and we will come back to you with a time."}</p>
+        {props.calendar && props.calendar !== "ok" && <p className="wz-chint" data-testid="visit-calendar-state" data-state={props.calendar} />}
         <p className="wz-lbl">Days that suit</p>
         <div className="wz-chips" data-testid="visit-pref-days">
           {DAYS.map(([label, d]) => (

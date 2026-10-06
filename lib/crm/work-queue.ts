@@ -61,6 +61,14 @@ export const WORK_ITEM_KINDS = [
   "visit_request",
   /** Visit booking addendum A §4.4: it is November and next year's public holidays are not in Settings yet. */
   "holidays_next_year",
+  /** S5 (R22): the customer declined the calendar invitation; the visit is cancelled and the slot reopened. */
+  "visit_declined",
+  /** S5 (R27): Tom moved the visit in Google Calendar; the platform did not follow — confirm the new time with the customer. */
+  "visit_moved_in_google",
+  /** S5 (4.6): Google Calendar writes keep failing for an estimator. */
+  "gcal_sync_failed",
+  /** S5 (4.6): a zone's estimator has no connected Google Calendar we can write to, so customers there cannot book. */
+  "estimator_calendar_missing",
   /** Buckets brief §4: a wizard session that asked for a call or a visit (A). */
   "wizard_ready",
   /** Buckets brief §4: a wizard session that asked a question or for help (B). */
@@ -185,6 +193,8 @@ const CUSTOMER_VISIBLE: ReadonlySet<WorkItemKind> = new Set([
   "wizard_ready",
   "wizard_help",
   "visit_request",
+  "visit_declined",
+  "visit_moved_in_google",
   "photo_review",
   "job_checkin",
   "job_followup",
@@ -225,6 +235,10 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   unmapped_suburb: 16,
   visit_request: 24,
   holidays_next_year: 8,
+  visit_declined: 22,
+  visit_moved_in_google: 20,
+  gcal_sync_failed: 14,
+  estimator_calendar_missing: 18,
   message_unanswered: 26,
   callback_requested: 24,
   message_unmatched: 18,
@@ -334,6 +348,10 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   unmapped_suburb: "followups",
   visit_request: "followups",
   holidays_next_year: "approvals",
+  visit_declined: "followups",
+  visit_moved_in_google: "followups",
+  gcal_sync_failed: "approvals",
+  estimator_calendar_missing: "approvals",
   message_unanswered: "messages",
   message_unmatched: "messages",
   callback_requested: "messages",
@@ -1221,6 +1239,88 @@ export function buildHolidaysItem(holidays: readonly string[], now: Date): WorkI
   }, { valueCents: null, promisedToCustomer: false }, now)];
 }
 
+// ---- source: Google Calendar (visit booking addendum A §4.6, S5) ----------------
+
+export type DeclinedVisitRow = { id: string; account_id: string | null; estimate_id: string | null; starts_at: string; cancelled_at: string; cancel_reason: string | null; customer_name: string | null; suburb: string | null };
+export type MovedVisitRow = { id: string; visit_id: string; staff_id: string; google_start: string; moved_seen_at: string; visit_start: string; account_id: string | null; estimate_id: string | null; customer_name: string | null; estimator_name: string | null };
+export type GcalConnectionRow = { staff_id: string; google_email: string | null; sync_error: string | null; scopes: string | null; estimator_name: string | null };
+export type ZoneEstimatorRow = { key: string; estimator_id: string | null; estimator_name: string | null };
+
+const whenWords = (iso: string) => { const p = melbourneParts(new Date(iso)); const h = p.h % 12 || 12; return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][p.weekday]} ${p.d}/${p.m} ${h}:${String(p.min).padStart(2, "0")} ${p.h < 12 ? "am" : "pm"}`; };
+
+/** R22: the guest declined. The visit is already cancelled and the slot reopened; the card says so until dismissed. */
+export function buildDeclinedVisitItems(rows: DeclinedVisitRow[], now: Date): WorkItem[] {
+  return rows.filter((r) => r.cancel_reason === "declined_invitation").map((r) => finish({
+    key: itemKey("visit_declined", "visit", r.id, "declined"),
+    kind: "visit_declined",
+    accountId: r.account_id,
+    subjectRef: { type: "visit", id: r.id },
+    since: r.cancelled_at,
+    title: `${r.customer_name || "A customer"} declined the visit — ${whenWords(r.starts_at)}`,
+    detail: `The calendar invitation was declined, so the visit is cancelled and the time is free again${r.suburb ? ` (${r.suburb})` : ""}. Ring them if you want to rebook.`,
+    dueAt: nextBusinessMorning(new Date(r.cancelled_at)).toISOString(),
+    action: { label: "Open the estimate", href: r.estimate_id ? `/quote?id=${r.estimate_id}` : "/crm/diary" },
+  }, { valueCents: null, promisedToCustomer: true }, now));
+}
+
+/** R27: moved in Google, unchanged here. Staff confirm with the customer, then move it on the Diary (or dismiss). */
+export function buildMovedVisitItems(rows: MovedVisitRow[], now: Date): WorkItem[] {
+  return rows.map((r) => finish({
+    key: itemKey("visit_moved_in_google", "visit", r.visit_id, r.google_start),
+    kind: "visit_moved_in_google",
+    accountId: r.account_id,
+    subjectRef: { type: "visit", id: r.visit_id },
+    since: r.moved_seen_at,
+    title: `${r.estimator_name || "The estimator"} moved ${r.customer_name || "a customer"}'s visit in Google — ${whenWords(r.visit_start)} → ${whenWords(r.google_start)}`,
+    detail: "Nothing changed in the platform. Confirm the new time with the customer, then move the visit on the Diary so the invitation and the slot follow.",
+    dueAt: addBusinessHours(new Date(r.moved_seen_at), 4).toISOString(),
+    action: { label: "Open the Diary", href: "/crm/diary" },
+  }, { valueCents: null, promisedToCustomer: true }, now));
+}
+
+/** 4.6: creating or updating events keeps failing for an estimator. */
+export function buildGcalFailedItems(rows: GcalConnectionRow[], now: Date): WorkItem[] {
+  return rows.filter((r) => r.sync_error).map((r) => finish({
+    key: itemKey("gcal_sync_failed", "event", r.staff_id, "gcal"),
+    kind: "gcal_sync_failed",
+    accountId: null,
+    subjectRef: { type: "event", id: r.staff_id },
+    since: now.toISOString(),
+    title: `Google Calendar sync is failing for ${r.estimator_name || r.google_email || "an estimator"}`,
+    detail: `${r.sync_error}. Booked visits are safe in the platform; they are not reaching Google until this is fixed.`,
+    dueAt: null,
+    action: { label: "Open the Diary", href: "/crm/diary#gcal" },
+  }, { valueCents: null, promisedToCustomer: false }, now));
+}
+
+/** 4.6: a zone whose estimator cannot be written to — customers there get the request path instead of the calendar. */
+export function buildCalendarMissingItems(zones: ZoneEstimatorRow[], connections: GcalConnectionRow[], calendarRequired: boolean, now: Date): WorkItem[] {
+  if (!calendarRequired) return [];
+  const byStaff = new Map(connections.map((c) => [c.staff_id, c]));
+  const seen = new Set<string>();
+  const items: WorkItem[] = [];
+  for (const z of zones) {
+    if (!z.estimator_id || seen.has(z.estimator_id)) continue;
+    const c = byStaff.get(z.estimator_id);
+    const canWrite = !!c && typeof c.scopes === "string" && c.scopes.includes("calendar.events");
+    if (canWrite) continue;
+    seen.add(z.estimator_id);
+    const zonesOf = zones.filter((x) => x.estimator_id === z.estimator_id).map((x) => x.key.replace("zone_", "Zone ")).join(", ");
+    items.push(finish({
+      key: itemKey("estimator_calendar_missing", "event", z.estimator_id, c ? "scope" : "none"),
+      kind: "estimator_calendar_missing",
+      accountId: null,
+      subjectRef: { type: "event", id: z.estimator_id },
+      since: now.toISOString(),
+      title: `${z.estimator_name || "An estimator"}'s Google Calendar is ${c ? "connected without permission to write visits" : "not connected"}`,
+      detail: `Customers in ${zonesOf} cannot book a time until it is; they are offered a request instead. ${c ? "Reconnect" : "Connect"} Google Calendar on the Diary.`,
+      dueAt: null,
+      action: { label: c ? "Reconnect" : "Connect", href: "/crm/diary#gcal" },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
 // ---- assembly --------------------------------------------------------------
 
 function finish(
@@ -1657,6 +1757,23 @@ async function inSlices<T>(ids: string[], run: (slice: string[]) => PromiseLike<
  * arrive with their modules. Each is one function plus a call here — never a
  * change to the queue itself.
  */
+/** The joined shapes PostgREST returns for the S5 reads, flattened. A moved event only counts while the visit is still booked. */
+function movedRows(rows: unknown[], visits: Array<{ id: string; starts_at: string; status: string; account_id: string | null; estimate_id: string | null; customer_name: string | null }>): MovedVisitRow[] {
+  const byId = new Map(visits.map((v) => [v.id, v]));
+  const out: MovedVisitRow[] = [];
+  for (const raw of rows as Array<{ id: string; ref_id: string; staff_id: string; google_start: string | null; moved_seen_at: string | null; profiles?: { name?: string | null } | null }>) {
+    const v = byId.get(raw.ref_id);
+    if (!raw.google_start || !raw.moved_seen_at || !v || v.status !== "booked") continue;
+    if (Math.abs(new Date(raw.google_start).getTime() - new Date(v.starts_at).getTime()) < 60_000) continue;
+    out.push({ id: raw.id, visit_id: raw.ref_id, staff_id: raw.staff_id, google_start: raw.google_start, moved_seen_at: raw.moved_seen_at, visit_start: v.starts_at, account_id: v.account_id, estimate_id: v.estimate_id, customer_name: v.customer_name, estimator_name: raw.profiles?.name ?? null });
+  }
+  return out;
+}
+function connRows(rows: unknown[]): GcalConnectionRow[] {
+  return (rows as Array<{ staff_id: string; google_email: string | null; sync_error: string | null; scopes: string | null; profiles?: { name?: string | null } | null }>)
+    .map((r) => ({ staff_id: r.staff_id, google_email: r.google_email, sync_error: r.sync_error, scopes: r.scopes, estimator_name: r.profiles?.name ?? null }));
+}
+
 /** Booked jobs whose last day is within the last fortnight — the rows the check-in planner reads. */
 async function readJobCheckinRows(supabase: SupabaseClient, now: Date): Promise<{ rows: JobCheckinRow[]; error: string | null }> {
   const res = await supabase.from("work_orders")
@@ -1697,7 +1814,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // read that fills its cap is reported on the queue rather than dropped silently.
   const CAP = { followups: 500, invoices: 500, callbacks: 200, wizard: 300, lapsed: 300, inbound: 400, rebook: 200, quotes: 500 };
   const truncated: string[] = [];
-  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds, unmappedSuburbs, visitRequests, bookingRules] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds, unmappedSuburbs, visitRequests, bookingRules, declinedVisits, movedEvents, gcalConns, zoneEstimators] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -1778,6 +1895,15 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .order("due_at", { ascending: true })
       .limit(CAP.callbacks),
     supabase.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle(),
+    supabase.from("visits")
+      .select("id, account_id, estimate_id, starts_at, cancelled_at, cancel_reason, customer_name, suburb")
+      .eq("status", "cancelled").eq("cancel_reason", "declined_invitation").gte("cancelled_at", since30d)
+      .order("cancelled_at", { ascending: false }).limit(CAP.rebook),
+    supabase.from("staff_gcal_events")
+      .select("id, ref_id, staff_id, google_start, moved_seen_at, profiles!staff_gcal_events_staff_id_fkey(name)")
+      .eq("kind", "visit").not("moved_seen_at", "is", null).is("moved_acknowledged_at", null).limit(CAP.rebook),
+    supabase.from("staff_gcal_connections").select("staff_id, google_email, sync_error, scopes, profiles!staff_gcal_connections_staff_id_fkey(name)").limit(50),
+    supabase.from("visit_zones").select("key, estimator_id, profiles!visit_zones_estimator_id_fkey(name)").limit(10),
   ]);
   const delayedRows = ((delayedAcc.error ? [] : (delayedAcc.data ?? [])) as Array<DelayedAccountRow & { relationship_state: string }>);
   const hit = (name: string, rows: unknown[] | null | undefined, cap: number) => { if ((rows?.length ?? 0) >= cap) truncated.push(name); };
@@ -1977,6 +2103,12 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const names = new Map(((cbAccounts) as Array<{ id: string; name: string | null; email: string }>)
     .map((a) => [a.id, a.name || a.email]));
 
+  // S5: the visits behind "moved in Google" mapping rows (ref_id carries no FK, so no embed).
+  const movedIds = ((movedEvents.error ? [] : (movedEvents.data ?? [])) as Array<{ ref_id: string }>).map((r) => r.ref_id);
+  const movedVisits = movedIds.length
+    ? (await inSlices(movedIds, (ids) => supabase.from("visits").select("id, starts_at, status, account_id, estimate_id, customer_name").in("id", ids))) as Array<{ id: string; starts_at: string; status: string; account_id: string | null; estimate_id: string | null; customer_name: string | null }>
+    : [];
+
   const raw = [
     ...buildSnoozeItems(snoozeRows, reasons as SnoozeReasonRow[], now),
     ...buildInvoiceItems(invRows, payments, now),
@@ -1993,6 +2125,13 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildUnmappedSuburbItems(((unmappedSuburbs.error ? [] : unmappedSuburbs.data) ?? []) as UnmappedSuburbRow[], now),
     ...buildVisitRequestItems(((visitRequests.error ? [] : visitRequests.data) ?? []) as unknown as VisitRequestRow[], now),
     ...buildHolidaysItem(bookingRules.error ? [] : mergeBookingRules(bookingRules.data?.value).publicHolidays, now),
+    ...buildDeclinedVisitItems(((declinedVisits.error ? [] : declinedVisits.data) ?? []) as unknown as DeclinedVisitRow[], now),
+    ...buildMovedVisitItems(movedRows(movedEvents.error ? [] : (movedEvents.data ?? []), movedVisits), now),
+    ...buildGcalFailedItems(connRows(gcalConns.error ? [] : (gcalConns.data ?? [])), now),
+    ...buildCalendarMissingItems(
+      ((zoneEstimators.error ? [] : (zoneEstimators.data ?? [])) as unknown as Array<{ key: string; estimator_id: string | null; profiles?: { name?: string | null } | null }>).map((z) => ({ key: z.key, estimator_id: z.estimator_id, estimator_name: z.profiles?.name ?? null })),
+      connRows(gcalConns.error ? [] : (gcalConns.data ?? [])),
+      bookingRules.error ? false : mergeBookingRules(bookingRules.data?.value).calendarRequired, now),
     ...buildEmployeeReassignItems(flagRows, activeRows, moveRows, painterNames, now),
     ...buildEmployeeUnacceptedItems(activeRows, painterNames, now),
     ...buildLeaveRequestItems(leaveRows, painterNames, now),

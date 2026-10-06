@@ -22,7 +22,8 @@ Customers in a zone only see times when the estimator who covers that zone is al
 6. **Add a slot.** The **Add a slot** button offers the next free time after the last slot of the day; type another start time if you want. A slot that starts inside another slot's 90 minutes is refused and the message names the slot it ran into.
 7. **Remove a slot** from inside its panel.
 8. **Watch the totals.** "Slots a week each zone can book" updates as you go. A slot shared by two zones counts for both; conditional rules are not counted. The seeded week gives 16, 13, 6, 5 and 9.
-9. **Booking rules.** In the folder below: same-day booking, shortest notice (2 hours), how far ahead (21 days), hold time (10 minutes), slot and visit length (90 and 60 minutes), the Speak with us limits, the reminder time (6:00 pm the day before), the gate order, the far-edge pairs, and the public holidays list. **Save booking rules** applies them from the calendar's next load.
+9. **Booking rules.** In the folder below: same-day booking, whether a connected Google Calendar is required, shortest notice (2 hours), how far ahead (21 days), hold time (10 minutes), slot and visit length (90 and 60 minutes), the Speak with us limits, the reminder time (6:00 pm the day before), the gate order, the far-edge pairs, and the public holidays list. **Save booking rules** applies them from the calendar's next load.
+10. **The gate order.** "Details first" (the default) asks every customer for their name, email and mobile as the last question before the guide price. "Range first" shows the price first and asks for the details when they choose an option on the price screen. Switch it by hand to test the other order; a customer who has already started keeps the order they started with. The dashboard's "Where estimates go" card compares the two.
 
 ## What the colours and labels mean
 - **Zone chips 1 to 5** — the zones that can book that slot.

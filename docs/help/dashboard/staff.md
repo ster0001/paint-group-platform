@@ -57,6 +57,9 @@ You need to be the **master user** to change roles (Settings → Staff logins), 
 - The Dashboard folder is missing from Settings — same cause: the folder only renders for owner and admin.
 - "Only the master user can change … their dashboard roles" — roles are changed on Staff logins by the master user only, never by the person themselves.
 
+## The gate (Where estimates go)
+Under the funnel, "The gate" compares the two gate orders from Settings → Booking rules: how many sessions each saw, how many reached the gate, completed it, the share lost at the gate, how many saw the range, and what they chose next (Tighten, Speak, Visit, Message). The date filter applies; **Export CSV** beside it gives one row per session.
+
 ## Related
 - crm/staff — Today and the customer record
 - estimator/staff — the estimate queue and the builder

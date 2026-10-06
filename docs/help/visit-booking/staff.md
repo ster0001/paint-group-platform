@@ -29,10 +29,20 @@ Customers in a pre-arranged area or out of area never see the calendar. For now 
 - **Messages**: the code text, the "visit is booked" text and the calendar-invite email on the customer's thread.
 - **Settings → Automations**: "Text code to book a visit" (always on) and "Visit booked — text" (switchable), with editable wording.
 
+## Google Calendar
+- Booked visits go into the estimator&rsquo;s main Google calendar as a one-hour event with the property as the location and the customer as a guest, followed by a 30-minute Travel block. Google sends the customer the invitation.
+- Customers can only book into a zone whose estimator&rsquo;s Google Calendar is connected with permission to write visits (**Settings → Booking rules → Customers can only book when the estimator&rsquo;s Google Calendar is connected**). Without it, customers are offered a request instead, and Today shows a card saying so. Connect or reconnect from **CRM → Diary → Google Calendar**.
+- **Customer declines the invitation**: the visit is cancelled in the platform, both events disappear from Google, the slot reopens, the customer gets a text, and a "declined the visit" card appears on Today.
+- **You delete the event in Google**: same as a decline, the customer is texted that the visit is cancelled.
+- **You move the event in Google**: nothing changes in the platform. Today shows "moved … in Google"; confirm the new time with the customer, then move the visit on the Diary so the invitation and the slot follow.
+- **A private event in your Google calendar** hides the overlapping slot from customers within five minutes.
+- **If Google cannot be reached** while a customer is choosing or confirming a time, they are sent to request a time; nothing is booked blind.
+
 ## If something goes wrong
 - **A customer says they never got the code.** They can tap **Send a new code** up to three times. After five codes to one mobile in ten minutes they must wait. Check the Messages tab for the delivery status.
 - **A customer says the time they wanted disappeared.** Someone else held or booked it first, or the ten-minute hold ran out. The calendar refreshes and they pick again.
 - **A customer wants to move a visit.** They cancel and rebook; moving is a staff action on the Diary.
+- **"Google Calendar sync is failing" on Today.** Booked visits are safe in the platform; they are not reaching Google. Open the Diary card: it says why (usually the connection needs a reconnect).
 - **Two visits appear at the same time for one estimator.** This cannot happen from the online path; if you see it, the second was booked from the Diary and the database let it through because the first ended before it started. Check both.
 
 ## Related

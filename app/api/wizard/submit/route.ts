@@ -123,6 +123,44 @@ export async function POST(request: Request) {
     : (state.customer?.email.trim().toLowerCase()
        || state.contact.email.trim().toLowerCase()
        || "");
+  /**
+   * Visit booking S6 (R5): under "details first" the range is NOT returned until
+   * the gate is answered — full name, email and mobile. The version is the
+   * SESSION's (frozen on its draft at first save, so a switch mid-session
+   * changes nothing for it), never the browser's claim; a session with no
+   * draft yet follows the current rule. Tested at the API, not just the page.
+   */
+  let gateVersion: "details_first" | "range_first" | null = null;
+  if (actor.kind === "customer" && state.mode === "customer") {
+    const { data: draftRow, error: draftErr } = await db.from("wizard_drafts").select("gate_version").eq("user_id", actor.user.id).is("converted_at", null).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
+    if (draftErr) reportError(draftErr, { where: "wizard.submit.gateVersion", bestEffort: true });
+    const recorded = (draftRow as { gate_version?: string | null } | null)?.gate_version;
+    gateVersion = recorded === "details_first" || recorded === "range_first" ? recorded : (await loadBookingRules(db).catch(() => DEFAULT_BOOKING_RULES)).gateOrder;
+    const gateDone = Boolean(state.contact.name.trim().length >= 2 && /.+@.+\..+/.test(state.contact.email.trim()) && state.contact.phone.replace(/\D/g, "").length >= 10);
+    if (gateVersion === "details_first" && !gateDone && !actor.verifiedEmail) {
+      return NextResponse.json({ error: "Enter your details to see your guide price.", code: "gate_required" }, { status: 409 });
+    }
+    // A walk faster than the 2.5-second autosave debounce reaches the range
+    // with no session row at all (the e2e drive does; a quick human can). The
+    // gate report counts sessions, so the row is made here — without `state`,
+    // which has exactly one writer (the draft route); the estimate carries the
+    // answers. It is converted a few lines below like any other.
+    if (!draftRow) {
+      const now = new Date().toISOString();
+      const { error: mkErr } = await db.from("wizard_drafts").insert({
+        user_id: actor.user.id, gate_version: gateVersion,
+        mode: state.customer?.propertyKind === "commercial" ? "business" : "home",
+        job_type: state.jobType ?? null, suburb: state.customer?.suburb ?? null, postcode: state.customer?.postcode ?? null,
+        ...(state.contact.name.trim() ? { name: state.contact.name.trim() } : {}),
+        ...(email ? { email } : {}),
+        ...(state.contact.phone.trim() ? { phone: state.contact.phone.trim() } : {}),
+        last_screen: gateVersion === "details_first" ? "quick:gate" : "quick:reveal",
+        ...(gateVersion === "details_first" ? { gate_shown_at: now } : {}),
+        started_at: now, last_seen_at: now, bucket: "online_now",
+      });
+      if (mkErr) reportError(mkErr, { where: "wizard.submit.sessionRow", bestEffort: true });
+    }
+  }
   // The account's gates (§3): trade = unlimited; flags.unlimited = the
   // office unblock. Looked up by the identity email; missing table or no
   // account = standard limits.
@@ -813,6 +851,8 @@ export async function POST(request: Request) {
         // Item 4: the request IS the agreement to hear about this project (the
         // line under the contact fields says so). Once per account; best-effort.
         void recordConsent(db, linked.accountId, "project", "wizard_request", { estimateId });
+        // S6: the optional marketing tick on the gate (unticked by default, as the registration rule requires).
+        if (state.marketingOptIn) void recordConsent(db, linked.accountId, "marketing", "wizard_request", { estimateId });
 
         // 2.4 · first touch, written ONCE per account. The dedupe key is the
         // account, so a customer's second and third estimates never overwrite
@@ -926,6 +966,14 @@ export async function POST(request: Request) {
       ? db.from("estimates").update({ storey_heights: storeyHeights }).eq("id", estimateId)
           .then(() => undefined, () => undefined)
       : Promise.resolve(),
+    // S6 (§4.7): the range was shown; the gate was completed when the details came with it.
+    ...(actor.kind === "customer" && state.mode === "customer" ? [
+      db.from("wizard_drafts").update({
+        range_shown_at: new Date().toISOString(),
+        ...(state.contact.name.trim() && state.contact.email.trim() && state.contact.phone.trim() ? { gate_completed_at: new Date().toISOString() } : {}),
+        ...(gateVersion ? { gate_version: gateVersion } : {}),
+      }).eq("user_id", actor.user.id).is("range_shown_at", null).then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.gateStamp", bestEffort: true }); }),
+    ] : []),
     // C15 · the draft is no longer a drop-out — settled HERE, server-side,
     // not only from the browser. The client also posts converted:true after
     // the response, but a customer who closes the tab during the processing

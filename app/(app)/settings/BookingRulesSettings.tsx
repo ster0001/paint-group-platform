@@ -48,6 +48,9 @@ export default function BookingRulesSettings({ initial }: { initial: BookingRule
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" checked={f.sameDay} data-testid="rules-sameDay" onChange={(e) => setF((x) => ({ ...x, sameDay: e.target.checked }))} /> Customers can book a slot today
         </label>
+        <label className="flex items-center gap-2 text-sm text-gray-700" title="Off only on a test project: customers book into an estimator's week with no Google Calendar behind it.">
+          <input type="checkbox" checked={f.calendarRequired} data-testid="rules-calendarRequired" onChange={(e) => setF((x) => ({ ...x, calendarRequired: e.target.checked }))} /> Customers can only book when the estimator&rsquo;s Google Calendar is connected
+        </label>
         {num("minNoticeMinutes", "Shortest notice", "minutes before the slot starts")}
         {num("windowDays", "How far ahead", "days")}
         {num("holdMinutes", "Hold a slot while the code is entered", "minutes")}

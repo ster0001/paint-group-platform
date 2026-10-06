@@ -151,7 +151,9 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first" }: {
+  /** S6 (R6): the gate order in Booking rules when the page loaded. A resumed session keeps its own. */
+  gateOrder?: "details_first" | "range_first";
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
@@ -357,8 +359,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [quickOutOfArea, setQuickOutOfArea] = useState(false);
   /** C8 — the Save & book sheet, reachable from every screen. */
   const [bookOpen, setBookOpen] = useState(false);
+  useEffect(() => {
+    if (mode === "customer" && !state.gateVersion) setState((s) => ({ ...s, gateVersion: gateOrder }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   /** Visit booking S4: the talk sheet (request a site visit / send a message) and the range screen's "sent" screen. */
-  const [talk, setTalk] = useState<{ mode: TalkMode } | null>(null);
+  const [talk, setTalk] = useState<{ mode: TalkMode; then?: () => void } | null>(null);
+  /** S6: name + email + mobile are held (the gate, the keep door, or a details sheet). */
+  const contactKnown = Boolean(state.contact.name.trim() && /.+@.+\..+/.test(state.contact.email.trim()) && state.contact.phone.replace(/\D/g, "").length >= 10);
   const [sent, setSent] = useState<{ title: string; line: string } | null>(null);
   /** The revealed range, held on the client so the three doors can act on it. */
   const [reveal, setReveal] = useState<{ payload: CustomerPayload; estimateId: string } | null>(null);
@@ -1362,7 +1370,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // ---- the quick look -------------------------------------------------------
 
-  const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope);
+  // S6: the session keeps the gate order it started with (R6). Staff and
+  // internal runs never meet the gate.
+  const gateVersion: "details_first" | "range_first" = state.gateVersion ?? gateOrder;
+  const hasGate = isCustomer && gateVersion === "details_first";
+  const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope, hasGate);
   const quickStep = quickSteps[Math.min(Math.max(page, 1), quickSteps.length) - 1];
 
   /**
@@ -1462,6 +1474,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       setError("Which ones are going much lighter or bold? Tick at least one.");
       return;
     }
+    // S6 (R5): the gate — the last question. Nothing is revealed without it, and the server checks too.
+    if (quickStep === "gate") {
+      const c = state.contact;
+      if (!(c.name.trim().length >= 2 && /.+@.+\..+/.test(c.email.trim()) && c.phone.replace(/\D/g, "").length >= 10)) {
+        setError("Please fill in your name, email and mobile number.");
+        return;
+      }
+    }
     // C16 (a): Continue on a screen confirms the fields the assistant filled in on it.
     if (state.assistant) setState((s) => ({ ...s, assistant: confirmAssistantStep(s.assistant, quickStep) }));
     /**
@@ -1556,6 +1576,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       return;
     }
     if (page < quickSteps.length) {
+      if (quickSteps[page] === "gate") flushDraft("quick:gate");
       setPage(page + 1);
       window.scrollTo({ top: 0 });
       return;
@@ -1609,10 +1630,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * is flushed FIRST with the screen tag, so the session the route marks
    * carries the resume point (`last_screen`) and nothing is inferred.
    */
+  /** S6 (§4.7): which option the customer chose on the range screen — the first one counts. */
+  async function recordRangeOption(estimateId: string, option: "tighten" | "speak" | "visit" | "message") {
+    try { await fetch("/api/wizard/range-option", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ estimateId, option }) }); } catch { /* best effort */ }
+  }
+
   function openBook() {
     flushDraft(lastScreen);
-    // R3: before the range a visit is a REQUEST — the talk sheet, never the old window picker.
-    if (isCustomer && !reveal) { setTalk({ mode: "visit" }); return; }
     setBookOpen(true);
   }
 
@@ -1676,8 +1700,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             onClose={() => setTalk(null)}
             estimateId={reveal.estimateId}
             prefill={{ name: prefill?.name ?? state.contact.name, email: prefill?.email ?? state.contact.email, mobile: prefill?.phone ?? state.contact.phone }}
-            hasContact={Boolean(state.contact.email && state.contact.phone && state.contact.name)}
+            hasContact={contactKnown}
             address={state.address?.formatted ?? state.title ?? ""}
+            onDone={(c) => { set({ contact: { name: c.name, email: c.email, phone: c.mobile } }); const then = talk.then; setTalk(null); then?.(); }}
           />
         )}
         {sent ? (
@@ -1701,11 +1726,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           // 14 Sep: the estimate exists once the range is on screen — a walk
           // resumed from the local cache after this point was a stale "Welcome
           // back — you were at Scope" over a brand-new job.
-          onTighten={() => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
-          onBook={() => { clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
+          onTighten={() => {
+            void recordRangeOption(reveal.estimateId, "tighten");
+            // R7 (range first): any option asks for the details before going further.
+            if (!contactKnown) { setTalk({ mode: "details", then: () => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); } }); return; }
+            clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`);
+          }}
+          onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           speakWithUs={Boolean((reveal.payload as { speakWithUs?: boolean }).speakWithUs)}
-          onSpeak={() => setTalk({ mode: "call" })}
-          onMessage={() => setTalk({ mode: "message" })}
+          onSpeak={() => { void recordRangeOption(reveal.estimateId, "speak"); setTalk({ mode: "call" }); }}
+          onMessage={() => { void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
+          contactKnown={contactKnown}
           prefillEmail={prefill?.email}
         />
         )}
@@ -1856,8 +1887,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 busy={uploading || booking}
                 onBack={page > 1 ? quickBack : null}
                 onNext={quickNext}
-                onBook={openBook}
+                onBook={() => { flushDraft(lastScreen); setTalk({ mode: "visit" }); }}
                 onMessage={() => { flushDraft(lastScreen); setTalk({ mode: "message" }); }}
+                gate={hasGate ? {
+                  contact: state.contact,
+                  onContact: (c) => set({ contact: c }),
+                  marketing: state.marketingOptIn,
+                  onMarketing: (v) => set({ marketingOptIn: v }),
+                } : null}
                 onChooseBoth={chooseBoth}
                 phone={companyPhone}
                 outside={outside}

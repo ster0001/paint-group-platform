@@ -25,13 +25,14 @@ import { sendAutomation } from "@/lib/automations/dispatch";
 import { logCrmEvent } from "@/lib/crm/events";
 import { postCustomerChatMessage } from "@/lib/estimates/chat";
 import { readGoogleBusyForStaff } from "@/lib/gcal/read";
+import { reconcileForVisit } from "@/lib/gcal/staff";
 import { normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 import { buildPlainEmailHtml, sendEmail } from "@/lib/messaging/send";
 import { emailLogoUrl } from "@/lib/messaging/logo";
 import { reportError } from "@/lib/monitoring/report";
 import { endOfNextWorkingDay } from "@/lib/time/workingDays";
-import { loadAddress, maskMobile, saveVisitDetails, type EstimateCore, type VisitAddress } from "./holds";
+import { loadAddress, markGateCompleted, maskMobile, saveVisitDetails, type EstimateCore, type VisitAddress } from "./holds";
 import { sendVisitConfirmation, visitWhen } from "./notify";
 import { availability, speakWithUsFor, type OfferedDay, type ScheduleBooking, type ScheduleBusy, type ScheduleHold } from "./schedule";
 import { loadBookingRules, loadVisitScheduleData } from "./scheduleDb";
@@ -95,6 +96,7 @@ export async function createVisitRequest(svc: SupabaseClient, input: RequestInpu
       const { error: estErr } = await svc.from("estimates").update(patch).eq("id", input.est.id);
       if (estErr) reportError(estErr, { where: "visits.requests.estimateLink", bestEffort: true });
     }
+    if (input.est) await markGateCompleted(svc, input.est.id);
   }
 
   const rules = await loadBookingRules(svc);
@@ -245,6 +247,7 @@ export async function answerWithTime(svc: SupabaseClient, input: { requestId: st
   } catch (e) {
     reportError(e, { where: "visits.requests.timeOffered", bestEffort: true, extra: { requestId: req.id } });
   }
+  await reconcileForVisit([input.estimatorId]).catch((e) => reportError(e, { where: "visits.requests.gcal", bestEffort: true, extra: { visitId: vid } }));
   return { ok: true, visitId: vid };
 }
 

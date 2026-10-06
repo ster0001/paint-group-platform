@@ -9,7 +9,7 @@ import { loadDashboard, loadRoles } from "@/lib/reporting/load";
 import { METRICS, SECTION_TITLE, SWITCHES_ON, metricsForSection } from "@/lib/reporting/registry";
 import { ROLE_LABEL, sectionsFor, seesMoney, type DashboardSection } from "@/lib/reporting/roles";
 import { buildTarget } from "@/lib/reporting/metrics/target";
-import { buildFunnel } from "@/lib/reporting/metrics/funnel";
+import { buildFunnel, buildGateReport } from "@/lib/reporting/metrics/funnel";
 import { activityRows, familiesFor } from "@/lib/reporting/metrics/activity";
 import TargetCard from "./TargetCard";
 import FunnelCard from "./FunnelCard";
@@ -79,6 +79,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const exportHrefFor = (key: string) => `/api/reporting/export?metric=${encodeURIComponent(key)}&${qs({})}`;
   const target = metricInput && sections.includes("sales") && seesMoney(roles) ? buildTarget(metricInput.input, range) : null;
   const funnel = metricInput && sections.includes("funnel") ? buildFunnel(metricInput.input, range) : null;
+  const gateReport = metricInput && sections.includes("funnel") ? buildGateReport(metricInput.input, range) : [];
   const activityAll = metricInput && sections.includes("activity") ? activityRows(metricInput.input, range) : null;
 
   const tilesBySection = new Map<DashboardSection, TileData[]>();
@@ -169,7 +170,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                     exportHref={exportHrefFor("activity.events")} now={now}
                   />
                 ) : s === "funnel" && funnel ? (
-                  <FunnelCard data={funnel} exportHref={exportHrefFor("funnel.wizard_sessions")} />
+                  <FunnelCard data={funnel} exportHref={exportHrefFor("funnel.wizard_sessions")} gate={gateReport} gateExportHref={exportHrefFor("funnel.gate_sessions")} />
                 ) : (
                   <HomeTiles tiles={tiles} />
                 )}

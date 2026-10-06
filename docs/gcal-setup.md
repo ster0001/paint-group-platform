@@ -104,3 +104,27 @@ When it fails on OUR side the Calendar card now says why in a sentence and
 gives the painter a short code to read out ("calendar: state cookie",
 "calendar: exchange", or Google's own wording); the same code is on the
 Sentry event under `gcal.callback`.
+
+
+## Visit booking S5 (6 Oct 2026): visits in the main calendar, with the customer invited
+
+info@paintgroup.com.au is a Google **Workspace** account, so:
+
+1. **OAuth consent screen → Audience: Internal.** Only Paint Group Workspace logins can connect; no verification is
+   needed for the sensitive scopes. (Painters' Gmail connections use the separate narrow scope and are unaffected
+   only if the app stays External — if you switch to Internal, painters cannot connect. Tom's call: today no painter has
+   connected, and the staff flow is the one that needs the sensitive scopes. If both are wanted, keep External and go
+   through verification.)
+2. **Reconnect once.** Diary → Google Calendar card → *Reconnect Google Calendar*. The consent screen now also asks to
+   "View and edit events on all your calendars" (`calendar.events`). Until that is granted, the card says the
+   connection cannot write visits, customers in your zones are offered a request instead of a time, and Today carries
+   a "Google Calendar is connected without permission to write visits" card.
+3. **Nothing new in Vercel is required.** The push channel posts to `https://<NEXT_PUBLIC_SITE_URL>/api/gcal/webhook`
+   (set `GCAL_WEBHOOK_URL` to override), authenticated with a token derived from `CRON_SECRET`. Without an HTTPS site
+   URL the channel is skipped and the five-minute sweep (`/api/cron/gcal-sweep`, vercel.json) carries the changes alone.
+4. **What you will see in Google:** each booked visit as a one-hour event in your main calendar with the property as
+   the location and the customer as a guest (they get Google's invitation), followed by a 30-minute "Travel" block.
+   Deleting the visit event cancels the visit and texts the customer. Moving it changes nothing in the platform and
+   raises a card on Today asking you to confirm the new time with the customer, then move it on the Diary.
+   A private event you add hides the overlapping slot from customers within five minutes (two-minute read cache plus
+   the sweep).

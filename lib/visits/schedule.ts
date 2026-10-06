@@ -99,6 +99,8 @@ export type BookingRules = {
   farEdgePairs: Array<[ZoneKey, ZoneKey]>;
   /** R6: switched by hand. */
   gateOrder: GateOrder;
+  /** S5 (4.6): customers can only book into a zone whose estimator has a connected Google Calendar that we can write to. Off = book without one (the test project). */
+  calendarRequired: boolean;
 };
 
 export const DEFAULT_BOOKING_RULES: BookingRules = {
@@ -114,6 +116,7 @@ export const DEFAULT_BOOKING_RULES: BookingRules = {
   publicHolidays: [],
   farEdgePairs: [["zone_4", "zone_3"]],
   gateOrder: "details_first",
+  calendarRequired: true,
 };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -138,6 +141,7 @@ export function mergeBookingRules(raw: unknown): BookingRules {
     publicHolidays: Array.isArray(r.publicHolidays) ? [...new Set(r.publicHolidays.filter((d): d is string => typeof d === "string" && DATE_RE.test(d)))].sort() : [],
     farEdgePairs: pairs,
     gateOrder: r.gateOrder === "range_first" ? "range_first" : "details_first",
+    calendarRequired: typeof r.calendarRequired === "boolean" ? r.calendarRequired : true,
   };
 }
 

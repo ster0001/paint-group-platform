@@ -181,11 +181,17 @@ export async function POST(req: Request) {
     ...(parsed.data.page ? { current_page: parsed.data.page } : {}),
     ...(parsed.data.lastScreen ? { last_screen: parsed.data.lastScreen } : {}),
     ...(parsed.data.lastPage ? { pages_total: parsed.data.lastPage } : {}),
+    // S6: the gate screen was reached (details first), or the details were asked on the range screen (range first).
+    ...(parsed.data.lastScreen === "quick:gate" || parsed.data.lastScreen === "reveal:details" ? { gate_shown_at: now } : {}),
   };
+  // S6 (R6): the session keeps the version it STARTED with. The client carries
+  // it on the state; the column is written once and never changed by a save.
+  const stateGate = (state as { gateVersion?: string }).gateVersion;
+  const gateVersion = stateGate === "details_first" || stateGate === "range_first" ? stateGate : null;
 
   try {
     const { data: existing } = await db.from("wizard_drafts")
-      .select("id, visits, furthest_page, outcome, version, state, last_screen, current_page")
+      .select("id, visits, furthest_page, outcome, version, state, last_screen, current_page, gate_version, gate_shown_at")
       .eq("user_id", user.id).is("converted_at", null).maybeSingle();
 
     if (existing) {
@@ -198,6 +204,8 @@ export async function POST(req: Request) {
       const expected = parsed.data.version ?? serverVersion;
 
       const { data: updated } = await db.from("wizard_drafts").update({
+        ...(gateVersion && !(existing as { gate_version?: string | null }).gate_version ? { gate_version: gateVersion } : {}),
+        ...(row.gate_shown_at && (existing as { gate_shown_at?: string | null }).gate_shown_at ? { gate_shown_at: (existing as { gate_shown_at?: string | null }).gate_shown_at } : {}),
         ...row,
         version: serverVersion + 1,
         furthest_page: Math.max((existing.furthest_page as number) ?? 1, parsed.data.page ?? 1),
@@ -251,7 +259,7 @@ export async function POST(req: Request) {
     }
 
     const { data: inserted, error } = await db.from("wizard_drafts")
-      .insert({ ...row, started_at: now, furthest_page: parsed.data.page ?? 1, bucket: "online_now" }).select("id").single();
+      .insert({ ...row, ...(gateVersion ? { gate_version: gateVersion } : {}), started_at: now, furthest_page: parsed.data.page ?? 1, bucket: "online_now" }).select("id").single();
     if (error) { reportError(error, { where: "wizard.draft.insert", bestEffort: true }); return quietly("insert"); }
     // A fresh row starts at version 1 (the column default) — the client keeps it
     // so its next write carries a predicate rather than a blank cheque.

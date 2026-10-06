@@ -20,6 +20,8 @@ import { createHash, randomInt } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureAccountAndProperty } from "@/lib/accounts/link";
 import { readGoogleBusyForStaff } from "@/lib/gcal/read";
+import { scopesCanWritePrimary } from "@/lib/gcal/oauth";
+import { reconcileForVisit } from "@/lib/gcal/staff";
 import { loadMessaging } from "@/lib/messaging/load";
 import { normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
 import { sendSms } from "@/lib/messaging/send";
@@ -49,8 +51,22 @@ export const ESTIMATE_CORE_SELECT = "id, created_by, status, source, account_id,
 export type VisitAddress = { street: string; suburb: string; state: string; postcode: string; formatted: string };
 export type VisitContact = { name: string; email: string; mobile: string };
 
+/** S5 (4.6): whether this estimator's Google Calendar is behind the calendar shown. */
+export type CalendarState =
+  /** connected and read; or not required by the rules */
+  | "ok"
+  /** rules require a connected calendar and the estimator has none we can write to → request path */
+  | "none"
+  /** Google could not be reached or refused the read → request path, never book blind */
+  | "unavailable";
+
+export class CalendarUnavailable extends Error {
+  constructor(public state: Exclude<CalendarState, "ok">) { super(`calendar ${state}`); this.name = "CalendarUnavailable"; }
+}
+
 export type VisitContext = {
   estimateId: string;
+  calendar: CalendarState;
   address: VisitAddress | null;
   /** Complete when we hold a name, an email and a sendable mobile. */
   contact: VisitContact | null;
@@ -101,6 +117,18 @@ async function loadContact(svc: SupabaseClient, est: EstimateCore): Promise<{ co
 
 // ---- availability for one customer ------------------------------------------------
 
+/**
+ * S5: the estimator must have a Google connection the platform can WRITE to
+ * when the rules say so (the default); and if Google cannot be reached when a
+ * customer is looking or confirming, nothing is offered or booked blind (4.6).
+ */
+async function calendarStateFor(svc: SupabaseClient, estimatorId: string, rules: BookingRules): Promise<CalendarState> {
+  if (!rules.calendarRequired) return "ok";
+  const { data, error } = await svc.from("staff_gcal_connections").select("scopes").eq("staff_id", estimatorId).maybeSingle();
+  if (error) throw new Error(`staff_gcal_connections read failed: ${error.message}`);
+  return data && scopesCanWritePrimary((data as { scopes: string | null }).scopes) ? "ok" : "none";
+}
+
 async function loadInputs(svc: SupabaseClient, estimatorId: string, rules: BookingRules, now: Date, excludeEstimateId: string | null) {
   const to = new Date(now.getTime() + (rules.windowDays + 2) * 86_400_000);
   const from = new Date(now.getTime() - 86_400_000);
@@ -115,13 +143,18 @@ async function loadInputs(svc: SupabaseClient, estimatorId: string, rules: Booki
   if (holds.error) throw new Error(`visit_holds read failed: ${holds.error.message}`);
   const bookings: ScheduleBooking[] = (visits.data ?? []).map((v) => ({ startsAt: v.starts_at as string, zone: isZoneKey(v.zone) ? v.zone : null, farEdge: v.far_edge === true }));
   const liveHolds: ScheduleHold[] = (holds.data ?? []).filter((h) => h.estimate_id !== excludeEstimateId).map((h) => ({ startsAt: h.starts_at as string, expiresAt: h.expires_at as string }));
-  // The estimator's own Google calendar (4.6 read). Unreachable → nothing busy; S5 hardens this.
+  // The estimator's own Google calendar (4.6 read). With a connection the read
+  // MUST succeed: Google down or refusing means no slots and no booking (S5).
   let busy: ScheduleBusy[] = [];
   try {
     const g = await readGoogleBusyForStaff([estimatorId], from, to);
+    const read = g.reads[estimatorId];
+    if (read && (read.kind === "error" || read.kind === "needs_reconnect")) throw new CalendarUnavailable("unavailable");
     busy = g.busy.map((b) => ({ start: b.startsAt, end: b.endsAt }));
   } catch (e) {
+    if (e instanceof CalendarUnavailable) throw e;
     reportError(e, { where: "visits.holds.googleBusy", bestEffort: true });
+    throw new CalendarUnavailable("unavailable");
   }
   return { week, bookings, holds: liveHolds, busy };
 }
@@ -133,23 +166,33 @@ export async function loadVisitContext(svc: SupabaseClient, est: EstimateCore, o
     ? await resolveZone(svc, { suburb: address.suburb, postcode: address.postcode, state: address.state, estimateId: est.id }, { record: opts.record ?? true })
     : { outcome: "unmapped" as const, farEdge: false, row: null, basis: "unmapped" as const };
   let estimatorId: string | null = null, estimatorName: string | null = null, days: OfferedDay[] = [];
+  let calendar: CalendarState = "ok";
   if (isZoneKey(zone.outcome)) {
     estimatorId = await estimatorForZone(svc, zone.outcome);
     if (estimatorId) {
-      const [prof, inputs] = await Promise.all([
-        svc.from("profiles").select("name").eq("id", estimatorId).maybeSingle(),
-        loadInputs(svc, estimatorId, rules, now, est.id),
-      ]);
+      const prof = await svc.from("profiles").select("name").eq("id", estimatorId).maybeSingle();
       if (prof.error) throw new Error(`profiles read failed: ${prof.error.message}`);
       estimatorName = (prof.data?.name as string | null) ?? null;
-      days = availability({ ...inputs, rules, customer: { zone: zone.outcome, farEdge: zone.farEdge }, now });
+      calendar = await calendarStateFor(svc, estimatorId, rules);
+      if (calendar === "ok") {
+        try {
+          const inputs = await loadInputs(svc, estimatorId, rules, now, est.id);
+          days = availability({ ...inputs, rules, customer: { zone: zone.outcome, farEdge: zone.farEdge }, now });
+        } catch (e) {
+          if (!(e instanceof CalendarUnavailable)) throw e;
+          calendar = e.state;
+          days = [];
+        }
+      }
+    } else if (rules.calendarRequired) {
+      calendar = "none";
     }
   }
   const { data: h, error: holdErr } = await svc.from("visit_holds").select("id, starts_at, expires_at, mobile").eq("estimate_id", est.id)
     .is("released_at", null).is("confirmed_visit_id", null).gt("expires_at", now.toISOString()).maybeSingle();
   if (holdErr) throw new Error(`visit_holds read failed: ${holdErr.message}`);
   return {
-    estimateId: est.id, address, contact, known, zone, estimatorId, estimatorName, days,
+    estimateId: est.id, calendar, address, contact, known, zone, estimatorId, estimatorName, days,
     rules: { holdMinutes: rules.holdMinutes, visitMinutes: rules.visitMinutes, slotMinutes: rules.slotMinutes },
     hold: h ? { id: h.id as string, startsAt: h.starts_at as string, expiresAt: h.expires_at as string, maskedMobile: maskMobile(h.mobile as string) } : null,
   };
@@ -189,7 +232,20 @@ export async function saveVisitDetails(svc: SupabaseClient, est: EstimateCore, i
   }
   const { error } = await svc.from("estimates").update(patch).eq("id", est.id);
   if (error) return { ok: false, message: error.message };
+  await markGateCompleted(svc, est.id);
   return { ok: true };
+}
+
+/** S6 (§4.7): details given after the range (range first, R7) complete the gate for that session. */
+export async function markGateCompleted(svc: SupabaseClient, estimateId: string): Promise<void> {
+  // Shown and completed land together here: after the range the details are
+  // asked and given in one sheet, and the draft route no longer takes a save
+  // for a converted session (its "just finished" rule).
+  const now = new Date().toISOString();
+  const { error } = await svc.from("wizard_drafts").update({ gate_completed_at: now }).eq("estimate_id", estimateId).is("gate_completed_at", null);
+  const { error: shownErr } = await svc.from("wizard_drafts").update({ gate_shown_at: now }).eq("estimate_id", estimateId).is("gate_shown_at", null);
+  if (shownErr) reportError(shownErr, { where: "visits.holds.gateShown", bestEffort: true });
+  if (error) reportError(error, { where: "visits.holds.gateCompleted", bestEffort: true });
 }
 
 // ---- codes and limits ------------------------------------------------------------
@@ -225,12 +281,13 @@ async function textCode(svc: SupabaseClient, est: EstimateCore, mobile: string, 
 // ---- hold --------------------------------------------------------------------------
 
 export type HoldOk = { ok: true; holdId: string; expiresAt: string; maskedMobile: string; slot: { startsAt: string; dayWords: string; timeWords: string; visitEndWords: string; address: string } };
-export type HoldFail = { ok: false; status: number; code: "no_contact" | "not_bookable" | "not_offered" | "taken" | "limited" | "failed"; message: string };
+export type HoldFail = { ok: false; status: number; code: "no_contact" | "not_bookable" | "not_offered" | "taken" | "limited" | "failed" | "calendar_unavailable"; message: string };
 
 export async function placeHold(svc: SupabaseClient, est: EstimateCore, input: { startsAt: string; userId: string | null; ip: string | null }, now = new Date()): Promise<HoldOk | HoldFail> {
   const ctx = await loadVisitContext(svc, est, { now, record: false });
   if (!ctx.contact) return { ok: false, status: 409, code: "no_contact", message: "We need your name, email and mobile first." };
   if (!isZoneKey(ctx.zone.outcome) || !ctx.estimatorId) return { ok: false, status: 409, code: "not_bookable", message: "This address can't book a time online." };
+  if (ctx.calendar !== "ok") return { ok: false, status: 409, code: "calendar_unavailable", message: "We can't book a time online just now. Please request a time and we will come back to you." };
   const wanted = new Date(input.startsAt).getTime();
   const slot = ctx.days.flatMap((d) => d.slots).find((s) => Math.abs(new Date(s.startsAt).getTime() - wanted) < 60_000);
   if (!slot) return { ok: false, status: 409, code: "not_offered", message: "That time isn't available. Please pick another." };
@@ -276,7 +333,7 @@ export async function resendCode(svc: SupabaseClient, est: EstimateCore, input: 
 // ---- confirm ------------------------------------------------------------------------
 
 export type ConfirmOk = { ok: true; visitId: string; slot: HoldOk["slot"] };
-export type ConfirmFail = { ok: false; status: number; code: "wrong" | "ended" | "expired" | "unavailable" | "failed"; message: string; attemptsLeft?: number };
+export type ConfirmFail = { ok: false; status: number; code: "wrong" | "ended" | "expired" | "unavailable" | "failed" | "calendar_unavailable"; message: string; attemptsLeft?: number };
 
 export async function confirmHold(svc: SupabaseClient, est: EstimateCore, input: { holdId: string; code: string }, now = new Date()): Promise<ConfirmOk | ConfirmFail> {
   const { data: h, error } = await svc.from("visit_holds").select("id, estimate_id, estimator_id, starts_at, mobile, expires_at, released_at, confirmed_visit_id").eq("id", input.holdId).maybeSingle();
@@ -284,6 +341,11 @@ export async function confirmHold(svc: SupabaseClient, est: EstimateCore, input:
   if (!h || h.estimate_id !== est.id) return { ok: false, status: 404, code: "ended", message: "That hold has ended. Please pick a time again." };
   const ctx = await loadVisitContext(svc, est, { now, record: false });
   if (!ctx.contact || !ctx.address) return { ok: false, status: 409, code: "failed", message: "We need your details first." };
+  // 4.6: "If Google cannot be reached when a customer confirms, do not book blind."
+  if (ctx.calendar !== "ok") {
+    await svc.rpc("visit_hold_release", { p_hold: h.id, p_reason: "calendar_unavailable" });
+    return { ok: false, status: 409, code: "calendar_unavailable", message: "We can't confirm a time online just now. Please request a time and we will come back to you." };
+  }
   const codeHash = hashCode(est.id, h.mobile as string, input.code);
 
   // Re-run every rule in 4.2 with this customer's own hold set aside. Anything
@@ -322,6 +384,9 @@ export async function confirmHold(svc: SupabaseClient, est: EstimateCore, input:
   const slot = ctx.days.flatMap((d) => d.slots).find((s) => Math.abs(new Date(s.startsAt).getTime() - wanted) < 60_000);
   const summary = slot ? summarise(slot, ctx.address.formatted) : { startsAt: h.starts_at as string, dayWords: "", timeWords: "", visitEndWords: "", address: ctx.address.formatted };
   await notifyBooked(svc, est, visitId, ctx.contact, summary).catch((e) => reportError(e, { where: "visits.holds.notifyBooked", bestEffort: true, extra: { visitId } }));
+  // S5: the event in the estimator's main calendar, now — "within a minute". The
+  // booking stands if this fails; the five-minute sweep retries and raises a card.
+  await reconcileForVisit([h.estimator_id as string]).catch((e) => reportError(e, { where: "visits.holds.gcal", bestEffort: true, extra: { visitId } }));
   return { ok: true, visitId, slot: summary };
 }
 

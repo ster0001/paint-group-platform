@@ -65,6 +65,7 @@ test.describe("Section 8 — tests that try to break it (API)", () => {
   test.skip(!db || !staffEmail, "needs SUPABASE_SERVICE_ROLE_KEY + E2E_STAFF_EMAIL");
   const customers: Customer[] = [];
   let staffId = "", hadWeek = false;
+  let rulesBefore: Record<string, unknown> = {};
   const zonesBefore = new Map<string, string | null>();
 
   test.beforeAll(async () => {
@@ -75,6 +76,9 @@ test.describe("Section 8 — tests that try to break it (API)", () => {
     const { data: zones } = await sb.from("visit_zones").select("key, estimator_id");
     for (const z of zones ?? []) zonesBefore.set(z.key as string, z.estimator_id as string | null);
     await sb.from("visit_zones").update({ estimator_id: staffId }).is("estimator_id", null);
+    const { data: rulesRow } = await sb.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle();
+    rulesBefore = (rulesRow?.value ?? {}) as Record<string, unknown>;
+    await sb.from("settings").upsert({ key: "visit_booking_rules", value: { ...rulesBefore, calendarRequired: false } }, { onConflict: "key" });
     const { data: slots } = await sb.from("visit_slots").select("id").eq("estimator_id", staffId).limit(1);
     hadWeek = !!slots?.length;
     if (!hadWeek) {
@@ -93,6 +97,7 @@ test.describe("Section 8 — tests that try to break it (API)", () => {
     }
     for (const [key, est] of zonesBefore) if (est === null) await sb.from("visit_zones").update({ estimator_id: null }).eq("key", key);
     if (!hadWeek) await sb.from("visit_slots").delete().eq("estimator_id", staffId);
+    await sb.from("settings").upsert({ key: "visit_booking_rules", value: rulesBefore }, { onConflict: "key" });
   });
 
   test("1 · a slot the address's zone cannot book is refused — the zone comes from the stored address only", async ({ browser }) => {

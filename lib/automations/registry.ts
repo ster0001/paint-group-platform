@@ -106,6 +106,7 @@ const P = {
   callReceived: ["{{first_name}}", "{{mobile}}", "{{company_name}}"],
   timeOffered: ["{{first_name}}", "{{visit_when}}", "{{address}}", "{{estimator_name}}", "{{company_name}}"],
   customerMessage: ["{{customer}}", "{{job}}", "{{message}}"],
+  visitCancelled: ["{{first_name}}", "{{visit_when}}", "{{company_name}}"],
   signed: ["{{first_name}}", "{{job_title}}", "{{signed_by}}", "{{company_name}}"],
   chat: ["{{company_name}}", "{{link}}"],
   receipt: ["{{first_name}}", "{{amount}}", "{{invoice_number}}", "{{receipt_number}}", "{{company_name}}"],
@@ -231,6 +232,13 @@ export const AUTOMATIONS: Automation[] = [
       { field: "customerMessageBody", label: "Email", kind: "body", placeholders: P.customerMessage },
     ],
     guard: "Once per message (a retry with the same client id is not sent again).",
+  },
+  {
+    key: "visit_cancelled", name: "Visit cancelled — text", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "visit_cancelled", quietExempt: true,
+    trigger: "The customer declined the calendar invitation, or the estimator deleted the visit in Google Calendar (visit booking S5, R22/R27). The visit is cancelled in the platform and the customer is told.",
+    templates: [{ field: "visitCancelledSms", label: "Text", kind: "sms", placeholders: P.visitCancelled }],
+    guard: "Once per cancelled visit.",
   },
   {
     key: "visit_reminder", name: "Visit reminder text", audience: "customer", channels: ["sms"], kind: "automatic",
