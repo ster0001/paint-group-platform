@@ -133,6 +133,9 @@ export type MessagingSettings = {
   visitConfirmSubject: string;
   visitConfirmBody: string;
   visitReminderSms: string;
+  /** Visit booking addendum A (S3): the 6-digit code, and the "booked" text. */
+  visitCodeSms: string;
+  visitBookedSms: string;
   /** Customer + painter: the final walkthrough calendar invite. */
   walkthroughInviteSubject: string;
   walkthroughInviteCustomerBody: string;
@@ -311,6 +314,8 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "If that time no longer suits, reply to this email or call us and we'll move it.",
   visitReminderSms:
     "{{company_name}}: a reminder that {{estimator_name}} is visiting {{address}} tomorrow, {{visit_when}}. Reply or call us if anything's changed.",
+  visitCodeSms: "{{code}} is your {{company_name}} code to book your site visit. It expires in 10 minutes.",
+  visitBookedSms: "{{company_name}}: your site visit is booked for {{visit_when}} at {{address}}. A calendar invitation is on its way by email. We will text a reminder the evening before. To cancel, decline the invitation or call us.",
   walkthroughInviteSubject: "Final walk through — ({{customer_name}} x {{painter_name}})",
   walkthroughInviteCustomerBody:
     "Hello {{first_name}},\n\n" +
@@ -395,8 +400,10 @@ export type TemplateVars = {
   painter_name?: string;
   /** A whole sentence about the final walkthrough — booked or to-be-confirmed. */
   walkthrough_line?: string;
-  /** P6: "Tue 8 Sep at 10:00 am" for the visit confirmation and reminder. */
+  /** P6: "Tue 8 Sep at 10:00 am" for the visit confirmation and reminder; S3: "Monday 5 October, 2:00 pm to 3:00 pm". */
   visit_when?: string;
+  /** S3: the 6-digit text code. */
+  code?: string;
   // Automations (3 Sep) — each template documents which of these it uses.
   wo_ref?: string;
   /** Painter texts: the job's suburb (never the full address in a reminder) and "day 3 of 5". */

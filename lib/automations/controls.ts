@@ -199,7 +199,7 @@ export const SAMPLE_VARS: Record<string, string> = {
   suburb: "Thornbury", total: "$4,850.00", deposit: "$485.00", amount: "$1,200.00", estimator_name: "Tom",
   link: "https://paintgroup.com.au/e/example", start_date: "Mon 5 Oct", painter_name: "Marco Rossi", painter_first_name: "Marco",
   walkthrough_line: "Your final walkthrough is booked for Fri 9 Oct at 3:00 pm.", walkthrough_when: "Fri 9 Oct, 3:00 pm",
-  wo_ref: "WO-1042", action: "accept", visit_when: "Tue 22 Sep, 10:00 am", signed_by: " by Sarah Chen",
+  wo_ref: "WO-1042", action: "accept", visit_when: "Tue 22 Sep, 10:00 am", code: "482913", signed_by: " by Sarah Chen",
   dates: "Mon 5 Oct → Wed 7 Oct",
   invoice_number: "INV-2041", receipt_number: "R-0331", remittance_number: "RA-0117", contractor_company: "Rossi Painting",
   bank_reference: " (ref PG-1042)", next_step: "Your estimate is waiting on your account page.", where: "12 Elm Grove, Thornbury",

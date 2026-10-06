@@ -253,7 +253,7 @@ export default function Reveal({
         estimator={payload.estimator}
         suburb={null}
         companyPhone={phone}
-        bookHref={`/estimate/book?id=${estimateId}`}
+        bookHref={`/estimate/visit?id=${estimateId}`}
       />
 
       {phone && (

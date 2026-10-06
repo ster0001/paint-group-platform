@@ -1,3 +1,16 @@
+# 6 Oct 2026 — Visit booking, addendum A: S3 walking skeleton. Branch `feat/visit-booking-s3` (stacked on S2). Migration 20270214 (TEST; sent to Tom).
+
+Report: `docs/briefs/visit-booking-s3-report.md`. `/estimate/visit?id=` — details (if none held) → calendar → 10-min hold →
+6-digit hashed text code → one-transaction confirm RPC → `visits` row (booked/wizard, zone + far_edge frozen, 60-min
+ends_at) → text + .ics email. `visit_holds` (one LIVE hold per slot per estimator by partial unique index),
+`visit_code_sends` (limits), four service_role-only RPCs. `lib/visits/holds.ts` re-runs availability() before every
+hold and confirm. Routes `/api/visits/*` behind `lib/visits/ownedEstimate.ts`. Reveal door + Book page now go to the
+new page; old half-day windows no longer offered. Messaging: `visit_code` (always on), `visit_booked`; `visit_when`
+reads "Monday 5 October, 2:00 pm to 3:00 pm". Submit now writes jobAddress for a TYPED address (first e2e run found
+the gap). e2e 12/12 on C1: the anonymous journey + section 8 tests 1–11, 13, 15. Unit 1,201 green. Google event NOT
+written yet (S5); non-zone customers hand off to /estimate/book until S4. Next: S4 requests, pre-arranged, out of
+area, Speak with us, messages, holiday list.
+
 # 6 Oct 2026 — Visit booking, addendum A: S2 schedule + availability. Branch `feat/visit-booking-s2` (stacked on S1). Migration 20270213 (TEST only).
 
 Report: `docs/briefs/visit-booking-s2-report.md`. `visit_slots` (exclusion constraint, no overlap), `visits.zone/far_edge`,

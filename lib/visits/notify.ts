@@ -27,12 +27,18 @@ const two = (n: number) => String(n).padStart(2, "0");
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "Tue 8 Sep at 10:00 am", Melbourne. */
-export function visitWhen(startsAt: string): string {
+/** "Tue 8 Sep at 10:00 am", Melbourne — or, with an end, "Tuesday 8 September, 10:00 am to 11:00 am" (R32: the customer sees the one-hour visit). */
+export function visitWhen(startsAt: string, endsAt?: string): string {
   const p = melbourneParts(new Date(startsAt));
-  const h12 = p.h % 12 === 0 ? 12 : p.h % 12;
-  return `${DOW[p.weekday]} ${p.d} ${MON[p.m - 1]} at ${h12}:${two(p.min)} ${p.h < 12 ? "am" : "pm"}`;
+  const t = (h: number, min: number) => `${h % 12 === 0 ? 12 : h % 12}:${two(min)} ${h < 12 ? "am" : "pm"}`;
+  if (endsAt) {
+    const e = melbourneParts(new Date(endsAt));
+    return `${DOW_LONG[p.weekday]} ${p.d} ${MON_LONG[p.m - 1]}, ${t(p.h, p.min)} to ${t(e.h, e.min)}`;
+  }
+  return `${DOW[p.weekday]} ${p.d} ${MON[p.m - 1]} at ${t(p.h, p.min)}`;
 }
+const DOW_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MON_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /** The Melbourne date and wall time of a visit, for the .ics. */
 export function visitDateTime(startsAt: string, endsAt: string): { date: string; time: string; minutes: number } {
@@ -85,7 +91,7 @@ export async function sendVisitConfirmation(db: SupabaseClient, visitId: string)
 
   const companyName = company.name || "Paint Group";
   const estimator = ctx.estimatorName || companyName;
-  const vars = { first_name: ctx.customerFirst, estimator_name: estimator, visit_when: visitWhen(visit.starts_at), address: visit.address || "your property", company_name: companyName };
+  const vars = { first_name: ctx.customerFirst, estimator_name: estimator, visit_when: visitWhen(visit.starts_at, visit.ends_at), address: visit.address || "your property", company_name: companyName };
   const subject = renderTemplate(messaging.visitConfirmSubject, vars);
   const body = renderTemplate(messaging.visitConfirmBody, vars);
   const { date, time, minutes } = visitDateTime(visit.starts_at, visit.ends_at);

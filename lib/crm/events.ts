@@ -135,6 +135,8 @@ export const CRM_EVENT_SCHEMAS = {
   // ---- the customer reaching in ------------------------------------------
   website_chat: z.object({ excerpt: shortText.optional(), answered: z.boolean().default(false) }),
   callback_requested: z.object({ phone: z.string().max(30).optional(), note: shortText.optional() }),
+  /** Visit booking S3: a customer held a slot online and was texted a code. */
+  visit_hold_placed: z.object({ holdId: z.string().uuid(), startsAt: z.string().max(40), zone: z.string().max(20) }),
   /** Ticked "looking for advice" on the wizard's colours question (1 Sep) —
    *  the office follows up with the colour consultant. */
   colour_advice_requested: z.object({ brands: z.array(z.string().max(20)).max(6).default([]) }),

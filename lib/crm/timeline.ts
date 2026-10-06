@@ -158,6 +158,7 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   // ---- the customer reaching in -------------------------------------------
   website_chat: { label: "Chat on the website", kind: "customer",
     detail: (p) => [str(p.excerpt), p.answered ? "" : "Not answered yet."].filter(Boolean).join(" — ") },
+  visit_hold_placed: { label: "Held a visit time online", kind: "customer" },
   callback_requested: { label: "Asked for a callback", kind: "customer",
     detail: (p) => join(str(p.phone), str(p.note)) },
   colour_advice_requested: { label: "Wants colour advice", kind: "customer",

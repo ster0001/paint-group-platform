@@ -50,7 +50,7 @@ export default function Book({ estimateId, estimator, companyPhone, phoneHours, 
       ) : (
         <ReachStrip
           estimator={estimator} suburb={suburb} companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone}
-          visitSlots={visitSlots} busy={busy}
+          visitSlots={visitSlots} busy={busy} visitHref={`/estimate/visit?id=${estimateId}`}
           onBookSlot={(slot) => void post({ action: "book_visit", slot }, `Booked — ${slot}. A calendar invite is on its way.`)}
           onContact={(req: ContactRequest) => void post({ action: "request_contact", ...req }, req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back to finalise your price.")}
         />

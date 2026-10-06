@@ -26,7 +26,7 @@ type Mode = "idle" | "visit" | "callback";
 
 
 export default function ReachStrip({
-  estimator = null, suburb = null, prefix = "sc", companyPhone, phoneHours, visitSlots, defaultPhone = null, busy = false, onBookSlot, onContact }: {
+  estimator = null, suburb = null, prefix = "sc", companyPhone, phoneHours, visitSlots, defaultPhone = null, busy = false, onBookSlot, onContact, visitHref }: {
   prefix?: "sc" | "sd";
   /** C11 — the resolved estimator for the strip header, or null. */
   estimator?: { name: string | null; phone: string | null; covers: boolean } | null;
@@ -36,6 +36,8 @@ export default function ReachStrip({
   /** When the office answers — Settings → Company details owns the wording. */
   phoneHours?: string | null;
   visitSlots: string[];
+  /** S3: when set, "Book a site visit" leaves for the zoned calendar instead of the old windows. */
+  visitHref?: string;
   /** The mobile the customer already gave us, pre-filled and still editable. */
   defaultPhone?: string | null;
   busy?: boolean;
@@ -74,11 +76,19 @@ export default function ReachStrip({
         under a heading. The estimator is named and present; the three ways
         to reach them are plain buttons under the name.
       */}
-      <EstimatorStrip estimator={estimator} suburb={suburb} companyPhone={companyPhone} onBook={() => toggle("visit")} compact />
+      {visitHref
+        ? <EstimatorStrip estimator={estimator} suburb={suburb} companyPhone={companyPhone} bookHref={visitHref} compact />
+        : <EstimatorStrip estimator={estimator} suburb={suburb} companyPhone={companyPhone} onBook={() => toggle("visit")} compact />}
       <div className={`${p}-reach-row`}>
-        <button type="button" className={`${p}-contact-opt${mode === "visit" ? " on" : ""}`} onClick={() => toggle("visit")} data-testid="reach-visit">
-          Book a site visit
-        </button>
+        {visitHref ? (
+          <a className={`${p}-contact-opt`} href={visitHref} data-testid="reach-visit">
+            Book a site visit
+          </a>
+        ) : (
+          <button type="button" className={`${p}-contact-opt${mode === "visit" ? " on" : ""}`} onClick={() => toggle("visit")} data-testid="reach-visit">
+            Book a site visit
+          </button>
+        )}
         {tel && (
           <a className={`${p}-contact-opt`} href={tel} data-testid="reach-call">
             Call us <b>{companyPhone}</b>
