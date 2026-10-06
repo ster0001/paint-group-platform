@@ -188,6 +188,29 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
 }
 
 /**
+ * Where a kind is WORKED (Tom, 6 Oct 2026: "move all job check-ins out of the
+ * CRM system and into PC Command"). Still one evaluator and one set of
+ * dismissals — a kind homed on "pc" is built here, keyed here and dismissed
+ * through crm_dismiss_work_item like any other; it is simply shown on the PC
+ * console (`buildPcWorkItems`) and left off Today, the tab badge and the home
+ * dashboard (`crmItems`). Two queues would be a single-source violation; two
+ * SCREENS over one queue is not.
+ */
+export type WorkItemHome = "crm" | "pc";
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup"]);
+export function homeOf(kind: WorkItemKind): WorkItemHome {
+  return PC_HOMED.has(kind) ? "pc" : "crm";
+}
+/** The items the CRM shows: everything not homed on the PC console. */
+export function crmItems(items: readonly WorkItem[]): WorkItem[] {
+  return items.filter((i) => homeOf(i.kind) === "crm");
+}
+/** The items PC Command shows. */
+export function pcItems(items: readonly WorkItem[]): WorkItem[] {
+  return items.filter((i) => homeOf(i.kind) === "pc");
+}
+
+/**
  * ⚑7.2 — these weights are defaults chosen to be defensible, not ruled. They
  * live in one object so Tom's ruling is a one-line change and not a hunt.
  */
@@ -1556,6 +1579,37 @@ async function inSlices<T>(ids: string[], run: (slice: string[]) => PromiseLike<
  * arrive with their modules. Each is one function plus a call here — never a
  * change to the queue itself.
  */
+/** Booked jobs whose last day is within the last fortnight — the rows the check-in planner reads. */
+async function readJobCheckinRows(supabase: SupabaseClient, now: Date): Promise<{ rows: JobCheckinRow[]; error: string | null }> {
+  const res = await supabase.from("work_orders")
+    .select("id, wo_ref, stage, start_date, end_date, wo_snapshot, estimates(account_id, accepted_name, title), contractors(company_name, works_saturday, works_sunday, profiles(name))")
+    .not("start_date", "is", null).not("end_date", "is", null).neq("stage", "offered")
+    .gte("end_date", new Date(now.getTime() - 14 * 86_400_000).toISOString().slice(0, 10))
+    .lte("start_date", now.toISOString().slice(0, 10))
+    .order("start_date", { ascending: true }).limit(300);
+  if (res.error) return { rows: [], error: res.error.message };
+  return { rows: (res.data ?? []) as unknown as JobCheckinRow[], error: null };
+}
+
+/**
+ * The PC-homed slice of the one queue, for PC Command (Tom, 6 Oct 2026): the
+ * customer check-ins and after-job calls, with the same dismissals Today
+ * honours. Two bounded reads, no evaluator fan-out — the console does not
+ * need the messages, invoices or wizard sessions to list its calls.
+ *
+ * A failed read is a line the screen can show, never an empty list.
+ */
+export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
+  const [checkins, dismissed] = await Promise.all([
+    readJobCheckinRows(supabase, now),
+    supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
+  ]);
+  if (checkins.error) return { items: [], failure: `Couldn't read the jobs for check-ins: ${checkins.error}` };
+  const dismissals = (dismissed.error ? [] : (dismissed.data ?? [])) as Dismissal[];
+  const items = sortItems(applyDismissals(pcItems(buildJobCheckinItems(checkins.rows, now)), dismissals, now));
+  return { items, failure: dismissed.error ? `Dismissals couldn't be read (${dismissed.error.message}) — a call you already made may show again.` : null };
+}
+
 export async function buildWorkQueue(supabase: SupabaseClient, now = new Date()): Promise<WorkQueue> {
   const nowIso = now.toISOString();
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString();
@@ -1714,15 +1768,11 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   ]);
   const holdBooked = new Set<string>([...holdOffers, ...holdAssignments].map((r) => (r as { work_order_id: string }).work_order_id));
   // Tom, 25 Sep: customer check-ins on running jobs, and the after-job call on
-  // short ones. Booked jobs whose last day is within the last fortnight.
-  const checkinRes = await supabase.from("work_orders")
-    .select("id, wo_ref, stage, start_date, end_date, wo_snapshot, estimates(account_id, accepted_name, title), contractors(company_name, works_saturday, works_sunday, profiles(name))")
-    .not("start_date", "is", null).not("end_date", "is", null).neq("stage", "offered")
-    .gte("end_date", new Date(now.getTime() - 14 * 86_400_000).toISOString().slice(0, 10))
-    .lte("start_date", now.toISOString().slice(0, 10))
-    .order("start_date", { ascending: true }).limit(300);
+  // short ones. Built here so the keys exist for dismissals; SHOWN on PC
+  // Command (homeOf = "pc"), not on Today.
+  const checkinRes = await readJobCheckinRows(supabase, now);
   if (checkinRes.error) truncated.push("job_checkins: read failed");
-  const checkinRows = (checkinRes.error ? [] : (checkinRes.data ?? [])) as unknown as JobCheckinRow[];
+  const checkinRows = checkinRes.rows;
   const flagPainterIds = [...new Set([
     ...flagRows.map((f) => f.meta?.contractor_id),
     ...activeRows.filter((a) => !a.accepted_at).map((a) => a.contractor_id),
@@ -1886,7 +1936,9 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // read errors; the queue must still stand up (house law: inert-but-safe).
   const dismissals = (dismissed.error ? [] : (dismissed.data ?? [])) as Dismissal[];
 
-  return assembleQueue(suppressQuiet(raw, quietIds), dismissals, now, truncated);
+  // The CRM's queue: Today, the badge, the dashboard. PC-homed kinds are built
+  // (their keys are what dismissals hang off) and then handed to PC Command.
+  return assembleQueue(crmItems(suppressQuiet(raw, quietIds)), dismissals, now, truncated);
 }
 
 // ---- C7b: the estimates page's view of the queue ----------------------------
