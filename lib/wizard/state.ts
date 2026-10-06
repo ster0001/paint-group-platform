@@ -381,6 +381,10 @@ export const wizardStateShapeSchema = z.object({
     email: z.string().trim().max(160).default(""),
     phone: z.string().trim().max(40).default(""),
   }).default({ name: "", email: "", phone: "" }),
+  /** S6 (R6): which gate order this session started under — frozen for the session. */
+  gateVersion: z.enum(["details_first", "range_first"]).optional(),
+  /** S6: the optional marketing tick on the gate, unticked by default. */
+  marketingOptIn: z.boolean().default(false),
 
   paint: z.object({
     /** 1 Sep: Porters + Wattyl added, and "unsure" is its own tile (kept as a
@@ -572,6 +576,12 @@ export const wizardStateSchema = wizardStateShapeSchema.superRefine((s, ctx) => 
    * Customer mode demands the property answers — the guardrails run on them,
    * and a hazard question nobody answered must not read as "no".
    *
+   * ⚑ UPDATE 7 Oct 2026 (visit booking addendum A, R5/R6): a contact gate is
+   * BACK as the last quick-look question under the "details first" order,
+   * enforced by the submit route (409 gate_required); "range first" is the
+   * switch in Booking rules. The history below stands as the reason the
+   * earlier gate was taken out; the addendum's rulings are the current ones.
+   *
    * ⚑ THE EMAIL GATE IS GONE (estimator journey v2 ⚑1, phase 2). This rule
    * used to read "and the email gate before anything is revealed", and it was
    * the single biggest thing standing between a visitor and a number: §2.6
@@ -653,6 +663,7 @@ export function defaultWizardState(): WizardState {
       damagePhotoCount: 0, siteAccess: {}, extraNote: "",
     },
     contact: { name: "", email: "", phone: "" },
+    marketingOptIn: false,
     paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null, base: null },
     exterior: null,
   };

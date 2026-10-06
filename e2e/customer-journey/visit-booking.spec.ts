@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "../fixtures/woLoop";
-import { cleanupCustomers, codeFor, ensureEstimator, staffEmail, startCustomer, type Customer } from "./visitHelpers";
+import { cleanupCustomers, codeFor, ensureEstimator, fillDetailsIfAsked, staffEmail, startCustomer, type Customer } from "./visitHelpers";
 
 /**
  * Visit booking addendum A · S3 walking skeleton, as an ANONYMOUS customer:
@@ -36,13 +36,8 @@ test.describe("S3 — book a site visit as an anonymous customer", () => {
     await page.getByTestId("door-book").click();
     await page.waitForURL((u) => u.pathname === "/estimate/visit");
 
-    // We hold nothing yet — the details screen, mockup wording.
-    await expect(page.getByTestId("visit-details")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "A few details first" })).toBeVisible();
-    await page.getByTestId("visit-name").fill("Alex Morgan");
-    await page.getByTestId("visit-email").fill(a.email);
-    await page.getByTestId("visit-mobile").fill(a.mobile);
-    await page.getByTestId("visit-details-go").click();
+    // The details: taken at the gate (details first) or asked here (range first, mockup wording).
+    await fillDetailsIfAsked(a, "Alex Morgan");
 
     // The calendar: "These are the times we are in Glen Waverley and nearby."
     await expect(page.getByTestId("visit-calendar")).toBeVisible();
@@ -95,10 +90,7 @@ test.describe("S3 — book a site visit as an anonymous customer", () => {
     const b = await startCustomer(browser, "b");
     customers.push(b);
     await b.page.getByTestId("door-book").click();
-    await b.page.getByTestId("visit-name").fill("Sam Lee");
-    await b.page.getByTestId("visit-email").fill(b.email);
-    await b.page.getByTestId("visit-mobile").fill(b.mobile);
-    await b.page.getByTestId("visit-details-go").click();
+    await fillDetailsIfAsked(b, "Sam Lee");
     await expect(b.page.getByTestId("visit-calendar")).toBeVisible();
     const r = await b.page.request.get(`/api/visits/availability?estimateId=${b.estimateId}`);
     const av = await r.json() as { days: Array<{ slots: Array<{ startsAt: string }> }> };

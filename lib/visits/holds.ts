@@ -232,7 +232,20 @@ export async function saveVisitDetails(svc: SupabaseClient, est: EstimateCore, i
   }
   const { error } = await svc.from("estimates").update(patch).eq("id", est.id);
   if (error) return { ok: false, message: error.message };
+  await markGateCompleted(svc, est.id);
   return { ok: true };
+}
+
+/** S6 (§4.7): details given after the range (range first, R7) complete the gate for that session. */
+export async function markGateCompleted(svc: SupabaseClient, estimateId: string): Promise<void> {
+  // Shown and completed land together here: after the range the details are
+  // asked and given in one sheet, and the draft route no longer takes a save
+  // for a converted session (its "just finished" rule).
+  const now = new Date().toISOString();
+  const { error } = await svc.from("wizard_drafts").update({ gate_completed_at: now }).eq("estimate_id", estimateId).is("gate_completed_at", null);
+  const { error: shownErr } = await svc.from("wizard_drafts").update({ gate_shown_at: now }).eq("estimate_id", estimateId).is("gate_shown_at", null);
+  if (shownErr) reportError(shownErr, { where: "visits.holds.gateShown", bestEffort: true });
+  if (error) reportError(error, { where: "visits.holds.gateCompleted", bestEffort: true });
 }
 
 // ---- codes and limits ------------------------------------------------------------

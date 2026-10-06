@@ -1,3 +1,19 @@
+# 7 Oct 2026 — Visit booking, addendum A: S6 the gate. Branch `feat/visit-booking-s6` (stacked on S5 → S4). Migration 20270217 (TEST; to paste after 20270216, read-back 6 / 1).
+
+Report: `docs/briefs/visit-booking-s6-report.md`. Details first (R5): quick look's last step is `gate` (name/email/mobile/
+marketing, "Show my guide price"), range follows, account exists; the switch is `visit_booking_rules.gateOrder` read on
+the server by `/estimate` and built into the steps (`stepsFor(..., gate)`); range first (R7): Tighten opens the TalkSheet
+"details" mode first. Per-session facts on `wizard_drafts`: gate_version (frozen at first save), gate_shown_at,
+gate_completed_at, range_shown_at, range_option(+_at) via `/api/wizard/range-option` (first choice counts). Submit:
+409 `gate_required` under details_first without full contact (SESSION's version, never the browser's); a walk faster
+than the 2.5-s autosave had NO session row → submit now inserts one (no `state` — single writer stays the draft route;
+`mode` is home|business). R24 range order Tighten (hero) / Speak / Book / Message, Keep only when no contact known.
+Dashboard "Where estimates go" → "The gate, by version" table + `funnel.gate_sessions` CSV. **e2e 10/10 on C1** (gate 5,
+save-and-book 4, visit-booking 1). Traps: test project `wizard_limits.maxEstimatesPerVisitor` = 5,000 (spec pins 2 and
+restores); cap counts by email OR IP so a one-IP run refuses early; draft route drops saves for 10 min after a conversion
+("just finished") → range-first gate_shown stamped with gate_completed; export preset is month|week|quarter|year|custom.
+Next: S7 full-loop e2e, help pages, inventory, health check.
+
 # 6 Oct 2026 — Visit booking, addendum A: S5 Google Calendar. Branch `feat/visit-booking-s5` (stacked on S4). Migration 20270216 (TEST; to paste after 20270215).
 
 Report: `docs/briefs/visit-booking-s5-report.md`. info@ = Google WORKSPACE → staff scope + `calendar.events`, visits in

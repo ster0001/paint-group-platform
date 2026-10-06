@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "./fixtures/woLoop";
 import { gotoTodayWith } from "./helpers";
-import { loginStaff, staffEmail, startCustomer, type Customer, cleanupCustomers } from "./customer-journey/visitHelpers";
+import { fillDetailsIfAsked, loginStaff, staffEmail, startCustomer, type Customer, cleanupCustomers } from "./customer-journey/visitHelpers";
 import { STANDARD_WEEK } from "../lib/visits/schedule";
 
 /**
@@ -64,10 +64,7 @@ test.describe("S5 — booking without a connected Google Calendar", () => {
     const c = await startCustomer(browser, "nocal");
     customers.push(c);
     await c.page.getByTestId("door-book").click();
-    await c.page.getByTestId("visit-name").fill("No Cal");
-    await c.page.getByTestId("visit-email").fill(c.email);
-    await c.page.getByTestId("visit-mobile").fill(c.mobile);
-    await c.page.getByTestId("visit-details-go").click();
+    await fillDetailsIfAsked(c, "No Cal");
     await expect(c.page.getByTestId("visit-request")).toBeVisible();
     await expect(c.page.getByTestId("visit-calendar")).toHaveCount(0);
     await expect(c.page.getByTestId("visit-calendar-state")).toHaveAttribute("data-state", "none");

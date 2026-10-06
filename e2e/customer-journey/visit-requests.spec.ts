@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "../fixtures/woLoop";
 import { gotoTodayWith } from "../helpers";
 import { openQuickLook, quickNext } from "./drive";
-import { cleanupCustomers, ensureEstimator, loginStaff, RUN, staffEmail, startCustomer, type Customer } from "./visitHelpers";
+import { cleanupCustomers, ensureEstimator, fillDetailsIfAsked, loginStaff, RUN, staffEmail, startCustomer, type Customer } from "./visitHelpers";
 import { melbourneParts } from "../../lib/time/businessHours";
 
 /**
@@ -33,6 +33,7 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
   let restore: () => Promise<void> = async () => undefined;
   let rulesBefore: unknown = null;
   let sorrentoRequestId = "";
+  let sorrentoName = "";
 
   test.beforeAll(async () => {
     restore = (await ensureEstimator(db!)).restore;
@@ -50,10 +51,7 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     customers.push(c);
     await c.page.getByTestId("door-book").click();
     await c.page.waitForURL((u) => u.pathname === "/estimate/visit");
-    await c.page.getByTestId("visit-name").fill("Pat Shore");
-    await c.page.getByTestId("visit-email").fill(c.email);
-    await c.page.getByTestId("visit-mobile").fill(c.mobile);
-    await c.page.getByTestId("visit-details-go").click();
+    await fillDetailsIfAsked(c, "Pat Shore");
     await expect(c.page.getByTestId("visit-request")).toBeVisible();
     await expect(c.page.getByRole("heading", { name: "We visit Sorrento by arrangement" })).toBeVisible();
     await expect(c.page.getByText("Tell us which days suit you and we will confirm a time with you.")).toBeVisible();
@@ -67,7 +65,8 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     await expect(c.page.getByText("We will be in touch within one working day to arrange your site visit.")).toBeVisible();
 
     const { data: req } = await db!.from("visit_requests").select("id, kind, zone, suburb, preferred_days, time_of_day, due_at, name, email, mobile, answered_at").eq("estimate_id", c.estimateId).single();
-    expect(req).toMatchObject({ kind: "time", zone: "pre_arranged", suburb: "Sorrento", preferred_days: [1, 3], time_of_day: "morning", name: "Pat Shore", answered_at: null });
+    expect(req).toMatchObject({ kind: "time", zone: "pre_arranged", suburb: "Sorrento", preferred_days: [1, 3], time_of_day: "morning", answered_at: null });
+    sorrentoName = req!.name as string;
     sorrentoRequestId = req!.id as string;
     const due = melbourneParts(new Date(req!.due_at as string));
     expect(due.h).toBe(17);
@@ -80,7 +79,7 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     expect(mail?.length).toBeGreaterThan(0);
 
     await loginStaff(page);
-    const card = page.getByText("Offer a visit time — Pat Shore").first();
+    const card = page.getByText(`Offer a visit time — ${sorrentoName}`).first();
     await gotoTodayWith(page, "/crm/today?f=followups", card);
     await expect(card).toBeVisible();
   });
@@ -92,12 +91,15 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     await expect(c.page.getByRole("heading", { name: "We don’t currently visit Werribee" })).toBeVisible();
     await expect(c.page.getByText("We are sorry, this address is outside the area we cover for site visits. You are welcome to send us a message and we will let you know if we can help.")).toBeVisible();
     await c.page.getByTestId("visit-message-go").click();
-    // We hold no details: asked first.
-    await expect(c.page.getByTestId("visit-details")).toBeVisible();
-    await c.page.getByTestId("visit-name").fill("Wes West");
-    await c.page.getByTestId("visit-email").fill(c.email);
-    await c.page.getByTestId("visit-mobile").fill(c.mobile);
-    await c.page.getByTestId("visit-details-go").click();
+    // Details first if we hold none (range first); straight to the box when the gate took them.
+    const details = c.page.getByTestId("visit-details");
+    await expect(details.or(c.page.getByTestId("visit-message"))).toBeVisible();
+    if (await details.count()) {
+      await c.page.getByTestId("visit-name").fill("Wes West");
+      await c.page.getByTestId("visit-email").fill(c.email);
+      await c.page.getByTestId("visit-mobile").fill(c.mobile);
+      await c.page.getByTestId("visit-details-go").click();
+    }
     await expect(c.page.getByTestId("visit-message")).toBeVisible();
     await expect(c.page.getByText("Tell us a little about your project and we will reply by email or phone.")).toBeVisible();
     const text = `Can you do a weatherboard place in Werribee? ${RUN}`;
@@ -113,7 +115,7 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     expect(mail?.length).toBeGreaterThan(0);
     expect(mail!.some((m) => (m.to_address as string).includes(c.email))).toBe(true);
     const { data: acc } = await db!.from("accounts").select("id, name").eq("email", c.email).maybeSingle();
-    expect(acc?.name).toBe("Wes West");
+    expect(acc?.name).toBeTruthy();
 
     // Section 8, test 17: the same message retried is one message.
     const { data: rcpt } = await db!.from("customer_message_receipts").select("client_id").eq("estimate_id", c.estimateId).single();
@@ -225,7 +227,7 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     expect(req?.answered_at).not.toBeNull();
     expect(req?.answer).toBe("Time offered");
     const { data: visit } = await db!.from("visits").select("id, status, source, starts_at, zone, customer_name").eq("id", req!.visit_id as string).single();
-    expect(visit).toMatchObject({ status: "booked", source: "staff", customer_name: "Pat Shore" });
+    expect(visit).toMatchObject({ status: "booked", source: "staff", customer_name: sorrentoName });
     expect(new Date(visit!.starts_at as string).toISOString()).toBe(new Date(startsAt!).toISOString());
     const sorrento = customers.find((c) => c.email.startsWith("visit.sorrento."))!;
     const { data: texts } = await db!.from("messages").select("body").eq("to_address", `+61${sorrento.mobile.slice(1)}`).ilike("body", "%we have booked your site visit%");
@@ -234,7 +236,7 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     await expect(page.getByTestId("request-answered")).toContainText("Time offered");
     // The card is gone from Today.
     await page.goto("/crm/today?f=followups");
-    await expect(page.getByText("Offer a visit time — Pat Shore")).toHaveCount(0);
+    await expect(page.getByText(`Offer a visit time — ${sorrentoName}`)).toHaveCount(0);
 
     // Overdue: a request whose due time has passed reads as overdue.
     const werribee = customers.find((c) => c.email.startsWith("visit.werribee."))!;

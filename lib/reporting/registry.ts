@@ -10,7 +10,7 @@
 import type { MetricDef } from "./core";
 import type { DashboardSection } from "./roles";
 import { aovByCategory, bySalesperson, conversion, estimatesSent, salesCents, salesCount } from "./metrics/sales";
-import { wizardSessions } from "./metrics/funnel";
+import { gateSessions, wizardSessions } from "./metrics/funnel";
 import { activity } from "./metrics/activity";
 import { INVOICING_METRICS } from "./metrics/invoicing";
 import { PL_METRICS } from "./metrics/pl";
@@ -23,7 +23,7 @@ export type AnyMetricDef = MetricDef<any>;
 
 export const METRICS: ReadonlyArray<AnyMetricDef> = [
   estimatesSent, salesCents, salesCount, conversion, aovByCategory, bySalesperson,
-  wizardSessions, activity,
+  wizardSessions, gateSessions, activity,
   ...PC_METRICS,
   ...CONTRACTOR_METRICS,
   ...INVOICING_METRICS,

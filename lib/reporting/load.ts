@@ -297,10 +297,11 @@ async function loadSalesSlice(supabase: SupabaseClient, range: Range, viewer: Vi
   };
 }
 
-type DraftRow = { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; accounts: { lead_source: string | null } | null };
+type DraftRow = { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; accounts: { lead_source: string | null } | null;
+  gate_version: string | null; gate_shown_at: string | null; gate_completed_at: string | null; range_shown_at: string | null; range_option: string | null };
 async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures: LoadFailure[]): Promise<FunnelSlice> {
   const { fromIso, toIso } = windowOf(range);
-  const drafts = await pageAll<DraftRow>((from, to) => supabase.from("wizard_drafts").select("id, started_at, email, estimate_id, converted_at, last_seen_at, accounts(lead_source)")
+  const drafts = await pageAll<DraftRow>((from, to) => supabase.from("wizard_drafts").select("id, started_at, email, estimate_id, converted_at, last_seen_at, gate_version, gate_shown_at, gate_completed_at, range_shown_at, range_option, accounts(lead_source)")
     .gte("started_at", fromIso).lte("started_at", toIso).order("started_at", { ascending: false }).order("id").range(from, to), 10);
   if (drafts.truncated) failure(failures, "wizard sessions", new Error("more than 10,000 sessions in the window — the funnel counts the newest 10,000"));
   if (drafts.error) { failure(failures, "wizard sessions", drafts.error); return { drafts: [], estimates: [] }; }
@@ -309,7 +310,8 @@ async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures:
   const ests = estIds.length ? await inSlices(estIds, (s) => supabase.from("estimates").select("id, status, sent_at, viewed_at, accepted_at, declined_at, lead_source").in("id", s)) : { rows: [], error: null };
   if (ests.error) failure(failures, "estimates behind wizard sessions", ests.error);
   return {
-    drafts: rows.map((d) => ({ id: d.id, started_at: d.started_at, email: d.email, estimate_id: d.estimate_id, converted_at: d.converted_at, last_seen_at: d.last_seen_at, lead_source: d.accounts?.lead_source ?? null })),
+    drafts: rows.map((d) => ({ id: d.id, started_at: d.started_at, email: d.email, estimate_id: d.estimate_id, converted_at: d.converted_at, last_seen_at: d.last_seen_at, lead_source: d.accounts?.lead_source ?? null,
+      gate_version: d.gate_version ?? null, gate_shown_at: d.gate_shown_at ?? null, gate_completed_at: d.gate_completed_at ?? null, range_shown_at: d.range_shown_at ?? null, range_option: d.range_option ?? null })),
     estimates: ((ests.rows ?? []) as FunnelSlice["estimates"]),
   };
 }

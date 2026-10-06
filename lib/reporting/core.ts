@@ -158,7 +158,9 @@ export type SalesSlice = {
 };
 
 export type FunnelSlice = {
-  drafts: { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; lead_source: string | null }[];
+  drafts: { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; lead_source: string | null;
+    /** S6: the gate (addendum A §4.7). Null on sessions from before. */
+    gate_version?: string | null; gate_shown_at?: string | null; gate_completed_at?: string | null; range_shown_at?: string | null; range_option?: string | null }[];
   /** The estimates the drafts became, whatever their date. */
   estimates: FunnelEstimate[];
 };

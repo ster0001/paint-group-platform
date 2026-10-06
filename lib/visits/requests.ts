@@ -32,7 +32,7 @@ import { buildPlainEmailHtml, sendEmail } from "@/lib/messaging/send";
 import { emailLogoUrl } from "@/lib/messaging/logo";
 import { reportError } from "@/lib/monitoring/report";
 import { endOfNextWorkingDay } from "@/lib/time/workingDays";
-import { loadAddress, maskMobile, saveVisitDetails, type EstimateCore, type VisitAddress } from "./holds";
+import { loadAddress, markGateCompleted, maskMobile, saveVisitDetails, type EstimateCore, type VisitAddress } from "./holds";
 import { sendVisitConfirmation, visitWhen } from "./notify";
 import { availability, speakWithUsFor, type OfferedDay, type ScheduleBooking, type ScheduleBusy, type ScheduleHold } from "./schedule";
 import { loadBookingRules, loadVisitScheduleData } from "./scheduleDb";
@@ -96,6 +96,7 @@ export async function createVisitRequest(svc: SupabaseClient, input: RequestInpu
       const { error: estErr } = await svc.from("estimates").update(patch).eq("id", input.est.id);
       if (estErr) reportError(estErr, { where: "visits.requests.estimateLink", bestEffort: true });
     }
+    if (input.est) await markGateCompleted(svc, input.est.id);
   }
 
   const rules = await loadBookingRules(svc);

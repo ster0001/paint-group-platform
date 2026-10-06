@@ -63,7 +63,7 @@ const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
-  onBook, onMessage, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null,
+  onBook, onMessage, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null, gate = null,
   planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
 }: {
   /** Tom, 14 Sep (evening): the confirm-rooms step — the plan's rooms (or the starter list), a preview, and the rooms added by hand. */
@@ -84,6 +84,8 @@ export default function QuickLook({
   onBook: () => void;
   /** R3: "Send a message". */
   onMessage: () => void;
+  /** S6 (R5): the gate — the last question before the range, when the session's order is "details first". */
+  gate?: { contact: { name: string; email: string; phone: string }; onContact: (c: { name: string; email: string; phone: string }) => void; marketing: boolean; onMarketing: (v: boolean) => void } | null;
   /** C8: the "both" choice screen (prototype `s-both`). */
   onChooseBoth: (how: "self" | "book") => void;
   /** The office number, for "Call us". Null = the card offers booking only. */
@@ -109,7 +111,10 @@ export default function QuickLook({
 }) {
   /** Tom, 14 Sep (evening): the "anything NOT being painted?" popup, open right after a preset is picked. */
   // Tom, 15 Sep (late): an outside job ends on the sides screen, not the outside screen.
-  const last = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "sides";
+  // S6: with a gate, the question before it says so, and the gate is the last screen.
+  const hasGate = Boolean(gate);
+  const lastQuestion = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "sides";
+  const last = step === "gate" || (lastQuestion && !hasGate);
   // C16 (a): the amber tag under a field the assistant filled in. A tap on
   // the field, or Continue on this screen, confirms it and the tag goes.
   const tag = (field: string) => assumed.includes(field)
@@ -118,7 +123,7 @@ export default function QuickLook({
   const pattern = commercial?.segment?.config.pattern === "warehouse" ? "warehouse" as const : "areas" as const;
   const door = commercial?.door ?? "range";
   // C14: the booking screen's button books; it never says "range".
-  const nextLabel = step === "com_book" ? "Book it" : last ? "See my guide range" : "Continue";
+  const nextLabel = step === "gate" ? "Show my guide price" : step === "com_book" ? "Book it" : last ? "See my guide range" : lastQuestion && hasGate ? "Continue to the last question" : "Continue";
 
   return (
     <div className="wz-wrap wz-quick" data-quick-step={step}>
@@ -621,6 +626,22 @@ export default function QuickLook({
 
       {error && <div className="wz-err" data-testid="ql-error">{error}</div>}
 
+      {step === "gate" && gate && (
+        <>
+          <p className="wz-kick">Last question</p>
+          <h1>Where shall we send your estimate?</h1>
+          <p className="wz-sub">Enter your details to see your guide price. We will save your estimate so you can come back to it.</p>
+          <label className="wz-field"><span>Full name</span>
+            <input value={gate.contact.name} autoComplete="name" data-testid="gate-name" onChange={(e) => gate.onContact({ ...gate.contact, name: e.target.value })} /></label>
+          <label className="wz-field"><span>Email</span>
+            <input type="email" inputMode="email" value={gate.contact.email} autoComplete="email" data-testid="gate-email" onChange={(e) => gate.onContact({ ...gate.contact, email: e.target.value })} /></label>
+          <label className="wz-field"><span>Mobile number</span>
+            <input type="tel" inputMode="tel" placeholder="04" value={gate.contact.phone} autoComplete="tel" data-testid="gate-mobile" onChange={(e) => gate.onContact({ ...gate.contact, phone: e.target.value })} /></label>
+          <label className="wz-chint wz-consent" data-testid="gate-marketing">
+            <input type="checkbox" checked={gate.marketing} onChange={(e) => gate.onMarketing(e.target.checked)} /> Send me occasional news and offers from Paint Group (optional)
+          </label>
+        </>
+      )}
       <div className="wz-nav">
         {onBack && (
           <button type="button" className="wz-btn wz-bs" onClick={onBack} data-testid="ql-back">Back</button>

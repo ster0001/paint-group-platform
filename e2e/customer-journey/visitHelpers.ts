@@ -17,11 +17,27 @@ export type Customer = { page: Page; estimateId: string; mobile: string; email: 
 export async function startCustomer(browser: Browser, tag: string, suburb = "Glen Waverley", postcode = "3150"): Promise<Customer> {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await driveNoPlanWizard(page, { stopAtReveal: true, suburb, postcode });
+  const mobile = `04${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+  const email = `visit.${tag}.${RUN}@example.com`;
+  // S6: under "details first" the gate takes these; under "range first" the
+  // visit page's details screen asks for them (`fillDetailsIfAsked`).
+  await driveNoPlanWizard(page, { stopAtReveal: true, suburb, postcode, email, mobile, contactName: `Visit ${tag}` });
   const estimateId = (await page.getByTestId("reveal").getAttribute("data-estimate-id")) ?? "";
   expect(estimateId).toBeTruthy();
-  const mobile = `04${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
-  return { page, estimateId, mobile, email: `visit.${tag}.${RUN}@example.com` };
+  return { page, estimateId, mobile, email };
+}
+
+/** The visit page's "A few details first" — shown only when the session holds no contact (range first). */
+export async function fillDetailsIfAsked(c: Customer, name: string): Promise<void> {
+  const details = c.page.getByTestId("visit-details");
+  const other = c.page.locator("[data-testid='visit-calendar'], [data-testid='visit-request'], [data-testid='visit-out'], [data-testid='visit-code']");
+  await expect(details.or(other.first())).toBeVisible({ timeout: 30_000 });
+  if (await details.count()) {
+    await c.page.getByTestId("visit-name").fill(name);
+    await c.page.getByTestId("visit-email").fill(c.email);
+    await c.page.getByTestId("visit-mobile").fill(c.mobile);
+    await c.page.getByTestId("visit-details-go").click();
+  }
 }
 
 export async function codeFor(sb: SupabaseClient, mobile: string): Promise<string> {

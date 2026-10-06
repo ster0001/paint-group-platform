@@ -15,9 +15,9 @@ import { useEffect, useState } from "react";
  *
  * Wording is the mockup's. Nothing is decided here; the routes do.
  */
-export type TalkMode = "visit" | "message" | "call";
+export type TalkMode = "visit" | "message" | "call" | "details";
 
-export default function TalkSheet({ open, mode, onClose, estimateId, prefill, hasContact = false, address = "" }: {
+export default function TalkSheet({ open, mode, onClose, estimateId, prefill, hasContact = false, address = "", onDone }: {
   open: boolean;
   mode: TalkMode;
   onClose: () => void;
@@ -28,6 +28,8 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
   hasContact?: boolean;
   /** The property address when the estimate already has one (then it is not asked for). */
   address?: string;
+  /** S6 (R7): "details" mode — the details are saved to the estimate and this is called, so the caller can carry on (Tighten my price). */
+  onDone?: (c: { name: string; email: string; mobile: string }) => void;
 }) {
   const [det, setDet] = useState({ name: prefill?.name ?? "", address, email: prefill?.email ?? "", mobile: prefill?.mobile ?? "", note: "" });
   // The sheet is mounted fresh each time it opens (the parent renders it only
@@ -68,6 +70,10 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
       if (await post("/api/visits/request", { kind: mode, ...contact, note: det.note.trim() || undefined })) setStage("sent");
       return;
     }
+    if (mode === "details") {
+      if (await post("/api/visits/details", contact)) onDone?.(contact);
+      return;
+    }
     setStage("message");
   }
   async function sendMessage() {
@@ -86,7 +92,7 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
   );
 
   return (
-    <div className="wz-sheetback" role="dialog" aria-modal="true" aria-label={mode === "visit" ? "Request a site visit" : mode === "call" ? "Speak with us" : "Send us a message"} data-testid="talk-sheet" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="wz-sheetback" role="dialog" aria-modal="true" aria-label={mode === "visit" ? "Request a site visit" : mode === "call" ? "Speak with us" : mode === "details" ? "A few details first" : "Send us a message"} data-testid="talk-sheet" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="wz-sheet">
         {stage === "sent" ? (
           <>
@@ -98,7 +104,7 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
         ) : stage === "details" ? (
           <>
             <h2>A few details first</h2>
-            <p className="wz-sub">{mode === "visit" ? "Tell us where the property is and how to reach you, and we will arrange a visit." : mode === "call" ? "We need these to call you and finalise your booking." : "So we can save your estimate and reply to you."}</p>
+            <p className="wz-sub">{mode === "visit" ? "Tell us where the property is and how to reach you, and we will arrange a visit." : mode === "call" ? "We need these to call you and finalise your booking." : mode === "details" ? "We will save your estimate so you can come back to it." : "So we can save your estimate and reply to you."}</p>
             {fld("Full name", "name")}
             {needAddress && fld("Address of the property", "address")}
             {fld("Email", "email", "email")}
@@ -109,7 +115,7 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
             )}
             {err && <p className="wz-err" role="alert" data-testid="talk-error">{err}</p>}
             <button type="button" className="wz-btn wz-bp" disabled={busy} onClick={() => void afterDetails()} data-testid="talk-go">
-              {mode === "visit" ? "Send my request" : mode === "call" ? "Request a call" : "Continue to your message"}
+              {mode === "visit" ? "Send my request" : mode === "call" ? "Request a call" : mode === "details" ? "Continue" : "Continue to your message"}
             </button>
             <button type="button" className="wz-linkish" onClick={onClose} data-testid="talk-back">Back</button>
           </>

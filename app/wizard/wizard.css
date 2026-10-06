@@ -1193,3 +1193,7 @@
 
 /* Tom, 16 Sep: the × that deletes a side, on the card header like a room. */
 .wz .sd-xhd { margin-left: 8px; }
+
+/* S6 (R17): "Tighten my price" is the main button on the range screen. */
+.wz .wz-door-hero { border-color: var(--accent, #0ea5e9); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #0ea5e9) 30%, transparent); }
+.wz .wz-door-hero b { font-size: 1.05em; }
