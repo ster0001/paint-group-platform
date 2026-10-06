@@ -4164,3 +4164,14 @@ and a waiver — migration `20270215000000_wo_after_photos_waiver.sql` adds `wo_
 no column) and re-creates `wo_contractor_finish` to honour `wo_after_photos_waived()`. The painter's rule is unchanged.
 Spec: `e2e/wo-stage-advance.spec.ts` ("the office's next step from In progress"). Diagnostic for a stuck live job:
 `node scripts/diag/wo-next-step.mjs "<address>"` (read-only).
+
+
+**Check-ins worked from PC Command (6 Oct 2026).** Tom: "move all job check-ins out of the CRM system and into PC
+Command." Still one queue: `lib/crm/work-queue.ts` gains `homeOf(kind)` ("crm" | "pc"; `job_checkin` and
+`job_followup` are PC-homed), `crmItems`/`pcItems`, and `buildPcWorkItems(supabase, now)` — two bounded reads (the
+check-in work orders, the dismissals) returning `{ items, failure }`. `buildWorkQueue` builds every kind as before
+(the keys are what dismissals hang off) and then assembles `crmItems(...)`, so Today, the tab badge and the home
+dashboard no longer carry check-ins. `app/pc/page.tsx` renders the PC items as cards at the top of its queue with
+**Open the job** and `app/pc/CheckinDone.tsx` (**Rang them** = dismiss for good, **Tomorrow** = one day), both
+through the CRM's own `dismissWorkItem` → `crm_dismiss_work_item`. No migration. Spec `e2e/pc-checkins.spec.ts`;
+units in `lib/crm/work-queue-jobs.test.ts`.
