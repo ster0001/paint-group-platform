@@ -4204,3 +4204,12 @@ dashboard no longer carry check-ins. `app/pc/page.tsx` renders the PC items as c
 **Open the job** and `app/pc/CheckinDone.tsx` (**Rang them** = dismiss for good, **Tomorrow** = one day), both
 through the CRM's own `dismissWorkItem` → `crm_dismiss_work_item`. No migration. Spec `e2e/pc-checkins.spec.ts`;
 units in `lib/crm/work-queue-jobs.test.ts`.
+
+**Final invoice skips a variation already billed (6 Oct 2026).** 568 Collins Street: the last quality-check pass
+routed the no-walkthrough close, whose `invoice_draft_final` wrote a line for every signed variation — including
+one already on an issued progress invoice — and `invoice_lines_variation_once` (§3.1) refused, rolling the pass
+back with "duplicate key value violates unique constraint". Migration
+`20270216000000_final_invoice_skips_billed_variations.sql` re-creates `invoice_draft_final` (20270156 body) with one
+predicate: a variation with a live (`not parent_void`) line on another invoice is not written again; the ledger has
+already netted what that invoice took, and the "Less previously invoiced" adjustment balances the draft. Spec
+`e2e/invoice-final-variation-once.spec.ts` closes a fixture job whose variation sits on an issued progress invoice.
