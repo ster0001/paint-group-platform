@@ -63,7 +63,7 @@ const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
-  onBook, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null,
+  onBook, onMessage, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null,
   planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
 }: {
   /** Tom, 14 Sep (evening): the confirm-rooms step — the plan's rooms (or the starter list), a preview, and the rooms added by hand. */
@@ -80,7 +80,10 @@ export default function QuickLook({
   /** C12: the commercial screens (segment, areas, job), rendered from the row. */
   commercial?: CommercialQuickProps | null;
   /** C8: "Book someone in" on screen 1, and "book an estimator for both" — opens the Save & book sheet. */
+  /** R3: "Request a site visit" — a request for staff to follow up, never a booking. */
   onBook: () => void;
+  /** R3: "Send a message". */
+  onMessage: () => void;
   /** C8: the "both" choice screen (prototype `s-both`). */
   onChooseBoth: (how: "self" | "book") => void;
   /** The office number, for "Call us". Null = the card offers booking only. */
@@ -146,16 +149,6 @@ export default function QuickLook({
             screen after it — so leaving is never a dead end and everything
             typed so far goes with them."
           */}
-          <div className="wz-rather" data-testid="ql-rather-not">
-            <b>Rather not fill anything in?</b>
-            <p>Book an estimator or call us. Either takes about a minute, and we do the rest.</p>
-            <div className="wz-rather-row">
-              <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-book">Book someone in</button>
-              {phone && (
-                <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">Call us</a>
-              )}
-            </div>
-          </div>
         </>
       )}
 
@@ -577,16 +570,6 @@ export default function QuickLook({
             </p>
           )}
 
-          <div className="wz-rather" data-testid="ext-rather">
-            <b>Rather we just came out?</b>
-            <p>Every outside job is signed off by a person anyway. Book now and skip the rest.</p>
-            <div className="wz-rather-row">
-              <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ext-book">Book someone in</button>
-              {phone && (
-                <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ext-call">Call us</a>
-              )}
-            </div>
-          </div>
         </>
       )}
 
@@ -656,6 +639,18 @@ export default function QuickLook({
         )}
       </div>
       <p className="wz-steps">Step {stepNo} of {stepsTotal}</p>
+      {/* Visit booking addendum A, R3: on EVERY step before the range —
+          "Would you rather talk it through?" A visit asked for here is a
+          request for staff, never a booking; the message goes into the chat.
+          `ql-book` keeps its test id from the old "Book someone in". */}
+      <div className="wz-rather" data-testid="ql-talk">
+        <b>Would you rather talk it through?</b>
+        <div className="wz-rather-row">
+          <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-book">Request a site visit</button>
+          {phone && <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">Call us</a>}
+          <button type="button" className="wz-btn wz-bs2" onClick={onMessage} data-testid="ql-message">Send a message</button>
+        </div>
+      </div>
     </div>
   );
 }

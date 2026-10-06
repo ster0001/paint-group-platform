@@ -42,6 +42,8 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   job_checkin: "Check-in", job_followup: "Follow-up",
   hold_pending: "Held dates",
   unmapped_suburb: "Suburb",
+  visit_request: "Request",
+  holidays_next_year: "Holidays",
 };
 
 const GROUP_ICON: Record<Exclude<FilterGroup, "all">, string> = {

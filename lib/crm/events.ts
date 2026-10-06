@@ -135,6 +135,11 @@ export const CRM_EVENT_SCHEMAS = {
   // ---- the customer reaching in ------------------------------------------
   website_chat: z.object({ excerpt: shortText.optional(), answered: z.boolean().default(false) }),
   callback_requested: z.object({ phone: z.string().max(30).optional(), note: shortText.optional() }),
+  /** Visit booking S4: a request (time / visit before the range / call) made online; answered when staff reply. */
+  visit_request_made: z.object({ requestId: z.string().uuid(), kind: z.enum(["time", "visit", "call"]), zone: z.string().max(20), note: shortText.optional() }),
+  visit_request_answered: z.object({ requestId: z.string().uuid(), kind: z.enum(["time", "visit", "call"]), visitId: z.string().uuid().optional(), answer: shortText.optional() }),
+  /** Visit booking S4: a customer message sent from the wizard or the range screen, posted into the chat and emailed. */
+  customer_message_sent: z.object({ clientId: z.string().uuid(), where: z.enum(["estimate_chat", "website_chat"]), note: shortText.optional() }),
   /** Visit booking S3: a customer held a slot online and was texted a code. */
   visit_hold_placed: z.object({ holdId: z.string().uuid(), startsAt: z.string().max(40), zone: z.string().max(20) }),
   /** Ticked "looking for advice" on the wizard's colours question (1 Sep) —

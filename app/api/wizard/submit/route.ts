@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseAddressText } from "@/lib/wizard/addressText";
+import { DEFAULT_BOOKING_RULES, speakWithUsFor } from "@/lib/visits/schedule";
+import { loadBookingRules } from "@/lib/visits/scheduleDb";
 import { z } from "zod";
 import { attributionSchema } from "@/lib/crm/attribution";
 import { buildEvent, dedupeKey } from "@/lib/crm/events";
@@ -1025,10 +1027,7 @@ export async function POST(request: Request) {
     // C11 — who confirms this price, resolved once for the strip on the reveal.
     const who = await resolveEstimator(db, ctx.settings, effectiveState.customer?.postcode ?? null);
     // The customer's view: a range, inclusions, confidence — and nothing else.
-    return NextResponse.json({
-      estimateId,
-      planUrl,
-      ...customerPayload(payload, merged.areas, decision, bands, parts, doLines,
+    const cp = customerPayload(payload, merged.areas, decision, bands, parts, doLines,
         who.name ? { name: who.name, phone: who.phone, covers: who.covers } : null,
         // C12 (⚑20): the commercial widening, from the same state and rows.
         // 14 Sep: the first range is the ENVELOPE — best case to worst case
@@ -1041,8 +1040,19 @@ export async function POST(request: Request) {
           return isBoth
             ? { ...widen, holdDays, envelopeParts: { interior: env(merged.areas.filter((a) => a.type !== "Exterior")), exterior: env(merged.areas.filter((a) => a.type === "Exterior")) } }
             : { ...widen, holdDays, envelope: env(merged.areas) };
-        })()),
-    });
+        })());
+    // Visit booking S4 (R25/R34): "Speak with us" is decided HERE, from the top
+    // of the range and the Booking rules caps; the range is kept on the
+    // estimate so the call-request route can check it again (section 8, test 16).
+    const bookingRules = await loadBookingRules(db).catch(() => DEFAULT_BOOKING_RULES);
+    const speakWithUs = speakWithUsFor(effectiveState.jobType, cp.rangeHiCents, bookingRules);
+    await db.from("estimates").update({ builder_state: { ...builderState, guideRange: { loCents: cp.rangeLoCents, hiCents: cp.rangeHiCents, jobType: effectiveState.jobType } } }).eq("id", estimateId)
+      .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.guideRange", bestEffort: true }); });
+    // A website chat this visitor opened before the range ("Send a message", R3)
+    // now belongs with the estimate, so staff see one conversation per customer.
+    await db.from("agent_conversations").update({ estimate_id: estimateId }).eq("created_by", actor.user.id).is("estimate_id", null)
+      .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.linkChat", bestEffort: true }); });
+    return NextResponse.json({ estimateId, planUrl, speakWithUs, ...cp });
   }
 
   return NextResponse.json({
