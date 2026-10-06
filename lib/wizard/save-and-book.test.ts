@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isRepeat, outcomeNoteFor, phoneOrNull, resumeNext, saveAndBookSchema } from "./save-and-book";
+import { isRepeat, outcomeNoteFor, phoneOrNull, propertyAddressFromState, resumeNext, saveAndBookSchema } from "./save-and-book";
 
 describe("C8 — Save & book, the pure half (addendum §4.17, ⚑26)", () => {
   it("email is required and must be an email; mobile and slot are optional", () => {
@@ -30,5 +30,21 @@ describe("C8 — Save & book, the pure half (addendum §4.17, ⚑26)", () => {
     expect(phoneOrNull("+61 412 000 000")).toBe("+61 412 000 000");
     expect(phoneOrNull("123")).toBeNull();
     expect(phoneOrNull(undefined)).toBeNull();
+  });
+});
+
+describe("propertyAddressFromState — the wizard's keys, not the builder's (S0 report, 5 Oct 2026)", () => {
+  it("reads street/suburb/postcode off the picked address", () => {
+    expect(propertyAddressFromState({ address: { street: "12 Sample St", suburb: "Kew", state: "VIC", postcode: "3101", formatted: "12 Sample St, Kew VIC 3101" } }))
+      .toEqual({ street: "12 Sample St", suburb: "Kew", state: "VIC", postcode: "3101" });
+  });
+  it("falls back to the typed suburb and postcode on the customer block", () => {
+    expect(propertyAddressFromState({ address: { street: "12 Sample St" }, customer: { suburb: "Kew", postcode: "3101" } }))
+      .toEqual({ street: "12 Sample St", suburb: "Kew", state: "VIC", postcode: "3101" });
+  });
+  it("the builder's {address, city, postal} shape is NOT an address here, and no street means no property", () => {
+    expect(propertyAddressFromState({ address: { address: "12 Sample St", city: "Kew", postal: "3101" } })).toBeUndefined();
+    expect(propertyAddressFromState({ address: null, customer: { suburb: "Kew", postcode: "3101" } })).toBeUndefined();
+    expect(propertyAddressFromState(null)).toBeUndefined();
   });
 });

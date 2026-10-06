@@ -1711,7 +1711,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             />
           )}
           {/* Tom, 14 Sep (item 8): What we'll do sits at the very bottom of the page. */}
-          {!chatMode && <WhatWeDo lines={systems} tellUsHref="#reach" />}
+          {!chatMode && <WhatWeDo lines={systems} tellUsHref={`/estimate/book?id=${estimateId}`} />}
         </div>
         <PlanPanel docs={docs} variant="column" />
         </div>

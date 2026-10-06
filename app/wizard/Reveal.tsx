@@ -229,7 +229,7 @@ export default function Reveal({
 
       {/* C9 — the coats and prep the engine derived, in plain English, no
           controls. What changes it is the job screen and the details screen. */}
-      <WhatWeDo lines={payload.systems ?? []} tellUsHref={`/estimate/scope?id=${estimateId}#reach`} />
+      <WhatWeDo lines={payload.systems ?? []} tellUsHref={`/estimate/book?id=${estimateId}`} />
 
       {/* The estimator has not seen this yet, and the customer should hear
           that from us rather than discover it. */}
@@ -253,7 +253,7 @@ export default function Reveal({
         estimator={payload.estimator}
         suburb={null}
         companyPhone={phone}
-        bookHref={`/estimate/scope?id=${estimateId}#reach`}
+        bookHref={`/estimate/book?id=${estimateId}`}
       />
 
       {phone && (

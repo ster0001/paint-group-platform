@@ -102,6 +102,7 @@ redelivery never tells anyone twice. `lib/staff/notify.ts`.
 | 10 | `office_signoff_overdue` | Sign-off overdue | email + SMS | Completion pack out 72 h, unsigned (Session 3). | Once per job. |
 | 7 | `assistant_handoff` | Assistant — someone wants a person | SMS | Customer in the assistant chat asks for a human inside support hours → on-duty roster texted. A claim past the SLA → escalation list texted. | Roster, hours and SLA under Admin → Assistant. Off = the handoff card still appears in Today → Messages. `lib/agent/gateway.ts`, `app/api/agent/website/route.ts`. |
 | 8 | — (in-app, not a send) | Staff chat dock | Realtime + chime | Customer message on an estimate chat. | Browser only; no email/SMS to staff. |
+| 11 | — (in-app, work queue) | Unmapped suburb | screen | A customer's address names a Victorian suburb the visit-zones list does not know (`visit_unmapped_suburbs`, written by `lib/visits/zones.ts` `resolveZone`). | Visit booking addendum A S1 (5 Oct 2026). Derived item, kind `unmapped_suburb`, due next business morning; cleared when the suburb is added under Settings → Visit zones. No message is sent. |
 | 9 | — (in-app) | CRM work queue / Today cards | screen | Derived from `crm_account_facts` (followup_due, waiting, lapsed, accepted-not-booked, wizard drop-outs). | Refreshed by crm-sweep every 30 min. No message goes out; these are the prompts a human acts on. |
 
 ---

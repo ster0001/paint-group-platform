@@ -4,6 +4,54 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 6 Oct 2026 — visit booking S2: each estimator's week, booking rules, THE availability function
+
+**2026-10-06 · `supabase/migrations/20270213000000_visit_slots_and_booking_rules.sql`, `lib/visits/schedule.ts`,
+`lib/visits/scheduleDb.ts`, `app/(app)/settings/VisitScheduleSettings.tsx`, `BookingRulesSettings.tsx`,
+`visitScheduleActions.ts`, `scripts/seed-visit-week.ts`**
+
+`visit_slots` holds one row per named slot of an estimator's week (weekday, start minutes, run length, the zones
+that can book it, an optional R14 conditional "also Zone X if the slot before is a Zone Y visit"), with a btree_gist
+exclusion constraint so two slots of one estimator never overlap (section 8 test 18; the server action checks first
+and says which slot it ran into). `visits` gained `zone` and `far_edge`, frozen at booking, because R14 and R18 read
+what zone a CONFIRMED visit was in. The booking rules are one `settings` row, `visit_booking_rules` (same-day,
+notice, window, hold, slot and visit length, the R34 phone caps, reminder time, public holidays, far-edge pairs, gate
+order), created by the migration with the brief's starting values and edited at Settings → Booking rules. The
+public-holiday list starts empty; S4 seeds it. `availability()` in `lib/visits/schedule.ts` is the ONE function that
+says which slots a customer may see: pure, takes the week, confirmed bookings, live holds, busy times, the rules, the
+customer's zone and far-edge flag and "now", applies §4.2's seven rules in order and returns days of offered slots
+with the one-hour visit end (R32) and the 90-minute block end. Melbourne wall-clock throughout via `melbourneInstant`,
+so the Monday after a DST change still offers 08:00. The nineteen golden tests in `schedule.test.ts` are the brief's
+S2 "done when" list verbatim. `STANDARD_WEEK` (section 5, 21 slots, totals 16/13/6/5/9) is seeded per estimator by
+`scripts/seed-visit-week.ts --estimator <email>` or the "Load the standard week" button in Settings — never by SQL
+inserts. The old half-day engine (`lib/visits/availability.ts`, `settings.visits`) still serves `/estimate/book`
+until S3 replaces the customer path; the Estimator visits panel now points at Booking rules for the numbers.
+
+## 5 Oct 2026 — visit booking S1: suburb → zone list, the resolver, Settings → Visit zones
+
+**2026-10-05 · `supabase/migrations/20270212000000_visit_zones.sql`, `lib/visits/zones.ts`, `lib/visits/zoneGeo.ts`,
+`scripts/seed-visit-zones.ts`, `app/(app)/settings/VisitZonesSettings.tsx` + `visitZonesActions.ts`, `lib/crm/work-queue.ts`**
+
+First build session of `docs/briefs/claude-code-brief-visit-booking-addendum-a.md`. Three staff-only tables:
+`visit_zones` (the five zones, each with the estimator who covers it — R11), `visit_suburbs` (every Victorian
+suburb + postcode with a status `zone_1…zone_5 | pre_arranged | out_of_area`, the R18 far-edge tick, a reviewed flag
+and the basis), and `visit_unmapped_suburbs` (the FACT behind the "unmapped suburb" work item — a Victorian suburb a
+customer typed that the list did not know; resolved when the suburb is added in Settings). The resolver
+`resolveZone()` looks up by **suburb and postcode together** (Glen Waverley / Wheelers Hill share 3150) and runs on
+the server with the service client for a customer; `resolveFromList()` is the pure rule the tests drive. The seed is
+Matthew Proctor's Australian postcodes dataset (CC0), Victorian delivery areas with a 3xxx postcode, each precise
+centre point tested against `docs/briefs/data/visit-zones-draft2.geojson` by ascending priority, then the rulings CSV
+applied on top (it always wins; the five disagreements are listed in the review CSV and the session report).
+`docs/briefs/data/visit-zones-review.csv` is what the seed reads — never hand-written inserts. Settings → Company →
+Visit zones: filter by status, move one or many, far-edge tick, bulk approve, add a suburb, answer an unmapped
+suburb, and "Check an address", which answers from the live table so a move is live for the next customer at once.
+The work queue gained the kind `unmapped_suburb` (one source function, derived from the fact table, due the next
+business morning). Pre-existing bugs fixed in passing: the range screen's "Book your estimator" / "Tell us" links
+pointed at `/estimate/scope#reach`, an anchor that only renders on `/estimate/book` — they now go to the Book page;
+and Save & book read the builder's `{address, city, postal}` keys off the wizard state (which uses
+`{street, suburb, postcode}`), so it never linked a property — `propertyAddressFromState()` in
+`lib/wizard/save-and-book.ts`.
+
 ## 4 Oct 2026 — estimator notes: typed or spoken, builder ↔ PC command, never the painter
 
 **2026-10-04 · `supabase/migrations/20270211000000_estimator_notes.sql`, `app/components/estimator-notes/`

@@ -53,6 +53,8 @@ export const WORK_ITEM_KINDS = [
   "change_request",
   /** Assistant S7: a customer is waiting for a person in a live chat. */
   "handoff_requested",
+  /** Visit booking addendum A §4.1: a Victorian suburb the zone list does not know. */
+  "unmapped_suburb",
   /** Buckets brief §4: a wizard session that asked for a call or a visit (A). */
   "wizard_ready",
   /** Buckets brief §4: a wizard session that asked a question or for help (B). */
@@ -190,6 +192,7 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
  * live in one object so Tom's ruling is a one-line change and not a hunt.
  */
 export const KIND_WEIGHT: Record<WorkItemKind, number> = {
+  unmapped_suburb: 16,
   message_unanswered: 26,
   callback_requested: 24,
   message_unmatched: 18,
@@ -296,6 +299,7 @@ export const FILTER_GROUPS = ["all", "messages", "followups", "approvals", "mone
 export type FilterGroup = (typeof FILTER_GROUPS)[number];
 
 export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = {
+  unmapped_suburb: "followups",
   message_unanswered: "messages",
   message_unmatched: "messages",
   callback_requested: "messages",
@@ -1080,6 +1084,42 @@ export function buildApprovalItem(queuedCount: number, now: Date): WorkItem[] {
   }, { valueCents: null, promisedToCustomer: false }, now)];
 }
 
+// ---- source: unmapped_suburb (visit booking addendum A §4.1) -----------------
+
+/** A row of `visit_unmapped_suburbs` with no `resolved_at`. */
+export type UnmappedSuburbRow = {
+  id: string;
+  suburb: string;
+  postcode: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  hits: number;
+  last_estimate_id: string | null;
+};
+
+/**
+ * One item per unknown Victorian suburb a customer typed. The fact is the row;
+ * the item disappears when the suburb is added to the list in Settings (which
+ * sets `resolved_at`). Due the next business morning — the customer went down
+ * the request-a-time path and is waiting on a reply.
+ */
+export function buildUnmappedSuburbItems(rows: UnmappedSuburbRow[], now: Date): WorkItem[] {
+  return rows.map((r) => {
+    const where = `${r.suburb}${r.postcode ? ` ${r.postcode}` : ""}`;
+    return finish({
+      key: itemKey("unmapped_suburb", "event", r.id, "zone"),
+      kind: "unmapped_suburb",
+      accountId: null,
+      subjectRef: r.last_estimate_id ? { type: "estimate", id: r.last_estimate_id } : { type: "event", id: r.id },
+      since: r.first_seen_at,
+      title: `Unmapped suburb: ${where}`,
+      detail: `${r.hits === 1 ? "A customer" : `${r.hits} customers`} gave an address in ${where}, which is not in the visit zones list. Add it as a zone, pre-arranged or out of area so the next one gets an answer.`,
+      dueAt: nextBusinessMorning(new Date(r.first_seen_at)).toISOString(),
+      action: { label: "Add the suburb", href: "/settings#visit-zones" },
+    }, { valueCents: null, promisedToCustomer: true }, now);
+  });
+}
+
 // ---- assembly --------------------------------------------------------------
 
 function finish(
@@ -1525,7 +1565,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // read that fills its cap is reported on the queue rather than dropped silently.
   const CAP = { followups: 500, invoices: 500, callbacks: 200, wizard: 300, lapsed: 300, inbound: 400, rebook: 200, quotes: 500 };
   const truncated: string[] = [];
-  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds, unmappedSuburbs] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -1595,6 +1635,11 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .order("state_until", { ascending: true })
       .limit(300),
     loadCrmThresholds(supabase),
+    supabase.from("visit_unmapped_suburbs")
+      .select("id, suburb, postcode, first_seen_at, last_seen_at, hits, last_estimate_id")
+      .is("resolved_at", null)
+      .order("first_seen_at", { ascending: true })
+      .limit(CAP.callbacks),
   ]);
   const delayedRows = ((delayedAcc.error ? [] : (delayedAcc.data ?? [])) as Array<DelayedAccountRow & { relationship_state: string }>);
   const hit = (name: string, rows: unknown[] | null | undefined, cap: number) => { if ((rows?.length ?? 0) >= cap) truncated.push(name); };
@@ -1810,6 +1855,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildLapsedItems(lapsedRows, lapsedAttempts as ContactEventRow[], lapsedNames, now),
     ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps),
     ...buildHoursPendingItems(hoursRows, now),
+    // A read that fails before migration 20270212 is on the database adds nothing (same shape as handoffs above).
+    ...buildUnmappedSuburbItems(((unmappedSuburbs.error ? [] : unmappedSuburbs.data) ?? []) as UnmappedSuburbRow[], now),
     ...buildEmployeeReassignItems(flagRows, activeRows, moveRows, painterNames, now),
     ...buildEmployeeUnacceptedItems(activeRows, painterNames, now),
     ...buildLeaveRequestItems(leaveRows, painterNames, now),
