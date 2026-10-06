@@ -33,7 +33,7 @@ export default function SaveAndBookSheet({
   const [email, setEmail] = useState(prefill?.email ?? "");
   const [mobile, setMobile] = useState(prefill?.phone ?? "");
   const [name, setName] = useState(prefill?.name ?? "");
-  const [slots, setSlots] = useState<string[]>([]);
+  const [slots] = useState<string[]>([]);
   const [slot, setSlot] = useState<string | null>(null);
   const [busy, setBusy] = useState<"book" | "call" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,14 +41,12 @@ export default function SaveAndBookSheet({
 
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
     // Visit booking S4 (R3): a visit asked for before the range is a REQUEST,
     // never a slot — the old windows are not fetched any more. The sheet saves
-    // the session and asks for a call back.
-    setSlots([]);
+    // the session and asks for a call back; `slots` stays empty.
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
-    return () => { cancelled = true; window.removeEventListener("keydown", onKey); };
+    return () => { window.removeEventListener("keydown", onKey); };
   }, [open, onClose]);
 
   if (!open) return null;

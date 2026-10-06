@@ -18,6 +18,11 @@ const DAY3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const ZONE_WORDS: Record<string, string> = { zone_1: "Zone 1", zone_2: "Zone 2", zone_3: "Zone 3", zone_4: "Zone 4", zone_5: "Zone 5", pre_arranged: "Pre-arranged area", out_of_area: "Out of area", unmapped: "Suburb not in the list" };
 const KIND_WORDS = { time: "Asked for a visit time", visit: "Asked for a site visit before the price range", call: "Asked for a call to finalise by phone" };
 
+/** Outside the component so the render stays pure (react-compiler lint). */
+function isOverdue(dueAt: string, answeredAt: string | null): boolean {
+  return !answeredAt && new Date(dueAt).getTime() < new Date().getTime();
+}
+
 function when(iso: string): string {
   const p = melbourneParts(new Date(iso));
   return `${DAY3[p.weekday]} ${p.d}/${p.m} ${String(p.h).padStart(2, "0")}:${String(p.min).padStart(2, "0")}`;
@@ -39,7 +44,7 @@ export default async function VisitRequestPage({ params }: { params: Promise<{ i
   if (!req.answered_at) {
     try { days = await staffOfferableSlots(svc, req); } catch (e) { slotsError = e instanceof Error ? e.message : "read failed"; }
   }
-  const overdue = !req.answered_at && new Date(req.due_at).getTime() < Date.now();
+  const overdue = isOverdue(req.due_at, req.answered_at);
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-6" data-testid="visit-request">
