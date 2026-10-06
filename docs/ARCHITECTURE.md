@@ -4120,3 +4120,18 @@ token block is light (`color-scheme: light`, `--bar` for the sticky bars, the `-
 fallback can win), every hardcoded dark value in `wizard.css` became a token, the drawings' hexes moved to light
 equivalents, the chat bubble is overridden light inside `.wz` only (the marketing site stays dark), and the header
 prefers the light-background logo (`logoUrlLight`, then `logoUrl`).
+
+**Next step from In progress on the PC console (6 Oct 2026).** Two live jobs sat at In progress with every box ticked
+and nothing the office could do: `confirmPrepStaff` (`app/pc/actions.ts`) ran the painter's finish and passed only its
+`error:gate:` refusals on, so a finish refused for want of the job's after photos (`error:after_photos_required`, Tom's
+30 Sep rule) was dropped and the confirm that followed answered `not at prep`. Now every finish result is handled and
+said in words, and a success revalidates the job page (`StageAdvance` also calls `router.refresh()` so the ticks, lists
+and rail move with the card). `StageAdvance` takes a `readiness` prop computed in `page.tsx` from the same rows the
+gates read (surfaces left, `jobNeedsAfterPhotos`, required finishing-up items, unsettled variations) and draws a
+**Before the next step** list above the one routed button, so the reason is visible before the press. Two office
+routes past the after-photo gate: a console `BatchUploader` (`kind="completion"`, staff may call `wo_record_photo`)
+and a waiver — migration `20270215000000_wo_after_photos_waiver.sql` adds `wo_staff_waive_after_photos(uuid, text)`
+(staff only, needs a reason, writes a `wo_events` row of type `after_photos_waived`; the event is the record, there is
+no column) and re-creates `wo_contractor_finish` to honour `wo_after_photos_waived()`. The painter's rule is unchanged.
+Spec: `e2e/wo-stage-advance.spec.ts` ("the office's next step from In progress"). Diagnostic for a stuck live job:
+`node scripts/diag/wo-next-step.mjs "<address>"` (read-only).
