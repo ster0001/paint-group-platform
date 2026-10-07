@@ -91,7 +91,8 @@ export default async function VariationPage({ params }: { params: Promise<{ toke
   // approved once signed; declined only if every row was declined.
   const pending = rows.some((r) => r.status === "priced");
   const status = pending ? "priced"
-    : rows.some((r) => r.status === "customer_approved" || r.status === "contractor_accepted") ? "customer_approved"
+    // Tom, 7 Oct 2026: a row the PAINTER declined still carries the customer's signature — that is the customer's answer.
+    : rows.some((r) => r.status === "customer_approved" || r.status === "contractor_accepted" || (r.status === "declined" && r.signed_at != null)) ? "customer_approved"
     : "declined";
   const netCents = rows.reduce((s, r) => s + offerRowCents(r), 0);
   const credit = netCents < 0;

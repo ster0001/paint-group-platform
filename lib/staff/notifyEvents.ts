@@ -26,6 +26,10 @@ export const STAFF_EVENTS = [
   /** Tom, 1 Oct 2026: a customer declines their estimate; a sent estimate lapses past its valid-until. */
   { key: "office_estimate_declined",   label: "Estimate declined",        short: "Declined" },
   { key: "office_estimate_expired",    label: "Estimate expired",         short: "Expired" },
+  /** Tom, 7 Oct 2026 (PC Command): the painter declined a change the client approved; a painter's ticks drafted a customer update; a customer is due an update. */
+  { key: "office_variation_declined",  label: "Painter declined a change", short: "Change declined" },
+  { key: "office_update_drafted",      label: "Customer update drafted",  short: "Update ready" },
+  { key: "office_update_due",          label: "Customer update due",      short: "Update due" },
 ] as const;
 
 export type StaffEventKey = (typeof STAFF_EVENTS)[number]["key"];

@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { staffVariationRaised } from "@/lib/staff/notify";
+import { staffVariationDeclinedByPainter, staffVariationRaised } from "@/lib/staff/notify";
 import { VARIATION_CATEGORIES } from "@/lib/workorder/variations";
 
 /**
@@ -36,7 +36,38 @@ const WORDING: Record<string, string> = {
   not_found: "That job no longer exists.",
   customer_not_approved: "The customer hasn't approved this yet — we'll let you know.",
   not_released: "The office hasn't sent this over yet.",
+  note_required: "Tell us what needs to change — a sentence is plenty.",
+  credit_not_declinable: "A removal is the customer's call — acknowledge it instead.",
 };
+
+/**
+ * Tom, 7 Oct 2026: the painter DECLINES a change the client approved, with a
+ * note ("please advise us of any further changes"). It goes back to PC
+ * Command — a card on the console and an alert to the office.
+ */
+export async function declineVariationAction(raw: unknown): Promise<AcceptResult> {
+  const parsed = z.object({
+    variationId: z.string().uuid(),
+    note: z.string().trim().min(3, WORDING.note_required).max(1000),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? WORDING.note_required };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_contractor_decline_variation", {
+    p_variation_id: parsed.data.variationId, p_note: parsed.data.note,
+  });
+  if (error) return { ok: false, message: "Couldn't send that just now — check your signal and try again." };
+  const s = String(data ?? "");
+  if (s === "ok:declined" || s === "ok:already") {
+    revalidatePath("/portal/jobs");
+    revalidatePath("/pc");
+    const service = createServiceClient();
+    if (service) { const id = parsed.data.variationId; after(() => staffVariationDeclinedByPainter(service, id).then(() => undefined)); }
+    return { ok: true };
+  }
+  const reason = s.replace("error:", "").replace(/^already_/, "");
+  return { ok: false, message: WORDING[reason] ?? "Couldn't send that." };
+}
 
 export async function raiseVariationAction(raw: unknown): Promise<RaiseResult> {
   const parsed = raiseInput.safeParse(raw);

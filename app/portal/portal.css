@@ -479,6 +479,18 @@
 .pt .var-row { display: flex; gap: 8px; align-items: center; }
 .pt .var-send { flex: 1; background: linear-gradient(135deg, var(--cyan), var(--paint)); color: #03272d; border: 0; border-radius: 10px; padding: 14px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; min-height: 48px; }
 .pt .var-send:disabled { opacity: .5; cursor: default; }
+/* Tom, 7 Oct 2026: the client-approved change — figures up front, Accept big, Decline small. */
+.pt .var-approved { margin-top: 10px; display: grid; gap: 8px; }
+.pt .var-approved-head { margin: 0; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
+.pt .var-approved-figures { margin: 0; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.pt .var-approved-figures b { font-size: 26px; letter-spacing: -.01em; }
+.pt .var-approved-figures span { color: var(--muted); font-size: 13px; }
+.pt .var-accept-big { font-size: 17px; min-height: 56px; letter-spacing: .01em; text-transform: uppercase; }
+.pt .var-decline-small { background: none; border: 0; color: var(--muted); font-size: 12.5px; text-decoration: underline; cursor: pointer; justify-self: start; padding: 4px 0; font-family: inherit; }
+.pt .var-decline-box { display: grid; gap: 6px; }
+.pt .var-decline-box label { font-size: 13px; }
+.pt .var-decline-box textarea { width: 100%; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: inherit; padding: 10px; font-family: inherit; font-size: 14px; }
+.pt .var-decline-acts { display: flex; gap: 10px; align-items: center; }
 .pt .var-cancel { background: none; border: 0; color: var(--muted); font-family: inherit; font-size: 13px; cursor: pointer; padding: 8px; }
 .pt .var-item { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
 .pt .var-item-top { display: flex; align-items: center; gap: 8px; }

@@ -516,6 +516,36 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Once per variation.",
   },
   {
+    key: "office_variation_declined", name: "Painter declined an approved change", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "Tom, 7 Oct 2026: the client approved a change from Revise scope, it went to the painter for their approval, and they declined it with a note — it is back in PC Command.",
+    templates: [
+      { field: "officeVariationDeclinedSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{hours_line}}", "{{comment}}", "{{link}}"] },
+      { field: "officeVariationDeclinedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{hours_line}}", "{{comment}}", "{{link}}"] },
+    ],
+    guard: "Once per variation.",
+  },
+  {
+    key: "office_update_drafted", name: "Customer update drafted from the painter's ticks", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: false, capExempt: true,
+    trigger: "Tom, 7 Oct 2026: a painter ticks work off (or the evening sweep catches it) and a customer update is drafted for the day — someone in the office confirms and sends it.",
+    templates: [
+      { field: "officeUpdateDraftedSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{link}}"] },
+      { field: "officeUpdateDraftedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{link}}"] },
+    ],
+    guard: "Once per job per day.",
+  },
+  {
+    key: "office_update_due", name: "Customer due an update", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: false, capExempt: true,
+    trigger: "Tom, 7 Oct 2026: a job in progress whose customer has heard nothing for the 'update every N days' setting, with nothing drafted — the evening sweep reminds the office to write one.",
+    templates: [
+      { field: "officeUpdateDueSubject", label: "Email subject", kind: "subject", placeholders: ["{{job}}", "{{wo_ref}}", "{{hours_line}}", "{{link}}"] },
+      { field: "officeUpdateDueBody", label: "Message", kind: "body", placeholders: ["{{job}}", "{{wo_ref}}", "{{hours_line}}", "{{link}}"] },
+    ],
+    guard: "Once per job per day while it is due.",
+  },
+  {
     key: "office_contractor_invoice", name: "Contractor invoice submitted", audience: "office", channels: ["email", "sms"], kind: "automatic",
     defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A painter submits an invoice or a payment claim — it is waiting for approval in Payments.",

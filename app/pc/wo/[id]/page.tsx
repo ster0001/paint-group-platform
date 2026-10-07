@@ -25,6 +25,7 @@ import RebuildTicks from "./RebuildTicks";
 import SetDeduction from "./SetDeduction";
 import MaterialsCard, { type MaterialRowProp } from "./MaterialsCard";
 import FinishLevelCard from "./FinishLevelCard";
+import ClientUpdates, { type ClientTimelineEntry } from "./ClientUpdates";
 import ReferencePhotosCard from "./ReferencePhotosCard";
 import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
 import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
@@ -86,7 +87,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_variations")
-        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents")
+        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents, contractor_declined_at, contractor_decline_note")
         .eq("work_order_id", id).order("created_at", { ascending: false }),
       supabase.from("wo_updates").select("id, draft_text, final_text, status, for_date")
         .eq("work_order_id", id).order("for_date", { ascending: false }).limit(1),
@@ -342,7 +343,34 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     contractor_delta_cents: number | null; released_at: string | null;
     credit: boolean; signed_name: string | null; signed_at: string | null;
     needs_manual_deduction: boolean; deduction_cents: number | null;
+    contractor_declined_at?: string | null; contractor_decline_note?: string | null;
   }[]);
+
+  // Tom, 7 Oct 2026 (PC Command item 5): the client-updates timeline — every
+  // update that reached the customer and every note the office logged about
+  // telling them, newest first. Both reads check their error (a rejected
+  // query must never read as "no updates yet").
+  const [sentUpdatesRes, clientNotesRes] = await Promise.all([
+    supabase.from("wo_updates").select("id, final_text, draft_text, status, for_date, sent_at, approved_at")
+      .eq("work_order_id", id).in("status", ["approved", "sent"]).order("for_date", { ascending: false }).limit(40),
+    supabase.from("wo_events").select("id, created_at, meta, actor")
+      .eq("work_order_id", id).eq("type", "client_update_note").order("created_at", { ascending: false }).limit(80),
+  ]);
+  // wo_events.actor points at auth.users, not profiles — names are a second, keyed read.
+  const noteActorIds = [...new Set(((clientNotesRes.data ?? []) as { actor: string | null }[]).map((e) => e.actor).filter((x): x is string => !!x))];
+  const noteActors = noteActorIds.length
+    ? await supabase.from("profiles").select("id, name").in("id", noteActorIds)
+    : { data: [] as { id: string; name: string | null }[], error: null };
+  const actorName = new Map(((noteActors.data ?? []) as { id: string; name: string | null }[]).map((p) => [p.id, p.name]));
+  const clientTimelineFailures: string[] = [];
+  if (sentUpdatesRes.error) { reportError(sentUpdatesRes.error, { where: "pc.wo.clientUpdates.sent" }); clientTimelineFailures.push("sent updates"); }
+  if (clientNotesRes.error) { reportError(clientNotesRes.error, { where: "pc.wo.clientUpdates.notes" }); clientTimelineFailures.push("notes"); }
+  const clientTimeline: ClientTimelineEntry[] = [
+    ...((sentUpdatesRes.data ?? []) as { id: string; final_text: string | null; draft_text: string; status: string; for_date: string; sent_at: string | null; approved_at: string | null }[])
+      .map((u) => ({ id: `u:${u.id}`, kind: u.status === "sent" ? "sent" as const : "approved" as const, at: u.sent_at ?? u.approved_at ?? `${u.for_date}T12:00:00Z`, body: u.final_text ?? u.draft_text, who: null })),
+    ...((clientNotesRes.data ?? []) as { id: string; created_at: string; meta: { body?: string } | null; actor: string | null }[])
+      .map((e) => ({ id: `n:${e.id}`, kind: "note" as const, at: e.created_at, body: String(e.meta?.body ?? ""), who: (e.actor ? actorName.get(e.actor) : null) ?? null })),
+  ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   const contract = row.estimates?.total_cents ?? 0;
   const contractorPay = row.contractor_payment_cents ?? 0;
@@ -767,6 +795,13 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                     : ""}
                 </p>
               )}
+              {/* Tom, 7 Oct 2026: the client approved it; the painter declined it, with a note. */}
+              {v.status === "declined" && v.contractor_declined_at && (
+                <p className="note" data-testid={`variation-painter-declined-${v.id}`} style={{ color: "var(--clay, #c2410c)" }}>
+                  Declined by the painter{v.contractor_declined_at ? ` on ${new Date(v.contractor_declined_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}` : ""} after the client approved it
+                  {v.contractor_decline_note ? <> — they wrote: &ldquo;{v.contractor_decline_note}&rdquo;</> : "."} Revise it with the client in <b>Revise scope</b>, or set the painter&rsquo;s amount and re-send.
+                </p>
+              )}
               {/* What the painter photographed when they raised it — pricing a
                   variation off a one-line comment was guesswork. */}
               <PhotoGrid
@@ -817,6 +852,11 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               <div className="draft">{update.final_text ?? update.draft_text}</div>
             </div>
           )}
+
+          {/* Tom, 7 Oct 2026: a notes box for what the client was told (a call, a
+              text, a conversation on site) — on this job's timeline AND on the
+              customer's CRM record. */}
+          <ClientUpdates workOrderId={id} entries={clientTimeline} failures={clientTimelineFailures} />
 
           <div className="card" data-testid="site-photos">
             <h3>From site <em data-testid="photo-count">{photos.length} photo{photos.length === 1 ? "" : "s"}</em></h3>

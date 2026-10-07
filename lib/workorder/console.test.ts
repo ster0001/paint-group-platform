@@ -36,6 +36,27 @@ describe("an empty desk", () => {
   });
 });
 
+describe("a change the client approved and the painter declined (Tom, 7 Oct 2026)", () => {
+  it("is a card back with the office, carrying the painter's note", () => {
+    const q = buildQueue(base({
+      variations: [{ id: "v9", workOrderId: "w1", status: "declined", createdAt: hoursAgo(30), pricedAt: null,
+        contractorDeclinedAt: hoursAgo(2), declineNote: "Needs another day — the rot goes further than the photo showed." }],
+    }));
+    const card = q.find((c) => c.key === "variation-painter-declined:v9")!;
+    expect(card).toBeDefined();
+    expect(card.title).toBe("Painter declined an approved change");
+    expect(card.detail).toContain("rot goes further");
+    expect(card.action.href).toBe("/pc/wo/w1#variation-v9");
+    expect(Math.round(card.ageHours)).toBe(2);
+  });
+  it("a variation the CUSTOMER declined is not the office's to chase", () => {
+    const q = buildQueue(base({
+      variations: [{ id: "v8", workOrderId: "w1", status: "declined", createdAt: hoursAgo(30), pricedAt: null, contractorDeclinedAt: null }],
+    }));
+    expect(q.find((c) => c.key.startsWith("variation-painter-declined"))).toBeUndefined();
+  });
+});
+
 describe("quality checks, updates due and walkthroughs to book (Tom, 23 Aug)", () => {
   it("says a job waiting at Quality check has checks to log", () => {
     const q = buildQueue(base({

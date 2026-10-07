@@ -55,6 +55,8 @@ export type ConsoleInput = {
     credit?: boolean; needsManualDeduction?: boolean; deductionCents?: number | null;
     /** Tom, 17 Sep: what the "Variations for approval" list shows per row. */
     category?: string; comment?: string; priceCents?: number | null; raisedKind?: string;
+    /** Tom, 7 Oct 2026: the painter declined the client-approved change, with a note. */
+    contractorDeclinedAt?: string | null; declineNote?: string;
   }[];
   updates: { id: string; workOrderId: string; status: string; createdAt: string }[];
   /** 3a-5: open "Report an issue" submissions from the customer portal. */
@@ -342,6 +344,23 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
           action: { label: "Nudge customer", kind: "nudge", href: `/pc/wo/${v.workOrderId}` },
         });
       }
+    }
+
+    // Tom, 7 Oct 2026: the client approved it, the painter declined it — it is
+    // back with the office: revise it with the client or set the painter's amount.
+    if (v.status === "declined" && v.contractorDeclinedAt) {
+      cards.push({
+        key: `variation-painter-declined:${v.id}`,
+        severity: "warning",
+        title: "Painter declined an approved change",
+        detail: v.declineNote?.trim()
+          ? `They wrote: “${v.declineNote.trim().slice(0, 160)}” — revise it with the client, or set their amount.`
+          : "No note came with it. Ring them, then revise it with the client or set their amount.",
+        ref: label(v.workOrderId),
+        workOrderId: v.workOrderId,
+        ageHours: hoursBetween(v.contractorDeclinedAt, now),
+        action: { label: "Revise it", kind: "price", href: `/pc/wo/${v.workOrderId}#variation-${v.id}` },
+      });
     }
 
     // A3 ruling 3: a signed removal hit scope that was already started, so

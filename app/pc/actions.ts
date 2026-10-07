@@ -16,6 +16,8 @@ import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
 import { melbourneDate } from "@/lib/workorder/console";
+import { logCrmEvent } from "@/lib/crm/events";
+import { reportError } from "@/lib/monitoring/report";
 
 /**
  * The console's own actions — the three PC surfaces the earlier steps deferred
@@ -980,4 +982,53 @@ export async function deleteReferencePhoto(raw: unknown): Promise<PcResult> {
   if (!r.ok && r.message === "not staff") return { ok: false, message: "Only the office can do that." };
   if (r.ok) revalidatePath("/portal/jobs");
   return r;
+}
+
+/**
+ * Tom, 7 Oct 2026 (PC Command item 5): a client-update note. Two records, one
+ * action: the job's own timeline (wo_events 'client_update_note', via the
+ * staff-only RPC) and the customer's CRM record (crm_events note_added, origin
+ * client_update) so the CRM timeline carries it too. The CRM copy is
+ * best-effort — a job with no customer account simply has no CRM row.
+ */
+export async function addClientUpdateNote(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, body: z.string().trim().min(2).max(2000) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Write what the client was told — a line is plenty (under 2,000 characters)." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_add_client_update_note", {
+    p_work_order_id: parsed.data.workOrderId, p_body: parsed.data.body,
+  });
+  if (error) {
+    if (isMissingRpc(error.message, "wo_add_client_update_note")) {
+      return { ok: false, message: "This needs database migration 20270220 run first — nothing was saved." };
+    }
+    return { ok: false, message: error.message };
+  }
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) {
+    if (s === "error:not_staff") return { ok: false, message: "Only the office can log client updates." };
+    return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") || "That didn't save." };
+  }
+
+  // The customer's CRM record: the account behind the job's estimate.
+  let crm = "";
+  const { data: wo, error: woErr } = await supabase.from("work_orders").select("estimate_id, estimates(account_id)").eq("id", parsed.data.workOrderId).maybeSingle();
+  if (woErr) reportError(woErr, { where: "pc.clientUpdateNote.account" });
+  const est = (wo as { estimates?: { account_id: string | null } | { account_id: string | null }[] | null } | null)?.estimates;
+  const accountId = (Array.isArray(est) ? est[0]?.account_id : est?.account_id) ?? null;
+  if (accountId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: me } = user ? await supabase.from("profiles").select("name").eq("id", user.id).maybeSingle() : { data: null };
+    const author = ((me as { name?: string | null } | null)?.name ?? "").trim() || undefined;
+    const id = await logCrmEvent(supabase, {
+      type: "note_added", accountId, workOrderId: parsed.data.workOrderId,
+      estimateId: (wo as { estimate_id?: string | null } | null)?.estimate_id ?? null,
+      source: "staff", payload: { body: `Client update: ${parsed.data.body}`, ...(author ? { author } : {}), origin: "client_update" },
+    });
+    crm = id ? " and on the customer's CRM record" : " (the CRM copy did not save — it has been reported)";
+    if (!id) reportError(new Error("crm_log_event returned nothing"), { where: "pc.clientUpdateNote.crm", extra: { accountId } });
+  }
+  revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+  if (accountId) revalidatePath(`/crm/customers/${accountId}`);
+  return { ok: true, message: `Logged on the job's timeline${crm}.` };
 }
