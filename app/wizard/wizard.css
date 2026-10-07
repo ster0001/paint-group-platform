@@ -54,6 +54,18 @@
 .wz .wz-sub { color: var(--muted); font-size: 15px; margin-bottom: 24px; }
 .wz .wz-field { width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; color: var(--text); font-family: var(--wz-sans); font-size: 15px; padding: 15px 16px; outline: none; margin-bottom: 12px; }
 .wz .wz-field:focus { border-color: var(--cyan); }
+/* S7 (Tom, 7 Oct): the contact fields — the gate's last question, the visit
+   page's "A few details first", the talk sheet — are LABELS wrapping a caption
+   and an input. The box is the label; the input sits inside it with no box of
+   its own. Without this the label was inline, the caption and the input ran
+   on, and "Mobile number" landed on top of "Full name". */
+.wz label.wz-field { display: block; cursor: text; }
+.wz label.wz-field > span { display: block; font-family: var(--wz-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.wz label.wz-field > input, .wz label.wz-field > textarea { display: block; width: 100%; background: transparent; border: 0; padding: 0; margin: 0; color: var(--text); font: inherit; outline: none; }
+.wz label.wz-field > textarea { resize: vertical; min-height: 64px; }
+.wz label.wz-field:focus-within { border-color: var(--cyan); }
+.wz .wz-consent { display: flex; align-items: flex-start; gap: 10px; margin: 2px 0 20px; font-size: 13px; cursor: pointer; }
+.wz .wz-consent input { margin: 2px 0 0; flex: 0 0 auto; }
 .wz .wz-or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-family: var(--wz-mono); font-size: 9px; letter-spacing: .16em; margin: 14px 0; }
 .wz .wz-or::before, .wz .wz-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .wz .wz-upload { border: 1.5px dashed var(--line); border-radius: 12px; padding: 22px; text-align: center; color: var(--muted); cursor: pointer; font-size: 14.5px; background: none; width: 100%; font-family: var(--wz-sans); }
