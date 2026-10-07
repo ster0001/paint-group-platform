@@ -30,6 +30,10 @@ contact; or details given after the range through `markGateCompleted`), `range_s
 records a `marketing` consent through the existing `recordConsent` once the account exists. The e2e drive helper
 fills the gate when it appears (`opts.email` lands there now, so the keep door is skipped when absent).
 
+## 7 Oct 2026 — visit booking S7: the full loop, section 8 complete, help from the finished screens
+
+`e2e/customer-journey/visit-full-loop.spec.ts` walks wizard → gate → range → Book a site visit → hold → code → booked, then applies "the guest declined" at the seam the inbound sync uses (`visit_set_status` cancelled, `declined_invitation`) and checks the visit is cancelled, the event is on the record, the slot is offered to the next customer and the card is on Today. The Google steps themselves (the event, the invitation, the decline from each mail client, the cancel text) cannot run on the test project and are Tom's `docs/manual-tests/visit-gcal.md` + `visit-full-loop.md`. Section 8 is now covered end to end: 1–11, 13, 15 in `visit-booking-api.spec.ts`; 12 in `gate.spec.ts`; 14 and the platform half of 19 in the full loop; 16 and 17 in `visit-requests.spec.ts`; 18 in `visit-schedule.spec.ts`. Section 10's inventory rows are all in `docs/briefs/messaging-automations-inventory.md` (the "message → staff" row is served by the chat alerts and handoff cards, decided in S4). Help: `visit-booking/staff.md` rewritten from the finished screens (gate, R24 order, request screens); zones, schedule and requests pages were already current. No migration.
+
 ## 6 Oct 2026 — visit booking S5: Google Calendar — the visit in the estimator's main calendar, decline cancels, move raises a card
 
 **2026-10-06 · `supabase/migrations/20270216000000_gcal_visits.sql`, `lib/gcal/oauth.ts`, `lib/gcal/client.ts`, `lib/gcal/visitEvents.ts`,
