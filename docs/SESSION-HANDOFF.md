@@ -6,8 +6,7 @@ Book → hold → code → booked → decline (applied via `visit_set_status` ca
 (another customer by id → 404) and the platform half of 19. Section 8 now fully mapped (1–11,13,15 api · 12 gate · 14,19
 loop · 16,17 requests · 18 schedule). Help `visit-booking/staff.md` rewritten from the finished screens (gate, R24 order,
 request screens — it still said "sent to the Book page"); stamped. `docs/manual-tests/visit-full-loop.md` = Tom's 90-second
-phone walk. Inventory §10 complete (message → staff = chat alert + handoff, S4 decision). **e2e NOT run — REFUSED twice,
-holder = S6 PR CI e2e job 37548103178 (23:46Z, 45+ min); main's own run passed.** Health check = tsc/lint/unit/help ✅ +
+phone walk. Inventory §10 complete (message → staff = chat alert + handoff, S4 decision). **e2e: first local run 28/32 → four spec fixes (403 not 404 for another customer; API spec pins range_first; `minimiseStaffDock` helper; 45-s wait on the message post) → CI on the branch GREEN (run 37561595369).** Holidays seeded on prod 7 Oct (28 dates); ledger shows all six visit migrations. Health check = tsc/lint/unit/help ✅ +
 Tom: ledger rows 20270212–17, Security Advisor, holidays --prod, Google reconnect, phone walk. Brief S0–S7 BUILT.
 
 # 7 Oct 2026 — Visit booking, addendum A: S6 the gate. Branch `feat/visit-booking-s6` (stacked on S5 → S4). Migration 20270217 (TEST; to paste after 20270216, read-back 6 / 1).

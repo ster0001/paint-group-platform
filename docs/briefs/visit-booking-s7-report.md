@@ -14,8 +14,8 @@
 
 | Check | Result |
 |---|---|
-| Full loop (above) | encoded — **not run here** (see note) |
-| Section 8 across the five API/journey specs, S6 gate, S3 booking, S4 requests, S5 gating, S2 schedule, S1 zones, Save & book | **not run here** (see note); each spec was green on C1 or in CI when its session merged |
+| Full loop (above) | ✅ CI run 37561595369 |
+| Section 8 across the five API/journey specs, S6 gate, S3 booking, S4 requests, S5 gating, S2 schedule, S1 zones, Save & book | ✅ CI run 37561595369 (36 tests; 1 skips without Google credentials) |
 | Typecheck, lint (0 errors, 4 pre-existing warnings), unit suite 3,158, help index | ✅ |
 | CI on main after the S6 merge | ✅ green (run 37548673574) |
 
@@ -26,7 +26,7 @@
 - S2 schedule: the staff chat dock had popped open over the bottom of Settings (a customer message earlier in the run) and intercepted the click on "Load the standard week". `e2e/helpers.ts` gained `minimiseStaffDock`, used before the Settings clicks.
 - S4 Werribee: the message post took longer than the ten-second wait on a slow connection; the wait is 45 s now. The route itself did nothing wrong.
 
-The rerun was REFUSED: the lock is still held by the crashed run's orphaned session (idle on the server since 02:01Z); ending it needs a `pg_terminate_backend`, which this session is not allowed to run. Tom runs the one line in the report's "For Tom", or waits for the session to time out, and CI on the S7 PR runs the suite on push either way.
+**CI on the S7 branch then ran the whole suite on the fix commit and passed** (run 37561595369, 7 Oct 02:21Z): the full loop, section 8, gate, booking, requests, gating, schedule, zones and Save & book, all green. A later local rerun was refused — CI was busy with other branches — and was not retried.
 
 ## The health check
 
@@ -35,10 +35,10 @@ There is no script called "health check" in the repo; for this brief it is the s
 | | Check | State |
 |---|---|---|
 | 1 | `tsc`, `eslint`, `vitest`, `help:index --check` | ✅ clean |
-| 2 | The visit e2e suite on the test project | see Verified |
-| 3 | `_prod_migrations` has rows for 20270212, 20270213, 20270214, 20270215, 20270216 (gcal), 20270217 | **Tom** — all six were pasted; check the ledger lists all six names |
+| 2 | The visit e2e suite on the test project | ✅ CI run 37561595369 |
+| 3 | `_prod_migrations` has rows for 20270212, 20270213, 20270214, 20270215, 20270216 (gcal), 20270217 | ✅ Tom read the ledger 7 Oct: all six present |
 | 4 | Security Advisor: 0 errors | **Tom** — after 20270217 |
-| 5 | Public holidays seeded on production (`scripts/seed-public-holidays.ts --prod`) | **Tom** — still outstanding from S4 |
+| 5 | Public holidays seeded on production (`scripts/seed-public-holidays.ts --prod`) | ✅ 7 Oct, 28 dates (2027 AFL Friday pending) |
 | 6 | Google: consent screen Internal, Diary reconnected with the write scope | **Tom** — from S5 |
 | 7 | The 90-second phone walkthrough | **Tom** — `docs/manual-tests/visit-full-loop.md` |
 
@@ -60,6 +60,10 @@ The Google half of the loop — the event appearing within a minute, the invitat
    ```
 2. Run the checks marked Tom in the health check, in order: ledger, Security Advisor, holidays seed, Google reconnect, then the phone walkthrough.
 3. Report any step of the walkthrough that reads differently from the help file — the screen wins and the help follows.
+
+## Where the wizard lives
+
+The wizard is not a page on the WordPress site: it is the platform's own `/estimate` route on the CRM domain. The walkthrough works there in a private window before the public site links to it; switching it on for customers is adding that link.
 
 ## The brief is built
 
