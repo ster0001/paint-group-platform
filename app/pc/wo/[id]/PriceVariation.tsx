@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { priceVariationAction } from "@/app/quote/variationActions";
+import { priceVariationAction, remindPainterVariationAction } from "@/app/quote/variationActions";
 import { sendVariationForSignatureAction } from "@/app/quote/revisionActions";
 import { approveVariationInternal, releaseVariation, setVariationContractorAmount } from "../../actions";
 import { contractorDeltaCents } from "@/lib/workorder/variations";
@@ -48,6 +48,14 @@ export default function PriceVariation({
       });
       if (result.ok) { setState("priced"); setMessage("Priced — the signing link has been emailed. Text it too below if you like."); }
       else setMessage(result.message);
+    });
+  }
+
+  function remind() {
+    setMessage(null);
+    startTransition(async () => {
+      const result = await remindPainterVariationAction({ variationId: id });
+      setMessage(result.message);
     });
   }
 
@@ -114,7 +122,10 @@ export default function PriceVariation({
         <>
           {/* The proper path: measure and price it in the working scope. */}
           <div className="row">
-            <a className="btn primary" href={`/quote?id=${estimateId}&mode=revision`}
+            {/* Tom, 7 Oct 2026 (12A Cavell Court): the builder is told WHICH
+                request it prices, so the change drafted there becomes this
+                row — not a second one beside it. */}
+            <a className="btn primary" href={`/quote?id=${estimateId}&mode=revision&variation=${id}`}
               data-testid={`price-in-builder-${id}`}>
               Price it in the builder — working scope
             </a>
@@ -201,7 +212,15 @@ export default function PriceVariation({
       )}
 
       {state === "customer_approved" && isReleased && (
-        <p className="note">Released — waiting on the contractor to accept.</p>
+        <div className="row">
+          <p className="note">Released — waiting on the contractor to accept.</p>
+          {/* The notification again — a painter whose mobile or email was added
+              after the release, or who says they never got it. */}
+          <button type="button" className="btn" disabled={pending} onClick={remind}
+            data-testid={`remind-painter-${id}`}>
+            {pending ? "Sending…" : "Remind the painter"}
+          </button>
+        </div>
       )}
 
       {state === "contractor_accepted" && deltaCents != null && (

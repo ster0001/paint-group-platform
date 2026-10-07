@@ -172,9 +172,13 @@ export type DraftResult =
   | { ok: false; message: string };
 
 export async function draftRevisionVariationsAction(raw: unknown): Promise<DraftResult> {
-  const parsed = z.object({ estimateId: uuid }).safeParse(raw);
+  const parsed = z.object({ estimateId: uuid, sourceVariationId: uuid.optional() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
   const estimateId = parsed.data.estimateId;
+  // Tom, 7 Oct 2026: the painter's request the builder was opened from. The
+  // RPC writes the first addition INTO that row (once — it ignores the id
+  // for credits and once the request is no longer 'raised').
+  const sourceVariationId = parsed.data.sourceVariationId ?? null;
 
   const supabase = await createClient();
 
@@ -271,6 +275,7 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
       p_priced_lines: pricedLines,
       p_hours: draftHours,
       p_contractor_rate_cents: rateCents,
+      p_source_variation_id: sourceVariationId,
     });
 
     const s = String(data ?? "");

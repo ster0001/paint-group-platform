@@ -58,7 +58,7 @@ import { PHOTO_REVIEW_KIND } from "@/lib/wizard/merge";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 import { downscale, SCREEN_MAX_EDGE } from "@/lib/uploads/downscale";
 import { reportIfError, errorMessage } from "@/lib/monitoring/report";
-import RevisionPanel, { type ExistingRevisionVariation } from "./RevisionPanel";
+import RevisionPanel, { type ExistingRevisionVariation, type RevisionRequest } from "./RevisionPanel";
 import InvoiceSheet, { type SheetLine } from "@/app/i/[token]/InvoiceSheet";
 import "@/app/i/[token]/invoice.css";
 import { saveWorkingScopeAction } from "./revisionActions";
@@ -309,6 +309,7 @@ export default function QuoteBuilder({
   mode = "estimate",
   revisionBaseline = null,
   revisionVariations = [],
+  revisionRequest = null,
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -356,6 +357,8 @@ export default function QuoteBuilder({
   revisionBaseline?: unknown;
   /** Revision-drafted variations already on the job (for the panel). */
   revisionVariations?: ExistingRevisionVariation[];
+  /** The painter's raised request this revision prices (?variation=), if any. */
+  revisionRequest?: RevisionRequest | null;
 }) {
   const chargeFor = (t: string) => chargeOutCents(t, rateItems, hourlyRateOverride);
 
@@ -2479,6 +2482,7 @@ export default function QuoteBuilder({
             onViewInvoice={() => setViewMode("customer")}
             workOrderId={workOrder?.id ?? null}
             photoCounts={variationPhotoCounts}
+            request={revisionRequest}
           />
         </div>
       )}
