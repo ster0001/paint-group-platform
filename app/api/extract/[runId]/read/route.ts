@@ -165,7 +165,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
     result.extraction,
     (rules as ScopeRule[] | null) ?? [],
     (aliases as Alias[] | null) ?? [],
-    { sourceId: source.id },
+    { sourceId: source.id, planRead: true }, // Tom, 7 Oct 2026: carport / sauna / store never come off a plan
   );
 
   await db.from("extraction_runs").update({
