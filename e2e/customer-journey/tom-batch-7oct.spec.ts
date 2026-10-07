@@ -26,7 +26,7 @@ test("cupboards start answered: the kitchen's No and a bedroom's Yes (2 robe doo
   await expect(kCup).toContainText(/kitchen cupboards/i);
   await expect(kCup).toHaveClass(/ok/);
   await expect(kCup.getByRole("button", { name: "No", exact: true })).toHaveClass(/on/);
-  const bed = page.locator(".sc-rc[data-room]", { has: page.locator("[aria-label*='edroom']") }).first();
+  const bed = page.locator(".sc-rc[data-room]", { has: page.locator("[aria-label^='Rename Bed']") }).first();
   await openCard(bed);
   const bCup = bed.locator(".il-cup").first();
   await expect(bCup).toContainText(/robe doors/i);
