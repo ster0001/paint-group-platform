@@ -3,7 +3,7 @@ feature: visit-booking
 role: staff
 title: What happens when a customer books a site visit online
 summary: A customer who has seen their guide price books a site visit themselves — they pick a time in their zone, confirm with a text code, and the visit lands on the Diary with its zone frozen. This explains what you see and what to do if something looks wrong.
-verified_at_commit: 91b0ed397196decd077bbe942fee33ea520f0a25
+verified_at_commit: 180803f340
 ---
 
 ## What this is for
@@ -14,14 +14,15 @@ Customers in a bookable zone book their own site visit from the guide-price scre
 - The booking rules (notice, how far ahead, hold time) are under **Settings → Booking rules**.
 
 ## What the customer goes through
-1. On the guide price they tap **Book your estimator** (or **Book a site visit** on the Book page).
-2. If we do not already hold their name, email and mobile, they are asked for them first. These create or link their account.
-3. They see **Choose a time for your site visit**: only the free slots of the estimator covering their zone, in the next three weeks, none closer than two hours from now.
-4. They pick a time. We hold it for ten minutes and text a 6-digit code to their mobile.
-5. They enter the code. Five wrong codes end the hold; they can ask for a new code three times.
-6. **Your site visit is booked.** They get a text and an email with a calendar invitation. The visit shows as one hour; the half hour after it is travel and is blocked from other bookings.
+1. The last wizard question before the price asks for their full name, email and mobile (**Settings → Booking rules → gate order**, "details first"). The guide price follows, and their account exists from that moment.
+2. On the guide price the options are, in order: **Tighten my price**, **Speak with us** (only when the job is inside the phone limits), **Book a site visit**, **Send us a message**.
+3. They tap **Book a site visit**. If the gate order is "range first" and we hold no details yet, they are asked for them here instead.
+4. They see **Choose a time for your site visit**: only the free slots of the estimator covering their zone, in the next three weeks, none closer than two hours from now, none on a public holiday.
+5. They pick a time. We hold it for ten minutes and text a 6-digit code to their mobile.
+6. They enter the code. Five wrong codes end the hold; they can ask for a new code three times.
+7. **Your site visit is booked.** They get a text and an email with a calendar invitation. The visit shows as one hour; the half hour after it is travel and is blocked from other bookings.
 
-Customers in a pre-arranged area or out of area never see the calendar. For now they are sent to the Book page to request a call back; the proper request screens come with the next session.
+Customers in a pre-arranged area, in a suburb we do not know, or who find nothing that suits, see **Request a time** instead of the calendar; out-of-area customers see a message box. Both reach you as a card on Today — see `visit-requests/staff`.
 
 ## What you see
 - **Diary**: the visit on the estimator's lane, one hour long, source "wizard". Its zone and far-edge flag are frozen at booking, so moving a suburb later never changes a booked day.
