@@ -13,6 +13,7 @@ import {
 import { AreasScreen, BookScreen, BriefScreen, JobScreen, SegmentScreen, WarehouseScreen, type BookContact } from "./CommercialScreens";
 import type { BriefAnswers, CommercialAnswers, Segment, SegmentBrief } from "@/lib/wizard/segments";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
+import PlanViewer from "./PlanViewer";
 import { ExteriorPickTiles } from "./ExteriorTiles";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 
@@ -109,6 +110,8 @@ export default function QuickLook({
   stepNo: number;
   stepsTotal: number;
 }) {
+  // Tom, 7 Oct 2026 (item 1): "don't wait" on the floorplan reading panel.
+  const [skipPlanWait, setSkipPlanWait] = useState(false);
   /** Tom, 14 Sep (evening): the "anything NOT being painted?" popup, open right after a preset is picked. */
   // Tom, 15 Sep (late): an outside job ends on the sides screen, not the outside screen.
   // S6: with a gate, the question before it says so, and the gate is the last screen.
@@ -371,6 +374,31 @@ export default function QuickLook({
 
       {step === "rooms" && (() => {
         const fromPlan = planRooms != null && planRooms.length > 0;
+        // Tom, 7 Oct 2026 (item 1): while the plan is still being read, the
+        // list from the ANSWERS is not shown — a tick made on a guessed name
+        // never matched the plan's names, and the screen read as pre-filled
+        // with the wrong rooms. A reading panel takes its place, with a way
+        // past it for anyone who would rather not wait.
+        if (planPending && !fromPlan && !skipPlanWait) {
+          return (
+            <>
+              <p className="wz-kick">Confirm the rooms</p>
+              <h1>Reading your floorplan&hellip;</h1>
+              <p className="wz-sub">We&rsquo;re picking the rooms and their sizes off the plan you uploaded. This usually takes under a minute.</p>
+              <div className="wz-planreading" data-testid="ql-plan-reading-panel" role="status" aria-live="polite">
+                <div className="wz-ring" />
+                <p className="wz-psteps">
+                  <span className="wz-pstep on"><i className="wz-pdot" aria-hidden /> Finding the rooms on the plan</span>
+                  <span className="wz-pstep"><i className="wz-pdot" aria-hidden /> Reading each room&rsquo;s measurements</span>
+                  <span className="wz-pstep"><i className="wz-pdot" aria-hidden /> Listing them here for you to confirm</span>
+                </p>
+                <button type="button" className="wz-linkish" data-testid="ql-plan-skip-wait" onClick={() => setSkipPlanWait(true)}>
+                  Don&rsquo;t wait — start from my answers and we&rsquo;ll swap in the plan&rsquo;s rooms when it finishes
+                </button>
+              </div>
+            </>
+          );
+        }
         const names = fromPlan ? planRooms.map((r) => r.name) : starterRoomNames(quick);
         const isOn = (name: string) => !quick.rooms || quick.rooms.includes(name);
         const toggle = (name: string) => {
@@ -389,9 +417,9 @@ export default function QuickLook({
             </p>
             {planPending && !fromPlan && <p className="wz-chint" data-testid="ql-plan-reading">Still reading your floorplan — the list below is from your answers until it finishes.</p>}
             {planPreviewUrl && (
+              // Tom, 7 Oct 2026 (item 3): the plan is zoomable here too — pinch, the wheel, or + / −, and drag to pan.
               <figure className="wz-planpreview" data-testid="ql-plan-preview">
-                {/* eslint-disable-next-line @next/next/no-img-element -- a signed, short-lived preview of the customer's own upload */}
-                <img src={planPreviewUrl} alt="Your floorplan" />
+                <PlanViewer src={planPreviewUrl} title="YOUR FLOORPLAN" note="PINCH OR USE + TO ZOOM" />
               </figure>
             )}
             <div className="wz-chips" data-testid="ql-rooms">

@@ -37,6 +37,8 @@ export const FALLBACK_TYPICALS: Record<string, { L: number; W: number }> = {
   wc: { L: 1.25, W: 1.0 },
   garage: { L: 6.0, W: 4.0 },
   study: { L: 3.0, W: 3.0 },
+  /** Tom, 7 Oct 2026: a walk-in robe is 2 × 1.25 m — every storage-type room (WIR, pantry, linen) sizes from it. */
+  storage: { L: 2.0, W: 1.25 },
 };
 
 export function typicalSize(roomType: string, rows: TypicalSizeRow[]): { L: number; W: number } {
