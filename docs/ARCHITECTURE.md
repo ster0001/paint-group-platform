@@ -4273,3 +4273,18 @@ back with "duplicate key value violates unique constraint". Migration
 predicate: a variation with a live (`not parent_void`) line on another invoice is not written again; the ledger has
 already netted what that invoice took, and the "Less previously invoiced" adjustment balances the draft. Spec
 `e2e/invoice-final-variation-once.spec.ts` closes a fixture job whose variation sits on an issued progress invoice.
+
+**Contractor GST goes on top (7 Oct 2026).** The offered amount on a job (hours × rate) is EX GST, but every
+contractor-invoice writer backed GST out of it (`gst_from_inc_cents`), so a registered painter on 38.5 h × $65 was
+paid $2,502.50 with $227.50 of it called GST instead of $2,502.50 + $250.25. Migration
+`20270218000000_contractor_gst_on_top.sql` adds `contractor_invoices.claimed_ex_cents` — the ex-GST figure an invoice
+claims against the agreed job amount — re-creates `contractor_invoice_draft` / `_request` / `_submit` / `_approve`
+from their live bodies with `gst_on_ex_cents` when registered (zero when not), freezes the new column in the guard,
+and re-points `contractor_invoice_invoiced_cents` at `Σ claimed_ex_cents` so "what remains" is GST-independent
+(submit also regains the 20261121 remainder rule the 20261127 rewrite had dropped). Then it backfills EVERY existing
+row, drafts through paid — the stored work figure re-read as ex, GST on top where the row was registered,
+reimbursements untouched — with a read-back that lists each changed row and the top-up now owed on anything already
+paid. Screens follow the columns: the contractor's invoice page (`app/portal/money/[id]`) shows Subtotal (ex GST) /
+GST (10%) / Total (inc GST), the claim composer labels its figures ex GST and "+ GST" on the button, the PDF's claim
+line is `claimed_ex_cents`. Pinned by `lib/invoicing/ciStateMachine.test.ts` (every writer: `gst_on_ex_cents`, no
+`gst_from_inc_cents`) and `e2e/contractor-invoicing.spec.ts` ($95,000 → $9,500 GST → $104,500).

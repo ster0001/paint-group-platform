@@ -196,7 +196,7 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
     .from("contractor_invoices")
     .select("id, number, status, submitted_at, due_on, invoice_pdf_path, entity_snapshot, " +
       "auto_draft_source, claim_pct, offer_cents, variation_delta_cents, deduction_lines, " +
-      "previously_invoiced_cents, subtotal_ex_cents, gst_cents, total_inc_cents, " +
+      "previously_invoiced_cents, claimed_ex_cents, subtotal_ex_cents, gst_cents, total_inc_cents, " +
       "gst_registered_at_submit, lines, invoice_date, reimbursement_lines, contractor_id, work_order_id, work_orders(wo_ref, wo_snapshot)")
     .eq("id", contractorInvoiceId)
     .maybeSingle();
@@ -206,7 +206,7 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
     entity_snapshot: Record<string, string>; auto_draft_source: string;
     claim_pct: number | null; offer_cents: number; variation_delta_cents: number;
     deduction_lines: { label?: string; cents?: number; note?: string }[];
-    previously_invoiced_cents: number; subtotal_ex_cents: number; gst_cents: number;
+    previously_invoiced_cents: number; claimed_ex_cents: number; subtotal_ex_cents: number; gst_cents: number;
     total_inc_cents: number; gst_registered_at_submit: boolean | null;
     lines?: { label?: string; cents?: number }[] | null; invoice_date?: string | null;
     reimbursement_lines?: { label?: string; cents?: number }[] | null;
@@ -248,6 +248,7 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
       additionsCents: ci.variation_delta_cents,
       deductionLines: Array.isArray(ci.deduction_lines) ? ci.deduction_lines : [],
       previouslyInvoicedCents: ci.previously_invoiced_cents,
+      claimedExCents: ci.claimed_ex_cents,
       subtotalExCents: ci.subtotal_ex_cents,
       gstCents: ci.gst_cents,
       totalIncCents: ci.total_inc_cents,
