@@ -9,6 +9,7 @@ import { reportError } from "@/lib/monitoring/report";
 import { createServiceClient } from "@/lib/supabase/service";
 import { PASSWORD_MIN, sendPasswordResetLink, setPasswordForUser } from "@/lib/auth/adminPassword";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { isAuMobile } from "@/lib/validation/contact";
 
 /**
  * Tom, 18 Sep 2026: "send an invitation link to them when registering on the
@@ -180,4 +181,32 @@ export async function sendContractorResetLinkAction(raw: unknown): Promise<Login
   const t = await painterLogin(parsed.data.id);
   if (!t.ok) return t;
   return sendPasswordResetLink({ email: t.email, firstName: t.name });
+}
+
+/**
+ * Tom, 7 Oct 2026: nine jobs' "update your work order" texts went nowhere
+ * because three painters had no mobile on file and only the painter could
+ * add one. The office now types it on the painter's page. A full Australian
+ * mobile or nothing — a half number is what makes a text vanish silently —
+ * and the contractors_staff_all policy is the gate (a non-staff session
+ * updates no row, which the action reports as not found).
+ */
+export type SetMobileResult = { ok: boolean; message: string; phone?: string | null };
+
+export async function setContractorMobileAction(raw: unknown): Promise<SetMobileResult> {
+  const parsed = z.object({ id: uuid, phone: z.string().max(40) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't read that — try again." };
+  const phone = parsed.data.phone.trim();
+  if (phone && !isAuMobile(phone)) {
+    return { ok: false, message: "That doesn't look like a full Australian mobile (04xx xxx xxx) — texts can't reach it." };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("contractors")
+    .update({ phone: phone || null }).eq("id", parsed.data.id).select("id, phone").maybeSingle();
+  if (error) { reportError(error, { where: "contractors.setMobile" }); return { ok: false, message: "Couldn't save the mobile — it has been reported." }; }
+  if (!data) return { ok: false, message: "Couldn't find that painter." };
+  revalidatePath(`/contractors/${parsed.data.id}`);
+  revalidatePath("/contractors");
+  const saved = (data as { phone: string | null }).phone;
+  return { ok: true, phone: saved, message: saved ? `Saved. Job offers, variations and work-order reminders now text ${saved}.` : "Mobile cleared — they will get no texts until one is added." };
 }

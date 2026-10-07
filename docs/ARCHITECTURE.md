@@ -4363,3 +4363,16 @@ cancelled. Notifications: `contractor_variation_released` / `contractor_variatio
 with the dispatcher's reason (Cavell showed "notified" over no message because the painter had no mobile and the
 automation was SMS-only). `remindPainterVariationAction` (staff) re-sends from the card (*Remind the painter*).
 Spec `e2e/variation-request-priced-in-scope.spec.ts`; repair for Cavell in `supabase/fixes/cavell-court-variation-to-painter.sql`.
+
+**Contractor mobile: office-editable, required to join (7 Oct 2026).** Nine jobs' `contractor_job_update_reminder` texts
+were claimed and never sent because three painters had no `contractors.phone` and only the painter could add one — and the
+dispatcher's `nobody` outcome is not recorded. The office now types it on the painter's page: `ContractorMobile`
+(`app/(app)/contractors/[id]/`) over `setContractorMobileAction` (zod, `isAuMobile` or empty, user session so
+`contractors_staff_all` is the gate, revalidates the page). Joining requires one: `JoinForm` refuses to create the account
+without a full mobile and writes it to the painter's own row (`contractors_self_update` + the 20261223 column grant) right
+after `redeem_contractor_invite`. On `/portal/profile` the mobile cannot be cleared or half-typed, and with none on file the
+page carries a `mobile-required` notice and the company and bank saves refuse until it is added. No migration. Specs:
+`contractor-detail` (office edits, half number refused, cleared = amber), `contractor-join-mobile` (real invite, refused
+without one, on the row with one), `contractor-portal` profile test (blank → refuse other saves → save → cannot clear);
+`help-tour` fills the new field. Help: contractors/staff.md (+ Their mobile), contractors/contractor.md (new).
+`scripts/diag/job-update-reminders.mjs` (read-only) lists every booked job's reminder claims against the texts actually sent.
