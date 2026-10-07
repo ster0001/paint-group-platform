@@ -24,7 +24,9 @@ for (const zone of zones) {
   if (!z?.estimator_id) { console.log(`\n${zone}: NO ESTIMATOR assigned (Settings → Visit zones) → request screen`); continue; }
   const prof = must(await db.from("profiles").select("name").eq("id", z.estimator_id).maybeSingle(), "profiles");
   const conn = must(await db.from("staff_gcal_connections").select("google_email, scopes, sync_error, connected_at, updated_at").eq("staff_id", z.estimator_id).maybeSingle(), "staff_gcal_connections");
-  const slots = must(await db.from("visit_slots").select("id", { count: "exact", head: true }).eq("estimator_id", z.estimator_id), "visit_slots");
+  const slotsRead = await db.from("visit_slots").select("id", { count: "exact", head: true }).eq("estimator_id", z.estimator_id);
+  if (slotsRead.error) throw new Error(`visit_slots: ${slotsRead.error.message}`);
+  const slots = { count: slotsRead.count ?? 0 };
   const canWrite = !!conn && typeof conn.scopes === "string" && conn.scopes.split(/\s+/).includes(EVENTS);
   console.log(`\n${zone}: estimator ${prof?.name ?? "?"} (${z.estimator_id})`);
   console.log(`  Google: ${conn ? `${conn.google_email ?? "?"}, connected ${String(conn.connected_at).slice(0, 16)}, updated ${String(conn.updated_at).slice(0, 16)}` : "NOT CONNECTED"}`);
