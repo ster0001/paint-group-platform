@@ -138,6 +138,29 @@ export async function priceVariationAction(raw: unknown): Promise<VariationResul
   return result;
 }
 
+/**
+ * The painter's "waiting on you" notification, again, from the job page
+ * (Tom, 7 Oct 2026). Staff only; the dispatcher's answer comes back in words
+ * so the office knows whether anything went out — "No email or mobile on
+ * file" is the answer that matters.
+ */
+export async function remindPainterVariationAction(raw: unknown): Promise<{ ok: boolean; message: string }> {
+  const parsed = z.object({ variationId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Staff only." };
+  const { data: profile, error: profileError } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (profileError) return { ok: false, message: "Couldn't check who you are — try again." };
+  if ((profile as { role?: string } | null)?.role !== "staff") return { ok: false, message: "Staff only." };
+  const service = createServiceClient();
+  if (!service) return { ok: false, message: "Messaging isn't configured on this server." };
+  const r = await notifyVariationReleased(service, parsed.data.variationId, { force: true });
+  if (r.outcome === "notified") return { ok: true, message: `Sent to the painter — ${r.channels.join(" and ")}.` };
+  if (r.outcome === "skipped") return { ok: false, message: `Nothing went out — ${r.reason}` };
+  return { ok: false, message: "This variation isn't waiting on the painter." };
+}
+
 export async function releaseVariationAction(raw: unknown): Promise<VariationResult> {
   const parsed = z.object({ variationId: uuid }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };

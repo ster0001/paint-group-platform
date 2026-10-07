@@ -4347,3 +4347,19 @@ run by the writers) is the 20270163 approve body without the staff check, `appro
 `submitted` (the one thing the Timesheets page still lists; `timesheet_approve` is unchanged for it); the 16-hour overnight
 close still waits. The `timesheet_approval` work item is gone (kind, weight, group, builder, read, Today label). Specs
 `crm-quote-followup` (+ acceptance), `employee-timesheet`, `employee-loop` test 6; help for timesheets pc/employee and crm staff.
+
+**A painter's request priced in the working scope IS that request (Tom, 7 Oct 2026 — 12A Cavell Court).** Migration
+`20270222000000_variation_request_priced_in_scope.sql`: `wo_draft_revision_variation` gains `p_source_variation_id`
+(old 11-arg signature dropped) and `wo_variations.request_priced_at`. The job page's *Price it in the builder* link
+carries `&variation=<id>`; `app/quote/page.tsx` loads that raised row (`revisionRequest` → `QuoteBuilder` → `RevisionPanel`
+banner, testid `revision-request`) and `draftRevisionVariationsAction` passes it to the RPC, which writes the first
+addition INTO the painter's own row (status priced, block ref, offer token, money; comment = painter's words + change
+title; `request_priced_at` set) instead of inserting a draft beside it — one record, so the console, the work queue, the
+portal chip and the stage gate need nothing new. A standing draft for the block is cancelled in favour of the request;
+a change netting to zero puts an adopted request back to `raised` (event `variation_request_unpriced`), never
+cancelled. Notifications: `contractor_variation_released` / `contractor_variation_added` carry an email rendition
+(`variationReleasedEmail*`, `variationAddedEmail*` in `lib/messaging/config.ts`); `lib/contractor/notify.ts` returns a
+`PainterNotifyOutcome` and records `<type>_notified` only when something went out, else `<type>_notified_skipped`
+with the dispatcher's reason (Cavell showed "notified" over no message because the painter had no mobile and the
+automation was SMS-only). `remindPainterVariationAction` (staff) re-sends from the card (*Remind the painter*).
+Spec `e2e/variation-request-priced-in-scope.spec.ts`; repair for Cavell in `supabase/fixes/cavell-court-variation-to-painter.sql`.
