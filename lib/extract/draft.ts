@@ -135,11 +135,23 @@ export function makeDraftSurface(
   };
 }
 
+/** The plan labels that are never part of an interior quote (Tom, 7 Oct 2026). */
+export const PLAN_NEVER_PAINTED = /\b(carport|sauna)\b|\bstor(e|age|eroom|erooms|es)\b/i;
+
 export function buildDraft(
   x: Extraction,
   rules: ScopeRule[],
   aliases: Alias[],
-  opts: { startId?: number; sourceId?: string | null; defectRates?: DefectRate[]; /** Tom, 14 Sep (item 23): a plan garage waits for "are we painting it?" */ holdGarage?: boolean } = {},
+  opts: {
+    startId?: number; sourceId?: string | null; defectRates?: DefectRate[];
+    /** Tom, 14 Sep (item 23): a plan garage waits for "are we painting it?" */
+    holdGarage?: boolean;
+    /** Tom, 7 Oct 2026: this extraction was READ OFF A PLAN — a carport, a sauna,
+     *  or anything the plan labels store / storage is never part of the quote.
+     *  Off for a room the customer named themselves (a typed "Storage" room is
+     *  theirs to paint). */
+    planRead?: boolean;
+  } = {},
 ): DraftResult {
   let nextId = opts.startId ?? 1;
   const areas: DraftArea[] = [];
@@ -173,6 +185,13 @@ export function buildDraft(
     // Tom, 14 Sep (item 22): a shed is never part of an interior quote, whatever the plan calls it.
     if (/\bshed\b/i.test(name)) {
       skipped.push({ name, reason: "a shed is never part of an interior quote" });
+      continue;
+    }
+    // Tom, 7 Oct 2026: off a plan, a carport, a sauna, and anything written
+    // store / storage never come in — by the name printed, whatever the model
+    // classified it as (a "Store" it calls storage, a "Sauna" it calls bathroom).
+    if (opts.planRead === true && PLAN_NEVER_PAINTED.test(name)) {
+      skipped.push({ name, reason: "not painted — a carport, sauna or store room on the plan is left out (Tom, 7 Oct 2026)" });
       continue;
     }
 

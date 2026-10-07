@@ -224,6 +224,8 @@ const ROOM_DEFAULTS: Array<[string, number, number, string]> = [
   // Settings once real numbers exist.
   ["kitchen", 4.0, 4.0, "16 m2 - separate kitchen/meals (placeholder, edit to taste)"],
   ["hallway", 6.0, 2.0, "12 m2 - hall & entry (placeholder, edit to taste)"],
+  // Tom, 7 Oct 2026: walk-in robe 2 x 1.25 (a storage-type room: WIR, pantry, linen).
+  ["storage", 2.0, 1.25, "2.5 m2 - walk-in robe (Tom, 7 Oct 2026)"],
 ];
 
 /**
