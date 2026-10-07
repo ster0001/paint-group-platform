@@ -99,6 +99,33 @@ test.describe("a painter's detail page, and removing one", () => {
     await expect(page.getByTestId("jobs-tally")).toContainText("0 completed");
   });
 
+  // Tom, 7 Oct 2026: three painters had no mobile and nine jobs' work-order
+  // reminders were silently skipped — the office could only look, not type.
+  test("the office adds or fixes a painter's mobile on their page; a half number is refused", async ({ page }) => {
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`/contractors/${spareContractorId}`);
+    await expect(page.getByTestId("mobile-value")).toHaveText("0400 111 222");
+
+    await page.getByTestId("mobile-edit").click();
+    await page.getByTestId("mobile-input").fill("0400 11");
+    await page.getByTestId("mobile-save").click();
+    await expect(page.getByTestId("mobile-msg")).toContainText(/full Australian mobile/i);
+
+    await page.getByTestId("mobile-input").fill("0411 222 333");
+    await page.getByTestId("mobile-save").click();
+    await expect(page.getByTestId("mobile-value")).toHaveText("0411 222 333");
+    await expect(page.getByTestId("mobile-msg")).toContainText(/saved/i);
+    const { data } = await db!.from("contractors").select("phone").eq("id", spareContractorId).single();
+    expect((data as { phone: string | null }).phone).toBe("0411 222 333");
+
+    // Cleared: the page says so in amber, because every text to them now goes nowhere.
+    await page.getByTestId("mobile-edit").click();
+    await page.getByTestId("mobile-input").fill("");
+    await page.getByTestId("mobile-save").click();
+    await expect(page.getByTestId("mobile-missing")).toBeVisible();
+    await expect(page.getByTestId("mobile-edit")).toHaveText("Add mobile");
+  });
+
   test("a painter with jobs behind them shows those jobs and their quality checks", async ({ page }) => {
     test.skip(!realContractorId, "the e2e contractor has no contractors row");
     fixture = await createLoopFixture(db!, realContractorId!, [{ heading: "Kitchen", labels: ["Walls"] }]);

@@ -9,6 +9,7 @@ import { formatDMY } from "@/lib/scheduling/offers";
 import { isEmploymentType } from "@/lib/painters/capabilities";
 import DeleteContractor from "./DeleteContractor";
 import ContractorLogin from "./ContractorLogin";
+import ContractorMobile from "./ContractorMobile";
 
 export const dynamic = "force-dynamic";
 
@@ -146,9 +147,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
         <section className="rounded-lg border border-gray-200 bg-white p-4" data-testid="card-who">
           <h2 className="text-sm font-semibold">Their details</h2>
           <div className="mt-2">
-            <Field label="Mobile" value={c.phone?.trim()
-              ? <a href={`tel:${c.phone.replace(/\s+/g, "")}`} className="text-sky-700 hover:underline">{c.phone}</a>
-              : <span className="text-gray-400">not given</span>} />
+            <Field label="Mobile" value={<ContractorMobile id={c.id} phone={c.phone ?? null} />} />
             <Field label="Email" value={email
               ? <a href={`mailto:${email}`} className="text-sky-700 hover:underline">{email}</a>
               : <span className="text-gray-400">unknown</span>} />

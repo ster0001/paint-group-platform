@@ -39,9 +39,23 @@
     },
     {
       "feature": "contractors",
+      "role": "contractor",
+      "title": "Join from your invitation, and keep your mobile on file",
+      "summary": "What the invitation link asks for (your name, a mobile and a password), why your mobile is required, and how to change it on your profile.",
+      "path": "docs/help/contractors/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/join/[token]/JoinForm.tsx",
+        "app/portal/profile/ProfileForm.tsx"
+      ]
+    },
+    {
+      "feature": "contractors",
       "role": "staff",
       "title": "Invite a painter, open their record, and remove one who should never have been there",
-      "summary": "How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), how the quality-check setting works, and when a painter can be removed rather than suspended.",
+      "summary": "How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), how to add or fix their mobile, how the quality-check setting works, and when a painter can be removed rather than suspended.",
       "path": "docs/help/contractors/staff.md",
       "walkthrough": null,
       "media": [],

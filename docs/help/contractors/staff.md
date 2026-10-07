@@ -2,7 +2,7 @@
 feature: contractors
 role: staff
 title: Invite a painter, open their record, and remove one who should never have been there
-summary: How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), how the quality-check setting works, and when a painter can be removed rather than suspended.
+summary: How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), how to add or fix their mobile, how the quality-check setting works, and when a painter can be removed rather than suspended.
 verified_at_commit: 65054fe00d
 ---
 
@@ -23,20 +23,24 @@ The office uses this when a new painter is joining. Each invite is a private lin
 ### Opening a painter's record
 6. Click a painter's **name** in the list. Their page shows their mobile and email, how many painters are on their crew, tier, ABN, GST, address, weekend availability and bank details, all of their paperwork with expiry dates, every job they have done for us, and their quality-check record with a running tally of passes and fails. Job titles and check rows link through to the job itself.
 
+### Their mobile
+7. Every text to a painter — job offers, approved changes, quality-check notes and the "update your work order" reminders — goes to the mobile on their record. With none on file those texts are skipped, and the **Mobile** row says so in amber: **not given — no texts reach them**.
+8. Press **Add mobile** (or **Edit** beside an existing number), type it and press **Save**. It must be a full Australian mobile, 04xx xxx xxx; a half number is refused, because a half number is what makes a text silently vanish. The painter can also change it on their own profile page, and anyone joining through an invite now has to give one before their account is created.
+
 ### How often their work is quality checked
-7. The **QA:** button on each row in the list cycles through three settings, and says which one it is on:
+9. The **QA:** button on each row in the list cycles through three settings, and says which one it is on:
    - **QA: first jobs** — checked while they are new to us, then as scheduled. This is the default.
    - **QA: every job** — every job of theirs gets a check.
    - **QA: none** — no automatic checks at all.
-8. **QA: none** does not override a single job. Ticking **Quality check required on this job** when you book it still schedules one, because that is you asking for a check on that job in particular.
+10. **QA: none** does not override a single job. Ticking **Quality check required on this job** when you book it still schedules one, because that is you asking for a check on that job in particular.
 
 ### Removing a painter
-9. At the foot of their page, **Remove this painter**. It asks you to type DELETE, and it only ever works for a row with no history: a duplicate, a typo, an invite that went nowhere, someone taken on who never started.
-10. A painter with a job, an assignment, an offer they **accepted**, an invoice, an expense claim or a clocked day behind them **cannot be removed**, and the message names what is stopping it. That is deliberate. Deleting them would strip their jobs of a painter and take their insurance certificates with them. Use **Suspend access** instead, which keeps every record and stops them being offered work.
-11. An offer they **turned down or let lapse** does not stop it. The job keeps its own record of what happened, so there is nothing to strand.
+11. At the foot of their page, **Remove this painter**. It asks you to type DELETE, and it only ever works for a row with no history: a duplicate, a typo, an invite that went nowhere, someone taken on who never started.
+12. A painter with a job, an assignment, an offer they **accepted**, an invoice, an expense claim or a clocked day behind them **cannot be removed**, and the message names what is stopping it. That is deliberate. Deleting them would strip their jobs of a painter and take their insurance certificates with them. Use **Suspend access** instead, which keeps every record and stops them being offered work.
+13. An offer they **turned down or let lapse** does not stop it. The job keeps its own record of what happened, so there is nothing to strand.
 
 ### Their login: a new password or a reset link
-12. Below their jobs, the **Their login** card shows the email they sign in with. **Set password** lets you type one (8 or more characters) and read it out over the phone; **Email a reset link** sends them a 60-minute link that signs them in and asks them to choose their own. Full detail, including what they see: logins/staff.md. The card only appears once they have joined.
+14. Below their jobs, the **Their login** card shows the email they sign in with. **Set password** lets you type one (8 or more characters) and read it out over the phone; **Email a reset link** sends them a 60-minute link that signs them in and asks them to choose their own. Full detail, including what they see: logins/staff.md. The card only appears once they have joined.
 
 ## Asking a painter for their hours
 Each painter's row has an **Asks for hours / Hours from schedule** button. Switched on, that painter's **All surfaces done** press asks for days on site and hours in total (pre-filled from the booking; they can skip). Their entry shows on their self-invoice as a note and feeds the dashboard's hours-versus-estimate. Switched off (the default), the dashboard uses the booked days × the standard day length from Settings (**worked_day_hours**, 8) and says so. Switching a painter on or off changes only what their *next* finished job asks — nothing already entered moves.
@@ -49,6 +53,8 @@ Each painter's row has an **Asks for hours / Hours from schedule** button. Switc
 - **Employee · assigned** (blue) — one of our own painters. They are never *offered* work, they are assigned it on the scheduling board, so there is nothing for them to be offerable for and they are never asked for public liability. Their paperwork is their own tickets: white card and working at heights.
 
 ## If something goes wrong
+- **"That doesn't look like a full Australian mobile."** Type all ten digits, 04xx xxx xxx (or +61 4xx xxx xxx). Landlines are refused: texts cannot reach them.
+- **A painter says they get no texts.** Open their page and look at the Mobile row. If it says **not given**, add it; the next offer or reminder goes to it. Reminders already missed are not sent late.
 - **"They are on job WO-… Removing them would leave that job with no painter."** Working as intended. Suspend them rather than removing them.
 - **"They accepted WO-…, so that job is theirs on the record."** Same thing: they took a job on. Suspend them instead.
 - **"Nothing was removed — the database refused it."** Rare. Suspend them and tell whoever maintains the platform.
@@ -59,4 +65,5 @@ Each painter's row has an **Asks for hours / Hours from schedule** button. Switc
 
 ## Related
 - Contractor side: work-orders/contractor.md
+- The painter's own view of joining and their mobile: contractors/contractor.md
 - Passwords and reset links, for staff and painters: logins/staff.md

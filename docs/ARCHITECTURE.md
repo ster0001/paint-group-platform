@@ -4347,3 +4347,16 @@ run by the writers) is the 20270163 approve body without the staff check, `appro
 `submitted` (the one thing the Timesheets page still lists; `timesheet_approve` is unchanged for it); the 16-hour overnight
 close still waits. The `timesheet_approval` work item is gone (kind, weight, group, builder, read, Today label). Specs
 `crm-quote-followup` (+ acceptance), `employee-timesheet`, `employee-loop` test 6; help for timesheets pc/employee and crm staff.
+
+**Contractor mobile: office-editable, required to join (7 Oct 2026).** Nine jobs' `contractor_job_update_reminder` texts
+were claimed and never sent because three painters had no `contractors.phone` and only the painter could add one — and the
+dispatcher's `nobody` outcome is not recorded. The office now types it on the painter's page: `ContractorMobile`
+(`app/(app)/contractors/[id]/`) over `setContractorMobileAction` (zod, `isAuMobile` or empty, user session so
+`contractors_staff_all` is the gate, revalidates the page). Joining requires one: `JoinForm` refuses to create the account
+without a full mobile and writes it to the painter's own row (`contractors_self_update` + the 20261223 column grant) right
+after `redeem_contractor_invite`. On `/portal/profile` the mobile cannot be cleared or half-typed, and with none on file the
+page carries a `mobile-required` notice and the company and bank saves refuse until it is added. No migration. Specs:
+`contractor-detail` (office edits, half number refused, cleared = amber), `contractor-join-mobile` (real invite, refused
+without one, on the row with one), `contractor-portal` profile test (blank → refuse other saves → save → cannot clear);
+`help-tour` fills the new field. Help: contractors/staff.md (+ Their mobile), contractors/contractor.md (new).
+`scripts/diag/job-update-reminders.mjs` (read-only) lists every booked job's reminder claims against the texts actually sent.
