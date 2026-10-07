@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadMessaging } from "@/lib/messaging/load";
+import { getCompanyContact } from "@/lib/portal/data";
 import { ESTIMATE_CORE_SELECT, loadVisitContext, type EstimateCore } from "@/lib/visits/holds";
 import Wordmark from "@/app/wizard/Wordmark";
 import VisitBooking from "./VisitBooking";
@@ -44,10 +45,10 @@ export default async function VisitPage({ searchParams }: { searchParams: Promis
   const own = !est ? false : actor.kind !== "customer" || await customerOwnsDraft(svc, actor, est);
   if (!est || !own) return <Holding line="We couldn't find that estimate." />;
 
-  const [ctx, { company }] = await Promise.all([loadVisitContext(svc, est), loadMessaging(svc)]);
+  const [ctx, { company }, contact] = await Promise.all([loadVisitContext(svc, est), loadMessaging(svc), getCompanyContact()]);
   return (
     <div className="wz">
-      <header className="wz-top"><Wordmark logoUrl={company.logoUrl ?? null} /></header>
+      <header className="wz-top"><Wordmark logoUrl={contact.logoUrlLight || company.logoUrl || null} /></header>
       <VisitBooking
         estimateId={est.id}
         suburb={ctx.address?.suburb ?? null}

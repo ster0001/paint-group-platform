@@ -113,3 +113,17 @@ export async function gotoTodayWith(page: Page, url: string, target: Locator, ma
   }
   return 0;
 }
+
+/**
+ * The staff chat dock pops open on any staff page when a customer line this
+ * browser has not seen arrives (a customer spec earlier in the run is enough),
+ * and it sits over the bottom of the page — a click on a control under it is
+ * intercepted. Minimise it, as a person would.
+ */
+export async function minimiseStaffDock(page: Page): Promise<void> {
+  const dock = page.getByTestId("staff-dock");
+  if (!(await dock.count())) return;
+  if ((await dock.getAttribute("data-open")) !== "1") return;
+  await page.getByTestId("dock-minimise").first().click();
+  await expect(dock).toHaveAttribute("data-open", "0");
+}

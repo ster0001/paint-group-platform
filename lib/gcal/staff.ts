@@ -157,9 +157,11 @@ export async function reconcileStaffCalendar(staffId: string): Promise<StaffSync
       if (accRead.error) throw new Error(`staff gcal accounts: ${accRead.error.message}`);
       const byAccount = new Map(((accRead.data ?? []) as Array<{ id: string; email: string | null; name: string | null }>).map((a) => [a.id, a]));
       const slotMinutes = rules?.slotMinutes ?? 90;
+      const brandRead = await admin.from("settings").select("value").eq("key", "company_profile").maybeSingle();
+      const brand = ((brandRead.data?.value as { name?: string } | null)?.name || "Paint Group").trim();
       for (const v of visits) {
         const acc = v.account_id ? byAccount.get(v.account_id) : undefined;
-        wanted.set(`visit:${v.id}`, { kind: "visit", body: buildPrimaryVisitEvent(v, { email: acc?.email ?? null, name: acc?.name ?? null }, siteUrl), calendar: "primary", notify: "all" });
+        wanted.set(`visit:${v.id}`, { kind: "visit", body: buildPrimaryVisitEvent(v, { email: acc?.email ?? null, name: acc?.name ?? null }, siteUrl, brand), calendar: "primary", notify: "all" });
         const slotEnd = slotEndOf(v.starts_at, slotMinutes);
         if (new Date(slotEnd).getTime() > new Date(v.ends_at).getTime()) {
           wanted.set(`travel:${v.id}`, { kind: "travel", body: buildTravelEvent(v, slotEnd), calendar: "primary", notify: "none" });

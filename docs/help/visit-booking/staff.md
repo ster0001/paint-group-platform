@@ -20,7 +20,7 @@ Customers in a bookable zone book their own site visit from the guide-price scre
 4. They see **Choose a time for your site visit**: only the free slots of the estimator covering their zone, in the next three weeks, none closer than two hours from now, none on a public holiday.
 5. They pick a time. We hold it for ten minutes and text a 6-digit code to their mobile.
 6. They enter the code. Five wrong codes end the hold; they can ask for a new code three times.
-7. **Your site visit is booked.** They get a text and an email with a calendar invitation. The visit shows as one hour; the half hour after it is travel and is blocked from other bookings.
+7. **Your site visit is booked.** They get a text, a confirmation email, and the Google Calendar invitation from the estimator's account (info@paintgroup.com.au), titled "Paint Group site visit" with the property address. Gmail may label that first invitation "from an unknown sender"; the text and the email both say it is coming and from which address. The visit shows as one hour; the half hour after it is travel and is blocked from other bookings.
 
 Customers in a pre-arranged area, in a suburb we do not know, or who find nothing that suits, see **Request a time** instead of the calendar; out-of-area customers see a message box. Both reach you as a card on Today — see `visit-requests/staff`.
 

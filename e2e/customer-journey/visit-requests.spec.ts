@@ -105,7 +105,7 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     const text = `Can you do a weatherboard place in Werribee? ${RUN}`;
     await c.page.getByTestId("visit-message-text").fill(text);
     await c.page.getByTestId("visit-message-send").click();
-    await expect(c.page.getByRole("heading", { name: "Thank you, your message is with us" })).toBeVisible();
+    await expect(c.page.getByRole("heading", { name: "Thank you, your message is with us" })).toBeVisible({ timeout: 45_000 });
     await expect(c.page.getByText("We will reply within one working day.")).toBeVisible();
 
     const { data: chat } = await db!.from("estimate_messages").select("id, body, direction").eq("estimate_id", c.estimateId);

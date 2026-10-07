@@ -349,12 +349,12 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   visitConfirmBody:
     "Hello {{first_name}},\n\n" +
     "{{estimator_name}} from {{company_name}} will be at {{address}} on {{visit_when}} to look at the job with you.\n\n" +
-    "The attached invite drops it into your calendar. It usually takes about an hour: we walk through what's being painted, check the surfaces, and confirm your price.\n\n" +
+    "{{invite_line}} It usually takes about an hour: we walk through what's being painted, check the surfaces, and confirm your price.\n\n" +
     "If that time no longer suits, reply to this email or call us and we'll move it.",
   visitReminderSms:
     "{{company_name}}: a reminder that {{estimator_name}} is visiting {{address}} tomorrow, {{visit_when}}. Reply or call us if anything's changed.",
   visitCodeSms: "{{code}} is your {{company_name}} code to book your site visit. It expires in 10 minutes.",
-  visitBookedSms: "{{company_name}}: your site visit is booked for {{visit_when}} at {{address}}. A calendar invitation is on its way by email. We will text a reminder the evening before. To cancel, decline the invitation or call us.",
+  visitBookedSms: "{{company_name}}: your site visit is booked for {{visit_when}} at {{address}}. A calendar invitation from {{company_email}} is on its way by email — please accept it. We will text a reminder the evening before. To cancel, decline the invitation or call us.",
   requestReceivedSubject: "We have your request — {{company_name}}",
   requestReceivedBody: "Hi {{first_name}},\n\nThank you, we have your request for a site visit at {{address}}. We will be in touch within one working day to arrange a time.\n\n{{company_name}}",
   callRequestReceivedSubject: "We will call you — {{company_name}}",
@@ -441,6 +441,10 @@ export type TemplateVars = {
   address?: string;
   name?: string;
   company_name?: string;
+  /** S7 (Tom, 7 Oct): the address the Google Calendar invitation arrives from, so the email and text can name it. */
+  company_email?: string;
+  /** S7: one sentence on how the calendar invitation reaches the customer — Google's invitation (named sender) or the attached .ics. */
+  invite_line?: string;
   estimate_title?: string;
   total?: string;
   estimator_name?: string;

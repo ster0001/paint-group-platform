@@ -23,15 +23,22 @@ export type VisitForEvent = Pick<VisitRow, "id" | "starts_at" | "ends_at" | "add
 /** The estimator's popup, minutes before the visit. */
 export const ESTIMATOR_REMINDER_MINUTES = 60;
 
-export function buildPrimaryVisitEvent(v: VisitForEvent, customer: { email: string | null; name: string | null }, siteUrl: string | null): Record<string, unknown> {
+/**
+ * The title is what the CUSTOMER sees on the invitation and what the estimator
+ * reads at a glance (Tom, 7 Oct: "Site visit: ENLVN PTY LTD" was the account's
+ * business name — the title names US and the property; the customer is in the
+ * description).
+ */
+export function buildPrimaryVisitEvent(v: VisitForEvent, customer: { email: string | null; name: string | null }, siteUrl: string | null, brand = "Paint Group"): Record<string, unknown> {
   const who = (v.customer_name || customer.name || "Customer").trim();
-  const lines = [`Site visit — ${who}`];
+  const where = (v.address || v.suburb || "").trim();
+  const lines = [`${brand} site visit — ${who}`];
   if (v.customer_phone) lines.push(`Phone: ${v.customer_phone}`);
   if (v.note) lines.push(v.note);
   if (v.estimate_id && siteUrl) lines.push(`${siteUrl}/quote?id=${v.estimate_id}`);
   if (v.account_id && siteUrl) lines.push(`${siteUrl}/crm/customers/${v.account_id}`);
   return {
-    summary: `Site visit: ${who}${v.suburb ? ` (${v.suburb})` : ""}`,
+    summary: `${brand} site visit${where ? ` — ${where}` : ""}`,
     location: v.address || undefined,
     description: lines.join("\n"),
     start: { dateTime: v.starts_at, timeZone: GCAL_TIMEZONE },

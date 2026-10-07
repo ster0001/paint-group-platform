@@ -194,7 +194,8 @@ export function smsLength(body: string): SmsLength {
  * registry.test pins it.
  */
 export const SAMPLE_VARS: Record<string, string> = {
-  first_name: "Sarah", name: "Sarah Chen", customer_name: "Sarah Chen", company_name: "Paint Group",
+  first_name: "Sarah", name: "Sarah Chen", customer_name: "Sarah Chen", company_name: "Paint Group", company_email: "info@paintgroup.com.au",
+  invite_line: "A calendar invitation from info@paintgroup.com.au will arrive separately — accept it and the visit sits in your calendar.",
   estimate_title: "12 Elm Grove, Thornbury", job_title: "12 Elm Grove, Thornbury", address: "12 Elm Grove, Thornbury",
   suburb: "Thornbury", total: "$4,850.00", deposit: "$485.00", amount: "$1,200.00", estimator_name: "Tom",
   link: "https://paintgroup.com.au/e/example", start_date: "Mon 5 Oct", painter_name: "Marco Rossi", painter_first_name: "Marco",
