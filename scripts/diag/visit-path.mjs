@@ -39,6 +39,19 @@ for (const zone of zones) {
   else console.log(`  VERDICT: this zone can offer times (unless Google could not be reached at that moment, which also sends the customer to Request a time)`);
 }
 
+// Every staff login and every Google connection — a reconnect made under a different login than the zone's estimator lands on the wrong row.
+const profiles = must(await db.from("profiles").select("id, name, role, is_owner, staff_roles").eq("role", "staff").order("name"), "profiles") ?? [];
+const conns = must(await db.from("staff_gcal_connections").select("staff_id, google_email, scopes, sync_error, connected_at, updated_at"), "staff_gcal_connections") ?? [];
+console.log(`
+staff logins and their Google connections:`);
+for (const p of profiles) {
+  const c = conns.find((x) => x.staff_id === p.id);
+  const canWrite = !!c && typeof c.scopes === "string" && c.scopes.split(/\s+/).includes(EVENTS);
+  console.log(`  ${p.name ?? "?"} (${p.id})${p.is_owner ? " owner" : ""}: ${c ? `${c.google_email ?? "?"} · write visits: ${canWrite ? "YES" : "no"} · updated ${String(c.updated_at).slice(0, 16)}${c.sync_error ? ` · error: ${c.sync_error}` : ""}` : "no connection"}`);
+}
+const zoneRows = must(await db.from("visit_zones").select("key, estimator_id"), "visit_zones") ?? [];
+console.log(`zones → estimator: ${zoneRows.map((z) => `${z.key}=${profiles.find((p) => p.id === z.estimator_id)?.name ?? (z.estimator_id ? z.estimator_id : "UNASSIGNED")}`).join(", ")}`);
+
 if (email) {
   const acc = must(await db.from("accounts").select("id, name, email, phone, created_at").ilike("email", email).order("created_at", { ascending: false }).limit(3), "accounts") ?? [];
   console.log(`\naccounts for ${email}: ${acc.length ? acc.map((a) => `${a.id} name=${JSON.stringify(a.name)} phone=${JSON.stringify(a.phone)} created ${String(a.created_at).slice(0, 16)}`).join("\n  ") : "NONE"}`);
