@@ -19,14 +19,14 @@ test("cupboards start answered: the kitchen's No and a bedroom's Yes (2 robe doo
   test.setTimeout(240_000);
   await driveNoPlanWizard(page);
   await openScopeEditor(page);
-  const kitchen = cardNamed(page, "Kitchen");
+  const kitchen = cardNamed(page, "Kitchen / Meals"); // the no-plan starter list's name for the kitchen
   await expect(kitchen).toBeVisible();
   await openCard(kitchen);
   const kCup = kitchen.locator(".il-cup").first();
   await expect(kCup).toContainText(/kitchen cupboards/i);
   await expect(kCup).toHaveClass(/ok/);
   await expect(kCup.getByRole("button", { name: "No", exact: true })).toHaveClass(/on/);
-  const bed = page.locator(".sc-rc[data-room]", { has: page.locator("[aria-label^='Rename Bed']") }).first();
+  const bed = page.locator(".sc-rc[data-room]", { has: page.locator("[aria-label*='edroom']") }).first();
   await openCard(bed);
   const bCup = bed.locator(".il-cup").first();
   await expect(bCup).toContainText(/robe doors/i);
