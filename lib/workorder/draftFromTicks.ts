@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { composeUpdate, type TickEvent } from "./updates";
 import { melbourneDate, melbourneDayStartUtc } from "./console";
 import { reportError } from "@/lib/monitoring/report";
+import { staffCustomerUpdateDrafted } from "@/lib/staff/notify";
 
 /**
  * Instant progress-update drafting (Tom, 1 Sep). SERVER ONLY — service client.
@@ -72,5 +73,9 @@ export async function draftUpdateFromTodaysTicks(
     p_tick_ids: rows.map((r) => r.id),
     p_photo_count: photoCount ?? 0,
   });
-  if (error) reportError(error, { where: "tick.draftUpdate", extra: { workOrderId } });
+  if (error) { reportError(error, { where: "tick.draftUpdate", extra: { workOrderId } }); return; }
+  // Tom, 7 Oct 2026: the office (Felipe) is told the moment the painter's
+  // work has drafted an update — email + text per their alert settings, once
+  // per job per day; notifyStaff claims the guard before it sends anything.
+  await staffCustomerUpdateDrafted(service, workOrderId, melbourneDate(now));
 }

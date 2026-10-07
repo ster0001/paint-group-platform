@@ -1,4 +1,4 @@
-// READ ONLY (6 Oct 2026): why won't this job leave In progress? Usage:
+// READ ONLY (6 Oct 2026; Quality check verdict added 7 Oct): why won't this job leave In progress — or Quality check? Usage:
 //   node scripts/diag/wo-next-step.mjs "Collins" "Jacka"
 // Prints, per matching job: stage, surfaces and their states, photos by kind,
 // the finishing-up list with what is still open, unsettled variations, open
@@ -14,10 +14,10 @@ for (const needle of needles) {
   const ests = must(await db.from("estimates").select("id, number, title").ilike("title", `%${needle}%`).limit(5), "estimates");
   if (ests.length === 0) { console.log(`\nno estimate matched ${JSON.stringify(needle)}`); continue; }
   for (const e of ests) {
-    const wos = must(await db.from("work_orders").select("id, wo_ref, stage, stage_entered_at, walkthrough_required, wo_snapshot, colours").eq("estimate_id", e.id), "work_orders");
+    const wos = must(await db.from("work_orders").select("id, wo_ref, stage, stage_entered_at, walkthrough_required, qa_waived, wo_snapshot, colours").eq("estimate_id", e.id), "work_orders");
     if (wos.length === 0) console.log(`\n=== #${e.number} ${e.title} — no work order on this estimate`);
     for (const w of wos) {
-      console.log(`\n=== #${e.number} ${e.title} | ${w.wo_ref} | stage=${w.stage} since ${String(w.stage_entered_at).slice(0, 16)} | walkthrough_required=${w.walkthrough_required}`);
+      console.log(`\n=== #${e.number} ${e.title} | ${w.wo_ref} | stage=${w.stage} since ${String(w.stage_entered_at).slice(0, 16)} | walkthrough_required=${w.walkthrough_required} | qa_waived=${w.qa_waived}`);
       const surfaces = must(await db.from("wo_surfaces").select("heading, label, state, removed_from_scope, photos_optional").eq("work_order_id", w.id).order("sort"), "wo_surfaces");
       const working = surfaces.filter((s) => !s.removed_from_scope);
       const left = working.filter((s) => s.state !== "done");
@@ -50,7 +50,25 @@ for (const needle of needles) {
       const waived = must(await db.from("wo_events").select("id").eq("work_order_id", w.id).eq("type", "after_photos_waived"), "wo_events").length > 0;
       const events = must(await db.from("wo_events").select("type, actor_kind, meta, created_at").eq("work_order_id", w.id).order("created_at", { ascending: false }).limit(8), "wo_events");
       for (const ev of events) console.log(`   ev ${String(ev.created_at).slice(0, 16)} ${ev.type} (${ev.actor_kind}) ${JSON.stringify(ev.meta ?? {}).slice(0, 140)}`);
-      const verdict = w.stage !== "in_progress" && w.stage !== "completion_prep" ? `not at In progress (stage ${w.stage})`
+      // Tom, 7 Oct 2026 (25 Bunney Road): why won't a job leave Quality check? The
+      // route (wo_qa_route_passed) needs NO open check — unlogged, or a fail with no
+      // re-check — then the pack gate: no variation at raised/priced/customer_approved,
+      // colour-match codes in, a sign-off row not already signed. Zero checks used to
+      // park it for ever (fixed in 20270220: nothing to check routes like a pass).
+      const qaFull = must(await db.from("wo_qa_checks").select("id, kind, result, retry_of").eq("work_order_id", w.id), "wo_qa_checks");
+      const unlogged = qaFull.filter((c) => c.result === null);
+      const failsOpen = qaFull.filter((c) => c.result === "fail" && !qaFull.some((r) => r.retry_of === c.id));
+      const varDetail = vars.map((v) => `${v.status}${v.status === "customer_approved" ? " (waiting on the painter's accept — or on Release if the automation is off)" : ""}`).join("; ");
+      const qaVerdict = w.stage !== "qa" ? null
+        : qaFull.length === 0 ? "NO CHECK ON THIS JOB — before 20270220 this parked it for ever; with 20270220 live it routes on next view/sweep. If it still sits here, the pack gate below is the reason."
+        : unlogged.length > 0 ? `${unlogged.length} quality check(s) not logged yet — tick the four standards and log PASS (or FAIL) on the job page`
+        : failsOpen.length > 0 ? `${failsOpen.length} FAILED check(s) with no re-check scheduled (logged before re-checks existed, 24 Sep) — press "Quality check not required" on the job page: with 20270221 live a waived job has nothing open and it routes on the next view/sweep (clear the waiver to put the fail back in force)`
+        : vars.length > 0 ? `every check passed, but ${vars.length} variation(s) hold the pack gate: ${varDetail} — approve/decline/release them (a painter-declined one no longer holds)`
+        : colourMatch.length > 0 ? `every check passed, but COLOUR MATCH CODES are still needed for ${colourMatch.join(", ")}`
+        : signoff?.signed_at ? "every check passed, but the sign-off row is already signed — the close refuses (already_signed); tell whoever looks after the platform"
+        : "every check passed and nothing holds the pack — open the job page in PC Command (or wait for the evening sweep) and it routes to Walkthrough / Closed on its own";
+      const verdict = qaVerdict ? qaVerdict
+        : w.stage !== "in_progress" && w.stage !== "completion_prep" ? `not at In progress (stage ${w.stage})`
         : working.length === 0 ? "no tick list — build it from the job sheet"
         : left.length > 0 ? `${left.length} of ${working.length} surfaces still to tick off`
         : w.stage === "in_progress" && !byKind.completion && !waived && wantPhotos.length > 0 ? "AFTER PHOTOS MISSING — the finish refuses (upload them on the PC card, or waive with a reason)"

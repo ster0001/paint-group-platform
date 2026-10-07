@@ -4289,6 +4289,33 @@ GST (10%) / Total (inc GST), the claim composer labels its figures ex GST and "+
 line is `claimed_ex_cents`. Pinned by `lib/invoicing/ciStateMachine.test.ts` (every writer: `gst_on_ex_cents`, no
 `gst_from_inc_cents`) and `e2e/contractor-invoicing.spec.ts` ($95,000 → $9,500 GST → $104,500).
 
+**PC Command batch (Tom, 7 Oct 2026).** Migration `20270220000000_variation_painter_approval_qa_route_client_notes.sql`.
+(1) **The painter approves a client-approved change.** `wo_customer_sign_variation` (20270195 body): with a painter on
+the job a signed revision addition is no longer folded in — it is released (`released_at`) and waits at
+`customer_approved` for the painter; with no painter it folds as before. New `wo_contractor_decline_variation(id, note)`:
+status `declined` + `contractor_declined_at` / `contractor_decline_note` (new columns, so the customer's signature on the
+row still says who approved it), the approval's untouched tick rows removed, event `variation_contractor_declined`; the
+gate no longer waits on it. Portal `Variations.tsx` shows "Variation approved by the client" with amount + hours, a big
+Accept and a small Decline that opens the note box (`declineVariationAction`); the console gets
+`variation-painter-declined:<id>` (`consoleData` now also reads declined rows with `contractor_declined_at`), the PC
+variation card names the decline, and `staffVariationDeclinedByPainter` sends `office_variation_declined`. `/v/[token]`
+treats a painter-declined signed row as the customer's approval. (2) **Quality check with no check** — `wo_qa_route_passed`
+routes a zero-check qa job like a pass (`none_scheduled` on the event) instead of `ok:0` for ever; `scripts/diag/wo-next-step.mjs`
+gained a qa VERDICT (unlogged / failed-without-recheck / variation gate / colour match / already signed). (3 + 4) **Office
+alerts** `office_update_drafted` (from `draftUpdateFromTodaysTicks` and the sweep's draft backstop, entity `<wo>:<day>`)
+and `office_update_due` (`lib/automations/sweeps/customerUpdateDue.ts`, the console card's rule as a sweep, entity
+`<wo>:<day>`), both routed per staff login through `profiles.staff_notify` — Tom ticks Email + Text for Felipe. (5)
+**Client updates** on the PC job page: `ClientUpdates.tsx` + `addClientUpdateNote` → staff-only `wo_add_client_update_note`
+(wo_events `client_update_note`) and `logCrmEvent(note_added, origin client_update)` on the customer's account; the timeline
+is derived from sent/approved `wo_updates` + those events. Spec `e2e/pc-painter-approval-7oct.spec.ts`; units
+`console.test.ts`, `customerUpdateDue.test.ts`.
+
+**QA waiver clears a legacy fail (7 Oct 2026, 25 Bunney Road).** WO-WNWJXGTV sat at qa from 17 Sep: its only check was
+logged FAIL before 20270196 made a fail spawn its re-check, so no `retry_of` row existed and `wo_qa_open_count` counted it
+open for ever; the 6 Oct "Quality check not required" waiver only deletes UNLOGGED checks. Migration `20270221` re-creates
+`wo_qa_open_count` with one clause: a job with `qa_waived` has nothing open (the fail stays as history). Pinned in
+`e2e/pc-painter-approval-7oct.spec.ts`; the diag names the waiver as the way out.
+
 **Estimator wizard batch (Tom, 7 Oct 2026).** Eight asks on the customer wizard, no migration. (1) The plan read is one
 vision call (`lib/extract/model.ts`), so its latency is the model's; the fix is on the screen: `QuickLook.tsx`'s rooms step
 shows a **reading panel** (`ql-plan-reading-panel`, with a `ql-plan-skip-wait` way past it) while `planPending` and no plan

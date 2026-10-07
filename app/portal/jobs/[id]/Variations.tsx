@@ -3,7 +3,7 @@
 import { uploadFailureText, uploadWorkOrderMedia, uploadingLabel } from "@/lib/workorder/uploadMedia";
 
 import { useRef, useState, useTransition } from "react";
-import { acceptVariationAction, acknowledgeVariationAction, raiseVariationAction } from "./variationActions";
+import { acceptVariationAction, acknowledgeVariationAction, raiseVariationAction, declineVariationAction } from "./variationActions";
 import { VARIATION_CATEGORIES, type VariationStatus } from "@/lib/workorder/variations";
 
 const money = (c: number) =>
@@ -23,6 +23,9 @@ export type VariationView = {
   deductionCents?: number | null;
   deductionNote?: string;
   acknowledged?: boolean;
+  /** Tom, 7 Oct 2026: the painter declined the client-approved change, with this note. */
+  contractorDeclined?: boolean;
+  declineNote?: string;
 };
 
 /**
@@ -109,6 +112,22 @@ export default function Variations({
       const result = await acceptVariationAction({ variationId: id });
       if (result.ok) {
         setList((l) => l.map((v) => (v.id === id ? { ...v, status: "contractor_accepted" } : v)));
+      } else setMessage(result.message);
+    });
+  }
+
+  // Tom, 7 Oct 2026: Decline, in smaller letters, opens a box for the note.
+  const [declining, setDeclining] = useState<string | null>(null);
+  const [declineNote, setDeclineNote] = useState("");
+  function decline(id: string) {
+    setMessage(null);
+    const note = declineNote.trim();
+    if (note.length < 3) { setMessage("Tell us what needs to change — a sentence is plenty."); return; }
+    startTransition(async () => {
+      const result = await declineVariationAction({ variationId: id, note });
+      if (result.ok) {
+        setList((l) => l.map((v) => (v.id === id ? { ...v, status: "declined", contractorDeclined: true, declineNote: note } : v)));
+        setDeclining(null); setDeclineNote("");
       } else setMessage(result.message);
     });
   }
@@ -244,17 +263,48 @@ export default function Variations({
                       ? (v.needsManualDeduction && v.deductionCents == null ? "With the office" : "Acknowledge")
                       : v.released ? "Your approval" : "Approved — coming to you")
                 : v.status === "contractor_accepted" ? (v.credit ? "Acknowledged" : "Accepted")
-                : v.status === "declined" ? "Declined" : "Closed"}
+                : v.status === "declined" ? (v.contractorDeclined ? "Declined — with the office" : "Declined") : "Closed"}
             </span>
           </div>
           <p className="var-item-comment">{v.comment}</p>
 
-          {/* Additions: the existing accept (both approvals, in order). */}
+          {/* Additions: the client has approved — the painter's own approval
+              (Tom, 7 Oct 2026: amount and hours up front, Accept in big
+              letters, Decline in small ones with a box for what should change). */}
           {!v.credit && v.status === "customer_approved" && v.released && (
-            <button type="button" className="var-send" disabled={pending}
-              onClick={() => accept(v.id)} data-testid={`accept-${v.id}`}>
-              Accept {v.contractorDeltaCents ? money(v.contractorDeltaCents) : ""} — {v.estHours ?? "?"} hrs
-            </button>
+            <div className="var-approved" data-testid={`approved-by-client-${v.id}`}>
+              <p className="var-approved-head">Variation approved by the client</p>
+              <p className="var-approved-figures">
+                <b data-testid={`approved-amount-${v.id}`}>{v.contractorDeltaCents ? money(v.contractorDeltaCents) : "No pay change"}</b>
+                <span data-testid={`approved-hours-${v.id}`}>{v.estHours != null ? `${v.estHours} hr${v.estHours === 1 ? "" : "s"} estimated` : "hours to be confirmed"}</span>
+              </p>
+              <button type="button" className="var-send var-accept-big" disabled={pending}
+                onClick={() => accept(v.id)} data-testid={`accept-${v.id}`}>
+                Accept {v.contractorDeltaCents ? money(v.contractorDeltaCents) : ""} — {v.estHours ?? "?"} hrs
+              </button>
+              {declining !== v.id ? (
+                <button type="button" className="var-decline-small" disabled={pending}
+                  onClick={() => { setDeclining(v.id); setDeclineNote(""); setMessage(null); }} data-testid={`decline-${v.id}`}>
+                  Decline
+                </button>
+              ) : (
+                <div className="var-decline-box" data-testid={`decline-box-${v.id}`}>
+                  <label htmlFor={`decline-note-${v.id}`}>Please advise us of any further changes</label>
+                  <textarea id={`decline-note-${v.id}`} rows={3} maxLength={1000} value={declineNote}
+                    placeholder="What would need to change for you to take this on — the hours, the amount, the scope?"
+                    onChange={(e) => setDeclineNote(e.target.value)} data-testid={`decline-note-${v.id}`} />
+                  <div className="var-decline-acts">
+                    <button type="button" className="var-send" disabled={pending} onClick={() => decline(v.id)} data-testid={`decline-send-${v.id}`}>Send to the office</button>
+                    <button type="button" className="var-decline-small" disabled={pending} onClick={() => setDeclining(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {v.status === "declined" && v.contractorDeclined && (
+            <p className="note" data-testid={`painter-declined-${v.id}`}>
+              You declined this one — it is back with the office.{v.declineNote ? ` Your note: “${v.declineNote}”` : ""}
+            </p>
           )}
 
           {/* Credits: the customer owns the scope — acknowledge, no veto. */}

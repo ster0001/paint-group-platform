@@ -49,8 +49,9 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         // what the console has to surface.
         .in("state", ["offered", "proposed", "expired", "declined"]),
       supabase.from("wo_variations")
-        .select("id, work_order_id, status, created_at, priced_lines, contractor_rate_cents, credit, needs_manual_deduction, deduction_cents, category, comment, price_cents, raised_kind")
-        .in("status", ["raised", "priced", "customer_approved"]),
+        .select("id, work_order_id, status, created_at, priced_lines, contractor_rate_cents, credit, needs_manual_deduction, deduction_cents, category, comment, price_cents, raised_kind, contractor_declined_at, contractor_decline_note")
+        // Tom, 7 Oct 2026: a change the painter declined after the client approved it is back with the office.
+        .or("status.in.(raised,priced,customer_approved),and(status.eq.declined,contractor_declined_at.not.is.null)"),
       supabase.from("wo_updates").select("id, work_order_id, status, created_at").eq("status", "drafted"),
       // Unsigned only. buildQueue skips a signed row on the first line of its
       // loop, so this changes nothing on screen — but signed jobs accumulate
@@ -227,9 +228,12 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         id: string; work_order_id: string; status: string; created_at: string;
         credit: boolean; needs_manual_deduction: boolean; deduction_cents: number | null;
         category: string; comment: string; price_cents: number | null; raised_kind: string;
+        contractor_declined_at?: string | null; contractor_decline_note?: string | null;
       }[]).map((v) => ({
         id: v.id, workOrderId: v.work_order_id, status: v.status,
         createdAt: v.created_at,
+        contractorDeclinedAt: v.contractor_declined_at ?? null,
+        declineNote: v.contractor_decline_note ?? "",
         category: v.category, comment: v.comment, priceCents: v.price_cents, raisedKind: v.raised_kind,
         // A priced variation's clock starts when it was priced; the row does not
         // carry that separately, so the created_at of the price event stands in.

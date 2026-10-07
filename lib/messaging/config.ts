@@ -72,6 +72,13 @@ export type MessagingSettings = {
   officeInvoicePaidBody: string;
   officeVariationRaisedSubject: string;
   officeVariationRaisedBody: string;
+  /** Tom, 7 Oct 2026: PC Command alerts. */
+  officeVariationDeclinedSubject: string;
+  officeVariationDeclinedBody: string;
+  officeUpdateDraftedSubject: string;
+  officeUpdateDraftedBody: string;
+  officeUpdateDueSubject: string;
+  officeUpdateDueBody: string;
   officeContractorInvoiceSubject: string;
   officeContractorInvoiceBody: string;
   /** The tenant access text a trade customer sends from the portal (manual; wording editable). */
@@ -227,6 +234,12 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeInvoicePaidBody: "{{who}} has paid {{amount}} on invoice {{invoice_number}} for {{job}} ({{method}}).",
   officeVariationRaisedSubject: "Variation raised — {{job}}",
   officeVariationRaisedBody: "{{painter}} has raised a variation on {{wo_ref}} ({{job}}): {{category}}{{hours_line}}.\n\n“{{comment}}”\n\nIt is waiting to be priced.",
+  officeVariationDeclinedSubject: "Painter declined an approved change — {{job}}",
+  officeVariationDeclinedBody: "{{painter}} has declined the change the client approved on {{wo_ref}} ({{job}}){{hours_line}}.\n\nThey wrote: “{{comment}}”\n\nIt is back with you in PC Command — revise it with the client, or set the painter's amount.",
+  officeUpdateDraftedSubject: "Customer update ready to send — {{job}}",
+  officeUpdateDraftedBody: "{{painter}} has updated their work order on {{wo_ref}} ({{job}}). A customer update has been drafted from it — read it, change anything, and send it.",
+  officeUpdateDueSubject: "Customer update due — {{job}}",
+  officeUpdateDueBody: "The customer on {{wo_ref}} ({{job}}) is due an update{{hours_line}}. Nothing is drafted — write them a line on progress from the job page.",
   officeContractorInvoiceSubject: "Contractor invoice in — {{painter}} · {{amount}}",
   officeContractorInvoiceBody: "{{painter}} has submitted invoice {{invoice_number}} for {{amount}} on {{wo_ref}} ({{job}}). It is waiting for approval in Payments.",
   // THE TENANT TEXT IS THE ONE MESSAGE THAT GOES TO SOMEONE WHO NEVER ASKED US

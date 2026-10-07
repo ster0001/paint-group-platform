@@ -205,7 +205,7 @@ export default async function PortalJobPage({
 
   const { data: variationRows } = employee ? { data: null } : await supabase
     .from("wo_variations")
-    .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, needs_manual_deduction, deduction_cents, deduction_note, contractor_acknowledged_at, customer_responded_at, created_at")
+    .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, needs_manual_deduction, deduction_cents, deduction_note, contractor_acknowledged_at, customer_responded_at, created_at, contractor_declined_at, contractor_decline_note")
     .eq("work_order_id", id)
     .order("created_at", { ascending: false });
 
@@ -242,6 +242,7 @@ export default async function PortalJobPage({
     credit: boolean; needs_manual_deduction: boolean; deduction_cents: number | null;
     deduction_note: string; contractor_acknowledged_at: string | null;
     customer_responded_at: string | null; created_at: string;
+    contractor_declined_at?: string | null; contractor_decline_note?: string | null;
   };
   const vRows = (variationRows as VRow[] | null) ?? [];
   const variations: VariationView[] = vRows.map((v) => ({
@@ -254,6 +255,8 @@ export default async function PortalJobPage({
     deductionCents: v.deduction_cents,
     deductionNote: v.deduction_note ?? "",
     acknowledged: v.contractor_acknowledged_at !== null,
+    contractorDeclined: v.contractor_declined_at != null,
+    declineNote: v.contractor_decline_note ?? "",
   }));
 
   // "Create invoice" from the job itself (Tom, 25 Aug): the same claim card
