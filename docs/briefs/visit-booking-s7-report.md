@@ -19,7 +19,14 @@
 | Typecheck, lint (0 errors, 4 pre-existing warnings), unit suite 3,158, help index | ✅ |
 | CI on main after the S6 merge | ✅ green (run 37548673574) |
 
-**e2e did not run.** Both attempts were REFUSED: the test project is held by the S6 pull request's CI e2e job (run 37548103178, started 23:46Z, still running after 45 minutes while the merged main run had already passed). One try, one wait, one retry, no loop — Tom's rule. The full-loop spec is typechecked and linted; CI on the S7 PR is where it first runs. If that PR run is also queued behind a stuck job, cancel the S6 PR run under Actions — its branch is already merged and main is green.
+**e2e ran once on the test project after the CI lock cleared: 32 ran, 28 passed, 4 failed, then the run's own database connection timed out and left its advisory lock behind.** The four, each fixed on this branch:
+
+- full loop, section 8 test 14: the resend call had no `holdId`, so it was refused as a bad request (400) before ownership was checked; and another customer's estimate answers **403**, not 404 (404 is "does not exist" — test 9 already fixes that). The spec now sends a well-formed body and expects 403.
+- section 8 test 9 ("no details, no hold"): since S6 the gate takes details before the range under details first, so a "no details" customer cannot exist there. The API spec pins the gate order to range first for its run and restores it.
+- S2 schedule: the staff chat dock had popped open over the bottom of Settings (a customer message earlier in the run) and intercepted the click on "Load the standard week". `e2e/helpers.ts` gained `minimiseStaffDock`, used before the Settings clicks.
+- S4 Werribee: the message post took longer than the ten-second wait on a slow connection; the wait is 45 s now. The route itself did nothing wrong.
+
+The rerun was REFUSED: the lock is still held by the crashed run's orphaned session (idle on the server since 02:01Z); ending it needs a `pg_terminate_backend`, which this session is not allowed to run. Tom runs the one line in the report's "For Tom", or waits for the session to time out, and CI on the S7 PR runs the suite on push either way.
 
 ## The health check
 
@@ -46,7 +53,11 @@ The Google half of the loop — the event appearing within a minute, the invitat
 
 ## For Tom
 
-1. Open the S7 PR from `feat/visit-booking-s7`. No SQL.
+1. Open the S7 PR from `feat/visit-booking-s7`. No production SQL. On the **TEST** project (qarfyjrzgdeoqbnbbxfp) only, to free the e2e lock my crashed run left behind:
+   ```sql
+   select pg_terminate_backend(a.pid), a.application_name from pg_locks l join pg_stat_activity a on a.pid = l.pid
+   where l.locktype = 'advisory' and a.application_name like 'pg-e2e-lock:e2e:local:%' and a.state = 'idle';
+   ```
 2. Run the checks marked Tom in the health check, in order: ledger, Security Advisor, holidays seed, Google reconnect, then the phone walkthrough.
 3. Report any step of the walkthrough that reads differently from the help file — the screen wins and the help follows.
 

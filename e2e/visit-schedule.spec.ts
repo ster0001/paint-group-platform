@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "./fixtures/woLoop";
+import { minimiseStaffDock } from "./helpers";
 
 /**
  * Visit booking addendum A · S2 — the schedule and booking rules, as staff on
@@ -57,11 +58,13 @@ test.describe("S2 — visit schedule and booking rules", () => {
     test.skip(hadWeek, "the staff login already has a week; not overwriting it");
     await loginAs(page, staff);
     await page.goto("/settings#visit-schedule");
+    await minimiseStaffDock(page);
     await page.getByTestId(`sched-est-${staffId}`).click();
     await expect(page.getByTestId("sched-empty")).toBeVisible();
     await page.getByTestId("sched-load-standard").click();
     await page.waitForLoadState("networkidle");
     await page.goto("/settings#visit-schedule");
+    await minimiseStaffDock(page);
     await page.getByTestId(`sched-est-${staffId}`).click();
     await expect(page.getByTestId("sched-empty")).toHaveCount(0);
     const totals = async () => Promise.all([1, 2, 3, 4, 5].map((z) => page.getByTestId(`sched-total-${z}`).getByTestId("total-n").innerText()));
@@ -93,6 +96,7 @@ test.describe("S2 — visit schedule and booking rules", () => {
   test("a slot that starts inside another slot's 90 minutes is refused (test 18)", async ({ page }) => {
     await loginAs(page, staff);
     await page.goto("/settings#visit-schedule");
+    await minimiseStaffDock(page);
     await page.getByTestId(`sched-est-${staffId}`).click();
     await page.getByTestId("sched-day-1").click();
     await page.getByTestId("sched-add-time").fill("08:45");
@@ -108,6 +112,7 @@ test.describe("S2 — visit schedule and booking rules", () => {
   test("booking rules save and read back", async ({ page }) => {
     await loginAs(page, staff);
     await page.goto("/settings#booking-rules");
+    await minimiseStaffDock(page);
     await expect(page.getByTestId("booking-rules")).toBeVisible();
     await page.getByTestId("rules-windowDays").fill("14");
     await page.getByTestId("rules-holiday-new").fill("2026-12-25");

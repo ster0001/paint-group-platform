@@ -21,7 +21,7 @@ import { cleanupCustomers, codeFor, ensureEstimator, loginStaff, staffEmail, sta
  * cancel text are Tom's `docs/manual-tests/visit-gcal.md`.
  *
  * Also here, from section 8: 14 (another customer calling this booking by id
- * is refused) and the platform half of 19 (a booked slot blocks its full
+ * is refused — 403, as test 9 fixes it; 404 is "does not exist") and the platform half of 19 (a booked slot blocks its full
  * 90 minutes for the next customer, whatever happens to the travel block in
  * Google).
  *
@@ -100,14 +100,15 @@ test.describe("S7 — the full loop", () => {
     expect(offeredBefore.length).toBeGreaterThan(0);
 
     // ---- section 8 · 14: another customer calling this booking by id is refused ------
+    const { data: aHold } = await sb.from("visit_holds").select("id").eq("estimate_id", a.estimateId).limit(1).single();
     for (const [path, body] of [
-      ["/api/visits/resend", { estimateId: a.estimateId }],
-      ["/api/visits/confirm", { estimateId: a.estimateId, code: "123456" }],
+      ["/api/visits/resend", { estimateId: a.estimateId, holdId: aHold!.id }],
+      ["/api/visits/confirm", { estimateId: a.estimateId, holdId: aHold!.id, code: "123456" }],
     ] as const) {
       const r = await b.page.request.post(path, { data: body });
-      expect(r.status(), `${path} as another customer`).toBe(404);
+      expect(r.status(), `${path} as another customer`).toBe(403);
     }
-    expect((await b.page.request.get(`/api/visits/availability?estimateId=${a.estimateId}`)).status()).toBe(404);
+    expect((await b.page.request.get(`/api/visits/availability?estimateId=${a.estimateId}`)).status()).toBe(403);
     const { data: still } = await sb.from("visits").select("status").eq("id", visit!.id).single();
     expect(still?.status).toBe("booked");
 

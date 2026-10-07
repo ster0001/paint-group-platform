@@ -78,7 +78,8 @@ test.describe("Section 8 — tests that try to break it (API)", () => {
     await sb.from("visit_zones").update({ estimator_id: staffId }).is("estimator_id", null);
     const { data: rulesRow } = await sb.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle();
     rulesBefore = (rulesRow?.value ?? {}) as Record<string, unknown>;
-    await sb.from("settings").upsert({ key: "visit_booking_rules", value: { ...rulesBefore, calendarRequired: false } }, { onConflict: "key" });
+    // Range first for the run: test 9's "no details" customer must reach the range without the gate taking details (S6).
+    await sb.from("settings").upsert({ key: "visit_booking_rules", value: { ...rulesBefore, calendarRequired: false, gateOrder: "range_first" } }, { onConflict: "key" });
     const { data: slots } = await sb.from("visit_slots").select("id").eq("estimator_id", staffId).limit(1);
     hadWeek = !!slots?.length;
     if (!hadWeek) {
