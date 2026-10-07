@@ -4307,3 +4307,16 @@ says which), and `openNewRoomRef` opens the new card with the size form up and s
 `customer.heightAdjusted`, which `confirm_height` (the job-wide chip) now skips; `RoomLoopView` carries `heightM` /
 `heightAdjusted` and the card shows "· 2.7 m ceilings". Pinned by `lib/wizard/tom-batch-7oct.test.ts` and driven by
 `e2e/customer-journey/tom-batch-7oct.spec.ts` (the plan test needs the gitignored regression plan).
+
+**An accepted job clears the customer's follow-ups; employee days approve themselves (Tom, 7 Oct 2026).** Migration
+`20270219000000_accept_clears_followups_timesheets_auto_approve.sql`. CRM: `estimates_crm_lifecycle` (20270152 body) nulls
+`accounts.followup_due_at / followup_note / snoozed_until` when an estimate turns `accepted` — every acceptance path runs
+through the trigger — with a guarded backfill of reminders set before an acceptance (dated by the `followup_set` event).
+The DERIVED follow-ups stay derived: `lib/crm/work-queue.ts` reads the latest acceptance per account (90 days) into an
+`acceptedAt` map and `answeredByAcceptance()` suppresses a quiet quote, callback or online-estimate item asked for at or
+before it (a quote sent after the acceptance is a new job and is chased). Timesheets: `timesheet_auto_approve` (NO grant —
+run by the writers) is the 20270163 approve body without the staff check, `approved_by` null = approved by the rule;
+`timesheet_finish` / `_record` / `_autofill` / `_extra` call it on the row they write. A day no cost rate covers stays
+`submitted` (the one thing the Timesheets page still lists; `timesheet_approve` is unchanged for it); the 16-hour overnight
+close still waits. The `timesheet_approval` work item is gone (kind, weight, group, builder, read, Today label). Specs
+`crm-quote-followup` (+ acceptance), `employee-timesheet`, `employee-loop` test 6; help for timesheets pc/employee and crm staff.
