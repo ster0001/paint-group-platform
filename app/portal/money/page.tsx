@@ -75,7 +75,7 @@ export default async function MoneyPage() {
       : Promise.resolve({ data: [] }),
     woIds.length
       ? supabase.from("contractor_invoices")
-          .select("work_order_id, status, total_inc_cents")
+          .select("work_order_id, status, claimed_ex_cents")
           .in("work_order_id", woIds).neq("status", "draft")
       : Promise.resolve({ data: [] }),
   ]);
@@ -93,9 +93,11 @@ export default async function MoneyPage() {
       // snapshot's offer figure — an accepted job with an agreed amount must
       // never read as "nothing to invoice" (Tom, 25 Aug; the Josef data gap).
       adjustedCents: Math.max(0, Number(w.contractor_payment_cents ?? w.wo_snapshot?.contractorPaymentCents ?? 0) + contractorVariationsCents(vars)),
-      invoicedCents: ((ciTotals ?? []) as { work_order_id: string; total_inc_cents: number }[])
+      // Σ the ex-GST figure each invoice claimed — GST (when registered)
+      // sits on top and never eats into what remains (Tom, 7 Oct).
+      invoicedCents: ((ciTotals ?? []) as { work_order_id: string; claimed_ex_cents: number }[])
         .filter((c) => c.work_order_id === w.id)
-        .reduce((s, c) => s + c.total_inc_cents, 0),
+        .reduce((s, c) => s + c.claimed_ex_cents, 0),
       deductionPending: vars.some((v) => v.credit && v.needs_manual_deduction && v.deduction_cents == null),
     };
   });
@@ -154,7 +156,7 @@ export default async function MoneyPage() {
         </div>
       )}
 
-      {missing.length === 0 && <RequestClaim jobs={claimJobs} />}
+      {missing.length === 0 && <RequestClaim jobs={claimJobs} gstRegistered={contractor?.gst_registered ?? false} />}
 
       {expenseJobs.length > 0 && (
         <Expenses jobs={expenseJobs} expenses={expenses} preapprovals={preapprovals}

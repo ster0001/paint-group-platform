@@ -5,7 +5,7 @@ import {
   serviceClient, rpcAs, type LoopFixture,
 } from "./fixtures/woLoop";
 import { credentials, missingCreds, signIn } from "./helpers";
-import { gstFromIncCents } from "../lib/invoicing/gst";
+import { gstOnExCents } from "../lib/invoicing/gst";
 
 /**
  * Step 5 — contractor invoicing v2, AS THE CONTRACTOR and AS PC (brief §8.5).
@@ -188,7 +188,7 @@ test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
     expect(row.entity_snapshot.bank_last4).toBe("4321");
   });
 
-  test("a GST-registered contractor's document is a TAX INVOICE with GST backed out", async ({ page }) => {
+  test("a GST-registered contractor's document is a TAX INVOICE with GST ADDED ON TOP (Tom, 7 Oct)", async ({ page }) => {
     await db!.from("contractors").update({ gst_registered: true }).eq("id", contractorId);
     const { data } = await db!.rpc("contractor_invoice_draft", { p_work_order_id: fixtureB!.workOrderId });
     ciBId = String(data).slice(3);
@@ -221,11 +221,17 @@ test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
     await expect(page.getByTestId("ci-status")).toContainText("With the office", { timeout: 15_000 });
 
     const { data: ci } = await db!.from("contractor_invoices")
-      .select("total_inc_cents, gst_cents, gst_registered_at_submit").eq("id", ciBId).single();
-    const row = ci as { total_inc_cents: number; gst_cents: number; gst_registered_at_submit: boolean };
-    expect(row.total_inc_cents).toBe(100_000 - 5_000); // the late deduction is in
+      .select("claimed_ex_cents, subtotal_ex_cents, total_inc_cents, gst_cents, gst_registered_at_submit").eq("id", ciBId).single();
+    const row = ci as { claimed_ex_cents: number; subtotal_ex_cents: number; total_inc_cents: number; gst_cents: number; gst_registered_at_submit: boolean };
+    expect(row.claimed_ex_cents).toBe(100_000 - 5_000); // the late deduction is in — the agreed figure, EX GST
+    expect(row.subtotal_ex_cents).toBe(95_000);
     expect(row.gst_registered_at_submit).toBe(true);
-    expect(row.gst_cents).toBe(gstFromIncCents(row.total_inc_cents)); // backed out, never added
+    expect(row.gst_cents).toBe(gstOnExCents(95_000)); // $950 ON TOP, never backed out
+    expect(row.total_inc_cents).toBe(95_000 + 9_500);
+    // …and the screen says so: subtotal, GST, total inc.
+    await expect(page.getByTestId("ci-subtotal")).toContainText("$950.00");
+    await expect(page.getByTestId("ci-gst")).toHaveText("$95.00");
+    await expect(page.getByTestId("ci-total")).toContainText("$1,045.00");
   });
 
   test("PC: Payables tab → approve → mark paid with bank reference + remittance number", async ({ page }) => {
@@ -312,24 +318,35 @@ test.describe("payment claims — invoice at any time (Tom, 24 Aug)", () => {
     await page.goto("/portal/money");
 
     await page.getByTestId("open-claim").click();
+    // The shared test contractor may carry other suites' jobs with money
+    // owing (debris on the test project); with more than one claimable job
+    // the composer insists the job is PICKED (Tom, 25 Aug), so pick ours.
+    const picker = page.getByTestId("claim-job");
+    if (await picker.count()) await picker.selectOption(fixtureD!.workOrderId);
     await page.getByTestId("claim-pct-25").click();
-    // Preview is the engine's arithmetic: 25% of the $2,000 offer.
-    await expect(page.getByTestId("send-claim")).toContainText("$500.00");
+    // Preview is the engine's arithmetic: 25% of the $2,000 offer, ex GST
+    // (this contractor is still registered from the test above).
+    await expect(page.getByTestId("send-claim")).toContainText("$500.00 + GST");
     await page.getByTestId("send-claim").click();
-    await expect(page.getByTestId("claim-message")).toContainText("Invoice sent", { timeout: 15_000 });
+    // Success lands on the invoice itself (router.push) — the "Invoice sent"
+    // message is gone with the composer by the time it could be read.
+    await page.waitForURL(/\/portal\/money\/[0-9a-f-]{36}$/, { timeout: 15_000 });
+    await expect(page.getByTestId("ci-status")).toContainText("With the office");
 
     const { data: rows } = await db!.from("contractor_invoices")
-      .select("id, status, number, total_inc_cents, claim_pct, auto_draft_source, gst_cents")
+      .select("id, status, number, claimed_ex_cents, total_inc_cents, claim_pct, auto_draft_source, gst_cents")
       .eq("work_order_id", fixtureD!.workOrderId);
     const claims = rows as {
-      id: string; status: string; number: string | null; total_inc_cents: number;
+      id: string; status: string; number: string | null; claimed_ex_cents: number; total_inc_cents: number;
       claim_pct: number | null; auto_draft_source: string; gst_cents: number;
     }[];
     expect(claims).toHaveLength(1);
     claimId = claims[0].id;
     expect(claims[0].status).toBe("submitted");
     expect(claims[0].auto_draft_source).toBe("claim");
-    expect(claims[0].total_inc_cents).toBe(50_000);
+    expect(claims[0].claimed_ex_cents).toBe(50_000);
+    expect(claims[0].gst_cents).toBe(5_000);        // registered: 10% on top
+    expect(claims[0].total_inc_cents).toBe(55_000);
     expect(Number(claims[0].claim_pct)).toBe(25);
     expect(claims[0].number).toMatch(/^CI-\d{4,}$/);
   });
@@ -348,7 +365,8 @@ test.describe("payment claims — invoice at any time (Tom, 24 Aug)", () => {
   });
 
   test("a fixed claim can never exceed what's left to invoice", async () => {
-    // $2,000 contract − $500 claimed = $1,500 left; $1,600 is refused.
+    // $2,000 contract − $500 claimed = $1,500 left (all ex GST — the GST on
+    // the claim never ate into the remainder); $1,600 is refused.
     expect(await rpcAs(contractor!, "contractor_invoice_request", {
       p_work_order_id: fixtureD!.workOrderId, p_mode: "fixed", p_value: 1600,
     })).toBe("error:exceeds_remaining");
@@ -358,11 +376,13 @@ test.describe("payment claims — invoice at any time (Tom, 24 Aug)", () => {
     const { data } = await db!.rpc("contractor_invoice_draft", { p_work_order_id: fixtureD!.workOrderId });
     expect(String(data)).toMatch(/^ok:/);
     const { data: final } = await db!.from("contractor_invoices")
-      .select("previously_invoiced_cents, total_inc_cents, auto_draft_source")
+      .select("previously_invoiced_cents, claimed_ex_cents, gst_cents, total_inc_cents, auto_draft_source")
       .eq("work_order_id", fixtureD!.workOrderId).eq("status", "draft").single();
     expect(final).toEqual({
-      previously_invoiced_cents: 50_000,
-      total_inc_cents: 150_000,
+      previously_invoiced_cents: 50_000,   // the ex figure claimed, not the inc paid
+      claimed_ex_cents: 150_000,
+      gst_cents: 15_000,                   // on top
+      total_inc_cents: 165_000,
       auto_draft_source: "signoff",
     });
   });

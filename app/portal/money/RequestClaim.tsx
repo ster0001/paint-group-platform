@@ -11,8 +11,8 @@ export type ClaimableJob = {
   workOrderId: string;
   woRef: string;
   title: string;
-  adjustedCents: number;   // offer + accepted additions − deductions
-  invoicedCents: number;   // Σ submitted+ invoices
+  adjustedCents: number;   // offer + accepted additions − deductions, EX GST
+  invoicedCents: number;   // Σ submitted+ invoices' claimed ex-GST figure
   deductionPending: boolean;
 };
 
@@ -58,8 +58,10 @@ function claimPreviewCents(
   return Math.min(Math.round((job.adjustedCents * pct) / 100), remaining);
 }
 
-export default function RequestClaim({ jobs, defaultOpen = false, heading = "Invoice Paint Group" }: {
+export default function RequestClaim({ jobs, defaultOpen = false, heading = "Invoice Paint Group", gstRegistered = false }: {
   jobs: ClaimableJob[];
+  /** Registered: 10% GST is added on top of whatever is claimed (Tom, 7 Oct). */
+  gstRegistered?: boolean;
   /** Open the form immediately (the per-job card on the job screen). */
   defaultOpen?: boolean;
   heading?: string;
@@ -158,9 +160,10 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
           )}
           {job ? (
             <p className="hint" style={{ padding: 0, margin: "0 0 8px" }}>
-              {job.title} — contract {money(job.adjustedCents)}
+              {job.title} — contract {money(job.adjustedCents)} ex GST
               {job.invoicedCents > 0 ? ` · already invoiced ${money(job.invoicedCents)}` : ""}
               {" · "}<b>{money(remaining)} left to invoice</b>
+              {gstRegistered ? " · GST is added on top of what you claim" : ""}
             </p>
           ) : (
             <p className="hint" style={{ padding: 0, margin: "0 0 8px" }}>
@@ -197,7 +200,7 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
           )}
           {mode === "fixed" && (
             <input type="number" min="1" step="0.01" inputMode="decimal" value={dollars}
-              onChange={(e) => setDollars(e.target.value)} placeholder="Amount in dollars"
+              onChange={(e) => setDollars(e.target.value)} placeholder={gstRegistered ? "Amount in dollars, ex GST" : "Amount in dollars"}
               data-testid="claim-dollars"
               style={{ width: "100%", marginTop: 8, background: "var(--ink)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: 14 }} />
           )}
@@ -240,7 +243,7 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
             onClick={submit} data-testid="send-claim" style={{ marginTop: 10, width: "100%" }}>
             {pending ? "Sending…"
               : overRemaining ? `Only ${money(remaining)} left to invoice`
-              : previewCents != null ? `Send invoice — ${money(previewCents)}`
+              : previewCents != null ? `Send invoice — ${money(previewCents)}${gstRegistered ? " + GST" : ""}`
               : "Pick an amount"}
           </button>
           <button type="button" className="btn dim" onClick={() => setOpen(false)} style={{ marginTop: 6, width: "100%" }}>
