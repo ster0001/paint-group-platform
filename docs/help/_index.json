@@ -515,6 +515,61 @@
       ]
     },
     {
+      "feature": "standards",
+      "role": "contractor",
+      "title": "Read the finish standards, and open the one for the surface you are painting",
+      "summary": "The Paint Group finish standards for Levels 2, 3 and 4 live under Help — a grid of interior and exterior surfaces, each with what we expect at every level, plus the rules for every job, your time and variations, the defect rule, the final checklist and the words we use. Every surface on a work order has a \"What we expect\" link that opens that surface at the job's level.",
+      "path": "docs/help/standards/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/help/standards",
+        "app/components/standards",
+        "lib/standards",
+        "app/w/WorkOrderDoc.tsx",
+        "app/components/wo/TickList.tsx",
+        "docs/standards/finish-standards-v1.json"
+      ]
+    },
+    {
+      "feature": "standards",
+      "role": "employee",
+      "title": "Read the finish standards, and open the one for the surface you are painting",
+      "summary": "The Paint Group finish standards for Levels 2, 3 and 4 live under Help — a grid of interior and exterior surfaces, each with what we expect at every level, plus the rules for every job, extra time, the defect rule, the final checklist and the words we use. Every surface on a job sheet has a \"What we expect\" link that opens that surface at the job's level.",
+      "path": "docs/help/standards/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/help/standards",
+        "app/components/standards",
+        "lib/standards",
+        "app/w/WorkOrderDoc.tsx",
+        "app/components/wo/TickList.tsx",
+        "docs/standards/finish-standards-v1.json"
+      ]
+    },
+    {
+      "feature": "standards",
+      "role": "pc",
+      "title": "Judge a quality check against the finish standards the painter was given",
+      "summary": "The finish standards (Levels 2, 3 and 4) are data under PC Command → Standards, and every quality-check card and tick-list row on a job links each surface to its standard at that job's level — the same record the painter opens from their work order, so both of you judge against the same words. Also covers the small-job hours setting and how the standards are loaded.",
+      "path": "docs/help/standards/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/pc/standards",
+        "app/pc/wo/[id]/QaCheck.tsx",
+        "app/pc/wo/[id]/page.tsx",
+        "app/components/standards",
+        "lib/standards",
+        "scripts/seed-standards.ts",
+        "supabase/migrations/20270224000000_finish_standards.sql"
+      ]
+    },
+    {
       "feature": "timesheets",
       "role": "employee",
       "title": "Your hours — logged for you, plus any extra you work",

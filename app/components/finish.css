@@ -63,7 +63,6 @@
 }
 .fsheet h3 { font-size: 17px; font-weight: 600; margin: 2px 0 6px; }
 .fsheet .fs-sum { font-size: 13.5px; color: var(--text); }
-.fsheet .fs-use { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
 .fsheet .fs-lab {
   font-family: var(--mono);
   font-size: 9px;
@@ -72,16 +71,25 @@
   color: var(--muted);
   margin: 18px 0 8px;
 }
-.fsheet ul { list-style: none; margin: 0; padding: 0; }
-.fsheet li {
-  position: relative;
-  padding-left: 18px;
-  margin-bottom: 7px;
-  font-size: 13px;
-  line-height: 1.45;
+/* The guide's five summary rows: label above, the level's wording below. */
+.fsheet .fs-rows { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.fsheet .fs-rows dt {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 2px;
 }
-.fsheet li::before { content: "✓"; position: absolute; left: 0; color: var(--cyan); font-size: 11px; }
-.fsheet .fs-accept li::before { content: "◆"; color: var(--amber); font-size: 9px; top: 2px; }
+.fsheet .fs-rows dd { margin: 0; font-size: 13.5px; line-height: 1.45; }
+.fsheet .fs-link {
+  display: block;
+  margin-top: 16px;
+  color: var(--cyan);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
 .fsheet .fs-close {
   width: 100%;
   margin-top: 20px;

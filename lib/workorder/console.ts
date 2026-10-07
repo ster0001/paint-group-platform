@@ -7,6 +7,8 @@
  * it there; when the data changes, the card leaves by itself.
  */
 
+import { variationCategoryLabel } from "./variations";
+
 export type Severity = "critical" | "warning" | "info";
 
 export type QueueCard = {
@@ -601,10 +603,6 @@ export type VariationForApproval = {
   href: string;
 };
 
-const VARIATION_CATEGORY_LABEL: Record<string, string> = {
-  rot: "Rot / substrate", damage: "Damage", extra_scope: "Extra scope",
-  customer_request: "Customer request", scope_removed: "Scope removed",
-};
 
 export function variationsForApproval(input: ConsoleInput): VariationForApproval[] {
   const byId = new Map(input.workOrders.map((w) => [w.id, w]));
@@ -623,7 +621,7 @@ export function variationsForApproval(input: ConsoleInput): VariationForApproval
         : waitingOn === "customer"
           ? "Priced — waiting on the customer"
           : `Customer approved — waiting on ${w?.contractorName ?? "the painter"}`,
-      category: VARIATION_CATEGORY_LABEL[v.category ?? ""] ?? (v.category ?? "Variation"),
+      category: v.category ? variationCategoryLabel(v.category, "office") : "Variation",
       comment: v.comment ?? "",
       priceCents: v.priceCents ?? null,
       credit: Boolean(v.credit),

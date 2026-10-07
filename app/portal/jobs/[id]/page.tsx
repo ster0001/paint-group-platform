@@ -38,6 +38,8 @@ import { suburbOnly } from "@/lib/scheduling/offers";
 import { requestNowMs } from "@/lib/time/requestClock";
 import { loadMyTimesheet } from "@/lib/contractor/timesheets";
 import TimesheetCard from "@/app/portal/TimesheetCard";
+import { loadStandards, smallJobHours as loadSmallJobHours } from "@/lib/standards/load";
+import { standardsLinksFor } from "@/lib/standards/model";
 
 export const dynamic = "force-dynamic";
 
@@ -124,7 +126,7 @@ export default async function PortalJobPage({
   // contractor's own jobs, so an id that isn't theirs simply returns nothing.
   const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }, { data: signoffRow }, { data: qaLinkRows, error: qaLinkErr }] = await Promise.all([
     supabase.from("wo_surfaces")
-      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional")
+      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key")
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos")
       .select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
@@ -283,6 +285,17 @@ export default async function PortalJobPage({
   const headingMeta: Record<string, string> = {};
   for (const r of (surfaceRows as { heading: string; heading_meta: string }[] | null) ?? []) {
     if (r.heading_meta) headingMeta[r.heading] = r.heading_meta;
+  }
+
+  // Finish standards (Step 1): "What we expect" on every surface line, locked
+  // to that area's level, and whether the tape check applies (ruling S9).
+  // Read under the painter's own session; a refused read is reported and the
+  // page says so rather than quietly drawing no links.
+  const [standardsLoad, smallJob] = await Promise.all([loadStandards(), loadSmallJobHours(supabase)]);
+  const standardsLinks = standardsLoad.standards ? standardsLinksFor(standardsLoad.standards, job.doc, "portal", id) : {};
+  const expectHref: Record<string, string> = {};
+  for (const r of (surfaceRows as { id: string; surface_key: string | null }[] | null) ?? []) {
+    if (r.surface_key && standardsLinks[r.surface_key]) expectHref[r.id] = standardsLinks[r.surface_key];
   }
 
   // Tom, 30 Sep: the photo gates are per JOB — any before photo unlocks every
@@ -478,6 +491,14 @@ export default async function PortalJobPage({
         </div>
       )}
 
+      {standardsLoad.error && (
+        <div style={{ padding: "0 16px" }}>
+          <p className="hint" role="status" data-testid="standards-unavailable">
+            {standardsLoad.error} The &ldquo;What we expect&rdquo; links are off until it loads.
+          </p>
+        </div>
+      )}
+
       {/* A failed quality check, in full: the inspector's notes, the missed
           areas and the photos showing exactly where (Tom, 1 Sep #2). The
           rectification rows themselves are on the tick list below. */}
@@ -541,10 +562,10 @@ export default async function PortalJobPage({
             )}
 
             <TickList
-              workOrderId={id}
               surfaces={surfaces}
               hasBeforePhoto={hasBeforePhoto}
               headingMeta={headingMeta}
+              expectHref={expectHref}
             />
 
             {allSurfacesDone && (step3 ? (
@@ -685,6 +706,7 @@ export default async function PortalJobPage({
           hours for both kinds of painter; the pay line carries the accepted
           variations for a contractor, and an employee's sheet has no pay. */}
       <WorkOrderDoc doc={job.doc} booking={woBooking} photos={officePhotos}
+        standardsLinks={standardsLinks} standardsBase="portal" smallJobHours={smallJob}
         variant={assignment ? "employee" : "contractor"}
         acceptanceMode={assignment ? "assigned" : "offered"}
         scopeChanges={employee

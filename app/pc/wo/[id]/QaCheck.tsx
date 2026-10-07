@@ -28,7 +28,10 @@ export type QaCheckView = {
  * re-finish brings the job back here and THAT card is the one with controls.
  * The failed card stays as the record and says where its re-check went.
  */
-export default function QaCheck({ check, workOrderId }: { check: QaCheckView; workOrderId: string }) {
+/** A surface on the job and where its finish standard is, at the job's level (ruling S12). */
+export type QaExpect = { label: string; href: string };
+
+export default function QaCheck({ check, workOrderId, expect = [] }: { check: QaCheckView; workOrderId: string; expect?: QaExpect[] }) {
   const router = useRouter();
   const [standards, setStandards] = useState(check.standards);
   const [result, setResult] = useState(check.result);
@@ -130,6 +133,18 @@ export default function QaCheck({ check, workOrderId }: { check: QaCheckView; wo
       </p>
 
       {message && <p className="note" style={{ color: "var(--amber)" }} data-testid={`qa-msg-${check.id}`}>{message}</p>}
+
+      {/* The finish standard for each surface on the job, at the job's level —
+          the same record the painter opened from their work order, so both
+          sides judge against the same words. */}
+      {expect.length > 0 && (
+        <div className="qa-expect" data-testid={`qa-expect-${check.id}`}>
+          <small className="note">What we expect on this job&rsquo;s surfaces</small>
+          {expect.map((e) => (
+            <a key={e.label} href={e.href} data-testid="qa-expect-link">{e.label} — what we expect ›</a>
+          ))}
+        </div>
+      )}
 
       {standards.map((s) => (
         <button key={s.id} type="button" className={`chk ${s.done ? "on" : ""}`}

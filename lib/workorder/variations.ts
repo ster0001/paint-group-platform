@@ -8,14 +8,39 @@
  * money value to the server.
  */
 
+/**
+ * What kind of variation a painter raises — the chips on the job page. ONE
+ * list, with every audience's wording beside the code: the painter's and the
+ * office's label, and the customer's (their offer page and timeline never say
+ * "substrate"). The three extra-time items the finish standards name
+ * (ruling S11: Bogging, Stain blocking, Additional coats) are chips here so a
+ * painter's request says which standard it is about.
+ */
 export const VARIATION_CATEGORIES = [
-  { code: "rot", label: "Rot / substrate" },
-  { code: "damage", label: "Damage" },
-  { code: "extra_scope", label: "Extra scope" },
-  { code: "customer_request", label: "Customer request" },
+  { code: "rot", label: "Rot / substrate", customer: "Timber repair" },
+  { code: "damage", label: "Damage", customer: "Damage repair" },
+  { code: "bogging", label: "Bogging", customer: "Heavy repairs with two-part filler" },
+  { code: "stain_blocking", label: "Stain blocking", customer: "Stain blocking" },
+  { code: "additional_coats", label: "Additional coats", customer: "Additional coats" },
+  { code: "extra_scope", label: "Extra scope", customer: "Extra work" },
+  { code: "customer_request", label: "Customer request", customer: "Something you asked for" },
 ] as const;
 
 export type VariationCategory = (typeof VARIATION_CATEGORIES)[number]["code"];
+
+/**
+ * The office's own code for a signed credit (the revision builder writes it;
+ * a painter never picks it). Kept beside the chips so every label map is here.
+ */
+export const SCOPE_REMOVED = { code: "scope_removed", label: "Scope removed", painter: "Removed from scope", customer: "Scope reduced" } as const;
+
+/** The wording for a category code, for one audience. Unknown codes read as themselves. */
+export function variationCategoryLabel(code: string, audience: "office" | "painter" | "customer" = "office"): string {
+  if (code === SCOPE_REMOVED.code) return audience === "office" ? SCOPE_REMOVED.label : SCOPE_REMOVED[audience];
+  const c = VARIATION_CATEGORIES.find((x) => x.code === code);
+  if (!c) return code;
+  return audience === "customer" ? c.customer : c.label;
+}
 
 export const VARIATION_STATUSES = [
   "raised", "priced", "customer_approved", "contractor_accepted", "declined", "cancelled",

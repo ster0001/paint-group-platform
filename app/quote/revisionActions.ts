@@ -182,6 +182,16 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
 
   const supabase = await createClient();
 
+  // The request keeps the category the painter chose (Bogging, Stain blocking…)
+  // when the office prices it — the RPC writes whatever category it is handed
+  // onto the adopted row, and it used to be handed "extra_scope" every time.
+  let sourceCategory: string | null = null;
+  if (sourceVariationId) {
+    const src = await supabase.from("wo_variations").select("category").eq("id", sourceVariationId).maybeSingle();
+    if (src.error) return { ok: false, message: `Could not read the painter's request: ${src.error.message}` };
+    sourceCategory = (src.data as { category?: string | null } | null)?.category?.trim() || null;
+  }
+
   const [{ data: scope }, { data: estimate }] = await Promise.all([
     supabase.from("wo_working_scopes")
       .select("work_order_id, accepted_state, working_state")
@@ -256,7 +266,7 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
     const { data, error } = await supabase.rpc("wo_draft_revision_variation", {
       p_estimate_id: estimateId,
       p_block_ref: change.blockRef,
-      p_category: credit ? "scope_removed" : "extra_scope",
+      p_category: credit ? "scope_removed" : (sourceCategory ?? "extra_scope"),
       p_comment: comment,
       p_credit: credit,
       p_surface_keys: change.surfaceKeys,

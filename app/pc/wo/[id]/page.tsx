@@ -29,6 +29,8 @@ import ClientUpdates, { type ClientTimelineEntry } from "./ClientUpdates";
 import ReferencePhotosCard from "./ReferencePhotosCard";
 import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
 import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
+import { loadStandards } from "@/lib/standards/load";
+import { standardsLinksFor } from "@/lib/standards/model";
 
 export const dynamic = "force-dynamic";
 
@@ -330,9 +332,21 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   );
 
   const surfaces = ((liveSurfaceRows ?? []) as {
-    id: string; heading: string; heading_meta: string; label: string;
+    id: string; heading: string; heading_meta: string; label: string; surface_key?: string | null;
     state: SurfaceRow["state"]; rectification: boolean; removed_from_scope?: boolean; photos_optional?: boolean | null;
   }[]).map((s) => ({ ...s, removed: s.removed_from_scope ?? false, photosOptional: Boolean(s.photos_optional) }));
+
+  // Finish standards (Step 1, ruling S12): the PC's tick list and quality
+  // check link each surface to THE SAME record the painter reads, at the
+  // job's level. A refused read is reported by the loader; the links are
+  // simply absent here and the standards page itself says why.
+  const standardsLoad = await loadStandards();
+  const standardsLinks = standardsLoad.standards && snapshotDoc ? standardsLinksFor(standardsLoad.standards, snapshotDoc, "pc", id) : {};
+  const expectHref: Record<string, string> = {};
+  for (const s of surfaces) if (s.surface_key && standardsLinks[s.surface_key]) expectHref[s.id] = standardsLinks[s.surface_key];
+  const qaExpect = (snapshotDoc?.areas ?? []).flatMap((a) => a.surfaces
+    .filter((s) => standardsLinks[s.key])
+    .map((s) => ({ label: `${a.title} · ${s.label}`, href: standardsLinks[s.key] })));
   const progress = progressOf(surfaces);
   const byHeading = progressByHeading(surfaces);
   const headings = [...new Set(surfaces.map((s) => s.heading))];
@@ -505,7 +519,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
       <div className="grid2">
         {row.stage === "in_progress" ? (
           <TickList
-            workOrderId={id}
+            expectHref={expectHref}
             surfaces={surfaces.map((s) => ({
               id: s.id, heading: s.heading, label: s.label, state: s.state,
               rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional,
@@ -741,7 +755,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               their next finish before it is drawn. */}
           {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
             && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null).map((c) => (
-            <QaCheck key={c.id} check={c} workOrderId={id} />
+            <QaCheck key={c.id} check={c} workOrderId={id} expect={qaExpect} />
           ))}
           {/* Dashboard 0c: reviews requested → received, a person's tick until the API. */}
           {(row.stage === "walkthrough" || row.stage === "closed") && (

@@ -263,6 +263,15 @@ export default async function PortalHome() {
         </div>
       )}
 
+      {/* Finish standards (Step 1): the rule book every job is judged against,
+          one tap from Home as the mockup draws it. The confirmed date and
+          version join this card in Step 2. */}
+      <Link href="/portal/help/standards" className="card" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-standards">
+        <span className="slab" style={{ marginBottom: 4 }}>Finish standards</span>
+        <h3>What we expect on every surface</h3>
+        <p className="hint" style={{ marginTop: 2 }}>Open standards ›</p>
+      </Link>
+
       {/* Real jobs once any have been issued; otherwise say so plainly. */}
       <div className="card">
         <h3>Your work</h3>

@@ -1,96 +1,71 @@
-// The PG finish-level standard — what a contractor is actually held to on site.
+// The PG finish level on a job sheet — which of the three approved standards
+// (docs/standards/finish-standards-v1.json, Levels 2, 3 and 4) a painter is
+// held to, and the one-screen summary of each that the FinishChip opens.
 //
-// These are the DEFAULTS, in code, following the same pattern as
-// lib/estimate/inclusionTemplates.ts: built-in text that a `settings` row can
-// override later without a schema change (the build plan's "nothing hardcoded"
-// rule). Nothing reads a settings override yet — when the Settings editor is
-// built, resolve through it and fall back to these.
+// The WORDS below are the approved guide's "levels" block, copied so a client
+// component needs no fetch; lib/standards/source.test.ts pins this copy to the
+// file, so a new version of the guide fails the build until the copy follows.
+// The full standard for each surface lives in the standards tables
+// (lib/standards) and the chip links there.
 //
-// Two things Tom should confirm, flagged rather than decided silently:
-//  1. The internal pricing modifier FIN-4 is labelled "Premium", but the spec
-//     calls PG-3 "Premium" and PG-4 "Showcase". The words clash at different
-//     rungs; the NUMBERS are what map. Contractor-facing wording follows the
-//     spec (PG-3 Premium, PG-4 Showcase).
-//  2. FIN-1 ("Basic", 0.8× labour) has no PG equivalent — the spec defines only
-//     PG-2/3/4. It is deliberately left UNMAPPED rather than promoted to PG-2,
-//     because telling a contractor "PG-2" on a job priced at FIN-1 would hold
-//     them to more prep than the customer paid for. FIN-1 is marked
-//     "Judgement — no Level 1 jobs in history" in the rate card, so this should
-//     never come up in practice; if it does, the work order says so plainly.
+// Two things to know, flagged rather than decided silently:
+//  1. The internal pricing modifier FIN-4 is labelled "Premium" in the rate
+//     card, while the approved guide calls Level 4 "Premium finish" and Level 3
+//     "Our standard finish". The NUMBERS are what map; the painter-facing
+//     words follow the guide.
+//  2. FIN-1 ("Basic", 0.8× labour) has no PG equivalent — the guide defines
+//     only Levels 2/3/4. It is deliberately left UNMAPPED rather than promoted
+//     to PG-2, because telling a contractor "PG-2" on a job priced at FIN-1
+//     would hold them to more prep than the customer paid for. The job sheet
+//     says so plainly.
 
 export type FinishCode = "PG-2" | "PG-3" | "PG-4";
 
 export type FinishLevel = {
   code: FinishCode;
-  /** Short name shown beside the code — "Utility", "Premium", "Showcase". */
+  /** The guide's name for the level — "Our standard finish". */
   name: string;
-  /** One line, for the chip's tooltip and the sheet's subheading. */
-  summary: string;
-  /** Where this level is normally used — helps a contractor sanity-check the job. */
-  typicalUse: string;
-  /** The prep the contractor is committing to. */
-  prep: string[];
-  /** How the work will be judged at walkthrough. This is the acceptance test. */
-  acceptance: string[];
+  /** The look-test distance — "1.5 m". */
+  lookTest: string;
+  /** The guide's five summary rows: Filling, Sanding, Gaps, Old problems, Look test. */
+  rows: { label: string; text: string }[];
 };
 
 export const FINISH_LEVELS: Record<FinishCode, FinishLevel> = {
   "PG-2": {
     code: "PG-2",
-    name: "Utility",
-    summary: "Sound, even coverage. Serviceable rather than showpiece.",
-    typicalUse: "Garages, sheds, back-of-house, rentals between tenants, ceilings in service areas.",
-    prep: [
-      "Light sand to key the surface",
-      "Spot prime bare or patchy areas only",
-      "Minor filling — obvious holes and dents",
-      "Dust down and mask what needs protecting",
-    ],
-    acceptance: [
-      "Even colour and sheen with no misses, runs or heavy laps",
-      "Cut lines straight and consistent, small waver acceptable",
-      "Minor substrate imperfections may remain — they are not defects at this level",
-      "Judged from 2 m in normal light",
+    name: "Clean, tidy repaint",
+    lookTest: "3 m",
+    rows: [
+      { label: "Filling", text: "All holes, nail holes and open cracks. Small marks in the old surface can stay." },
+      { label: "Sanding", text: "Light sand. Remove loose paint and dust." },
+      { label: "Gaps (caulking)", text: "Edges of frames and trim." },
+      { label: "Old problems (old runs, old paint on glass, old brush marks)", text: "Can stay." },
+      { label: "Look test", text: "Stand 3 m back." },
     ],
   },
   "PG-3": {
     code: "PG-3",
-    name: "Premium",
-    summary: "Full prep per scope, uniform finish, crisp cut lines.",
-    typicalUse: "The default for most residential repaints — living areas, bedrooms, hallways, kitchens.",
-    prep: [
-      "Full sand back as the scope requires",
-      "Fill, sand and spot-prime all holes, dents and cracks",
-      "Seal bare substrate and any stains",
-      "Caulk gaps to trim, cornice and architraves",
-      "Full masking and floor protection",
-    ],
-    acceptance: [
-      "No visible defects from 1.5 m in normal light",
-      "Crisp, straight cut lines to ceilings, trim and edges",
-      "Uniform sheen with no flashing, picture framing or roller marks",
-      "Filled areas invisible under the finished coat",
-      "Site left clean daily",
+    name: "Our standard finish",
+    lookTest: "1.5 m",
+    rows: [
+      { label: "Filling", text: "Every mark you can see from 1.5 m." },
+      { label: "Sanding", text: "Sand well. Smooth to touch." },
+      { label: "Gaps (caulking)", text: "Edges, mitres and corners." },
+      { label: "Old problems (old runs, old paint on glass, old brush marks)", text: "Fix what you can see from 1.5 m." },
+      { label: "Look test", text: "Stand 1.5 m back." },
     ],
   },
   "PG-4": {
     code: "PG-4",
-    name: "Showcase",
-    summary: "Double-filled and inspected between coats. Sharp lines throughout.",
-    typicalUse: "Heritage work, feature rooms, display homes, high-gloss and dark colours where every flaw shows.",
-    prep: [
-      "Double fill — fill, sand, re-fill and re-sand",
-      "Full prime coat, not spot priming",
-      "Inspection under work light between coats, defects marked and rectified",
-      "Caulk and dress every junction",
-      "Full protection of the room, not just the working area",
-    ],
-    acceptance: [
-      "No visible defects from 0.5 m under raking light",
-      "Perfectly sharp cut lines, no waver",
-      "Dead-uniform sheen — critical on gloss and dark colours",
-      "No fill shadowing, telegraphing or sanding scratches",
-      "Signed off at walkthrough before final invoice",
+    name: "Premium finish",
+    lookTest: "0.5 m",
+    rows: [
+      { label: "Filling", text: "Every mark you can see from 0.5 m." },
+      { label: "Sanding", text: "Sand smooth before the first coat and between coats." },
+      { label: "Gaps (caulking)", text: "Every gap and join." },
+      { label: "Old problems (old runs, old paint on glass, old brush marks)", text: "Fix all of them." },
+      { label: "Look test", text: "Stand 0.5 m back (arm's length)." },
     ],
   },
 };

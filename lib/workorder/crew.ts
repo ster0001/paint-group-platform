@@ -30,6 +30,7 @@ export type CrewVariation = {
 const crewSurface = (s: WOSurface): WOSurface => ({
   key: s.key,
   label: s.label,
+  ...(s.code ? { code: s.code } : {}),
   coats: s.coats,
   product: s.product,
   prep: s.prep,
@@ -40,6 +41,7 @@ const crewSurface = (s: WOSurface): WOSurface => ({
 const crewArea = (a: WOArea): WOArea => ({
   id: a.id,
   title: a.title,
+  ...(a.side ? { side: a.side } : {}),
   surfaces: (a.surfaces ?? []).map(crewSurface),
   photos: a.photos ?? [],
   finishCode: a.finishCode,

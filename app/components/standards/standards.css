@@ -1,0 +1,175 @@
+/* Finish standards — one stylesheet for both shells. The painter portal (.pt)
+   and PC Command (.pc) define the same colour tokens, so everything here is
+   written in tokens with a fallback; no palette of its own (brief §7: use the
+   portal's existing theme and tokens, never the mockup's colour values).
+   Phone-first: the painter reads these on site. */
+
+.std { display: flex; flex-direction: column; gap: 12px; }
+.std h1 { font-size: 19px; font-weight: 600; margin: 0 0 2px; }
+.std h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.std h3 { font-size: 13.5px; font-weight: 600; margin: 0 0 4px; }
+.std p { margin: 0; font-size: 14px; line-height: 1.5; }
+.std .std-eyebrow {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted, #8c959d);
+}
+.std .std-head { display: flex; flex-direction: column; gap: 2px; }
+.std .std-back {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted, #8c959d);
+  text-decoration: none;
+  align-self: flex-start;
+}
+.std .std-back:hover { color: var(--cyan, #3bd8e9); }
+
+/* cards */
+.std .std-card {
+  background: var(--graphite, #12161a);
+  border: 1px solid var(--line, #242b32);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.std .std-card.every { border-color: color-mix(in srgb, var(--paint, #2fb9cb) 45%, var(--line, #242b32)); }
+.std .std-note {
+  border: 1px dashed var(--line, #242b32);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--muted, #8c959d);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.std .std-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.std .std-row .grow { flex: 1; min-width: 0; }
+
+/* the pill — a level, a look-test distance, a confirmed date */
+.std .std-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 9px;
+  border-radius: 100px;
+  border: 1px solid var(--line, #242b32);
+  color: var(--muted, #8c959d);
+  white-space: nowrap;
+}
+.std .std-pill.info { color: var(--cyan, #3bd8e9); border-color: color-mix(in srgb, var(--cyan, #3bd8e9) 50%, var(--line, #242b32)); }
+
+/* segmented control — Interior / Exterior, Level 2 / 3 / 4 */
+.std .std-seg {
+  display: flex;
+  background: var(--ink, #0a0b0d);
+  border: 1px solid var(--line, #242b32);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+.std .std-seg a {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  text-decoration: none;
+  color: var(--muted, #8c959d);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 6px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+.std .std-seg a[aria-current="true"] {
+  background: var(--graphite, #12161a);
+  color: var(--text, #edf0f2);
+  box-shadow: inset 0 0 0 1px var(--line, #242b32);
+}
+
+/* the surface grid */
+.std .std-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.std .std-tile {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: var(--graphite, #12161a);
+  border: 1px solid var(--line, #242b32);
+  border-radius: 12px;
+  padding: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text, #edf0f2);
+  text-decoration: none;
+  min-height: 46px;
+}
+.std .std-tile::after { content: "›"; color: var(--muted, #8c959d); }
+
+/* the rule-page list */
+.std .std-list { display: flex; flex-direction: column; }
+.std .std-list a {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line, #242b32);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text, #edf0f2);
+  text-decoration: none;
+}
+.std .std-list a:last-child { border-bottom: 0; }
+.std .std-list a::after { content: "›"; color: var(--muted, #8c959d); }
+
+/* label / wording rows (one per check) */
+.std dl.std-rows { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+.std dl.std-rows dt {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan, #3bd8e9);
+  margin-bottom: 3px;
+}
+.std dl.std-rows dd { margin: 0; font-size: 14px; line-height: 1.5; }
+.std dl.std-rows dd .std-sub { display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted, #8c959d); }
+.std ul.std-clean, .std ol.std-clean { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.5; }
+.std ol.std-clean li::marker { font-weight: 600; color: var(--cyan, #3bd8e9); }
+
+/* a level marker inside the all-levels sign-off view */
+.std .std-lv {
+  display: inline-block;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--ink, #0a0b0d);
+  border: 1px solid var(--line, #242b32);
+  color: var(--muted, #8c959d);
+  margin-right: 6px;
+}
+.std .std-link {
+  color: var(--cyan, #3bd8e9);
+  font-weight: 600;
+  font-size: 13.5px;
+  text-decoration: none;
+}
+.std details.std-card > summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+.std details.std-card > summary::-webkit-details-marker { display: none; }
+.std details.std-card > summary::after { content: "+"; font-family: var(--mono, ui-monospace, monospace); color: var(--muted, #8c959d); }
+.std details.std-card[open] > summary::after { content: "–"; }
+.std .std-err {
+  border: 1px solid color-mix(in srgb, var(--clay, #b3574a) 60%, var(--line, #242b32));
+  background: color-mix(in srgb, var(--clay, #b3574a) 12%, transparent);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+}

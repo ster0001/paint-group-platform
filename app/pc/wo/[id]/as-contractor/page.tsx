@@ -132,7 +132,6 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
 
       {row.stage === "in_progress" && surfaces.length > 0 && (
         <TickList
-          workOrderId={id}
           surfaces={surfaces.map((s) => ({
             id: s.id, heading: s.heading, label: s.label, state: s.state, rectification: s.rectification,
             photosOptional: Boolean(s.photos_optional),

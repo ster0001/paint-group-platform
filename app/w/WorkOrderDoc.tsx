@@ -14,6 +14,7 @@ import { estimatedHours, formatHours } from "@/lib/workorder/hours";
 import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, type Booking } from "@/lib/workorder/booking";
 import FinishChip from "@/app/components/FinishChip";
 import { conditionAllowanceLine } from "@/lib/workorder/conditionAllowance";
+import { sectionHref, tapeCheckRequired } from "@/lib/standards/model";
 import "./workorder.css";
 
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -40,8 +41,19 @@ export type WOEdit = {
  * from the frozen snapshot, which is why it is a prop rather than part of Doc.
  * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
  */
-export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [], scopeChanges = [], payInclChanges = null }: {
+export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [], scopeChanges = [], payInclChanges = null, standardsLinks = {}, standardsBase, smallJobHours = null }: {
   doc: Doc; edit?: WOEdit; stage?: WoStage | null;
+  /**
+   * Finish standards (Step 1): the "What we expect" link per surface line,
+   * keyed by the document's surface key and already locked to the area's
+   * level (lib/standards/model.ts standardsLinksFor). Absent = no link, which
+   * is what the token and crew links get: they have no session to read with.
+   */
+  standardsLinks?: Record<string, string>;
+  /** Which shell's standards the finish chip's "Open the finish standards" goes to. */
+  standardsBase?: "portal" | "pc";
+  /** Ruling S9: with the Settings threshold, the sheet says whether the tape check is required. */
+  smallJobHours?: number | null;
   /**
    * "crew" is the painter's copy: no payment section, no customer phone. The
    * doc it receives is ALREADY stripped by lib/workorder/crew.ts — hiding the
@@ -161,10 +173,24 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
         {(doc.finishCode || doc.levelOfFinish) && (
           <div className="wo-finish">
             <span className="wo-finish-lab">Level of finish</span>
-            <FinishChip code={doc.finishCode} fallbackLabel={doc.levelOfFinish} />
+            <FinishChip code={doc.finishCode} fallbackLabel={doc.levelOfFinish}
+              standardsHref={standardsBase ? sectionHref(standardsBase, "levels") : undefined} />
             {doc.finishCode && doc.levelOfFinish && (
               <span className="wo-finish-val">{doc.levelOfFinish}</span>
             )}
+            {/* Ruling S9: the tape defect step is not required on small jobs.
+                Read from the estimated hours above and the Settings threshold,
+                so the sheet and the standards never disagree. */}
+            {smallJobHours != null && (() => {
+              const required = tapeCheckRequired(estimatedHours(doc), smallJobHours);
+              return (
+                <span className="wo-tape" data-testid="wo-tape-check" data-required={required ? "true" : "false"}>
+                  {required
+                    ? `Tape check required — this job is ${smallJobHours} hours or more`
+                    : `Tape check not required — this job is under ${smallJobHours} hours`}
+                </span>
+              );
+            })()}
           </div>
         )}
 
@@ -283,6 +309,9 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                   <div className="surf" key={s.key} style={removedKeys.includes(s.key) ? { opacity: 0.55 } : undefined}>
                     <div className="surf-main">
                       <div className="surf-name" style={removedKeys.includes(s.key) ? { textDecoration: "line-through" } : undefined}>{s.label}</div>
+                      {standardsLinks[s.key] && !removedKeys.includes(s.key) && (
+                        <a className="surf-expect print-hide" href={standardsLinks[s.key]} data-testid={`surf-expect-${s.key}`}>What we expect ›</a>
+                      )}
                       <div className="surf-meta">{s.coats} {s.coats === 1 ? "coat" : "coats"}{s.product ? ` · ${s.product}` : ""}</div>
                       {s.prep && <div className="surf-prep">{s.prep}</div>}
                     </div>

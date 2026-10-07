@@ -11,8 +11,12 @@ export const dynamic = "force-dynamic";
  * contractor keeps help (Phase C ⚑ C-3), the notice page explains the rest.
  */
 export default async function PortalHelpPage({ searchParams }: { searchParams: Promise<{ q?: string; tour?: string }> }) {
-  await getContractorSession();
-  const roles = rolesFor("contractor");
+  const { capabilities } = await getContractorSession();
+  // An employed painter reads the employee guides (lib/help/content.ts
+  // rolesFor says so); this page handed every painter the contractor set
+  // until Step 1 of the standards build (8 Oct 2026), so employees read about
+  // offers and prices they never see and their own guides were unreachable.
+  const roles = rolesFor(capabilities.seesMoney ? "contractor" : "employee");
   const guides = guidesFor(roles);
   const sp = await searchParams;
   const q = (sp.q ?? "").trim().slice(0, 80);
@@ -24,6 +28,15 @@ export default async function PortalHelpPage({ searchParams }: { searchParams: P
     <div className="wrap">
       <h1>Help</h1>
       <p className="slab">Step-by-step guides for every screen — with pictures and a short film</p>
+
+      {/* Finish standards (Step 1): pinned above the guides — the rule book
+          every job is judged against, data not a page, under Help per the
+          Step 0 report. */}
+      <Link href="/portal/help/standards" className="card" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="help-standards-pinned">
+        <span className="slab" style={{ marginBottom: 4 }}>Finish standards</span>
+        <h3>What we expect on every surface</h3>
+        <p className="hint" style={{ marginTop: 2 }}>Levels 2, 3 and 4, surface by surface, plus the rules for every job, your time and variations, the defect rule and the final checklist. Open standards ›</p>
+      </Link>
 
       <form method="get" action="/portal/help" className="card" style={{ display: "flex", gap: 8, alignItems: "center" }} role="search">
         <input type="search" name="q" defaultValue={q} placeholder="Search the guides — e.g. before photo" aria-label="Search the guides" data-testid="help-search" style={{ flex: 1, margin: 0 }} />

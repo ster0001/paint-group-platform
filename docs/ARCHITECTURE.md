@@ -4385,3 +4385,33 @@ re-grants it to authenticated. `ContractorBank` (`app/(app)/contractors/[id]/`) 
 `revealContractorBankAction` (zod, user session) calls the RPC on the click and the decrypted number lives only in client
 state until Hide. A 42501 before the migration is pasted reads as "needs migration 20270223". Spec: `contractor-detail`
 (server render never carries the number; reveal, hide, event row). Help: contractors/staff.md (+ Their bank details).
+
+**Finish standards as data (8 Oct 2026 — standards / painter status / call backs brief, Step 1).** The approved painter guide
+`docs/standards/finish-standards-v1.json` is the ONE source of the words. `20270224000000_finish_standards.sql` makes
+`standards_versions`, `standards_blocks` (the eight rule pages as jsonb), `standards_surfaces`, `standards_checks` (one row
+per surface, per level, per check — 159 at Version 1) and `standards_surface_codes` (rate-card code → surface), all RLS'd
+to staff + any painter with a login (`is_staff() or current_contractor_id() is not null`); a customer reads nothing, nobody
+but the service role writes. `scripts/seed-standards.ts` loads the file (idempotent, then re-reads through the app's own
+reader and refuses unless the tables equal the file); the code map is `lib/standards/codes.ts` (fretwork has no rate code;
+Stucco / Cement Sheet / Concrete → render and Soffits → eaves are judgement calls flagged for Tom). `lib/standards/`:
+`source.ts` (file → rows → model), `model.ts` (`resolveSurface` — a line's `code`, else its label as a rate code, else as a
+surface name, the area's `side` or its sibling lines deciding interior vs exterior; `standardsLinksFor`, `tapeCheckRequired`,
+`levelOf("PG-3") → 3`), `read.ts` / `load.ts` (every read keeps its error; a failure renders "could not be loaded", never an
+empty list). New snapshots carry `WOSurface.code` and `WOArea.side` (QuoteBuilder; the crew whitelist copies them); issued
+jobs resolve by label. Screens: `app/components/standards/StandardsViews.tsx` + `standards.css` (tokens only, both shells);
+portal `/portal/help/standards[/<surface>?level=&job=|/s/<section>]` (under the existing HELP tab, a static segment beside
+the markdown guides; pinned card on `/portal/help` and a Home card), PC `/pc/standards[...]`. "What we expect ›" per surface
+line on the painter's tick list (`TickList.expectHref`), the job sheet (`WorkOrderDoc.standardsLinks`) and the PC tick list,
+each locked to the AREA's level with "See other levels"; a line with no mapped standard shows no link. The PC quality-check
+card lists the same links (`QaCheck.expect`, ruling S12). `settings.small_job_hours` (numeric envelope, default 16; read by
+painters through `small_job_hours()`) drives **Tape check required / not required** on the job sheet (ruling S9).
+`FINISH_LEVELS` (`lib/workorder/finish.ts`) now holds the guide's three level summaries (names "Clean, tidy repaint / Our
+standard finish / Premium finish"), pinned to the file by `lib/standards/source.test.ts`; `FinishChip` shows them and links
+to the standards. Variation chips gain `bogging`, `stain_blocking`, `additional_coats` (ruling S11); the three duplicate
+label maps collapsed into `variationCategoryLabel(code, audience)` in `lib/workorder/variations.ts`, and
+`draftRevisionVariationsAction` passes the painter's own category when pricing their request (it used to overwrite it with
+`extra_scope`). Cleaned up on the way: `/portal/help` and `/portal/help/[feature]` now read the EMPLOYEE guides for an
+employed painter (they always used `rolesFor("contractor")`); `TickList`'s unused `workOrderId` prop; the dead
+`work_order_surfaces` table (20260818) dropped. Specs: `e2e/standards.spec.ts` (painter on a phone in both themes, PC,
+RLS through each role's token); unit `lib/standards/*.test.ts`. Help: standards/{contractor,employee,pc}.md.
+Diag: `scripts/diag/standards-unmapped-lines.mjs`. Manual script: `docs/testing/standards-step1-manual.md`.
