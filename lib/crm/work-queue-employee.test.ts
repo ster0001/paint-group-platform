@@ -68,8 +68,8 @@ describe("employee_reassign", () => {
 
 // ---- Session 7 (brief §3.9): the three items that join Reassign ------------
 import {
-  buildEmployeeUnacceptedItems, buildLeaveRequestItems, buildTimesheetApprovalItems,
-  type LeaveRequestRow, type TimesheetPendingRow,
+  buildEmployeeUnacceptedItems, buildLeaveRequestItems, 
+  type LeaveRequestRow,
 } from "./work-queue";
 
 describe("employee_unaccepted", () => {
@@ -108,27 +108,5 @@ describe("leave_request", () => {
     expect(item.dueAt).toBe("2026-10-07T13:00:00.000Z"); // 8 Oct 00:00 AEDT (+11)
     expect(item.action).toEqual({ label: "Decide", href: "/pc/timesheets#time-off" });
     expect(item.subjectRef).toEqual({ type: "event", id: "u-1" });
-  });
-});
-
-describe("timesheet_approval", () => {
-  const entry = (id: string, finished_at: string | null, contractor_id = "c-1"): TimesheetPendingRow =>
-    ({ id, contractor_id, work_order_id: "wo-1", work_date: (finished_at ?? "2026-09-30").slice(0, 10), finished_at });
-  it("counts a painter's days once they have waited a day, one item per painter", () => {
-    const items = buildTimesheetApprovalItems([
-      entry("t-1", "2026-09-29T06:00:00Z"), entry("t-2", "2026-09-28T06:00:00Z"),
-      entry("t-3", "2026-09-30T22:30:00Z"), // 30 min ago — not yet
-      entry("t-4", "2026-09-29T06:00:00Z", "c-2"),
-    ], new Map([["c-1", "Marco Rossi"]]), now);
-    expect(items).toHaveLength(2);
-    const marco = items.find((i) => i.title.includes("Marco"))!;
-    expect(marco.title).toBe("2 clocked days from Marco Rossi waiting on approval");
-    expect(marco.detail).toContain("Oldest is 28/09");
-    expect(marco.action).toEqual({ label: "Approve", href: "/pc/timesheets" });
-    expect(GROUP_OF_KIND.timesheet_approval).toBe("approvals");
-    expect(items.find((i) => i.title.includes("A painter"))!.title).toMatch(/^1 clocked day from/);
-  });
-  it("an open day (no finish) is not waiting on anyone", () => {
-    expect(buildTimesheetApprovalItems([entry("t-1", null)], names, now)).toHaveLength(0);
   });
 });

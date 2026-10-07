@@ -102,8 +102,6 @@ export const WORK_ITEM_KINDS = [
   "employee_unaccepted",
   /** S7: an employee asked for leave or an RDO — approve or decline before the day. */
   "leave_request",
-  /** S7: clocked days waiting on the office for more than a day. */
-  "timesheet_approval",
   /**
    * Tom, 25 Sep 2026: ring the customer part-way through a job — half way on
    * a 3–6 day job, 35% and 70% on a longer one. High importance: a customer
@@ -273,7 +271,6 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   // A yes/no before the day, and then the board is right.
   leave_request: 12,
   // Payroll waits on this, but a day, not an hour.
-  timesheet_approval: 10,
   // Tom, 25 Sep: mid-job check-ins are HIGH importance — top of the customer band.
   job_checkin: 30,
   // A courtesy call after a short job; ranks with the other follow-ups.
@@ -379,7 +376,6 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   employee_reassign: "followups",
   employee_unaccepted: "followups",
   leave_request: "approvals",
-  timesheet_approval: "approvals",
   job_checkin: "followups",
   job_followup: "followups",
   hold_pending: "followups",
@@ -482,7 +478,6 @@ export type ActiveAssignmentRow = {
 export type LeaveRequestRow = {
   id: string; contractor_id: string; kind: string; start_date: string; end_date: string; reason: string; created_at: string;
 };
-export type TimesheetPendingRow = { id: string; contractor_id: string; work_order_id: string; work_date: string; finished_at: string | null };
 export type DatesChangedEventRow = { created_at: string; meta: { assignment_id?: string } | null };
 
 /**
@@ -537,7 +532,7 @@ export function buildEmployeeReassignItems(
   });
 }
 
-// ---- sources: employee_unaccepted · leave_request · timesheet_approval (S7, brief §3.9) ----
+// ---- sources: employee_unaccepted · leave_request (S7, brief §3.9) ----
 
 const dmyOf = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
 const daysOf = (start: string, end: string) => start === end ? dmyOf(start) : `${dmyOf(start)}–${dmyOf(end)}`;
@@ -631,33 +626,8 @@ export function buildLeaveRequestItems(rows: LeaveRequestRow[], painterNames: Ma
   });
 }
 
-/**
- * Clocked days waiting on the office for more than 24 hours — one item per
- * painter, counting their days, keyed on the painter so the count changing
- * never resurrects a dismissal.
- */
-export function buildTimesheetApprovalItems(rows: TimesheetPendingRow[], painterNames: Map<string, string>, now: Date): WorkItem[] {
-  const byPainter = new Map<string, TimesheetPendingRow[]>();
-  for (const r of rows) {
-    if (!r.finished_at || now.getTime() - Date.parse(r.finished_at) < 86_400_000) continue;
-    byPainter.set(r.contractor_id, [...(byPainter.get(r.contractor_id) ?? []), r]);
-  }
-  return [...byPainter.entries()].map(([cid, entries]) => {
-    const oldest = entries.reduce((a, b) => (a.finished_at! < b.finished_at! ? a : b));
-    const who = painterNames.get(cid) ?? "A painter";
-    return finish({
-      key: itemKey("timesheet_approval", "work_order", oldest.work_order_id, cid),
-      kind: "timesheet_approval",
-      accountId: null,
-      subjectRef: { type: "work_order", id: oldest.work_order_id },
-      title: `${entries.length} clocked day${entries.length === 1 ? "" : "s"} from ${who} waiting on approval`,
-      detail: `Oldest is ${dmyOf(oldest.work_date)}. Approve posts the labour to the job; payroll takes the approved days.`,
-      since: oldest.finished_at!,
-      dueAt: new Date(Date.parse(oldest.finished_at!) + 86_400_000).toISOString(),
-      action: { label: "Approve", href: "/pc/timesheets" },
-    }, { valueCents: null, promisedToCustomer: false }, now);
-  });
-}
+// Tom, 7 Oct 2026: there is no timesheet_approval item any more — days approve
+// themselves on submit (migration 20270219); the office is not reminded to approve.
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
 
@@ -787,6 +757,19 @@ export type CallbackEventRow = {
 
 export type ContactEventRow = { account_id: string; occurred_at: string };
 
+/**
+ * Tom, 7 Oct 2026: "if a job is accepted, remove all follow-ups from the CRM
+ * automatically." The stored reminder is cleared by the database trigger
+ * (migration 20270219); the DERIVED follow-ups — a quiet quote, a callback, an
+ * online estimate — are answered here: anything that was asked for at or
+ * before the customer's latest acceptance is no longer waiting on the office.
+ */
+export function answeredByAcceptance(acceptedAt: Map<string, string>, accountId: string | null | undefined, askedAt: string): boolean {
+  if (!accountId) return false;
+  const at = acceptedAt.get(accountId);
+  return !!at && at >= askedAt;
+}
+
 /** ⚑7.8 default — a callback goes overdue after this many hours. */
 export const CALLBACK_OVERDUE_HOURS = 4;
 
@@ -801,11 +784,13 @@ export function buildCallbackItems(
   attempts: ContactEventRow[],
   accountNames: Map<string, string>,
   now: Date,
+  acceptedAt: Map<string, string> = new Map(),
 ): WorkItem[] {
   const items: WorkItem[] = [];
   for (const cb of callbacks) {
     const answered = attempts.some((a) => a.account_id === cb.account_id && a.occurred_at > cb.occurred_at);
     if (answered) continue;
+    if (answeredByAcceptance(acceptedAt, cb.account_id, cb.occurred_at)) continue;
     const who = accountNames.get(cb.account_id) ?? "Someone";
     const note = cb.payload?.note;
     const phone = cb.payload?.phone;
@@ -879,12 +864,13 @@ const money = (c: number) => `$${Math.round(c / 100).toLocaleString("en-AU")}`;
  * hours in Melbourne: 4 for a call or visit request, 2 for help, the next
  * business morning for "priced, no request".
  */
-export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventRow[], now: Date): WorkItem[] {
+export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventRow[], now: Date, acceptedAt: Map<string, string> = new Map()): WorkItem[] {
   const items: WorkItem[] = [];
   for (const r of rows) {
     const bucket = r.bucket as WizardBucket;
     const since = r.outcome_at ?? r.dropped_at ?? r.last_seen_at;
     if (r.account_id && attempts.some((a) => a.account_id === r.account_id && a.occurred_at > since)) continue;
+    if (answeredByAcceptance(acceptedAt, r.account_id, since)) continue;
     const who = journeyWho(r);
     const where = r.address || r.suburb || "";
     const line = journeyLine({ furthestPage: r.furthest_page, pagesTotal: r.pages_total, activeSeconds: r.active_seconds, lastActiveAt: r.last_seen_at }, now);
@@ -1566,11 +1552,17 @@ export function buildQuietQuoteItems(
   thresholds: Pick<CrmThresholds, "chaseUnopenedDays" | "chaseOpenedDays" | "goingColdDays">, now: Date,
   /** accounts.temperature by account — only read for imported history quotes. */
   temperature: Map<string, string | null> = new Map(),
+  /** Tom, 7 Oct 2026: the account's latest acceptance. A quote sent before the
+   *  customer said yes to one (an alternative, an earlier revision) is answered,
+   *  not quiet — no follow-up. A quote sent AFTER the acceptance is a new job and
+   *  is chased as before. */
+  acceptedAt: Map<string, string> = new Map(),
 ): WorkItem[] {
   const items: WorkItem[] = [];
   const newestByAccount = new Map<string, QuietQuoteRow>();
   for (const r of rows) {
     if (r.status !== "sent" || !r.account_id) continue;
+    if (answeredByAcceptance(acceptedAt, r.account_id, r.sent_at ?? r.created_at)) continue;
     // Tom, 16 Sep 2026: the 210 open quotes brought across from Airtable raise
     // a card only where the customer is hot or warm ("in negotiation" is hot
     // in the pack); a cold or unrated one waits until somebody touches it.
@@ -1919,6 +1911,22 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     .order("sent_at", { ascending: false }).limit(CAP.quotes);
   const quoteRows = (quoteRes.error ? [] : (quoteRes.data ?? [])) as unknown as QuietQuoteRow[];
   hit("quotes out", quoteRows, CAP.quotes);
+  // Tom, 7 Oct: who has said yes lately — the latest acceptance per customer
+  // answers every follow-up asked for before it (quiet quote, callback, online
+  // estimate). 90 days matches the quote window above; a read that fails
+  // suppresses nothing, so a follow-up is shown rather than lost.
+  const acceptRes = await supabase.from("estimates").select("account_id, accepted_at, created_at")
+    .eq("status", "accepted").not("account_id", "is", null)
+    .or(`accepted_at.gte.${since90d},and(accepted_at.is.null,created_at.gte.${since90d})`)
+    .order("accepted_at", { ascending: false, nullsFirst: false }).limit(1000);
+  if (acceptRes.error) truncated.push("acceptances: read failed");
+  const acceptedAt = new Map<string, string>();
+  for (const r of (acceptRes.error ? [] : (acceptRes.data ?? [])) as Array<{ account_id: string | null; accepted_at: string | null; created_at: string }>) {
+    if (!r.account_id) continue;
+    const at = r.accepted_at ?? r.created_at;
+    const have = acceptedAt.get(r.account_id);
+    if (!have || at > have) acceptedAt.set(r.account_id, at);
+  }
   const quoteAccountIds = [...new Set(quoteRows.map((r) => r.account_id).filter(Boolean))];
   const [quoteAttempts, quoteAccounts] = await Promise.all([
     inSlices(quoteAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
@@ -1949,17 +1957,12 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const flagRows = (flagRes.error ? [] : (flagRes.data ?? [])) as unknown as CantMakeItEventRow[];
   const activeRows = (activeRes.error ? [] : (activeRes.data ?? [])) as unknown as ActiveAssignmentRow[];
   const moveRows = (moveRes.error ? [] : (moveRes.data ?? [])) as unknown as DatesChangedEventRow[];
-  // S7: undecided leave / RDO requests and clocked days nobody has approved.
-  // Both tables are staff-only; a session that cannot read them gets nothing.
-  const [leaveRes, tsRes] = await Promise.all([
-    supabase.from("contractor_unavailability").select("id, contractor_id, kind, start_date, end_date, reason, created_at")
+  // S7: undecided leave / RDO requests. Staff-only table; a session that
+  // cannot read it gets nothing. (Clocked days no longer wait on anyone — 7 Oct 2026.)
+  const leaveRes = await supabase.from("contractor_unavailability").select("id, contractor_id, kind, start_date, end_date, reason, created_at")
       .in("kind", ["leave", "rdo"]).is("approved_at", null).is("declined_at", null)
-      .gte("end_date", now.toISOString().slice(0, 10)).order("start_date", { ascending: true }).limit(200),
-    supabase.from("timesheet_entries").select("id, contractor_id, work_order_id, work_date, finished_at")
-      .eq("status", "submitted").order("finished_at", { ascending: true }).limit(500),
-  ]);
+      .gte("end_date", now.toISOString().slice(0, 10)).order("start_date", { ascending: true }).limit(200);
   const leaveRows = (leaveRes.error ? [] : (leaveRes.data ?? [])) as LeaveRequestRow[];
-  const tsRows = (tsRes.error ? [] : (tsRes.data ?? [])) as TimesheetPendingRow[];
   // Tom, 1 Oct: open holds starting within the week, and whether their job
   // has since been booked (which resolves them). Staff-only table; a table
   // that predates 20270209 simply yields nothing.
@@ -1987,7 +1990,6 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...flagRows.map((f) => f.meta?.contractor_id),
     ...activeRows.filter((a) => !a.accepted_at).map((a) => a.contractor_id),
     ...leaveRows.map((r) => r.contractor_id),
-    ...tsRows.map((r) => r.contractor_id),
     ...holdRows.map((h) => h.contractor_id),
   ].filter((x): x is string => !!x))];
   const flagPainters = await inSlices(flagPainterIds, (ids) => supabase.from("contractors").select("id, company_name, profiles(name)").in("id", ids));
@@ -2112,14 +2114,14 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const raw = [
     ...buildSnoozeItems(snoozeRows, reasons as SnoozeReasonRow[], now),
     ...buildInvoiceItems(invRows, payments, now),
-    ...buildCallbackItems(cbRows, attempts as ContactEventRow[], names, now),
+    ...buildCallbackItems(cbRows, attempts as ContactEventRow[], names, now, acceptedAt),
     ...buildApprovalItem(queued.count ?? 0, now),
     ...buildMessageApprovalItem(pendingHolds.error ? 0 : pendingHolds.count ?? 0, now),
     ...buildChangeRequestItems(crRows, staffReplies as StaffReplyRow[], now),
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
-    ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now),
+    ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now, acceptedAt),
     ...buildLapsedItems(lapsedRows, lapsedAttempts as ContactEventRow[], lapsedNames, now),
-    ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps),
+    ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps, acceptedAt),
     ...buildHoursPendingItems(hoursRows, now),
     // A read that fails before migration 20270212 is on the database adds nothing (same shape as handoffs above).
     ...buildUnmappedSuburbItems(((unmappedSuburbs.error ? [] : unmappedSuburbs.data) ?? []) as UnmappedSuburbRow[], now),
@@ -2135,7 +2137,6 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildEmployeeReassignItems(flagRows, activeRows, moveRows, painterNames, now),
     ...buildEmployeeUnacceptedItems(activeRows, painterNames, now),
     ...buildLeaveRequestItems(leaveRows, painterNames, now),
-    ...buildTimesheetApprovalItems(tsRows, painterNames, now),
     ...buildHoldItems(holdRows, holdBooked, painterNames, now),
     ...buildJobCheckinItems(checkinRows, now),
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),

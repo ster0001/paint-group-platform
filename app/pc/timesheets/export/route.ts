@@ -36,7 +36,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     return new NextResponse("Unavailable", { status: 503 });
   }
   type Row = {
-    work_date: string; started_at: string; finished_at: string; break_minutes: number; source: "painter" | "pc"; approved_at: string;
+    work_date: string; started_at: string; finished_at: string; break_minutes: number; source: "painter" | "pc" | "auto"; approved_at: string;
     contractors: { profiles: { name: string | null } | null } | null; work_orders: { wo_ref: string } | null;
   };
   const rows: PayrollRow[] = ((data ?? []) as unknown as Row[]).map((r) => ({
