@@ -20,6 +20,7 @@ import type { DefectRate } from "@/lib/capture/commit";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyWizardAnswers, filterSurfacesByTicks } from "@/lib/wizard/merge";
+import { applyCupboardDefaults, type LooseBlock as LooseRoomBlock } from "@/lib/wizard/rooms-loop";
 import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
 import { backfillTypicalSizes, commercialExtraction, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
 import { DEFAULT_SEGMENTS, commercialRoomList, commercialSurfaceKeys, isWarehouse, loadSegments, segmentByKey } from "@/lib/wizard/segments";
@@ -448,6 +449,7 @@ export async function POST(request: Request) {
       const draft = buildDraft(withHeight, rules, aliases, {
         startId: nextId, sourceId: source?.id ?? null, defectRates,
         holdGarage: true, // Tom, 14 Sep (item 23)
+        planRead: true, // Tom, 7 Oct 2026: carport / sauna / store never come off a plan
       });
       areas.push(...draft.areas);
       skipped.push(...draft.skipped);
@@ -635,6 +637,8 @@ export async function POST(request: Request) {
   const conditionModSel = applyConditionPricing(merged, effectiveState, () => nextId++, ctx);
   // Tom, 7 Sep: the engine's own per-room allowances (colour match, ceilings only).
   merged.areas = reconcileRoomAllowances(merged.areas as unknown as AllowanceBlock[], { tier: effectiveState.condition.tier, rateItems: ctx.rateItems }, () => nextId++).blocks as unknown as typeof merged.areas;
+  // Tom, 7 Oct 2026: cupboards start answered — kitchen / vanity / laundry No, robe doors Yes.
+  merged.areas = applyCupboardDefaults(merged.areas as unknown as LooseRoomBlock[], new Set(ctx.rateItems.map((r) => r.code)), () => nextId++) as unknown as typeof merged.areas;
 
   // The exterior loop's Condition & access card arrives PRE-ANSWERED from the
   // wizard's own questions (cond + access; rot was never asked, so it stays

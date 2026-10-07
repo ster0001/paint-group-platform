@@ -30,7 +30,11 @@ export type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; name?: string; type?: string; roomType?: string;
   L?: number; W?: number; H?: number;
   surfaces?: LooseSurface[];
-  customer?: { size: "yes" | "adjusted" | null; cup: boolean | null; cupInterior?: boolean | null; cupDoorInside?: boolean | null; confirmed: boolean };
+  customer?: {
+    size: "yes" | "adjusted" | null; cup: boolean | null; cupInterior?: boolean | null; cupDoorInside?: boolean | null; confirmed: boolean;
+    /** Tom, 7 Oct 2026: this room's ceiling height was set by hand — the job-wide height chip leaves it alone. */
+    heightAdjusted?: boolean;
+  };
   customerCustom?: string[];
   assumedFields?: unknown;
   origin?: unknown; confidence?: unknown;
@@ -111,16 +115,50 @@ export function applyRoomSizeNotSure(blocks: LooseBlock[], areaId: number): Room
 /** The L × W adjust — metres, clamped 1–15 per side; reprices via the
  * engine, provenance customer_stated. m² stays internal: everything
  * customer-facing displays L × W. */
-export function applyRoomDims(blocks: LooseBlock[], areaId: number, lengthM: number, widthM: number): RoomsLoopResult {
+export function applyRoomDims(blocks: LooseBlock[], areaId: number, lengthM: number, widthM: number, heightM?: number | null): RoomsLoopResult {
   return withRoom(blocks, areaId, (b) => {
     // Mockup behaviour: the gentle clamp — out-of-range proceeds at the
     // nearest bound (a toast's job to say so), never a refusal.
     b.L = Math.min(15, Math.max(1, lengthM));
     b.W = Math.min(15, Math.max(1, widthM));
     b.origin = "customer_stated"; b.confidence = 0.85; delete (b as { proposed?: unknown }).proposed; // C16 (b): a confirmation settles any pending proposal
-    b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "W");
-    b.customer = { ...customerOf(b), size: "adjusted" };
+    const dropped = new Set(["L", "W"]);
+    // Tom, 7 Oct 2026: a room with a different ceiling (a raked living room, a
+    // 2.4 m bathroom under 2.7 m everywhere else) takes its own height here,
+    // and the job-wide height chip no longer overwrites it.
+    const heightAdjusted = heightM != null && Number.isFinite(heightM);
+    if (heightAdjusted) { b.H = Math.min(6, Math.max(2, Math.round(heightM * 20) / 20)); dropped.add("H"); }
+    b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => !dropped.has(f));
+    b.customer = { ...customerOf(b), size: "adjusted", ...(heightAdjusted ? { heightAdjusted: true } : {}) };
   });
+}
+
+/**
+ * Tom, 7 Oct 2026: the cupboard questions start ANSWERED — kitchen cupboards,
+ * vanities and laundry cupboards as No (they are rarely painted), built-in robe
+ * doors as Yes with the standard count (they nearly always are). The customer
+ * changes either with one tap; a room that already carries an answer is left
+ * alone, as is a room type whose cupboard code is not on the active card.
+ */
+export function applyCupboardDefaults(blocks: LooseBlock[], cupboardCodes: ReadonlySet<string>, nextId: () => number): LooseBlock[] {
+  let out = blocks;
+  for (const b of blocks) {
+    if (!isInteriorRoom(b)) continue;
+    const cfg = CUPBOARD_BY_ROOM_TYPE[String(b.roomType ?? "")];
+    if (!cfg || !cupboardCodes.has(cfg.code)) continue;
+    if (b.customer && b.customer.cup != null) continue;
+    const yes = String(b.roomType) === "bedroom";
+    const r = applyCupboard(out, Number(b.id), yes, null, nextId);
+    if (!r.ok) continue;
+    out = r.blocks;
+    // A default is an assumption, not the customer's word: the robe line is
+    // tagged so the accuracy score and the review queue treat it as one.
+    const room = out.find((x) => Number(x.id) === Number(b.id));
+    for (const s of room?.surfaces ?? []) {
+      if (String(s.code) === cfg.code) { s.origin = "ai_assumed"; s.assumedFields = ["included"]; }
+    }
+  }
+  return out;
 }
 
 /** The cupboard answer. Yes adds the priced cabinetry line (count defaults
@@ -383,6 +421,9 @@ export function interiorProgress(blocks: LooseBlock[], meta: InteriorLoopMeta): 
 export type RoomLoopView = {
   areaId: number;
   sizeLabel: string; // "3.5 × 3.25 m" — L × W, never m²
+  /** The room's own ceiling height in metres (Tom, 7 Oct 2026: adjustable per room). */
+  heightM: number;
+  heightAdjusted: boolean;
   size: "yes" | "adjusted" | null;
   confirmed: boolean;
   cupboard: null | { question: string; unit: string; on: boolean | null; count: number; note: string };
@@ -415,6 +456,8 @@ export function roomLoopViews(blocks: LooseBlock[], cupboardCodes: ReadonlySet<s
     out.push({
       areaId: Number(b.id) || 0,
       sizeLabel: `${Number(b.L) || 0} × ${Number(b.W) || 0} m`,
+      heightM: Number(b.H) || 2.4,
+      heightAdjusted: c.heightAdjusted === true,
       size: c.size,
       confirmed: c.confirmed,
       cupboard: applicable ? {

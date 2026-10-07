@@ -4315,3 +4315,22 @@ logged FAIL before 20270196 made a fail spawn its re-check, so no `retry_of` row
 open for ever; the 6 Oct "Quality check not required" waiver only deletes UNLOGGED checks. Migration `20270221` re-creates
 `wo_qa_open_count` with one clause: a job with `qa_waived` has nothing open (the fail stays as history). Pinned in
 `e2e/pc-painter-approval-7oct.spec.ts`; the diag names the waiver as the way out.
+
+**Estimator wizard batch (Tom, 7 Oct 2026).** Eight asks on the customer wizard, no migration. (1) The plan read is one
+vision call (`lib/extract/model.ts`), so its latency is the model's; the fix is on the screen: `QuickLook.tsx`'s rooms step
+shows a **reading panel** (`ql-plan-reading-panel`, with a `ql-plan-skip-wait` way past it) while `planPending` and no plan
+rooms have landed, instead of the starter list — a tick on a guessed name never matched the plan's names. (2)
+`buildDraft` gains `opts.planRead`; the read route and the submit plan branch pass it, and `PLAN_NEVER_PAINTED`
+(carport, sauna, store / storage / storeroom) skips the room by its printed name whatever the model classified it as — a
+customer-typed "Storage" room (add_room, starter list) is untouched. (3) The rooms-step preview is `PlanViewer` (zoom
+slider, + / −, wheel, drag) and `PlanViewer` learns pinch-to-zoom from two tracked pointers. (4 + 6)
+`applyCupboardDefaults` (`lib/wizard/rooms-loop.ts`) answers the cupboard question at tree build: kitchen / vanity /
+laundry **No**, bedroom robe doors **Yes** with the standard 2, the robe line tagged `ai_assumed`/`included`; called after
+the submit merge and on `add_room`. (5) `FALLBACK_TYPICALS.storage` = 2 × 1.25 m (walk-in robe) and the seed gains the
+`room_type_defaults` row (`npx tsx scripts/seed-extraction-settings.ts` on prod re-seeds it; the fallback already applies
+where the row is absent). (7) The sweep's Add room takes a typed name alone (`roomTypeForName` guesses the kind, the hint
+says which), and `openNewRoomRef` opens the new card with the size form up and scrolls its header into view. (8)
+`room_dims` takes an optional `heightM` (2–6 m, per room): `applyRoomDims` sets H, drops the H assumption and marks
+`customer.heightAdjusted`, which `confirm_height` (the job-wide chip) now skips; `RoomLoopView` carries `heightM` /
+`heightAdjusted` and the card shows "· 2.7 m ceilings". Pinned by `lib/wizard/tom-batch-7oct.test.ts` and driven by
+`e2e/customer-journey/tom-batch-7oct.spec.ts` (the plan test needs the gitignored regression plan).

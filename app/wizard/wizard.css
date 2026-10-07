@@ -1172,8 +1172,15 @@
 .wz .sc-sizeconfirm-size { color: var(--cyan); }
 
 /* Tom, 14 Sep (evening): the confirm-rooms step — the plan preview and add-a-room. */
-.wz .wz-planpreview { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; max-height: 260px; }
-.wz .wz-planpreview img { display: block; width: 100%; height: auto; max-height: 260px; object-fit: contain; }
+/* Tom, 7 Oct 2026 (item 3): the rooms-step preview is the zoomable PlanViewer, not a flat picture. */
+.wz .wz-planpreview { margin: 0 0 12px; }
+.wz .wz-planpreview .wz-planbox { position: static; padding: 10px 12px; }
+.wz .wz-planpreview .wz-planframe { max-height: 320px; }
+.wz .wz-planpreview .wz-planframe img { max-height: 320px; object-fit: contain; }
+/* Tom, 7 Oct 2026 (item 1): the "reading your floorplan" panel on the rooms step. */
+.wz .wz-planreading { text-align: center; padding: 22px 12px 10px; border: 1px dashed var(--line); border-radius: 14px; background: var(--panel); }
+.wz .wz-planreading .wz-psteps { display: flex; flex-direction: column; gap: 6px; align-items: center; margin: 0 0 14px; }
+.wz .wz-planreading .wz-linkish { font-size: 13px; }
 .wz .wz-addroom { margin-top: 12px; }
 .wz .wz-addroom-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .wz .wz-addroom-row .wz-field { flex: 1 1 180px; }
