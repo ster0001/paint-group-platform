@@ -4,17 +4,15 @@ import { credentials, missingCreds, signIn } from "./helpers";
 import { serviceClient } from "./fixtures/woLoop";
 
 /**
- * Tom, 7 Oct 2026 (9 Broadway): "updating the colours isn't updating in the
- * estimate" — five weatherboard areas carried a per-area colour override, so
- * the Materials row's new colour skipped them and nothing said so; the row's
- * label had lost the plain "Weatherboards" once some areas were relabelled;
- * and the customer's paint card only listed the first three surfaces, so a
- * renamed "Base boards" never appeared on it.
+ * Tom, 7 Oct 2026 (9 Broadway): "weatherboards needs to be listed in the
+ * materials section — I updated the names of Baseboards / Back gable /
+ * Cladded wall / Base Boards to separate them, and they are still combined".
  *
- *   · the Materials row says "N areas own colour" with a one-tap reset;
- *   · picking the row's colour applies it everywhere (clears the overrides);
- *   · the row label keeps the substrate while any area still uses it;
- *   · the paint card lists every surface and every colour's areas.
+ * The Materials card is one row per NAME: the substrate's own row sets the
+ * defaults; every other name is its own row whose product and colour are
+ * pinned on exactly those surfaces. Plus the two things that hid behind it:
+ * the base row's colour applies to its areas even when one had its own
+ * colour, and the customer's paint card lists every surface and area.
  */
 const db = serviceClient();
 const staff = credentials("STAFF");
@@ -36,30 +34,32 @@ const area = (id: number, name: string, s: ReturnType<typeof surface>) => ({
 });
 
 type State = {
-  blocks: Array<{ surfaces: Array<{ clientLabel: string; color: string }> }>;
+  blocks: Array<{ surfaces: Array<{ clientLabel: string; color: string; productName: string | null }> }>;
   materialColours: Record<string, { name: string; hex: string }>;
 };
-type Snap = { paints: Array<{ usage: string[]; colours: Array<{ name: string; areas: string[] }> }> };
+type Snap = { paints: Array<{ name: string; usage: string[]; colours: Array<{ name: string; areas: string[] }> }> };
 
-test.describe("Materials colour applies everywhere; labels and paint cards complete (Tom, 7 Oct)", () => {
+test.describe("Materials: one row per name (Tom, 7 Oct)", () => {
   test.skip(!db || !staff, missingCreds("STAFF"));
   const token = `mcp${run}${Date.now().toString(36)}abcdef`;
   let estimateId = "";
+  let productA = "";
 
   test.beforeAll(async () => {
-    const { data: product } = await db!.from("products").select("name").order("name").limit(1).single();
+    const { data: products } = await db!.from("products").select("name").order("name").limit(2);
+    productA = (products as { name: string }[])[0].name;
     const est = await db!.from("estimates").insert({
-      title: `Colour pins ${run}`, status: "draft", source: "manual", level_of_finish: 3, share_token: token,
+      title: `Rows per name ${run}`, status: "draft", source: "manual", level_of_finish: 3, share_token: token,
       builder_state: {
         blocks: [
           area(1, "Hall", surface(2, "Walls")),
-          // The lounge was given its own colour in the surface editor.
-          area(3, "Lounge", surface(4, "Feature wall", "Merbau", "#65483B")),
+          area(3, "Hall", surface(5, "Walls", "Merbau", "#65483B")),   // a plain wall given its own colour in the surface editor
+          area(4, "Lounge", surface(6, "Feature wall")),                // a renamed wall → its own row
         ],
         modSel: { "Level of Finish": "FIN-3" },
-        materials: { "Interior::Walls": (product as { name: string }).name },
+        materials: { "Interior::Walls": productA },
         materialColours: {}, colourMatches: {},
-        contact: { first_name: "Pins", last_name: "Customer", email: "", phone: "" },
+        contact: { first_name: "Rows", last_name: "Customer", email: "", phone: "" },
       },
     }).select("id").single();
     if (est.error) throw new Error(est.error.message);
@@ -71,19 +71,26 @@ test.describe("Materials colour applies everywhere; labels and paint cards compl
     await db!.from("colours").delete().eq("name", colourName);
   });
 
-  test("the row names the override, keeps the substrate in its label, and the picked colour reaches every area and the customer's card", async ({ page }) => {
+  test("the substrate keeps its own row, each name gets one, and the figures land on the customer's card", async ({ page }) => {
     test.setTimeout(180_000);
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}`);
     await page.waitForLoadState("networkidle");
     if ((await page.getByTestId("materials-toggle").getAttribute("aria-expanded")) !== "true") await page.getByTestId("materials-toggle").click();
 
-    // Label: the plain substrate stays while the Hall still uses it.
-    await expect(page.getByTestId("material-row-label-Interior::Walls")).toHaveText("Walls / Feature wall");
-    // The override is VISIBLE on the row now.
+    // Two rows: "Walls" (the base, both plain walls) and "Feature wall" (named).
+    await expect(page.getByTestId("material-row-label-Interior::Walls")).toHaveText("Walls");
+    await expect(page.getByTestId("material-row-label-Interior::Walls::Feature wall")).toHaveText("Feature wall");
+    // The base row SAYS one of its walls has its own colour.
     await expect(page.getByTestId("colour-pins-Interior::Walls")).toContainText("1 area own colour");
 
-    // Pick the row's colour (a new one, so the library's contents don't matter).
+    // The named row takes its own product — pinned on that wall only.
+    const namedPick = page.getByTestId("paint-pick-Interior::Walls::Feature wall");
+    await expect(namedPick).toHaveValue("");            // "same as Walls"
+    const other = (await namedPick.locator("option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value))).find((v) => v && v !== productA)!;
+    await namedPick.selectOption(other);
+
+    // A colour on the base row applies to BOTH plain walls (the override goes).
     const picker = page.getByTestId("material-colour-Interior::Walls");
     await picker.getByRole("button").first().click();
     await picker.getByRole("button", { name: "+ Add a colour" }).click();
@@ -91,7 +98,6 @@ test.describe("Materials colour applies everywhere; labels and paint cards compl
     await picker.getByPlaceholder("#hex").fill("#112233");
     await picker.getByRole("button", { name: "Add", exact: true }).click();
     await expect(picker).toContainText(colourName);
-    // …and it applied everywhere: the override is gone.
     await expect(page.getByTestId("colour-pins-Interior::Walls")).toHaveCount(0);
 
     await page.getByTestId("builder-save").click();
@@ -103,10 +109,13 @@ test.describe("Materials colour applies everywhere; labels and paint cards compl
 
     const { data } = await db!.from("estimates").select("builder_state, sent_snapshot").eq("id", estimateId).single();
     const state = data!.builder_state as State;
-    expect(state.blocks.map((b) => b.surfaces[0].color)).toEqual(["", ""]);
+    expect(state.blocks.map((b) => b.surfaces[0].color)).toEqual(["", "", ""]);
+    expect(state.blocks.map((b) => b.surfaces[0].productName)).toEqual([null, null, other]);
     const snap = data!.sent_snapshot as Snap;
-    // Every surface, every area — not the first three / six.
-    expect(snap.paints[0].usage).toEqual(["Walls · Hall", "Feature wall · Lounge"]);
-    expect(snap.paints[0].colours).toEqual([{ name: colourName, hex: "#112233", match: false, areas: ["Hall", "Lounge"] }]);
+    // Two products now, and every surface / area is on its card — not the first three / six.
+    const walls = snap.paints.find((p) => p.usage.some((u) => u.startsWith("Walls ·")))!;
+    expect(walls.usage).toEqual(["Walls · Hall"]);
+    expect(walls.colours).toEqual([{ name: colourName, hex: "#112233", match: false, areas: ["Hall"] }]);
+    expect(snap.paints.some((p) => p.usage.includes("Feature wall · Lounge"))).toBe(true);
   });
 });
