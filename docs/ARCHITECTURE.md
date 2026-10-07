@@ -4376,3 +4376,12 @@ page carries a `mobile-required` notice and the company and bank saves refuse un
 without one, on the row with one), `contractor-portal` profile test (blank → refuse other saves → save → cannot clear);
 `help-tour` fills the new field. Help: contractors/staff.md (+ Their mobile), contractors/contractor.md (new).
 `scripts/diag/job-update-reminders.mjs` (read-only) lists every booked job's reminder claims against the texts actually sent.
+
+**Contractor bank details: click to reveal (7 Oct 2026).** The painter's page served only `bank_bsb` + `bank_account_last4`
+and nothing could show the rest: `contractor_get_bank(uuid)` (definer, is_staff() or self) existed since 20260822 but
+20270201 listed it as internal-only and revoked EXECUTE from authenticated. `20270223_contractor_bank_reveal` recreates it
+(same gate; a staff reveal of someone else's account inserts `contractor_events` `bank_viewed` {last4} with the actor) and
+re-grants it to authenticated. `ContractorBank` (`app/(app)/contractors/[id]/`) renders the masked row as a button;
+`revealContractorBankAction` (zod, user session) calls the RPC on the click and the decrypted number lives only in client
+state until Hide. A 42501 before the migration is pasted reads as "needs migration 20270223". Spec: `contractor-detail`
+(server render never carries the number; reveal, hide, event row). Help: contractors/staff.md (+ Their bank details).

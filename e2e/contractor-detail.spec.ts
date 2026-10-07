@@ -99,6 +99,31 @@ test.describe("a painter's detail page, and removing one", () => {
     await expect(page.getByTestId("jobs-tally")).toContainText("0 completed");
   });
 
+  // Tom, 7 Oct 2026: "no way to see their bank details". The page serves only
+  // the last four; the full number arrives on the click, and the click is on the
+  // record (contractor_events 'bank_viewed').
+  test("bank details are masked until the office clicks them; the reveal is on the record", async ({ page }) => {
+    const spare = { email: `pg.e2e.spare.${run}@example.com`, password: `Spare-${run}-pw!` };
+    const set = await rpcAs(spare, "contractor_set_bank", { p_bsb: "063-000", p_account: "12345678" });
+    expect(set).not.toMatch(/error|exception|not a contractor/i);
+
+    await signIn(page, staff!, /\/(home|estimates)/);
+    const res = await page.goto(`/contractors/${spareContractorId}`);
+    const html = (await res?.text()) ?? "";
+    expect(html).not.toContain("12345678");            // never in the server render
+    await expect(page.getByTestId("bank-reveal")).toContainText("063-000 · ···· 5678");
+
+    await page.getByTestId("bank-reveal").click();
+    await expect(page.getByTestId("bank-full")).toContainText("BSB 063-000 · Acc 12345678");
+    await page.getByTestId("bank-hide").click();
+    await expect(page.getByTestId("bank-full")).toHaveCount(0);
+    await expect(page.getByTestId("bank-reveal")).toBeVisible();
+
+    const { data: ev } = await db!.from("contractor_events").select("type, detail").eq("contractor_id", spareContractorId).eq("type", "bank_viewed");
+    expect((ev ?? []).length).toBeGreaterThanOrEqual(1);
+    expect((ev![0] as { detail: { last4?: string } }).detail.last4).toBe("5678");
+  });
+
   // Tom, 7 Oct 2026: three painters had no mobile and nine jobs' work-order
   // reminders were silently skipped — the office could only look, not type.
   test("the office adds or fixes a painter's mobile on their page; a half number is refused", async ({ page }) => {

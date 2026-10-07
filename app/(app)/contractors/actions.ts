@@ -210,3 +210,27 @@ export async function setContractorMobileAction(raw: unknown): Promise<SetMobile
   const saved = (data as { phone: string | null }).phone;
   return { ok: true, phone: saved, message: saved ? `Saved. Job offers, variations and work-order reminders now text ${saved}.` : "Mobile cleared — they will get no texts until one is added." };
 }
+
+/**
+ * Tom, 7 Oct 2026: "no way to see their bank details". The account number is
+ * encrypted at rest and shown masked; this is the click that reveals it, through
+ * `contractor_get_bank` (definer: is_staff() or self, logs a `bank_viewed`
+ * event for staff — 20270223). Nothing is cached: the number lives in the
+ * client's state only until they hide it or leave the page.
+ */
+export type RevealBankResult = { ok: true; bsb: string; account: string } | { ok: false; message: string };
+
+export async function revealContractorBankAction(raw: unknown): Promise<RevealBankResult> {
+  const parsed = z.object({ id: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't find that painter." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("contractor_get_bank", { p_contractor_id: parsed.data.id });
+  if (error) {
+    reportError(error, { where: "contractors.revealBank" });
+    if (error.code === "42501") return { ok: false, message: "Revealing bank details needs migration 20270223 on this database." };
+    return { ok: false, message: /not authorised/.test(error.message) ? "Only staff can see a painter's bank details." : "Couldn't read the bank details — it has been reported." };
+  }
+  const row = (Array.isArray(data) ? data[0] : data) as { bsb: string | null; account: string | null } | undefined;
+  if (!row) return { ok: false, message: "Couldn't find that painter." };
+  return { ok: true, bsb: row.bsb ?? "", account: row.account ?? "" };
+}
