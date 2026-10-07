@@ -518,8 +518,8 @@
     {
       "feature": "timesheets",
       "role": "pc",
-      "title": "Employed painters' days — logged automatically, approved in one click, plus time off and the payroll CSV",
-      "summary": "The Timesheets tab in PC Command — the standard day that logs itself every evening, approving a normal week in one click, days that need a manual entry, painters' extra hours, leave and RDO requests, recording a day by hand, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.",
+      "title": "Employed painters' days — logged and approved automatically, plus time off and the payroll CSV",
+      "summary": "The Timesheets tab in PC Command — the standard day that logs itself every evening and approves itself, the one kind of day that still waits (no cost rate), days that need a manual entry, painters' extra hours, leave and RDO requests, recording a day by hand, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.",
       "path": "docs/help/timesheets/pc.md",
       "walkthrough": null,
       "media": [],

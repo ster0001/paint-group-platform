@@ -38,7 +38,7 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   message_approval: "Approve",
   hours_to_confirm: "Hours to confirm",
   employee_reassign: "Reassign",
-  employee_unaccepted: "Not accepted", leave_request: "Time off", timesheet_approval: "Timesheets",
+  employee_unaccepted: "Not accepted", leave_request: "Time off",
   job_checkin: "Check-in", job_followup: "Follow-up",
   hold_pending: "Held dates",
   unmapped_suburb: "Suburb",

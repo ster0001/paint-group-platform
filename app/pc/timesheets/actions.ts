@@ -58,7 +58,7 @@ export async function rejectTimesheetAction(raw: unknown): Promise<PcResult> {
   return call("timesheet_reject", { p_entry_id: parsed.data.entryId, p_reason: parsed.data.reason }, "Not approved — the painter sees why.");
 }
 
-/** A day recorded by the office (a forgotten tap, a paper sheet). Lands submitted. */
+/** A day recorded by the office (a forgotten tap, a paper sheet). Approved on the spot where a rate covers it. */
 export async function recordTimesheetAction(raw: unknown): Promise<PcResult> {
   const parsed = z.object({
     contractorId: z.string().uuid(),
@@ -74,10 +74,21 @@ export async function recordTimesheetAction(raw: unknown): Promise<PcResult> {
   // (never a written-down +10:00 — Melbourne is +11 from October to April).
   const startedAt = melbourneInstant(d.date, d.start);
   const finishedAt = melbourneInstant(d.date, d.finish);
-  return call("timesheet_record", {
+  // Tom, 7 Oct 2026: a recorded day approves itself (migration 20270219) — the
+  // only day that waits is one no cost rate covers, and the message says which.
+  const res = await call("timesheet_record", {
     p_contractor_id: d.contractorId, p_work_order_id: d.workOrderId,
     p_started_at: startedAt, p_finished_at: finishedAt, p_break_minutes: d.breakMinutes,
-  }, "Recorded — it's in the list to approve.");
+  }, "Recorded and approved — the labour line is on the job.");
+  if (!res.ok) return res;
+  const supabase = await createClient();
+  const { data: entry, error: entryErr } = await supabase.from("timesheet_entries").select("status").eq("contractor_id", d.contractorId).eq("started_at", startedAt).maybeSingle();
+  // The day IS recorded; a failed read-back only costs the exact wording.
+  if (entryErr) return { ok: true, message: "Recorded. If it is still in the list, no cost rate covers that day." };
+  if ((entry as { status?: string } | null)?.status === "submitted") {
+    return { ok: true, message: "Recorded — waiting, because no cost rate covers that day. Set the rate on Painters, then Approve it here." };
+  }
+  return res;
 }
 
 /** The instant a Melbourne wall-clock time names, measured from the zone. */
@@ -120,7 +131,7 @@ export async function decideLeaveAction(raw: unknown): Promise<PcResult> {
   return { ok: true, message: parsed.data.approve ? "Approved — it's on the board as time off, and they've been told." : "Declined — they see why on their calendar." };
 }
 
-/** S7b: approve every standard (auto) day that is waiting and has a rate. One click for a normal week. */
+/** S7b: approve every standard (auto) day still waiting (one a rate did not cover when it was filled). */
 export async function approveStandardDaysAction(): Promise<PcResult & { approved?: number; left?: number }> {
   const supabase = await createClient();
   const { data, error } = await supabase.from("timesheet_entries").select("id").eq("status", "submitted").eq("source", "auto").order("work_date", { ascending: true }).limit(500);
