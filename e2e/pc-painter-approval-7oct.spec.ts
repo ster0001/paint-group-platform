@@ -138,6 +138,25 @@ test.describe("PC Command — the painter approves a client-approved change; QA 
     expect((ev as { meta: { checks: number; none_scheduled: boolean } }[])[0].meta).toMatchObject({ checks: 0, none_scheduled: true });
   });
 
+  test("a waived job whose only check was a FAIL with no re-check (25 Bunney Road) routes the moment anyone looks", async () => {
+    // Back to qa with a legacy fail: logged, no retry_of successor, and the office's waiver on the job.
+    const { error: e1 } = await db!.from("work_orders").update({ stage: "qa", qa_waived: true, qa_required: false }).eq("id", fixture!.workOrderId);
+    if (e1) throw new Error(e1.message);
+    const { error: e2 } = await db!.from("wo_qa_checks").insert({ work_order_id: fixture!.workOrderId, kind: "final", result: "fail", checked_at: new Date().toISOString() });
+    if (e2) throw new Error(e2.message);
+    const { data: open } = await db!.rpc("wo_qa_open_count", { p_work_order_id: fixture!.workOrderId });
+    expect(open, "a waived job has nothing open").toBe(0);
+    // Without the waiver the fail holds, as before.
+    await db!.from("work_orders").update({ qa_waived: false }).eq("id", fixture!.workOrderId);
+    expect(await db!.rpc("wo_qa_open_count", { p_work_order_id: fixture!.workOrderId }).then((r) => r.data)).toBe(1);
+    expect(await rpcAs(staff!, "wo_qa_route_passed", { p_work_order_id: fixture!.workOrderId })).toBe("ok:0");
+    await db!.from("work_orders").update({ qa_waived: true }).eq("id", fixture!.workOrderId);
+    expect(await rpcAs(staff!, "wo_qa_route_passed", { p_work_order_id: fixture!.workOrderId })).toBe("ok:walkthrough");
+    // The fail stays on the record — history, not a hold.
+    const { count } = await db!.from("wo_qa_checks").select("id", { count: "exact", head: true }).eq("work_order_id", fixture!.workOrderId).eq("result", "fail");
+    expect(count).toBe(1);
+  });
+
   test("a client-updates note from PC Command is on the job's timeline and on the customer's CRM record", async ({ page }) => {
     // Give the fixture's estimate a customer account so the CRM copy has somewhere to go.
     const { data: acc, error: accErr } = await db!.from("accounts").insert({ email: `pc.note.${Date.now()}@example.com`, name: "Note Customer" }).select("id").single();

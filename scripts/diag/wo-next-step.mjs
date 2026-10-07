@@ -14,10 +14,10 @@ for (const needle of needles) {
   const ests = must(await db.from("estimates").select("id, number, title").ilike("title", `%${needle}%`).limit(5), "estimates");
   if (ests.length === 0) { console.log(`\nno estimate matched ${JSON.stringify(needle)}`); continue; }
   for (const e of ests) {
-    const wos = must(await db.from("work_orders").select("id, wo_ref, stage, stage_entered_at, walkthrough_required, wo_snapshot, colours").eq("estimate_id", e.id), "work_orders");
+    const wos = must(await db.from("work_orders").select("id, wo_ref, stage, stage_entered_at, walkthrough_required, qa_waived, wo_snapshot, colours").eq("estimate_id", e.id), "work_orders");
     if (wos.length === 0) console.log(`\n=== #${e.number} ${e.title} — no work order on this estimate`);
     for (const w of wos) {
-      console.log(`\n=== #${e.number} ${e.title} | ${w.wo_ref} | stage=${w.stage} since ${String(w.stage_entered_at).slice(0, 16)} | walkthrough_required=${w.walkthrough_required}`);
+      console.log(`\n=== #${e.number} ${e.title} | ${w.wo_ref} | stage=${w.stage} since ${String(w.stage_entered_at).slice(0, 16)} | walkthrough_required=${w.walkthrough_required} | qa_waived=${w.qa_waived}`);
       const surfaces = must(await db.from("wo_surfaces").select("heading, label, state, removed_from_scope, photos_optional").eq("work_order_id", w.id).order("sort"), "wo_surfaces");
       const working = surfaces.filter((s) => !s.removed_from_scope);
       const left = working.filter((s) => s.state !== "done");
@@ -62,7 +62,7 @@ for (const needle of needles) {
       const qaVerdict = w.stage !== "qa" ? null
         : qaFull.length === 0 ? "NO CHECK ON THIS JOB — before 20270220 this parked it for ever; with 20270220 live it routes on next view/sweep. If it still sits here, the pack gate below is the reason."
         : unlogged.length > 0 ? `${unlogged.length} quality check(s) not logged yet — tick the four standards and log PASS (or FAIL) on the job page`
-        : failsOpen.length > 0 ? `${failsOpen.length} FAILED check(s) with no re-check scheduled — the painter has to finish again (job → In progress) so the re-check is created`
+        : failsOpen.length > 0 ? `${failsOpen.length} FAILED check(s) with no re-check scheduled (logged before re-checks existed, 24 Sep) — press "Quality check not required" on the job page: with 20270221 live a waived job has nothing open and it routes on the next view/sweep (clear the waiver to put the fail back in force)`
         : vars.length > 0 ? `every check passed, but ${vars.length} variation(s) hold the pack gate: ${varDetail} — approve/decline/release them (a painter-declined one no longer holds)`
         : colourMatch.length > 0 ? `every check passed, but COLOUR MATCH CODES are still needed for ${colourMatch.join(", ")}`
         : signoff?.signed_at ? "every check passed, but the sign-off row is already signed — the close refuses (already_signed); tell whoever looks after the platform"

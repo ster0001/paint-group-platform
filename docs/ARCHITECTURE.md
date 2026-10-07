@@ -4309,3 +4309,9 @@ and `office_update_due` (`lib/automations/sweeps/customerUpdateDue.ts`, the cons
 (wo_events `client_update_note`) and `logCrmEvent(note_added, origin client_update)` on the customer's account; the timeline
 is derived from sent/approved `wo_updates` + those events. Spec `e2e/pc-painter-approval-7oct.spec.ts`; units
 `console.test.ts`, `customerUpdateDue.test.ts`.
+
+**QA waiver clears a legacy fail (7 Oct 2026, 25 Bunney Road).** WO-WNWJXGTV sat at qa from 17 Sep: its only check was
+logged FAIL before 20270196 made a fail spawn its re-check, so no `retry_of` row existed and `wo_qa_open_count` counted it
+open for ever; the 6 Oct "Quality check not required" waiver only deletes UNLOGGED checks. Migration `20270221` re-creates
+`wo_qa_open_count` with one clause: a job with `qa_waived` has nothing open (the fail stays as history). Pinned in
+`e2e/pc-painter-approval-7oct.spec.ts`; the diag names the waiver as the way out.
