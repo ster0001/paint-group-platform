@@ -10,7 +10,8 @@ const visit = {
 describe("S5 — the visit in the main calendar (R21, R32)", () => {
   it("is one hour, at the property, with the customer as a guest and a popup for the estimator only", () => {
     const e = buildPrimaryVisitEvent(visit, { email: "alex@example.com", name: "Alex Morgan" }, "https://login.paintgroup.com.au");
-    expect(e.summary).toBe("Site visit: Alex Morgan (Glen Waverley)");
+    expect(e.summary).toBe("Paint Group site visit — 12 Sample St, Glen Waverley VIC 3150");
+    expect(String(e.description)).toContain("Alex Morgan");
     expect(e.location).toBe(visit.address);
     expect(e.start).toEqual({ dateTime: visit.starts_at, timeZone: "Australia/Melbourne" });
     expect(e.end).toEqual({ dateTime: visit.ends_at, timeZone: "Australia/Melbourne" });

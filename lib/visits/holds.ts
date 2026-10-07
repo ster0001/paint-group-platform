@@ -396,7 +396,7 @@ async function notifyBooked(svc: SupabaseClient, est: EstimateCore, visitId: str
   if (error) reportError(new Error(`visits read failed: ${error.message}`), { where: "visits.holds.notifyBooked", bestEffort: true });
   const when = v ? visitWhen(v.starts_at as string, v.ends_at as string) : `${slot.dayWords}, ${slot.timeWords} to ${slot.visitEndWords}`;
   const { messaging, company } = await loadMessaging(svc);
-  const vars = { visit_when: when, address: slot.address, company_name: company.name || "Paint Group", first_name: contact.name.split(/\s+/)[0] || "there" };
+  const vars = { visit_when: when, address: slot.address, company_name: company.name || "Paint Group", company_email: company.email || "info@paintgroup.com.au", first_name: contact.name.split(/\s+/)[0] || "there" };
   await sendAutomation(svc, {
     key: "visit_booked",
     to: { phone: contact.mobile },

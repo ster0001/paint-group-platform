@@ -166,9 +166,14 @@ export default function VisitBooking(props: {
   }
 
   const summary = (s: SlotWords) => (
-    <div className="wz-summary" data-testid="visit-summary">
-      <b>{s.dayWords}, {s.timeWords} to {s.visitEndWords}</b>
-      <span>{s.address}</span>
+    <div className="wz-vcard" data-testid="visit-summary">
+      <span className="wz-vcard-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+      </span>
+      <div className="wz-vcard-text">
+        <b>{s.dayWords}, {s.timeWords} to {s.visitEndWords}</b>
+        <span>{s.address}</span>
+      </div>
     </div>
   );
   const brand = <p className="wz-kick">Your estimate</p>;
@@ -284,20 +289,25 @@ export default function VisitBooking(props: {
       <main className="wz-wrap" data-testid="visit-code">
         {brand}
         <h1>Confirm it&rsquo;s you</h1>
+        <p className="wz-sub">We have sent a 6-digit code by text to <b className="wz-vstrong">{hold.maskedMobile}</b>. Enter it to book your visit.</p>
         {summary(hold.slot)}
-        <p>We have sent a 6-digit code by text to {hold.maskedMobile}. Enter it to book your visit.</p>
-        <label className="wz-field"><span>Code from your text</span>
-          <input className="wz-numin" inputMode="numeric" maxLength={6} value={code} autoComplete="one-time-code" data-testid="visit-code-input"
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} /></label>
+        <div className="wz-vcode">
+          <label className="wz-vcode-lbl" htmlFor="visit-code-input">Code from your text</label>
+          <input id="visit-code-input" className="wz-vcode-in" inputMode="numeric" maxLength={6} value={code} autoComplete="one-time-code" placeholder="••••••" data-testid="visit-code-input"
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
+          {secondsLeft != null && (
+            <span className={`wz-vhold${secondsLeft < 120 ? " low" : ""}`} data-testid="visit-hold-clock">
+              Time held for {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}
+            </span>
+          )}
+        </div>
         {err && <p className="wz-err" role="alert" data-testid="visit-error">{err}</p>}
-        {note && <p className="wz-note" data-testid="visit-note">{note}</p>}
-        <button type="button" className="wz-btn" disabled={busy || code.length !== 6} onClick={() => void confirm()} data-testid="visit-confirm">Book my visit</button>
-        <p className="wz-chint">
+        {note && <p className="wz-vnote" data-testid="visit-note">{note}</p>}
+        <button type="button" className="wz-btn wz-bp wz-vbtn" disabled={busy || code.length !== 6} onClick={() => void confirm()} data-testid="visit-confirm">Book my visit</button>
+        <div className="wz-vlinks">
           <button type="button" className="wz-linkish" disabled={busy} onClick={() => void resend()} data-testid="visit-resend">Send a new code</button>
-          {" · "}
-          <button type="button" className="wz-linkish" disabled={busy} onClick={() => { setScreen("calendar"); setErr(""); }} data-testid="visit-code-back">Back</button>
-          {secondsLeft != null && <span style={{ marginLeft: 8, opacity: 0.7 }} data-testid="visit-hold-clock">Held for {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</span>}
-        </p>
+          <button type="button" className="wz-linkish" disabled={busy} onClick={() => { setScreen("calendar"); setErr(""); }} data-testid="visit-code-back">Choose another time</button>
+        </div>
       </main>
     );
   }
@@ -306,11 +316,19 @@ export default function VisitBooking(props: {
     return (
       <main className="wz-wrap" data-testid="visit-done">
         {brand}
-        <div className="wz-sent-status" aria-hidden="true">✓</div>
+        <div className="wz-vok" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </div>
         <h1>Your site visit is booked</h1>
+        <p className="wz-sub">We look forward to seeing you. Here is what happens next.</p>
         {summary(hold.slot)}
-        <p>We have sent the details by text, and a calendar invitation by email. We will send a reminder by text the evening before. If you need to cancel, decline the invitation or call us.</p>
-        <p className="wz-chint"><a className="wz-linkish" href={tightenHref}>Back to your estimate</a></p>
+        <ol className="wz-vnext">
+          <li><b>Confirmation by text</b><span>It has the day, the time and this address.</span></li>
+          <li><b>Calendar invitation by email</b><span>Accept it and the visit sits in your own calendar.</span></li>
+          <li><b>A reminder the evening before</b><span>By text, so you do not have to think about it until then.</span></li>
+        </ol>
+        <p className="wz-vfine">We have sent the details by text, and a calendar invitation by email. We will send a reminder by text the evening before. If you need to cancel, decline the invitation or call us.</p>
+        <a className="wz-btn wz-vbtn wz-vghost" href={tightenHref}>Back to your estimate</a>
       </main>
     );
   }
@@ -332,26 +350,30 @@ export default function VisitBooking(props: {
       {brand}
       <h1>Choose a time for your site visit</h1>
       <p>These are the times we are in {props.suburb ?? "your area"} and nearby.</p>
-      <div className="wz-chips" role="tablist" aria-label="Day" data-testid="visit-days">
+      <p className="wz-vlbl">Pick a day</p>
+      <div className="wz-vdays" role="tablist" aria-label="Day" data-testid="visit-days">
         {days.map((d, i) => {
           const s = short(d);
           return (
-            <button key={d.date} type="button" role="tab" aria-selected={i === dayIx} className={`wz-chip${i === dayIx ? " on" : ""}`} data-testid="visit-day" data-date={d.date}
+            <button key={d.date} type="button" role="tab" aria-selected={i === dayIx} className={`wz-vday${i === dayIx ? " on" : ""}`} data-testid="visit-day" data-date={d.date}
               onClick={() => { setDayIx(i); setPick(null); }}>
-              <i>{s.dow}</i> <b>{s.num}</b> <i>{s.mon}</i>
+              <i>{s.dow}</i><b>{s.num}</b><i>{s.mon}</i>
             </button>
           );
         })}
       </div>
-      <div className="wz-slots" data-testid="visit-times">
+      <p className="wz-vlbl">Pick a time{cur ? ` on ${cur.dayWords}` : ""}</p>
+      <div className="wz-vtimes" data-testid="visit-times">
         {cur?.slots.map((s) => (
-          <button key={s.startsAt} type="button" className={`wz-slot${pick?.startsAt === s.startsAt ? " on" : ""}`} aria-pressed={pick?.startsAt === s.startsAt} data-testid="visit-time" data-starts-at={s.startsAt}
+          <button key={s.startsAt} type="button" className={`wz-vtime${pick?.startsAt === s.startsAt ? " on" : ""}`} aria-pressed={pick?.startsAt === s.startsAt} data-testid="visit-time" data-starts-at={s.startsAt}
             onClick={() => setPick(s)}>{s.timeWords}</button>
         ))}
       </div>
       {err && <p className="wz-err" role="alert" data-testid="visit-error">{err}</p>}
-      <button type="button" className="wz-btn" disabled={!pick || busy || !hasContact && false} onClick={() => void book()} data-testid="visit-book">
-        {pick ? `Book ${pick.dayWords.split(" ")[0]} at ${pick.timeWords}` : "Choose a time"}
+      <button type="button" className="wz-btn wz-bp wz-vbtn wz-vbook" disabled={!pick || busy} onClick={() => void book()} data-testid="visit-book">
+        {pick
+          ? <><b>Book {pick.dayWords.split(" ")[0]} at {pick.timeWords}</b><small>We hold it for ten minutes while you confirm by text</small></>
+          : <><b>Choose a time above</b><small>Then book it here</small></>}
       </button>
       <p className="wz-chint"><button type="button" className="wz-linkish" onClick={() => setScreen("request")} data-testid="visit-none-suit">None of these suit? Request a different time</button></p>
       <p className="wz-chint">Rather not wait for a visit? <a className="wz-linkish" href={tightenHref} data-testid="visit-tighten">Tighten your price online</a></p>
