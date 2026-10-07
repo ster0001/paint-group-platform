@@ -10,6 +10,7 @@ import { isEmploymentType } from "@/lib/painters/capabilities";
 import DeleteContractor from "./DeleteContractor";
 import ContractorLogin from "./ContractorLogin";
 import ContractorMobile from "./ContractorMobile";
+import ContractorBank from "./ContractorBank";
 
 export const dynamic = "force-dynamic";
 
@@ -157,7 +158,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
             <Field label="GST" value={c.gst_registered ? "Registered" : "Not registered"} />
             <Field label="Address" value={c.address?.trim() || <span className="text-gray-400">not given</span>} />
             <Field label="Weekends" value={`Sat ${c.works_saturday ? "yes" : "no"} · Sun ${c.works_sunday ? "yes" : "no"}`} />
-            <Field label="Bank" value={c.bank_account_last4 ? `${c.bank_bsb ?? "—"} · ···· ${c.bank_account_last4}` : <span className="text-gray-400">not on file</span>} />
+            <Field label="Bank" value={<ContractorBank id={c.id} bsb={c.bank_bsb ?? null} last4={c.bank_account_last4 ?? null} />} />
             <Field label="RCTI agreement" value={c.rcti_agreement_signed_at ? `signed ${formatDMY(c.rcti_agreement_signed_at.slice(0, 10))}` : "not signed"} />
           </div>
         </section>

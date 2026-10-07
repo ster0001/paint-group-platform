@@ -55,7 +55,7 @@
       "feature": "contractors",
       "role": "staff",
       "title": "Invite a painter, open their record, and remove one who should never have been there",
-      "summary": "How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), how to add or fix their mobile, how the quality-check setting works, and when a painter can be removed rather than suspended.",
+      "summary": "How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), how to add or fix their mobile, how to reveal their bank details, how the quality-check setting works, and when a painter can be removed rather than suspended.",
       "path": "docs/help/contractors/staff.md",
       "walkthrough": null,
       "media": [],
