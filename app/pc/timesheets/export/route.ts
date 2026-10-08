@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/supabase/guards";
 import { reportError } from "@/lib/monitoring/report";
-import { payrollCsv, type PayrollRow } from "@/lib/timesheets/hours";
+import { payrollCsv, type PayrollBonusRow, type PayrollRow } from "@/lib/timesheets/hours";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +45,22 @@ export async function GET(req: Request): Promise<NextResponse> {
     workDate: r.work_date, startedAt: r.started_at, finishedAt: r.finished_at,
     breakMinutes: r.break_minutes, source: r.source, approvedAt: r.approved_at,
   }));
-  return new NextResponse(payrollCsv(rows), {
+  // Painter status Step 7 (⚑11): approved bonuses for employed painters, decided in the range.
+  const bonusRes = await supabase.from("painter_bonuses")
+    .select("decided_at, amount_cents, contractors!inner(employment_type, profiles(name)), work_orders:trigger_wo_id(wo_ref)")
+    .in("status", ["approved", "paid"]).gte("decided_at", `${from}T00:00:00+10:00`).lte("decided_at", `${to}T23:59:59+11:00`)
+    .eq("contractors.employment_type", "employee");
+  if (bonusRes.error) {
+    reportError(bonusRes.error, { where: "timesheets.export.bonuses" });
+    return new NextResponse("Unavailable", { status: 503 });
+  }
+  type BRow = { decided_at: string; amount_cents: number | null; contractors: { employment_type: string; profiles: { name: string | null } | null } | null; work_orders: { wo_ref: string } | null };
+  const bonuses: PayrollBonusRow[] = ((bonusRes.data ?? []) as unknown as BRow[]).map((b) => ({
+    painter: b.contractors?.profiles?.name?.trim() || "Employee", woRef: b.work_orders?.wo_ref ?? "",
+    decidedOn: new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(b.decided_at)),
+    amountCents: b.amount_cents ?? 0, approvedAt: b.decided_at,
+  }));
+  return new NextResponse(payrollCsv(rows, bonuses), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="paint-group-timesheets-${from}-to-${to}.csv"`,

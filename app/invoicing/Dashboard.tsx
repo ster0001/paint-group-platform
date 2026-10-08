@@ -8,7 +8,7 @@ import type { CiTone } from "@/lib/invoicing/contractorInvoiceTone";
 import type { ReadFailure } from "@/lib/invoicing/loadFailure";
 import ReadFailureNotice from "./ReadFailureNotice";
 import { fmt0, fmt2 } from "./format";
-import { approveContractorInvoiceAction, markContractorInvoicePaidAction } from "./actions";
+import { approveContractorInvoiceAction, holdFastTermsAction, markContractorInvoicePaidAction, releaseFastTermsAction } from "./actions";
 import PayablesCosts, {
   type AccuracyProp, type CostPayableRowProp, type ExpenseClaimProp, type IntakeCardProp,
   type JobPickProp, type PreapprovalProp, type ReimbursementProp, type UnmatchedMaterialProp,
@@ -62,6 +62,9 @@ export type PayableRowProp = {
   /** The job's stage from PC control — the Payables row carries it (Tom, 24 Aug). */
   stageLabel: string;
   hasPdf: boolean;
+  /** Painter status Step 7: "Green · 3 business days", "Held — reason", "Bonus", or null for default terms. */
+  termsLabel?: string | null;
+  termsKind?: "default" | "green_fast" | "held";
 };
 
 const FILTERS: { key: string; label: string }[] = [
@@ -154,6 +157,24 @@ export default function Dashboard({
     setPayMessage(null);
     startPay(async () => {
       const result = await approveContractorInvoiceAction({ contractorInvoiceId: ciId });
+      setPayMessage(result.message ?? null);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  // Painter status Step 7 (R11, ⚑23): hold / release a Green painter's fast payment terms.
+  function holdCi(ciId: string, reason: string) {
+    setPayMessage(null);
+    startPay(async () => {
+      const result = await holdFastTermsAction({ contractorInvoiceId: ciId, reason });
+      setPayMessage(result.message ?? null);
+      if (result.ok) router.refresh();
+    });
+  }
+  function releaseCi(ciId: string) {
+    setPayMessage(null);
+    startPay(async () => {
+      const result = await releaseFastTermsAction({ contractorInvoiceId: ciId });
       setPayMessage(result.message ?? null);
       if (result.ok) router.refresh();
     });
@@ -412,6 +433,7 @@ export default function Dashboard({
                     : p.company}
                   {p.rcti && <span className="chip draft" style={{ marginLeft: 8 }}>RCTI</span>}
                   {p.overdueLabel && <span className={`chip ${p.toneClass}`} style={{ marginLeft: 8 }} data-testid={`overdue-ci-${p.ciId}`}>{p.overdueLabel}</span>}
+                  {p.termsLabel && <span className={`chip ${p.termsKind === "held" ? "clay" : "draft"}`} style={{ marginLeft: 8 }} data-testid={`terms-ci-${p.ciId}`}>{p.termsLabel}</span>}
                 </div>
                 <div className="ref">{p.ref}</div>
                 <div className={`age ${p.toneClass}`}>
@@ -432,6 +454,18 @@ export default function Dashboard({
                     <button className="mini cy" disabled={payBusy}
                       onClick={() => markCiPaid(p.ciId)} data-testid={`pay-ci-${p.ciId}`}>
                       Mark paid
+                    </button>
+                  )}
+                  {/* Painter status Step 7 (R11, ⚑23): the hold puts a Green painter's fast payment back on default terms — never later. */}
+                  {p.status !== "paid" && p.termsKind === "green_fast" && (
+                    <button className="mini" disabled={payBusy} data-testid={`hold-ci-${p.ciId}`}
+                      onClick={() => { const reason = window.prompt("Why hold the fast payment? (the customer raised something…)"); if (reason && reason.trim().length >= 3) holdCi(p.ciId, reason.trim()); }}>
+                      Hold fast payment
+                    </button>
+                  )}
+                  {p.status !== "paid" && p.termsKind === "held" && (
+                    <button className="mini cy" disabled={payBusy} data-testid={`release-ci-${p.ciId}`} onClick={() => releaseCi(p.ciId)}>
+                      Release
                     </button>
                   )}
                   {p.hasPdf && (

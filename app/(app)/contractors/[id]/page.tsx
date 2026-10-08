@@ -10,6 +10,8 @@ import { isEmploymentType } from "@/lib/painters/capabilities";
 import DeleteContractor from "./DeleteContractor";
 import ContractorLogin from "./ContractorLogin";
 import ContractorMobile from "./ContractorMobile";
+import ContractorStatusPanel, { type BonusRow, type StatusRow } from "./ContractorStatusPanel";
+import { staffVisibility } from "@/lib/staff/gate";
 import ContractorBank from "./ContractorBank";
 import ContractorStandards from "./ContractorStandards";
 import { loadStandardsStatuses } from "@/lib/standards/status";
@@ -126,6 +128,23 @@ export default async function ContractorDetailPage({ params }: { params: Promise
     else email = u.user?.email ?? null;
   }
 
+  // Painter status Step 7: the colour, the Red clearance and the bonus reviews (owner / admin / PC read the amounts).
+  const [authRes, statusRes, bonusRes, rulesRes] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("painter_status").select("colour, line, streak, bonus_counter, offers_cleared_at, offers_cleared_reason, computed_at").eq("painter_id", id).maybeSingle(),
+    supabase.from("painter_bonuses").select("id, status, triggered_at, handed_over_at, suggested_cents, amount_cents, decided_at, note, qualifying_changed_at, qualifying_wo_ids, payment_ref").eq("painter_id", id).order("triggered_at", { ascending: false }),
+    supabase.from("settings").select("value").eq("key", "painter_status_rules").maybeSingle(),
+  ]);
+  if (statusRes.error) { reportError(statusRes.error, { where: "contractorDetail.status" }); failures.push("painter status"); }
+  if (bonusRes.error) { reportError(bonusRes.error, { where: "contractorDetail.bonuses" }); failures.push("bonus reviews"); }
+  if (rulesRes.error) reportError(rulesRes.error, { where: "contractorDetail.rules", bestEffort: true });
+  const isOwner = authRes.data.user ? (await staffVisibility(supabase, authRes.data.user.id)).isOwner : false;
+  const st = statusRes.data as { colour: string; line: string; streak: number; bonus_counter: number; offers_cleared_at: string | null; offers_cleared_reason: string; computed_at: string } | null;
+  const statusRow: StatusRow | null = st ? { colour: st.colour, line: st.line, streak: st.streak, bonusCounter: st.bonus_counter, clearedAt: st.offers_cleared_at, clearedReason: st.offers_cleared_reason, computedAt: st.computed_at } : null;
+  const bonuses: BonusRow[] = ((bonusRes.data ?? []) as { id: string; status: BonusRow["status"]; triggered_at: string; handed_over_at: string | null; suggested_cents: number; amount_cents: number | null; decided_at: string | null; note: string; qualifying_changed_at: string | null; qualifying_wo_ids: unknown; payment_ref: string }[])
+    .map((b) => ({ id: b.id, status: b.status, triggeredAt: b.triggered_at, handedOverAt: b.handed_over_at, suggestedCents: b.suggested_cents, amountCents: b.amount_cents, decidedAt: b.decided_at, note: b.note, qualifyingChangedAt: b.qualifying_changed_at, qualifyingCount: Array.isArray(b.qualifying_wo_ids) ? b.qualifying_wo_ids.length : 0, paymentRef: b.payment_ref }));
+  const approvalsOn = ((rulesRes.data as { value?: { bonusApprovalsEnabled?: unknown } } | null)?.value?.bonusApprovalsEnabled) === true;
+
   const docs = ((docsRes.error ? [] : docsRes.data ?? []) as ContractorDoc[]);
   const offers = (offersRes.error ? [] : offersRes.data ?? []) as { state: string }[];
   const invoices = (invoicesRes.error ? [] : invoicesRes.data ?? []) as { id: string; number: string | null; status: string; total_inc_cents: number; created_at: string }[];
@@ -204,6 +223,8 @@ export default async function ContractorDetailPage({ params }: { params: Promise
           )}
         </section>
       </div>
+
+      <ContractorStatusPanel painterId={id} status={statusRow} bonuses={bonuses} isOwner={isOwner} approvalsOn={approvalsOn} employee={employmentType === "employee"} />
 
       <section className="mt-4 rounded-lg border border-gray-200 bg-white p-4" data-testid="card-qa">
         <h2 className="text-sm font-semibold">

@@ -189,10 +189,16 @@ export default async function InvoicingDashboardPage({
       const stage = c.work_orders?.stage as WoStage | undefined;
       // Tom, 20 Sep: colour by what is outstanding for payment — one decision, server-side.
       const tone = contractorInvoiceTone({ status: c.status, dueOn: c.due_on }, today);
+      // Painter status Step 7 (R11, ⚑23): a Green painter's fast terms, or the PC's hold on them.
+      const termsLabel = c.auto_draft_source === "bonus" ? "Bonus"
+        : c.terms_kind === "green_fast" ? "Green · 3 business days"
+        : c.terms_kind === "held" ? `Held — ${c.terms_hold_reason || "no reason"}` : null;
       return {
         ciId: c.id,
         estimateId: c.work_orders?.estimate_id ?? null,
         company: c.contractors?.company_name ?? "Contractor",
+        termsLabel,
+        termsKind: c.terms_kind ?? "default",
         tone: tone.tone,
         toneClass: tone.className,
         overdueLabel: tone.overdueLabel,

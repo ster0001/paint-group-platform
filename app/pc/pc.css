@@ -312,3 +312,9 @@
 .pc[data-theme="light"] .draft{background:rgba(255,255,255,.75)}
 .pc[data-theme="light"] .drip{box-shadow:0 0 18px rgba(14,140,156,.22)}
 .pc[data-theme="light"] .avatar{background:#FFFFFF}
+
+/* Painter status Step 7: the traffic light on a lane / a re-offer target, as a word with its dot. */
+.pc .stl { display: inline-flex; align-items: center; gap: 5px; font: 600 10px/1 var(--mono, ui-monospace, monospace); letter-spacing: .04em; padding: 3px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.pc .stl::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--stl, #888); }
+.pc .stl-green { --stl: #2fd07a; color: #2fd07a; } .pc .stl-yellow { --stl: #f2d23c; } .pc .stl-orange { --stl: #f58a2d; color: #f58a2d; }
+.pc .stl-red { --stl: #ea4b45; color: #ea4b45; border-color: rgba(234, 75, 69, .5); } .pc .stl-new { --stl: #5c9bf7; }

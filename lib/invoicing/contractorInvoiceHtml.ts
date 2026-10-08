@@ -54,7 +54,7 @@ export function buildContractorInvoiceHtml(opts: {
           .format(new Date(iso.slice(0, 10) + "T00:00:00Z"))
       : "";
   const deductions = (opts.deductionLines ?? []).filter((d) => (d.cents ?? 0) > 0);
-  const isClaim = opts.source === "claim";
+  const isClaim = opts.source === "claim" || opts.source === "bonus";
 
   const customLines = (opts.customLines ?? []).filter((l) => (l.cents ?? 0) > 0);
   const lines = isClaim

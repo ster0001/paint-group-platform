@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { reportError } from "@/lib/monitoring/report";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue, headline, pulseTiles, sparkline, variationsForApproval } from "@/lib/workorder/console";
 import DismissCard from "./DismissCard";
 import ReofferDialog from "./ReofferDialog";
+import BonusHandover from "./BonusHandover";
+import QueueDismiss from "./QueueDismiss";
 import CollectionDone from "./CollectionDone";
 import CheckinDone from "./CheckinDone";
 import StandardsRemind from "./StandardsRemind";
@@ -41,10 +44,19 @@ export default async function DashboardPage() {
   const defaultReofferStart = new Date(input.now.getTime() + 7 * 86_400_000)
     .toISOString().slice(0, 10);
 
-  const { data: offerable } = await supabase
-    .from("contractors").select("id, company_name").eq("offerable", true).eq("active", true);
+  const [{ data: offerable }, { data: statusRows, error: statusErr }] = await Promise.all([
+    supabase.from("contractors").select("id, company_name").eq("offerable", true).eq("active", true),
+    supabase.from("painter_status").select("painter_id, colour, offers_cleared_at"),
+  ]);
+  // Painter status Step 7 (⚑7, ⚑8): Green first, then Yellow and New, then Orange; a Red
+  // with no clearance is left out — send_offer would refuse them.
+  if (statusErr) reportError(statusErr, { where: "pc.reoffer.status", bestEffort: true }); // targets then carry no colour; send_offer still refuses a Red
+  const statusOf = new Map(((statusRows ?? []) as { painter_id: string; colour: string; offers_cleared_at: string | null }[]).map((r) => [r.painter_id, r]));
+  const rank: Record<string, number> = { green: 0, yellow: 1, new: 1, orange: 2, red: 3 };
   const targets = ((offerable ?? []) as { id: string; company_name: string }[])
-    .map((c) => ({ id: c.id, name: c.company_name || "Unnamed contractor" }));
+    .filter((c) => !(statusOf.get(c.id)?.colour === "red" && !statusOf.get(c.id)?.offers_cleared_at))
+    .map((c) => ({ id: c.id, name: c.company_name || "Unnamed contractor", colour: statusOf.get(c.id)?.colour ?? null }))
+    .sort((a, b) => (a.colour ? rank[a.colour] ?? 1 : 1) - (b.colour ? rank[b.colour] ?? 1 : 1) || a.name.localeCompare(b.name));
   // What came back from site, newest first, across every job. Staff RLS scopes
   // the read; the bucket is private, so the URLs are signed here and live an
   // hour. Capped at 24 — this is a glance at the day, not an archive.
@@ -203,6 +215,26 @@ export default async function DashboardPage() {
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`callback-card-open-${item.key}`}>{item.action.label}</Link>
               {item.kind === "walkthrough_flagged" && <CheckinDone itemKey={item.key} accountId={null} />}
+            </div>
+          ) : item.kind === "painter_red" || item.kind === "painter_orange" || item.kind === "bonus_due" || item.kind === "bonus_changed" || item.kind === "payment_hold" ? (
+            // Painter status Step 7 (brief §8): one card per trigger, one primary action.
+            <div className={`al ${item.kind === "painter_red" || item.kind === "painter_orange" ? "al-crit" : item.kind === "bonus_due" ? "al-info" : "al-warn"}`} key={item.key}
+              data-testid={`status-card-${item.key}`} data-kind={item.kind}>
+              <span className="rail" />
+              <span className="ic">{item.kind.startsWith("painter_") ? "●" : item.kind.startsWith("bonus_") ? "★" : "⏸"}</span>
+              <div className="bd">
+                <div className="hd">
+                  <strong>{item.title}</strong>
+                  <span className="ref">{item.kind.startsWith("painter_") ? "Painter" : item.kind.startsWith("bonus_") ? "Bonus" : "Payment hold"} · {dueWord(item)}</span>
+                </div>
+                <p>{item.detail}</p>
+              </div>
+              <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
+              {item.kind === "bonus_due"
+                ? <BonusHandover bonusId={item.key.split(":").pop() ?? ""} painterId={item.subjectRef.id} itemKey={item.key} href={item.action.href} />
+                : <Link className="btn primary" href={item.action.href} data-testid={`status-card-open-${item.key}`}>{item.action.label}</Link>}
+              {item.kind === "painter_orange" && <QueueDismiss itemKey={item.key} label="Rang them" reason="Rang the painter about their Orange status (PC Command)" />}
+              {item.kind === "bonus_changed" && <QueueDismiss itemKey={item.key} label="Reviewed" reason="Reviewed the changed qualifying job (PC Command)" />}
             </div>
           ) : item.kind === "standards_unsigned" ? (
             // Standards Step 2 (brief §8): a painter past the grace period who has

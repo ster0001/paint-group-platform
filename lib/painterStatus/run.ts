@@ -6,6 +6,7 @@ import { estimatedHours } from "@/lib/workorder/hours";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { evaluatePainter, mergeStatusRules, type Colour, type JobFacts, type PainterFacts, type StatusRules } from "./evaluate";
 import { notifyStatusChanged } from "./notify";
+import { staffBonusReview, staffPainterRed } from "@/lib/staff/notify";
 
 /**
  * Facts in, rows out (brief Step 5). SERVER ONLY — the service client or a
@@ -136,6 +137,18 @@ export async function runPainterStatus(db: SupabaseClient, painterId: string, no
     const prev = asColour(s.split(":")[3]?.split(">")[0] ?? "");
     if (prev && prev !== e.colour && (await statusVisibleToPainters(db))) {
       await notifyStatusChanged(db, painterId, prev, e.colour, facts.employmentType === "employee");
+    }
+    // Step 7, message 9: the owner hears about a Red the moment it is written (once per drop) …
+    if (prev && prev !== "red" && e.colour === "red") {
+      const { data: ev, error: evErr } = await db.from("contractor_events").select("id").eq("contractor_id", painterId).eq("type", "status_changed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (evErr) reportError(evErr, { where: "painterStatus.redAlert", bestEffort: true });
+      else if (ev) await staffPainterRed(db, painterId, (ev as { id: string }).id);
+    }
+    // … and about every bonus review the writer just raised (the card and the message are the same moment).
+    if (Number(s.split(":")[4] ?? "0") > 0) {
+      const { data: due, error: dErr } = await db.from("painter_bonuses").select("id").eq("painter_id", painterId).eq("status", "due").is("handed_over_at", null);
+      if (dErr) reportError(dErr, { where: "painterStatus.bonusAlert", bestEffort: true });
+      for (const b of (due ?? []) as { id: string }[]) await staffBonusReview(db, b.id);
     }
     return { painterId, ok: true, colour: e.colour, written: s };
   } catch (err) {

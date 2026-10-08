@@ -42,6 +42,7 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   job_checkin: "Check-in", job_followup: "Follow-up", standards_unsigned: "Standards",
   walkthrough_flagged: "Walk-through", callback_unbooked: "Call back", callback_visit_soon: "Call back", callback_fixed: "Call back",
   hold_pending: "Held dates",
+  painter_orange: "Painter", painter_red: "Painter", bonus_due: "Bonus", bonus_changed: "Bonus", payment_hold: "Payment hold",
   unmapped_suburb: "Suburb",
   visit_request: "Request",
   holidays_next_year: "Holidays",

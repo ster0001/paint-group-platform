@@ -641,3 +641,22 @@ export async function pauseRemindersAction(raw: unknown): Promise<InvoicingResul
   revalidatePath("/invoicing");
   return { ok: true, message: reason ? "Reminders paused for this invoice." : "Reminders resumed." };
 }
+
+// ---- Painter status Step 7 (R11, ⚑23): the hold on a Green painter's fast payment ----
+
+export async function holdFastTermsAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({ contractorInvoiceId: uuid, reason: z.string().trim().min(3).max(500) }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Say why in a few words first." };
+  const result = await call("contractor_invoice_hold_fast_terms", { p_id: p.data.contractorInvoiceId, p_reason: p.data.reason }, {},
+    "Held — back on the default terms, never later than them. Release it when the customer's point is settled.");
+  if (result.ok) { revalidatePath("/pc"); revalidatePath("/portal/money"); }
+  return result;
+}
+
+export async function releaseFastTermsAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({ contractorInvoiceId: uuid }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+  const result = await call("contractor_invoice_release_fast_terms", { p_id: p.data.contractorInvoiceId }, {}, "Released — back on the Green 3-business-day terms.");
+  if (result.ok) { revalidatePath("/pc"); revalidatePath("/portal/money"); }
+  return result;
+}

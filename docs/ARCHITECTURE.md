@@ -4551,3 +4551,33 @@ the crew employee, the switch). Help: painter-status contractor/employee. Invent
 **Fill from work order admits an untouched in_progress job (1 Oct 2026).** `20270208000000_import_set_scope_in_progress.sql` re-creates `import_booked_job_set_scope` with `in_progress` in its stage check; the worked-rows guard (any tick or rectification → `skip:worked`) is the refusal that matters and is unchanged. Prompted by 74 Champion St (quote 3666), moved to in_progress before its hours arrived.
 
 **Fill from work order: `--for` and `--area` (1 Oct 2026).** `scripts/import/fill-work-order.ts --for <pageQuote>=<jobQuote>` fills the job handed over under one PaintScout quote number from a work order printed under another (9/552 Lonsdale St: job 3083, work order 3096); `external_ref.work_order_quote_no` records the page's quote. `--area <woArea>=<quoteArea>` (`FillOptions.areaAliases` in `lib/import/booked/fill.ts`) lets a work-order area with no same-named price take a named quote area's price — an explicit alias wins over a same-named block, so a refill is not fooled by the $0 block an earlier fill wrote, and a leftover $0 block is dropped. Unit-pinned in `fill.test.ts`.
+
+**What the colour changes — offers, payment terms, bonus (8 Oct 2026 — standards / status / call backs brief, Step 7).**
+`20270230000000_status_offers_payment_bonus.sql`. **Red (⚑8):** `painter_status` gains `offers_cleared_at/by/reason`;
+`painter_offers_blocked(painter)` is true for a Red with no clearance; `painter_clear_red(painter, reason)` (owner only,
+`has_dashboard_role('owner')`) records "Spoken with, offers allowed" and the `red_clearance_given` event; the writer
+resets the clearance when the colour next changes. The block lives in `send_offer` (`error:red_no_clearance`), in the
+`booking_offers` insert trigger (the last line of defence) and in a new `wo_assignments` trigger on `is_lead`, so
+`set_lead_painter` and `assign_job` refuse a Red employee as lead the same way. The board sorts lanes Green → Yellow/New →
+Orange → Red (`STATUS_ORDER` in `lib/scheduling/board.ts`) and shows the colour in words on every lane; the re-offer
+picker sorts the same way and leaves an uncleared Red out. **Payment terms (R11, ⚑14, ⚑23):** `business_days_after(date, n)`
+counts Monday–Friday less `visit_booking_rules.publicHolidays`; `contractor_invoice_draft` reads the painter's colour AT
+sign-off — Green → `due_on` = 3 business days after the signed day (`painter_status_rules.greenTermsBusinessDays`),
+`terms_kind 'green_fast'`; otherwise the default `contractorTermsDays`. `contractor_invoice_hold_fast_terms(ci, reason)`
+(staff) puts that one invoice on the default date — never later — with `terms_kind 'held'` and a `payment_terms_held`
+event; `contractor_invoice_release_fast_terms` puts the fast date back. Payables shows the terms chip and the Hold /
+Release buttons (`app/invoicing/Dashboard.tsx`); the `payment_hold` queue card says release or keep. **Bonus (⚑9, ⚑13; Tom
+8 Oct on payment):** `bonus_hand_over(id)` (PC's "Tell Tom": due → with_owner), `bonus_decide(id, approve, amount_cents,
+note)` (owner; approve refuses with `error:approvals_off` while `painter_status_rules.bonusApprovalsEnabled` is false —
+ships OFF until ⚑10/⚑11), `bonus_claim(id)` (the contractor: raises a SUBMITTED `contractor_invoices` row,
+`auto_draft_source 'bonus'`, one line, `claimed_ex_cents 0` so it never eats the job's remainder, GST by registration; the
+normal approve → pay → remittance path follows and `t_contractor_invoice_bonus_paid` marks the bonus paid). A painter reads
+their own approved/paid bonuses (`painter_bonuses_own`) and nothing else; owner/admin/PC read all; customers none. Screens:
+`ContractorStatusPanel` on `/contractors/[id]` (colour, Red clearance form for the owner, bonus reviews with Tell Tom /
+amount / Approve / Decline), `BonusClaimCard` on the painter's Money tab (amount + Claim now; an employed lead reads "next
+pay run"), five PC queue cards (`painter_orange`, `painter_red`, `bonus_due`, `bonus_changed`, `payment_hold` in
+`lib/crm/work-queue.ts` `buildPainterStatusItems`, PC-homed; Orange and changed-review cards dismiss through the one
+`crm_dismiss_work_item`). Messages: `contractor_bonus_approved` (message 8 — the amount and how it is paid, two wordings),
+`office_bonus_review` and `office_painter_red` (message 9 — owner alerts via `STAFF_EVENTS`, sent from the evaluator run).
+Payroll: `payrollCsv(rows, bonuses)` adds a `bonus_cents` column and one row per approved employee bonus decided in the
+range (⚑11) — the only money on that file. Spec: `e2e/status-offers-payment-bonus.spec.ts`.

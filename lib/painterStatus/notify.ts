@@ -35,3 +35,25 @@ export async function notifyStatusChanged(service: SupabaseClient, painterId: st
     return "error";
   }
 }
+
+/** Message 8 (brief §9; Tom 8 Oct 2026): the owner approved a bonus — the amount, and how it is paid. */
+export async function notifyBonusApproved(service: SupabaseClient, painterId: string, bonusId: string, amountCents: number, employee: boolean): Promise<string> {
+  try {
+    const { messaging, company } = await loadMessaging(service);
+    const c = await contactFor(service, painterId);
+    const amount = "$" + (amountCents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const vars = { first_name: c.firstName, company_name: company.name || "Paint Group", amount, link: `${siteUrl()}/portal/money` };
+    const out = await sendAutomation(service, {
+      key: "contractor_bonus_approved", to: { phone: c.phone },
+      sms: { body: renderTemplate(employee ? messaging.bonusApprovedEmployeeSms : messaging.bonusApprovedSms, vars) },
+      ctx: { kind: "bonus_approved" }, contractorId: painterId,
+    });
+    const word = outcomeWord(out);
+    const { error } = await service.from("contractor_events").insert({ contractor_id: painterId, type: "bonus_approved_sent", detail: { bonus_id: bonusId, outcome: word } });
+    if (error) reportError(error, { where: "painterStatus.notify.bonus", bestEffort: true });
+    return word;
+  } catch (e) {
+    reportError(e, { where: "painterStatus.notifyBonus", extra: { painterId, bonusId } });
+    return "error";
+  }
+}

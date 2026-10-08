@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { reofferJob } from "./actions";
 
-export type ReofferTarget = { id: string; name: string };
+export type ReofferTarget = { id: string; name: string; colour?: string | null };
 
 /**
  * Reoffer — a real action with a human in it, per Tom's ruling.
@@ -50,7 +50,7 @@ export default function ReofferDialog({
       <label className="fld">
         To
         <select value={to} onChange={(e) => setTo(e.target.value)} data-testid={`reoffer-to-${offerId}`}>
-          {contractors.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {contractors.map((c) => <option key={c.id} value={c.id}>{c.name}{c.colour ? ` — ${c.colour[0].toUpperCase()}${c.colour.slice(1)}` : ""}</option>)}
         </select>
       </label>
       <label className="fld">

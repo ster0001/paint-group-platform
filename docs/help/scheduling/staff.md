@@ -31,6 +31,11 @@ The scheduling board is where an accepted job gets a painter and dates. Every is
 6. Click the block at any time to see its details: dates, reference, price, finish and **Expires in**. From here you can **Cancel this offer** with a reason, which returns the job to the tray, or **Open the job — stage view**.
    ![](media/staff-04.png)
 
+### Who to offer it to: the traffic light on every lane
+1. Every lane carries the painter's status in words — **GREEN**, **YELLOW**, **NEW**, **ORANGE**, **RED** — and the lanes are in that order, Green first (Yellow and New together). You still choose; nothing is offered automatically.
+2. **RED · NO OFFERS** means an offer to them will be refused until the owner records "Spoken with, offers allowed" on their page (Contractors → name → Status and bonus). The re-offer picker on PC Command leaves them out for the same reason.
+3. A Red employed painter cannot be set as lead on a new job either — same clearance.
+
 ### When the contractor proposes a different date
 7. A proposal appears at the top of the tray under **Needs your decision**, with the contractor's name, **PROPOSED A NEW DATE**, the date they want and their note. Ring the customer first, then tap **Approve** or **Reject**. The amber countdown on this card is your clock, not theirs; it turns red when overdue.
    ![](media/staff-05.png)

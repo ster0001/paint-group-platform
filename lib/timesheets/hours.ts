@@ -64,13 +64,17 @@ const csvCell = (v: string | number) => {
  * The payroll CSV: approved entries only, hours only. No rate, no pay, no
  * cost column — payroll/MYOB owns the money side (brief §3.8).
  */
-export function payrollCsv(rows: readonly PayrollRow[]): string {
-  const head = ["painter", "job", "date", "start", "finish", "break_minutes", "hours", "source", "approved_at"];
+/** Painter status Step 7 (⚑11): an employed lead's approved bonus rides the payroll CSV — recorded here, paid by payroll. */
+export type PayrollBonusRow = { painter: string; woRef: string; decidedOn: string; amountCents: number; approvedAt: string };
+
+export function payrollCsv(rows: readonly PayrollRow[], bonuses: readonly PayrollBonusRow[] = []): string {
+  const head = ["painter", "job", "date", "start", "finish", "break_minutes", "hours", "source", "approved_at", "bonus_cents"];
   const lines = rows.map((r) => [
     r.painter, r.woRef, r.workDate, melbourneClock(r.startedAt), melbourneClock(r.finishedAt),
-    r.breakMinutes, (workedHours(r.startedAt, r.finishedAt, r.breakMinutes) ?? 0).toFixed(2), r.source, r.approvedAt,
+    r.breakMinutes, (workedHours(r.startedAt, r.finishedAt, r.breakMinutes) ?? 0).toFixed(2), r.source, r.approvedAt, "",
   ].map(csvCell).join(","));
-  return [head.join(","), ...lines].join("\n") + "\n";
+  const bonusLines = bonuses.map((b) => [b.painter, b.woRef, b.decidedOn, "", "", 0, "0.00", "bonus", b.approvedAt, b.amountCents].map(csvCell).join(","));
+  return [head.join(","), ...lines, ...bonusLines].join("\n") + "\n";
 }
 
 /** Allocated hours from the frozen document — the same sum employee_jobs() shows the painter. */

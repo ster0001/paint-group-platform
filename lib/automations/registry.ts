@@ -100,6 +100,7 @@ const P = {
   jobUpdate: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{day_label}}", "{{link}}"],
   standards: ["{{first_name}}", "{{company_name}}", "{{link}}", "{{version}}"],
   status: ["{{first_name}}", "{{company_name}}", "{{colour}}", "{{link}}"],
+  bonus: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{link}}"],
   callback: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{day}}", "{{what}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
@@ -434,6 +435,16 @@ export const AUTOMATIONS: Automation[] = [
     ],
     guard: "Once per change — the writer RPC diffs before it reports one, and the text goes only when the colour it reports differs from the colour it replaced.",
   },
+  {
+    key: "contractor_bonus_approved", name: "Painter bonus — approved", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "bonus_approved", capExempt: true,
+    trigger: "The owner approves a bonus review on the painter's page (Step 7). Tom, 8 Oct 2026: the text names the amount — a contractor claims it in the app (the claim raises a contractor invoice through the normal channel); an employed lead is told it goes on the next pay run.",
+    templates: [
+      { field: "bonusApprovedSms", label: "Text — contractor (claim it)", kind: "sms", placeholders: P.bonus },
+      { field: "bonusApprovedEmployeeSms", label: "Text — employed lead (next pay run)", kind: "sms", placeholders: P.bonus },
+    ],
+    guard: "Once per bonus — the decision itself is once.",
+  },
   // ---- Finish standards (brief: standards / status / call backs, Step 2) -----
   {
     key: "contractor_standards_invite", name: "Finish standards — please read and confirm", audience: "painter", channels: ["sms", "email"], kind: "manual",
@@ -618,6 +629,26 @@ export const AUTOMATIONS: Automation[] = [
       { field: "officeUpdateDueBody", label: "Message", kind: "body", placeholders: ["{{job}}", "{{wo_ref}}", "{{hours_line}}", "{{link}}"] },
     ],
     guard: "Once per job per day while it is due.",
+  },
+  {
+    key: "office_bonus_review", name: "Painter bonus review due", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: false, capExempt: true,
+    trigger: "Painter status Step 7 (brief §8, §9 message 9): the evaluator raises a bonus review — four clean jobs of 16 hours or more while Green. Sent the moment the PC card appears, so it never waits on the PC remembering. Route it to the owner under Staff logins.",
+    templates: [
+      { field: "officeBonusReviewSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{count}}", "{{link}}"] },
+      { field: "officeBonusReviewBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{count}}", "{{link}}"] },
+    ],
+    guard: "Once per review.",
+  },
+  {
+    key: "office_painter_red", name: "Painter dropped to Red", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: false, capExempt: true,
+    trigger: "Painter status Step 7 (brief §8): a painter's colour becomes Red. No new offers until the owner records the clearance on their page.",
+    templates: [
+      { field: "officePainterRedSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{line}}", "{{link}}"] },
+      { field: "officePainterRedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{line}}", "{{link}}"] },
+    ],
+    guard: "Once per drop (keyed on the status-change event).",
   },
   {
     key: "office_contractor_invoice", name: "Contractor invoice submitted", audience: "office", channels: ["email", "sms"], kind: "automatic",

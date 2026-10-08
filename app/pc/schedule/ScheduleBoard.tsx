@@ -1418,6 +1418,13 @@ export default function ScheduleBoard({
                           ) : (
                             <span className={l.offerable ? "q" : "no"}>{l.offerable ? "READY" : "NOT READY"}</span>
                           )}
+                          {/* Painter status Step 7 (⚑7, R19): the light, in words, on every lane. */}
+                          {l.statusColour && (
+                            <span className={`stl stl-${l.statusColour}`} data-testid={`lane-status-${l.contractorId}`} data-colour={l.statusColour}
+                              title={l.offersBlocked ? "Red — no new offers until Tom records the clearance" : `Status: ${l.statusColour}`}>
+                              {l.offersBlocked ? "RED · NO OFFERS" : l.statusColour.toUpperCase()}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="tg">TIER {l.tier}{l.company ? ` · ${l.company.toUpperCase()}` : ""}</div>
