@@ -95,6 +95,8 @@ On a job that came to us from PaintScout these are often the only photos of the 
 
 They are separate from your own photos: your before, progress and completion shots stay under **Site photos** and are yours. Nothing you upload appears in **From the office**. The same section is on the crew link you hand to your painters, so they see the office's photos without needing your login.
 
+Above the materials, **Further instructions for the crew** is the office's note for this job — access, where to start, anything to watch for. The office can update it after the job has gone out, and the job sheet always shows the latest version, so look again before you start.
+
 ## What the colours and labels mean
 - **TO DO / PREPPED / DONE** on a row — not started (grey), prepped (cyan), finished (green).
 - **PG-2 Utility / PG-3 Premium / PG-4 Showcase** at the top of the job sheet — the standard this job is being done to, and what the walkthrough judges the work against. Tap it for the prep and the acceptance test at that level. An area shown with its own level beside it is a deliberate exception and overrides the job's. The office can correct the level after a job has gone out, so if it changes between the offer and the start, the new one is what you are held to — the job sheet always shows the current standard.

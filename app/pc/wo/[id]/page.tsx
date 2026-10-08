@@ -25,6 +25,7 @@ import RebuildTicks from "./RebuildTicks";
 import SetDeduction from "./SetDeduction";
 import MaterialsCard, { type MaterialRowProp } from "./MaterialsCard";
 import FinishLevelCard from "./FinishLevelCard";
+import CrewNotesCard from "./CrewNotesCard";
 import ClientUpdates, { type ClientTimelineEntry } from "./ClientUpdates";
 import ReferencePhotosCard from "./ReferencePhotosCard";
 import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
@@ -48,7 +49,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_id, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_id, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, crew_notes, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
@@ -57,6 +58,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     contractor_payment_cents: number | null; start_date: string | null; end_date: string | null;
     qa_required: boolean | null; qa_waived: boolean | null; walkthrough_required: boolean | null;
     colours: Record<string, { status?: string; match?: { code?: string; brand?: string; canSize?: string; by?: string } }> | null;
+    crew_notes: string | null;
     wo_snapshot: { jobTitle?: string; jobAddress?: string } | null;
     contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
     estimates: { total_cents: number | null; deposit_paid_at: string | null } | null;
@@ -641,6 +643,20 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               variationsWaiting: variations.filter((v) => v.status === "raised" || v.status === "priced" || v.status === "customer_approved").length,
               areas: headings,
             } : null}
+          />
+
+          {/* Further instructions for the crew (Tom, 8 Oct): the builder's
+              work-order note, written here too. work_orders.crew_notes is the
+              one place it lives; the issued sheet follows it (20270244). A
+              blank column shows what the sheet already says rather than an
+              empty box over a sheet that carries a note. */}
+          <CrewNotesCard
+            workOrderId={id}
+            notes={(row.crew_notes ?? "") || (snapshotDoc?.crewNotes ?? "")}
+            sheetNotes={snapshotDoc && (row.crew_notes ?? "") !== ""
+              && (snapshotDoc.crewNotes ?? "") !== (row.crew_notes ?? "")
+              ? (snapshotDoc.crewNotes ?? "") : null}
+            canEdit={row.stage !== "closed"}
           />
 
           {/* Colour matches (Tom, 23 Aug): flagged by the estimator or opened by

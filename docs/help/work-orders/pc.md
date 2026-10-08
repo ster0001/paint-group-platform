@@ -68,6 +68,20 @@ Two things it deliberately does not do. **It does not change the price** — the
 
 The card disappears once a job is closed — a closed job's sheet is final.
 
+### Further instructions for the crew
+The **Further instructions for the crew** card on the job page is the note at the top of the painter's work order — the key under the mat, which side to start on, the neighbour who needs warning. It is the same note as the box on the builder's work-order tab: write it in either place and the other shows it.
+
+Type the instructions and press **Save to the work order**. The card says "Saved — the work order carries the new instructions." From then on the painter's job-sheet link, the crew link and their portal job page all show the new text the next time they open it. The painter is not sent a message about the change, so ring them if it matters today.
+
+Clear the box and save to take the note off the sheet altogether.
+
+If the card shows an amber line, "The painter's sheet currently says: …", the note was edited in the builder after the job went out and the painter never got it. Check the text in the box and press **Save to the work order** to send that version.
+
+The card is read-only once a job is closed — a closed job's sheet is final.
+
+### Changing a colour from our colour list
+On the **Materials** card, **Adjust colour / litres** opens the row. **Choose a saved colour** opens our colour list, the same one the estimator uses in the builder: search by name or tap a brand, then pick a colour. That fills in the colour name and swatch. You can still type a colour name or hex by hand for anything that is not on the list, or use **+ Add a colour** to add it to the list for next time. Press **Save to job sheet** to send the colour to the painter's sheet.
+
 ### Variations for approval
 The Dashboard's second section, **Variations for approval**, lists every open variation across every job: the ones **waiting on you** (raised, no price yet — amber, **Price it**) first, then those priced and waiting on the customer, then those the customer has approved and the painter has not yet accepted. The heading counts them ("3 open · 1 waiting on you"); each row names the category, the amount once priced, the job and the painter's words, and opens the variation on the job page. A declined, cancelled or accepted variation leaves the list on its own.
 
