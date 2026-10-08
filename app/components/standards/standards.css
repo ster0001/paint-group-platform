@@ -173,3 +173,21 @@
   padding: 10px 12px;
   font-size: 13px;
 }
+
+/* "What we expect on this job" — one card at the top of the work order (Tom, 9 Oct 2026). */
+.std.wwe { gap: 8px; margin: 12px 0; padding: 14px; border-radius: 14px; border: 1px solid var(--line, #242b32); background: var(--raised, #171c21); }
+.std.wwe .wwe-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.std.wwe .wwe-intro { color: var(--muted, #8c959d); font-size: 13px; }
+.std.wwe .wwe-list { display: flex; flex-direction: column; gap: 6px; }
+.std.wwe .wwe-item { border: 1px solid var(--line, #242b32); border-radius: 10px; background: var(--graphite, #12161a); }
+.std.wwe .wwe-item > summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; list-style: none; font-size: 14px; }
+.std.wwe .wwe-item > summary::-webkit-details-marker { display: none; }
+.std.wwe .wwe-item > summary::after { content: "+"; font-family: var(--mono, ui-monospace, monospace); color: var(--muted, #8c959d); }
+.std.wwe .wwe-item[open] > summary::after { content: "–"; }
+.std.wwe .wwe-name { min-width: 0; }
+.std.wwe .wwe-meta { flex: none; font-size: 12px; color: var(--muted, #8c959d); }
+.std.wwe .wwe-body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.std.wwe .wwe-every { font-size: 13px; }
+.std.wwe .wwe-every .std-eyebrow { margin-right: 6px; }
+.std.wwe .wwe-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+@media print { .std.wwe .wwe-item { break-inside: avoid; } .std.wwe .wwe-item > summary::after { display: none; } }

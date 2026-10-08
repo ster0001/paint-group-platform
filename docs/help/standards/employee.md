@@ -24,8 +24,8 @@ The level on your job sheet (Level 2, 3 or 4) tells you how much preparation to 
 5. Nothing is blocked for an employed painter, but please confirm within the week; the reminder texts stop the moment you do.
 
 ### From a job
-1. Open **Jobs** and tap the job. Under each surface in **Scope & ticks**, and under each line in the job sheet below, there is a **What we expect ›** link. A line with no finish standard (gutters, a set-up line) shows nothing.
-2. Tap **What we expect ›**. The surface opens at **this job's level** and says so in a blue pill, for example **Level 3 on this job**. Read **Every level** first, then the rows for your level.
+1. Open **Jobs** and tap the job. Near the top is one card, **What we expect on this job**: every line in the scope that has a finish standard, with the job's level. A line with no finish standard (gutters, a set-up line) shows nothing.
+2. Tap a line to open it in place — **Every level** first, then the rows for this job's level. **Open the full standard ›** shows that surface on its own page, locked to the level, for example **Level 3 on this job**. Read **Every level** first, then the rows for your level.
 3. Tap **See other levels ›** to compare. Tap **← Job** at the top to go back.
 
 ### From Help
@@ -41,7 +41,7 @@ The level on your job sheet (Level 2, 3 or 4) tells you how much preparation to 
 ## If something goes wrong
 - **The sign-off keeps coming back on Home** — one of the six sections is not ticked yet; open it and the first unticked section is where it starts.
 - **"The finish standards could not be loaded"** — reload; if it keeps happening, tell the office. The rest of the job page still works.
-- **A surface has no "What we expect" link** — that line has no finish standard. Ask the office if you are unsure.
+- **A surface is not in the What we expect card** — that line has no finish standard. Ask the office if you are unsure.
 
 ## Related
 - [Your assigned job, step by step](../work-orders/employee.md)

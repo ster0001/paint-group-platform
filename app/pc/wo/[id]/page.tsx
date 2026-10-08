@@ -46,7 +46,8 @@ import { CALLBACK_SOURCES, type CallbackSource } from "@/lib/callbacks/model";
 import CallbackPanel from "./CallbackPanel";
 import NoWorkDay from "./NoWorkDay";
 import type { MomentRow } from "@/lib/workorder/reminderMoments";
-import { standardsLinksFor } from "@/lib/standards/model";
+import { expectationsFor } from "@/lib/standards/model";
+import WhatWeExpect from "@/app/components/standards/WhatWeExpect";
 import RejectVariation from "@/app/pc/RejectVariation";
 import MessageThread from "@/app/components/wo/MessageThread";
 import { loadJobPainters, loadThread, pickPainter } from "@/lib/workorder/messagesLoad";
@@ -438,12 +439,8 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   // job's level. A refused read is reported by the loader; the links are
   // simply absent here and the standards page itself says why.
   const standardsLoad = await loadStandards();
-  const standardsLinks = standardsLoad.standards && snapshotDoc ? standardsLinksFor(standardsLoad.standards, snapshotDoc, "pc", id) : {};
-  const expectHref: Record<string, string> = {};
-  for (const s of surfaces) if (s.surface_key && standardsLinks[s.surface_key]) expectHref[s.id] = standardsLinks[s.surface_key];
-  const qaExpect = (snapshotDoc?.areas ?? []).flatMap((a) => a.surfaces
-    .filter((s) => standardsLinks[s.key])
-    .map((s) => ({ label: `${a.title} · ${s.label}`, href: standardsLinks[s.key] })));
+  // Tom, 9 Oct: one "What we expect on this job" card above the scope, not a link per row.
+  const expectations = standardsLoad.standards && snapshotDoc ? expectationsFor(standardsLoad.standards, snapshotDoc, "pc", id) : [];
   const progress = progressOf(surfaces);
   const byHeading = progressByHeading(surfaces);
   const headings = [...new Set(surfaces.map((s) => s.heading))];
@@ -629,10 +626,11 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
         </div>
       )}
 
+      {expectations.length > 0 && row.stage !== "closed" && <WhatWeExpect items={expectations} mode="pc" />}
+
       <div className="grid2">
         {row.stage === "in_progress" ? (
           <TickList
-            expectHref={expectHref}
             surfaces={surfaces.map((s) => ({
               id: s.id, heading: s.heading, label: s.label, state: s.state,
               rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional,
@@ -891,7 +889,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
           <div id="qa">
             {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
               && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null || checkInDue.has(c.id)).map((c) => (
-              <QaCheck key={c.id} check={c} workOrderId={id} expect={qaExpect} />
+              <QaCheck key={c.id} check={c} workOrderId={id} />
             ))}
           </div>
           <SiteVisitsCard visits={siteVisits.visits} painter={notePainter} closed={row.stage === "closed"} failure={siteVisits.failure} />

@@ -16,8 +16,8 @@ Paint Group's finish standards say, surface by surface, what a painter must do a
 ## Steps
 
 ### On a job
-1. Open the job in PC Command. While the job is in progress, each row of **Scope & ticks** carries a **What we expect ›** link. A row with no finish standard (gutters, an allowance line) has none.
-2. At the quality-check stage, the **Quality check** card lists **What we expect on this job's surfaces** above the four standard items: one link per surface line, for example **Lounge · Walls — what we expect ›**.
+1. Open the job in PC Command. Above **Scope & ticks** one card, **What we expect on this job**, lists every scope line that has a finish standard with the checks at the job's level; tap a line to read them, **Open the full standard ›** for the page. A row with no finish standard (gutters, an allowance line) has none.
+2. At the quality-check stage the same **What we expect on this job** card at the top of the page is your list: one line per scope surface with the checks at the job's level, for example **Lounge · Walls — what we expect ›**.
 3. Tap a link. The surface opens locked to **Level N on this job** with every check for that level. **See other levels ›** compares; **← Job** returns to the job.
 
 ### Who has signed

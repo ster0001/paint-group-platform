@@ -24,9 +24,9 @@ The level on your work order (Level 2, 3 or 4) tells you how much preparation to
 5. Until you confirm, Paint Group cannot send you new job offers once your grace period ends; jobs you have already started carry on as normal. The reminder texts stop the moment you confirm.
 
 ### From a job
-1. Open **Jobs** and tap the job. Under each surface in **Scope & ticks**, and under each line in the job sheet below, there is a **What we expect ›** link. Not every line has one: a line that has no finish standard (gutters, a fuel allowance) shows nothing.
-2. Tap **What we expect ›**. The surface opens at **this job's level** and says so in a blue pill, for example **Level 3 on this job**. Read **Every level** first, then the rows for your level: Fill, Sand, Gaps, Lines and so on.
-3. Tap **See other levels ›** if you want to compare. Tap **← Job** at the top to go back to the work order.
+1. Open **Jobs** and tap the job. Near the top is one card, **What we expect on this job**: every line in the scope that has a finish standard — **Lounge · Walls**, **Outside · Double Hung Sash** — with the job's level. A line with no finish standard (gutters, a fuel allowance) is not listed.
+2. Tap a line. It opens in place: **Every level** first, then the rows for this job's level — Fill, Sand, Gaps, Lines and so on — and the look test distance.
+3. Tap **Open the full standard ›** to read that surface on its own page, locked to **Level 3 on this job**; **See other levels ›** compares; **← Job** comes back.
 
 ### From Help
 1. Tap **HELP** in the bar at the bottom, then the **Finish standards** card at the top.
@@ -45,7 +45,7 @@ The level on your work order (Level 2, 3 or 4) tells you how much preparation to
 ## If something goes wrong
 - **"No job offers until you confirm the finish standards"** on Home — open the card and finish the six sections; offers resume at once.
 - **"The finish standards could not be loaded"** — the office has not loaded them yet or the connection dropped. Pull down to reload; if it keeps happening, ring the office. The rest of the job page still works.
-- **A surface has no "What we expect" link** — that line has no finish standard (for example gutters, downpipes, a deck). Ask the office if you are unsure what is expected.
+- **A surface is not in the What we expect card** — that line has no finish standard (for example gutters, downpipes, a deck). Ask the office if you are unsure what is expected.
 - **The work order shows no level** — ask the office before you start.
 
 ## Related
