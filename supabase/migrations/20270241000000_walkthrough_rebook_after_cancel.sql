@@ -74,6 +74,7 @@ begin
                                'date', v_date, 'time', p_time));
   return 'ok:' || v_id;
 end $$;
+revoke execute on function public.wo_book_walkthrough(uuid, text, date, text, time) from public, anon;
 grant execute on function public.wo_book_walkthrough(uuid, text, date, text, time) to authenticated;
 
 -- ---- read-back: ONE row, every column equals its _expect_ -------------------
