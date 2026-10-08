@@ -158,9 +158,17 @@ export async function runJobReminderSweep(db: SupabaseClient, now = new Date()):
 
         const link = `${siteUrl()}/portal/jobs/${job.id}`;
         const outcomes: Record<string, string> = {};
+        // Step 6: the third text reads differently for a Green painter (message 5).
+        const greens = new Set<string>();
+        if (d.which === 3) {
+          const { data: st, error: stErr } = await db.from("painter_status").select("painter_id").eq("colour", "green").in("painter_id", [...painters]);
+          if (stErr) throw stErr;
+          for (const r of (st ?? []) as { painter_id: string }[]) greens.add(r.painter_id);
+        }
         for (const contractorId of painters) {
           const c = await contactFor(db, contractorId);
-          const body = renderTemplate(templates[d.which - 1] ?? templates[0], {
+          const template = d.which === 3 && greens.has(contractorId) ? messaging.contractorJobUpdateSms3Green : (templates[d.which - 1] ?? templates[0]);
+          const body = renderTemplate(template, {
             first_name: c.firstName, company_name: companyName, wo_ref: job.wo_ref,
             suburb: suburbFromAddress(job.wo_snapshot?.jobAddress, job.wo_ref || "the job"),
             day_label: dayLabel(days, m.day) || "today",

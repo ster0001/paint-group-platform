@@ -4526,6 +4526,26 @@ by this cadence.
 
 **Every paint on every list, searchable (8 Oct 2026).** `paintOptions` (`lib/workorder/materials.ts`) no longer filters by the row's Interior/Exterior type: the Materials rows, Other paints, a line's materials and the Edit Surface Product field all offer the whole catalogue A-Z, narrowed by a search matched against name, brand, finish, category and internal alias, and the chosen paint is never filtered away. `SurfaceEditor` in `app/quote/QuoteBuilder.tsx` gained its own search box (`surface-paint-search`) over the Product select (`surface-paint-pick`). Unit: `lib/workorder/paintOptions.test.ts`. Spec: `e2e/materials-all-paints.spec.ts`.
 
+**The painter's traffic light (8 Oct 2026 — standards / status / call backs brief, Step 6).**
+Everything the painter sees is READ from `painter_status` and `painter_job_results` through their own session;
+`lib/painterStatus/mine.ts` is the loader and `lib/painterStatus/copy.ts` the words (status names, the Home line, the
+perks per colour with the employed-lead variant, the tips table keyed by colour × weakest measure, the colour key, the
+measure lines as counts). Nothing in the portal computes a colour or a count. `20270229000000_painter_status_visible.sql`
+puts ⚑21 in the database: `painter_status_visible()` reads `painter_status_rules.statusVisibleToPainters` and the two
+own-row policies require it, so "switch off" means the rows do not exist for painters — no card, no page (404), no text.
+An employed painter who never led a job has no row (Step 5) and therefore no UI (R17). Screens: `app/portal/StatusCard.tsx`
+on Home (lamp + word + line + steps bars, the whole card links to `/portal/status`), `app/portal/status/page.tsx` (My
+status: reason line, steps or streak with the bonus counter as "n of 4" and never an amount, what you get, measures, the
+last-10 dots with `JobDots.tsx` as the one client piece, tips, how the colours work), `app/components/status/TrafficLight.tsx`
+(four lamps red→green in a housing; New rings it blue; `aria-label` carries the word). Tokens appended to `portal.css`:
+five lamp colours the same in both themes, five text-safe colours per theme (`--t-*`), the pulse (`pt-pulse`, 1.9 s) and
+ring, both off under `prefers-reduced-motion`; amber, clay and emerald keep their meanings. Messages: `contractor_status_changed`
+(message 6, three templates — Green, Green for a lead, any other change) sent from `runPainterStatus` when the writer reports
+a previous colour different from the new one and the switch is on; and the Green wording of the third reminder text
+(`contractorJobUpdateSms3Green`), chosen per painter in `jobReminders.ts` from `painter_status.colour`. Spec:
+`e2e/painter-status-screens.spec.ts` (five colours as a contractor, reduced motion, light theme, the employed lead and
+the crew employee, the switch). Help: painter-status contractor/employee. Inventory row 17.
+
 **Search bars (1 Oct 2026).** PC Command has a project search in its top bar on every console page: `app/pc/PcSearch.tsx` (client, ⌘K / "/" focus, same shape as the CRM search) asks `app/pc/api/search/route.ts`, which runs two bounded reads through the staff session — `work_orders` on `wo_ref` and the snapshot's `jobTitle`/`jobAddress`, and `estimates` (with `work_orders!inner`) on title, the customer's name and the job address in `builder_state`, or `number` when the needle parses as an estimate number — merges them by work order, open jobs first, and each hit opens `/pc/wo/[id]`. Styles are the `.pc .gsearch` block in `app/pc/pc.css`. The Contacts page (`app/(app)/contacts/page.tsx`) filters on the server from `?q=` with one `or()` over name, company, email, phone (with and without spaces) and city, keeps the read's `error` on screen, and takes its needle from `SearchBox.tsx` (the Estimates search shape: debounce, Enter, Clear, `data-ready`). Specs: `e2e/pc-search.spec.ts`, `e2e/contacts-search.spec.ts`. Help: `docs/help/work-orders/pc.md` (Finding a project), `docs/help/contacts/staff.md`.
 
 **Fill from work order admits an untouched in_progress job (1 Oct 2026).** `20270208000000_import_set_scope_in_progress.sql` re-creates `import_booked_job_set_scope` with `in_progress` in its stage check; the worked-rows guard (any tick or rectification → `skip:worked`) is the refusal that matters and is unchanged. Prompted by 74 Champion St (quote 3666), moved to in_progress before its hours arrived.
