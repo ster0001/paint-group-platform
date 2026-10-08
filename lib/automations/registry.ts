@@ -99,6 +99,7 @@ const P = {
   qaFail: ["{{company_name}}", "{{wo_ref}}", "{{link}}"],
   jobUpdate: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{day_label}}", "{{link}}"],
   standards: ["{{first_name}}", "{{company_name}}", "{{link}}", "{{version}}"],
+  callback: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{day}}", "{{what}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
   visitCode: ["{{code}}", "{{company_name}}"],
@@ -457,6 +458,13 @@ export const AUTOMATIONS: Automation[] = [
       { field: "standardsNewVersionEmailIntro", label: "Email body", kind: "body", placeholders: P.standards },
     ],
     guard: "Once per painter per version (automation_claims).",
+  },
+  {
+    key: "contractor_callback_booked", name: "Call back booked", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "callback_booked", capExempt: true,
+    trigger: "A call back's return visit is booked or moved (any of the four routes, or Book the visit on the job page). Goes to the painter booked to fix it.",
+    templates: [{ field: "callbackBookedSms", label: "Text message", kind: "sms", placeholders: P.callback }],
+    guard: "Once per call back per visit day (wo_events callback_notified).",
   },
   {
     key: "contractor_qa_fail", name: "Quality check — put right", audience: "painter", channels: ["sms"], kind: "automatic",

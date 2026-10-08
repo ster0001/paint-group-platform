@@ -21,6 +21,58 @@
       "sources": []
     },
     {
+      "feature": "call-backs",
+      "role": "contractor",
+      "title": "A call back — what is wrong, when to go back, and marking it fixed",
+      "summary": "When a job needs a return visit to fix workmanship, the office logs a call back. It shows on Home and on the job with what is wrong, the photos and the day of the return visit. You mark it fixed with a photo; the office confirms and closes it.",
+      "path": "docs/help/call-backs/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/jobs/[id]/CallbackCard.tsx",
+        "app/portal/page.tsx",
+        "app/portal/callbackActions.ts",
+        "lib/callbacks"
+      ]
+    },
+    {
+      "feature": "call-backs",
+      "role": "employee",
+      "title": "A call back — what is wrong, when to go back, and marking it fixed",
+      "summary": "When a job needs a return visit to fix workmanship, the office logs a call back. It shows on Home and on the job with what is wrong, the photos and the day of the return visit. You mark it fixed with a photo; the office confirms and closes it.",
+      "path": "docs/help/call-backs/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/jobs/[id]/CallbackCard.tsx",
+        "app/portal/page.tsx",
+        "app/portal/callbackActions.ts",
+        "lib/callbacks"
+      ]
+    },
+    {
+      "feature": "call-backs",
+      "role": "pc",
+      "title": "Log a call back, book the return visit and close it",
+      "summary": "A call back is a return visit on another day to fix workmanship. One record, four ways in — a failed quality check, a flagged walk-through, the customer ringing, or a visit ticked as a call back on the schedule board — each with a reason and the date it was reported. It pauses the customer's invoice chasing until you close it, counts against the painter who did the job, never reopens a closed job and never touches the painter's pay.",
+      "path": "docs/help/call-backs/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/pc/wo/[id]/CallbackPanel.tsx",
+        "app/pc/wo/[id]/QaCheck.tsx",
+        "app/pc/schedule/ScheduleBoard.tsx",
+        "app/pc/flow/page.tsx",
+        "app/pc/page.tsx",
+        "lib/callbacks",
+        "lib/crm/work-queue.ts",
+        "supabase/migrations/20270226000000_wo_callbacks.sql"
+      ]
+    },
+    {
       "feature": "contacts",
       "role": "staff",
       "title": "Contacts — every customer in one list, and how a contact gets onto an estimate",

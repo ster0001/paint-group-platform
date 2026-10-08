@@ -4441,3 +4441,31 @@ card from day pcCardDay with `StandardsRemind`); Contractors list `Standards:` l
 (`ContractorStandards`); the board's `Lane.standardsStatus` greys the Send offer button with "Standards not signed".
 Specs: `e2e/standards-signoff.spec.ts`; unit `lib/standards/acks.test.ts`. Help: standards/{contractor,employee,pc},
 contractors/staff. Inventory rows 11–14.
+
+**Call backs: one record, four ways in (8 Oct 2026 — standards / status / call backs brief, Step 3).**
+`20270226000000_wo_callbacks.sql`: `wo_callbacks` (work order, `painter_id` = who did the job via `wo_callback_painter` —
+the lead assignment else the contractor — `fixed_by_painter_id`, `source` qc_fail | walkthrough_fail | customer_call |
+scheduler, `reason` workmanship | not_workmanship, `reported_on`, description, `status` open → booked → fixed → done | void,
+`appointment_id` = the return visit in `wo_appointments`, `qa_check_id`), RLS staff + the painter it is about or booked to
+fix, writes only through the RPCs: `wo_callback_log` (every route; a scheduler visit on a job with one already open JOINS
+it and answers `ok:<id>:attached`; writes the visit itself since the job may be closed; links photos by id; sets
+`wo_signoff.outcome = failed_callback` for route 2; sets the invoice hold), `wo_callback_book`, `wo_callback_mark_fixed`
+(painter or fixer, photo required), `wo_callback_close` (staff — the only thing that ends it, ⚑22), `wo_callback_set_reason`
+(staff, logged), `wo_callback_void` (`has_dashboard_role('owner')`, reason required). C10 through the existing hold:
+`invoices.chase_hold_kind` ('call_back' | 'office'); `wo_callback_hold(wo, on)` sets `chase_hold_reason` + kind on the
+job's open invoices and clears only kind `call_back`, only when no call back on the job is still open — a staff dispute
+hold survives. `wo_signoff.outcome` (passed | passed_after_fix | failed_callback) is derived by trigger at signing (C3:
+`rectified`, or any area with `rectified_at` / `flag_withdrawn_at` → passed_after_fix). `wo_photo_kind` gains `callback`
+and `wo_photos.callback_id`; `wo_painter_on_job` now counts an appointment holder, so the fixer can upload. Pure
+`lib/callbacks/model.ts` holds the words and `callbackScored` (workmanship AND reported ≤ sign-off + 7 — Step 5 reads it);
+`load.ts` the reads (errors kept). PC: `CallbackPanel` on the job page (route 3 form; route 2's "Is a call back required?"
+from the sign-off's flagged areas; every call back with Book / Move the visit, Mark not workmanship, Confirm and close,
+owner Void); `QaCheck` asks "rectify today, or a call back?" after a logged FAIL (route 1, linked to the check); the
+schedule board's Extra visit sheet has a **Call back** tick (route 4, `logCallbackAction` with source scheduler). Flow:
+a **Call backs** column above the river only while one is open (not a stage), **Call back** and **Invoice chasing paused**
+tags on job cards. Queue (registry, PC-homed): `walkthrough_flagged` (critical once the flag's day has passed unsigned;
+"No, fixed and signed today" = dismiss), `callback_unbooked`, `callback_visit_soon`, `callback_fixed`. Painter:
+`CallbackCard` on the job page and a Home list (what is wrong, the office's photos, the return visit, "Fixed — add a
+photo" → `markCallbackFixedAction`); message 7 `contractor_callback_booked` on booking (`lib/callbacks/notify.ts`, once per
+visit day). Never touches contractor pay. Specs: `e2e/callbacks.spec.ts`; unit `lib/callbacks/model.test.ts`. Help:
+call-backs/{pc,contractor,employee}. Inventory row 15. The WO-loop brief carries a note that Flow now has a non-stage column.

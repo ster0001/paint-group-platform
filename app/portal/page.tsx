@@ -13,6 +13,8 @@ import TimesheetCard from "./TimesheetCard";
 import { redirect } from "next/navigation";
 import { loadMyStandards } from "@/lib/standards/status";
 import { needsSignoff, painterStatusLine } from "@/lib/standards/acks";
+import { loadMyCallbacks } from "@/lib/callbacks/load";
+import { callbackLine } from "@/lib/callbacks/model";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +55,9 @@ export default async function PortalHome() {
   const supabaseForStandards = await createClient();
   const { my: myStandards } = await loadMyStandards(supabaseForStandards, contractor.id);
   if (myStandards?.status === "blocked") redirect("/portal/standards/confirm");
+
+  // Call backs (Step 3): open ones about this painter, or booked for them to fix.
+  const myCallbacks = await loadMyCallbacks(supabaseForStandards, contractor.id);
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
   const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
@@ -238,6 +243,25 @@ export default async function PortalHome() {
               <span className="push">
                 <span className="chip amb">{v.credit ? "Acknowledge" : "Approve"}</span>
               </span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Call backs (Step 3): what is wrong and when to go back. */}
+      {(myCallbacks.callbacks.length > 0 || myCallbacks.error) && (
+        <div className="card amberish" data-testid="home-callbacks">
+          <h3>Call backs</h3>
+          {myCallbacks.error && <p className="hint">{myCallbacks.error}</p>}
+          {myCallbacks.callbacks.map((c) => (
+            <Link key={c.id} href={`/portal/jobs/${c.workOrderId}`} className="act" data-testid={`home-callback-${c.id}`}>
+              <i aria-hidden>↩</i>
+              <span>
+                {jobTitle.get(c.workOrderId) ?? "A finished job"}
+                <br />
+                <span style={{ fontSize: "12px", color: "var(--muted)" }}>{c.description || callbackLine(c)}</span>
+              </span>
+              <span className="push"><span className="chip cly">{c.status === "fixed" ? "Waiting" : "Call back"}</span></span>
             </Link>
           ))}
         </div>

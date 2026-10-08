@@ -28,7 +28,7 @@
  *
  * Client-safe: fetch/XHR only. The server decides everything that matters.
  */
-export type UploadKind = "before" | "progress" | "qa" | "completion" | "variation" | "reference";
+export type UploadKind = "before" | "progress" | "qa" | "completion" | "variation" | "reference" | "callback";
 
 export type UploadInput = {
   workOrderId: string;

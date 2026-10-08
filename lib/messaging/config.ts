@@ -198,6 +198,8 @@ export type MessagingSettings = {
   standardsNewVersionSms: string;
   standardsNewVersionEmailSubject: string;
   standardsNewVersionEmailIntro: string;
+  /** Painter (call backs Step 3, message 7): a return visit is booked. */
+  callbackBookedSms: string;
 };
 
 export const DEFAULT_MESSAGING: MessagingSettings = {
@@ -438,6 +440,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   standardsNewVersionEmailIntro:
     "Hi {{first_name}},\n\n" +
     "{{company_name}} has updated the finish standards (Version {{version}}). Please read what changed, then confirm the six sections again to keep getting job offers.",
+  callbackBookedSms: "{{company_name}}: call back at {{address}} on {{day}}: {{what}}. Details and the fix photo are on the job: {{link}}",
 };
 
 /**
@@ -464,6 +467,9 @@ export const TEMPLATE_PLACEHOLDERS = [
 export type TemplateVars = {
   /** Standards messages: the version number being confirmed. */
   version?: string;
+  /** Call back booked: the visit day and what is wrong. */
+  day?: string;
+  what?: string;
   /** S7: "approved" | "declined" | "rejected", and "leave" | "RDO". */
   decision?: string;
   kind_word?: string;

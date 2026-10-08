@@ -33,7 +33,7 @@ import { reportError } from "@/lib/monitoring/report";
 
 export const runtime = "nodejs";
 
-const KINDS = ["before", "progress", "qa", "completion", "variation", "reference"] as const;
+const KINDS = ["before", "progress", "qa", "completion", "variation", "reference", "callback"] as const;
 
 const signBody = z.object({
   workOrderId: z.string().uuid(),

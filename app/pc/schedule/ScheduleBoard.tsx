@@ -1,5 +1,6 @@
 "use client";
 
+import { logCallbackAction } from "@/app/pc/callbackActions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -851,18 +852,28 @@ export default function ScheduleBoard({
     return [...seen.values()].sort((a, b) => a.start.localeCompare(b.start));
   }, [blocks]);
 
+  // Call backs Step 3, route 4 (ruling C2): the visit IS a call back on a
+  // finished job. One record — on a job with a call back already open the
+  // visit joins it, never a second record.
+  const [visitCallback, setVisitCallback] = useState(false);
+
   /** Tom, 1 Oct: a second run of days on a job this painter already has. */
   async function saveVisit() {
     if (!pendingBlock) return;
     if (!visitPick) { setErr("Search for the project the visit is for, then pick it."); return; }
     setBusy(true);
     setErr("");
-    const r = await addAppointmentAction({
-      workOrderId: visitPick.workOrderId, contractorId: pendingBlock.contractorId,
-      startDate: pendingBlock.start, endDate: pendingBlock.end, note: visitNote,
-    });
-    if (handle(r, "Visit added — it's on the board and in their calendar.")) {
-      setPendingBlock(null); setVisitPick(null); setVisitQuery(""); setVisitHits([]); setVisitNote(""); setBlockMode("block");
+    const r = visitCallback
+      ? await logCallbackAction({
+          workOrderId: visitPick.workOrderId, source: "scheduler", reason: "workmanship", description: visitNote,
+          returnStart: pendingBlock.start, returnEnd: pendingBlock.end, fixedBy: pendingBlock.contractorId,
+        }).then((x) => (x.ok ? { ok: true as const, state: "ok" as const, message: x.message } : { ok: false as const, kind: "error" as const, message: x.message }))
+      : await addAppointmentAction({
+          workOrderId: visitPick.workOrderId, contractorId: pendingBlock.contractorId,
+          startDate: pendingBlock.start, endDate: pendingBlock.end, note: visitNote,
+        });
+    if (handle(r, visitCallback ? "Call back booked — it's on the board, in their calendar, and the customer's invoice chasing is paused until it is closed." : "Visit added — it's on the board and in their calendar.")) {
+      setPendingBlock(null); setVisitPick(null); setVisitQuery(""); setVisitHits([]); setVisitNote(""); setBlockMode("block"); setVisitCallback(false);
     }
     setBusy(false);
   }
@@ -2000,9 +2011,20 @@ export default function ScheduleBoard({
                       </div>
                     </>
                   )}
-                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Note (optional)</label>
+                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>{visitCallback ? "What is wrong" : "Note (optional)"}</label>
                   <input type="text" value={visitNote} onChange={(e) => setVisitNote(e.target.value)} data-testid="visit-note"
-                    placeholder="e.g. back to finish the ceilings" style={{ width: "100%" }} maxLength={300} />
+                    placeholder={visitCallback ? "e.g. paint on the lounge window glass" : "e.g. back to finish the ceilings"} style={{ width: "100%" }} maxLength={300} />
+                  {/* Call backs Step 3, route 4 — beside "Walkthrough not required" in spirit: the
+                      tray drop's box lives on the offer sheet, a visit's on this one. */}
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, cursor: "pointer" }}>
+                    <input type="checkbox" checked={visitCallback} onChange={(e) => setVisitCallback(e.target.checked)} data-testid="visit-callback" />
+                    Call back — this visit fixes workmanship on a finished job
+                  </label>
+                  {visitCallback && (
+                    <span style={{ fontSize: 11, color: "var(--muted)", display: "block", marginTop: 4 }} data-testid="visit-callback-note">
+                      Logged against the painter who did the job. If a call back is already open there, this visit joins it — nothing is counted twice. Invoice chasing pauses until the office closes it.
+                    </span>
+                  )}
                   {err && <div className="err">{err}</div>}
                   <button className="btn cy" disabled={busy || !visitPick} data-testid="visit-save" onClick={saveVisit}>Add the visit</button>
                   <button className="btn gh" onClick={() => { setPendingBlock(null); setVisitPick(null); setVisitQuery(""); setVisitHits([]); setVisitNote(""); setErr(""); setBlockMode("block"); }}>Cancel</button>

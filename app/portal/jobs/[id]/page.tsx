@@ -40,6 +40,8 @@ import { loadMyTimesheet } from "@/lib/contractor/timesheets";
 import TimesheetCard from "@/app/portal/TimesheetCard";
 import { loadStandards, smallJobHours as loadSmallJobHours } from "@/lib/standards/load";
 import { standardsLinksFor } from "@/lib/standards/model";
+import { loadCallbacksForJob } from "@/lib/callbacks/load";
+import CallbackCard from "./CallbackCard";
 
 export const dynamic = "force-dynamic";
 
@@ -291,7 +293,24 @@ export default async function PortalJobPage({
   // to that area's level, and whether the tape check applies (ruling S9).
   // Read under the painter's own session; a refused read is reported and the
   // page says so rather than quietly drawing no links.
-  const [standardsLoad, smallJob] = await Promise.all([loadStandards(), loadSmallJobHours(supabase)]);
+  const [standardsLoad, smallJob, callbacksLoad] = await Promise.all([loadStandards(), loadSmallJobHours(supabase), loadCallbacksForJob(supabase, id)]);
+  // Call backs (Step 3): the ones on this job that are the painter's — about
+  // them, or booked for them to fix — with the photos the office attached.
+  const myCallbacks = callbacksLoad.callbacks.filter((c) => c.status !== "void" && (c.painterId === contractor.id || c.fixedByPainterId === contractor.id));
+  const openCallbacks = myCallbacks.filter((c) => c.status !== "done");
+  let callbackPhotos: Record<string, WOPhoto[]> = {};
+  if (openCallbacks.length) {
+    const { data: cbPhotoRows, error: cbPhotoErr } = await supabase.from("wo_photos")
+      .select("id, work_order_id, kind, area, caption, storage_path, created_at, variation_id, callback_id")
+      .eq("work_order_id", id).in("callback_id", openCallbacks.map((c) => c.id)).order("created_at", { ascending: true });
+    if (cbPhotoErr) reportError(cbPhotoErr, { where: "portal.job.callbackPhotos", bestEffort: true, extra: { workOrderId: id } });
+    else {
+      const signed = await signPhotos(supabase, (cbPhotoRows ?? []) as WOPhotoRow[]);
+      const byId = new Map(((cbPhotoRows ?? []) as { id: string; callback_id: string | null }[]).map((r) => [r.id, r.callback_id]));
+      callbackPhotos = {};
+      for (const ph of signed) { const cid = byId.get(ph.id); if (cid) (callbackPhotos[cid] ??= []).push(ph); }
+    }
+  }
   const standardsLinks = standardsLoad.standards ? standardsLinksFor(standardsLoad.standards, job.doc, "portal", id) : {};
   const expectHref: Record<string, string> = {};
   for (const r of (surfaceRows as { id: string; surface_key: string | null }[] | null) ?? []) {
@@ -488,6 +507,16 @@ export default async function PortalJobPage({
               })()}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Call backs (Step 3): what is wrong, the return visit, and Mark as fixed. */}
+      {(openCallbacks.length > 0 || callbacksLoad.error) && (
+        <div style={{ padding: "0 16px" }} data-testid="job-callbacks">
+          {callbacksLoad.error && <p className="hint" role="status">{callbacksLoad.error}</p>}
+          {openCallbacks.map((c) => (
+            <CallbackCard key={c.id} callback={c} photos={callbackPhotos[c.id] ?? []} jobTitle={job.doc?.jobTitle || job.doc?.jobAddress || "This job"} mine />
+          ))}
         </div>
       )}
 

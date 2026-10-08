@@ -4,6 +4,9 @@ import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue } from "@/lib/workorder/console";
 import { LANES, LANE_LABELS, laneFor, type WoStage } from "@/lib/workorder/stages";
 import { melbourneDate } from "@/lib/workorder/console";
+import { loadOpenCallbacks } from "@/lib/callbacks/load";
+import { callbackLine } from "@/lib/callbacks/model";
+import { reportError } from "@/lib/monitoring/report";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +26,26 @@ export default async function FlowPage() {
   const { input } = await loadConsole(supabase);
   const queue = buildQueue(input);
   const today = melbourneDate(new Date());
+
+  // Call backs (Step 3, ruling C9): a column that exists only while one is
+  // open — not a stage, the machine is untouched — and a tag on the job card.
+  // "Invoice chasing paused" rides the same cards from the hold the call back set.
+  const openCallbacks = await loadOpenCallbacks(supabase);
+  if (openCallbacks.error) reportError(new Error(openCallbacks.error), { where: "pc.flow.callbacks", bestEffort: true });
+  const callbackJobIds = [...new Set(openCallbacks.callbacks.map((c) => c.workOrderId))];
+  const pausedJobs = new Set<string>();
+  if (callbackJobIds.length) {
+    const { data: held, error: heldErr } = await supabase.from("invoices").select("work_order_id").eq("chase_hold_kind", "call_back").in("work_order_id", callbackJobIds);
+    if (heldErr) reportError(heldErr, { where: "pc.flow.holds", bestEffort: true });
+    for (const h of (held ?? []) as { work_order_id: string | null }[]) if (h.work_order_id) pausedJobs.add(h.work_order_id);
+  }
+  const jobById = new Map(input.workOrders.map((w) => [w.id, w]));
+  const { data: closedRows, error: closedErr } = callbackJobIds.length
+    ? await supabase.from("work_orders").select("id, wo_ref, wo_snapshot, contractors(company_name, profiles(name))").in("id", callbackJobIds)
+    : { data: [], error: null };
+  if (closedErr) reportError(closedErr, { where: "pc.flow.callbackJobs", bestEffort: true });
+  const callbackJobs = ((closedRows ?? []) as unknown as { id: string; wo_ref: string; wo_snapshot: { jobTitle?: string; jobAddress?: string } | null; contractors: { company_name: string | null; profiles: { name: string | null } | null } | null }[])
+    .map((w) => ({ id: w.id, woRef: w.wo_ref, title: w.wo_snapshot?.jobAddress || w.wo_snapshot?.jobTitle || w.wo_ref, painter: w.contractors?.profiles?.name || w.contractors?.company_name || "", callbacks: openCallbacks.callbacks.filter((c) => c.workOrderId === w.id), onBoard: jobById.has(w.id) }));
 
   const worst = new Map<string, "critical" | "warning">();
   for (const card of queue) {
@@ -44,6 +67,27 @@ export default async function FlowPage() {
       </div>
 
       <div className="sect">
+        {callbackJobs.length > 0 && (
+          <div className="lane hot callbacks" data-testid="lane-callbacks">
+            <div className="lane-h">
+              <span className="n" style={{ color: "var(--clay)" }}>Call backs</span>
+              <span className="bar" />
+              <span className="c">{openCallbacks.callbacks.length}</span>
+            </div>
+            {callbackJobs.map((job) => (
+              <Link className="job crit" href={`/pc/wo/${job.id}#callbacks`} key={job.id} data-testid={`callback-job-${job.id}`}>
+                <span className="a">{job.title}</span>
+                <span className="r">{job.woRef}{job.painter ? ` · ${job.painter}` : ""}</span>
+                <span className="m">{callbackLine(job.callbacks[0])}</span>
+                <div className="fl">
+                  <span className="pill p-clay">Call back</span>
+                  {pausedJobs.has(job.id) && <span className="pill p-amber">Invoice chasing paused</span>}
+                </div>
+              </Link>
+            ))}
+            <p className="note">This column shows only while a call back is open. It is not a stage — the job stays where its gate put it.</p>
+          </div>
+        )}
         <div className="riverwrap">
           <div className="river" data-testid="river">
             {LANES.map((stage) => {
@@ -71,6 +115,8 @@ export default async function FlowPage() {
                           {job.ticksTotal > 0 ? ` · ${job.ticksDone}/${job.ticksTotal} ticks` : ""}
                         </span>
                         <div className="fl">
+                          {callbackJobIds.includes(job.id) && <span className="pill p-clay" data-testid={`callback-tag-${job.id}`}>Call back</span>}
+                          {pausedJobs.has(job.id) && <span className="pill p-amber">Invoice chasing paused</span>}
                           {job.blockedReason && <span className="pill p-clay">Blocked</span>}
                           {!job.coloursConfirmed && stage === "pre_start" && (
                             <span className="pill p-amber">Colours TBC</span>

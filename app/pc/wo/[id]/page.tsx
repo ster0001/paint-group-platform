@@ -30,19 +30,23 @@ import ReferencePhotosCard from "./ReferencePhotosCard";
 import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
 import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
 import { loadStandards } from "@/lib/standards/load";
+import { loadCallbacksForJob } from "@/lib/callbacks/load";
+import { CALLBACK_SOURCES, type CallbackSource } from "@/lib/callbacks/model";
+import CallbackPanel from "./CallbackPanel";
 import { standardsLinksFor } from "@/lib/standards/model";
 
 export const dynamic = "force-dynamic";
 
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
 
-export default async function PcWorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PcWorkOrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ callback?: string }> }) {
   const { id } = await params;
+  const { callback: callbackParam } = await searchParams;
   const supabase = await createClient();
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_id, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
@@ -110,9 +114,36 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         .select("id, kind, scheduled_date, status")
         .eq("work_order_id", id).order("created_at", { ascending: true }),
       supabase.from("wo_signoff")
-        .select("signed_at, client_unavailable_at")
+        .select("signed_at, client_unavailable_at, areas")
         .eq("work_order_id", id).maybeSingle(),
     ]);
+
+  // Call backs (Step 3): every one on the job, the painters who could fix it,
+  // the photos on each, whether this staff member may void one, and the areas
+  // the customer flagged that nobody has put right (route 2's question).
+  const [callbacksLoad, painterRows, ownerRes] = await Promise.all([
+    loadCallbacksForJob(supabase, id),
+    supabase.from("contractors").select("id, company_name, profiles(name)").eq("active", true).order("company_name"),
+    supabase.rpc("has_dashboard_role", { p_roles: ["owner"] }),
+  ]);
+  if (painterRows.error) reportError(painterRows.error, { where: "pc.wo.painters", bestEffort: true });
+  if (ownerRes.error) reportError(ownerRes.error, { where: "pc.wo.ownerRole", bestEffort: true });
+  const painters = ((painterRows.error ? [] : painterRows.data ?? []) as unknown as { id: string; company_name: string | null; profiles: { name: string | null } | null }[])
+    .map((c) => ({ id: c.id, name: c.profiles?.name || c.company_name || "Painter" }));
+  const callbackPhotoRes = callbacksLoad.callbacks.length
+    ? await supabase.from("wo_photos").select("id, work_order_id, kind, area, caption, storage_path, created_at, variation_id, callback_id")
+        .eq("work_order_id", id).in("callback_id", callbacksLoad.callbacks.map((c) => c.id)).order("created_at", { ascending: true })
+    : { data: [], error: null };
+  if (callbackPhotoRes.error) reportError(callbackPhotoRes.error, { where: "pc.wo.callbackPhotos", bestEffort: true });
+  const callbackPhotos: Record<string, Awaited<ReturnType<typeof signPhotos>>> = {};
+  if (!callbackPhotoRes.error) {
+    const signed = await signPhotos(supabase, (callbackPhotoRes.data ?? []) as WOPhotoRow[]);
+    const byId = new Map(((callbackPhotoRes.data ?? []) as { id: string; callback_id: string | null }[]).map((r) => [r.id, r.callback_id]));
+    for (const ph of signed) { const cid = byId.get(ph.id); if (cid) (callbackPhotos[cid] ??= []).push(ph); }
+  }
+  const signoffAreas = ((signoffRow as { areas?: Record<string, { flagged_at?: string; rectified_at?: string; flag_withdrawn_at?: string }> | null } | null)?.areas) ?? {};
+  const flaggedAreas = Object.entries(signoffAreas).filter(([, a]) => a?.flagged_at && !a?.rectified_at && !a?.flag_withdrawn_at).map(([h]) => h);
+  const openCallbackSource = (CALLBACK_SOURCES as readonly string[]).includes(callbackParam ?? "") ? (callbackParam as CallbackSource) : null;
 
   // Derived items answer from the data they read, so the screen and the gate
   // can never disagree about whether a stage is ready.
@@ -781,6 +812,14 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                 <b>Move to completion prep</b> above to continue.
               </p>
             </div>
+          )}
+
+          {callbacksLoad.error ? (
+            <div className="card" data-testid="callbacks-unavailable"><h3>Call backs</h3><p className="note" style={{ color: "var(--amber)" }}>{callbacksLoad.error}</p></div>
+          ) : (
+            <CallbackPanel workOrderId={id} callbacks={callbacksLoad.callbacks} painters={painters}
+              jobPainterId={(wo as { contractor_id?: string | null }).contractor_id ?? null}
+              canVoid={!ownerRes.error && Boolean(ownerRes.data)} photos={callbackPhotos} flaggedAreas={flaggedAreas} openSource={openCallbackSource} />
           )}
 
           {variations.map((v) => (
