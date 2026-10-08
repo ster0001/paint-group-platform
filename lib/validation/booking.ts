@@ -73,6 +73,17 @@ export const moveBookingInput = z
     path: ["endDate"],
   });
 
+/**
+ * Tom, 8 Oct 2026: the board moves the LAST day of a booked or running job.
+ * The start is never sent — it cannot move from here. The server snaps the
+ * date to the painter's next working day and the database refuses one before
+ * the start ('error:before_start').
+ */
+export const setFinishDateInput = z.object({
+  workOrderId: uuid,
+  endDate: isoDate,
+});
+
 export const blockOutInput = z
   .object({
     contractorId: uuid,

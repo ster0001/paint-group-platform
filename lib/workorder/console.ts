@@ -441,8 +441,9 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
   }
 
   // 5c. Quality checks (Tom, 23 Aug): a job waiting at Quality check with a
-  // check still to log, or a dated (mid-job) check due today or overdue.
-  const today = melbourneDate(now);
+  // check still to log. A DATED check on its day is the work queue's
+  // qa_check_due card (lib/crm/work-queue.ts, Tom 8 Oct 2026) — one card per
+  // check, at its time — so it is not repeated here.
   const qaByWo = new Map<string, NonNullable<ConsoleInput["qaChecks"]>>();
   for (const c of input.qaChecks ?? []) {
     const list = qaByWo.get(c.workOrderId) ?? [];
@@ -452,22 +453,17 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
   for (const [woId, checks] of qaByWo) {
     const w = byId.get(woId);
     if (!w || w.stage === "closed") continue;
-    const dated = checks.filter((c) => c.scheduledFor && c.scheduledFor <= today);
-    const atQa = w.stage === "qa";
-    if (!atQa && dated.length === 0) continue;
+    if (w.stage !== "qa") continue;
     const oldest = checks.reduce((a, b) => (a.createdAt < b.createdAt ? a : b));
     const kinds = [...new Set(checks.map((c) => c.kind === "mid" ? "mid-job" : c.kind.replace(/_/g, " ")))].join(" + ");
     cards.push({
       key: `qa-due:${woId}`,
       severity: "warning",
-      title: atQa ? "Quality check to do" : "Mid-job quality check due",
-      detail: atQa
-        ? `The painter has finished — ${checks.length} check${checks.length === 1 ? "" : "s"} to log (${kinds}) before the job can be signed off.`
-        : `Booked for ${dated[0].scheduledFor === today ? "today" : dated[0].scheduledFor} — log it on the job page.`,
+      title: "Quality check to do",
+      detail: `The painter has finished — ${checks.length} check${checks.length === 1 ? "" : "s"} to log (${kinds}) before the job can be signed off.`,
       ref: label(woId),
       workOrderId: woId,
-      ageHours: atQa ? hoursBetween(w.stage === "qa" ? oldest.createdAt : oldest.createdAt, now)
-        : Math.max(1, (Date.parse(today) - Date.parse(dated[0].scheduledFor as string)) / 3_600_000 + 1),
+      ageHours: hoursBetween(oldest.createdAt, now),
       action: { label: "Check it", kind: "qa", href: `/pc/wo/${woId}` },
     });
   }

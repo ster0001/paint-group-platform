@@ -55,7 +55,7 @@ export default function SitePhotos({ workOrderId, areas, photosAllowed = true }:
       <div className="tick-head"><b>Got a question, or found something?</b></div>
       <p className="hint" style={{ padding: 0, marginTop: 6 }} data-testid="site-photos-hint">
         Only add photos here if you have a question about an item on the job, or something the office should see.
-        Before and after photos go in Step 1 and Step 3 above, not here.
+        Before / progress photos go in Step 1 and after photos in Step 3 above, not here.
       </p>
 
       {message && <p className="tick-msg" role="status" data-testid="photos-message">{message}</p>}
@@ -81,7 +81,7 @@ export default function SitePhotos({ workOrderId, areas, photosAllowed = true }:
         </button>
       ) : (
         <p className="hint" style={{ padding: 0, marginTop: 8 }} data-testid="add-photo-after-step-1">
-          Photos for a question can be added here once Step 1&rsquo;s before photos are in. Your before photos go in the green button above.
+          Photos for a question can be added here once Step 1&rsquo;s before photos are in. Your before / progress photos go in the green button above.
         </p>
       )}
 

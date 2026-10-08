@@ -576,7 +576,9 @@ export default async function PortalJobPage({
 
       {/* Tom, 30 Sep: the job in four numbered steps, one at a time —
           1 before photos (one batch unlocks the scope), 2 tick the work,
-          3 after photos of all rooms or all sides, 4 finish. */}
+          3 after photos of all rooms or all sides, 4 finish. Tom, 8 Oct: Step 1
+          is labelled "Before / progress photos" — label only; the kind stays
+          'before' and the gate is unchanged. */}
       {canTick && surfaces.length > 0 && (() => {
         const step1 = jobNeedsBeforePhotos(surfaces, hasBeforePhoto);
         const step3 = jobNeedsAfterPhotos(surfaces, hasAfterPhoto);
@@ -585,7 +587,7 @@ export default async function PortalJobPage({
         return (
           <div style={{ padding: "0 16px" }}>
             <ol className="steps" data-testid="job-steps" data-step={current}>
-              {["Before photos", "Tick the work", "After photos", "Finish"].map((label, i) => (
+              {["Before / progress photos", "Tick the work", "After photos", "Finish"].map((label, i) => (
                 <li key={label} className={i + 1 < current ? "done" : i + 1 === current ? "now" : ""} data-testid={`job-step-${i + 1}`}>
                   <b>{i + 1}</b><span>{label}</span>
                 </li>
@@ -595,14 +597,14 @@ export default async function PortalJobPage({
             {step1 ? (
               <BatchUploader
                 workOrderId={id} kind="before" testId="before"
-                title="Step 1 · Before photos"
+                title="Step 1 · Before / progress photos"
                 hint="Tap the green button, pick photos of all rooms or all sides as you found them, and they upload straight away. Short videos are fine too."
                 areas={areas}
               />
             ) : (
               <details className="card slim" data-testid="before-more">
-                <summary>Step 1 ✓ Before photos are in — add more</summary>
-                <BatchUploader workOrderId={id} kind="before" testId="before-more" title="More before photos" hint="Only if a room or side was missed." areas={areas} />
+                <summary>Step 1 ✓ Before / progress photos are in — add more</summary>
+                <BatchUploader workOrderId={id} kind="before" testId="before-more" title="More before / progress photos" hint="Only if a room or side was missed." areas={areas} />
               </details>
             )}
 

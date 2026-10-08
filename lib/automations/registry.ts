@@ -651,6 +651,13 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Once per drop (keyed on the status-change event).",
   },
   {
+    key: "office_qa_check_invite", name: "Quality check calendar invite", audience: "office", channels: ["email", "ics"], kind: "automatic",
+    defaultChannel: "email", sendKind: "staff_alert", quietExempt: true, capExempt: true,
+    trigger: "Tom, 8 Oct 2026: a quality check or job check-in is given a day and time — booked by the office, placed at booking for a new painter's first jobs, or moved because the final walkthrough moved. Whoever is ticked for \"QA invite\" in Staff alerts gets a calendar invite; a move updates it, a removed check cancels it.",
+    wording: "Fixed wording — the job, the painter, the day and time, and the final walkthrough it comes before.",
+    guard: "One calendar entry per check (stable UID); unchanged = nothing sent.",
+  },
+  {
     key: "office_contractor_invoice", name: "Contractor invoice submitted", audience: "office", channels: ["email", "sms"], kind: "automatic",
     defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A painter submits an invoice or a payment claim — it is waiting for approval in Payments.",

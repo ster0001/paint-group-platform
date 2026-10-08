@@ -13,7 +13,7 @@ import {
   sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote,
   assignJobAction, reassignDatesAction, setLeadPainterAction, releaseAssignmentAction,
   addAppointmentAction, moveAppointmentAction, removeAppointmentAction, holdDatesAction, moveHoldAction, releaseHoldAction,
-  searchProjectsAction, type ActionResult, type VisitProjectHit,
+  searchProjectsAction, setFinishDateAction, type ActionResult, type VisitProjectHit,
 } from "./actions";
 import type { Block, BoardWalkthrough, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
@@ -628,6 +628,11 @@ export default function ScheduleBoard({
   const editEnd = edit && detail && edit.blockId === detail.id ? edit.end : (detail?.end ?? "");
   const setEditStart = (v: string) => { if (detail) setEdit({ blockId: detail.id, start: v, end: editEnd }); };
   const setEditEnd = (v: string) => { if (detail) setEdit({ blockId: detail.id, start: editStart, end: v }); };
+  // Tom, 8 Oct: the finish date of a booked or running job, from its sheet.
+  // Same derived-per-block shape as `edit` above.
+  const [finishEdit, setFinishEdit] = useState<{ blockId: string; end: string } | null>(null);
+  const finishEnd = finishEdit && detail && finishEdit.blockId === detail.id ? finishEdit.end : (detail?.end ?? "");
+  const [finishMsg, setFinishMsg] = useState<{ blockId: string; text: string; ok: boolean } | null>(null);
   // Employed painters (S2): the detail sheet's "add a painter" picker.
   const [addPainterId, setAddPainterId] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
@@ -1486,6 +1491,8 @@ export default function ScheduleBoard({
                             data-hold-id={b.holdId}
                             data-appointment-id={b.appointmentId}
                             data-work-order-id={b.workOrderId ?? undefined}
+                            data-start={b.start}
+                            data-end={b.end}
                             data-lead={b.isLead ? "1" : undefined}
                             data-accepted={b.acceptedAt ? "1" : undefined}
                             style={{
@@ -1764,6 +1771,53 @@ export default function ScheduleBoard({
             </p>
             <div className="frow"><span className="l">Dates</span><span className="v">{formatDMY(detail.start)} → {formatDMY(detail.end)}</span></div>
             {detail.woRef && <div className="frow"><span className="l">Reference</span><span className="v">{detail.woRef}</span></div>}
+            {/* Tom, 8 Oct: change the LAST day of a booked or running job. A
+                running job can't be dragged — its start stays — so this is
+                where its end moves. Crew jobs move per painter below. */}
+            {detail.workOrderId && detail.offerId && (detail.kind === "in_progress" || detail.kind === "accepted")
+              && !detail.assignmentId && !detail.holdId && !detail.appointmentId && (() => {
+              const snapped = finishEnd ? addWorkingDays(finishEnd, 1, weekFor(detail.contractorId)) : "";
+              const msg = finishMsg && finishMsg.blockId === detail.id ? finishMsg : null;
+              return (
+                <div className="frow" style={{ display: "block", marginTop: 10 }} data-testid="finish-date-row">
+                  <span className="l" style={{ display: "block", marginBottom: 6 }}>
+                    Finish date{detail.kind === "in_progress" ? " — the job has started, so the start stays" : ""}
+                  </span>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <input type="date" value={finishEnd} min={detail.start} data-testid="finish-date"
+                      onChange={(e) => { if (e.target.value) { setFinishEdit({ blockId: detail.id, end: e.target.value }); setFinishMsg(null); } }} />
+                    <button className="btn dim" data-testid="finish-date-save"
+                      disabled={busy || !finishEnd || snapped === detail.end}
+                      onClick={async () => {
+                        setBusy(true); setFinishMsg(null);
+                        const r = await setFinishDateAction({ workOrderId: detail.workOrderId!, endDate: finishEnd });
+                        if (r.ok) {
+                          setDetail({ ...detail, end: r.endDate });
+                          setFinishEdit(null);
+                          setFinishMsg({ blockId: detail.id, ok: true, text: `Finish date moved to ${formatDMY(r.endDate)}. The final walkthrough moved with it.` });
+                          router.refresh();
+                        } else {
+                          setFinishMsg({ blockId: detail.id, ok: false, text: r.message });
+                        }
+                        setBusy(false);
+                      }}>
+                      {busy ? "Saving…" : "Save finish date"}
+                    </button>
+                  </div>
+                  {snapped && (
+                    <span className="l" style={{ display: "block", marginTop: 6 }} data-testid="finish-date-snapped" data-end={snapped}>
+                      Last day {formatDMY(snapped)}{snapped !== finishEnd ? " — the next day they work" : ""}. A booked final walkthrough moves to that day, same time.
+                    </span>
+                  )}
+                  {msg && (
+                    <span className="l" role="status" data-testid="finish-date-msg"
+                      style={{ display: "block", marginTop: 6, color: msg.ok ? "var(--emerald)" : "var(--clay)" }}>
+                      {msg.text}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
             {/* R10 (Step 4): a rained-off day on a job under way — today, or a past day of the block. */}
             {detail.workOrderId && (detail.kind === "in_progress" || detail.kind === "accepted" || detail.kind === "assigned") && !detail.holdId && !detail.appointmentId && (
               <div className="frow" style={{ display: "block", marginTop: 10 }} data-testid="no-work-row">
@@ -1792,6 +1846,9 @@ export default function ScheduleBoard({
               const onJob = new Set(crew.map((b) => b.contractorId));
               const spare = lanes.filter((l) => l.employmentType === "employee" && l.active && !onJob.has(l.contractorId));
               const nameOf = (id: string) => lanes.find((l) => l.contractorId === id)?.name ?? "Painter";
+              // Tom, 8 Oct: once the job is running and their first day has
+              // passed, the start is history (reassign_dates says the same).
+              const startLocked = detail.kind === "in_progress" && detail.start <= todayMelb();
               return (
                 <div data-testid="assignment-detail">
                   <div className="frow">
@@ -1814,6 +1871,8 @@ export default function ScheduleBoard({
                     </span>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <input type="date" value={editStart} max={editEnd || undefined} data-testid="assignment-start"
+                        disabled={startLocked}
+                        title={startLocked ? "The job has started — the start stays. Change the last day." : undefined}
                         onChange={(e) => e.target.value && setEditStart(e.target.value)} />
                       <span className="l">→</span>
                       <input type="date" value={editEnd} min={editStart || undefined} data-testid="assignment-end"

@@ -66,7 +66,7 @@ export const jobsInProgress: MetricDef<JobRow> = {
 
 export const qualityCheck: MetricDef<JobRow> = {
   key: "pc.quality_check", kind: "now", section: "pc_command", title: "Quality check",
-  definition: "Work orders at the quality-check stage. The line under the number is the console's own count of checks due or overdue (its \"Quality check to do\" and \"Mid-job quality check due\" cards).",
+  definition: "Work orders at the quality-check stage. The line under the number is the console's own count of jobs with checks still to log (its \"Quality check to do\" cards).",
   unit: "count", gst: null, roles: ROLES, aggregate: "count", columns: JOB_COLUMNS, href: "/pc",
   select: (input) => openJobs(input).filter((w) => w.stage === "qa").map((w) => jobRow(w, input.now)),
   note: (_rows, _v, input) => { const n = qaDueCount(input); return n ? `${n} check${n === 1 ? "" : "s"} due` : ""; },

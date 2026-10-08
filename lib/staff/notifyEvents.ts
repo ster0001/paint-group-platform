@@ -33,9 +33,22 @@ export const STAFF_EVENTS = [
   /** Painter status Step 7 (brief §9 message 9): for the owner — a bonus review is due; a painter dropped to Red. */
   { key: "office_bonus_review",        label: "Painter bonus review due", short: "Bonus review" },
   { key: "office_painter_red",         label: "Painter dropped to Red",   short: "Painter Red" },
+  /**
+   * Tom, 8 Oct 2026: "schedule it in Felipe's calendar … as a calendar
+   * request". Whoever is ticked here gets every quality check and job
+   * check-in as a calendar invite (.ics), moved and cancelled with it. A
+   * calendar entry is an email thing — there is no text version.
+   */
+  { key: "office_qa_check_invite",     label: "Quality check calendar invite", short: "QA invite", emailOnly: true },
 ] as const;
 
 export type StaffEventKey = (typeof STAFF_EVENTS)[number]["key"];
+
+/** An event that only goes by email (a calendar invite) — the matrix offers no text box for it. */
+export function emailOnlyEvent(key: StaffEventKey): boolean {
+  const e = STAFF_EVENTS.find((x) => x.key === key);
+  return Boolean(e && "emailOnly" in e && e.emailOnly);
+}
 export const STAFF_EVENT_KEYS = STAFF_EVENTS.map((e) => e.key) as StaffEventKey[];
 
 export type StaffNotifyMap = Partial<Record<StaffEventKey, StaffNotifyChannel[]>>;

@@ -54,6 +54,14 @@ The scheduling board is where an accepted job gets a painter and dates. Every is
     ![](media/staff-08.png)
 12. To reassign, drag an existing block onto another contractor's row. The **Move this booking?** sheet opens; confirming cancels the old booking and sends a fresh 24-hour offer to the new contractor.
 
+### Changing the finish date of a job under way
+A job in progress (a cyan block) cannot be dragged: the painter has started, so its start date stays where it is. Its last day can still move.
+1. Click the job's block. The sheet shows **Finish date — the job has started, so the start stays**, with a date box holding the current last day.
+2. Pick the new last day. The line underneath reads **Last day …**; if you picked a day the painter does not work (a weekend, unless they work Saturdays or Sundays), it moves to their next working day and says so.
+3. Tap **Save finish date**. The message reads "Finish date moved to … The final walkthrough moved with it." The block on the board grows or shrinks to the new day.
+The booking, the job's own dates, the painter's job page, their Google Calendar and a booked final walkthrough (same time, new day) all follow. The same box is on a green (accepted) block's sheet when only the last day needs to change. A date before the job started is refused: "That's before the job started — pick a later day."
+For a job with employed painters, open each painter's block and change the second date of **… days on this job**; once the job is running and their first day has passed, their start date box is locked.
+
 ### When an offer lapses
 13. An offer not answered within 24 hours is withdrawn on its own. The tray shows a banner, "1 offer came back to you", and the job card carries an amber note naming the contractor who did not accept. Offer it to someone else.
     ![](media/staff-09.png)
@@ -108,6 +116,7 @@ When a client is close to saying yes and you want to keep the painter's week for
 - **The contractor cannot be offered a job.** Check **Contractors** in the sidebar: their insurance has lapsed or they are suspended. They upload a new certificate in their portal profile.
 - **A pink hold is still there after the job was booked.** It clears on its own only when the job it names is booked. A hold with no job, or one for a different job, is released by hand from the block.
 - **A job you expected is not in the tray.** It has a live offer or an accepted booking already (look along the rows), or its work order has not been issued.
+- **"This job has started, so its start date stays."** You tried to move the start of a running job. Change the finish date from the job's block instead.
 - **The customer did not get a confirmation.** Check **Settings → Messaging** is configured and the automation is on; the overnight sweep resends anything missed.
 
 ## Related
