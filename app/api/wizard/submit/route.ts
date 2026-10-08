@@ -296,6 +296,13 @@ export async function POST(request: Request) {
   let facadeSourcePath: string | null = null;
 
   const wantsInterior = state.jobType !== "exterior";
+  /**
+   * Areas the quick look's confirm-rooms step never offered for ticking, so its
+   * filter below must not drop them (9 Oct 2026: a warehouse's "Warehouse
+   * floor" was dropped because the step lists only the offices — the estimate
+   * saved at office prices, $1,900–$3,600, while the range shown had the floor).
+   */
+  const neverOffered = new Set<number>();
 
   if (!wantsInterior) {
     // Exterior-only: the envelope is measured from its own sources (E1 rule),
@@ -313,6 +320,8 @@ export async function POST(request: Request) {
     const commercialPricing = commercialPricingFrom(settingValue((await loadPricingContext(db)).settings, "commercial_pricing"));
     const floor = warehouseFloorArea(() => nextId++, state.commercial, commercialPricing);
     areas.push(floor.area);
+    // The confirm-rooms step lists the offices, never the floor — it is not the customer's to untick.
+    neverOffered.add(Number(floor.area.id));
     deferred.push(...floor.deferred);
     const rooms = warehouseRoomList(state.commercial, segmentByKey(segments, "office"));
     if (rooms.length) {
@@ -472,7 +481,7 @@ export async function POST(request: Request) {
     // unticked never reaches the price. A filter that would empty the list is ignored.
     if (state.quickLook?.rooms && state.jobType !== "exterior") {
       const keep = new Set(state.quickLook.rooms.map((n) => n.toLowerCase()));
-      const kept = areas.filter((a) => a.type === "Exterior" || keep.has(String(a.name).toLowerCase()));
+      const kept = areas.filter((a) => a.type === "Exterior" || neverOffered.has(Number(a.id)) || keep.has(String(a.name).toLowerCase()));
       if (kept.some((a) => a.type !== "Exterior")) {
         const dropped = new Set(areas.filter((a) => !kept.includes(a)).map((a) => a.id));
         areas.splice(0, areas.length, ...kept);
