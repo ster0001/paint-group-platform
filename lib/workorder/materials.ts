@@ -153,28 +153,35 @@ export function applyMaterialEdit(doc: WorkOrderDoc, rowKey: string, edit: Mater
 }
 
 /**
- * The paint list on the Materials panel (Tom, 18 Sep 2026): "add a search bar
- * to the paint list in job settings and order the paint A-Z so it is easier
- * to find."
+ * The paint list on the Materials panel, a substrate's Product field and a
+ * line's materials (Tom, 18 Sep 2026: "add a search bar to the paint list …
+ * and order the paint A-Z"; 8 Oct 2026: "choose from all materials, not just
+ * pigeon-holed to interior or exterior").
  *
- * Three rules, in this order, because the third is the safety one:
- *  1. Only paints for this surface's Int/Ext type (a product with no type
- *     suits either).
- *  2. Narrowed by what the office typed, matched anywhere in the name.
- *  3. The paint ALREADY CHOSEN on the row is always kept, whatever the type
- *     and whatever the search says. A <select> whose current value is missing
- *     from its options silently displays the first one instead, which is how
- *     every trim once read the wrong product (Tom, 30 Aug) — filtering must
- *     never be able to change what a job is quoted with.
+ * Every paint in the catalogue, whatever its Int/Ext type, then:
+ *  1. Narrowed by what the office typed, matched anywhere in the name, the
+ *     brand, the finish, the category or the internal alias.
+ *  2. The paint ALREADY CHOSEN on the row is always kept, whatever the search
+ *     says. A <select> whose current value is missing from its options
+ *     silently displays the first one instead, which is how every trim once
+ *     read the wrong product (Tom, 30 Aug) — filtering must never be able to
+ *     change what a job is quoted with.
+ *  3. A-Z, ignoring case.
  */
-export function paintOptions<T extends { name: string; type?: string | null }>(
+type Searchable = {
+  name: string;
+  brand?: string | null; finish?: string | null; category?: string | null; internal_alias?: string | null;
+};
+
+export function paintOptions<T extends Searchable>(
   products: readonly T[],
-  opts: { surfaceType: string; chosen: string; search: string },
+  opts: { chosen: string; search: string },
 ): T[] {
   const q = opts.search.trim().toLowerCase();
+  const hit = (p: T) => [p.name, p.brand, p.finish, p.category, p.internal_alias]
+    .some((f) => (f ?? "").toLowerCase().includes(q));
   return products
-    .filter((p) => !p.type || p.type === opts.surfaceType || p.name === opts.chosen)
-    .filter((p) => !q || p.name === opts.chosen || p.name.toLowerCase().includes(q))
+    .filter((p) => !q || p.name === opts.chosen || hit(p))
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name, "en-AU", { sensitivity: "base" }));
 }

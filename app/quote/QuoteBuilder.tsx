@@ -2623,11 +2623,13 @@ export default function QuoteBuilder({
                     {/* Tom, 18 Sep: the catalogue is long. One box narrows every
                         paint dropdown below; the paint already chosen on a row
                         always stays in its own list, so filtering can never
-                        silently swap a product. */}
+                        silently swap a product. Tom, 8 Oct: every list offers the
+                        whole catalogue (Interior and Exterior), so the box is
+                        how you get to the one you want. */}
                     <input
                       type="search"
                       className="mt-3 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                      placeholder="Search the paints — e.g. Dulux, low sheen"
+                      placeholder="Search all paints — name, brand or finish, e.g. Dulux, low sheen"
                       aria-label="Search the paint list"
                       value={paintSearch}
                       onChange={(e) => setPaintSearch(e.target.value)}
@@ -2638,12 +2640,13 @@ export default function QuoteBuilder({
                         const globalName = materials[r.baseKey] ?? itemByKey.get(r.baseKey)?.default_product ?? "";
                         // A named row shows its pinned product, else the base row's.
                         const shownName = r.base ? globalName : (r.product ?? globalName);
-                        // Int/Ext type, then the search box, then A-Z — and the
-                        // paint already chosen is kept whatever either says.
-                        // The rule lives in lib/workorder/materials.ts with its
-                        // own tests, because getting it wrong changes what a job
-                        // is quoted with.
-                        const opts = paintOptions(products, { surfaceType: r.type, chosen: shownName, search: paintSearch });
+                        // Every paint (Tom, 8 Oct: no Int/Ext pigeon-holing),
+                        // narrowed by the search box, A-Z — and the paint
+                        // already chosen is kept whatever the search says. The
+                        // rule lives in lib/workorder/materials.ts with its own
+                        // tests, because getting it wrong changes what a job is
+                        // quoted with.
+                        const opts = paintOptions(products, { chosen: shownName, search: paintSearch });
                         const sheenValue = r.base ? sheenForKey(r.baseKey, globalName) : (sheens[r.key] ?? sheenForKey(r.baseKey, shownName));
                         const colourValue = r.base
                           ? (materialColours[r.baseKey]?.name ? materialColours[r.baseKey] : null)
@@ -2782,7 +2785,10 @@ export default function QuoteBuilder({
                             data-testid="extra-paint-pick"
                           >
                             <option value="">— choose a paint to show (primer, stain blocker…) —</option>
-                            {products.filter((p) => !extraPaints.some((x) => x.productName === p.name)).map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                            {/* The same search box and A-Z as the rows above (Tom, 8 Oct). */}
+                            {paintOptions(products, { chosen: extraPick, search: paintSearch })
+                              .filter((p) => !extraPaints.some((x) => x.productName === p.name))
+                              .map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
                           </select>
                           <button
                             onClick={() => { if (!extraPick) return; setExtraPaints((list) => [...list, { productName: extraPick, usage: "" }]); setExtraPick(""); }}
@@ -4191,6 +4197,8 @@ function SurfaceEditor({
   onRemove: () => void;
 }) {
   const isItem = calc.isItem;
+  const [paintSearch, setPaintSearch] = useState("");
+  const surfacePaints = paintOptions(products, { chosen: s.productName ?? "", search: paintSearch });
   const inp = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm";
   const num = (v: number, on: (n: number | null) => void, ph?: string) => (
     <NumInput className={inp} placeholder={ph} value={Number.isFinite(v) ? v : null} onCommit={on} />
@@ -4309,9 +4317,23 @@ function SurfaceEditor({
             <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Product · Estimated paint</div>
             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               <F label={`Product${s.productName != null ? " · custom" : ""}`}>
-                <select className={inp} value={s.productName ?? ""} onChange={(e) => onPatch({ productName: e.target.value || null })}>
+                {/* Tom, 8 Oct: type to find — every paint in the catalogue, A-Z,
+                    and the one already chosen never filtered away. */}
+                <input
+                  type="search"
+                  className={`${inp} mb-1`}
+                  placeholder="Search paints…"
+                  aria-label="Search the paints for this surface"
+                  value={paintSearch}
+                  onChange={(e) => setPaintSearch(e.target.value)}
+                  data-testid="surface-paint-search"
+                />
+                <select className={inp} value={s.productName ?? ""} onChange={(e) => onPatch({ productName: e.target.value || null })} data-testid="surface-paint-pick" aria-label="Product">
                   <option value="">— Default · {materialDefault || "none"} —</option>
-                  {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                  {s.productName != null && !surfacePaints.some((p) => p.name === s.productName) && (
+                    <option value={s.productName}>{s.productName} (not in catalogue)</option>
+                  )}
+                  {surfacePaints.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
                 </select>
                 {s.productName != null && (
                   <button onClick={() => onPatch({ productName: null })} className="mt-1 text-[11px] font-medium text-blue-600 hover:text-blue-800">
@@ -4557,7 +4579,7 @@ function LineMaterials({ line: l, products, calc, onPatch }: {
   const setRows = (next: LineMaterial[]) => onPatch({ materials: next });
   const patchRow = (id: number, patch: Partial<LineMaterial>) => setRows(rows.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   const add = () => setRows([...rows, { id: Date.now() + Math.floor(Math.random() * 1000), productName: "", litres: 0, unitPriceOverride: null, sheen: "", colourName: "", colourHex: "", note: "" }]);
-  const opts = (chosen: string) => paintOptions(products, { surfaceType: l.type, chosen, search });
+  const opts = (chosen: string) => paintOptions(products, { chosen, search });
   return (
     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3" data-testid="line-materials">
       <div className="flex flex-wrap items-center justify-between gap-2">
