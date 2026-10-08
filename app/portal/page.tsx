@@ -17,6 +17,8 @@ import { loadMyCallbacks } from "@/lib/callbacks/load";
 import { callbackLine } from "@/lib/callbacks/model";
 import { loadMyStatus } from "@/lib/painterStatus/mine";
 import StatusCard from "./StatusCard";
+import { loadMyThreads } from "@/lib/workorder/messagesLoad";
+import { messageWhen } from "@/lib/workorder/messageModel";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +62,9 @@ export default async function PortalHome() {
 
   // Call backs (Step 3): open ones about this painter, or booked for them to fix.
   const myCallbacks = await loadMyCallbacks(supabaseForStandards, contractor.id);
+  // Messages with the office (Tom, 9 Oct 2026): one thread per job, named by
+  // job ref + suburb only; their own threads, through their session.
+  const myMessages = await loadMyThreads(supabaseForStandards);
   // Painter status (Step 6): their own row, or nothing — RLS decides (⚑21, R17).
   const { status: myStatus } = await loadMyStatus(supabaseForStandards, contractor.id);
 
@@ -233,6 +238,34 @@ export default async function PortalHome() {
           ))}
         </div>
       )}
+
+      {/* Messages from the office, one line per job (Tom, 9 Oct 2026). */}
+      <div className={`card${myMessages.threads.some((t) => t.unread > 0) ? " amberish" : ""}`} data-testid="home-messages">
+        <h3>Messages</h3>
+        {myMessages.failure && <p className="hint" role="status">{myMessages.failure}</p>}
+        {myMessages.threads.length === 0 && !myMessages.failure && (
+          <p className="hint" style={{ padding: 0, marginTop: 4 }}>
+            Nothing yet. When the office writes to you about a job it shows here, and you can reply — with photos — from the job page.
+          </p>
+        )}
+        {myMessages.threads.map((t) => (
+          <Link key={t.threadId} href={`/portal/jobs/${t.workOrderId}#messages`} className="act" data-testid={`home-message-${t.workOrderId}`}>
+            <i aria-hidden>✉</i>
+            <span style={{ minWidth: 0 }}>
+              <span data-testid="home-message-job">{t.label}</span>
+              <br />
+              <span style={{ fontSize: "12px", color: "var(--muted)", overflowWrap: "anywhere" }}>
+                {t.lastLine}{t.lastAt ? ` · ${messageWhen(t.lastAt)}` : ""}
+              </span>
+            </span>
+            <span className="push">
+              {t.unread > 0
+                ? <span className="chip amb" data-testid="home-message-unread">{t.unread} new</span>
+                : <span className="chip gry">Read</span>}
+            </span>
+          </Link>
+        ))}
+      </div>
 
       {/* Variations the customer has approved, waiting on the painter. */}
       {waitingVariations.length > 0 && (

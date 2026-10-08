@@ -28,6 +28,7 @@ import BatchUploader from "@/app/components/wo/BatchUploader";
 import { jobNeedsAfterPhotos, jobNeedsBeforePhotos } from "@/lib/workorder/surfaces";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import { qaAllClear, staffSignsOff as staffSignsOffFor } from "@/lib/workorder/qa";
+import { painterSeesQaDate } from "@/lib/workorder/qaSchedule";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 import type { Booking } from "@/lib/workorder/booking";
@@ -44,6 +45,8 @@ import { loadCallbacksForJob } from "@/lib/callbacks/load";
 import CallbackCard from "./CallbackCard";
 import UpdateMoments from "./UpdateMoments";
 import type { MomentRow } from "@/lib/workorder/reminderMoments";
+import MessageThread from "@/app/components/wo/MessageThread";
+import { loadThread } from "@/lib/workorder/messagesLoad";
 
 export const dynamic = "force-dynamic";
 
@@ -446,6 +449,10 @@ export default async function PortalJobPage({
     : [];
   const rectifiedPhase = canTick && flaggedAreas.length > 0;
 
+  // Messages with the office about THIS job (Tom, 9 Oct 2026) — their own
+  // thread only, through their session (RLS). No office-side delivery notes.
+  const messages = await loadThread(supabase, id, contractor.id, "painter");
+
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
       {showWalkthroughBar && (
@@ -686,7 +693,9 @@ export default async function PortalJobPage({
           <FinishDate workOrderId={id} finalDate={bookedFinal} endDate={woBooking.endDate}
             startDate={woBooking.startDate} stage={stage ?? ""}
             qaDates={((qaRows ?? []) as { kind: string; scheduled_for: string | null; result: string | null }[])
-              .filter((q) => q.scheduled_for)
+              // Tom, 9 Oct 2026: the office's extra visits are "logged just
+              // for Felipe" — only the main check's day reaches the painter.
+              .filter((q) => q.scheduled_for && painterSeesQaDate(q.kind))
               .map((q) => ({ kind: q.kind, date: q.scheduled_for as string, result: q.result }))} />
         </div>
       )}
@@ -748,6 +757,10 @@ export default async function PortalJobPage({
           )}
         </div>
       )}
+
+      <div style={{ padding: "0 16px" }}>
+        <MessageThread mode="painter" thread={messages} canWrite />
+      </div>
 
       {/* The approved changes on the sheet itself (Tom, 23 Sep) — scope and
           hours for both kinds of painter; the pay line carries the accepted

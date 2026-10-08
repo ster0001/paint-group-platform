@@ -23,6 +23,8 @@ export const STAFF_EVENTS = [
   { key: "office_signoff_overdue",     label: "Sign-off overdue",         short: "Sign-off" },
   /** Tom, 20 Sep 2026: a customer wrote on their estimate's chat. */
   { key: "office_estimate_chat",       label: "Customer chat message",    short: "Chat" },
+  /** Tom, 9 Oct 2026: a painter wrote in a project's Messages box (PC Command). Optional — the PC work item is the record. */
+  { key: "office_painter_message",     label: "Painter message",          short: "Painter msg" },
   /** Tom, 1 Oct 2026: a customer declines their estimate; a sent estimate lapses past its valid-until. */
   { key: "office_estimate_declined",   label: "Estimate declined",        short: "Declined" },
   { key: "office_estimate_expired",    label: "Estimate expired",         short: "Expired" },

@@ -18,6 +18,8 @@ import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
 import { qaWhenMessage } from "@/lib/workorder/qaSchedule";
 import { runPainterStatus } from "@/lib/painterStatus/run";
 import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
+import { deliverSiteVisitNote } from "@/lib/workorder/siteNoteMessage";
+import { SITE_VISIT_NOTE_MAX } from "@/lib/workorder/siteVisits";
 import { melbourneDate } from "@/lib/workorder/console";
 import { logCrmEvent } from "@/lib/crm/events";
 import { reportError } from "@/lib/monitoring/report";
@@ -661,6 +663,138 @@ export async function addQaCheck(raw: unknown): Promise<PcResult> {
     reconcileQaInvites(v.workOrderId);
   }
   return r;
+}
+
+/**
+ * Site check-ins (Tom, 9 Oct 2026; 20270248): Felipe's own visit — "logged
+ * just for Felipe", never pass/fail, never a hold on the job. A day and a time
+ * before the final, the same refusals as a check; the visit goes in the same
+ * calendar (the invite reconciler reads wo_site_visits too). Nobody else is
+ * told: no painter text, no customer anything.
+ */
+export async function addSiteVisit(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, date: ymd, time: hhmm }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: qaWhenMessage("no_time") };
+  const v = parsed.data;
+  const r = qaWhenRefusal(await call("wo_add_site_visit", { p_work_order_id: v.workOrderId, p_date: v.date, p_time: v.time },
+    "Site check-in added — it is in the quality-check calendar. Nobody else is told."));
+  if (r.ok) {
+    revalidatePath(`/pc/wo/${v.workOrderId}`);
+    reconcileQaInvites(v.workOrderId);
+  }
+  return r;
+}
+
+async function siteVisitJob(visitId: string): Promise<{ workOrderId: string | null; log: Record<string, unknown>[] }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("wo_site_visits").select("work_order_id, invite_log").eq("id", visitId).maybeSingle();
+  if (error) reportError(error, { where: "siteVisit.job", extra: { visitId } });
+  const row = data as { work_order_id: string; invite_log: Record<string, unknown>[] | null } | null;
+  return { workOrderId: row?.work_order_id ?? null, log: Array.isArray(row?.invite_log) ? row.invite_log : [] };
+}
+
+function siteVisitRefusal(r: PcResult): PcResult {
+  if (r.ok) return r;
+  if (r.message === "already recorded") return { ok: false, message: "This visit is already marked visited." };
+  if (r.message === "has notes") return { ok: false, message: "This visit has notes on it — it stays as the record. Mark it visited instead." };
+  if (r.message === "not staff") return { ok: false, message: "Only the office can do that." };
+  return qaWhenRefusal(r);
+}
+
+export async function scheduleSiteVisit(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ visitId: uuid, date: ymd, time: hhmm }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: qaWhenMessage("no_time") };
+  const v = parsed.data;
+  const r = siteVisitRefusal(await call("wo_site_visit_set_schedule", { p_visit_id: v.visitId, p_date: v.date, p_time: v.time },
+    "Moved — the calendar invite follows."));
+  if (!r.ok) return r;
+  const { workOrderId } = await siteVisitJob(v.visitId);
+  if (workOrderId) {
+    revalidatePath(`/pc/wo/${workOrderId}`);
+    reconcileQaInvites(workOrderId);
+  }
+  return r;
+}
+
+export async function removeSiteVisit(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ visitId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  // Its invite history goes with the row — read it first, so the calendar
+  // entry can be cancelled after.
+  const { workOrderId, log } = await siteVisitJob(parsed.data.visitId);
+  const r = siteVisitRefusal(await call("wo_remove_site_visit", { p_visit_id: parsed.data.visitId }, "Removed — and taken out of the calendar."));
+  if (r.ok && workOrderId) {
+    revalidatePath(`/pc/wo/${workOrderId}`);
+    const service = createServiceClient();
+    const removed = [{ id: parsed.data.visitId, log }];
+    if (service) after(() => sendQaCheckInvites(service, workOrderId, removed));
+  }
+  return r;
+}
+
+/** "Mark visited" — what clears the PC Command card. Never a pass or a fail. */
+export async function markSiteVisitVisited(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ visitId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const r = siteVisitRefusal(await call("wo_site_visit_mark_visited", { p_visit_id: parsed.data.visitId }, "Marked visited."));
+  if (r.ok) {
+    const { workOrderId } = await siteVisitJob(parsed.data.visitId);
+    if (workOrderId) revalidatePath(`/pc/wo/${workOrderId}`);
+  }
+  return r;
+}
+
+/**
+ * A progress note on a visit. Returns the note's id so the page can attach
+ * its photos (app/api/wo/site-visits/photos) BEFORE it is sent — the text the
+ * painter gets says how many photos there are. Sending is its own step.
+ */
+export async function addSiteVisitNote(raw: unknown): Promise<PcResult & { noteId?: string }> {
+  const parsed = z.object({
+    visitId: uuid,
+    body: z.string().trim().min(1, "Write the note first.").max(SITE_VISIT_NOTE_MAX, `Keep a note under ${SITE_VISIT_NOTE_MAX} characters.`),
+    sendToPainter: z.boolean().default(false),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_site_visit_add_note", {
+    p_visit_id: parsed.data.visitId, p_body: parsed.data.body, p_send: parsed.data.sendToPainter,
+  });
+  if (error) {
+    reportError(error, { where: "siteVisit.addNote", extra: { visitId: parsed.data.visitId } });
+    return { ok: false, message: "The note didn't save — try again." };
+  }
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) return siteVisitRefusal({ ok: false, message: s.replace("error:", "").replace(/_/g, " ") });
+  const { workOrderId } = await siteVisitJob(parsed.data.visitId);
+  if (workOrderId) revalidatePath(`/pc/wo/${workOrderId}`);
+  return { ok: true, message: "Note saved.", noteId: s.slice(3) };
+}
+
+/**
+ * Send a note to the job's lead painter — as a MESSAGE in the job's thread
+ * with them (Tom, 9 Oct 2026: one route for messages to the painter;
+ * lib/workorder/siteNoteMessage.ts). Shares it first if it was kept
+ * office-only. Synchronous, so the office reads the outcome: in their
+ * messages and how they were told, or why it didn't go.
+ */
+export async function sendSiteVisitNote(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ noteId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const shared = await call("wo_site_visit_share_note", { p_note_id: parsed.data.noteId });
+  if (!shared.ok) return siteVisitRefusal(shared);
+  const service = createServiceClient();
+  if (!service) return { ok: false, message: "Sending isn't set up on this server." };
+  const supabase = await createClient();
+  const out = await deliverSiteVisitNote(supabase, service, parsed.data.noteId);
+  const { data: noteRow, error } = await supabase.from("wo_site_visit_notes").select("work_order_id").eq("id", parsed.data.noteId).maybeSingle();
+  if (error) reportError(error, { where: "siteVisit.sendNote.job", extra: { noteId: parsed.data.noteId } });
+  const workOrderId = (noteRow as { work_order_id: string } | null)?.work_order_id;
+  if (workOrderId) revalidatePath(`/pc/wo/${workOrderId}`);
+  if (out.outcome === "sent") return { ok: true, message: `In the painter's messages. ${out.detail}`.trim() };
+  if (out.outcome === "already") return { ok: true, message: out.detail };
+  if (out.outcome === "skipped") return { ok: false, message: `Not delivered: ${out.detail}` };
+  return { ok: false, message: out.detail };
 }
 
 /**

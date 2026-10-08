@@ -36,6 +36,8 @@ import FinishLevelCard from "./FinishLevelCard";
 import CrewNotesCard from "./CrewNotesCard";
 import ClientUpdates, { type ClientTimelineEntry } from "./ClientUpdates";
 import ReferencePhotosCard from "./ReferencePhotosCard";
+import SiteVisitsCard from "./SiteVisitsCard";
+import { loadSiteVisits } from "@/lib/workorder/siteVisits";
 import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
 import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
 import { loadStandards } from "@/lib/standards/load";
@@ -46,14 +48,16 @@ import NoWorkDay from "./NoWorkDay";
 import type { MomentRow } from "@/lib/workorder/reminderMoments";
 import { standardsLinksFor } from "@/lib/standards/model";
 import RejectVariation from "@/app/pc/RejectVariation";
+import MessageThread from "@/app/components/wo/MessageThread";
+import { loadJobPainters, loadThread, pickPainter } from "@/lib/workorder/messagesLoad";
 
 export const dynamic = "force-dynamic";
 
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
 
-export default async function PcWorkOrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ callback?: string }> }) {
+export default async function PcWorkOrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ callback?: string; painter?: string }> }) {
   const { id } = await params;
-  const { callback: callbackParam } = await searchParams;
+  const { callback: callbackParam, painter: painterParam } = await searchParams;
   const supabase = await createClient();
 
   const { data: wo } = await supabase
@@ -130,6 +134,14 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
         .select("signed_at, client_unavailable_at, areas")
         .eq("work_order_id", id).maybeSingle(),
     ]);
+
+  // Messages with the painter (Tom, 9 Oct 2026): one thread per painter on
+  // the job; the office picks whose (?painter=), else one with something
+  // unread, else the lead. Read through the staff session (RLS).
+  const jobPainters = await loadJobPainters(supabase, id, (wo as { contractor_id?: string | null }).contractor_id ?? null);
+  const messagePainterId = pickPainter(jobPainters.painters, painterParam);
+  const messageThread = messagePainterId ? await loadThread(supabase, id, messagePainterId, "staff") : null;
+  const messagePainter = jobPainters.painters.find((p) => p.contractorId === messagePainterId) ?? null;
 
   // Quality checks with their day and time, the final they sit before, and
   // what reached the calendar (Tom, 8 Oct 2026).
@@ -260,6 +272,13 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     name: a.contractors?.profiles?.name || a.contractors?.company_name || "Painter",
   }));
   const qaScheduled = ((qaRows ?? []) as unknown[]).length > 0;
+
+  // Site check-ins (Tom, 9 Oct 2026; 20270248): Felipe's own visits, with their
+  // notes and photos. Never a check — nothing here gates the job.
+  const siteVisits = await loadSiteVisits(supabase, id);
+  if (siteVisits.failure) reportError(new Error(siteVisits.failure), { where: "pc.wo.siteVisits", bestEffort: true });
+  // Who a "Send to the painter" note goes to: the lead painter, else the job's contractor.
+  const notePainter = crew.find((c) => c.isLead)?.name ?? (painterName || null);
 
   // The job sheet, opened on the work-order view where the colours live, and
   // carrying `from` so the builder's top-left link comes back here rather than
@@ -595,6 +614,21 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
           staff only, loaded client-side so no note text sits in this page's HTML. */}
       {estimateId && <EstimatorNotes estimateId={estimateId} surface="console" who="the project coordinator" />}
 
+      {/* Messages with the painter (Tom, 9 Oct 2026): text and photos both
+          ways, one thread per painter on the job. Opening a thread the painter
+          wrote in clears its "replied" card on PC Command. */}
+      {messageThread ? (
+        <MessageThread mode="staff" thread={jobPainters.failure && !messageThread.failure ? { ...messageThread, failure: jobPainters.failure } : messageThread}
+          painters={jobPainters.painters}
+          canWrite={Boolean(messagePainter?.onJob)}
+          cantWriteReason={`${messagePainter?.name ?? "This painter"} isn't on this job any more — their messages are kept here to read.`} />
+      ) : (
+        <div className="card msgbox" id="messages" data-testid="msg-box-none">
+          <b>Messages</b>
+          <p className="note">{jobPainters.failure ?? "No painter on this job yet — once one is offered it or assigned, you can message them here."}</p>
+        </div>
+      )}
+
       <div className="grid2">
         {row.stage === "in_progress" ? (
           <TickList
@@ -850,15 +884,17 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               logged record (and where its re-check went) stays in view while
               the painter rectifies; the unlogged re-check itself waits for
               their next finish before it is drawn. */}
-          {/* Tom, 8 Oct 2026: a site check-in (or spot check) whose day has come
-              is recorded while the job is still running — its PC Command card
-              ("Record the check") lands here. */}
+          {/* Tom, 8 Oct 2026: a mid-job or spot check whose day has come is
+              recorded while the job is still running — its PC Command card
+              ("Record the check") lands here. Site check-ins are NOT checks
+              (9 Oct): they have their own card just below. */}
           <div id="qa">
             {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
               && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null || checkInDue.has(c.id)).map((c) => (
               <QaCheck key={c.id} check={c} workOrderId={id} expect={qaExpect} />
             ))}
           </div>
+          <SiteVisitsCard visits={siteVisits.visits} painter={notePainter} closed={row.stage === "closed"} failure={siteVisits.failure} />
           {/* Dashboard 0c: reviews requested → received, a person's tick until the API. */}
           {(row.stage === "walkthrough" || row.stage === "closed") && (
             <ReviewCard workOrderId={id} review={reviewState} />

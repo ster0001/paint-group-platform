@@ -406,6 +406,61 @@
       "sources": []
     },
     {
+      "feature": "painter-messages",
+      "role": "contractor",
+      "title": "Read and answer messages from the office about a job — with photos",
+      "summary": "Messages from the office land in Messages on your Home screen, one line per job (job number and suburb), and on that job's page, where you can reply with text and photos from your phone.",
+      "path": "docs/help/painter-messages/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/components/wo/MessageThread.tsx",
+        "app/components/wo/messageActions.ts",
+        "app/portal/page.tsx",
+        "app/portal/jobs/[id]/page.tsx",
+        "lib/workorder/messagesLoad.ts"
+      ]
+    },
+    {
+      "feature": "painter-messages",
+      "role": "employee",
+      "title": "Read and answer messages from the office about a job — with photos",
+      "summary": "Messages from the office about a job you are on land in Messages on your Home screen (job number and suburb) and on the job's page, where you can reply with text and photos from your phone.",
+      "path": "docs/help/painter-messages/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/components/wo/MessageThread.tsx",
+        "app/components/wo/messageActions.ts",
+        "app/portal/page.tsx",
+        "app/portal/jobs/[id]/page.tsx",
+        "lib/workorder/messagesLoad.ts"
+      ]
+    },
+    {
+      "feature": "painter-messages",
+      "role": "pc",
+      "title": "Message a painter about a job, with photos, from the job page",
+      "summary": "The Messages box on a job in PC Command — one conversation per painter on the job, text and photos both ways, a line under each of your messages saying whether the painter was texted, and a card on PC Command when a painter writes back that clears once you read it.",
+      "path": "docs/help/painter-messages/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/components/wo/MessageThread.tsx",
+        "app/components/wo/messageActions.ts",
+        "app/pc/wo/[id]/page.tsx",
+        "app/pc/page.tsx",
+        "lib/workorder/messageModel.ts",
+        "lib/workorder/messagesLoad.ts",
+        "lib/crm/work-queue.ts",
+        "lib/contractor/notify.ts",
+        "lib/staff/notify.ts"
+      ]
+    },
+    {
       "feature": "painter-status",
       "role": "contractor",
       "title": "Your status — the traffic light, what it gets you, and how to reach Green",
@@ -900,6 +955,7 @@
       ],
       "verified_at_commit": "780c451640",
       "sources": [
+        "app/pc/wo/[id]/SiteVisitsCard.tsx",
         "app/pc/wo/[id]/ReviewCard.tsx",
         "app/pc/wo/[id]/PrestartListBox.tsx",
         "app/pc/WorkItemNote.tsx",

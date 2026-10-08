@@ -64,11 +64,27 @@ export function qaWhenMessage(p: QaWhenProblem): string {
   }
 }
 
-/** The main end-of-job check, and the extras the office adds. */
+/**
+ * The main end-of-job check, and the extras. 'visit' is not a check at all —
+ * it is a site check-in (wo_site_visits, 20270248), named here because
+ * Felipe's calendar invite labels both. 'mid' is the mid-job QUALITY check the
+ * standards cadence may schedule (pass/fail).
+ */
 export function qaCheckLabel(kind: string): string {
   if (kind === "final") return "Quality check";
-  if (kind === "mid") return "Site check-in";
+  if (kind === "visit") return "Site check-in";
+  if (kind === "mid") return "Mid-job check";
   if (kind === "spot") return "Spot check";
   if (kind === "day_one") return "Day-one check";
   return "Check";
+}
+
+/**
+ * Tom, 9 Oct 2026: the extra visits are "logged just for Felipe". The painter's
+ * job page lists the main quality check's day — never a mid-job or spot check
+ * the office booked. Decided in the server render, so the dates never reach
+ * the painter's browser.
+ */
+export function painterSeesQaDate(kind: string): boolean {
+  return kind !== "mid" && kind !== "spot";
 }

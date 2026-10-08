@@ -266,9 +266,18 @@ async function sweep(opts: { force?: boolean } = {}) {
     .from("wo_qa_checks").select("work_order_id")
     .is("result", null).gte("scheduled_for", today)
     .order("scheduled_for").limit(RPC_CAP);
+  // Site check-ins (20270248) go in the same calendar.
+  const { data: dueVisits, error: dueVisitsError } = await db
+    .from("wo_site_visits").select("work_order_id")
+    .is("visited_at", null).gte("scheduled_for", today)
+    .order("scheduled_for").limit(RPC_CAP);
+  if (dueVisitsError) reportError(dueVisitsError, { where: "wo-sweep.siteVisitInvites" });
   if (dueError) reportError(dueError, { where: "wo-sweep.qaInvites" });
   else {
-    const ids = [...new Set(((dueChecks ?? []) as { work_order_id: string }[]).map((r) => r.work_order_id))];
+    const ids = [...new Set([
+      ...((dueChecks ?? []) as { work_order_id: string }[]),
+      ...((dueVisitsError ? [] : dueVisits ?? []) as { work_order_id: string }[]),
+    ].map((r) => r.work_order_id))];
     await eachLimit(ids, 4, async (id) => { await sendQaCheckInvites(db, id); qaInviteJobs += 1; });
   }
 

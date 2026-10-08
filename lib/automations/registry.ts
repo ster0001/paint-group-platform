@@ -92,6 +92,7 @@ const P = {
   assignment: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{start_date}}", "{{dates}}", "{{link}}"],
   variation: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{action}}", "{{link}}"],
   variationAdded: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{pay_line}}", "{{link}}"],
+  painterMessage: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{message}}", "{{link}}"],
   leadChanged: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{link}}"],
   employeeVariation: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{hours_line}}", "{{link}}"],
   expenseDecided: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{wo_ref}}", "{{decision}}", "{{reason_line}}"],
@@ -401,6 +402,18 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Once per change. A painter with no mobile is emailed; with neither on file the job's record says so (Tom, 7 Oct 2026 — 12A Cavell Court).",
   },
   {
+    key: "contractor_message", name: "Message from the office", audience: "painter", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "both", sendKind: "painter_message", capExempt: true,
+    trigger: "Tom, 9 Oct 2026: someone in the office writes to a painter in a project's Messages box (PC Command → the job → Messages). The painter is told there is a new message about the job ref and suburb, with a link that opens the job at its messages; the email carries the words too.",
+    templates: [
+      { field: "painterMessageSms", label: "Text message", kind: "sms", placeholders: P.painterMessage },
+      { field: "painterMessageEmailSubject", label: "Email subject", kind: "subject", placeholders: P.painterMessage },
+      { field: "painterMessageEmailIntro", label: "Email body", kind: "body", placeholders: P.painterMessage },
+    ],
+    guard: "One text per burst: several messages to the same painter on the same job within 10 minutes are one text, unless they have read the thread in between. Every message records what telling them came to — sent, held until sending hours, or not sent and why — under the message on the job page.",
+    note: "Outside sending hours the text waits for them to open, and is dropped if the painter reads the message in the app first.",
+  },
+  {
     key: "contractor_variation_released", name: "Variation waiting on you", audience: "painter", channels: ["sms", "email"], kind: "automatic",
     defaultChannel: "both", sendKind: "variation_released", capExempt: true,
     trigger: "An approved variation is released to the painter (automatically at signing, or by the office).",
@@ -612,6 +625,16 @@ export const AUTOMATIONS: Automation[] = [
       { field: "officeVariationRaisedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{category}}", "{{hours_line}}", "{{comment}}", "{{link}}"] },
     ],
     guard: "Once per variation.",
+  },
+  {
+    key: "office_painter_message", name: "Painter wrote in a project's messages", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "email", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "Tom, 9 Oct 2026: a painter writes in a job's Messages box. The card on PC Command (“<painter> replied on <job>”) is always there and clears when someone reads the thread; this email or text is optional — only staff who tick Painter message under Staff logins get it. Nobody is ticked to start with.",
+    templates: [
+      { field: "officePainterMessageSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{message}}", "{{link}}"] },
+      { field: "officePainterMessageBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{message}}", "{{link}}"] },
+    ],
+    guard: "One per burst — a painter's messages on the same job within 10 minutes are one alert, unless someone read the thread in between.",
   },
   {
     key: "office_variation_declined", name: "Painter declined an approved change", audience: "office", channels: ["email", "sms"], kind: "automatic",

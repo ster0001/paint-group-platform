@@ -12,8 +12,10 @@ import { qaCheckLabel } from "@/lib/workorder/qaSchedule";
  * earlier or later. Moving it moves the booking's end on the calendar and
  * re-books the walkthrough to the same day; the office is told.
  *
- * A dated quality check or site check-in shows here too, read-only — those
- * are the office's (and the main check moves when this date moves it).
+ * The main quality check's day shows here too, read-only — it is the
+ * office's (and it moves when this date moves it). The office's extra visits
+ * never reach this card (Tom, 9 Oct 2026: "logged just for Felipe") — the
+ * page filters them out before they are handed to the browser.
  */
 export default function FinishDate({
   workOrderId, finalDate, endDate, startDate, qaDates, stage,

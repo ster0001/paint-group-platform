@@ -321,6 +321,56 @@ export async function staffVariationDeclinedByPainter(service: SupabaseClient, v
   }
 }
 
+/**
+ * Tom, 9 Oct 2026: a painter wrote in a project's Messages box. The PC work
+ * item ("<painter> replied on <job>") is the record and clears when someone
+ * reads the thread; this is the OPTIONAL email/text, for whoever ticks
+ * "Painter message" under Staff logins — nobody is ticked by default. Once
+ * per burst: the post only asks for it when the thread's staff side was not
+ * told in the last 10 minutes (wo_message_post), and the claim is per message.
+ * Deliberately NOT tagged with the estimate: an emailed reply to this alert
+ * must never land in the customer's estimate chat.
+ */
+export async function staffPainterMessage(service: SupabaseClient, messageId: string): Promise<StaffAlertOutcome> {
+  try {
+    const { data, error } = await service
+      .from("wo_messages")
+      .select("id, author_kind, body, photo_paths, notify_status, wo_message_threads(work_order_id, contractor_id, contractors(company_name, profiles(name)), work_orders(id, wo_ref, estimate_id, estimates(title, sent_snapshot)))")
+      .eq("id", messageId).maybeSingle();
+    if (error) throw error;
+    const m = data as {
+      id: string; author_kind: string; body: string; photo_paths: string[]; notify_status: string | null;
+      wo_message_threads: {
+        work_order_id: string; contractor_id: string;
+        contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
+        work_orders: WoJoin | null;
+      } | null;
+    } | null;
+    const t = m?.wo_message_threads;
+    if (!m || !t?.work_orders || m.author_kind !== "painter" || m.notify_status === "batched") return "already";
+    const painter = (t.contractors?.profiles?.name || t.contractors?.company_name || "The painter").trim();
+    const job = jobTitle(t.work_orders.estimates, t.work_orders.wo_ref);
+    const photos = m.photo_paths.length;
+    const message = [m.body.trim(), photos ? `(${photos} photo${photos === 1 ? "" : "s"} attached)` : ""].filter(Boolean).join(" ");
+    const outcome = await notifyStaff(service, {
+      key: "office_painter_message", entityId: m.id,
+      subject: `${painter} replied on ${t.work_orders.wo_ref} — ${job}`,
+      message: `${painter} wrote about ${t.work_orders.wo_ref} (${job}):\n\n“${message}”\n\nRead it and reply in PC Command.`,
+      link: `${siteUrl()}/pc/wo/${t.work_order_id}?painter=${t.contractor_id}#messages`,
+      templates: { subject: "officePainterMessageSubject", body: "officePainterMessageBody" },
+      vars: { painter, job, wo_ref: t.work_orders.wo_ref, message },
+    });
+    const { error: recErr } = await service.from("wo_messages")
+      .update({ notify_status: outcome === "sent" ? "sent" : outcome === "off" ? "off" : "skipped", notify_detail: `Office alert: ${outcome}` })
+      .eq("id", m.id);
+    if (recErr) reportError(recErr, { where: "staffPainterMessage.record", bestEffort: true });
+    return outcome;
+  } catch (e) {
+    reportError(e, { where: "staffPainterMessage", extra: { messageId } });
+    return "error";
+  }
+}
+
 async function woForAlert(service: SupabaseClient, workOrderId: string) {
   const { data, error } = await service
     .from("work_orders")
