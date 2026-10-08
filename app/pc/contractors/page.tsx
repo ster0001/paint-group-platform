@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { loadContractorsView } from "@/lib/painterStatus/contractorsLoad";
 import ContractorRows from "./ContractorRows";
+import Recompute from "./Recompute";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function PcContractorsPage() {
       <div className="sect-h" style={{ marginTop: 0 }}>
         <h2 style={{ margin: 0 }}>Contractors</h2>
         <span className="muted" style={{ fontSize: 12 }}>Scores, lights and bonus amounts are never shown to customers. Painters see their own light only.</span>
+        <Recompute />
       </div>
       {error && <p className="empty" data-testid="contractors-failure" style={{ color: "var(--amber)" }}>{error} — what is shown may be incomplete. It has been reported.</p>}
 

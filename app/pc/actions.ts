@@ -12,11 +12,12 @@ import { isCorrectableFinishModifier } from "@/lib/workorder/finish";
 import { onChecklistAnswered } from "@/lib/colourRecords/transitions";
 import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { requireStaff } from "@/lib/supabase/guards";
 import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
 import { qaWhenMessage } from "@/lib/workorder/qaSchedule";
-import { runPainterStatus } from "@/lib/painterStatus/run";
+import { runPainterStatus, runPainterStatusSweep } from "@/lib/painterStatus/run";
 import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
 import { deliverSiteVisitNote } from "@/lib/workorder/siteNoteMessage";
 import { SITE_VISIT_NOTE_MAX } from "@/lib/workorder/siteVisits";
@@ -1279,4 +1280,24 @@ export async function addClientUpdateNote(raw: unknown): Promise<PcResult> {
   revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
   if (accountId) revalidatePath(`/crm/customers/${accountId}`);
   return { ok: true, message: `Logged on the job's timeline${crm}.` };
+}
+
+// ---- Painter status: recompute every painter now (9 Oct 2026) -------------------
+
+/**
+ * The same pass the daily sweep runs, on demand from PC Command → Contractors.
+ * Staff only. Exists because the scheduled sweeps carry a secret the office
+ * cannot read, and the day the tables landed nobody could seed the painters
+ * until 6 pm. Idempotent: the writer diffs and writes events only for change.
+ */
+export async function recomputePainterStatusesAction(): Promise<PcResult & { ran?: number; failed?: number; errors?: string[] }> {
+  const supabase = await createClient();
+  if (!(await requireStaff(supabase))) return { ok: false, message: "Staff only." };
+  const service = createServiceClient();
+  const r = await runPainterStatusSweep(service ?? supabase, { now: new Date() });
+  const errors = r.outcomes.filter((o) => !o.ok).map((o) => `${o.painterId.slice(0, 8)}: ${o.error ?? "?"}`).slice(0, 5);
+  revalidatePath("/pc/contractors"); revalidatePath("/pc"); revalidatePath("/portal");
+  return r.failed === 0
+    ? { ok: true, message: `Recomputed ${r.ran} painter${r.ran === 1 ? "" : "s"}.`, ran: r.ran, failed: 0 }
+    : { ok: false, message: `Recomputed ${r.ran}; ${r.failed} failed — ${errors.join("; ")}`, ran: r.ran, failed: r.failed, errors };
 }
