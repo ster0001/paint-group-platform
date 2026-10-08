@@ -4523,3 +4523,5 @@ and the every-job setting still win; `wo_qa_checks.trigger` says why each check 
 `p_kind mid|spot` and the PC quality-check card a **Spot check this job** button. `/pc/status` is the plain staff table
 of the rows (the Contractors view is Step 7). WO-loop brief decision 1 ("established contractors: none") is replaced
 by this cadence.
+
+**Every paint on every list, searchable (8 Oct 2026).** `paintOptions` (`lib/workorder/materials.ts`) no longer filters by the row's Interior/Exterior type: the Materials rows, Other paints, a line's materials and the Edit Surface Product field all offer the whole catalogue A-Z, narrowed by a search matched against name, brand, finish, category and internal alias, and the chosen paint is never filtered away. `SurfaceEditor` in `app/quote/QuoteBuilder.tsx` gained its own search box (`surface-paint-search`) over the Product select (`surface-paint-pick`). Unit: `lib/workorder/paintOptions.test.ts`. Spec: `e2e/materials-all-paints.spec.ts`.
