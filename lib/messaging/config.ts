@@ -75,6 +75,9 @@ export type MessagingSettings = {
   /** Tom, 7 Oct 2026: PC Command alerts. */
   officeVariationDeclinedSubject: string;
   officeVariationDeclinedBody: string;
+  /** Office (Tom, 9 Oct 2026): a painter wrote in a project's Messages box — optional, per Staff logins. */
+  officePainterMessageSubject: string;
+  officePainterMessageBody: string;
   officeUpdateDraftedSubject: string;
   officeUpdateDraftedBody: string;
   officeUpdateDueSubject: string;
@@ -143,6 +146,10 @@ export type MessagingSettings = {
   variationAddedSms: string;
   variationAddedEmailSubject: string;
   variationAddedEmailIntro: string;
+  /** Painter (Tom, 9 Oct 2026): the office wrote in the project's Messages box — one text/email per burst. */
+  painterMessageSms: string;
+  painterMessageEmailSubject: string;
+  painterMessageEmailIntro: string;
   /** Painter: a failed quality check, areas to put right. */
   qaFailSms: string;
   /** P6 — Customer: the estimator visit, confirmed with a calendar invite; and the text the evening before. */
@@ -280,6 +287,8 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeVariationRaisedBody: "{{painter}} has raised a variation on {{wo_ref}} ({{job}}): {{category}}{{hours_line}}.\n\n“{{comment}}”\n\nIt is waiting to be priced.",
   officeVariationDeclinedSubject: "Painter declined an approved change — {{job}}",
   officeVariationDeclinedBody: "{{painter}} has declined the change the client approved on {{wo_ref}} ({{job}}){{hours_line}}.\n\nThey wrote: “{{comment}}”\n\nIt is back with you in PC Command — revise it with the client, or set the painter's amount.",
+  officePainterMessageSubject: "{{painter}} replied on {{wo_ref}} — {{job}}",
+  officePainterMessageBody: "{{painter}} wrote about {{wo_ref}} ({{job}}):\n\n“{{message}}”\n\nRead it and reply in PC Command.",
   officeUpdateDraftedSubject: "Customer update ready to send — {{job}}",
   officeUpdateDraftedBody: "{{painter}} has updated their work order on {{wo_ref}} ({{job}}). A customer update has been drafted from it — read it, change anything, and send it.",
   officeUpdateDueSubject: "Customer update due — {{job}}",
@@ -376,6 +385,14 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Hi {{first_name}},\n\n" +
     "The customer has approved a variation on {{wo_ref}} and it's waiting on you to {{action}} it. " +
     "Open the job in your portal to see the hours and the amount, and give your answer.",
+  painterMessageSms:
+    "New message from {{company_name}} about {{wo_ref}}, {{suburb}}. Read it and reply (photos too): {{link}}",
+  painterMessageEmailSubject: "New message from {{company_name}} about {{wo_ref}}, {{suburb}}",
+  painterMessageEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "The office has sent you a message about {{wo_ref}} ({{suburb}}):\n\n" +
+    "“{{message}}”\n\n" +
+    "Open the job to read it and reply — you can send photos back from your phone.",
   variationAddedSms:
     "{{company_name}}: the customer approved a change to {{wo_ref}}. It's on your job sheet and tick list{{pay_line}}: {{link}}",
   variationAddedEmailSubject: "The customer approved a change to {{wo_ref}}",

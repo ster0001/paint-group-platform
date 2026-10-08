@@ -46,14 +46,16 @@ import NoWorkDay from "./NoWorkDay";
 import type { MomentRow } from "@/lib/workorder/reminderMoments";
 import { standardsLinksFor } from "@/lib/standards/model";
 import RejectVariation from "@/app/pc/RejectVariation";
+import MessageThread from "@/app/components/wo/MessageThread";
+import { loadJobPainters, loadThread, pickPainter } from "@/lib/workorder/messagesLoad";
 
 export const dynamic = "force-dynamic";
 
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
 
-export default async function PcWorkOrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ callback?: string }> }) {
+export default async function PcWorkOrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ callback?: string; painter?: string }> }) {
   const { id } = await params;
-  const { callback: callbackParam } = await searchParams;
+  const { callback: callbackParam, painter: painterParam } = await searchParams;
   const supabase = await createClient();
 
   const { data: wo } = await supabase
@@ -130,6 +132,14 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
         .select("signed_at, client_unavailable_at, areas")
         .eq("work_order_id", id).maybeSingle(),
     ]);
+
+  // Messages with the painter (Tom, 9 Oct 2026): one thread per painter on
+  // the job; the office picks whose (?painter=), else one with something
+  // unread, else the lead. Read through the staff session (RLS).
+  const jobPainters = await loadJobPainters(supabase, id, (wo as { contractor_id?: string | null }).contractor_id ?? null);
+  const messagePainterId = pickPainter(jobPainters.painters, painterParam);
+  const messageThread = messagePainterId ? await loadThread(supabase, id, messagePainterId, "staff") : null;
+  const messagePainter = jobPainters.painters.find((p) => p.contractorId === messagePainterId) ?? null;
 
   // Quality checks with their day and time, the final they sit before, and
   // what reached the calendar (Tom, 8 Oct 2026).
@@ -594,6 +604,21 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
       {/* Tom, 4 Oct: what the estimator wrote or said about this job — internal,
           staff only, loaded client-side so no note text sits in this page's HTML. */}
       {estimateId && <EstimatorNotes estimateId={estimateId} surface="console" who="the project coordinator" />}
+
+      {/* Messages with the painter (Tom, 9 Oct 2026): text and photos both
+          ways, one thread per painter on the job. Opening a thread the painter
+          wrote in clears its "replied" card on PC Command. */}
+      {messageThread ? (
+        <MessageThread mode="staff" thread={jobPainters.failure && !messageThread.failure ? { ...messageThread, failure: jobPainters.failure } : messageThread}
+          painters={jobPainters.painters}
+          canWrite={Boolean(messagePainter?.onJob)}
+          cantWriteReason={`${messagePainter?.name ?? "This painter"} isn't on this job any more — their messages are kept here to read.`} />
+      ) : (
+        <div className="card msgbox" id="messages" data-testid="msg-box-none">
+          <b>Messages</b>
+          <p className="note">{jobPainters.failure ?? "No painter on this job yet — once one is offered it or assigned, you can message them here."}</p>
+        </div>
+      )}
 
       <div className="grid2">
         {row.stage === "in_progress" ? (

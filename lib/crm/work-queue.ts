@@ -148,6 +148,8 @@ export const WORK_ITEM_KINDS = [
   "qa_check_due",
   /** Tom, 8 Oct 2026: a dated quality check whose final walkthrough was cancelled and not rebooked — the check stays put; rebook the final or move it. */
   "qa_check_final_cancelled",
+  /** Tom, 9 Oct 2026: a painter wrote in a project's Messages box and nobody in the office has read it yet. Reading the thread clears it. */
+  "painter_message",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -244,7 +246,7 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
  * SCREENS over one queue is not.
  */
 export type WorkItemHome = "crm" | "pc";
-const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled"]);
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "painter_message"]);
 export function homeOf(kind: WorkItemKind): WorkItemHome {
   return PC_HOMED.has(kind) ? "pc" : "crm";
 }
@@ -323,6 +325,8 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   qa_check_due: 20,
   // Felipe is booked for a check with no final behind it — sort it before the day.
   qa_check_final_cancelled: 18,
+  // A painter on site is waiting on an answer — ranks with a customer's unanswered message.
+  painter_message: 26,
 };
 
 export type PriorityInput = {
@@ -437,6 +441,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   hold_pending: "followups",
   qa_check_due: "followups",
   qa_check_final_cancelled: "followups",
+  painter_message: "messages",
 };
 
 // ---- source: customer check-ins on a running job (Tom, 25 Sep 2026) ----------
@@ -2257,13 +2262,94 @@ async function readQaCheckRows(supabase: SupabaseClient): Promise<{ rows: QaChec
   return { rows, error: null };
 }
 
+// ---- source: a painter wrote in a project's messages (Tom, 9 Oct 2026) -------
+
+export type PainterMessageQueueRow = {
+  threadId: string; workOrderId: string; contractorId: string;
+  /** The newest painter message — the item's discriminator, so a new one after a dismissal re-fires. */
+  lastPainterAt: string;
+  /** The office had written on this thread before — "replied" rather than "wrote". */
+  officeWroteFirst: boolean;
+  woRef: string; where: string; painter: string;
+  /** Painter messages the office has not read, newest first (capped by the reader). */
+  unread: { body: string; photos: number; at: string }[];
+};
+
+/** A painter's message waits this long before it reads as overdue — the same clock as a customer's (MESSAGE_OVERDUE_HOURS). */
+export const PAINTER_MESSAGE_OVERDUE_HOURS = 4;
+
+/**
+ * Derived from the threads, never stored: a painter message the office has
+ * not read (wo_message_threads.staff_unread). Opening the thread on the job
+ * page marks the staff side read and the card is gone; so is replying.
+ */
+export function buildPainterMessageItems(rows: readonly PainterMessageQueueRow[], now: Date): WorkItem[] {
+  return rows.map((r) => {
+    const n = r.unread.length;
+    const latest = r.unread[0];
+    const said = latest ? (latest.body.replace(/\s+/g, " ").trim().slice(0, 140) || (latest.photos ? `${latest.photos} photo${latest.photos === 1 ? "" : "s"}` : "")) : "";
+    const since = r.unread[n - 1]?.at ?? r.lastPainterAt;
+    return finish({
+      key: itemKey("painter_message", "thread", r.threadId, r.lastPainterAt),
+      kind: "painter_message", accountId: null, subjectRef: { type: "thread", id: r.threadId },
+      title: `${r.painter} ${r.officeWroteFirst ? "replied on" : "wrote about"} ${r.woRef} — ${r.where}`,
+      detail: `${n > 1 ? `${n} messages: ` : ""}${said ? `“${said}”` : "A message"}${latest?.photos && latest.body.trim() ? ` + ${latest.photos} photo${latest.photos === 1 ? "" : "s"}` : ""}. Open it to read and reply — that clears this card.`,
+      since,
+      dueAt: new Date(new Date(since).getTime() + PAINTER_MESSAGE_OVERDUE_HOURS * 3_600_000).toISOString(),
+      action: { label: "Read and reply", href: `/pc/wo/${r.workOrderId}?painter=${r.contractorId}#messages` },
+    }, { valueCents: null, promisedToCustomer: false }, now);
+  });
+}
+
+async function readPainterMessageRows(supabase: SupabaseClient): Promise<{ rows: PainterMessageQueueRow[]; error: string | null }> {
+  const { data, error } = await supabase.from("wo_message_threads")
+    .select("id, work_order_id, contractor_id, last_painter_message_at, last_staff_message_at, staff_read_at, work_orders(wo_ref, wo_snapshot), contractors(company_name, profiles(name))")
+    .eq("staff_unread", true).order("last_painter_message_at", { ascending: false }).limit(200);
+  if (error) return { rows: [], error: error.message };
+  type Row = {
+    id: string; work_order_id: string; contractor_id: string; last_painter_message_at: string;
+    last_staff_message_at: string | null; staff_read_at: string | null;
+    work_orders: { wo_ref: string; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null } | null;
+    contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
+  };
+  const threads = (data ?? []) as unknown as Row[];
+  if (threads.length === 0) return { rows: [], error: null };
+  const { data: msgs, error: mErr } = await supabase.from("wo_messages")
+    .select("thread_id, body, photo_paths, created_at")
+    .in("thread_id", threads.map((t) => t.id)).eq("author_kind", "painter")
+    .order("created_at", { ascending: false }).limit(1000);
+  if (mErr) return { rows: [], error: mErr.message };
+  const byThread = new Map<string, { body: string; photos: number; at: string }[]>();
+  const readAt = new Map(threads.map((t) => [t.id, t.staff_read_at]));
+  for (const m of (msgs ?? []) as { thread_id: string; body: string; photo_paths: string[]; created_at: string }[]) {
+    const seen = readAt.get(m.thread_id);
+    if (seen && new Date(m.created_at).getTime() <= new Date(seen).getTime()) continue;
+    const list = byThread.get(m.thread_id) ?? [];
+    list.push({ body: m.body, photos: m.photo_paths.length, at: m.created_at });
+    byThread.set(m.thread_id, list);
+  }
+  return {
+    error: null,
+    rows: threads.map((t) => ({
+      threadId: t.id, workOrderId: t.work_order_id, contractorId: t.contractor_id,
+      lastPainterAt: t.last_painter_message_at,
+      officeWroteFirst: t.last_staff_message_at !== null,
+      woRef: t.work_orders?.wo_ref ?? "a job",
+      where: t.work_orders?.wo_snapshot?.jobAddress || t.work_orders?.wo_snapshot?.jobTitle || t.work_orders?.wo_ref || "",
+      painter: (t.contractors?.profiles?.name || t.contractors?.company_name || "A painter").trim(),
+      unread: byThread.get(t.id) ?? [],
+    })),
+  };
+}
+
 export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
-  const [checkins, standards, callbacks, painters, qaChecks, dismissed] = await Promise.all([
+  const [checkins, standards, callbacks, painters, qaChecks, painterMessages, dismissed] = await Promise.all([
     readJobCheckinRows(supabase, now),
     readStandardsRows(supabase),
     readCallbackRows(supabase),
     readPainterStatusRows(supabase),
     readQaCheckRows(supabase),
+    readPainterMessageRows(supabase),
     supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
   ]);
   if (checkins.error) return { items: [], failure: `Couldn't read the jobs for check-ins: ${checkins.error}` };
@@ -2274,6 +2360,7 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     ...buildWoCallbackItems(callbacks.callbacks, callbacks.flagged, now),
     ...buildPainterStatusItems(painters.statuses, painters.changes, painters.bonuses, painters.held, now),
     ...buildQaCheckItems(qaChecks.rows, now),
+    ...buildPainterMessageItems(painterMessages.rows, now),
   ];
   const items = sortItems(applyDismissals(pcItems(built), dismissals, now));
   const failures = [
@@ -2282,6 +2369,7 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     callbacks.error ? `Couldn't read the call backs (${callbacks.error}).` : null,
     painters.error ? `Couldn't read painter status (${painters.error}).` : null,
     qaChecks.error ? `Couldn't read the quality checks (${qaChecks.error}).` : null,
+    painterMessages.error ? `Couldn't read the painters' messages (${painterMessages.error}).` : null,
   ].filter(Boolean);
   return { items, failure: failures.length ? failures.join(" ") : null };
 }

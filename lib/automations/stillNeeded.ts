@@ -95,6 +95,17 @@ CHECKERS.contractor_offer_reminder = async (db, hold) => {
   return { ok: true };
 };
 
+// Tom, 9 Oct 2026: a "new message from the office" text held for sending hours
+// is moot once the painter has read the thread in the app.
+CHECKERS.contractor_message = async (db, hold) => {
+  if (!hold.work_order_id || !hold.contractor_id) return { ok: true };
+  const { data, error } = await db.from("wo_message_threads").select("painter_read_at")
+    .eq("work_order_id", hold.work_order_id).eq("contractor_id", hold.contractor_id).maybeSingle();
+  if (error) throw error;
+  const readAt = (data as { painter_read_at: string | null } | null)?.painter_read_at;
+  return readAt && new Date(readAt).getTime() >= new Date(hold.created_at).getTime() ? { ok: false, reason: "They read the message in the app already." } : { ok: true };
+};
+
 export async function stillNeeded(db: SupabaseClient, hold: HoldRow): Promise<NeedVerdict> {
   const check = CHECKERS[hold.automation_key];
   if (!check) return { ok: true };

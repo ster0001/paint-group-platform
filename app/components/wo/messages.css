@@ -1,0 +1,51 @@
+/* A project's messages (Tom, 9 Oct 2026). Shared by PC Command (.pc) and the
+   painter's portal (.pt): both define the same tokens (--line, --text,
+   --muted, --cyan, --amber, --raised, --mono), so this file works in var()
+   and inherits whichever palette — dark or light — it lands in. */
+.msgbox { margin-top: 12px; }
+.msgbox .msg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.msgbox .msg-sub { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+.msgbox .msg-painters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.msgbox .msg-painter {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 100px;
+  border: 1px solid var(--line); color: var(--text); text-decoration: none; font-size: 12px;
+}
+.msgbox .msg-painter em { font-style: normal; font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.msgbox .msg-painter.on { border-color: var(--cyan); color: var(--cyan); }
+.msgbox .msg-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+
+.msgbox .msg-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; max-height: 520px; overflow-y: auto; }
+.msgbox .msg {
+  max-width: 88%; align-self: flex-start; padding: 9px 12px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--raised); min-width: 0;
+}
+.msgbox .msg.mine { align-self: flex-end; border-color: color-mix(in srgb, var(--cyan) 45%, var(--line)); }
+.msgbox .msg-meta { display: flex; gap: 8px; align-items: baseline; font-size: 11px; color: var(--muted); }
+.msgbox .msg-meta b { color: var(--text); font-weight: 600; }
+.msgbox .msg-body { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.45; color: var(--text); }
+.msgbox .msg-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin-top: 8px; }
+.msgbox .msg-photo { padding: 0; border: 0; background: none; cursor: zoom-in; display: block; }
+.msgbox .msg-photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); display: block; }
+.msgbox .msg-notify { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
+
+.msgbox .msg-compose { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.msgbox .msg-compose textarea {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; font-size: 15px;
+}
+.msgbox .msg-staged { display: flex; flex-wrap: wrap; gap: 6px; }
+.msgbox .msg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--line); font-size: 11px; color: var(--muted); max-width: 100%; }
+.msgbox .msg-chip.bad { border-color: var(--amber); color: var(--amber); }
+.msgbox .msg-chip img { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; }
+.msgbox .msg-chip button { border: 0; background: none; color: inherit; font-size: 16px; cursor: pointer; padding: 0 4px; }
+.msgbox .msg-actions { display: flex; gap: 8px; justify-content: space-between; }
+.msgbox .msg-btn {
+  min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: none;
+  color: var(--text); font: inherit; font-size: 14px; cursor: pointer;
+}
+.msgbox .msg-btn:disabled { opacity: 0.5; cursor: default; }
+.msgbox .msg-primary { background: var(--cyan); border-color: var(--cyan); color: var(--ink); font-weight: 600; flex: 1; max-width: 220px; }
+.msgbox .msg-note { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+.msgbox .msg-note.ok { color: var(--emerald); }
+.msgbox .msg-note.warn { color: var(--amber); }

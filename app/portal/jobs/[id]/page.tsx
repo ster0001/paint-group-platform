@@ -44,6 +44,8 @@ import { loadCallbacksForJob } from "@/lib/callbacks/load";
 import CallbackCard from "./CallbackCard";
 import UpdateMoments from "./UpdateMoments";
 import type { MomentRow } from "@/lib/workorder/reminderMoments";
+import MessageThread from "@/app/components/wo/MessageThread";
+import { loadThread } from "@/lib/workorder/messagesLoad";
 
 export const dynamic = "force-dynamic";
 
@@ -446,6 +448,10 @@ export default async function PortalJobPage({
     : [];
   const rectifiedPhase = canTick && flaggedAreas.length > 0;
 
+  // Messages with the office about THIS job (Tom, 9 Oct 2026) — their own
+  // thread only, through their session (RLS). No office-side delivery notes.
+  const messages = await loadThread(supabase, id, contractor.id, "painter");
+
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
       {showWalkthroughBar && (
@@ -748,6 +754,10 @@ export default async function PortalJobPage({
           )}
         </div>
       )}
+
+      <div style={{ padding: "0 16px" }}>
+        <MessageThread mode="painter" thread={messages} canWrite />
+      </div>
 
       {/* The approved changes on the sheet itself (Tom, 23 Sep) — scope and
           hours for both kinds of painter; the pay line carries the accepted

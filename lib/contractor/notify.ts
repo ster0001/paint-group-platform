@@ -1,12 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildEstimateEmailHtml, sendEmail, sendSms, type DeliveryResult } from "@/lib/messaging/send";
-import { sendAutomation, type DispatchOutcome } from "@/lib/automations/dispatch";
+import { outcomeWord, sendAutomation, type DispatchOutcome } from "@/lib/automations/dispatch";
 import { automationOn, normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { suburbOnly } from "@/lib/scheduling/offers";
+import { painterNotifyRecord, type NotifyRecord } from "@/lib/workorder/messageModel";
 
 /**
  * Contractor notifications (Tom, 1 Sep #2). SERVER ONLY — service client.
@@ -408,6 +410,95 @@ async function recordSkip(
   });
   if (error) reportError(error, { where: "notify.variationRejected.recordSkip" });
   return { outcome: "skipped", reason };
+}
+
+/**
+ * "New message from Paint Group about <job ref, suburb>" (Tom, 9 Oct 2026) —
+ * the office wrote in a project's Messages box. Through the dispatcher (the
+ * office's Text / Email / Both, sending hours), with the outcome RECORDED, not
+ * the attempt: the message row carries what telling the painter came to in
+ * words (notify_status / notify_detail, shown under the message on the job
+ * page), and the job's log gets `message_notified` {channels} only when a
+ * channel actually sent, else `message_notified_skipped` {reason}.
+ *
+ * One per burst: wo_message_post decides under the thread's lock and stamps a
+ * message inside the window 'batched' — this is never called for those. A
+ * telling that came to nothing hands the burst clock back, so the office's
+ * next message tries again rather than being "covered" by a text that never
+ * went.
+ */
+export async function notifyPainterMessage(service: SupabaseClient, messageId: string): Promise<NotifyRecord> {
+  let where: { workOrderId: string; threadId: string; pingedAt: string } | null = null;
+  const settle = async (rec: NotifyRecord, meta: Record<string, unknown>): Promise<NotifyRecord> => {
+    const { error } = await service.from("wo_messages").update({ notify_status: rec.status, notify_detail: rec.detail }).eq("id", messageId);
+    if (error) reportError(error, { where: "notify.painterMessage.recordMessage", extra: { messageId } });
+    if (!where) return rec;
+    const told = rec.status === "sent" || rec.status === "queued";
+    const result = rec.status;
+    const ev = await service.from("wo_events").insert({
+      work_order_id: where.workOrderId,
+      type: told ? "message_notified" : "message_notified_skipped",
+      actor_kind: "system",
+      meta: { message_id: messageId, thread_id: where.threadId, result, detail: rec.detail, ...meta },
+    });
+    if (ev.error) reportError(ev.error, { where: "notify.painterMessage.recordEvent", extra: { messageId } });
+    if ((rec.status === "skipped" || rec.status === "off") && where.pingedAt) {
+      const back = await service.from("wo_message_threads").update({ painter_pinged_at: null })
+        .eq("id", where.threadId).eq("painter_pinged_at", where.pingedAt);
+      if (back.error) reportError(back.error, { where: "notify.painterMessage.releaseBurst", extra: { messageId } });
+    }
+    return rec;
+  };
+  try {
+    const { data, error } = await service
+      .from("wo_messages")
+      .select("id, author_kind, body, photo_paths, created_at, notify_status, wo_message_threads(id, work_order_id, contractor_id, painter_pinged_at, work_orders(wo_ref, wo_snapshot))")
+      .eq("id", messageId).maybeSingle();
+    if (error) throw error;
+    const m = data as {
+      id: string; author_kind: string; body: string; photo_paths: string[]; created_at: string; notify_status: string | null;
+      wo_message_threads: {
+        id: string; work_order_id: string; contractor_id: string; painter_pinged_at: string | null;
+        work_orders: { wo_ref: string; wo_snapshot: { jobAddress?: string } | null } | null;
+      } | null;
+    } | null;
+    const t = m?.wo_message_threads;
+    if (!m || !t?.work_orders) return { status: "skipped", detail: "Not sent — the message could not be found." };
+    if (m.author_kind !== "staff" || m.notify_status === "batched") return { status: "skipped", detail: "" };
+    where = { workOrderId: t.work_order_id, threadId: t.id, pingedAt: t.painter_pinged_at ?? "" };
+
+    const { messaging, company } = await loadMessaging(service);
+    const c = await contactFor(service, t.contractor_id);
+    const companyName = company.name || "Paint Group";
+    const suburb = suburbOnly(t.work_orders.wo_snapshot?.jobAddress);
+    const link = `${siteUrl()}/portal/jobs/${t.work_order_id}#messages`;
+    const photos = m.photo_paths.length;
+    const message = [m.body.trim(), photos ? `(${photos} photo${photos === 1 ? "" : "s"} attached)` : ""].filter(Boolean).join(" ");
+    const vars = { first_name: c.firstName, company_name: companyName, wo_ref: t.work_orders.wo_ref, suburb, message, link };
+    const d = await sendAutomation(service, {
+      key: "contractor_message",
+      to: { phone: c.phone, email: c.email && !isTestEmail(c.email) ? c.email : null },
+      sms: { body: renderTemplate(messaging.painterMessageSms, vars) },
+      email: {
+        subject: renderTemplate(messaging.painterMessageEmailSubject, vars),
+        replyTo: company.email || undefined,
+        html: buildEstimateEmailHtml({
+          companyName, logoUrl: emailLogoUrl(company),
+          intro: renderTemplate(messaging.painterMessageEmailIntro, vars),
+          link, buttonLabel: "Read and reply",
+        }),
+      },
+      ctx: { workOrderId: t.work_order_id, kind: "painter_message" },
+      contractorId: t.contractor_id,
+    });
+    for (const r of d.outcome === "sent" ? Object.values(d.results) : []) {
+      if (r?.status === "error") reportError(new Error(r.message), { where: "notify.painterMessage.send", bestEffort: true, extra: { messageId } });
+    }
+    return await settle(painterNotifyRecord(d, c.firstName), { contractor_id: t.contractor_id, outcome: outcomeWord(d) });
+  } catch (e) {
+    reportError(e, { where: "notify.painterMessage", extra: { messageId } });
+    return settle({ status: "skipped", detail: "Not sent — something went wrong sending it; the error monitor has it." }, {});
+  }
 }
 
 /** "Areas need rectifying" — text after a failed quality check, once per check. */

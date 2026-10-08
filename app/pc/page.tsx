@@ -268,6 +268,23 @@ export default async function DashboardPage() {
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`qa-card-open-${item.key}`}>{item.action.label}</Link>
             </div>
+          ) : item.kind === "painter_message" ? (
+            // Tom, 9 Oct 2026: a painter wrote in a job's Messages box. Reading
+            // the thread on the job page (or replying) is what clears it.
+            <div className={`al ${item.bucket === "overdue" ? "al-crit" : "al-info"}`} key={item.key}
+              data-testid={`message-card-${item.subjectRef.id}`} data-kind={item.kind}>
+              <span className="rail" />
+              <span className="ic">✉</span>
+              <div className="bd">
+                <div className="hd">
+                  <strong>{item.title}</strong>
+                  <span className="ref">Message · {dueWord(item)}</span>
+                </div>
+                <p>{item.detail}</p>
+              </div>
+              <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
+              <Link className="btn primary" href={item.action.href} data-testid={`message-card-open-${item.subjectRef.id}`}>{item.action.label}</Link>
+            </div>
           ) : item.kind === "standards_unsigned" ? (
             // Standards Step 2 (brief §8): a painter past the grace period who has
             // not confirmed. One action — the reminder text; it clears itself
