@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/supabase/guards";
 import { reportError } from "@/lib/monitoring/report";
 import { payrollCsv, type PayrollBonusRow, type PayrollRow } from "@/lib/timesheets/hours";
+import { melbourneInstant } from "@/lib/time/businessHours";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,12 @@ export const dynamic = "force-dynamic";
  * Staff only; a failed read is a 503, never an empty file that reads as
  * "no hours this fortnight".
  */
+/** Midnight Melbourne on a YYYY-MM-DD day (+ n days), as an instant — the offset comes from the zone, never written down. */
+function melbStart(day: string, plusDays = 0): Date {
+  const [y, m, d] = day.split("-").map(Number);
+  return melbourneInstant(y, m, d + plusDays, 0, 0);
+}
+
 export async function GET(req: Request): Promise<NextResponse> {
   const supabase = await createClient();
   if (!(await requireStaff(supabase))) return new NextResponse("Not found", { status: 404 });
@@ -48,7 +55,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   // Painter status Step 7 (⚑11): approved bonuses for employed painters, decided in the range.
   const bonusRes = await supabase.from("painter_bonuses")
     .select("decided_at, amount_cents, contractors!inner(employment_type, profiles(name)), work_orders:trigger_wo_id(wo_ref)")
-    .in("status", ["approved", "paid"]).gte("decided_at", `${from}T00:00:00+10:00`).lte("decided_at", `${to}T23:59:59+11:00`)
+    .in("status", ["approved", "paid"]).gte("decided_at", melbStart(from).toISOString()).lt("decided_at", melbStart(to, 1).toISOString())
     .eq("contractors.employment_type", "employee");
   if (bonusRes.error) {
     reportError(bonusRes.error, { where: "timesheets.export.bonuses" });
