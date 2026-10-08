@@ -5,7 +5,8 @@ import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { reconcileForOffer } from "@/lib/gcal/sync";
+import { reconcileForOffer, reconcileForWorkOrder } from "@/lib/gcal/sync";
+import { addWorkingDays, type WorkingWeek } from "@/lib/scheduling/dates";
 import { notifyAssignment, notifyJobOffer, notifyLeadChanged } from "@/lib/contractor/notify";
 import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
@@ -25,6 +26,7 @@ import {
   reassignDatesInput,
   setLeadPainterInput,
   releaseAssignmentInput,
+  setFinishDateInput,
 } from "@/lib/validation/booking";
 
 /**
@@ -83,6 +85,8 @@ const ERROR_WORDING: Record<string, string> = {
   // Extra visits (Tom, 1 Oct)
   // Kept for an un-migrated database; 20270210 lets a visit go on any project.
   not_booked_on_job: "That painter isn't booked on this job. Paste migration 20270210 to allow a visit on any project.",
+  // Tom, 8 Oct: a started job keeps its start (20270245).
+  started: "This job has started, so its start date stays. Change the finish date on the job's block instead.",
 };
 
 /**
@@ -326,9 +330,96 @@ export async function reassignDatesAction(raw: unknown): Promise<ActionResult> {
   // unchanged span ("ok:unchanged") sends nothing.
   if (r.ok && r.state === "moved") {
     const service = createServiceClient();
-    if (service) after(() => notifyAssignment(service, v.assignmentId, "dates_changed"));
+    if (service) {
+      after(() => notifyAssignment(service, v.assignmentId, "dates_changed"));
+      // The job's span follows the crew, and the lead's Google Calendar reads
+      // the job's dates — reconcile it like every other date move (8 Oct).
+      after(async () => {
+        const { data, error } = await service.from("wo_assignments").select("work_order_id").eq("id", v.assignmentId).maybeSingle();
+        if (error) { reportError(error, { where: "reassignDates.gcalRead", extra: { assignmentId: v.assignmentId } }); return; }
+        const woId = (data as { work_order_id?: string } | null)?.work_order_id;
+        if (woId) await reconcileForWorkOrder(woId);
+      });
+    }
   }
   return r;
+}
+
+export type FinishDateResult =
+  | { ok: true; endDate: string }
+  | { ok: false; message: string };
+
+const FINISH_WORDING: Record<string, string> = {
+  before_start: "That's before the job started — pick a later day.",
+  no_booking: "This job has no accepted booking to move. A crew's days are changed on each painter's own block.",
+  not_live: "This job isn't booked in, or it has closed.",
+  not_found: "That job no longer exists.",
+  no_date: "Pick a finish date.",
+  not_yours: "You don't have permission to do that.",
+};
+
+/**
+ * Tom, 8 Oct 2026: "update the end date for an in-progress job". The LAST day
+ * only — the start is never sent, so it cannot move from here. One function
+ * owns the finish date, `wo_contractor_set_finish_date` (the painter's own
+ * "move my finish date" calls it too): it moves the accepted booking's end
+ * and work_orders.end_date together, re-books the final walkthrough on the
+ * new day keeping its time, and logs `finish_date_changed`. The end date the
+ * later work keys off (defect texts, quality-check dates) is that one value.
+ *
+ * Working days: a day the painter doesn't work snaps to their next working
+ * day — the same rule the board's drop uses — decided HERE from the stored
+ * profile, never from what the browser says the week is.
+ */
+export async function setFinishDateAction(raw: unknown): Promise<FinishDateResult> {
+  const parsed = setFinishDateInput.safeParse(raw);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Pick a finish date." };
+  const { supabase, ok } = await requireStaff();
+  if (!ok) return { ok: false, message: ERROR_WORDING.not_staff };
+  const { workOrderId, endDate } = parsed.data;
+
+  const { data: wo, error: woErr } = await supabase.from("work_orders").select("contractor_id").eq("id", workOrderId).maybeSingle();
+  if (woErr) {
+    reportError(woErr, { where: "setFinishDate.workOrder", extra: { workOrderId } });
+    return { ok: false, message: "Couldn't read the job just now — try again." };
+  }
+  if (!wo) return { ok: false, message: FINISH_WORDING.not_found };
+  const contractorId = (wo as { contractor_id: string | null }).contractor_id;
+  let week: WorkingWeek = {};
+  if (contractorId) {
+    const { data: c, error: cErr } = await supabase.from("contractors").select("works_saturday, works_sunday").eq("id", contractorId).maybeSingle();
+    if (cErr) {
+      reportError(cErr, { where: "setFinishDate.week", extra: { workOrderId, contractorId } });
+      return { ok: false, message: "Couldn't read the painter's working days just now — try again." };
+    }
+    const row = c as { works_saturday: boolean | null; works_sunday: boolean | null } | null;
+    week = { saturday: Boolean(row?.works_saturday), sunday: Boolean(row?.works_sunday) };
+  }
+  const snapped = addWorkingDays(endDate, 1, week);
+
+  const { data, error } = await supabase.rpc("wo_contractor_set_finish_date", { p_work_order_id: workOrderId, p_date: snapped });
+  if (error) {
+    reportError(error, { where: "setFinishDate.rpc", extra: { workOrderId } });
+    return { ok: false, message: "Couldn't move the finish date just now — try again." };
+  }
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) {
+    const reason = s.replace(/^error:/, "");
+    return { ok: false, message: FINISH_WORDING[reason] ?? `Couldn't move the finish date (${reason}).` };
+  }
+
+  revalidatePath("/pc/schedule");
+  revalidatePath("/pc");
+  revalidatePath(`/pc/wo/${workOrderId}`);
+  revalidatePath("/portal/jobs");
+  revalidatePath("/portal/calendar");
+  // The painter's Google Calendar follows the new last day, and the final
+  // walkthrough invites re-send for the re-booked day — exactly what the
+  // painter's own finish-date move does (tickActions.setFinishDate).
+  after(() => reconcileForWorkOrder(workOrderId));
+  const service = createServiceClient();
+  if (service) after(() => sendWalkthroughInvites(service, workOrderId));
+  return { ok: true, endDate: snapped };
 }
 
 export async function setLeadPainterAction(raw: unknown): Promise<ActionResult> {
