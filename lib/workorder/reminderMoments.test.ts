@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { melbourneInstant } from "@/lib/time/businessHours";
 import { jobDays } from "./jobRhythm";
 import {
-  DEFAULT_JOB_UPDATE_RULES, decideSend, mergeJobUpdateRules, momentState, planMoments, reconcilePlan, sendTimes, withinSendingWindow,
+  DEFAULT_JOB_UPDATE_RULES, decideSend, headsUpDue, mergeJobUpdateRules, momentState, planMoments, reconcilePlan, sendTimes, withinSendingWindow,
   type MomentRow,
 } from "./reminderMoments";
 
@@ -114,5 +114,35 @@ describe("words and rules", () => {
   test("mergeJobUpdateRules tolerates a malformed row", () => {
     expect(mergeJobUpdateRules(null)).toEqual(rules);
     expect(mergeJobUpdateRules({ morningFollowUps: ["9:00"], lastSend: "18:30", maxTexts: 9 })).toEqual({ ...rules, lastSend: "18:30" });
+  });
+});
+
+describe("the morning heads-up on a 3:30 pm day (Tom, 8 Oct)", () => {
+  // Thu 1 → Fri 9 Oct 2026 is seven working days; 30% lands on Mon 5, the first weekday of daylight saving.
+  const seven = jobDays("2026-10-01", "2026-10-09");
+  test("ships at 7:30 am until noon, Melbourne", () => {
+    expect(rules.headsUp).toBe("07:30");
+    expect(rules.headsUpUntil).toBe("12:00");
+  });
+  test("due from 7:30 am AEDT on Mon 5 Oct — 20:30 UTC the day before, measured from the zone", () => {
+    expect(headsUpDue(seven, new Date("2026-10-04T20:30:00Z"), rules)).toEqual({ forKind: "mid30", day: "2026-10-05" });
+    // 8:00 am AEDT; a hardcoded +10:00 would read 7:00 am and wait.
+    expect(headsUpDue(seven, new Date("2026-10-04T21:00:00Z"), rules)).toEqual({ forKind: "mid30", day: "2026-10-05" });
+    expect(headsUpDue(seven, new Date("2026-10-04T20:15:00Z"), rules)).toBeNull();
+  });
+  test("never after noon: a missed morning is not sent in the afternoon", () => {
+    // 12:30 pm AEDT; a hardcoded +10:00 would read 11:30 am and send.
+    expect(headsUpDue(seven, new Date("2026-10-05T01:30:00Z"), rules)).toBeNull();
+  });
+  test("nothing on day 1 (it has its own 7:30 text) or on a day with no 3:30 moment", () => {
+    expect(headsUpDue(seven, melbourneInstant(2026, 10, 1, 8, 0), rules)).toBeNull();
+    expect(headsUpDue(seven, melbourneInstant(2026, 10, 6, 8, 0), rules)).toBeNull();
+    expect(headsUpDue(seven, melbourneInstant(2026, 10, 7, 8, 0), rules)).toEqual({ forKind: "mid60", day: "2026-10-07" });
+    expect(headsUpDue(seven, melbourneInstant(2026, 10, 9, 8, 0), rules)).toEqual({ forKind: "last", day: "2026-10-09" });
+  });
+  test("the times come from the job_update_rules row; a malformed one keeps the default", () => {
+    const early = mergeJobUpdateRules({ headsUp: "00:01", headsUpUntil: "23:59" });
+    expect(headsUpDue(seven, melbourneInstant(2026, 10, 5, 0, 30), early)).toEqual({ forKind: "mid30", day: "2026-10-05" });
+    expect(mergeJobUpdateRules({ headsUp: "7:30", headsUpUntil: 12 })).toMatchObject({ headsUp: "07:30", headsUpUntil: "12:00" });
   });
 });

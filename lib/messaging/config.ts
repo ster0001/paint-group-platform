@@ -209,6 +209,15 @@ export type MessagingSettings = {
   statusGreenSms: string;
   statusGreenLeadSms: string;
   statusDroppedSms: string;
+  /** Painter (Tom, 8 Oct): the morning heads-up on a day with a 3:30 pm update moment. */
+  contractorJobUpdateMorningSms: string;
+  contractorJobUpdateMorningEmailSubject: string;
+  contractorJobUpdateMorningEmailIntro: string;
+  /** Customer (Tom, 8 Oct): mark the touch-ups with tape before the final walkthrough — first and second text. */
+  defectTapeSms: string;
+  defectTapeSms2: string;
+  defectTapeEmailSubject: string;
+  defectTapeEmailIntro: string;
 };
 
 export const DEFAULT_MESSAGING: MessagingSettings = {
@@ -456,6 +465,23 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   statusGreenSms: "{{company_name}}: you are on Green. You now get priority on new jobs and faster payment. {{link}}",
   statusGreenLeadSms: "{{company_name}}: you are on Green. Thank you for the clean work. {{link}}",
   statusDroppedSms: "{{company_name}}: your status is now {{colour}}. Open the app to see why and what to do next. {{link}}",
+  contractorJobUpdateMorningSms:
+    "{{company_name}}: morning {{first_name}}, today is an update day on {{wo_ref}} at {{suburb}} ({{day_label}}). Before you finish, tick what's done and add today's photos in the app. {{link}}",
+  contractorJobUpdateMorningEmailSubject: "Update day today — {{wo_ref}} at {{suburb}}",
+  contractorJobUpdateMorningEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "Today ({{day_label}}) is an update day on {{wo_ref}} at {{suburb}}. Before you finish this afternoon, please open the job in the app, tick what's done and add today's photos.\n\n" +
+    "{{link}}",
+  defectTapeSms:
+    "Hi {{first_name}}, it's {{company_name}}. Your painting at {{suburb}} is nearly done (finishing {{finish_date}}). Before the final walkthrough, please put a small piece of the painter's tape on any spot you'd like touched up. The painter will fix each one.",
+  defectTapeSms2:
+    "Hi {{first_name}}, a quick reminder from {{company_name}}: before the final walkthrough, mark any spots you'd like touched up with a small piece of the painter's tape, and the painter will fix each one.",
+  defectTapeEmailSubject: "Your painting is nearly done — mark any touch-ups with tape",
+  defectTapeEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "Your painting at {{address}} is nearly done — the last day is {{finish_date}}.\n\n" +
+    "Before the final walkthrough, please walk around and put a small piece of the painter's tape on any spot you'd like touched up. The painter will fix each one before we sign the job off.\n\n" +
+    "Thank you,\n{{company_name}}",
 };
 
 /**
@@ -482,6 +508,8 @@ export const TEMPLATE_PLACEHOLDERS = [
 export type TemplateVars = {
   /** Standards messages: the version number being confirmed. */
   version?: string;
+  /** Defect-tape text (Tom, 8 Oct): the job's booked last day, "Fri 9 Oct". */
+  finish_date?: string;
   /** Call back booked: the visit day and what is wrong. */
   day?: string;
   what?: string;
