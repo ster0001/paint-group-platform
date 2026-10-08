@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue } from "@/lib/workorder/console";
-import { LANES, LANE_LABELS, laneFor, type WoStage } from "@/lib/workorder/stages";
+import { LANES, LANE_LABELS, bySoonestStart, laneFor, startAlert, type WoStage } from "@/lib/workorder/stages";
 import { melbourneDate } from "@/lib/workorder/console";
 import { loadOpenCallbacks } from "@/lib/callbacks/load";
 import { callbackLine } from "@/lib/callbacks/model";
@@ -91,7 +91,10 @@ export default async function FlowPage() {
         <div className="riverwrap">
           <div className="river" data-testid="river">
             {LANES.map((stage) => {
-              const jobs = input.workOrders.filter((w) => laneFor(w.stage as WoStage, w.startDate, today) === stage);
+              const inLane = input.workOrders.filter((w) => laneFor(w.stage as WoStage, w.startDate, today) === stage);
+              // Tom, 8 Oct 2026: Pre-start reads soonest start first, and a
+              // job starting within three days is lit orange (startAlert).
+              const jobs = stage === "pre_start" ? [...inLane].sort(bySoonestStart) : inLane;
               const lane = LANE_LABELS[stage];
               return (
                 <div className={`lane ${jobs.length > 0 ? "hot" : ""}`} key={stage} data-testid={`lane-${stage}`}>
@@ -103,9 +106,12 @@ export default async function FlowPage() {
 
                   {jobs.map((job) => {
                     const severity = worst.get(job.id);
+                    const alert = stage === "pre_start" ? startAlert(job.startDate, today) : null;
                     return (
-                      <Link className={`job ${severity === "critical" ? "crit" : severity === "warning" ? "warnb" : ""}`}
-                        href={`/pc/wo/${job.id}`} key={job.id} data-testid={`job-${job.id}`}>
+                      <Link className={`job ${severity === "critical" ? "crit" : severity === "warning" ? "warnb" : ""}${alert ? " soon" : ""}`}
+                        href={`/pc/wo/${job.id}`} key={job.id} data-testid={`job-${job.id}`}
+                        data-soon={stage === "pre_start" ? String(alert !== null) : undefined}>
+                        {alert && <span className="soon-l" data-testid={`soon-${job.id}`}>{alert}</span>}
                         <span className="a">{job.title}</span>
                         <span className="r">
                           {job.woRef}{job.contractorName ? ` · ${job.contractorName}` : ""}
@@ -132,7 +138,8 @@ export default async function FlowPage() {
           </div>
         </div>
         <p className="note">
-          Swipe sideways. Amber = blocked on a decision · red = overdue. A booked job
+          Swipe sideways. Amber = blocked on a decision · red = overdue · orange
+          in Pre-start = starts within three days (soonest at the top). A booked job
           moves from 02 to 03 on its own once it is due to start within seven days.
           Both failure paths — a quality-check fail and a flag at walkthrough — pour
           back into 04.
