@@ -44,7 +44,7 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
 ### Found something? Raise a variation
 7. Anything not on the job sheet, rot, damage, extra scope or a customer request, goes through **Variations → + FOUND SOMETHING** before you work on it. Pick the category (Rot / substrate, Damage, Extra scope, Customer request), describe it in plain words (the office reads it to the customer), take at least one photo or a short video, and add roughly how long it would take. Tap **Send to the office**.
    ![](media/contractor-06.png)
-8. The variation shows as **WITH THE OFFICE**. The office prices it and sends it to the customer — the same card then reads **WITH THE CUSTOMER** — and nothing on it is to be done until it comes back approved. You get a text and an email the moment it is approved and waiting on you (make sure the office has your mobile and email).
+8. The variation shows as **WITH THE OFFICE**. The office prices it and sends it to the customer — the same card then reads **WITH THE CUSTOMER** — and nothing on it is to be done until it comes back approved. You get a text and an email the moment it is approved and waiting on you (make sure the office has your mobile and email). If the office decides it isn't going ahead, the chip reads **NOT GOING AHEAD** with the office's reply underneath, and you get the same reply by text and email. Leave that work as it is.
    ![](media/contractor-07.png)
 9. When the customer has approved and signed, the variation shows **YOUR APPROVAL** and, under it, **Variation approved by the client** with the extra pay and the estimated hours. Tap the big **Accept $180.00 — 3 hrs** button: the chip turns green **ACCEPTED**, the card says how much is added to your payment for this job, and the work is now part of the job. If the hours or the amount do not work for you, tap the small **Decline** underneath, write what would need to change in the box ("Please advise us of any further changes") and **Send to the office**. The chip reads **DECLINED — WITH THE OFFICE**; the office rings you or sends a revised change, and nothing on it is to be done until then. A variation that removes scope shows the affected rows struck through with **Removed from scope**; if it affects your pay, you acknowledge it here.
    ![](media/contractor-08.png)
@@ -94,6 +94,8 @@ Near the top of the job sheet, above the scope, a **From the office** section ho
 On a job that came to us from PaintScout these are often the only photos of the job, so it is worth a look before you start. They can be added or changed after you accept, so check again on the morning.
 
 They are separate from your own photos: your before, progress and completion shots stay under **Site photos** and are yours. Nothing you upload appears in **From the office**. The same section is on the crew link you hand to your painters, so they see the office's photos without needing your login.
+
+Above the materials, **Further instructions for the crew** is the office's note for this job — access, where to start, anything to watch for. The office can update it after the job has gone out, and the job sheet always shows the latest version, so look again before you start.
 
 ## What the colours and labels mean
 - **TO DO / PREPPED / DONE** on a row — not started (grey), prepped (cyan), finished (green).

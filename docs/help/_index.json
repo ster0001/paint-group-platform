@@ -405,6 +405,40 @@
       "sources": []
     },
     {
+      "feature": "painter-status",
+      "role": "contractor",
+      "title": "Your status — the traffic light, what it gets you, and how to reach Green",
+      "summary": "Home shows a traffic light with your status in words. Tap it for My status — why you are on that colour, the three measures as plain counts, your last 10 jobs, what to do next and how the colours work. Reward only, never a deduction.",
+      "path": "docs/help/painter-status/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/StatusCard.tsx",
+        "app/portal/status/page.tsx",
+        "app/portal/status/JobDots.tsx",
+        "app/components/status/TrafficLight.tsx",
+        "lib/painterStatus/copy.ts",
+        "lib/painterStatus/mine.ts"
+      ]
+    },
+    {
+      "feature": "painter-status",
+      "role": "employee",
+      "title": "Your status as a lead painter — the traffic light on the jobs you led",
+      "summary": "A lead painter sees the traffic light on Home and My status, scored on the jobs they led. It reads \"jobs you led\" and never mentions priority jobs or fast payment. A painter who has not led a job sees no status at all.",
+      "path": "docs/help/painter-status/employee.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/StatusCard.tsx",
+        "app/portal/status/page.tsx",
+        "lib/painterStatus/copy.ts",
+        "lib/painterStatus/mine.ts"
+      ]
+    },
+    {
       "feature": "portal-theme",
       "role": "contractor",
       "title": "Switching the portal between dark and light",
@@ -850,6 +884,8 @@
       "verified_at_commit": "780c451640",
       "sources": [
         "app/pc/wo/[id]/ReviewCard.tsx",
+        "app/pc/wo/[id]/PrestartListBox.tsx",
+        "app/pc/WorkItemNote.tsx",
         "app/pc",
         "app/components/wo",
         "lib/workorder"

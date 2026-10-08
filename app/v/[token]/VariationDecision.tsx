@@ -38,6 +38,7 @@ export default function VariationDecision({
   const [doneName, setDoneName] = useState(signedName);
   const [doneAt, setDoneAt] = useState(signedAt);
   const [justSigned, setJustSigned] = useState(false);
+  const [emailed, setEmailed] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const approved = state === "customer_approved" || state === "contractor_accepted";
@@ -74,6 +75,11 @@ export default function VariationDecision({
           <p className="cv-signedby" data-testid="variation-signedby">
             Signed by {doneName}
             {doneAt ? ` on ${dateFmt(doneAt)}` : ""}.
+          </p>
+        )}
+        {emailed && (
+          <p className="cv-signedby" data-testid="variation-confirmation-emailed">
+            We&rsquo;ve emailed you a confirmation.
           </p>
         )}
         {landing && (
@@ -122,6 +128,7 @@ export default function VariationDecision({
         setDoneAt(new Date().toISOString());
         setState("customer_approved");
         setJustSigned(true);
+        setEmailed(Boolean(result.confirmationEmailed));
       } else setMessage(result.message);
     });
   }

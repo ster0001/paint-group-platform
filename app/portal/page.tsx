@@ -15,6 +15,8 @@ import { loadMyStandards } from "@/lib/standards/status";
 import { needsSignoff, painterStatusLine } from "@/lib/standards/acks";
 import { loadMyCallbacks } from "@/lib/callbacks/load";
 import { callbackLine } from "@/lib/callbacks/model";
+import { loadMyStatus } from "@/lib/painterStatus/mine";
+import StatusCard from "./StatusCard";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +31,7 @@ const melbourneDate = () =>
 const firstName = (full: string) => full.trim().split(/\s+/)[0] || "there";
 
 export default async function PortalHome() {
-  const { name, contractor, capabilities } = await requireContractor();
+  const { name, contractor, capabilities, employmentType } = await requireContractor();
 
   // Staff haven't finished setting this account up.
   if (!contractor) {
@@ -58,6 +60,8 @@ export default async function PortalHome() {
 
   // Call backs (Step 3): open ones about this painter, or booked for them to fix.
   const myCallbacks = await loadMyCallbacks(supabaseForStandards, contractor.id);
+  // Painter status (Step 6): their own row, or nothing — RLS decides (⚑21, R17).
+  const { status: myStatus } = await loadMyStatus(supabaseForStandards, contractor.id);
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
   const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
@@ -168,6 +172,8 @@ export default async function PortalHome() {
       <p className="slab">{melbourneDate()}</p>
 
       {docsError && <div className="err">{docsErrorMessage(docsError)}</div>}
+
+      {myStatus && <StatusCard status={myStatus} lead={employmentType === "employee"} />}
 
       {/* Can this contractor be offered work? The single most important fact —
           for a contractor. An employee is assigned, never offered (ruling 1). */}
