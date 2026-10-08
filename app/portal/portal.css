@@ -703,3 +703,85 @@
 .pt[data-theme="light"] .cd2.marq { background: rgba(14, 140, 156, 0.16); border-color: rgba(14, 140, 156, 0.5); }
 .pt[data-theme="light"] .cd2.blocked { background: repeating-linear-gradient(45deg, rgba(92, 103, 113, 0.18) 0 5px, transparent 5px 10px); }
 .pt[data-theme="light"] .cd2.blocked.office { background: repeating-linear-gradient(45deg, rgba(163, 70, 58, 0.18) 0 5px, transparent 5px 10px); border-color: rgba(163, 70, 58, 0.45); color: var(--clay); }
+
+/* ------------------------------------------------------------------------
+   Painter status — the traffic light (brief §7, R19, R22; Step 6).
+   Lamp colours are the SAME in both themes and only ever appear inside the
+   dark housing or as a small dot; the text-safe set changes per theme so the
+   status word reads on a white card. Amber, clay and emerald keep their old
+   meanings — none of them is a lamp. Status is never colour alone: the word
+   and the lamp's position carry it.
+   ------------------------------------------------------------------------ */
+.pt {
+  --l-green: #2fd07a; --l-yellow: #f2d23c; --l-orange: #f58a2d; --l-red: #ea4b45; --l-blue: #5c9bf7;
+  --t-green: #4fe08f; --t-yellow: #f5d85a; --t-orange: #f79a4d; --t-red: #f27872; --t-blue: #93b7f9;
+  --lamp-off: #1b242b; --housing: #05080a; --housing-line: #27333c; --track: #222c33; --dot-ring: transparent;
+}
+.pt[data-theme="light"] {
+  --t-green: #1e7b4a; --t-yellow: #806200; --t-orange: #a84e0c; --t-red: #b9332e; --t-blue: #2b5bc9;
+  --housing: #141b20; --housing-line: #141b20; --track: #dce3e7; --dot-ring: rgba(14, 20, 24, 0.28);
+}
+.pt .st-green { --ct: var(--t-green); } .pt .st-yellow { --ct: var(--t-yellow); } .pt .st-orange { --ct: var(--t-orange); }
+.pt .st-red { --ct: var(--t-red); } .pt .st-new { --ct: var(--t-blue); }
+
+.pt .tl { flex: none; display: flex; flex-direction: column; gap: 7px; padding: 9px; background: var(--housing); border: 1px solid var(--housing-line); border-radius: 24px; }
+.pt .tl.big .lamp { width: 44px; height: 44px; }
+.pt .lamp { width: 30px; height: 30px; border-radius: 50%; background: color-mix(in srgb, var(--c) 14%, var(--lamp-off)); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.65); }
+.pt .lamp.on { background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 70%, white), var(--c) 60%); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 28%, transparent), 0 0 18px var(--c); animation: pt-pulse 1.9s ease-in-out infinite; }
+.pt .tl.new { border-color: var(--l-blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--l-blue) 22%, transparent); animation: pt-ring 2.2s ease-in-out infinite; }
+@keyframes pt-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 28%, transparent), 0 0 12px var(--c); filter: brightness(1); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--c) 18%, transparent), 0 0 30px var(--c); filter: brightness(1.18); }
+}
+@keyframes pt-ring {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--l-blue) 22%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--l-blue) 12%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .pt .lamp.on, .pt .tl.new { animation: none; } }
+
+.pt a.statuscard { display: flex; flex-direction: row; align-items: center; gap: 16px; text-decoration: none; color: inherit; }
+.pt .statushead { display: flex; flex-direction: row; align-items: center; gap: 18px; }
+.pt .plain { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pt .grow { flex: 1; min-width: 0; }
+.pt .eyebrow { font: 600 10.5px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.pt .statusname { font-size: 30px; line-height: 1.05; font-weight: 700; color: var(--ct, var(--text)); }
+.pt .statusname.big { font-size: 36px; }
+.pt .bignum { font: 600 34px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.pt .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.pt .small { font-size: 13px; }
+.pt .muted { color: var(--muted); }
+.pt .back { display: inline-block; align-self: flex-start; color: var(--cyan); font-weight: 600; font-size: 14px; padding: 4px 0; text-decoration: none; margin-bottom: 10px; }
+/* .steps is the job page's step list — the status bars are .ststeps. */
+.pt .ststeps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.pt .ststeps i { height: 9px; border-radius: 5px; background: var(--track); display: block; }
+.pt .ststeps i.on { background: var(--l-green); }
+.pt .card hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; width: 100%; }
+.pt .row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pt .pill { display: inline-flex; align-items: center; gap: 6px; font: 600 10.5px/1 var(--mono); letter-spacing: 0.04em; text-transform: uppercase; padding: 5px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.pt .pill.ok { color: var(--t-green); border-color: color-mix(in srgb, var(--l-green) 55%, var(--line)); }
+.pt .pill.bad { color: var(--clay); border-color: color-mix(in srgb, var(--clay) 70%, var(--line)); }
+.pt .pill.info { color: var(--cyan); border-color: color-mix(in srgb, var(--paint) 55%, var(--line)); }
+.pt .dot { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--track)); box-shadow: 0 0 0 1px var(--dot-ring); }
+.pt .measure { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: center; margin-top: 8px; }
+.pt .measure .dot { grid-row: span 2; width: 14px; height: 14px; }
+.pt .measure b { font-weight: 650; }
+.pt .jobs { display: flex; gap: 5px; margin-top: 10px; }
+.pt .jd { appearance: none; flex: 1; min-width: 0; max-width: 30px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; font: 700 11px/1 var(--mono); cursor: pointer; padding: 0; border: 2px solid transparent; }
+.pt .jd.ok { background: var(--l-green); color: #04150c; }
+.pt .jd.slip { background: transparent; border-color: var(--clay); color: var(--clay); }
+.pt .jd.todo { background: transparent; border: 2px dashed var(--line); color: var(--muted); cursor: default; }
+.pt .jd[aria-pressed="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
+.pt .result { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.pt .tick { color: var(--t-green); font-weight: 700; }
+.pt ul.clean, .pt ol.clean { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+/* .perk and .perk.on already exist (the sign-off confirmation, Step 2); the status screen adds two states. */
+.pt .perk.warn .ic { background: var(--l-orange); border-color: transparent; color: #1a0d00; }
+.pt .perk.off { color: var(--muted); }
+.pt .colourkey { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.pt .colourrow { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+.pt .colourrow .dot { width: 14px; height: 14px; margin-top: 4px; }
+.pt .colourrow p { margin: 2px 0 0; }
+.pt details.card > summary { cursor: pointer; font-weight: 650; list-style: none; display: flex; justify-content: space-between; gap: 10px; }
+.pt details.card > summary::-webkit-details-marker { display: none; }
+.pt details.card > summary::after { content: "+"; font-family: var(--mono); color: var(--muted); }
+.pt details.card[open] > summary::after { content: "–"; }
