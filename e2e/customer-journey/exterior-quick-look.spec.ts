@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
 
 /**
  * C8b — the EXTERIOR quick look rebuilt, elements first (prototype `s-ext-job`
@@ -126,8 +126,9 @@ async function walkTypical(page: Page, windowType: "casement" | "colonial", body
   await expect(page.getByTestId("ql-ext-condition")).toHaveCount(0);
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range/);
+  await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range|Continue to the last question/);
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
 }
 

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 
 /**
  * C13 — the warehouse pattern (addendum S6b, prototype `s-com-warehouse`).
@@ -71,10 +71,11 @@ test("Tom's check: 1,000–2,500 m², 4–6 m, precast, some racking, operating 
   await expect(page.getByTestId("com-surf")).toHaveCount(0);
   await expect(page.getByTestId("ql-condition-wear")).toContainText(/forklift/i);
   await expect(page.getByTestId("com-occ")).toHaveCount(0);
-  await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range/);
+  await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range|Continue to the last question/);
   await quickNext(page);
 
   // The reveal — the warehouse words and the scissor-lift line on the assume list.
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.getByTestId("reveal-kicker")).toContainText(/Industrial or warehouse/);
   await expect(page.getByTestId("reveal-restatement")).toContainText(/a large warehouse, 4–6 m high, racking against some walls/);
@@ -107,6 +108,7 @@ test("a lift on site removes the scissor-lift line; up to 4 m never has one", as
   await page.getByTestId("wh-lift-yes").click();
   await quickNext(page);
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("reveal-assumed-toggle").click();
   await expect(page.getByTestId("reveal-assumed-height")).toContainText(/Your lift used — no hire allowed for/);
