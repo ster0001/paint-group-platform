@@ -4385,3 +4385,5 @@ re-grants it to authenticated. `ContractorBank` (`app/(app)/contractors/[id]/`) 
 `revealContractorBankAction` (zod, user session) calls the RPC on the click and the decrypted number lives only in client
 state until Hide. A 42501 before the migration is pasted reads as "needs migration 20270223". Spec: `contractor-detail`
 (server render never carries the number; reveal, hide, event row). Help: contractors/staff.md (+ Their bank details).
+
+**Every paint on every list, searchable (8 Oct 2026).** `paintOptions` (`lib/workorder/materials.ts`) no longer filters by the row's Interior/Exterior type: the Materials rows, Other paints, a line's materials and the Edit Surface Product field all offer the whole catalogue A-Z, narrowed by a search matched against name, brand, finish, category and internal alias, and the chosen paint is never filtered away. `SurfaceEditor` in `app/quote/QuoteBuilder.tsx` gained its own search box (`surface-paint-search`) over the Product select (`surface-paint-pick`). Unit: `lib/workorder/paintOptions.test.ts`. Spec: `e2e/materials-all-paints.spec.ts`.
