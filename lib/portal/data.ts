@@ -287,8 +287,12 @@ async function projectForWo(
       svc.from("wo_variations")
         .select("id, status, category, comment, price_cents, credit, customer_token, customer_responded_at, created_at")
         .eq("work_order_id", wo.id),
+      // The milestone is the END-OF-JOB check only (Tom, 9 Oct 2026: the extra
+      // visits are "logged just for Felipe"). A re-check keeps its kind, so a
+      // passed re-check of the final still counts; a passed mid-job or spot
+      // check never reaches the customer.
       svc.from("wo_qa_checks").select("checked_at").eq("work_order_id", wo.id)
-        .eq("result", "pass").order("checked_at", { ascending: false }).limit(1),
+        .eq("kind", "final").eq("result", "pass").order("checked_at", { ascending: false }).limit(1),
       svc.from("wo_walkthroughs").select("scheduled_date").eq("work_order_id", wo.id)
         .eq("kind", "final").eq("status", "booked").order("scheduled_date").limit(1),
       svc.from("wo_signoff").select("signed_at, customer_token").eq("work_order_id", wo.id).maybeSingle(),

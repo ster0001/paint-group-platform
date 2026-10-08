@@ -36,6 +36,8 @@ import FinishLevelCard from "./FinishLevelCard";
 import CrewNotesCard from "./CrewNotesCard";
 import ClientUpdates, { type ClientTimelineEntry } from "./ClientUpdates";
 import ReferencePhotosCard from "./ReferencePhotosCard";
+import SiteVisitsCard from "./SiteVisitsCard";
+import { loadSiteVisits } from "@/lib/workorder/siteVisits";
 import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
 import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
 import { loadStandards } from "@/lib/standards/load";
@@ -270,6 +272,13 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     name: a.contractors?.profiles?.name || a.contractors?.company_name || "Painter",
   }));
   const qaScheduled = ((qaRows ?? []) as unknown[]).length > 0;
+
+  // Site check-ins (Tom, 9 Oct 2026; 20270248): Felipe's own visits, with their
+  // notes and photos. Never a check — nothing here gates the job.
+  const siteVisits = await loadSiteVisits(supabase, id);
+  if (siteVisits.failure) reportError(new Error(siteVisits.failure), { where: "pc.wo.siteVisits", bestEffort: true });
+  // Who a "Send to the painter" note goes to: the lead painter, else the job's contractor.
+  const notePainter = crew.find((c) => c.isLead)?.name ?? (painterName || null);
 
   // The job sheet, opened on the work-order view where the colours live, and
   // carrying `from` so the builder's top-left link comes back here rather than
@@ -875,15 +884,17 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               logged record (and where its re-check went) stays in view while
               the painter rectifies; the unlogged re-check itself waits for
               their next finish before it is drawn. */}
-          {/* Tom, 8 Oct 2026: a site check-in (or spot check) whose day has come
-              is recorded while the job is still running — its PC Command card
-              ("Record the check") lands here. */}
+          {/* Tom, 8 Oct 2026: a mid-job or spot check whose day has come is
+              recorded while the job is still running — its PC Command card
+              ("Record the check") lands here. Site check-ins are NOT checks
+              (9 Oct): they have their own card just below. */}
           <div id="qa">
             {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
               && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null || checkInDue.has(c.id)).map((c) => (
               <QaCheck key={c.id} check={c} workOrderId={id} expect={qaExpect} />
             ))}
           </div>
+          <SiteVisitsCard visits={siteVisits.visits} painter={notePainter} closed={row.stage === "closed"} failure={siteVisits.failure} />
           {/* Dashboard 0c: reviews requested → received, a person's tick until the API. */}
           {(row.stage === "walkthrough" || row.stage === "closed") && (
             <ReviewCard workOrderId={id} review={reviewState} />
