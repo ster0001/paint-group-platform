@@ -136,6 +136,49 @@ export const daysOnSite: MetricDef<HoursRow> = {
   note: (rows) => coverageLine(rows.map((r) => ({ days: r.days, hours: r.hours, source: r.source === "Entered by the painter" ? "entered" : "schedule" }))),
 };
 
+// ---- painter status (Step 8): the SAME model as PC Command → Contractors ----------
+// Every number here is read off lib/painterStatus/contractorsView — the strip
+// on PC Command and these tiles cannot disagree because they are one object.
+
+const statusView = (input: MetricInput) => input.painterStatus ?? null;
+const COLOUR_NAME: Record<string, string> = { new: "New", green: "Green", yellow: "Yellow", orange: "Orange", red: "Red" };
+
+export type StatusRow = { painter: string; colour: string; on_green: boolean; streak: number; checks: string; app: string; call_backs: number; trend: string; tags: string };
+export const paintersOnGreen: MetricDef<StatusRow> = {
+  key: "contractors.on_green", kind: "now", section: "contractors", title: "Painters on Green",
+  definition: "Every evaluated painter with their traffic-light colour, counted on Green. The same rows PC Command → Contractors lists; a painter not yet evaluated is not here.",
+  unit: "count", gst: null, roles: ROLES, aggregate: { countWhere: "on_green" }, href: "/pc/contractors",
+  columns: [{ key: "painter", label: "Painter" }, { key: "colour", label: "Status" }, { key: "streak", label: "Clean in a row" }, { key: "checks", label: "Checks passed first time" }, { key: "app", label: "Reminders answered" }, { key: "call_backs", label: "Call backs" }, { key: "trend", label: "Trend vs last month" }, { key: "tags", label: "Tags" }],
+  select: (input) => (statusView(input)?.rows ?? []).filter((r) => r.colour).map((r) => ({
+    painter: r.name, colour: COLOUR_NAME[r.colour as string] ?? "", on_green: r.colour === "green", streak: r.streak, checks: r.checks, app: r.app, call_backs: r.callbacks, trend: r.trend, tags: r.tags.map((t) => t.text).join(", "),
+  })),
+  note: (rows) => (rows.length ? `of ${rows.length} evaluated` : "no painter evaluated yet"),
+};
+
+export type StripRow = { painter: string; what: string };
+export const openCallBacks: MetricDef<StripRow> = {
+  key: "contractors.open_callbacks", kind: "now", section: "contractors", title: "Open call backs",
+  definition: "Call backs logged against a painter and not yet closed by the PC (open, booked or marked fixed) — the Contractors strip's count.",
+  unit: "count", gst: null, roles: ROLES, aggregate: "count", href: "/pc/contractors",
+  columns: [{ key: "painter", label: "Painter" }, { key: "what", label: "Tag" }],
+  select: (input) => (statusView(input)?.rows ?? []).flatMap((r) => r.tags.filter((t) => t.tone === "bad").flatMap((t) => Array.from({ length: Number(t.text.match(/^\d+/)?.[0] ?? 1) }, () => ({ painter: r.name, what: t.text })))),
+};
+export const bonusReviewsDue: MetricDef<StripRow> = {
+  key: "contractors.bonus_due", kind: "now", section: "contractors", title: "Rewards due",
+  definition: "Bonus reviews raised and not yet decided — due with the PC or with the owner. The Contractors strip's count.",
+  unit: "count", gst: null, roles: ROLES, aggregate: "count", href: "/pc/contractors",
+  columns: [{ key: "painter", label: "Painter" }, { key: "what", label: "Tag" }],
+  select: (input) => (statusView(input)?.rows ?? []).filter((r) => r.tags.some((t) => t.text === "Bonus due")).map((r) => ({ painter: r.name, what: "Bonus due" })),
+};
+export const standardsNotSigned: MetricDef<StripRow> = {
+  key: "contractors.standards_unsigned", kind: "now", section: "contractors", title: "Standards not signed",
+  definition: "Active painters who have not confirmed the current finish standards — invited and in their grace period, past it (no offers), employed and unsigned, or not yet invited.",
+  unit: "count", gst: null, roles: ROLES, aggregate: "count", href: "/contractors",
+  columns: [{ key: "painter", label: "Painter" }, { key: "what", label: "Tag" }],
+  select: (input) => (statusView(input)?.rows ?? []).filter((r) => r.tags.some((t) => t.text === "Standards not signed")).map((r) => ({ painter: r.name, what: "Standards not signed" })),
+};
+
 export const CONTRACTOR_METRICS = [
   finishedOnTime, silentContractors, qaPassedFirstTime, offersWithin24h, variationsRaised, expensesPending, hoursVsEstimate, daysOnSite,
+  paintersOnGreen, openCallBacks, bonusReviewsDue, standardsNotSigned,
 ] as const;

@@ -86,6 +86,8 @@ export type MetricInput = {
   console?: ConsoleSlice | null;
   /** Session 2: the contractor-side rows (0c capture). */
   contractors?: ContractorSlice | null;
+  /** Painter status Step 8: the Contractors view — the SAME model PC Command → Contractors renders (lib/painterStatus/contractorsView). */
+  painterStatus?: import("@/lib/painterStatus/contractorsView").ContractorsView | null;
   /** Session 3: presentations (categories), staff names, targets, 12 months of history, and who is looking. */
   sales?: SalesSlice | null;
   /** Session 3: wizard sessions and the estimates they became. */

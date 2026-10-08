@@ -26,6 +26,7 @@ import {
 import { loadDashboard as loadInvoicingDashboard, toDerive, toDerivePayments, type InvoiceRow } from "@/app/invoicing/data";
 import { effectiveRoles, isDashboardRole, type DashboardRole, type DashboardSection } from "./roles";
 import { loadReportingExclusions, without, type ReportingExclusions } from "./exclusions";
+import { loadContractorsView } from "@/lib/painterStatus/contractorsLoad";
 
 export async function loadRoles(supabase: SupabaseClient): Promise<DashboardRole[]> {
   const { data, error } = await supabase.rpc("dashboard_roles");
@@ -486,7 +487,7 @@ export async function loadDashboard(
   // Session 6: one wave for everything that depends on nothing else; the two
   // that need the console or the closed jobs follow. The critical path is the
   // slowest single read, not the sum of three stages.
-  const [excl, console_, estRaw, closedRaw, thresholdRes, contractorRaw, salesRaw, funnelRaw, activitySlice, invoicingRaw] = await Promise.all([
+  const [excl, console_, estRaw, closedRaw, thresholdRes, contractorRaw, salesRaw, funnelRaw, activitySlice, invoicingRaw, painterStatusRaw] = await Promise.all([
     timed("exclusions", loadReportingExclusions(supabase)),
     wantsConsole ? timed("console", loadConsole(supabase, now).catch((e: unknown) => { failure(failures, "PC console", e); return null; })) : null,
     wantsEstimates ? timed("estimates", loadEstimates(supabase, range)) : Promise.resolve({ rows: [] as EstimateRow[], failures: [] as LoadFailure[] }),
@@ -497,7 +498,10 @@ export async function loadDashboard(
     sections.includes("funnel") || sections.includes("marketing") ? timed("funnel", loadFunnelSlice(supabase, range, failures)) : Promise.resolve(null),
     sections.includes("activity") ? timed("activity", loadActivitySlice(supabase, range, roles, viewer, failures)) : Promise.resolve(null),
     sections.includes("invoicing") ? timed("invoicing", loadInvoicingSlice(supabase, range, now, failures)) : Promise.resolve(null),
+    // Painter status Step 8: the Contractors view — the same model PC Command → Contractors renders.
+    sections.includes("contractors") ? timed("painter_status", loadContractorsView(supabase, now).catch((e: unknown) => { failure(failures, "painter status", e); return null; })) : Promise.resolve(null),
   ]);
+  if (painterStatusRaw?.error) failure(failures, "painter status", new Error(painterStatusRaw.error));
   failures.push(...estRaw.failures);
   if (thresholdRes.error) failure(failures, "anomaly threshold", thresholdRes.error);
   if (excl.error) failure(failures, "dashboard exclusions", excl.error);
@@ -519,7 +523,7 @@ export async function loadDashboard(
   const plSlice = plRaw ? { ...plRaw, payments: without(plRaw.payments, (p) => p.invoice_id, x.invoiceIds) } : null;
   timings.total = Math.round(performance.now() - t0);
   return {
-    input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, sales: salesSlice, funnel: funnelSlice, activity: activitySlice, invoicing: invoicingSlice, pl: plSlice, thresholds: { anomalyPct } },
+    input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, painterStatus: painterStatusRaw?.view ?? null, sales: salesSlice, funnel: funnelSlice, activity: activitySlice, invoicing: invoicingSlice, pl: plSlice, thresholds: { anomalyPct } },
     queue,
     strip: { workItems: [], consoleCards: consoleSlice?.cards ?? [] },
     failures,

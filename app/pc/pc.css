@@ -337,3 +337,34 @@
 .pc .ps-list{display:flex;flex-direction:column;gap:6px;margin:4px 0 12px 34px}
 .pc .ps-list textarea{width:100%;box-sizing:border-box}
 .pc .ps-list .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* PC Command → Contractors (Step 8): the strip, the rows, the sheet. */
+.pc .ctr-lights{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:14px}
+.pc .ctr-lightcount{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.pc .ctr-lightcount b{font:600 20px/1 var(--mono);font-variant-numeric:tabular-nums}
+.pc .ctr-lightcount .stl{padding:0;border:0;width:14px;height:14px;border-radius:50%;background:var(--stl)}
+.pc .ctr-lightcount .stl::before{display:none}
+.pc .ctr-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.pc .ctr-stat{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.pc .ctr-stat b{font:600 22px/1 var(--mono);font-variant-numeric:tabular-nums}
+.pc .ctr-lights .k,.pc .ctr-stat .k,.pc .ctr-mini .k,.pc .ctr-sheet .k,.pc .ctr-pick .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.pc .ctr-rows{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.pc .ctr-row{appearance:none;width:100%;text-align:left;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;display:flex;flex-direction:column;gap:6px;color:inherit;font:inherit}
+.pc .ctr-row[aria-expanded="true"]{border-color:var(--muted)}
+.pc .ctr-head{display:flex;align-items:center;gap:10px;min-width:0}
+.pc .ctr-head .grow{flex:1;min-width:0;font-weight:600}
+.pc .ctr-head .num{font-family:var(--mono)}
+.pc .ctr-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.pc .ctr-mini span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pc .ctr-mini b{font:600 13px/1.2 var(--mono);font-variant-numeric:tabular-nums}
+.pc .ctr-tags{display:flex;flex-wrap:wrap;gap:6px}
+.pc .ctr-tag{display:inline-flex;align-items:center;font:600 10.5px/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:5px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pc .ctr-tag.bad{color:var(--clay);border-color:rgba(179,87,74,.6)} .pc .ctr-tag.wait{color:var(--amber);border-color:rgba(224,168,60,.55)} .pc .ctr-tag.info{color:var(--cyan);border-color:rgba(59,216,233,.5)}
+.pc .ctr-sheet{background:var(--raised);border:1px solid var(--paint);border-radius:12px;padding:12px;margin-top:6px;display:flex;flex-direction:column;gap:10px}
+.pc .ctr-dots{display:flex;gap:5px}
+.pc .ctr-dot{appearance:none;flex:1;min-width:0;max-width:30px;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font:700 11px/1 var(--mono);padding:0;border:2px solid transparent;cursor:pointer;color:inherit}
+.pc .ctr-dot.ok{background:#2fd07a;color:#04150c} .pc .ctr-dot.slip{background:transparent;border-color:var(--clay);color:var(--clay)} .pc .ctr-dot.todo{background:transparent;border:2px dashed var(--line);color:var(--muted);cursor:default}
+.pc .ctr-dot[aria-pressed="true"]{outline:2px solid var(--text);outline-offset:2px}
+.pc .ctr-why{font-size:13px} .pc .ctr-why ul{margin:4px 0 0;padding-left:18px}
+.pc .ctr-pick{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.pc .small{font-size:12.5px} .pc .muted{color:var(--muted)}
