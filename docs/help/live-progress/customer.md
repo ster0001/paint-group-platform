@@ -6,7 +6,7 @@ summary: Under "A few extra details" on your estimate, a glowing card opens a ph
 ---
 
 ## What this is for
-When Paint Group is painting your property you follow the job from your phone: a text when the team arrives, an update with photos at the end of each day, and a text when it is finished with your walkthrough time. The demo on your estimate shows you what that looks like, using your own address, the rooms on your quote and the photos we took when we came to see the property. It sits behind one card, so it only plays when you ask for it.
+When Paint Group is painting your property you follow the job from your phone: a text when the team arrives, an update with photos at the end of each day, and a text when it is finished with your walkthrough time. On a job of three days or more you also get a text a couple of days before the last day asking you to put a small piece of the painter's tape on any spot you'd like touched up, so the painter can fix each one before the final walkthrough. The demo on your estimate shows you what that looks like, using your own address, the rooms on your quote and the photos we took when we came to see the property. It sits behind one card, so it only plays when you ask for it.
 
 ## Before you start
 Nothing. Press the card and it plays, on any phone, tablet or computer.

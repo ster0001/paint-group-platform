@@ -98,6 +98,7 @@ const P = {
   leaveDecided: ["{{first_name}}", "{{company_name}}", "{{kind_word}}", "{{dates}}", "{{decision}}", "{{reason_line}}"],
   qaFail: ["{{company_name}}", "{{wo_ref}}", "{{link}}"],
   jobUpdate: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{day_label}}", "{{link}}"],
+  defectTape: ["{{first_name}}", "{{company_name}}", "{{suburb}}", "{{address}}", "{{finish_date}}"],
   standards: ["{{first_name}}", "{{company_name}}", "{{link}}", "{{version}}"],
   status: ["{{first_name}}", "{{company_name}}", "{{colour}}", "{{link}}"],
   bonus: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{link}}"],
@@ -421,6 +422,18 @@ export const AUTOMATIONS: Automation[] = [
       { field: "contractorJobUpdateSms3Green", label: "Third text for a Green painter", kind: "sms", placeholders: P.jobUpdate },
     ],
     guard: "Up to three texts per moment, each claimed on the moment's row (wo_reminder_moments) before it goes; they stop the instant a tick or a photo lands that day, on a day the PC marked No work, or once the job reaches its quality check, walkthrough or close. The days are the painter's booked working days (weekends only if they work them).",
+    note: "7:30 am is before the office's sending hours, so this text is exempt from quiet hours by design.",
+  },
+  {
+    key: "contractor_job_update_morning", name: "Update your work order — morning heads-up", audience: "painter", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "job_update_morning", quietExempt: true, capExempt: true,
+    trigger: "Tom, 8 Oct: on every day of a booked job that has a 3:30 pm update reminder (2nd day, half way, 30%, 60%, the last day), every painter on the job also gets a heads-up at 7:30 am that today is an update day. Not on day 1 — it already has its own 7:30 am reminder. Sent from 7:30 am until noon (Settings → job_update_rules headsUp / headsUpUntil); a morning the sweep missed is not sent in the afternoon.",
+    templates: [
+      { field: "contractorJobUpdateMorningSms", label: "Text message", kind: "sms", placeholders: P.jobUpdate },
+      { field: "contractorJobUpdateMorningEmailSubject", label: "Email subject", kind: "subject", placeholders: P.jobUpdate },
+      { field: "contractorJobUpdateMorningEmailIntro", label: "Email body", kind: "body", placeholders: P.jobUpdate },
+    ],
+    guard: "Once per job per day (automation_claims, rung = moment + day), to every painter on the job. Not sent when that day's update is already in, when the PC marked the day No work, or once the job reaches its quality check, walkthrough or close. Each painter's outcome is recorded on the job (reminder_morning_sent).",
     note: "7:30 am is before the office's sending hours, so this text is exempt from quiet hours by design.",
   },
   // ---- Painter status (brief: standards / status / call backs, Step 6) -------
@@ -753,6 +766,18 @@ export const AUTOMATIONS: Automation[] = [
       { field: "signoffReminderSms", label: "Text message", kind: "sms", placeholders: ["{{first_name}}", "{{address}}", "{{company_name}}", "{{link}}"] },
     ],
     guard: "Each rung once per job; stops at signature.",
+  },
+  {
+    key: "customer_defect_tape", name: "Mark touch-ups with tape before the walkthrough", audience: "customer", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "job_defect_tape",
+    trigger: "Tom, 8 Oct: a booked job of 3 days or more, counted in the painter's working days on the schedule. 3–6 days: two texts two working days before the last day, at 9:00 am and 3:30 pm. 7 days or more: one text three working days before the last day, at 9:00 am. The last day is read from the schedule at send time, so a moved finish date moves the text. Each is sent within its window only (9:00 am–noon, 3:30–7:00 pm; Settings → defect_tape_rules), never late. Asks the customer to put a small piece of the painter's tape on any spot they want touched up before the final walkthrough.",
+    templates: [
+      { field: "defectTapeSms", label: "Text message", kind: "sms", placeholders: P.defectTape },
+      { field: "defectTapeSms2", label: "Second text (3–6 day jobs, 3:30 pm)", kind: "sms", placeholders: P.defectTape },
+      { field: "defectTapeEmailSubject", label: "Email subject", kind: "subject", placeholders: P.defectTape },
+      { field: "defectTapeEmailIntro", label: "Email body", kind: "body", placeholders: P.defectTape },
+    ],
+    guard: "Each text once per job (automation_claims). Only while the job is booked and under way (pre-start, in progress, completion prep); a customer who switched off job texts in their account is not texted. The outcome is recorded on the job (defect_tape_sent).",
   },
   {
     key: "variation_reminder", name: "Variation waiting for approval — reminder", audience: "customer", channels: ["sms", "email"], kind: "automatic",
