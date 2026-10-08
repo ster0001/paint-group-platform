@@ -9,6 +9,7 @@ import { releaseDueHolds } from "@/lib/automations/dispatch";
 import { EVENING_HOUR, isMelbourneHour, melbourneParts } from "@/lib/time/businessHours";
 import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
+import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
 import { reconcileAllConnected } from "@/lib/gcal/sync";
 import { reconcileAllStaff } from "@/lib/gcal/staff";
 import { sendVisitReminders } from "@/lib/visits/notify";
@@ -257,6 +258,20 @@ async function sweep(opts: { force?: boolean } = {}) {
     });
   } catch (e) { reportError(e, { where: "wo-sweep.apptConfirm" }); }
 
+  // Quality-check invites backstop (Tom, 8 Oct 2026): every job with a check
+  // still to come re-reconciles, so a move whose invite was lost (a closed
+  // tab, a Resend outage) reaches the calendar by the next morning.
+  let qaInviteJobs = 0;
+  const { data: dueChecks, error: dueError } = await db
+    .from("wo_qa_checks").select("work_order_id")
+    .is("result", null).gte("scheduled_for", today)
+    .order("scheduled_for").limit(RPC_CAP);
+  if (dueError) reportError(dueError, { where: "wo-sweep.qaInvites" });
+  else {
+    const ids = [...new Set(((dueChecks ?? []) as { work_order_id: string }[]).map((r) => r.work_order_id))];
+    await eachLimit(ids, 4, async (id) => { await sendQaCheckInvites(db, id); qaInviteJobs += 1; });
+  }
+
   return {
     ok: true as const, date: today, drafted,
     flagged: flagged ?? 0, started: started ?? 0, lapsed: lapsed ?? 0,
@@ -269,6 +284,7 @@ async function sweep(opts: { force?: boolean } = {}) {
     painterStatus,
     preStartSent,
     apptConfirmed,
+    qaInviteJobs,
     gcalContractors: gcal.contractors,
     gcalErrors: gcal.errors,
     staffGcal: staffGcal.staff,

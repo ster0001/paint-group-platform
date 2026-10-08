@@ -14,6 +14,8 @@ import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
+import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
+import { qaWhenMessage } from "@/lib/workorder/qaSchedule";
 import { runPainterStatus } from "@/lib/painterStatus/run";
 import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
 import { melbourneDate } from "@/lib/workorder/console";
@@ -556,6 +558,8 @@ export async function setQaWaived(raw: unknown): Promise<PcResult> {
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
     revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+    // Waiving takes the due checks off the books — their invites are cancelled.
+    reconcileQaInvites(parsed.data.workOrderId);
     if (s === "ok:waived:walkthrough") return { ok: true, message: "No quality check on this job — the pack has gone to the customer, sign-off is running." };
     if (s === "ok:waived:closed") return { ok: true, message: "No quality check on this job — no walkthrough either, so it's closed: invoice stage." };
     if (s.startsWith("ok:waived:error:gate:")) return { ok: true, message: `No quality check on this job — but the handover can't go yet: ${humaniseGate(s.slice("ok:waived:error:gate:".length))}` };
@@ -621,12 +625,68 @@ export async function closeWithoutWalkthrough(raw: unknown): Promise<PcResult> {
   return r;
 }
 
-/** A mid-job quality check, on top of the standard final (Tom, 23 Aug). */
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+/** The RPC's refusal, in the office's words (lib/workorder/qaSchedule.ts). */
+function qaWhenRefusal(r: PcResult): PcResult {
+  if (r.ok) return r;
+  const key = r.message.replace(/ /g, "_");
+  if (key === "past" || key === "after_final" || key === "no_time" || key === "already_recorded" || key === "closed") {
+    return { ok: false, message: qaWhenMessage(key) };
+  }
+  return r;
+}
+
+/** Felipe's calendar follows any change to a check's day (Tom, 8 Oct 2026). */
+function reconcileQaInvites(workOrderId: string) {
+  const service = createServiceClient();
+  if (service) after(() => sendQaCheckInvites(service, workOrderId));
+}
+
+/**
+ * An extra check on top of the main end-of-job one: a job check-in on a day
+ * and time (Tom, 8 Oct 2026: "the option to add additional job check-ins in
+ * the PC Command"), or a spot check (R13). Before the final, or refused.
+ */
 export async function addQaCheck(raw: unknown): Promise<PcResult> {
-  const parsed = z.object({ workOrderId: uuid, date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), kind: z.enum(["mid", "spot"]).default("mid") }).safeParse(raw);
+  const parsed = z.object({ workOrderId: uuid, date: ymd.nullable(), time: hhmm.nullable().default(null), kind: z.enum(["mid", "spot"]).default("mid") }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-  return call("wo_add_qa_check", { p_work_order_id: parsed.data.workOrderId, p_date: parsed.data.date, p_kind: parsed.data.kind },
-    parsed.data.kind === "spot" ? "Spot check added — it is on the painter's job." : "Mid-job check added.");
+  const v = parsed.data;
+  if (v.kind === "mid" && (!v.date || !v.time)) return { ok: false, message: qaWhenMessage("no_time") };
+  const r = qaWhenRefusal(await call("wo_add_qa_check", { p_work_order_id: v.workOrderId, p_date: v.date, p_kind: v.kind, p_time: v.time },
+    v.kind === "spot" ? "Spot check added — it is on the painter's job." : "Job check-in added — it is in the quality-check calendar and on the painter's job."));
+  if (r.ok) {
+    revalidatePath(`/pc/wo/${v.workOrderId}`);
+    reconcileQaInvites(v.workOrderId);
+  }
+  return r;
+}
+
+/**
+ * Give a check its day and time, move it, or clear it (date null). Must be
+ * before the booked final walkthrough; the invite to whoever takes quality
+ * checks follows (a move updates it, a clear cancels it).
+ */
+export async function scheduleQaCheck(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ checkId: uuid, date: ymd.nullable(), time: hhmm.nullable().default(null) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const v = parsed.data;
+  const r = qaWhenRefusal(await call("wo_qa_set_schedule", { p_check_id: v.checkId, p_date: v.date, p_time: v.time },
+    v.date ? "Scheduled — the calendar invite is on its way." : "Taken out of the calendar."));
+  if (!r.ok) return r;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("wo_qa_checks").select("work_order_id").eq("id", v.checkId).maybeSingle();
+  if (error) {
+    reportError(error, { where: "scheduleQaCheck.job", extra: { checkId: v.checkId } });
+    return r;
+  }
+  const workOrderId = (data as { work_order_id: string } | null)?.work_order_id;
+  if (workOrderId) {
+    revalidatePath(`/pc/wo/${workOrderId}`);
+    reconcileQaInvites(workOrderId);
+  }
+  return r;
 }
 
 /**

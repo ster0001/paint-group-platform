@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { staffOfferResponded } from "@/lib/staff/notify";
+import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
 
 /**
  * Tom, 10 Sep: "job approved / job declined — tell the staff." The painter's
@@ -23,10 +24,13 @@ export async function notifyOfferRespondedAction(raw: unknown): Promise<void> {
   const svc = createServiceClient();
   if (!svc) return;
   const { data } = await svc
-    .from("booking_offers").select("id, state, contractors(profile_id)")
+    .from("booking_offers").select("id, state, work_order_id, contractors(profile_id)")
     .eq("id", parsed.data.offerId).maybeSingle();
-  const o = data as { id: string; state: string; contractors: { profile_id: string | null } | null } | null;
+  const o = data as { id: string; state: string; work_order_id: string; contractors: { profile_id: string | null } | null } | null;
   if (!o || o.contractors?.profile_id !== user.id) return;
   if (!["accepted", "proposed", "declined"].includes(o.state)) return;
   await staffOfferResponded(svc, o.id);
+  // Tom, 8 Oct 2026: a new painter's quality check is booked AT booking —
+  // the accept placed it (20270247 trigger); this sends its calendar invite.
+  if (o.state === "accepted") await sendQaCheckInvites(svc, o.work_order_id);
 }

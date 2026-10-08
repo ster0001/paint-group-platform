@@ -70,16 +70,10 @@ describe("quality checks, updates due and walkthroughs to book (Tom, 23 Aug)", (
     expect(card.action.kind).toBe("qa");
   });
 
-  it("flags a dated mid-job check on the day, while the job is still in progress", () => {
+  it("leaves a dated check on a running job to the work queue's qa_check_due card (Tom, 8 Oct 2026)", () => {
+    // One fact, one card: the dated check is lib/crm/work-queue.ts's, so the console says nothing.
     const q = buildQueue(base({
       qaChecks: [{ workOrderId: "w1", kind: "mid", scheduledFor: daysAhead(0), createdAt: hoursAgo(30) }],
-    }));
-    expect(q.find((c) => c.key === "qa-due:w1")?.title).toBe("Mid-job quality check due");
-  });
-
-  it("stays quiet about a mid-job check booked for later in the week", () => {
-    const q = buildQueue(base({
-      qaChecks: [{ workOrderId: "w1", kind: "mid", scheduledFor: daysAhead(2), createdAt: hoursAgo(30) }],
     }));
     expect(q.find((c) => c.key === "qa-due:w1")).toBeUndefined();
   });
