@@ -20,7 +20,7 @@ export async function loadContractorsView(db: SupabaseClient, now = new Date()):
     db.from("wo_callbacks").select("id, painter_id, work_order_id, status, work_orders(wo_ref)").in("status", ["open", "booked", "fixed"]),
     loadStandardsStatuses(db),
     db.from("painter_job_results").select("painter_id, work_order_id, result, reasons, hours, signed_on, work_orders(wo_ref, wo_snapshot)").neq("result", "pending").order("signed_on", { ascending: false }).limit(2000),
-    db.from("work_orders").select("id, wo_ref, stage, contractor_id, wo_snapshot").not("contractor_id", "is", null).in("stage", ["booked", "pre_start", "in_progress", "qa", "walkthrough", "completion_prep", "closed"]).order("created_at", { ascending: false }).limit(600),
+    db.from("work_orders").select("id, wo_ref, stage, contractor_id, wo_snapshot").not("contractor_id", "is", null).in("stage", ["pre_start", "in_progress", "qa", "walkthrough", "completion_prep", "closed"]).order("created_at", { ascending: false }).limit(600),
   ]);
   const failures: string[] = [];
   for (const [label, r] of [["painters", painters], ["painter status", statuses], ["status history", changes], ["call backs", callbacks], ["job results", results], ["jobs", jobs]] as const) {

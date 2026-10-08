@@ -39,7 +39,7 @@ export type StripCounts = { green: number; yellow: number; orange: number; red: 
 export type ContractorsView = { rows: ContractorRow[]; counts: StripCounts };
 
 const ORDER: Record<Colour, number> = { red: 0, orange: 1, yellow: 2, new: 3, green: 4 };
-const UNDER_WAY = new Set(["booked", "pre_start", "in_progress", "qa", "walkthrough", "completion_prep"]);
+const UNDER_WAY = new Set(["pre_start", "in_progress", "qa", "walkthrough", "completion_prep"]);
 const OPEN_CB = new Set(["open", "booked", "fixed"]);
 
 export function buildContractorsView(inp: ContractorsInputs, now: Date): ContractorsView {

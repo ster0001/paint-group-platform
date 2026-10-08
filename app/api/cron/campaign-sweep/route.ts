@@ -75,7 +75,8 @@ export async function GET(req: Request) {
       jobReminders,
       defectTape,
       standards,
-      status: { ran: status.ran, failed: status.failed },
+      // The first few failures by name, so a run that writes nothing says why (9 Oct 2026: production had no status rows and no way to see the cause).
+      status: { ran: status.ran, failed: status.failed, errors: status.outcomes.filter((o) => !o.ok).slice(0, 5).map((o) => `${o.painterId.slice(0, 8)}: ${o.error ?? "?"}`) },
       note: "Campaign steps are queued only. Held automatic messages whose time has come are sent.",
     });
   } catch (e) {
