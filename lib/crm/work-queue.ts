@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { needsSignoff, standardsCardDueAt, type StandardsRules, type StandardsStatus } from "@/lib/standards/acks";
+import { loadStandardsRules, loadStandardsStatuses } from "@/lib/standards/status";
 import { inSlices as sliceRead } from "@/lib/supabase/inSlices";
 import { isQuiet } from "./states";
 import { loadCrmThresholds, type CrmThresholds } from "./thresholds";
@@ -73,6 +75,16 @@ export const WORK_ITEM_KINDS = [
   "wizard_ready",
   /** Buckets brief §4: a wizard session that asked a question or for help (B). */
   "wizard_help",
+  /** Standards Step 2 (⚑17): a painter has not confirmed the finish standards after the grace period. */
+  "standards_unsigned",
+  /** Call backs Step 3 (brief §8): the final walk-through flagged an area — is a call back required? */
+  "walkthrough_flagged",
+  /** Call backs: open with no return visit booked. */
+  "callback_unbooked",
+  /** Call backs: the return visit is today or tomorrow. */
+  "callback_visit_soon",
+  /** Call backs: the painter marked it fixed — confirm and close. */
+  "callback_fixed",
   /** Buckets brief §4: priced, idle, nothing asked (C+). */
   "wizard_priced",
   /** CRM v2 P1: a sent estimate passed its valid_until — chase or close? Lapsed is not lost (decision 8.11). */
@@ -123,7 +135,7 @@ export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
 export type WorkItemBucket = "overdue" | "today" | "waiting";
 
 export type SubjectRef = {
-  type: "account" | "estimate" | "invoice" | "work_order" | "visit" | "event" | "campaign_queue" | "thread" | "wizard_session";
+  type: "account" | "estimate" | "invoice" | "work_order" | "visit" | "event" | "campaign_queue" | "thread" | "wizard_session" | "contractor";
   id: string;
 };
 
@@ -212,7 +224,7 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
  * SCREENS over one queue is not.
  */
 export type WorkItemHome = "crm" | "pc";
-const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup"]);
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed"]);
 export function homeOf(kind: WorkItemKind): WorkItemHome {
   return PC_HOMED.has(kind) ? "pc" : "crm";
 }
@@ -230,6 +242,11 @@ export function pcItems(items: readonly WorkItem[]): WorkItem[] {
  * live in one object so Tom's ruling is a one-line change and not a hunt.
  */
 export const KIND_WEIGHT: Record<WorkItemKind, number> = {
+  standards_unsigned: 14,
+  walkthrough_flagged: 24,
+  callback_unbooked: 18,
+  callback_visit_soon: 10,
+  callback_fixed: 18,
   unmapped_suburb: 16,
   visit_request: 24,
   holidays_next_year: 8,
@@ -342,6 +359,11 @@ export const FILTER_GROUPS = ["all", "messages", "followups", "approvals", "mone
 export type FilterGroup = (typeof FILTER_GROUPS)[number];
 
 export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = {
+  standards_unsigned: "approvals",
+  walkthrough_flagged: "approvals",
+  callback_unbooked: "followups",
+  callback_visit_soon: "followups",
+  callback_fixed: "approvals",
   unmapped_suburb: "followups",
   visit_request: "followups",
   holidays_next_year: "approvals",
@@ -1786,15 +1808,189 @@ async function readJobCheckinRows(supabase: SupabaseClient, now: Date): Promise<
  *
  * A failed read is a line the screen can show, never an empty list.
  */
+/**
+ * Standards Step 2 (⚑17, ⚑2): a painter invited pcCardDay days ago (Settings →
+ * standards_rules) who has still not confirmed the six sections. One card per
+ * painter per required version; it clears itself the moment they confirm.
+ * Contractors past their grace have no job offers; an employee is a reminder
+ * only — the card says which.
+ */
+export type StandardsUnsignedRow = {
+  contractorId: string; name: string; status: StandardsStatus; invitedAt: string | null;
+  graceUntil: string | null; ackedSections: number; requiredVersion: number | null; remindersSent: number;
+};
+
+export function buildStandardsItems(rows: readonly StandardsUnsignedRow[], rules: StandardsRules, now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const r of rows) {
+    if (!needsSignoff(r.status) || !r.invitedAt) continue;
+    const due = standardsCardDueAt(new Date(r.invitedAt), rules);
+    if (now.getTime() < due.getTime()) continue;
+    const days = Math.floor((now.getTime() - new Date(r.invitedAt).getTime()) / 86_400_000);
+    const consequence = r.status === "blocked" ? "No job offers until they confirm."
+      : r.status === "grace" ? `Job offers stop ${new Date(r.graceUntil as string).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" })}.`
+      : "Employed painter — a reminder, nothing is blocked.";
+    items.push(finish({
+      key: itemKey("standards_unsigned", "contractor", r.contractorId, `v${r.requiredVersion ?? 0}`),
+      kind: "standards_unsigned",
+      accountId: null,
+      subjectRef: { type: "contractor", id: r.contractorId },
+      title: `${r.name} has not signed the finish standards`,
+      detail: `Invited ${days} day${days === 1 ? "" : "s"} ago · ${r.ackedSections} of 6 sections ticked · ${r.remindersSent} reminder text${r.remindersSent === 1 ? "" : "s"} sent. ${consequence}`,
+      since: r.invitedAt,
+      dueAt: due.toISOString(),
+      action: { label: "Send reminder text", href: `/contractors/${r.contractorId}` },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
+async function readStandardsRows(supabase: SupabaseClient): Promise<{ rows: StandardsUnsignedRow[]; rules: StandardsRules; error: string | null }> {
+  const [{ rows: statuses, error }, rules, names, reminders, version] = await Promise.all([
+    loadStandardsStatuses(supabase),
+    loadStandardsRules(supabase),
+    supabase.from("contractors").select("id, company_name, profiles(name)"),
+    supabase.from("contractor_events").select("contractor_id").eq("type", "standards_reminder_sent").limit(2000),
+    supabase.from("standards_versions").select("version_no").not("published_at", "is", null).eq("is_material", true).order("version_no", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (error) return { rows: [], rules, error };
+  if (names.error) return { rows: [], rules, error: names.error.message };
+  const nameOf = new Map(((names.data ?? []) as unknown as { id: string; company_name: string | null; profiles: { name: string | null } | null }[])
+    .map((c) => [c.id, c.profiles?.name || c.company_name || "Painter"]));
+  const sent = new Map<string, number>();
+  for (const e of (reminders.error ? [] : reminders.data ?? []) as { contractor_id: string }[]) sent.set(e.contractor_id, (sent.get(e.contractor_id) ?? 0) + 1);
+  const requiredVersion = (version.data as { version_no?: number } | null)?.version_no ?? null;
+  return {
+    rows: statuses.map((s) => ({
+      contractorId: s.contractorId, name: nameOf.get(s.contractorId) ?? "Painter", status: s.status, invitedAt: s.invitedAt,
+      graceUntil: s.graceUntil, ackedSections: s.ackedSections, requiredVersion, remindersSent: sent.get(s.contractorId) ?? 0,
+    })),
+    rules, error: null,
+  };
+}
+
+/**
+ * Call backs (brief §8), each trigger exactly one card that clears itself:
+ *   · walkthrough_flagged — the customer flagged an area and nobody has put
+ *     it right, withdrawn the flag or logged a call back: "Is a call back
+ *     required?" Critical once the flag's day has passed unsigned.
+ *   · callback_unbooked — open with no return visit: book it.
+ *   · callback_visit_soon — the visit is today or tomorrow: view the job.
+ *   · callback_fixed — the painter marked it fixed: confirm and close.
+ */
+export type CallbackQueueRow = {
+  id: string; workOrderId: string; status: string; source: string; description: string; createdAt: string; fixedAt: string | null;
+  visit: { start: string; end: string } | null; woRef: string; where: string; painter: string | null;
+};
+export type FlaggedWalkthroughRow = { workOrderId: string; woRef: string; where: string; painter: string | null; areas: string[]; flaggedAt: string };
+
+export function buildWoCallbackItems(callbacks: readonly CallbackQueueRow[], flagged: readonly FlaggedWalkthroughRow[], now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  const today = MELB_DAY_KEY.format(now);
+  const tomorrow = MELB_DAY_KEY.format(new Date(now.getTime() + 86_400_000));
+  for (const f of flagged) {
+    const flaggedDay = MELB_DAY_KEY.format(new Date(f.flaggedAt));
+    items.push(finish({
+      key: itemKey("walkthrough_flagged", "work_order", f.workOrderId, flaggedDay),
+      kind: "walkthrough_flagged", accountId: null, subjectRef: { type: "work_order", id: f.workOrderId },
+      title: `Walk-through flagged ${f.areas.length === 1 ? "an area" : `${f.areas.length} areas`} at ${f.where}`,
+      detail: `${f.woRef}${f.painter ? ` · ${f.painter}` : ""} · ${f.areas.join(", ")}. Is a call back required? Fixed and signed today is a pass after a fix.${flaggedDay < today ? " Not signed by the end of that day." : ""}`,
+      since: f.flaggedAt,
+      // Due at the end of the flag's day: past it, the card is overdue (critical).
+      dueAt: melbInstant(flaggedDay, 18).toISOString(),
+      action: { label: "Is a call back required?", href: `/pc/wo/${f.workOrderId}?callback=walkthrough_fail#callbacks` },
+    }, { valueCents: null, promisedToCustomer: true }, now));
+  }
+  for (const c of callbacks) {
+    const who = `${c.woRef}${c.painter ? ` · ${c.painter}` : ""}`;
+    if (c.status === "fixed") {
+      items.push(finish({
+        key: itemKey("callback_fixed", "work_order", c.workOrderId, c.id),
+        kind: "callback_fixed", accountId: null, subjectRef: { type: "work_order", id: c.workOrderId },
+        title: `${c.painter ?? "The painter"} marked the call back at ${c.where} fixed`,
+        detail: `${who} · ${c.description || "no description"}. Confirm it and close the call back — invoice chasing resumes when you do.`,
+        since: c.fixedAt ?? c.createdAt, dueAt: nextBusinessMorning(new Date(c.fixedAt ?? c.createdAt)).toISOString(),
+        action: { label: "Confirm and close", href: `/pc/wo/${c.workOrderId}#callbacks` },
+      }, { valueCents: null, promisedToCustomer: true }, now));
+      continue;
+    }
+    if (!c.visit) {
+      items.push(finish({
+        key: itemKey("callback_unbooked", "work_order", c.workOrderId, c.id),
+        kind: "callback_unbooked", accountId: null, subjectRef: { type: "work_order", id: c.workOrderId },
+        title: `Call back at ${c.where} has no return visit booked`,
+        detail: `${who} · ${c.description || "no description"}. Book the visit in the painter's scheduler.`,
+        since: c.createdAt, dueAt: nextBusinessMorning(new Date(c.createdAt)).toISOString(),
+        action: { label: "Book the visit", href: `/pc/wo/${c.workOrderId}#callbacks` },
+      }, { valueCents: null, promisedToCustomer: true }, now));
+      continue;
+    }
+    if (c.visit.start === today || c.visit.start === tomorrow) {
+      items.push(finish({
+        key: itemKey("callback_visit_soon", "work_order", c.workOrderId, `${c.id}:${c.visit.start}`),
+        kind: "callback_visit_soon", accountId: null, subjectRef: { type: "work_order", id: c.workOrderId },
+        title: `Call back visit ${c.visit.start === today ? "today" : "tomorrow"}: ${c.where}`,
+        detail: `${who} · ${c.description || "no description"}.`,
+        since: c.createdAt, dueAt: null,
+        action: { label: "View job", href: `/pc/wo/${c.workOrderId}#callbacks` },
+      }, { valueCents: null, promisedToCustomer: false }, now));
+    }
+  }
+  return items;
+}
+
+async function readCallbackRows(supabase: SupabaseClient): Promise<{ callbacks: CallbackQueueRow[]; flagged: FlaggedWalkthroughRow[]; error: string | null }> {
+  const [cbRes, flagRes] = await Promise.all([
+    supabase.from("wo_callbacks")
+      .select("id, work_order_id, status, source, description, created_at, fixed_at, wo_appointments(start_date, end_date), work_orders(wo_ref, wo_snapshot, contractors(company_name, profiles(name)))")
+      .in("status", ["open", "booked", "fixed"]).order("created_at").limit(300),
+    supabase.from("wo_signoff")
+      .select("work_order_id, areas, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)))")
+      .is("signed_at", null).not("evidence_pack_sent_at", "is", null).limit(300),
+  ]);
+  if (cbRes.error) return { callbacks: [], flagged: [], error: cbRes.error.code === "42P01" ? "call backs are not switched on yet (migration 20270226)" : cbRes.error.message };
+  if (flagRes.error) return { callbacks: [], flagged: [], error: flagRes.error.message };
+  type WoBit = { wo_ref: string; stage?: string; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null; contractors: { company_name: string | null; profiles: { name: string | null } | null } | null } | null;
+  const nameOf = (w: WoBit) => w?.contractors?.profiles?.name || w?.contractors?.company_name || null;
+  const whereOf = (w: WoBit) => w?.wo_snapshot?.jobAddress || w?.wo_snapshot?.jobTitle || w?.wo_ref || "the job";
+  const callbacks = ((cbRes.data ?? []) as unknown as { id: string; work_order_id: string; status: string; source: string; description: string; created_at: string; fixed_at: string | null; wo_appointments: { start_date: string; end_date: string } | null; work_orders: WoBit }[])
+    .map((r) => ({ id: r.id, workOrderId: r.work_order_id, status: r.status, source: r.source, description: r.description, createdAt: r.created_at, fixedAt: r.fixed_at,
+      visit: r.wo_appointments ? { start: r.wo_appointments.start_date, end: r.wo_appointments.end_date } : null,
+      woRef: r.work_orders?.wo_ref ?? "", where: whereOf(r.work_orders), painter: nameOf(r.work_orders) }));
+  const openWalkthroughCallback = new Set(callbacks.filter((c) => c.source === "walkthrough_fail").map((c) => c.workOrderId));
+  const flagged: FlaggedWalkthroughRow[] = [];
+  for (const r of (flagRes.data ?? []) as unknown as { work_order_id: string; areas: Record<string, { flagged_at?: string; rectified_at?: string; flag_withdrawn_at?: string }> | null; work_orders: WoBit }[]) {
+    if (openWalkthroughCallback.has(r.work_order_id)) continue;
+    if (r.work_orders?.stage === "closed") continue;
+    const open = Object.entries(r.areas ?? {}).filter(([, a]) => a?.flagged_at && !a?.rectified_at && !a?.flag_withdrawn_at);
+    if (open.length === 0) continue;
+    flagged.push({ workOrderId: r.work_order_id, woRef: r.work_orders?.wo_ref ?? "", where: whereOf(r.work_orders), painter: nameOf(r.work_orders),
+      areas: open.map(([h]) => h), flaggedAt: open.map(([, a]) => a.flagged_at as string).sort()[0] });
+  }
+  return { callbacks, flagged, error: null };
+}
+
 export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
-  const [checkins, dismissed] = await Promise.all([
+  const [checkins, standards, callbacks, dismissed] = await Promise.all([
     readJobCheckinRows(supabase, now),
+    readStandardsRows(supabase),
+    readCallbackRows(supabase),
     supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
   ]);
   if (checkins.error) return { items: [], failure: `Couldn't read the jobs for check-ins: ${checkins.error}` };
   const dismissals = (dismissed.error ? [] : (dismissed.data ?? [])) as Dismissal[];
-  const items = sortItems(applyDismissals(pcItems(buildJobCheckinItems(checkins.rows, now)), dismissals, now));
-  return { items, failure: dismissed.error ? `Dismissals couldn't be read (${dismissed.error.message}) — a call you already made may show again.` : null };
+  const built = [
+    ...buildJobCheckinItems(checkins.rows, now),
+    ...buildStandardsItems(standards.rows, standards.rules, now),
+    ...buildWoCallbackItems(callbacks.callbacks, callbacks.flagged, now),
+  ];
+  const items = sortItems(applyDismissals(pcItems(built), dismissals, now));
+  const failures = [
+    dismissed.error ? `Dismissals couldn't be read (${dismissed.error.message}) — a call you already made may show again.` : null,
+    standards.error ? `Couldn't read who has signed the standards (${standards.error}).` : null,
+    callbacks.error ? `Couldn't read the call backs (${callbacks.error}).` : null,
+  ].filter(Boolean);
+  return { items, failure: failures.length ? failures.join(" ") : null };
 }
 
 export async function buildWorkQueue(supabase: SupabaseClient, now = new Date()): Promise<WorkQueue> {

@@ -38,6 +38,12 @@ import { suburbOnly } from "@/lib/scheduling/offers";
 import { requestNowMs } from "@/lib/time/requestClock";
 import { loadMyTimesheet } from "@/lib/contractor/timesheets";
 import TimesheetCard from "@/app/portal/TimesheetCard";
+import { loadStandards, smallJobHours as loadSmallJobHours } from "@/lib/standards/load";
+import { standardsLinksFor } from "@/lib/standards/model";
+import { loadCallbacksForJob } from "@/lib/callbacks/load";
+import CallbackCard from "./CallbackCard";
+import UpdateMoments from "./UpdateMoments";
+import type { MomentRow } from "@/lib/workorder/reminderMoments";
 
 export const dynamic = "force-dynamic";
 
@@ -124,7 +130,7 @@ export default async function PortalJobPage({
   // contractor's own jobs, so an id that isn't theirs simply returns nothing.
   const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }, { data: signoffRow }, { data: qaLinkRows, error: qaLinkErr }] = await Promise.all([
     supabase.from("wo_surfaces")
-      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional")
+      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key")
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos")
       .select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
@@ -283,6 +289,40 @@ export default async function PortalJobPage({
   const headingMeta: Record<string, string> = {};
   for (const r of (surfaceRows as { heading: string; heading_meta: string }[] | null) ?? []) {
     if (r.heading_meta) headingMeta[r.heading] = r.heading_meta;
+  }
+
+  // Finish standards (Step 1): "What we expect" on every surface line, locked
+  // to that area's level, and whether the tape check applies (ruling S9).
+  // Read under the painter's own session; a refused read is reported and the
+  // page says so rather than quietly drawing no links.
+  const [standardsLoad, smallJob, callbacksLoad, momentRes] = await Promise.all([
+    loadStandards(), loadSmallJobHours(supabase), loadCallbacksForJob(supabase, id),
+    supabase.from("wo_reminder_moments").select("id, work_order_id, kind, day, due_at, sends_count, last_sent_at, answered_at, skipped_reason").eq("work_order_id", id).order("due_at"),
+  ]);
+  if (momentRes.error) reportError(momentRes.error, { where: "portal.job.moments", bestEffort: true, extra: { workOrderId: id } });
+  const moments: MomentRow[] = ((momentRes.error ? [] : momentRes.data ?? []) as { id: string; work_order_id: string; kind: MomentRow["kind"]; day: string; due_at: string; sends_count: number; last_sent_at: string | null; answered_at: string | null; skipped_reason: MomentRow["skippedReason"] }[])
+    .map((m) => ({ id: m.id, workOrderId: m.work_order_id, kind: m.kind, day: m.day, dueAt: m.due_at, sendsCount: m.sends_count, lastSentAt: m.last_sent_at, answeredAt: m.answered_at, skippedReason: m.skipped_reason }));
+  // Call backs (Step 3): the ones on this job that are the painter's — about
+  // them, or booked for them to fix — with the photos the office attached.
+  const myCallbacks = callbacksLoad.callbacks.filter((c) => c.status !== "void" && (c.painterId === contractor.id || c.fixedByPainterId === contractor.id));
+  const openCallbacks = myCallbacks.filter((c) => c.status !== "done");
+  let callbackPhotos: Record<string, WOPhoto[]> = {};
+  if (openCallbacks.length) {
+    const { data: cbPhotoRows, error: cbPhotoErr } = await supabase.from("wo_photos")
+      .select("id, work_order_id, kind, area, caption, storage_path, created_at, variation_id, callback_id")
+      .eq("work_order_id", id).in("callback_id", openCallbacks.map((c) => c.id)).order("created_at", { ascending: true });
+    if (cbPhotoErr) reportError(cbPhotoErr, { where: "portal.job.callbackPhotos", bestEffort: true, extra: { workOrderId: id } });
+    else {
+      const signed = await signPhotos(supabase, (cbPhotoRows ?? []) as WOPhotoRow[]);
+      const byId = new Map(((cbPhotoRows ?? []) as { id: string; callback_id: string | null }[]).map((r) => [r.id, r.callback_id]));
+      callbackPhotos = {};
+      for (const ph of signed) { const cid = byId.get(ph.id); if (cid) (callbackPhotos[cid] ??= []).push(ph); }
+    }
+  }
+  const standardsLinks = standardsLoad.standards ? standardsLinksFor(standardsLoad.standards, job.doc, "portal", id) : {};
+  const expectHref: Record<string, string> = {};
+  for (const r of (surfaceRows as { id: string; surface_key: string | null }[] | null) ?? []) {
+    if (r.surface_key && standardsLinks[r.surface_key]) expectHref[r.id] = standardsLinks[r.surface_key];
   }
 
   // Tom, 30 Sep: the photo gates are per JOB — any before photo unlocks every
@@ -478,6 +518,24 @@ export default async function PortalJobPage({
         </div>
       )}
 
+      {/* Call backs (Step 3): what is wrong, the return visit, and Mark as fixed. */}
+      {(openCallbacks.length > 0 || callbacksLoad.error) && (
+        <div style={{ padding: "0 16px" }} data-testid="job-callbacks">
+          {callbacksLoad.error && <p className="hint" role="status">{callbacksLoad.error}</p>}
+          {openCallbacks.map((c) => (
+            <CallbackCard key={c.id} callback={c} photos={callbackPhotos[c.id] ?? []} jobTitle={job.doc?.jobTitle || job.doc?.jobAddress || "This job"} mine />
+          ))}
+        </div>
+      )}
+
+      {standardsLoad.error && (
+        <div style={{ padding: "0 16px" }}>
+          <p className="hint" role="status" data-testid="standards-unavailable">
+            {standardsLoad.error} The &ldquo;What we expect&rdquo; links are off until it loads.
+          </p>
+        </div>
+      )}
+
       {/* A failed quality check, in full: the inspector's notes, the missed
           areas and the photos showing exactly where (Tom, 1 Sep #2). The
           rectification rows themselves are on the tick list below. */}
@@ -506,6 +564,11 @@ export default async function PortalJobPage({
             </p>
           </div>
         </div>
+      )}
+
+      {/* Step 4: the job's reminder moments and whether each was answered. */}
+      {job.committed && moments.length > 0 && stage !== "closed" && (
+        <div style={{ padding: "0 16px" }}><UpdateMoments moments={moments} /></div>
       )}
 
       {/* Tom, 30 Sep: the job in four numbered steps, one at a time —
@@ -541,10 +604,10 @@ export default async function PortalJobPage({
             )}
 
             <TickList
-              workOrderId={id}
               surfaces={surfaces}
               hasBeforePhoto={hasBeforePhoto}
               headingMeta={headingMeta}
+              expectHref={expectHref}
             />
 
             {allSurfacesDone && (step3 ? (
@@ -685,6 +748,7 @@ export default async function PortalJobPage({
           hours for both kinds of painter; the pay line carries the accepted
           variations for a contractor, and an employee's sheet has no pay. */}
       <WorkOrderDoc doc={job.doc} booking={woBooking} photos={officePhotos}
+        standardsLinks={standardsLinks} standardsBase="portal" smallJobHours={smallJob}
         variant={assignment ? "employee" : "contractor"}
         acceptanceMode={assignment ? "assigned" : "offered"}
         scopeChanges={employee

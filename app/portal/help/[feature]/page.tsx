@@ -7,12 +7,13 @@ import HelpArticle from "@/app/components/help/HelpArticle";
 export const dynamic = "force-dynamic";
 
 export default async function PortalHelpGuidePage({ params }: { params: Promise<{ feature: string }> }) {
-  await getContractorSession();
+  const { capabilities } = await getContractorSession();
   const { feature } = await params;
-  // A contractor session can only ever open contractor files. Anything else
-  // is not found — not forbidden — so the existence of an office guide never
-  // shows through.
-  const guide = readGuide(feature, "contractor", rolesFor("contractor"), "portal");
+  // A painter's session can only ever open the files written for their kind
+  // (contractor, or employee). Anything else is not found — not forbidden —
+  // so the existence of an office guide never shows through.
+  const kind = capabilities.seesMoney ? "contractor" : "employee";
+  const guide = readGuide(feature, kind, rolesFor(kind), "portal");
   if (!guide) notFound();
 
   return (

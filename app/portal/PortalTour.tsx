@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { TourCard } from "@/lib/help/tour";
 import { markTourSeen } from "./tourActions";
 
@@ -14,9 +14,13 @@ import { markTourSeen } from "./tourActions";
  */
 export default function PortalTour({ cards, replay = false }: { cards: TourCard[]; replay?: boolean }) {
   const router = useRouter();
+  const path = usePathname();
   const [i, setI] = useState(0);
   const [open, setOpen] = useState(cards.length > 0);
   const [pending, start] = useTransition();
+  // The standards sign-off is the one thing a new painter does first (Step 2):
+  // the tour waits until it is done, and stays unseen so it shows afterwards.
+  if (path.startsWith("/portal/standards/confirm")) return null;
   if (!open || cards.length === 0) return null;
   const card = cards[i];
   const last = i === cards.length - 1;

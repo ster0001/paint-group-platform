@@ -6,6 +6,7 @@ import DismissCard from "./DismissCard";
 import ReofferDialog from "./ReofferDialog";
 import CollectionDone from "./CollectionDone";
 import CheckinDone from "./CheckinDone";
+import StandardsRemind from "./StandardsRemind";
 import { buildPcWorkItems } from "@/lib/crm/work-queue";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
@@ -186,7 +187,42 @@ export default async function DashboardPage() {
           {checkins.failure && (
             <p className="empty" data-testid="checkins-failure" style={{ color: "var(--amber)" }}>{checkins.failure}</p>
           )}
-          {checkins.items.map((item) => (
+          {checkins.items.map((item) => item.kind === "walkthrough_flagged" || item.kind === "callback_unbooked" || item.kind === "callback_visit_soon" || item.kind === "callback_fixed" ? (
+            // Call backs Step 3 (brief §8): one card per trigger, one primary action.
+            <div className={`al ${item.bucket === "overdue" ? "al-crit" : item.kind === "callback_visit_soon" ? "al-info" : "al-warn"}`} key={item.key}
+              data-testid={`callback-card-${item.key}`} data-kind={item.kind}>
+              <span className="rail" />
+              <span className="ic">{item.kind === "walkthrough_flagged" ? "⚑" : "↩"}</span>
+              <div className="bd">
+                <div className="hd">
+                  <strong>{item.title}</strong>
+                  <span className="ref">{item.kind === "walkthrough_flagged" ? "Walk-through" : "Call back"} · {dueWord(item)}</span>
+                </div>
+                <p>{item.detail}</p>
+              </div>
+              <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
+              <Link className="btn primary" href={item.action.href} data-testid={`callback-card-open-${item.key}`}>{item.action.label}</Link>
+              {item.kind === "walkthrough_flagged" && <CheckinDone itemKey={item.key} accountId={null} />}
+            </div>
+          ) : item.kind === "standards_unsigned" ? (
+            // Standards Step 2 (brief §8): a painter past the grace period who has
+            // not confirmed. One action — the reminder text; it clears itself
+            // when they confirm.
+            <div className="al al-warn" key={item.key} data-testid={`standards-${item.key}`}>
+              <span className="rail" />
+              <span className="ic">✎</span>
+              <div className="bd">
+                <div className="hd">
+                  <strong>{item.title}</strong>
+                  <span className="ref">Standards · {dueWord(item)}</span>
+                </div>
+                <p>{item.detail}</p>
+              </div>
+              <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
+              <Link className="btn" href={item.action.href} data-testid={`standards-open-${item.key}`}>Open painter</Link>
+              <StandardsRemind contractorId={item.subjectRef.id} itemKey={item.key} />
+            </div>
+          ) : (
             <div className={`al ${item.bucket === "overdue" ? "al-crit" : "al-warn"}`} key={item.key}
               data-testid={`checkin-${item.key}`}>
               <span className="rail" />

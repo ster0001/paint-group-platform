@@ -1,5 +1,7 @@
 "use client";
 
+import { logCallbackAction } from "@/app/pc/callbackActions";
+import { setNoWorkDayAction } from "@/app/pc/noWorkActions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -851,18 +853,32 @@ export default function ScheduleBoard({
     return [...seen.values()].sort((a, b) => a.start.localeCompare(b.start));
   }, [blocks]);
 
+  // Call backs Step 3, route 4 (ruling C2): the visit IS a call back on a
+  // finished job. One record — on a job with a call back already open the
+  // visit joins it, never a second record.
+  const [visitCallback, setVisitCallback] = useState(false);
+  // R10 (Step 4): "No work today" from the block detail.
+  const todayMelb = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const [noWorkDay, setNoWorkDay] = useState(todayMelb());
+  const [noWorkReason, setNoWorkReason] = useState("");
+
   /** Tom, 1 Oct: a second run of days on a job this painter already has. */
   async function saveVisit() {
     if (!pendingBlock) return;
     if (!visitPick) { setErr("Search for the project the visit is for, then pick it."); return; }
     setBusy(true);
     setErr("");
-    const r = await addAppointmentAction({
-      workOrderId: visitPick.workOrderId, contractorId: pendingBlock.contractorId,
-      startDate: pendingBlock.start, endDate: pendingBlock.end, note: visitNote,
-    });
-    if (handle(r, "Visit added — it's on the board and in their calendar.")) {
-      setPendingBlock(null); setVisitPick(null); setVisitQuery(""); setVisitHits([]); setVisitNote(""); setBlockMode("block");
+    const r = visitCallback
+      ? await logCallbackAction({
+          workOrderId: visitPick.workOrderId, source: "scheduler", reason: "workmanship", description: visitNote,
+          returnStart: pendingBlock.start, returnEnd: pendingBlock.end, fixedBy: pendingBlock.contractorId,
+        }).then((x) => (x.ok ? { ok: true as const, state: "ok" as const, message: x.message } : { ok: false as const, kind: "error" as const, message: x.message }))
+      : await addAppointmentAction({
+          workOrderId: visitPick.workOrderId, contractorId: pendingBlock.contractorId,
+          startDate: pendingBlock.start, endDate: pendingBlock.end, note: visitNote,
+        });
+    if (handle(r, visitCallback ? "Call back booked — it's on the board, in their calendar, and the customer's invoice chasing is paused until it is closed." : "Visit added — it's on the board and in their calendar.")) {
+      setPendingBlock(null); setVisitPick(null); setVisitQuery(""); setVisitHits([]); setVisitNote(""); setBlockMode("block"); setVisitCallback(false);
     }
     setBusy(false);
   }
@@ -1673,6 +1689,14 @@ export default function ScheduleBoard({
               </div>
             )}
 
+            {pendingDrop.kind === "tray" && !isEmployeeLane(pendingDrop.contractorId)
+              && lanes.find((l) => l.contractorId === pendingDrop.contractorId)?.standardsStatus === "blocked" && (
+              <div className="err" data-testid="drop-standards-blocked">
+                <b>Standards not signed.</b> This painter has not confirmed the finish standards and
+                their grace period has ended — no new offers until they do. Send them a reminder from
+                the Contractors page, or hold the dates instead.
+              </div>
+            )}
             {pendingDrop.blocked && (
               <div className="err">
                 This contractor has blocked these days out. You can still send it, but
@@ -1689,7 +1713,8 @@ export default function ScheduleBoard({
 
             <button
               className="btn cy"
-              disabled={busy}
+              disabled={busy || (pendingDrop.kind === "tray" && !isEmployeeLane(pendingDrop.contractorId)
+                && lanes.find((l) => l.contractorId === pendingDrop.contractorId)?.standardsStatus === "blocked")}
               data-testid="drop-confirm"
               onClick={
                 pendingDrop.kind === "tray"
@@ -1732,6 +1757,22 @@ export default function ScheduleBoard({
             </p>
             <div className="frow"><span className="l">Dates</span><span className="v">{formatDMY(detail.start)} → {formatDMY(detail.end)}</span></div>
             {detail.woRef && <div className="frow"><span className="l">Reference</span><span className="v">{detail.woRef}</span></div>}
+            {/* R10 (Step 4): a rained-off day on a job under way — today, or a past day of the block. */}
+            {detail.workOrderId && (detail.kind === "in_progress" || detail.kind === "accepted" || detail.kind === "assigned") && !detail.holdId && !detail.appointmentId && (
+              <div className="frow" style={{ display: "block", marginTop: 10 }} data-testid="no-work-row">
+                <span className="l" style={{ display: "block", marginBottom: 6 }}>No work on a day (rain, site locked) — its reminders are not counted</span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <input type="date" value={noWorkDay} max={todayMelb()} data-testid="no-work-day" onChange={(e) => setNoWorkDay(e.target.value)} />
+                  <input type="text" value={noWorkReason} data-testid="no-work-reason" placeholder="why" onChange={(e) => setNoWorkReason(e.target.value)} style={{ width: 160 }} />
+                  <button className="btn dim" disabled={busy || !noWorkDay} data-testid="no-work-save" onClick={async () => {
+                    setBusy(true); setErr("");
+                    const r = await setNoWorkDayAction({ workOrderId: detail.workOrderId!, day: noWorkDay, reason: noWorkReason });
+                    if (r.ok) { flash(r.message); setNoWorkReason(""); router.refresh(); } else setErr(r.message);
+                    setBusy(false);
+                  }}>No work that day</button>
+                </div>
+              </div>
+            )}
             {detail.paymentCents != null && <div className="frow"><span className="l">Their price</span><span className="v">{money(detail.paymentCents)}</span></div>}
             {detail.finishCode && <div className="frow"><span className="l">Finish</span><span className="v">{detail.finishCode}</span></div>}
             {detail.expiresAt && <div className="frow"><span className="l">Expires in</span><span className="v" style={{ color: "var(--amber)" }}>{coarseCountdown(detail.expiresAt)}</span></div>}
@@ -1991,9 +2032,20 @@ export default function ScheduleBoard({
                       </div>
                     </>
                   )}
-                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Note (optional)</label>
+                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>{visitCallback ? "What is wrong" : "Note (optional)"}</label>
                   <input type="text" value={visitNote} onChange={(e) => setVisitNote(e.target.value)} data-testid="visit-note"
-                    placeholder="e.g. back to finish the ceilings" style={{ width: "100%" }} maxLength={300} />
+                    placeholder={visitCallback ? "e.g. paint on the lounge window glass" : "e.g. back to finish the ceilings"} style={{ width: "100%" }} maxLength={300} />
+                  {/* Call backs Step 3, route 4 — beside "Walkthrough not required" in spirit: the
+                      tray drop's box lives on the offer sheet, a visit's on this one. */}
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, cursor: "pointer" }}>
+                    <input type="checkbox" checked={visitCallback} onChange={(e) => setVisitCallback(e.target.checked)} data-testid="visit-callback" />
+                    Call back — this visit fixes workmanship on a finished job
+                  </label>
+                  {visitCallback && (
+                    <span style={{ fontSize: 11, color: "var(--muted)", display: "block", marginTop: 4 }} data-testid="visit-callback-note">
+                      Logged against the painter who did the job. If a call back is already open there, this visit joins it — nothing is counted twice. Invoice chasing pauses until the office closes it.
+                    </span>
+                  )}
                   {err && <div className="err">{err}</div>}
                   <button className="btn cy" disabled={busy || !visitPick} data-testid="visit-save" onClick={saveVisit}>Add the visit</button>
                   <button className="btn gh" onClick={() => { setPendingBlock(null); setVisitPick(null); setVisitQuery(""); setVisitHits([]); setVisitNote(""); setErr(""); setBlockMode("block"); }}>Cancel</button>

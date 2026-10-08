@@ -1682,7 +1682,7 @@ export default function QuoteBuilder({
         const conditionHours = s.paintingHrOverride == null ? conditionExtraHours(calc.paintingHr, conditionMult) : 0;
         conditionHoursTotal += conditionHours;
         surfaces.push({
-          key, label: s.clientLabel || s.code, coats: s.coats, product: pname,
+          key, label: s.clientLabel || s.code, code: s.code, coats: s.coats, product: pname,
           finish: pname ? sheenFor(b.type, s) : undefined,
           colourName: col.name, colourHex: col.hex,
           colourKey: pname ? materialColourKey(pname, col.name) : undefined,
@@ -1702,6 +1702,7 @@ export default function QuoteBuilder({
       areasDoc.push({
         id: String(b.id),
         title: b.name || "Area",
+        side: b.type === "Exterior" ? "exterior" : "interior",
         surfaces,
         photos,
         finishCode: areaOverride ?? jobFinishCode,

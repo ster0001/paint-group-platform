@@ -19,7 +19,6 @@ import {
  */
 
 type Props = {
-  workOrderId: string;
   surfaces: SurfaceRow[];
   /** Step 1 done: a before photo exists anywhere on the job. */
   hasBeforePhoto: boolean;
@@ -36,13 +35,19 @@ type Props = {
    * allowance, a set-up line). The RPC refuses anyone who is not staff.
    */
   canWaivePhotos?: boolean;
+  /**
+   * Finish standards (Step 1): "What we expect" per row, keyed by row id and
+   * already locked to the job's level. A row with no mapped standard has no
+   * entry and shows no link.
+   */
+  expectHref?: Record<string, string>;
 };
 
 const LABEL: Record<SurfaceState, string> = { todo: "To do", prepped: "Prepped", done: "Done" };
 
 export default function TickList({
   surfaces, hasBeforePhoto,
-  headingMeta, surface = "portal", canWaivePhotos = false,
+  headingMeta, surface = "portal", canWaivePhotos = false, expectHref = {},
 }: Props) {
   const c = surface === "console" ? "pcw" : "";
   const [rows, setRows] = useState<SurfaceRow[]>(surfaces);
@@ -145,8 +150,8 @@ export default function TickList({
                   <span className="chip amb">Removed from scope</span>
                 </div>
               ) : (
+                <div key={row.id} className="tickwrap">
                 <button
-                  key={row.id}
                   type="button"
                   className={`tickrow ${row.state}${locked && !row.photosOptional ? " locked" : ""}`}
                   onClick={() => tap(row)}
@@ -170,6 +175,12 @@ export default function TickList({
                     {LABEL[row.state]}
                   </span>
                 </button>
+                {/* Finish standards: a link beside the row, never inside the
+                    button (a tap on it must open the standard, not tick). */}
+                {expectHref[row.id] && (
+                  <a className="tick-expect" href={expectHref[row.id]} data-testid={`tick-expect-${row.id}`}>What we expect ›</a>
+                )}
+                </div>
               ),
             )}
 

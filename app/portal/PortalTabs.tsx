@@ -36,6 +36,8 @@ const TABS: Tab[] = [
  */
 export default function PortalTabs({ capabilities }: { capabilities: PainterCapabilities }) {
   const path = usePathname();
+  // The standards sign-off is full screen (brief §7): one thing to do, no bar.
+  if (path.startsWith("/portal/standards/confirm")) return null;
   return (
     <nav className="tabs">
       {TABS.filter((t) => (!t.needs || capabilities[t.needs]) && !(t.unless && capabilities[t.unless])).map((t) => {

@@ -62,6 +62,16 @@ export default function QaControls({
         </p>
       )}
 
+      {/* R13 (Step 5): a Green painter is checked only when Paint Group chooses. */}
+      <button type="button" className="btn dim" style={{ justifySelf: "start" }} disabled={pending} data-testid="qa-spot-check"
+        onClick={() => startTransition(async () => {
+          setMessage(null);
+          const r = await addQaCheck({ workOrderId, date: null, kind: "spot" });
+          if (r.ok) { setMessage(r.message ?? "Spot check added."); router.refresh(); } else setMessage(r.message);
+        })}>
+        Spot check this job
+      </button>
+
       {adding ? (
         <div className="row" style={{ alignItems: "center" }}>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}

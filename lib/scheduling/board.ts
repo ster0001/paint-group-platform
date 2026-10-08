@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { loadStandardsStatuses } from "@/lib/standards/status";
 import { addDays } from "./dates";
 import { reportIfError } from "@/lib/monitoring/report";
 import { OFFER_COLUMNS, effectiveState, isLive, type BookingOffer } from "./offers";
@@ -39,6 +40,8 @@ export type Lane = {
   /** Tom, 22 Sep: the days this painter works besides Monday–Friday; a booking's end date skips the rest. */
   worksSaturday?: boolean;
   worksSunday?: boolean;
+  /** Standards Step 2 (ruling S6): confirmed / grace / blocked… — "blocked" means send_offer refuses. */
+  standardsStatus?: string;
 };
 
 /**
@@ -313,6 +316,12 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     hErr && `holds: ${hErr.message}`,
   ].filter(Boolean) as string[];
 
+  // Finish standards (Step 2): which lanes send_offer would refuse. Reported if
+  // it cannot be read; the lanes then carry no status and the RPC still refuses.
+  const standardsRes = await loadStandardsStatuses(supabase);
+  if (standardsRes.error) errors.push(`standards: ${standardsRes.error}`);
+  const standardsOf = new Map(standardsRes.rows.map((r) => [r.contractorId, r.status as string]));
+
   type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; employment_type?: string | null; works_saturday?: boolean | null; works_sunday?: boolean | null; profiles: { name: string | null } | null };
   const lanes: Lane[] = ((contractors as CRow[] | null) ?? []).map((c) => ({
     contractorId: c.id,
@@ -327,6 +336,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     worksSunday: Boolean(c.works_sunday),
     // Anything but the literal 'employee' is a contractor — lib/painters/capabilities rule.
     employmentType: c.employment_type === "employee" ? "employee" : "contractor",
+    standardsStatus: standardsOf.get(c.id),
   }));
 
   // Jobs with a crew of employees on them. The lead IS work_orders.contractor_id,

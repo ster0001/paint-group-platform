@@ -33,6 +33,13 @@ export type WOMaterial = {
 export type WOSurface = {
   key: string; // stable key: `${areaId}:${surfaceId}`
   label: string;
+  /**
+   * The rate-card code this line was priced as (rate_items.code), so the
+   * finish standard for the surface can be found whatever the estimator typed
+   * as the client label (standards Step 1). Absent on documents frozen before
+   * 8 Oct 2026 — those resolve by label (lib/standards/model.ts).
+   */
+  code?: string;
   coats: number;
   product: string;
   /** Sheen / finish this surface is painted in (absent on older documents). */
@@ -62,6 +69,10 @@ export type WOSurface = {
 export type WOArea = {
   id: string;
   title: string;
+  /** Interior or exterior, from the builder's area type — tells the interior
+   * and exterior standards apart where a rate code exists on both sides.
+   * Absent on documents frozen before 8 Oct 2026. */
+  side?: "interior" | "exterior";
   surfaces: WOSurface[];
   photos: string[];
   /** Resolved PG level for this area — the job's level unless staff overrode it. */

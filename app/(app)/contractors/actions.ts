@@ -234,3 +234,62 @@ export async function revealContractorBankAction(raw: unknown): Promise<RevealBa
   if (!row) return { ok: false, message: "Couldn't find that painter." };
   return { ok: true, bsb: row.bsb ?? "", account: row.account ?? "" };
 }
+
+// ---- Finish standards (brief Step 2) -----------------------------------------
+import { loadStandardsStatuses } from "@/lib/standards/status";
+import { sendStandardsInvite, sendStandardsReminder } from "@/lib/standards/notify";
+
+export type StandardsActionResult = { ok: true; message: string } | { ok: false; message: string };
+
+/**
+ * Invite one existing painter to confirm the standards (message 1): the RPC
+ * records the invite and starts the grace period (the gate), then the message
+ * goes through the dispatcher and leaves an outcome on the record. Staff only
+ * (the RPC refuses anyone else).
+ */
+export async function inviteStandardsAction(raw: unknown): Promise<StandardsActionResult> {
+  const parsed = z.object({ id: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't read that — try again." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("standards_invite", { p_contractor_id: parsed.data.id });
+  if (error) { reportError(error, { where: "standards.invite" }); return { ok: false, message: "Couldn't record the invite — it has been reported." }; }
+  const r = String(data ?? "");
+  if (r === "error:already_confirmed") return { ok: false, message: "They have already confirmed the standards." };
+  if (!r.startsWith("ok:")) return { ok: false, message: `Couldn't invite them (${r}).` };
+  const service = createServiceClient();
+  const outcome = service ? await sendStandardsInvite(service, parsed.data.id) : "no service client";
+  revalidatePath("/contractors"); revalidatePath(`/contractors/${parsed.data.id}`);
+  return { ok: true, message: outcome === "sent" ? "Invited. The text and email have gone; their grace period has started." : `Invited and the grace period has started, but the message was not sent (${outcome}) — check their mobile and email.` };
+}
+
+/** Invite every active painter who has not been invited yet, in one press (launch day). */
+export async function inviteAllStandardsAction(): Promise<StandardsActionResult> {
+  const supabase = await createClient();
+  const { rows, error } = await loadStandardsStatuses(supabase);
+  if (error) return { ok: false, message: `Couldn't read who has signed (${error}).` };
+  const { data: active, error: aErr } = await supabase.from("contractors").select("id").eq("active", true);
+  if (aErr) return { ok: false, message: "Couldn't read the painters." };
+  const activeIds = new Set(((active ?? []) as { id: string }[]).map((c) => c.id));
+  const due = rows.filter((r) => activeIds.has(r.contractorId) && (r.status === "not_invited" || (r.status === "employee_unsigned" && !r.invitedAt)));
+  let sent = 0, failed = 0;
+  for (const r of due) {
+    const res = await inviteStandardsAction({ id: r.contractorId });
+    if (res.ok) sent += 1; else failed += 1;
+  }
+  return { ok: true, message: `Invited ${sent} painter${sent === 1 ? "" : "s"}${failed ? `, ${failed} failed` : ""}.` };
+}
+
+/** Send the reminder text now (message 2) — the PC queue card's action and the detail page's button. */
+export async function remindStandardsAction(raw: unknown): Promise<StandardsActionResult> {
+  const parsed = z.object({ id: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't read that — try again." };
+  const supabase = await createClient();
+  const { data: status, error } = await supabase.rpc("standards_status", { p_contractor_id: parsed.data.id });
+  if (error) return { ok: false, message: "Couldn't read their status." };
+  if (status === "confirmed") return { ok: false, message: "They have already confirmed the standards." };
+  const service = createServiceClient();
+  if (!service) return { ok: false, message: "No service client." };
+  const outcome = await sendStandardsReminder(service, parsed.data.id, "office");
+  revalidatePath("/pc"); revalidatePath(`/contractors/${parsed.data.id}`);
+  return outcome === "sent" ? { ok: true, message: "Reminder text sent." } : { ok: false, message: `Reminder not sent (${outcome}) — do they have a mobile on file?` };
+}

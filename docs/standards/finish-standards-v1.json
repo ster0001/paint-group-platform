@@ -1,0 +1,890 @@
+{
+  "title": "Paint Group Finish Standards: Levels 2, 3 and 4",
+  "version": 1,
+  "approved_on": "2026-10-06",
+  "language": "en",
+  "small_job_hours": 16,
+  "sign_off_sections": [
+    "levels",
+    "rules",
+    "time",
+    "interior",
+    "exterior",
+    "defect"
+  ],
+  "levels": {
+    "intro": "The level on your work order tells you how much preparation to do and how fine the finish must be. Level 2 repairs what is broken. Level 3 fixes what a customer can see from 1.5 m. Level 4 fixes what a customer can see up close.",
+    "items": [
+      {
+        "level": 2,
+        "name": "Clean, tidy repaint",
+        "look_test_distance": "3 m",
+        "summary": [
+          {
+            "label": "Filling",
+            "text": "All holes, nail holes and open cracks. Small marks in the old surface can stay."
+          },
+          {
+            "label": "Sanding",
+            "text": "Light sand. Remove loose paint and dust."
+          },
+          {
+            "label": "Gaps (caulking)",
+            "text": "Edges of frames and trim."
+          },
+          {
+            "label": "Old problems (old runs, old paint on glass, old brush marks)",
+            "text": "Can stay."
+          },
+          {
+            "label": "Look test",
+            "text": "Stand 3 m back."
+          }
+        ]
+      },
+      {
+        "level": 3,
+        "name": "Our standard finish",
+        "look_test_distance": "1.5 m",
+        "summary": [
+          {
+            "label": "Filling",
+            "text": "Every mark you can see from 1.5 m."
+          },
+          {
+            "label": "Sanding",
+            "text": "Sand well. Smooth to touch."
+          },
+          {
+            "label": "Gaps (caulking)",
+            "text": "Edges, mitres and corners."
+          },
+          {
+            "label": "Old problems (old runs, old paint on glass, old brush marks)",
+            "text": "Fix what you can see from 1.5 m."
+          },
+          {
+            "label": "Look test",
+            "text": "Stand 1.5 m back."
+          }
+        ]
+      },
+      {
+        "level": 4,
+        "name": "Premium finish",
+        "look_test_distance": "0.5 m",
+        "summary": [
+          {
+            "label": "Filling",
+            "text": "Every mark you can see from 0.5 m."
+          },
+          {
+            "label": "Sanding",
+            "text": "Sand smooth before the first coat and between coats."
+          },
+          {
+            "label": "Gaps (caulking)",
+            "text": "Every gap and join."
+          },
+          {
+            "label": "Old problems (old runs, old paint on glass, old brush marks)",
+            "text": "Fix all of them."
+          },
+          {
+            "label": "Look test",
+            "text": "Stand 0.5 m back (arm's length)."
+          }
+        ]
+      }
+    ],
+    "look_test_steps": [
+      "First, do everything in the list for the surface. The list is the rule.",
+      "Then stand back at the distance for the level on your work order.",
+      "Look straight at the surface in normal light: daylight, or the room lights on. Do not use a torch.",
+      "If you can see a problem from that distance, fix it."
+    ],
+    "look_test_high_areas": "For high areas (ceilings, cornices, eaves, fascias, second storey), do the look test from the floor or the ground.",
+    "closing": "If your work order does not show a level, ask us before you start."
+  },
+  "rules": {
+    "intro": "These rules are the same at Level 2, Level 3 and Level 4. Every job must finish clean, with no drips and no paint on anything that should not be painted.",
+    "items": [
+      {
+        "rule": "No drips or runs",
+        "meaning": "No drips, runs or sags on any painted surface."
+      },
+      {
+        "rule": "No paint where it should not be",
+        "meaning": "No paint on floors, carpet, tiles, benchtops, cupboards, furniture, switches, power points, lights, paths, driveways, decks, roofs, plants or cars."
+      },
+      {
+        "rule": "No paint on hardware",
+        "meaning": "No paint on handles, hinges, locks, latches, window winders or door stops. Remove the hardware or mask it."
+      },
+      {
+        "rule": "Protect first",
+        "meaning": "Cover floors and furniture with drop sheets and plastic before you start."
+      },
+      {
+        "rule": "Full cover",
+        "meaning": "No missed spots, no thin patches and no old colour showing through."
+      },
+      {
+        "rule": "Clean finish",
+        "meaning": "No dust, hair, grit or brush hairs stuck in the paint."
+      },
+      {
+        "rule": "Clean site every day",
+        "meaning": "Remove job rubbish every day. Leave your materials tidy before you go."
+      },
+      {
+        "rule": "Clean site at the end",
+        "meaning": "Remove all tape, plastic, drop sheets, empty tins and rubbish. Clean up sanding dust. Put back any hardware or cover plates you removed."
+      }
+    ],
+    "closing": "If you spill or drip paint, clean it straight away. If it will not come off, tell us the same day."
+  },
+  "time": {
+    "intro": "The time on your work order for each surface already includes all standard preparation for that level. You are not paid extra for standard preparation.",
+    "standard_preparation": {
+      "interior": [
+        "Cover floors and furniture.",
+        "Scrape loose and flaking paint.",
+        "Fill holes, nail holes, cracks and dents to the level on your work order.",
+        "Fill gaps with gap filler to the level on your work order.",
+        "Sand to the level on your work order.",
+        "Sand and clean glossy surfaces so new paint will stick.",
+        "Prime all filler and bare patches."
+      ],
+      "exterior": [
+        "Wash or clean the surface. Paint only clean, dry surfaces.",
+        "Scrape and sand loose and peeling paint.",
+        "Fill holes and cracks in timber to the level on your work order.",
+        "Fill gaps with exterior gap filler to the level on your work order.",
+        "Sand to the level on your work order.",
+        "Prime all bare timber and bare patches.",
+        "Protect paths, plants and anything not being painted."
+      ]
+    },
+    "extra_time_intro": "Some areas need more than standard preparation. When we see this at the quote, we add extra time to your work order for it.",
+    "extra_time": [
+      {
+        "name": "Bogging",
+        "meaning": "Heavy repairs with two-part filler (builder's bog). Normal filler cannot do this job.",
+        "examples": "Rotten timber on sills, fascias and weatherboards. Deep holes. Broken corners and edges."
+      },
+      {
+        "name": "Stain blocking",
+        "meaning": "Sealing a stain with stain-block primer, so it does not come through the new paint.",
+        "examples": "Water stains on ceilings. Smoke and nicotine. Timber stain (tannin) bleeding through. Mould marks after cleaning. Pen and marker."
+      },
+      {
+        "name": "Additional coats",
+        "meaning": "More coats than normal, so the new colour covers fully.",
+        "examples": "A big colour change, dark to light or light to dark. Bare or new surfaces that need a primer or undercoat. Colours that cover poorly, such as strong yellows and reds."
+      }
+    ],
+    "variation_intro": "If you find an area that needs extra time and it is not on your work order, you can charge a variation.",
+    "variation_steps": [
+      "Stop before you do the extra work.",
+      "Take clear photos of the problem.",
+      "Raise a variation in your portal. Say what the problem is and how many extra hours it needs.",
+      "Wait for us to approve it. The customer must agree to the extra cost first.",
+      "Do the work when the variation is approved."
+    ],
+    "closing": "Standard preparation is never a variation. Paint applied too thin is not a reason for an additional coat: apply every coat at the thickness on the tin."
+  },
+  "interior_intro": "Find the surface, then read the column for the level on your work order. The rules for every job always apply as well.",
+  "exterior_intro": "Find the surface, then read the column for the level on your work order. These five rules apply to every exterior surface, at every level.",
+  "exterior_rules": [
+    "Paint only clean, dry, solid surfaces.",
+    "Scrape off all loose and flaking paint. Prime all bare timber and bare patches before the top coats.",
+    "No paint on paths, driveways, decks, roofs, gutters, plants, cars or the neighbour's property, unless it is on your work order.",
+    "Rotten timber needs bogging. Check your work order for bogging time. If there is none, raise a variation.",
+    "Old homes can have asbestos sheet or lead paint. If you think you have found either, stop. Do not sand or scrape. Call us."
+  ],
+  "surfaces": [
+    {
+      "side": "interior",
+      "key": "walls",
+      "substrate_code": null,
+      "sort": 1,
+      "name": "Walls",
+      "intro": null,
+      "every_level": "Full, even cover. No patchy areas, no roller lines and no missed spots. Prime all filler and bare patches before the top coats, so repairs do not show through. No paint on switches or power points.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Fill",
+          "level_2": "All holes, nail and screw holes, open cracks and deep dents. Small dents and light scratches can stay.",
+          "level_3": "Every hole, dent, crack and mark you can see from 1.5 m.",
+          "level_4": "Every hole, dent, crack and mark you can see from 0.5 m."
+        },
+        {
+          "sort": 2,
+          "label": "Sand",
+          "level_2": "Sand filler flat. Remove loose paint, lumps and dust.",
+          "level_3": "Sand filler flat with soft edges, so the patch cannot be seen from 1.5 m. Sand the whole wall.",
+          "level_4": "Sand the whole wall before the first coat and lightly between coats. Patches cannot be seen from 0.5 m."
+        },
+        {
+          "sort": 3,
+          "label": "Old surface",
+          "level_2": "Old roller texture, old patches and old drips can stay.",
+          "level_3": "Remove old drips and lumps you can see from 1.5 m.",
+          "level_4": "Remove all old drips, lumps and rough patches."
+        },
+        {
+          "sort": 4,
+          "label": "Lines",
+          "level_2": "Straight and tidy from 3 m.",
+          "level_3": "Sharp and straight from 1.5 m.",
+          "level_4": "Sharp and straight from 0.5 m."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "interior",
+      "key": "ceilings",
+      "substrate_code": null,
+      "sort": 2,
+      "name": "Ceilings",
+      "intro": null,
+      "every_level": "Even, flat finish. No roller lines, no patchy areas and no missed spots. No ceiling paint on walls, lights, fans, vents or smoke alarms. Do the look test from the floor.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Fill",
+          "level_2": "Holes and open cracks. Fine cracks (thinner than 1 mm) can stay.",
+          "level_3": "Every hole, crack and dent you can see from the floor.",
+          "level_4": "Every hole, crack and dent. Also check by looking across the ceiling toward the window."
+        },
+        {
+          "sort": 2,
+          "label": "Sand",
+          "level_2": "Scrape loose and flaking paint. Sand filler flat.",
+          "level_3": "Sand filler flat with soft edges. Sand the edges of scraped paint smooth. Sand the whole ceiling.",
+          "level_4": "Sand the whole ceiling before the first coat and lightly between coats. No old patch or paint edge showing."
+        },
+        {
+          "sort": 3,
+          "label": "Stains",
+          "level_2": "Tell us about any water stain. Stain blocking is extra time.",
+          "level_3": "Tell us about any water stain. Stain blocking is extra time.",
+          "level_4": "Tell us about any water stain. Stain blocking is extra time."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "interior",
+      "key": "cornices",
+      "substrate_code": null,
+      "sort": 3,
+      "name": "Cornices",
+      "intro": null,
+      "every_level": "Full cover, including inside the pattern on decorative cornices. No thick paint filling the pattern. Straight lines where the cornice meets a different colour.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Gaps",
+          "level_2": "Open gaps and cracks between cornice and wall, and between cornice and ceiling.",
+          "level_3": "Also the corner joins (mitres) and joins along the length.",
+          "level_4": "Every gap and join filled and smooth. No join can be seen from the floor."
+        },
+        {
+          "sort": 2,
+          "label": "Fill",
+          "level_2": "Large chips and holes.",
+          "level_3": "Every chip and hole you can see from the floor.",
+          "level_4": "Every chip and hole."
+        },
+        {
+          "sort": 3,
+          "label": "Sand",
+          "level_2": "Remove loose paint and dust.",
+          "level_3": "Sand filler smooth. Remove old drips.",
+          "level_4": "Sand filler and old paint edges smooth. Remove all old drips."
+        }
+      ],
+      "note": "Broken or missing pieces of cornice are a repair. Tell us before you start."
+    },
+    {
+      "side": "interior",
+      "key": "skirting",
+      "substrate_code": null,
+      "sort": 4,
+      "name": "Skirting boards",
+      "intro": null,
+      "every_level": "No paint on the floor or carpet. Clean dust and hair off the skirting and the floor edge before you paint. Straight line along the top. No runs.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Fill",
+          "level_2": "Holes, nail holes and open cracks. Small dents and knocks can stay.",
+          "level_3": "Every hole, dent and chip you can see from 1.5 m.",
+          "level_4": "Every hole, dent and chip you can see from 0.5 m."
+        },
+        {
+          "sort": 2,
+          "label": "Gaps",
+          "level_2": "Top edge, where the skirting meets the wall.",
+          "level_3": "Top edge, corners (mitres) and joins.",
+          "level_4": "Every gap and join, filled smooth."
+        },
+        {
+          "sort": 3,
+          "label": "Sand",
+          "level_2": "Light sand to remove loose paint and take the shine off.",
+          "level_3": "Sand well until smooth to touch. Remove old runs and drips.",
+          "level_4": "Sand smooth before the first coat and between coats. No old brush marks or runs showing."
+        },
+        {
+          "sort": 4,
+          "label": "Finish",
+          "level_2": "Even cover. No runs.",
+          "level_3": "Smooth, with an even shine.",
+          "level_4": "Smooth and even from 0.5 m. Very light brush marks only."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "interior",
+      "key": "architraves",
+      "substrate_code": null,
+      "sort": 5,
+      "name": "Architraves",
+      "intro": null,
+      "every_level": "No paint on hinges, door hardware or the floor. Straight lines where the architrave meets the wall. Door frames follow this same standard.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Fill",
+          "level_2": "Holes, nail holes and open cracks. Small dents and knocks can stay.",
+          "level_3": "Every hole, dent and chip you can see from 1.5 m.",
+          "level_4": "Every hole, dent and chip you can see from 0.5 m."
+        },
+        {
+          "sort": 2,
+          "label": "Gaps",
+          "level_2": "Outside edge, where the architrave meets the wall.",
+          "level_3": "Outside edge, top corners (mitres) and the join to the door or window frame.",
+          "level_4": "Every gap and join, filled smooth."
+        },
+        {
+          "sort": 3,
+          "label": "Sand",
+          "level_2": "Light sand to remove loose paint and take the shine off.",
+          "level_3": "Sand well until smooth to touch. Remove old runs and drips.",
+          "level_4": "Sand smooth before the first coat and between coats. No old brush marks or runs showing."
+        },
+        {
+          "sort": 4,
+          "label": "Finish",
+          "level_2": "Even cover. No runs.",
+          "level_3": "Smooth, with an even shine.",
+          "level_4": "Smooth and even from 0.5 m. Very light brush marks only."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "interior",
+      "key": "windowframes",
+      "substrate_code": null,
+      "sort": 6,
+      "name": "Window frames",
+      "intro": null,
+      "every_level": "No paint on hardware: locks, latches, handles, winders, hinges, tracks, rubber seals and flyscreens. Remove the hardware or mask it. Windows must open and close after painting. Do not scratch the glass when you scrape it.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Glass",
+          "level_2": "Remove all paint that you put on the glass. Old paint on the glass can stay.",
+          "level_3": "Remove all paint from the glass, new and old, for sharp lines.",
+          "level_4": "Remove all paint from the glass. Sharp, straight lines on every pane. Leave the glass clean."
+        },
+        {
+          "sort": 2,
+          "label": "Fill",
+          "level_2": "Large holes, nail holes and cracks in the timber. Minor defects in the timber can stay.",
+          "level_3": "Every mark you can see from 1.5 m.",
+          "level_4": "Every mark you can see from 0.5 m."
+        },
+        {
+          "sort": 3,
+          "label": "Gaps",
+          "level_2": "Edges of the frame, where the frame meets the wall.",
+          "level_3": "Edges, mitres and corners of the frame.",
+          "level_4": "Every gap and join, filled smooth."
+        },
+        {
+          "sort": 4,
+          "label": "Sand",
+          "level_2": "Light sand to remove loose paint and dirt only.",
+          "level_3": "Sand well for a smooth finish.",
+          "level_4": "Sand smooth before the first coat and between coats. Remove old runs and brush marks."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "interior",
+      "key": "doors",
+      "substrate_code": null,
+      "sort": 7,
+      "name": "Doors",
+      "intro": null,
+      "every_level": "No paint on hardware: handles, locks, latches, hinges and door stops. Remove the hardware or mask it. Paint the faces and every edge you can see. The door must open and close without sticking. No runs in panel corners or on edges.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Fill",
+          "level_2": "Holes, cracks, deep dents and chipped edges. Small dents can stay.",
+          "level_3": "Every hole, dent and chip you can see from 1.5 m.",
+          "level_4": "Every hole, dent and chip you can see from 0.5 m."
+        },
+        {
+          "sort": 2,
+          "label": "Sand",
+          "level_2": "Light sand to remove loose paint and take the shine off.",
+          "level_3": "Sand the whole door smooth. Remove old runs and drips.",
+          "level_4": "Sand smooth before the first coat and between coats. No old brush marks, runs or roller texture showing."
+        },
+        {
+          "sort": 3,
+          "label": "Finish",
+          "level_2": "Even cover. No runs. Light brush or roller marks are OK.",
+          "level_3": "Smooth, with an even shine. Brush marks all run the same way.",
+          "level_4": "Smooth and even from 0.5 m on faces and edges."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "exterior",
+      "key": "weatherboards",
+      "substrate_code": null,
+      "sort": 1,
+      "name": "Weatherboards",
+      "intro": null,
+      "every_level": "Paint the bottom edge of every board. Do not fill the gap under each board, because boards need to move. No missed spots at board ends and corners.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Scrape and sand",
+          "level_2": "Scrape all loose paint. Light sand of rough edges. Edges of old paint can show.",
+          "level_3": "Scrape all loose paint. Sand the edges of old paint soft, so they are hard to see from 1.5 m.",
+          "level_4": "Scrape and sand every board. Old paint edges cannot be seen from 0.5 m."
+        },
+        {
+          "sort": 2,
+          "label": "Fill",
+          "level_2": "Open splits and large holes. Nail heads can show.",
+          "level_3": "Splits, holes and nail holes you can see from 1.5 m.",
+          "level_4": "Every split, hole and nail hole you can see from 0.5 m."
+        },
+        {
+          "sort": 3,
+          "label": "Gaps",
+          "level_2": "Where boards meet window frames, door frames and corner boards.",
+          "level_3": "Also open joins between board ends.",
+          "level_4": "Every upright gap and join, filled smooth."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "exterior",
+      "key": "brick",
+      "substrate_code": null,
+      "sort": 2,
+      "name": "Brick",
+      "intro": "For painted brick, the three levels are almost the same. The difference is crack filling.",
+      "every_level": "Brush off dirt, cobwebs and loose paint first. Full cover inside every mortar joint. Check from the left, from the right and from below: no bare spots. Straight lines at the ground, paths and windows.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Cracks",
+          "level_2": "No filling needed. Cracks can stay.",
+          "level_3": "Fill open cracks in mortar and bricks that you can see from 1.5 m.",
+          "level_4": "Fill every crack you can see from 0.5 m."
+        },
+        {
+          "sort": 2,
+          "label": "Finish",
+          "level_2": "Full cover.",
+          "level_3": "Full cover. No roller lines from 1.5 m.",
+          "level_4": "Full cover. No roller lines from 0.5 m."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "exterior",
+      "key": "render",
+      "substrate_code": null,
+      "sort": 3,
+      "name": "Render",
+      "intro": null,
+      "every_level": "Even cover. No roller lines and no patchy areas. Do not paint over loose or hollow render. Tell us, because it is a repair.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Cracks",
+          "level_2": "Fill open cracks. Fine cracks (thinner than 1 mm) can stay.",
+          "level_3": "Fill every crack you can see from 1.5 m.",
+          "level_4": "Fill every crack you can see from 0.5 m."
+        },
+        {
+          "sort": 2,
+          "label": "Repairs",
+          "level_2": "Filler flat. Repairs can show.",
+          "level_3": "Filler flat, with texture to match. Hard to see from 1.5 m.",
+          "level_4": "Filler flat, with texture to match. Cannot be seen from 0.5 m."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "exterior",
+      "key": "picket",
+      "substrate_code": null,
+      "sort": 4,
+      "name": "Picket fence",
+      "intro": null,
+      "every_level": "Paint the sides on your work order. On those sides, paint every face: front, both edges and the top of each picket, plus rails and posts. No missed strips between pickets. No drips at the bottom of pickets. No paint on paths, plants or the neighbour's side.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Scrape and sand",
+          "level_2": "Scrape loose paint. Light sand.",
+          "level_3": "Scrape loose paint. Sand the edges of old paint soft.",
+          "level_4": "Scrape and sand every picket smooth."
+        },
+        {
+          "sort": 2,
+          "label": "Fill",
+          "level_2": "No filling needed.",
+          "level_3": "Holes and splits you can see from 1.5 m.",
+          "level_4": "Every hole and split you can see from 0.5 m."
+        }
+      ],
+      "note": "Loose, broken or rotten pickets are a repair. Tell us before you paint them."
+    },
+    {
+      "side": "exterior",
+      "key": "extwindows",
+      "substrate_code": null,
+      "sort": 5,
+      "name": "Windows",
+      "intro": null,
+      "every_level": "No paint on hardware: locks, latches, handles, winders, hinges, tracks, rubber seals and flyscreens. Remove the hardware or mask it. Windows must open and close after painting. Do not scratch the glass. Sills get the most weather, so prepare and prime them fully.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Glass",
+          "level_2": "Remove all paint that you put on the glass. Old paint on the glass can stay.",
+          "level_3": "Remove all paint from the glass, new and old, for sharp lines.",
+          "level_4": "Remove all paint from the glass. Sharp, straight lines on every pane. Leave the glass clean."
+        },
+        {
+          "sort": 2,
+          "label": "Scrape and sand",
+          "level_2": "Scrape loose paint. Light sand to remove loose paint and dirt only.",
+          "level_3": "Scrape loose paint. Sand well for a smooth finish.",
+          "level_4": "Sand smooth before the first coat and between coats. Remove old runs and brush marks."
+        },
+        {
+          "sort": 3,
+          "label": "Fill",
+          "level_2": "Large holes, nail holes and cracks in the timber. Minor defects in the timber can stay.",
+          "level_3": "Every mark you can see from 1.5 m.",
+          "level_4": "Every mark you can see from 0.5 m."
+        },
+        {
+          "sort": 4,
+          "label": "Gaps",
+          "level_2": "Edges of the frame, where the frame meets the wall.",
+          "level_3": "Edges, mitres and corners of the frame and sill.",
+          "level_4": "Every gap and join, filled smooth."
+        }
+      ],
+      "note": "Loose or missing putty and rotten timber need extra time. Check your work order. If no extra time is allowed, raise a variation."
+    },
+    {
+      "side": "exterior",
+      "key": "extdoors",
+      "substrate_code": null,
+      "sort": 6,
+      "name": "Doors",
+      "intro": null,
+      "every_level": "No paint on hardware: handles, locks, hinges, door numbers, door bells, letter slots and rubber seals. Remove the hardware or mask it. Paint the faces and every edge you can see. The door must close and lock without sticking. No runs in panel corners or on edges.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Fill",
+          "level_2": "Holes, cracks, deep dents and chipped edges. Small dents can stay.",
+          "level_3": "Every hole, dent and chip you can see from 1.5 m.",
+          "level_4": "Every hole, dent and chip you can see from 0.5 m."
+        },
+        {
+          "sort": 2,
+          "label": "Sand",
+          "level_2": "Scrape loose paint. Light sand to take the shine off.",
+          "level_3": "Sand the whole door smooth. Remove old runs and drips.",
+          "level_4": "Sand smooth before the first coat and between coats. No old brush marks, runs or roller texture showing."
+        },
+        {
+          "sort": 3,
+          "label": "Finish",
+          "level_2": "Even cover. No runs. Light brush or roller marks are OK.",
+          "level_3": "Smooth, with an even shine. Brush marks all run the same way.",
+          "level_4": "Smooth and even from 0.5 m on faces and edges."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "exterior",
+      "key": "fascias",
+      "substrate_code": null,
+      "sort": 7,
+      "name": "Fascias",
+      "intro": null,
+      "every_level": "Paint the face and the bottom edge. No paint on gutters, roof tiles or roof sheets, unless they are on your work order. Do the look test from the ground.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Scrape and sand",
+          "level_2": "Scrape loose paint. Light sand.",
+          "level_3": "Scrape loose paint. Sand the edges of old paint soft.",
+          "level_4": "Scrape and sand smooth. No old paint edge can be seen from the ground."
+        },
+        {
+          "sort": 2,
+          "label": "Fill",
+          "level_2": "Open splits and large holes.",
+          "level_3": "Splits, holes and nail holes you can see from the ground.",
+          "level_4": "Every split, hole and nail hole."
+        },
+        {
+          "sort": 3,
+          "label": "Gaps",
+          "level_2": "No gap filling needed.",
+          "level_3": "Corners (mitres) and joins between boards.",
+          "level_4": "Every gap and join, filled smooth."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "exterior",
+      "key": "eaves",
+      "substrate_code": null,
+      "sort": 8,
+      "name": "Eaves",
+      "intro": null,
+      "every_level": "Clean off cobwebs, dirt and mould before you paint. Even cover with no roller lines. No paint on walls, lights or vents, unless they are on your work order. Do the look test from the ground.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Fill",
+          "level_2": "Large holes only.",
+          "level_3": "Holes and cracks you can see from the ground.",
+          "level_4": "Every hole and crack."
+        },
+        {
+          "sort": 2,
+          "label": "Gaps",
+          "level_2": "No gap filling needed.",
+          "level_3": "Open gaps where the eave meets the fascia or timber trim.",
+          "level_4": "Every gap and join, filled smooth."
+        },
+        {
+          "sort": 3,
+          "label": "Lines",
+          "level_2": "Tidy.",
+          "level_3": "Sharp and straight from the ground.",
+          "level_4": "Sharp and straight from the ground, on every edge."
+        }
+      ],
+      "note": null
+    },
+    {
+      "side": "exterior",
+      "key": "strapping",
+      "substrate_code": null,
+      "sort": 9,
+      "name": "Strapping",
+      "intro": "Strapping means the cover strips over the joins in sheet eaves, gables and walls.",
+      "every_level": "Paint the face and both edges of every strip. No missed lines along the edges.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Fill",
+          "level_2": "No filling needed.",
+          "level_3": "Nail holes and splits you can see from 1.5 m, or from the ground for high areas.",
+          "level_4": "Every nail hole and split."
+        },
+        {
+          "sort": 2,
+          "label": "Gaps",
+          "level_2": "No gap filling needed.",
+          "level_3": "Open gaps between the strip and the sheet that you can see.",
+          "level_4": "Both edges of every strip, filled smooth."
+        },
+        {
+          "sort": 3,
+          "label": "Lines (when the strip is a different colour)",
+          "level_2": "Tidy.",
+          "level_3": "Sharp and straight from 1.5 m.",
+          "level_4": "Sharp and straight from 0.5 m."
+        }
+      ],
+      "note": "Loose or broken strips are a repair. Tell us before you paint them."
+    },
+    {
+      "side": "exterior",
+      "key": "fretwork",
+      "substrate_code": null,
+      "sort": 10,
+      "name": "Fretwork",
+      "intro": "Fretwork means the decorative timber on verandahs and gables.",
+      "every_level": "Paint every face and edge, including inside the cut-outs. Check from the front, from the back and from below. No runs, drips or thick paint in corners and cut-outs.",
+      "checks": [
+        {
+          "sort": 1,
+          "label": "Scrape and sand",
+          "level_2": "Scrape loose paint.",
+          "level_3": "Scrape loose paint. Sand the edges of old paint soft.",
+          "level_4": "Scrape and sand smooth. The pattern stays sharp."
+        },
+        {
+          "sort": 2,
+          "label": "Fill",
+          "level_2": "No filling needed.",
+          "level_3": "Splits and holes you can see from 1.5 m, or from the ground for high areas.",
+          "level_4": "Every split and hole."
+        },
+        {
+          "sort": 3,
+          "label": "Gaps",
+          "level_2": "No gap filling needed.",
+          "level_3": "Open joins where the fretwork meets posts and beams.",
+          "level_4": "Every gap and join, filled smooth."
+        }
+      ],
+      "note": "Rotten or broken fretwork needs bogging or a repair. Check your work order. If no extra time is allowed, raise a variation."
+    }
+  ],
+  "defect_rule": {
+    "intro": "You find and fix your own defects before the customer sees them. You mark every defect with tape before the walk-through, and you fix every taped defect before the final walk-through.",
+    "small_job_note": "On jobs under 16 hours, the tape step is not required. You still check your own work and fix every defect before the walk-through.",
+    "steps": [
+      "Finish all painting and clean the site.",
+      "Walk through every room, or every side of the house, on your own.",
+      "Do the look test on every surface, at the distance for the level on your work order.",
+      "Put a small piece of painter's tape next to every defect you find.",
+      "Fix every taped defect. Take the tape off as you fix each one.",
+      "Check that all tape is gone. The job is now ready for the final walk-through."
+    ],
+    "why": [
+      "Fewer defects are found at the final walk-through.",
+      "The customer sees that we are one step ahead.",
+      "You finish the job in one visit and you do not have to come back."
+    ],
+    "defects": [
+      {
+        "defect": "Paint faults",
+        "examples": "Runs, drips, sags, missed spots, thin patches, old colour showing through, roller lines, patchy areas."
+      },
+      {
+        "defect": "Preparation not done to the level",
+        "examples": "Holes, cracks or gaps not filled. Filler not sanded flat. Rough areas not sanded."
+      },
+      {
+        "defect": "Lines",
+        "examples": "Wavy or untidy lines between colours, at ceilings, trim and glass."
+      },
+      {
+        "defect": "Paint in the wrong place",
+        "examples": "Paint on glass, hardware, floors, switches, power points, paths or furniture."
+      },
+      {
+        "defect": "Dirt in the finish",
+        "examples": "Dust, hair, grit or brush hairs stuck in the paint."
+      },
+      {
+        "defect": "Things that do not work",
+        "examples": "Windows or doors stuck with paint. Hardware or cover plates not put back."
+      }
+    ],
+    "closing": "If the customer or our team finds a defect at the final walk-through, you fix it before the job is signed off."
+  },
+  "final_checklist": {
+    "intro": "Check these eight things before you tell us the job is finished.",
+    "items": [
+      "Every surface on the work order is painted, with the number of coats on the work order.",
+      "Preparation on every surface matches the level on the work order.",
+      "No drips, runs, missed spots or patchy areas.",
+      "No paint on glass, hardware, floors, switches, paths or anything not being painted.",
+      "All windows and doors open and close.",
+      "All hardware and cover plates are back in place.",
+      "You have found and fixed your own defects. If you used tape, all tape is removed.",
+      "The site is clean: no rubbish, no tape, no plastic, no dust."
+    ]
+  },
+  "words": [
+    {
+      "word": "Level",
+      "meaning": "The standard of preparation and finish for the job: 2, 3 or 4. It is on your work order."
+    },
+    {
+      "word": "Look test",
+      "meaning": "Stand back at the distance for the level. If you can see a problem, fix it."
+    },
+    {
+      "word": "Fill",
+      "meaning": "Put filler in holes, dents and cracks, then sand it flat."
+    },
+    {
+      "word": "Gap filler (caulk)",
+      "meaning": "Flexible filler for gaps and joins between two surfaces."
+    },
+    {
+      "word": "Bog",
+      "meaning": "Strong two-part filler for heavy repairs, such as rotten timber."
+    },
+    {
+      "word": "Mitre",
+      "meaning": "The corner join where two pieces of trim meet at an angle."
+    },
+    {
+      "word": "Prime",
+      "meaning": "A first coat on bare timber, bare patches or filler, so the top coats stick and cover evenly."
+    },
+    {
+      "word": "Stain block",
+      "meaning": "A special primer that stops a stain coming through new paint."
+    },
+    {
+      "word": "Sand the edges soft",
+      "meaning": "Sand the edge of old paint or filler until you cannot feel a step. Also called feathering."
+    },
+    {
+      "word": "Hardware",
+      "meaning": "Handles, locks, latches, hinges, winders and door stops."
+    },
+    {
+      "word": "Defect",
+      "meaning": "Anything that does not meet the standard for the level."
+    },
+    {
+      "word": "Variation",
+      "meaning": "Extra paid work that is not on your work order. It must be approved before you do it."
+    }
+  ]
+}

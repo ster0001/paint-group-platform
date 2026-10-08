@@ -10,6 +10,11 @@ import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 import { createClient } from "@/lib/supabase/server";
 import { loadMyTimesheet } from "@/lib/contractor/timesheets";
 import TimesheetCard from "./TimesheetCard";
+import { redirect } from "next/navigation";
+import { loadMyStandards } from "@/lib/standards/status";
+import { needsSignoff, painterStatusLine } from "@/lib/standards/acks";
+import { loadMyCallbacks } from "@/lib/callbacks/load";
+import { callbackLine } from "@/lib/callbacks/model";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +46,18 @@ export default async function PortalHome() {
       </div>
     );
   }
+
+  // Finish standards (Step 2): a painter whose grace has run out, or who just
+  // joined, sees the sign-off and nothing else until it is done (full screen
+  // when the gate applies — brief §7). Jobs in progress are untouched: the
+  // Jobs tab and every job page stay open. A refused read is reported and
+  // the Home simply shows no standards card.
+  const supabaseForStandards = await createClient();
+  const { my: myStandards } = await loadMyStandards(supabaseForStandards, contractor.id);
+  if (myStandards?.status === "blocked") redirect("/portal/standards/confirm");
+
+  // Call backs (Step 3): open ones about this painter, or booked for them to fix.
+  const myCallbacks = await loadMyCallbacks(supabaseForStandards, contractor.id);
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
   const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
@@ -231,6 +248,25 @@ export default async function PortalHome() {
         </div>
       )}
 
+      {/* Call backs (Step 3): what is wrong and when to go back. */}
+      {(myCallbacks.callbacks.length > 0 || myCallbacks.error) && (
+        <div className="card amberish" data-testid="home-callbacks">
+          <h3>Call backs</h3>
+          {myCallbacks.error && <p className="hint">{myCallbacks.error}</p>}
+          {myCallbacks.callbacks.map((c) => (
+            <Link key={c.id} href={`/portal/jobs/${c.workOrderId}`} className="act" data-testid={`home-callback-${c.id}`}>
+              <i aria-hidden>↩</i>
+              <span>
+                {jobTitle.get(c.workOrderId) ?? "A finished job"}
+                <br />
+                <span style={{ fontSize: "12px", color: "var(--muted)" }}>{c.description || callbackLine(c)}</span>
+              </span>
+              <span className="push"><span className="chip cly">{c.status === "fixed" ? "Waiting" : "Call back"}</span></span>
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* Failed quality checks — areas still to put right. */}
       {rectifyByJob.size > 0 && (
         <div className="card amberish" data-testid="home-qa-fails">
@@ -261,6 +297,26 @@ export default async function PortalHome() {
               workOrderId={o.offer.work_order_id} myBlocks={[]} myJobDays={[]} />
           ))}
         </div>
+      )}
+
+      {/* Finish standards (Step 1): the rule book every job is judged against,
+          one tap from Home as the mockup draws it. The confirmed date and
+          version join this card in Step 2. */}
+      {myStandards && needsSignoff(myStandards.status) ? (
+        <Link href="/portal/standards/confirm" className="card amberish" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-standards-signoff">
+          <span className="chip amb">Please confirm</span>
+          <h3 style={{ marginTop: 8 }}>Read and confirm the finish standards</h3>
+          <p className="hint" style={{ marginTop: 2 }}>{painterStatusLine(myStandards.status, myStandards)} About 10 minutes, six short sections. Start ›</p>
+        </Link>
+      ) : (
+        <Link href="/portal/help/standards" className="card" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-standards">
+          <span className="slab" style={{ marginBottom: 4 }}>Finish standards</span>
+          <h3>What we expect on every surface</h3>
+          {myStandards?.status === "confirmed" && (
+            <div style={{ marginTop: 6 }}><span className="chip grn" data-testid="home-standards-confirmed">✓ {painterStatusLine("confirmed", myStandards)}</span></div>
+          )}
+          <p className="hint" style={{ marginTop: 2 }}>Open standards ›</p>
+        </Link>
       )}
 
       {/* Real jobs once any have been issued; otherwise say so plainly. */}

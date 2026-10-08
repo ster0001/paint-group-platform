@@ -1,5 +1,7 @@
 # Build Brief — Work Order Completion Loop + PC Command Console
 
+> **Note (8 Oct 2026, standards / status / call backs brief, Step 3):** the Flow view carries an extra **Call backs** column above the lanes that is NOT a stage and exists only while a call back is open (`wo_callbacks`, migration 20270226). The seven-stage enum and every transition are untouched; a call back never reopens a closed job. Decision 1's quality-check cadence ("established contractors: none") is replaced by the status cadence in that brief (R12–R13) from its Step 5.
+
 **Status:** ready to build · supersedes nothing (work orders v1 stays; this is the v2 loop on top)
 **Buildout position:** item 1 of 7 in `post-wizard-buildout-order.md` — the spine. Invoicing, the customer portal and completion reports all hang off what this phase captures.
 **Approved design:** the PC Command mockup (three views: Command / The flow / Work order). Build to that mockup, not from memory of it.

@@ -37,6 +37,14 @@ The office uses this when a new painter is joining. Each invite is a private lin
    - **QA: none** — no automatic checks at all.
 11. **QA: none** does not override a single job. Ticking **Quality check required on this job** when you book it still schedules one, because that is you asking for a check on that job in particular.
 
+### The finish standards: who has confirmed, and inviting them
+1. Every painter with a login confirms the Paint Group finish standards once (six sections, one tick each, on their phone). Each card on the Contractors list carries a **Standards:** line — **Confirmed v1 · 7 Oct 2026**, **Not signed — invited 3d ago, offers stop 15 Oct 2026**, **Not signed — … grace ended · no job offers**, or **Not invited yet**. The same line, with the dates, is the **Finish standards** row on the painter's page.
+2. To launch the standards to painters who were here before them, press **Invite N to confirm the standards** at the top (every active painter not yet invited), or **Send standards invite** on one card. They get a text and an email with the link, and their grace period starts: after it (Settings → `standards_rules.graceDays`, default 7 days) they can be offered no new work until they confirm. Jobs already in progress are untouched.
+3. A painter who joins by invite from now on is asked to confirm on their very first screen and cannot be offered work until they have — no grace, no message needed.
+4. Employed painters see the same sign-off and reminders but are never blocked from being assigned; their line says so.
+5. **Send reminder text** on the painter's page sends the reminder now. The platform also texts them on days 2, 4 and 6 after the invite at 9 am, and after day 7 a **has not signed the finish standards** card appears in PC Command with the same button. The reminders stop the moment they confirm.
+6. On confirming, a PDF copy of the standards is saved in the painter's documents (**Paperwork** on their page lists it) and emailed to them.
+
 ### Removing a painter
 12. At the foot of their page, **Remove this painter**. It asks you to type DELETE, and it only ever works for a row with no history: a duplicate, a typo, an invite that went nowhere, someone taken on who never started.
 13. A painter with a job, an assignment, an offer they **accepted**, an invoice, an expense claim or a clocked day behind them **cannot be removed**, and the message names what is stopping it. That is deliberate. Deleting them would strip their jobs of a painter and take their insurance certificates with them. Use **Suspend access** instead, which keeps every record and stops them being offered work.
@@ -56,6 +64,8 @@ Each painter's row has an **Asks for hours / Hours from schedule** button. Switc
 - **Employee · assigned** (blue) — one of our own painters. They are never *offered* work, they are assigned it on the scheduling board, so there is nothing for them to be offerable for and they are never asked for public liability. Their paperwork is their own tickets: white card and working at heights.
 
 ## If something goes wrong
+- **"That painter has not confirmed the finish standards and their grace period has ended"** when sending an offer — the board sheet says **Standards not signed** and the Send button is off. Ring them or **Send reminder text**; the moment they confirm, the offer goes through. To hold the dates meanwhile use **Hold these dates instead**.
+- **The Standards line is missing on every card** and a yellow note says it could not be read — migration 20270225 has not been applied.
 - **"Revealing bank details needs migration 20270223 on this database."** The database has not had that migration pasted yet; nothing is wrong with the painter's record.
 - **"That doesn't look like a full Australian mobile."** Type all ten digits, 04xx xxx xxx (or +61 4xx xxx xxx). Landlines are refused: texts cannot reach them.
 - **A painter says they get no texts.** Open their page and look at the Mobile row. If it says **not given**, add it; the next offer or reminder goes to it. Reminders already missed are not sent late.

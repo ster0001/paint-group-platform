@@ -62,7 +62,7 @@ export default function FinishLevelCard({
       <p className="note" data-testid="finish-level-current">
         This job sheet holds the painter to{" "}
         {current ? <FinishChip code={current} /> : <b>no stated level</b>}
-        {level ? ` · ${level.name} — ${level.summary}` : ""}
+        {level ? ` · ${level.name} — look test ${level.lookTest}` : ""}
         {levelOfFinish ? ` (priced as ${levelOfFinish})` : ""}
       </p>
       <p className="note">

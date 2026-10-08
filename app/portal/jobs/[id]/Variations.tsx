@@ -4,7 +4,7 @@ import { uploadFailureText, uploadWorkOrderMedia, uploadingLabel } from "@/lib/w
 
 import { useRef, useState, useTransition } from "react";
 import { acceptVariationAction, acknowledgeVariationAction, raiseVariationAction, declineVariationAction } from "./variationActions";
-import { VARIATION_CATEGORIES, type VariationStatus } from "@/lib/workorder/variations";
+import { VARIATION_CATEGORIES, variationCategoryLabel, type VariationStatus } from "@/lib/workorder/variations";
 
 const money = (c: number) =>
   "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -217,8 +217,7 @@ export default function Variations({
         <div className="var-item" key={v.id} data-testid={`variation-${v.id}`} data-outcome={v.outcome}>
           <div className="var-item-top">
             <b>
-              {v.category === "scope_removed" ? "Removed from scope"
-                : VARIATION_CATEGORIES.find((c) => c.code === v.category)?.label ?? v.category}
+              {variationCategoryLabel(v.category, "painter")}
             </b>
             <span className={`chip ${v.outcome === "approved" ? "grn" : v.outcome === "not_going_ahead" ? "cly" : "amb"}`}>
               {v.outcome === "with_office" ? "With the office"
@@ -252,8 +251,7 @@ export default function Variations({
         <div className="var-item" key={v.id} data-testid={`variation-${v.id}`}>
           <div className="var-item-top">
             <b>
-              {v.category === "scope_removed" ? "Removed from scope"
-                : VARIATION_CATEGORIES.find((c) => c.code === v.category)?.label ?? v.category}
+              {variationCategoryLabel(v.category, "painter")}
             </b>
             <span className={`chip ${v.status === "contractor_accepted" ? "grn" : v.status === "declined" ? "cly" : "amb"}`}>
               {v.status === "raised" ? "With the office"

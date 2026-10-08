@@ -1,3 +1,4 @@
+import { variationCategoryLabel } from "@/lib/workorder/variations";
 import { pendingOffers } from "@/lib/workorder/scopeChanges";
 /**
  * 3a-4 · The Project Timeline: one vertical feed per job, built entirely
@@ -70,12 +71,6 @@ export type TimelineItem = {
 
 export type AreaRollup = { heading: string; chip: { cls: ChipCls; label: string } };
 
-const VARIATION_CATEGORY: Record<string, string> = {
-  rot: "Timber repair",
-  damage: "Damage repair",
-  extra_scope: "Extra work",
-  customer_request: "Something you asked for",
-};
 
 export function melbourneDayOf(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -206,7 +201,7 @@ export function buildTimeline(input: TimelineInput): TimelineItem[] {
   const offers = pendingOffers(input.variations);
   const offerOf = new Map(offers.flatMap((o) => o.rows.map((r) => [r.id, o] as const)));
   for (const v of input.variations) {
-    const what = VARIATION_CATEGORY[v.category] ?? "Extra work";
+    const what = variationCategoryLabel(v.category, "customer");
     const priced = v.price_cents != null ? ` — ${moneyFmt(v.price_cents)} inc GST` : "";
     const offer = offerOf.get(v.id);
     if (offer) {

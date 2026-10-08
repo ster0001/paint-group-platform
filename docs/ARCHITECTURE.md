@@ -4386,4 +4386,142 @@ re-grants it to authenticated. `ContractorBank` (`app/(app)/contractors/[id]/`) 
 state until Hide. A 42501 before the migration is pasted reads as "needs migration 20270223". Spec: `contractor-detail`
 (server render never carries the number; reveal, hide, event row). Help: contractors/staff.md (+ Their bank details).
 
+**Finish standards as data (8 Oct 2026 — standards / painter status / call backs brief, Step 1).** The approved painter guide
+`docs/standards/finish-standards-v1.json` is the ONE source of the words. `20270224000000_finish_standards.sql` makes
+`standards_versions`, `standards_blocks` (the eight rule pages as jsonb), `standards_surfaces`, `standards_checks` (one row
+per surface, per level, per check — 159 at Version 1) and `standards_surface_codes` (rate-card code → surface), all RLS'd
+to staff + any painter with a login (`is_staff() or current_contractor_id() is not null`); a customer reads nothing, nobody
+but the service role writes. `scripts/seed-standards.ts` loads the file (idempotent, then re-reads through the app's own
+reader and refuses unless the tables equal the file); the code map is `lib/standards/codes.ts` (fretwork has no rate code;
+Stucco / Cement Sheet / Concrete → render and Soffits → eaves are judgement calls flagged for Tom). `lib/standards/`:
+`source.ts` (file → rows → model), `model.ts` (`resolveSurface` — a line's `code`, else its label as a rate code, else as a
+surface name, the area's `side` or its sibling lines deciding interior vs exterior; `standardsLinksFor`, `tapeCheckRequired`,
+`levelOf("PG-3") → 3`), `read.ts` / `load.ts` (every read keeps its error; a failure renders "could not be loaded", never an
+empty list). New snapshots carry `WOSurface.code` and `WOArea.side` (QuoteBuilder; the crew whitelist copies them); issued
+jobs resolve by label. Screens: `app/components/standards/StandardsViews.tsx` + `standards.css` (tokens only, both shells);
+portal `/portal/help/standards[/<surface>?level=&job=|/s/<section>]` (under the existing HELP tab, a static segment beside
+the markdown guides; pinned card on `/portal/help` and a Home card), PC `/pc/standards[...]`. "What we expect ›" per surface
+line on the painter's tick list (`TickList.expectHref`), the job sheet (`WorkOrderDoc.standardsLinks`) and the PC tick list,
+each locked to the AREA's level with "See other levels"; a line with no mapped standard shows no link. The PC quality-check
+card lists the same links (`QaCheck.expect`, ruling S12). `settings.small_job_hours` (numeric envelope, default 16; read by
+painters through `small_job_hours()`) drives **Tape check required / not required** on the job sheet (ruling S9).
+`FINISH_LEVELS` (`lib/workorder/finish.ts`) now holds the guide's three level summaries (names "Clean, tidy repaint / Our
+standard finish / Premium finish"), pinned to the file by `lib/standards/source.test.ts`; `FinishChip` shows them and links
+to the standards. Variation chips gain `bogging`, `stain_blocking`, `additional_coats` (ruling S11); the three duplicate
+label maps collapsed into `variationCategoryLabel(code, audience)` in `lib/workorder/variations.ts`, and
+`draftRevisionVariationsAction` passes the painter's own category when pricing their request (it used to overwrite it with
+`extra_scope`). Cleaned up on the way: `/portal/help` and `/portal/help/[feature]` now read the EMPLOYEE guides for an
+employed painter (they always used `rolesFor("contractor")`); `TickList`'s unused `workOrderId` prop; the dead
+`work_order_surfaces` table (20260818) dropped. Specs: `e2e/standards.spec.ts` (painter on a phone in both themes, PC,
+RLS through each role's token); unit `lib/standards/*.test.ts`. Help: standards/{contractor,employee,pc}.md.
+Diag: `scripts/diag/standards-unmapped-lines.mjs`. Manual script: `docs/testing/standards-step1-manual.md`.
+
+**Finish standards sign-off and the offers gate (8 Oct 2026 — standards / status / call backs brief, Step 2).**
+`20270225000000_standards_signoff.sql`: `standards_acks` (one row per painter, version, section; six = confirmed; staff
+read all, painter reads own, writes only through `standards_ack_section`), `contractors.standards_invited_at` /
+`standards_grace_until` (RPC-written), `settings.standards_rules` {graceDays 7, reminderDays [2,4,6], reminderHour 9,
+pcCardDay 7}, and the ONE rule `standards_status_of(contractor)` → not_required | confirmed | employee_unsigned |
+not_invited | grace | blocked (mirrored by `standardsStatusOf` in `lib/standards/acks.ts`, pinned by test). The required
+version is the newest published MATERIAL one; a wording-only version requires nothing new (S7). `send_offer` (20270208 body)
+returns `error:standards_not_signed` for a blocked painter and `t_booking_offers_standards_gate` refuses the insert on any
+other path. `redeem_contractor_invite` invites a new painter with NO grace (sign-off is onboarding); `standards_invite`
+(office) starts the grace; `standards_publish_version` re-invites everyone not confirmed on a material version (⚑18);
+`standards_statuses()` serves staff and the service role. Painter: `/portal/standards/confirm` (intro → six sections with
+`SignoffStep` → confirmation; resumable from the first unticked; `PortalTabs` hidden on the route; Home redirects there
+while blocked and shows an amber card while grace runs); the confirmed date/version on Home, Help › standards and the
+profile. On the sixth tick `completeStandardsConfirmation` (service, `after()`) renders `lib/standards/pdfHtml.ts` through
+`renderHtmlToPdf`, uploads to `contractor-docs` (under the painter's own folder, the 20260831 rule), inserts a `contractor_documents` row of kind `standards` (new enum value,
+not removable by the painter) and emails it attached (`contractor_standards_confirmed`). Messages 1, 2, 4 are
+`contractor_standards_invite` / `_reminder` / `_new_version` in the registry (`lib/standards/notify.ts`, every send leaves a
+`contractor_events` row with the dispatcher's outcome). `lib/automations/sweeps/standardsReminders.ts` runs the ⚑17 ladder
+(entity = painter@inviteInstant, so a re-invite is a fresh ladder) and the new-version message from the campaign sweep
+(`?only=standards`). PC: work-queue kind `standards_unsigned` (PC-homed; `buildStandardsItems` from `standards_statuses`;
+card from day pcCardDay with `StandardsRemind`); Contractors list `Standards:` line + Send standards invite / Invite N
+(`inviteStandardsAction`, `inviteAllStandardsAction`, `remindStandardsAction`); the painter page's Finish standards row
+(`ContractorStandards`); the board's `Lane.standardsStatus` greys the Send offer button with "Standards not signed".
+Specs: `e2e/standards-signoff.spec.ts`; unit `lib/standards/acks.test.ts`. Help: standards/{contractor,employee,pc},
+contractors/staff. Inventory rows 11–14.
+
+**Call backs: one record, four ways in (8 Oct 2026 — standards / status / call backs brief, Step 3).**
+`20270226000000_wo_callbacks.sql`: `wo_callbacks` (work order, `painter_id` = who did the job via `wo_callback_painter` —
+the lead assignment else the contractor — `fixed_by_painter_id`, `source` qc_fail | walkthrough_fail | customer_call |
+scheduler, `reason` workmanship | not_workmanship, `reported_on`, description, `status` open → booked → fixed → done | void,
+`appointment_id` = the return visit in `wo_appointments`, `qa_check_id`), RLS staff + the painter it is about or booked to
+fix, writes only through the RPCs: `wo_callback_log` (every route; a scheduler visit on a job with one already open JOINS
+it and answers `ok:<id>:attached`; writes the visit itself since the job may be closed; links photos by id; sets
+`wo_signoff.outcome = failed_callback` for route 2; sets the invoice hold), `wo_callback_book`, `wo_callback_mark_fixed`
+(painter or fixer, photo required), `wo_callback_close` (staff — the only thing that ends it, ⚑22), `wo_callback_set_reason`
+(staff, logged), `wo_callback_void` (`has_dashboard_role('owner')`, reason required). C10 through the existing hold:
+`invoices.chase_hold_kind` ('call_back' | 'office'); `wo_callback_hold(wo, on)` sets `chase_hold_reason` + kind on the
+job's open invoices and clears only kind `call_back`, only when no call back on the job is still open — a staff dispute
+hold survives. `wo_signoff.outcome` (passed | passed_after_fix | failed_callback) is derived by trigger at signing (C3:
+`rectified`, or any area with `rectified_at` / `flag_withdrawn_at` → passed_after_fix). `wo_photo_kind` gains `callback`
+and `wo_photos.callback_id`; `wo_painter_on_job` now counts an appointment holder, so the fixer can upload. Pure
+`lib/callbacks/model.ts` holds the words and `callbackScored` (workmanship AND reported ≤ sign-off + 7 — Step 5 reads it);
+`load.ts` the reads (errors kept). PC: `CallbackPanel` on the job page (route 3 form; route 2's "Is a call back required?"
+from the sign-off's flagged areas; every call back with Book / Move the visit, Mark not workmanship, Confirm and close,
+owner Void); `QaCheck` asks "rectify today, or a call back?" after a logged FAIL (route 1, linked to the check); the
+schedule board's Extra visit sheet has a **Call back** tick (route 4, `logCallbackAction` with source scheduler). Flow:
+a **Call backs** column above the river only while one is open (not a stage), **Call back** and **Invoice chasing paused**
+tags on job cards. Queue (registry, PC-homed): `walkthrough_flagged` (critical once the flag's day has passed unsigned;
+"No, fixed and signed today" = dismiss), `callback_unbooked`, `callback_visit_soon`, `callback_fixed`. Painter:
+`CallbackCard` on the job page and a Home list (what is wrong, the office's photos, the return visit, "Fixed — add a
+photo" → `markCallbackFixedAction`); message 7 `contractor_callback_booked` on booking (`lib/callbacks/notify.ts`, once per
+visit day). Never touches contractor pay. Specs: `e2e/callbacks.spec.ts`; unit `lib/callbacks/model.test.ts`. Help:
+call-backs/{pc,contractor,employee}. Inventory row 15. The WO-loop brief carries a note that Flow now has a non-stage column.
+
+**Reminder moments, follow-up texts and "No work today" (8 Oct 2026 — standards / status / call backs brief, Step 4).**
+The schedule stays in `lib/workorder/jobRhythm.ts` (Step 0 confirmed it matches the brief's §4.2). What was missing was the
+MOMENT: `20270227000000_reminder_moments.sql` gives each one a row — `wo_reminder_moments(work_order_id, kind
+day1|day1_pm|day2|mid|mid30|mid60|last, day, due_at, sends_count, last_sent_at, answered_at, answered_event,
+skipped_reason no_work|rescheduled|not_sent)`, unique per (job, kind), read by staff and the painters on the job, written
+only by the sweep (service) and the RPCs — and `wo_day_flags` (R10). Pure `lib/workorder/reminderMoments.ts`:
+`planMoments(days)` from the planner, `sendTimes` (⚑5: 7:30 → 10:30, 1:30; 3:30 → 5:30, 7:00 from
+`settings.job_update_rules`), `decideSend` (only on the moment's own day, only unanswered and unskipped, up to maxTexts,
+each at or after its slot, nothing after `lastSend` 19:00 + 5 min grace), `reconcilePlan` (dates that move re-date moments
+that have not happened; a texted, answered, skipped or past moment never changes; a plan that no longer carries a rung
+skips it as `rescheduled`; a day that went by with no text is `not_sent`, never a miss), `momentState`. The sweep
+(`lib/automations/sweeps/jobReminders.ts`, campaign sweep every half hour, `?only=moments`) plans every open job's rows
+then sends: claims the row (`sends_count` compare-and-set) before texting every painter on the job with text 1, 2 or 3
+(`contractorJobUpdateSms`, `…Sms2`, `…Sms3`), writes `reminder_moment_sent`. The ladder/claims engine is no longer used for
+this automation (`jobUpdateLadder` and its test removed; `scripts/diag/job-update-reminders.mjs` reads moments). The
+ANSWER is a trigger on `wo_events` (`surface_tick`, `photo`, `all_surfaces_done` by a contractor or the system): it stamps
+the earliest open moment of that Melbourne day — one update answers one moment (⚑3, ⚑4) — and writes
+`reminder_moment_answered`. R10: `wo_set_no_work_day(wo, day, reason)` (staff; today or a past day) flags the day and skips
+its moments, texts sent or not; `wo_clear_no_work_day` undoes it; both write events. PC: `NoWorkDay` card on the job page
+(moments with states + the control) and the same control on the schedule board's block detail; painter: `UpdateMoments`
+card on the job page (the mockup's "App updates on this job"). Credits (R9, ⚑6) are DERIVED from these rows by the Step 5
+evaluator, never stored. Spec: `e2e/automation-job-reminders.spec.ts` (rewritten: plan, not_sent, text 1, text 2, answered
+stops it, max three, No work, closed job, both screens); unit `lib/workorder/reminderMoments.test.ts` (1, 2, 5 and 9-day
+schedules, the slots, the window, reconciliation). Help: work-orders contractor/employee/pc. Inventory row 16.
+
+**Painter status — the evaluator (8 Oct 2026 — standards / status / call backs brief, Step 5).**
+`20270228000000_painter_status.sql`: `painter_job_results` (one per scored job: pending|clean|not_clean, reasons, hours,
+counts_for_bonus, signed_on, and the counts behind it — checks done/passed first time, moments scored/answered,
+callbacks scored, credits applied), `painter_status` (one per painter: colour new|green|yellow|orange|red, streak,
+best_streak, measures, bonus_counter, line) and `painter_bonuses` (one review per trigger job, due → with_owner →
+approved|declined → paid; approval flow is Step 7). Staff read all; a painter reads their own results and status;
+bonuses are owner/admin/PC only. NOTHING writes those tables but `painter_status_write(painter, results, status,
+bonus_reviews)` — staff or service — which diffs and emits the §5 events on `contractor_events` (`job_result_set` with
+the previous row, `status_changed` {from,to}, `bonus_review_raised`), deletes results no longer scored, and flags a
+bonus whose qualifying job changed. The rules are one Settings row, `painter_status_rules` (launchDate 2026-10-08,
+windowDays 7, greenRun 4, newJobs 4, lookback 10, minSample 5, bonusEvery 4, smallJobHours 16, bonusDefaultCents).
+`lib/painterStatus/evaluate.ts` is PURE and the only place a result, colour or count is computed: `scoreJobs` (a job
+is scored from its sign-off day, pending until sign-off + windowDays, then clean or not from its checks, its moments
+and its call backs — a skipped or not_sent moment counts nowhere), `applyCredits` (R9/⚑6: an update on a booked day with
+no moment credits a miss, the same job first, then later jobs within the lookback), `colourFromSummaries` (shared by
+the live evaluation and `colourFromEvents`, the event-log rebuild, so the two cannot drift), `evaluatePainter` (streak,
+best streak, steps to Green, the bonus counter at 4 clean qualifying jobs while Green, the one line). Pinned by the
+twenty-four §4.6 golden cases plus idempotence and rebuild in `evaluate.test.ts`. `lib/painterStatus/run.ts` loads the
+facts (a contractor's accepted closed jobs; an employee's LED jobs; an employee who never led has no row), evaluates,
+and calls the writer. It runs from the daily `wo-sweep` (every active painter — this is what seeds everyone New at
+launch and finalises pending results when their window passes), from `campaign-sweep` every half hour for painters
+whose jobs saw an event in the last 35 minutes (`?only=status` runs everyone), and in `after()` from the call-back
+actions and `recordQa` (§4.4). `wo_schedule_qa` now reads `painter_status.colour` (§4.5 / R12–R13): New → the first
+jobs as before, Green → nothing automatic, Yellow → every third closed job, Orange and Red → every job; `qa_required`
+and the every-job setting still win; `wo_qa_checks.trigger` says why each check exists. `wo_add_qa_check` gained
+`p_kind mid|spot` and the PC quality-check card a **Spot check this job** button. `/pc/status` is the plain staff table
+of the rows (the Contractors view is Step 7). WO-loop brief decision 1 ("established contractors: none") is replaced
+by this cadence.
+
 **Every paint on every list, searchable (8 Oct 2026).** `paintOptions` (`lib/workorder/materials.ts`) no longer filters by the row's Interior/Exterior type: the Materials rows, Other paints, a line's materials and the Edit Surface Product field all offer the whole catalogue A-Z, narrowed by a search matched against name, brand, finish, category and internal alias, and the chosen paint is never filtered away. `SurfaceEditor` in `app/quote/QuoteBuilder.tsx` gained its own search box (`surface-paint-search`) over the Product select (`surface-paint-pick`). Unit: `lib/workorder/paintOptions.test.ts`. Spec: `e2e/materials-all-paints.spec.ts`.
