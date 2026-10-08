@@ -48,7 +48,7 @@ On a job that came in from PaintScout these are often the only photos there are,
 8. When every surface is done, the **finishing-up list** appears on the same screen: rubbish, equipment for collection, a note for the customer. Answer it and tap **Finish**. The job routes itself to the quality check or the walkthrough — nothing customer-facing for you to press.
 
 ### Notes from Paint Group
-8b. If the office visits the job and wants you to know something, their note is on the job page under **Notes from Paint Group**, with any photos — tap one to open it full size. The lead painter also gets it by text and email. Only notes the office sends appear there.
+8b. If the office visits the job and wants you to know something, their note arrives as a message from the office in the job's **Messages** box (to the lead painter), with any photos — tap one to open it full size, and reply there. See `docs/help/painter-messages/employee.md`.
 
 ### The quality check
 9. If the office has scheduled a quality check, the job waits at **Quality check** and the page says so. If areas come back to put right, they are listed on the job with the inspector's notes and photos and reappear on your tick list; tick each one off once it is done and the check runs again.

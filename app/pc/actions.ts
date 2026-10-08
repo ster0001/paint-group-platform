@@ -17,7 +17,8 @@ import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
 import { qaWhenMessage } from "@/lib/workorder/qaSchedule";
 import { runPainterStatus } from "@/lib/painterStatus/run";
-import { notifyJobOffer, notifyQaFail, notifySiteVisitNote, notifyVariationReleased } from "@/lib/contractor/notify";
+import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
+import { deliverSiteVisitNote } from "@/lib/workorder/siteNoteMessage";
 import { SITE_VISIT_NOTE_MAX } from "@/lib/workorder/siteVisits";
 import { melbourneDate } from "@/lib/workorder/console";
 import { logCrmEvent } from "@/lib/crm/events";
@@ -771,10 +772,11 @@ export async function addSiteVisitNote(raw: unknown): Promise<PcResult & { noteI
 }
 
 /**
- * Send a note to the job's lead painter — text and email, the staff member's
- * own words (lib/contractor/notify.ts notifySiteVisitNote). Shares it first
- * if it was kept office-only. Synchronous, so the office reads the outcome:
- * sent to whom and how, or why nothing went.
+ * Send a note to the job's lead painter — as a MESSAGE in the job's thread
+ * with them (Tom, 9 Oct 2026: one route for messages to the painter;
+ * lib/workorder/siteNoteMessage.ts). Shares it first if it was kept
+ * office-only. Synchronous, so the office reads the outcome: in their
+ * messages and how they were told, or why it didn't go.
  */
 export async function sendSiteVisitNote(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ noteId: uuid }).safeParse(raw);
@@ -782,18 +784,17 @@ export async function sendSiteVisitNote(raw: unknown): Promise<PcResult> {
   const shared = await call("wo_site_visit_share_note", { p_note_id: parsed.data.noteId });
   if (!shared.ok) return siteVisitRefusal(shared);
   const service = createServiceClient();
-  if (!service) return { ok: false, message: "Sending isn't set up on this server — the note is on the painter's job page." };
+  if (!service) return { ok: false, message: "Sending isn't set up on this server." };
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const out = await notifySiteVisitNote(service, parsed.data.noteId, user?.id ?? null);
+  const out = await deliverSiteVisitNote(supabase, service, parsed.data.noteId);
   const { data: noteRow, error } = await supabase.from("wo_site_visit_notes").select("work_order_id").eq("id", parsed.data.noteId).maybeSingle();
   if (error) reportError(error, { where: "siteVisit.sendNote.job", extra: { noteId: parsed.data.noteId } });
   const workOrderId = (noteRow as { work_order_id: string } | null)?.work_order_id;
   if (workOrderId) revalidatePath(`/pc/wo/${workOrderId}`);
-  if (out.outcome === "notified") return { ok: true, message: `Sent to ${out.painter ?? "the painter"} by ${out.channels.map((c) => (c === "sms" ? "text" : "email")).join(" and ")}.` };
-  if (out.outcome === "already") return { ok: true, message: "Already sent." };
-  if (out.outcome === "skipped") return { ok: false, message: `It is on the painter's job page, but no text or email went: ${out.reason}` };
-  return { ok: false, message: "That note can't be sent." };
+  if (out.outcome === "sent") return { ok: true, message: `In the painter's messages. ${out.detail}`.trim() };
+  if (out.outcome === "already") return { ok: true, message: out.detail };
+  if (out.outcome === "skipped") return { ok: false, message: `Not delivered: ${out.detail}` };
+  return { ok: false, message: out.detail };
 }
 
 /**

@@ -20,7 +20,8 @@ When you need to tell a painter something about a job, or ask them something, wr
 3. Type your message in **Write to the painter about this job…**.
 4. To add photos, press **📷 Add photos** and take or pick up to six. Each shows **Uploading…** and then **Ready**. Press **×** to take one off.
 5. Press **Send**. The line under the box says what happened: **Texted and emailed to Josef**, **Outside sending hours — Josef is texted at Mon 8:00 am**, or **Not sent — Josef has no mobile or email on file**. The same line stays under your message on the page.
-6. When a painter writes back, PC Command shows a card **"Josef replied on WO-1042 — 12 Test St, Thornbury"** with their words. Press **Read and reply**: it opens this box on that painter's conversation, and the card is gone once you have opened it. Replying clears it too.
+6. A **site check-in note** you send to the painter (Site check-ins card → **Send to the painter**) arrives in this same conversation as a message from you, with its photos — there is no separate text for it.
+7. When a painter writes back, PC Command shows a card **"Josef replied on WO-1042 — 12 Test St, Thornbury"** with their words. Press **Read and reply**: it opens this box on that painter's conversation, and the card is gone once you have opened it. Replying clears it too.
 
 ## What the colours and labels mean
 - **Your messages** sit on the right with a cyan edge; the painter's on the left.

@@ -16,7 +16,9 @@ import { noteShareLine, SITE_VISIT_BUCKET, SITE_VISIT_NOTE_MAX, type SiteVisit }
  * invite line, "Mark visited" (what clears its PC Command card), and its
  * notes — each with author and time, photos, and whether the painter was sent
  * it, in words. A note is office-only unless "Send to the painter" is ticked
- * (or pressed later); the customer never sees any of it.
+ * (or pressed later) — then it is delivered as a message in the job's thread
+ * with its lead painter (lib/workorder/siteNoteMessage.ts); the customer
+ * never sees any of it.
  */
 const when = (iso: string) => new Intl.DateTimeFormat("en-AU", {
   timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
@@ -168,7 +170,7 @@ function Visit({ visit, painter, closed }: { visit: SiteVisit; painter: string |
         <input ref={files} type="file" accept="image/*" multiple aria-label="Photos" data-testid="site-visit-note-photos" disabled={busy} />
         <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5 }}>
           <input type="checkbox" checked={send} onChange={(e) => setSend(e.target.checked)} data-testid="site-visit-note-send-tick" />
-          Send to the painter{painter ? ` (${painter})` : ""} — a text and an email with the note; it shows on their job page
+          Send to the painter{painter ? ` (${painter})` : ""} — it goes into their Messages on this job, photos too, and they’re told there’s a message
         </label>
         <button type="button" className="btn primary" style={{ justifySelf: "start" }} disabled={busy || !body.trim()}
           data-testid="site-visit-note-add" onClick={() => void addNote()}>

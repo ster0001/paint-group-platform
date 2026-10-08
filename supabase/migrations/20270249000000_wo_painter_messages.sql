@@ -19,8 +19,9 @@
 --     by a SECURITY DEFINER helper, so the policy never needs the caller to
 --     read work_orders (an employee cannot — 20270153).
 --   · a customer, anon — nothing: no policy matches, no grant to anon.
--- Writes go only through wo_message_post / wo_message_mark_read (definer,
--- validate the caller and the current state). authenticated has SELECT only.
+-- Writes go only through wo_message_post / wo_message_post_from /
+-- wo_message_mark_read (definer, validate the caller and the current state).
+-- authenticated has SELECT only.
 --
 -- One notification per burst (the "don't spam" rule): the post decides, under
 -- the thread's row lock, whether the OTHER side should be told now. They are
@@ -34,9 +35,11 @@
 -- storage policies ask the same ownership question as the tables. The app
 -- signs read URLs through the caller's session, never the service key.
 --
--- A later hook (site check-in notes, 20270248's "Send to painter"): `source`
--- and `source_id` let another module post a staff message into the thread
--- once and only once (unique on source + source_id).
+-- ONE route to the painter: a site check-in note (20270248) with "Send to
+-- painter" ticked is delivered as an office message in this thread —
+-- wo_message_post_from('site_checkin', <note id>, …), once per note (unique on
+-- source + source_id) — and told through the same burst rule and the same
+-- text/email, instead of a separate send of its own.
 --
 -- Converges on a re-run. Paste starts with a lock timeout.
 -- =============================================================================
@@ -161,41 +164,34 @@ grant select on public.wo_message_threads to authenticated;
 grant select on public.wo_messages to authenticated;
 
 -- ---- 5. post a message ------------------------------------------------------------------
--- Returns jsonb: { ok, message_id, thread_id, side, notify } or { error }.
--- The caller's side is decided here, never by the client: staff, or the painter
--- whose thread it is. Photos must sit in this thread's own folder.
-create or replace function public.wo_message_post(
-  p_work_order_id uuid, p_contractor_id uuid, p_body text, p_photo_paths text[] default '{}'
-) returns jsonb language plpgsql security definer set search_path = public as $$
+-- ONE insert for every way a message arrives (typed in a Messages box, or
+-- delivered from another module such as a site check-in note). It is not
+-- callable by anyone: the two definer functions below decide WHO is posting
+-- and as which side, then call it. It validates the content, files the
+-- message in the (job, painter) thread, and decides — under the thread's row
+-- lock — whether the other side is told now (the burst rule).
+-- Returns jsonb: { ok, message_id, thread_id, side, notify, already } or { error }.
+create or replace function public.wo_message_insert(
+  p_work_order_id uuid, p_contractor_id uuid, p_side text, p_body text, p_photo_paths text[],
+  p_source text, p_source_id uuid
+) returns jsonb language plpgsql set search_path = public as $$
 declare
-  v_staff  boolean := public.is_staff();
   v_body   text := btrim(coalesce(p_body, ''));
   v_paths  text[] := coalesce(p_photo_paths, '{}');
-  v_prefix text;
+  v_prefix text := p_work_order_id::text || '/' || p_contractor_id::text || '/';
   v_p      text;
-  v_side   text;
   v_name   text;
-  -- The wall clock, not the transaction's: two posts in one transaction (a
-  -- hook posting for another module) still order and compare correctly.
+  -- The wall clock, not the transaction's: two posts in one transaction still
+  -- order and compare correctly.
   v_now    timestamptz := clock_timestamp();
   v_thread public.wo_message_threads%rowtype;
   v_id     uuid;
   v_notify boolean;
 begin
-  if auth.uid() is null then return jsonb_build_object('error', 'not_signed_in'); end if;
-  if p_work_order_id is null or p_contractor_id is null then return jsonb_build_object('error', 'bad_input'); end if;
-  if v_staff is true then
-    if public.wo_painter_on_job(p_work_order_id, p_contractor_id) is not true then
-      return jsonb_build_object('error', 'not_on_job');
-    end if;
-  elsif public.wo_message_painter_ok(p_work_order_id, p_contractor_id) is not true then
-    return jsonb_build_object('error', 'not_yours');
-  end if;
-
+  if p_side not in ('staff', 'painter') then return jsonb_build_object('error', 'bad_input'); end if;
   if char_length(v_body) > 4000 then return jsonb_build_object('error', 'too_long'); end if;
   if cardinality(v_paths) > 6 then return jsonb_build_object('error', 'too_many_photos'); end if;
   if v_body = '' and cardinality(v_paths) = 0 then return jsonb_build_object('error', 'empty'); end if;
-  v_prefix := p_work_order_id::text || '/' || p_contractor_id::text || '/';
   foreach v_p in array v_paths loop
     if v_p is null or left(v_p, char_length(v_prefix)) <> v_prefix
        or v_p !~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[A-Za-z0-9._-]{1,80}$' then
@@ -203,8 +199,7 @@ begin
     end if;
   end loop;
 
-  v_side := case when v_staff is true then 'staff' else 'painter' end;
-  select coalesce(nullif(btrim(p.name), ''), case when v_side = 'staff' then 'The office' else 'Painter' end)
+  select coalesce(nullif(btrim(p.name), ''), case when p_side = 'staff' then 'The office' else 'Painter' end)
     into v_name from public.profiles p where p.id = auth.uid();
 
   insert into public.wo_message_threads (work_order_id, contractor_id)
@@ -214,11 +209,17 @@ begin
    where work_order_id = p_work_order_id and contractor_id = p_contractor_id
    for update;
 
-  insert into public.wo_messages (thread_id, author_kind, author_profile_id, author_name, body, photo_paths, created_at)
-    values (v_thread.id, v_side, auth.uid(), coalesce(v_name, ''), v_body, v_paths, v_now)
+  insert into public.wo_messages (thread_id, author_kind, author_profile_id, author_name, body, photo_paths, source, source_id, created_at)
+    values (v_thread.id, p_side, auth.uid(), coalesce(v_name, ''), v_body, v_paths, coalesce(p_source, 'manual'), p_source_id, v_now)
+    on conflict (source, source_id) where source_id is not null do nothing
     returning id into v_id;
+  if v_id is null then
+    -- Already delivered (a second press of "Send to painter"): nothing new, nobody told twice.
+    select m.id into v_id from public.wo_messages m where m.source = p_source and m.source_id = p_source_id;
+    return jsonb_build_object('ok', true, 'already', true, 'message_id', v_id, 'thread_id', v_thread.id, 'side', p_side, 'notify', false);
+  end if;
 
-  if v_side = 'staff' then
+  if p_side = 'staff' then
     v_notify := public.wo_message_ping_due(v_thread.painter_pinged_at, v_thread.painter_read_at, v_now);
     update public.wo_message_threads
        set last_message_at = v_now, last_staff_message_at = v_now, staff_read_at = v_now,
@@ -235,7 +236,54 @@ begin
     update public.wo_messages set notify_status = 'batched' where id = v_id;
   end if;
 
-  return jsonb_build_object('ok', true, 'message_id', v_id, 'thread_id', v_thread.id, 'side', v_side, 'notify', v_notify);
+  return jsonb_build_object('ok', true, 'already', false, 'message_id', v_id, 'thread_id', v_thread.id, 'side', p_side, 'notify', v_notify);
+end $$;
+
+-- Typed in a Messages box. The caller's side is decided here, never by the
+-- client: staff (to a painter on the job), or the painter whose thread it is.
+create or replace function public.wo_message_post(
+  p_work_order_id uuid, p_contractor_id uuid, p_body text, p_photo_paths text[] default '{}'
+) returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_staff boolean := public.is_staff();
+begin
+  if auth.uid() is null then return jsonb_build_object('error', 'not_signed_in'); end if;
+  if p_work_order_id is null or p_contractor_id is null then return jsonb_build_object('error', 'bad_input'); end if;
+  if v_staff is true then
+    if public.wo_painter_on_job(p_work_order_id, p_contractor_id) is not true then
+      return jsonb_build_object('error', 'not_on_job');
+    end if;
+  elsif public.wo_message_painter_ok(p_work_order_id, p_contractor_id) is not true then
+    return jsonb_build_object('error', 'not_yours');
+  end if;
+  return public.wo_message_insert(p_work_order_id, p_contractor_id,
+    case when v_staff is true then 'staff' else 'painter' end, p_body, p_photo_paths, 'manual', null);
+end $$;
+
+-- Delivered from another module, as the office (Tom, 9 Oct 2026: ONE route for
+-- messages to the painter). Today: a site check-in note (20270248) with "Send
+-- to painter" ticked. STAFF ONLY. The words are the note's own, read here —
+-- never taken from the caller — and the note must be shared and on this job's
+-- painter's job. Once per note: a second call answers already=true.
+-- p_photo_paths: the note's photos, already COPIED into this thread's folder
+-- of wo-messages by the server (storage cannot be copied from SQL).
+create or replace function public.wo_message_post_from(
+  p_source text, p_source_id uuid, p_contractor_id uuid, p_photo_paths text[] default '{}'
+) returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_wo uuid; v_body text; v_shared boolean;
+begin
+  if auth.uid() is null then return jsonb_build_object('error', 'not_signed_in'); end if;
+  if public.is_staff() is not true then return jsonb_build_object('error', 'not_staff'); end if;
+  if p_source is distinct from 'site_checkin' or p_source_id is null or p_contractor_id is null then
+    return jsonb_build_object('error', 'bad_input');
+  end if;
+  select n.work_order_id, n.body, n.send_to_painter into v_wo, v_body, v_shared
+    from public.wo_site_visit_notes n where n.id = p_source_id;
+  if v_wo is null then return jsonb_build_object('error', 'not_found'); end if;
+  if v_shared is not true then return jsonb_build_object('error', 'not_shared'); end if;
+  if public.wo_painter_on_job(v_wo, p_contractor_id) is not true then
+    return jsonb_build_object('error', 'not_on_job');
+  end if;
+  return public.wo_message_insert(v_wo, p_contractor_id, 'staff', v_body, p_photo_paths, p_source, p_source_id);
 end $$;
 
 -- ---- 6. mark a thread read (your own side only) -------------------------------------------
@@ -283,7 +331,9 @@ revoke execute on function public.wo_message_painter_ok(uuid, uuid) from public,
 revoke execute on function public.wo_message_thread_mine(uuid) from public, anon;
 revoke execute on function public.wo_message_object_ok(text) from public, anon;
 revoke execute on function public.wo_message_ping_due(timestamptz, timestamptz, timestamptz) from public, anon, authenticated;
+revoke execute on function public.wo_message_insert(uuid, uuid, text, text, text[], text, uuid) from public, anon, authenticated;
 revoke execute on function public.wo_message_post(uuid, uuid, text, text[]) from public, anon;
+revoke execute on function public.wo_message_post_from(text, uuid, uuid, text[]) from public, anon;
 revoke execute on function public.wo_message_mark_read(uuid) from public, anon;
 revoke execute on function public.wo_my_message_threads() from public, anon;
 -- The three helpers are asked by RLS / storage policies, which run as the caller.
@@ -291,6 +341,7 @@ grant execute on function public.wo_message_painter_ok(uuid, uuid) to authentica
 grant execute on function public.wo_message_thread_mine(uuid) to authenticated;
 grant execute on function public.wo_message_object_ok(text) to authenticated;
 grant execute on function public.wo_message_post(uuid, uuid, text, text[]) to authenticated;
+grant execute on function public.wo_message_post_from(text, uuid, uuid, text[]) to authenticated;
 grant execute on function public.wo_message_mark_read(uuid) to authenticated;
 grant execute on function public.wo_my_message_threads() to authenticated;
 
@@ -324,9 +375,13 @@ select
   has_table_privilege('anon', 'public.wo_messages', 'select') as anon_can_read, false as _expect_anon_can_read,
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'
      and p.proname in ('wo_message_painter_ok', 'wo_message_thread_mine', 'wo_message_object_ok', 'wo_message_ping_due',
-                       'wo_message_post', 'wo_message_mark_read', 'wo_my_message_threads')) as functions, 7 as _expect_functions,
+                       'wo_message_insert', 'wo_message_post', 'wo_message_post_from', 'wo_message_mark_read', 'wo_my_message_threads')) as functions, 9 as _expect_functions,
   has_function_privilege('authenticated', 'public.wo_message_post(uuid, uuid, text, text[])', 'execute') as auth_can_post, true as _expect_auth_can_post,
   has_function_privilege('anon', 'public.wo_message_post(uuid, uuid, text, text[])', 'execute') as anon_can_post, false as _expect_anon_can_post,
-  has_function_privilege('anon', 'public.wo_my_message_threads()', 'execute') as anon_can_list, false as _expect_anon_can_list;
+  has_function_privilege('anon', 'public.wo_my_message_threads()', 'execute') as anon_can_list, false as _expect_anon_can_list,
+  has_function_privilege('authenticated', 'public.wo_message_post_from(text, uuid, uuid, text[])', 'execute') as auth_can_post_from, true as _expect_auth_can_post_from,
+  has_function_privilege('anon', 'public.wo_message_post_from(text, uuid, uuid, text[])', 'execute') as anon_can_post_from, false as _expect_anon_can_post_from,
+  has_function_privilege('authenticated', 'public.wo_message_insert(uuid, uuid, text, text, text[], text, uuid)', 'execute') as auth_can_insert_direct, false as _expect_auth_can_insert_direct,
+  (select prosecdef from pg_proc where proname = 'wo_message_post_from') as post_from_definer, true as _expect_post_from_definer;
 
 insert into public._prod_migrations(name) values ('20270249000000_wo_painter_messages.sql') on conflict (name) do nothing;

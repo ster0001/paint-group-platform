@@ -29,7 +29,6 @@ import { jobNeedsAfterPhotos, jobNeedsBeforePhotos } from "@/lib/workorder/surfa
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import { qaAllClear, staffSignsOff as staffSignsOffFor } from "@/lib/workorder/qa";
 import { painterSeesQaDate } from "@/lib/workorder/qaSchedule";
-import { loadNotesForPainter } from "@/lib/workorder/siteVisits";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 import type { Booking } from "@/lib/workorder/booking";
@@ -384,13 +383,6 @@ export default async function PortalJobPage({
     ? []
     : await signPhotos(supabase, (officeRows ?? []) as WOPhotoRow[]);
 
-  // Notes from Felipe's site check-ins that the office SENT to the painter
-  // (Tom, 9 Oct 2026; 20270248). The painter's own session: row security
-  // hands back only sent notes on a job they are on — never the visit, never
-  // an office-only note. A failed read is reported and simply shows none.
-  const officeNotes = await loadNotesForPainter(supabase, id);
-  if (officeNotes.failure) reportError(new Error(officeNotes.failure), { where: "portal.job.siteVisitNotes", bestEffort: true, extra: { workOrderId: id } });
-
   let qaFailPhotos: WOPhoto[] = [];
   if (failedCheck) {
     const { data: qaPhotoRows } = await supabase
@@ -580,32 +572,6 @@ export default async function PortalJobPage({
             <p className="note" style={{ marginTop: 8 }}>
               Tick each one off below once it&rsquo;s put right — the check runs again after.
             </p>
-          </div>
-        </div>
-      )}
-
-      {officeNotes.notes.length > 0 && (
-        <div style={{ padding: "0 16px" }}>
-          <div className="card" data-testid="office-notes">
-            <b>Notes from Paint Group</b>
-            {officeNotes.notes.map((n) => (
-              <div key={n.id} style={{ marginTop: 10 }} data-testid="office-note">
-                <p className="hint" style={{ padding: 0, margin: 0 }}>
-                  {new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }).format(new Date(n.createdAt))}
-                </p>
-                <p style={{ margin: "4px 0 0", fontSize: "13.5px", whiteSpace: "pre-wrap" }}>{n.body}</p>
-                {n.photos.length > 0 && (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
-                    {n.photos.map((p) => (
-                      <a key={p.id} href={p.url} target="_blank" rel="noreferrer" data-testid="office-note-photo">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={p.url} alt="Photo from Paint Group" style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 8 }} />
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
           </div>
         </div>
       )}

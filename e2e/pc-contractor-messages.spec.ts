@@ -19,7 +19,10 @@ import {
  *      street), opens the job at its thread, sees the photo, replies with one;
  *   3. a "<painter> replied on <job>" card is on PC Command, and goes once the
  *      office has opened the thread;
- *   4. reads through EACH ROLE'S OWN SESSION — never the service key: the
+ *   4. a site check-in note the office sends to the painter lands in the SAME
+ *      thread as an office message (one route to the painter, 20270248 →
+ *      20270249), and its card says where it went;
+ *   5. reads through EACH ROLE'S OWN SESSION — never the service key: the
  *      painter sees their thread, another painter and a customer see nothing
  *      and cannot post, anon is refused, and the photo cannot be signed by
  *      anyone but the two sides.
@@ -206,16 +209,41 @@ test.describe("PC Command ↔ painter messages, per project", () => {
     await expect(page.getByTestId(`message-card-${t.id}`)).toHaveCount(0);
   });
 
+  test("a site check-in note sent to the painter arrives in the same thread, as the office", async ({ page }) => {
+    const [t] = await threadRow();
+    const melbToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date());
+    const added = await rpcAs(staff, "wo_add_site_visit", { p_work_order_id: fixture!.workOrderId, p_date: melbToday, p_time: "23:50" });
+    expect(String((added.body as string) ?? "")).toMatch(/^ok:/);
+    const visitId = String(added.body).slice(3);
+    const NOTE = `Site check-in ${run}: second coat on the back fence is patchy.`;
+
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`/pc/wo/${fixture!.workOrderId}#site-visits`);
+    const visit = page.getByTestId(`site-visit-${visitId}`);
+    await expect(visit).toBeVisible({ timeout: 30_000 });
+    await visit.getByTestId("site-visit-note-input").fill(NOTE);
+    await visit.getByTestId("site-visit-note-send-tick").check();
+    await visit.getByTestId("site-visit-note-add").click();
+    const sent = visit.locator('[data-testid^="site-visit-note-"]', { hasText: NOTE }).first();
+    await expect(sent.getByTestId("site-visit-note-share")).toHaveText(/^(In the painter's messages since .+|Not delivered: .+)/, { timeout: 30_000 });
+
+    // Read as the painter: one office message, in THE thread, from the note.
+    const rows = await readAs(contractor, `wo_messages?thread_id=eq.${t.id}&source=eq.site_checkin&select=body,author_kind`);
+    expect(rows.rows).toEqual([{ body: NOTE, author_kind: "staff" }]);
+    await page.goto(`/pc/wo/${fixture!.workOrderId}?painter=${contractorId}#messages`);
+    await expect(page.getByTestId("msg-box").getByTestId("msg-item").filter({ hasText: NOTE })).toHaveAttribute("data-side", "staff");
+  });
+
   test("each role reads through its own session: the painter theirs, nobody else anything", async () => {
     const [t] = await threadRow();
     const msgs = await readAs(staff, `wo_messages?thread_id=eq.${t.id}&select=id,author_kind,photo_paths&order=created_at`);
-    expect(msgs.rows?.length).toBe(2);
+    expect(msgs.rows?.length).toBe(3);
     const photo = ((msgs.rows ?? []) as { photo_paths: string[] }[])[0].photo_paths[0];
     expect(photo.startsWith(`${fixture!.workOrderId}/${contractorId}/`)).toBe(true);
 
     // The painter on the job: their thread, both messages, the photo signs.
     expect((await readAs(contractor, `wo_message_threads?work_order_id=eq.${fixture!.workOrderId}&select=id`)).rows).toHaveLength(1);
-    expect((await readAs(contractor, `wo_messages?thread_id=eq.${t.id}&select=id`)).rows).toHaveLength(2);
+    expect((await readAs(contractor, `wo_messages?thread_id=eq.${t.id}&select=id`)).rows).toHaveLength(3);
     expect(await signPhotoAs(contractor, photo)).toBe(200);
     const mine = await rpcAs(contractor, "wo_my_message_threads", {});
     expect((mine.body as { work_order_id: string }[]).some((r) => r.work_order_id === fixture!.workOrderId)).toBe(true);

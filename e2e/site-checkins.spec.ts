@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { credentials, missingCreds, signIn, TINY_SIGNATURE_PNG } from "./helpers";
 import {
   accessTokenFor, completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
-  photosIn, rpcAs, serviceClient, type LoopFixture,
+  photosIn, rpcAs, rpcAsJson, serviceClient, type LoopFixture,
 } from "./fixtures/woLoop";
 import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
 
@@ -23,14 +23,16 @@ import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures
  *   3. "+ Add a site check-in" on the PC makes a VISIT (wo_site_visits), not a
  *      quality check — and the job finishes to Walkthrough with it still open;
  *   4. PC Command shows it on its day; on the job page the office writes a
- *      note with a photo and sends it to the painter (outcome recorded on the
- *      note, in words), and an office-only note with a photo; Mark visited
- *      clears the card;
+ *      note with a photo and sends it to the painter — delivered as a MESSAGE
+ *      in the job's thread with them, photo copied in (one route to the
+ *      painter, 20270249), the outcome recorded on the note in words — and an
+ *      office-only note with a photo; Mark visited clears the card;
  *   5. row security: the painter's session reads only the sent note and its
  *      photo, never the visit or the office-only note; the customer and an
  *      anonymous caller read nothing;
- *   6. the painter's job page shows the sent note only; the customer's
- *      project page and the anonymous /w token page show none of it.
+ *   6. the painter's job page shows the sent note in its Messages box only;
+ *      the customer's project page and the anonymous /w token page show none
+ *      of it.
  *
  * Everything created here goes in afterAll: both fixture jobs (visits, notes,
  * photos and checks cascade from the estimate), the photo objects, the
@@ -142,6 +144,15 @@ test.describe("site check-ins: Felipe's own visits — notes, photos, never a ho
         const { error } = await sb.storage.from("site-visit-photos").remove(paths);
         if (error) console.warn(`site-checkins teardown objects: ${error.message}`);
       }
+      // The sent note's photo, copied into the painter's thread (wo-messages).
+      const folder = `${fx.workOrderId}/${(await contractorIdForEmail(sb, contractor!.email))!}`;
+      const copied = await sb.storage.from("wo-messages").list(folder, { limit: 100 });
+      if (copied.error) console.warn(`site-checkins teardown thread photos: ${copied.error.message}`);
+      const copiedPaths = (copied.data ?? []).map((o) => `${folder}/${o.name}`);
+      if (copiedPaths.length) {
+        const { error } = await sb.storage.from("wo-messages").remove(copiedPaths);
+        if (error) console.warn(`site-checkins teardown thread objects: ${error.message}`);
+      }
       const { error: msgErr } = await sb.from("messages").delete().eq("work_order_id", fx.workOrderId);
       if (msgErr) console.warn(`site-checkins teardown messages: ${msgErr.message}`);
     }
@@ -242,7 +253,7 @@ test.describe("site check-ins: Felipe's own visits — notes, photos, never a ho
     await visit.getByTestId("site-visit-note-add").click();
     await expect(visit.getByTestId("site-visit-msg")).toContainText(/Note saved with 1 of 1 photo/, { timeout: 60_000 });
     const sentNote = visit.locator('[data-testid^="site-visit-note-"]', { hasText: SENT }).first();
-    await expect(sentNote.getByTestId("site-visit-note-share")).toHaveText(/^(Sent to .+|On the painter's job page, but no text or email went: .+)/, { timeout: 30_000 });
+    await expect(sentNote.getByTestId("site-visit-note-share")).toHaveText(/^(In the painter's messages since .+|Not delivered: .+)/, { timeout: 30_000 });
 
     // An office-only note, with a photo, not sent.
     await visit.getByTestId("site-visit-note-input").fill(PRIVATE);
@@ -297,7 +308,21 @@ test.describe("site check-ins: Felipe's own visits — notes, photos, never a ho
     const painterStore = sessionFor(painterToken).storage.from("site-visit-photos");
     expect((await painterStore.createSignedUrl(sentPath, 60)).data?.signedUrl).toBeTruthy();
     expect((await painterStore.createSignedUrl(privatePath, 60)).data?.signedUrl ?? null).toBeNull();
-    // Writes are the office's: a painter cannot add a note.
+    // The sent note reached them as ONE office message in their thread, its
+    // photo copied into the thread's folder — and the photo signs for them.
+    const pMsgs = await restAs(painterToken, `wo_messages?select=body,author_kind,source,photo_paths,wo_message_threads!inner(work_order_id)&wo_message_threads.work_order_id=eq.${id}&source=eq.site_checkin`);
+    expect(pMsgs.status).toBe(200);
+    expect(pMsgs.rows!.map((r) => [r.body, r.author_kind])).toEqual([[SENT, "staff"]]);
+    const copiedPath = (pMsgs.rows![0].photo_paths as string[])[0];
+    expect(copiedPath).toMatch(new RegExp(`^${id}/[0-9a-f-]{36}/sv-`));
+    expect((await sessionFor(painterToken).storage.from("wo-messages").createSignedUrl(copiedPath, 60)).data?.signedUrl).toBeTruthy();
+    // Writes are the office's: a painter cannot add a note, or deliver one as the office.
+    const privateNote = await sb.from("wo_site_visit_notes").select("id").eq("visit_id", visitId).eq("body", PRIVATE).single();
+    if (privateNote.error) throw privateNote.error;
+    expect(await rpcAsJson(contractor!, "wo_message_post_from", {
+      p_source: "site_checkin", p_source_id: (privateNote.data as { id: string }).id,
+      p_contractor_id: (await contractorIdForEmail(sb, contractor!.email))!, p_photo_paths: [],
+    })).toEqual({ error: "not_staff" });
     expect(await rpcAs(contractor!, "wo_site_visit_add_note", { p_visit_id: visitId, p_body: "x", p_send: false })).toBe("error:not_staff");
 
     // The customer, through their own session.
@@ -312,6 +337,8 @@ test.describe("site check-ins: Felipe's own visits — notes, photos, never a ho
       expect(r.rows, `customer reads ${table}`).toEqual([]);
     }
     expect((await sessionFor(customerToken).storage.from("site-visit-photos").createSignedUrl(sentPath, 60)).data?.signedUrl ?? null).toBeNull();
+    expect((await restAs(customerToken, `wo_messages?select=id&source=eq.site_checkin`)).rows).toEqual([]);
+    expect((await sessionFor(customerToken).storage.from("wo-messages").createSignedUrl(copiedPath, 60)).data?.signedUrl ?? null).toBeNull();
 
     // Anonymous: no grant at all.
     const anonClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
@@ -323,13 +350,15 @@ test.describe("site check-ins: Felipe's own visits — notes, photos, never a ho
     expect(anonAdd.error?.code).toBe("42501");
   });
 
-  test("the painter's job page shows the sent note; the customer and the /w page show none of it", async ({ page, browser }) => {
+  test("the painter's job page shows the sent note in its Messages; the customer and the /w page show none of it", async ({ page, browser }) => {
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${job!.workOrderId}`);
-    const notes = page.getByTestId("office-notes");
-    await expect(notes).toBeVisible({ timeout: 20_000 });
-    await expect(notes).toContainText(SENT);
-    await expect(notes.getByTestId("office-note-photo")).toHaveCount(1);
+    // One route to the painter: the note is a message in the job's thread, not a section of its own.
+    await expect(page.getByTestId("office-notes")).toHaveCount(0);
+    const note = page.getByTestId("msg-box").getByTestId("msg-item").filter({ hasText: SENT });
+    await expect(note).toBeVisible({ timeout: 20_000 });
+    await expect(note).toHaveAttribute("data-side", "staff");
+    await expect(note.getByTestId("msg-photo")).toHaveCount(1);
     expect(await page.content()).not.toContain(PRIVATE);
     await expect(page.getByText(/site check-in/i)).toHaveCount(0);
 

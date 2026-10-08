@@ -134,7 +134,7 @@ describe("the migration's security shape", () => {
   });
   it("every function grant is preceded by its revoke from public, anon", () => {
     const grants = [...SQL.matchAll(/grant execute on function (public\.[a-z_]+)\(/g)].map((m) => m[1]);
-    expect(grants.length).toBe(6);
+    expect(grants.length).toBe(7);
     for (const fn of grants) {
       const revoke = SQL.indexOf(`revoke execute on function ${fn}(`);
       const grant = SQL.indexOf(`grant execute on function ${fn}(`);

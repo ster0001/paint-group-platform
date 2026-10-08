@@ -45,14 +45,17 @@ export function siteVisitPhotoPrefix(workOrderId: string, visitId: string): stri
   return `${workOrderId}/${visitId}/`;
 }
 
-/** The note's share state, in the office's words. */
+/**
+ * The note's share state, in the office's words. A sent note is delivered as
+ * a message in the job's thread with its painter (Tom, 9 Oct 2026: one route
+ * to the painter — lib/workorder/siteNoteMessage.ts); `sentDetail` is what
+ * telling them came to, from that message's notify outcome.
+ */
 export function noteShareLine(n: Pick<SiteVisitNote, "sendToPainter" | "sentOutcome" | "sentDetail" | "sentAt">, at: (iso: string) => string): string {
   if (!n.sendToPainter) return "Office only — the painter has not been sent this.";
-  if (n.sentOutcome === "sent") return `Sent to ${n.sentDetail || "the painter"}${n.sentAt ? ` ${at(n.sentAt)}` : ""}.`;
-  if (n.sentOutcome === "skipped") {
-    return `On the painter's job page, but no text or email went: ${n.sentDetail || "no reason recorded"}`;
-  }
-  return "On the painter's job page — the text and email have not gone yet.";
+  if (n.sentOutcome === "sent") return `In the painter's messages${n.sentAt ? ` since ${at(n.sentAt)}` : ""}. ${n.sentDetail || ""}`.trim();
+  if (n.sentOutcome === "skipped") return `Not delivered: ${n.sentDetail || "no reason recorded"}`;
+  return "Ticked to send — not in the painter's messages yet.";
 }
 
 /** Who hears about a note: the lead on an assigned job, else the job's contractor. */
@@ -62,15 +65,6 @@ export function leadPainterId(
 ): string | null {
   const lead = assignments.find((a) => a.is_lead && a.status !== "released");
   return lead?.contractor_id ?? jobContractorId ?? null;
-}
-
-/** The SMS body: the note itself, cut to a text's length, and the job link. */
-export function siteVisitNoteSms(input: { companyName: string; woRef: string; body: string; photoCount: number; link: string }): string {
-  const max = 480;
-  const text = input.body.trim();
-  const cut = text.length > max ? `${text.slice(0, max).trimEnd()}… (the full note is on the job page)` : text;
-  const photos = input.photoCount > 0 ? ` ${input.photoCount} photo${input.photoCount === 1 ? "" : "s"} on the job page.` : "";
-  return `${input.companyName} — a note about ${input.woRef}: ${cut}${photos} ${input.link}`;
 }
 
 type NoteRow = {
@@ -152,28 +146,4 @@ export async function loadSiteVisits(db: SupabaseClient, workOrderId: string): P
     };
   });
   return { visits, failure: failures.length ? `Couldn't read ${failures.join(", ")}.` : null };
-}
-
-/**
- * The painter's read — THEIR session, so row security hands back only the
- * notes the office sent them (and those notes' photos). Never the visit.
- */
-export async function loadNotesForPainter(db: SupabaseClient, workOrderId: string): Promise<{ notes: SiteVisitNote[]; failure: string | null }> {
-  const [notesRes, photosRes] = await Promise.all([
-    db.from("wo_site_visit_notes").select("id, visit_id, body, created_at, author, send_to_painter, sent_outcome, sent_detail, sent_at")
-      .eq("work_order_id", workOrderId).eq("send_to_painter", true).order("created_at", { ascending: false }).limit(50),
-    db.from("wo_site_visit_photos").select("id, note_id, storage_path, created_at")
-      .eq("work_order_id", workOrderId).order("created_at").limit(200),
-  ]);
-  if (notesRes.error) return { notes: [], failure: notesRes.error.message };
-  if (photosRes.error) return { notes: [], failure: photosRes.error.message };
-  let photos = new Map<string, SiteVisitPhoto[]>();
-  let failure: string | null = null;
-  try {
-    photos = await signed(db, (photosRes.data ?? []) as PhotoRow[]);
-  } catch (e) {
-    failure = e instanceof Error ? e.message : "photo links";
-  }
-  // The author's name is not the painter's business — "Paint Group" signs it.
-  return { notes: shapeNotes((notesRes.data ?? []) as NoteRow[], photos, new Map()), failure };
 }

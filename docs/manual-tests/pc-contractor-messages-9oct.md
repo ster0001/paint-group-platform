@@ -25,6 +25,12 @@ Use a job whose painter is YOU on a second phone/login, or a painter who knows y
 3. Go back to PC Command: the card is gone.
 4. Optional email: Settings → Staff logins → tick **Painter message** for yourself; have the painter write again → one email (several messages within 10 minutes = one email).
 
-## 4. Nobody else sees it
+## 4. A site check-in note goes the same way
+1. On the job, **Site check-ins** → a visit → write a note, add a photo, tick **Send to the painter** → **Add note**.
+2. The note's line reads **In the painter's messages since … Texted …** (or **Not delivered: …** with the reason).
+3. **Messages** on the same job (that painter's conversation) shows the note as your message, with the photo.
+4. The painter sees it in the same conversation on their phone; one text, not two (and none if you messaged them in the last 10 minutes and they haven't read it).
+
+## 5. Nobody else sees it
 1. Sign in as a different painter (not on the job): Home → Messages does not list the job; `/portal/jobs/<that job id>` is a 404.
 2. Settings → Automations → **Message from the office** → switch off → send → the line says **Not texted — the “Message from the office” automation is switched off.** Switch it back on.

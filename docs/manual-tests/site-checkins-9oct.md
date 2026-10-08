@@ -18,14 +18,18 @@ row matching every `_expect_` value. Check the ledger first:
 ## On the day
 1. **PC Command** shows *Site check-in today at <time> — <address>* with **Open the check-in**.
 2. Open it. Write a note, pick a photo, tick **Send to the painter**, press **Add note**.
-3. Expect *Note saved with 1 of 1 photo. Sent to <painter> by text…* (or *…no text or email went:* with
-   the reason). The painter receives a text (and an email, if they have one) with the note and a link.
+3. Expect *Note saved with 1 of 1 photo. In the painter's messages. Texted and emailed to <painter>.* (or
+   *Not delivered:* with the reason). Since 20270249 the note is delivered as a message from the office in
+   the job's **Messages** box with that painter, photo included; the painter gets the usual
+   "New message from Paint Group about <job ref>, <suburb>" text. Press **Send to the painter** again: it
+   is not sent twice.
 4. Add a second note **without** the tick. It reads *Office only — the painter has not been sent this.*
 5. Press **Mark visited** → *Visited <time> · <you>*; the PC Command card is gone.
 
 ## What the painter sees
-1. Log in as the painter (or open their job page from **as contractor**). Under **Notes from Paint
-   Group** is the sent note and its photo — tap it to open. The office-only note is not there.
+1. Log in as the painter. **Home → Messages** lists the job; on the job page the **Messages** box has the
+   sent note as a message from the office, with its photo — tap it to open. The office-only note is not
+   there, and there is no separate "Notes from Paint Group" section.
 2. Their **Finish & walkthrough** card lists only *Paint Group quality check: …*, never a mid-job,
    spot check or site check-in.
 

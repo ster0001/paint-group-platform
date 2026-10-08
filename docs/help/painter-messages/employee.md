@@ -16,7 +16,7 @@ The office can write to you about any job you are assigned to — a change to th
 ## Steps
 1. Tap the link in the text, or open **Home**. The **Messages** card lists each job with messages: the job number and suburb, the last line, and **1 new** when there is something you haven't read.
 2. Tap a job. It opens the job page at its **Messages** box.
-3. Read the office's message. Tap a photo to see it full size.
+3. Read the office's message — including any notes from a visit to the site, which arrive here too. Tap a photo to see it full size.
 4. To reply, type in **Write to the office about this job…**.
 5. To send photos, tap **📷 Add photos** and take them or pick them from your photos (up to six). Wait for each to say **Ready**.
 6. Tap **Send**. It says **Sent to the office.**

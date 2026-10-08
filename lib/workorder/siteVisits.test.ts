@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { leadPainterId, noteShareLine, siteVisitNoteSms, siteVisitPhotoPrefix } from "./siteVisits";
+import { leadPainterId, noteShareLine, siteVisitPhotoPrefix } from "./siteVisits";
 
 /**
  * Tom, 9 Oct 2026: a site check-in is Felipe's own visit — notes, photos, an
@@ -13,13 +13,13 @@ describe("a note's share state, in the office's words", () => {
     expect(noteShareLine({ sendToPainter: false, sentOutcome: null, sentDetail: "", sentAt: null }, at))
       .toBe("Office only — the painter has not been sent this.");
   });
-  it("sent says to whom, how and when", () => {
-    expect(noteShareLine({ sendToPainter: true, sentOutcome: "sent", sentDetail: "Marco by text and email", sentAt: "2026-10-09T03:15:00Z" }, at))
-      .toBe("Sent to Marco by text and email Fri 9 Oct, 2:15 pm.");
+  it("sent says it is in the painter's messages, when, and how they were told", () => {
+    expect(noteShareLine({ sendToPainter: true, sentOutcome: "sent", sentDetail: "Texted and emailed to Marco.", sentAt: "2026-10-09T03:15:00Z" }, at))
+      .toBe("In the painter's messages since Fri 9 Oct, 2:15 pm. Texted and emailed to Marco.");
   });
-  it("skipped says why — and that it is still on the painter's page", () => {
-    expect(noteShareLine({ sendToPainter: true, sentOutcome: "skipped", sentDetail: "Marco has no mobile or email on file.", sentAt: null }, at))
-      .toBe("On the painter's job page, but no text or email went: Marco has no mobile or email on file.");
+  it("skipped says why", () => {
+    expect(noteShareLine({ sendToPainter: true, sentOutcome: "skipped", sentDetail: "There is no painter on this job yet.", sentAt: null }, at))
+      .toBe("Not delivered: There is no painter on this job yet.");
   });
 });
 
@@ -28,18 +28,6 @@ describe("who hears about a note", () => {
     expect(leadPainterId([{ contractor_id: "lead", is_lead: true, status: "accepted" }, { contractor_id: "crew", is_lead: false, status: "accepted" }], "job")).toBe("lead");
     expect(leadPainterId([{ contractor_id: "lead", is_lead: true, status: "released" }], "job")).toBe("job");
     expect(leadPainterId([], null)).toBeNull();
-  });
-});
-
-describe("the text the painter gets", () => {
-  it("carries the note, the photo count and the job link — no photo URLs", () => {
-    const sms = siteVisitNoteSms({ companyName: "Paint Group", woRef: "WO-101", body: "Cut-in on the lounge ceiling needs a second look.", photoCount: 2, link: "https://x/portal/jobs/1" });
-    expect(sms).toBe("Paint Group — a note about WO-101: Cut-in on the lounge ceiling needs a second look. 2 photos on the job page. https://x/portal/jobs/1");
-  });
-  it("cuts a long note and says where the rest is", () => {
-    const sms = siteVisitNoteSms({ companyName: "PG", woRef: "WO-1", body: "a".repeat(900), photoCount: 0, link: "L" });
-    expect(sms).toContain("… (the full note is on the job page)");
-    expect(sms.length).toBeLessThan(600);
   });
 });
 
