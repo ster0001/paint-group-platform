@@ -118,6 +118,34 @@ export function laneFor(stage: WoStage, startDate: string | null, today: string)
   return daysBetween(today, startDate) <= PRE_START_WINDOW_DAYS ? "pre_start" : "booking_confirmed";
 }
 
+/**
+ * The Pre-start alert (Tom, 8 Oct 2026: "If any jobs are due to start within 3
+ * days, highlight them in orange as an alert"). Melbourne calendar days, today
+ * included: today, tomorrow, +2 and +3 are orange; so is a start date that has
+ * passed on a job that has not started — later than "soon" is not less urgent.
+ */
+export const PRE_START_ALERT_DAYS = 3;
+
+/** The orange line on a Pre-start card, or null when the start is further off. */
+export function startAlert(startDate: string | null, today: string): string | null {
+  if (startDate === null) return null;
+  const days = daysBetween(today, startDate);
+  if (days > PRE_START_ALERT_DAYS) return null;
+  if (days < 0) return "Start date passed";
+  if (days === 0) return "Starts today";
+  if (days === 1) return "Starts tomorrow";
+  return `Starts in ${days} days`;
+}
+
+/** Soonest start first; no start date last; ties keep their order. The dates
+ *  are yyyy-mm-dd strings, so string order is calendar order. */
+export function bySoonestStart<T extends { startDate: string | null }>(a: T, b: T): number {
+  if (a.startDate === b.startDate) return 0;
+  if (a.startDate === null) return 1;
+  if (b.startDate === null) return -1;
+  return a.startDate < b.startDate ? -1 : 1;
+}
+
 /** Lane numbering and wording on the project-progress bar and the stage rail. */
 export const LANE_LABELS: Record<Lane, { n: string; title: string }> = {
   offered: { n: "01", title: "Offer" },

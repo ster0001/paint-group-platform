@@ -139,6 +139,10 @@
 .pc .p-cy{color:var(--cyan);border-color:rgba(59,216,233,.35);background:rgba(59,216,233,.06)}
 .pc .job.crit{border-color:rgba(179,87,74,.5)}
 .pc .job.warnb{border-color:rgba(224,168,60,.45)}
+/* Pre-start alert (Tom, 8 Oct 2026): starts within three days. Orange is the
+   amber token, filled — warnb is only a border, so the two never read alike. */
+.pc .job.soon{border-color:var(--amber);background:linear-gradient(165deg,rgba(224,168,60,.16),var(--graphite) 80%);box-shadow:inset 3px 0 0 var(--amber)}
+.pc .job .soon-l{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--amber)}
 .pc .note{font-size:12px;color:var(--muted);margin:0}
 
 .pc .wohead{position:relative;overflow:hidden;background:linear-gradient(160deg,var(--raised),var(--graphite) 70%);
@@ -312,3 +316,18 @@
 .pc[data-theme="light"] .draft{background:rgba(255,255,255,.75)}
 .pc[data-theme="light"] .drip{box-shadow:0 0 18px rgba(14,140,156,.22)}
 .pc[data-theme="light"] .avatar{background:#FFFFFF}
+
+/* Notes on dashboard reminders (Tom, 8 Oct 2026) — one quiet line under the
+   reminder's detail; an input only while editing. */
+.pc .wi-note{margin-top:6px;display:flex;flex-direction:column;gap:4px}
+.pc .wi-note-edit{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pc .wi-note-edit input.edit{flex:1 1 220px;min-width:0;background:var(--ink);color:var(--text);border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px}
+.pc .wi-note-add,.pc .wi-note-shown{appearance:none;border:none;background:transparent;padding:0;cursor:pointer;
+  font:inherit;font-size:12px;text-align:left;color:var(--muted)}
+.pc .wi-note-shown{color:var(--soft);font-style:italic}
+.pc .wi-note-add:hover,.pc .wi-note-shown:hover{color:var(--cyan)}
+/* Pre-start materials / equipment lists (Tom, 8 Oct 2026). */
+.pc .ps-list{display:flex;flex-direction:column;gap:6px;margin:4px 0 12px 34px}
+.pc .ps-list textarea{width:100%;box-sizing:border-box}
+.pc .ps-list .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
