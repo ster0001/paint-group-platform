@@ -19,6 +19,10 @@
  *                           as quote 3083 from the work order printed as quote 3096 (Tom, 1 Oct 2026 —
  *                           9/552 Lonsdale St: the signed job is 3083's prices, the painter's scope is 3096's
  *                           work order). The money proof still runs against the job's own prices.
+ *     --contractor-rate <$/h>  the contractor rate for the job (Tom, 9 Oct 2026: "estimated hours × 65"):
+ *                           written as the working scope's Contractor rate, so the margin box prices at it
+ *                           and a later edit there moves the painter's pay; and, unless the job already
+ *                           carries a real offer, the pay is set to hours × this rate.
  *     --area <wo>=<quote>[,…]  a work-order area with no same-named price takes the named quote area's
  *                           price: "Female toilets=Male toilets" when the quote named the room twice.
  *
@@ -46,7 +50,7 @@ const flag = (name: string): string | undefined => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const has = (name: string) => argv.includes(name);
-const VALUE_FLAGS = new Set(["--save-dir", "--name-map", "--for", "--area"]);
+const VALUE_FLAGS = new Set(["--save-dir", "--name-map", "--for", "--area", "--contractor-rate"]);
 const positional = argv.filter((a, i) => !a.startsWith("--") && !(i > 0 && VALUE_FLAGS.has(argv[i - 1])));
 const [cmd, ...sources] = positional;
 const IMPORTS = ["paintscout-booked", "airtable-handover"];
@@ -155,6 +159,9 @@ async function main() {
   if (!cmd || !["parse", "check", "run"].includes(cmd) || sources.length === 0) usage();
   const saveDir = flag("--save-dir");
   const aliases = quoteAliases();
+  const rateRaw = flag("--contractor-rate");
+  const contractorRate = rateRaw == null ? null : Number(rateRaw);
+  if (contractorRate != null && !(Number.isFinite(contractorRate) && contractorRate > 0 && contractorRate < 500)) throw new Error(`--contractor-rate expects dollars per hour, got "${rateRaw}"`);
   const areaMap = areaAliases();
 
   const pages: Array<{ source: string; url: string; wo: ParsedWorkOrder }> = [];
@@ -191,6 +198,13 @@ async function main() {
     if (joined.hoursDisagree) { refusals.push(`quote ${wo.quoteNo}: the page's Total Hours and its lines disagree — read the page before trusting either`); continue; }
     try {
       const built = buildBookedJob(joined.job, new SubstrateResolver([], nameMap), wctx.pricing, wctx.company, row.shareToken || "preflight00000000");
+      if (contractorRate != null) {
+        built.builderState.contractorRateOverride = contractorRate;
+        if (!(joined.job.contractor_offer_cents && joined.job.contractor_offer_cents > 0)) {
+          built.woDoc.contractorPaymentCents = Math.round(built.totals.hours * contractorRate * 100);
+        }
+      }
+      console.log(`  contractor: $${((built.woDoc.contractorPaymentCents ?? 0) / 100).toFixed(2)}${contractorRate != null ? ` (${built.totals.hours} h × $${contractorRate})` : ""} · materials budget $${(built.totals.materialsCostCents / 100).toFixed(2)}`);
       console.log(`  proves: $${(built.totals.totalCents / 100).toFixed(2)} inc GST · ${built.totals.hours} h · ${built.counts.areas} areas · ${built.counts.lines} lines (${built.counts.customLines} on the custom row)`);
       for (const n of built.roundingNotes) console.log(`  rounding: ${n}`);
       plans.push({ row, built, hours: built.totals.hours, pageQuote: wo.quoteNo });

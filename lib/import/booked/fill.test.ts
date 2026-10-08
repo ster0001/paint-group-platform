@@ -205,7 +205,7 @@ describe("jobFromWorkOrder", () => {
     expect(r.warnings.some((w) => w.startsWith('"Scaffolding" is priced on the quote'))).toBe(true);
     expect(r.hoursDisagree).toBe(false);
     expect(r.job.total_hours).toBe(31.5);
-    expect(r.job.materials).toEqual([{ product: "Dulux Weathershield", litres: 38 }]);
+    expect(r.job.materials).toEqual([{ product: "Dulux Weathershield", litres: 38, costCents: 87400 }]);
   });
 
   it("carries the estimate's own facts, not the page's", () => {
