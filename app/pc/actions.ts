@@ -975,6 +975,45 @@ export async function setFinishLevel(raw: unknown): Promise<PcResult> {
   return r;
 }
 
+// ---- Further instructions for the crew (Tom, 8 Oct 2026) --------------------
+
+const crewNotesInput = z.object({
+  workOrderId: uuid,
+  notes: z.string().max(4000, "long"),
+});
+
+/**
+ * Write the work order's "further instructions for the crew" from PC Command.
+ * work_orders.crew_notes is the one place it lives; a trigger (20270244)
+ * carries it onto the issued job sheet in the same statement, so the painter's
+ * /w link, crew link and portal job page read the new text on next load.
+ */
+export async function setCrewNotes(raw: unknown): Promise<PcResult> {
+  const p = crewNotesInput.safeParse(raw);
+  if (!p.success) {
+    const long = p.error.issues.some((i) => i.message === "long");
+    return { ok: false, message: long ? "That's too long — keep it under 4,000 characters." : "Check the instructions and try again." };
+  }
+  const r = await call("wo_set_crew_notes", {
+    p_work_order_id: p.data.workOrderId,
+    p_notes: p.data.notes,
+  }, "Saved — the work order carries the new instructions.");
+  if (r.ok) {
+    revalidatePath("/portal/jobs");
+    revalidatePath(`/pc/wo/${p.data.workOrderId}`);
+    return r;
+  }
+  if (isMissingRpc(r.message, "wo_set_crew_notes")) {
+    return { ok: false, message: "Crew instructions need database migration 20270244 run first — nothing was changed." };
+  }
+  if (r.message === "closed") return { ok: false, message: "This job is closed — its work order is final." };
+  if (r.message === "too long") return { ok: false, message: "That's too long — keep it under 4,000 characters." };
+  if (r.message === "not found") return { ok: false, message: "That work order isn't there any more — reload the page." };
+  if (r.message === "not staff") return { ok: false, message: "Only office staff can change the crew's instructions." };
+  reportError(new Error(r.message), { where: "pc.setCrewNotes", extra: { workOrderId: p.data.workOrderId } });
+  return { ok: false, message: "Couldn't save the instructions — try again." };
+}
+
 // ---- Photos the office attaches for the painter (Tom, 23 Sep 2026) ---------
 
 /**

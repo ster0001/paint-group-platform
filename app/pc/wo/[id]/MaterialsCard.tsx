@@ -3,13 +3,15 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setMaterial } from "../../actions";
+import ColourPicker from "@/app/components/ColourPicker";
 
 /**
  * Materials on the PC job page (Tom, 4 Sep 2026).
  *
  *  1. The colour breakdown per substrate — one row per product × colour on
  *     the job sheet, listing the surfaces (area · substrate · coats) painted
- *     in it. Name, swatch, TBC/confirmed and order litres are editable here;
+ *     in it. Name, swatch, TBC/confirmed and order litres are editable here
+ *     (the name picked from our saved colour list or typed — 8 Oct 2026);
  *     a save rewrites the frozen job sheet so the painter sees it too.
  *  2. The materials budget — the estimate's engine materials cost against
  *     every supplier invoice matched to this job, updating as new ones are
@@ -202,6 +204,18 @@ export default function MaterialsCard({
             )}
             {canEdit && editing && (
               <div style={{ display: "grid", gap: 8 }} data-testid={`material-form-${r.rowKey}`}>
+                {/* Our saved colour list (Tom, 8 Oct 2026) — the builder's own
+                    picker over the `colours` table. Picking fills the name and
+                    swatch below, which stay free text for anything not listed. */}
+                <div className="row" style={{ alignItems: "center", gap: 8 }}>
+                  <span className="note" style={{ margin: 0 }}>From our colour list</span>
+                  <ColourPicker
+                    value={d.colourName ? { name: d.colourName, hex: d.colourHex } : null}
+                    onChange={(c) => patch(r, { colourName: c.name, colourHex: c.hex.toUpperCase() })}
+                    label="Choose a saved colour"
+                    testId={`material-library-${r.rowKey}`}
+                  />
+                </div>
                 <div style={{ display: "grid", gap: 6, gridTemplateColumns: "1fr auto auto" }}>
                   <input className="num" style={{ width: "100%", fontFamily: "inherit" }} placeholder="Colour name"
                     value={d.colourName} data-testid={`material-name-${r.rowKey}`}
