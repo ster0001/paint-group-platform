@@ -14,6 +14,7 @@ import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
+import { runPainterStatus } from "@/lib/painterStatus/run";
 import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
 import { melbourneDate } from "@/lib/workorder/console";
 import { logCrmEvent } from "@/lib/crm/events";
@@ -486,6 +487,19 @@ export async function recordQa(raw: unknown): Promise<QaResult> {
       after(() => notifyQaFail(service, checkId));
     }
   }
+  // §4.4: a quality check result recomputes the painter's status.
+  if (s.startsWith("ok:")) {
+    const service = createServiceClient();
+    if (service) {
+      const checkId = parsed.data.checkId;
+      after(async () => {
+        const { data: chk, error } = await service.from("wo_qa_checks").select("work_orders(contractor_id)").eq("id", checkId).maybeSingle();
+        if (error) { reportError(error, { where: "recordQa.painterStatus" }); return; }
+        const painterId = (chk as { work_orders?: { contractor_id?: string | null } | null } | null)?.work_orders?.contractor_id;
+        if (painterId) await runPainterStatus(service, painterId);
+      });
+    }
+  }
   if (!s.startsWith("ok:")) {
     const reason = s.replace("error:", "");
     if (reason.startsWith("standards_outstanding:")) {
@@ -609,9 +623,10 @@ export async function closeWithoutWalkthrough(raw: unknown): Promise<PcResult> {
 
 /** A mid-job quality check, on top of the standard final (Tom, 23 Aug). */
 export async function addQaCheck(raw: unknown): Promise<PcResult> {
-  const parsed = z.object({ workOrderId: uuid, date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }).safeParse(raw);
+  const parsed = z.object({ workOrderId: uuid, date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), kind: z.enum(["mid", "spot"]).default("mid") }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-  return call("wo_add_qa_check", { p_work_order_id: parsed.data.workOrderId, p_date: parsed.data.date }, "Mid-job check added.");
+  return call("wo_add_qa_check", { p_work_order_id: parsed.data.workOrderId, p_date: parsed.data.date, p_kind: parsed.data.kind },
+    parsed.data.kind === "spot" ? "Spot check added — it is on the painter's job." : "Mid-job check added.");
 }
 
 /**

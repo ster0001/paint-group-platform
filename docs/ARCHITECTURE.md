@@ -4494,3 +4494,32 @@ card on the job page (the mockup's "App updates on this job"). Credits (R9, ⚑6
 evaluator, never stored. Spec: `e2e/automation-job-reminders.spec.ts` (rewritten: plan, not_sent, text 1, text 2, answered
 stops it, max three, No work, closed job, both screens); unit `lib/workorder/reminderMoments.test.ts` (1, 2, 5 and 9-day
 schedules, the slots, the window, reconciliation). Help: work-orders contractor/employee/pc. Inventory row 16.
+
+**Painter status — the evaluator (8 Oct 2026 — standards / status / call backs brief, Step 5).**
+`20270228000000_painter_status.sql`: `painter_job_results` (one per scored job: pending|clean|not_clean, reasons, hours,
+counts_for_bonus, signed_on, and the counts behind it — checks done/passed first time, moments scored/answered,
+callbacks scored, credits applied), `painter_status` (one per painter: colour new|green|yellow|orange|red, streak,
+best_streak, measures, bonus_counter, line) and `painter_bonuses` (one review per trigger job, due → with_owner →
+approved|declined → paid; approval flow is Step 7). Staff read all; a painter reads their own results and status;
+bonuses are owner/admin/PC only. NOTHING writes those tables but `painter_status_write(painter, results, status,
+bonus_reviews)` — staff or service — which diffs and emits the §5 events on `contractor_events` (`job_result_set` with
+the previous row, `status_changed` {from,to}, `bonus_review_raised`), deletes results no longer scored, and flags a
+bonus whose qualifying job changed. The rules are one Settings row, `painter_status_rules` (launchDate 2026-10-08,
+windowDays 7, greenRun 4, newJobs 4, lookback 10, minSample 5, bonusEvery 4, smallJobHours 16, bonusDefaultCents).
+`lib/painterStatus/evaluate.ts` is PURE and the only place a result, colour or count is computed: `scoreJobs` (a job
+is scored from its sign-off day, pending until sign-off + windowDays, then clean or not from its checks, its moments
+and its call backs — a skipped or not_sent moment counts nowhere), `applyCredits` (R9/⚑6: an update on a booked day with
+no moment credits a miss, the same job first, then later jobs within the lookback), `colourFromSummaries` (shared by
+the live evaluation and `colourFromEvents`, the event-log rebuild, so the two cannot drift), `evaluatePainter` (streak,
+best streak, steps to Green, the bonus counter at 4 clean qualifying jobs while Green, the one line). Pinned by the
+twenty-four §4.6 golden cases plus idempotence and rebuild in `evaluate.test.ts`. `lib/painterStatus/run.ts` loads the
+facts (a contractor's accepted closed jobs; an employee's LED jobs; an employee who never led has no row), evaluates,
+and calls the writer. It runs from the daily `wo-sweep` (every active painter — this is what seeds everyone New at
+launch and finalises pending results when their window passes), from `campaign-sweep` every half hour for painters
+whose jobs saw an event in the last 35 minutes (`?only=status` runs everyone), and in `after()` from the call-back
+actions and `recordQa` (§4.4). `wo_schedule_qa` now reads `painter_status.colour` (§4.5 / R12–R13): New → the first
+jobs as before, Green → nothing automatic, Yellow → every third closed job, Orange and Red → every job; `qa_required`
+and the every-job setting still win; `wo_qa_checks.trigger` says why each check exists. `wo_add_qa_check` gained
+`p_kind mid|spot` and the PC quality-check card a **Spot check this job** button. `/pc/status` is the plain staff table
+of the rows (the Contractors view is Step 7). WO-loop brief decision 1 ("established contractors: none") is replaced
+by this cadence.

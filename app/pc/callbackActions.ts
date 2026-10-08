@@ -8,6 +8,7 @@ import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { CALLBACK_REASONS, CALLBACK_SOURCES } from "@/lib/callbacks/model";
 import { notifyCallbackBooked } from "@/lib/callbacks/notify";
+import { runPainterStatus } from "@/lib/painterStatus/run";
 
 /** Message 7, best-effort in the background: the painter booked to fix it is told the day. */
 function tellPainter(callbackId: string) {
@@ -42,6 +43,18 @@ const WORDING: Record<string, string> = {
 };
 const word = (r: string) => WORDING[r.replace(/^error:/, "")] ?? r.replace(/^error:/, "").replace(/_/g, " ");
 
+/** §4.4: a call back logged, voided or changed recomputes the painter it counts against. */
+async function recompute(callbackIdOrWo: { callbackId?: string; workOrderId: string }) {
+  const service = createServiceClient();
+  if (!service) return;
+  after(async () => {
+    const { data, error } = await service.from("wo_callbacks").select("painter_id").eq("work_order_id", callbackIdOrWo.workOrderId).limit(5);
+    if (error) { reportError(error, { where: "callbacks.painterStatus" }); return; }
+    const ids = [...new Set(((data ?? []) as { painter_id: string }[]).map((r) => r.painter_id))];
+    for (const id of ids) await runPainterStatus(service, id);
+  });
+}
+
 function refresh(workOrderId?: string) {
   if (workOrderId) revalidatePath(`/pc/wo/${workOrderId}`);
   revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath("/pc/schedule"); revalidatePath("/portal");
@@ -74,6 +87,7 @@ export async function logCallbackAction(raw: unknown): Promise<CallbackActionRes
   const [, id, flag] = r.split(":");
   refresh(v.workOrderId);
   if (v.returnStart) tellPainter(id);
+  void recompute({ workOrderId: v.workOrderId });
   return {
     ok: true, id, attached: flag === "attached",
     message: flag === "attached" ? "This visit joined the call back already open on the job."
@@ -119,6 +133,7 @@ export async function setCallbackReasonAction(raw: unknown): Promise<CallbackAct
   const r = String(data ?? "");
   if (!r.startsWith("ok:")) return { ok: false, message: word(r) };
   refresh(v.workOrderId);
+  void recompute({ workOrderId: v.workOrderId });
   return { ok: true, id: v.callbackId, attached: false, message: v.reason === "workmanship" ? "Reason: workmanship — it counts toward the painter's score." : "Reason: not workmanship — logged, but it does not count toward the painter's score." };
 }
 
@@ -132,5 +147,6 @@ export async function voidCallbackAction(raw: unknown): Promise<CallbackActionRe
   const r = String(data ?? "");
   if (!r.startsWith("ok:")) return { ok: false, message: word(r) };
   refresh(v.workOrderId);
+  void recompute({ workOrderId: v.workOrderId });
   return { ok: true, id: v.callbackId, attached: false, message: "Voided. It no longer counts and invoice chasing resumes." };
 }

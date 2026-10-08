@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { runPainterStatusSweep } from "@/lib/painterStatus/run";
 import { createServiceClient } from "@/lib/supabase/service";
 import { composeUpdate, type TickEvent } from "@/lib/workorder/updates";
 import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
@@ -233,6 +234,12 @@ async function sweep(opts: { force?: boolean } = {}) {
   let heldReleased = { released: 0, skipped: 0, failed: 0 };
   try { heldReleased = await releaseDueHolds(db, now); } catch (e) { reportError(e, { where: "wo-sweep.releaseHolds" }); }
 
+  // Step 5: the evaluator's daily pass — every active painter, so pending
+  // results finalise once their seven days pass and a new painter is New.
+  let painterStatus = { ran: 0, failed: 0 };
+  try { const r = await runPainterStatusSweep(db, { now }); painterStatus = { ran: r.ran, failed: r.failed }; }
+  catch (e) { reportError(e, { where: "wo-sweep.painterStatus" }); }
+
   let apptConfirmed = 0;
   try {
     const threeDaysAgo = new Date(now.getTime() - 3 * 86_400_000).toISOString();
@@ -259,6 +266,7 @@ async function sweep(opts: { force?: boolean } = {}) {
     // backstop is running behind the business, not that it covered everything.
     qaDeferred,
     qaRouteDeferred,
+    painterStatus,
     preStartSent,
     apptConfirmed,
     gcalContractors: gcal.contractors,
