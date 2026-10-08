@@ -33,6 +33,8 @@ import { loadStandards } from "@/lib/standards/load";
 import { loadCallbacksForJob } from "@/lib/callbacks/load";
 import { CALLBACK_SOURCES, type CallbackSource } from "@/lib/callbacks/model";
 import CallbackPanel from "./CallbackPanel";
+import NoWorkDay from "./NoWorkDay";
+import type { MomentRow } from "@/lib/workorder/reminderMoments";
 import { standardsLinksFor } from "@/lib/standards/model";
 
 export const dynamic = "force-dynamic";
@@ -141,6 +143,16 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     const byId = new Map(((callbackPhotoRes.data ?? []) as { id: string; callback_id: string | null }[]).map((r) => [r.id, r.callback_id]));
     for (const ph of signed) { const cid = byId.get(ph.id); if (cid) (callbackPhotos[cid] ??= []).push(ph); }
   }
+  // Reminder moments (Step 4) and the days the PC marked No work (R10).
+  const [momentRes, flagRes] = await Promise.all([
+    supabase.from("wo_reminder_moments").select("id, work_order_id, kind, day, due_at, sends_count, last_sent_at, answered_at, skipped_reason").eq("work_order_id", id).order("due_at"),
+    supabase.from("wo_day_flags").select("day, reason").eq("work_order_id", id).eq("flag", "no_work").order("day"),
+  ]);
+  if (momentRes.error) reportError(momentRes.error, { where: "pc.wo.moments", bestEffort: true });
+  if (flagRes.error) reportError(flagRes.error, { where: "pc.wo.dayFlags", bestEffort: true });
+  const moments: MomentRow[] = ((momentRes.error ? [] : momentRes.data ?? []) as { id: string; work_order_id: string; kind: MomentRow["kind"]; day: string; due_at: string; sends_count: number; last_sent_at: string | null; answered_at: string | null; skipped_reason: MomentRow["skippedReason"] }[])
+    .map((m) => ({ id: m.id, workOrderId: m.work_order_id, kind: m.kind, day: m.day, dueAt: m.due_at, sendsCount: m.sends_count, lastSentAt: m.last_sent_at, answeredAt: m.answered_at, skippedReason: m.skipped_reason }));
+  const noWorkFlags = (flagRes.error ? [] : flagRes.data ?? []) as { day: string; reason: string }[];
   const signoffAreas = ((signoffRow as { areas?: Record<string, { flagged_at?: string; rectified_at?: string; flag_withdrawn_at?: string }> | null } | null)?.areas) ?? {};
   const flaggedAreas = Object.entries(signoffAreas).filter(([, a]) => a?.flagged_at && !a?.rectified_at && !a?.flag_withdrawn_at).map(([h]) => h);
   const openCallbackSource = (CALLBACK_SOURCES as readonly string[]).includes(callbackParam ?? "") ? (callbackParam as CallbackSource) : null;
@@ -812,6 +824,10 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
                 <b>Move to completion prep</b> above to continue.
               </p>
             </div>
+          )}
+
+          {(row.stage === "pre_start" || row.stage === "in_progress" || row.stage === "completion_prep" || moments.length > 0) && (
+            <NoWorkDay workOrderId={id} moments={moments} flags={noWorkFlags} />
           )}
 
           {callbacksLoad.error ? (

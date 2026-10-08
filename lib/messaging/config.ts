@@ -200,6 +200,9 @@ export type MessagingSettings = {
   standardsNewVersionEmailIntro: string;
   /** Painter (call backs Step 3, message 7): a return visit is booked. */
   callbackBookedSms: string;
+  /** Painter (Step 4, message 5): the second and third texts for an unanswered reminder moment. */
+  contractorJobUpdateSms2: string;
+  contractorJobUpdateSms3: string;
 };
 
 export const DEFAULT_MESSAGING: MessagingSettings = {
@@ -441,6 +444,8 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Hi {{first_name}},\n\n" +
     "{{company_name}} has updated the finish standards (Version {{version}}). Please read what changed, then confirm the six sections again to keep getting job offers.",
   callbackBookedSms: "{{company_name}}: call back at {{address}} on {{day}}: {{what}}. Details and the fix photo are on the job: {{link}}",
+  contractorJobUpdateSms2: "{{company_name}}: please update your job in the app today — {{wo_ref}} at {{suburb}}, {{day_label}}. {{link}}",
+  contractorJobUpdateSms3: "{{company_name}}: last reminder today. Please update your job in the app — {{wo_ref}} at {{suburb}}. {{link}}",
 };
 
 /**

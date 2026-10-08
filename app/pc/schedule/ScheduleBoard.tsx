@@ -1,6 +1,7 @@
 "use client";
 
 import { logCallbackAction } from "@/app/pc/callbackActions";
+import { setNoWorkDayAction } from "@/app/pc/noWorkActions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -856,6 +857,10 @@ export default function ScheduleBoard({
   // finished job. One record — on a job with a call back already open the
   // visit joins it, never a second record.
   const [visitCallback, setVisitCallback] = useState(false);
+  // R10 (Step 4): "No work today" from the block detail.
+  const todayMelb = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const [noWorkDay, setNoWorkDay] = useState(todayMelb());
+  const [noWorkReason, setNoWorkReason] = useState("");
 
   /** Tom, 1 Oct: a second run of days on a job this painter already has. */
   async function saveVisit() {
@@ -1752,6 +1757,22 @@ export default function ScheduleBoard({
             </p>
             <div className="frow"><span className="l">Dates</span><span className="v">{formatDMY(detail.start)} → {formatDMY(detail.end)}</span></div>
             {detail.woRef && <div className="frow"><span className="l">Reference</span><span className="v">{detail.woRef}</span></div>}
+            {/* R10 (Step 4): a rained-off day on a job under way — today, or a past day of the block. */}
+            {detail.workOrderId && (detail.kind === "in_progress" || detail.kind === "accepted" || detail.kind === "assigned") && !detail.holdId && !detail.appointmentId && (
+              <div className="frow" style={{ display: "block", marginTop: 10 }} data-testid="no-work-row">
+                <span className="l" style={{ display: "block", marginBottom: 6 }}>No work on a day (rain, site locked) — its reminders are not counted</span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <input type="date" value={noWorkDay} max={todayMelb()} data-testid="no-work-day" onChange={(e) => setNoWorkDay(e.target.value)} />
+                  <input type="text" value={noWorkReason} data-testid="no-work-reason" placeholder="why" onChange={(e) => setNoWorkReason(e.target.value)} style={{ width: 160 }} />
+                  <button className="btn dim" disabled={busy || !noWorkDay} data-testid="no-work-save" onClick={async () => {
+                    setBusy(true); setErr("");
+                    const r = await setNoWorkDayAction({ workOrderId: detail.workOrderId!, day: noWorkDay, reason: noWorkReason });
+                    if (r.ok) { flash(r.message); setNoWorkReason(""); router.refresh(); } else setErr(r.message);
+                    setBusy(false);
+                  }}>No work that day</button>
+                </div>
+              </div>
+            )}
             {detail.paymentCents != null && <div className="frow"><span className="l">Their price</span><span className="v">{money(detail.paymentCents)}</span></div>}
             {detail.finishCode && <div className="frow"><span className="l">Finish</span><span className="v">{detail.finishCode}</span></div>}
             {detail.expiresAt && <div className="frow"><span className="l">Expires in</span><span className="v" style={{ color: "var(--amber)" }}>{coarseCountdown(detail.expiresAt)}</span></div>}

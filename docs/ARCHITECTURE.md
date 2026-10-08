@@ -4469,3 +4469,28 @@ tags on job cards. Queue (registry, PC-homed): `walkthrough_flagged` (critical o
 photo" → `markCallbackFixedAction`); message 7 `contractor_callback_booked` on booking (`lib/callbacks/notify.ts`, once per
 visit day). Never touches contractor pay. Specs: `e2e/callbacks.spec.ts`; unit `lib/callbacks/model.test.ts`. Help:
 call-backs/{pc,contractor,employee}. Inventory row 15. The WO-loop brief carries a note that Flow now has a non-stage column.
+
+**Reminder moments, follow-up texts and "No work today" (8 Oct 2026 — standards / status / call backs brief, Step 4).**
+The schedule stays in `lib/workorder/jobRhythm.ts` (Step 0 confirmed it matches the brief's §4.2). What was missing was the
+MOMENT: `20270227000000_reminder_moments.sql` gives each one a row — `wo_reminder_moments(work_order_id, kind
+day1|day1_pm|day2|mid|mid30|mid60|last, day, due_at, sends_count, last_sent_at, answered_at, answered_event,
+skipped_reason no_work|rescheduled|not_sent)`, unique per (job, kind), read by staff and the painters on the job, written
+only by the sweep (service) and the RPCs — and `wo_day_flags` (R10). Pure `lib/workorder/reminderMoments.ts`:
+`planMoments(days)` from the planner, `sendTimes` (⚑5: 7:30 → 10:30, 1:30; 3:30 → 5:30, 7:00 from
+`settings.job_update_rules`), `decideSend` (only on the moment's own day, only unanswered and unskipped, up to maxTexts,
+each at or after its slot, nothing after `lastSend` 19:00 + 5 min grace), `reconcilePlan` (dates that move re-date moments
+that have not happened; a texted, answered, skipped or past moment never changes; a plan that no longer carries a rung
+skips it as `rescheduled`; a day that went by with no text is `not_sent`, never a miss), `momentState`. The sweep
+(`lib/automations/sweeps/jobReminders.ts`, campaign sweep every half hour, `?only=moments`) plans every open job's rows
+then sends: claims the row (`sends_count` compare-and-set) before texting every painter on the job with text 1, 2 or 3
+(`contractorJobUpdateSms`, `…Sms2`, `…Sms3`), writes `reminder_moment_sent`. The ladder/claims engine is no longer used for
+this automation (`jobUpdateLadder` and its test removed; `scripts/diag/job-update-reminders.mjs` reads moments). The
+ANSWER is a trigger on `wo_events` (`surface_tick`, `photo`, `all_surfaces_done` by a contractor or the system): it stamps
+the earliest open moment of that Melbourne day — one update answers one moment (⚑3, ⚑4) — and writes
+`reminder_moment_answered`. R10: `wo_set_no_work_day(wo, day, reason)` (staff; today or a past day) flags the day and skips
+its moments, texts sent or not; `wo_clear_no_work_day` undoes it; both write events. PC: `NoWorkDay` card on the job page
+(moments with states + the control) and the same control on the schedule board's block detail; painter: `UpdateMoments`
+card on the job page (the mockup's "App updates on this job"). Credits (R9, ⚑6) are DERIVED from these rows by the Step 5
+evaluator, never stored. Spec: `e2e/automation-job-reminders.spec.ts` (rewritten: plan, not_sent, text 1, text 2, answered
+stops it, max three, No work, closed job, both screens); unit `lib/workorder/reminderMoments.test.ts` (1, 2, 5 and 9-day
+schedules, the slots, the window, reconciliation). Help: work-orders contractor/employee/pc. Inventory row 16.

@@ -27,6 +27,7 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
 
 ### Ticking surfaces off
 1b. While the job is under way you get a text asking you to update your work order — tick what is done and add the day's photos — on day 1 at 7:30 am, then part-way through and on the last day at 3:30 pm (how many depends on the job's length). The link opens this page.
+1b-ii. **App updates on this job** lists each reminder moment with its state: **Coming up**, **Due today**, **Answered** (a tick or a photo landed that day), **Missed**, or **No work that day** (the office marked the day as not worked, so it is not counted). If nothing lands you get up to two more texts that day — 10:30 and 1:30 after a morning text, 5:30 and 7:00 after an afternoon one — and never one after 7 pm. One update answers one moment: on a one-day job the morning text and the afternoon text each need their own.
 1c. Under each surface there is a **What we expect ›** link. It opens the finish standard for that surface at this job's level (see [the finish standards guide](../standards/contractor.md)). A line with no standard, such as gutters, has no link. The job sheet also says whether the **Tape check** is required: it is not on jobs under 16 hours.
 2. **Scope & ticks** lists every area on the job sheet and its surfaces. Each row has three squares: to do, prepped, done. Tap a row once to mark it **PREPPED**, again to mark it **DONE**. The count at the top tracks the whole job.
    ![](media/contractor-02.png)

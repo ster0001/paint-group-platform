@@ -42,6 +42,8 @@ import { loadStandards, smallJobHours as loadSmallJobHours } from "@/lib/standar
 import { standardsLinksFor } from "@/lib/standards/model";
 import { loadCallbacksForJob } from "@/lib/callbacks/load";
 import CallbackCard from "./CallbackCard";
+import UpdateMoments from "./UpdateMoments";
+import type { MomentRow } from "@/lib/workorder/reminderMoments";
 
 export const dynamic = "force-dynamic";
 
@@ -293,7 +295,13 @@ export default async function PortalJobPage({
   // to that area's level, and whether the tape check applies (ruling S9).
   // Read under the painter's own session; a refused read is reported and the
   // page says so rather than quietly drawing no links.
-  const [standardsLoad, smallJob, callbacksLoad] = await Promise.all([loadStandards(), loadSmallJobHours(supabase), loadCallbacksForJob(supabase, id)]);
+  const [standardsLoad, smallJob, callbacksLoad, momentRes] = await Promise.all([
+    loadStandards(), loadSmallJobHours(supabase), loadCallbacksForJob(supabase, id),
+    supabase.from("wo_reminder_moments").select("id, work_order_id, kind, day, due_at, sends_count, last_sent_at, answered_at, skipped_reason").eq("work_order_id", id).order("due_at"),
+  ]);
+  if (momentRes.error) reportError(momentRes.error, { where: "portal.job.moments", bestEffort: true, extra: { workOrderId: id } });
+  const moments: MomentRow[] = ((momentRes.error ? [] : momentRes.data ?? []) as { id: string; work_order_id: string; kind: MomentRow["kind"]; day: string; due_at: string; sends_count: number; last_sent_at: string | null; answered_at: string | null; skipped_reason: MomentRow["skippedReason"] }[])
+    .map((m) => ({ id: m.id, workOrderId: m.work_order_id, kind: m.kind, day: m.day, dueAt: m.due_at, sendsCount: m.sends_count, lastSentAt: m.last_sent_at, answeredAt: m.answered_at, skippedReason: m.skipped_reason }));
   // Call backs (Step 3): the ones on this job that are the painter's — about
   // them, or booked for them to fix — with the photos the office attached.
   const myCallbacks = callbacksLoad.callbacks.filter((c) => c.status !== "void" && (c.painterId === contractor.id || c.fixedByPainterId === contractor.id));
@@ -556,6 +564,11 @@ export default async function PortalJobPage({
             </p>
           </div>
         </div>
+      )}
+
+      {/* Step 4: the job's reminder moments and whether each was answered. */}
+      {job.committed && moments.length > 0 && stage !== "closed" && (
+        <div style={{ padding: "0 16px" }}><UpdateMoments moments={moments} /></div>
       )}
 
       {/* Tom, 30 Sep: the job in four numbered steps, one at a time —

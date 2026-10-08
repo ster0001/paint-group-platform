@@ -411,11 +411,13 @@ export const AUTOMATIONS: Automation[] = [
   {
     key: "contractor_job_update_reminder", name: "Update your work order — reminders", audience: "painter", channels: ["sms"], kind: "automatic",
     defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "job_update_reminder", quietExempt: true, capExempt: true,
-    trigger: "A booked job is under way. Day 1 at 7:30 am, then by job length: 1–2 days — day 2 at 3:30 pm; 3–6 days — half way and the last day at 3:30 pm; 7 days or more — 30%, 60% and the last day at 3:30 pm. Every painter on the job (the contractor and any assigned crew) gets the text, asking them to tick what is done and add the day's photos.",
+    trigger: "A booked job is under way. Day 1 at 7:30 am, then by job length: 1 day — 3:30 pm the same day; 2 days — day 2 at 3:30 pm; 3–6 days — half way and the last day at 3:30 pm; 7 days or more — 30%, 60% and the last day at 3:30 pm. Every painter on the job (the contractor and any assigned crew) gets the text, asking them to tick what is done and add the day's photos. If nothing lands, again at 10:30 am and 1:30 pm (a morning moment) or 5:30 pm and 7:00 pm (an afternoon one) — Settings → job_update_rules. Nothing after 7 pm.",
     templates: [
-      { field: "contractorJobUpdateSms", label: "Text message", kind: "sms", placeholders: P.jobUpdate },
+      { field: "contractorJobUpdateSms", label: "First text", kind: "sms", placeholders: P.jobUpdate },
+      { field: "contractorJobUpdateSms2", label: "Second text (nothing landed yet)", kind: "sms", placeholders: P.jobUpdate },
+      { field: "contractorJobUpdateSms3", label: "Third and last text", kind: "sms", placeholders: P.jobUpdate },
     ],
-    guard: "Each moment once per job; stops once the job reaches its quality check, walkthrough or close. The days are the painter's booked working days (weekends only if they work them).",
+    guard: "Up to three texts per moment, each claimed on the moment's row (wo_reminder_moments) before it goes; they stop the instant a tick or a photo lands that day, on a day the PC marked No work, or once the job reaches its quality check, walkthrough or close. The days are the painter's booked working days (weekends only if they work them).",
     note: "7:30 am is before the office's sending hours, so this text is exempt from quiet hours by design.",
   },
   // ---- Finish standards (brief: standards / status / call backs, Step 2) -----
