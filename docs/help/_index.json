@@ -495,6 +495,22 @@
       ]
     },
     {
+      "feature": "pc-contractors",
+      "role": "pc",
+      "title": "Contractors in PC Command — every painter's light, call backs, rewards and who has signed",
+      "summary": "The Contractors tab in PC Command counts painters by colour, open call backs, rewards due and standards not signed, and lists one row per painter with their light, checks, app updates, call backs, streak and trend. Tap a row for their last 10 jobs, the bonus history, a Spot check or to log a call back.",
+      "path": "docs/help/pc-contractors/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/pc/contractors/page.tsx",
+        "app/pc/contractors/ContractorRows.tsx",
+        "lib/painterStatus/contractorsView.ts",
+        "lib/painterStatus/contractorsLoad.ts"
+      ]
+    },
+    {
       "feature": "portal-theme",
       "role": "contractor",
       "title": "Switching the portal between dark and light",
