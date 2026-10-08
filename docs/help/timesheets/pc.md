@@ -21,7 +21,7 @@ Employed painters do not clock on. Every evening a **standard day** (7:30–3:30
 
 ### The days that wait
 3. Days approve themselves, so the list is normally empty. A card appears only for a day no cost rate covers, or a day left running that closed itself at 16 hours. Each card is one painter's day: the job, start and finish, the break, the hours to two places, and where it came from — **standard day**, **logged by the painter** (extra hours, with their note) or **entered by the office**.
-4. Set the rate on Painters if that is what is missing, then press **Approve**. The card reads **Approved ✓** and the job's money view (Costs tab) gains a line "Labour — <painter> · <date> · <hours> h" at hours × rate, GST nil.
+4. Set the rate on Painters if that is what is missing, then press **Approve**. The card reads **Approved ✓** and the job's money view (Costs tab) gains a line "Labour — <painter> · <date> · <hours> h" at hours × rate, GST nil. It is a cost on the job only — it does not appear on **Invoicing → Payables**, because employees are paid through payroll.
 5. Something wrong with a waiting day? Press **Send back**, type why, then **Send back** again. The painter sees the reason under that day; the day posts nothing. A day that has already approved itself cannot be sent back — correct it on the job's Costs tab.
 
 ### Time off requests

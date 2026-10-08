@@ -62,6 +62,9 @@ Every contractor invoice row on Payables, and the **Contractor** chip on a job's
 - **Grey** — a draft the painter has not submitted yet. Nothing is owed on it.
 Press **Mark paid** on a clay row to turn it green.
 
+## Employee labour is not on Payables
+An employed painter's hours post to their job as a **Labour** line on the job's Costs tab, so the job's GP is right. Those lines never appear on Payables and have no **Approve** or **Mark paid**: employees are paid through payroll (the timesheet CSV), not from this list.
+
 ## Fast payment for Green painters, and the hold
 A contractor on **Green** when the job is signed off has their sign-off invoice due **3 business days** after the signed day (Monday to Friday, less the public holidays under Booking rules); the row shows **Green · 3 business days**. Everyone else keeps the normal terms. If the customer raises something after sign-off, press **Hold fast payment** on the row and say why: the invoice goes back to the normal due date — never later than it — the chip reads **Held — reason**, and PC Command shows a **Payment hold** card until you press **Release**, which puts the fast date back. A row marked **Bonus** is a painter's approved bonus they have claimed; approve and pay it like any other invoice.
 
