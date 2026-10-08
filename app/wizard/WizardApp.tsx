@@ -1384,6 +1384,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * on `state.commercial`. Both autosave and resume like everything else.
    */
   const commercialSeg = segmentByKey(segments, state.customer?.commercialSegment);
+  // The talk sheet sends these with a request or message so it is zoned at once.
+  const talkPlace = state.address
+    ? { suburb: state.address.suburb ?? "", postcode: state.address.postcode ?? "" }
+    : state.customer ? { suburb: state.customer.suburb ?? "", postcode: state.customer.postcode ?? "" } : null;
   const commercialAnswers: CommercialAnswers | null =
     state.commercial && commercialSeg && state.commercial.segment === commercialSeg.key
       ? state.commercial
@@ -1595,7 +1599,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
      * itself, rather than as a tick on a screen before they have seen a plan.
      */
     const derived = quickLookToState(quick, state);
-    if (quickStep === "com_job" && commercialSeg && commercialAnswers) {
+    // A COMMERCIAL walk submits as commercial whichever screen is last. Since S6
+    // (7 Oct) "details first" puts the gate after com_job, so testing
+    // `quickStep === "com_job"` sent every commercial job through the HOUSEHOLD
+    // derivation: the segment's substrate keys were replaced by household ticks,
+    // the merge stripped a warehouse floor's tilt-slab walls and doors, and the
+    // empty floor was dropped — the estimate priced as its offices alone
+    // (9 Oct 2026, found by commercial-warehouse.spec).
+    if (quickSteps.includes("com_job") && commercialSeg && commercialAnswers) {
       /**
        * C12: the rooms come from the segment's counts and typicals, not the
        * home basics — `basics` is null and `commercial` carries the answers.
@@ -1702,6 +1713,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             prefill={{ name: prefill?.name ?? state.contact.name, email: prefill?.email ?? state.contact.email, mobile: prefill?.phone ?? state.contact.phone }}
             hasContact={contactKnown}
             address={state.address?.formatted ?? state.title ?? ""}
+            place={talkPlace}
             onDone={(c) => { set({ contact: { name: c.name, email: c.email, phone: c.mobile } }); const then = talk.then; setTalk(null); then?.(); }}
           />
         )}
@@ -1777,6 +1789,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           estimateId={reveal?.estimateId ?? null}
           prefill={{ name: prefill?.name ?? state.contact.name, email: prefill?.email ?? state.contact.email, mobile: prefill?.phone ?? state.contact.phone }}
           address={state.address?.formatted ?? state.title ?? ""}
+          place={talkPlace}
         />
       )}
       {isCustomer && (
