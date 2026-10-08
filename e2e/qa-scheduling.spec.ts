@@ -25,7 +25,8 @@ import { melbourneDate } from "@/lib/workorder/console";
  *      is re-sent;
  *   4. the final cancelled → the check stays, PC Command flags it;
  *   5. a site check-in added from the PC is on PC Command on its day and goes
- *      when it is recorded;
+ *      when it is marked visited (since 9 Oct a visit, not a check — 20270248;
+ *      e2e/site-checkins.spec.ts covers the rest);
  *   6. none of it reaches an anonymous visitor (the /w token page, the API).
  *
  * The test project sends no email, so the recorded outcome is
@@ -212,7 +213,7 @@ test.describe("quality checks: scheduled at booking, before the final, followed 
     await expect(card).toContainText(/final walkthrough was cancelled/);
   });
 
-  test("a site check-in added from the PC is on PC Command on its day, and recording it clears it", async ({ page }) => {
+  test("a site check-in added from the PC is on PC Command on its day, and Mark visited clears it", async ({ page }) => {
     // The job is under way.
     const running = await db!.from("work_orders").update({ stage: "in_progress" }).eq("id", job!.workOrderId);
     if (running.error) throw running.error;
@@ -225,29 +226,29 @@ test.describe("quality checks: scheduled at booking, before the final, followed 
     await page.getByTestId("qa-mid-add").click();
     await expect(page.getByTestId("qa-controls-msg")).toContainText(/check-in added/i, { timeout: 30_000 });
 
-    const { data: rows, error } = await db!.from("wo_qa_checks").select("id, scheduled_time")
-      .eq("work_order_id", job!.workOrderId).eq("kind", "mid");
+    // Tom, 9 Oct 2026 (20270248): a site check-in is a visit, not a check.
+    const { data: rows, error } = await db!.from("wo_site_visits").select("id, scheduled_time")
+      .eq("work_order_id", job!.workOrderId);
     if (error) throw error;
-    const mid = (rows as { id: string; scheduled_time: string }[])[0];
-    expect(mid.scheduled_time).toBe("23:45:00");
+    const visit = (rows as { id: string; scheduled_time: string }[])[0];
+    expect(visit.scheduled_time).toBe("23:45:00");
+    const { data: mids, error: midErr } = await db!.from("wo_qa_checks").select("id").eq("work_order_id", job!.workOrderId).eq("kind", "mid");
+    if (midErr) throw midErr;
+    expect(mids ?? []).toHaveLength(0);
 
     await page.goto("/pc");
-    const due = page.getByTestId(`qa-card-qa_check_due:work_order:${job!.workOrderId}:${mid.id}`);
+    const due = page.getByTestId(`site-visit-card-site_visit_due:work_order:${job!.workOrderId}:${visit.id}`);
     await expect(due).toBeVisible({ timeout: 60_000 });
     await expect(due).toContainText(/Site check-in today at 23:45/);
-    await due.getByRole("link", { name: "Record the check" }).click();
-    await expect(page.getByTestId(`qa-${mid.id}`)).toBeVisible({ timeout: 60_000 });
+    await due.getByRole("link", { name: "Open the check-in" }).click();
+    await expect(page.getByTestId(`site-visit-${visit.id}`)).toBeVisible({ timeout: 60_000 });
 
-    // Recording it (every standard looked at, then a pass) is the done action.
-    const { data: items, error: iErr } = await db!.from("wo_qa_items").select("id").eq("qa_check_id", mid.id);
-    if (iErr) throw iErr;
-    for (const i of (items ?? []) as { id: string }[]) {
-      expect(await rpcAs(staff!, "wo_tick_qa_item", { p_item_id: i.id, p_done: true })).toBe("ok:done");
-    }
-    expect(await rpcAs(staff!, "wo_record_qa", { p_check_id: mid.id, p_result: "pass", p_notes: "On site, all good.", p_rectify: [] })).toMatch(/^ok:pass/);
+    // Mark visited — no pass, no fail — is the done action.
+    await page.getByTestId(`site-visit-${visit.id}`).getByTestId("site-visit-mark").click();
+    await expect(page.getByTestId("site-visit-visited")).toBeVisible({ timeout: 30_000 });
     await page.goto("/pc");
     await expect(page.getByTestId("queue")).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId(`qa-card-qa_check_due:work_order:${job!.workOrderId}:${mid.id}`)).toHaveCount(0);
+    await expect(page.getByTestId(`site-visit-card-site_visit_due:work_order:${job!.workOrderId}:${visit.id}`)).toHaveCount(0);
   });
 
   test("none of it reaches an anonymous visitor — the /w token page or the API", async ({ browser }) => {

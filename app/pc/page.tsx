@@ -250,8 +250,25 @@ export default async function DashboardPage() {
               {item.kind === "painter_orange" && <QueueDismiss itemKey={item.key} label="Rang them" reason="Rang the painter about their Orange status (PC Command)" />}
               {item.kind === "bonus_changed" && <QueueDismiss itemKey={item.key} label="Reviewed" reason="Reviewed the changed qualifying job (PC Command)" />}
             </div>
+          ) : item.kind === "site_visit_due" ? (
+            // Tom, 9 Oct 2026: Felipe's own site check-in on its day. Never a
+            // check, never a hold — Mark visited on the job page clears it.
+            <div className={`al ${item.bucket === "overdue" ? "al-warn" : "al-info"}`} key={item.key}
+              data-testid={`site-visit-card-${item.key}`} data-kind={item.kind}>
+              <span className="rail" />
+              <span className="ic">⌂</span>
+              <div className="bd">
+                <div className="hd">
+                  <strong>{item.title}</strong>
+                  <span className="ref">Site check-in · {item.bucket === "overdue" ? "not marked visited" : "today"}</span>
+                </div>
+                <p>{item.detail}</p>
+              </div>
+              <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
+              <Link className="btn primary" href={item.action.href} data-testid={`site-visit-card-open-${item.key}`}>{item.action.label}</Link>
+            </div>
           ) : item.kind === "qa_check_due" || item.kind === "qa_check_final_cancelled" ? (
-            // Tom, 8 Oct 2026: a quality check or site check-in on its day, or
+            // Tom, 8 Oct 2026: a quality check on its day, or
             // one whose final walkthrough was cancelled. Recording the check
             // (or rebooking the final) is what clears it — no dismiss button.
             <div className={`al ${item.bucket === "overdue" ? "al-crit" : item.kind === "qa_check_due" ? "al-info" : "al-warn"}`} key={item.key}

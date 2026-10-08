@@ -1,6 +1,6 @@
 import { test, expect } from "vitest";
 import {
-  QA_DEFAULT_TIME, defaultQaWhen, qaCheckLabel, qaWhenMessage, qaWhenProblem, workingDayBefore,
+  QA_DEFAULT_TIME, defaultQaWhen, painterSeesQaDate, qaCheckLabel, qaWhenMessage, qaWhenProblem, workingDayBefore,
 } from "./qaSchedule";
 import { melbourneDate } from "./console";
 
@@ -75,7 +75,15 @@ test("every refusal has words for the office", () => {
 
 test("the main check and the extras have their own names", () => {
   expect(qaCheckLabel("final")).toBe("Quality check");
-  expect(qaCheckLabel("mid")).toBe("Site check-in");
+  expect(qaCheckLabel("visit")).toBe("Site check-in");
+  expect(qaCheckLabel("mid")).toBe("Mid-job check");
   expect(qaCheckLabel("spot")).toBe("Spot check");
   expect(qaCheckLabel("day_one")).toBe("Day-one check");
+});
+
+test("the painter sees the main check's day, never the office's extra checks", () => {
+  expect(painterSeesQaDate("final")).toBe(true);
+  expect(painterSeesQaDate("day_one")).toBe(true);
+  expect(painterSeesQaDate("mid")).toBe(false);
+  expect(painterSeesQaDate("spot")).toBe(false);
 });

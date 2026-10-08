@@ -900,6 +900,7 @@
       ],
       "verified_at_commit": "780c451640",
       "sources": [
+        "app/pc/wo/[id]/SiteVisitsCard.tsx",
         "app/pc/wo/[id]/ReviewCard.tsx",
         "app/pc/wo/[id]/PrestartListBox.tsx",
         "app/pc/WorkItemNote.tsx",

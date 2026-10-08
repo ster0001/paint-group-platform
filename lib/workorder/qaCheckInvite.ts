@@ -80,21 +80,24 @@ export function planQaInvites(
 const dayWords = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 
-export async function sendQaCheckInvites(service: SupabaseClient, workOrderId: string): Promise<void> {
+/** A site check-in the office removed: its history went with its row, so the caller hands it over for the CANCEL. */
+export type RemovedVisitInvites = { id: string; log: Record<string, unknown>[] };
+
+export async function sendQaCheckInvites(service: SupabaseClient, workOrderId: string, removed: readonly RemovedVisitInvites[] = []): Promise<void> {
   try {
-    await run(service, workOrderId);
+    await run(service, workOrderId, removed);
   } catch (e) {
     reportError(e, { where: "qaCheckInvite", extra: { workOrderId } });
   }
 }
 
-async function run(service: SupabaseClient, workOrderId: string): Promise<void> {
+async function run(service: SupabaseClient, workOrderId: string, removed: readonly RemovedVisitInvites[]): Promise<void> {
   const { messaging, company } = await loadMessaging(service);
   // Settings → Automations: "Quality check calendar invite". Off = nothing
   // sent and nothing recorded; switching it back on sends the current state.
   if (!automationOn(messaging, "office_qa_check_invite")) return;
 
-  const [woRes, checksRes, eventsRes, finalRes] = await Promise.all([
+  const [woRes, checksRes, eventsRes, finalRes, visitsRes] = await Promise.all([
     service.from("work_orders")
       .select("id, wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name))")
       .eq("id", workOrderId).maybeSingle(),
@@ -104,8 +107,13 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
     service.from("wo_walkthroughs").select("scheduled_date, scheduled_time")
       .eq("work_order_id", workOrderId).eq("kind", "final").eq("status", "booked")
       .order("created_at", { ascending: false }).limit(1),
+    // Site check-ins (20270248) are not checks, but they are Felipe's visits and
+    // go in the same calendar. Their invite history lives on the row, not in
+    // wo_events (which the job's painter and customer can read).
+    service.from("wo_site_visits").select("id, scheduled_for, scheduled_time, visited_at, invite_log").eq("work_order_id", workOrderId),
   ]);
   if (woRes.error) throw new Error(`work order: ${woRes.error.message}`);
+  if (visitsRes.error) throw new Error(`site check-ins: ${visitsRes.error.message}`);
   if (checksRes.error) throw new Error(`checks: ${checksRes.error.message}`);
   if (eventsRes.error) throw new Error(`invite history: ${eventsRes.error.message}`);
   if (finalRes.error) throw new Error(`final walkthrough: ${finalRes.error.message}`);
@@ -119,9 +127,23 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
   const closed = wo.stage === "closed";
   const checks: QaInviteCheck[] = ((checksRes.data ?? []) as { id: string; kind: string; result: string | null; scheduled_for: string | null; scheduled_time: string | null }[])
     .map((c) => ({ id: c.id, kind: c.kind, date: c.scheduled_for, time: c.scheduled_time?.slice(0, 5) ?? null, open: c.result === null && !closed }));
+  type VisitRow = { id: string; scheduled_for: string | null; scheduled_time: string | null; visited_at: string | null; invite_log: (InviteMeta & { created_at?: string })[] | null };
+  const visitRows = (visitsRes.data ?? []) as VisitRow[];
+  // A visit's entry stays once it is visited (open = false keeps it), exactly
+  // like a recorded check; removing a visit cancels it (no row, last sent REQUEST).
+  for (const v of visitRows) {
+    checks.push({ id: v.id, kind: "visit", date: v.scheduled_for, time: v.scheduled_time?.slice(0, 5) ?? null, open: v.visited_at === null && !closed });
+  }
   type InviteMeta = { check_id?: string; kind?: string; method?: string; date?: string; time?: string | null; outcome?: QaInviteOutcome; hash?: string };
+  const visitIds = new Set(visitRows.map((v) => v.id));
+  const eventRows: { meta: InviteMeta | null; created_at: string }[] = [
+    // A visit moved from wo_qa_checks keeps its id; its history moved with it.
+    ...((eventsRes.data ?? []) as { meta: InviteMeta | null; created_at: string }[]).filter((e) => !e.meta?.check_id || !visitIds.has(e.meta.check_id)),
+    ...visitRows.flatMap((v) => (Array.isArray(v.invite_log) ? v.invite_log : []).map((m) => ({ meta: m, created_at: m.created_at ?? "" }))),
+    ...removed.flatMap((r) => r.log.map((m) => ({ meta: m as InviteMeta, created_at: typeof m.created_at === "string" ? m.created_at : "" }))),
+  ];
   const events: QaInviteEvent[] = [];
-  for (const e of (eventsRes.data ?? []) as { meta: InviteMeta | null; created_at: string }[]) {
+  for (const e of eventRows) {
     const m = e.meta;
     if (!m?.check_id || !m.hash) continue;
     events.push({
@@ -192,13 +214,21 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
     if (outcome === "error") {
       reportError(new Error("quality check invite failed"), { where: "qaCheckInvite.send", extra: { workOrderId, checkId: a.checkId, results } });
     }
-    const { error } = await service.from("wo_events").insert({
-      work_order_id: workOrderId, type: "qa_check_invite", actor_kind: "system",
-      meta: {
-        check_id: a.checkId, kind: a.kind, method: a.method, date: a.date, time: a.time,
-        sequence: a.sequence, hash: a.hash, outcome, to: results,
-      },
-    });
-    if (error) reportError(error, { where: "qaCheckInvite.record", extra: { workOrderId, checkId: a.checkId } });
+    const meta = {
+      check_id: a.checkId, kind: a.kind, method: a.method, date: a.date, time: a.time,
+      sequence: a.sequence, hash: a.hash, outcome, to: results,
+    };
+    const visit = visitRows.find((v) => v.id === a.checkId);
+    if (visit) {
+      const log = [...(Array.isArray(visit.invite_log) ? visit.invite_log : []), { ...meta, created_at: new Date().toISOString() }];
+      visit.invite_log = log;
+      const { error } = await service.from("wo_site_visits").update({ invite_log: log }).eq("id", visit.id);
+      if (error) reportError(error, { where: "qaCheckInvite.recordVisit", extra: { workOrderId, visitId: visit.id } });
+    } else if (a.kind !== "visit") {
+      const { error } = await service.from("wo_events").insert({
+        work_order_id: workOrderId, type: "qa_check_invite", actor_kind: "system", meta,
+      });
+      if (error) reportError(error, { where: "qaCheckInvite.record", extra: { workOrderId, checkId: a.checkId } });
+    }
   }
 }

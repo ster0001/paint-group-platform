@@ -7,6 +7,7 @@ import { isTestEmail } from "@/lib/accounts/identity";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { leadPainterId, siteVisitNoteSms } from "@/lib/workorder/siteVisits";
 
 /**
  * Contractor notifications (Tom, 1 Sep #2). SERVER ONLY — service client.
@@ -596,5 +597,105 @@ export async function notifyLeaveDecided(service: SupabaseClient, unavailability
     });
   } catch (e) {
     reportError(e, { where: "notify.leaveDecided", extra: { unavailabilityId } });
+  }
+}
+
+/**
+ * A site check-in note the office chose to send to the painter (Tom, 9 Oct
+ * 2026: "progress notes can be made with the option to send to the painter,
+ * and also attach photos"). The note is a staff member's own words, so this is
+ * a MANUAL send like the variation reply above: straight through sendSms /
+ * sendEmail (each records a `messages` row with the sender), never the
+ * automation dispatcher. The photos are not linked in the message — they sit
+ * in a private bucket — the text says how many there are and links the job
+ * page, where the painter's own session can open them.
+ *
+ * Who hears it: the job's LEAD painter (the lead assignment on an assigned job,
+ * else the job's contractor). The outcome is written ON THE NOTE (sent, with
+ * who and how; or skipped, with the reason) — never in wo_events, which the
+ * job's customer can read. Idempotent: a note already sent answers "already".
+ */
+export async function notifySiteVisitNote(
+  service: SupabaseClient, noteId: string, actorProfileId: string | null,
+): Promise<PainterNotifyOutcome & { painter?: string }> {
+  const save = async (outcome: "sent" | "skipped", detail: string) => {
+    const { error } = await service.from("wo_site_visit_notes")
+      .update({ sent_outcome: outcome, sent_detail: detail, sent_at: new Date().toISOString() })
+      .eq("id", noteId);
+    if (error) reportError(error, { where: "notify.siteVisitNote.record", extra: { noteId } });
+  };
+  const skip = async (reason: string, painter?: string) => {
+    await save("skipped", reason);
+    return { outcome: "skipped" as const, reason, ...(painter ? { painter } : {}) };
+  };
+  try {
+    const { data: n, error: nErr } = await service
+      .from("wo_site_visit_notes")
+      .select("id, body, send_to_painter, sent_outcome, work_order_id, work_orders(wo_ref, contractor_id)")
+      .eq("id", noteId).maybeSingle();
+    if (nErr) throw nErr;
+    const note = n as {
+      id: string; body: string; send_to_painter: boolean; sent_outcome: string | null; work_order_id: string;
+      work_orders: { wo_ref: string; contractor_id: string | null } | null;
+    } | null;
+    if (!note?.work_orders || !note.send_to_painter) return { outcome: "not_applicable" };
+    if (note.sent_outcome === "sent") return { outcome: "already" };
+
+    const [{ data: assignments, error: aErr }, { count: photoCount, error: pErr }] = await Promise.all([
+      service.from("wo_assignments").select("contractor_id, is_lead, status").eq("work_order_id", note.work_order_id),
+      service.from("wo_site_visit_photos").select("id", { count: "exact", head: true }).eq("note_id", note.id),
+    ]);
+    if (aErr) throw aErr;
+    if (pErr) throw pErr;
+    const contractorId = leadPainterId(
+      (assignments ?? []) as { contractor_id: string; is_lead: boolean; status: string }[],
+      note.work_orders.contractor_id,
+    );
+    if (!contractorId) return await skip("there is no painter on this job yet.");
+
+    const c = await contactFor(service, contractorId);
+    const who = c.firstName === "there" ? "the painter" : c.firstName;
+    const email = c.email && !isTestEmail(c.email) ? c.email : null;
+    if (!c.phone && !email) return await skip(`${who} has no mobile or email on file.`, c.firstName);
+
+    const { company } = await loadMessaging(service);
+    const companyName = company.name || "Paint Group";
+    const link = `${siteUrl()}/portal/jobs/${note.work_order_id}`;
+    const ctx = { workOrderId: note.work_order_id, kind: "site_visit_note", actorProfileId };
+    const photos = photoCount ?? 0;
+
+    const results: Partial<Record<"sms" | "email", DeliveryResult>> = {};
+    if (c.phone) {
+      results.sms = await sendSms({
+        to: c.phone, ctx,
+        body: siteVisitNoteSms({ companyName, woRef: note.work_orders.wo_ref, body: note.body, photoCount: photos, link }),
+      });
+    }
+    if (email) {
+      results.email = await sendEmail({
+        to: email, ctx, replyTo: company.email || undefined,
+        subject: `A note from ${companyName} about ${note.work_orders.wo_ref}`,
+        html: buildEstimateEmailHtml({
+          companyName, logoUrl: emailLogoUrl(company),
+          intro: `Hi ${c.firstName},\n\nA note from ${companyName} after a visit to ${note.work_orders.wo_ref}:\n\n${note.body}${photos > 0 ? `\n\n${photos} photo${photos === 1 ? " is" : "s are"} with it on the job page.` : ""}`,
+          link, buttonLabel: "Open the job",
+        }),
+      });
+    }
+    const sent = (Object.entries(results) as ["sms" | "email", DeliveryResult][]).filter(([, r]) => r.status === "sent").map(([ch]) => ch);
+    if (sent.length > 0) {
+      await save("sent", `${who} by ${sent.map((ch) => (ch === "sms" ? "text" : "email")).join(" and ")}`);
+      return { outcome: "notified", channels: sent, painter: c.firstName };
+    }
+    const why = Object.entries(results).map(([ch, r]) => {
+      const label = ch === "sms" ? "Text" : "Email";
+      return r.status === "not_configured" ? `${label}: not set up on this server`
+        : r.status === "suppressed" || r.status === "error" ? `${label}: ${r.message}` : `${label}: ${r.status}`;
+    }).join(" · ");
+    for (const r of Object.values(results)) if (r?.status === "error") reportError(new Error(r.message), { where: "notify.siteVisitNote.send" });
+    return await skip(`${why}.`, c.firstName);
+  } catch (e) {
+    reportError(e, { where: "notify.siteVisitNote", extra: { noteId } });
+    return await skip("something went wrong sending it — the error monitor has it.");
   }
 }

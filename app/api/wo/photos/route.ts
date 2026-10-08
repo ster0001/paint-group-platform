@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { get as httpsGet } from "node:https";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
@@ -7,6 +6,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { sniffKind, sniffVideoKind, videoExtensionFor, MAX_UPLOAD_BYTES, MAX_VIDEO_UPLOAD_BYTES } from "@/lib/extract/normalise";
 import { isVideoPath } from "@/lib/workorder/photos";
 import { reportError } from "@/lib/monitoring/report";
+import { stagedHeadBytes } from "@/lib/workorder/stagedBytes";
 
 /**
  * Work-order site photos — the before/progress/QA/completion record, plus the
@@ -63,39 +63,6 @@ const fail = (status: number, message: string) => NextResponse.json({ error: mes
 /** Photos live under the work order they belong to, one flat level; a video carries its extension. */
 function photoPath(workOrderId: string, videoExt: string | null): string {
   return `wo/${workOrderId}/${Date.now()}-${randomUUID().slice(0, 8)}${videoExt ? `.${videoExt}` : ""}`;
-}
-
-/**
- * The first bytes of a staged object, through a signed URL and a Range
- * request — enough to read a signature, never the whole file. A store that
- * ignores Range answers 200 with the body; only the first chunk is read and
- * the stream is cancelled.
- */
-async function headBytes(supabase: Awaited<ReturnType<typeof createClient>>, path: string, n = 64): Promise<Uint8Array | null> {
-  const { data: signed, error } = await supabase.storage.from("wo-photos").createSignedUrl(path, 60);
-  if (error || !signed?.signedUrl) return null;
-  // Tom, 30 Sep: this read went through the runtime's patched fetch and never
-  // came back — the ingest sat after "auth" for ever and the painter saw
-  // "Uploading…" with no end (C1 server log, 30 Sep). Node's own client,
-  // untouched by the framework: ask for the first bytes, take what arrives,
-  // drop the socket. A store that ignores Range answers 200 with the whole
-  // body; only the first chunk is kept and the request is destroyed.
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (v: Uint8Array | null) => { if (!settled) { settled = true; resolve(v); } };
-    const timer = setTimeout(() => { req.destroy(); finish(null); }, 8_000);
-    const req = httpsGet(signed.signedUrl, { headers: { Range: `bytes=0-${n - 1}` } }, (res) => {
-      if (!res.statusCode || res.statusCode >= 300) { res.resume(); clearTimeout(timer); return finish(null); }
-      const chunks: Buffer[] = []; let got = 0;
-      res.on("data", (c: Buffer) => {
-        chunks.push(c); got += c.length;
-        if (got >= n) { clearTimeout(timer); finish(new Uint8Array(Buffer.concat(chunks)).slice(0, n)); req.destroy(); }
-      });
-      res.on("end", () => { clearTimeout(timer); finish(got ? new Uint8Array(Buffer.concat(chunks)).slice(0, n) : null); });
-      res.on("error", () => { clearTimeout(timer); finish(got ? new Uint8Array(Buffer.concat(chunks)).slice(0, n) : null); });
-    });
-    req.on("error", () => { clearTimeout(timer); finish(null); });
-  });
 }
 
 export async function POST(request: Request) {
@@ -160,7 +127,7 @@ export async function PUT(request: Request) {
 
   // The Range read is the cheap path; a store that answers it oddly falls back
   // to the whole object (a photo — a video is only ever read by Range).
-  let bytes = await headBytes(supabase, v.path);
+  let bytes = await stagedHeadBytes(supabase, "wo-photos", v.path);
   mark("head");
   if ((!bytes || bytes.length < 12) && !isVideoPath(v.path)) {
     const { data: blob, error: dlError } = await supabase.storage.from("wo-photos").download(v.path);

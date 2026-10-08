@@ -2,17 +2,19 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addQaCheck, setQaRequired, setQaWaived } from "../../actions";
+import { addQaCheck, addSiteVisit, setQaRequired, setQaWaived } from "../../actions";
 
 /**
  * Quality-check controls on the staff job page (Tom, 23 Aug):
  *   · "Quality check required" — the job-level flag, for an established
  *     painter's job that should be checked anyway (also a tick when booking);
  *   · "Add a site check-in" (Tom, 8 Oct 2026: "additional job check-ins in
- *     the PC Command") — the quality check is the main check at the end of
- *     the job; a check-in is an extra visit on a day and time before the
- *     final walkthrough. The painter sees the day; whoever takes quality
- *     checks gets the calendar invite; PC Command lists it on the day;
+ *     the PC Command") — an extra visit on a day and time before the final
+ *     walkthrough. Since 9 Oct it is NOT a quality check (wo_site_visits,
+ *     20270248): "logged just for Felipe", no pass or fail, never a hold on
+ *     the job. Only whoever takes quality checks gets the calendar invite;
+ *     the painter and the customer are told nothing. PC Command lists it on
+ *     the day; its notes and photos live on the Site check-ins card;
  *   · "Quality check not required" (Tom, 24 Sep 2026) — the override for ONE
  *     job: a new contractor's cadence would schedule a check, and the office
  *     says not on this one. Removes any due check; a job parked at Quality
@@ -85,7 +87,7 @@ export default function QaControls({
           <button className="btn primary" disabled={pending || !date || !time} data-testid="qa-mid-add"
             onClick={() => startTransition(async () => {
               setMessage(null);
-              const r = await addQaCheck({ workOrderId, date, time, kind: "mid" });
+              const r = await addSiteVisit({ workOrderId, date, time });
               if (r.ok) { setAdding(false); setDate(""); setTime(""); setMessage(r.message ?? "Site check-in added."); router.refresh(); }
               else setMessage(r.message);
             })}>
@@ -101,9 +103,11 @@ export default function QaControls({
       )}
       <p className="note" style={{ margin: 0 }}>
         The quality check is the main one — at the end of the job, before the
-        customer walkthrough. A site check-in is extra: pick the day and time
-        you&rsquo;ll be on site (before the final). The painter sees the day and
-        it goes in the quality-check calendar.
+        customer walkthrough. A site check-in is your own visit: pick the day and
+        time you&rsquo;ll be on site (before the final) and it goes in the
+        quality-check calendar. It has no pass or fail and never holds the job
+        up. The painter and the customer aren&rsquo;t told — send the painter a
+        note from the visit if you want them to know something.
       </p>
       {message && <p className="note" style={{ color: "var(--amber)", margin: 0 }} data-testid="qa-controls-msg">{message}</p>}
     </div>
