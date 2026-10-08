@@ -99,6 +99,7 @@ const P = {
   qaFail: ["{{company_name}}", "{{wo_ref}}", "{{link}}"],
   jobUpdate: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{day_label}}", "{{link}}"],
   standards: ["{{first_name}}", "{{company_name}}", "{{link}}", "{{version}}"],
+  status: ["{{first_name}}", "{{company_name}}", "{{colour}}", "{{link}}"],
   callback: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{day}}", "{{what}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
@@ -416,9 +417,22 @@ export const AUTOMATIONS: Automation[] = [
       { field: "contractorJobUpdateSms", label: "First text", kind: "sms", placeholders: P.jobUpdate },
       { field: "contractorJobUpdateSms2", label: "Second text (nothing landed yet)", kind: "sms", placeholders: P.jobUpdate },
       { field: "contractorJobUpdateSms3", label: "Third and last text", kind: "sms", placeholders: P.jobUpdate },
+      { field: "contractorJobUpdateSms3Green", label: "Third text for a Green painter", kind: "sms", placeholders: P.jobUpdate },
     ],
     guard: "Up to three texts per moment, each claimed on the moment's row (wo_reminder_moments) before it goes; they stop the instant a tick or a photo lands that day, on a day the PC marked No work, or once the job reaches its quality check, walkthrough or close. The days are the painter's booked working days (weekends only if they work them).",
     note: "7:30 am is before the office's sending hours, so this text is exempt from quiet hours by design.",
+  },
+  // ---- Painter status (brief: standards / status / call backs, Step 6) -------
+  {
+    key: "contractor_status_changed", name: "Painter status — your colour changed", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "status_changed", capExempt: true,
+    trigger: "The evaluator writes a different colour for a painter who already had one (every half hour, or straight after a check, a call back or an update). Not on the first colour (New at launch), and not while status is staff-only (Settings → painter_status_rules.statusVisibleToPainters).",
+    templates: [
+      { field: "statusGreenSms", label: "Reached Green — contractor", kind: "sms", placeholders: P.status },
+      { field: "statusGreenLeadSms", label: "Reached Green — employed lead painter", kind: "sms", placeholders: P.status },
+      { field: "statusDroppedSms", label: "Any other change", kind: "sms", placeholders: P.status },
+    ],
+    guard: "Once per change — the writer RPC diffs before it reports one, and the text goes only when the colour it reports differs from the colour it replaced.",
   },
   // ---- Finish standards (brief: standards / status / call backs, Step 2) -----
   {

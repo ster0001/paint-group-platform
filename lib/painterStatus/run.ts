@@ -4,7 +4,8 @@ import { reportError } from "@/lib/monitoring/report";
 import { jobDays } from "@/lib/workorder/jobRhythm";
 import { estimatedHours } from "@/lib/workorder/hours";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
-import { evaluatePainter, mergeStatusRules, type JobFacts, type PainterFacts, type StatusRules } from "./evaluate";
+import { evaluatePainter, mergeStatusRules, type Colour, type JobFacts, type PainterFacts, type StatusRules } from "./evaluate";
+import { notifyStatusChanged } from "./notify";
 
 /**
  * Facts in, rows out (brief Step 5). SERVER ONLY — the service client or a
@@ -26,6 +27,17 @@ export async function loadStatusRules(db: SupabaseClient): Promise<StatusRules> 
   if (error) reportError(error, { where: "painterStatus.rules", bestEffort: true });
   return mergeStatusRules((data as { value?: unknown } | null)?.value);
 }
+
+/** ⚑21: whether painters see their status at all (default on). Service or staff client. */
+export async function statusVisibleToPainters(db: SupabaseClient): Promise<boolean> {
+  const { data, error } = await db.from("settings").select("value").eq("key", "painter_status_rules").maybeSingle();
+  if (error) { reportError(error, { where: "painterStatus.visible", bestEffort: true }); return false; }
+  const v = (data as { value?: { statusVisibleToPainters?: unknown } } | null)?.value?.statusVisibleToPainters;
+  return v === undefined ? true : v === true;
+}
+
+const COLOURS: readonly Colour[] = ["new", "green", "yellow", "orange", "red"];
+const asColour = (s: string): Colour | null => (COLOURS as readonly string[]).includes(s) ? (s as Colour) : null;
 
 type WoRow = {
   id: string; contractor_id: string | null; stage: string; start_date: string | null; end_date: string | null; wo_snapshot: WorkOrderDoc | null;
@@ -119,6 +131,12 @@ export async function runPainterStatus(db: SupabaseClient, painterId: string, no
     if (wErr) return { painterId, ok: false, error: wErr.message };
     const s = String(data ?? "");
     if (!s.startsWith("ok:")) return { painterId, ok: false, error: s };
+    // Message 6 (Step 6): the writer says 'ok:<changed>:<removed>:<prev>><colour>:<bonus>'.
+    // A real change from a real previous colour, and only while painters can see status.
+    const prev = asColour(s.split(":")[3]?.split(">")[0] ?? "");
+    if (prev && prev !== e.colour && (await statusVisibleToPainters(db))) {
+      await notifyStatusChanged(db, painterId, prev, e.colour, facts.employmentType === "employee");
+    }
     return { painterId, ok: true, colour: e.colour, written: s };
   } catch (err) {
     reportError(err, { where: "painterStatus.run", extra: { painterId } });
