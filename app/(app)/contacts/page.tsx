@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Contact } from "@/app/quote/company";
 import SearchBox from "./SearchBox";
+import { contactSearchOr } from "@/lib/contacts/match";
 
 export const dynamic = "force-dynamic";
 
@@ -8,19 +9,13 @@ export const dynamic = "force-dynamic";
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q: qRaw } = await searchParams;
   const q = (qRaw ?? "").trim().slice(0, 80);
-  // `%`/`_` are wildcards; `,` and `(` would split the or() filter list.
-  const needle = q.toLowerCase().replace(/[%_,()]/g, "");
   const supabase = await createClient();
   let query = supabase.from("contacts").select("*").order("last_name");
-  if (needle) {
-    const like = `%${needle}%`;
-    // The phone is matched with and without its spaces, so "0412 345" and "0412345" both find it.
-    const digits = needle.replace(/\s+/g, "");
-    query = query.or([
-      `first_name.ilike.${like}`, `last_name.ilike.${like}`, `company.ilike.${like}`,
-      `email.ilike.${like}`, `phone.ilike.${like}`, `phone.ilike.%${digits}%`, `city.ilike.${like}`,
-    ].join(","));
-  }
+  // One rule for every contact search (lib/contacts/match.ts): the estimate's
+  // Contact modal asks the same question. A phone is matched on its stored
+  // digits, so "0412345678" finds a mobile saved as 0412 345 678.
+  const filter = contactSearchOr(q);
+  if (filter) query = query.or(filter);
   const { data, error } = await query;
   // A rejected read is not an empty address book (CLAUDE.md, 16 Sep): say so.
   const contacts = (data as Contact[] | null) ?? [];
