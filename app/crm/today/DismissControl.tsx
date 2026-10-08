@@ -16,12 +16,47 @@ const PRESETS = [
   { label: "For good", days: null },
 ] as const;
 
-export default function DismissControl({ itemKey, accountId }: { itemKey: string; accountId: string | null }) {
+/**
+ * `oneTap` — Tom, 8 Oct: on "Fix the price without a visit", "Not this one"
+ * just closes it. One tap dismisses for good with the given reason recorded
+ * (the dismissal log keeps a reason; the person is not asked for one); the
+ * action's revalidate takes the card off the screen.
+ */
+export default function DismissControl({ itemKey, accountId, oneTap }: {
+  itemKey: string;
+  accountId: string | null;
+  oneTap?: { reason: string };
+}) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [days, setDays] = useState<number | null>(1);
   const [message, setMessage] = useState<string | null>(null);
+  const [closed, setClosed] = useState(false);
   const [pending, start] = useTransition();
+
+  if (oneTap) {
+    // The action revalidates /crm/today, so the card leaves with the refresh.
+    if (closed) return null;
+    return (
+      <>
+        <button
+          type="button"
+          className="qdismiss"
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const res = await dismissWorkItem(itemKey, accountId, null, oneTap.reason);
+              if (res.ok) setClosed(true);
+              else setMessage(res.message);
+            })
+          }
+        >
+          {pending ? "…" : "Not this one"}
+        </button>
+        {message && <span className="qdmsg">{message}</span>}
+      </>
+    );
+  }
 
   if (!open) {
     return <button type="button" className="qdismiss" onClick={() => setOpen(true)}>Not this one</button>;
@@ -69,3 +104,4 @@ export default function DismissControl({ itemKey, accountId }: { itemKey: string
     </span>
   );
 }
+

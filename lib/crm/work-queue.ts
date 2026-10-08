@@ -1003,8 +1003,42 @@ export type DeskCheckRow = {
      * made the whole query error and the queue show nothing at all. */
     total_cents: number | null;
     builder_state: { blocks?: Array<{ kind?: string; type?: string }> } | null;
+    /** First send (`send_estimate` coalesces it). Optional: the customer-side
+     * reader (lib/portal/waiting.ts) does not select it. */
+    sent_at?: string | null;
   } | null;
 };
+
+/**
+ * Tom, 8 Oct: "Fix price without a visit needs to automatically go out of the
+ * CRM once an estimate has been sent."
+ *
+ * A send AFTER the customer asked is the answer to the ask, whichever door the
+ * estimator used — the pack's Fix-price button (which moves the row to `fixed`
+ * and so already drops out of the open-status read) or the ordinary builder
+ * Send, which never touches `confirmation_requests` and left the card on Today
+ * for good. So the fact is the send itself: an `estimate_events` 'sent' row
+ * (catches a re-send), the estimate's own `sent_at`, or any estimate of the SAME
+ * customer sent since the ask (the estimator priced it on a fresh estimate).
+ *
+ * Derived, never stored — no dismissal is written. A send BEFORE the ask (the
+ * customer re-opened a sent estimate in the wizard and asked again) does not
+ * count: that ask is new work.
+ */
+export type DeskCheckSend = { estimateId: string; accountId: string | null; at: string };
+
+export function deskCheckAnswered(row: DeskCheckRow, sends: readonly DeskCheckSend[]): boolean {
+  const asked = Date.parse(row.requested_at);
+  if (!Number.isFinite(asked)) return false;
+  const after = (iso: string | null | undefined) => {
+    const t = iso ? Date.parse(iso) : NaN;
+    return Number.isFinite(t) && t >= asked;
+  };
+  if (after(row.estimates?.sent_at)) return true;
+  const account = row.estimates?.account_id ?? null;
+  return sends.some((s) => after(s.at)
+    && (s.estimateId === row.estimate_id || (account != null && s.accountId === account)));
+}
 
 /**
  * One item per estimate whose customer has asked us to fix their price.
@@ -1024,8 +1058,11 @@ export function buildDeskCheckItems(
   now: Date,
   /** What we told the customer (Settings `confirmation_turnaround`). */
   turnaround: TurnaroundSetting = DEFAULT_TURNAROUND_SETTING,
+  /** Sends since the oldest ask — an answered ask is not work (Tom, 8 Oct). */
+  sends: readonly DeskCheckSend[] = [],
 ): WorkItem[] {
   const items: WorkItem[] = [];
+  rows = rows.filter((r) => !deskCheckAnswered(r, sends));
   /**
    * Value × readiness (plan §2.6), from the one sorter in
    * lib/wizard/confirmation.ts — a fixable job outranks a bigger one that
@@ -1869,6 +1906,40 @@ async function readStandardsRows(supabase: SupabaseClient): Promise<{ rows: Stan
   };
 }
 
+
+/**
+ * The sends that answer an open desk-check ask (Tom, 8 Oct — see
+ * `deskCheckAnswered`). Two bounded, indexed reads, sliced, both from the
+ * oldest open ask onward:
+ *   · 'sent' events on the asked-about estimates (estimate_events_estimate_idx)
+ *     — a re-send after the ask counts even though `sent_at` keeps the first;
+ *   · estimates of the same customers sent since (estimates_account_idx).
+ * A failed read returns its error and NO sends, so the cards stay up rather
+ * than vanishing on a refused query.
+ */
+async function readDeskCheckSends(supabase: SupabaseClient, rows: DeskCheckRow[]): Promise<{ sends: DeskCheckSend[]; error: string | null }> {
+  if (!rows.length) return { sends: [], error: null };
+  const oldest = rows.reduce((m, r) => (r.requested_at < m ? r.requested_at : m), rows[0].requested_at);
+  const estimateIds = [...new Set(rows.map((r) => r.estimate_id))];
+  const accountIds = [...new Set(rows.map((r) => r.estimates?.account_id).filter((x): x is string => !!x))];
+  const accountOf = new Map(rows.map((r) => [r.estimate_id, r.estimates?.account_id ?? null]));
+  const [events, others] = await Promise.all([
+    sliceRead<{ estimate_id: string; created_at: string }>(estimateIds, (ids) => supabase.from("estimate_events")
+      .select("estimate_id, created_at").eq("type", "sent").gte("created_at", oldest).in("estimate_id", ids)),
+    sliceRead<{ id: string; account_id: string | null; sent_at: string | null }>(accountIds, (ids) => supabase.from("estimates")
+      .select("id, account_id, sent_at").gte("sent_at", oldest).in("account_id", ids)),
+  ]);
+  const error = events.error ?? others.error;
+  // Surfaced through `counts.truncated` by the caller, like every other source here.
+  if (error) return { sends: [], error: error.message ?? "read failed" };
+  return {
+    sends: [
+      ...events.rows.map((e) => ({ estimateId: e.estimate_id, accountId: accountOf.get(e.estimate_id) ?? null, at: e.created_at })),
+      ...others.rows.filter((e) => e.sent_at).map((e) => ({ estimateId: e.id, accountId: e.account_id, at: e.sent_at as string })),
+    ],
+    error: null,
+  };
+}
 /**
  * Call backs (brief §8), each trigger exactly one card that clears itself:
  *   · walkthrough_flagged — the customer flagged an area and nobody has put
@@ -2208,10 +2279,13 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
    * turnaround warning chases the open ones.
    */
   const deskRes = await supabase.from("confirmation_requests")
-    .select("id, estimate_id, requested_at, kind, status, suggested_action, assigned_to, estimates(title, account_id, total_cents, builder_state)")
+    .select("id, estimate_id, requested_at, kind, status, suggested_action, assigned_to, estimates(title, account_id, total_cents, builder_state, sent_at)")
     .in("status", ["requested", "question_asked"])
     .limit(200);
+  if (deskRes.error) truncated.push("confirmation_requests: read failed");
   const deskRows = (deskRes.error ? [] : (deskRes.data ?? [])) as unknown as DeskCheckRow[];
+  const deskSends = await readDeskCheckSends(supabase, deskRows);
+  if (deskSends.error) truncated.push("desk check sends: read failed");
   // The turnaround the customer was promised — the same row the hand-off screen
   // reads, so the queue cannot chase a different number than the one we gave.
   const deskTurnaround = await supabase
@@ -2339,7 +2413,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),
     ...buildPhotoReviewItems(photoRows, now),
-    ...buildDeskCheckItems(deskRows, deskPolicy, now, deskTurnaround),
+    ...buildDeskCheckItems(deskRows, deskPolicy, now, deskTurnaround, deskSends.sends),
   ];
 
   // P7: the states and owners of the customers actually on the queue — a

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { buildDeskCheckItems, type DeskCheckRow } from "./work-queue";
+import { buildDeskCheckItems, deskCheckAnswered, type DeskCheckRow, type DeskCheckSend } from "./work-queue";
 import { DEFAULT_POLICY } from "@/lib/wizard/policy";
 
 /**
@@ -197,5 +197,40 @@ describe("C7b — one evaluator, two surfaces", () => {
     for (const i of estimatesTab) expect(today).toContain(i);
     // And it narrows only by subject — the campaign approval is Today's alone.
     expect(estimatesTab.some((i) => i.kind === "approval_pending")).toBe(false);
+  });
+});
+
+/**
+ * Tom, 8 Oct — "Fix price without a visit needs to automatically go out of the
+ * CRM once an estimate has been sent." Derived from the send, never stored.
+ */
+describe("a send after the ask answers it", () => {
+  const AFTER = "2026-09-11T08:30:00+10:00";
+  const BEFORE = "2026-09-10T08:00:00+10:00";
+  const send = (over: Partial<DeskCheckSend> = {}): DeskCheckSend => ({ estimateId: "est-1", accountId: "acct-1", at: AFTER, ...over });
+
+  test("the estimate's own send takes the item off", () => {
+    expect(buildDeskCheckItems([row()], DEFAULT_POLICY, NOW, undefined, [send()])).toHaveLength(0);
+  });
+  test("its sent_at after the ask is enough on its own", () => {
+    expect(buildDeskCheckItems([row({}, { sent_at: AFTER })], DEFAULT_POLICY, NOW)).toHaveLength(0);
+  });
+  test("another estimate sent to the same customer after the ask also answers it", () => {
+    expect(deskCheckAnswered(row(), [send({ estimateId: "est-9" })])).toBe(true);
+  });
+  test("a send to a different customer does not", () => {
+    expect(deskCheckAnswered(row(), [send({ estimateId: "est-9", accountId: "acct-2" })])).toBe(false);
+  });
+  test("a send BEFORE the ask is not an answer — the customer asked again", () => {
+    expect(deskCheckAnswered(row(), [send({ at: BEFORE })])).toBe(false);
+    expect(buildDeskCheckItems([row({}, { sent_at: BEFORE })], DEFAULT_POLICY, NOW)).toHaveLength(1);
+  });
+  test("no account: only the estimate's own send counts", () => {
+    const r = row({}, { account_id: null });
+    expect(deskCheckAnswered(r, [send({ estimateId: "est-9", accountId: null })])).toBe(false);
+    expect(deskCheckAnswered(r, [send({ accountId: null })])).toBe(true);
+  });
+  test("no sends read: every open ask stays", () => {
+    expect(buildDeskCheckItems([row(), row({ id: "cr-2", estimate_id: "est-2" })], DEFAULT_POLICY, NOW)).toHaveLength(2);
   });
 });
