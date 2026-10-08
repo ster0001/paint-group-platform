@@ -64,3 +64,6 @@ docs/imports/airtable-crm-import/*.json
 docs/imports/airtable-crm-import/booked/
 docs/imports/airtable-crm-import/import-report-*.json
 docs/imports/_to_delete/
+
+# wizard UI refresh before/after screenshots (ui-refresh-baseline.spec.ts) — kept out of test-results/, which Playwright empties every run
+/ui-refresh-shots/
