@@ -240,6 +240,10 @@ export async function loadCostCapture(supabase: SupabaseClient) {
       .limit(200),
     supabase.from("job_costs")
       .select("id, work_order_id, category, description, amount_ex_cents, gst_cents, doc_path, estimate_line_ref, status, paid_with, reimburse_to, invoice_no, invoice_date, intake_id, created_at, vendors(name), work_orders(estimate_id, wo_ref, job_no, job_address:wo_snapshot->>jobAddress)")
+      // Tom, 9 Oct: an employee's labour line (posted by timesheet approval)
+      // is paid through payroll — it stays on the job's Costs tab, never in
+      // the Payables queue with an Approve / Mark paid.
+      .neq("category", "labour")
       .order("created_at", { ascending: false })
       .limit(200),
     // The job picker behind the "matched job" search box (Tom, 4 Sep): every
