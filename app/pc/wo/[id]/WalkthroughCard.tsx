@@ -109,7 +109,8 @@ export default function WalkthroughCard({
                     Missed
                   </button>
                   <button className="btn dim" disabled={pending} style={{ padding: "4px 8px" }}
-                    onClick={() => run(() => setWalkthroughStatus({ walkthroughId: w.id, status: "cancelled" }))}>
+                    onClick={() => run(() => setWalkthroughStatus({ walkthroughId: w.id, status: "cancelled" }))}
+                    data-testid={`walkthrough-cancel-${w.id}`}>
                     Cancel
                   </button>
                 </>
