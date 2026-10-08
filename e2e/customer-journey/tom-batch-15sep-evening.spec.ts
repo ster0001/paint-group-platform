@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
 import { credentials, signIn } from "../helpers";
 
 /**
@@ -28,6 +28,7 @@ async function toJob(page: Page) {
 }
 
 const toEditor = async (page: Page) => {
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("door-tighten").click();
   await expect(page.locator(".sc-rc[data-room]").first()).toBeVisible({ timeout: 90_000 });
@@ -73,6 +74,7 @@ test("3 · the exclusions are inline under the preset, and 2 · bold asks which 
   await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.getByTestId("reveal-restatement")).toContainText(/a much lighter or bolder colour on the walls and new colours on the doors and trims and window frames/i);
   const doLines = page.getByTestId("what-we-do");

@@ -8,7 +8,7 @@
  * marks the trims line for a person, and tells the customer we'll check.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 
 const parseRange = (text: string): [number, number] => {
   const m = text.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/);
@@ -26,6 +26,7 @@ async function toEditor(page: import("@playwright/test").Page) {
   await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   // The reveal names the two-coat assumption and the three doors sit above it.
   await page.getByTestId("reveal-assumed-toggle").click();

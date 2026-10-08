@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
 
 /**
  * Tom's exterior batch, 15 Sep 2026 — Part 2, on the sides editor:
@@ -38,6 +38,7 @@ async function toEditor(page: Page, storeys: "single" | "double", dropSides: Arr
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
   for (const k of dropSides) await page.getByTestId(`ql-ext-side-${k}`).click();
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("door-tighten").click();
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });

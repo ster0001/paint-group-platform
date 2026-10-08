@@ -190,17 +190,22 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
  * name, email, mobile — and the range follows; under "range first" it does
  * not. Waits for whichever comes, fills the gate when it is there.
  */
-export async function passGateIfShown(page: Page, who: { name?: string; email?: string; mobile?: string } = {}) {
+export async function passGateIfShown(page: Page, who: { name?: string; email?: string; mobile?: string } = {}): Promise<boolean> {
   const gate = page.locator("[data-quick-step='gate']");
   const reveal = page.getByTestId("reveal");
   const bounced = page.locator(".wz-err");
   await expect(gate.or(reveal).or(bounced)).toBeVisible({ timeout: 90_000 });
-  if (await gate.count()) {
-    await page.getByTestId("gate-name").fill(who.name ?? "Drive Tester");
-    await page.getByTestId("gate-email").fill(who.email ?? `drive.${Date.now()}@example.com`);
-    await page.getByTestId("gate-mobile").fill(who.mobile ?? "0400 111 222");
-    await quickNext(page);
-  }
+  if (!(await gate.count())) return false;
+  await page.getByTestId("gate-name").fill(who.name ?? "Drive Tester");
+  await page.getByTestId("gate-email").fill(who.email ?? `drive.${Date.now()}@example.com`);
+  // A UNIQUE mobile by default (9 Oct 2026). The submit route files the
+  // estimate under an account found by email OR phone, so one shared default
+  // number ("0400 111 222") put every walk's estimate on the same old account —
+  // the magic link for THIS walk's email then found nothing to keep shaping,
+  // and a call back landed on someone else's record.
+  await page.getByTestId("gate-mobile").fill(who.mobile ?? uniquePhone());
+  await quickNext(page);
+  return true;
 }
 
 export async function openQuickLook(page: Page, opts: { entry?: "upload" } = {}) {

@@ -5,7 +5,7 @@
  * opens on the rooms the customer named.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 
 test("some rooms asks which rooms and seeds only those", async ({ page }) => {
   test.setTimeout(240_000);
@@ -38,6 +38,7 @@ test("some rooms asks which rooms and seeds only those", async ({ page }) => {
   await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("door-tighten").click();
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });

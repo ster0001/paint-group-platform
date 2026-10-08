@@ -9,7 +9,7 @@
  * the preset decides which tiles exist.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 
 const parseRange = (text: string): [number, number] => {
   const m = text.match(/\$([\d,]+)\s*–\s*\$([\d,]+)/);
@@ -56,6 +56,7 @@ test("the colour tiles follow the job preset and start ticked", async ({ page })
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
   await quickNext(page);
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("door-tighten").click();
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
@@ -77,6 +78,7 @@ test("answering a detail question narrows the range and never lifts the low end 
   await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   const [lo0, hi0] = parseRange((await page.getByTestId("reveal-range").textContent()) ?? "");
   // The reveal says which assumptions still hold the envelope open.

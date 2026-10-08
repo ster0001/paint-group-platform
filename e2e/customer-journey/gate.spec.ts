@@ -106,8 +106,6 @@ test.describe("S6 — the gate", () => {
 
   test("at the API: no range without a completed gate (details first), and the two-estimates limit still holds", async ({ page }) => {
     await setOrder("details_first");
-    // The test project raises the visitor cap for the volume runs; this test needs the real default (2 per 24 h).
-    await db!.from("settings").upsert({ key: "wizard_limits", value: { ...(limitsBefore ?? {}), maxEstimatesPerVisitor: 2 } }, { onConflict: "key" });
     const email = `gate.api.${RUN}@example.com`;
     emails.push(email);
     await driveNoPlanWizard(page, { stopAtGate: true, suburb: `Gateapi${RUN}` });
@@ -119,6 +117,11 @@ test.describe("S6 — the gate", () => {
     await page.locator("[data-quick-step='gate']").getByRole("button", { name: "Show my guide price" }).click();
     const posted = (await submitReq).postDataJSON() as { state: Record<string, unknown> & { contact: { name: string; email: string; phone: string } } };
     await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 }); // estimate 1 for this email
+    // The test project raises the visitor cap for the volume runs; the replays need the real default
+    // (2 per 24 h). Lowered only NOW: the cap counts by email OR by IP, and in a full run every earlier
+    // spec came from this IP, so lowering it before the walk refused estimate 1 itself ("Looks like
+    // you're busy"). The gate check runs before the cap in the route, so the 409 below is unaffected.
+    await db!.from("settings").upsert({ key: "wizard_limits", value: { ...(limitsBefore ?? {}), maxEstimatesPerVisitor: 2 } }, { onConflict: "key" });
     const state = posted.state;
     const noContact = { ...state, contact: { name: "", email: "", phone: "" } };
     const refused = await page.request.post("/api/wizard/submit", { data: { state: noContact } });

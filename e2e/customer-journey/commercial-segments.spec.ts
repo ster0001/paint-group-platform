@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 
 /**
@@ -86,10 +86,11 @@ test("Tom's check: office → 4 offices, 1 open plan, 1 meeting room → a range
   await expect(page.getByTestId("com-hours-business")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("com-occ-vacant")).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("com-hours-after").click();
-  await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range/);
+  await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range|Continue to the last question/);
   await quickNext(page);
 
   // The reveal — the commercial variant.
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.getByTestId("reveal-kicker")).toContainText(/Office/);
   await expect(page.getByTestId("reveal-commercial-note")).toContainText(/estimators confirms it/i);
@@ -146,6 +147,7 @@ test("school: the hall asks its height, and over 6 m allows for a platform", asy
   await expect(page.locator("[data-quick-step='com_job']")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("com-hours-holidays")).toHaveAttribute("aria-pressed", "true");
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.getByTestId("reveal-kicker")).toContainText(/School/);
   await page.getByTestId("reveal-assumed-toggle").click();

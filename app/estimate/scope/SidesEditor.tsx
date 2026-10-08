@@ -54,9 +54,11 @@ const snapshotFalse = () => false;
  * linter's eyes (the old render-time chip() helper tripped react-hooks/refs). */
 function Chip({ on, label, hint, onClick }: { on: boolean; label: string; hint?: string; onClick: () => void }) {
   return (
-    <button className={`sd-chip ${on ? "on" : ""}${hint ? " has-hint" : ""}`} onClick={onClick}>
+    // The hint is visible but NOT part of the accessible name — a chip is still
+    // "Weathered" to a screen reader and to every spec that clicks it by name.
+    <button className={`sd-chip ${on ? "on" : ""}${hint ? " has-hint" : ""}`} aria-label={hint ? label : undefined} onClick={onClick}>
       {label}
-      {hint && <small className="sd-chip-hint">{hint}</small>}
+      {hint && <small className="sd-chip-hint" aria-hidden="true">{hint}</small>}
     </button>
   );
 }

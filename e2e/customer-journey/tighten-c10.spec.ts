@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, quickNext } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, quickNext, passGateIfShown } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 
 const FIXTURES = "e2e/fixtures";
@@ -98,6 +98,7 @@ test("one 'anything we've missed' card, extras per room, no pets, and the assume
   await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
 
   // The reveal's assume list deep-links into the editor.

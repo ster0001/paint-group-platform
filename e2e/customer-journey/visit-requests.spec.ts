@@ -111,9 +111,15 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     const { data: chat } = await db!.from("estimate_messages").select("id, body, direction").eq("estimate_id", c.estimateId);
     expect(chat?.length).toBe(1);
     expect(chat![0]).toMatchObject({ direction: "customer", body: text });
-    const { data: mail } = await db!.from("messages").select("id, to_address").ilike("body", `%${RUN}%`).eq("channel", "email");
+    // One email to the office with the customer copied (R35). Since 29 Sep a multi-address
+    // send logs ONE row: `to_address` is the first address (the office), the rest ride
+    // `meta.alsoTo` — so the customer's copy is looked for in both.
+    const { data: mail } = await db!.from("messages").select("id, to_address, meta").ilike("body", `%${RUN}%`).eq("channel", "email");
     expect(mail?.length).toBeGreaterThan(0);
-    expect(mail!.some((m) => (m.to_address as string).includes(c.email))).toBe(true);
+    const addressed = (m: { to_address: string | null; meta: unknown }) =>
+      [m.to_address ?? "", ...(((m.meta as { alsoTo?: string[] } | null)?.alsoTo) ?? [])].map((a) => a.toLowerCase());
+    expect(mail!.some((m) => addressed(m as { to_address: string | null; meta: unknown }).includes(c.email.toLowerCase())),
+      "the customer is on the email, as the first address or a copy").toBe(true);
     const { data: acc } = await db!.from("accounts").select("id, name").eq("email", c.email).maybeSingle();
     expect(acc?.name).toBeTruthy();
 
@@ -143,7 +149,10 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     await expect(page.getByTestId("talk-sheet")).toBeVisible();
     await expect(page.getByText("Tell us where the property is and how to reach you, and we will arrange a visit.")).toBeVisible();
     await page.getByTestId("talk-name").fill("Early Bird");
-    await expect(page.getByTestId("talk-address")).toHaveValue(/Request Road/);
+    // The address is asked only when the estimate has none (TalkSheet `needAddress`); step 1
+    // already took it, so the box may be absent — the saved request must still carry it (below).
+    const talkAddress = page.getByTestId("talk-address");
+    if (await talkAddress.count()) await expect(talkAddress).toHaveValue(/Request Road/);
     await page.getByTestId("talk-email").fill(email);
     await page.getByTestId("talk-mobile").fill(mobile);
     await page.getByTestId("talk-note").fill("Two bedrooms and the hall.");
