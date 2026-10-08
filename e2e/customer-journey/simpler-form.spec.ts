@@ -71,16 +71,20 @@ test.describe("the quick look", () => {
 
     await page.getByTestId("ql-next").click();
     // S6: under "details first" the one contact question comes here, then the range.
-    await passGateIfShown(page);
+    const gateShown = await passGateIfShown(page);
 
     // The reveal: a RANGE, their own answers read back, and three doors.
     await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
     await expect(page.getByTestId("reveal-restatement")).toContainText("4-bedroom");
     await expect(page.getByTestId("reveal-restatement")).toContainText("the same colours");
-    for (const door of ["door-tighten", "door-book", "door-keep"]) {
+    for (const door of ["door-tighten", "door-book"]) {
       await expect(page.getByTestId(door)).toBeVisible();
     }
+    // "Keep this estimate" asks for an email — so it is offered only when the
+    // details question did not already take one (range first).
+    if (gateShown) await expect(page.getByTestId("door-keep")).toHaveCount(0);
+    else await expect(page.getByTestId("door-keep")).toBeVisible();
     // Every assumption we made for them is listed, not hidden.
     await page.getByTestId("reveal-assumed-toggle").click();
     await expect(page.getByTestId("reveal-assumed-hazards")).toBeVisible();

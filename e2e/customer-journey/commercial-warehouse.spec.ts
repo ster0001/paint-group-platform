@@ -92,9 +92,10 @@ test("Tom's check: 1,000–2,500 m², 4–6 m, precast, some racking, operating 
   await page.getByTestId("door-tighten").click();
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
   await expect(page.getByTestId("estimator-strip").first()).toBeVisible({ timeout: 60_000 });
-  const body = await page.locator("body").innerText();
-  expect(body).toContain("Warehouse floor");
-  expect(body).toContain("Office 1");
+  // Retrying assertions: the strip can paint before the room cards do, and a
+  // one-shot innerText read the page in that gap ("0 OF 2 ROOMS" and no names).
+  await expect(page.locator("body")).toContainText("Warehouse floor", { timeout: 30_000 });
+  await expect(page.locator("body")).toContainText("Office 1");
   // Tom, 14 Sep (item 26): the settle list is the estimator's (the pack); the
   // customer read the scissor lift and the racking on the reveal's assumed list above.
   await expect(page.locator(".wz-confirmonsite")).toHaveCount(0);
