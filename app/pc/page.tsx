@@ -218,6 +218,24 @@ export default async function DashboardPage() {
               <Link className="btn primary" href={item.action.href} data-testid={`callback-card-open-${item.key}`}>{item.action.label}</Link>
               {item.kind === "walkthrough_flagged" && <CheckinDone itemKey={item.key} accountId={null} />}
             </div>
+          ) : item.kind === "qa_check_due" || item.kind === "qa_check_final_cancelled" ? (
+            // Tom, 8 Oct 2026: a quality check or site check-in on its day, or
+            // one whose final walkthrough was cancelled. Recording the check
+            // (or rebooking the final) is what clears it — no dismiss button.
+            <div className={`al ${item.bucket === "overdue" ? "al-crit" : item.kind === "qa_check_due" ? "al-info" : "al-warn"}`} key={item.key}
+              data-testid={`qa-card-${item.key}`} data-kind={item.kind}>
+              <span className="rail" />
+              <span className="ic">✓</span>
+              <div className="bd">
+                <div className="hd">
+                  <strong>{item.title}</strong>
+                  <span className="ref">{item.kind === "qa_check_due" ? (item.bucket === "overdue" ? "Check · overdue" : "Check · today") : "Check · final cancelled"}</span>
+                </div>
+                <p>{item.detail}</p>
+              </div>
+              <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
+              <Link className="btn primary" href={item.action.href} data-testid={`qa-card-open-${item.key}`}>{item.action.label}</Link>
+            </div>
           ) : item.kind === "standards_unsigned" ? (
             // Standards Step 2 (brief §8): a painter past the grace period who has
             // not confirmed. One action — the reminder text; it clears itself

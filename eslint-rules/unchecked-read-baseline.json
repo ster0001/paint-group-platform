@@ -190,7 +190,7 @@
   "lib/showcase/queries.ts": 4,
   "lib/showcase/staff.ts": 3,
   "lib/staff/gate.ts": 1,
-  "lib/staff/notify.ts": 5,
+  "lib/staff/notify.ts": 4,
   "lib/supabase/guards.ts": 2,
   "lib/visits/book.ts": 7,
   "lib/visits/notify.ts": 5,

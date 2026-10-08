@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildIcs } from "./ics";
+import { sendQaCheckInvites } from "./qaCheckInvite";
 import { buildPlainEmailHtml } from "@/lib/messaging/send";
 import { sendAutomation } from "@/lib/automations/dispatch";
 import { isTestEmail } from "@/lib/accounts/identity";
@@ -40,6 +41,9 @@ export async function sendWalkthroughInvites(
   } catch (e) {
     reportError(e, { where: "walkthroughInvite", extra: { workOrderId } });
   }
+  // The quality check follows the final (trigger t_wo_walkthroughs_qa_follows,
+  // 20270247), so every door that reconciles this invite reconciles that one.
+  await sendQaCheckInvites(service, workOrderId);
 }
 
 async function run(service: SupabaseClient, workOrderId: string): Promise<void> {

@@ -66,6 +66,24 @@ export function recipientsFor(
   return out;
 }
 
+/**
+ * The staff logins, with the sign-in email of everyone who takes `key` by
+ * email — the input recipientsFor() reads. Throws when the list cannot be
+ * read: "nobody is ticked" and "we could not look" must never look alike.
+ */
+export async function loadStaffForEvent(
+  service: SupabaseClient,
+  key: StaffEventKey,
+): Promise<Array<StaffProfile & { email: string | null }>> {
+  const { data: rows, error } = await service.from("profiles").select("id, name, phone, staff_notify").eq("role", "staff");
+  if (error) throw new Error(`staff list: ${error.message}`);
+  return Promise.all(((rows ?? []) as StaffProfile[]).map(async (p) => {
+    if (!wantsChannel(parseStaffNotify(p.staff_notify), key, "email")) return { ...p, email: null };
+    const { data: u } = await service.auth.admin.getUserById(p.id);
+    return { ...p, email: u?.user?.email ?? null };
+  }));
+}
+
 export async function notifyStaff(service: SupabaseClient, alert: StaffAlert): Promise<StaffAlertOutcome> {
   try {
     const { messaging, company } = await loadMessaging(service);
@@ -86,15 +104,7 @@ export async function notifyStaff(service: SupabaseClient, alert: StaffAlert): P
     const claimId = (claim.data as { id: string }[] | null)?.[0]?.id;
     if (!claimId) return "already";
 
-    const { data: rows } = await service.from("profiles").select("id, name, phone, staff_notify").eq("role", "staff");
-    const staff = (rows ?? []) as StaffProfile[];
-    const withEmail = await Promise.all(staff.map(async (p) => {
-      const wantsEmail = wantsChannel(parseStaffNotify(p.staff_notify), alert.key, "email");
-      if (!wantsEmail) return { ...p, email: null };
-      const { data: u } = await service.auth.admin.getUserById(p.id);
-      return { ...p, email: u?.user?.email ?? null };
-    }));
-    const recipients = recipientsFor(withEmail, alert.key, alert.skipEmails);
+    const recipients = recipientsFor(await loadStaffForEvent(service, alert.key), alert.key, alert.skipEmails);
     if (recipients.length === 0) {
       await service.from("staff_notifications").update({ recipients: [] }).eq("id", claimId);
       return "nobody";

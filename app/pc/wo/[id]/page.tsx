@@ -18,6 +18,11 @@ import WalkthroughCard from "./WalkthroughCard";
 import ReviewCard, { type ReviewState } from "./ReviewCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
 import QaControls from "./QaControls";
+import QaSchedule from "./QaSchedule";
+import { defaultQaWhen, qaCheckLabel } from "@/lib/workorder/qaSchedule";
+import { inviteLineText, loadQaSchedule } from "@/lib/workorder/qaScheduleLoad";
+import { melbourneDate } from "@/lib/workorder/console";
+import { requestNow } from "@/lib/time/requestClock";
 import ColourMatchCard from "@/app/components/wo/ColourMatchCard";
 import { humaniseGate } from "@/lib/workorder/gateText";
 import TickList from "@/app/components/wo/TickList";
@@ -125,6 +130,12 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
         .select("signed_at, client_unavailable_at, areas")
         .eq("work_order_id", id).maybeSingle(),
     ]);
+
+  // Quality checks with their day and time, the final they sit before, and
+  // what reached the calendar (Tom, 8 Oct 2026).
+  const qaSchedule = await loadQaSchedule(supabase, id);
+  if (qaSchedule.failure) reportError(new Error(qaSchedule.failure), { where: "pc.wo.qaSchedule", bestEffort: true });
+  const inviteAt = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
   // Call backs (Step 3): every one on the job, the painters who could fix it,
   // the photos on each, whether this staff member may void one, and the areas
@@ -371,6 +382,10 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   // Tom, 24 Sep: a job that went through a quality check is the office's to
   // sign off — derived from the checks, same rule as wo_staff_signs_off.
   const staffSignsOff = staffSignsOffFor(qaChecks);
+  const todayMelbourne = melbourneDate(requestNow());
+  const checkInDue = new Set(qaSchedule.checks
+    .filter((c) => c.kind !== "final" && c.result === null && c.date !== null && c.date <= todayMelbourne)
+    .map((c) => c.id));
 
   const forPhase = (phase: string) => checklist.filter((c) => c.phase === phase);
   const outstanding = (phase: string) =>
@@ -835,10 +850,15 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               logged record (and where its re-check went) stays in view while
               the painter rectifies; the unlogged re-check itself waits for
               their next finish before it is drawn. */}
-          {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
-            && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null).map((c) => (
-            <QaCheck key={c.id} check={c} workOrderId={id} expect={qaExpect} />
-          ))}
+          {/* Tom, 8 Oct 2026: a site check-in (or spot check) whose day has come
+              is recorded while the job is still running — its PC Command card
+              ("Record the check") lands here. */}
+          <div id="qa">
+            {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
+              && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null || checkInDue.has(c.id)).map((c) => (
+              <QaCheck key={c.id} check={c} workOrderId={id} expect={qaExpect} />
+            ))}
+          </div>
           {/* Dashboard 0c: reviews requested → received, a person's tick until the API. */}
           {(row.stage === "walkthrough" || row.stage === "closed") && (
             <ReviewCard workOrderId={id} review={reviewState} />
@@ -1003,14 +1023,15 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
                   : (qaRows ?? []).length === 0 ? "Not required — established" : `${(qaRows ?? []).length} scheduled`}
               </span>
             </div>
-            {((qaRows ?? []) as { id: string; kind: string; result: string | null; thin_record: boolean; scheduled_for: string | null }[]).map((q) => (
-              <div className="tick" key={q.id}>
-                <p>{q.kind === "mid" ? "mid-job" : q.kind.replace(/_/g, " ")}{retryOf.get(q.id) ? " · re-check" : ""}{q.scheduled_for ? ` · ${q.scheduled_for}` : ""}</p>
-                <span className={`pill ${q.result === "pass" ? "p-em" : q.result === "fail" ? "p-clay" : "p-amber"}`}>
-                  {q.result ?? "due"}{q.result === "fail" && superseded.has(q.id) ? " · re-checked" : ""}{q.thin_record ? " · thin record" : ""}
-                </span>
-              </div>
-            ))}
+            {qaSchedule.failure && <p className="note" style={{ color: "var(--amber)" }} data-testid="qa-schedule-failure">{qaSchedule.failure}</p>}
+            <QaSchedule
+              rows={qaSchedule.checks.map((q) => ({
+                id: q.id, label: qaCheckLabel(q.kind), recheck: Boolean(retryOf.get(q.id)), result: q.result,
+                superseded: superseded.has(q.id), thinRecord: q.thinRecord, date: q.date, time: q.time,
+                suggested: q.kind === "final" && !retryOf.get(q.id) && qaSchedule.final ? defaultQaWhen(qaSchedule.final.date, qaSchedule.holidays) : null,
+                invite: inviteLineText(qaSchedule.invites.get(q.id), inviteAt),
+              }))}
+              final={qaSchedule.final} today={todayMelbourne} closed={row.stage === "closed"} />
             <QaControls workOrderId={id} qaRequired={Boolean(row.qa_required)} qaWaived={Boolean(row.qa_waived)}
               scheduledCount={(qaRows ?? []).length} closed={row.stage === "closed"} />
           </div>
