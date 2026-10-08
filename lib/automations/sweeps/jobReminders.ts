@@ -17,25 +17,38 @@
  * (lib/workorder/reminderMoments.ts reconcilePlan): dates that move
  * re-date moments that have not happened; past moments never change; a day
  * that went by with no text is marked not_sent so it is never a miss.
+ *
+ * The morning heads-up (Tom, 8 Oct 2026; automation
+ * contractor_job_update_morning, its own switch): on each day with a 15:30
+ * moment, every painter on the job is told at 07:30 that today is an update
+ * day. Planned from the booking on every sweep (jobRhythm
+ * painterMorningHeadsUps), not sent when that day's moment is already
+ * answered or skipped (No work, rescheduled), claimed once per day
+ * (automation_claims) and its outcome per painter written to wo_events
+ * (`reminder_morning_sent`).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { automationByKey } from "../registry";
-import { sendAutomation } from "../dispatch";
-import { loadMessaging } from "@/lib/messaging/load";
-import { automationOn, renderTemplate } from "@/lib/messaging/config";
+import { outcomeWord, sendAutomation } from "../dispatch";
+import { claimRung } from "../reminders";
+import { loadMessaging, type CompanyForMessages } from "@/lib/messaging/load";
+import { automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
+import { buildPlainEmailHtml } from "@/lib/messaging/send";
+import { emailLogoUrl } from "@/lib/messaging/logo";
 import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { melbourneDateKey } from "../controls";
 import { dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
 import {
-  decideSend, mergeJobUpdateRules, planMoments, reconcilePlan, type MomentKind, type MomentRow,
+  decideSend, headsUpDue, mergeJobUpdateRules, planMoments, reconcilePlan, type JobUpdateRules, type MomentKind, type MomentRow,
 } from "@/lib/workorder/reminderMoments";
 import { suburbFromAddress } from "./moneySignoff";
 
 export const JOB_UPDATE_KEY = "contractor_job_update_reminder";
+export const HEADS_UP_KEY = "contractor_job_update_morning";
 const OPEN_STAGES = ["pre_start", "in_progress", "completion_prep"];
 
-export type JobReminderResult = { fired: number; followUps: number; stopped: number; painters: number; planned: number };
+export type JobReminderResult = { fired: number; followUps: number; stopped: number; painters: number; planned: number; headsUp: number };
 
 type WoRow = {
   id: string; wo_ref: string; stage: string; start_date: string | null; end_date: string | null; contractor_id: string | null;
@@ -51,16 +64,22 @@ const toRow = (m: DbMoment): MomentRow => ({
   lastSentAt: m.last_sent_at, answeredAt: m.answered_at, skippedReason: m.skipped_reason,
 });
 
+const MOMENT_COLUMNS = "id, work_order_id, kind, day, due_at, sends_count, last_sent_at, answered_at, skipped_reason";
+
+/** One job's moment rows, as they are. */
+async function loadMoments(db: SupabaseClient, workOrderId: string): Promise<MomentRow[]> {
+  const { data, error } = await db.from("wo_reminder_moments").select(MOMENT_COLUMNS).eq("work_order_id", workOrderId);
+  if (error) throw error;
+  return ((data ?? []) as DbMoment[]).map(toRow);
+}
+
 /** Bring one job's moment rows in line with its booking. Returns the rows after. */
 export async function planJobMoments(db: SupabaseClient, job: WoRow, now: Date): Promise<MomentRow[]> {
   const days = jobDays(job.start_date, job.end_date, {
     worksSaturday: Boolean(job.contractors?.works_saturday), worksSunday: Boolean(job.contractors?.works_sunday),
   });
   const plan = planMoments(days);
-  const { data, error } = await db.from("wo_reminder_moments")
-    .select("id, work_order_id, kind, day, due_at, sends_count, last_sent_at, answered_at, skipped_reason").eq("work_order_id", job.id);
-  if (error) throw error;
-  const existing = ((data ?? []) as DbMoment[]).map(toRow);
+  const existing = await loadMoments(db, job.id);
   const r = reconcilePlan(existing, plan, now);
   if (r.insert.length) {
     const ins = await db.from("wo_reminder_moments")
@@ -80,10 +99,7 @@ export async function planJobMoments(db: SupabaseClient, job: WoRow, now: Date):
     if (up.error) throw up.error;
   }
   if (!(r.insert.length || r.move.length || r.skip.length || r.notSent.length)) return existing;
-  const again = await db.from("wo_reminder_moments")
-    .select("id, work_order_id, kind, day, due_at, sends_count, last_sent_at, answered_at, skipped_reason").eq("work_order_id", job.id);
-  if (again.error) throw again.error;
-  let rows = ((again.data ?? []) as DbMoment[]).map(toRow);
+  let rows = await loadMoments(db, job.id);
   // Rows planned for the first time on a day that has already gone by were
   // never texted either: the second pass marks them not_sent at once, so the
   // painter's screen never shows a "missed" moment nobody asked them about.
@@ -96,12 +112,70 @@ export async function planJobMoments(db: SupabaseClient, job: WoRow, now: Date):
   return rows;
 }
 
+/** Is the job still at a stage that is reminded? Read at send time. */
+async function stillOpen(db: SupabaseClient, workOrderId: string): Promise<boolean> {
+  const { data, error } = await db.from("work_orders").select("stage").eq("id", workOrderId).maybeSingle();
+  if (error) throw error;
+  const stage = (data as { stage?: string } | null)?.stage;
+  return Boolean(stage && OPEN_STAGES.includes(stage));
+}
+
+/**
+ * The 07:30 heads-up for one job, if today is one of its 15:30 days. True
+ * when it went to the dispatcher (each painter's outcome is on the event).
+ */
+async function sendHeadsUp(db: SupabaseClient, input: {
+  key: string; job: WoRow; days: string[]; moments: MomentRow[]; painters: Set<string>;
+  rules: JobUpdateRules; messaging: MessagingSettings; company: CompanyForMessages; now: Date;
+}): Promise<boolean> {
+  const { key, job, days, moments, painters, rules, messaging, company, now } = input;
+  const due = headsUpDue(days, now, rules);
+  if (!due) return false;
+  // The day's update is already in, or the PC marked it No work / it was rescheduled away.
+  const m = moments.find((x) => x.kind === due.forKind && x.day === due.day);
+  if (m && (m.answeredAt || m.skippedReason)) return false;
+  if (!(await stillOpen(db, job.id))) return false;
+  if (!(await claimRung(db, key, job.id, `${due.forKind}:${due.day}`))) return false;
+
+  const { contactFor } = await import("@/lib/contractor/notify");
+  const companyName = company.name || "Paint Group";
+  const outcomes: Record<string, string> = {};
+  for (const contractorId of painters) {
+    const c = await contactFor(db, contractorId);
+    const vars = {
+      first_name: c.firstName, company_name: companyName, wo_ref: job.wo_ref,
+      suburb: suburbFromAddress(job.wo_snapshot?.jobAddress, job.wo_ref || "the job"),
+      day_label: dayLabel(days, due.day) || "today",
+      link: `${siteUrl()}/portal/jobs/${job.id}`,
+    };
+    const o = await sendAutomation(db, {
+      key, to: { phone: c.phone, email: c.email },
+      sms: { body: renderTemplate(messaging.contractorJobUpdateMorningSms, vars) },
+      email: {
+        subject: renderTemplate(messaging.contractorJobUpdateMorningEmailSubject, vars),
+        html: buildPlainEmailHtml({ heading: "Today is an update day", message: renderTemplate(messaging.contractorJobUpdateMorningEmailIntro, vars), companyName, logoUrl: emailLogoUrl(company), companyPhone: company.phone }),
+      },
+      ctx: { workOrderId: job.id, kind: "job_update_morning" }, contractorId, now,
+    });
+    outcomes[contractorId] = outcomeWord(o);
+  }
+  const ev = await db.from("wo_events").insert({
+    work_order_id: job.id, type: "reminder_morning_sent", actor_kind: "system",
+    meta: { for_kind: due.forKind, day: due.day, outcomes },
+  });
+  if (ev.error) throw ev.error;
+  return true;
+}
+
 export async function runJobReminderSweep(db: SupabaseClient, now = new Date()): Promise<JobReminderResult> {
-  const out: JobReminderResult = { fired: 0, followUps: 0, stopped: 0, painters: 0, planned: 0 };
+  const out: JobReminderResult = { fired: 0, followUps: 0, stopped: 0, painters: 0, planned: 0, headsUp: 0 };
   const a = automationByKey(JOB_UPDATE_KEY);
+  const h = automationByKey(HEADS_UP_KEY);
   try {
     const { messaging, company } = await loadMessaging(db);
-    if (!a || !automationOn(messaging, a.key)) return out;
+    const remindersOn = Boolean(a && automationOn(messaging, a.key));
+    const headsUpOn = Boolean(h && automationOn(messaging, h.key));
+    if (!remindersOn && !headsUpOn) return out;
     const { data: rulesRow, error: rulesErr } = await db.from("settings").select("value").eq("key", "job_update_rules").maybeSingle();
     if (rulesErr) reportError(rulesErr, { where: "automations.jobReminders.rules", bestEffort: true });
     const rules = mergeJobUpdateRules((rulesRow as { value?: unknown } | null)?.value);
@@ -132,8 +206,10 @@ export async function runJobReminderSweep(db: SupabaseClient, now = new Date()):
     const templates = [messaging.contractorJobUpdateSms, messaging.contractorJobUpdateSms2, messaging.contractorJobUpdateSms3];
 
     for (const job of jobs) {
-      const moments = await planJobMoments(db, job, now);
-      out.planned += moments.length;
+      // With the 3:30 reminders switched off the moments are not planned; the
+      // heads-up still reads whatever rows exist for that day's state.
+      const moments = remindersOn ? await planJobMoments(db, job, now) : await loadMoments(db, job.id);
+      if (remindersOn) out.planned += moments.length;
       const days = jobDays(job.start_date, job.end_date, {
         worksSaturday: Boolean(job.contractors?.works_saturday), worksSunday: Boolean(job.contractors?.works_sunday),
       });
@@ -141,14 +217,16 @@ export async function runJobReminderSweep(db: SupabaseClient, now = new Date()):
       if (job.contractor_id) painters.add(job.contractor_id);
       if (painters.size === 0) continue;
 
+      if (headsUpOn && h) {
+        if (await sendHeadsUp(db, { key: h.key, job, days, moments, painters, rules, messaging, company, now })) out.headsUp += 1;
+      }
+      if (!remindersOn || !a) continue;
+
       for (const m of moments) {
         const d = decideSend(m, now, rules);
         if (!d.send) continue;
         // "Still needed?" at send time: a job that moved on is not reminded.
-        const { data: f, error: fErr } = await db.from("work_orders").select("stage").eq("id", job.id).maybeSingle();
-        if (fErr) throw fErr;
-        const stage = (f as { stage?: string } | null)?.stage;
-        if (!stage || !OPEN_STAGES.includes(stage)) { out.stopped += 1; continue; }
+        if (!(await stillOpen(db, job.id))) { out.stopped += 1; continue; }
         // Claim the send BEFORE texting, so two sweeps at once never double up.
         const claim = await db.from("wo_reminder_moments")
           .update({ sends_count: m.sendsCount + 1, last_sent_at: now.toISOString() })

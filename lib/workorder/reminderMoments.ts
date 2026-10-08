@@ -11,7 +11,7 @@
  * changes a past one (`reconcilePlan`).
  */
 import { melbourneInstant } from "@/lib/time/businessHours";
-import { painterUpdateRungs, rungInstant, type JobRung } from "./jobRhythm";
+import { painterMorningHeadsUps, painterUpdateRungs, rungInstant, type JobRung } from "./jobRhythm";
 
 export type MomentKind = "day1" | "day1_pm" | "day2" | "mid" | "mid30" | "mid60" | "last";
 export const MOMENT_KINDS: readonly MomentKind[] = ["day1", "day1_pm", "day2", "mid", "mid30", "mid60", "last"];
@@ -38,22 +38,30 @@ export type JobUpdateRules = {
   /** HH:MM Melbourne: nothing goes after this (R8 "Nothing after 7:00 pm"). */
   lastSend: string;
   maxTexts: number;
+  /** HH:MM Melbourne: the morning heads-up on a 15:30 moment's day (Tom, 8 Oct)… */
+  headsUp: string;
+  /** …sent from `headsUp` until this time, never later — a missed morning is not sent in the afternoon. */
+  headsUpUntil: string;
 };
 
 export const DEFAULT_JOB_UPDATE_RULES: JobUpdateRules = {
   morningFollowUps: ["10:30", "13:30"], afternoonFollowUps: ["17:30", "19:00"], lastSend: "19:00", maxTexts: 3,
+  headsUp: "07:30", headsUpUntil: "12:00",
 };
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 export function mergeJobUpdateRules(raw: unknown): JobUpdateRules {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const times = (v: unknown, d: string[]) => Array.isArray(v) && v.every((x) => typeof x === "string" && HHMM.test(x)) ? (v as string[]) : d;
+  const time = (v: unknown, d: string) => (typeof v === "string" && HHMM.test(v) ? v : d);
   const max = Number.isInteger(r.maxTexts) && (r.maxTexts as number) >= 1 && (r.maxTexts as number) <= 5 ? (r.maxTexts as number) : DEFAULT_JOB_UPDATE_RULES.maxTexts;
   return {
     morningFollowUps: times(r.morningFollowUps, DEFAULT_JOB_UPDATE_RULES.morningFollowUps),
     afternoonFollowUps: times(r.afternoonFollowUps, DEFAULT_JOB_UPDATE_RULES.afternoonFollowUps),
-    lastSend: typeof r.lastSend === "string" && HHMM.test(r.lastSend) ? r.lastSend : DEFAULT_JOB_UPDATE_RULES.lastSend,
+    lastSend: time(r.lastSend, DEFAULT_JOB_UPDATE_RULES.lastSend),
     maxTexts: max,
+    headsUp: time(r.headsUp, DEFAULT_JOB_UPDATE_RULES.headsUp),
+    headsUpUntil: time(r.headsUpUntil, DEFAULT_JOB_UPDATE_RULES.headsUpUntil),
   };
 }
 
@@ -110,6 +118,19 @@ export function decideSend(m: MomentRow, now: Date, rules: JobUpdateRules): Send
   if (!slot) return { send: false, why: "max" };
   if (now.getTime() < slot.getTime()) return { send: false, why: "too_soon" };
   return { send: true, which: m.sendsCount + 1 };
+}
+
+/**
+ * The morning heads-up due now (Tom, 8 Oct): today is a 15:30 moment's day
+ * with no 07:30 text of its own, and the Melbourne clock is inside
+ * [headsUp, headsUpUntil). Null otherwise. Whether that day's moment was
+ * answered or skipped is the sweep's question — it holds the rows.
+ */
+export function headsUpDue(days: readonly string[], now: Date, rules: JobUpdateRules): { forKind: MomentKind; day: string } | null {
+  const { day, hhmm } = melbourneDayAndTime(now);
+  if (hhmm < rules.headsUp || hhmm >= rules.headsUpUntil) return null;
+  const h = painterMorningHeadsUps(days).find((x) => x.date === day);
+  return h ? { forKind: h.forRung as MomentKind, day } : null;
 }
 
 export type Reconcile = {

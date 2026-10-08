@@ -20,6 +20,18 @@
  *   3–6 days   day 1 07:30 · 50% 15:30 · last day 15:30
  *   7+ days    day 1 07:30 · 30% 15:30 · 60% 15:30 · last day 15:30
  *
+ * Painter morning heads-up (Tom, 8 Oct 2026): every day with a 15:30 moment
+ * also gets a morning text (automation contractor_job_update_morning) — except
+ * a day that already starts with the 07:30 day-1 text (a one-day job).
+ *
+ * Customer defect-tape text (Tom, 8 Oct 2026; automation customer_defect_tape),
+ * counted in the same booked WORKING days back from the last day:
+ *   1–2 days   none
+ *   3–6 days   two working days before the last day, morning and afternoon
+ *   7+ days    three working days before the last day, morning
+ * (Tom wrote "3–6" and "more than 7"; 7 itself follows the 7+ rule, as the
+ * painter ladder above does.)
+ *
  * Office check-ins with the customer:
  *   1–2 days   a follow-up after the job completes — are they happy?
  *   3–6 days   50% through: a mid-job check-in (high importance)
@@ -77,6 +89,26 @@ export function painterUpdateRungs(days: readonly string[]): JobRung[] {
   if (n <= 2) return [morning("day1", first), afternoon(n === 1 ? "day1_pm" : "day2", last)];
   if (n <= 6) return [morning("day1", first), afternoon("mid", dayAt(days, 0.5)), afternoon("last", last)];
   return [morning("day1", first), afternoon("mid30", dayAt(days, 0.3)), afternoon("mid60", dayAt(days, 0.6)), afternoon("last", last)];
+}
+
+/** The days the painter gets a morning heads-up: each 15:30 moment's day, unless that day already has the 07:30 text. */
+export function painterMorningHeadsUps(days: readonly string[]): { forRung: string; date: string }[] {
+  const rungs = painterUpdateRungs(days);
+  const mornings = new Set(rungs.filter((r) => r.hour < 12).map((r) => r.date));
+  return rungs.filter((r) => r.hour >= 12 && !mornings.has(r.date)).map((r) => ({ forRung: r.id, date: r.date }));
+}
+
+export type DefectTapeRung = { id: "am" | "pm"; date: string };
+
+/** When the customer is reminded to mark touch-ups with tape before the walkthrough. */
+export function customerDefectTapeRungs(days: readonly string[]): DefectTapeRung[] {
+  const n = days.length;
+  if (n < 3) return [];
+  if (n <= 6) {
+    const date = days[n - 3];
+    return [{ id: "am", date }, { id: "pm", date }];
+  }
+  return [{ id: "am", date: days[n - 4] }];
 }
 
 export type CheckinPlan =

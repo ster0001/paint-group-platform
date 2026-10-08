@@ -22,6 +22,7 @@ Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is 
 1. Open **Jobs** and tap the job. Under **You're on this job**, **Ready to start?** shows how many pre-start items the office still has to tick. When the list is done, tap **Start the job** on your first morning on site. The job moves to **In progress** and the office sees you are there.
 
 ### Ticking surfaces off
+You are texted to update the job on day 1 at 7:30 am, then part-way through and on the last day at 3:30 pm; on each of those 3:30 pm days a 7:30 am text tells you today is an update day.
 **App updates on this job** lists each reminder moment with its state: Coming up, Due today, Answered (a tick or a photo landed that day), Missed, or No work that day (not counted). If nothing lands you get up to two more texts that day, never after 7 pm; one update answers one moment.
 Under each surface there is a **What we expect ›** link: the finish standard for that surface at this job's level (see [the finish standards guide](../standards/employee.md)). A line with no standard has no link. The job sheet also says whether the **Tape check** is required (not on jobs under 16 hours).
 2. **Scope & ticks** lists every area on the job sheet and its surfaces. Each row has three squares: to do, prepped, done. Tap a row once to mark it **PREPPED**, again to mark it **DONE**. The count at the top is the job's live progress.
