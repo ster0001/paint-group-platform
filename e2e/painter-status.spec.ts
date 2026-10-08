@@ -153,11 +153,11 @@ test.describe("painter status — the evaluator writes, the office reads", () =>
 
   test("the staff table shows the row; the painter cannot open it", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/pc/status");
+    await page.goto("/pc/contractors");
     await expect(page.getByTestId("painter-status")).toBeVisible();
     const row = page.getByTestId(`painter-status-row-${contractorId}`);
     await expect(row).toBeVisible();
     await expect(row).toHaveAttribute("data-colour", "orange");
-    await expect(row).toContainText(/clean/);
+    await expect(row).toContainText(/Checks/);
   });
 });
