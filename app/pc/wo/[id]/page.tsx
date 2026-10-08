@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import EstimatorNotes from "@/app/components/estimator-notes/EstimatorNotes";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -11,6 +12,8 @@ import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorde
 import PriceVariation from "./PriceVariation";
 import UpdateComposer from "./UpdateComposer";
 import Checklist, { type ChecklistItem } from "./Checklist";
+import PrestartListBox from "./PrestartListBox";
+import { loadPrestartList } from "@/lib/workorder/pcNotes";
 import WalkthroughCard from "./WalkthroughCard";
 import ReviewCard, { type ReviewState } from "./ReviewCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
@@ -369,6 +372,20 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   const forPhase = (phase: string) => checklist.filter((c) => c.phase === phase);
   const outstanding = (phase: string) =>
     forPhase(phase).filter((c) => c.required && !c.done).length;
+
+  // Tom, 8 Oct 2026: the materials / equipment a job needs, written under
+  // those two pre-start items and saved before either is ticked.
+  const prestart = row.stage === "pre_start" ? await loadPrestartList(supabase, id) : null;
+  const prestartExtras: Record<string, ReactNode> = {};
+  if (prestart) {
+    const pre = forPhase("pre_start");
+    const materialsItem = pre.find((c) => /^materials/i.test(c.label));
+    const equipmentItem = pre.find((c) => /^equipment/i.test(c.label));
+    if (materialsItem) prestartExtras[materialsItem.id] =
+      <PrestartListBox workOrderId={id} kind="materials" initial={prestart.list.materials} />;
+    if (equipmentItem) prestartExtras[equipmentItem.id] =
+      <PrestartListBox workOrderId={id} kind="equipment" initial={prestart.list.equipment} />;
+  }
 
   const contractorRateCents = Math.round(
     Number((rateRow as { value?: { value?: number } } | null)?.value?.value ?? 60) * 100,
@@ -734,7 +751,11 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               items={forPhase("pre_start")}
               outstanding={outstanding("pre_start")}
               coloursHref={coloursHref}
+              extras={prestartExtras}
             />
+          )}
+          {prestart?.failure && (
+            <p className="note" style={{ color: "var(--amber)" }} data-testid="prestart-list-failure">{prestart.failure}</p>
           )}
 
           {/* A job at pre-start with no list is a fault, not a finished list —

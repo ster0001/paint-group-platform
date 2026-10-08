@@ -7,6 +7,8 @@ import ReofferDialog from "./ReofferDialog";
 import CollectionDone from "./CollectionDone";
 import CheckinDone from "./CheckinDone";
 import StandardsRemind from "./StandardsRemind";
+import WorkItemNote from "./WorkItemNote";
+import { loadWorkItemNotes } from "@/lib/workorder/pcNotes";
 import { buildPcWorkItems } from "@/lib/crm/work-queue";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
@@ -32,6 +34,11 @@ export default async function DashboardPage() {
   // from here, not the CRM. Same evaluator and dismissals as Today — a
   // different screen over the one queue, not a second queue.
   const checkins = await buildPcWorkItems(supabase, input.now);
+  // Tom, 8 Oct 2026: a short note on each reminder, kept against its key.
+  const itemNotes = await loadWorkItemNotes(supabase, [
+    ...checkins.items.map((i) => i.key), ...queue.map((c) => c.key),
+  ]);
+  const noteFor = (key: string) => <WorkItemNote itemKey={key} initial={itemNotes.notes.get(key) ?? ""} />;
   const dueWord = (item: { bucket: string; dueAt: string | null }) =>
     item.bucket === "overdue" ? "overdue" : item.bucket === "today" ? "by 5 pm today" : "waiting";
 
@@ -184,6 +191,9 @@ export default async function DashboardPage() {
         </div>
 
         <div className="stack" data-testid="queue">
+          {itemNotes.failure && (
+            <p className="empty" data-testid="notes-failure" style={{ color: "var(--amber)" }}>{itemNotes.failure}</p>
+          )}
           {checkins.failure && (
             <p className="empty" data-testid="checkins-failure" style={{ color: "var(--amber)" }}>{checkins.failure}</p>
           )}
@@ -199,6 +209,7 @@ export default async function DashboardPage() {
                   <span className="ref">{item.kind === "walkthrough_flagged" ? "Walk-through" : "Call back"} · {dueWord(item)}</span>
                 </div>
                 <p>{item.detail}</p>
+                {noteFor(item.key)}
               </div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`callback-card-open-${item.key}`}>{item.action.label}</Link>
@@ -217,6 +228,7 @@ export default async function DashboardPage() {
                   <span className="ref">Standards · {dueWord(item)}</span>
                 </div>
                 <p>{item.detail}</p>
+                {noteFor(item.key)}
               </div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn" href={item.action.href} data-testid={`standards-open-${item.key}`}>Open painter</Link>
@@ -233,6 +245,7 @@ export default async function DashboardPage() {
                   <span className="ref">{item.kind === "job_checkin" ? "Check-in" : "Follow-up"} · {dueWord(item)}</span>
                 </div>
                 <p>{item.detail}</p>
+                {noteFor(item.key)}
               </div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn" href={item.action.href} data-testid={`checkin-open-${item.key}`}>Open the job</Link>
@@ -250,6 +263,7 @@ export default async function DashboardPage() {
                   <span className="ref">{card.ref}</span>
                 </div>
                 <p>{card.detail}</p>
+                {noteFor(card.key)}
               </div>
               <span className="tm">{age(card.ageHours)}</span>
               <DismissCard workOrderId={card.workOrderId} cardKey={card.key} />
