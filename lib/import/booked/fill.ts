@@ -85,7 +85,18 @@ export type FillResult = {
   hoursDisagree: boolean;
 };
 
-export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOrder, opts: { workOrderUrl?: string } = {}): FillResult {
+export type FillOptions = {
+  workOrderUrl?: string;
+  /**
+   * Tom, 1 Oct 2026 (9/552 Lonsdale St): the quote named an area twice ("Male
+   * toilets" ×2) where the work order says "Male toilets" + "Female toilets".
+   * work-order area name → quote area name to take the price from, used only
+   * when no same-named quote area is free; the first unconsumed one is taken.
+   */
+  areaAliases?: Record<string, string>;
+};
+
+export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOrder, opts: FillOptions = {}): FillResult {
   const ref = existing.externalRef;
   const state = existing.builderState && typeof existing.builderState === "object" ? (existing.builderState as Record<string, unknown>) : {};
   const contact = state.contact && typeof state.contact === "object" ? (state.contact as Record<string, unknown>) : {};
@@ -98,14 +109,24 @@ export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOr
   const warnings: string[] = [];
 
   const areas: BookedArea[] = wo.areas.map((a) => {
-    const twin = pool.find((p) => !p.used && normName(p.name) === normName(a.name));
+    // Order: a same-named PRICED block; then the alias's target; then a
+    // same-named $0 block. A refill meets the $0 block an earlier fill wrote
+    // under this very name (the alias must beat that), while repeated names
+    // ("Male toilets" ×2, 8 Oct) still take their own prices in page order
+    // before the alias covers whatever is left.
+    const aliasEntry = Object.entries(opts.areaAliases ?? {}).find(([from]) => normName(from) === normName(a.name));
+    const free = (name: string, priced: boolean | null) =>
+      pool.find((p) => !p.used && normName(p.name) === normName(name) && (priced == null || (p.priceCents !== 0) === priced));
+    const twin = free(a.name, true)
+      ?? (aliasEntry ? free(aliasEntry[1], null) : undefined)
+      ?? free(a.name, null);
     if (twin) twin.used = true;
     const items: BookedItem[] = a.items.map((it) => ({
       item: it.item, qty: it.qty, unit: it.unit, hours: it.hours, coats: it.coats, product: it.product || "",
     }));
     const hours = items.length > 0 ? items.reduce((n, it) => n + (it.hours ?? 0), 0) : a.hours_total ?? 0;
     const price = twin ? twin.priceCents : null;
-    if (twin) mapping.push(`${a.name}: $${(twin.priceCents / 100).toFixed(2)} from the quote · ${items.length} line${items.length === 1 ? "" : "s"} · ${hours} h`);
+    if (twin) mapping.push(`${a.name}: $${(twin.priceCents / 100).toFixed(2)} from the quote${normName(twin.name) !== normName(a.name) ? ` (its "${twin.name}" price, by --area)` : ""} · ${items.length} line${items.length === 1 ? "" : "s"} · ${hours} h`);
     else if (hours > 0) {
       mapping.push(`${a.name}: no priced twin on the quote · ${items.length} line${items.length === 1 ? "" : "s"} · ${hours} h at $0`);
       warnings.push(`"${a.name}" carries ${hours} h on the work order but the quote has no area of that name — it goes in at $0 (its price sits inside another area).`);
@@ -121,6 +142,9 @@ export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOr
     // Heading-only quote rows ($0, hidden) that the work order also lacks add
     // nothing; a priced one keeps its money.
     if (p.kind === "heading") continue;
+    // A $0 line the work order no longer names carries no money and no scope
+    // (typically a block an earlier fill wrote for an area now aliased away).
+    if (p.priceCents === 0) { mapping.push(`${p.name}: $0.00 on the quote, not on the work order · dropped`); continue; }
     areas.push({ name: p.name, price_ex_gst_cents: p.priceCents, hours_prep: null, hours_paint: null, hours_total: null, length_m: null, width_m: null, height_m: null, items: [] });
     mapping.push(`${p.name}: $${(p.priceCents / 100).toFixed(2)} on the quote, not on the work order · kept as a line with no hours`);
     warnings.push(`"${p.name}" is priced on the quote but the work order has no area of that name — kept as a priced line with no hours.`);
