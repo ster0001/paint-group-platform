@@ -1,3 +1,4 @@
+import { runStandardsReminderSweep } from "@/lib/automations/sweeps/standardsReminders";
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runSweep } from "@/lib/campaigns/runSweep";
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
     // `?only=reminders` (the e2e, a hand run) skips the campaign engine.
     const params = new URL(req.url).searchParams;
     const only = params.get("only");
-    const outcomes = only === "reminders" ? [] : await runSweep(db, now);
+    const outcomes = only === "reminders" || only === "standards" ? [] : await runSweep(db, now);
     // Session 3: money and sign-off reminder ladders, every half hour.
     // `?force=1` (the e2e, a deliberate hand run) ignores the offer reminder's
     // 22:00–04:59 Melbourne night window — the same word the wo-sweep uses.
@@ -45,7 +46,10 @@ export async function GET(req: Request) {
     const reminders = await runMoneySignoffSweep(db, now, { ignoreOfferWindow: params.get("force") === "1" });
     // Tom, 25 Sep: the painter's "update your work order" texts — day 1,
     // mid-job and last-day moments by job length (lib/workorder/jobRhythm.ts).
-    const jobReminders = await runJobReminderSweep(db, now);
+    const jobReminders = only === "standards" ? null : await runJobReminderSweep(db, now);
+    // Standards Step 2: "please confirm the finish standards" on days 2, 4 and 6
+    // after the invite, and the new-version message (lib/standards/acks.ts).
+    const standards = await runStandardsReminderSweep(db, now);
     // Session 1: automatic job messages held for quiet hours or the daily
     // cap are released here — every 30 minutes, so a held text goes at the
     // opening, not at the next daily sweep. Only messages the office already
@@ -58,6 +62,7 @@ export async function GET(req: Request) {
       released,
       reminders,
       jobReminders,
+      standards,
       note: "Campaign steps are queued only. Held automatic messages whose time has come are sent.",
     });
   } catch (e) {

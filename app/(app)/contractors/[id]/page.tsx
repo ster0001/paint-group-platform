@@ -11,6 +11,9 @@ import DeleteContractor from "./DeleteContractor";
 import ContractorLogin from "./ContractorLogin";
 import ContractorMobile from "./ContractorMobile";
 import ContractorBank from "./ContractorBank";
+import ContractorStandards from "./ContractorStandards";
+import { loadStandardsStatuses } from "@/lib/standards/status";
+import { staffStatusLine } from "@/lib/standards/acks";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +59,13 @@ export default async function ContractorDetailPage({ params }: { params: Promise
   const qaMode = c.qa_mode === "every_job" || c.qa_mode === "none" || c.qa_mode === "first_jobs"
     ? c.qa_mode : c.requires_qa ? "every_job" : "first_jobs";
   const failures: string[] = [];
+
+  // Finish standards (Step 2, ruling S7): confirmed date and version, or where they are.
+  const standardsRes = await loadStandardsStatuses(supabase);
+  if (standardsRes.error) failures.push("the finish standards status");
+  const standardsRow = standardsRes.rows.find((r) => r.contractorId === id) ?? null;
+  const standardsStatus = standardsRow?.status ?? "not_required";
+  const standardsLine = standardsRow ? staffStatusLine(standardsRow.status, { ...standardsRow, confirmedNo: standardsRow.confirmedVersion, now: new Date() }) : "No standards published";
 
   // Their jobs. A contractor holds the work order; an employed painter is on it
   // by assignment, so both paths are read and merged.
@@ -160,6 +170,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
             <Field label="Weekends" value={`Sat ${c.works_saturday ? "yes" : "no"} · Sun ${c.works_sunday ? "yes" : "no"}`} />
             <Field label="Bank" value={<ContractorBank id={c.id} bsb={c.bank_bsb ?? null} last4={c.bank_account_last4 ?? null} />} />
             <Field label="RCTI agreement" value={c.rcti_agreement_signed_at ? `signed ${formatDMY(c.rcti_agreement_signed_at.slice(0, 10))}` : "not signed"} />
+            <Field label="Finish standards" value={<ContractorStandards id={c.id} status={standardsStatus} line={standardsLine} />} />
           </div>
         </section>
 

@@ -4415,3 +4415,29 @@ employed painter (they always used `rolesFor("contractor")`); `TickList`'s unuse
 `work_order_surfaces` table (20260818) dropped. Specs: `e2e/standards.spec.ts` (painter on a phone in both themes, PC,
 RLS through each role's token); unit `lib/standards/*.test.ts`. Help: standards/{contractor,employee,pc}.md.
 Diag: `scripts/diag/standards-unmapped-lines.mjs`. Manual script: `docs/testing/standards-step1-manual.md`.
+
+**Finish standards sign-off and the offers gate (8 Oct 2026 — standards / status / call backs brief, Step 2).**
+`20270225000000_standards_signoff.sql`: `standards_acks` (one row per painter, version, section; six = confirmed; staff
+read all, painter reads own, writes only through `standards_ack_section`), `contractors.standards_invited_at` /
+`standards_grace_until` (RPC-written), `settings.standards_rules` {graceDays 7, reminderDays [2,4,6], reminderHour 9,
+pcCardDay 7}, and the ONE rule `standards_status_of(contractor)` → not_required | confirmed | employee_unsigned |
+not_invited | grace | blocked (mirrored by `standardsStatusOf` in `lib/standards/acks.ts`, pinned by test). The required
+version is the newest published MATERIAL one; a wording-only version requires nothing new (S7). `send_offer` (20270208 body)
+returns `error:standards_not_signed` for a blocked painter and `t_booking_offers_standards_gate` refuses the insert on any
+other path. `redeem_contractor_invite` invites a new painter with NO grace (sign-off is onboarding); `standards_invite`
+(office) starts the grace; `standards_publish_version` re-invites everyone not confirmed on a material version (⚑18);
+`standards_statuses()` serves staff and the service role. Painter: `/portal/standards/confirm` (intro → six sections with
+`SignoffStep` → confirmation; resumable from the first unticked; `PortalTabs` hidden on the route; Home redirects there
+while blocked and shows an amber card while grace runs); the confirmed date/version on Home, Help › standards and the
+profile. On the sixth tick `completeStandardsConfirmation` (service, `after()`) renders `lib/standards/pdfHtml.ts` through
+`renderHtmlToPdf`, uploads to `contractor-docs` (under the painter's own folder, the 20260831 rule), inserts a `contractor_documents` row of kind `standards` (new enum value,
+not removable by the painter) and emails it attached (`contractor_standards_confirmed`). Messages 1, 2, 4 are
+`contractor_standards_invite` / `_reminder` / `_new_version` in the registry (`lib/standards/notify.ts`, every send leaves a
+`contractor_events` row with the dispatcher's outcome). `lib/automations/sweeps/standardsReminders.ts` runs the ⚑17 ladder
+(entity = painter@inviteInstant, so a re-invite is a fresh ladder) and the new-version message from the campaign sweep
+(`?only=standards`). PC: work-queue kind `standards_unsigned` (PC-homed; `buildStandardsItems` from `standards_statuses`;
+card from day pcCardDay with `StandardsRemind`); Contractors list `Standards:` line + Send standards invite / Invite N
+(`inviteStandardsAction`, `inviteAllStandardsAction`, `remindStandardsAction`); the painter page's Finish standards row
+(`ContractorStandards`); the board's `Lane.standardsStatus` greys the Send offer button with "Standards not signed".
+Specs: `e2e/standards-signoff.spec.ts`; unit `lib/standards/acks.test.ts`. Help: standards/{contractor,employee,pc},
+contractors/staff. Inventory rows 11–14.

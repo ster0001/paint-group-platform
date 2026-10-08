@@ -177,6 +177,22 @@
 .pt .act i { font-style: normal; flex-shrink: 0; }
 .pt .act .push { margin-left: auto; }
 
+/* ---- finish standards sign-off (Step 2) ---------------------------------- */
+.pt .signoff { display: flex; flex-direction: column; gap: 12px; padding-bottom: 32px; }
+.pt .signoff h1 { font-size: 21px; line-height: 1.2; margin: 0; }
+.pt .signoff p { font-size: 14px; line-height: 1.5; margin: 0; }
+.pt .signoff-progress { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.pt .signoff-progress i { height: 5px; border-radius: 3px; background: var(--line); }
+.pt .signoff-progress i.on { background: var(--paint); }
+.pt .signoff-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.pt .signoff-check { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; background: var(--graphite); border: 1px solid var(--line); border-radius: 12px; padding: 14px; font: inherit; font-weight: 600; font-size: 14px; color: var(--text); cursor: pointer; min-height: 52px; }
+.pt .signoff-check .box { flex: none; width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--muted); display: grid; place-items: center; font-size: 14px; color: transparent; }
+.pt .signoff-check.on { border-color: var(--emerald); }
+.pt .signoff-check.on .box { background: var(--emerald); border-color: var(--emerald); color: #04150c; }
+.pt .perk { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; padding: 4px 0; }
+.pt .perk .ic { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font: 700 11px/1 var(--mono); background: var(--graphite); border: 1px solid var(--line); color: var(--muted); }
+.pt .perk.on .ic { background: var(--emerald); border-color: transparent; color: #04150c; }
+
 /* ---- empty states ------------------------------------------------------- */
 .pt .empty {
   border: 1px dashed var(--line);

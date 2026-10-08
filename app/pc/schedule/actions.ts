@@ -66,6 +66,7 @@ const ERROR_WORDING: Record<string, string> = {
   not_issued: "Issue the work order before offering it.",
   contractor_suspended: "That contractor's access is suspended — restore it first.",
   not_offerable: "That contractor has no current, verified insurance certificate — check their paperwork on the Contractors page before offering them work.",
+  standards_not_signed: "That painter has not confirmed the finish standards and their grace period has ended — no new offers until they do. Send them a reminder from the Contractors page.",
   contractor_not_found: "That contractor no longer exists.",
   work_order_not_found: "That job no longer exists.",
   no_start_date: "Pick a start date.",

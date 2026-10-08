@@ -20,6 +20,11 @@ Paint Group's finish standards say, surface by surface, what a painter must do a
 2. At the quality-check stage, the **Quality check** card lists **What we expect on this job's surfaces** above the four standard items: one link per surface line, for example **Lounge · Walls — what we expect ›**.
 3. Tap a link. The surface opens locked to **Level N on this job** with every check for that level. **See other levels ›** compares; **← Job** returns to the job.
 
+### Who has signed
+1. **Contractors** (sidebar) carries a **Standards:** line on every card and a **Finish standards** row on each painter's page: confirmed with date and version, invited and inside the grace period, blocked (grace ended, no job offers), or not invited. **Send standards invite** / **Invite N to confirm the standards** start the grace period and send the invite; **Send reminder text** sends the reminder now.
+2. In PC Command the queue shows **{painter} has not signed the finish standards** from day 7 after the invite, with **Send reminder text** and **Open painter**. The card clears itself when they confirm.
+3. On the schedule board, dropping a job on a blocked painter shows **Standards not signed** and the Send offer button is off; **Hold these dates instead** still works. The RPC refuses too, whichever way an offer is attempted.
+
 ### Browsing the standards
 1. Go to `/pc/standards` (also linked as **← Standards** from any surface). Choose **Interior** or **Exterior**, tap a surface, switch levels with **Level 2 / 3 / 4**.
 2. **The rules** list opens the six rule pages the painter signs off on: the three levels, rules for every job, time and variations, the defect rule, the final checklist, words.

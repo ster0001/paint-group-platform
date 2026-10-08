@@ -16,6 +16,13 @@ The level on your work order (Level 2, 3 or 4) tells you how much preparation to
 
 ## Steps
 
+### Confirming the standards (once)
+1. When Paint Group invites you, you get a text and an email with a link, and **Home** shows **Read and confirm the finish standards**. A new painter sees it as their first screen. Tap **Start**.
+2. There are six short sections: the three levels and the look test, rules for every job, your time and variations, interior surfaces, exterior surfaces, the defect rule and final checklist. Read each one, tap **I have read and understand this**, then **Next section**. The sixth button reads **Confirm**. Nothing to type.
+3. You can stop and come back: the next time you open the sign-off it starts at the first section you have not ticked.
+4. When all six are confirmed you see **Standards confirmed** with the date and version. A copy is saved in your documents (**Profile → Insurance & licences** or **Your tickets**) and emailed to you as a PDF.
+5. Until you confirm, Paint Group cannot send you new job offers once your grace period ends; jobs you have already started carry on as normal. The reminder texts stop the moment you confirm.
+
 ### From a job
 1. Open **Jobs** and tap the job. Under each surface in **Scope & ticks**, and under each line in the job sheet below, there is a **What we expect ›** link. Not every line has one: a line that has no finish standard (gutters, a fuel allowance) shows nothing.
 2. Tap **What we expect ›**. The surface opens at **this job's level** and says so in a blue pill, for example **Level 3 on this job**. Read **Every level** first, then the rows for your level: Fill, Sand, Gaps, Lines and so on.
@@ -36,6 +43,7 @@ The level on your work order (Level 2, 3 or 4) tells you how much preparation to
 - **Every level** — the part of the standard that applies whatever the level.
 
 ## If something goes wrong
+- **"No job offers until you confirm the finish standards"** on Home — open the card and finish the six sections; offers resume at once.
 - **"The finish standards could not be loaded"** — the office has not loaded them yet or the connection dropped. Pull down to reload; if it keeps happening, ring the office. The rest of the job page still works.
 - **A surface has no "What we expect" link** — that line has no finish standard (for example gutters, downpipes, a deck). Ask the office if you are unsure what is expected.
 - **The work order shows no level** — ask the office before you start.

@@ -98,6 +98,7 @@ const P = {
   leaveDecided: ["{{first_name}}", "{{company_name}}", "{{kind_word}}", "{{dates}}", "{{decision}}", "{{reason_line}}"],
   qaFail: ["{{company_name}}", "{{wo_ref}}", "{{link}}"],
   jobUpdate: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{day_label}}", "{{link}}"],
+  standards: ["{{first_name}}", "{{company_name}}", "{{link}}", "{{version}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
   visitCode: ["{{code}}", "{{company_name}}"],
@@ -415,6 +416,47 @@ export const AUTOMATIONS: Automation[] = [
     ],
     guard: "Each moment once per job; stops once the job reaches its quality check, walkthrough or close. The days are the painter's booked working days (weekends only if they work them).",
     note: "7:30 am is before the office's sending hours, so this text is exempt from quiet hours by design.",
+  },
+  // ---- Finish standards (brief: standards / status / call backs, Step 2) -----
+  {
+    key: "contractor_standards_invite", name: "Finish standards — please read and confirm", audience: "painter", channels: ["sms", "email"], kind: "manual",
+    defaultChannel: "both", sendKind: "standards_invite", capExempt: true,
+    trigger: "The office presses Send standards invite on a painter (Contractors page) — once, when the standards launch or a painter is added later. New painters are invited the moment they join, without a message: the sign-off is on their first screen.",
+    templates: [
+      { field: "standardsInviteSms", label: "Text message", kind: "sms", placeholders: P.standards },
+      { field: "standardsInviteEmailSubject", label: "Email subject", kind: "subject", placeholders: P.standards },
+      { field: "standardsInviteEmailIntro", label: "Email body", kind: "body", placeholders: P.standards },
+    ],
+    guard: "Sent on the press; the invite itself (the grace period) is recorded by standards_invite whether or not the message goes.",
+    href: "/contractors",
+  },
+  {
+    key: "contractor_standards_reminder", name: "Finish standards — reminder", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "standards_reminder", capExempt: true,
+    trigger: "Days 2, 4 and 6 after the invite at 9 am (Settings → standards_rules), while the painter has not confirmed; also the PC's Send reminder text on the queue card.",
+    templates: [{ field: "standardsReminderSms", label: "Text message", kind: "sms", placeholders: P.standards }],
+    guard: "Each day once per painter (automation_claims); stops the moment the six sections are confirmed.",
+  },
+  {
+    key: "contractor_standards_confirmed", name: "Finish standards — your copy", audience: "painter", channels: ["email", "pdf"], kind: "automatic",
+    defaultChannel: "email", sendKind: "standards_confirmed", capExempt: true,
+    trigger: "The painter confirms the sixth section. The PDF is generated from the standards data, saved in their documents and attached.",
+    templates: [
+      { field: "standardsConfirmedEmailSubject", label: "Email subject", kind: "subject", placeholders: P.standards },
+      { field: "standardsConfirmedEmailIntro", label: "Email body", kind: "body", placeholders: P.standards },
+    ],
+    guard: "Once per painter per version — the document row is the guard.",
+  },
+  {
+    key: "contractor_standards_new_version", name: "Finish standards — updated, confirm again", audience: "painter", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "both", sendKind: "standards_new_version", capExempt: true,
+    trigger: "A material new version of the standards is published (standards_publish_version): every painter not confirmed on it is re-invited with the same grace period.",
+    templates: [
+      { field: "standardsNewVersionSms", label: "Text message", kind: "sms", placeholders: P.standards },
+      { field: "standardsNewVersionEmailSubject", label: "Email subject", kind: "subject", placeholders: P.standards },
+      { field: "standardsNewVersionEmailIntro", label: "Email body", kind: "body", placeholders: P.standards },
+    ],
+    guard: "Once per painter per version (automation_claims).",
   },
   {
     key: "contractor_qa_fail", name: "Quality check — put right", audience: "painter", channels: ["sms"], kind: "automatic",

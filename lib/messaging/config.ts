@@ -185,6 +185,19 @@ export type MessagingSettings = {
   officeEmail: string;
   acceptedOfficeSubject: string;
   acceptedOfficeBody: string;
+  /** Painter (standards Step 2, message 1): the one-time invite to read and confirm the finish standards. */
+  standardsInviteSms: string;
+  standardsInviteEmailSubject: string;
+  standardsInviteEmailIntro: string;
+  /** Painter (message 2): reminder while unsigned — days 2, 4 and 6 after the invite, or the PC's button. */
+  standardsReminderSms: string;
+  /** Painter (message 3): the PDF copy, emailed on confirming. */
+  standardsConfirmedEmailSubject: string;
+  standardsConfirmedEmailIntro: string;
+  /** Painter (message 4): a material new version needs a fresh confirmation. */
+  standardsNewVersionSms: string;
+  standardsNewVersionEmailSubject: string;
+  standardsNewVersionEmailIntro: string;
 };
 
 export const DEFAULT_MESSAGING: MessagingSettings = {
@@ -408,6 +421,23 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Your estimate is saved in your {{company_name}} account.\n\n" +
     "The button below signs you straight in — no password needed. {{next_step}}\n\n" +
     "The sign-in link lasts an hour; you can always ask for a fresh one from the account page.",
+  standardsInviteSms: "{{company_name}}: please read and confirm our finish standards. It takes about 10 minutes. {{link}}",
+  standardsInviteEmailSubject: "Please read and confirm the {{company_name}} finish standards",
+  standardsInviteEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "{{company_name}} has written down what we expect on every surface at Levels 2, 3 and 4 — the same words our quality checks and walk-throughs are judged against. " +
+    "Please read the six short sections and confirm each one. It takes about 10 minutes, and you will need to have done it to keep getting job offers.",
+  standardsReminderSms: "Reminder: confirm the {{company_name}} finish standards to keep getting job offers. {{link}}",
+  standardsConfirmedEmailSubject: "Your copy of the {{company_name}} finish standards (Version {{version}})",
+  standardsConfirmedEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "Thank you for confirming the finish standards. Your copy is attached, and it is saved in your documents in the portal so you can read it any time, with or without signal. " +
+    "Every surface on your work orders links to its standard at the job's level.",
+  standardsNewVersionSms: "{{company_name}}: we updated the finish standards. Please read what changed and confirm. {{link}}",
+  standardsNewVersionEmailSubject: "We updated the finish standards — please read what changed and confirm",
+  standardsNewVersionEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "{{company_name}} has updated the finish standards (Version {{version}}). Please read what changed, then confirm the six sections again to keep getting job offers.",
 };
 
 /**
@@ -432,6 +462,8 @@ export const TEMPLATE_PLACEHOLDERS = [
 ] as const;
 
 export type TemplateVars = {
+  /** Standards messages: the version number being confirmed. */
+  version?: string;
   /** S7: "approved" | "declined" | "rejected", and "leave" | "RDO". */
   decision?: string;
   kind_word?: string;

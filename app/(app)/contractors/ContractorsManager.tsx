@@ -1,6 +1,6 @@
 "use client";
 
-import { emailContractorInvite } from "./actions";
+import { emailContractorInvite, inviteAllStandardsAction, inviteStandardsAction } from "./actions";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -33,6 +33,8 @@ export type ContractorSummary = {
   employmentType: "contractor" | "employee";
   /** Session 6: the office's cost per hour in force today (employees only); null = not set. */
   costRateCents: number | null;
+  /** Finish standards (Step 2): where they are with the sign-off, in the office's words. Null until 20270225 is applied. */
+  standards: { status: string; line: string } | null;
 };
 
 /** An unacknowledged change to where a contractor gets paid. */
@@ -70,6 +72,7 @@ export default function ContractorsManager({
   invites,
   bankAlerts,
   employeesEnabled = false,
+  standardsError = null,
 }: {
   contractors: ContractorSummary[];
   invites: InviteRow[];
@@ -80,6 +83,8 @@ export default function ContractorsManager({
    * gates the office's hand, never how a row is treated).
    */
   employeesEnabled?: boolean;
+  /** Set when the standards statuses could not be read — the rows then show no standards line. */
+  standardsError?: string | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -397,6 +402,22 @@ export default function ContractorsManager({
     return { tone: "ok", text: ins.expires_on ? `Insured to ${formatDMY(ins.expires_on)}` : "Insured" };
   }
 
+  // Finish standards (Step 2): invite one painter, or everyone not yet invited.
+  const [stdBusy, setStdBusy] = useState<string | null>(null);
+  const [stdMsg, setStdMsg] = useState<Record<string, string>>({});
+  const notInvited = contractors.filter((c) => c.active && (c.standards?.status === "not_invited" || (c.standards?.status === "employee_unsigned" && c.standards.line.includes("not invited")))).length;
+  async function inviteStandards(id: string) {
+    setStdBusy(id); setStdMsg((m) => ({ ...m, [id]: "" }));
+    const r = await inviteStandardsAction({ id }).catch(() => ({ ok: false, message: "That didn't work — try again." }));
+    setStdMsg((m) => ({ ...m, [id]: r.message })); setStdBusy(null); router.refresh();
+  }
+  async function inviteAllStandards() {
+    setStdBusy("all"); setErr(""); setMsg("");
+    const r = await inviteAllStandardsAction().catch(() => ({ ok: false, message: "That didn't work — try again." }));
+    if (r.ok) setMsg(r.message); else setErr(r.message);
+    setStdBusy(null); router.refresh();
+  }
+
   return (
     <main className="mx-auto max-w-5xl p-6">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-xl bg-ink px-5 py-4 text-white">
@@ -412,6 +433,14 @@ export default function ContractorsManager({
               onChange={(e) => setEmployeesEnabled(e.target.checked)} data-testid="employees-enabled" />
             Employed painters {employeesEnabled ? "on" : "off"}
           </label>
+          {notInvited > 0 && (
+            <button onClick={inviteAllStandards} disabled={stdBusy === "all"}
+              className="rounded-md border border-amber-400 bg-amber-900/40 px-3 py-2 text-xs font-medium text-amber-100 hover:bg-amber-900/60 disabled:opacity-50"
+              title="Message 1 to every active painter not yet invited: read and confirm the finish standards. Starts their grace period."
+              data-testid="standards-invite-all">
+              {stdBusy === "all" ? "Inviting…" : `Invite ${notInvited} to confirm the standards`}
+            </button>
+          )}
           <button
             onClick={() => setShowInvite((s) => !s)}
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accentink hover:bg-paint"
@@ -422,6 +451,7 @@ export default function ContractorsManager({
       </div>
 
       {err && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
+      {standardsError && <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="standards-read-failure">Couldn&rsquo;t read who has confirmed the finish standards ({standardsError}).</div>}
       {msg && <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</div>}
 
       {/* ---- bank changes waiting to be checked ---- */}
@@ -652,6 +682,20 @@ export default function ContractorsManager({
                       {comp.text}
                       {c.hasBank ? " · bank details on file" : " · no bank details yet"}
                     </div>
+                    {c.standards && c.standards.status !== "not_required" && (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs" data-testid={`standards-${c.id}`} data-status={c.standards.status}>
+                        <span className={c.standards.status === "confirmed" ? "text-emerald-700" : c.standards.status === "blocked" ? "text-red-700" : "text-amber-700"}>
+                          Standards: {c.standards.line}
+                        </span>
+                        {(c.standards.status === "not_invited" || c.standards.status === "employee_unsigned") && c.active && (
+                          <button type="button" disabled={stdBusy === c.id} onClick={() => inviteStandards(c.id)}
+                            className="text-gray-700 underline hover:text-gray-900 disabled:opacity-50" data-testid={`standards-invite-${c.id}`}>
+                            {stdBusy === c.id ? "Inviting…" : "Send standards invite"}
+                          </button>
+                        )}
+                        {stdMsg[c.id] && <span className="text-gray-600">{stdMsg[c.id]}</span>}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">

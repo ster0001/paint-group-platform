@@ -64,11 +64,14 @@ export default function ProfileForm({
   weekend = null,
   phone = null,
   capabilities,
+  standards = null,
 }: {
   contractor: ContractorRow;
   docs: ContractorDoc[];
   /** Set when the documents couldn't be read — an empty list would be a lie. */
   docsError: string | null;
+  /** Finish standards (Step 2): confirmed date and version, or the prompt. Null before the standards exist. */
+  standards?: { confirmed: boolean; line: string } | null;
   name: string;
   email: string;
   /** Weekend availability — null (pre-migration) hides the card. */
@@ -607,6 +610,20 @@ export default function ProfileForm({
       </div>
       )}
 
+      {/* ---- finish standards (Step 2, ruling S7) -------------------------- */}
+      {standards && (
+        <div className={`card ${standards.confirmed ? "" : "amberish"}`} data-testid="profile-standards">
+          <h3>Finish standards</h3>
+          <div style={{ marginTop: 6 }}>
+            <span className={`chip ${standards.confirmed ? "grn" : "amb"}`}>{standards.confirmed ? "Confirmed" : "Not yet confirmed"}</span>
+          </div>
+          <p className="hint">{standards.line}</p>
+          <a href={standards.confirmed ? "/portal/help/standards" : "/portal/standards/confirm"} className="btn gh" style={{ marginTop: 8 }}>
+            {standards.confirmed ? "Read the standards" : "Read and confirm now"}
+          </a>
+        </div>
+      )}
+
       {/* ---- compliance -------------------------------------------------- */}
       <div className="card" data-testid="compliance-card">
         <h3>{capabilities.requiresInsurance ? "Insurance & licences" : "Your tickets"}</h3>
@@ -675,14 +692,14 @@ export default function ProfileForm({
                   >
                     View
                   </button>
-                  <button
+                  {d.kind !== "standards" && <button
                     type="button"
                     onClick={() => removeDoc(d.id)}
                     style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "11.5px" }}
                     aria-label={`Remove ${DOC_LABEL[d.kind]}`}
                   >
                     Remove
-                  </button>
+                  </button>}
                 </div>
               );
             })}

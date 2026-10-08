@@ -31,7 +31,7 @@ export type WeekendAvailability = { worksSaturday: boolean; worksSunday: boolean
 export type ContractorDoc = {
   id: string;
   contractor_id: string;
-  kind: "insurance" | "workcover" | "licence" | "other" | "white_card" | "working_at_heights";
+  kind: "insurance" | "workcover" | "licence" | "other" | "white_card" | "working_at_heights" | "standards";
   name: string;
   file_url: string;
   expires_on: string | null;
@@ -97,6 +97,8 @@ export const DOC_LABEL: Record<ContractorDoc["kind"], string> = {
   other: "Other document",
   white_card: "White card",
   working_at_heights: "Working at heights",
+  /** Generated at sign-off (standards Step 2) — never uploaded by the painter. */
+  standards: "Finish standards — your signed copy",
 };
 
 /**

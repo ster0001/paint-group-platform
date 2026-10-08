@@ -1673,6 +1673,14 @@ export default function ScheduleBoard({
               </div>
             )}
 
+            {pendingDrop.kind === "tray" && !isEmployeeLane(pendingDrop.contractorId)
+              && lanes.find((l) => l.contractorId === pendingDrop.contractorId)?.standardsStatus === "blocked" && (
+              <div className="err" data-testid="drop-standards-blocked">
+                <b>Standards not signed.</b> This painter has not confirmed the finish standards and
+                their grace period has ended — no new offers until they do. Send them a reminder from
+                the Contractors page, or hold the dates instead.
+              </div>
+            )}
             {pendingDrop.blocked && (
               <div className="err">
                 This contractor has blocked these days out. You can still send it, but
@@ -1689,7 +1697,8 @@ export default function ScheduleBoard({
 
             <button
               className="btn cy"
-              disabled={busy}
+              disabled={busy || (pendingDrop.kind === "tray" && !isEmployeeLane(pendingDrop.contractorId)
+                && lanes.find((l) => l.contractorId === pendingDrop.contractorId)?.standardsStatus === "blocked")}
               data-testid="drop-confirm"
               onClick={
                 pendingDrop.kind === "tray"

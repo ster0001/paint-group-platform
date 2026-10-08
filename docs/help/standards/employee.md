@@ -16,6 +16,13 @@ The level on your job sheet (Level 2, 3 or 4) tells you how much preparation to 
 
 ## Steps
 
+### Confirming the standards (once)
+1. When Paint Group invites you, you get a text and an email with a link, and **Home** shows **Read and confirm the finish standards**. A new painter sees it as their first screen. Tap **Start**.
+2. There are six short sections: the three levels and the look test, rules for every job, your time and variations, interior surfaces, exterior surfaces, the defect rule and final checklist. Read each one, tap **I have read and understand this**, then **Next section**. The sixth button reads **Confirm**. Nothing to type.
+3. You can stop and come back: the next time you open the sign-off it starts at the first section you have not ticked.
+4. When all six are confirmed you see **Standards confirmed** with the date and version. A copy is saved in your documents (**Profile → Insurance & licences** or **Your tickets**) and emailed to you as a PDF.
+5. Nothing is blocked for an employed painter, but please confirm within the week; the reminder texts stop the moment you do.
+
 ### From a job
 1. Open **Jobs** and tap the job. Under each surface in **Scope & ticks**, and under each line in the job sheet below, there is a **What we expect ›** link. A line with no finish standard (gutters, a set-up line) shows nothing.
 2. Tap **What we expect ›**. The surface opens at **this job's level** and says so in a blue pill, for example **Level 3 on this job**. Read **Every level** first, then the rows for your level.
@@ -32,6 +39,7 @@ The level on your job sheet (Level 2, 3 or 4) tells you how much preparation to 
 - **Every level** — the part of the standard that applies whatever the level.
 
 ## If something goes wrong
+- **The sign-off keeps coming back on Home** — one of the six sections is not ticked yet; open it and the first unticked section is where it starts.
 - **"The finish standards could not be loaded"** — reload; if it keeps happening, tell the office. The rest of the job page still works.
 - **A surface has no "What we expect" link** — that line has no finish standard. Ask the office if you are unsure.
 
