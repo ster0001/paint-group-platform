@@ -61,6 +61,15 @@ const BUCKETS = [
   { key: "waiting", label: "Waiting on them", bad: false },
 ] as const;
 
+/**
+ * Tom, 8 Oct: "Not this one" on a desk check (fix the price without a visit)
+ * just closes it — one tap, for good. Every other card keeps the snooze +
+ * reason form.
+ */
+function oneTapFor(kind: string): { reason: string } | undefined {
+  return kind === "desk_check" ? { reason: "Not this one (one tap)" } : undefined;
+}
+
 function ago(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
   if (ms < 0) return "soon";
@@ -169,7 +178,7 @@ export default async function TodayPage({ searchParams }: {
                       <span className="qb qalso" key={r.key} data-testid="also">
                         <span className="qsrc">{KIND_TAG[r.kind]}</span>{r.title}
                         <Link href={r.action.href} className="qgo" style={{ marginLeft: 8 }}>{r.action.label} →</Link>
-                        <DismissControl itemKey={r.key} accountId={r.accountId} />
+                        <DismissControl itemKey={r.key} accountId={r.accountId} oneTap={oneTapFor(r.kind)} />
                       </span>
                     ))}
                     <span className="qact">
@@ -178,7 +187,7 @@ export default async function TodayPage({ searchParams }: {
                         <a href={telHref(phoneOf.get(item.accountId)!)} className="qtel mono" data-testid="item-phone">☎ {phoneOf.get(item.accountId)}</a>
                       )}
                       {item.accountId && <LogSheet accountId={item.accountId} />}
-                      <DismissControl itemKey={item.key} accountId={item.accountId} />
+                      <DismissControl itemKey={item.key} accountId={item.accountId} oneTap={oneTapFor(item.kind)} />
                     </span>
                   </span>
                   <span className={`qw mono ${item.bucket === "overdue" ? "bad" : ""}`}>{ago(item.since)}</span>
