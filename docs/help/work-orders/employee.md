@@ -32,6 +32,8 @@ Under each surface there is a **What we expect ›** link: the finish standard f
 ### Photos from the office
 Near the top of the job sheet, above the scope, a **From the office** section holds photos the office has attached for this job — the elevation the scaffold goes on, where the gear lives, the colour to match. Each says which area it belongs to (or **Whole job**) and what to notice. Tap one to see it full size.
 
+Above the materials, **Further instructions for the crew** is the office's note for this job — access, where to start, anything to watch for. The office can update it after the job has gone out, and the job sheet always shows the latest version, so look again before you start.
+
 On a job that came in from PaintScout these are often the only photos there are, so check them before you start. They can be added after the job is booked, so look again on the morning. They are separate from the photos you take, which stay under **Site photos**.
 
 ### Photos and notes from site

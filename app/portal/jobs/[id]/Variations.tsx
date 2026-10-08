@@ -26,6 +26,9 @@ export type VariationView = {
   /** Tom, 7 Oct 2026: the painter declined the client-approved change, with this note. */
   contractorDeclined?: boolean;
   declineNote?: string;
+  /** Tom, 8 Oct 2026: the office turned the request down, with this reply. */
+  officeRejected?: boolean;
+  officeRejectNote?: string;
 };
 
 /**
@@ -261,7 +264,7 @@ export default function Variations({
                       ? (v.needsManualDeduction && v.deductionCents == null ? "With the office" : "Acknowledge")
                       : v.released ? "Your approval" : "Approved — coming to you")
                 : v.status === "contractor_accepted" ? (v.credit ? "Acknowledged" : "Accepted")
-                : v.status === "declined" ? (v.contractorDeclined ? "Declined — with the office" : "Declined") : "Closed"}
+                : v.status === "declined" ? (v.contractorDeclined ? "Declined — with the office" : v.officeRejected ? "Not going ahead" : "Declined") : "Closed"}
             </span>
           </div>
           <p className="var-item-comment">{v.comment}</p>
@@ -302,6 +305,12 @@ export default function Variations({
           {v.status === "declined" && v.contractorDeclined && (
             <p className="note" data-testid={`painter-declined-${v.id}`}>
               You declined this one — it is back with the office.{v.declineNote ? ` Your note: “${v.declineNote}”` : ""}
+            </p>
+          )}
+
+          {v.status === "declined" && v.officeRejected && (
+            <p className="note" data-testid={`office-rejected-${v.id}`}>
+              The office isn&rsquo;t going ahead with this one.{v.officeRejectNote ? ` The office says: “${v.officeRejectNote}”` : ""}
             </p>
           )}
 

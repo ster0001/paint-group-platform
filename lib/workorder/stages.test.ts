@@ -10,7 +10,9 @@ import {
   deriveStatus,
   findTransition,
   isLegalTransition,
+  bySoonestStart,
   laneFor,
+  startAlert,
   nextStages,
   stageTitle,
   visibleStage,
@@ -281,5 +283,33 @@ describe("the Booking confirmed lane", () => {
     expect(stageTitle("booking_confirmed")).toBe("Booking confirmed");
     expect(stageTitle("offered", "assigned")).toBe("Assigned");
     expect(stageTitle("completion_prep")).toBe("In progress");
+  });
+});
+
+describe("the Pre-start alert and order (Tom, 8 Oct 2026)", () => {
+  const today = "2026-10-08";
+  it("is orange from today through three days out, and not after", () => {
+    expect(startAlert("2026-10-08", today)).toBe("Starts today");
+    expect(startAlert("2026-10-09", today)).toBe("Starts tomorrow");
+    expect(startAlert("2026-10-10", today)).toBe("Starts in 2 days");
+    expect(startAlert("2026-10-11", today)).toBe("Starts in 3 days");
+    expect(startAlert("2026-10-12", today)).toBeNull();
+  });
+  it("counts calendar days across a month end and the October clock change", () => {
+    expect(startAlert("2026-11-02", "2026-10-30")).toBe("Starts in 3 days");
+    expect(startAlert("2026-10-05", "2026-10-02")).toBe("Starts in 3 days");
+  });
+  it("keeps a passed, unstarted start date orange", () => {
+    expect(startAlert("2026-10-06", today)).toBe("Start date passed");
+  });
+  it("has nothing to say without a start date", () => {
+    expect(startAlert(null, today)).toBeNull();
+  });
+  it("sorts soonest first with no date last", () => {
+    const jobs = [
+      { id: "c", startDate: "2026-10-14" }, { id: "x", startDate: null },
+      { id: "a", startDate: "2026-10-07" }, { id: "b", startDate: "2026-10-09" },
+    ];
+    expect([...jobs].sort(bySoonestStart).map((j) => j.id)).toEqual(["a", "b", "c", "x"]);
   });
 });

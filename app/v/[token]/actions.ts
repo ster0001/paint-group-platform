@@ -6,12 +6,15 @@ import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { notifyEmployeeVariationApproved, notifyVariationAddedToJob, notifyVariationReleased } from "@/lib/contractor/notify";
+import { sendVariationApprovedConfirmation } from "@/lib/workorder/variationApprovedEmail";
 
 /**
  * The customer's answer to a priced variation. Token-only, exactly like the
  * quote: no id in the URL, and the RPC is the only thing that can move it.
  */
-export type RespondResult = { ok: true; state: "approved" | "declined" } | { ok: false; message: string };
+export type RespondResult =
+  | { ok: true; state: "approved" | "declined"; /** Tom, 8 Oct 2026: the confirmation email went out. */ confirmationEmailed?: boolean }
+  | { ok: false; message: string };
 
 const input = z.object({
   token: z.string().min(24).max(200),
@@ -42,10 +45,16 @@ export async function signVariationAction(raw: unknown): Promise<RespondResult> 
   const s = String(data ?? "");
   if (s === "ok:approved") {
     revalidatePath(`/v/${parsed.data.token}`);
+    // Tom, 8 Oct 2026: the customer gets an email confirming the approval.
+    // Awaited, so the screen only says "emailed" when it was; the outcome
+    // (sent, or skipped with the reason) is on the job's record either way.
+    const service = createServiceClient();
+    const confirmation = service
+      ? await sendVariationApprovedConfirmation(service, parsed.data.token)
+      : null;
     // The auto-release arm inside wo_customer_sign_variation may have put it
     // straight with the painter — text them (idempotent; a not-released or
     // zero-hours-auto-accepted variation is a no-op inside the notifier).
-    const service = createServiceClient();
     if (service) {
       const token = parsed.data.token;
       after(async () => {
@@ -63,7 +72,7 @@ export async function signVariationAction(raw: unknown): Promise<RespondResult> 
         }
       });
     }
-    return { ok: true, state: "approved" };
+    return { ok: true, state: "approved", confirmationEmailed: confirmation?.outcome === "sent" };
   }
   if (s.startsWith("error:already_")) {
     return { ok: false, message: "You've already answered this one — thanks, nothing more to do." };
@@ -86,7 +95,12 @@ export async function respondToVariationAction(raw: unknown): Promise<RespondRes
   if (error) return { ok: false, message: "We couldn't record that just now — please try again." };
 
   const s = String(data ?? "");
-  if (s === "ok:approved") { revalidatePath(`/v/${parsed.data.token}`); return { ok: true, state: "approved" }; }
+  if (s === "ok:approved") {
+    revalidatePath(`/v/${parsed.data.token}`);
+    const service = createServiceClient();
+    const confirmation = service ? await sendVariationApprovedConfirmation(service, parsed.data.token) : null;
+    return { ok: true, state: "approved", confirmationEmailed: confirmation?.outcome === "sent" };
+  }
   if (s === "ok:declined") { revalidatePath(`/v/${parsed.data.token}`); return { ok: true, state: "declined" }; }
   if (s.startsWith("error:already_")) {
     return { ok: false, message: "You've already answered this one — thanks, nothing more to do." };
