@@ -81,6 +81,11 @@ export type MessagingSettings = {
   officeUpdateDueBody: string;
   officeContractorInvoiceSubject: string;
   officeContractorInvoiceBody: string;
+  /** Painter status Step 7 (message 9, owner). */
+  officeBonusReviewSubject: string;
+  officeBonusReviewBody: string;
+  officePainterRedSubject: string;
+  officePainterRedBody: string;
   /** The tenant access text a trade customer sends from the portal (manual; wording editable). */
   tenantLinkSms: string;
 
@@ -209,6 +214,8 @@ export type MessagingSettings = {
   statusGreenSms: string;
   statusGreenLeadSms: string;
   statusDroppedSms: string;
+  bonusApprovedSms: string;
+  bonusApprovedEmployeeSms: string;
   /** Painter (Tom, 8 Oct): the morning heads-up on a day with a 3:30 pm update moment. */
   contractorJobUpdateMorningSms: string;
   contractorJobUpdateMorningEmailSubject: string;
@@ -465,6 +472,13 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   statusGreenSms: "{{company_name}}: you are on Green. You now get priority on new jobs and faster payment. {{link}}",
   statusGreenLeadSms: "{{company_name}}: you are on Green. Thank you for the clean work. {{link}}",
   statusDroppedSms: "{{company_name}}: your status is now {{colour}}. Open the app to see why and what to do next. {{link}}",
+  /** Painter (Step 7, message 8; Tom 8 Oct 2026): a bonus was approved — the amount and how it is paid. */
+  bonusApprovedSms: "{{company_name}}: a {{amount}} bonus has been approved for your clean work on Green. Claim it in the app and it is paid like any invoice. {{link}}",
+  bonusApprovedEmployeeSms: "{{company_name}}: a {{amount}} bonus has been approved for your clean work on Green. It will be in your next pay run. Thank you.",
+  officeBonusReviewSubject: "Bonus review due — {{painter}}",
+  officeBonusReviewBody: "{{painter}} has {{count}} clean jobs of 16 hours or more while on Green. Set the amount and approve or decline on their page.",
+  officePainterRedSubject: "{{painter}} dropped to Red",
+  officePainterRedBody: "{{painter}} is now on Red: {{line}} No new job offers go to them until you record \"Spoken with, offers allowed\" on their page.",
   contractorJobUpdateMorningSms:
     "{{company_name}}: morning {{first_name}}, today is an update day on {{wo_ref}} at {{suburb}} ({{day_label}}). Before you finish, tick what's done and add today's photos in the app. {{link}}",
   contractorJobUpdateMorningEmailSubject: "Update day today — {{wo_ref}} at {{suburb}}",

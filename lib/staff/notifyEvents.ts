@@ -30,6 +30,9 @@ export const STAFF_EVENTS = [
   { key: "office_variation_declined",  label: "Painter declined a change", short: "Change declined" },
   { key: "office_update_drafted",      label: "Customer update drafted",  short: "Update ready" },
   { key: "office_update_due",          label: "Customer update due",      short: "Update due" },
+  /** Painter status Step 7 (brief §9 message 9): for the owner — a bonus review is due; a painter dropped to Red. */
+  { key: "office_bonus_review",        label: "Painter bonus review due", short: "Bonus review" },
+  { key: "office_painter_red",         label: "Painter dropped to Red",   short: "Painter Red" },
   /**
    * Tom, 8 Oct 2026: "schedule it in Felipe's calendar … as a calendar
    * request". Whoever is ticked here gets every quality check and job

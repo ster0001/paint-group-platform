@@ -238,6 +238,7 @@ export async function revealContractorBankAction(raw: unknown): Promise<RevealBa
 // ---- Finish standards (brief Step 2) -----------------------------------------
 import { loadStandardsStatuses } from "@/lib/standards/status";
 import { sendStandardsInvite, sendStandardsReminder } from "@/lib/standards/notify";
+import { notifyBonusApproved } from "@/lib/painterStatus/notify";
 
 export type StandardsActionResult = { ok: true; message: string } | { ok: false; message: string };
 
@@ -292,4 +293,69 @@ export async function remindStandardsAction(raw: unknown): Promise<StandardsActi
   const outcome = await sendStandardsReminder(service, parsed.data.id, "office");
   revalidatePath("/pc"); revalidatePath(`/contractors/${parsed.data.id}`);
   return outcome === "sent" ? { ok: true, message: "Reminder text sent." } : { ok: false, message: `Reminder not sent (${outcome}) — do they have a mobile on file?` };
+}
+
+// ---- Painter status Step 7: the Red clearance and the bonus review ----------
+
+export type StatusActionResult = { ok: boolean; message: string };
+
+/** ⚑8: the owner records "Spoken with, offers allowed" with a reason. Lasts until the colour next changes. */
+export async function clearRedAction(raw: unknown): Promise<StatusActionResult> {
+  const parsed = z.object({ id: uuid, reason: z.string().trim().min(3).max(500) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Write a short reason first (what was agreed)." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("painter_clear_red", { p_painter_id: parsed.data.id, p_reason: parsed.data.reason });
+  if (error) { reportError(error, { where: "status.clearRed" }); return { ok: false, message: "Couldn't record it — it has been reported." }; }
+  const r = String(data ?? "");
+  if (r === "error:not_owner") return { ok: false, message: "Only the owner can clear a Red painter for offers." };
+  if (r === "error:not_red") return { ok: false, message: "They are not on Red — nothing to clear." };
+  if (!r.startsWith("ok:")) return { ok: false, message: `Couldn't record it (${r}).` };
+  revalidatePath(`/contractors/${parsed.data.id}`); revalidatePath("/pc"); revalidatePath("/pc/schedule");
+  return { ok: true, message: "Recorded. Offers to them are allowed again until their colour next changes." };
+}
+
+/** "Tell Tom": the PC hands a due review to the owner. */
+export async function bonusHandOverAction(raw: unknown): Promise<StatusActionResult> {
+  const parsed = z.object({ bonusId: uuid, painterId: uuid.optional() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't read that — try again." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("bonus_hand_over", { p_id: parsed.data.bonusId });
+  if (error) { reportError(error, { where: "bonus.handOver" }); return { ok: false, message: "Couldn't hand it over — it has been reported." }; }
+  const r = String(data ?? "");
+  if (r === "error:not_due") return { ok: false, message: "This review is already with the owner or decided." };
+  if (!r.startsWith("ok:")) return { ok: false, message: `Couldn't hand it over (${r}).` };
+  revalidatePath("/pc"); if (parsed.data.painterId) revalidatePath(`/contractors/${parsed.data.painterId}`);
+  return { ok: true, message: "Handed to Tom. It stays on the painter's page until he decides." };
+}
+
+/** The owner approves (with the amount, dollars in) or declines. Approve is refused while the Settings switch is off. */
+export async function bonusDecideAction(raw: unknown): Promise<StatusActionResult> {
+  const parsed = z.object({
+    bonusId: uuid, painterId: uuid, approve: z.boolean(),
+    amount: z.coerce.number().min(0).max(100_000).optional(), note: z.string().trim().max(500).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Check the amount and try again." };
+  const v = parsed.data;
+  const cents = v.approve ? Math.round((v.amount ?? 0) * 100) : null;
+  if (v.approve && (!cents || cents <= 0)) return { ok: false, message: "Enter the bonus amount in dollars." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("bonus_decide", { p_id: v.bonusId, p_approve: v.approve, p_amount_cents: cents, p_note: v.note });
+  if (error) { reportError(error, { where: "bonus.decide" }); return { ok: false, message: "Couldn't record the decision — it has been reported." }; }
+  const r = String(data ?? "");
+  if (r === "error:not_owner") return { ok: false, message: "Only the owner decides a bonus." };
+  if (r === "error:approvals_off") return { ok: false, message: "Bonus approvals are switched off until the GST and payroll questions are settled (Settings → painter_status_rules.bonusApprovalsEnabled). Declining still works." };
+  if (!r.startsWith("ok:")) return { ok: false, message: `Couldn't record it (${r}).` };
+  let told = "";
+  if (v.approve && cents) {
+    const service = createServiceClient();
+    if (service) {
+      const { data: c, error: cErr } = await service.from("contractors").select("employment_type").eq("id", v.painterId).maybeSingle();
+      if (cErr) reportError(cErr, { where: "bonus.decide.painter", bestEffort: true });
+      const employee = (c as { employment_type?: string } | null)?.employment_type === "employee";
+      const outcome = await notifyBonusApproved(service, v.painterId, v.bonusId, cents, employee);
+      told = outcome === "sent" ? (employee ? " They have been told it goes on their next pay run." : " They have been told and can claim it in the app.") : ` The text was not sent (${outcome}).`;
+    }
+  }
+  revalidatePath(`/contractors/${v.painterId}`); revalidatePath("/pc"); revalidatePath("/portal/money");
+  return { ok: true, message: v.approve ? `Approved.${told}` : "Declined and recorded." };
 }

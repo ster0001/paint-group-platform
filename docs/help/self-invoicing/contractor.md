@@ -46,6 +46,11 @@ You invoice Paint Group from the **Invoicing** tab of the portal, not from your 
 10. **Invoicing** lists every invoice with its status, amount, number, job reference and due date. **Approved — payment coming** means the office has approved it and it is in their payment run.
     ![](media/contractor-10.png)
 
+### Your bonus
+1. When Paint Group approves a bonus for your clean work on Green you get a text with the amount, and **Invoicing** shows **Bonus approved $X — Claim now**.
+2. Tap **Claim now**. An invoice for the bonus is raised and submitted for you, marked **· bonus** in your list. It is approved and paid like any other invoice, with the normal payment terms, and the remittance advice comes the same way. GST is added if you are registered.
+3. The claim needs a complete profile (company name, ABN, bank details) — the same as any invoice.
+
 ## What the colours and labels mean
 - **NOT READY TO INVOICE** (amber) — your profile is missing something; submitting is held until it is in.
 - **READY TO SUBMIT** / **READY TO CHECK & SUBMIT** (amber) — a draft waiting on you.

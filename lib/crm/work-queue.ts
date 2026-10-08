@@ -130,6 +130,17 @@ export const WORK_ITEM_KINDS = [
    */
   "hold_pending",
   /**
+   * Painter status Step 7 (brief §8): a painter dropped to Orange (ring them)
+   * or Red (the owner is told too and must clear them before new offers); a
+   * bonus review is due ("Tell Tom"); a qualifying job changed after a review
+   * was raised (owner reviews); a Green painter's fast payment is on hold.
+   */
+  "painter_orange",
+  "painter_red",
+  "bonus_due",
+  "bonus_changed",
+  "payment_hold",
+  /**
    * Tom, 8 Oct 2026: a quality check or job check-in on its day — "the quality
    * check being the main check at the end of the job before the walk through",
    * check-ins the extras the office adds. Recording the check clears it.
@@ -233,7 +244,7 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
  * SCREENS over one queue is not.
  */
 export type WorkItemHome = "crm" | "pc";
-const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "qa_check_due", "qa_check_final_cancelled"]);
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled"]);
 export function homeOf(kind: WorkItemKind): WorkItemHome {
   return PC_HOMED.has(kind) ? "pc" : "crm";
 }
@@ -251,6 +262,11 @@ export function pcItems(items: readonly WorkItem[]): WorkItem[] {
  * live in one object so Tom's ruling is a one-line change and not a hunt.
  */
 export const KIND_WEIGHT: Record<WorkItemKind, number> = {
+  painter_red: 28,
+  painter_orange: 24,
+  bonus_changed: 16,
+  bonus_due: 12,
+  payment_hold: 16,
   standards_unsigned: 14,
   walkthrough_flagged: 24,
   callback_unbooked: 18,
@@ -372,6 +388,11 @@ export const FILTER_GROUPS = ["all", "messages", "followups", "approvals", "mone
 export type FilterGroup = (typeof FILTER_GROUPS)[number];
 
 export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = {
+  painter_red: "followups",
+  painter_orange: "followups",
+  bonus_due: "approvals",
+  bonus_changed: "approvals",
+  payment_hold: "money",
   standards_unsigned: "approvals",
   walkthrough_flagged: "approvals",
   callback_unbooked: "followups",
@@ -2056,6 +2077,102 @@ async function readCallbackRows(supabase: SupabaseClient): Promise<{ callbacks: 
   return { callbacks, flagged, error: null };
 }
 
+// ---- source: painter status, bonus reviews, payment holds (Step 7, brief §8) --
+
+export type PainterStatusQueueRow = { painter_id: string; colour: string; offers_cleared_at: string | null; computed_at: string; name: string };
+/** The latest status_changed event per painter — the episode a card belongs to, so "Rang them" outlives the half-hourly recompute. */
+export type StatusChangeRow = { id: string; contractor_id: string; created_at: string; to: string | null };
+export type BonusQueueRow = { id: string; painter_id: string; status: string; triggered_at: string; handed_over_at: string | null; qualifying_changed_at: string | null; qualifying_wo_ids: unknown; name: string };
+export type HeldInvoiceRow = { id: string; contractor_id: string; terms_held_at: string | null; terms_hold_reason: string; due_on: string | null; status: string; wo_ref: string | null; name: string };
+
+/**
+ * One card per trigger, cleared by the fact itself: Orange clears when the
+ * colour moves on (or the PC dismisses "Rang them" for this episode); Red
+ * clears when the owner records the clearance or the colour changes; a bonus
+ * card clears when it is handed over, decided, or its change is reviewed; a
+ * hold card clears when the hold is released or the invoice paid.
+ */
+export function buildPainterStatusItems(
+  statuses: readonly PainterStatusQueueRow[], changes: readonly StatusChangeRow[],
+  bonuses: readonly BonusQueueRow[], held: readonly HeldInvoiceRow[], now: Date,
+): WorkItem[] {
+  const items: WorkItem[] = [];
+  const episode = new Map<string, StatusChangeRow>();
+  for (const c of changes) if (!episode.has(c.contractor_id)) episode.set(c.contractor_id, c);
+  for (const s of statuses) {
+    if (s.colour !== "orange" && s.colour !== "red") continue;
+    if (s.colour === "red" && s.offers_cleared_at) continue;
+    const ep = episode.get(s.painter_id);
+    const since = ep?.created_at ?? s.computed_at;
+    const kind: WorkItemKind = s.colour === "red" ? "painter_red" : "painter_orange";
+    items.push(finish({
+      key: itemKey(kind, "contractor", s.painter_id, ep?.id ?? s.colour),
+      kind, accountId: null, subjectRef: { type: "contractor", id: s.painter_id },
+      title: s.colour === "red" ? `${s.name} dropped to Red` : `${s.name} dropped to Orange`,
+      detail: s.colour === "red"
+        ? "No new job offers until Tom has spoken with them and recorded the clearance. Jobs under way finish as normal."
+        : "Ring them this week and go through the score. Every job now gets a quality check; offers come after Green and Yellow.",
+      since, dueAt: new Date(new Date(since).getTime() + (s.colour === "red" ? 1 : 3) * 86_400_000).toISOString(),
+      action: { label: "Open their score", href: `/contractors/${s.painter_id}` },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  for (const b of bonuses) {
+    if (b.status === "due") {
+      items.push(finish({
+        key: itemKey("bonus_due", "contractor", b.painter_id, b.id),
+        kind: "bonus_due", accountId: null, subjectRef: { type: "contractor", id: b.painter_id },
+        title: `Bonus due: ${b.name}`,
+        detail: `${Array.isArray(b.qualifying_wo_ids) ? b.qualifying_wo_ids.length : 4} clean jobs of 16 hours or more while on Green. Tom sets the amount.`,
+        since: b.triggered_at, dueAt: new Date(new Date(b.triggered_at).getTime() + 7 * 86_400_000).toISOString(),
+        action: { label: "Tell Tom", href: `/contractors/${b.painter_id}` },
+      }, { valueCents: null, promisedToCustomer: false }, now));
+    }
+    if (b.qualifying_changed_at && (b.status === "due" || b.status === "with_owner")) {
+      items.push(finish({
+        key: itemKey("bonus_changed", "contractor", b.painter_id, `${b.id}:${b.qualifying_changed_at}`),
+        kind: "bonus_changed", accountId: null, subjectRef: { type: "contractor", id: b.painter_id },
+        title: `A qualifying job changed: ${b.name}`,
+        detail: "One of the clean jobs behind this bonus review is no longer clean (a late call back or a changed reason). The review stands — look before deciding.",
+        since: b.qualifying_changed_at, dueAt: new Date(new Date(b.qualifying_changed_at).getTime() + 3 * 86_400_000).toISOString(),
+        action: { label: "Review", href: `/contractors/${b.painter_id}` },
+      }, { valueCents: null, promisedToCustomer: false }, now));
+    }
+  }
+  for (const h of held) {
+    if (h.status === "paid") continue;
+    const since = h.terms_held_at ?? now.toISOString();
+    items.push(finish({
+      key: itemKey("payment_hold", "invoice", h.id, since),
+      kind: "payment_hold", accountId: null, subjectRef: { type: "invoice", id: h.id },
+      title: `Payment hold: ${h.name}${h.wo_ref ? ` · ${h.wo_ref}` : ""}`,
+      detail: `${h.terms_hold_reason || "No reason recorded"}. Their Green fast payment is back on the default terms${h.due_on ? ` (due ${h.due_on})` : ""} — release it or keep it.`,
+      since, dueAt: new Date(new Date(since).getTime() + 2 * 86_400_000).toISOString(),
+      action: { label: "Release or keep", href: "/invoicing?tab=payables" },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
+async function readPainterStatusRows(supabase: SupabaseClient): Promise<{ statuses: PainterStatusQueueRow[]; changes: StatusChangeRow[]; bonuses: BonusQueueRow[]; held: HeldInvoiceRow[]; error: string | null }> {
+  type CJoin = { company_name: string | null; profiles: { name: string | null } | null } | null;
+  const nameOf = (c: CJoin) => c?.profiles?.name?.trim() || c?.company_name?.trim() || "A painter";
+  const [st, ch, bo, he] = await Promise.all([
+    supabase.from("painter_status").select("painter_id, colour, offers_cleared_at, computed_at, contractors(company_name, profiles(name))").in("colour", ["orange", "red"]),
+    supabase.from("contractor_events").select("id, contractor_id, created_at, detail").eq("type", "status_changed").order("created_at", { ascending: false }).limit(300),
+    supabase.from("painter_bonuses").select("id, painter_id, status, triggered_at, handed_over_at, qualifying_changed_at, qualifying_wo_ids, contractors(company_name, profiles(name))").in("status", ["due", "with_owner"]),
+    supabase.from("contractor_invoices").select("id, contractor_id, terms_held_at, terms_hold_reason, due_on, status, work_orders(wo_ref), contractors(company_name, profiles(name))").eq("terms_kind", "held").neq("status", "paid"),
+  ]);
+  // The bonus table is owner / admin / PC only; a session outside those roles gets rows it may not read refused — that is not a failure of the queue.
+  const errors = [st.error, ch.error, he.error].filter(Boolean).map((e) => e!.message);
+  return {
+    statuses: ((st.data ?? []) as unknown as { painter_id: string; colour: string; offers_cleared_at: string | null; computed_at: string; contractors: CJoin }[]).map((r) => ({ painter_id: r.painter_id, colour: r.colour, offers_cleared_at: r.offers_cleared_at, computed_at: r.computed_at, name: nameOf(r.contractors) })),
+    changes: ((ch.data ?? []) as { id: string; contractor_id: string; created_at: string; detail: { to?: string } | null }[]).map((r) => ({ id: r.id, contractor_id: r.contractor_id, created_at: r.created_at, to: r.detail?.to ?? null })),
+    bonuses: bo.error ? [] : ((bo.data ?? []) as unknown as { id: string; painter_id: string; status: string; triggered_at: string; handed_over_at: string | null; qualifying_changed_at: string | null; qualifying_wo_ids: unknown; contractors: CJoin }[]).map((r) => ({ ...r, name: nameOf(r.contractors) })),
+    held: ((he.data ?? []) as unknown as { id: string; contractor_id: string; terms_held_at: string | null; terms_hold_reason: string; due_on: string | null; status: string; work_orders: { wo_ref: string | null } | null; contractors: CJoin }[]).map((r) => ({ id: r.id, contractor_id: r.contractor_id, terms_held_at: r.terms_held_at, terms_hold_reason: r.terms_hold_reason, due_on: r.due_on, status: r.status, wo_ref: r.work_orders?.wo_ref ?? null, name: nameOf(r.contractors) })),
+    error: errors.length ? errors.join("; ") : null,
+  };
+}
+
 // ---- source: quality checks and job check-ins on their day (Tom, 8 Oct 2026) ---
 
 export type QaCheckQueueRow = {
@@ -2141,10 +2258,11 @@ async function readQaCheckRows(supabase: SupabaseClient): Promise<{ rows: QaChec
 }
 
 export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
-  const [checkins, standards, callbacks, qaChecks, dismissed] = await Promise.all([
+  const [checkins, standards, callbacks, painters, qaChecks, dismissed] = await Promise.all([
     readJobCheckinRows(supabase, now),
     readStandardsRows(supabase),
     readCallbackRows(supabase),
+    readPainterStatusRows(supabase),
     readQaCheckRows(supabase),
     supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
   ]);
@@ -2154,6 +2272,7 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     ...buildJobCheckinItems(checkins.rows, now),
     ...buildStandardsItems(standards.rows, standards.rules, now),
     ...buildWoCallbackItems(callbacks.callbacks, callbacks.flagged, now),
+    ...buildPainterStatusItems(painters.statuses, painters.changes, painters.bonuses, painters.held, now),
     ...buildQaCheckItems(qaChecks.rows, now),
   ];
   const items = sortItems(applyDismissals(pcItems(built), dismissals, now));
@@ -2161,6 +2280,7 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     dismissed.error ? `Dismissals couldn't be read (${dismissed.error.message}) — a call you already made may show again.` : null,
     standards.error ? `Couldn't read who has signed the standards (${standards.error}).` : null,
     callbacks.error ? `Couldn't read the call backs (${callbacks.error}).` : null,
+    painters.error ? `Couldn't read painter status (${painters.error}).` : null,
     qaChecks.error ? `Couldn't read the quality checks (${qaChecks.error}).` : null,
   ].filter(Boolean);
   return { items, failure: failures.length ? failures.join(" ") : null };

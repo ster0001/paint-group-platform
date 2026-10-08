@@ -105,6 +105,8 @@ export type ContractorInvoiceRow = {
   total_inc_cents: number; due_on: string | null;
   submitted_at: string | null; approved_at: string | null; paid_at: string | null;
   rcti: boolean; auto_draft_source: string; claim_pct: number | null;
+  /** Painter status Step 7: default | green_fast (3 business days) | held (the PC put it back on default terms). */
+  terms_kind?: "default" | "green_fast" | "held"; terms_hold_reason?: string;
   invoice_pdf_path: string | null;
   contractors: { company_name: string | null } | null;
   work_orders: { wo_ref: string; estimate_id: string; stage: string; job_address: string | null } | null;
@@ -301,7 +303,7 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
   };
 }
 
-const CI_SELECT = "id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, auto_draft_source, claim_pct, invoice_pdf_path, contractors(company_name), work_orders(wo_ref, estimate_id, stage, job_address:wo_snapshot->>jobAddress)";
+const CI_SELECT = "id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, auto_draft_source, claim_pct, invoice_pdf_path, terms_kind, terms_hold_reason, contractors(company_name), work_orders(wo_ref, estimate_id, stage, job_address:wo_snapshot->>jobAddress)";
 async function loadContractorInvoices(supabase: SupabaseClient): Promise<{ data: unknown[] | null; error: { message: string } | null }> {
   try {
     const unpaid = await fetchAllRows<unknown>((from, to) => supabase.from("contractor_invoices").select(CI_SELECT).neq("status", "paid").order("created_at", { ascending: false }).order("id").range(from, to));

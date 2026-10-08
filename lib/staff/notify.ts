@@ -378,3 +378,52 @@ export async function staffCustomerUpdateDue(service: SupabaseClient, workOrderI
     return "error";
   }
 }
+
+// ---- Painter status Step 7 (brief §9 message 9): the owner --------------------
+
+/** A bonus review was raised — the owner sets the amount. Once per review. */
+export async function staffBonusReview(service: SupabaseClient, bonusId: string): Promise<StaffAlertOutcome> {
+  try {
+    const { data, error } = await service.from("painter_bonuses")
+      .select("id, painter_id, qualifying_wo_ids, contractors(company_name, profiles(name))").eq("id", bonusId).maybeSingle();
+    if (error) throw error;
+    const b = data as { id: string; painter_id: string; qualifying_wo_ids: unknown; contractors: { company_name: string | null; profiles: { name: string | null } | null } | null } | null;
+    if (!b) return "error";
+    const painter = (b.contractors?.profiles?.name || b.contractors?.company_name || "A painter").trim();
+    const count = String(Array.isArray(b.qualifying_wo_ids) ? b.qualifying_wo_ids.length : 4);
+    return notifyStaff(service, {
+      key: "office_bonus_review", entityId: b.id,
+      subject: `Bonus review due — ${painter}`,
+      message: `${painter} has ${count} clean jobs of 16 hours or more while on Green. Set the amount and approve or decline on their page.`,
+      link: `${siteUrl()}/contractors/${b.painter_id}`,
+      templates: { subject: "officeBonusReviewSubject", body: "officeBonusReviewBody" },
+      vars: { painter, count },
+    });
+  } catch (e) {
+    reportError(e, { where: "staffBonusReview", extra: { bonusId } });
+    return "error";
+  }
+}
+
+/** A painter dropped to Red. Keyed on the status-change event so each drop is told once. */
+export async function staffPainterRed(service: SupabaseClient, painterId: string, changeEventId: string): Promise<StaffAlertOutcome> {
+  try {
+    const { data, error } = await service.from("painter_status")
+      .select("line, contractors(company_name, profiles(name))").eq("painter_id", painterId).maybeSingle();
+    if (error) throw error;
+    const s = data as { line: string; contractors: { company_name: string | null; profiles: { name: string | null } | null } | null } | null;
+    const painter = (s?.contractors?.profiles?.name || s?.contractors?.company_name || "A painter").trim();
+    const line = s?.line || "";
+    return notifyStaff(service, {
+      key: "office_painter_red", entityId: changeEventId,
+      subject: `${painter} dropped to Red`,
+      message: `${painter} is now on Red: ${line} No new job offers go to them until you record "Spoken with, offers allowed" on their page.`,
+      link: `${siteUrl()}/contractors/${painterId}`,
+      templates: { subject: "officePainterRedSubject", body: "officePainterRedBody" },
+      vars: { painter, line },
+    });
+  } catch (e) {
+    reportError(e, { where: "staffPainterRed", extra: { painterId } });
+    return "error";
+  }
+}

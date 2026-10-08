@@ -62,6 +62,9 @@ Every contractor invoice row on Payables, and the **Contractor** chip on a job's
 - **Grey** — a draft the painter has not submitted yet. Nothing is owed on it.
 Press **Mark paid** on a clay row to turn it green.
 
+## Fast payment for Green painters, and the hold
+A contractor on **Green** when the job is signed off has their sign-off invoice due **3 business days** after the signed day (Monday to Friday, less the public holidays under Booking rules); the row shows **Green · 3 business days**. Everyone else keeps the normal terms. If the customer raises something after sign-off, press **Hold fast payment** on the row and say why: the invoice goes back to the normal due date — never later than it — the chip reads **Held — reason**, and PC Command shows a **Payment hold** card until you press **Release**, which puts the fast date back. A row marked **Bonus** is a painter's approved bonus they have claimed; approve and pay it like any other invoice.
+
 ## Leaving an invoice mid-edit
 If a line's editor is open and you click to another page, the line is saved first and the page you clicked then opens. A line that cannot be saved (no description, or an amount that is not a number) keeps you on the invoice.
 

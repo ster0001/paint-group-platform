@@ -42,7 +42,14 @@ export type Lane = {
   worksSunday?: boolean;
   /** Standards Step 2 (ruling S6): confirmed / grace / blocked… — "blocked" means send_offer refuses. */
   standardsStatus?: string;
+  /** Painter status Step 7 (⚑7): the traffic-light colour; lanes sort Green first. Absent until the evaluator has run. */
+  statusColour?: "new" | "green" | "yellow" | "orange" | "red";
+  /** ⚑8: Red with no owner clearance — send_offer refuses. */
+  offersBlocked?: boolean;
 };
+
+/** ⚑7: Green first, then Yellow and New, then Orange, then Red. */
+export const STATUS_ORDER: Record<NonNullable<Lane["statusColour"]>, number> = { green: 0, yellow: 1, new: 1, orange: 2, red: 3 };
 
 /**
  * `assigned` = an employee's assignment (S2). Hollow until they tap Accept.
@@ -321,6 +328,10 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   const standardsRes = await loadStandardsStatuses(supabase);
   if (standardsRes.error) errors.push(`standards: ${standardsRes.error}`);
   const standardsOf = new Map(standardsRes.rows.map((r) => [r.contractorId, r.status as string]));
+  // Painter status Step 7 (⚑7, ⚑8): the colour on every lane, and whether a Red is cleared.
+  const statusRes = await supabase.from("painter_status").select("painter_id, colour, offers_cleared_at");
+  if (statusRes.error) errors.push(`painter status: ${statusRes.error.message}`);
+  const statusOf = new Map(((statusRes.data ?? []) as { painter_id: string; colour: Lane["statusColour"]; offers_cleared_at: string | null }[]).map((r) => [r.painter_id, r]));
 
   type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; employment_type?: string | null; works_saturday?: boolean | null; works_sunday?: boolean | null; profiles: { name: string | null } | null };
   const lanes: Lane[] = ((contractors as CRow[] | null) ?? []).map((c) => ({
@@ -337,7 +348,11 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     // Anything but the literal 'employee' is a contractor — lib/painters/capabilities rule.
     employmentType: c.employment_type === "employee" ? "employee" : "contractor",
     standardsStatus: standardsOf.get(c.id),
+    statusColour: statusOf.get(c.id)?.colour,
+    offersBlocked: statusOf.get(c.id)?.colour === "red" && !statusOf.get(c.id)?.offers_cleared_at,
   }));
+  // ⚑7: the picker IS the lane order — Green first; ties keep the name order the query gave.
+  lanes.sort((a, b) => (a.statusColour ? STATUS_ORDER[a.statusColour] : 1) - (b.statusColour ? STATUS_ORDER[b.statusColour] : 1));
 
   // Jobs with a crew of employees on them. The lead IS work_orders.contractor_id,
   // so the "direct assignment" block below must not draw the job a second time.
