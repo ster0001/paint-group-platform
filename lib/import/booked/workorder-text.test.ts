@@ -233,6 +233,14 @@ describe("parseWorkOrderText", () => {
     expect(wo.hoursFromLines).toBe(31.5);
   });
 
+  it("never reads the by-substrate Surfaces summary as an area (15 Pelmet Cres: 452 h against 226)", () => {
+    const summary = "Surfaces\nWalls (2,484m²)\nhr\nFront Side  (40m²)\nWalls 2 Coats\nDulux Weathershield  - 10 Litre - $100.00\nCoats: 2\n\t\n31.5\nTotal\nPainting: 31.5\n=\n31.5\n";
+    const withSummary = parseWorkOrderText(PAGE.replace("Options\nThese items", `${summary}Options\nThese items`));
+    expect(withSummary.areas.map((a) => a.name)).toEqual(wo.areas.map((a) => a.name));
+    expect(withSummary.hoursFromLines).toBe(31.5);
+    expect(withSummary.optionHeadings).toEqual(wo.optionHeadings);
+  });
+
   it("a page with no Areas block yields nothing, not a crash", () => {
     const empty = parseWorkOrderText("Estimate ID\n1\nTotal Hours\n0\n");
     expect(empty).toMatchObject({ quoteNo: "1", totalHours: 0, areas: [], hoursFromLines: 0 });

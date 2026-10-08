@@ -30,6 +30,8 @@
  *     "Total" ↵ "Prep: 4" ↵ "+" ↵ "Painting: 17" ↵ "=" ↵ "21"   (the Prep block is absent when zero)
  *     heading ↵ "hr" ↵ description… ↵ "3" ↵ "Total" ↵ "Painting: 3" ↵ "=" ↵ "3"   crew work with no lines
  *     heading ↵ "hr" ↵ description… ↵ "Total"   a heading with neither lines nor hours
+ *   "Surfaces" …                                 the same areas regrouped by substrate (Tom, 8 Oct
+ *                                                2026 — 15 Pelmet Cres): a summary, never a job area
  *   "Options" … "Media" …                        not part of the job: ignored
  */
 
@@ -128,10 +130,15 @@ export function parseWorkOrderText(text: string): ParsedWorkOrder {
 
   let current: ParsedWorkOrderArea | null = null;
   let inOptions = false;
+  let inSurfaces = false;
   for (let i = areasIdx + 1; i < lines.length; i++) {
     const l = lines[i];
     if (/^Media$/i.test(l) || /^Amazing On-Site Estimation$/i.test(l)) break;
-    if (/^Options$/i.test(l)) { inOptions = true; current = null; continue; }
+    if (/^Options$/i.test(l)) { inOptions = true; inSurfaces = false; current = null; continue; }
+    // The by-substrate summary repeats every line already read under its area;
+    // reading it as an area doubled 15 Pelmet Cres to 452 h against a 226 h banner.
+    if (/^Surfaces$/i.test(l)) { inSurfaces = true; current = null; continue; }
+    if (inSurfaces) continue;
     if (inOptions) {
       if (isHeadingAt(i) || (/^\$[\d,.]+$/.test(lines[i + 1] ?? "") && !/^\$/.test(l) && !/^Item$/i.test(l))) optionHeadings.push(l);
       continue;

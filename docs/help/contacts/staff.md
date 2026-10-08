@@ -2,8 +2,8 @@
 feature: contacts
 role: staff
 title: Contacts — every customer in one list, and how a contact gets onto an estimate
-summary: The Contacts list holds every CRM customer and every person ever used on an estimate; the estimate's Contact card has a search bar at the top to find them, and whatever you put on an estimate is saved to the list by itself.
-sources: app/(app)/contacts/page.tsx, app/quote/EstimateHeader.tsx, app/quote/actions.ts, lib/contacts/match.ts, supabase/migrations/20270210000000_contacts_from_crm_accounts.sql
+summary: The Contacts list holds every CRM customer and every person ever used on an estimate; the list and the estimate's Contact card each have a search bar to find them, and whatever you put on an estimate is saved to the list by itself.
+sources: app/(app)/contacts/page.tsx, app/(app)/contacts/SearchBox.tsx, app/quote/EstimateHeader.tsx, app/quote/actions.ts, lib/contacts/match.ts, supabase/migrations/20270210000000_contacts_from_crm_accounts.sql
 verified_at_commit: e4fed27318
 ---
 
@@ -20,6 +20,12 @@ Nothing. Open **Contacts** from the sidebar, or open an estimate and press **+ A
 4. No match? The box says so. Fill in the form — first name, mobile, email, address — and the person is added to Contacts when you press **Use on estimate**.
 5. Press **Use on estimate**. The contact is saved to Contacts and placed on the estimate in one go. If a field is half-typed (a short mobile, an email with no domain) or nothing at all is typed, the window stays open and says why.
 6. **Start a new contact** (under the search box, once a contact is picked) clears the form if you picked the wrong person.
+
+## Searching the Contacts list
+1. Open **Contacts** in the sidebar. The search box is at the top right of the list.
+2. Type any part of a first name, surname, company, email, phone or suburb. The list narrows a moment after you stop typing; **Enter** runs it at once. A phone number matches with or without its spaces, so **0412345678** finds **0412 345 678**.
+3. **Clear** (beside the box, once you have searched) brings the whole list back. The search is in the page address (`?q=`), so a bookmark or the back button returns to the same result.
+4. **No contact matches "…"** means nothing in the list has those words. A red **The contacts could not be loaded — this is not an empty list** means the read itself failed: reload, and if it stays, tell Tom.
 
 ## What the colours and labels mean
 - **Editing … from Contacts** — the form holds a row from the list; changes save back to it.
