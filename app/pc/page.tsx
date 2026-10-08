@@ -12,6 +12,7 @@ import { loadWorkItemNotes } from "@/lib/workorder/pcNotes";
 import { buildPcWorkItems } from "@/lib/crm/work-queue";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
+import RejectVariation from "./RejectVariation";
 
 export const dynamic = "force-dynamic";
 
@@ -164,6 +165,8 @@ export default async function DashboardPage() {
                   <span className="ref">{v.ref}</span>
                 </div>
                 <p>{v.waitingLabel}{v.comment ? ` — ${v.comment}` : ""}</p>
+                {/* Tom, 8 Oct 2026: a request still with the office can be turned down, with a reply to the painter. */}
+                {v.waitingOn === "office" && <RejectVariation variationId={v.id} />}
               </div>
               <span className="tm">{age(v.ageHours)}</span>
               <Link className={`btn ${v.waitingOn === "office" ? "primary" : ""}`} href={v.href}
