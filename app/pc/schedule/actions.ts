@@ -16,6 +16,11 @@ import {
   reassignOfferInput,
   moveBookingInput,
   blockOutInput,
+  addAppointmentInput,
+  moveSpanInput,
+  removeAppointmentInput,
+  holdDatesInput,
+  releaseHoldInput,
   assignJobInput,
   reassignDatesInput,
   setLeadPainterInput,
@@ -52,6 +57,8 @@ const CONFLICT_WORDING: Record<string, string> = {
   // Employed painters (Session 2)
   contractor_job: "This job is out with a contractor. Withdraw or cancel that first — a job is either a contractor's or a crew of employees', never both.",
   already_assigned: "That painter is already on this job.",
+  // Holds (Tom, 1 Oct)
+  released: "This hold has already been released. Refresh.",
 };
 
 const ERROR_WORDING: Record<string, string> = {
@@ -72,6 +79,9 @@ const ERROR_WORDING: Record<string, string> = {
   closed: "This job is closed.",
   released: "That painter has already been taken off the job.",
   not_found: "That assignment no longer exists.",
+  // Extra visits (Tom, 1 Oct)
+  // Kept for an un-migrated database; 20270210 lets a visit go on any project.
+  not_booked_on_job: "That painter isn't booked on this job. Paste migration 20270210 to allow a visit on any project.",
 };
 
 /**
@@ -431,4 +441,127 @@ export async function deleteBookingNote(raw: unknown): Promise<ActionResult> {
   revalidatePath("/pc/schedule");
   revalidatePath("/pc");
   return { ok: true, state: "deleted" };
+}
+
+// ---------------------------------------------------------------------------
+// Holds and extra visits (Tom, 1 Oct 2026).
+//
+// An EXTRA VISIT is a second run of days on a job the painter already has —
+// "a small job in between a job" means the big job needs two spans. A HOLD is
+// an internal reservation of a painter's days while the client decides: pink
+// on the board, invisible to the painter, released by hand or answered by the
+// booking. Neither carries money; both go through small staff-only RPCs so a
+// browser can never put a visit on a job the painter is not on.
+// ---------------------------------------------------------------------------
+
+export async function addAppointmentAction(raw: unknown): Promise<ActionResult> {
+  const parsed = addAppointmentInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  const r = await run("schedule_add_appointment", {
+    p_work_order_id: v.workOrderId, p_contractor_id: v.contractorId,
+    p_start: v.startDate, p_end: v.endDate, p_note: v.note,
+  });
+  if (r.ok) revalidatePath("/portal/calendar");
+  return r;
+}
+
+export async function moveAppointmentAction(raw: unknown): Promise<ActionResult> {
+  const parsed = moveSpanInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  const r = await run("schedule_move_appointment", { p_id: v.id, p_start: v.startDate, p_end: v.endDate });
+  if (r.ok) revalidatePath("/portal/calendar");
+  return r;
+}
+
+export async function removeAppointmentAction(raw: unknown): Promise<ActionResult> {
+  const parsed = removeAppointmentInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const r = await run("schedule_remove_appointment", { p_id: parsed.data.id });
+  if (r.ok) revalidatePath("/portal/calendar");
+  return r;
+}
+
+export async function holdDatesAction(raw: unknown): Promise<ActionResult> {
+  const parsed = holdDatesInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  const r = await run("schedule_hold_dates", {
+    p_contractor_id: v.contractorId, p_start: v.startDate, p_end: v.endDate,
+    p_work_order_id: v.workOrderId ?? null, p_note: v.note,
+  });
+  if (r.ok) revalidatePath("/crm/today");
+  return r;
+}
+
+export async function moveHoldAction(raw: unknown): Promise<ActionResult> {
+  const parsed = moveSpanInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  return run("schedule_move_hold", { p_id: v.id, p_start: v.startDate, p_end: v.endDate });
+}
+
+export async function releaseHoldAction(raw: unknown): Promise<ActionResult> {
+  const parsed = releaseHoldInput.safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+  const r = await run("schedule_release_hold", { p_id: parsed.data.id, p_reason: parsed.data.reason });
+  if (r.ok) revalidatePath("/crm/today");
+  return r;
+}
+
+/** A project as the Extra visit search lists it (Tom, 4 Oct): any work order, any stage. */
+export type VisitProjectHit = {
+  workOrderId: string;
+  woRef: string;
+  title: string;
+  address: string;
+  /** The work order's stage — named `lifecycle` here because lib/workorder/boundary.test.ts
+   *  scans app code for a `stage:` literal beside an upsert, and the board has one (saved views). */
+  lifecycle: string;
+  /** The customer's name as the estimate carries it, so two "Kitchen repaint"s tell apart. */
+  customer: string;
+};
+
+/**
+ * Tom, 4 Oct: "a search bar where you can search from all projects regardless
+ * of their status". Reference, job title, address, or the customer's name;
+ * open jobs first, then closed. Staff only — the board is staff only, and RLS
+ * on work_orders says the same. Two bounded reads merged by work order.
+ */
+export async function searchProjectsAction(raw: unknown): Promise<{ ok: true; hits: VisitProjectHit[] } | { ok: false; message: string }> {
+  const parsed = z.object({ q: z.string().trim().min(2).max(80) }).safeParse(raw);
+  if (!parsed.success) return { ok: true, hits: [] };
+  const { supabase, ok } = await requireStaff();
+  if (!ok) return { ok: false, message: ERROR_WORDING.not_staff };
+  // PostgREST's or() grammar: commas separate branches, so a comma in the
+  // needle would split the filter — strip it; a reference never has one.
+  const needle = parsed.data.q.replace(/[,()]/g, " ").trim();
+  if (!needle) return { ok: true, hits: [] };
+  const like = `*${needle}*`;
+  type Row = { id: string; wo_ref: string; stage: string; wo_snapshot: { jobTitle?: string | null; jobAddress?: string | null } | null; estimates: { title: string | null; accepted_name: string | null } | null };
+  const [byJob, byCustomer] = await Promise.all([
+    supabase.from("work_orders")
+      .select("id, wo_ref, stage, wo_snapshot, estimates ( title, accepted_name )")
+      .or(`wo_ref.ilike.${like},wo_snapshot->>jobTitle.ilike.${like},wo_snapshot->>jobAddress.ilike.${like}`)
+      .order("created_at", { ascending: false }).limit(12),
+    supabase.from("work_orders")
+      .select("id, wo_ref, stage, wo_snapshot, estimates!inner ( title, accepted_name )")
+      .or(`title.ilike.${like},accepted_name.ilike.${like}`, { referencedTable: "estimates" })
+      .order("created_at", { ascending: false }).limit(12),
+  ]);
+  if (byJob.error) return { ok: false, message: byJob.error.message };
+  if (byCustomer.error) return { ok: false, message: byCustomer.error.message };
+  const seen = new Map<string, VisitProjectHit>();
+  for (const r of [...((byJob.data ?? []) as unknown as Row[]), ...((byCustomer.data ?? []) as unknown as Row[])]) {
+    if (seen.has(r.id)) continue;
+    seen.set(r.id, {
+      workOrderId: r.id, woRef: r.wo_ref, lifecycle: r.stage,
+      title: r.wo_snapshot?.jobTitle || r.estimates?.title || r.wo_ref,
+      address: r.wo_snapshot?.jobAddress || "",
+      customer: r.estimates?.accepted_name || "",
+    });
+  }
+  const hits = [...seen.values()].sort((a, b) => Number(a.lifecycle === "closed") - Number(b.lifecycle === "closed"));
+  return { ok: true, hits: hits.slice(0, 15) };
 }

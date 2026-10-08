@@ -12,7 +12,7 @@
  */
 
 import { CLADDING_CODE, CLADDING_LABEL, exteriorExtrasNodes, extSurface, SIZE_BAND_FACTOR, starterExteriorNodes } from "./starter";
-import { applyFenceLength } from "./scope-editor";
+import { applyFenceLength, applyPergolaSize } from "./scope-editor";
 import { makeDraftSurface } from "@/lib/extract/draft";
 import { ALLOWANCE_CODES, rateFor, toggleExtrasItem, WEATHERED_MODIFIER_CODE, type LooseBlock } from "./sides";
 import {
@@ -85,6 +85,18 @@ export function applyExteriorAnswers(
 
   if (!state.exterior) return;
   const ext = state.exterior;
+
+  // Tom, 5 Oct 2026: a pergola is priced on its top's footprint. The wizard
+  // asked for the length and width and a Confirm, so the placeholder becomes
+  // a sized, priced line and its "measure on site" deferral goes.
+  const pg = ext.pergola;
+  if (tickedSurfaces.has("pergola") && pg?.confirmed && pg.lengthM != null && pg.widthM != null) {
+    const sized = applyPergolaSize(merged.areas as unknown as Parameters<typeof applyPergolaSize>[0], pg.lengthM, pg.widthM);
+    if (sized.ok) {
+      merged.areas = sized.blocks as unknown as typeof merged.areas;
+      merged.deferred = merged.deferred.filter((d) => !/pergola/i.test(d.what));
+    }
+  }
 
   // Tom, 7 Sep: "Where are we painting?" — a side the customer left unticked
   // arrives in the confirm loop as NOT PAINTING (an option outside the

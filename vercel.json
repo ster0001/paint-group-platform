@@ -20,6 +20,10 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/api/cron/gcal-sweep",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/agent-sweep",
       "schedule": "*/15 * * * *"
     },

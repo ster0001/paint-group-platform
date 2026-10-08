@@ -2,7 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue } from "@/lib/workorder/console";
-import { STAGE_LANES, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
+import { LANES, LANE_LABELS, laneFor, type WoStage } from "@/lib/workorder/stages";
+import { melbourneDate } from "@/lib/workorder/console";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +13,16 @@ const money = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
  * The seven-lane pipeline. A card sits in the lane the model says it sits in —
  * there is nothing to drag and nothing to set, because the stage is earned at a
  * gate rather than chosen.
+ *
+ * Booking confirmed (Tom, 1 Oct 2026) is the one lane that is not a stage: a
+ * booked job waits there until its start date is within a week, then shows in
+ * Pre-start. The split is `laneFor`, from the start date and today's date.
  */
 export default async function FlowPage() {
   const supabase = await createClient();
   const { input } = await loadConsole(supabase);
   const queue = buildQueue(input);
+  const today = melbourneDate(new Date());
 
   const worst = new Map<string, "critical" | "warning">();
   for (const card of queue) {
@@ -31,17 +37,18 @@ export default async function FlowPage() {
       <div>
         <h1>Project progress, live.</h1>
         <p className="lede">
-          Seven stages, every open job sitting where the model says it sits. A card
-          moves only when its gate is true.
+          Seven lanes, every open job sitting where the model says it sits. A card
+          moves only when its gate is true — or, into Pre-start, when its start
+          date is within the week.
         </p>
       </div>
 
       <div className="sect">
         <div className="riverwrap">
           <div className="river" data-testid="river">
-            {VISIBLE_STAGES.map((stage) => {
-              const jobs = input.workOrders.filter((w) => visibleStage(w.stage as never) === stage);
-              const lane = STAGE_LANES[stage];
+            {LANES.map((stage) => {
+              const jobs = input.workOrders.filter((w) => laneFor(w.stage as WoStage, w.startDate, today) === stage);
+              const lane = LANE_LABELS[stage];
               return (
                 <div className={`lane ${jobs.length > 0 ? "hot" : ""}`} key={stage} data-testid={`lane-${stage}`}>
                   <div className="lane-h">
@@ -79,8 +86,10 @@ export default async function FlowPage() {
           </div>
         </div>
         <p className="note">
-          Swipe sideways. Amber = blocked on a decision · red = overdue. Both failure
-          paths — a quality-check fail and a flag at walkthrough — pour back into 03.
+          Swipe sideways. Amber = blocked on a decision · red = overdue. A booked job
+          moves from 02 to 03 on its own once it is due to start within seven days.
+          Both failure paths — a quality-check fail and a flag at walkthrough — pour
+          back into 04.
         </p>
       </div>
     </>

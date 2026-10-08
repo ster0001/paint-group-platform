@@ -27,6 +27,13 @@ export type DriveOptions = {
   /** A suburb unique to this run — the handle an ANONYMOUS walk is known by
    *  now that no email is asked for before the price (⚑1). */
   suburb?: string;
+  /** With `suburb`: the postcode the fallback field gets (default 3163). */
+  postcode?: string;
+  /** S6: what the gate is filled with (details first). */
+  contactName?: string;
+  mobile?: string;
+  /** S6: stop ON the gate screen (details first) so a spec can assert its wording and fill it itself. */
+  stopAtGate?: boolean;
 };
 
 /**
@@ -52,7 +59,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   // postcode the service-area check hands the job off.
   await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
   await page.getByPlaceholder("Suburb").fill(opts.suburb ?? "Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
+  await page.getByPlaceholder("Postcode").fill(opts.postcode ?? "3163");
   if (opts.jobType && opts.jobType !== "interior") {
     await page.getByTestId(`ql-jobtype-${opts.jobType}`).click();
   }
@@ -137,8 +144,19 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
    * TypeError: fetch failed" (an ECONNRESET between the runner and Supabase),
    * and it took a trace to find. Now it is the failure.
    */
+  /**
+   * S6 (R5): under "details first" the last question is the GATE — name, email,
+   * mobile — and the range is not shown until it is answered. The helper fills
+   * it with `opts.email` (or a throwaway) so every journey still reaches the
+   * range; under "range first" the gate never appears and this is skipped.
+   */
   const reveal = page.getByTestId("reveal");
   const bounced = page.locator(".wz-err");
+  if (opts.stopAtGate) {
+    await expect(page.locator("[data-quick-step='gate']").or(reveal).or(bounced)).toBeVisible({ timeout: 90_000 });
+    return;
+  }
+  await passGateIfShown(page, { name: opts.contactName, email: opts.email, mobile: opts.mobile });
   await expect(reveal.or(bounced)).toBeVisible({ timeout: 90_000 });
   if (await bounced.count()) throw new Error(`quick look submit failed: ${await bounced.first().innerText()}`);
   await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
@@ -154,7 +172,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
    * and missing visits. This is the keep door, walked — which is how a customer
    * who wants to be reachable becomes reachable now.
    */
-  if (opts.email) {
+  if (opts.email && (await page.getByTestId("door-keep").count())) {
     await page.getByTestId("door-keep").click();
     await page.getByTestId("reveal-keep-email").fill(opts.email);
     await page.getByTestId("reveal-keep-send").click();
@@ -167,6 +185,24 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
 }
 
 /** Open /estimate and wait for the quick look's first screen. */
+/**
+ * S6 (R5): after the last question, the GATE appears under "details first" —
+ * name, email, mobile — and the range follows; under "range first" it does
+ * not. Waits for whichever comes, fills the gate when it is there.
+ */
+export async function passGateIfShown(page: Page, who: { name?: string; email?: string; mobile?: string } = {}) {
+  const gate = page.locator("[data-quick-step='gate']");
+  const reveal = page.getByTestId("reveal");
+  const bounced = page.locator(".wz-err");
+  await expect(gate.or(reveal).or(bounced)).toBeVisible({ timeout: 90_000 });
+  if (await gate.count()) {
+    await page.getByTestId("gate-name").fill(who.name ?? "Drive Tester");
+    await page.getByTestId("gate-email").fill(who.email ?? `drive.${Date.now()}@example.com`);
+    await page.getByTestId("gate-mobile").fill(who.mobile ?? "0400 111 222");
+    await quickNext(page);
+  }
+}
+
 export async function openQuickLook(page: Page, opts: { entry?: "upload" } = {}) {
   // Tom, 15 Sep (late, item 1): the "Upload photos or a listing" door left the
   // outside tab; the old page set behind it answers to `?entry=upload`.

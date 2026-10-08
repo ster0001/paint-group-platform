@@ -37,45 +37,53 @@ export function melbourneInstant(y: number, m: number, d: number, h: number, min
   return new Date(t);
 }
 
-const isBusinessDay = (weekday: number) => weekday >= 1 && weekday <= 5;
+/**
+ * Visit booking S4 (Tom, 6 Oct 2026, decision c): the holiday list from
+ * Settings → Booking rules counts here too, so "the next business morning" on
+ * Christmas Eve is not Christmas Day. Callers that have the list pass it; the
+ * old weekday-only answer is what you get without one.
+ */
+const NO_HOLIDAYS: ReadonlySet<string> = new Set();
+const ymd = (p: Parts) => `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
+const isBusinessDay = (p: Parts, holidays: ReadonlySet<string>) => p.weekday >= 1 && p.weekday <= 5 && !holidays.has(ymd(p));
 
 /** The next moment the office is open, at or after `at`. */
-export function nextOpen(at: Date): Date {
+export function nextOpen(at: Date, holidays: ReadonlySet<string> = NO_HOLIDAYS): Date {
   const p = melbourneParts(at);
-  if (isBusinessDay(p.weekday) && p.h >= OPEN_HOUR && p.h < CLOSE_HOUR) return at;
+  if (isBusinessDay(p, holidays) && p.h >= OPEN_HOUR && p.h < CLOSE_HOUR) return at;
   // Same day before opening, or roll to the next business day at 9:00.
   let day = melbourneInstant(p.y, p.m, p.d, OPEN_HOUR);
-  if (!(isBusinessDay(p.weekday) && p.h < OPEN_HOUR)) {
+  if (!(isBusinessDay(p, holidays) && p.h < OPEN_HOUR)) {
     do { day = new Date(day.getTime() + 24 * 3_600_000); day = (() => { const q = melbourneParts(day); return melbourneInstant(q.y, q.m, q.d, OPEN_HOUR); })(); }
-    while (!isBusinessDay(melbourneParts(day).weekday));
+    while (!isBusinessDay(melbourneParts(day), holidays));
   }
   return day;
 }
 
-/** `at` + `hours` of office time (Mon–Fri 9–17, Melbourne). */
-export function addBusinessHours(at: Date, hours: number): Date {
+/** `at` + `hours` of office time (Mon–Fri 9–17, Melbourne, holidays excluded when given). */
+export function addBusinessHours(at: Date, hours: number, holidays: ReadonlySet<string> = NO_HOLIDAYS): Date {
   let remaining = hours * 3_600_000;
-  let cur = nextOpen(at);
+  let cur = nextOpen(at, holidays);
   while (remaining > 0) {
     const p = melbourneParts(cur);
     const close = melbourneInstant(p.y, p.m, p.d, CLOSE_HOUR);
     const room = close.getTime() - cur.getTime();
     if (remaining <= room) return new Date(cur.getTime() + remaining);
     remaining -= room;
-    cur = nextOpen(new Date(close.getTime() + 60_000));
+    cur = nextOpen(new Date(close.getTime() + 60_000), holidays);
   }
   return cur;
 }
 
 /** 9:00 on the next business day strictly after `at`'s Melbourne day. */
-export function nextBusinessMorning(at: Date): Date {
+export function nextBusinessMorning(at: Date, holidays: ReadonlySet<string> = NO_HOLIDAYS): Date {
   const p = melbourneParts(at);
   let day = melbourneInstant(p.y, p.m, p.d, OPEN_HOUR);
   do {
     day = new Date(day.getTime() + 24 * 3_600_000);
     const q = melbourneParts(day);
     day = melbourneInstant(q.y, q.m, q.d, OPEN_HOUR);
-  } while (!isBusinessDay(melbourneParts(day).weekday));
+  } while (!isBusinessDay(melbourneParts(day), holidays));
   return day;
 }
 

@@ -25,9 +25,11 @@ type EntryRow = {
 };
 
 /**
- * Employed painters — Session 6: the days waiting on the office. Approve
- * posts ONE labour line to the job at hours × the painter's cost rate on
- * that day; reject sends the reason back to the painter. Below: the office's
+ * Employed painters — Session 6: the days waiting on the office. Since 7 Oct
+ * 2026 (Tom: salaried, no approval step) every day approves itself on submit;
+ * what waits here is a day with no cost rate or one that ran past 16 hours.
+ * Approve posts ONE labour line to the job at hours × the painter's cost rate
+ * on that day; reject sends the reason back to the painter. Below: the office's
  * own entry form, allocated-vs-actual per job, and the payroll CSV (hours
  * only — the platform never calculates pay).
  */
@@ -146,8 +148,9 @@ export default async function TimesheetsPage() {
       <div>
         <h1>Timesheets and time off.</h1>
         <p className="lede">
-          Standard days log themselves; painters add only the extra. Approving a day posts the hours to the job at
-          their cost rate; the painter only ever sees the hours. Leave and RDO requests are decided here too. Payroll takes the CSV.
+          Standard days log themselves and approve themselves — every day posts its hours to the job at the
+          painter&rsquo;s cost rate the moment it is logged (they are salaried; Tom, 7 Oct 2026). Only a day no cost rate
+          covers waits here for you. The painter only ever sees the hours. Leave and RDO requests are decided here too. Payroll takes the CSV.
         </p>
       </div>
 
@@ -183,7 +186,7 @@ export default async function TimesheetsPage() {
         <div className="stack" data-testid="timesheets">
           {pendingRows.map((row) => <TimesheetRow key={row.id} {...row} />)}
           {pendingRows.length === 0 && (
-            <p className="empty" data-testid="timesheets-empty">Nothing waiting. Days appear here when a painter taps Finish day.</p>
+            <p className="empty" data-testid="timesheets-empty">Nothing waiting. Days approve themselves; one appears here only when no cost rate covers it, or a day ran past 16 hours.</p>
           )}
         </div>
       </div>

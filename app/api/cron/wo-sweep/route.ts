@@ -12,6 +12,8 @@ import { reconcileAllConnected } from "@/lib/gcal/sync";
 import { reconcileAllStaff } from "@/lib/gcal/staff";
 import { sendVisitReminders } from "@/lib/visits/notify";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
+import { staffCustomerUpdateDrafted } from "@/lib/staff/notify";
+import { sendCustomerUpdateDueAlerts } from "@/lib/automations/sweeps/customerUpdateDue";
 
 /**
  * The daily sweep: draft today's customer updates, flag the silent sites, and
@@ -135,8 +137,17 @@ async function sweep(opts: { force?: boolean } = {}) {
       p_photo_count: photoCount ?? 0,
     });
     if (error) reportError(error, { where: "cron.woSweep.draft", extra: { workOrderId } });
-    else drafted += 1;
+    else {
+      drafted += 1;
+      // Tom, 7 Oct 2026: the backstop tells the office the same way the tick does (once per job per day).
+      await staffCustomerUpdateDrafted(db, workOrderId, today);
+    }
   }
+
+  // Tom, 7 Oct 2026: a customer due an update with nothing drafted — remind the
+  // office (email + text per their alert settings), once per job per day.
+  let updateDueAlerts = { due: 0, sent: 0 };
+  try { updateDueAlerts = await sendCustomerUpdateDueAlerts(db, now); } catch (e) { reportError(e, { where: "wo-sweep.updateDue" }); }
 
   const { data: flagged, error: sweepError } = await db.rpc("wo_zero_tick_sweep");
   if (sweepError) reportError(sweepError, { where: "cron.woSweep.zeroTick" });
@@ -258,6 +269,7 @@ async function sweep(opts: { force?: boolean } = {}) {
     heldReleased,
     timesheetsFilled,
     timesheetsManual,
+    updateDueAlerts,
   };
 }
 

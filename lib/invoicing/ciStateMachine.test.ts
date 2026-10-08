@@ -7,6 +7,12 @@ const MIG = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20261119000000_contractor_invoicing.sql"),
   "utf8",
 );
+// The live GST rule (Tom, 7 Oct 2026): the offered amount is EX GST — added
+// on top when registered, the net amount only when not.
+const GST_MIG = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20270218000000_contractor_gst_on_top.sql"),
+  "utf8",
+);
 
 describe("the mirror cannot drift from the SQL guard", () => {
   it("every status exists in the enum seed (20261112) order", () => {
@@ -56,10 +62,25 @@ describe("the document heading is a legal statement (brief §6.3 accept)", () =>
     expect(ciDocumentHeading(true)).toBe("TAX INVOICE");
   });
 
-  it("GST is anchored inc — registration changes the document, never the cost", () => {
-    // The SQL computes gst FROM the inc total, or zero — never adds on top.
-    expect(MIG).toMatch(/case when v_c\.gst_registered\s+then public\.gst_from_inc_cents/);
-    expect(MIG).not.toMatch(/total_inc_cents\s*\*\s*1\.1/);
+  it("GST goes ON TOP of the offered amount when registered, never backed out (Tom, 7 Oct)", () => {
+    // Every writer: gst_on_ex_cents of the ex figure, or zero — and the
+    // backed-out derivation is gone from all four.
+    const writers = GST_MIG.split(/create or replace function public\./).slice(1)
+      .filter((f) => /^contractor_invoice_(draft|request|submit|approve)\(/.test(f))
+      .map((f) => f.slice(0, f.indexOf("end $$;"))); // the body only — the backfill after approve legitimately re-reads the old rule
+    expect(writers).toHaveLength(4);
+    for (const f of writers) {
+      expect(f).toMatch(/case when v_c\.gst_registered\s+then public\.gst_on_ex_cents/);
+      expect(f).not.toContain("gst_from_inc_cents");
+      expect(f).toContain("claimed_ex_cents");
+    }
+    // What remains to invoice is the Σ of ex-GST claims, so registration
+    // can never eat into the agreed amount.
+    expect(GST_MIG).toMatch(/contractor_invoice_invoiced_cents[\s\S]{0,300}sum\(claimed_ex_cents\)/);
+    // The guard freezes the new column with the rest of the money.
+    expect(GST_MIG).toMatch(/new\.claimed_ex_cents\s+is distinct from old\.claimed_ex_cents/);
+    // Every migration registers itself.
+    expect(GST_MIG).toContain("values ('20270218000000_contractor_gst_on_top.sql')");
   });
 });
 

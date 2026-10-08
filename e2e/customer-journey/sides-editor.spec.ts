@@ -176,6 +176,32 @@ test("R2b sides loop: amber to cyan, walls must total 100%, a removed side leave
  * add-panel offers the priced catalogue (shutters/side gate/security door/
  * meter box); the sweep prices Shed and Side gate, while Carport stays an
  * amber visit flag and Rear fence left the sweep. */
+/**
+ * Tom, 5 Oct 2026: "I have to click what % of wall area even though I have
+ * only ticked weatherboards and it is auto ticked to 100%." The wizard's one
+ * substrate IS the wall: the tile reads 100, the sum reads 100, and the side
+ * confirms with nothing tapped. (Two substrates still ask for the split —
+ * the first test above covers that with "+ Render".)
+ */
+test("5 Oct: weatherboards alone — the side confirms with no % tapped", async ({ page }) => {
+  test.setTimeout(300_000);
+  await driveExteriorWizard(page);
+  const front = page.locator(".sd-card", { hasText: "Front" }).first();
+  await front.locator(".sd-hd").click();
+  await front.getByRole("button", { name: "Yes", exact: true }).click();
+  await front.getByPlaceholder("length m").fill("12");
+  await front.getByPlaceholder("height m").fill("2.6");
+  await front.getByTestId("side-dims-front").getByRole("button", { name: "Update", exact: true }).click();
+  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+  await expect(front.locator(".sd-wall")).toHaveCount(1);
+  await expect(front.locator(".sd-wall .sd-pc.on")).toHaveText("100");
+  await expect(front.locator(".sd-wallsum")).toContainText("Adds up to 100%");
+  // No share tapped — straight to confirm.
+  await front.getByRole("button", { name: /Confirm front/i }).click();
+  await expect(front).toHaveClass(/done/, { timeout: 15_000 });
+  await expect(page.locator(".sd-prog")).toContainText("1 OF 8");
+});
+
 test("priced extras: condition/access, catalogue chips and sweep items move the range", async ({ page }) => {
   test.setTimeout(240_000);
   await driveExteriorWizard(page);

@@ -18,6 +18,7 @@ import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope
 import RoomSpots from "./RoomSpots";
 import RoomExtras from "./RoomExtras";
 import EstimatorStrip from "@/app/wizard/EstimatorStrip";
+import { roomTypeForName } from "@/lib/wizard/quick-look";
 import Offer from "@/app/wizard/Offer";
 import JobExtras from "./JobExtras";
 import type { JobExtra } from "@/lib/wizard/extras";
@@ -215,9 +216,16 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   /** Tom, 14 Sep (item 19): the room whose measurements are being read back before its confirm. */
   const [sizeConfirm, setSizeConfirm] = useState<number | null>(null);
   const [addRoom, setAddRoom] = useState<{ open: boolean; type: string | null; name: string; L: string; W: string }>({ open: false, type: null, name: "", L: "", W: "" });
+  // Tom, 7 Oct 2026 (item 7): a typed name is enough — the kind is read off the
+  // words (the quick look's own guesser); a tile only corrects it.
+  const addRoomType = addRoom.type ?? (addRoom.name.trim() ? roomTypeForName(addRoom.name) : null);
   const [extras, setExtras] = useState({ on: initialExtras.on, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
-  const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; open: boolean }>>({});
+  const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; H?: string; open: boolean }>>({});
+  // Tom, 7 Oct 2026 (item 7): "Add room" opens the new room straight away,
+  // size boxes ready — the ids on screen before the add, so the newcomer is
+  // the one that is not in this set when the rooms come back.
+  const openNewRoomRef = useRef<Set<number> | null>(null);
   // A3: the confirmation walk — one card open at a time; confirming opens
   // the next unconfirmed card and scrolls it into view (mockup openRoom).
   const [openCard, setOpenCard] = useState<string>(() => {
@@ -261,6 +269,17 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   function scrollToReach() {
     router.push(`/estimate/book?id=${estimateId}`);
   }
+
+  useEffect(() => {
+    const before = openNewRoomRef.current;
+    if (!before) return;
+    const fresh = rooms.find((r) => !before.has(r.areaId));
+    if (!fresh) return;
+    openNewRoomRef.current = null;
+    setOpenCard(`room:${fresh.areaId}`);
+    setSizeDrafts((d) => ({ ...d, [fresh.areaId]: { L: "", W: "", H: "", open: true } }));
+    afterLayout(() => scrollCardToTop(document.querySelector(`[data-card="room:${fresh.areaId}"]`)));
+  }, [rooms]);
 
   function openAndScroll(key: string) {
     // Beside the chat the cards are a preview — a tap opens the FULL editor.
@@ -801,23 +820,31 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 ))}
               </div>
               <div className="sd-mrow" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 9 }}>
-                <input style={{ flex: "1 1 160px", width: "auto" }} placeholder="Name it — e.g. Dining" maxLength={60} value={addRoom.name} data-testid="add-room-name"
-                  onChange={(e) => setAddRoom((a) => ({ ...a, name: e.target.value }))} />
+                <input style={{ flex: "1 1 160px", width: "auto" }} placeholder="Name it — e.g. Dining, Walk in robe" maxLength={60} value={addRoom.name} data-testid="add-room-name"
+                  onChange={(e) => setAddRoom((a) => ({ ...a, name: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); document.querySelector<HTMLButtonElement>("[data-testid='add-room-go']")?.click(); } }} />
                 <input placeholder="length m" inputMode="decimal" value={addRoom.L} data-testid="add-room-length" onChange={(e) => setAddRoom((a) => ({ ...a, L: e.target.value }))} />
                 <span>×</span>
                 <input placeholder="width m" inputMode="decimal" value={addRoom.W} data-testid="add-room-width" onChange={(e) => setAddRoom((a) => ({ ...a, W: e.target.value }))} />
-                <button type="button" className="sd-chip il-chip" data-testid="add-room-go" disabled={!addRoom.type}
+                <button type="button" className="sd-chip il-chip" data-testid="add-room-go" disabled={!addRoomType}
                   onClick={() => {
-                    if (!addRoom.type) return;
+                    const type = addRoomType;
+                    if (!type) return;
                     const L = Number(addRoom.L), W = Number(addRoom.W);
                     const dims = L >= 1 && L <= 15 && W >= 1 && W <= 15 ? { lengthM: Math.round(L * 10) / 10, widthM: Math.round(W * 10) / 10 } : {};
                     const name = addRoom.name.trim() || undefined;
-                    act({ action: "add_room", roomType: addRoom.type, name, ...dims }, `add:${addRoom.type}`,
-                      () => `${name ?? roomTypeLabel(addRoom.type!)} added and priced in — it appears above as a new orange room to confirm.`);
+                    // The ids on screen now — the new room is the one that joins them.
+                    openNewRoomRef.current = new Set(rooms.map((r) => r.areaId));
+                    act({ action: "add_room", roomType: type, name, ...dims }, `add:${type}`,
+                      () => `${name ?? roomTypeLabel(type)} added and priced in — it's open above, ready for its size.`);
                     setAddRoom({ open: false, type: null, name: "", L: "", W: "" });
                   }}>Add it</button>
               </div>
-              <p className="il-hint">Measurements are optional — leave them out and it starts at a typical size.</p>
+              <p className="il-hint" data-testid="add-room-kind">
+                {addRoom.name.trim() && !addRoom.type
+                  ? <>Sized as a <b>{roomTypeLabel(addRoomType!)}</b> — tap a kind above if that&rsquo;s wrong. Press Enter or Add it.</>
+                  : <>Measurements are optional — leave them out and it starts at a typical size. The room opens above, ready for them.</>}
+              </p>
               <div className="sc-chips" style={{ marginTop: 8 }}>
                 <button type="button" className="sd-chip il-chip" data-testid="sweep-cup-interior"
                   onClick={() => act({ action: "iloop_sweep_cupboards", kind: "interior" }, "sweep:cupi", () => "Inside the cupboards added to every room where the cupboard doors are on — adjust any room above")}>
@@ -945,8 +972,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             <div className="sc-score">
               <div className={`sc-ring ${pendingCount > 0 ? "live" : ""}`} data-live={pendingCount > 0 ? "1" : "0"}>
                 <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx="24" cy="24" r="20" fill="none" stroke="#242B32" strokeWidth="4" />
-                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 90 ? "#2FA46B" : "#E0A83C"}
+                  <circle cx="24" cy="24" r="20" fill="none" stroke="#D9E0E6" strokeWidth="4" />
+                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 90 ? "#1F8A55" : "#A86A12"}
                     strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
                     strokeDashoffset={(125.6 * Math.max(0, Math.min(1, (payload.bandPct - (payload.tightPct ?? 4)) / Math.max(1, (payload.widePct ?? 15) - (payload.tightPct ?? 4))))).toFixed(1)} />
                 </svg>
@@ -1201,7 +1228,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     <b>
                       {room.name}
                       {loop && (
-                        <span className="il-hm"> · {loop.sizeLabel}{loop.size === "adjusted" ? " · updated by you" : ""}</span>
+                        <span className="il-hm"> · {loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span>
                       )}
                     </b>
                   )}
@@ -1231,7 +1258,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   <div className={`il-q il-first ${loop.size != null ? "ok" : ""}`}>
                     <p className="il-kick">FIRST — THE SIZE OF THIS ROOM</p>
                     <p className="il-ql">
-                      Is <span className="il-size">{loop.sizeLabel}{loop.size === "adjusted" ? " · updated by you" : ""}</span> about
+                      Is <span className="il-size">{loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span> about
                       the size of this room? <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
                     </p>
                     <div className="sc-chips">
@@ -1240,7 +1267,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         Looks right
                       </button>
                       <button className={`sd-chip ${loop.size === "adjusted" || sizeDrafts[room.areaId]?.open ? "on" : ""}`}
-                        onClick={() => setSizeDrafts((d) => ({ ...d, [room.areaId]: { L: "", W: "", open: true } }))}>
+                        onClick={() => setSizeDrafts((d) => ({ ...d, [room.areaId]: { L: "", W: "", H: "", open: true } }))} data-testid={`size-adjust-${room.areaId}`}>
                         Adjust it
                       </button>
                     </div>
@@ -1253,25 +1280,34 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       </div>
                     )}
                     {sizeDrafts[room.areaId]?.open && (
-                      <div className="sd-mrow">
-                        <input placeholder="length m" inputMode="decimal" value={sizeDrafts[room.areaId].L}
+                      <div className="sd-mrow" data-testid={`size-form-${room.areaId}`}>
+                        <input placeholder="length m" inputMode="decimal" value={sizeDrafts[room.areaId].L} data-testid={`size-length-${room.areaId}`}
                           onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], L: e.target.value } }))} />
                         <span>×</span>
-                        <input placeholder="width m" inputMode="decimal" value={sizeDrafts[room.areaId].W}
+                        <input placeholder="width m" inputMode="decimal" value={sizeDrafts[room.areaId].W} data-testid={`size-width-${room.areaId}`}
                           onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], W: e.target.value } }))} />
-                        <button onClick={() => {
+                        {/* Tom, 7 Oct 2026 (item 8): this room's own ceiling — optional; blank keeps the job's height. */}
+                        <span>·</span>
+                        <input placeholder={`ceiling ${loop.heightM} m`} inputMode="decimal" value={sizeDrafts[room.areaId].H ?? ""} data-testid={`size-height-${room.areaId}`}
+                          aria-label="Ceiling height in metres, this room only"
+                          onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], H: e.target.value } }))} />
+                        <button data-testid={`size-save-${room.areaId}`} onClick={() => {
                           const rawL = parseFloat(sizeDrafts[room.areaId].L);
                           const rawW = parseFloat(sizeDrafts[room.areaId].W);
-                          if (isNaN(rawL) || isNaN(rawW)) { say("Just the two numbers — length and width in metres."); return; }
-                          // The gentle clamp (1–15 m a side) — mirrors the
+                          const rawH = (sizeDrafts[room.areaId].H ?? "").trim() === "" ? null : parseFloat(sizeDrafts[room.areaId].H!);
+                          if (isNaN(rawL) || isNaN(rawW)) { say("Length and width in metres — the ceiling height is optional."); return; }
+                          if (rawH != null && isNaN(rawH)) { say("The ceiling height is just a number in metres — 2.4, 2.7, 3 — or leave it blank."); return; }
+                          // The gentle clamp (1–15 m a side, 2–6 m high) — mirrors the
                           // server so the toast reports what was recorded.
                           const L = Math.min(15, Math.max(1, rawL));
                           const W = Math.min(15, Math.max(1, rawW));
-                          const clamped = L !== rawL || W !== rawW;
-                          act({ action: "room_dims", areaId: room.areaId, lengthM: L, widthM: W }, `dims:${room.areaId}`,
+                          const H = rawH == null ? null : Math.min(6, Math.max(2, Math.round(rawH * 20) / 20));
+                          const clamped = L !== rawL || W !== rawW || (rawH != null && H !== rawH);
+                          const high = H != null ? ` with ${H} m ceilings` : "";
+                          act({ action: "room_dims", areaId: room.areaId, lengthM: L, widthM: W, ...(H != null ? { heightM: H } : {}) }, `dims:${room.areaId}`,
                             () => clamped
-                              ? `${room.name} set to ${L} × ${W} m (rooms run 1–15 m a side) — repriced.`
-                              : `${room.name} updated to ${L} × ${W} m — repriced for the new size.`);
+                              ? `${room.name} set to ${L} × ${W} m${high} (rooms run 1–15 m a side, ceilings 2–6 m) — repriced.`
+                              : `${room.name} updated to ${L} × ${W} m${high} — repriced for the new size.`);
                           setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], open: false } }));
                         }}>Update size</button>
                         <span className="il-unit">metres — pace it out, near enough is fine</span>
@@ -1711,7 +1747,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             />
           )}
           {/* Tom, 14 Sep (item 8): What we'll do sits at the very bottom of the page. */}
-          {!chatMode && <WhatWeDo lines={systems} tellUsHref="#reach" />}
+          {!chatMode && <WhatWeDo lines={systems} tellUsHref={`/estimate/book?id=${estimateId}`} />}
         </div>
         <PlanPanel docs={docs} variant="column" />
         </div>

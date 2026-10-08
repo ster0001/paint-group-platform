@@ -67,7 +67,7 @@ export default function TimesheetCard({
     setBusy(true); setErr(""); setDone("");
     const r = await finishDayAction({ breakMinutes });
     if (!r.ok) setErr(r.message);
-    else setDone(`Day finished — ${Number(r.detail).toFixed(1)} hours sent to the office.`);
+    else setDone(`Day finished — ${Number(r.detail).toFixed(1)} hours logged.`);
     setBusy(false);
     router.refresh();
   }
@@ -76,7 +76,7 @@ export default function TimesheetCard({
     setBusy(true); setErr(""); setDone("");
     const r = await logExtraHoursAction({ workOrderId: extraJob, date: extraDate, start: extraStart, finish: extraFinish, note: extraNote });
     if (!r.ok) setErr(r.message);
-    else { setDone("Extra hours sent to the office."); setShowExtra(false); setExtraNote(""); }
+    else { setDone("Extra hours logged."); setShowExtra(false); setExtraNote(""); }
     setBusy(false);
     router.refresh();
   }

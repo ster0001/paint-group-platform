@@ -1,21 +1,41 @@
-/* Step 7 wizard — scoped dark theme, ported from
-   design/reference/floorplan-wizard-mockup.html. Everything is namespaced
-   under .wz (the portal.css pattern for design-locked surfaces): this UI
-   serves staff today (internal mode) and customers at Step 8, so it never
-   inherits the staff shell's light theme. */
+/* Step 7 wizard — ported from design/reference/floorplan-wizard-mockup.html.
+   Everything is namespaced under .wz (the portal.css pattern for
+   design-locked surfaces): this UI serves staff (internal mode) and
+   customers, so it never inherits the staff shell's theme.
+
+   Tom, 5 Oct 2026: LIGHT, to match the rest of the customer surfaces — the
+   dark mockup palette is gone. Every colour below is a token on .wz; the
+   hardcoded dark values that used to sit beside them were replaced with
+   tokens at the same time, so one block is the whole theme. The tsx
+   drawings (ExteriorTiles, StyleTiles, the window/door pictures) carry the
+   matching light hexes. */
 
 .wz {
-  --ink: #0a0b0d; --panel: #12161a; --panel2: #171c21; --line: #242b32;
-  --text: #edf0f2; --muted: #8c959d;
-  --cyan: #3bd8e9; --oncyan: #03272d; --amber: #e0a83c; --emerald: #2fa46b; --clay: #b3574a;
+  color-scheme: light;
+  --ink: #f4f6f8; --panel: #ffffff; --panel2: #eef2f5; --line: #d9e0e6; --line-strong: #b9c2cb;
+  --text: #121a21; --muted: #5d6b77;
+  --cyan: #0e9fb4; --oncyan: #ffffff; --amber: #a86a12; --emerald: #1f8a55; --clay: #b3574a;
+  /* The sticky bars (header, nav, footers): the page colour, nearly opaque. */
+  --bar: rgba(244,246,248,.92);
+  /* Aliases older rules reach for with a dark fallback — defined, so the fallback never wins. */
+  --wz-text: var(--text); --wz-muted: var(--muted); --wz-line: var(--line); --wz-panel: var(--panel);
+  --wz-amber: var(--amber); --wz-accent: var(--cyan); --graphite: var(--panel); --raised: var(--panel2);
+  --line2: var(--line-strong); --cyan-line: rgba(14,159,180,.35); --mono: var(--wz-mono);
   --wz-sans: var(--font-sans, "Switzer", -apple-system, sans-serif);
   --wz-mono: var(--font-mono, "Martian Mono", ui-monospace, monospace);
   background: var(--ink); color: var(--text); font-family: var(--wz-sans);
   font-size: 16px; line-height: 1.55; min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
+/* The chat bubble inside the wizard follows the wizard's light theme (its own
+   stylesheet keeps the dark palette for the marketing site). */
+.wz .wz-chat { --line: #d9e0e6; --muted: #5d6b77; --text: #121a21; --graphite: #ffffff; --raised: #eef2f5; --cyan: #0e9fb4; --oncyan: #ffffff; }
+/* 5 Oct: the sides editor's condition chips carry a line of meaning each. */
+.wz .sd-chip.has-hint { display: grid; gap: 2px; text-align: left; max-width: 300px; border-radius: 14px; padding: 10px 14px; }
+.wz .sd-chip-hint { font-size: 12px; line-height: 1.35; color: var(--muted); }
+.wz .sd-chip.on .sd-chip-hint { color: var(--text); }
 
-.wz .wz-top { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; padding: 13px 20px; background: rgba(10,11,13,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.wz .wz-top { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; padding: 13px 20px; background: var(--bar); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .wz .wz-wm { font-family: var(--wz-mono); font-size: 12px; font-weight: 700; letter-spacing: .22em; color: var(--text); }
 .wz .wz-wm span { color: var(--cyan); }
 .wz .wz-logo { display: block; max-height: 26px; max-width: 150px; object-fit: contain; }
@@ -34,6 +54,18 @@
 .wz .wz-sub { color: var(--muted); font-size: 15px; margin-bottom: 24px; }
 .wz .wz-field { width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; color: var(--text); font-family: var(--wz-sans); font-size: 15px; padding: 15px 16px; outline: none; margin-bottom: 12px; }
 .wz .wz-field:focus { border-color: var(--cyan); }
+/* S7 (Tom, 7 Oct): the contact fields — the gate's last question, the visit
+   page's "A few details first", the talk sheet — are LABELS wrapping a caption
+   and an input. The box is the label; the input sits inside it with no box of
+   its own. Without this the label was inline, the caption and the input ran
+   on, and "Mobile number" landed on top of "Full name". */
+.wz label.wz-field { display: block; cursor: text; }
+.wz label.wz-field > span { display: block; font-family: var(--wz-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.wz label.wz-field > input, .wz label.wz-field > textarea { display: block; width: 100%; background: transparent; border: 0; padding: 0; margin: 0; color: var(--text); font: inherit; outline: none; }
+.wz label.wz-field > textarea { resize: vertical; min-height: 64px; }
+.wz label.wz-field:focus-within { border-color: var(--cyan); }
+.wz .wz-consent { display: flex; align-items: flex-start; gap: 10px; margin: 2px 0 20px; font-size: 13px; cursor: pointer; }
+.wz .wz-consent input { margin: 2px 0 0; flex: 0 0 auto; }
 .wz .wz-or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-family: var(--wz-mono); font-size: 9px; letter-spacing: .16em; margin: 14px 0; }
 .wz .wz-or::before, .wz .wz-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .wz .wz-upload { border: 1.5px dashed var(--line); border-radius: 12px; padding: 22px; text-align: center; color: var(--muted); cursor: pointer; font-size: 14.5px; background: none; width: 100%; font-family: var(--wz-sans); }
@@ -70,8 +102,8 @@
 .wz .wz-pk .wz-pksub { display: block; margin-top: 2px; font-style: normal; font-size: 11px; color: var(--muted); }
 .wz .wz-photo-stub { margin-top: 12px; border: 1.5px dashed var(--amber); border-radius: 11px; padding: 14px; color: var(--amber); font-size: 13.5px; text-align: center; cursor: pointer; background: none; width: 100%; font-family: var(--wz-sans); }
 .wz .wz-photo-stub.done { border-color: var(--emerald); color: var(--emerald); }
-.wz .wz-err { margin-top: 10px; border: 1px solid var(--clay); border-radius: 10px; padding: 10px 14px; color: #e4a79d; font-size: 13.5px; }
-.wz .wz-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; gap: 10px; padding: 13px 20px; background: rgba(10,11,13,.94); backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
+.wz .wz-err { margin-top: 10px; border: 1px solid var(--clay); border-radius: 10px; padding: 10px 14px; color: #9b3b2e; font-size: 13.5px; }
+.wz .wz-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; gap: 10px; padding: 13px 20px; background: var(--bar); backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
 .wz .wz-btn { font-family: var(--wz-sans); font-weight: 600; font-size: 15px; padding: 14px 22px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; }
 .wz .wz-bp { flex: 1; background: var(--cyan); color: var(--oncyan); }
 .wz .wz-bp:disabled { opacity: .5; cursor: default; }
@@ -136,7 +168,7 @@
 .wz .wz-money small { display: block; font-family: var(--wz-mono); font-size: 8.5px; letter-spacing: .14em; color: var(--muted); }
 .wz .wz-confirmrow { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; margin: -4px 0 6px; }
 .wz .wz-cf { display: flex; align-items: center; gap: 10px; border: 1px solid var(--amber); background: rgba(224,168,60,.06); border-radius: 100px; padding: 8px 9px 8px 16px; font-size: 13.5px; flex-wrap: wrap; }
-.wz .wz-cf button { background: var(--amber); color: #1f1607; border: none; border-radius: 100px; padding: 6px 13px; font-family: var(--wz-sans); font-weight: 600; font-size: 12.5px; cursor: pointer; }
+.wz .wz-cf button { background: var(--amber); color: #ffffff; border: none; border-radius: 100px; padding: 6px 13px; font-family: var(--wz-sans); font-weight: 600; font-size: 12.5px; cursor: pointer; }
 .wz .wz-cf select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; font-size: 13px; }
 .wz .wz-rooms { display: flex; flex-direction: column; gap: 11px; }
 .wz .wz-room { border-radius: 13px; }
@@ -145,7 +177,7 @@
 .wz .wz-prov.ai { color: var(--amber); border: 1px solid rgba(224,168,60,.4); }
 .wz .wz-prov.ok { color: var(--emerald); border: 1px solid rgba(47,164,107,.4); }
 .wz .wz-surf { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
-.wz .wz-surf i { font-style: normal; font-size: 12.5px; color: var(--text); border: 1px solid #39424b; border-radius: 100px; padding: 5px 11px; }
+.wz .wz-surf i { font-style: normal; font-size: 12.5px; color: var(--text); border: 1px solid var(--line-strong); border-radius: 100px; padding: 5px 11px; }
 .wz .wz-rowbtns { display: flex; gap: 8px; margin-top: 11px; flex-wrap: wrap; align-items: center; }
 .wz .wz-mini { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 12.5px; padding: 5px 11px; cursor: pointer; font-family: var(--wz-sans); }
 .wz .wz-mini:hover { border-color: var(--cyan); color: var(--cyan); }
@@ -166,7 +198,7 @@
   grid-column: 1 / -1; font-size: 13px; line-height: 1.55; color: var(--muted);
   border: 1px dashed var(--line); border-radius: 10px; padding: 11px 14px; margin-top: 8px;
 }
-.wz .wz-stick { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: rgba(10,11,13,.95); backdrop-filter: blur(14px); border-top: 1px solid var(--line); flex-wrap: wrap; }
+.wz .wz-stick { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--bar); backdrop-filter: blur(14px); border-top: 1px solid var(--line); flex-wrap: wrap; }
 .wz .wz-stick .wz-pr { font-family: var(--wz-mono); font-weight: 700; font-size: 15px; line-height: 1.25; }
 .wz .wz-stick .wz-pr small { display: block; font-size: 8px; font-weight: 400; color: var(--muted); letter-spacing: .14em; }
 .wz .wz-stick .wz-sp { flex: 1; }
@@ -177,7 +209,7 @@
 .wz .wz-suggest { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% - 8px); background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
 .wz .wz-suggest-row { display: block; width: 100%; text-align: left; padding: 10px 14px; font-size: 13.5px; color: var(--text); background: transparent; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .wz .wz-suggest-row:last-child { border-bottom: 0; }
-.wz .wz-suggest-row:hover { background: #1A2027; }
+.wz .wz-suggest-row:hover { background: var(--panel2); }
 .wz .wz-suggest-row span { color: var(--muted); font-size: 12.5px; }
 
 /* ---- Part B: customer scope editor (.sc-, per customer-scope-editor-mockup) */
@@ -193,7 +225,7 @@
    block for its `position: fixed` descendants, which would anchor the phone's
    plan overlay to this header instead of the viewport. It is 94% opaque
    anyway — the blur bought nothing and cost that. */
-.wz .sc-freeze { position: sticky; top: 0; z-index: 45; background: #0A0B0D; border-bottom: 1px solid var(--line); }
+.wz .sc-freeze { position: sticky; top: 0; z-index: 45; background: var(--ink); border-bottom: 1px solid var(--line); }
 .wz .sc-freeze .wz-top { position: static; backdrop-filter: none; background: transparent; border-bottom: 0; }
 .wz .sc-scorewrap { max-width: 1020px; margin: 0 auto; padding: 9px 20px 12px; }
 .wz .sc-freeze .sc-scorebar { margin-bottom: 0; }
@@ -217,7 +249,7 @@
   .wz .pp-sheet {
     position: fixed; left: 0; right: 0; top: var(--pp-top, 150px); bottom: 96px;
     z-index: 44; overflow-y: auto; padding: 12px 14px;
-    background: #0A0B0D; border-top: 1px solid var(--line);
+    background: var(--ink); border-top: 1px solid var(--line);
   }
   .wz .pp-sheet .wz-planframe { max-height: none; }
   /* The peek strip is a control, not a card — keep it thin. */
@@ -245,7 +277,7 @@
 .wz .sc-x:hover { border-color: var(--clay); color: var(--clay); }
 .wz .sc-pen:hover { border-color: var(--cyan, #39D9E6); color: var(--cyan, #39D9E6); }
 .wz .sc-rn { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 0; }
-.wz .sc-rn input { flex: 1; min-width: 0; background: rgba(255,255,255,0.04); border: 1px solid var(--line); color: inherit; border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 14px; }
+.wz .sc-rn input { flex: 1; min-width: 0; background: var(--panel2); border: 1px solid var(--line); color: inherit; border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 14px; }
 .wz .sc-tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; margin-top: 13px; }
 .wz .sc-tl { position: relative; min-width: 0; border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 11px 12px; cursor: pointer; font-size: 13.5px; color: var(--muted); user-select: none; }
 .wz .sc-tl.on { border-color: var(--cyan); color: var(--text); background: rgba(59,216,233,.07); }
@@ -273,7 +305,7 @@
 .wz .sc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .wz .sc-chip { padding: 8px 14px; border-radius: 100px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 13px; cursor: pointer; font-family: var(--wz-sans); text-transform: capitalize; }
 .wz .sc-chip:hover { border-color: var(--cyan); color: var(--cyan); }
-.wz .sc-stick { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; padding: 11px 18px; background: rgba(10,11,13,.95); backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
+.wz .sc-stick { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; padding: 11px 18px; background: var(--bar); backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
 .wz .sc-row { display: flex; align-items: center; gap: 12px; max-width: 1020px; margin: 0 auto; }
 .wz .sc-pr { font-family: var(--wz-mono); font-weight: 700; font-size: 15px; line-height: 1.25; }
 .wz .sc-pr small { display: block; font-size: 8px; font-weight: 400; color: var(--muted); letter-spacing: .14em; }
@@ -308,7 +340,7 @@
 .wz .sd-scorewrap { max-width: max(1100px, var(--sd-w, 1100px)); margin: 9px auto 0; }
 .wz .sd-scorewrap .sc-scorebar { margin-bottom: 0; }
 @media (max-width: 560px) { .wz .sd-scorewrap .sc-lbl span { display: none; } .wz .sd-scorewrap .sc-scorebar { padding: 10px 13px; } }
-.wz .sd-top { position: sticky; top: 0; z-index: 50; padding: 12px 18px; background: rgba(10,11,13,.94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.wz .sd-top { position: sticky; top: 0; z-index: 50; padding: 12px 18px; background: var(--bar); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .wz .sd-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: var(--sd-w, 1020px); margin: 0 auto; }
 .wz .sd-wm { font-family: var(--wz-mono); font-size: 12px; font-weight: 700; letter-spacing: .22em; }
 .wz .sd-wm span { color: var(--cyan); }
@@ -343,10 +375,10 @@
 }
 .wz .sd-t { font-family: var(--wz-mono); font-size: 9px; letter-spacing: .16em; color: var(--muted); margin-bottom: 9px; }
 .wz .sd-house { width: 100%; height: auto; }
-.wz .sd-house text { font-family: var(--wz-mono); font-size: 9px; fill: #8C959D; }
+.wz .sd-house text { font-family: var(--wz-mono); font-size: 9px; fill: var(--muted); }
 .wz .sd-edge { stroke: var(--amber); stroke-width: 9; stroke-linecap: round; cursor: pointer; transition: stroke .4s; }
 .wz .sd-edge.done { stroke: var(--cyan); }
-.wz .sd-edge.skip { stroke: #39424B; stroke-dasharray: 4 7; }
+.wz .sd-edge.skip { stroke: var(--line-strong); stroke-dasharray: 4 7; }
 .wz .sd-legend { display: flex; gap: 14px; margin-top: 10px; font-family: var(--wz-mono); font-size: 8px; letter-spacing: .1em; color: var(--muted); flex-wrap: wrap; }
 .wz .sd-legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 5px; font-style: normal; }
 .wz .sd-cards { display: flex; flex-direction: column; gap: 12px; }
@@ -429,7 +461,7 @@
 .wz .sd-custom button { border: 1px solid var(--line); background: none; color: var(--muted); border-radius: 9px; padding: 0 14px; cursor: pointer; font-size: 13px; font-family: var(--wz-sans); }
 .wz .sd-confirm { margin-top: 16px; width: 100%; padding: 13px; border-radius: 10px; border: 1px solid var(--amber); background: rgba(224,168,60,.08); color: var(--amber); font-family: var(--wz-sans); font-weight: 600; font-size: 14.5px; cursor: pointer; }
 .wz .sd-card.done .sd-confirm { border-color: var(--cyan); background: rgba(59,216,233,.08); color: var(--cyan); }
-.wz .sd-stick { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; padding: 11px 18px; background: rgba(10,11,13,.95); backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
+.wz .sd-stick { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; padding: 11px 18px; background: var(--bar); backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
 .wz .sd-tier { font-size: 11.5px; color: var(--muted); max-width: var(--sd-w, 1020px); margin: 0 auto 8px; display: flex; gap: 7px; align-items: center; }
 .wz .sd-tier i { font-style: normal; width: 7px; height: 7px; border-radius: 50%; background: var(--emerald); flex-shrink: 0; }
 .wz .sd-tier.visit i { background: var(--amber); }
@@ -609,7 +641,7 @@
 .wz .wz-brief { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-family: var(--wz-sans); font-size: 14.5px; resize: vertical; margin: 6px 0 8px; }
 
 /* Finalise my price — the contact card (Tom, 5 Sep 2026) */
-.wz .sc-contact, .wz .sd-contact { margin: 10px auto 0; max-width: var(--sd-w, 1020px); display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--graphite, #12161a); }
+.wz .sc-contact, .wz .sd-contact { margin: 10px auto 0; max-width: var(--sd-w, 1020px); display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--graphite); }
 .wz .sc-contact-t, .wz .sd-contact-t { margin: 0; font-size: 14px; color: var(--text); font-weight: 600; }
 .wz .sc-contact-opts, .wz .sd-contact-opts, .wz .sc-contact-row, .wz .sd-contact-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .wz .sc-contact-opt, .wz .sd-contact-opt, .wz .sc-contact-chip, .wz .sd-contact-chip { font: inherit; font-size: 13px; padding: 9px 14px; border-radius: 100px; border: 1px solid var(--line); background: none; color: var(--text); cursor: pointer; text-decoration: none; }
@@ -617,7 +649,7 @@
 .wz .sc-contact-opt.on, .wz .sd-contact-opt.on, .wz .sc-contact-chip.on, .wz .sd-contact-chip.on { border-color: var(--cyan); color: var(--cyan); }
 .wz .sc-contact-form, .wz .sd-contact-form { display: grid; gap: 8px; }
 .wz .sc-contact-form input, .wz .sd-contact-form input { font: inherit; font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: none; color: var(--text); }
-.wz .sc-contact-go, .wz .sd-contact-go { font: inherit; font-size: 14px; font-weight: 600; padding: 11px 16px; border-radius: 100px; border: 0; background: var(--cyan); color: #03272d; cursor: pointer; justify-self: start; }
+.wz .sc-contact-go, .wz .sd-contact-go { font: inherit; font-size: 14px; font-weight: 600; padding: 11px 16px; border-radius: 100px; border: 0; background: var(--cyan); color: var(--oncyan); cursor: pointer; justify-self: start; }
 .wz .sc-contact-go:disabled, .wz .sd-contact-go:disabled { opacity: .5; cursor: default; }
 
 /* Buckets brief §3 · "Stuck? Ask us to call you" under the page buttons. */
@@ -685,10 +717,10 @@
 .wz .sd-photobtn span::before { content: "📎"; margin-right: 7px; }
 .wz .sd-notesave { border: 1px solid var(--cyan); background: rgba(59,216,233,.08); color: var(--cyan); border-radius: 10px; padding: 9px 16px; cursor: pointer; font-size: 13px; font-family: var(--wz-sans); font-weight: 600; }
 .wz .sd-notesave:disabled { border-color: var(--line); background: none; color: var(--muted); cursor: default; }
-.wz .sd-noteerr { font-size: 12.5px; color: #f27d7d; margin-top: 7px; }
+.wz .sd-noteerr { font-size: 12.5px; color: #b4362a; margin-top: 7px; }
 
 /* A side that is not part of the job at all — drawn, but plainly out. */
-.wz .sd-house line.gone { stroke: #2a3138; stroke-dasharray: 4 5; pointer-events: none; }
+.wz .sd-house line.gone { stroke: var(--line-strong); stroke-dasharray: 4 5; pointer-events: none; }
 
 /* "You don't have to finish first" — the line under the finalise button. */
 .wz .sd-ctahint { max-width: var(--sd-w, 1020px); margin: 7px auto 0; font-size: 12px; color: var(--muted); }
@@ -801,7 +833,7 @@
   border: 1px solid var(--wz-line, #242B32);
 }
 .wz .wz-tiers span.on {
-  background: var(--wz-accent, #22B8CF); color: #06212A; border-color: transparent;
+  background: var(--wz-accent, #22B8CF); color: var(--oncyan); border-color: transparent;
 }
 
 .wz .wz-restate { margin: 0 0 16px; font-size: 15px; line-height: 1.5; }
@@ -880,7 +912,7 @@
 .wz .wz-steps-list b + span { display: block; margin-top: 3px; font-size: 13.5px; line-height: 1.45; color: var(--wz-muted, #8C959D); }
 .wz .wz-step-n {
   flex: 0 0 24px; height: 24px; border-radius: 999px; display: grid; place-items: center;
-  font-size: 12px; font-weight: 700; background: var(--wz-accent, #22B8CF); color: #06212A;
+  font-size: 12px; font-weight: 700; background: var(--wz-accent, #22B8CF); color: var(--oncyan);
 }
 /* C7 — the outcome of "fix my price online", in place of the doors.
    A cyan-edged panel because this is the one moment in the flow where a
@@ -932,7 +964,7 @@
 .wz .sc-photodrop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .wz .sc-photodrop-icon {
   flex: 0 0 36px; height: 36px; border-radius: 9px; display: grid; place-items: center;
-  font-size: 17px; background: rgba(255,255,255,.05);
+  font-size: 17px; background: var(--panel2);
 }
 .wz .sc-photodrop.ready .sc-photodrop-icon { color: var(--cyan); }
 .wz .sc-photodrop-text { min-width: 0; }
@@ -950,7 +982,7 @@
    these describe how much we know, never a prize. */
 .wz .tier-chip { display: inline-block; margin-left: 8px; vertical-align: middle; font-family: var(--wz-mono); font-size: 8.5px; letter-spacing: .14em; padding: 4px 10px; border-radius: 100px; border: 1px solid; }
 .wz .tier-chip.guide { color: var(--amber); border-color: rgba(224,168,60,.5); }
-.wz .tier-chip.detailed { color: var(--text); border-color: rgba(237,240,242,.45); }
+.wz .tier-chip.detailed { color: var(--text); border-color: rgba(18,26,33,.3); }
 .wz .tier-chip.confirmed { color: var(--cyan); border-color: rgba(59,216,233,.55); background: rgba(59,216,233,.07); }
 
 /* C6 · the confirmation's state on the sent screen. Quiet by design: it is a
@@ -1152,8 +1184,15 @@
 .wz .sc-sizeconfirm-size { color: var(--cyan); }
 
 /* Tom, 14 Sep (evening): the confirm-rooms step — the plan preview and add-a-room. */
-.wz .wz-planpreview { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; max-height: 260px; }
-.wz .wz-planpreview img { display: block; width: 100%; height: auto; max-height: 260px; object-fit: contain; }
+/* Tom, 7 Oct 2026 (item 3): the rooms-step preview is the zoomable PlanViewer, not a flat picture. */
+.wz .wz-planpreview { margin: 0 0 12px; }
+.wz .wz-planpreview .wz-planbox { position: static; padding: 10px 12px; }
+.wz .wz-planpreview .wz-planframe { max-height: 320px; }
+.wz .wz-planpreview .wz-planframe img { max-height: 320px; object-fit: contain; }
+/* Tom, 7 Oct 2026 (item 1): the "reading your floorplan" panel on the rooms step. */
+.wz .wz-planreading { text-align: center; padding: 22px 12px 10px; border: 1px dashed var(--line); border-radius: 14px; background: var(--panel); }
+.wz .wz-planreading .wz-psteps { display: flex; flex-direction: column; gap: 6px; align-items: center; margin: 0 0 14px; }
+.wz .wz-planreading .wz-linkish { font-size: 13px; }
 .wz .wz-addroom { margin-top: 12px; }
 .wz .wz-addroom-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .wz .wz-addroom-row .wz-field { flex: 1 1 180px; }
@@ -1173,3 +1212,55 @@
 
 /* Tom, 16 Sep: the × that deletes a side, on the card header like a room. */
 .wz .sd-xhd { margin-left: 8px; }
+
+/* S6 (R17): "Tighten my price" is the main button on the range screen. */
+.wz .wz-door-hero { border-color: var(--accent, #0ea5e9); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #0ea5e9) 30%, transparent); }
+.wz .wz-door-hero b { font-size: 1.05em; }
+
+/* ---- S7 (Tom, 7 Oct): the booking screens brought up to the wizard's look.
+   Square day cards, square cyan time tiles, ONE unmistakable book button, the
+   code as six big digits with the hold clock beside it, and the booked screen
+   laid out as a card plus a what-happens-next list. ---------------------------- */
+.wz .wz-vlbl { margin: 18px 0 8px; font-family: var(--wz-mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.wz .wz-vdays { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px; scrollbar-width: none; }
+.wz .wz-vdays::-webkit-scrollbar { display: none; }
+.wz .wz-vday { flex: 0 0 auto; width: 70px; padding: 9px 6px 8px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); font-family: var(--wz-sans); cursor: pointer; text-align: center; transition: border-color .15s, background .15s; }
+.wz .wz-vday i { display: block; font-style: normal; font-size: 11.5px; color: var(--muted); }
+.wz .wz-vday b { display: block; font-size: 21px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; margin: 2px 0; }
+.wz .wz-vday:hover { border-color: var(--cyan); }
+.wz .wz-vday.on { border-color: var(--cyan); background: var(--cyan); color: var(--oncyan); }
+.wz .wz-vday.on i { color: var(--oncyan); opacity: .85; }
+.wz .wz-vtimes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0 0 18px; }
+.wz .wz-vtime { padding: 16px 6px; border: 1.5px solid rgba(14,159,180,.35); border-radius: 12px; background: rgba(14,159,180,.08); color: var(--text); font-family: var(--wz-sans); font-size: 16px; font-weight: 600; letter-spacing: -.01em; cursor: pointer; transition: border-color .15s, background .15s, transform .08s; }
+.wz .wz-vtime:hover { border-color: var(--cyan); background: rgba(14,159,180,.16); }
+.wz .wz-vtime.on { border-color: var(--cyan); background: var(--cyan); color: var(--oncyan); box-shadow: 0 6px 18px rgba(14,159,180,.28); transform: translateY(-1px); }
+.wz .wz-vbtn { display: block; width: 100%; text-align: center; text-decoration: none; padding: 15px 18px; border-radius: 12px; font-size: 16px; }
+.wz .wz-vbook b { display: block; font-weight: 700; font-size: 17px; }
+.wz .wz-vbook small { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 500; opacity: .85; }
+.wz .wz-vbook:disabled { background: var(--panel2); color: var(--muted); border-color: var(--line); opacity: 1; box-shadow: none; }
+.wz .wz-vbook:not(:disabled) { box-shadow: 0 8px 22px rgba(14,159,180,.3); }
+.wz .wz-vghost { background: var(--panel); color: var(--text); border: 1.5px solid var(--line); font-weight: 600; margin-top: 10px; }
+.wz .wz-vghost:hover { border-color: var(--cyan); color: var(--cyan); }
+.wz .wz-vcard { display: flex; align-items: center; gap: 14px; margin: 6px 0 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: 0 2px 10px rgba(18,26,33,.05); }
+.wz .wz-vcard-ico { flex: 0 0 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: rgba(14,159,180,.12); color: var(--cyan); }
+.wz .wz-vcard-text { min-width: 0; }
+.wz .wz-vcard-text b { display: block; font-size: 16px; font-weight: 600; letter-spacing: -.01em; line-height: 1.3; }
+.wz .wz-vcard-text span { display: block; margin-top: 2px; font-size: 13.5px; color: var(--muted); }
+.wz .wz-vstrong { color: var(--text); font-weight: 600; }
+.wz .wz-vcode { margin: 4px 0 14px; padding: 18px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); text-align: center; }
+.wz .wz-vcode-lbl { display: block; font-family: var(--wz-mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.wz .wz-vcode-in { display: block; width: 100%; max-width: 260px; margin: 0 auto; padding: 12px 0 12px 10px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--panel2); color: var(--text); font-family: var(--wz-mono); font-size: 30px; letter-spacing: .42em; text-align: center; outline: none; }
+.wz .wz-vcode-in::placeholder { color: var(--line-strong); letter-spacing: .3em; }
+.wz .wz-vcode-in:focus { border-color: var(--cyan); background: var(--panel); }
+.wz .wz-vhold { display: inline-block; margin-top: 12px; padding: 5px 11px; border-radius: 100px; background: rgba(14,159,180,.1); color: var(--cyan); font-family: var(--wz-mono); font-size: 11.5px; letter-spacing: .04em; }
+.wz .wz-vhold.low { background: rgba(168,106,18,.12); color: var(--amber); }
+.wz .wz-vnote { margin: -4px 0 12px; font-size: 13.5px; color: var(--emerald); }
+.wz .wz-vlinks { display: flex; justify-content: center; gap: 22px; flex-wrap: wrap; margin-top: 4px; }
+.wz .wz-vlinks .wz-linkish { margin-top: 12px; }
+.wz .wz-vok { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; margin: 4px 0 16px; background: var(--emerald); color: #fff; box-shadow: 0 8px 20px rgba(31,138,85,.3); }
+.wz .wz-vnext { list-style: none; margin: 0 0 14px; padding: 0; counter-reset: vnext; display: grid; gap: 8px; }
+.wz .wz-vnext li { counter-increment: vnext; display: grid; grid-template-columns: 30px 1fr; gap: 2px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.wz .wz-vnext li::before { content: counter(vnext); grid-row: 1 / span 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: rgba(14,159,180,.12); color: var(--cyan); font-family: var(--wz-mono); font-size: 12px; font-weight: 600; }
+.wz .wz-vnext b { font-size: 15px; font-weight: 600; }
+.wz .wz-vnext span { font-size: 13.5px; line-height: 1.45; color: var(--muted); }
+.wz .wz-vfine { margin: 0 0 6px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }

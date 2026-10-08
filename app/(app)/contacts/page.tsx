@@ -66,8 +66,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
           </div>
         ) : (
           <div className="p-10 text-center text-sm text-gray-400">
-            No contacts yet. Add one from an estimate’s <strong>Contact</strong> card (Save to Contacts),
-            and it will appear here.
+            No contacts yet. Every CRM customer and every contact used on an estimate lands here by itself.
           </div>
         )}
       </div>

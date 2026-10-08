@@ -9,6 +9,8 @@
   --ink: #0a0b0d; --graphite: #12161a; --raised: #171c21; --line: #242b32;
   --text: #edf0f2; --muted: #8c959d; --cyan: #3bd8e9; --on-cyan: #03272d;
   --paint: #2fb9cb; --amber: #e0a83c; --emerald: #2fa46b; --clay: #b3574a;
+  /* Tom, 1 Oct: a HELD day is bright pink — unmissable on purpose, it is a reminder. */
+  --hold: #ff2d9b;
   --sans: "Switzer", -apple-system, sans-serif;
   --mono: "Martian Mono", ui-monospace, monospace;
 
@@ -232,6 +234,25 @@
    contractor block; a DASHED border carries "hasn't tapped Accept yet" instead. */
 .sb .blk.assigned { background: rgba(47, 164, 107, 0.2); border-color: rgba(47, 164, 107, 0.7); color: #e2f5ea; }
 .sb .blk.assigned.hollow { border-style: dashed; }
+/* Tom, 1 Oct: internal hold while the client decides. Bright pink, solid, cannot be mistaken for a booking. */
+.sb .blk.hold { background: rgba(255, 45, 155, 0.34); border-color: var(--hold); color: #ffe3f1; box-shadow: inset 0 0 0 1px rgba(255, 45, 155, 0.5); }
+.sb .blk.hold .m { color: #ffb3d9; opacity: 1; }
+/* An extra visit keeps its job's colour; the dotted left edge says "this job, again". */
+.sb .blk.visit { border-left-width: 3px; border-left-style: dotted; }
+.sb .ghost.held { border-color: var(--hold); }
+.sb .ghost.held .g2 { color: var(--hold); }
+.sb .btn.hold { background: rgba(255, 45, 155, 0.18); border: 1px solid var(--hold); color: #ffd6ea; }
+.sb .btn.hold:hover { background: rgba(255, 45, 155, 0.3); }
+.sb .held-note { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 12.5px; background: rgba(255, 45, 155, 0.12); border: 1px solid rgba(255, 45, 155, 0.5); color: #ffd6ea; }
+.sb .seg.modes { display: flex; margin: 4px 0 12px; }
+/* Tom, 4 Oct: the Extra visit project search — results under the box, same chrome as a tray card. */
+.sb .visit-hits { margin-top: 6px; max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); }
+.sb .visit-hits .hit { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--text); padding: 8px 10px; cursor: pointer; }
+.sb .visit-hits .hit:last-child { border-bottom: 0; }
+.sb .visit-hits .hit:hover { background: rgba(59, 216, 233, 0.08); }
+.sb .visit-hits .hit .t { display: block; font-size: 13px; font-weight: 600; }
+.sb .visit-hits .hit .m { display: block; font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 2px; letter-spacing: 0.04em; }
+.sb .seg.modes button { flex: 1; }
 .sb .blk .crew { font-family: var(--mono); font-size: 8.5px; opacity: 0.9; margin-left: 6px; }
 .sb .blk .lead { color: var(--amber); margin-right: 4px; }
 .sb .cinfo .emp { color: var(--cyan); }
@@ -405,6 +426,9 @@
    light theme — unreadable. Same ink as an accepted contractor block. */
 .pc[data-theme="light"] .sb .blk.assigned{color:#14532D;background:rgba(47,164,107,.22)}
 .pc[data-theme="light"] .sb .blk.offered,.pc[data-theme="light"] .sb .blk.proposed{color:#6B4A0A}
+.pc[data-theme="light"] .sb .blk.hold{color:#7A0A42;background:rgba(255,45,155,.24)}
+.pc[data-theme="light"] .sb .blk.hold .m{color:#9C1458}
+.pc[data-theme="light"] .sb .btn.hold,.pc[data-theme="light"] .sb .held-note{color:#7A0A42}
 .pc[data-theme="light"] .sb .err{color:#7A2E24}
 .pc[data-theme="light"] .sb .scrim{background:rgba(20,30,40,.35)}
 .pc[data-theme="light"] .sb .blk.dragging{box-shadow:0 12px 28px rgba(20,30,40,.2)}

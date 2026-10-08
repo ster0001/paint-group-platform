@@ -276,3 +276,95 @@ export async function staffContractorInvoice(service: SupabaseClient, invoiceId:
     return "error";
   }
 }
+
+// ---- Tom, 7 Oct 2026: PC Command alerts ------------------------------------
+
+/** The painter declined a change the client approved — back with the office. Once per variation. */
+export async function staffVariationDeclinedByPainter(service: SupabaseClient, variationId: string): Promise<StaffAlertOutcome> {
+  try {
+    const { data, error } = await service
+      .from("wo_variations")
+      .select("id, est_hours, contractor_decline_note, work_orders(id, wo_ref, estimate_id, estimates(title, sent_snapshot), contractors(company_name, profiles(name)))")
+      .eq("id", variationId).maybeSingle();
+    if (error) throw error;
+    const v = data as {
+      id: string; est_hours: number | null; contractor_decline_note: string | null;
+      work_orders: (WoJoin & { contractors: { company_name: string | null; profiles: { name: string | null } | null } | null }) | null;
+    } | null;
+    if (!v?.work_orders) return "error";
+    const painter = (v.work_orders.contractors?.profiles?.name || v.work_orders.contractors?.company_name || "The painter").trim();
+    const job = jobTitle(v.work_orders.estimates, v.work_orders.wo_ref);
+    const comment = (v.contractor_decline_note ?? "").trim() || "(no note)";
+    const hours_line = v.est_hours ? ` (${v.est_hours} h)` : "";
+    return notifyStaff(service, {
+      key: "office_variation_declined", entityId: v.id,
+      subject: `Painter declined an approved change — ${job}`,
+      message: `${painter} has declined the change the client approved on ${v.work_orders.wo_ref} (${job})${hours_line}.\n\nThey wrote: “${comment}”\n\nIt is back with you in PC Command — revise it with the client, or set the painter's amount.`,
+      link: `${siteUrl()}/pc/wo/${v.work_orders.id}#variation-${v.id}`,
+      templates: { subject: "officeVariationDeclinedSubject", body: "officeVariationDeclinedBody" },
+      vars: { painter, job, wo_ref: v.work_orders.wo_ref, hours_line, comment },
+      estimateId: v.work_orders.estimate_id,
+    });
+  } catch (e) {
+    reportError(e, { where: "staffVariationDeclinedByPainter", extra: { variationId } });
+    return "error";
+  }
+}
+
+async function woForAlert(service: SupabaseClient, workOrderId: string) {
+  const { data, error } = await service
+    .from("work_orders")
+    .select("id, wo_ref, estimate_id, estimates(title, sent_snapshot), contractors(company_name, profiles(name))")
+    .eq("id", workOrderId).maybeSingle();
+  if (error) throw error; // the callers' try/catch reports it
+  const w = data as (WoJoin & { contractors: { company_name: string | null; profiles: { name: string | null } | null } | null }) | null;
+  if (!w) return null;
+  return {
+    w,
+    painter: (w.contractors?.profiles?.name || w.contractors?.company_name || "The painter").trim(),
+    job: jobTitle(w.estimates, w.wo_ref),
+  };
+}
+
+/** A customer update was drafted from the painter's ticks — confirm and send it. Once per job per Melbourne day. */
+export async function staffCustomerUpdateDrafted(service: SupabaseClient, workOrderId: string, day: string): Promise<StaffAlertOutcome> {
+  try {
+    const got = await woForAlert(service, workOrderId);
+    if (!got) return "error";
+    const { w, painter, job } = got;
+    return notifyStaff(service, {
+      key: "office_update_drafted", entityId: `${w.id}:${day}`,
+      subject: `Customer update ready to send — ${job}`,
+      message: `${painter} has updated their work order on ${w.wo_ref} (${job}). A customer update has been drafted from it — read it, change anything, and send it.`,
+      link: `${siteUrl()}/pc/updates`,
+      templates: { subject: "officeUpdateDraftedSubject", body: "officeUpdateDraftedBody" },
+      vars: { painter, job, wo_ref: w.wo_ref, hours_line: "", comment: "" },
+      estimateId: w.estimate_id,
+    });
+  } catch (e) {
+    reportError(e, { where: "staffCustomerUpdateDrafted", extra: { workOrderId } });
+    return "error";
+  }
+}
+
+/** The customer is due an update and nothing is drafted — write one. Once per job per Melbourne day while due. */
+export async function staffCustomerUpdateDue(service: SupabaseClient, workOrderId: string, day: string, quietDays: number): Promise<StaffAlertOutcome> {
+  try {
+    const got = await woForAlert(service, workOrderId);
+    if (!got) return "error";
+    const { w, painter, job } = got;
+    const hours_line = quietDays > 0 ? ` — nothing sent for ${quietDays} day${quietDays === 1 ? "" : "s"}` : "";
+    return notifyStaff(service, {
+      key: "office_update_due", entityId: `${w.id}:${day}`,
+      subject: `Customer update due — ${job}`,
+      message: `The customer on ${w.wo_ref} (${job}) is due an update${hours_line}. Nothing is drafted — write them a line on progress from the job page.`,
+      link: `${siteUrl()}/pc/wo/${w.id}`,
+      templates: { subject: "officeUpdateDueSubject", body: "officeUpdateDueBody" },
+      vars: { painter, job, wo_ref: w.wo_ref, hours_line, comment: "" },
+      estimateId: w.estimate_id,
+    });
+  } catch (e) {
+    reportError(e, { where: "staffCustomerUpdateDue", extra: { workOrderId } });
+    return "error";
+  }
+}

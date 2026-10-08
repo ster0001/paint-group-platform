@@ -5,14 +5,15 @@ title: Run a job from the first tick to the customer's signature
 summary: How a booked job works on your phone in four steps — before photos in one batch, ticking surfaces off, after photos of every room or side, and finishing — plus raising a variation, the quality check, and handing the phone to the customer to sign off.
 walkthrough: media/contractor-walkthrough.gif
 sources: app/portal/jobs/[id]/FinishUp.tsx, lib/reporting/workedTime.ts, app/portal/jobs, app/components/wo, app/s, lib/workorder
-verified_at_commit: 3a6848a2fd
+verified_at_commit: 780c451640
 ---
 
 ## What this is for
 Once you have accepted a booking, the job page in **Jobs** is where the work is recorded. You tick each surface as you prep and finish it, photograph before and after, raise anything you find that is not on the job sheet, and finish with a short completion list. Your ticks and photos are what the office and the customer see, so the office writes the customer's progress updates from them. The job ends with the customer approving each area and signing on your phone.
 
 ## Before you start
-- The job must be booked (you accepted the offer). Until then the job page shows the offer clock and the suburb only.
+- The job must be booked (you accepted the offer). Until then the job page shows the offer clock, the **Offered amount** and the suburb only.
+- The job sheet's facts at the top include **Estimated hours** — the total of every surface's hours allowance, the same figure the office sized the booking from.
 - The office works through the **pre-start list** for the job: colours confirmed, materials ordered and so on. Your job page shows how many items are still to be ticked by the office. You cannot start the job until that list is done.
 - Photos are taken with your phone's camera from the job page. A big photo is shrunk on your phone before it goes, so it is quick even on one bar of signal. While it goes the button shows a percentage; a photo that does not upload says why ("stalled — nothing moved for 45 seconds", "sign out and back in") and can be retried. Nothing sits on "Uploading…" for ever.
 - Any photo on the job sheet can be tapped to see it full size. Swipe left or right, or use the arrows, to move through the set; tap outside the photo to close it.
@@ -41,13 +42,13 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
 ### Found something? Raise a variation
 7. Anything not on the job sheet, rot, damage, extra scope or a customer request, goes through **Variations → + FOUND SOMETHING** before you work on it. Pick the category (Rot / substrate, Damage, Extra scope, Customer request), describe it in plain words (the office reads it to the customer), take at least one photo or a short video, and add roughly how long it would take. Tap **Send to the office**.
    ![](media/contractor-06.png)
-8. The variation shows as **WITH THE OFFICE**. The office prices it and sends it to the customer; nothing on it is to be done until it comes back approved.
+8. The variation shows as **WITH THE OFFICE**. The office prices it and sends it to the customer — the same card then reads **WITH THE CUSTOMER** — and nothing on it is to be done until it comes back approved. You get a text and an email the moment it is approved and waiting on you (make sure the office has your mobile and email).
    ![](media/contractor-07.png)
-9. When the customer has approved and signed, the variation shows **YOUR APPROVAL** with the extra pay and hours, for example "Accept $180.00 — 3 hrs". Tap to accept: the chip turns green **ACCEPTED**, the card says how much is added to your payment for this job, and the work is now part of the job. A variation that removes scope shows the affected rows struck through with **Removed from scope**; if it affects your pay, you acknowledge it here.
+9. When the customer has approved and signed, the variation shows **YOUR APPROVAL** and, under it, **Variation approved by the client** with the extra pay and the estimated hours. Tap the big **Accept $180.00 — 3 hrs** button: the chip turns green **ACCEPTED**, the card says how much is added to your payment for this job, and the work is now part of the job. If the hours or the amount do not work for you, tap the small **Decline** underneath, write what would need to change in the box ("Please advise us of any further changes") and **Send to the office**. The chip reads **DECLINED — WITH THE OFFICE**; the office rings you or sends a revised change, and nothing on it is to be done until then. A variation that removes scope shows the affected rows struck through with **Removed from scope**; if it affects your pay, you acknowledge it here.
    ![](media/contractor-08.png)
 
 ### Changes to the scope on the job sheet
-10. The office can change a job's scope with the customer after the job sheet was issued. Every change the customer has signed appears on your job sheet under **Changes to the scope**: **Added** with the work and roughly how many hours, or **Removed** (its rows are also struck through above). A change the office made with the customer is **In the job** the moment the customer signs it: nothing for you to accept, and you get a text saying it has landed and what it does to your pay. (Only a variation *you* raised waits on your tap in **Variations**.) There is never a customer price on it.
+10. The office can change a job's scope with the customer after the job sheet was issued. Every change the customer has signed appears on your job sheet under **Changes to the scope**: **Added** with the work and roughly how many hours, or **Removed** (its rows are also struck through above). A change the office made with the customer **before you were on the job** is **In the job** the moment the customer signs it: nothing for you to accept. A change the customer signs **while you are on the job** comes to you in **Variations** as **Variation approved by the client**, with the amount and hours, for your Accept or Decline (step 9) — since 7 Oct 2026 you are asked, not told. There is never a customer price on it.
     Approved work is also on your tick list. A new area from the office appears under its own heading with a row per surface; a variation you raised appears under **Variations** in your own words. Tick them like any other row — they count in the job's progress, need a before photo like any heading, and the job cannot finish until they are done. A row for a signed removal stays struck through.
 11. If the changes were signed before the job was offered to you, they are already in the job: the sheet lists them as **In the job**, and **Your price** on the offer and the job already includes them — the **Payment** line reads "Fixed price incl. approved changes". Nothing to accept.
 

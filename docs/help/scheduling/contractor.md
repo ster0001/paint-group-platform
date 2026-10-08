@@ -5,7 +5,7 @@ title: Answer a job offer and manage your booked dates
 summary: How a job offer reaches you in the portal, what the 24-hour clock means, how to accept, propose a different start date or decline, and how to ask to move a job you have already accepted.
 walkthrough: media/contractor-walkthrough.gif
 sources: app/portal/requests, app/portal/calendar, app/portal/jobs/[id]/RescheduleRequest.tsx, lib/scheduling, lib/contractor/offers.ts
-verified_at_commit: 0a07c92452
+verified_at_commit: 327435ea3a
 ---
 
 ## What this is for
@@ -22,7 +22,7 @@ Paint Group offers you jobs through the contractor portal. Each offer comes with
 1. Open the portal. A new offer shows on **Home** under **Needs your answer**, with the clock already counting down from 24:00:00. The same card is on the **Requests** tab.
    ![](media/contractor-01.png)
    If you haven't answered, you get a text reminder 12 hours and again 20 hours after the offer, naming the suburb, the start date and the time the offer expires, with a link to your Requests tab. No reminder is sent between 10 pm and 5 am. Answering the offer stops the reminders.
-2. Read the card. You see the suburb only, the finish level chip (for example PG-3 Premium finish), the dates, the calculated labour hours, your price, any note from the office and a scope summary by area. The full street address stays hidden until you accept.
+2. Read the card. You see the suburb only, the finish level chip (for example PG-3 Premium finish), the dates, the calculated labour hours, your price, any note from the office and a scope summary by area. The full street address stays hidden until you accept. Open the job and the **Offered amount** sits beside the clock at the top of the page, with the job sheet's **Estimated hours** just below.
    ![](media/contractor-02.png)
 3. Tap **View full work order** to read the whole job sheet. The clock, **Accept — lock it in** and **Decline** stay pinned to the top while you read. The address card reads **SUBURB ONLY** until you accept.
    ![](media/contractor-03.png)
@@ -41,7 +41,7 @@ Paint Group offers you jobs through the contractor portal. Each offer comes with
    ![](media/contractor-08.png)
 10. The job page now shows the full address and the customer's first name and phone. The **Ready to start?** card tells you how many pre-start items the office still has to tick before **Start the job** unlocks. **Finish & walkthrough** shows the day the customer walkthrough is booked for.
     ![](media/contractor-09.png)
-11. Open **Calendar**. Your booked days are green, with the job name on the first day and the walkthrough marked. Tap a free day to block it out. Booked days cannot be blocked here, so call the office if something has changed. You can also connect Google Calendar so accepted jobs appear in your own calendar.
+11. Open **Calendar**. Your booked days are green, with the job name on the first day and the walkthrough marked. If the office books you back onto a job for a second visit — a day or two later to finish it — those days show in the same colour under the same job name. Tap a free day to block it out. Booked days cannot be blocked here, so call the office if something has changed. You can also connect Google Calendar so accepted jobs appear in your own calendar.
     ![](media/contractor-10.png)
 
 ### Asking to move a job you have already accepted

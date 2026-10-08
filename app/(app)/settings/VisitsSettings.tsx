@@ -55,7 +55,7 @@ export default function VisitsSettingsPanel({ initial, staff: initialStaff }: { 
     <div className="space-y-6">
       <div>
         <p className="text-sm font-medium text-gray-900">Windows the customer can pick online</p>
-        <p className="text-xs text-gray-500">Morning or afternoon, never an exact time — visits cluster and the estimator keeps the order of the day. One Melbourne zone until the zone map is ruled.</p>
+        <p className="text-xs text-gray-500">The OLD half-day windows, still behind the current Book page until the zoned calendar replaces it. The zone map is now ruled: the numbers that matter from here on live under <b>Booking rules</b>, the week under <b>Visit schedule</b>, and the suburbs under <b>Visit zones</b>.</p>
         <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {win("am", "Morning window")}
           {win("pm", "Afternoon window")}

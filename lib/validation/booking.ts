@@ -146,3 +146,54 @@ export type WithdrawOfferInput = z.infer<typeof withdrawOfferInput>;
 export type ReassignOfferInput = z.infer<typeof reassignOfferInput>;
 export type MoveBookingInput = z.infer<typeof moveBookingInput>;
 export type BlockOutInput = z.infer<typeof blockOutInput>;
+
+// ---- Holds and extra visits (Tom, 1 Oct 2026) --------------------------------
+// A hold carries no money and no state; an extra visit is more days on a job
+// the painter already has. Dates only, same rule as everything above.
+
+/** A second run of days on a job this painter is already booked on. */
+export const addAppointmentInput = z
+  .object({
+    workOrderId: uuid,
+    contractorId: uuid,
+    startDate: isoDate,
+    endDate: isoDate,
+    note: z.string().trim().max(300).default(""),
+  })
+  .refine((v) => v.endDate >= v.startDate, {
+    message: "the last day cannot be before the first",
+    path: ["endDate"],
+  });
+
+/** Move a hold or an extra visit — the same shape for both. */
+export const moveSpanInput = z
+  .object({ id: uuid, startDate: isoDate, endDate: isoDate })
+  .refine((v) => v.endDate >= v.startDate, {
+    message: "the last day cannot be before the first",
+    path: ["endDate"],
+  });
+
+export const removeAppointmentInput = z.object({ id: uuid });
+
+/** Reserve a painter's days internally while the client decides. */
+export const holdDatesInput = z
+  .object({
+    contractorId: uuid,
+    startDate: isoDate,
+    endDate: isoDate,
+    /** The job the client is deciding on; null for a lead with no work order yet. */
+    workOrderId: uuid.nullish(),
+    note: z.string().trim().max(300).default(""),
+  })
+  .refine((v) => v.endDate >= v.startDate, {
+    message: "the last day cannot be before the first",
+    path: ["endDate"],
+  });
+
+export const releaseHoldInput = z.object({
+  id: uuid,
+  reason: z.string().trim().max(300).default(""),
+});
+
+export type AddAppointmentInput = z.infer<typeof addAppointmentInput>;
+export type HoldDatesInput = z.infer<typeof holdDatesInput>;

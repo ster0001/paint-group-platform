@@ -4,6 +4,7 @@ role: trade
 title: Quoting from your trade account — saved specs, the spec sheet, and quoting again from the file
 summary: An agency or building manager quotes in a few taps: pick the property, pick a saved spec, open the sheet, send it for confirmation; a property your estimator has measured is never measured again, and a tenant can send photos from a link.
 sources: app/account/(portal)/TradePortfolioHome.tsx, app/account/(portal)/quote/new/page.tsx, app/account/(portal)/quote/[id]/sheet/SpecSheet.tsx, app/account/(portal)/quote/[id]/tenant/page.tsx, app/photos/[token]/page.tsx
+verified_at_commit: 4ef1a0aa72
 ---
 
 ## What this is for

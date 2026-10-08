@@ -9,7 +9,7 @@ import { findOpenDraft, type OpenDraftRow } from "@/lib/wizard/draftOwner";
 import { logCrmEvent } from "@/lib/crm/events";
 import { settingValue } from "@/lib/wizard/policy";
 import { bookWizardSlot, wizardVisitSlots } from "@/lib/visits/wizard";
-import { isRepeat, outcomeNoteFor, phoneOrNull, resumeNext, saveAndBookSchema } from "@/lib/wizard/save-and-book";
+import { isRepeat, outcomeNoteFor, phoneOrNull, propertyAddressFromState, resumeNext, saveAndBookSchema } from "@/lib/wizard/save-and-book";
 
 /**
  * C8 — Save & book (addendum §4.17): ONE route for the pill on every screen,
@@ -123,13 +123,14 @@ export async function POST(request: Request) {
   let accountId: string | null = estimate?.account_id ?? null;
   let propertyId: string | null = null;
   try {
-    const st = (draftFull?.state ?? {}) as { address?: { address?: string; city?: string; state?: string; postal?: string } | null; customer?: { suburb?: string; postcode?: string } | null };
-    const addr = st.address ?? null;
+    // The wizard state's address is `{street, suburb, state, postcode}`
+    // (lib/wizard/state.ts) — NOT the builder's `{address, city, postal}`.
+    // Reading the builder's keys here meant Save & book never linked a
+    // property (S0 report, 5 Oct 2026). Suburb and postcode fall back to the
+    // customer block, which the start screen fills when no suggestion was picked.
     const linked = await ensureAccountAndProperty(svc, {
       email, name, phone,
-      address: addr?.address
-        ? { street: addr.address, suburb: addr.city ?? "", state: addr.state ?? "", postcode: addr.postal ?? "" }
-        : undefined,
+      address: propertyAddressFromState(draftFull?.state),
     });
     accountId = linked.accountId ?? accountId;
     propertyId = linked.propertyId ?? null;

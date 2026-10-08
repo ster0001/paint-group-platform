@@ -18,6 +18,7 @@ import { dispatched, sendAutomation } from "@/lib/automations/dispatch";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { buildIcs } from "@/lib/workorder/ics";
 import { melbourneParts } from "@/lib/time/businessHours";
+import { scopesCanWritePrimary } from "@/lib/gcal/oauth";
 import { toE164Au } from "@/lib/campaigns/sms";
 import { reportError } from "@/lib/monitoring/report";
 import { VISIT_KINDS, type VisitRow } from "./types";
@@ -27,12 +28,18 @@ const two = (n: number) => String(n).padStart(2, "0");
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "Tue 8 Sep at 10:00 am", Melbourne. */
-export function visitWhen(startsAt: string): string {
+/** "Tue 8 Sep at 10:00 am", Melbourne — or, with an end, "Tuesday 8 September, 10:00 am to 11:00 am" (R32: the customer sees the one-hour visit). */
+export function visitWhen(startsAt: string, endsAt?: string): string {
   const p = melbourneParts(new Date(startsAt));
-  const h12 = p.h % 12 === 0 ? 12 : p.h % 12;
-  return `${DOW[p.weekday]} ${p.d} ${MON[p.m - 1]} at ${h12}:${two(p.min)} ${p.h < 12 ? "am" : "pm"}`;
+  const t = (h: number, min: number) => `${h % 12 === 0 ? 12 : h % 12}:${two(min)} ${h < 12 ? "am" : "pm"}`;
+  if (endsAt) {
+    const e = melbourneParts(new Date(endsAt));
+    return `${DOW_LONG[p.weekday]} ${p.d} ${MON_LONG[p.m - 1]}, ${t(p.h, p.min)} to ${t(e.h, e.min)}`;
+  }
+  return `${DOW[p.weekday]} ${p.d} ${MON[p.m - 1]} at ${t(p.h, p.min)}`;
 }
+const DOW_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MON_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /** The Melbourne date and wall time of a visit, for the .ics. */
 export function visitDateTime(startsAt: string, endsAt: string): { date: string; time: string; minutes: number } {
@@ -85,7 +92,18 @@ export async function sendVisitConfirmation(db: SupabaseClient, visitId: string)
 
   const companyName = company.name || "Paint Group";
   const estimator = ctx.estimatorName || companyName;
-  const vars = { first_name: ctx.customerFirst, estimator_name: estimator, visit_when: visitWhen(visit.starts_at), address: visit.address || "your property", company_name: companyName };
+  // S5/S7: when the estimator's Google Calendar can write visits, Google sends
+  // the invitation itself (the customer is a guest on the event) — this email
+  // then carries NO second invite, and names the sender the customer should
+  // expect (Tom, 7 Oct: Gmail flags a first invitation from info@ as "unknown
+  // sender", so the confirmation and the text say it is coming). Without that
+  // connection the .ics attached here is the invitation, as before.
+  const googleInvites = await googleSendsInvitation(db, visit.staff_id);
+  const companyEmail = company.email || "info@paintgroup.com.au";
+  const inviteLine = googleInvites
+    ? `A calendar invitation from ${companyEmail} will arrive separately — accept it and the visit sits in your calendar. To cancel, decline that invitation or call us.`
+    : "The attached invite drops it into your calendar.";
+  const vars = { first_name: ctx.customerFirst, estimator_name: estimator, visit_when: visitWhen(visit.starts_at, visit.ends_at), address: visit.address || "your property", company_name: companyName, company_email: companyEmail, invite_line: inviteLine };
   const subject = renderTemplate(messaging.visitConfirmSubject, vars);
   const body = renderTemplate(messaging.visitConfirmBody, vars);
   const { date, time, minutes } = visitDateTime(visit.starts_at, visit.ends_at);
@@ -106,13 +124,21 @@ export async function sendVisitConfirmation(db: SupabaseClient, visitId: string)
     email: {
       subject, replyTo: company.email || undefined,
       html: buildPlainEmailHtml({ heading: `Visit booked — ${visitWhen(visit.starts_at)}`, message: body, companyName, logoUrl: emailLogoUrl(company), companyPhone: company.phone }),
-      attachments: [{ filename: "visit.ics", content: Buffer.from(ics, "utf8").toString("base64"), contentType: "text/calendar; method=REQUEST" }],
+      ...(googleInvites ? {} : { attachments: [{ filename: "visit.ics", content: Buffer.from(ics, "utf8").toString("base64"), contentType: "text/calendar; method=REQUEST" }] }),
     },
     ctx: { accountId: visit.account_id, estimateId: visit.estimate_id, kind: "visit_confirmation" },
   });
   if (sent.outcome === "error") reportError(new Error(sent.message ?? "visit confirmation failed"), { where: "visits.confirm.send", extra: { visitId } });
   await db.from("visits").update({ confirmation_sent_at: new Date().toISOString() }).eq("id", visitId);
   return "sent";
+}
+
+/** Will Google send this visit's invitation? True when the estimator's connection can write visits into their main calendar (S5). */
+async function googleSendsInvitation(db: SupabaseClient, staffId: string | null): Promise<boolean> {
+  if (!staffId) return false;
+  const { data, error } = await db.from("staff_gcal_connections").select("scopes").eq("staff_id", staffId).maybeSingle();
+  if (error) { reportError(error, { where: "visits.confirm.gcalScopes", bestEffort: true }); return false; }
+  return scopesCanWritePrimary((data as { scopes: string | null } | null)?.scopes);
 }
 
 /** A cancellation pulls the calendar entry (METHOD CANCEL). */

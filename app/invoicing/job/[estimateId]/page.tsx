@@ -13,6 +13,7 @@ import { contractorVariationsCents } from "@/lib/workorder/contractorPay";
 import { SOURCE_LABEL, type IntakeSource } from "@/lib/costs/intake";
 import { COST_DOCS_BUCKET } from "@/lib/costs/store";
 import { fmt2, kindLabelWithContext, shortDay, STATUS_LABEL } from "../../format";
+import { parseBackTo } from "@/lib/navigation/backTo";
 import MoneyView, {
   type InvoiceCardProp, type FeedProp, type JobCostItemProp, type MaterialItemProp,
 } from "./MoneyView";
@@ -25,10 +26,15 @@ export const dynamic = "force-dynamic";
  */
 export default async function JobMoneyPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ estimateId: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { estimateId } = await params;
+  // Tom, 1 Oct: opened from Invoicing, the crumb goes back to Invoicing (with its
+  // filters), not to PC Command. Validated — `from` comes off the URL.
+  const backTo = parseBackTo((await searchParams).from);
   const supabase = await createClient();
   const today = melbourneDate(new Date());
   const job = await loadJobMoney(supabase, estimateId);
@@ -136,6 +142,7 @@ export default async function JobMoneyPage({
   return (
     <MoneyView
       estimateId={estimateId}
+      backTo={backTo}
       woId={job.wo?.id ?? null}
       woRef={job.wo?.wo_ref ?? null}
       address={job.estimate.job_address || job.estimate.title || "Untitled job"}

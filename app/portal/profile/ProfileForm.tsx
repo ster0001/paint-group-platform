@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { signout } from "@/app/auth/actions";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
+import { isAuMobile } from "@/lib/validation/contact";
 import {
   CONTRACTOR_DOC_KINDS,
   DOC_LABEL,
@@ -101,9 +102,10 @@ export default function ProfileForm({
   const [companyErr, setCompanyErr] = useState("");
 
   async function saveCompany() {
-    setCompanyBusy(true);
     setCompanyMsg("");
     setCompanyErr("");
+    if (mobileMissing) return setCompanyErr(MOBILE_FIRST);
+    setCompanyBusy(true);
     try {
       const { error } = await supabase
         .from("contractors")
@@ -127,22 +129,31 @@ export default function ProfileForm({
     }
   }
 
-  // ---- mobile for notifications (Tom, 1 Sep #2) ----------------------------
+  // ---- mobile for notifications (Tom, 1 Sep #2; REQUIRED since 7 Oct) ------
+  // Every text to a painter — offers, variations, work-order reminders — goes
+  // to this number, so the profile's other saves refuse until one is on file.
   const [phoneValue, setPhoneValue] = useState(phone?.value ?? "");
+  const [savedPhone, setSavedPhone] = useState(phone?.value?.trim() ?? "");
+  const mobileMissing = phone !== null && !savedPhone;
+  const MOBILE_FIRST = "Add your mobile first — it's required. Job offers and reminders come to it by text.";
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneMsg, setPhoneMsg] = useState("");
   const [phoneErr, setPhoneErr] = useState("");
 
   async function savePhone() {
-    setPhoneBusy(true);
     setPhoneMsg("");
     setPhoneErr("");
+    const v = phoneValue.trim();
+    if (!v) return setPhoneErr("Your mobile is required — it can't be cleared.");
+    if (!isAuMobile(v)) return setPhoneErr("That doesn't look like a full Australian mobile (04xx xxx xxx).");
+    setPhoneBusy(true);
     try {
       const { error } = await supabase
         .from("contractors")
-        .update({ phone: phoneValue.trim() || null })
+        .update({ phone: v })
         .eq("id", contractor.id);
       if (error) throw error;
+      setSavedPhone(v);
       setPhoneMsg("Saved.");
       router.refresh();
     } catch (e) {
@@ -219,9 +230,10 @@ export default function ProfileForm({
   const [bankErr, setBankErr] = useState("");
 
   async function saveBank() {
-    setBankBusy(true);
     setBankMsg("");
     setBankErr("");
+    if (mobileMissing) return setBankErr(MOBILE_FIRST);
+    setBankBusy(true);
     try {
       if (!bsb.trim() || !account.trim()) throw new Error("Enter both a BSB and an account number.");
       // The account number is encrypted in the database — it only ever travels
@@ -334,6 +346,12 @@ export default function ProfileForm({
         ← Home
       </Link>
       <h1>My profile</h1>
+      {mobileMissing && (
+        <div className="err" data-testid="mobile-required">
+          <b>Your mobile is required.</b> Add it below — job offers, approved changes and
+          reminders to update your work order come by text, and nothing else on this page saves until it is on file.
+        </div>
+      )}
       <p className="slab">
         {name} · {email}
       </p>
@@ -493,14 +511,14 @@ export default function ProfileForm({
       {/* ---- mobile for notifications ----------------------------------- */}
       {phone && (
         <div className="card" data-testid="phone-card">
-          <h3>Your mobile</h3>
+          <h3>Your mobile{mobileMissing ? " — required" : ""}</h3>
           <p className="hint">
-            Job offers, approved variations and quality-check notes come to this
-            number by text.
+            Job offers, approved variations, quality-check notes and reminders to
+            update your work order come to this number by text. It is required.
           </p>
           {phoneErr && <div className="err" style={{ marginTop: 12 }}>{phoneErr}</div>}
           {phoneMsg && <div className="ok" style={{ marginTop: 12 }}>{phoneMsg}</div>}
-          <label className="fl" htmlFor="contractor_phone">Mobile</label>
+          <label className="fl" htmlFor="contractor_phone">Mobile (required)</label>
           <input
             id="contractor_phone"
             type="tel"

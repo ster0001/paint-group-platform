@@ -11,7 +11,7 @@ import {
   buildDelayEndedItems,
   suppressQuiet,
   type DelayedAccountRow,
-  buildQuietQuoteItems, type QuietQuoteRow, estimatesPageItems, buildHoursPendingItems,
+  buildQuietQuoteItems, type QuietQuoteRow, estimatesPageItems, buildHoursPendingItems, answeredByAcceptance,
 } from "./work-queue";
 
 /** Mid-afternoon Melbourne, mid-week. Every test pins its own clock. */
@@ -437,6 +437,36 @@ describe("followup_due — a quote out with the customer, gone quiet (Tom, 15 Se
   it("the item is due when the threshold passed, so it lands in today/overdue, never waiting", () => {
     const [item] = buildQuietQuoteItems([quote({ sent_at: iso(3) })], [], names, T, NOW);
     expect(["today", "overdue"]).toContain(item.bucket);
+  });
+});
+
+describe("a job accepted answers every follow-up (Tom, 7 Oct 2026)", () => {
+  const T = { chaseUnopenedDays: 3, chaseOpenedDays: 5, goingColdDays: 14 };
+  const iso = (daysAgo: number) => new Date(NOW.getTime() - daysAgo * 86_400_000).toISOString();
+  const quote = (over: Partial<QuietQuoteRow> = {}): QuietQuoteRow => ({
+    id: "e1", title: "12 Smith St", account_id: "a1", status: "sent", sent_at: iso(8), created_at: iso(8),
+    viewed_at: null, total_cents: 480_000, ...over,
+  });
+  const names = new Map([["a1", "Sarah"]]);
+
+  it("a sent quote older than the customer's acceptance is not chased; one sent after it still is", () => {
+    const accepted = new Map([["a1", iso(6)]]);
+    expect(buildQuietQuoteItems([quote()], [], names, T, NOW, new Map(), accepted)).toHaveLength(0);
+    expect(buildQuietQuoteItems([quote({ sent_at: iso(4), created_at: iso(4) })], [], names, T, NOW, new Map(), accepted)).toHaveLength(1);
+    // Another customer's acceptance is not this one's.
+    expect(buildQuietQuoteItems([quote()], [], names, T, NOW, new Map(), new Map([["b1", iso(1)]]))).toHaveLength(1);
+  });
+
+  it("a callback asked for before the acceptance is answered by it", () => {
+    const cb = { id: "cb1", account_id: "a1", occurred_at: iso(3), payload: { phone: "0400" } };
+    expect(buildCallbackItems([cb], [], names, NOW, new Map([["a1", iso(2)]]))).toHaveLength(0);
+    expect(buildCallbackItems([cb], [], names, NOW, new Map([["a1", iso(4)]]))).toHaveLength(1);
+  });
+
+  it("answeredByAcceptance: no account or no acceptance = still waiting", () => {
+    expect(answeredByAcceptance(new Map(), "a1", iso(1))).toBe(false);
+    expect(answeredByAcceptance(new Map([["a1", iso(1)]]), null, iso(2))).toBe(false);
+    expect(answeredByAcceptance(new Map([["a1", iso(1)]]), "a1", iso(1))).toBe(true);
   });
 });
 

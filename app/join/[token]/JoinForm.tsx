@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { isAuMobile } from "@/lib/validation/contact";
 
 /**
  * Where an invited painter sets a password and becomes a contractor.
@@ -10,6 +11,12 @@ import { createClient } from "@/lib/supabase/client";
  * The email is fixed to the invited address and cannot be edited: the token is
  * bound to it server-side, so letting someone type a different address would
  * only produce a confusing rejection.
+ *
+ * A mobile is REQUIRED to join (Tom, 7 Oct 2026): job offers, approved
+ * variations and the "update your work order" texts all go to it, and three
+ * painters without one had nine jobs' reminders silently skipped. It is
+ * written to their own contractors row (contractors_self_update + the
+ * 20261223 column grant) straight after the invite is redeemed.
  */
 export default function JoinForm({
   token,
@@ -27,6 +34,7 @@ export default function JoinForm({
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [fullName, setFullName] = useState(name);
+  const [mobile, setMobile] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -34,6 +42,8 @@ export default function JoinForm({
     setErr("");
     if (password.length < 8) return setErr("Use at least 8 characters for your password.");
     if (password !== confirm) return setErr("The two passwords don't match.");
+    if (!mobile.trim()) return setErr("Your mobile is required — job offers and reminders come to it by text.");
+    if (!isAuMobile(mobile)) return setErr("That doesn't look like a full Australian mobile (04xx xxx xxx).");
 
     setBusy(true);
     try {
@@ -71,6 +81,15 @@ export default function JoinForm({
           "error:not_signed_in": "We couldn't sign you in just now — try again in a moment.",
         };
         throw new Error(map[res] ?? res.replace("error:", ""));
+      }
+
+      // Their mobile, on their own contractors row. The portal profile page
+      // asks again if this write fails — the account is already made, so the
+      // join must not be retried (the invite is used).
+      const { data: who } = await supabase.auth.getUser();
+      if (who.user) {
+        const { error: phoneErr } = await supabase.from("contractors").update({ phone: mobile.trim() }).eq("profile_id", who.user.id);
+        if (phoneErr) console.error("join: mobile not saved", phoneErr.message);
       }
 
       // refresh() first so the server re-reads the profile — the role only became
@@ -124,6 +143,21 @@ export default function JoinForm({
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Josef Kovac"
             />
+
+            <label className="fl" htmlFor="mobile">Your mobile (required)</label>
+            <input
+              id="mobile"
+              type="tel"
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              placeholder="04xx xxx xxx"
+              autoComplete="tel"
+              required
+              data-testid="join-mobile"
+            />
+            <p className="hint" style={{ marginTop: 4 }}>
+              Job offers, approved changes and reminders to update your work order come to this number by text.
+            </p>
 
             <label className="fl" htmlFor="pw">Choose a password</label>
             <input

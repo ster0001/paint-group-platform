@@ -9,6 +9,8 @@ import { formatDMY } from "@/lib/scheduling/offers";
 import { isEmploymentType } from "@/lib/painters/capabilities";
 import DeleteContractor from "./DeleteContractor";
 import ContractorLogin from "./ContractorLogin";
+import ContractorMobile from "./ContractorMobile";
+import ContractorBank from "./ContractorBank";
 
 export const dynamic = "force-dynamic";
 
@@ -146,9 +148,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
         <section className="rounded-lg border border-gray-200 bg-white p-4" data-testid="card-who">
           <h2 className="text-sm font-semibold">Their details</h2>
           <div className="mt-2">
-            <Field label="Mobile" value={c.phone?.trim()
-              ? <a href={`tel:${c.phone.replace(/\s+/g, "")}`} className="text-sky-700 hover:underline">{c.phone}</a>
-              : <span className="text-gray-400">not given</span>} />
+            <Field label="Mobile" value={<ContractorMobile id={c.id} phone={c.phone ?? null} />} />
             <Field label="Email" value={email
               ? <a href={`mailto:${email}`} className="text-sky-700 hover:underline">{email}</a>
               : <span className="text-gray-400">unknown</span>} />
@@ -158,7 +158,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
             <Field label="GST" value={c.gst_registered ? "Registered" : "Not registered"} />
             <Field label="Address" value={c.address?.trim() || <span className="text-gray-400">not given</span>} />
             <Field label="Weekends" value={`Sat ${c.works_saturday ? "yes" : "no"} · Sun ${c.works_sunday ? "yes" : "no"}`} />
-            <Field label="Bank" value={c.bank_account_last4 ? `${c.bank_bsb ?? "—"} · ···· ${c.bank_account_last4}` : <span className="text-gray-400">not on file</span>} />
+            <Field label="Bank" value={<ContractorBank id={c.id} bsb={c.bank_bsb ?? null} last4={c.bank_account_last4 ?? null} />} />
             <Field label="RCTI agreement" value={c.rcti_agreement_signed_at ? `signed ${formatDMY(c.rcti_agreement_signed_at.slice(0, 10))}` : "not signed"} />
           </div>
         </section>

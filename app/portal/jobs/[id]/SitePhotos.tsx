@@ -12,7 +12,17 @@ import { isVideoFile, uploadFailureText, uploadingLabel, uploadWorkOrderMedia } 
  * something needs saying that is not a variation. Notes land on the job's own
  * event log, so the office reads them beside the ticks that produced them.
  */
-export default function SitePhotos({ workOrderId, areas }: { workOrderId: string; areas: string[] }) {
+export default function SitePhotos({ workOrderId, areas, photosAllowed = true }: {
+  workOrderId: string;
+  areas: string[];
+  /**
+   * Tom, 1 Oct (Saulius, Cootamundra): with Step 1 still waiting, seven photos
+   * went in HERE and the scope stayed locked for a quarter of an hour. While
+   * the before photos are missing this card has no photo button at all — the
+   * only camera on the page is the green one in Step 1.
+   */
+  photosAllowed?: boolean;
+}) {
   const [area, setArea] = useState(areas[0] ?? "");
   // Tom, 30 Sep: this card is for QUESTIONS only — before and after photos
   // have their own steps. Everything here files as a progress photo.
@@ -64,10 +74,16 @@ export default function SitePhotos({ workOrderId, areas }: { workOrderId: string
         accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm"
         onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload(f); }} />
 
-      <button type="button" className="var-photo" disabled={busy}
-        onClick={() => fileInput.current?.click()} data-testid="add-photo">
-        {busy ? uploadingLabel(progress) : count > 0 ? `📷 ${count} sent — add another for your question` : "📷 Photo or video for your question"}
-      </button>
+      {photosAllowed ? (
+        <button type="button" className="var-photo" disabled={busy}
+          onClick={() => fileInput.current?.click()} data-testid="add-photo">
+          {busy ? uploadingLabel(progress) : count > 0 ? `📷 ${count} sent — add another for your question` : "📷 Photo or video for your question"}
+        </button>
+      ) : (
+        <p className="hint" style={{ padding: 0, marginTop: 8 }} data-testid="add-photo-after-step-1">
+          Photos for a question can be added here once Step 1&rsquo;s before photos are in. Your before photos go in the green button above.
+        </p>
+      )}
 
       <textarea className="var-note" rows={3} value={note} data-testid="job-note"
         placeholder="Your question or note for the office — anything worth saying that isn't a variation."

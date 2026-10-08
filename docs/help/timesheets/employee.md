@@ -8,7 +8,7 @@ verified_at_commit: 83a6a8ba48
 ---
 
 ## What this is for
-As an employed painter your hours go to payroll from the app, and you do not have to clock in. Every weekday you are on a job, a **standard day** (7:30 am to 3:30 pm with a half-hour break, unless the office has set it differently) is logged for you that evening. If the job was signed off earlier that day, the day ends at the signature. The office checks each day and approves it. The app never shows you a rate or a dollar figure and never works out your pay. Payroll does that from the hours the office approves.
+As an employed painter your hours go to payroll from the app, and you do not have to clock in. Every weekday you are on a job, a **standard day** (7:30 am to 3:30 pm with a half-hour break, unless the office has set it differently) is logged for you that evening. If the job was signed off earlier that day, the day ends at the signature. Each day is approved automatically as soon as it is logged — you are paid a salary, so there is nothing for the office to sign off. The app never shows you a rate or a dollar figure and never works out your pay. Payroll does that from the approved hours.
 
 ## Before you start
 - You need to be on a job. Hours are logged against the job you are assigned to.
@@ -17,10 +17,10 @@ As an employed painter your hours go to payroll from the app, and you do not hav
 ## Steps
 
 ### A normal day
-1. Do nothing. The **Your hours** card on the home page (and on each job) says "A standard day … is logged for you". The next morning the day appears in your list as **Standard day · With the office**, then **Approved** once the office has looked.
+1. Do nothing. The **Your hours** card on the home page (and on each job) says "A standard day … is logged for you". The next morning the day appears in your list as **Standard day · Approved**.
 
 ### Extra hours
-2. Worked past the standard finish, or came in early? Tap **Log extra hours**. Pick the job if you are on more than one, the day (today or up to a week back), the start and finish of the extra time, and a word on what for. Tap **Send extra hours**. It shows as **Extra hours · With the office**.
+2. Worked past the standard finish, or came in early? Tap **Log extra hours**. Pick the job if you are on more than one, the day (today or up to a week back), the start and finish of the extra time, and a word on what for. Tap **Send extra hours**. It shows as **Extra hours · Approved**.
 3. Extra hours cannot overlap a day already on your sheet — log only the time on top of the standard day.
 
 ### Two jobs in one day
@@ -31,7 +31,7 @@ As an employed painter your hours go to payroll from the app, and you do not hav
 - **Extra hours** — what you added, with your note.
 - **Entered by the office** — the office typed it in for you.
 - **Running** (amber) — a day you started by hand; tap Finish day when you knock off.
-- **With the office** — waiting on their approval. **Approved** (green) — done. **Not approved** (clay) — sent back with the reason under it; talk to the office.
+- **Approved** (green) — done; every day you log reads this straight away. **With the office** — the rare day that waits: the office has not set your cost rate yet, or a day ran past 16 hours; nothing for you to do. **Not approved** (clay) — sent back with the reason under it; talk to the office.
 
 ## If something goes wrong
 - **No day appeared for yesterday.** Either you were on two jobs (log each by hand), you were marked sick or on leave, it was a weekend, or the office has not run the evening fill yet. Ask the office; they can fill any day with one click.

@@ -129,12 +129,18 @@ test.describe("employed painter — timesheets and job cost", () => {
     await page.reload();
     await page.getByTestId("timesheet-break").selectOption("30");
     await page.getByTestId("timesheet-finish").click();
-    await expect(page.getByTestId("timesheet-done")).toContainText(/1\.5 hours sent to the office/, { timeout: 15_000 });
-    await expect(page.getByTestId(`timesheet-entry-${openRow.id}`)).toContainText(/1\.5 h.*With the office|With the office/);
+    await expect(page.getByTestId("timesheet-done")).toContainText(/1\.5 hours logged/, { timeout: 15_000 });
+    // Tom, 7 Oct 2026: salaried — the day approves itself the moment it is finished (20270219).
+    await expect(page.getByTestId(`timesheet-entry-${openRow.id}`)).toContainText(/1\.5 h.*Approved|Approved/);
 
-    const { data: sub } = await db!.from("timesheet_entries").select("status, break_minutes, finished_at").eq("id", openRow.id).single();
-    expect((sub as { status: string }).status).toBe("submitted");
+    const { data: sub } = await db!.from("timesheet_entries").select("status, break_minutes, finished_at, approved_by, job_cost_id").eq("id", openRow.id).single();
+    expect((sub as { status: string }).status).toBe("approved");
+    expect((sub as { approved_by: string | null }).approved_by, "approved by the rule, not a person").toBeNull();
+    expect((sub as { job_cost_id: string | null }).job_cost_id).not.toBeNull();
     expect((sub as { break_minutes: number }).break_minutes).toBe(30);
+    // 1.5 h × $52.50 = $78.75 on the job, GST nil.
+    const { data: clockCost } = await db!.from("job_costs").select("amount_ex_cents, gst_cents, status").eq("id", (sub as { job_cost_id: string }).job_cost_id).single();
+    expect(clockCost).toEqual({ amount_ex_cents: 7_875, gst_cents: 0, status: "approved" });
 
     // The painter's own pages: no money key, no dollar figure.
     const html = await page.content();
@@ -150,7 +156,7 @@ test.describe("employed painter — timesheets and job cost", () => {
     else expect(rates.error?.code).toMatch(/^42501$|^PGRST/);
   });
 
-  test("the office records a 7.6 h day and approves it: one labour line at the cost rate on the job, and GP moves by exactly that", async ({ page }) => {
+  test("the office records a 7.6 h day and it approves itself: one labour line at the cost rate on the job, and GP moves by exactly that", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/timesheets");
     await expect(page.getByTestId("record-hours")).toBeVisible();
@@ -161,26 +167,26 @@ test.describe("employed painter — timesheets and job cost", () => {
     await page.getByTestId("record-finish").fill("15:06");
     await page.getByTestId("record-break").selectOption("30");
     await page.getByTestId("record-submit").click();
-    await expect(page.getByTestId("record-msg")).toContainText(/Recorded/, { timeout: 15_000 });
+    await expect(page.getByTestId("record-msg")).toContainText(/Recorded and approved/, { timeout: 15_000 });
 
     const { data: rec } = await db!.from("timesheet_entries").select("id, status, source, work_date")
       .eq("contractor_id", employeeCid).eq("source", "pc").single();
     const recRow = rec as { id: string; status: string; work_date: string };
     recordedId = recRow.id;
-    expect(recRow.status).toBe("submitted");
+    // Tom, 7 Oct 2026: no approval step — recorded IS approved where a rate covers the day.
+    expect(recRow.status).toBe("approved");
     expect(recRow.work_date).toBe(today);
 
-    // Approve from the list.
+    // Nothing waits in the list for it.
     await page.reload();
-    await expect(page.getByTestId(`timesheet-hours-${recordedId}`)).toContainText("7.60 h");
-    await expect(page.getByTestId(`timesheet-norate-${recordedId}`)).toHaveCount(0);
-    await page.getByTestId(`timesheet-approve-${recordedId}`).click();
-    await expect(page.getByTestId(`timesheet-approved-${recordedId}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId(`timesheet-approve-${recordedId}`)).toHaveCount(0);
 
-    // ONE labour line, hours × rate, GST 0, pinned to the entry.
+    // ONE labour line for this day (the clocked 1.5 h from test 1 has its own), hours × rate, GST 0, pinned to the entry.
     const { data: costs } = await db!.from("job_costs").select("id, category, amount_ex_cents, gst_cents, status, description")
       .eq("work_order_id", fixture!.workOrderId).eq("category", "labour");
-    const rows = costs as { id: string; amount_ex_cents: number; gst_cents: number; status: string; description: string }[];
+    const all = costs as { id: string; amount_ex_cents: number; gst_cents: number; status: string; description: string }[];
+    expect(all.length).toBe(2);
+    const rows = all.filter((r) => r.description.includes("7.60 h"));
     expect(rows.length).toBe(1);
     labourCostId = rows[0].id;
     expect(rows[0].amount_ex_cents).toBe(39_900);
@@ -200,15 +206,16 @@ test.describe("employed painter — timesheets and job cost", () => {
     await expect(page.getByTestId(`job-cost-item-${labourCostId}`)).toContainText(`Labour — ${PAINTER_NAME}`);
     await expect(page.getByTestId(`job-cost-item-${labourCostId}`)).toContainText("$399.00");
 
-    // The PC job page: labour shown, GP down by exactly the line.
+    // The PC job page: labour shown (both days), GP down by exactly the lines.
+    const LABOUR = 39_900 + 7_875;
     await page.goto(`/pc/wo/${fixture!.workOrderId}`);
-    await expect(page.getByTestId("money-labour")).toHaveText("$399");
-    const expectedGp = Math.round(((CONTRACT_CENTS - 39_900) / CONTRACT_CENTS) * 1000) / 10;
+    await expect(page.getByTestId("money-labour")).toHaveText(/^\$47[78]$/);
+    const expectedGp = Math.round(((CONTRACT_CENTS - LABOUR) / CONTRACT_CENTS) * 1000) / 10;
     await expect(page.getByTestId("money-gp")).toHaveText(`${expectedGp}%`);
 
-    // Allocated vs actual lists the job with the approved hours.
+    // Allocated vs actual lists the job with the approved hours — both days.
     await page.goto("/pc/timesheets");
-    await expect(page.getByTestId(`ava-actual-${fixture!.workOrderId}`)).toHaveText("7.6 h");
+    await expect(page.getByTestId(`ava-actual-${fixture!.workOrderId}`)).toHaveText("9.1 h");
   });
 
   test("the payroll CSV matches approved entries exactly — hours only, no rate; and it is staff-only", async ({ page, request }) => {
@@ -243,7 +250,7 @@ test.describe("employed painter — timesheets and job cost", () => {
       .eq("contractor_id", norateCid).eq("work_date", today);
     const auto = (rows as { id: string; source: string; status: string; started_at: string; finished_at: string; break_minutes: number }[]).filter((r) => r.source === "auto");
     expect(auto.length).toBe(1);
-    expect(auto[0].status).toBe("submitted");
+    expect(auto[0].status, "a filled day approves itself (7 Oct 2026)").toBe("approved");
     expect(auto[0].break_minutes).toBe(30);
     expect(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(auto[0].started_at))).toBe("07:30");
     // The lead already has entries today → nothing added for them; a second run adds nothing for anyone.
@@ -267,20 +274,22 @@ test.describe("employed painter — timesheets and job cost", () => {
     await page.getByTestId("timesheet-extra-finish").fill(clock(startedAt.started_at, -30));
     await page.getByTestId("timesheet-extra-note").fill("Set-up before the crew arrived");
     await page.getByTestId("timesheet-extra-send").click();
-    await expect(page.getByTestId("timesheet-done")).toContainText(/Extra hours sent/, { timeout: 15_000 });
+    await expect(page.getByTestId("timesheet-done")).toContainText(/Extra hours logged/, { timeout: 15_000 });
     const { data: extra } = await db!.from("timesheet_entries").select("source, status, note, break_minutes").eq("contractor_id", employeeCid).eq("note", "Set-up before the crew arrived").single();
     expect((extra as { source: string; status: string; break_minutes: number }).source).toBe("painter");
-    expect((extra as { status: string }).status).toBe("submitted");
+    expect((extra as { status: string }).status, "extra hours approve themselves too").toBe("approved");
     expect(await page.locator("body").innerText()).not.toMatch(/\$\s?\d/);
   });
 
-  test("approval refuses a day no cost rate covers, and says so on the row", async ({ page }) => {
+  test("a day no cost rate covers is the ONE day that still waits: it stays submitted, approval refuses, and the row says so", async ({ page }) => {
     const rec = await rpcAs(staff!, "timesheet_record", {
       p_contractor_id: norateCid, p_work_order_id: fixture!.workOrderId,
       p_started_at: new Date(Date.now() - 3 * 3_600_000).toISOString(), p_finished_at: new Date().toISOString(), p_break_minutes: 0,
     });
     expect(rec).toMatch(/^ok:/);
     const id = rec.slice(3);
+    const { data: waiting } = await db!.from("timesheet_entries").select("status").eq("id", id).single();
+    expect((waiting as { status: string }).status, "no rate → not auto-approved, never silently lost").toBe("submitted");
     expect(await rpcAs(staff!, "timesheet_approve", { p_entry_id: id })).toBe("error:no_rate");
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/timesheets");
@@ -288,7 +297,7 @@ test.describe("employed painter — timesheets and job cost", () => {
     // Rejecting works without a rate and carries the reason to the painter.
     expect(await rpcAs(staff!, "timesheet_reject", { p_entry_id: id, p_reason: "Wrong job" })).toBe("ok:rejected");
     const { count } = await db!.from("job_costs").select("id", { count: "exact", head: true }).eq("work_order_id", fixture!.workOrderId).eq("category", "labour");
-    expect(count, "a rejected day posts nothing").toBe(1);
+    expect(count, "a rejected day posts nothing").toBe(2);
     // A contractor never has a cost rate.
     expect(await rpcAs(staff!, "set_employee_cost_rate", { p_contractor_id: crypto.randomUUID(), p_cents_per_hour: 5000 })).toBe("error:not_found");
   });

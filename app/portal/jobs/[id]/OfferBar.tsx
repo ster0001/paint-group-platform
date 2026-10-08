@@ -86,11 +86,19 @@ export default function OfferBar({ offerId, workOrderId, expiresAt, priceCents }
           {expired ? "0:00:00" : Number.isFinite(left) ? formatCountdown(left) : "Open"}
         </div>
       </div>
-      {priceCents != null && priceCents > 0 && (
-        <div style={{ fontFamily: "var(--mono, monospace)", fontSize: 14 }}>
-          ${(priceCents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
+      {/* Tom, 1 Oct: the offered amount, labelled, on the job's own page — not
+          only on the Requests card. Null = the office has not priced the
+          painter's pay yet; say so rather than hide the line. */}
+      <div style={{ minWidth: 120 }} data-testid="offer-amount">
+        <div style={{ fontFamily: "var(--mono, monospace)", fontSize: 10, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--muted, #8C959D)" }}>
+          Offered amount
         </div>
-      )}
+        <div style={{ fontFamily: "var(--mono, monospace)", fontSize: 18, fontWeight: 600 }}>
+          {priceCents != null && priceCents > 0
+            ? `$${(priceCents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : "—"}
+        </div>
+      </div>
       <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
         <button type="button" className="btn cy" disabled={busy || expired}
           onClick={() => respond("accept")} data-testid="offer-bar-accept">

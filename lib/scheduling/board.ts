@@ -3,7 +3,9 @@ import { addDays } from "./dates";
 import { reportIfError } from "@/lib/monitoring/report";
 import { OFFER_COLUMNS, effectiveState, isLive, type BookingOffer } from "./offers";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
+import { estimatedHours } from "@/lib/workorder/hours";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
+import { HOLD_FALLBACK_TITLE, openHolds, type AppointmentRow, type HoldRow } from "./holds";
 
 /**
  * fetchAllRows, in this module's error idiom: the board SURFACES query
@@ -39,8 +41,12 @@ export type Lane = {
   worksSunday?: boolean;
 };
 
-/** `assigned` = an employee's assignment (S2). Hollow until they tap Accept. */
-export type BlockKind = "accepted" | "in_progress" | "offered" | "proposed" | "unavailable" | "assigned";
+/**
+ * `assigned` = an employee's assignment (S2). Hollow until they tap Accept.
+ * `hold` = the office reserving a painter's days while the client decides
+ * (Tom, 1 Oct) — pink, staff-only, never a booking.
+ */
+export type BlockKind = "accepted" | "in_progress" | "offered" | "proposed" | "unavailable" | "assigned" | "hold";
 
 export type Block = {
   id: string;
@@ -69,6 +75,11 @@ export type Block = {
   /** "1 of 3": this painter's position among everyone on the job, and the crew size. */
   crewIndex?: number;
   crewSize?: number;
+  /** Extra visits (Tom, 1 Oct): a second run of days on a job this painter already has. Drawn in the job's colour. */
+  appointmentId?: string;
+  /** Holds (Tom, 1 Oct): the reservation's own id, and what the office wrote on it. */
+  holdId?: string;
+  holdNote?: string;
 };
 
 /** A booked walkthrough, pinned on the assigned contractor's lane (§4b). */
@@ -201,6 +212,8 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     { data: bookingNotes, error: nErr },
     { data: walkthroughRows },
     { data: assignmentRows, error: aErr },
+    { data: appointmentRows, error: apErr },
+    { data: holdRows, error: hErr },
   ] = await Promise.all([
       supabase
         .from("contractors")
@@ -263,6 +276,23 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .lte("start_date", addDays(to, 60))
         .gte("end_date", addDays(from, -60))
         .order("id").range(f, t)),
+      // Tom, 1 Oct: extra visits on booked jobs, and the office's holds. Both
+      // small and windowed; both staff-readable only (the painter reads their
+      // own visits in the portal, never a hold).
+      // The job rides along: a visit can be on ANY project (Tom, 4 Oct — a
+      // touch-up on a finished job), so it cannot rely on the board's own
+      // work-order read, which leaves closed jobs out.
+      supabase
+        .from("wo_appointments")
+        .select("id, work_order_id, contractor_id, start_date, end_date, note, work_orders ( id, estimate_id, wo_ref, stage, status, wo_snapshot, issued_at, estimates ( title ) )")
+        .lte("start_date", to)
+        .gte("end_date", from),
+      supabase
+        .from("schedule_holds")
+        .select("id, contractor_id, start_date, end_date, work_order_id, note, created_at, released_at")
+        .is("released_at", null)
+        .lte("start_date", to)
+        .gte("end_date", from),
     ]);
 
   // An empty board because a query failed looks exactly like an empty board
@@ -277,6 +307,10 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     // silently never appeared — the write had worked, so nothing looked wrong.
     nErr && `booking notes: ${nErr}`,
     aErr && `assignments: ${aErr}`,
+    // A table that predates 20270209 reads as an error here too — on screen,
+    // not as a board quietly missing its holds.
+    apErr && `extra visits: ${apErr.message}`,
+    hErr && `holds: ${hErr.message}`,
   ].filter(Boolean) as string[];
 
   type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; employment_type?: string | null; works_saturday?: boolean | null; works_sunday?: boolean | null; profiles: { name: string | null } | null };
@@ -408,6 +442,66 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     });
   }
 
+  // --- extra visits: more days on a job the painter already has (Tom, 1 Oct) ---
+  // Same colour as the job's own block, so the board reads "this job, again".
+  type ApptJoin = AppointmentRow & { work_orders: Pick<WRow, "id" | "estimate_id" | "wo_ref" | "stage" | "status" | "wo_snapshot" | "issued_at" | "estimates"> | null };
+  for (const a of ((appointmentRows ?? []) as unknown as ApptJoin[])) {
+    const w = woById.get(a.work_order_id) ?? a.work_orders;
+    if (!w) continue; // the job was deleted under it; the row cascades away
+    const doc = snapshotOf(w.wo_snapshot);
+    const asEmployee = (assignmentsByWo.get(a.work_order_id) ?? []).some((x) => x.contractor_id === a.contractor_id);
+    blocks.push({
+      id: `apt-${a.id}`,
+      kind: w.status === "in_progress" ? "in_progress" : asEmployee ? "assigned" : "accepted",
+      estimateId: w.estimate_id,
+      contractorId: a.contractor_id,
+      start: a.start_date,
+      end: a.end_date,
+      title: doc?.jobTitle || w.estimates?.title || w.wo_ref,
+      woRef: w.wo_ref,
+      workOrderId: w.id,
+      offerId: null,
+      paymentCents: null, // the price sits on the job's first block; a visit adds days, not money
+      finishCode: doc?.finishCode ?? null,
+      expiresAt: null,
+      source: null,
+      reason: a.note,
+      appointmentId: a.id,
+      // Marked accepted so the "assigned" colour never draws hollow — the visit was booked by the office.
+      acceptedAt: asEmployee ? w.issued_at : undefined,
+    });
+  }
+
+  // --- holds: pink, internal, resolved by the booking they wait on (Tom, 1 Oct) ---
+  const bookedWoIds = new Set<string>([
+    ...allOffers.filter((o) => isLive(effectiveState(o)) || o.state === "accepted").map((o) => o.work_order_id),
+    ...assignmentsByWo.keys(),
+    ...wos.filter((w) => w.contractor_id && w.start_date).map((w) => w.id),
+  ]);
+  for (const h of openHolds((holdRows ?? []) as HoldRow[], bookedWoIds)) {
+    const w = h.work_order_id ? woById.get(h.work_order_id) : undefined;
+    const doc = snapshotOf(w?.wo_snapshot);
+    blocks.push({
+      id: `hold-${h.id}`,
+      kind: "hold",
+      estimateId: w?.estimate_id ?? null,
+      contractorId: h.contractor_id,
+      start: h.start_date,
+      end: h.end_date,
+      title: doc?.jobTitle || w?.estimates?.title || w?.wo_ref || h.note || HOLD_FALLBACK_TITLE,
+      woRef: w?.wo_ref ?? "",
+      workOrderId: w?.id ?? null,
+      offerId: null,
+      paymentCents: null,
+      finishCode: doc?.finishCode ?? null,
+      expiresAt: null,
+      source: "staff",
+      reason: h.note,
+      holdId: h.id,
+      holdNote: h.note,
+    });
+  }
+
   // --- blocked-out days ---
   type URow = {
     id: string; contractor_id: string; start_date: string; end_date: string; reason: string; source: "contractor" | "staff";
@@ -515,7 +609,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     .filter((w) => !acceptedByWo.has(w.id) && !liveWoIds.has(w.id) && !(w.contractor_id && w.start_date))
     .map((w) => {
       const doc = snapshotOf(w.wo_snapshot);
-      const hours = doc ? doc.areas.flatMap((a) => a.surfaces).reduce((n, s) => n + (s.hours ?? 0), 0) : 0;
+      const hours = estimatedHours(doc); // the same sum the job sheet prints as "Estimated hours"
       const idealPainters = doc?.idealPainters && doc.idealPainters > 0 ? Math.floor(doc.idealPainters) : null;
       return {
         workOrderId: w.id,

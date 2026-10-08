@@ -53,6 +53,7 @@ test("a freshly invited painter is toured once, can replay it from Help", async 
 
   await page.goto(`/join/${token}`);
   await page.getByPlaceholder("Josef Kovac").fill("Tour Tester");
+  await page.getByTestId("join-mobile").fill("0400 000 123"); // required since 7 Oct
   await page.getByPlaceholder("At least 8 characters").fill(password);
   await page.locator('input[type="password"]').nth(1).fill(password);
   await page.getByRole("button", { name: /join|create|set up|finish/i }).click();

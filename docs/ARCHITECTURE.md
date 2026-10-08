@@ -4,6 +4,228 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 7 Oct 2026 — visit booking S6: the gate — details before the range, the switch, the tracking, the report
+
+**2026-10-07 · `supabase/migrations/20270217000000_wizard_gate.sql`, `lib/wizard/quick-look.ts`, `lib/wizard/state.ts`,
+`app/wizard/QuickLook.tsx`, `app/wizard/WizardApp.tsx`, `app/wizard/Reveal.tsx`, `app/wizard/TalkSheet.tsx`,
+`app/api/wizard/submit/route.ts`, `app/api/wizard/draft/route.ts`, `app/api/wizard/range-option`, `lib/reporting/metrics/funnel.ts`**
+
+R5 reverses the estimator-journey-v2 ruling that took the email gate out from in front of the price: under
+"details first" (the default, Booking rules → gate order) the quick look's last question is the GATE — "Where
+shall we send your estimate?", full name, email, mobile, an optional unticked marketing tick, "Show my guide
+price" — appended by `stepsFor(..., gate)` and enforced on the SERVER: the submit route answers 409
+`gate_required` when the session's version is details first and the state carries no complete contact. The
+version is the session's, frozen on `wizard_drafts.gate_version` at the first save (the client keeps it on
+`state.gateVersion`; the autosave writes the column only when null), so flipping the switch mid-session changes
+nothing for it (R6). "Range first" leaves the steps alone and asks for the details on the range screen instead
+(R7): Book goes through the visit page's details screen, Speak with us and Send us a message through the talk
+sheet, and Tighten my price through the sheet's new "details" mode, which saves them and then carries on. The
+range screen follows R24 — Tighten my price (the hero, "Get a more accurate quote now"), Speak with us, Book a site
+visit, Send us a message — and the old "Keep this estimate" email door shows only while no contact is held.
+Tracking on `wizard_drafts`: `gate_shown_at` (the autosave sees `quick:gate`), `gate_completed_at` (submit with a
+contact; or details given after the range through `markGateCompleted`), `range_shown_at` (submit), `range_option`
+(+ `_at`, the first door tapped, via `/api/wizard/range-option`). The dashboard's "Where estimates go" card gained
+"The gate" by version — sessions, reached, completed, lost at the gate, saw the range, what next — from
+`buildGateReport`, with `funnel.gate_sessions` as its CSV export through the one export route. The marketing tick
+records a `marketing` consent through the existing `recordConsent` once the account exists. The e2e drive helper
+fills the gate when it appears (`opts.email` lands there now, so the keep door is skipped when absent).
+
+## 7 Oct 2026 — visit booking S7: the full loop, section 8 complete, help from the finished screens
+
+`e2e/customer-journey/visit-full-loop.spec.ts` walks wizard → gate → range → Book a site visit → hold → code → booked, then applies "the guest declined" at the seam the inbound sync uses (`visit_set_status` cancelled, `declined_invitation`) and checks the visit is cancelled, the event is on the record, the slot is offered to the next customer and the card is on Today. The Google steps themselves (the event, the invitation, the decline from each mail client, the cancel text) cannot run on the test project and are Tom's `docs/manual-tests/visit-gcal.md` + `visit-full-loop.md`. Section 8 is now covered end to end: 1–11, 13, 15 in `visit-booking-api.spec.ts`; 12 in `gate.spec.ts`; 14 and the platform half of 19 in the full loop; 16 and 17 in `visit-requests.spec.ts`; 18 in `visit-schedule.spec.ts`. Section 10's inventory rows are all in `docs/briefs/messaging-automations-inventory.md` (the "message → staff" row is served by the chat alerts and handoff cards, decided in S4). Help: `visit-booking/staff.md` rewritten from the finished screens (gate, R24 order, request screens); zones, schedule and requests pages were already current. No migration.
+
+## 6 Oct 2026 — visit booking S5: Google Calendar — the visit in the estimator's main calendar, decline cancels, move raises a card
+
+**2026-10-06 · `supabase/migrations/20270216000000_gcal_visits.sql`, `lib/gcal/oauth.ts`, `lib/gcal/client.ts`, `lib/gcal/visitEvents.ts`,
+`lib/gcal/staff.ts`, `lib/gcal/inbound.ts`, `lib/gcal/read.ts`, `app/api/gcal/webhook`, `app/api/cron/gcal-sweep`, `lib/visits/holds.ts`**
+
+info@paintgroup.com.au is a Google Workspace account (Tom, 6 Oct), so the staff connection asks for a third scope,
+`calendar.events`, and `reconcileStaffCalendar` writes booked visits into the estimator's MAIN calendar instead of
+the app-created "Paint Group Visits" one: a one-hour event (R32) with the property as location and the customer as a
+guest (`sendUpdates=all`, so Google sends the invitation and records the reply), a popup reminder on the estimator's
+copy only (the API's `reminders` are "for the authenticated user"), and a separate 30-minute "Travel" block with no
+guests (`lib/gcal/visitEvents.ts`, pure, unit-tested). Both carry `extendedProperties.private.pgKind`, and the busy
+reader (`read.ts`) skips anything so marked, so a booking never blocks itself (4.6 "Read"). Booked jobs still go to
+the app calendar when `push_jobs` is on. Inbound (`inbound.ts`): `syncStaffFromGoogle` re-reads each visit event
+and `classifyGoogleEvent` says gone / declined / moved / same — gone (Tom deleted it) or declined (the guest said no)
+cancels the visit through the Diary's `visit_set_status` RPC with `cancel_reason` `deleted_in_google` /
+`declined_invitation`, removes both events, sends the cancel email and the `visit_cancelled` text; moved writes
+`google_start` / `moved_seen_at` on the mapping row and NOTHING else changes (R27) — the work queue raises
+`visit_moved_in_google` until staff move the visit on the Diary or dismiss it. Changes arrive two ways: a push channel
+on the primary calendar (`events.watch`, token = HMAC of the channel id with CRON_SECRET, posting to
+`/api/gcal/webhook`, renewed a day before expiry) and `/api/cron/gcal-sweep` every five minutes, which also re-runs
+the write side (a failed insert is retried; `gcal_sync_failed` card while `sync_error` is set). Booking rules gained
+`calendarRequired` (default ON): a zone whose estimator has no connection with the write scope offers the request
+path, not the calendar, and `estimator_calendar_missing` tells staff why; if Google cannot be reached when a customer
+looks or confirms, `CalendarUnavailable` sends them to request-a-time and nothing books blind. Confirming a booking
+or offering a time calls `reconcileForVisit` at once ("within a minute"). The test project has no Google: its e2e
+runs switch the rule off for the run (`visitHelpers.ensureEstimator`) and put it back; `e2e/visit-calendar-gating.spec.ts`
+drives the no-calendar and dead-token paths. Declines from non-Google mailboxes (Outlook, Apple Mail) are Google's
+iMIP handling and could not be tested here — Tom's manual script covers it, and the brief's fallback (a cancel link in
+the text) needs his ruling if they do not arrive.
+
+## 6 Oct 2026 — visit booking S4: requests, pre-arranged and out of area, Speak with us, messages, public holidays
+
+**2026-10-06 · `supabase/migrations/20270215000000_visit_requests.sql`, `lib/visits/requests.ts`, `lib/time/workingDays.ts`,
+`app/api/visits/{request,message}`, `app/wizard/TalkSheet.tsx`, `app/crm/visit-requests/[id]/`, `scripts/seed-public-holidays.ts`,
+`docs/briefs/data/vic-public-holidays.json`**
+
+Everything that creates a REQUEST rather than a booking (addendum §4.4) is one `visit_requests` row: a time request
+(pre-arranged address, "None of these suit", nothing free, an unmapped suburb), a visit asked for before the price
+range (R3/R4 — the three options "Request a site visit / Call us / Send a message" now sit on EVERY quick-look step,
+`TalkSheet.tsx`), or a call from "Speak with us" (R25). The row carries `due_at` = the end of the next working day
+(`lib/time/workingDays.ts`: Monday to Friday, Melbourne, the public-holiday list excluded — R23/R33), and the work
+queue derives its `visit_request` card from the open rows; the wizard session's outcome note starts "Requested
+online:" so no second card is raised for the same fact. Staff answer on `/crm/visit-requests/[id]`: every free slot of
+every estimator (`availability()` with zone `"any"` — §4.4 lets staff pick any slot whatever its zone list, far edges
+kept), and "Offer this time" books it through the existing `visit_book` RPC, freezes the zone, marks the request
+answered and sends the `time_offered` text and email with the invitation; no code. "Speak with us" is decided on the
+server: the submit route now stores `guideRange` on `builder_state` and returns `speakWithUs` from
+`speakWithUsFor(jobType, top of range, Booking rules caps)` (R34); the call-request route checks it again (test 16).
+"Send us a message" (R26/R35) posts into the EXISTING chat — the estimate chat after the range (a draft gets a share
+token if it has none), the website chat (`agent_conversations` + handoff) before it, and the submit route links such a
+conversation to the estimate once it exists so staff see one conversation per customer — and emails the office address
+with the customer on the same email; `customer_message_receipts` makes a retry with the same client id a no-op (test
+17). Public holidays: `docs/briefs/data/vic-public-holidays.json` is the Business Victoria list read on 6 Oct 2026
+(2026 complete; 2027 without the AFL Grand Final Friday, which the page says is subject to the AFL schedule),
+merged into `visit_booking_rules.publicHolidays` by `scripts/seed-public-holidays.ts`; the existing weekday-only
+helpers in `lib/time/businessHours.ts` take an optional holiday set (Tom, decision c); a `holidays_next_year`
+work-queue item appears from 1 November while next year's list is empty. The old pre-range "Save & book" sheet no
+longer fetches the half-day windows (R3: a pre-range visit is a request, never a slot).
+
+## 6 Oct 2026 — visit booking S3: book a visit from the range — hold, text code, one transaction
+
+**2026-10-06 · `supabase/migrations/20270214000000_visit_holds.sql`, `lib/visits/holds.ts`, `lib/visits/ownedEstimate.ts`,
+`app/api/visits/{details,hold,confirm,resend,availability}`, `app/estimate/visit/`**
+
+The walking skeleton of the addendum: Book your estimator → `/estimate/visit?id=` → (details, only when we hold none)
+→ calendar → ten-minute hold → 6-digit code by text → "Your site visit is booked". `visit_holds` carries the hold
+(hashed code, attempts, resends, expiry; a partial unique index makes one LIVE hold per slot per estimator, so the
+race between two customers is settled by the database) and `visit_code_sends` is the fact behind the per-mobile and
+per-IP limits. Four definer RPCs, granted to service_role only: `visit_hold_place`, `visit_hold_resend`,
+`visit_hold_release` and `visit_hold_confirm`. Confirm is the one transaction: code check (five wrong ends the hold),
+an advisory lock per estimator-day, one active wizard visit per estimate, the full 90-minute run clear of confirmed
+visits (test 19), the R18 far-edge pairing against confirmed neighbours (test 13), then the `visits` row — status
+booked, source wizard, `zone` and `far_edge` frozen, `ends_at` = start + 60 (what the customer sees; the 90-minute
+block is the slot rule) — whose trigger writes `visit_booked` on `crm_events`. `lib/visits/holds.ts` is the server
+side: `loadVisitContext` (address → `resolveZone` → the zone's estimator → `availability()` fed by the week, confirmed
+visits, live holds and the estimator's Google busy times), `placeHold` (re-runs availability so a slot the zone list
+does not allow is refused however it was asked for — the body cannot even carry a zone), `confirmHold` (re-runs
+availability with the customer's own hold set aside, then the RPC) and `resendCode`. `lib/visits/ownedEstimate.ts`
+is the one door for the routes: anonymous customers only on the draft their session created
+(`customerOwnsDraft`), staff on any. Messaging: `visit_code` (text, always on, never held — `visitCodeSms`) and
+`visit_booked` (text, `visitBookedSms`); the email with the .ics invitation is the existing `visit_confirmation`,
+whose `visit_when` now reads "Monday 5 October, 2:00 pm to 3:00 pm" (R32). The old half-day windows are no longer
+offered to customers: the Book page's "Book a site visit" and the reveal's door both go to the new page; "None of
+these suit" and the pre-arranged / out-of-area screens hand off to the Book page's request-a-call-back until S4
+builds the real request screens. The customer's e2e (`e2e/customer-journey/visit-booking.spec.ts`) reads the code
+back from the `messages` row the adapter records (the test stack has no Twilio); the section-8 API tests live in
+`e2e/visit-booking-api.spec.ts`.
+
+## 6 Oct 2026 — visit booking S2: each estimator's week, booking rules, THE availability function
+
+**2026-10-06 · `supabase/migrations/20270213000000_visit_slots_and_booking_rules.sql`, `lib/visits/schedule.ts`,
+`lib/visits/scheduleDb.ts`, `app/(app)/settings/VisitScheduleSettings.tsx`, `BookingRulesSettings.tsx`,
+`visitScheduleActions.ts`, `scripts/seed-visit-week.ts`**
+
+`visit_slots` holds one row per named slot of an estimator's week (weekday, start minutes, run length, the zones
+that can book it, an optional R14 conditional "also Zone X if the slot before is a Zone Y visit"), with a btree_gist
+exclusion constraint so two slots of one estimator never overlap (section 8 test 18; the server action checks first
+and says which slot it ran into). `visits` gained `zone` and `far_edge`, frozen at booking, because R14 and R18 read
+what zone a CONFIRMED visit was in. The booking rules are one `settings` row, `visit_booking_rules` (same-day,
+notice, window, hold, slot and visit length, the R34 phone caps, reminder time, public holidays, far-edge pairs, gate
+order), created by the migration with the brief's starting values and edited at Settings → Booking rules. The
+public-holiday list starts empty; S4 seeds it. `availability()` in `lib/visits/schedule.ts` is the ONE function that
+says which slots a customer may see: pure, takes the week, confirmed bookings, live holds, busy times, the rules, the
+customer's zone and far-edge flag and "now", applies §4.2's seven rules in order and returns days of offered slots
+with the one-hour visit end (R32) and the 90-minute block end. Melbourne wall-clock throughout via `melbourneInstant`,
+so the Monday after a DST change still offers 08:00. The nineteen golden tests in `schedule.test.ts` are the brief's
+S2 "done when" list verbatim. `STANDARD_WEEK` (section 5, 21 slots, totals 16/13/6/5/9) is seeded per estimator by
+`scripts/seed-visit-week.ts --estimator <email>` or the "Load the standard week" button in Settings — never by SQL
+inserts. The old half-day engine (`lib/visits/availability.ts`, `settings.visits`) still serves `/estimate/book`
+until S3 replaces the customer path; the Estimator visits panel now points at Booking rules for the numbers.
+
+## 5 Oct 2026 — visit booking S1: suburb → zone list, the resolver, Settings → Visit zones
+
+**2026-10-05 · `supabase/migrations/20270212000000_visit_zones.sql`, `lib/visits/zones.ts`, `lib/visits/zoneGeo.ts`,
+`scripts/seed-visit-zones.ts`, `app/(app)/settings/VisitZonesSettings.tsx` + `visitZonesActions.ts`, `lib/crm/work-queue.ts`**
+
+First build session of `docs/briefs/claude-code-brief-visit-booking-addendum-a.md`. Three staff-only tables:
+`visit_zones` (the five zones, each with the estimator who covers it — R11), `visit_suburbs` (every Victorian
+suburb + postcode with a status `zone_1…zone_5 | pre_arranged | out_of_area`, the R18 far-edge tick, a reviewed flag
+and the basis), and `visit_unmapped_suburbs` (the FACT behind the "unmapped suburb" work item — a Victorian suburb a
+customer typed that the list did not know; resolved when the suburb is added in Settings). The resolver
+`resolveZone()` looks up by **suburb and postcode together** (Glen Waverley / Wheelers Hill share 3150) and runs on
+the server with the service client for a customer; `resolveFromList()` is the pure rule the tests drive. The seed is
+Matthew Proctor's Australian postcodes dataset (CC0), Victorian delivery areas with a 3xxx postcode, each precise
+centre point tested against `docs/briefs/data/visit-zones-draft2.geojson` by ascending priority, then the rulings CSV
+applied on top (it always wins; the five disagreements are listed in the review CSV and the session report).
+`docs/briefs/data/visit-zones-review.csv` is what the seed reads — never hand-written inserts. Settings → Company →
+Visit zones: filter by status, move one or many, far-edge tick, bulk approve, add a suburb, answer an unmapped
+suburb, and "Check an address", which answers from the live table so a move is live for the next customer at once.
+The work queue gained the kind `unmapped_suburb` (one source function, derived from the fact table, due the next
+business morning). Pre-existing bugs fixed in passing: the range screen's "Book your estimator" / "Tell us" links
+pointed at `/estimate/scope#reach`, an anchor that only renders on `/estimate/book` — they now go to the Book page;
+and Save & book read the builder's `{address, city, postal}` keys off the wizard state (which uses
+`{street, suburb, postcode}`), so it never linked a property — `propertyAddressFromState()` in
+`lib/wizard/save-and-book.ts`.
+
+## 4 Oct 2026 — estimator notes: typed or spoken, builder ↔ PC command, never the painter
+
+**2026-10-04 · `supabase/migrations/20270211000000_estimator_notes.sql`, `app/components/estimator-notes/`
+(`EstimatorNotes.tsx`, `actions.ts`, `estimator-notes.css`), `lib/estimate/notesBucket.ts`, `app/quote/QuoteBuilder.tsx`,
+`app/pc/wo/[id]/page.tsx`**
+
+Tom: "an estimator notes section at the top … notes or a voice recording … in the PC command page … not for
+contractors". Table `estimate_notes` (kind text|voice, body, audio_path, duration) with a staff-only `for all` policy
+and plain writes (the wo_booking_notes shape), plus private bucket `estimator-notes` (audio MIME, 25 MB, staff-only
+object policies). One client component in both places, `surface="builder" | "console"`, which loads its list through a
+staff-only server action AFTER mount — so no note text is in any page's server HTML — and records with MediaRecorder,
+uploading the blob from the browser straight into the bucket (`<estimateId>/<ts>.<ext>`); `addVoiceNoteAction`
+refuses a path outside that estimate's folder. Voice notes play from hour-long signed URLs. The older free-text
+"Admin notes" box (`builder_state.adminNotes`) is unchanged. Spec `e2e/estimator-notes.spec.ts` records with
+Chromium's fake microphone and asserts `/w/[token]` and `/e/[token]` HTML carry none of it.
+
+---
+
+## 4 Oct 2026 — an extra visit on any project, found by search
+
+**2026-10-04 · `supabase/migrations/20270210000000_extra_visit_any_project.sql`, `app/pc/schedule/actions.ts`
+(`searchProjectsAction`), `app/pc/schedule/ScheduleBoard.tsx`, `lib/scheduling/board.ts`, `app/portal/calendar/page.tsx`**
+
+Tom: the Extra visit picker "only allows one"; make it "a search bar where you can search from all projects regardless
+of their status". `schedule_add_appointment` drops the painter-is-on-the-job and not-closed guards (staff-only, logged
+as before). The sheet's dropdown became a debounced search (`searchProjectsAction`: two bounded reads — work order
+ref/title/address, and estimate title/customer via `estimates!inner` — merged by work order, open first); this row's
+own jobs stay as quick picks when the box is empty. The board joins each visit's `work_orders` row in the same read so
+a visit on a closed job outside the board's work-order window still draws. The portal calendar draws a visit on a
+project the painter is not otherwise on from the visit itself, labelled "Extra visit — <note>".
+
+---
+
+## 1 Oct 2026 — a second visit on a booked job; pink holds while the client decides
+
+**2026-10-01 · `supabase/migrations/20270209000000_schedule_holds_and_extra_visits.sql`, `lib/scheduling/holds.ts`,
+`lib/scheduling/board.ts`, `app/pc/schedule/ScheduleBoard.tsx` + `actions.ts` + `schedule.css`, `lib/validation/booking.ts`,
+`app/portal/calendar/page.tsx`, `lib/crm/work-queue.ts`**
+
+Two small tables beside the booking state machine, which is unchanged. **`wo_appointments`** is a second run of days
+on a job the painter already has (Tom: "a small job in between a job"): `schedule_add_appointment` refuses unless the
+painter is named on the work order, holds a live/accepted offer for it, or is assigned to it; move/remove are RPCs too,
+each logged on `wo_events`. The board draws a visit in the job's own colour (`Block.appointmentId`, `.blk.visit`), and
+the painter's portal calendar reads their own rows (RLS `contractor_id = current_contractor_id()`). Google Calendar is
+one event per work order and does not carry visits. **`schedule_holds`** is the office reserving a painter's days
+while the client decides — staff-only RLS, the painter has no policy — drawn bright pink (`BlockKind "hold"`,
+`--hold: #ff2d9b`). A hold is **resolved by the booking it waits on, not by a tick**: `openHolds()` drops a hold whose
+`work_order_id` has a live/accepted offer, an assignment or a dated contractor; a hold with no job stays until
+`schedule_release_hold`. The drag across empty lane space now opens a three-mode sheet (Block out · Extra visit · Hold);
+the tray-drop sheet gains **Hold these dates instead**; a hold's own sheet has **Book it now** (re-opens the drop sheet
+on the held dates) and **Release**. Holds and visits drag along their own row (`moveHeldOrVisit`). Work queue: a new
+`hold_pending` item a week before the first held day (`buildHoldItems`, due two days before), label **Held dates** on
+Today. Specs: `e2e/schedule-hold-visit.spec.ts`; unit `lib/scheduling/holds.test.ts`, `lib/crm/work-queue-holds.test.ts`.
+
+---
+
 ## 23 Sep 2026 — one offer per job for revision changes; approved changes reach the painter
 
 **2026-09-23 · `supabase/migrations/20270192000000_variation_offer_bundle.sql`, `lib/workorder/scopeChanges.ts`,
@@ -1731,7 +1953,10 @@ Access Allowance row, interior damage tier ≥2→COND-POOR, worst multiplier
 winning one Condition slot; the sides loop's Condition card arrives pre-answered
 from the wizard (builder_state.sidesLoop seed). In the sides editor a wall mix
 may total UNDER 100% (part glass/garage — sides.confirmSide refuses only >100%
-or 0), a ticked freestanding extra IS the extras answer
+or 0; 5 Oct: `sides.wallSharePct` is the one rule for an UNSHARED line — a lone
+line reads 100 so a weatherboard-only side confirms untouched, an unchosen
+split reads 0 each — and the gate, `syncWallMeasures` and the card's tiles all
+read it), a ticked freestanding extra IS the extras answer
 (scope-editor.hasFreestandingExtras; "Nothing else" no longer demanded on top),
 and both sweeps' "+ Something else" opens a text box whose name rides the amber
 deferral (loop_sweep/iloop_sweep add). Exterior can build FROM SCRATCH
@@ -3957,6 +4182,211 @@ Found while proving the four-step page on C1: `app/api/wo/photos/route.ts` PUT (
 ## The painter's job in four steps; photos per job (30 Sep 2026)
 
 Tom: contractors struggle with the job page; before photos should be one **Step 1 · upload before photos** button that takes many photos or short videos from the camera or the phone and sends them in one batch; after photos per job ("take photos of all rooms or all sides"); the loose photo card labelled for questions only. **`20270207000000_wo_photos_per_job.sql`**: `wo_has_job_photo(wo, kind)`; `wo_tick_surface` refuses the first tick with `error:before_photo_required:job` until a `before` photo exists anywhere on the job (no per-heading gate, no after-photo gate on ticks) — and, fixed on the way, checks ownership with `wo_painter_on_job` again (crew could not tick since 20270178) and writes the `all_surfaces_done` event again (dropped in 20270198); `wo_contractor_finish` refuses `error:after_photos_required` until a `completion` photo exists (a job of only "photos not required" rows is exempt). `lib/workorder/surfaces.ts`: `gatedRows`, `jobNeedsBeforePhotos`, `tickNeedsBeforePhotos`, `jobNeedsAfterPhotos` replace the per-heading helpers. **`app/components/wo/BatchUploader.tsx`**: multi-select picker (no `capture`), queue with per-file progress through `uploadWorkOrderMedia`, Done runs them in order, failed files keep a Retry, `router.refresh()` when the last lands. `app/portal/jobs/[id]/page.tsx` renders a `steps` strip (`data-step`) and the four cards: Step 1 uploader (or a collapsed "add more"), the `TickList` (prop `hasBeforePhoto`; shows `tick-locked` and refuses taps client-side), Step 3 uploader once every working row is done, `FinishUp` with `blockedBy` (button disabled + `finish-blocked` line) until an after photo exists; `contractorFinish` maps the new code. `SitePhotos` is "Got a question, or found something?" — progress photos only, with a hint that before/after go in Steps 1 and 3. Console (`app/pc/wo/[id]`) passes `hasBeforePhoto` from an unlimited one-row query. `CompletionReport` shows job-wide after photos for a flagged area when none is tagged to it. Fixtures: `photosIn(db, wo)` in `e2e/fixtures/woLoop.ts` for specs that mark everything done by hand. Spec: `e2e/wo-steps.spec.ts`.
+
+## Payment date, cents on the job's payments page, two "back" fixes (1 Oct 2026)
+
+Tom's four: (1) **Payment date when recording a payment.** `invoice_record_payment` already took `p_received_on date` (20270155); `recordPaymentAction` now accepts an optional `receivedOn` (yyyy-mm-dd, zod) and passes it, and both record sheets (`app/invoicing/job/[estimateId]/MoneyView.tsx`, `app/invoicing/inv/[id]/InvoiceDoc.tsx`) carry a `<input type="date">` (`record-date`) defaulting to `melbourneDate(new Date())`, max today. No migration. (2) **Cents on the job money view**: the stage rail and the money strip use `fmt2`, not `fmt0`; `fmt0` is gone from that file. (3) **Scheduler keeps its place**: `ScheduleBoard` saves `window.scrollY` and the timeline scroller's `scrollLeft/Top` to `sessionStorage` (`pc-schedule:scroll`, rAF-throttled, written synchronously on `pagehide`) and restores once on mount, because the estimate links are full navigations. Those links also carry `&from=/pc/schedule?from=…&days=…` so the builder's top-left link (`lib/navigation/backTo`) reads "Back to the schedule" and returns to the same window. (4) **Money view goes back where it came from**: `app/invoicing/job/[estimateId]/page.tsx` reads `?from=` through `parseBackTo` and passes `backTo` to `MoneyView`, whose crumb (`money-back`) uses it; the Payments dashboard (`urlFor`/`jobHref`, filters intact), Payables cost rows and the `/invoices` list set it. Without it the crumb is PC Command as before. Specs: `e2e/invoicing.spec.ts` (date saved, cents, crumb), `e2e/board-and-paint-usability.spec.ts` (scroll restored, back link).
+
+## Area photos on the job sheet opened at thumbnail size (1 Oct 2026)
+
+Tom: "when contractors view photos in the work order they are coming up as small tiles". The tap-to-enlarge lightbox (16 Sep) was working — but `AreaPhotoStrip` renders `PhotoLightbox` INSIDE its `.area-photos` div, and `app/w/workorder.css` sized the thumbnails with `.wo .area-photos img { width: 72px; height: 72px }`, which also matched the lightbox's `<img>` and, being more specific than `.wolightbox img`, won: the "full size" photo was a 72px tile. The rule is now `.wo .area-photo img` (the tile button only; the print grayscale rule likewise), and the tiles are 96px. `e2e/wo-area-photo-lightbox.spec.ts` asserts the enlarged image's computed sizing is the lightbox's own (`object-fit: contain`, not a fixed 72/96px box). No markup or component change; the shared grid (`PhotoGrid`) was never affected because its tile rule is scoped by `.shot`.
+
+## Offered amount, estimated hours on the job sheet, Google Calendar connect from the live host (1 Oct 2026)
+
+Tom's three: (1) **The offer's amount was blank** for Jacob (DJ Decor) and 19 of the last 60 issued jobs: only `issue_work_order` copied `woDoc.contractorPaymentCents` into `work_orders.contractor_payment_cents`; the work orders that acceptance and the import paths create carry the figure in `wo_snapshot` only, and `send_offer` read the column alone → `booking_offers.payment_cents` null → "Your price —". **`20270208000000_wo_pay_from_snapshot.sql`**: `wo_base_pay_cents(work_orders)` (column, else document; no grant), a BEFORE trigger `t_wo_fill_pay_from_snapshot` that fills the column from the document on insert/update, `send_offer` rebuilt on the helper, and a backfill of work orders then live/accepted offers. `OfferBar` (`app/portal/jobs/[id]`) now labels the figure **Offered amount** (`offer-amount`) and shows "—" rather than hiding it. (2) **Estimated hours**: `lib/workorder/hours.ts` (`estimatedHours`, `formatHours`) is the one sum of surface hours; the scheduler tray (`lib/scheduling/board.ts`) and the job sheet's new top fact `wo-estimated-hours` ("Estimated hours", in those words) both use it. (3) **Google Calendar connect**: `gcalEnv(origin)` builds the redirect URI from the request's own host (explicit `GOOGLE_REDIRECT_URI` still wins), `exchangeCode(code, redirectUri)` echoes it, and the callback's failures carry `?why=<code>` which `GoogleSyncCard.failureNote` turns into a sentence (state_cookie, state, no_session, no_refresh, exchange, missing_env, google_*). Google's non-cancel `error` values are no longer swallowed as "denied". Setup doc: `docs/gcal-setup.md` (one redirect URI per host; consent screen External + In production). Spec: `e2e/offer-accept.spec.ts` asserts offer pay = document pay, the labelled amount and the hours fact on the job page.
+
+## Booking confirmed lane on Project progress (1 Oct 2026)
+
+Tom: a job whose painter has accepted should not sit in Pre-start for weeks; only jobs due to start within seven days belong there, the rest wait in a new **Booking confirmed** lane between Offer and Pre-start. It is a **display split of `pre_start`, not a new stage**: the `wo_stage` enum, the transition table, the gates and the sweep are untouched. `lib/workorder/stages.ts` gains `LANES` (seven: offered, booking_confirmed, pre_start, in_progress, qa, walkthrough, closed), `LANE_LABELS` (renumbered 01–07) and `laneFor(stage, startDate, today)` — `pre_start` lands in Booking confirmed when the start date is missing or more than `PRE_START_WINDOW_DAYS` (7) calendar days after today, in Pre-start otherwise (including past-due starts). `today` is the Melbourne date; the day difference is done on yyyy-mm-dd strings so no zone can shift it. `/pc/flow` buckets by `laneFor`; the stage rail on `/pc/wo/[id]` lights the lane, and `StageAdvance` heads its card with the lane. `STAGE_LANES` remains for surfaces that know only the stage (job-sheet badge, invoice rows) and now shares its labels with `LANE_LABELS`. Pinned by `stages.test.ts` (window boundaries, month boundary, null start) and `e2e/pc-console.spec.ts` ("Booking confirmed lane": two pre_start fixtures 20 and 3 days out, then the far one pulled to day 7).
+
+## Office alerts: estimate declined, estimate expired (1 Oct 2026)
+
+Tom: "staff to receive email if an offered estimate is rejected / expires". Two new office alerts on the existing path (master switch in Settings → Automations, per-login routing under Staff logins via `profiles.staff_notify`, once-per-entity through the `staff_notifications` claim in `notifyStaff`): `office_estimate_declined` and `office_estimate_expired` — `lib/staff/notifyEvents.ts`, `lib/automations/registry.ts`, wording in `lib/messaging/config.ts` (`officeEstimateDeclined*`, `officeEstimateExpired*`), `valid_until` added to `SAMPLE_VARS`. The sends live in **`lib/estimate/lifecycleNotify.ts`**. Decline: the customer's `/e` page declines through the `decline_estimate` RPC with no server seam, so after it succeeds the page pings **`/api/estimates/declined`** with its token (the accept-ping pattern); the route acts only on an estimate whose status IS declined. Expiry: `runCrmSweep` (`lib/crm/sweep.ts`) calls `notifyOfficeOfLapsedEstimates` straight after `crm_lapse_estimates`; the RPC returns a count, so the ids come from the `status_changed → expired` rows it writes in `estimate_events` over the last 3 days — a send that failed one day is retried the next, and the claim makes a re-read a no-op. No migration. Tests: `lib/estimate/lifecycleNotify.test.ts`; `e2e/estimate-declined-expired-alerts.spec.ts` (anonymous decline on `/e`, then the cron route with its secret for the lapse, both asserting the guard row); `e2e/staff-alerts.spec.ts` lists the two switches.
+
+## Contacts: the CRM mirrored, a search bar on the Contact card, no unsaved contact (4 Oct 2026)
+
+Tom: a search bar at the top of the estimate's contact window, every CRM customer in the Contacts list, and a contact used on an estimate always saved to Contacts. Migration `20270210000000_contacts_from_crm_accounts.sql`: `contacts.account_id` (unique where set, SET NULL on delete so a merge never loses an office-typed row) and `contacts_sync_from_account(accounts)` — the ONE rule that turns an account into a Contacts row: find by account, then by `lower(email)`, then by `phone_e164_au(phone)`; fill only the blanks of a found row; otherwise insert, splitting a residential name into first/last (a trade name becomes the company) and taking the account's latest property as the address. An AFTER trigger on `accounts` (insert, and update of name/email/phone) runs it, so the wizard, Quick add, the builder's account link and the imports all land in Contacts with no second code path; the backfill in the same file runs it once over every existing account (read-back expects `accounts_without_contact = 0`). The function is SECURITY DEFINER and granted to nobody. `ContactModal` (`app/quote/EstimateHeader.tsx`) replaces the dropdown with a search box that asks the SERVER — `searchContactsAction` (`app/quote/actions.ts`, zod, staff session, eight rows, `error` surfaced in the box) over the `or()` filter from `lib/contacts/match.ts` (`contactSearchOr`: first/last name, company, email, suburb; a phone by typed digits against the stored generated `phone_digits` / `landline_digits` columns, since an `or()` filter cannot strip spaces on the column side). The builder no longer loads the Contacts table at page time: with the CRM mirrored in, that read passed PostgREST's 1,000-row cap and anyone past the first thousand surnames was unfindable (the first e2e run caught it). The modal has one action: **Use on estimate** inserts or updates the Contacts row FIRST and only then calls `onContact`; a refused save (validation, RLS, network) keeps the modal open, so `builder_state.contact` can no longer hold a person who is not in Contacts. The e2e fixture `destroyAccountChain` and the hygiene sweep (`OWNED` gains `public.contacts.account_id`; `fkAction` purges an owned SET NULL child) remove the mirrored row with its account. Pinned by `lib/contacts/match.test.ts`, `lib/testing/hygiene.test.ts` and `e2e/estimate-contact-search.spec.ts` (search by name and phone, the always-save path, the trigger).
+
+
+## Wizard estimator = Settings → Estimator; one strip on the booking page; a lone wall line is 100% (5 Oct 2026)
+
+Tom: "update your estimator details in the wizard to Tom Roman", the name shown twice behind **Book a time**, and
+"I have to click what % of wall area even though I have only ticked weatherboards". Three small fixes, no migration.
+`lib/wizard/estimator.resolveEstimator` keeps the staff-patch match first but its Settings fallback now reads
+`company_profile.estimatorName` / `estimatorPhone` (the Estimator section — the person every estimate says it was
+prepared by) and only then the Project coordinator; `estimator.test.ts` pins it. `/estimate/book` dropped its own
+`EstimatorStrip` — `ReachStrip` already renders the strip (and now takes `suburb`), so the name appears once
+(`finalise-gate.spec.ts` counts it). `lib/wizard/sides.wallSharePct` is the one rule for a wall line with no share
+written: alone it is 100, in an unchosen split 0 each; `wallSumPct`, `syncWallMeasures`, `normaliseShares` and
+`sidesView` all read it, so the gate and the card agree and a weatherboard-only side confirms untouched
+(`sides.test.ts`, `sides-editor.spec.ts`). The card's 0% line now asks for the split in words.
+
+## Pergola on the outside screen, priced on its top; condition answers explained; the wizard goes light (5 Oct 2026)
+
+Tom's batch. (1, 2, 4) **Pergola** is a tile under "Any other areas being painted?" on the exterior quick look
+(`EXT_STANDALONE`, `targets: "pergola"`) and on the page set's "What are we painting?"; ticking it asks the top's
+length and width and a **Confirm** (quick look `ExteriorQuickLook.pergola`, state `exterior.pergola`), and the gate
+refuses Continue until it is confirmed. The card's Pergola row is "Hours Per Item", so the size is priced as
+item-equivalents through ONE helper, `lib/pricing/pergola.ts` (`PERGOLA_ITEM_M2` = 10 m² of top per card item;
+`pergolaItemsForTop` → `qtyOverride`, which the engine never scales; the line is relabelled "Pergola — top approx.
+L × W m"). `scope-editor.applyPergolaSize` does the write for the wizard's submit (`exteriorAnswers`, which also
+drops the "measure on site" deferral) and for the sides editor's new `set_pergola` action (length, width, Confirm
+under the Freestanding extras card; `CustomerExteriorView.pergola` reads it back). The old per-number stepper is
+gone for pergolas; the Extras page keeps balustrades only. (3) The three **condition** answers carry a line of
+meaning each — the wizard's cards and the sides editor's chips (`Chip` takes `hint`). (5) **Light mode**: `.wz`'s
+token block is light (`color-scheme: light`, `--bar` for the sticky bars, the `--wz-*` aliases defined so no dark
+fallback can win), every hardcoded dark value in `wizard.css` became a token, the drawings' hexes moved to light
+equivalents, the chat bubble is overridden light inside `.wz` only (the marketing site stays dark), and the header
+prefers the light-background logo (`logoUrlLight`, then `logoUrl`).
+
+**Next step from In progress on the PC console (6 Oct 2026).** Two live jobs sat at In progress with every box ticked
+and nothing the office could do: `confirmPrepStaff` (`app/pc/actions.ts`) ran the painter's finish and passed only its
+`error:gate:` refusals on, so a finish refused for want of the job's after photos (`error:after_photos_required`, Tom's
+30 Sep rule) was dropped and the confirm that followed answered `not at prep`. Now every finish result is handled and
+said in words, and a success revalidates the job page (`StageAdvance` also calls `router.refresh()` so the ticks, lists
+and rail move with the card). `StageAdvance` takes a `readiness` prop computed in `page.tsx` from the same rows the
+gates read (surfaces left, `jobNeedsAfterPhotos`, required finishing-up items, unsettled variations) and draws a
+**Before the next step** list above the one routed button, so the reason is visible before the press. Two office
+routes past the after-photo gate: a console `BatchUploader` (`kind="completion"`, staff may call `wo_record_photo`)
+and a waiver — migration `20270215000000_wo_after_photos_waiver.sql` adds `wo_staff_waive_after_photos(uuid, text)`
+(staff only, needs a reason, writes a `wo_events` row of type `after_photos_waived`; the event is the record, there is
+no column) and re-creates `wo_contractor_finish` to honour `wo_after_photos_waived()`. The painter's rule is unchanged.
+Spec: `e2e/wo-stage-advance.spec.ts` ("the office's next step from In progress"). Diagnostic for a stuck live job:
+`node scripts/diag/wo-next-step.mjs "<address>"` (read-only).
+
+
+**Check-ins worked from PC Command (6 Oct 2026).** Tom: "move all job check-ins out of the CRM system and into PC
+Command." Still one queue: `lib/crm/work-queue.ts` gains `homeOf(kind)` ("crm" | "pc"; `job_checkin` and
+`job_followup` are PC-homed), `crmItems`/`pcItems`, and `buildPcWorkItems(supabase, now)` — two bounded reads (the
+check-in work orders, the dismissals) returning `{ items, failure }`. `buildWorkQueue` builds every kind as before
+(the keys are what dismissals hang off) and then assembles `crmItems(...)`, so Today, the tab badge and the home
+dashboard no longer carry check-ins. `app/pc/page.tsx` renders the PC items as cards at the top of its queue with
+**Open the job** and `app/pc/CheckinDone.tsx` (**Rang them** = dismiss for good, **Tomorrow** = one day), both
+through the CRM's own `dismissWorkItem` → `crm_dismiss_work_item`. No migration. Spec `e2e/pc-checkins.spec.ts`;
+units in `lib/crm/work-queue-jobs.test.ts`.
+
+**Final invoice skips a variation already billed (6 Oct 2026).** 568 Collins Street: the last quality-check pass
+routed the no-walkthrough close, whose `invoice_draft_final` wrote a line for every signed variation — including
+one already on an issued progress invoice — and `invoice_lines_variation_once` (§3.1) refused, rolling the pass
+back with "duplicate key value violates unique constraint". Migration
+`20270216000000_final_invoice_skips_billed_variations.sql` re-creates `invoice_draft_final` (20270156 body) with one
+predicate: a variation with a live (`not parent_void`) line on another invoice is not written again; the ledger has
+already netted what that invoice took, and the "Less previously invoiced" adjustment balances the draft. Spec
+`e2e/invoice-final-variation-once.spec.ts` closes a fixture job whose variation sits on an issued progress invoice.
+
+**Contractor GST goes on top (7 Oct 2026).** The offered amount on a job (hours × rate) is EX GST, but every
+contractor-invoice writer backed GST out of it (`gst_from_inc_cents`), so a registered painter on 38.5 h × $65 was
+paid $2,502.50 with $227.50 of it called GST instead of $2,502.50 + $250.25. Migration
+`20270218000000_contractor_gst_on_top.sql` adds `contractor_invoices.claimed_ex_cents` — the ex-GST figure an invoice
+claims against the agreed job amount — re-creates `contractor_invoice_draft` / `_request` / `_submit` / `_approve`
+from their live bodies with `gst_on_ex_cents` when registered (zero when not), freezes the new column in the guard,
+and re-points `contractor_invoice_invoiced_cents` at `Σ claimed_ex_cents` so "what remains" is GST-independent
+(submit also regains the 20261121 remainder rule the 20261127 rewrite had dropped). Then it backfills EVERY existing
+row, drafts through paid — the stored work figure re-read as ex, GST on top where the row was registered,
+reimbursements untouched — with a read-back that lists each changed row and the top-up now owed on anything already
+paid. Screens follow the columns: the contractor's invoice page (`app/portal/money/[id]`) shows Subtotal (ex GST) /
+GST (10%) / Total (inc GST), the claim composer labels its figures ex GST and "+ GST" on the button, the PDF's claim
+line is `claimed_ex_cents`. Pinned by `lib/invoicing/ciStateMachine.test.ts` (every writer: `gst_on_ex_cents`, no
+`gst_from_inc_cents`) and `e2e/contractor-invoicing.spec.ts` ($95,000 → $9,500 GST → $104,500).
+
+**PC Command batch (Tom, 7 Oct 2026).** Migration `20270220000000_variation_painter_approval_qa_route_client_notes.sql`.
+(1) **The painter approves a client-approved change.** `wo_customer_sign_variation` (20270195 body): with a painter on
+the job a signed revision addition is no longer folded in — it is released (`released_at`) and waits at
+`customer_approved` for the painter; with no painter it folds as before. New `wo_contractor_decline_variation(id, note)`:
+status `declined` + `contractor_declined_at` / `contractor_decline_note` (new columns, so the customer's signature on the
+row still says who approved it), the approval's untouched tick rows removed, event `variation_contractor_declined`; the
+gate no longer waits on it. Portal `Variations.tsx` shows "Variation approved by the client" with amount + hours, a big
+Accept and a small Decline that opens the note box (`declineVariationAction`); the console gets
+`variation-painter-declined:<id>` (`consoleData` now also reads declined rows with `contractor_declined_at`), the PC
+variation card names the decline, and `staffVariationDeclinedByPainter` sends `office_variation_declined`. `/v/[token]`
+treats a painter-declined signed row as the customer's approval. (2) **Quality check with no check** — `wo_qa_route_passed`
+routes a zero-check qa job like a pass (`none_scheduled` on the event) instead of `ok:0` for ever; `scripts/diag/wo-next-step.mjs`
+gained a qa VERDICT (unlogged / failed-without-recheck / variation gate / colour match / already signed). (3 + 4) **Office
+alerts** `office_update_drafted` (from `draftUpdateFromTodaysTicks` and the sweep's draft backstop, entity `<wo>:<day>`)
+and `office_update_due` (`lib/automations/sweeps/customerUpdateDue.ts`, the console card's rule as a sweep, entity
+`<wo>:<day>`), both routed per staff login through `profiles.staff_notify` — Tom ticks Email + Text for Felipe. (5)
+**Client updates** on the PC job page: `ClientUpdates.tsx` + `addClientUpdateNote` → staff-only `wo_add_client_update_note`
+(wo_events `client_update_note`) and `logCrmEvent(note_added, origin client_update)` on the customer's account; the timeline
+is derived from sent/approved `wo_updates` + those events. Spec `e2e/pc-painter-approval-7oct.spec.ts`; units
+`console.test.ts`, `customerUpdateDue.test.ts`.
+
+**QA waiver clears a legacy fail (7 Oct 2026, 25 Bunney Road).** WO-WNWJXGTV sat at qa from 17 Sep: its only check was
+logged FAIL before 20270196 made a fail spawn its re-check, so no `retry_of` row existed and `wo_qa_open_count` counted it
+open for ever; the 6 Oct "Quality check not required" waiver only deletes UNLOGGED checks. Migration `20270221` re-creates
+`wo_qa_open_count` with one clause: a job with `qa_waived` has nothing open (the fail stays as history). Pinned in
+`e2e/pc-painter-approval-7oct.spec.ts`; the diag names the waiver as the way out.
+
+**Estimator wizard batch (Tom, 7 Oct 2026).** Eight asks on the customer wizard, no migration. (1) The plan read is one
+vision call (`lib/extract/model.ts`), so its latency is the model's; the fix is on the screen: `QuickLook.tsx`'s rooms step
+shows a **reading panel** (`ql-plan-reading-panel`, with a `ql-plan-skip-wait` way past it) while `planPending` and no plan
+rooms have landed, instead of the starter list — a tick on a guessed name never matched the plan's names. (2)
+`buildDraft` gains `opts.planRead`; the read route and the submit plan branch pass it, and `PLAN_NEVER_PAINTED`
+(carport, sauna, store / storage / storeroom) skips the room by its printed name whatever the model classified it as — a
+customer-typed "Storage" room (add_room, starter list) is untouched. (3) The rooms-step preview is `PlanViewer` (zoom
+slider, + / −, wheel, drag) and `PlanViewer` learns pinch-to-zoom from two tracked pointers. (4 + 6)
+`applyCupboardDefaults` (`lib/wizard/rooms-loop.ts`) answers the cupboard question at tree build: kitchen / vanity /
+laundry **No**, bedroom robe doors **Yes** with the standard 2, the robe line tagged `ai_assumed`/`included`; called after
+the submit merge and on `add_room`. (5) `FALLBACK_TYPICALS.storage` = 2 × 1.25 m (walk-in robe) and the seed gains the
+`room_type_defaults` row (`npx tsx scripts/seed-extraction-settings.ts` on prod re-seeds it; the fallback already applies
+where the row is absent). (7) The sweep's Add room takes a typed name alone (`roomTypeForName` guesses the kind, the hint
+says which), and `openNewRoomRef` opens the new card with the size form up and scrolls its header into view. (8)
+`room_dims` takes an optional `heightM` (2–6 m, per room): `applyRoomDims` sets H, drops the H assumption and marks
+`customer.heightAdjusted`, which `confirm_height` (the job-wide chip) now skips; `RoomLoopView` carries `heightM` /
+`heightAdjusted` and the card shows "· 2.7 m ceilings". Pinned by `lib/wizard/tom-batch-7oct.test.ts` and driven by
+`e2e/customer-journey/tom-batch-7oct.spec.ts` (the plan test needs the gitignored regression plan).
+
+**An accepted job clears the customer's follow-ups; employee days approve themselves (Tom, 7 Oct 2026).** Migration
+`20270219000000_accept_clears_followups_timesheets_auto_approve.sql`. CRM: `estimates_crm_lifecycle` (20270152 body) nulls
+`accounts.followup_due_at / followup_note / snoozed_until` when an estimate turns `accepted` — every acceptance path runs
+through the trigger — with a guarded backfill of reminders set before an acceptance (dated by the `followup_set` event).
+The DERIVED follow-ups stay derived: `lib/crm/work-queue.ts` reads the latest acceptance per account (90 days) into an
+`acceptedAt` map and `answeredByAcceptance()` suppresses a quiet quote, callback or online-estimate item asked for at or
+before it (a quote sent after the acceptance is a new job and is chased). Timesheets: `timesheet_auto_approve` (NO grant —
+run by the writers) is the 20270163 approve body without the staff check, `approved_by` null = approved by the rule;
+`timesheet_finish` / `_record` / `_autofill` / `_extra` call it on the row they write. A day no cost rate covers stays
+`submitted` (the one thing the Timesheets page still lists; `timesheet_approve` is unchanged for it); the 16-hour overnight
+close still waits. The `timesheet_approval` work item is gone (kind, weight, group, builder, read, Today label). Specs
+`crm-quote-followup` (+ acceptance), `employee-timesheet`, `employee-loop` test 6; help for timesheets pc/employee and crm staff.
+
+**A painter's request priced in the working scope IS that request (Tom, 7 Oct 2026 — 12A Cavell Court).** Migration
+`20270222000000_variation_request_priced_in_scope.sql`: `wo_draft_revision_variation` gains `p_source_variation_id`
+(old 11-arg signature dropped) and `wo_variations.request_priced_at`. The job page's *Price it in the builder* link
+carries `&variation=<id>`; `app/quote/page.tsx` loads that raised row (`revisionRequest` → `QuoteBuilder` → `RevisionPanel`
+banner, testid `revision-request`) and `draftRevisionVariationsAction` passes it to the RPC, which writes the first
+addition INTO the painter's own row (status priced, block ref, offer token, money; comment = painter's words + change
+title; `request_priced_at` set) instead of inserting a draft beside it — one record, so the console, the work queue, the
+portal chip and the stage gate need nothing new. A standing draft for the block is cancelled in favour of the request;
+a change netting to zero puts an adopted request back to `raised` (event `variation_request_unpriced`), never
+cancelled. Notifications: `contractor_variation_released` / `contractor_variation_added` carry an email rendition
+(`variationReleasedEmail*`, `variationAddedEmail*` in `lib/messaging/config.ts`); `lib/contractor/notify.ts` returns a
+`PainterNotifyOutcome` and records `<type>_notified` only when something went out, else `<type>_notified_skipped`
+with the dispatcher's reason (Cavell showed "notified" over no message because the painter had no mobile and the
+automation was SMS-only). `remindPainterVariationAction` (staff) re-sends from the card (*Remind the painter*).
+Spec `e2e/variation-request-priced-in-scope.spec.ts`; repair for Cavell in `supabase/fixes/cavell-court-variation-to-painter.sql`.
+
+**Contractor mobile: office-editable, required to join (7 Oct 2026).** Nine jobs' `contractor_job_update_reminder` texts
+were claimed and never sent because three painters had no `contractors.phone` and only the painter could add one — and the
+dispatcher's `nobody` outcome is not recorded. The office now types it on the painter's page: `ContractorMobile`
+(`app/(app)/contractors/[id]/`) over `setContractorMobileAction` (zod, `isAuMobile` or empty, user session so
+`contractors_staff_all` is the gate, revalidates the page). Joining requires one: `JoinForm` refuses to create the account
+without a full mobile and writes it to the painter's own row (`contractors_self_update` + the 20261223 column grant) right
+after `redeem_contractor_invite`. On `/portal/profile` the mobile cannot be cleared or half-typed, and with none on file the
+page carries a `mobile-required` notice and the company and bank saves refuse until it is added. No migration. Specs:
+`contractor-detail` (office edits, half number refused, cleared = amber), `contractor-join-mobile` (real invite, refused
+without one, on the row with one), `contractor-portal` profile test (blank → refuse other saves → save → cannot clear);
+`help-tour` fills the new field. Help: contractors/staff.md (+ Their mobile), contractors/contractor.md (new).
+`scripts/diag/job-update-reminders.mjs` (read-only) lists every booked job's reminder claims against the texts actually sent.
+
+**Contractor bank details: click to reveal (7 Oct 2026).** The painter's page served only `bank_bsb` + `bank_account_last4`
+and nothing could show the rest: `contractor_get_bank(uuid)` (definer, is_staff() or self) existed since 20260822 but
+20270201 listed it as internal-only and revoked EXECUTE from authenticated. `20270223_contractor_bank_reveal` recreates it
+(same gate; a staff reveal of someone else's account inserts `contractor_events` `bank_viewed` {last4} with the actor) and
+re-grants it to authenticated. `ContractorBank` (`app/(app)/contractors/[id]/`) renders the masked row as a button;
+`revealContractorBankAction` (zod, user session) calls the RPC on the click and the decrypted number lives only in client
+state until Hide. A 42501 before the migration is pasted reads as "needs migration 20270223". Spec: `contractor-detail`
+(server render never carries the number; reveal, hide, event row). Help: contractors/staff.md (+ Their bank details).
+
+**Every paint on every list, searchable (8 Oct 2026).** `paintOptions` (`lib/workorder/materials.ts`) no longer filters by the row's Interior/Exterior type: the Materials rows, Other paints, a line's materials and the Edit Surface Product field all offer the whole catalogue A-Z, narrowed by a search matched against name, brand, finish, category and internal alias, and the chosen paint is never filtered away. `SurfaceEditor` in `app/quote/QuoteBuilder.tsx` gained its own search box (`surface-paint-search`) over the Product select (`surface-paint-pick`). Unit: `lib/workorder/paintOptions.test.ts`. Spec: `e2e/materials-all-paints.spec.ts`.
 
 **Search bars (1 Oct 2026).** PC Command has a project search in its top bar on every console page: `app/pc/PcSearch.tsx` (client, ⌘K / "/" focus, same shape as the CRM search) asks `app/pc/api/search/route.ts`, which runs two bounded reads through the staff session — `work_orders` on `wo_ref` and the snapshot's `jobTitle`/`jobAddress`, and `estimates` (with `work_orders!inner`) on title, the customer's name and the job address in `builder_state`, or `number` when the needle parses as an estimate number — merges them by work order, open jobs first, and each hit opens `/pc/wo/[id]`. Styles are the `.pc .gsearch` block in `app/pc/pc.css`. The Contacts page (`app/(app)/contacts/page.tsx`) filters on the server from `?q=` with one `or()` over name, company, email, phone (with and without spaces) and city, keeps the read's `error` on screen, and takes its needle from `SearchBox.tsx` (the Estimates search shape: debounce, Enter, Clear, `data-ready`). Specs: `e2e/pc-search.spec.ts`, `e2e/contacts-search.spec.ts`. Help: `docs/help/work-orders/pc.md` (Finding a project), `docs/help/contacts/staff.md`.
 

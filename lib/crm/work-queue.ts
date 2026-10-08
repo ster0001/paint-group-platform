@@ -11,9 +11,12 @@ import {
 } from "@/lib/wizard/policy";
 import { sortQueue } from "@/lib/wizard/confirmation";
 import { DEFAULT_TURNAROUND_SETTING, isOverdue, turnaroundFromSettings, type TurnaroundSetting } from "@/lib/wizard/confirmation-actions";
-import { addBusinessHours, melbourneInstant, nextBusinessMorning } from "@/lib/time/businessHours";
+import { addBusinessHours, melbourneInstant, melbourneParts, nextBusinessMorning } from "@/lib/time/businessHours";
+import { nextYearHolidaysMissing } from "@/lib/time/workingDays";
+import { mergeBookingRules } from "@/lib/visits/schedule";
 import { customerCheckins, dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
 import { melbourneDayStartUtc } from "@/lib/workorder/console";
+import { openHolds } from "@/lib/scheduling/holds";
 
 /**
  * The work queue (shell brief §3) — the one answer to "what needs a human?".
@@ -52,6 +55,20 @@ export const WORK_ITEM_KINDS = [
   "change_request",
   /** Assistant S7: a customer is waiting for a person in a live chat. */
   "handoff_requested",
+  /** Visit booking addendum A §4.1: a Victorian suburb the zone list does not know. */
+  "unmapped_suburb",
+  /** Visit booking addendum A §4.4: a request (time / visit before the range / call) waiting for a reply. */
+  "visit_request",
+  /** Visit booking addendum A §4.4: it is November and next year's public holidays are not in Settings yet. */
+  "holidays_next_year",
+  /** S5 (R22): the customer declined the calendar invitation; the visit is cancelled and the slot reopened. */
+  "visit_declined",
+  /** S5 (R27): Tom moved the visit in Google Calendar; the platform did not follow — confirm the new time with the customer. */
+  "visit_moved_in_google",
+  /** S5 (4.6): Google Calendar writes keep failing for an estimator. */
+  "gcal_sync_failed",
+  /** S5 (4.6): a zone's estimator has no connected Google Calendar we can write to, so customers there cannot book. */
+  "estimator_calendar_missing",
   /** Buckets brief §4: a wizard session that asked for a call or a visit (A). */
   "wizard_ready",
   /** Buckets brief §4: a wizard session that asked a question or for help (B). */
@@ -85,8 +102,6 @@ export const WORK_ITEM_KINDS = [
   "employee_unaccepted",
   /** S7: an employee asked for leave or an RDO — approve or decline before the day. */
   "leave_request",
-  /** S7: clocked days waiting on the office for more than a day. */
-  "timesheet_approval",
   /**
    * Tom, 25 Sep 2026: ring the customer part-way through a job — half way on
    * a 3–6 day job, 35% and 70% on a longer one. High importance: a customer
@@ -95,6 +110,12 @@ export const WORK_ITEM_KINDS = [
   "job_checkin",
   /** Tom, 25 Sep 2026: a 1–2 day job is done — ring and check they are happy. */
   "job_followup",
+  /**
+   * Tom, 1 Oct 2026: the office is HOLDING a painter's days (pink on the
+   * board) while the client decides, and the days are now close. Book it or
+   * release it — the hold is the reminder, this is the nudge.
+   */
+  "hold_pending",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -169,6 +190,9 @@ const CUSTOMER_VISIBLE: ReadonlySet<WorkItemKind> = new Set([
   "handoff_requested",
   "wizard_ready",
   "wizard_help",
+  "visit_request",
+  "visit_declined",
+  "visit_moved_in_google",
   "photo_review",
   "job_checkin",
   "job_followup",
@@ -179,10 +203,40 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
 }
 
 /**
+ * Where a kind is WORKED (Tom, 6 Oct 2026: "move all job check-ins out of the
+ * CRM system and into PC Command"). Still one evaluator and one set of
+ * dismissals — a kind homed on "pc" is built here, keyed here and dismissed
+ * through crm_dismiss_work_item like any other; it is simply shown on the PC
+ * console (`buildPcWorkItems`) and left off Today, the tab badge and the home
+ * dashboard (`crmItems`). Two queues would be a single-source violation; two
+ * SCREENS over one queue is not.
+ */
+export type WorkItemHome = "crm" | "pc";
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup"]);
+export function homeOf(kind: WorkItemKind): WorkItemHome {
+  return PC_HOMED.has(kind) ? "pc" : "crm";
+}
+/** The items the CRM shows: everything not homed on the PC console. */
+export function crmItems(items: readonly WorkItem[]): WorkItem[] {
+  return items.filter((i) => homeOf(i.kind) === "crm");
+}
+/** The items PC Command shows. */
+export function pcItems(items: readonly WorkItem[]): WorkItem[] {
+  return items.filter((i) => homeOf(i.kind) === "pc");
+}
+
+/**
  * ⚑7.2 — these weights are defaults chosen to be defensible, not ruled. They
  * live in one object so Tom's ruling is a one-line change and not a hunt.
  */
 export const KIND_WEIGHT: Record<WorkItemKind, number> = {
+  unmapped_suburb: 16,
+  visit_request: 24,
+  holidays_next_year: 8,
+  visit_declined: 22,
+  visit_moved_in_google: 20,
+  gcal_sync_failed: 14,
+  estimator_calendar_missing: 18,
   message_unanswered: 26,
   callback_requested: 24,
   message_unmatched: 18,
@@ -217,11 +271,12 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   // A yes/no before the day, and then the board is right.
   leave_request: 12,
   // Payroll waits on this, but a day, not an hour.
-  timesheet_approval: 10,
   // Tom, 25 Sep: mid-job check-ins are HIGH importance — top of the customer band.
   job_checkin: 30,
   // A courtesy call after a short job; ranks with the other follow-ups.
   job_followup: 14,
+  // Days reserved for a client who hasn't said yes — chase them before the painter loses the week.
+  hold_pending: 16,
 };
 
 export type PriorityInput = {
@@ -287,6 +342,13 @@ export const FILTER_GROUPS = ["all", "messages", "followups", "approvals", "mone
 export type FilterGroup = (typeof FILTER_GROUPS)[number];
 
 export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = {
+  unmapped_suburb: "followups",
+  visit_request: "followups",
+  holidays_next_year: "approvals",
+  visit_declined: "followups",
+  visit_moved_in_google: "followups",
+  gcal_sync_failed: "approvals",
+  estimator_calendar_missing: "approvals",
   message_unanswered: "messages",
   message_unmatched: "messages",
   callback_requested: "messages",
@@ -314,9 +376,9 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   employee_reassign: "followups",
   employee_unaccepted: "followups",
   leave_request: "approvals",
-  timesheet_approval: "approvals",
   job_checkin: "followups",
   job_followup: "followups",
+  hold_pending: "followups",
 };
 
 // ---- source: customer check-ins on a running job (Tom, 25 Sep 2026) ----------
@@ -416,7 +478,6 @@ export type ActiveAssignmentRow = {
 export type LeaveRequestRow = {
   id: string; contractor_id: string; kind: string; start_date: string; end_date: string; reason: string; created_at: string;
 };
-export type TimesheetPendingRow = { id: string; contractor_id: string; work_order_id: string; work_date: string; finished_at: string | null };
 export type DatesChangedEventRow = { created_at: string; meta: { assignment_id?: string } | null };
 
 /**
@@ -471,7 +532,7 @@ export function buildEmployeeReassignItems(
   });
 }
 
-// ---- sources: employee_unaccepted · leave_request · timesheet_approval (S7, brief §3.9) ----
+// ---- sources: employee_unaccepted · leave_request (S7, brief §3.9) ----
 
 const dmyOf = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
 const daysOf = (start: string, end: string) => start === end ? dmyOf(start) : `${dmyOf(start)}–${dmyOf(end)}`;
@@ -506,6 +567,46 @@ export function buildEmployeeUnacceptedItems(active: ActiveAssignmentRow[], pain
   return items;
 }
 
+// ---- source: hold_pending (Tom, 1 Oct 2026) ---------------------------------
+
+export type HoldQueueRow = {
+  id: string; contractor_id: string; start_date: string; end_date: string;
+  work_order_id: string | null; note: string; created_at: string; released_at: string | null;
+  work_orders: { wo_ref: string | null; wo_snapshot: { jobTitle?: string | null } | null } | null;
+};
+
+/** How far ahead a hold starts nagging. A week: long enough to ring the client twice. */
+export const HOLD_NUDGE_DAYS = 7;
+
+/**
+ * One item per open hold whose first day is within a week (or has begun and
+ * not yet passed). A hold answered by a booking of its job — to anyone — is
+ * resolved and raises nothing; so is a released one. Due two days before the
+ * first held day, so it lands in Overdue with time to re-offer the week.
+ */
+export function buildHoldItems(rows: readonly HoldQueueRow[], bookedWorkOrderIds: ReadonlySet<string>, painterNames: Map<string, string>, now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const h of openHolds(rows, bookedWorkOrderIds)) {
+    const startsAt = Date.parse(melbourneDayStartUtc(new Date(`${h.start_date}T12:00:00Z`)));
+    const endsAt = Date.parse(melbourneDayStartUtc(new Date(`${h.end_date}T12:00:00Z`))) + 86_400_000;
+    if (startsAt - now.getTime() > HOLD_NUDGE_DAYS * 86_400_000 || endsAt <= now.getTime()) continue;
+    const who = painterNames.get(h.contractor_id) ?? "A painter";
+    const job = h.work_orders?.wo_snapshot?.jobTitle || h.work_orders?.wo_ref || null;
+    items.push(finish({
+      key: itemKey("hold_pending", h.work_order_id ? "work_order" : "event", h.work_order_id ?? h.id, h.id),
+      kind: "hold_pending",
+      accountId: null,
+      subjectRef: h.work_order_id ? { type: "work_order", id: h.work_order_id } : { type: "event", id: h.id },
+      title: `${who}'s days are held${job ? ` for ${job}` : ""} — ${daysOf(h.start_date, h.end_date)}`,
+      detail: h.note ? `"${h.note}" — book it or release the days.` : "Waiting on the client. Book it or release the days — it's the pink block on the board.",
+      since: h.created_at,
+      dueAt: new Date(startsAt - 2 * 86_400_000).toISOString(),
+      action: { label: "Open the board", href: `/pc/schedule?from=${h.start_date}&days=14` },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
 /** One item per leave / RDO request still undecided. Due the day before it starts. */
 export function buildLeaveRequestItems(rows: LeaveRequestRow[], painterNames: Map<string, string>, now: Date): WorkItem[] {
   return rows.map((r) => {
@@ -525,33 +626,8 @@ export function buildLeaveRequestItems(rows: LeaveRequestRow[], painterNames: Ma
   });
 }
 
-/**
- * Clocked days waiting on the office for more than 24 hours — one item per
- * painter, counting their days, keyed on the painter so the count changing
- * never resurrects a dismissal.
- */
-export function buildTimesheetApprovalItems(rows: TimesheetPendingRow[], painterNames: Map<string, string>, now: Date): WorkItem[] {
-  const byPainter = new Map<string, TimesheetPendingRow[]>();
-  for (const r of rows) {
-    if (!r.finished_at || now.getTime() - Date.parse(r.finished_at) < 86_400_000) continue;
-    byPainter.set(r.contractor_id, [...(byPainter.get(r.contractor_id) ?? []), r]);
-  }
-  return [...byPainter.entries()].map(([cid, entries]) => {
-    const oldest = entries.reduce((a, b) => (a.finished_at! < b.finished_at! ? a : b));
-    const who = painterNames.get(cid) ?? "A painter";
-    return finish({
-      key: itemKey("timesheet_approval", "work_order", oldest.work_order_id, cid),
-      kind: "timesheet_approval",
-      accountId: null,
-      subjectRef: { type: "work_order", id: oldest.work_order_id },
-      title: `${entries.length} clocked day${entries.length === 1 ? "" : "s"} from ${who} waiting on approval`,
-      detail: `Oldest is ${dmyOf(oldest.work_date)}. Approve posts the labour to the job; payroll takes the approved days.`,
-      since: oldest.finished_at!,
-      dueAt: new Date(Date.parse(oldest.finished_at!) + 86_400_000).toISOString(),
-      action: { label: "Approve", href: "/pc/timesheets" },
-    }, { valueCents: null, promisedToCustomer: false }, now);
-  });
-}
+// Tom, 7 Oct 2026: there is no timesheet_approval item any more — days approve
+// themselves on submit (migration 20270219); the office is not reminded to approve.
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
 
@@ -681,6 +757,19 @@ export type CallbackEventRow = {
 
 export type ContactEventRow = { account_id: string; occurred_at: string };
 
+/**
+ * Tom, 7 Oct 2026: "if a job is accepted, remove all follow-ups from the CRM
+ * automatically." The stored reminder is cleared by the database trigger
+ * (migration 20270219); the DERIVED follow-ups — a quiet quote, a callback, an
+ * online estimate — are answered here: anything that was asked for at or
+ * before the customer's latest acceptance is no longer waiting on the office.
+ */
+export function answeredByAcceptance(acceptedAt: Map<string, string>, accountId: string | null | undefined, askedAt: string): boolean {
+  if (!accountId) return false;
+  const at = acceptedAt.get(accountId);
+  return !!at && at >= askedAt;
+}
+
 /** ⚑7.8 default — a callback goes overdue after this many hours. */
 export const CALLBACK_OVERDUE_HOURS = 4;
 
@@ -695,11 +784,13 @@ export function buildCallbackItems(
   attempts: ContactEventRow[],
   accountNames: Map<string, string>,
   now: Date,
+  acceptedAt: Map<string, string> = new Map(),
 ): WorkItem[] {
   const items: WorkItem[] = [];
   for (const cb of callbacks) {
     const answered = attempts.some((a) => a.account_id === cb.account_id && a.occurred_at > cb.occurred_at);
     if (answered) continue;
+    if (answeredByAcceptance(acceptedAt, cb.account_id, cb.occurred_at)) continue;
     const who = accountNames.get(cb.account_id) ?? "Someone";
     const note = cb.payload?.note;
     const phone = cb.payload?.phone;
@@ -773,12 +864,13 @@ const money = (c: number) => `$${Math.round(c / 100).toLocaleString("en-AU")}`;
  * hours in Melbourne: 4 for a call or visit request, 2 for help, the next
  * business morning for "priced, no request".
  */
-export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventRow[], now: Date): WorkItem[] {
+export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventRow[], now: Date, acceptedAt: Map<string, string> = new Map()): WorkItem[] {
   const items: WorkItem[] = [];
   for (const r of rows) {
     const bucket = r.bucket as WizardBucket;
     const since = r.outcome_at ?? r.dropped_at ?? r.last_seen_at;
     if (r.account_id && attempts.some((a) => a.account_id === r.account_id && a.occurred_at > since)) continue;
+    if (answeredByAcceptance(acceptedAt, r.account_id, since)) continue;
     const who = journeyWho(r);
     const where = r.address || r.suburb || "";
     const line = journeyLine({ furthestPage: r.furthest_page, pagesTotal: r.pages_total, activeSeconds: r.active_seconds, lastActiveAt: r.last_seen_at }, now);
@@ -790,6 +882,8 @@ export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventR
       // the Diary (a visits row, an invite sent) — the note says "Booked: …"
       // and no "book visit" card is raised on top of it.
       if (visit && (r.outcome_note ?? "").startsWith("Booked:")) continue;
+      // Visit booking S4: a request made online is its own row (visit_requests) and its own card.
+      if ((r.outcome_note ?? "").startsWith("Requested online:")) continue;
       items.push(finish({
         ...base,
         key: itemKey("wizard_ready", "wizard_session", r.id, visit ? "visit" : "call"),
@@ -1028,6 +1122,189 @@ export function buildApprovalItem(queuedCount: number, now: Date): WorkItem[] {
     dueAt: null,
     action: { label: n === 1 ? "Review" : "Review all", href: "/crm/campaigns/queue" },
   }, { valueCents: null, promisedToCustomer: false }, now)];
+}
+
+// ---- source: unmapped_suburb (visit booking addendum A §4.1) -----------------
+
+/** A row of `visit_unmapped_suburbs` with no `resolved_at`. */
+export type UnmappedSuburbRow = {
+  id: string;
+  suburb: string;
+  postcode: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  hits: number;
+  last_estimate_id: string | null;
+};
+
+/**
+ * One item per unknown Victorian suburb a customer typed. The fact is the row;
+ * the item disappears when the suburb is added to the list in Settings (which
+ * sets `resolved_at`). Due the next business morning — the customer went down
+ * the request-a-time path and is waiting on a reply.
+ */
+export function buildUnmappedSuburbItems(rows: UnmappedSuburbRow[], now: Date): WorkItem[] {
+  return rows.map((r) => {
+    const where = `${r.suburb}${r.postcode ? ` ${r.postcode}` : ""}`;
+    return finish({
+      key: itemKey("unmapped_suburb", "event", r.id, "zone"),
+      kind: "unmapped_suburb",
+      accountId: null,
+      subjectRef: r.last_estimate_id ? { type: "estimate", id: r.last_estimate_id } : { type: "event", id: r.id },
+      since: r.first_seen_at,
+      title: `Unmapped suburb: ${where}`,
+      detail: `${r.hits === 1 ? "A customer" : `${r.hits} customers`} gave an address in ${where}, which is not in the visit zones list. Add it as a zone, pre-arranged or out of area so the next one gets an answer.`,
+      dueAt: nextBusinessMorning(new Date(r.first_seen_at)).toISOString(),
+      action: { label: "Add the suburb", href: "/settings#visit-zones" },
+    }, { valueCents: null, promisedToCustomer: true }, now);
+  });
+}
+
+// ---- source: visit_request + holidays_next_year (visit booking addendum A §4.4) --
+
+/** A row of `visit_requests` with no `answered_at`. */
+export type VisitRequestRow = {
+  id: string;
+  kind: "time" | "visit" | "call";
+  account_id: string | null;
+  estimate_id: string | null;
+  zone: string;
+  suburb: string | null;
+  name: string;
+  mobile: string | null;
+  note: string | null;
+  preferred_days: number[];
+  time_of_day: string | null;
+  created_at: string;
+  due_at: string;
+};
+
+const DAY3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const ZONE_WORDS: Record<string, string> = { zone_1: "Zone 1", zone_2: "Zone 2", zone_3: "Zone 3", zone_4: "Zone 4", zone_5: "Zone 5", pre_arranged: "pre-arranged area", out_of_area: "out of area", unmapped: "unmapped suburb" };
+
+/**
+ * One item per open request, due at the row's `due_at` — the end of the next
+ * working day after it was made, public holidays excluded (R23, R33). Staff
+ * answer it by offering a time, which books the slot and sets `answered_at`.
+ */
+export function buildVisitRequestItems(rows: VisitRequestRow[], now: Date): WorkItem[] {
+  return rows.map((r) => {
+    const where = [r.suburb, ZONE_WORDS[r.zone] ?? r.zone].filter(Boolean).join(", ");
+    const prefs = r.kind === "time" && (r.preferred_days.length || r.time_of_day)
+      ? ` — ${r.preferred_days.map((d) => DAY3[d] ?? "").filter(Boolean).join(" ")}${r.time_of_day ? `, ${r.time_of_day}` : ""}`
+      : "";
+    const title = r.kind === "call" ? `Call ${r.name} to finalise by phone` : r.kind === "visit" ? `Arrange a site visit — ${r.name}` : `Offer a visit time — ${r.name}`;
+    return finish({
+      key: itemKey("visit_request", "event", r.id, r.kind),
+      kind: "visit_request",
+      accountId: r.account_id,
+      subjectRef: r.estimate_id ? { type: "estimate", id: r.estimate_id } : { type: "event", id: r.id },
+      since: r.created_at,
+      title,
+      detail: [where, r.mobile, prefs ? `prefers${prefs}` : null, r.note].filter(Boolean).join(" · ") || "Reply within one working day",
+      dueAt: r.due_at,
+      action: { label: r.kind === "call" ? "Call" : "Offer a time", href: `/crm/visit-requests/${r.id}` },
+    }, { valueCents: null, promisedToCustomer: true }, now);
+  });
+}
+
+/** From 1 November, until next year's public holidays are in Settings → Booking rules. */
+export function buildHolidaysItem(holidays: readonly string[], now: Date): WorkItem[] {
+  if (!nextYearHolidaysMissing(holidays, now)) return [];
+  const year = melbourneParts(now).y + 1;
+  return [finish({
+    key: itemKey("holidays_next_year", "event", `holidays-${year}`, "settings"),
+    kind: "holidays_next_year",
+    accountId: null,
+    subjectRef: { type: "event", id: `holidays-${year}` },
+    since: now.toISOString(),
+    title: `Add the ${year} Victorian public holidays`,
+    detail: "Booking rules has none for next year yet. Customers could book visits on a holiday and request replies would be due on one.",
+    dueAt: null,
+    action: { label: "Open Booking rules", href: "/settings#booking-rules" },
+  }, { valueCents: null, promisedToCustomer: false }, now)];
+}
+
+// ---- source: Google Calendar (visit booking addendum A §4.6, S5) ----------------
+
+export type DeclinedVisitRow = { id: string; account_id: string | null; estimate_id: string | null; starts_at: string; cancelled_at: string; cancel_reason: string | null; customer_name: string | null; suburb: string | null };
+export type MovedVisitRow = { id: string; visit_id: string; staff_id: string; google_start: string; moved_seen_at: string; visit_start: string; account_id: string | null; estimate_id: string | null; customer_name: string | null; estimator_name: string | null };
+export type GcalConnectionRow = { staff_id: string; google_email: string | null; sync_error: string | null; scopes: string | null; estimator_name: string | null };
+export type ZoneEstimatorRow = { key: string; estimator_id: string | null; estimator_name: string | null };
+
+const whenWords = (iso: string) => { const p = melbourneParts(new Date(iso)); const h = p.h % 12 || 12; return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][p.weekday]} ${p.d}/${p.m} ${h}:${String(p.min).padStart(2, "0")} ${p.h < 12 ? "am" : "pm"}`; };
+
+/** R22: the guest declined. The visit is already cancelled and the slot reopened; the card says so until dismissed. */
+export function buildDeclinedVisitItems(rows: DeclinedVisitRow[], now: Date): WorkItem[] {
+  return rows.filter((r) => r.cancel_reason === "declined_invitation").map((r) => finish({
+    key: itemKey("visit_declined", "visit", r.id, "declined"),
+    kind: "visit_declined",
+    accountId: r.account_id,
+    subjectRef: { type: "visit", id: r.id },
+    since: r.cancelled_at,
+    title: `${r.customer_name || "A customer"} declined the visit — ${whenWords(r.starts_at)}`,
+    detail: `The calendar invitation was declined, so the visit is cancelled and the time is free again${r.suburb ? ` (${r.suburb})` : ""}. Ring them if you want to rebook.`,
+    dueAt: nextBusinessMorning(new Date(r.cancelled_at)).toISOString(),
+    action: { label: "Open the estimate", href: r.estimate_id ? `/quote?id=${r.estimate_id}` : "/crm/diary" },
+  }, { valueCents: null, promisedToCustomer: true }, now));
+}
+
+/** R27: moved in Google, unchanged here. Staff confirm with the customer, then move it on the Diary (or dismiss). */
+export function buildMovedVisitItems(rows: MovedVisitRow[], now: Date): WorkItem[] {
+  return rows.map((r) => finish({
+    key: itemKey("visit_moved_in_google", "visit", r.visit_id, r.google_start),
+    kind: "visit_moved_in_google",
+    accountId: r.account_id,
+    subjectRef: { type: "visit", id: r.visit_id },
+    since: r.moved_seen_at,
+    title: `${r.estimator_name || "The estimator"} moved ${r.customer_name || "a customer"}'s visit in Google — ${whenWords(r.visit_start)} → ${whenWords(r.google_start)}`,
+    detail: "Nothing changed in the platform. Confirm the new time with the customer, then move the visit on the Diary so the invitation and the slot follow.",
+    dueAt: addBusinessHours(new Date(r.moved_seen_at), 4).toISOString(),
+    action: { label: "Open the Diary", href: "/crm/diary" },
+  }, { valueCents: null, promisedToCustomer: true }, now));
+}
+
+/** 4.6: creating or updating events keeps failing for an estimator. */
+export function buildGcalFailedItems(rows: GcalConnectionRow[], now: Date): WorkItem[] {
+  return rows.filter((r) => r.sync_error).map((r) => finish({
+    key: itemKey("gcal_sync_failed", "event", r.staff_id, "gcal"),
+    kind: "gcal_sync_failed",
+    accountId: null,
+    subjectRef: { type: "event", id: r.staff_id },
+    since: now.toISOString(),
+    title: `Google Calendar sync is failing for ${r.estimator_name || r.google_email || "an estimator"}`,
+    detail: `${r.sync_error}. Booked visits are safe in the platform; they are not reaching Google until this is fixed.`,
+    dueAt: null,
+    action: { label: "Open the Diary", href: "/crm/diary#gcal" },
+  }, { valueCents: null, promisedToCustomer: false }, now));
+}
+
+/** 4.6: a zone whose estimator cannot be written to — customers there get the request path instead of the calendar. */
+export function buildCalendarMissingItems(zones: ZoneEstimatorRow[], connections: GcalConnectionRow[], calendarRequired: boolean, now: Date): WorkItem[] {
+  if (!calendarRequired) return [];
+  const byStaff = new Map(connections.map((c) => [c.staff_id, c]));
+  const seen = new Set<string>();
+  const items: WorkItem[] = [];
+  for (const z of zones) {
+    if (!z.estimator_id || seen.has(z.estimator_id)) continue;
+    const c = byStaff.get(z.estimator_id);
+    const canWrite = !!c && typeof c.scopes === "string" && c.scopes.includes("calendar.events");
+    if (canWrite) continue;
+    seen.add(z.estimator_id);
+    const zonesOf = zones.filter((x) => x.estimator_id === z.estimator_id).map((x) => x.key.replace("zone_", "Zone ")).join(", ");
+    items.push(finish({
+      key: itemKey("estimator_calendar_missing", "event", z.estimator_id, c ? "scope" : "none"),
+      kind: "estimator_calendar_missing",
+      accountId: null,
+      subjectRef: { type: "event", id: z.estimator_id },
+      since: now.toISOString(),
+      title: `${z.estimator_name || "An estimator"}'s Google Calendar is ${c ? "connected without permission to write visits" : "not connected"}`,
+      detail: `Customers in ${zonesOf} cannot book a time until it is; they are offered a request instead. ${c ? "Reconnect" : "Connect"} Google Calendar on the Diary.`,
+      dueAt: null,
+      action: { label: c ? "Reconnect" : "Connect", href: "/crm/diary#gcal" },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
 }
 
 // ---- assembly --------------------------------------------------------------
@@ -1275,11 +1552,17 @@ export function buildQuietQuoteItems(
   thresholds: Pick<CrmThresholds, "chaseUnopenedDays" | "chaseOpenedDays" | "goingColdDays">, now: Date,
   /** accounts.temperature by account — only read for imported history quotes. */
   temperature: Map<string, string | null> = new Map(),
+  /** Tom, 7 Oct 2026: the account's latest acceptance. A quote sent before the
+   *  customer said yes to one (an alternative, an earlier revision) is answered,
+   *  not quiet — no follow-up. A quote sent AFTER the acceptance is a new job and
+   *  is chased as before. */
+  acceptedAt: Map<string, string> = new Map(),
 ): WorkItem[] {
   const items: WorkItem[] = [];
   const newestByAccount = new Map<string, QuietQuoteRow>();
   for (const r of rows) {
     if (r.status !== "sent" || !r.account_id) continue;
+    if (answeredByAcceptance(acceptedAt, r.account_id, r.sent_at ?? r.created_at)) continue;
     // Tom, 16 Sep 2026: the 210 open quotes brought across from Airtable raise
     // a card only where the customer is hot or warm ("in negotiation" is hot
     // in the pack); a cold or unrated one waits until somebody touches it.
@@ -1466,6 +1749,54 @@ async function inSlices<T>(ids: string[], run: (slice: string[]) => PromiseLike<
  * arrive with their modules. Each is one function plus a call here — never a
  * change to the queue itself.
  */
+/** The joined shapes PostgREST returns for the S5 reads, flattened. A moved event only counts while the visit is still booked. */
+function movedRows(rows: unknown[], visits: Array<{ id: string; starts_at: string; status: string; account_id: string | null; estimate_id: string | null; customer_name: string | null }>): MovedVisitRow[] {
+  const byId = new Map(visits.map((v) => [v.id, v]));
+  const out: MovedVisitRow[] = [];
+  for (const raw of rows as Array<{ id: string; ref_id: string; staff_id: string; google_start: string | null; moved_seen_at: string | null; profiles?: { name?: string | null } | null }>) {
+    const v = byId.get(raw.ref_id);
+    if (!raw.google_start || !raw.moved_seen_at || !v || v.status !== "booked") continue;
+    if (Math.abs(new Date(raw.google_start).getTime() - new Date(v.starts_at).getTime()) < 60_000) continue;
+    out.push({ id: raw.id, visit_id: raw.ref_id, staff_id: raw.staff_id, google_start: raw.google_start, moved_seen_at: raw.moved_seen_at, visit_start: v.starts_at, account_id: v.account_id, estimate_id: v.estimate_id, customer_name: v.customer_name, estimator_name: raw.profiles?.name ?? null });
+  }
+  return out;
+}
+function connRows(rows: unknown[]): GcalConnectionRow[] {
+  return (rows as Array<{ staff_id: string; google_email: string | null; sync_error: string | null; scopes: string | null; profiles?: { name?: string | null } | null }>)
+    .map((r) => ({ staff_id: r.staff_id, google_email: r.google_email, sync_error: r.sync_error, scopes: r.scopes, estimator_name: r.profiles?.name ?? null }));
+}
+
+/** Booked jobs whose last day is within the last fortnight — the rows the check-in planner reads. */
+async function readJobCheckinRows(supabase: SupabaseClient, now: Date): Promise<{ rows: JobCheckinRow[]; error: string | null }> {
+  const res = await supabase.from("work_orders")
+    .select("id, wo_ref, stage, start_date, end_date, wo_snapshot, estimates(account_id, accepted_name, title), contractors(company_name, works_saturday, works_sunday, profiles(name))")
+    .not("start_date", "is", null).not("end_date", "is", null).neq("stage", "offered")
+    .gte("end_date", new Date(now.getTime() - 14 * 86_400_000).toISOString().slice(0, 10))
+    .lte("start_date", now.toISOString().slice(0, 10))
+    .order("start_date", { ascending: true }).limit(300);
+  if (res.error) return { rows: [], error: res.error.message };
+  return { rows: (res.data ?? []) as unknown as JobCheckinRow[], error: null };
+}
+
+/**
+ * The PC-homed slice of the one queue, for PC Command (Tom, 6 Oct 2026): the
+ * customer check-ins and after-job calls, with the same dismissals Today
+ * honours. Two bounded reads, no evaluator fan-out — the console does not
+ * need the messages, invoices or wizard sessions to list its calls.
+ *
+ * A failed read is a line the screen can show, never an empty list.
+ */
+export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
+  const [checkins, dismissed] = await Promise.all([
+    readJobCheckinRows(supabase, now),
+    supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
+  ]);
+  if (checkins.error) return { items: [], failure: `Couldn't read the jobs for check-ins: ${checkins.error}` };
+  const dismissals = (dismissed.error ? [] : (dismissed.data ?? [])) as Dismissal[];
+  const items = sortItems(applyDismissals(pcItems(buildJobCheckinItems(checkins.rows, now)), dismissals, now));
+  return { items, failure: dismissed.error ? `Dismissals couldn't be read (${dismissed.error.message}) — a call you already made may show again.` : null };
+}
+
 export async function buildWorkQueue(supabase: SupabaseClient, now = new Date()): Promise<WorkQueue> {
   const nowIso = now.toISOString();
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString();
@@ -1475,7 +1806,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // read that fills its cap is reported on the queue rather than dropped silently.
   const CAP = { followups: 500, invoices: 500, callbacks: 200, wizard: 300, lapsed: 300, inbound: 400, rebook: 200, quotes: 500 };
   const truncated: string[] = [];
-  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds, unmappedSuburbs, visitRequests, bookingRules, declinedVisits, movedEvents, gcalConns, zoneEstimators] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -1545,6 +1876,26 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .order("state_until", { ascending: true })
       .limit(300),
     loadCrmThresholds(supabase),
+    supabase.from("visit_unmapped_suburbs")
+      .select("id, suburb, postcode, first_seen_at, last_seen_at, hits, last_estimate_id")
+      .is("resolved_at", null)
+      .order("first_seen_at", { ascending: true })
+      .limit(CAP.callbacks),
+    supabase.from("visit_requests")
+      .select("id, kind, account_id, estimate_id, zone, suburb, name, mobile, note, preferred_days, time_of_day, created_at, due_at")
+      .is("answered_at", null)
+      .order("due_at", { ascending: true })
+      .limit(CAP.callbacks),
+    supabase.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle(),
+    supabase.from("visits")
+      .select("id, account_id, estimate_id, starts_at, cancelled_at, cancel_reason, customer_name, suburb")
+      .eq("status", "cancelled").eq("cancel_reason", "declined_invitation").gte("cancelled_at", since30d)
+      .order("cancelled_at", { ascending: false }).limit(CAP.rebook),
+    supabase.from("staff_gcal_events")
+      .select("id, ref_id, staff_id, google_start, moved_seen_at, profiles!staff_gcal_events_staff_id_fkey(name)")
+      .eq("kind", "visit").not("moved_seen_at", "is", null).is("moved_acknowledged_at", null).limit(CAP.rebook),
+    supabase.from("staff_gcal_connections").select("staff_id, google_email, sync_error, scopes, profiles!staff_gcal_connections_staff_id_fkey(name)").limit(50),
+    supabase.from("visit_zones").select("key, estimator_id, profiles!visit_zones_estimator_id_fkey(name)").limit(10),
   ]);
   const delayedRows = ((delayedAcc.error ? [] : (delayedAcc.data ?? [])) as Array<DelayedAccountRow & { relationship_state: string }>);
   const hit = (name: string, rows: unknown[] | null | undefined, cap: number) => { if ((rows?.length ?? 0) >= cap) truncated.push(name); };
@@ -1560,6 +1911,22 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     .order("sent_at", { ascending: false }).limit(CAP.quotes);
   const quoteRows = (quoteRes.error ? [] : (quoteRes.data ?? [])) as unknown as QuietQuoteRow[];
   hit("quotes out", quoteRows, CAP.quotes);
+  // Tom, 7 Oct: who has said yes lately — the latest acceptance per customer
+  // answers every follow-up asked for before it (quiet quote, callback, online
+  // estimate). 90 days matches the quote window above; a read that fails
+  // suppresses nothing, so a follow-up is shown rather than lost.
+  const acceptRes = await supabase.from("estimates").select("account_id, accepted_at, created_at")
+    .eq("status", "accepted").not("account_id", "is", null)
+    .or(`accepted_at.gte.${since90d},and(accepted_at.is.null,created_at.gte.${since90d})`)
+    .order("accepted_at", { ascending: false, nullsFirst: false }).limit(1000);
+  if (acceptRes.error) truncated.push("acceptances: read failed");
+  const acceptedAt = new Map<string, string>();
+  for (const r of (acceptRes.error ? [] : (acceptRes.data ?? [])) as Array<{ account_id: string | null; accepted_at: string | null; created_at: string }>) {
+    if (!r.account_id) continue;
+    const at = r.accepted_at ?? r.created_at;
+    const have = acceptedAt.get(r.account_id);
+    if (!have || at > have) acceptedAt.set(r.account_id, at);
+  }
   const quoteAccountIds = [...new Set(quoteRows.map((r) => r.account_id).filter(Boolean))];
   const [quoteAttempts, quoteAccounts] = await Promise.all([
     inSlices(quoteAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
@@ -1590,32 +1957,40 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const flagRows = (flagRes.error ? [] : (flagRes.data ?? [])) as unknown as CantMakeItEventRow[];
   const activeRows = (activeRes.error ? [] : (activeRes.data ?? [])) as unknown as ActiveAssignmentRow[];
   const moveRows = (moveRes.error ? [] : (moveRes.data ?? [])) as unknown as DatesChangedEventRow[];
-  // S7: undecided leave / RDO requests and clocked days nobody has approved.
-  // Both tables are staff-only; a session that cannot read them gets nothing.
-  const [leaveRes, tsRes] = await Promise.all([
-    supabase.from("contractor_unavailability").select("id, contractor_id, kind, start_date, end_date, reason, created_at")
+  // S7: undecided leave / RDO requests. Staff-only table; a session that
+  // cannot read it gets nothing. (Clocked days no longer wait on anyone — 7 Oct 2026.)
+  const leaveRes = await supabase.from("contractor_unavailability").select("id, contractor_id, kind, start_date, end_date, reason, created_at")
       .in("kind", ["leave", "rdo"]).is("approved_at", null).is("declined_at", null)
-      .gte("end_date", now.toISOString().slice(0, 10)).order("start_date", { ascending: true }).limit(200),
-    supabase.from("timesheet_entries").select("id, contractor_id, work_order_id, work_date, finished_at")
-      .eq("status", "submitted").order("finished_at", { ascending: true }).limit(500),
-  ]);
+      .gte("end_date", now.toISOString().slice(0, 10)).order("start_date", { ascending: true }).limit(200);
   const leaveRows = (leaveRes.error ? [] : (leaveRes.data ?? [])) as LeaveRequestRow[];
-  const tsRows = (tsRes.error ? [] : (tsRes.data ?? [])) as TimesheetPendingRow[];
+  // Tom, 1 Oct: open holds starting within the week, and whether their job
+  // has since been booked (which resolves them). Staff-only table; a table
+  // that predates 20270209 simply yields nothing.
+  const todayMel = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const holdRes = await supabase.from("schedule_holds")
+    .select("id, contractor_id, start_date, end_date, work_order_id, note, created_at, released_at, work_orders(wo_ref, wo_snapshot)")
+    .is("released_at", null)
+    .gte("end_date", todayMel)
+    .lte("start_date", new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now.getTime() + HOLD_NUDGE_DAYS * 86_400_000)))
+    .order("start_date", { ascending: true }).limit(200);
+  const holdRows = (holdRes.error ? [] : (holdRes.data ?? [])) as unknown as HoldQueueRow[];
+  const holdWoIds = [...new Set(holdRows.map((h) => h.work_order_id).filter((x): x is string => !!x))];
+  const [holdOffers, holdAssignments] = await Promise.all([
+    inSlices(holdWoIds, (ids) => supabase.from("booking_offers").select("work_order_id").in("work_order_id", ids).in("state", ["offered", "proposed", "accepted"])),
+    inSlices(holdWoIds, (ids) => supabase.from("wo_assignments").select("work_order_id").in("work_order_id", ids).neq("status", "released")),
+  ]);
+  const holdBooked = new Set<string>([...holdOffers, ...holdAssignments].map((r) => (r as { work_order_id: string }).work_order_id));
   // Tom, 25 Sep: customer check-ins on running jobs, and the after-job call on
-  // short ones. Booked jobs whose last day is within the last fortnight.
-  const checkinRes = await supabase.from("work_orders")
-    .select("id, wo_ref, stage, start_date, end_date, wo_snapshot, estimates(account_id, accepted_name, title), contractors(company_name, works_saturday, works_sunday, profiles(name))")
-    .not("start_date", "is", null).not("end_date", "is", null).neq("stage", "offered")
-    .gte("end_date", new Date(now.getTime() - 14 * 86_400_000).toISOString().slice(0, 10))
-    .lte("start_date", now.toISOString().slice(0, 10))
-    .order("start_date", { ascending: true }).limit(300);
+  // short ones. Built here so the keys exist for dismissals; SHOWN on PC
+  // Command (homeOf = "pc"), not on Today.
+  const checkinRes = await readJobCheckinRows(supabase, now);
   if (checkinRes.error) truncated.push("job_checkins: read failed");
-  const checkinRows = (checkinRes.error ? [] : (checkinRes.data ?? [])) as unknown as JobCheckinRow[];
+  const checkinRows = checkinRes.rows;
   const flagPainterIds = [...new Set([
     ...flagRows.map((f) => f.meta?.contractor_id),
     ...activeRows.filter((a) => !a.accepted_at).map((a) => a.contractor_id),
     ...leaveRows.map((r) => r.contractor_id),
-    ...tsRows.map((r) => r.contractor_id),
+    ...holdRows.map((h) => h.contractor_id),
   ].filter((x): x is string => !!x))];
   const flagPainters = await inSlices(flagPainterIds, (ids) => supabase.from("contractors").select("id, company_name, profiles(name)").in("id", ids));
   const painterNames = new Map((flagPainters as unknown as Array<{ id: string; company_name: string | null; profiles: { name: string | null } | null }>)
@@ -1730,22 +2105,39 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const names = new Map(((cbAccounts) as Array<{ id: string; name: string | null; email: string }>)
     .map((a) => [a.id, a.name || a.email]));
 
+  // S5: the visits behind "moved in Google" mapping rows (ref_id carries no FK, so no embed).
+  const movedIds = ((movedEvents.error ? [] : (movedEvents.data ?? [])) as Array<{ ref_id: string }>).map((r) => r.ref_id);
+  const movedVisits = movedIds.length
+    ? (await inSlices(movedIds, (ids) => supabase.from("visits").select("id, starts_at, status, account_id, estimate_id, customer_name").in("id", ids))) as Array<{ id: string; starts_at: string; status: string; account_id: string | null; estimate_id: string | null; customer_name: string | null }>
+    : [];
+
   const raw = [
     ...buildSnoozeItems(snoozeRows, reasons as SnoozeReasonRow[], now),
     ...buildInvoiceItems(invRows, payments, now),
-    ...buildCallbackItems(cbRows, attempts as ContactEventRow[], names, now),
+    ...buildCallbackItems(cbRows, attempts as ContactEventRow[], names, now, acceptedAt),
     ...buildApprovalItem(queued.count ?? 0, now),
     ...buildMessageApprovalItem(pendingHolds.error ? 0 : pendingHolds.count ?? 0, now),
     ...buildChangeRequestItems(crRows, staffReplies as StaffReplyRow[], now),
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
-    ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now),
+    ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now, acceptedAt),
     ...buildLapsedItems(lapsedRows, lapsedAttempts as ContactEventRow[], lapsedNames, now),
-    ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps),
+    ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps, acceptedAt),
     ...buildHoursPendingItems(hoursRows, now),
+    // A read that fails before migration 20270212 is on the database adds nothing (same shape as handoffs above).
+    ...buildUnmappedSuburbItems(((unmappedSuburbs.error ? [] : unmappedSuburbs.data) ?? []) as UnmappedSuburbRow[], now),
+    ...buildVisitRequestItems(((visitRequests.error ? [] : visitRequests.data) ?? []) as unknown as VisitRequestRow[], now),
+    ...buildHolidaysItem(bookingRules.error ? [] : mergeBookingRules(bookingRules.data?.value).publicHolidays, now),
+    ...buildDeclinedVisitItems(((declinedVisits.error ? [] : declinedVisits.data) ?? []) as unknown as DeclinedVisitRow[], now),
+    ...buildMovedVisitItems(movedRows(movedEvents.error ? [] : (movedEvents.data ?? []), movedVisits), now),
+    ...buildGcalFailedItems(connRows(gcalConns.error ? [] : (gcalConns.data ?? [])), now),
+    ...buildCalendarMissingItems(
+      ((zoneEstimators.error ? [] : (zoneEstimators.data ?? [])) as unknown as Array<{ key: string; estimator_id: string | null; profiles?: { name?: string | null } | null }>).map((z) => ({ key: z.key, estimator_id: z.estimator_id, estimator_name: z.profiles?.name ?? null })),
+      connRows(gcalConns.error ? [] : (gcalConns.data ?? [])),
+      bookingRules.error ? false : mergeBookingRules(bookingRules.data?.value).calendarRequired, now),
     ...buildEmployeeReassignItems(flagRows, activeRows, moveRows, painterNames, now),
     ...buildEmployeeUnacceptedItems(activeRows, painterNames, now),
     ...buildLeaveRequestItems(leaveRows, painterNames, now),
-    ...buildTimesheetApprovalItems(tsRows, painterNames, now),
+    ...buildHoldItems(holdRows, holdBooked, painterNames, now),
     ...buildJobCheckinItems(checkinRows, now),
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
@@ -1770,7 +2162,9 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // read errors; the queue must still stand up (house law: inert-but-safe).
   const dismissals = (dismissed.error ? [] : (dismissed.data ?? [])) as Dismissal[];
 
-  return assembleQueue(suppressQuiet(raw, quietIds), dismissals, now, truncated);
+  // The CRM's queue: Today, the badge, the dashboard. PC-homed kinds are built
+  // (their keys are what dismissals hang off) and then handed to PC Command.
+  return assembleQueue(crmItems(suppressQuiet(raw, quietIds)), dismissals, now, truncated);
 }
 
 // ---- C7b: the estimates page's view of the queue ----------------------------

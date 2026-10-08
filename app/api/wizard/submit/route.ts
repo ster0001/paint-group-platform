@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { parseAddressText } from "@/lib/wizard/addressText";
+import { DEFAULT_BOOKING_RULES, speakWithUsFor } from "@/lib/visits/schedule";
+import { loadBookingRules } from "@/lib/visits/scheduleDb";
 import { z } from "zod";
 import { attributionSchema } from "@/lib/crm/attribution";
 import { buildEvent, dedupeKey } from "@/lib/crm/events";
@@ -17,6 +20,7 @@ import type { DefectRate } from "@/lib/capture/commit";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyWizardAnswers, filterSurfacesByTicks } from "@/lib/wizard/merge";
+import { applyCupboardDefaults, type LooseBlock as LooseRoomBlock } from "@/lib/wizard/rooms-loop";
 import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
 import { backfillTypicalSizes, commercialExtraction, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
 import { DEFAULT_SEGMENTS, commercialRoomList, commercialSurfaceKeys, isWarehouse, loadSegments, segmentByKey } from "@/lib/wizard/segments";
@@ -120,6 +124,44 @@ export async function POST(request: Request) {
     : (state.customer?.email.trim().toLowerCase()
        || state.contact.email.trim().toLowerCase()
        || "");
+  /**
+   * Visit booking S6 (R5): under "details first" the range is NOT returned until
+   * the gate is answered — full name, email and mobile. The version is the
+   * SESSION's (frozen on its draft at first save, so a switch mid-session
+   * changes nothing for it), never the browser's claim; a session with no
+   * draft yet follows the current rule. Tested at the API, not just the page.
+   */
+  let gateVersion: "details_first" | "range_first" | null = null;
+  if (actor.kind === "customer" && state.mode === "customer") {
+    const { data: draftRow, error: draftErr } = await db.from("wizard_drafts").select("gate_version").eq("user_id", actor.user.id).is("converted_at", null).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
+    if (draftErr) reportError(draftErr, { where: "wizard.submit.gateVersion", bestEffort: true });
+    const recorded = (draftRow as { gate_version?: string | null } | null)?.gate_version;
+    gateVersion = recorded === "details_first" || recorded === "range_first" ? recorded : (await loadBookingRules(db).catch(() => DEFAULT_BOOKING_RULES)).gateOrder;
+    const gateDone = Boolean(state.contact.name.trim().length >= 2 && /.+@.+\..+/.test(state.contact.email.trim()) && state.contact.phone.replace(/\D/g, "").length >= 10);
+    if (gateVersion === "details_first" && !gateDone && !actor.verifiedEmail) {
+      return NextResponse.json({ error: "Enter your details to see your guide price.", code: "gate_required" }, { status: 409 });
+    }
+    // A walk faster than the 2.5-second autosave debounce reaches the range
+    // with no session row at all (the e2e drive does; a quick human can). The
+    // gate report counts sessions, so the row is made here — without `state`,
+    // which has exactly one writer (the draft route); the estimate carries the
+    // answers. It is converted a few lines below like any other.
+    if (!draftRow) {
+      const now = new Date().toISOString();
+      const { error: mkErr } = await db.from("wizard_drafts").insert({
+        user_id: actor.user.id, gate_version: gateVersion,
+        mode: state.customer?.propertyKind === "commercial" ? "business" : "home",
+        job_type: state.jobType ?? null, suburb: state.customer?.suburb ?? null, postcode: state.customer?.postcode ?? null,
+        ...(state.contact.name.trim() ? { name: state.contact.name.trim() } : {}),
+        ...(email ? { email } : {}),
+        ...(state.contact.phone.trim() ? { phone: state.contact.phone.trim() } : {}),
+        last_screen: gateVersion === "details_first" ? "quick:gate" : "quick:reveal",
+        ...(gateVersion === "details_first" ? { gate_shown_at: now } : {}),
+        started_at: now, last_seen_at: now, bucket: "online_now",
+      });
+      if (mkErr) reportError(mkErr, { where: "wizard.submit.sessionRow", bestEffort: true });
+    }
+  }
   // The account's gates (§3): trade = unlimited; flags.unlimited = the
   // office unblock. Looked up by the identity email; missing table or no
   // account = standard limits.
@@ -407,6 +449,7 @@ export async function POST(request: Request) {
       const draft = buildDraft(withHeight, rules, aliases, {
         startId: nextId, sourceId: source?.id ?? null, defectRates,
         holdGarage: true, // Tom, 14 Sep (item 23)
+        planRead: true, // Tom, 7 Oct 2026: carport / sauna / store never come off a plan
       });
       areas.push(...draft.areas);
       skipped.push(...draft.skipped);
@@ -594,6 +637,8 @@ export async function POST(request: Request) {
   const conditionModSel = applyConditionPricing(merged, effectiveState, () => nextId++, ctx);
   // Tom, 7 Sep: the engine's own per-room allowances (colour match, ceilings only).
   merged.areas = reconcileRoomAllowances(merged.areas as unknown as AllowanceBlock[], { tier: effectiveState.condition.tier, rateItems: ctx.rateItems }, () => nextId++).blocks as unknown as typeof merged.areas;
+  // Tom, 7 Oct 2026: cupboards start answered — kitchen / vanity / laundry No, robe doors Yes.
+  merged.areas = applyCupboardDefaults(merged.areas as unknown as LooseRoomBlock[], new Set(ctx.rateItems.map((r) => r.code)), () => nextId++) as unknown as typeof merged.areas;
 
   // The exterior loop's Condition & access card arrives PRE-ANSWERED from the
   // wizard's own questions (cond + access; rot was never asked, so it stays
@@ -655,6 +700,17 @@ export async function POST(request: Request) {
         city: state.address.suburb,
         state: state.address.state,
         postal: state.address.postcode,
+      },
+    } : state.customer?.suburb || state.customer?.postcode ? {
+      // Visit booking S3 (6 Oct 2026): a TYPED address — no Places pick — still
+      // needs to reach the estimate, or the booking page cannot tell which zone
+      // the property is in. The suburb and postcode are the typed fallback
+      // fields; the street is whatever parses out of the typed line.
+      jobAddress: {
+        address: parseAddressText(state.title)?.street || state.title.trim(),
+        city: state.customer.suburb ?? "",
+        state: "VIC",
+        postal: state.customer.postcode ?? "",
       },
     } : {}),
     // The full answers ride along: the editor's add-room re-applies them, and
@@ -799,6 +855,8 @@ export async function POST(request: Request) {
         // Item 4: the request IS the agreement to hear about this project (the
         // line under the contact fields says so). Once per account; best-effort.
         void recordConsent(db, linked.accountId, "project", "wizard_request", { estimateId });
+        // S6: the optional marketing tick on the gate (unticked by default, as the registration rule requires).
+        if (state.marketingOptIn) void recordConsent(db, linked.accountId, "marketing", "wizard_request", { estimateId });
 
         // 2.4 · first touch, written ONCE per account. The dedupe key is the
         // account, so a customer's second and third estimates never overwrite
@@ -912,6 +970,14 @@ export async function POST(request: Request) {
       ? db.from("estimates").update({ storey_heights: storeyHeights }).eq("id", estimateId)
           .then(() => undefined, () => undefined)
       : Promise.resolve(),
+    // S6 (§4.7): the range was shown; the gate was completed when the details came with it.
+    ...(actor.kind === "customer" && state.mode === "customer" ? [
+      db.from("wizard_drafts").update({
+        range_shown_at: new Date().toISOString(),
+        ...(state.contact.name.trim() && state.contact.email.trim() && state.contact.phone.trim() ? { gate_completed_at: new Date().toISOString() } : {}),
+        ...(gateVersion ? { gate_version: gateVersion } : {}),
+      }).eq("user_id", actor.user.id).is("range_shown_at", null).then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.gateStamp", bestEffort: true }); }),
+    ] : []),
     // C15 · the draft is no longer a drop-out — settled HERE, server-side,
     // not only from the browser. The client also posts converted:true after
     // the response, but a customer who closes the tab during the processing
@@ -1013,10 +1079,7 @@ export async function POST(request: Request) {
     // C11 — who confirms this price, resolved once for the strip on the reveal.
     const who = await resolveEstimator(db, ctx.settings, effectiveState.customer?.postcode ?? null);
     // The customer's view: a range, inclusions, confidence — and nothing else.
-    return NextResponse.json({
-      estimateId,
-      planUrl,
-      ...customerPayload(payload, merged.areas, decision, bands, parts, doLines,
+    const cp = customerPayload(payload, merged.areas, decision, bands, parts, doLines,
         who.name ? { name: who.name, phone: who.phone, covers: who.covers } : null,
         // C12 (⚑20): the commercial widening, from the same state and rows.
         // 14 Sep: the first range is the ENVELOPE — best case to worst case
@@ -1029,8 +1092,19 @@ export async function POST(request: Request) {
           return isBoth
             ? { ...widen, holdDays, envelopeParts: { interior: env(merged.areas.filter((a) => a.type !== "Exterior")), exterior: env(merged.areas.filter((a) => a.type === "Exterior")) } }
             : { ...widen, holdDays, envelope: env(merged.areas) };
-        })()),
-    });
+        })());
+    // Visit booking S4 (R25/R34): "Speak with us" is decided HERE, from the top
+    // of the range and the Booking rules caps; the range is kept on the
+    // estimate so the call-request route can check it again (section 8, test 16).
+    const bookingRules = await loadBookingRules(db).catch(() => DEFAULT_BOOKING_RULES);
+    const speakWithUs = speakWithUsFor(effectiveState.jobType, cp.rangeHiCents, bookingRules);
+    await db.from("estimates").update({ builder_state: { ...builderState, guideRange: { loCents: cp.rangeLoCents, hiCents: cp.rangeHiCents, jobType: effectiveState.jobType } } }).eq("id", estimateId)
+      .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.guideRange", bestEffort: true }); });
+    // A website chat this visitor opened before the range ("Send a message", R3)
+    // now belongs with the estimate, so staff see one conversation per customer.
+    await db.from("agent_conversations").update({ estimate_id: estimateId }).eq("created_by", actor.user.id).is("estimate_id", null)
+      .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.linkChat", bestEffort: true }); });
+    return NextResponse.json({ estimateId, planUrl, speakWithUs, ...cp });
   }
 
   return NextResponse.json({

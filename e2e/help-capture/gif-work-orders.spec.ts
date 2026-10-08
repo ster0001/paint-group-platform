@@ -238,7 +238,7 @@ test("work orders · pc walkthrough", async ({ browser }) => {
   // film it when it answers, skip it when it does not.
   const lanes = await p.goto("/pc/flow", { timeout: 90_000 }).then(() => true).catch(() => false);
   if (lanes && (await p.locator("body").textContent().catch(() => ""))?.includes("Exterior repaint")) {
-    await caption(p, "1 · Projects → Project progress: six lanes, every open job where its gate says it sits.", { top: 96 });
+    await caption(p, "1 · Projects → Project progress: seven lanes, every open job where its gate says it sits.", { top: 96 });
     await p.waitForTimeout(2200);
   }
   await p.goto(`/pc/wo/${job.workOrderId}`, { timeout: 120_000 });

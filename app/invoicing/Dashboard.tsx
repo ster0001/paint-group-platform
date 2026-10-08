@@ -181,14 +181,19 @@ export default function Dashboard({
     });
   }
 
-  const setUrl = (nextTab: string, nextFilter: string, nextKind = kind, nextDue = due) => {
+  const urlFor = (nextTab: string, nextFilter: string, nextKind = kind, nextDue = due) => {
     const q = new URLSearchParams();
     if (nextTab !== "recv") q.set("tab", nextTab);
     if (nextFilter !== "all") q.set("f", nextFilter);
     if (nextKind !== "all") q.set("k", nextKind);
     if (nextDue !== "any") q.set("d", nextDue);
-    router.replace(`/invoicing${q.size ? `?${q}` : ""}`, { scroll: false });
+    return `/invoicing${q.size ? `?${q}` : ""}`;
   };
+  const setUrl = (nextTab: string, nextFilter: string, nextKind = kind, nextDue = due) =>
+    router.replace(urlFor(nextTab, nextFilter, nextKind, nextDue), { scroll: false });
+  // Tom, 1 Oct: a job opened from here comes back HERE, filters intact — not to PC Command.
+  const here = urlFor(tab, filter);
+  const jobHref = (estimateId: string) => `/invoicing/job/${estimateId}?from=${encodeURIComponent(here)}`;
   const applyView = (v: (typeof VIEWS)[number]) => {
     setFilter(v.filter); setKind(v.kind); setDue(v.due);
     setUrl(tab, v.filter, v.kind, v.due);
@@ -326,7 +331,7 @@ export default function Dashboard({
               onKeyDown={(e) => { if (e.key === "Enter") router.push(`/invoicing/inv/${r.invoiceId}`); }}>
               <div className="body">
                 <div className="job">
-                  <Link href={`/invoicing/job/${r.estimateId}`} onClick={(e) => e.stopPropagation()}>{r.job}</Link>
+                  <Link href={jobHref(r.estimateId)} onClick={(e) => e.stopPropagation()}>{r.job}</Link>
                   {r.customer && <span className="who"> · {r.customer}</span>}
                 </div>
                 <div className="ref">{r.ref}</div>
@@ -403,7 +408,7 @@ export default function Dashboard({
               <div className="body">
                 <div className="job">
                   {p.estimateId
-                    ? <Link href={`/invoicing/job/${p.estimateId}`}>{p.company}</Link>
+                    ? <Link href={jobHref(p.estimateId)}>{p.company}</Link>
                     : p.company}
                   {p.rcti && <span className="chip draft" style={{ marginLeft: 8 }}>RCTI</span>}
                   {p.overdueLabel && <span className={`chip ${p.toneClass}`} style={{ marginLeft: 8 }} data-testid={`overdue-ci-${p.ciId}`}>{p.overdueLabel}</span>}

@@ -1,3 +1,104 @@
+# 7 Oct 2026 — Visit booking, addendum A: S7 full loop and hand-over. Branch `feat/visit-booking-s7` (from main after the S6 merge, PR #188). No migration.
+
+Report: `docs/briefs/visit-booking-s7-report.md`. `e2e/customer-journey/visit-full-loop.spec.ts`: wizard → gate → range →
+Book → hold → code → booked → decline (applied via `visit_set_status` cancelled/`declined_invitation`, the seam
+`lib/gcal/inbound.ts` uses — no Google on C1) → slot offered again + `visit_declined` card on Today; also section 8 test 14
+(another customer by id → 404) and the platform half of 19. Section 8 now fully mapped (1–11,13,15 api · 12 gate · 14,19
+loop · 16,17 requests · 18 schedule). Help `visit-booking/staff.md` rewritten from the finished screens (gate, R24 order,
+request screens — it still said "sent to the Book page"); stamped. `docs/manual-tests/visit-full-loop.md` = Tom's 90-second
+phone walk. Inventory §10 complete (message → staff = chat alert + handoff, S4 decision). **e2e: first local run 28/32 → four spec fixes (403 not 404 for another customer; API spec pins range_first; `minimiseStaffDock` helper; 45-s wait on the message post) → CI on the branch GREEN (run 37561595369).** Holidays seeded on prod 7 Oct (28 dates); ledger shows all six visit migrations. Health check = tsc/lint/unit/help ✅ +
+Tom: ledger rows 20270212–17, Security Advisor, holidays --prod, Google reconnect, phone walk. Brief S0–S7 BUILT.
+
+# 7 Oct 2026 — Visit booking, addendum A: S6 the gate. Branch `feat/visit-booking-s6` (stacked on S5 → S4). Migration 20270217 (TEST; to paste after 20270216, read-back 6 / 1).
+
+Report: `docs/briefs/visit-booking-s6-report.md`. Details first (R5): quick look's last step is `gate` (name/email/mobile/
+marketing, "Show my guide price"), range follows, account exists; the switch is `visit_booking_rules.gateOrder` read on
+the server by `/estimate` and built into the steps (`stepsFor(..., gate)`); range first (R7): Tighten opens the TalkSheet
+"details" mode first. Per-session facts on `wizard_drafts`: gate_version (frozen at first save), gate_shown_at,
+gate_completed_at, range_shown_at, range_option(+_at) via `/api/wizard/range-option` (first choice counts). Submit:
+409 `gate_required` under details_first without full contact (SESSION's version, never the browser's); a walk faster
+than the 2.5-s autosave had NO session row → submit now inserts one (no `state` — single writer stays the draft route;
+`mode` is home|business). R24 range order Tighten (hero) / Speak / Book / Message, Keep only when no contact known.
+Dashboard "Where estimates go" → "The gate, by version" table + `funnel.gate_sessions` CSV. **e2e 10/10 on C1** (gate 5,
+save-and-book 4, visit-booking 1). Traps: test project `wizard_limits.maxEstimatesPerVisitor` = 5,000 (spec pins 2 and
+restores); cap counts by email OR IP so a one-IP run refuses early; draft route drops saves for 10 min after a conversion
+("just finished") → range-first gate_shown stamped with gate_completed; export preset is month|week|quarter|year|custom.
+Next: S7 full-loop e2e, help pages, inventory, health check.
+
+# 6 Oct 2026 — Visit booking, addendum A: S5 Google Calendar. Branch `feat/visit-booking-s5` (stacked on S4). Migration 20270216 (TEST; to paste after 20270215).
+
+Report: `docs/briefs/visit-booking-s5-report.md`. info@ = Google WORKSPACE → staff scope + `calendar.events`, visits in
+the PRIMARY calendar: one-hour event with the customer as guest (sendUpdates=all) + 30-min Travel block, both tagged
+`extendedProperties.private.pgKind` (busy reader skips them). `lib/gcal/visitEvents.ts` (pure builders + classifier
+gone/declined/moved/same), `lib/gcal/inbound.ts` (syncStaffFromGoogle, ensureWatch, stopWatch, sweepAllStaff),
+`/api/gcal/webhook` (token = HMAC(channel id, CRON_SECRET)), `/api/cron/gcal-sweep` every 5 min. Decline/delete →
+visit_set_status cancelled (cancel_reason declined_invitation / deleted_in_google) + cancel email + `visit_cancelled`
+text + `visit_declined` card; move → `google_start` on the mapping row + `visit_moved_in_google` card, platform
+unchanged (R27). Booking rules `calendarRequired` (default ON): no write-capable connection → request path +
+`estimator_calendar_missing` card; Google unreachable → `CalendarUnavailable` → request path, hold released. e2e
+specs switch the rule off per run (`visitHelpers.ensureEstimator`). Unit 3,156 green, tsc + lint clean. **e2e NOT run —
+C1 lock held by CI (S4 PR), one try.** Real-Google checks = `docs/manual-tests/visit-gcal.md` (Outlook/Apple Mail
+declines = STOP condition if they fail). Next: S6 the gate.
+
+# 6 Oct 2026 — Visit booking, addendum A: S4 requests, pre-arranged, out of area, Speak with us, messages, holidays. Branch `feat/visit-booking-s4`. Migration 20270215 LIVE prod (Tom pasted).
+
+Report: `docs/briefs/visit-booking-s4-report.md`. `visit_requests` + `customer_message_receipts`; `lib/visits/requests.ts`
+(createVisitRequest / answerWithTime / markAnswered / postCustomerMessage); `lib/time/workingDays.ts` (end of next
+working day, holidays excluded; businessHours helpers take an optional holiday set); R3 three options on EVERY quick
+step (`TalkSheet.tsx`); range doors Speak with us (server-decided, `guideRange` stored on builder_state) + Send us a
+message; visit page request-a-time + out-of-area message screens; staff `/crm/visit-requests/[id]` offer a time
+(availability zone "any", existing `visit_book` RPC); work-queue kinds `visit_request`, `holidays_next_year`; messages →
+estimate chat (post-range) / website chat + handoff (pre-range), one email office+customer, idempotent per clientId.
+Holidays: Business Victoria 2026+2027 (28 dates; 2027 AFL Friday pending) in `docs/briefs/data/vic-public-holidays.json`,
+seeded on TEST; Tom runs `scripts/seed-public-holidays.ts --prod`. Unit 1,223 green, tsc + lint clean. **e2e
+(`visit-requests.spec.ts`) NOT run — C1 lock held by CI; one try.** Next: S5 Google Calendar (needs Workspace-vs-Gmail
+answer).
+
+# 6 Oct 2026 — Visit booking, addendum A: S3 walking skeleton. Branch `feat/visit-booking-s3` (stacked on S2). Migration 20270214 (TEST; sent to Tom).
+
+Report: `docs/briefs/visit-booking-s3-report.md`. `/estimate/visit?id=` — details (if none held) → calendar → 10-min hold →
+6-digit hashed text code → one-transaction confirm RPC → `visits` row (booked/wizard, zone + far_edge frozen, 60-min
+ends_at) → text + .ics email. `visit_holds` (one LIVE hold per slot per estimator by partial unique index),
+`visit_code_sends` (limits), four service_role-only RPCs. `lib/visits/holds.ts` re-runs availability() before every
+hold and confirm. Routes `/api/visits/*` behind `lib/visits/ownedEstimate.ts`. Reveal door + Book page now go to the
+new page; old half-day windows no longer offered. Messaging: `visit_code` (always on), `visit_booked`; `visit_when`
+reads "Monday 5 October, 2:00 pm to 3:00 pm". Submit now writes jobAddress for a TYPED address (first e2e run found
+the gap). e2e 12/12 on C1: the anonymous journey + section 8 tests 1–11, 13, 15. Unit 1,201 green. Google event NOT
+written yet (S5); non-zone customers hand off to /estimate/book until S4. Next: S4 requests, pre-arranged, out of
+area, Speak with us, messages, holiday list.
+
+# 6 Oct 2026 — Visit booking, addendum A: S2 schedule + availability. Branch `feat/visit-booking-s2` (stacked on S1). Migration 20270213 (TEST only).
+
+Report: `docs/briefs/visit-booking-s2-report.md`. `visit_slots` (exclusion constraint, no overlap), `visits.zone/far_edge`,
+`settings.visit_booking_rules` seeded with the brief's values. `lib/visits/schedule.ts` = STANDARD_WEEK + THE pure
+`availability()` (§4.2 seven rules, Melbourne wall-clock, DST-proof); 19 golden tests verbatim from the brief. Settings →
+Visit schedule + Booking rules. e2e 8/8 on C1 (schedule 3, zones 4 — S1's spec first run, reveal link 1). Two bugs
+caught by e2e and fixed: PostgREST 1,000-row cap on the suburb read (now paged), and "Add as…" on an unmapped suburb
+saving as Zone 1. Old half-day engine + settings.visits untouched until S3. Next: S3 walking skeleton (holds, hashed
+text code, one booking transaction, section 8 tests 1–9, anonymous e2e).
+
+# 5 Oct 2026 — Visit booking, addendum A: S1 zones. Branch `feat/visit-booking-s1` (stacked on S0). Migration 20270212 (TEST only).
+
+Report: `docs/briefs/visit-booking-s1-report.md`. Tables `visit_zones` / `visit_suburbs` / `visit_unmapped_suburbs`
+(staff-only RLS, read-back 5/3/1 matched on C1); resolver `lib/visits/zones.ts` by suburb AND postcode; outline test
+`lib/visits/zoneGeo.ts`; seed `scripts/seed-visit-zones.ts` from Proctor's CC0 postcode dataset (3,482 VIC rows, review
+CSV committed, 5 outline-vs-CSV disagreements listed); Settings → Company → Visit zones; work-queue kind
+`unmapped_suburb`. Two S0 bugs fixed (#reach links → /estimate/book; Save & book address keys). Unit 244 green, tsc +
+lint clean. **e2e NOT run — C1 lock held by a CI run (11:23Z); one try, no loop.** Tom's S0 answers: pre-range → website
+chat, post-range → estimate chat, shown TOGETHER on the staff side (S4); weekday helpers honour holidays; lead-paint
+flags no longer bar booking. Next: S2 schedule + availability function.
+
+# 5 Oct 2026 — Visit booking, addendum A: S0 read-and-report. Branch `feat/visit-booking-s0`. NO code, NO migration.
+
+Five reference files committed (addendum, mockup 4, zone map draft 2, zone GeoJSON, 210-suburb rulings CSV — the CSV
+force-added past the blanket `*.csv` ignore). Report: `docs/briefs/visit-booking-s0-report.md`. Headlines: there is
+NO contact gate today (`/api/wizard/submit` returns the range with no details — R5 is new enforcement, not a re-enable);
+`wizard_sessions` IS `wizard_drafts` and records none of the gate/range/version facts 4.7 wants; `visits` table + RPCs +
+Diary already exist and are kept (holds/codes/zones/slots are new beside them); `settings.visits` becomes Booking rules;
+Google scopes today cannot write to the main calendar (decision a: Workspace → `calendar.events`, else app-created
+calendar); no OTP, no public-holiday list, rate limits in-memory only; office phone/email settings exist (no STOP).
+Rulings CSV has no postcode column — S1 joins by suburb name. Waiting on Tom's go-ahead before S1.
+
 # 21 Sep 2026 — CRM Today specs red on the test project: orphans, not code. Branch `fix/crm-today-specs-walk-pages`. No migration.
 
 Seven CRM specs looked for their fresh card on page one of Today; the test project's Today held ~500 capped items

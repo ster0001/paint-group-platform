@@ -23,19 +23,40 @@
     {
       "feature": "contacts",
       "role": "staff",
-      "title": "Find a saved contact",
-      "summary": "The Contacts page lists everyone saved from an estimate's Contact card; the search box finds one by name, company, email, phone or suburb.",
+      "title": "Contacts — every customer in one list, and how a contact gets onto an estimate",
+      "summary": "The Contacts list holds every CRM customer and every person ever used on an estimate; the list and the estimate's Contact card each have a search bar to find them, and whatever you put on an estimate is saved to the list by itself.",
       "path": "docs/help/contacts/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "52d4f8aae8",
-      "sources": []
+      "verified_at_commit": "e4fed27318",
+      "sources": [
+        "app/(app)/contacts/page.tsx",
+        "app/(app)/contacts/SearchBox.tsx",
+        "app/quote/EstimateHeader.tsx",
+        "app/quote/actions.ts",
+        "lib/contacts/match.ts",
+        "supabase/migrations/20270210000000_contacts_from_crm_accounts.sql"
+      ]
+    },
+    {
+      "feature": "contractors",
+      "role": "contractor",
+      "title": "Join from your invitation, and keep your mobile on file",
+      "summary": "What the invitation link asks for (your name, a mobile and a password), why your mobile is required, and how to change it on your profile.",
+      "path": "docs/help/contractors/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/join/[token]/JoinForm.tsx",
+        "app/portal/profile/ProfileForm.tsx"
+      ]
     },
     {
       "feature": "contractors",
       "role": "staff",
       "title": "Invite a painter, open their record, and remove one who should never have been there",
-      "summary": "How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), how the quality-check setting works, and when a painter can be removed rather than suspended.",
+      "summary": "How the office invites a contractor or employed painter, what each painter's own page shows (mobile, crew, paperwork, every job and their quality-check record), how to add or fix their mobile, how to reveal their bank details, how the quality-check setting works, and when a painter can be removed rather than suspended.",
       "path": "docs/help/contractors/staff.md",
       "walkthrough": null,
       "media": [],
@@ -122,7 +143,7 @@
       "path": "docs/help/estimator/commercial.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/wizard/CommercialScreens.tsx",
         "lib/wizard/segments.ts",
@@ -138,7 +159,7 @@
       "path": "docs/help/estimator/customer.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/estimate/page.tsx",
         "app/wizard/WizardApp.tsx",
@@ -155,9 +176,11 @@
       "path": "docs/help/estimator/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "65054fe00d",
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/(app)/estimates/WaitingTable.tsx",
+        "app/quote/EstimateHeader.tsx",
+        "lib/contacts/match.ts",
         "app/(app)/estimates/actions.ts",
         "app/quote/PackPane.tsx",
         "app/quote/StripActions.tsx",
@@ -176,7 +199,7 @@
       "path": "docs/help/estimator/trade.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/account/(portal)/TradePortfolioHome.tsx",
         "app/account/(portal)/quote/new/page.tsx",
@@ -255,7 +278,7 @@
       "feature": "invoicing",
       "role": "staff",
       "title": "Record a customer payment, including one that arrives before you send the invoice",
-      "summary": "How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, what happens when the invoice is still a draft, what the customer receives, the Payables tiles including Materials to match, and what each contractor invoice colour means.",
+      "summary": "How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, including the date it arrived, what happens when the invoice is still a draft, what the customer receives, the Payables tiles including Materials to match, and what each contractor invoice colour means.",
       "path": "docs/help/invoicing/staff.md",
       "walkthrough": null,
       "media": [],
@@ -383,7 +406,7 @@
         "media/contractor-12.png",
         "media/contractor-13.png"
       ],
-      "verified_at_commit": "0a07c92452",
+      "verified_at_commit": "327435ea3a",
       "sources": [
         "app/portal/requests",
         "app/portal/calendar",
@@ -400,7 +423,7 @@
       "path": "docs/help/scheduling/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "0a07c92452",
+      "verified_at_commit": "327435ea3a",
       "sources": [
         "app/portal/jobs",
         "app/portal/calendar",
@@ -426,7 +449,7 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": "65054fe00d",
+      "verified_at_commit": "327435ea3a",
       "sources": [
         "app/pc/schedule",
         "lib/scheduling",
@@ -510,8 +533,8 @@
     {
       "feature": "timesheets",
       "role": "pc",
-      "title": "Employed painters' days — logged automatically, approved in one click, plus time off and the payroll CSV",
-      "summary": "The Timesheets tab in PC Command — the standard day that logs itself every evening, approving a normal week in one click, days that need a manual entry, painters' extra hours, leave and RDO requests, recording a day by hand, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.",
+      "title": "Employed painters' days — logged and approved automatically, plus time off and the payroll CSV",
+      "summary": "The Timesheets tab in PC Command — the standard day that logs itself every evening and approves itself, the one kind of day that still waits (no cost rate), days that need a manual entry, painters' extra hours, leave and RDO requests, recording a day by hand, the allocated-vs-actual table, the payroll CSV, and where the cost rate lives.",
       "path": "docs/help/timesheets/pc.md",
       "walkthrough": null,
       "media": [],
@@ -570,6 +593,50 @@
       ]
     },
     {
+      "feature": "visit-booking",
+      "role": "staff",
+      "title": "What happens when a customer books a site visit online",
+      "summary": "A customer who has seen their guide price books a site visit themselves — they pick a time in their zone, confirm with a text code, and the visit lands on the Diary with its zone frozen. This explains what you see and what to do if something looks wrong.",
+      "path": "docs/help/visit-booking/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "180803f340",
+      "sources": []
+    },
+    {
+      "feature": "visit-requests",
+      "role": "staff",
+      "title": "Answer a request for a visit, a time or a call",
+      "summary": "Customers who cannot book a slot themselves — pre-arranged areas, a suburb we don't know, nothing that suits, or a visit asked for before the price — send a request. It lands on CRM Today, due within one working day. You answer it by offering a time, which books the visit and tells the customer, or by marking it answered.",
+      "path": "docs/help/visit-requests/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "d67bcb3227475926c412dfa2f918c54ba8169d20",
+      "sources": []
+    },
+    {
+      "feature": "visit-schedule",
+      "role": "staff",
+      "title": "Set each estimator's week of site-visit slots, and the booking rules behind the calendar",
+      "summary": "Settings → Visit schedule is each estimator's week — the slots, which zones can book each one, and the Friday 12:30 rule. Settings → Booking rules holds the numbers the calendar follows, the public holidays and the far-edge pairs.",
+      "path": "docs/help/visit-schedule/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "7884fcc94a226d6d2c98062cbed1a0e62721d750",
+      "sources": []
+    },
+    {
+      "feature": "visit-zones",
+      "role": "staff",
+      "title": "Decide which suburbs can book a site visit, and in which zone",
+      "summary": "Settings → Visit zones is the list of every Victorian suburb with its status — a bookable zone, pre-arranged, or out of area — the far-edge tick, who covers each zone, and a box to check what a customer at any address would be offered.",
+      "path": "docs/help/visit-zones/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "857c0e4f15b5a63358f101dc7440da29a82fa976",
+      "sources": []
+    },
+    {
       "feature": "warranty",
       "role": "customer",
       "title": "Your two-year workmanship warranty — what it covers, how long it lasts and how to make a claim",
@@ -619,7 +686,7 @@
         "media/contractor-18.png",
         "media/contractor-walkthrough-2.gif"
       ],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "780c451640",
       "sources": [
         "app/portal/jobs/[id]/FinishUp.tsx",
         "lib/reporting/workedTime.ts",
@@ -637,7 +704,7 @@
       "path": "docs/help/work-orders/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "780c451640",
       "sources": [
         "app/portal/jobs",
         "app/components/wo",
@@ -649,8 +716,8 @@
     {
       "feature": "work-orders",
       "role": "pc",
-      "title": "Run jobs through the six stages from the PC console",
-      "summary": "The project coordinator's console — the attention queue and what its colours mean, the six lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.",
+      "title": "Run jobs through the seven lanes from the PC console",
+      "summary": "The project coordinator's console — the attention queue and what its colours mean, the seven lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.",
       "path": "docs/help/work-orders/pc.md",
       "walkthrough": "media/pc-walkthrough.gif",
       "media": [
@@ -673,7 +740,7 @@
         "media/pc-17.png",
         "media/pc-18.png"
       ],
-      "verified_at_commit": "3a6848a2fd",
+      "verified_at_commit": "780c451640",
       "sources": [
         "app/pc/wo/[id]/ReviewCard.tsx",
         "app/pc",

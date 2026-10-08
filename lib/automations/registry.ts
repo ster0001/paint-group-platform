@@ -90,8 +90,8 @@ const P = {
   offer: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{link}}"],
   offerReminder: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{start_date}}", "{{expiry_time}}", "{{link}}"],
   assignment: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{start_date}}", "{{dates}}", "{{link}}"],
-  variation: ["{{company_name}}", "{{wo_ref}}", "{{action}}", "{{link}}"],
-  variationAdded: ["{{company_name}}", "{{wo_ref}}", "{{pay_line}}", "{{link}}"],
+  variation: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{action}}", "{{link}}"],
+  variationAdded: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{pay_line}}", "{{link}}"],
   leadChanged: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{address}}", "{{link}}"],
   employeeVariation: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{hours_line}}", "{{link}}"],
   expenseDecided: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{wo_ref}}", "{{decision}}", "{{reason_line}}"],
@@ -100,6 +100,13 @@ const P = {
   jobUpdate: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{day_label}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
+  visitCode: ["{{code}}", "{{company_name}}"],
+  visitBooked: ["{{first_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
+  requestReceived: ["{{first_name}}", "{{address}}", "{{company_name}}"],
+  callReceived: ["{{first_name}}", "{{mobile}}", "{{company_name}}"],
+  timeOffered: ["{{first_name}}", "{{visit_when}}", "{{address}}", "{{estimator_name}}", "{{company_name}}"],
+  customerMessage: ["{{customer}}", "{{job}}", "{{message}}"],
+  visitCancelled: ["{{first_name}}", "{{visit_when}}", "{{company_name}}"],
   signed: ["{{first_name}}", "{{job_title}}", "{{signed_by}}", "{{company_name}}"],
   chat: ["{{company_name}}", "{{link}}"],
   receipt: ["{{first_name}}", "{{amount}}", "{{invoice_number}}", "{{receipt_number}}", "{{company_name}}"],
@@ -172,6 +179,66 @@ export const AUTOMATIONS: Automation[] = [
       { field: "visitConfirmBody", label: "Email", kind: "body", placeholders: P.visit },
     ],
     guard: "One per booking (and one per move), recorded on the visit.",
+  },
+  {
+    key: "visit_code", name: "Text code to book a visit", audience: "customer", channels: ["sms"], kind: "manual",
+    trigger: "A customer picks a site-visit time online (visit booking S3). Always on and never held — without it nobody can book.",
+    templates: [{ field: "visitCodeSms", label: "Text", kind: "sms", placeholders: P.visitCode }],
+    guard: "One per hold plus up to three resends; five per mobile and fifteen per address every ten minutes.",
+  },
+  {
+    key: "visit_booked", name: "Visit booked — text", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "visit_booked", quietExempt: true,
+    trigger: "A customer confirms a site visit online with the text code (visit booking S3). The calendar invitation goes by email through 'Visit booked — calendar invite'.",
+    templates: [{ field: "visitBookedSms", label: "Text", kind: "sms", placeholders: P.visitBooked }],
+    guard: "Once per booking.",
+  },
+  {
+    key: "request_received", name: "Request received — email", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", sendKind: "request_received", quietExempt: true,
+    trigger: "A customer asks for a site visit before the price range, requests a time (pre-arranged area, none of the times suit, or a suburb we do not know), from the wizard (visit booking S4).",
+    templates: [
+      { field: "requestReceivedSubject", label: "Subject", kind: "subject", placeholders: P.requestReceived },
+      { field: "requestReceivedBody", label: "Email", kind: "body", placeholders: P.requestReceived },
+    ],
+    guard: "Once per request.",
+  },
+  {
+    key: "call_request_received", name: "Call request received — email", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", sendKind: "call_request_received", quietExempt: true,
+    trigger: "A customer taps Speak with us on the guide range (visit booking S4, R25).",
+    templates: [
+      { field: "callRequestReceivedSubject", label: "Subject", kind: "subject", placeholders: P.callReceived },
+      { field: "callRequestReceivedBody", label: "Email", kind: "body", placeholders: P.callReceived },
+    ],
+    guard: "Once per request.",
+  },
+  {
+    key: "time_offered", name: "Time offered by staff — text and email", audience: "customer", channels: ["sms", "email", "ics"], kind: "automatic",
+    defaultChannel: "both", sendKind: "time_offered", quietExempt: true,
+    trigger: "Staff answer a request by booking a time for the customer (visit booking S4, 4.4). No text code is needed.",
+    templates: [
+      { field: "timeOfferedSms", label: "Text", kind: "sms", placeholders: P.timeOffered },
+      { field: "timeOfferedSubject", label: "Email subject", kind: "subject", placeholders: P.timeOffered },
+      { field: "timeOfferedBody", label: "Email", kind: "body", placeholders: P.timeOffered },
+    ],
+    guard: "Once per offered visit; the invitation rides on the email.",
+  },
+  {
+    key: "customer_message", name: "Customer message — email to the office, copy to the customer", audience: "customer", channels: ["email"], kind: "manual",
+    trigger: "A customer sends a message from the wizard or the guide range (visit booking S4, R26/R35). The message is posted into their chat in the platform AND emailed to the office address with a copy to the customer. Always on.",
+    templates: [
+      { field: "customerMessageSubject", label: "Subject", kind: "subject", placeholders: P.customerMessage },
+      { field: "customerMessageBody", label: "Email", kind: "body", placeholders: P.customerMessage },
+    ],
+    guard: "Once per message (a retry with the same client id is not sent again).",
+  },
+  {
+    key: "visit_cancelled", name: "Visit cancelled — text", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "visit_cancelled", quietExempt: true,
+    trigger: "The customer declined the calendar invitation, or the estimator deleted the visit in Google Calendar (visit booking S5, R22/R27). The visit is cancelled in the platform and the customer is told.",
+    templates: [{ field: "visitCancelledSms", label: "Text", kind: "sms", placeholders: P.visitCancelled }],
+    guard: "Once per cancelled visit.",
   },
   {
     key: "visit_reminder", name: "Visit reminder text", audience: "customer", channels: ["sms"], kind: "automatic",
@@ -318,18 +385,26 @@ export const AUTOMATIONS: Automation[] = [
     special: "variation_release",
   },
   {
-    key: "contractor_variation_added", name: "A signed change is on your job", audience: "painter", channels: ["sms"], kind: "automatic",
-    defaultChannel: "sms", sendKind: "variation_added", capExempt: true,
+    key: "contractor_variation_added", name: "A signed change is on your job", audience: "painter", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "both", sendKind: "variation_added", capExempt: true,
     trigger: "The customer signs a change from the revision working scope on a job a contractor already has. It lands on their job sheet, tick list and pay — they are told, not asked (Tom, 24 Sep 2026).",
-    templates: [{ field: "variationAddedSms", label: "Text message", kind: "sms", placeholders: P.variationAdded }],
-    guard: "Once per change.",
+    templates: [
+      { field: "variationAddedSms", label: "Text message", kind: "sms", placeholders: P.variationAdded },
+      { field: "variationAddedEmailSubject", label: "Email subject", kind: "subject", placeholders: P.variationAdded },
+      { field: "variationAddedEmailIntro", label: "Email body", kind: "body", placeholders: P.variationAdded },
+    ],
+    guard: "Once per change. A painter with no mobile is emailed; with neither on file the job's record says so (Tom, 7 Oct 2026 — 12A Cavell Court).",
   },
   {
-    key: "contractor_variation_released", name: "Variation waiting on you", audience: "painter", channels: ["sms"], kind: "automatic",
-    defaultChannel: "sms", sendKind: "variation_released", capExempt: true,
+    key: "contractor_variation_released", name: "Variation waiting on you", audience: "painter", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "both", sendKind: "variation_released", capExempt: true,
     trigger: "An approved variation is released to the painter (automatically at signing, or by the office).",
-    templates: [{ field: "variationReleasedSms", label: "Text message", kind: "sms", placeholders: P.variation }],
-    guard: "Once per variation.",
+    templates: [
+      { field: "variationReleasedSms", label: "Text message", kind: "sms", placeholders: P.variation },
+      { field: "variationReleasedEmailSubject", label: "Email subject", kind: "subject", placeholders: P.variation },
+      { field: "variationReleasedEmailIntro", label: "Email body", kind: "body", placeholders: P.variation },
+    ],
+    guard: "Once per variation — the office can send it again from the job page (Remind the painter).",
   },
   {
     key: "contractor_job_update_reminder", name: "Update your work order — reminders", audience: "painter", channels: ["sms"], kind: "automatic",
@@ -395,6 +470,29 @@ export const AUTOMATIONS: Automation[] = [
     ],
     guard: "Once per chat message.",
   },
+  // Tom, 1 Oct 2026: "staff to receive email if an offered estimate is
+  // rejected / expires". Same path as the other office alerts: the master
+  // switch here, who gets it per login under Staff logins.
+  {
+    key: "office_estimate_declined", name: "Estimate declined by the customer", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "email", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "A customer presses Decline on their estimate page. Staff who ticked Estimate declined under Staff logins are told, with the customer's reason and a link to the estimate.",
+    templates: [
+      { field: "officeEstimateDeclinedSubject", label: "Email subject", kind: "subject", placeholders: ["{{customer}}", "{{job}}", "{{total}}", "{{reason_line}}", "{{link}}"] },
+      { field: "officeEstimateDeclinedBody", label: "Message", kind: "body", placeholders: ["{{customer}}", "{{job}}", "{{total}}", "{{reason_line}}", "{{link}}"] },
+    ],
+    guard: "Once per estimate.",
+  },
+  {
+    key: "office_estimate_expired", name: "Estimate expired without an answer", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "email", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "The daily CRM sweep finds a sent estimate past its valid-until date and marks it expired. Staff who ticked Estimate expired under Staff logins are told, with a link to the estimate.",
+    templates: [
+      { field: "officeEstimateExpiredSubject", label: "Email subject", kind: "subject", placeholders: ["{{customer}}", "{{job}}", "{{total}}", "{{valid_until}}", "{{link}}"] },
+      { field: "officeEstimateExpiredBody", label: "Message", kind: "body", placeholders: ["{{customer}}", "{{job}}", "{{total}}", "{{valid_until}}", "{{link}}"] },
+    ],
+    guard: "Once per estimate.",
+  },
   {
     key: "office_job_declined", name: "Job declined by the painter", audience: "office", channels: ["email", "sms"], kind: "automatic",
     defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
@@ -424,6 +522,36 @@ export const AUTOMATIONS: Automation[] = [
       { field: "officeVariationRaisedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{category}}", "{{hours_line}}", "{{comment}}", "{{link}}"] },
     ],
     guard: "Once per variation.",
+  },
+  {
+    key: "office_variation_declined", name: "Painter declined an approved change", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "Tom, 7 Oct 2026: the client approved a change from Revise scope, it went to the painter for their approval, and they declined it with a note — it is back in PC Command.",
+    templates: [
+      { field: "officeVariationDeclinedSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{hours_line}}", "{{comment}}", "{{link}}"] },
+      { field: "officeVariationDeclinedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{hours_line}}", "{{comment}}", "{{link}}"] },
+    ],
+    guard: "Once per variation.",
+  },
+  {
+    key: "office_update_drafted", name: "Customer update drafted from the painter's ticks", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: false, capExempt: true,
+    trigger: "Tom, 7 Oct 2026: a painter ticks work off (or the evening sweep catches it) and a customer update is drafted for the day — someone in the office confirms and sends it.",
+    templates: [
+      { field: "officeUpdateDraftedSubject", label: "Email subject", kind: "subject", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{link}}"] },
+      { field: "officeUpdateDraftedBody", label: "Message", kind: "body", placeholders: ["{{painter}}", "{{job}}", "{{wo_ref}}", "{{link}}"] },
+    ],
+    guard: "Once per job per day.",
+  },
+  {
+    key: "office_update_due", name: "Customer due an update", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: false, capExempt: true,
+    trigger: "Tom, 7 Oct 2026: a job in progress whose customer has heard nothing for the 'update every N days' setting, with nothing drafted — the evening sweep reminds the office to write one.",
+    templates: [
+      { field: "officeUpdateDueSubject", label: "Email subject", kind: "subject", placeholders: ["{{job}}", "{{wo_ref}}", "{{hours_line}}", "{{link}}"] },
+      { field: "officeUpdateDueBody", label: "Message", kind: "body", placeholders: ["{{job}}", "{{wo_ref}}", "{{hours_line}}", "{{link}}"] },
+    ],
+    guard: "Once per job per day while it is due.",
   },
   {
     key: "office_contractor_invoice", name: "Contractor invoice submitted", audience: "office", channels: ["email", "sms"], kind: "automatic",

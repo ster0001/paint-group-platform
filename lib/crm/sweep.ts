@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { refreshStaleFacts } from "./facts";
+import { notifyOfficeOfLapsedEstimates } from "@/lib/estimate/lifecycleNotify";
 
 // SERVER ONLY.
 /**
@@ -25,6 +26,11 @@ export async function runCrmSweep(db: SupabaseClient, opts: { budgetMs?: number;
   const { data: lapsedCount, error } = await db.rpc("crm_lapse_estimates");
   if (error) throw new Error(`lapse failed: ${error.message}`);
   const lapsed = typeof lapsedCount === "number" ? lapsedCount : 0;
+  // Tom, 1 Oct 2026: tell the staff who asked. Reads the lapse events the RPC
+  // just wrote (and any from the last few days a failed send missed), sends
+  // once per estimate (staff_notifications claim). Best-effort: an email never
+  // stops the sweep.
+  await notifyOfficeOfLapsedEstimates(db, now).catch(() => undefined);
 
   let refreshed = 0, remaining = 0, batches = 0;
   do {

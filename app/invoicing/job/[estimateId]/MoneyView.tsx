@@ -16,7 +16,9 @@ import {
   pauseRemindersAction,
   type InvoicingResult,
 } from "../../actions";
-import { fmt0, fmt2, fmtSigned2 } from "../../format";
+import { fmt2, fmtSigned2 } from "../../format";
+import { melbourneDate } from "@/lib/workorder/console";
+import type { BackTo } from "@/lib/navigation/backTo";
 import type { ReadFailure } from "@/lib/invoicing/loadFailure";
 import ReadFailureNotice from "../../ReadFailureNotice";
 import AddCostSheet from "./AddCostSheet";
@@ -68,14 +70,22 @@ export type InvoiceCardProp = {
 
 export type FeedProp = { tone: string; title: string; meta: string };
 
+/** "Back to invoicing" → "Invoicing": the crumb already draws the chevron. */
+const crumbLabel = (label: string) => {
+  const bare = label.replace(/^Back to (the )?/, "");
+  return bare.charAt(0).toUpperCase() + bare.slice(1);
+};
+
 const STAGE_LABEL: Record<PaymentStage["key"], string> = {
   deposit: "Deposit", progress: "Progress", final: "Final", paid_in_full: "Paid in full",
 };
 
 export default function MoneyView({
-  estimateId, woId, woRef, address, jobTitle, stages, strip, cards, feed, costs, loadError = null, costsError = null,
+  estimateId, woId, woRef, address, jobTitle, stages, strip, cards, feed, costs, loadError = null, costsError = null, backTo = null,
 }: {
   estimateId: string;
+  /** Tom, 1 Oct: arrived from Invoicing → the crumb goes back there, not to PC Command. From ?from=, validated in lib/navigation/backTo. */
+  backTo?: BackTo | null;
   woId: string | null;
   woRef: string | null;
   address: string;
@@ -117,6 +127,9 @@ export default function MoneyView({
   const [payMethod, setPayMethod] = useState<"bank_transfer" | "cash" | "other">("bank_transfer");
   const [payDollars, setPayDollars] = useState("");
   const [payRef, setPayRef] = useState("");
+  // Tom, 1 Oct: when the money arrived. Defaults to today in Melbourne — never
+  // toISOString().slice(0,10), which is yesterday before 10am.
+  const [payDate, setPayDate] = useState(() => melbourneDate(new Date()));
 
   const run = (fn: () => Promise<InvoicingResult>, after?: (r: InvoicingResult) => void) =>
     startTransition(async () => {
@@ -140,7 +153,11 @@ export default function MoneyView({
     <div className="wrap">
       <header>
         <div className="crumb">
-          <Link href={woId ? `/pc/wo/${woId}` : "/pc"}><span className="chev">‹</span> PC Command{woRef ? <> · Work order <span className="mono" style={{ fontSize: 11 }}>{woRef}</span></> : null}</Link>
+          {backTo ? (
+            <Link href={backTo.href} data-testid="money-back"><span className="chev">‹</span> {crumbLabel(backTo.label)}</Link>
+          ) : (
+            <Link href={woId ? `/pc/wo/${woId}` : "/pc"} data-testid="money-back"><span className="chev">‹</span> PC Command{woRef ? <> · Work order <span className="mono" style={{ fontSize: 11 }}>{woRef}</span></> : null}</Link>
+          )}
           <span style={{ marginLeft: "auto", display: "inline-flex", gap: 14 }}>
             {/* The scope door (addendum A2): every accepted job's cost breakdown
                 is editable in the revision builder — the diff becomes signed,
@@ -179,18 +196,18 @@ export default function MoneyView({
           <div key={s.key} className={`stage ${s.state}`}>
             <div className="bar" />
             <div className="lab">{STAGE_LABEL[s.key]}</div>
-            <div className="val">{s.state === "paid" && s.key !== "paid_in_full" ? `${fmt0(s.amountCents ?? 0)} ✓` : s.amountCents != null ? fmt0(s.amountCents) : s.state === "paid" ? "✓" : "—"}</div>
+            <div className="val">{s.state === "paid" && s.key !== "paid_in_full" ? `${fmt2(s.amountCents ?? 0)} ✓` : s.amountCents != null ? fmt2(s.amountCents) : s.state === "paid" ? "✓" : "—"}</div>
           </div>
         ))}
       </div>
 
       {/* money strip */}
       <div className="strip" data-testid="money-strip">
-        <div className="cell"><div className="k">Contract</div><div className="v">{fmt0(strip.contractCents)}</div></div>
-        <div className="cell"><div className="k">Variations</div><div className={`v ${strip.variationsCents > 0 ? "plus" : ""}`}>{strip.variationsCents === 0 ? "—" : (strip.variationsCents > 0 ? "+" : "−") + fmt0(Math.abs(strip.variationsCents))}</div></div>
-        <div className="cell"><div className="k">Invoiced</div><div className="v">{fmt0(strip.invoicedCents)}</div></div>
-        <div className="cell"><div className="k">Paid</div><div className="v">{fmt0(strip.paidCents)}</div></div>
-        <div className="cell bal"><div className="k">Balance</div><div className="v" data-testid="strip-balance">{fmt0(strip.balanceCents)}</div></div>
+        <div className="cell"><div className="k">Contract</div><div className="v">{fmt2(strip.contractCents)}</div></div>
+        <div className="cell"><div className="k">Variations</div><div className={`v ${strip.variationsCents > 0 ? "plus" : ""}`}>{strip.variationsCents === 0 ? "—" : (strip.variationsCents > 0 ? "+" : "−") + fmt2(Math.abs(strip.variationsCents))}</div></div>
+        <div className="cell"><div className="k">Invoiced</div><div className="v">{fmt2(strip.invoicedCents)}</div></div>
+        <div className="cell"><div className="k">Paid</div><div className="v">{fmt2(strip.paidCents)}</div></div>
+        <div className="cell bal"><div className="k">Balance</div><div className="v" data-testid="strip-balance">{fmt2(strip.balanceCents)}</div></div>
       </div>
 
       <nav className="tabs">
@@ -452,12 +469,17 @@ export default function MoneyView({
             <input type="number" inputMode="decimal" min={0.01} step="0.01" placeholder="Amount received (dollars)"
               value={payDollars} onChange={(e) => setPayDollars(e.target.value)} data-testid="record-amount" />
             <input type="text" placeholder="Reference (optional)" value={payRef} onChange={(e) => setPayRef(e.target.value)} />
+            <label className="field-date">
+              <span>Payment date</span>
+              <input type="date" value={payDate} max={melbourneDate(new Date())}
+                onChange={(e) => setPayDate(e.target.value)} data-testid="record-date" />
+            </label>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
               <button className="btn ghost" onClick={() => setSheet(null)}>Cancel</button>
-              <button className="btn primary" disabled={busy || !(Number(payDollars) > 0)}
+              <button className="btn primary" disabled={busy || !(Number(payDollars) > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(payDate)}
                 onClick={() => run(() => recordPaymentAction({
                   invoiceId: sheet.record.invoiceId, estimateId, method: payMethod,
-                  amountCents: Math.round(Number(payDollars) * 100), reference: payRef,
+                  amountCents: Math.round(Number(payDollars) * 100), reference: payRef, receivedOn: payDate,
                 }))}>
                 Record {Number(payDollars) > 0 ? fmtSigned2(Math.round(Number(payDollars) * 100)) : ""}
               </button>

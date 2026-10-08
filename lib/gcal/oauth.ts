@@ -28,17 +28,44 @@ export const GCAL_SCOPE = "openid email https://www.googleapis.com/auth/calendar
  * the narrow scope above — a painter's own calendar is never read.
  */
 export const GCAL_READ_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
-export const GCAL_STAFF_SCOPE = `${GCAL_SCOPE} ${GCAL_READ_SCOPE}`;
+/**
+ * Visit booking S5 (6 Oct 2026): info@paintgroup.com.au is a Google WORKSPACE
+ * account, so the OAuth app is Internal and the staff connection may also
+ * WRITE events to the estimator's own calendars (calendar.events). A booked
+ * visit then goes into the MAIN calendar as a one-hour event with the customer
+ * as a guest (R21, R32), followed by a 30-minute travel block. Contractors are
+ * untouched: their scope stays the narrow one above.
+ */
+export const GCAL_EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+export const GCAL_STAFF_SCOPE = `${GCAL_SCOPE} ${GCAL_READ_SCOPE} ${GCAL_EVENTS_SCOPE}`;
 
 /** Did Google grant reading? Null scopes = a connection made before 8 Sep 2026. */
 export function scopesCanRead(scopes: string | null | undefined): boolean {
   return typeof scopes === "string" && scopes.split(/\s+/).includes(GCAL_READ_SCOPE);
 }
 
-export function gcalEnv(): { clientId: string; clientSecret: string; redirectUri: string } | null {
+/** Did Google grant writing to the person's own calendars (S5)? A connection from before 6 Oct 2026 must reconnect. */
+export function scopesCanWritePrimary(scopes: string | null | undefined): boolean {
+  return typeof scopes === "string" && scopes.split(/\s+/).includes(GCAL_EVENTS_SCOPE);
+}
+
+/**
+ * `origin` is the scheme+host the person is actually on (from the request).
+ * The callback MUST land on that same host: the signed state rides an
+ * httpOnly cookie set there, and so does the Supabase session the callback
+ * needs to know whose row to write. With NEXT_PUBLIC_SITE_URL on the
+ * vercel.app address and painters signed in at login.paintgroup.com.au, Google
+ * sent them back to the OTHER host — no cookie, "state mismatch", and the card
+ * said "Connecting to Google didn't work" (Jacob at DJ Decor, 1 Oct). An
+ * explicit GOOGLE_REDIRECT_URI still wins; the site URL is the last resort.
+ * Every host used this way must be an Authorised redirect URI on the OAuth
+ * client (docs/gcal-setup.md).
+ */
+export function gcalEnv(origin?: string | null): { clientId: string; clientSecret: string; redirectUri: string } | null {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI
+    || (origin ? `${origin.replace(/\/+$/, "")}/api/gcal/callback` : null)
     || (process.env.NEXT_PUBLIC_SITE_URL ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/gcal/callback` : null);
   if (!clientId || !clientSecret || !redirectUri) return null;
   return { clientId, clientSecret, redirectUri };
@@ -142,9 +169,12 @@ async function tokenRequest(form: Record<string, string>): Promise<GcalTokens> {
   };
 }
 
-export function exchangeCode(code: string): Promise<GcalTokens> {
+export function exchangeCode(code: string, redirectUri?: string): Promise<GcalTokens> {
   const env = gcalEnv();
   if (!env) throw new Error("gcal env missing");
+  // Google requires the SAME redirect_uri as the authorize step — the
+  // callback passes the one it was reached on.
+  if (redirectUri) env.redirectUri = redirectUri;
   return tokenRequest({
     client_id: env.clientId,
     client_secret: env.clientSecret,

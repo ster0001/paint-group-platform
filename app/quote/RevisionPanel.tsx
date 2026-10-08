@@ -28,6 +28,16 @@ export type ExistingRevisionVariation = {
   contractor_accepted_at?: string | null;
 };
 
+/** A painter's raised variation the office opened the builder from (?variation=). */
+export type RevisionRequest = {
+  id: string;
+  comment: string;
+  category: string;
+  status: string;
+  raisedBy: string | null;
+  raisedAt: string;
+};
+
 /** Where a signed change is, in the office's words. Tom, 24 Sep: a change the
  * customer signed reads "customer approved" — it used to say "painter
  * accepted", which is what the status column is called once the change has
@@ -45,9 +55,11 @@ export function signedVariationState(v: ExistingRevisionVariation): string {
  * recompute and draft — nothing here writes money.
  */
 export default function RevisionPanel({
-  estimateId, diff, existing, saveFirst, onViewInvoice, workOrderId = null, photoCounts = {},
+  estimateId, diff, existing, saveFirst, onViewInvoice, workOrderId = null, photoCounts = {}, request = null,
 }: {
   estimateId: string;
+  /** The painter's request being priced — the first addition drafted becomes that row. */
+  request?: RevisionRequest | null;
   diff: RevisionDiff;
   existing: ExistingRevisionVariation[];
   /** The builder's own save() — the server drafts from the SAVED scope. */
@@ -133,7 +145,10 @@ export default function RevisionPanel({
     setMessage(null);
     try {
       await saveFirst();
-      const result = await draftRevisionVariationsAction({ estimateId });
+      const result = await draftRevisionVariationsAction({
+        estimateId,
+        sourceVariationId: request && request.status === "raised" ? request.id : undefined,
+      });
       if (!result.ok) { setMessage(result.message); return; }
       setDrafted(result.drafted);
       const live = result.drafted.filter((d) => d.state === "drafted").length;
@@ -167,6 +182,23 @@ export default function RevisionPanel({
           {money(diff.acceptedIncCents)} → {money(diff.workingIncCents)} incl. GST
         </span>
       </div>
+
+      {request && (
+        <p
+          className={`mt-2 rounded-lg border px-3 py-2 text-xs ${request.status === "raised" ? "border-cyan-500/40 text-cyan-200" : "border-white/15 text-gray-400"}`}
+          data-testid="revision-request"
+        >
+          {request.status === "raised" ? (
+            <>
+              <b>Pricing {request.raisedBy ? `${request.raisedBy.split(/\s+/)[0]}'s` : "the painter's"} request:</b>{" "}
+              &ldquo;{request.comment}&rdquo; — make the change in the scope below and draft it. The addition
+              you draft becomes that request: with the customer to sign, then back to the painter to accept.
+            </>
+          ) : (
+            <>This request is already {request.status.replace(/_/g, " ")} — the change below drafts on its own.</>
+          )}
+        </p>
+      )}
 
       {diff.changes.length === 0 ? (
         <p className="mt-2 text-xs text-gray-400" data-testid="revision-no-changes">

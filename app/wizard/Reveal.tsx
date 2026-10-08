@@ -43,9 +43,15 @@ const fmt = (cents: number) =>
 const OPEN_BY_KEY: Record<string, string[]> = { openings: ["doors", "windows"], height: ["height"], trims: ["trims"] };
 
 export default function Reveal({
-  payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null, outside = null,
+  payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null, outside = null, speakWithUs = false, onSpeak, onMessage, contactKnown = false,
 }: {
   payload: CustomerPayload;
+  /** Visit booking S4 (R25/R34): decided on the server from the top of the range. */
+  speakWithUs?: boolean;
+  onSpeak?: () => void;
+  onMessage?: () => void;
+  /** S6: the details are held, so "Keep this estimate" (the old email door) has nothing to ask. */
+  contactKnown?: boolean;
   quick: QuickLook;
   /** C12: a commercial job — the segment row and the answers, for the kicker,
    * the basis sentence and the segment's own assume list. */
@@ -153,20 +159,33 @@ export default function Reveal({
       <h2 className="wz-doors-head">Where would you like to go from here?</h2>
       <div className="wz-doors">
         <Door
-          testId="door-tighten" icon="◫" title="Tighten it online" onClick={onTighten}
-          body={`${quick.jobType === "exterior" ? "Confirm each side, what's on it and the condition." : quick.jobType === "both" ? "Confirm the rooms and the sides, the surfaces and the condition." : "Confirm the rooms, the surfaces and the condition."} About five minutes, with photos if you like — it narrows as you answer, to within about ${payload.tightPct ?? 4}% once everything's confirmed.`}
+          testId="door-tighten" icon="◫" title="Tighten my price" onClick={onTighten}
+          body="Get a more accurate quote now"
+          hero
         />
+        {speakWithUs && onSpeak && (
+          <Door
+            testId="door-speak" icon="☎" title="Speak with us" onClick={onSpeak}
+            body="Request a call to finalise your booking"
+          />
+        )}
         <Door
-          testId="door-book" icon="☎" title="Book your estimator" onClick={onBook}
-          body="A visit or a call, whichever suits. We bring your answers with us, so it's quick."
+          testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
+          body="Choose a time for us to see the property"
         />
+        {onMessage && (
+          <Door
+            testId="door-message" icon="✉" title="Send us a message" onClick={onMessage}
+            body="Ask a question about your estimate"
+          />
+        )}
         {kept ? (
           <p className="wz-kept" data-testid="reveal-kept">
             {kept.emailed
               ? <>Saved, and the link is on its way to <b>{email.trim()}</b>. It opens straight to this price.</>
               : <>Saved to <b>{email.trim()}</b>. The email is taking its time — you can carry on here, and it&rsquo;ll be waiting in your account.</>}
           </p>
-        ) : !keepOpen ? (
+        ) : contactKnown ? null : !keepOpen ? (
           <Door
             testId="door-keep" icon="✉" title="Keep this estimate" onClick={() => setKeepOpen(true)}
             body={`We'll email a link so you can pick it up any time. The price is held for ${payload.holdDays ?? 60} days.`}
@@ -229,7 +248,7 @@ export default function Reveal({
 
       {/* C9 — the coats and prep the engine derived, in plain English, no
           controls. What changes it is the job screen and the details screen. */}
-      <WhatWeDo lines={payload.systems ?? []} tellUsHref={`/estimate/scope?id=${estimateId}#reach`} />
+      <WhatWeDo lines={payload.systems ?? []} tellUsHref={`/estimate/book?id=${estimateId}`} />
 
       {/* The estimator has not seen this yet, and the customer should hear
           that from us rather than discover it. */}
@@ -253,7 +272,7 @@ export default function Reveal({
         estimator={payload.estimator}
         suburb={null}
         companyPhone={phone}
-        bookHref={`/estimate/scope?id=${estimateId}#reach`}
+        bookHref={`/estimate/visit?id=${estimateId}`}
       />
 
       {phone && (
@@ -265,11 +284,11 @@ export default function Reveal({
   );
 }
 
-function Door({ icon, title, body, onClick, testId }: {
-  icon: string; title: string; body: string; onClick: () => void; testId: string;
+function Door({ icon, title, body, onClick, testId, hero = false }: {
+  icon: string; title: string; body: string; onClick: () => void; testId: string; hero?: boolean;
 }) {
   return (
-    <button type="button" className="wz-door" onClick={onClick} data-testid={testId}>
+    <button type="button" className={`wz-door${hero ? " wz-door-hero" : ""}`} onClick={onClick} data-testid={testId} data-hero={hero ? "1" : undefined}>
       <span className="wz-door-icon" aria-hidden="true">{icon}</span>
       <span className="wz-door-text">
         <b>{title}</b>

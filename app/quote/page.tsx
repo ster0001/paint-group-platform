@@ -10,11 +10,12 @@ import EstimateStrip from "./EstimateStrip";
 import { loadPackBundle } from "./pack-load";
 import AssistantDrawer from "./AssistantDrawer";
 import ImportedHistory, { type ImportedHistoryRow } from "./ImportedHistory";
-import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
+import { DEFAULT_COMPANY, type CompanyProfile } from "./company";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { parseBackTo } from "@/lib/navigation/backTo";
 import { estimateDocuments } from "@/lib/wizard/documents";
 import type { ExistingRevisionVariation } from "./RevisionPanel";
+import { reportError } from "@/lib/monitoring/report";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
 export default async function QuotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; template?: string; view?: string; from?: string; mode?: string; tab?: string }>;
+  searchParams: Promise<{ id?: string; template?: string; view?: string; from?: string; mode?: string; tab?: string; variation?: string }>;
 }) {
   const supabase = await createClient();
 
@@ -56,7 +57,7 @@ export default async function QuotePage({
     .eq("is_active", true)
     .single();
 
-  const { id, template, view, from, mode, tab } = await searchParams;
+  const { id, template, view, from, mode, tab, variation } = await searchParams;
   const initialView = view === "workorder" || view === "customer" ? view : undefined;
   // Where the top-left link goes. Validated, because `from` comes off the URL —
   // see lib/navigation/backTo.ts. Null falls back to the estimates list.
@@ -105,14 +106,13 @@ export default async function QuotePage({
   // Everything below is independent — fetch it all in one round-trip. The single
   // `settings` fetch also carries the company profile and any saved templates, so
   // we don't query settings three separate times.
-  const [rateItems, modifiers, products, settings, lineItems, areaNames, contactsRes, estimateRes, workOrderRes, contractorsRes, presentationsRes, typicalRes] = await Promise.all([
+  const [rateItems, modifiers, products, settings, lineItems, areaNames, estimateRes, workOrderRes, contractorsRes, presentationsRes, typicalRes] = await Promise.all([
     supabase.from("rate_items").select("*").eq("rate_card_id", effectiveCard?.id ?? "").order("category").order("sub_category"),
     supabase.from("modifiers").select("*").eq("active", true),
     supabase.from("products").select("*"),
     supabase.from("settings").select("*"),
     supabase.from("line_items").select("*").order("type").order("name"),
     supabase.from("area_names").select("area, type").order("type").order("area"),
-    supabase.from("contacts").select("*").order("last_name"),
     id ? supabase.from("estimates").select("id, number, title, builder_state, share_token, status, sent_at, viewed_at, accepted_at, valid_until, presentation_id, lead_source, sent_snapshot, selected_options, source, external_ref, total_cents, subtotal_cents, level_of_finish, declined_at, created_at, account_id, reporting_excluded_at, reporting_excluded_reason").eq("id", id).single() : Promise.resolve({ data: null }),
     id ? supabase.from("work_orders").select("*").eq("estimate_id", id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("contractors").select("id, profiles(name)").eq("active", true),
@@ -136,7 +136,6 @@ export default async function QuotePage({
   const settingsRows = (settings.data as { key: string; value: unknown }[] | null) ?? [];
   const companyRow = settingsRows.find((s) => s.key === "company_profile");
   const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((companyRow?.value as Partial<CompanyProfile>) ?? {}) };
-  const contacts = (contactsRes.data as Contact[] | null) ?? [];
   // "What's included" templates — fall back to built-in defaults until customised.
   const inclusionRow = settingsRows.find((s) => s.key === INCLUSION_TEMPLATES_KEY);
   const inclusionTemplates: InclusionTemplate[] = Array.isArray(inclusionRow?.value) && (inclusionRow!.value as unknown[]).length
@@ -206,6 +205,25 @@ export default async function QuotePage({
         .eq("work_order_id", woId).not("revision_block_ref", "is", null)
         .order("created_at", { ascending: true })
     : { data: null };
+  // Tom, 7 Oct 2026 (12A Cavell Court): opened from a painter's request on the
+  // job page, the builder prices THAT request — the change drafted here is
+  // written into the painter's own row (20270222), so it moves on their portal
+  // and on the console instead of sitting at "with the office" for ever.
+  const requestId = revisionMode && woId && variation && /^[0-9a-f-]{36}$/i.test(variation) ? variation : null;
+  const { data: requestRow, error: requestError } = requestId
+    ? await supabase.from("wo_variations")
+        .select("id, comment, category, status, created_at, profiles:raised_by(name)")
+        .eq("id", requestId).eq("work_order_id", woId!).maybeSingle()
+    : { data: null, error: null };
+  // A request that cannot be read is reported, and the builder opens without
+  // it — the office can still price; the row just won't be adopted.
+  if (requestError) reportError(requestError, { where: "quote.page.revisionRequest", extra: { requestId }, bestEffort: true });
+  const revisionRequest = requestRow
+    ? (() => {
+        const r = requestRow as unknown as { id: string; comment: string; category: string; status: string; created_at: string; profiles: { name: string | null } | null };
+        return { id: r.id, comment: r.comment, category: r.category, status: r.status, raisedBy: r.profiles?.name ?? null, raisedAt: r.created_at };
+      })()
+    : null;
   const woPhotos = await signPhotos(supabase, (photoRows as WOPhotoRow[] | null) ?? []);
   // Tom, 7 Sep: the customer's own photos (condition, facade) — the
   // estimator signs off any extra prep from them before the price is fixed.
@@ -313,6 +331,7 @@ export default async function QuotePage({
       mode={revisionMode ? "revision" : "estimate"}
       revisionBaseline={revisionScope?.accepted ?? null}
       revisionVariations={(revVarRows ?? []) as ExistingRevisionVariation[]}
+      revisionRequest={revisionRequest}
       rateItems={rateItems.data ?? []}
       modifiers={modifiers.data ?? []}
       products={products.data ?? []}
@@ -321,7 +340,6 @@ export default async function QuotePage({
       areaNames={areaNames.data ?? []}
       initial={initial}
       company={company}
-      contacts={contacts}
       inclusionTemplates={inclusionTemplates}
       exclusionTemplates={exclusionTemplates}
       typicalSizes={typicalSizes}

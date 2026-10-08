@@ -11,11 +11,11 @@ import type { GcalStatus } from "@/lib/gcal/config";
  * before 8 Sep can only write; the card asks for a reconnect.
  */
 export default function GcalCard({ status, flash, read = null }: {
-  status: GcalStatus & { pushJobs?: boolean }; flash: string | null;
+  status: GcalStatus & { pushJobs?: boolean; canWrite?: boolean; watching?: boolean }; flash: string | null;
   read?: { kind: string; calendars: string[] } | null;
 }) {
   const [said, setSaid] = useState<string | null>(
-    flash === "connected" ? "Connected — your visits are in a “Paint Group Visits” calendar in your Google account."
+    flash === "connected" ? "Connected — booked visits go into your main Google calendar, with the customer invited and a travel block after each one."
     : flash === "denied" ? "No changes — you cancelled on Google's screen."
     : flash === "failed" ? "Google didn't complete the connection. Try again."
     : flash === "unconfigured" ? "Google Calendar isn't set up on this server yet." : null,
@@ -45,6 +45,17 @@ export default function GcalCard({ status, flash, read = null }: {
             Connected as <b>{status.email ?? "your Google account"}</b>.
             {status.kind === "error" ? <span style={{ color: "var(--clay)" }}> Last sync failed: {status.message}</span> : null}
           </p>
+          {status.canWrite === false && (
+            <p className="bhint" style={{ marginBottom: 8, color: "var(--amber)" }} data-testid="gcal-reconnect-write">
+              This connection cannot write visits into your main calendar yet, so customers in your zones are offered a request instead of a time. Reconnect once and booked visits will land in your main Google calendar with the customer invited.{" "}
+              <a className="rlink" href="/api/gcal/connect?who=staff" style={{ color: "var(--cyan)" }}>Reconnect Google Calendar →</a>
+            </p>
+          )}
+          {status.canWrite && (
+            <p className="bhint" style={{ marginBottom: 8 }} data-testid="gcal-writes">
+              Booked visits go into your main Google calendar with the customer invited; the half hour after each is blocked as travel. {status.watching ? "Changes you make in Google reach the platform within a minute." : "Changes you make in Google reach the platform within five minutes."}
+            </p>
+          )}
           {status.canRead
             ? <p className="bhint" style={{ marginBottom: 8 }} data-testid="gcal-reads">
                 {read?.kind === "ok"

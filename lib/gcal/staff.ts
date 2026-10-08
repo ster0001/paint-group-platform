@@ -16,11 +16,13 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { GcalStatus } from "./config";
-import { GcalAuthRevoked, gcalEnv, refreshAccessToken, revokeToken, scopesCanRead } from "./oauth";
+import { GcalAuthRevoked, gcalEnv, refreshAccessToken, revokeToken, scopesCanRead, scopesCanWritePrimary } from "./oauth";
 import {
-  GcalApiError, calendarExists, createCalendar, deleteEvent, insertEvent, insertTimedEvent, patchEvent, patchTimedEvent,
-  type GcalEventInput, type GcalTimedEventInput,
+  GcalApiError, calendarExists, createCalendar, deleteEvent, deleteEventNotify, insertEvent, insertEventBody, insertTimedEvent, patchEvent, patchEventBody, patchTimedEvent,
+  type GcalEventInput, type GcalTimedEventInput, type SendUpdates,
 } from "./client";
+import { buildPrimaryVisitEvent, buildTravelEvent, slotEndOf } from "./visitEvents";
+import { loadBookingRules } from "@/lib/visits/scheduleDb";
 import { reportError } from "@/lib/monitoring/report";
 import { VISIT_KINDS, type VisitRow } from "@/lib/visits/types";
 
@@ -36,13 +38,17 @@ export type StaffGcalConnectionRow = {
   connected_at: string;
   /** Granted at connect time (8 Sep); null = a connection from before, write-only. */
   scopes: string | null;
+  /** S5: the push channel on the primary calendar. */
+  watch_channel_id?: string | null;
+  watch_resource_id?: string | null;
+  watch_expires_at?: string | null;
 };
 
-type MapRow = { id: string; kind: "visit" | "job"; ref_id: string; google_event_id: string; calendar_id: string; content_hash: string };
+type MapRow = { id: string; kind: "visit" | "job" | "travel"; ref_id: string; google_event_id: string; calendar_id: string; content_hash: string };
 
 export async function loadStaffConnection(admin: SupabaseClient, staffId: string): Promise<StaffGcalConnectionRow | null> {
   const { data } = await admin.from("staff_gcal_connections")
-    .select("staff_id, google_email, refresh_token, calendar_id, sync_error, push_jobs, connected_at, scopes")
+    .select("staff_id, google_email, refresh_token, calendar_id, sync_error, push_jobs, connected_at, scopes, watch_channel_id, watch_resource_id, watch_expires_at")
     .eq("staff_id", staffId).maybeSingle();
   return (data as StaffGcalConnectionRow | null) ?? null;
 }
@@ -58,19 +64,27 @@ export async function saveStaffConnection(admin: SupabaseClient, staffId: string
 export async function deleteStaffConnection(admin: SupabaseClient, staffId: string): Promise<void> {
   const conn = await loadStaffConnection(admin, staffId);
   if (!conn) return;
+  // S5: stop the push channel first, while the token still works. The events
+  // in Google stay (deleting someone's calendar entries on disconnect would be
+  // a surprise); customers in this estimator's zones get the request path
+  // until a calendar is connected again (Booking rules → calendar required).
+  const { stopWatch } = await import("./inbound");
+  await stopWatch(admin, conn);
   await revokeToken(conn.refresh_token);
   await admin.from("staff_gcal_events").delete().eq("staff_id", staffId);
   await admin.from("staff_gcal_connections").delete().eq("staff_id", staffId);
 }
 
-export async function staffGcalStatus(staffId: string): Promise<GcalStatus & { pushJobs?: boolean }> {
+export async function staffGcalStatus(staffId: string): Promise<GcalStatus & { pushJobs?: boolean; canWrite?: boolean; watching?: boolean }> {
   const admin = createServiceClient();
   if (!admin || !gcalEnv()) return { kind: "unconfigured" };
   const conn = await loadStaffConnection(admin, staffId).catch(() => null);
   if (!conn) return { kind: "not_connected" };
   const canRead = scopesCanRead(conn.scopes);
-  if (conn.sync_error) return { kind: "error", email: conn.google_email, message: conn.sync_error, pushJobs: conn.push_jobs, canRead };
-  return { kind: "connected", email: conn.google_email, connectedAt: conn.connected_at, pushJobs: conn.push_jobs, canRead };
+  const canWrite = scopesCanWritePrimary(conn.scopes);
+  const watching = !!conn.watch_channel_id && !!conn.watch_expires_at && new Date(conn.watch_expires_at).getTime() > Date.now();
+  if (conn.sync_error) return { kind: "error", email: conn.google_email, message: conn.sync_error, pushJobs: conn.push_jobs, canRead, canWrite, watching };
+  return { kind: "connected", email: conn.google_email, connectedAt: conn.connected_at, pushJobs: conn.push_jobs, canRead, canWrite, watching };
 }
 
 // ---- event building — pure, unit-tested ------------------------------------
@@ -113,12 +127,18 @@ export async function reconcileStaffCalendar(staffId: string): Promise<StaffSync
 
   try {
     const { accessToken } = await refreshAccessToken(conn.refresh_token);
+    // S5: with calendar.events granted, visits go into the estimator's MAIN
+    // calendar (R21) — the customer as guest, a travel block after. The
+    // app-created calendar is still where booked jobs go (push_jobs).
+    const primary = scopesCanWritePrimary(conn.scopes);
     let calendarId = conn.calendar_id;
     if (!calendarId || !(await calendarExists(accessToken, calendarId))) {
-      if (calendarId) await admin.from("staff_gcal_events").delete().eq("staff_id", staffId);
+      if (calendarId) await admin.from("staff_gcal_events").delete().eq("staff_id", staffId).eq("calendar_id", calendarId);
       calendarId = await createCalendar(accessToken, STAFF_CALENDAR_NAME);
       await admin.from("staff_gcal_connections").update({ calendar_id: calendarId }).eq("staff_id", staffId);
     }
+    const visitCalendar = primary ? "primary" : calendarId;
+    const rules = primary ? await loadBookingRules(admin).catch(() => null) : null;
 
     // What should be there.
     const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
@@ -127,8 +147,29 @@ export async function reconcileStaffCalendar(staffId: string): Promise<StaffSync
       .eq("staff_id", staffId).eq("status", "booked").gte("starts_at", weekAgo).limit(1000);
     if (vErr) throw new Error(`staff gcal visits: ${vErr.message}`);
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? null;
-    const wanted = new Map<string, { kind: "visit" | "job"; timed?: GcalTimedEventInput; block?: GcalEventInput }>();
-    for (const v of (visitData ?? []) as VisitRow[]) wanted.set(`visit:${v.id}`, { kind: "visit", timed: buildVisitEvent(v, siteUrl) });
+    type Want = { kind: "visit" | "job" | "travel"; timed?: GcalTimedEventInput; block?: GcalEventInput; body?: Record<string, unknown>; calendar: string; notify: SendUpdates };
+    const wanted = new Map<string, Want>();
+    const visits = (visitData ?? []) as VisitRow[];
+    if (primary) {
+      // The guest: the account's email, so Google sends the invitation.
+      const accountIds = [...new Set(visits.map((v) => v.account_id).filter((x): x is string => !!x))];
+      const accRead = accountIds.length ? await admin.from("accounts").select("id, email, name").in("id", accountIds) : { data: [] as Array<{ id: string; email: string | null; name: string | null }>, error: null };
+      if (accRead.error) throw new Error(`staff gcal accounts: ${accRead.error.message}`);
+      const byAccount = new Map(((accRead.data ?? []) as Array<{ id: string; email: string | null; name: string | null }>).map((a) => [a.id, a]));
+      const slotMinutes = rules?.slotMinutes ?? 90;
+      const brandRead = await admin.from("settings").select("value").eq("key", "company_profile").maybeSingle();
+      const brand = ((brandRead.data?.value as { name?: string } | null)?.name || "Paint Group").trim();
+      for (const v of visits) {
+        const acc = v.account_id ? byAccount.get(v.account_id) : undefined;
+        wanted.set(`visit:${v.id}`, { kind: "visit", body: buildPrimaryVisitEvent(v, { email: acc?.email ?? null, name: acc?.name ?? null }, siteUrl, brand), calendar: "primary", notify: "all" });
+        const slotEnd = slotEndOf(v.starts_at, slotMinutes);
+        if (new Date(slotEnd).getTime() > new Date(v.ends_at).getTime()) {
+          wanted.set(`travel:${v.id}`, { kind: "travel", body: buildTravelEvent(v, slotEnd), calendar: "primary", notify: "none" });
+        }
+      }
+    } else {
+      for (const v of visits) wanted.set(`visit:${v.id}`, { kind: "visit", timed: buildVisitEvent(v, siteUrl), calendar: calendarId, notify: "none" });
+    }
 
     if (conn.push_jobs) {
       const { buildEventInput } = await import("./sync");
@@ -138,7 +179,7 @@ export async function reconcileStaffCalendar(staffId: string): Promise<StaffSync
         .not("issued_at", "is", null).not("start_date", "is", null).gte("start_date", today).neq("stage", "closed").limit(500);
       for (const row of jobs ?? []) {
         const ev = buildEventInput(row as never, siteUrl);
-        if (ev) wanted.set(`job:${row.id as string}`, { kind: "job", block: ev });
+        if (ev) wanted.set(`job:${row.id as string}`, { kind: "job", block: ev, calendar: calendarId, notify: "none" });
       }
     }
 
@@ -149,18 +190,22 @@ export async function reconcileStaffCalendar(staffId: string): Promise<StaffSync
 
     let created = 0, updated = 0, removed = 0;
     for (const [key, w] of wanted) {
-      const body = w.timed ?? w.block!;
+      const body = w.body ?? w.timed ?? w.block!;
       const hash = hashOf(body);
       const existing = mapped.get(key);
       // Claim first — everything left in `mapped` after the loop is deleted.
       mapped.delete(key);
       const refId = key.slice(key.indexOf(":") + 1);
-      const insert = () => (w.timed ? insertTimedEvent(accessToken, calendarId!, w.timed) : insertEvent(accessToken, calendarId!, w.block!));
-      if (existing && existing.calendar_id === calendarId) {
+      const insert = async () => {
+        if (w.body) return (await insertEventBody(accessToken, w.calendar, w.body, w.notify)).id;
+        return w.timed ? insertTimedEvent(accessToken, w.calendar, w.timed) : insertEvent(accessToken, w.calendar, w.block!);
+      };
+      if (existing && existing.calendar_id === w.calendar) {
         if (existing.content_hash === hash) continue;
         try {
-          if (w.timed) await patchTimedEvent(accessToken, calendarId, existing.google_event_id, w.timed);
-          else await patchEvent(accessToken, calendarId, existing.google_event_id, w.block!);
+          if (w.body) await patchEventBody(accessToken, w.calendar, existing.google_event_id, w.body, w.notify);
+          else if (w.timed) await patchTimedEvent(accessToken, w.calendar, existing.google_event_id, w.timed);
+          else await patchEvent(accessToken, w.calendar, existing.google_event_id, w.block!);
         } catch (e) {
           if (!(e instanceof GcalApiError && (e.status === 404 || e.status === 410))) throw e;
           const freshId = await insert();
@@ -169,10 +214,11 @@ export async function reconcileStaffCalendar(staffId: string): Promise<StaffSync
         await admin.from("staff_gcal_events").update({ content_hash: hash }).eq("id", existing.id);
         updated++;
       } else {
+        // A visit that lived in the app calendar moves to the primary one: the old event goes quietly.
         if (existing) await deleteEvent(accessToken, existing.calendar_id, existing.google_event_id);
         const eventId = await insert();
         const { error } = await admin.from("staff_gcal_events").upsert(
-          { staff_id: staffId, kind: w.kind, ref_id: refId, google_event_id: eventId, calendar_id: calendarId, content_hash: hash },
+          { staff_id: staffId, kind: w.kind, ref_id: refId, google_event_id: eventId, calendar_id: w.calendar, content_hash: hash },
           { onConflict: "staff_id,kind,ref_id" },
         );
         if (error) throw new Error(`staff gcal save map: ${error.message}`);
@@ -180,10 +226,12 @@ export async function reconcileStaffCalendar(staffId: string): Promise<StaffSync
       }
     }
     for (const stale of mapped.values()) {
-      await deleteEvent(accessToken, stale.calendar_id, stale.google_event_id);
+      // A visit that is no longer booked: the guest is told the event is cancelled (R22's confirmation rides the visit's own cancel email too).
+      await deleteEventNotify(accessToken, stale.calendar_id, stale.google_event_id, stale.kind === "visit" && stale.calendar_id === "primary" ? "all" : "none");
       await admin.from("staff_gcal_events").delete().eq("id", stale.id);
       removed++;
     }
+    void visitCalendar;
     await admin.from("staff_gcal_connections").update({ sync_error: null }).eq("staff_id", staffId);
     return { status: "synced", created, updated, removed };
   } catch (e) {

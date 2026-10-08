@@ -1,8 +1,9 @@
+import EstimatorNotes from "@/app/components/estimator-notes/EstimatorNotes";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/monitoring/report";
-import { STAGE_LANES, stageTitle, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
-import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
+import { LANES, LANE_LABELS, laneFor, stageTitle, type WoStage } from "@/lib/workorder/stages";
+import { jobNeedsAfterPhotos, progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
 import { staffSignsOff as staffSignsOffFor, supersededQaIds } from "@/lib/workorder/qa";
 import PhotosOptionalToggle from "./PhotosOptionalToggle";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
@@ -24,6 +25,7 @@ import RebuildTicks from "./RebuildTicks";
 import SetDeduction from "./SetDeduction";
 import MaterialsCard, { type MaterialRowProp } from "./MaterialsCard";
 import FinishLevelCard from "./FinishLevelCard";
+import ClientUpdates, { type ClientTimelineEntry } from "./ClientUpdates";
 import ReferencePhotosCard from "./ReferencePhotosCard";
 import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
 import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
@@ -82,10 +84,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: qaLinkRows, error: qaLinkErr }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
     await Promise.all([
       supabase.from("wo_surfaces")
-        .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional")
+        .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_variations")
-        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents")
+        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents, contractor_declined_at, contractor_decline_note")
         .eq("work_order_id", id).order("created_at", { ascending: false }),
       supabase.from("wo_updates").select("id, draft_text, final_text, status, for_date")
         .eq("work_order_id", id).order("for_date", { ascending: false }).limit(1),
@@ -119,10 +121,17 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   // keeps what exists). The refetch is a DIFFERENT select shape on purpose:
   // Next memoises identical fetches within a request and would hand back the
   // pre-seed empty list.
+  // 87 Trenerry Crescent (1 Oct): two variation rows had landed BEFORE the
+  // job was ever opened here, so "no rows at all" was false and the six rooms
+  // on the job sheet were never seeded — the painter saw two lines. The test
+  // is now "no row that came from the job sheet" (a doc row carries its
+  // surface_key; a variation's or a rectification's does not).
   let healedSurfaceRows: typeof surfaceRows = null;
   const snapshotDoc = row.wo_snapshot as WorkOrderDoc | null;
+  const docKeys = new Set(snapshotDoc?.areas?.length ? seedRowsFromDoc(snapshotDoc).map((r) => r.surfaceKey).filter(Boolean) : []);
+  const hasDocRow = ((surfaceRows ?? []) as Array<{ surface_key?: string | null }>).some((r) => r.surface_key && docKeys.has(r.surface_key));
   if ((row.stage === "pre_start" || row.stage === "in_progress")
-      && (surfaceRows ?? []).length === 0 && (snapshotDoc?.areas?.length ?? 0) > 0) {
+      && !hasDocRow && docKeys.size > 0) {
     const { data: seeded } = await supabase.rpc("wo_seed_surfaces", {
       p_work_order_id: id, p_rows: seedRowsFromDoc(snapshotDoc!),
     });
@@ -231,6 +240,16 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   // without the gallery's limit, so an old first photo never falls off the end.
   const { data: gateRows, error: gateError } = await supabase.from("wo_photos").select("kind").eq("work_order_id", id).eq("kind", "before").limit(1);
   const hasBeforePhoto = !gateError && ((gateRows as { kind: string }[] | null) ?? []).length > 0;
+  // The finish gate (Step 3) reads the same way; and the office's waiver of it
+  // (Tom, 6 Oct, migration 20270215) is an event on the job, never a column.
+  const [{ data: afterRows, error: afterError }, { data: waiverRows, error: waiverError }] = await Promise.all([
+    supabase.from("wo_photos").select("kind").eq("work_order_id", id).eq("kind", "completion").limit(1),
+    supabase.from("wo_events").select("id").eq("work_order_id", id).eq("type", "after_photos_waived").limit(1),
+  ]);
+  if (afterError) reportError(afterError, { where: "pc.wo.afterPhotoGate", bestEffort: true, extra: { workOrderId: id } });
+  if (waiverError) reportError(waiverError, { where: "pc.wo.afterPhotoWaiver", bestEffort: true, extra: { workOrderId: id } });
+  const hasAfterPhoto = !afterError && ((afterRows as { kind: string }[] | null) ?? []).length > 0;
+  const afterPhotosWaived = !waiverError && ((waiverRows as { id: string }[] | null) ?? []).length > 0;
 
   // Materials (Tom, 4 Sep): the colour breakdown per substrate off the frozen
   // job sheet, and the budget — the estimate's engine materials cost against
@@ -324,7 +343,34 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     contractor_delta_cents: number | null; released_at: string | null;
     credit: boolean; signed_name: string | null; signed_at: string | null;
     needs_manual_deduction: boolean; deduction_cents: number | null;
+    contractor_declined_at?: string | null; contractor_decline_note?: string | null;
   }[]);
+
+  // Tom, 7 Oct 2026 (PC Command item 5): the client-updates timeline — every
+  // update that reached the customer and every note the office logged about
+  // telling them, newest first. Both reads check their error (a rejected
+  // query must never read as "no updates yet").
+  const [sentUpdatesRes, clientNotesRes] = await Promise.all([
+    supabase.from("wo_updates").select("id, final_text, draft_text, status, for_date, sent_at, approved_at")
+      .eq("work_order_id", id).in("status", ["approved", "sent"]).order("for_date", { ascending: false }).limit(40),
+    supabase.from("wo_events").select("id, created_at, meta, actor")
+      .eq("work_order_id", id).eq("type", "client_update_note").order("created_at", { ascending: false }).limit(80),
+  ]);
+  // wo_events.actor points at auth.users, not profiles — names are a second, keyed read.
+  const noteActorIds = [...new Set(((clientNotesRes.data ?? []) as { actor: string | null }[]).map((e) => e.actor).filter((x): x is string => !!x))];
+  const noteActors = noteActorIds.length
+    ? await supabase.from("profiles").select("id, name").in("id", noteActorIds)
+    : { data: [] as { id: string; name: string | null }[], error: null };
+  const actorName = new Map(((noteActors.data ?? []) as { id: string; name: string | null }[]).map((p) => [p.id, p.name]));
+  const clientTimelineFailures: string[] = [];
+  if (sentUpdatesRes.error) { reportError(sentUpdatesRes.error, { where: "pc.wo.clientUpdates.sent" }); clientTimelineFailures.push("sent updates"); }
+  if (clientNotesRes.error) { reportError(clientNotesRes.error, { where: "pc.wo.clientUpdates.notes" }); clientTimelineFailures.push("notes"); }
+  const clientTimeline: ClientTimelineEntry[] = [
+    ...((sentUpdatesRes.data ?? []) as { id: string; final_text: string | null; draft_text: string; status: string; for_date: string; sent_at: string | null; approved_at: string | null }[])
+      .map((u) => ({ id: `u:${u.id}`, kind: u.status === "sent" ? "sent" as const : "approved" as const, at: u.sent_at ?? u.approved_at ?? `${u.for_date}T12:00:00Z`, body: u.final_text ?? u.draft_text, who: null })),
+    ...((clientNotesRes.data ?? []) as { id: string; created_at: string; meta: { body?: string } | null; actor: string | null }[])
+      .map((e) => ({ id: `n:${e.id}`, kind: "note" as const, at: e.created_at, body: String(e.meta?.body ?? ""), who: (e.actor ? actorName.get(e.actor) : null) ?? null })),
+  ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   const contract = row.estimates?.total_cents ?? 0;
   const contractorPay = row.contractor_payment_cents ?? 0;
@@ -354,7 +400,12 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     ? { sentAt: reviewRow.sent_at, sentVia: reviewRow.sent_via, receivedAt: reviewRow.received_at, rating: reviewRow.rating }
     : null;
 
-  const stageIndex = VISIBLE_STAGES.indexOf(visibleStage(row.stage));
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+  // The rail's current stop is the LANE, so a job booked weeks out lights
+  // 02 Booking confirmed and moves to 03 Pre-start on its own a week before.
+  const stageIndex = LANES.indexOf(laneFor(row.stage, row.start_date, today));
   const update = ((updateRows ?? []) as { id: string; draft_text: string; final_text: string | null; status: string; for_date: string }[])[0];
 
   return (
@@ -383,10 +434,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         </div>
 
         <div className="rail7" data-testid="stage-rail">
-          {VISIBLE_STAGES.map((stage, i) => (
+          {LANES.map((stage, i) => (
             <span className={`st ${i < stageIndex ? "p" : i === stageIndex ? "c" : ""}`} key={stage}
               data-testid={`rail-${stage}`}>
-              <i /><span>{STAGE_LANES[stage].n} {stageTitle(stage, acceptanceMode)}</span>
+              <i /><span>{LANE_LABELS[stage].n} {stageTitle(stage, acceptanceMode)}</span>
             </span>
           ))}
         </div>
@@ -446,6 +497,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
           </div>
         </div>
       )}
+
+      {/* Tom, 4 Oct: what the estimator wrote or said about this job — internal,
+          staff only, loaded client-side so no note text sits in this page's HTML. */}
+      {estimateId && <EstimatorNotes estimateId={estimateId} surface="console" who="the project coordinator" />}
 
       <div className="grid2">
         {row.stage === "in_progress" ? (
@@ -517,11 +572,18 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             workOrderId={id}
             stage={row.stage}
             startDate={row.start_date}
-            today={new Intl.DateTimeFormat("en-CA", {
-              timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
-            }).format(new Date())}
+            today={today}
             walkthroughRequired={row.walkthrough_required !== false}
             staffSignsOff={staffSignsOff}
+            readiness={row.stage === "in_progress" || row.stage === "completion_prep" ? {
+              surfacesLeft: progress.total - progress.done,
+              surfacesTotal: progress.total,
+              needsAfterPhotos: jobNeedsAfterPhotos(surfaces, hasAfterPhoto),
+              afterPhotosWaived,
+              prepLeft: outstanding("completion_prep"),
+              variationsWaiting: variations.filter((v) => v.status === "raised" || v.status === "priced" || v.status === "customer_approved").length,
+              areas: headings,
+            } : null}
           />
 
           {/* Colour matches (Tom, 23 Aug): flagged by the estimator or opened by
@@ -733,6 +795,13 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                     : ""}
                 </p>
               )}
+              {/* Tom, 7 Oct 2026: the client approved it; the painter declined it, with a note. */}
+              {v.status === "declined" && v.contractor_declined_at && (
+                <p className="note" data-testid={`variation-painter-declined-${v.id}`} style={{ color: "var(--clay, #c2410c)" }}>
+                  Declined by the painter{v.contractor_declined_at ? ` on ${new Date(v.contractor_declined_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}` : ""} after the client approved it
+                  {v.contractor_decline_note ? <> — they wrote: &ldquo;{v.contractor_decline_note}&rdquo;</> : "."} Revise it with the client in <b>Revise scope</b>, or set the painter&rsquo;s amount and re-send.
+                </p>
+              )}
               {/* What the painter photographed when they raised it — pricing a
                   variation off a one-line comment was guesswork. */}
               <PhotoGrid
@@ -783,6 +852,11 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               <div className="draft">{update.final_text ?? update.draft_text}</div>
             </div>
           )}
+
+          {/* Tom, 7 Oct 2026: a notes box for what the client was told (a call, a
+              text, a conversation on site) — on this job's timeline AND on the
+              customer's CRM record. */}
+          <ClientUpdates workOrderId={id} entries={clientTimeline} failures={clientTimelineFailures} />
 
           <div className="card" data-testid="site-photos">
             <h3>From site <em data-testid="photo-count">{photos.length} photo{photos.length === 1 ? "" : "s"}</em></h3>

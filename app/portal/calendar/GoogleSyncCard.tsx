@@ -11,7 +11,29 @@ import { disconnectGoogleCalendar, syncGoogleCalendarNow } from "./gcalActions";
  * not fetch). Disconnect and Sync-now are server actions. `flash` carries the
  * ?gcal= query param the OAuth callback redirects back with.
  */
-export default function GoogleSyncCard({ status, flash }: { status: GcalStatus; flash?: string }) {
+/** The callback's ?why= reason, as a sentence a painter can act on or read to the office. */
+export function failureNote(why: string | undefined): string {
+  const base = "Connecting to Google didn't work.";
+  switch (why) {
+    case "state_cookie":
+      return `${base} Google sent you back to a different address from the one you started on. Open the portal from the link in your invite or text and try again; if it happens twice, tell the office "calendar: state cookie".`;
+    case "state":
+      return `${base} The sign-in took too long or was started twice. Try once more from this page.`;
+    case "no_session":
+      return `${base} You were signed out on the way back. Sign in and press Connect again.`;
+    case "no_refresh":
+      return `${base} Google didn't hand over a long-term key. Press Connect again and tick every box on the consent screen.`;
+    case "exchange":
+      return `${base} Google refused the handshake. Tell the office "calendar: exchange" and they'll check the setup.`;
+    case "missing_env":
+      return `${base} The office hasn't finished setting this up.`;
+    default:
+      if (why?.startsWith("google_")) return `${base} Google said: ${why.slice(7).replace(/_/g, " ")}. Tell the office that wording.`;
+      return `${base} Give it another go, or let the office know.`;
+  }
+}
+
+export default function GoogleSyncCard({ status, flash, flashWhy }: { status: GcalStatus; flash?: string; flashWhy?: string }) {
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState<string | null>(
     flash === "connected"
@@ -19,7 +41,7 @@ export default function GoogleSyncCard({ status, flash }: { status: GcalStatus; 
       : flash === "denied"
         ? "No worries — nothing was connected."
         : flash === "failed"
-          ? "Connecting to Google didn't work. Give it another go, or let the office know."
+          ? failureNote(flashWhy)
           : null,
   );
 
@@ -89,7 +111,7 @@ export default function GoogleSyncCard({ status, flash }: { status: GcalStatus; 
         </>
       )}
 
-      {note && <p className="hint">{note}</p>}
+      {note && <p className="hint" data-testid="gcal-note">{note}</p>}
     </div>
   );
 }

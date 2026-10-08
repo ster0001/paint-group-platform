@@ -85,3 +85,74 @@ export const wizardSessions: MetricDef<FunnelRow> = {
   select: funnelRows,
   note: (rows) => rows.length ? `${rows.filter((r) => r.accepted).length} accepted · ${rows.filter((r) => r.furthest === "email" || r.furthest === "saved").length} warm, not sent` : "no wizard sessions in this range",
 };
+
+
+// ---- S6 — the gate, by version (addendum A §4.7) ------------------------------
+
+export type GateVersion = "details_first" | "range_first";
+export const GATE_VERSION_LABEL: Record<GateVersion, string> = { details_first: "Details first", range_first: "Range first" };
+
+export type GateSessionRow = {
+  started_on: string; version: GateVersion; reached_gate: boolean; completed_gate: boolean; saw_range: boolean;
+  next: "tighten" | "speak" | "visit" | "message" | "nothing"; lead_source: string;
+};
+
+/** One row per session that recorded a gate version, started in the range. */
+export function gateSessionRows(input: MetricInput, range: Range): GateSessionRow[] {
+  const f = input.funnel; if (!f) return [];
+  return f.drafts
+    .filter((d) => inRange(d.started_at, range) && (d.gate_version === "details_first" || d.gate_version === "range_first"))
+    .map((d) => ({
+      started_on: melbourneDay(d.started_at),
+      version: d.gate_version as GateVersion,
+      reached_gate: Boolean(d.gate_shown_at),
+      completed_gate: Boolean(d.gate_completed_at),
+      saw_range: Boolean(d.range_shown_at),
+      next: (d.range_option as GateSessionRow["next"] | null) ?? "nothing",
+      lead_source: d.lead_source ?? "unknown",
+    }));
+}
+
+export type GateVersionReport = {
+  version: GateVersion; label: string; sessions: number; reached_gate: number; completed_gate: number;
+  /** Reached the gate and did not complete it, as a share of those who reached it. */
+  lost_at_gate_pct: number; saw_range: number;
+  next: Record<"tighten" | "speak" | "visit" | "message" | "nothing", number>;
+};
+
+/** Reached the gate, completed it, the share lost at the gate, saw the range, and what they did next — per version. */
+export function buildGateReport(input: MetricInput, range: Range): GateVersionReport[] {
+  const rows = gateSessionRows(input, range);
+  return (["details_first", "range_first"] as GateVersion[]).map((version) => {
+    const mine = rows.filter((r) => r.version === version);
+    const reached = mine.filter((r) => r.reached_gate).length;
+    const completed = mine.filter((r) => r.completed_gate).length;
+    const next = { tighten: 0, speak: 0, visit: 0, message: 0, nothing: 0 };
+    for (const r of mine) next[r.next]++;
+    return {
+      version, label: GATE_VERSION_LABEL[version], sessions: mine.length, reached_gate: reached, completed_gate: completed,
+      lost_at_gate_pct: reached ? Math.round(((reached - completed) / reached) * 100) : 0,
+      saw_range: mine.filter((r) => r.saw_range).length, next,
+    };
+  });
+}
+
+/** The exportable list behind the gate report. */
+export const gateSessions: MetricDef<GateSessionRow> = {
+  key: "funnel.gate_sessions",
+  kind: "period",
+  section: "funnel",
+  title: "The gate, by version",
+  definition: "Wizard sessions started in the range that recorded which gate order they saw (details first or range first), each with whether it reached the gate, completed it, saw the range, and what it chose next. Lost at the gate = reached but not completed, as a share of those who reached it.",
+  unit: "count",
+  gst: null,
+  roles: ["owner", "admin", "sales"],
+  aggregate: "count",
+  columns: [
+    { key: "started_on", label: "Started" }, { key: "version", label: "Version" }, { key: "reached_gate", label: "Reached the gate" }, { key: "completed_gate", label: "Completed it" },
+    { key: "saw_range", label: "Saw the range" }, { key: "next", label: "Did next" }, { key: "lead_source", label: "Lead source" },
+  ],
+  href: "/estimates",
+  select: gateSessionRows,
+  note: (rows) => rows.length ? `${rows.filter((r) => r.version === "details_first").length} details first · ${rows.filter((r) => r.version === "range_first").length} range first` : "no sessions with a gate version yet",
+};

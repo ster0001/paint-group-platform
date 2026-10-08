@@ -16,6 +16,8 @@ import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
 import { melbourneDate } from "@/lib/workorder/console";
+import { logCrmEvent } from "@/lib/crm/events";
+import { reportError } from "@/lib/monitoring/report";
 
 /**
  * The console's own actions — the three PC surfaces the earlier steps deferred
@@ -776,11 +778,28 @@ export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: 
   // completion_prep is invisible: from in_progress this walks the hidden stage
   // and routes in one press. Already past the ticks? The finish no-ops with
   // not_in_progress and the confirm still runs.
-  const { data: finished } = await supabase.rpc("wo_contractor_finish", {
+  //
+  // Tom, 6 Oct 2026 (568 Collins St, 40 Jacka Blvd stuck at In progress):
+  // EVERY refusal of the finish is reported in words. This used to pass only
+  // the gate refusals on and drop the rest — so a job short of its after
+  // photos ran the confirm anyway, which answered "not at prep", a code with
+  // nothing to do about it.
+  const { data: finished, error: finishError } = await supabase.rpc("wo_contractor_finish", {
     p_work_order_id: parsed.data.workOrderId,
   });
+  if (finishError) return { ok: false, message: finishError.message };
   const f = String(finished ?? "");
   if (f.startsWith("error:gate:")) return { ok: false, message: humaniseGate(f.slice("error:gate:".length)) };
+  if (f === "error:after_photos_required") {
+    return {
+      ok: false,
+      message: "The job's after photos aren't in yet — the painter's Step 3. Upload them here if they've sent them to you, or press \"Move on without after photos\" and say why.",
+    };
+  }
+  if (f === "error:not_yours") return { ok: false, message: "Only the office or this job's painter can finish it." };
+  if (!f.startsWith("ok:") && f !== "error:not_in_progress") {
+    return { ok: false, message: f.replace("error:", "").replace(/_/g, " ") };
+  }
 
   const { data, error } = await supabase.rpc("wo_contractor_confirm_prep", {
     p_work_order_id: parsed.data.workOrderId,
@@ -789,7 +808,7 @@ export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: 
 
   const s = String(data ?? "");
   if (s === "ok:qa" || s === "ok:walkthrough" || s === "ok:closed") {
-    revalidatePath("/pc"); revalidatePath("/pc/flow");
+    revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
     return {
       ok: true,
       to: s === "ok:qa" ? "qa" : s === "ok:closed" ? "closed" : "walkthrough",
@@ -801,6 +820,40 @@ export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: 
     };
   }
   if (s.startsWith("error:gate:")) return { ok: false, message: humaniseGate(s.slice("error:gate:".length)) };
+  // The finish said "not in progress" and the confirm "not at prep": the job
+  // is somewhere else already (another tab moved it, or it is at Quality check).
+  if (s === "error:not_at_prep") return { ok: false, message: "This job isn't at In progress any more — reload the page to see where it is." };
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+}
+
+/**
+ * The office waives the job's after photos (Tom, 6 Oct 2026) — with a reason,
+ * recorded as a wo_event on the timeline. The painter's Step 3 rule stands;
+ * this is the office's key to it, for the job whose finished shots arrived by
+ * text or were never going to come. Migration 20270215.
+ */
+export async function waiveAfterPhotos(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, reason: z.string().trim().min(3).max(500) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Say why in a few words — it goes on the job's record." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_staff_waive_after_photos", {
+    p_work_order_id: parsed.data.workOrderId, p_reason: parsed.data.reason,
+  });
+  if (error) {
+    if (isMissingRpc(error.message, "wo_staff_waive_after_photos")) {
+      return { ok: false, message: "This needs database migration 20270215 run first — nothing was changed." };
+    }
+    return { ok: false, message: error.message };
+  }
+  const s = String(data ?? "");
+  if (s === "ok:waived" || s === "ok:already") {
+    revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+    return { ok: true, message: "Noted on the job — it can move on without after photos. Press All done — next step." };
+  }
+  if (s === "ok:not_needed") return { ok: true, message: "The after photos are already in — nothing to waive. Press All done — next step." };
+  if (s === "error:not_staff") return { ok: false, message: "Only the office can waive the after photos." };
+  if (s === "error:not_in_progress") return { ok: false, message: "This job isn't at In progress — reload the page." };
+  if (s === "error:reason_required") return { ok: false, message: "Say why in a few words — it goes on the job's record." };
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
 }
 
@@ -929,4 +982,53 @@ export async function deleteReferencePhoto(raw: unknown): Promise<PcResult> {
   if (!r.ok && r.message === "not staff") return { ok: false, message: "Only the office can do that." };
   if (r.ok) revalidatePath("/portal/jobs");
   return r;
+}
+
+/**
+ * Tom, 7 Oct 2026 (PC Command item 5): a client-update note. Two records, one
+ * action: the job's own timeline (wo_events 'client_update_note', via the
+ * staff-only RPC) and the customer's CRM record (crm_events note_added, origin
+ * client_update) so the CRM timeline carries it too. The CRM copy is
+ * best-effort — a job with no customer account simply has no CRM row.
+ */
+export async function addClientUpdateNote(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, body: z.string().trim().min(2).max(2000) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Write what the client was told — a line is plenty (under 2,000 characters)." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_add_client_update_note", {
+    p_work_order_id: parsed.data.workOrderId, p_body: parsed.data.body,
+  });
+  if (error) {
+    if (isMissingRpc(error.message, "wo_add_client_update_note")) {
+      return { ok: false, message: "This needs database migration 20270220 run first — nothing was saved." };
+    }
+    return { ok: false, message: error.message };
+  }
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) {
+    if (s === "error:not_staff") return { ok: false, message: "Only the office can log client updates." };
+    return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") || "That didn't save." };
+  }
+
+  // The customer's CRM record: the account behind the job's estimate.
+  let crm = "";
+  const { data: wo, error: woErr } = await supabase.from("work_orders").select("estimate_id, estimates(account_id)").eq("id", parsed.data.workOrderId).maybeSingle();
+  if (woErr) reportError(woErr, { where: "pc.clientUpdateNote.account" });
+  const est = (wo as { estimates?: { account_id: string | null } | { account_id: string | null }[] | null } | null)?.estimates;
+  const accountId = (Array.isArray(est) ? est[0]?.account_id : est?.account_id) ?? null;
+  if (accountId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: me } = user ? await supabase.from("profiles").select("name").eq("id", user.id).maybeSingle() : { data: null };
+    const author = ((me as { name?: string | null } | null)?.name ?? "").trim() || undefined;
+    const id = await logCrmEvent(supabase, {
+      type: "note_added", accountId, workOrderId: parsed.data.workOrderId,
+      estimateId: (wo as { estimate_id?: string | null } | null)?.estimate_id ?? null,
+      source: "staff", payload: { body: `Client update: ${parsed.data.body}`, ...(author ? { author } : {}), origin: "client_update" },
+    });
+    crm = id ? " and on the customer's CRM record" : " (the CRM copy did not save — it has been reported)";
+    if (!id) reportError(new Error("crm_log_event returned nothing"), { where: "pc.clientUpdateNote.crm", extra: { accountId } });
+  }
+  revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+  if (accountId) revalidatePath(`/crm/customers/${accountId}`);
+  return { ok: true, message: `Logged on the job's timeline${crm}.` };
 }

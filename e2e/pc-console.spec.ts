@@ -90,9 +90,77 @@ test.describe("PC Command", () => {
     const lane = page.getByTestId("lane-in_progress");
     await expect(lane.getByTestId(`job-${fixture!.workOrderId}`)).toBeVisible();
     // And nowhere else.
-    for (const stage of ["offered", "pre_start", "qa", "completion_prep", "walkthrough", "closed"]) {
+    for (const stage of ["offered", "booking_confirmed", "pre_start", "qa", "completion_prep", "walkthrough", "closed"]) {
       await expect(page.getByTestId(`lane-${stage}`).getByTestId(`job-${fixture!.workOrderId}`)).toHaveCount(0);
     }
+  });
+
+  // Tom, 1 Oct 2026: Booking confirmed sits between Offer and Pre-start. Only
+  // a booked job due to start within seven days is in Pre-start; the rest of
+  // the booked jobs wait in Booking confirmed. The stage in the database is
+  // pre_start for both — the lane is derived from the start date.
+  test.describe("Booking confirmed lane", () => {
+    let far: LoopFixture | null = null;
+    let near: LoopFixture | null = null;
+
+    // yyyy-mm-dd in Melbourne, N days from today — the same calendar the
+    // screen buckets by, never toISOString().
+    const melbourne = (d: Date) => new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(d);
+    const inDays = (n: number) => melbourne(new Date(Date.now() + n * 86_400_000));
+
+    test.beforeAll(async () => {
+      const contractorId = await contractorIdForEmail(db!, contractor!.email);
+      far = await createLoopFixture(db!, contractorId!, [{ heading: "Front", labels: ["Walls"] }]);
+      near = await createLoopFixture(db!, contractorId!, [{ heading: "Front", labels: ["Walls"] }]);
+      for (const [f, start] of [[far, inDays(20)], [near, inDays(3)]] as const) {
+        const { error } = await db!.from("work_orders")
+          .update({ stage: "pre_start", status: "issued", start_date: start })
+          .eq("id", f!.workOrderId);
+        if (error) throw new Error(`booking fixture: ${error.message}`);
+      }
+    });
+
+    test.afterAll(async () => {
+      await destroyLoopFixture(db!, far);
+      await destroyLoopFixture(db!, near);
+    });
+
+    test("a job booked weeks out waits in Booking confirmed; one due this week is in Pre-start", async ({ page }) => {
+      await signIn(page, staff!, /\/(home|estimates)/);
+      await page.goto("/pc/flow");
+
+      const river = page.getByTestId("river");
+      // Lane order: Offer, Booking confirmed, Pre-start, …
+      const heads = await river.locator(".lane-h .n").allTextContents();
+      expect(heads.slice(0, 3)).toEqual(["01 Offer", "02 Booking confirmed", "03 Pre-start"]);
+
+      await expect(page.getByTestId("lane-booking_confirmed").getByTestId(`job-${far!.workOrderId}`)).toBeVisible();
+      await expect(page.getByTestId("lane-pre_start").getByTestId(`job-${far!.workOrderId}`)).toHaveCount(0);
+
+      await expect(page.getByTestId("lane-pre_start").getByTestId(`job-${near!.workOrderId}`)).toBeVisible();
+      await expect(page.getByTestId("lane-booking_confirmed").getByTestId(`job-${near!.workOrderId}`)).toHaveCount(0);
+    });
+
+    test("the job's stage rail lights the same lane", async ({ page }) => {
+      await signIn(page, staff!, /\/(home|estimates)/);
+      await page.goto(`/pc/wo/${far!.workOrderId}`);
+      await expect(page.getByTestId("rail-booking_confirmed")).toHaveClass(/\bc\b/);
+      await expect(page.getByTestId("rail-pre_start")).not.toHaveClass(/\bc\b/);
+
+      await page.goto(`/pc/wo/${near!.workOrderId}`);
+      await expect(page.getByTestId("rail-pre_start")).toHaveClass(/\bc\b/);
+      await expect(page.getByTestId("rail-booking_confirmed")).toHaveClass(/\bp\b/);
+    });
+
+    test("moving the start date to within the week moves the card on its own", async ({ page }) => {
+      await db!.from("work_orders").update({ start_date: inDays(7) }).eq("id", far!.workOrderId);
+      await signIn(page, staff!, /\/(home|estimates)/);
+      await page.goto("/pc/flow");
+      await expect(page.getByTestId("lane-pre_start").getByTestId(`job-${far!.workOrderId}`)).toBeVisible();
+      await db!.from("work_orders").update({ start_date: inDays(20) }).eq("id", far!.workOrderId);
+    });
   });
 
   test("the queue action deep-links to the variation it is about", async ({ page }) => {

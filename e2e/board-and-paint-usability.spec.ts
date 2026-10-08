@@ -237,6 +237,37 @@ test.describe("board and paint usability, 18 Sep", () => {
     await expect(page.getByTestId("tray-no-match")).toBeVisible();
   });
 
+  // Tom, 1 Oct: open an estimate from the board and come back, and the board
+  // is where you left it — the timeline's own scroll and the page scroll both
+  // — instead of flicking back to the top-left. The link also tells the
+  // builder where it came from, so its top-left link returns to the schedule.
+  test("the board keeps its scroll position across a trip to the estimate", async ({ page }) => {
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto("/pc/schedule");
+    const cards = page.locator('[data-testid="tray-job"]');
+    const mine = cards.filter({ hasText: TRAY[0].title });
+    await expect(mine).toBeVisible({ timeout: 30_000 });
+
+    // Scroll the timeline well to the right (it is the scrollport, not the page).
+    const tl = page.locator(".sb main.tl");
+    await tl.evaluate((el) => { el.scrollLeft = 480; });
+    await page.waitForTimeout(150); // the save is rAF-throttled
+    const before = await tl.evaluate((el) => el.scrollLeft);
+    expect(before).toBeGreaterThan(200);
+
+    const link = mine.getByTestId("tray-view-estimate");
+    await expect(link).toHaveAttribute("href", new RegExp(`from=${encodeURIComponent("/pc/schedule?from=")}`));
+    await link.click();
+    await expect(page).toHaveURL(/\/quote\?id=/);
+    const backLink = page.getByRole("link", { name: /Back to the schedule/ });
+    await expect(backLink).toBeVisible({ timeout: 30_000 });
+    await backLink.click();
+
+    await expect(page).toHaveURL(/\/pc\/schedule/);
+    await expect(cards.filter({ hasText: TRAY[0].title })).toBeVisible({ timeout: 30_000 });
+    await expect.poll(() => tl.evaluate((el) => el.scrollLeft), { timeout: 5_000 }).toBe(before);
+  });
+
   test("quality checks cycle first jobs → every job → none, and 'none' stops them being scheduled", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/contractors");
@@ -327,8 +358,10 @@ test.describe("board and paint usability, 18 Sep", () => {
       const after = await select.locator("option").evaluateAll((o) =>
         o.map((x) => x.textContent?.trim() ?? "").filter((t) => t && !t.startsWith("—")));
       expect(after.length).toBeLessThan(before.length);
-      expect(after.every((n) => n.toLowerCase().includes(term.toLowerCase()) || n === chosen),
-        `every paint left matches "${term}", except the one already chosen: ${after.join(" | ")}`).toBe(true);
+      // Since 8 Oct the box also matches brand and finish, which the option
+      // text does not show — so a match is asserted, not that every name holds it.
+      expect(after.some((n) => n.toLowerCase().includes(term.toLowerCase())),
+        `a paint named for "${term}" is still listed: ${after.join(" | ")}`).toBe(true);
       expect(after, "the chosen paint is never filtered away").toContain(chosen);
       expect(await select.inputValue(), "and the row still reads as itself").toBe(chosen);
 

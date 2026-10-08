@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 import { credentials, signIn } from "../helpers";
 
@@ -12,11 +12,22 @@ import { credentials, signIn } from "../helpers";
  * session as staff — it lands on screen 3.
  */
 
-test("nine taps to a range, and no email is asked before it", async ({ page }) => {
+/**
+ * Visit booking S6 (R5/R6): the DEFAULT order now asks for the details as the
+ * last question before the range. This walk is the "range first" order — the
+ * switch in Booking rules — so it is set for the test and put back after.
+ */
+test("nine taps to a range, and no email is asked before it (range first)", async ({ page }) => {
   test.setTimeout(240_000);
+  const sb = serviceClient();
+  test.skip(!sb, "needs SUPABASE_SERVICE_ROLE_KEY");
+  const { data: rulesRow } = await sb!.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle();
+  const rulesBefore = (rulesRow?.value ?? {}) as Record<string, unknown>;
+  await sb!.from("settings").upsert({ key: "visit_booking_rules", value: { ...rulesBefore, gateOrder: "range_first" } }, { onConflict: "key" });
+  try {
   await openQuickLook(page);
-  // Screen 1 carries the way out: book someone in, or call.
-  await expect(page.getByTestId("ql-rather-not")).toBeVisible();
+  // Screen 1 carries the way out (S4, R3): request a site visit, call, or send a message.
+  await expect(page.getByTestId("ql-talk")).toBeVisible();
   await expect(page.getByTestId("ql-book")).toBeVisible();
   // The pill is in the header from the first screen.
   await expect(page.getByTestId("save-and-book-pill")).toBeVisible();
@@ -49,6 +60,9 @@ test("nine taps to a range, and no email is asked before it", async ({ page }) =
   await expect(page.getByTestId("reveal-keep-email")).toBeVisible();
   // And the pill is still in the header on the reveal.
   await expect(page.getByTestId("save-and-book-pill")).toBeVisible();
+  } finally {
+    await sb!.from("settings").upsert({ key: "visit_booking_rules", value: rulesBefore }, { onConflict: "key" });
+  }
 });
 
 test("Save & book from screen 3 keeps the session; staff open it at screen 3", async ({ page, browser }) => {
@@ -124,6 +138,7 @@ test("'both' meets the choice screen, then shows two ranges", async ({ page }) =
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 }); // 15 Sep (late): which sides, before the gate
   await quickNext(page);
+  await passGateIfShown(page); // S6: the gate, under "details first"
 
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.getByTestId("reveal-part-interior")).toContainText(MONEY_RANGE);

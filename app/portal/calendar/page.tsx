@@ -9,15 +9,17 @@ import { gcalStatus } from "@/lib/gcal/sync";
 import GoogleSyncCard from "./GoogleSyncCard";
 import TimeOffCard, { type TimeOffRow } from "./TimeOffCard";
 import { reportError } from "@/lib/monitoring/report";
+import { addDays } from "@/lib/scheduling/dates";
 
 export const dynamic = "force-dynamic";
 
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ gcal?: string }>;
+  searchParams: Promise<{ gcal?: string; why?: string }>;
 }) {
   const { contractor, capabilities } = await requireContractor();
+  const sp = await searchParams;
 
   if (!contractor) {
     return (
@@ -65,6 +67,28 @@ export default async function CalendarPage({
   const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
   const jobDays: PortalJobDay[] = jobDaysFor(jobs);
 
+  // Tom, 1 Oct: a job the office booked a SECOND visit for — "back to finish
+  // the ceilings" — occupies those days too. Own rows only (RLS); the job's
+  // own label and status, so the calendar reads "this job, again". A failed
+  // read is reported, not drawn as a free day.
+  const { data: visits, error: visitError } = await supabase
+    .from("wo_appointments")
+    .select("id, work_order_id, start_date, end_date, note")
+    .eq("contractor_id", contractor.id);
+  if (visitError) reportError(visitError, { where: "portal.calendar.appointments" });
+  const jobById = new Map(jobs.map((j) => [j.id, j]));
+  for (const v of ((visits ?? []) as { id: string; work_order_id: string; start_date: string; end_date: string; note: string }[])) {
+    const job = jobById.get(v.work_order_id);
+    // Tom, 4 Oct: a visit can be on a project this painter is not otherwise
+    // on (a touch-up on a finished job). They still have to turn up, so the
+    // day is drawn from the visit itself; the office's note is the label.
+    for (let d = v.start_date; d <= v.end_date; d = addDays(d, 1)) {
+      jobDays.push(job
+        ? { date: d, label: job.doc?.jobTitle || job.woRef, status: job.status, id: job.id }
+        : { date: d, label: v.note ? `Extra visit — ${v.note}` : "Extra visit", status: "accepted", id: v.work_order_id });
+    }
+  }
+
   // §4b: booked walkthroughs on the calendar, tap-through to the job. They
   // ride as jobDays — a walkthrough IS a site visit — labelled so the painter
   // knows it's the sign-off, not a painting day.
@@ -106,7 +130,7 @@ export default async function CalendarPage({
           assignments are not pushed yet (employed-painters ledger), so the
           card would promise something it cannot do. */}
       {capabilities.acceptsOffers && (
-        <GoogleSyncCard status={await gcalStatus(contractor.id)} flash={(await searchParams).gcal} />
+        <GoogleSyncCard status={await gcalStatus(contractor.id)} flash={sp.gcal} flashWhy={sp.why} />
       )}
     </div>
   );

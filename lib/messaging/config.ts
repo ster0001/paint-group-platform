@@ -63,10 +63,22 @@ export type MessagingSettings = {
   /** Tom, 20 Sep: a customer writes on their estimate's chat. */
   officeEstimateChatSubject: string;
   officeEstimateChatBody: string;
+  /** Tom, 1 Oct: a customer declines their estimate / a sent estimate lapses. */
+  officeEstimateDeclinedSubject: string;
+  officeEstimateDeclinedBody: string;
+  officeEstimateExpiredSubject: string;
+  officeEstimateExpiredBody: string;
   officeInvoicePaidSubject: string;
   officeInvoicePaidBody: string;
   officeVariationRaisedSubject: string;
   officeVariationRaisedBody: string;
+  /** Tom, 7 Oct 2026: PC Command alerts. */
+  officeVariationDeclinedSubject: string;
+  officeVariationDeclinedBody: string;
+  officeUpdateDraftedSubject: string;
+  officeUpdateDraftedBody: string;
+  officeUpdateDueSubject: string;
+  officeUpdateDueBody: string;
   officeContractorInvoiceSubject: string;
   officeContractorInvoiceBody: string;
   /** The tenant access text a trade customer sends from the portal (manual; wording editable). */
@@ -120,14 +132,33 @@ export type MessagingSettings = {
   leaveDecidedSms: string;
   /** Painter: an approved addition is waiting for their acceptance. */
   variationReleasedSms: string;
+  variationReleasedEmailSubject: string;
+  variationReleasedEmailIntro: string;
   /** Painter: a change from the revision working scope the customer signed is on their job — told, not asked (Tom, 24 Sep 2026). */
   variationAddedSms: string;
+  variationAddedEmailSubject: string;
+  variationAddedEmailIntro: string;
   /** Painter: a failed quality check, areas to put right. */
   qaFailSms: string;
   /** P6 — Customer: the estimator visit, confirmed with a calendar invite; and the text the evening before. */
   visitConfirmSubject: string;
   visitConfirmBody: string;
   visitReminderSms: string;
+  /** Visit booking addendum A (S3): the 6-digit code, and the "booked" text. */
+  visitCodeSms: string;
+  visitBookedSms: string;
+  /** Visit booking S4: requests, the staff-offered time, and the customer's own message copy. */
+  requestReceivedSubject: string;
+  requestReceivedBody: string;
+  callRequestReceivedSubject: string;
+  callRequestReceivedBody: string;
+  timeOfferedSms: string;
+  timeOfferedSubject: string;
+  timeOfferedBody: string;
+  customerMessageSubject: string;
+  customerMessageBody: string;
+  /** S5: the visit was cancelled — the guest declined, or the estimator deleted it in Google. */
+  visitCancelledSms: string;
   /** Customer + painter: the final walkthrough calendar invite. */
   walkthroughInviteSubject: string;
   walkthroughInviteCustomerBody: string;
@@ -199,10 +230,20 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeJobDeclinedBody: "{{painter}} has declined {{wo_ref}} ({{job}}) for {{start_date}}.{{reason_line}}\n\nThe job is back with the office to re-offer.",
   officeEstimateChatSubject: "Chat from {{customer}} — {{job}}{{hours_tag}}",
   officeEstimateChatBody: "{{customer}} wrote on the chat for {{job}}:\n\n“{{message}}”\n\nReply from the chat pop-up on any staff page, or open the estimate.{{hours_line}}",
+  officeEstimateDeclinedSubject: "Estimate declined — {{customer}} · {{job}}",
+  officeEstimateDeclinedBody: "{{customer}} has declined the estimate for {{job}} ({{total}}).{{reason_line}}\n\nOpen the estimate to follow up or close it off.",
+  officeEstimateExpiredSubject: "Estimate expired — {{customer}} · {{job}}",
+  officeEstimateExpiredBody: "The estimate for {{job}} ({{total}}) sent to {{customer}} passed its valid-until date ({{valid_until}}) without an answer.\n\nIt is on the CRM follow-up list — open it to extend, re-send or close it.",
   officeInvoicePaidSubject: "Invoice paid — {{amount}} · {{job}}",
   officeInvoicePaidBody: "{{who}} has paid {{amount}} on invoice {{invoice_number}} for {{job}} ({{method}}).",
   officeVariationRaisedSubject: "Variation raised — {{job}}",
   officeVariationRaisedBody: "{{painter}} has raised a variation on {{wo_ref}} ({{job}}): {{category}}{{hours_line}}.\n\n“{{comment}}”\n\nIt is waiting to be priced.",
+  officeVariationDeclinedSubject: "Painter declined an approved change — {{job}}",
+  officeVariationDeclinedBody: "{{painter}} has declined the change the client approved on {{wo_ref}} ({{job}}){{hours_line}}.\n\nThey wrote: “{{comment}}”\n\nIt is back with you in PC Command — revise it with the client, or set the painter's amount.",
+  officeUpdateDraftedSubject: "Customer update ready to send — {{job}}",
+  officeUpdateDraftedBody: "{{painter}} has updated their work order on {{wo_ref}} ({{job}}). A customer update has been drafted from it — read it, change anything, and send it.",
+  officeUpdateDueSubject: "Customer update due — {{job}}",
+  officeUpdateDueBody: "The customer on {{wo_ref}} ({{job}}) is due an update{{hours_line}}. Nothing is drafted — write them a line on progress from the job page.",
   officeContractorInvoiceSubject: "Contractor invoice in — {{painter}} · {{amount}}",
   officeContractorInvoiceBody: "{{painter}} has submitted invoice {{invoice_number}} for {{amount}} on {{wo_ref}} ({{job}}). It is waiting for approval in Payments.",
   // THE TENANT TEXT IS THE ONE MESSAGE THAT GOES TO SOMEONE WHO NEVER ASKED US
@@ -290,18 +331,40 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}}: your {{kind_word}} request for {{dates}} was {{decision}}.{{reason_line}}",
   variationReleasedSms:
     "{{company_name}}: a variation on {{wo_ref}} is approved and waiting on you — {{action}} it in your dashboard: {{link}}",
+  variationReleasedEmailSubject: "A variation on {{wo_ref}} is waiting on you",
+  variationReleasedEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "The customer has approved a variation on {{wo_ref}} and it's waiting on you to {{action}} it. " +
+    "Open the job in your portal to see the hours and the amount, and give your answer.",
   variationAddedSms:
     "{{company_name}}: the customer approved a change to {{wo_ref}}. It's on your job sheet and tick list{{pay_line}}: {{link}}",
+  variationAddedEmailSubject: "The customer approved a change to {{wo_ref}}",
+  variationAddedEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "The customer has approved a change to {{wo_ref}}. It's on your job sheet and your tick list{{pay_line}}. " +
+    "Open the job in your portal to see it.",
   qaFailSms:
     "{{company_name}}: the quality check on {{wo_ref}} found areas that need rectifying. The details and photos are on the job in your portal: {{link}}",
   visitConfirmSubject: "Your visit is booked — {{visit_when}}",
   visitConfirmBody:
     "Hello {{first_name}},\n\n" +
     "{{estimator_name}} from {{company_name}} will be at {{address}} on {{visit_when}} to look at the job with you.\n\n" +
-    "The attached invite drops it into your calendar. It usually takes about an hour: we walk through what's being painted, check the surfaces, and confirm your price.\n\n" +
+    "{{invite_line}} It usually takes about an hour: we walk through what's being painted, check the surfaces, and confirm your price.\n\n" +
     "If that time no longer suits, reply to this email or call us and we'll move it.",
   visitReminderSms:
     "{{company_name}}: a reminder that {{estimator_name}} is visiting {{address}} tomorrow, {{visit_when}}. Reply or call us if anything's changed.",
+  visitCodeSms: "{{code}} is your {{company_name}} code to book your site visit. It expires in 10 minutes.",
+  visitBookedSms: "{{company_name}}: your site visit is booked for {{visit_when}} at {{address}}. A calendar invitation from {{company_email}} is on its way by email — please accept it. We will text a reminder the evening before. To cancel, decline the invitation or call us.",
+  requestReceivedSubject: "We have your request — {{company_name}}",
+  requestReceivedBody: "Hi {{first_name}},\n\nThank you, we have your request for a site visit at {{address}}. We will be in touch within one working day to arrange a time.\n\n{{company_name}}",
+  callRequestReceivedSubject: "We will call you — {{company_name}}",
+  callRequestReceivedBody: "Hi {{first_name}},\n\nThank you. We will call you on {{mobile}} within one working day to finalise your booking.\n\n{{company_name}}",
+  timeOfferedSms: "{{company_name}}: we have booked your site visit for {{visit_when}} at {{address}}. A calendar invitation is on its way by email. We will text a reminder the evening before. To change it, reply or call us.",
+  timeOfferedSubject: "Your site visit — {{visit_when}}",
+  timeOfferedBody: "Hi {{first_name}},\n\nFollowing your request, we have booked your site visit for {{visit_when}} at {{address}}. {{estimator_name}} will be there. A calendar invitation is attached.\n\nIf that time does not suit, reply to this email or call us and we will find another.\n\n{{company_name}}",
+  customerMessageSubject: "Message from {{customer}} — {{job}}",
+  customerMessageBody: "{{customer}} wrote:\n\n“{{message}}”\n\nReply from the chat in the platform, or to this email. The customer has this copy too and we will reply within one working day.",
+  visitCancelledSms: "{{company_name}}: your site visit on {{visit_when}} is cancelled. If you would like another time, book again from your estimate or call us.",
   walkthroughInviteSubject: "Final walk through — ({{customer_name}} x {{painter_name}})",
   walkthroughInviteCustomerBody:
     "Hello {{first_name}},\n\n" +
@@ -378,6 +441,10 @@ export type TemplateVars = {
   address?: string;
   name?: string;
   company_name?: string;
+  /** S7 (Tom, 7 Oct): the address the Google Calendar invitation arrives from, so the email and text can name it. */
+  company_email?: string;
+  /** S7: one sentence on how the calendar invitation reaches the customer — Google's invitation (named sender) or the attached .ics. */
+  invite_line?: string;
   estimate_title?: string;
   total?: string;
   estimator_name?: string;
@@ -386,8 +453,12 @@ export type TemplateVars = {
   painter_name?: string;
   /** A whole sentence about the final walkthrough — booked or to-be-confirmed. */
   walkthrough_line?: string;
-  /** P6: "Tue 8 Sep at 10:00 am" for the visit confirmation and reminder. */
+  /** P6: "Tue 8 Sep at 10:00 am" for the visit confirmation and reminder; S3: "Monday 5 October, 2:00 pm to 3:00 pm". */
   visit_when?: string;
+  /** S3: the 6-digit text code. */
+  code?: string;
+  /** S4: the mobile a call request named. */
+  mobile?: string;
   // Automations (3 Sep) — each template documents which of these it uses.
   wo_ref?: string;
   /** Painter texts: the job's suburb (never the full address in a reminder) and "day 3 of 5". */

@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
 import { substrateOptionsFromRates, type SubstrateGroups } from "@/lib/estimate/substrates";
+import { DEFAULT_BOOKING_RULES } from "@/lib/visits/schedule";
+import { loadBookingRules } from "@/lib/visits/scheduleDb";
 import WizardApp from "../wizard/WizardApp";
 import Wordmark from "../wizard/Wordmark";
 import { getCompanyContact } from "@/lib/portal/data";
@@ -131,7 +133,7 @@ export default async function CustomerWizardPage({
   if (!online.enabled && !isStaff && !memberEmail) {
     return (
       <>
-        <header className="wz-top"><Wordmark logoUrl={company.logoUrl} /></header>
+        <header className="wz-top"><Wordmark logoUrl={company.logoUrlLight} /></header>
         <div className="wz-wrap wz-hold" data-testid="holding-page">
           <h1>{online.holdingTitle}</h1>
           <p className="wz-sub" style={{ marginTop: 14 }}>{online.holdingBody}</p>
@@ -248,6 +250,9 @@ export default async function CustomerWizardPage({
   // that was the original customer's (lib/wizard/showcaseSeed) — the
   // estimate id itself never appears on the URL. No linked estimate (or a
   // state that fails validation) → the job type alone seeds the draft.
+  // S6 (R6): the gate order from Booking rules, read here so a session starts under the rule as it stands.
+  const gateOrder = svc ? (await loadBookingRules(svc).catch(() => DEFAULT_BOOKING_RULES)).gateOrder : DEFAULT_BOOKING_RULES.gateOrder;
+
   if (!prefillState && (intent.from || intent.scope)) {
     const showcase = intent.from ? await showcaseJobBySlug(intent.from) : null;
     const scope = showcase?.job_type ?? intent.scope;
@@ -266,8 +271,9 @@ export default async function CustomerWizardPage({
       substrates={substrates}
       segments={segments}
       mode="customer"
-      logoUrl={company.logoUrl}
+      logoUrl={company.logoUrlLight}
       companyPhone={company.phone || null}
+      gateOrder={gateOrder}
       resume={resume}
       assisted={assisted}
       prefill={memberEmail ? {
