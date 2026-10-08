@@ -176,6 +176,17 @@ describe("jobFromWorkOrder", () => {
     expect(r2.warnings).toEqual([]);
   });
 
+  it("a repeated name takes its own priced block first; the alias covers only what is left", () => {
+    const state = JSON.parse(JSON.stringify(existing.builderState)) as { blocks: Array<Record<string, unknown>> };
+    // The job carries "Front Side" once and the second price under another name; the page repeats "Front Side".
+    const blocks = state.blocks.map((b) => (b.name === "Front Side" && Number(b.custom) === 300 ? { ...b, name: "Side return" } : b));
+    const renamed = { ...existing, builderState: { ...state, blocks } };
+    expect(pricedBlocksOf(renamed.builderState).filter((b) => b.name === "Side return")).toEqual([{ name: "Side return", priceCents: 30000, kind: "line" }]);
+    const r3 = jobFromWorkOrder(renamed, wo, { areaAliases: { "Front Side": "Side return" } });
+    expect(r3.job.areas.filter((a) => a.name === "Front Side").map((a) => a.price_ex_gst_cents)).toEqual([120000, 30000]);
+    expect(r3.job.areas.filter((a) => a.name === "Side return")).toHaveLength(0);
+  });
+
   it("gives each work-order area the price of its first unconsumed twin on the quote, repeated names in order", () => {
     const byName = r.job.areas.map((a) => [a.name, a.price_ex_gst_cents, a.items.length, a.hours_total]);
     expect(byName).toEqual([

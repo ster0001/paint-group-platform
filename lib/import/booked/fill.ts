@@ -109,12 +109,17 @@ export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOr
   const warnings: string[] = [];
 
   const areas: BookedArea[] = wo.areas.map((a) => {
-    // An explicit alias wins over a same-named block: a refill meets the $0
-    // block the first fill wrote under this very name, and the alias is the
-    // person saying which price this area really carries.
+    // Order: a same-named PRICED block; then the alias's target; then a
+    // same-named $0 block. A refill meets the $0 block an earlier fill wrote
+    // under this very name (the alias must beat that), while repeated names
+    // ("Male toilets" ×2, 8 Oct) still take their own prices in page order
+    // before the alias covers whatever is left.
     const aliasEntry = Object.entries(opts.areaAliases ?? {}).find(([from]) => normName(from) === normName(a.name));
-    const twin = (aliasEntry ? pool.find((p) => !p.used && normName(p.name) === normName(aliasEntry[1])) : undefined)
-      ?? pool.find((p) => !p.used && normName(p.name) === normName(a.name));
+    const free = (name: string, priced: boolean | null) =>
+      pool.find((p) => !p.used && normName(p.name) === normName(name) && (priced == null || (p.priceCents !== 0) === priced));
+    const twin = free(a.name, true)
+      ?? (aliasEntry ? free(aliasEntry[1], null) : undefined)
+      ?? free(a.name, null);
     if (twin) twin.used = true;
     const items: BookedItem[] = a.items.map((it) => ({
       item: it.item, qty: it.qty, unit: it.unit, hours: it.hours, coats: it.coats, product: it.product || "",
