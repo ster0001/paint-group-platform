@@ -29,12 +29,12 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
   /** The property address when the estimate already has one (then it is not asked for). */
   address?: string;
   /**
-   * The suburb and postcode the wizard already holds (9 Oct 2026). Sent with a
+   * The street, suburb and postcode the wizard already holds (9 Oct 2026). Sent with a
    * request or message so the route can zone it at once — without them it fell
    * back to the autosaved draft, and a request faster than the autosave was
    * filed with no postcode and zoned "unmapped".
    */
-  place?: { suburb: string; postcode: string } | null;
+  place?: { street: string; suburb: string; postcode: string } | null;
   /** S6 (R7): "details" mode — the details are saved to the estimate and this is called, so the caller can carry on (Tighten my price). */
   onDone?: (c: { name: string; email: string; mobile: string }) => void;
 }) {
@@ -58,8 +58,12 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
 
   const needAddress = !address;
   const validDet = det.name.trim().length >= 2 && /.+@.+\..+/.test(det.email) && det.mobile.replace(/\D/g, "").length >= 10 && (!needAddress || det.address.trim());
-  const known = place && (place.suburb.trim() || place.postcode.trim())
-    ? { ...(place.suburb.trim() ? { suburb: place.suburb.trim() } : {}), ...(place.postcode.trim() ? { postcode: place.postcode.trim() } : {}) }
+  const known = place
+    ? {
+        ...(place.street.trim() ? { street: place.street.trim() } : {}),
+        ...(place.suburb.trim() ? { suburb: place.suburb.trim() } : {}),
+        ...(place.postcode.trim() ? { postcode: place.postcode.trim() } : {}),
+      }
     : {};
   const contact = { name: det.name.trim(), email: det.email.trim(), mobile: det.mobile.trim(), ...known, ...(needAddress ? { street: det.address.trim() } : {}) };
 

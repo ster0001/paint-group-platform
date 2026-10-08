@@ -1385,9 +1385,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    */
   const commercialSeg = segmentByKey(segments, state.customer?.commercialSegment);
   // The talk sheet sends these with a request or message so it is zoned at once.
+  // A typed address with no picked suggestion lives on `state.title` (the sheet shows it the same way).
   const talkPlace = state.address
-    ? { suburb: state.address.suburb ?? "", postcode: state.address.postcode ?? "" }
-    : state.customer ? { suburb: state.customer.suburb ?? "", postcode: state.customer.postcode ?? "" } : null;
+    ? { street: state.address.street ?? "", suburb: state.address.suburb ?? "", postcode: state.address.postcode ?? "" }
+    : state.customer ? { street: state.title ?? "", suburb: state.customer.suburb ?? "", postcode: state.customer.postcode ?? "" } : null;
   const commercialAnswers: CommercialAnswers | null =
     state.commercial && commercialSeg && state.commercial.segment === commercialSeg.key
       ? state.commercial
