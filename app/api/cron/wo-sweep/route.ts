@@ -237,9 +237,11 @@ async function sweep(opts: { force?: boolean } = {}) {
 
   // Step 5: the evaluator's daily pass — every active painter, so pending
   // results finalise once their seven days pass and a new painter is New.
-  let painterStatus = { ran: 0, failed: 0 };
-  try { const r = await runPainterStatusSweep(db, { now }); painterStatus = { ran: r.ran, failed: r.failed }; }
-  catch (e) { reportError(e, { where: "wo-sweep.painterStatus" }); }
+  let painterStatus: { ran: number; failed: number; errors: string[] } = { ran: 0, failed: 0, errors: [] };
+  try {
+    const r = await runPainterStatusSweep(db, { now });
+    painterStatus = { ran: r.ran, failed: r.failed, errors: r.outcomes.filter((o) => !o.ok).slice(0, 5).map((o) => `${o.painterId.slice(0, 8)}: ${o.error ?? "?"}`) };
+  } catch (e) { reportError(e, { where: "wo-sweep.painterStatus" }); painterStatus.errors = [e instanceof Error ? e.message : String(e)]; }
 
   let apptConfirmed = 0;
   try {
