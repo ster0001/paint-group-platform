@@ -31,7 +31,6 @@ const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 let job: LoopFixture | null = null;
-const rowId = (label: string) => job!.surfaces.find((s) => s.label === label)!.id;
 
 async function readAs(token: string | null, path: string): Promise<{ rows: unknown[] | null; status: number }> {
   const res = await fetch(`${URL}/rest/v1/${path}`, {
@@ -142,16 +141,20 @@ test.describe("finish standards — the painter, the PC and the roles", () => {
     await page.goto(`/portal/jobs/${job!.workOrderId}`);
     await expect(page.getByTestId("tick-list")).toBeVisible();
 
-    // Lounge: no side, no code — Walls resolves by label, Gutters by nothing.
-    const walls = page.getByTestId(`tick-expect-${rowId("Walls")}`);
+    // Tom, 9 Oct: ONE card at the top lists every mapped line — Walls by label,
+    // the exterior window by its code and the area's side; Gutters maps to nothing.
+    const card = page.getByTestId("what-we-expect");
+    await expect(card).toHaveAttribute("data-count", "2");
+    await expect(card.getByTestId("wwe-line-a0:0")).toContainText("Lounge · Walls");
+    await expect(card.getByTestId("wwe-line-a0:1")).toHaveCount(0);
+    await expect(card.getByTestId("wwe-line-a1:0")).toHaveAttribute("data-surface", "extwindows");
+    // No link scattered under the rows or the sheet lines any more.
+    await expect(page.locator(".tick-expect, .surf-expect")).toHaveCount(0);
+    // Open a line: the checks at this job's level, in the card itself.
+    await card.getByTestId("wwe-line-a0:0").locator("summary").click();
+    await expect(card.getByTestId("wwe-line-a0:0")).toContainText("Sharp and straight from 1.5 m.");
+    const walls = card.getByTestId("wwe-open-a0:0");
     await expect(walls).toHaveAttribute("href", `/portal/help/standards/walls?level=3&job=${job!.workOrderId}`);
-    await expect(page.getByTestId(`tick-expect-${rowId("Gutters")}`)).toHaveCount(0);
-    // Outside: the exterior window, by its code and the area's side.
-    await expect(page.getByTestId(`tick-expect-${rowId("Double Hung Sash")}`))
-      .toHaveAttribute("href", `/portal/help/standards/extwindows?level=3&job=${job!.workOrderId}`);
-    // The job sheet below carries the same link per line.
-    await expect(page.getByTestId("surf-expect-a0:0")).toHaveAttribute("href", /standards\/walls\?level=3/);
-    await expect(page.getByTestId("surf-expect-a0:1")).toHaveCount(0);
     await expect(page.getByTestId("standards-unavailable")).toHaveCount(0);
 
     // 3 estimated hours: under the 16-hour threshold.
@@ -203,9 +206,11 @@ test.describe("finish standards — the painter, the PC and the roles", () => {
   test("the PC's tick list and quality check link each surface to the same record, at the job's level", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
-    await expect(page.getByTestId(`tick-expect-${rowId("Walls")}`))
-      .toHaveAttribute("href", `/pc/standards/walls?level=3&job=${job!.workOrderId}`);
-    await expect(page.getByTestId(`tick-expect-${rowId("Gutters")}`)).toHaveCount(0);
+    const card = page.getByTestId("what-we-expect");
+    await expect(card).toHaveAttribute("data-count", "2");
+    await expect(card.getByTestId("wwe-open-a0:0")).toHaveAttribute("href", `/pc/standards/walls?level=3&job=${job!.workOrderId}`);
+    await expect(card.getByTestId("wwe-line-a0:1")).toHaveCount(0);
+    await expect(page.locator(".tick-expect")).toHaveCount(0);
 
     // A quality check at the qa stage: the card carries the surfaces' standards.
     await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", job!.workOrderId);
@@ -214,12 +219,14 @@ test.describe("finish standards — the painter, the PC and the roles", () => {
       .insert({ work_order_id: job!.workOrderId, kind: "final" }).select("id").single();
     const checkId = (check as { id: string }).id;
     await page.goto(`/pc/wo/${job!.workOrderId}`);
-    const expectList = page.getByTestId(`qa-expect-${checkId}`);
-    await expect(expectList).toBeVisible();
-    const links = expectList.getByTestId("qa-expect-link");
-    await expect(links).toHaveCount(2); // Walls and the window; Gutters has none
-    await expect(links.first()).toContainText("Lounge · Walls");
-    await links.first().click();
+    // Tom, 9 Oct: the same card at the top of the job serves the check — no second list on the check card.
+    await expect(page.getByTestId(`qa-${checkId}`)).toBeVisible();
+    await expect(page.locator(".qa-expect")).toHaveCount(0);
+    const qaCard = page.getByTestId("what-we-expect");
+    await expect(qaCard).toHaveAttribute("data-count", "2"); // Walls and the window; Gutters has none
+    await expect(qaCard.getByTestId("wwe-line-a0:0")).toContainText("Lounge · Walls");
+    await qaCard.getByTestId("wwe-line-a0:0").locator("summary").click();
+    await qaCard.getByTestId("wwe-open-a0:0").click();
     await expect(page).toHaveURL(/\/pc\/standards\/walls\?level=3&job=/);
     await expect(page.getByTestId("standards-locked-level")).toHaveText("Level 3 on this job");
     await expect(page.getByTestId("standards-checks")).toContainText("Sharp and straight from 1.5 m.");

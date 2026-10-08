@@ -40,7 +40,8 @@ import { requestNowMs } from "@/lib/time/requestClock";
 import { loadMyTimesheet } from "@/lib/contractor/timesheets";
 import TimesheetCard from "@/app/portal/TimesheetCard";
 import { loadStandards, smallJobHours as loadSmallJobHours } from "@/lib/standards/load";
-import { standardsLinksFor } from "@/lib/standards/model";
+import { expectationsFor } from "@/lib/standards/model";
+import WhatWeExpect from "@/app/components/standards/WhatWeExpect";
 import { loadCallbacksForJob } from "@/lib/callbacks/load";
 import CallbackCard from "./CallbackCard";
 import UpdateMoments from "./UpdateMoments";
@@ -325,11 +326,9 @@ export default async function PortalJobPage({
       for (const ph of signed) { const cid = byId.get(ph.id); if (cid) (callbackPhotos[cid] ??= []).push(ph); }
     }
   }
-  const standardsLinks = standardsLoad.standards ? standardsLinksFor(standardsLoad.standards, job.doc, "portal", id) : {};
-  const expectHref: Record<string, string> = {};
-  for (const r of (surfaceRows as { id: string; surface_key: string | null }[] | null) ?? []) {
-    if (r.surface_key && standardsLinks[r.surface_key]) expectHref[r.id] = standardsLinks[r.surface_key];
-  }
+  // Tom, 9 Oct: ONE "What we expect on this job" card at the top, every scope
+  // line with its standard at the area's level — not a link under each line.
+  const expectations = standardsLoad.standards ? expectationsFor(standardsLoad.standards, job.doc, "portal", id) : [];
 
   // Tom, 30 Sep: the photo gates are per JOB — any before photo unlocks every
   // row (Step 1); any after photo lets the job finish (Step 3).
@@ -528,6 +527,8 @@ export default async function PortalJobPage({
         </div>
       )}
 
+      {expectations.length > 0 && <div style={{ padding: "0 16px" }}><WhatWeExpect items={expectations} mode="portal" /></div>}
+
       {/* Call backs (Step 3): what is wrong, the return visit, and Mark as fixed. */}
       {(openCallbacks.length > 0 || callbacksLoad.error) && (
         <div style={{ padding: "0 16px" }} data-testid="job-callbacks">
@@ -619,7 +620,6 @@ export default async function PortalJobPage({
               surfaces={surfaces}
               hasBeforePhoto={hasBeforePhoto}
               headingMeta={headingMeta}
-              expectHref={expectHref}
             />
 
             {allSurfacesDone && (step3 ? (
@@ -766,7 +766,7 @@ export default async function PortalJobPage({
           hours for both kinds of painter; the pay line carries the accepted
           variations for a contractor, and an employee's sheet has no pay. */}
       <WorkOrderDoc doc={job.doc} booking={woBooking} photos={officePhotos}
-        standardsLinks={standardsLinks} standardsBase="portal" smallJobHours={smallJob}
+        standardsBase="portal" smallJobHours={smallJob}
         variant={assignment ? "employee" : "contractor"}
         acceptanceMode={assignment ? "assigned" : "offered"}
         scopeChanges={employee

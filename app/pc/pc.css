@@ -268,9 +268,6 @@
   color:var(--text); font-family:inherit; font-size:13.5px; cursor:pointer; min-height:48px; }
 .pc .tickrow:disabled { opacity:.5; }
 .pc .tickrow-label { flex:1; min-width:0; }
-.pc .tick-expect { display:inline-block; margin:-2px 0 6px 30px; font-size:12px; font-weight:600; color:var(--cyan); text-decoration:none; }
-.pc .qa-expect { display:flex; flex-direction:column; gap:4px; }
-.pc .qa-expect a { font-size:12.5px; color:var(--cyan); text-decoration:none; }
 .pc .tickrow .sw { display:flex; gap:2px; flex:0 0 auto; }
 .pc .chip { font-family:var(--mono); font-size:7.5px; letter-spacing:.06em; text-transform:uppercase;
   padding:3px 8px; border-radius:100px; border:1px solid var(--line); color:var(--muted); }

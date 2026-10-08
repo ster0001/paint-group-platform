@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { standardsFromFile, type StandardsFile } from "./source";
 import { SURFACE_CODES } from "./codes";
 import {
+  expectationsFor,
   levelFromParam, levelOf, resolveSurface, sectionHref, standardsLinksFor, surfaceHref, tapeCheckRequired,
 } from "./model";
 
@@ -103,5 +104,25 @@ describe("tapeCheckRequired (ruling S9)", () => {
     expect(tapeCheckRequired(16, 16)).toBe(true);
     expect(tapeCheckRequired(52, 16)).toBe(true);
     expect(tapeCheckRequired(0, 16)).toBe(false);
+  });
+});
+
+describe("expectationsFor — one list for the top of the work order (Tom, 9 Oct 2026)", () => {
+  const doc = {
+    areas: [
+      { title: "Lounge", finishCode: "PG-3", surfaces: [{ key: "a0:0", label: "Walls" }, { key: "a0:1", label: "Gutters" }] },
+      { title: "Outside", side: "exterior" as const, finishCode: "PG-4", surfaces: [{ key: "a1:0", label: "Double Hung Sash", code: "EXT-WIN" }] },
+      { title: "No level", finishCode: null, surfaces: [{ key: "a2:0", label: "Walls" }] },
+    ],
+  };
+  test("every mapped line, at its area's level, with that level's checks; unmapped lines and areas with no level are absent", () => {
+    const items = expectationsFor(standards, doc, "portal", "job1");
+    expect(items.map((i) => `${i.area} · ${i.label} L${i.level}`)).toEqual(["Lounge · Walls L3", "Outside · Double Hung Sash L4"]);
+    const walls = items[0];
+    expect(walls.href).toBe("/portal/help/standards/walls?level=3&job=job1");
+    expect(walls.checks.length).toBeGreaterThan(0);
+    expect(walls.checks.every((c) => typeof c.text === "string" && c.text.length > 0)).toBe(true);
+    expect(walls.everyLevel.length).toBeGreaterThan(0);
+    expect(items[1].href).toBe("/portal/help/standards/extwindows?level=4&job=job1");
   });
 });

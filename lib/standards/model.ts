@@ -216,3 +216,50 @@ export function standardsLinksFor(
   }
   return out;
 }
+
+/**
+ * Tom, 9 Oct 2026: "What we expect" in ONE place at the top of the work order
+ * — every scope line with its standard at that area's level — instead of a
+ * link scattered under each line. One entry per surface line that maps to a
+ * standard (ruling S3: a line that matches nothing is simply not listed).
+ */
+export type Expectation = {
+  /** The document surface key (area:line). */
+  key: string;
+  area: string;
+  label: string;
+  surfaceKey: string;
+  surfaceName: string;
+  side: Side;
+  level: Level;
+  levelName: string;
+  lookTest: string;
+  everyLevel: string;
+  checks: { label: string; text: string }[];
+  href: string;
+};
+
+export function expectationsFor(
+  standards: Standards,
+  doc: { areas: { title: string; side?: Side | null; finishCode: string | null; surfaces: { key: string; label: string; code?: string | null }[] }[] },
+  base: "portal" | "pc",
+  job: string,
+): Expectation[] {
+  const out: Expectation[] = [];
+  for (const area of doc.areas) {
+    const level = levelOf(area.finishCode);
+    if (!level) continue;
+    for (const s of area.surfaces) {
+      const hit = resolveSurface(standards, s, { side: area.side ?? null, lines: area.surfaces });
+      if (!hit) continue;
+      const ln = levelName(standards, level);
+      out.push({
+        key: s.key, area: area.title, label: s.label, surfaceKey: hit.key, surfaceName: hit.name, side: hit.side, level,
+        levelName: ln.name, lookTest: ln.lookTest, everyLevel: hit.everyLevel,
+        checks: hit.checks.map((c) => ({ label: c.label, text: c.text[level] })),
+        href: surfaceHref(base, hit.key, { level, job }),
+      });
+    }
+  }
+  return out;
+}

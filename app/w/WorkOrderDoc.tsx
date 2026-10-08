@@ -41,15 +41,8 @@ export type WOEdit = {
  * from the frozen snapshot, which is why it is a prop rather than part of Doc.
  * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
  */
-export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [], scopeChanges = [], payInclChanges = null, standardsLinks = {}, standardsBase, smallJobHours = null }: {
+export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [], scopeChanges = [], payInclChanges = null, standardsBase, smallJobHours = null }: {
   doc: Doc; edit?: WOEdit; stage?: WoStage | null;
-  /**
-   * Finish standards (Step 1): the "What we expect" link per surface line,
-   * keyed by the document's surface key and already locked to the area's
-   * level (lib/standards/model.ts standardsLinksFor). Absent = no link, which
-   * is what the token and crew links get: they have no session to read with.
-   */
-  standardsLinks?: Record<string, string>;
   /** Which shell's standards the finish chip's "Open the finish standards" goes to. */
   standardsBase?: "portal" | "pc";
   /** Ruling S9: with the Settings threshold, the sheet says whether the tape check is required. */
@@ -309,9 +302,6 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                   <div className="surf" key={s.key} style={removedKeys.includes(s.key) ? { opacity: 0.55 } : undefined}>
                     <div className="surf-main">
                       <div className="surf-name" style={removedKeys.includes(s.key) ? { textDecoration: "line-through" } : undefined}>{s.label}</div>
-                      {standardsLinks[s.key] && !removedKeys.includes(s.key) && (
-                        <a className="surf-expect print-hide" href={standardsLinks[s.key]} data-testid={`surf-expect-${s.key}`}>What we expect ›</a>
-                      )}
                       <div className="surf-meta">{s.coats} {s.coats === 1 ? "coat" : "coats"}{s.product ? ` · ${s.product}` : ""}</div>
                       {s.prep && <div className="surf-prep">{s.prep}</div>}
                     </div>
