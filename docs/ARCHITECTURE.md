@@ -4613,3 +4613,16 @@ loads `painterStatus` through `loadContractorsView` and `lib/reporting/metrics/c
 ("4 of 11 evaluated", drill = the rows), `contractors.open_callbacks`, `contractors.bonus_due`, `contractors.standards_unsigned`.
 Spec `e2e/pc-contractors.spec.ts` (strip = list per colour, the row in words and counts, the sheet, spot check, log call
 back, the dashboard tile equals the strip). Help `docs/help/pc-contractors/pc.md`. No migration.
+
+**The full loop and the hardening (9 Oct 2026 — standards / status / call backs brief, Step 9).**
+`e2e/status-full-loop.spec.ts` is the two-story acceptance: the happy path (blocked until the standards are signed →
+signs the six sections on the phone → offered → four clean jobs New → Green → first lane on the board and a 3-business-day
+sign-off due date → four more clean 16-hour jobs → one bonus review) and the failure path (a first-time quality-check fail
+fixed the same day → Yellow; a flagged walk-through that becomes a call back → Yellow; a customer call back on day 5 →
+Orange; one on day 9 → outside the window, that job clean and the colour held), the colour read back from the real sweep at
+every point and the event log replaying the same sequence; then the customer role reading none of the seven new tables.
+`lib/painterStatus/boundary.test.ts` greps `app/` and `lib/` for any insert / update / delete / upsert on
+`painter_job_results`, `painter_status`, `painter_bonuses`, `wo_callbacks`, `wo_reminder_moments`, `wo_day_flags` or
+`standards_acks` outside their RPCs (the reminder sweep is the one allowed planner of moment rows), for any Client Component
+that names one of those tables, and for any hand-set colour, result or amount. CLAUDE.md gains the standing rules this build
+taught: one evaluator / one writer, "sql done" is a claim until the ledger says so, and check CI after every push.
