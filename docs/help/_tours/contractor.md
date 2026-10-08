@@ -21,7 +21,7 @@ Job offers land here with the dates, the calculated hours and your price, and a 
 
 ## Jobs
 target: /portal/jobs
-Every booked job. Open one to tick surfaces off, take before and after photos, raise anything you find, and finish with the completion list. The customer signs off on your phone at the end.
+Every booked job. Open one to tick surfaces off, take before / progress photos and after photos, raise anything you find, and finish with the completion list. The customer signs off on your phone at the end.
 
 ## Invoicing
 target: /portal/money

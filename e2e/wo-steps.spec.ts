@@ -43,6 +43,12 @@ test.describe("the job in steps (Tom, 30 Sep)", () => {
     // the green button is the only way a photo goes in.
     await expect(page.getByTestId("add-photo")).toHaveCount(0);
     await expect(page.getByTestId("add-photo-after-step-1")).toBeVisible();
+    // Tom, 8 Oct: the bar reads "Before / progress photos" — in the step strip
+    // and on the Step 1 card — and says nothing about progress photos being optional.
+    await expect(page.getByTestId("job-step-1")).toHaveText(/^1\s*Before \/ progress photos$/);
+    await expect(page.getByTestId("before-uploader")).toContainText("Step 1 · Before / progress photos");
+    await expect(page.getByTestId("job-steps")).not.toContainText(/optional/i);
+    await expect(page.getByTestId("before-uploader")).not.toContainText(/optional/i);
     await page.getByTestId("before-input").setInputFiles([
       { name: "front.png", mimeType: "image/png", buffer: png() },
       { name: "left.png", mimeType: "image/png", buffer: png() },
@@ -51,6 +57,7 @@ test.describe("the job in steps (Tom, 30 Sep)", () => {
     // lands the page refreshes: the Step 1 card folds away and the list unlocks.
     await expect(page.getByTestId("tick-locked")).toHaveCount(0, { timeout: 90_000 });
     await expect(page.getByTestId("before-more")).toBeVisible();
+    await expect(page.getByTestId("before-more")).toContainText("Step 1 ✓ Before / progress photos are in — add more");
     await expect(page.getByTestId("job-steps")).toHaveAttribute("data-step", "2");
     const { data: before } = await db!.from("wo_photos").select("id").eq("work_order_id", fixture!.workOrderId).eq("kind", "before");
     expect(before?.length).toBe(2);
