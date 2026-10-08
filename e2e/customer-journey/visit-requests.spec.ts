@@ -149,7 +149,10 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     await expect(page.getByTestId("talk-sheet")).toBeVisible();
     await expect(page.getByText("Tell us where the property is and how to reach you, and we will arrange a visit.")).toBeVisible();
     await page.getByTestId("talk-name").fill("Early Bird");
-    await expect(page.getByTestId("talk-address")).toHaveValue(/Request Road/);
+    // The address is asked only when the estimate has none (TalkSheet `needAddress`); step 1
+    // already took it, so the box may be absent — the saved request must still carry it (below).
+    const talkAddress = page.getByTestId("talk-address");
+    if (await talkAddress.count()) await expect(talkAddress).toHaveValue(/Request Road/);
     await page.getByTestId("talk-email").fill(email);
     await page.getByTestId("talk-mobile").fill(mobile);
     await page.getByTestId("talk-note").fill("Two bedrooms and the hall.");
