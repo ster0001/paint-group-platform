@@ -1,23 +1,29 @@
 -- 73 Kerferd Street (PS-3613, estimate #1555), 8 Oct 2026 — put the Front
--- Side back into the revision working scope.
+-- Side's surfaces back into the revision working scope, keeping it Exterior.
 --
 -- In Revise scope on 8 Oct (05:30–05:45Z) the Front Side area (block id 3)
--- was switched from an Interior room to an Exterior surface area. That
--- change wiped the code of its four imported surfaces (Soffits / Eaves,
--- Fascias, Fretwork, Posts — "Custom surface (imported)", which the picker
--- cannot put back), so the area priced to nothing and the builder shows it
--- as a credit variation awaiting approval. Nothing was drafted or signed:
--- there is no wo_variations row, the painter's job sheet (wo_snapshot) and
--- tick list still carry all four surfaces, and the accepted scope is intact.
+-- was switched from Interior to Exterior — correctly: the PaintScout import
+-- had put it in as an Interior room. But the builder wipes every surface
+-- code on that switch, and its four imported surfaces (Soffits / Eaves,
+-- Fascias, Fretwork, Posts — "Custom surface (imported)") cannot be picked
+-- again, so the area priced to nothing and the builder shows it as a credit
+-- variation awaiting approval. Nothing was drafted or signed: there is no
+-- wo_variations row, the painter's job sheet (wo_snapshot) and tick list
+-- still carry all four surfaces, and the accepted scope is intact.
 --
--- This copies block 3 from accepted_state back over the working copy and
--- restores the four rows on the working sheet (woDoc.areas, area id 3) so
--- the diff against the accepted scope is empty for the Front Side again.
+-- This copies block 3 from accepted_state back over the working copy WITH
+-- type Exterior / areaType surface (Tom, 8 Oct: "it should be marked as
+-- exterior, it was put in wrong during the import"), and restores the four
+-- rows on the working sheet (woDoc.areas, area id 3). Every imported surface
+-- carries an absolute price and hours override, so the Interior/Exterior
+-- side does not move a cent: the revision diff against the accepted scope
+-- prices to $0 with no change for the Front Side (verified by running
+-- lib/revision/diff on the real rows with the estimate's rate card).
 -- Every other working-scope edit on the job (start date 12 Oct, SWMS,
 -- Haymes Trim Plus on the trims, admin notes) is left as it is.
 --
 -- Converges on a re-run: the update is guarded by the broken state it
--- expects and does nothing once the block matches the accepted scope.
+-- expects (four blank codes) and does nothing once the codes are back.
 -- After pasting, open Revise scope on the estimate and confirm the Front
 -- Side no longer shows a pending change.
 set lock_timeout = '15s';
@@ -27,7 +33,8 @@ update public.wo_working_scopes s
          jsonb_set(s.working_state, '{blocks}', (
            select jsonb_agg(
                     case when b ->> 'id' = '3'
-                         then (select ab from jsonb_array_elements(s.accepted_state -> 'blocks') ab where ab ->> 'id' = '3' limit 1)
+                         then (select ab || '{"type": "Exterior", "areaType": "surface"}'::jsonb
+                                 from jsonb_array_elements(s.accepted_state -> 'blocks') ab where ab ->> 'id' = '3' limit 1)
                          else b end
                     order by i)
              from jsonb_array_elements(s.working_state -> 'blocks') with ordinality t(b, i)), false),
@@ -50,11 +57,12 @@ update public.wo_working_scopes s
                   and jsonb_array_length(ab -> 'surfaces') = 4);
 
 -- read-back: every value must equal its _expect_ twin
-select (select b ->> 'type' from jsonb_array_elements(working_state -> 'blocks') b where b ->> 'id' = '3') as front_type, 'Interior' as _expect_type,
-       (select b ->> 'areaType' from jsonb_array_elements(working_state -> 'blocks') b where b ->> 'id' = '3') as front_area_type, 'room' as _expect_area_type,
+select (select b ->> 'type' from jsonb_array_elements(working_state -> 'blocks') b where b ->> 'id' = '3') as front_type, 'Exterior' as _expect_type,
+       (select b ->> 'areaType' from jsonb_array_elements(working_state -> 'blocks') b where b ->> 'id' = '3') as front_area_type, 'surface' as _expect_area_type,
        (select string_agg(x ->> 'clientLabel', ', ' order by (x ->> 'id')::int) from jsonb_array_elements(working_state -> 'blocks') b, jsonb_array_elements(b -> 'surfaces') x
          where b ->> 'id' = '3' and x ->> 'code' = 'Custom surface (imported)') as front_surfaces, 'Soffits / Eaves, Fascias, Fretwork, Posts' as _expect_surfaces,
        (select jsonb_array_length(a -> 'surfaces') from jsonb_array_elements(working_state -> 'woDoc' -> 'areas') a where a ->> 'id' = '3') as front_sheet_rows, 4 as _expect_sheet_rows,
-       (select b = (select ab from jsonb_array_elements(accepted_state -> 'blocks') ab where ab ->> 'id' = '3') from jsonb_array_elements(working_state -> 'blocks') b where b ->> 'id' = '3') as front_matches_accepted, true as _expect_matches
+       (select (b - 'type' - 'areaType') = (select ab - 'type' - 'areaType' from jsonb_array_elements(accepted_state -> 'blocks') ab where ab ->> 'id' = '3')
+          from jsonb_array_elements(working_state -> 'blocks') b where b ->> 'id' = '3') as front_surfaces_match_accepted, true as _expect_match
   from public.wo_working_scopes
  where estimate_id = '3a5f747d-f4e6-49b9-ab47-09932e98cbb4';
