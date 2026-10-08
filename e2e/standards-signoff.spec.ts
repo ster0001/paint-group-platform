@@ -28,7 +28,6 @@ let newbieUserId: string | null = null;
 let newbieContractorId: string | null = null;
 let e2eContractorId = "";
 let job: LoopFixture | null = null;
-let savedAcks: { version_id: string; section_key: string; acked_at: string }[] = [];
 let savedCols: { standards_invited_at: string | null; standards_grace_until: string | null } | null = null;
 
 const SECTIONS = ["levels", "rules", "time", "interior", "exterior", "defect"] as const;
@@ -56,10 +55,8 @@ test.describe("finish standards — sign-off, offers gate, reminders", () => {
 
   test.beforeAll(async () => {
     e2eContractorId = (await contractorIdForEmail(db!, contractor!.email))!;
-    // Remember the e2e contractor's standing so it can be restored… except that
-    // this run leaves them CONFIRMED, which is the state every other spec wants.
-    const { data: acks } = await db!.from("standards_acks").select("version_id, section_key, acked_at").eq("contractor_id", e2eContractorId);
-    savedAcks = (acks ?? []) as typeof savedAcks;
+    // The run leaves the e2e contractor CONFIRMED (the state every other spec
+    // wants); only the invite columns are put back.
     const { data: cols } = await db!.from("contractors").select("standards_invited_at, standards_grace_until").eq("id", e2eContractorId).single();
     savedCols = cols as typeof savedCols;
     job = await createLoopFixture(db!, e2eContractorId, [{ heading: "Front", labels: ["Walls"] }]);
