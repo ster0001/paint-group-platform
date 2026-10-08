@@ -37,6 +37,7 @@ import CallbackPanel from "./CallbackPanel";
 import NoWorkDay from "./NoWorkDay";
 import type { MomentRow } from "@/lib/workorder/reminderMoments";
 import { standardsLinksFor } from "@/lib/standards/model";
+import RejectVariation from "@/app/pc/RejectVariation";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +98,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
         .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_variations")
-        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents, contractor_declined_at, contractor_decline_note")
+        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents, contractor_declined_at, contractor_decline_note, office_rejected_at, office_reject_note")
         .eq("work_order_id", id).order("created_at", { ascending: false }),
       supabase.from("wo_updates").select("id, draft_text, final_text, status, for_date")
         .eq("work_order_id", id).order("for_date", { ascending: false }).limit(1),
@@ -403,6 +404,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     credit: boolean; signed_name: string | null; signed_at: string | null;
     needs_manual_deduction: boolean; deduction_cents: number | null;
     contractor_declined_at?: string | null; contractor_decline_note?: string | null;
+    office_rejected_at?: string | null; office_reject_note?: string | null;
   }[]);
 
   // Tom, 7 Oct 2026 (PC Command item 5): the client-updates timeline — every
@@ -887,6 +889,14 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
                   {v.contractor_decline_note ? <> — they wrote: &ldquo;{v.contractor_decline_note}&rdquo;</> : "."} Revise it with the client in <b>Revise scope</b>, or set the painter&rsquo;s amount and re-send.
                 </p>
               )}
+              {/* Tom, 8 Oct 2026: the office turned it down, with a reply to the painter. */}
+              {v.status === "declined" && v.office_rejected_at && (
+                <p className="note" data-testid={`variation-office-rejected-${v.id}`} style={{ color: "var(--clay, #c2410c)" }}>
+                  Rejected by the office on {new Date(v.office_rejected_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" })}
+                  {v.office_reject_note ? <> — the reply to the painter: &ldquo;{v.office_reject_note}&rdquo;</> : "."}
+                </p>
+              )}
+              {v.status === "raised" && <RejectVariation variationId={v.id} />}
               {/* What the painter photographed when they raised it — pricing a
                   variation off a one-line comment was guesswork. */}
               <PhotoGrid
