@@ -12,15 +12,23 @@
 
 .wz {
   color-scheme: light;
-  --ink: #f4f6f8; --panel: #ffffff; --panel2: #eef2f5; --line: #d9e0e6; --line-strong: #b9c2cb;
-  --text: #121a21; --muted: #5d6b77;
-  --cyan: #0e9fb4; --oncyan: #ffffff; --amber: #a86a12; --emerald: #1f8a55; --clay: #b3574a;
+  /* UI refresh S1 (brief §5): lines #D5DDE2 (the page stays #F4F6F8 — exterior-quick-look.spec
+     pins it, and #F2F5F6 is indistinguishable; logged in the refresh ledger), cyan darkened to
+     #0A7C8E so links, ticks and selected borders pass AA on white. --paint is
+     the homepage's "See my price" cyan: primary buttons, the progress stripe,
+     the range band — never text on white. --onpaint is the text on it
+     (--oncyan stays white: it is the text on the dark cyan everywhere else). */
+  --ink: #f4f6f8; --panel: #ffffff; --panel2: #e8eef1; --line: #d5dde2; --line-strong: #b4c0c8;
+  --text: #16212a; --muted: #54626d; --heading: #0d161c;
+  --cyan: #0a7c8e; --oncyan: #ffffff; --amber: #9a5f0a; --emerald: #1f8a55; --clay: #b3574a;
+  --paint: #3bd8e9; --onpaint: #03272d; --wash: #dff6fa; --wash2: #bdebf3;
+  --amber-wash: #fcf3e0; --amber-line: #e5c078;
   /* The sticky bars (header, nav, footers): the page colour, nearly opaque. */
-  --bar: rgba(244,246,248,.92);
+  --bar: rgba(244,246,248,.94);
   /* Aliases older rules reach for with a dark fallback — defined, so the fallback never wins. */
   --wz-text: var(--text); --wz-muted: var(--muted); --wz-line: var(--line); --wz-panel: var(--panel);
   --wz-amber: var(--amber); --wz-accent: var(--cyan); --graphite: var(--panel); --raised: var(--panel2);
-  --line2: var(--line-strong); --cyan-line: rgba(14,159,180,.35); --mono: var(--wz-mono);
+  --line2: var(--line-strong); --cyan-line: rgba(10,124,142,.35); --mono: var(--wz-mono);
   --wz-sans: var(--font-sans, "Switzer", -apple-system, sans-serif);
   --wz-mono: var(--font-mono, "Martian Mono", ui-monospace, monospace);
   background: var(--ink); color: var(--text); font-family: var(--wz-sans);
@@ -29,7 +37,7 @@
 }
 /* The chat bubble inside the wizard follows the wizard's light theme (its own
    stylesheet keeps the dark palette for the marketing site). */
-.wz .wz-chat { --line: #d9e0e6; --muted: #5d6b77; --text: #121a21; --graphite: #ffffff; --raised: #eef2f5; --cyan: #0e9fb4; --oncyan: #ffffff; }
+.wz .wz-chat { --line: #d5dde2; --muted: #54626d; --text: #16212a; --graphite: #ffffff; --raised: #e8eef1; --cyan: #0a7c8e; --oncyan: #ffffff; }
 /* 5 Oct: the sides editor's condition chips carry a line of meaning each. */
 .wz .sd-chip.has-hint { display: grid; gap: 2px; text-align: left; max-width: 300px; border-radius: 14px; padding: 10px 14px; }
 .wz .sd-chip-hint { font-size: 12px; line-height: 1.35; color: var(--muted); }
@@ -1264,3 +1272,222 @@
 .wz .wz-vnext b { font-size: 15px; font-weight: 600; }
 .wz .wz-vnext span { font-size: 13.5px; line-height: 1.45; color: var(--muted); }
 .wz .wz-vfine { margin: 0 0 6px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD UI REFRESH — S1: the shell (brief §5, §7.1–§7.2; components doc §2–§3;
+   mockup design/reference/estimator-wizard-redesign-mockup.html).
+
+   Scope: the quick look and the commercial screens only — every rule below
+   hangs off .wz-head (the header), .wz-wrap--stage / .wz-stage (the step
+   layout) or .wz-chat.header. The editors, the range screen and the older
+   staff page list are untouched until their own sessions (⚑ 21: the page
+   list keeps its single column and its own header).
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── header: logo · step rail · phone · chat · Save & book ─────────────── */
+.wz .wz-top.wz-head { display: block; padding: 0; background: var(--bar); backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: 1px solid var(--line); }
+.wz .wz-head-in { max-width: 1240px; margin: 0 auto; padding: 0 24px; height: 63px; /* + the 1px rule = 64 */ display: flex; align-items: center; gap: 20px; }
+.wz .wz-head-logo { flex: none; display: flex; align-items: center; }
+.wz .wz-rail { flex: 1; min-width: 0; display: flex; justify-content: center; overflow: hidden; padding: 0 8px; }
+.wz .wz-rail ol { display: flex; align-items: center; gap: 16px; margin: 0; padding: 0; list-style: none; }
+.wz .wz-rail li { display: flex; align-items: center; gap: 7px; font-size: 14px; color: var(--muted); white-space: nowrap; }
+.wz .wz-rail .n { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line-strong); background: var(--panel); display: grid; place-items: center; font-family: var(--wz-mono); font-size: 12px; flex: none; }
+.wz .wz-rail li.done .n { background: var(--cyan); border-color: var(--cyan); color: #fff; }
+.wz .wz-rail li.cur { color: var(--heading); font-weight: 600; }
+.wz .wz-rail li.cur .n { background: var(--heading); border-color: var(--heading); color: #fff; }
+.wz .wz-rail li.end { color: var(--cyan); font-weight: 600; padding-left: 16px; border-left: 1.5px solid var(--line-strong); }
+/* Below 1,380px, or with more than six counted steps: numbered dots and only the current label. */
+.wz .wz-rail.compact ol { gap: 10px; }
+.wz .wz-rail.compact li:not(.cur):not(.end) .l { display: none; }
+@media (max-width: 1380px) { .wz .wz-rail ol { gap: 10px; } .wz .wz-rail li:not(.cur):not(.end) .l { display: none; } }
+.wz .wz-head-r { display: flex; align-items: center; gap: 14px; flex: none; margin-left: auto; }
+.wz .wz-tel { display: flex; align-items: center; gap: 7px; font-family: var(--wz-mono); font-size: 14px; font-weight: 600; color: var(--heading); text-decoration: none; min-height: 48px; }
+.wz .wz-tel svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.wz .wz-head .wz-head-save { margin: 0; background: var(--panel); border: 1.5px solid var(--line-strong); border-radius: 999px; padding: 0 16px; min-height: 42px; font-family: var(--wz-sans); font-size: 14.5px; font-weight: 600; color: var(--heading); }
+.wz .wz-head .wz-head-save:hover { border-color: var(--heading); }
+.wz .wz-stripe { position: absolute; left: 0; bottom: -1px; height: 3px; background: var(--paint); border-radius: 0 3px 3px 0; transition: width .6s cubic-bezier(.2,.7,.2,1); }
+.wz .wz-mprog { display: none; }
+
+/* ⚑ 10 — the chat as a header icon; the panel opens under the header, never over the action bar. */
+.wz .wz-chat.header { position: static; display: block; z-index: auto; }
+.wz .wz-chat.header .wz-chat-bubble { width: 42px; height: 42px; padding: 0; border-radius: 50%; background: var(--panel); border: 1.5px solid var(--line-strong); color: var(--heading); box-shadow: none; display: grid; place-items: center; }
+.wz .wz-chat.header .wz-chat-bubble:hover, .wz .wz-chat.header.open .wz-chat-bubble { border-color: var(--heading); }
+.wz .wz-chat.header .wz-chat-bubble svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.wz .wz-chat.header .wz-chat-bubble-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wz .wz-chat.header .wz-chat-panel { position: fixed; z-index: 60; top: 76px; right: max(16px, calc((100vw - 1240px) / 2 + 24px)); width: min(380px, calc(100vw - 32px)); height: min(540px, calc(100vh - 100px)); box-shadow: 0 18px 50px rgba(13,22,28,.22); }
+
+/* ── the step layout: questions left, the picture column right ─────────── */
+.wz .wz-wrap.wz-wrap--stage { max-width: 1240px; padding: 44px 24px 120px; }
+.wz .wz-stage { display: grid; grid-template-columns: minmax(0, 1fr) 430px; gap: 64px; align-items: start; }
+.wz .wz-stage > .wz-pane { max-width: 640px; min-width: 0; margin: 0; padding: 0; font-size: 17px; color: var(--text); }
+.wz .wz-side { position: sticky; top: 88px; min-height: 1px; }
+@media (max-width: 1180px) { .wz .wz-stage { grid-template-columns: minmax(0, 1fr) 340px; gap: 40px; } }
+
+/* type: Switzer, 17px body, sentence-case kickers and hints (no capitals) */
+.wz .wz-stage .wz-kick { font-family: var(--wz-sans); font-size: 14.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--cyan); margin-bottom: 10px; }
+/* Segment rows store their kickers in capitals ("OFFICE"); on screen only, sentence case (Tom, 9 Oct). */
+.wz .wz-stage .wz-kick--row { text-transform: lowercase; }
+.wz .wz-stage .wz-kick--row::first-letter { text-transform: uppercase; }
+.wz .wz-stage h1 { font-size: clamp(30px, 3.5vw, 46px); line-height: 1.06; letter-spacing: -.035em; font-weight: 600; color: var(--heading); margin-bottom: 0; text-wrap: balance; }
+.wz .wz-stage .wz-sub { font-size: 18px; color: var(--muted); margin: 14px 0 26px; max-width: 34em; }
+.wz .wz-stage .wz-qhead { font-size: 19px; font-weight: 600; letter-spacing: -.01em; color: var(--heading); margin: 34px 0 12px; }
+.wz .wz-stage .wz-hint { font-size: 15.5px; color: var(--muted); margin: -9px 0 12px; line-height: 1.45; }
+.wz .wz-stage .wz-opttag { display: inline-block; font-size: 13px; font-weight: 500; color: var(--muted); background: var(--panel2); border-radius: 999px; padding: 2px 9px; margin-left: 8px; vertical-align: 2px; letter-spacing: 0; }
+.wz .wz-stage .wz-chint { font-size: 15px; color: var(--muted); }
+.wz .wz-stage .wz-q { font-size: 17.5px; font-weight: 600; color: var(--heading); }
+
+/* fields — the label inside the box, 16px+ inputs (no iOS zoom) */
+.wz .wz-stage .wz-field { border: 1.5px solid var(--line); border-radius: 16px; font-size: 17px; padding: 14px 16px; background: var(--panel); }
+.wz .wz-stage .wz-field:focus, .wz .wz-stage .wz-field:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 4px var(--wash); }
+.wz .wz-stage label.wz-field { padding: 11px 16px 12px; }
+.wz .wz-stage label.wz-field > span { font-family: var(--wz-sans); font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; margin-bottom: 2px; }
+.wz .wz-stage label.wz-field > input { font-size: 18px; color: var(--heading); }
+.wz .wz-stage .wz-in, .wz .wz-stage input { font-size: max(16px, 1em); }
+.wz .wz-stage .wz-in { border: 1.5px solid var(--line); border-radius: 16px; padding: 13px 16px; background: var(--panel); color: var(--heading); }
+
+/* option cards — a wash fills the chosen one left to right; the tick sits on the right, never over the words */
+.wz .wz-stage .wz-cards { display: grid; gap: 12px; }
+.wz .wz-stage [data-testid="ql-kind"], .wz .wz-stage [data-testid="ql-scope"], .wz .wz-stage [data-testid="ql-storeys"],
+.wz .wz-stage [data-testid="ql-occupied"], .wz .wz-stage [data-testid="ql-segment"], .wz .wz-stage [data-testid="ql-ext-storeys"],
+.wz .wz-stage [data-testid="wh-surf"] { grid-template-columns: 1fr 1fr; }
+.wz .wz-stage .wz-card { position: relative; display: block; overflow: hidden; min-height: 72px; padding: 16px 52px 16px 16px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--text); text-align: left; transition: border-color .15s, box-shadow .15s, transform .1s; }
+.wz .wz-stage .wz-card:hover { border-color: var(--line-strong); box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
+.wz .wz-stage .wz-card:active { transform: scale(.99); }
+.wz .wz-stage .wz-card::before { content: ""; position: absolute; inset: 0; background: var(--wash); transform: scaleX(0); transform-origin: left; transition: transform .42s cubic-bezier(.3,.7,.2,1); z-index: 0; }
+.wz .wz-stage .wz-card::after { content: ""; position: absolute; right: 14px; top: 16px; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line-strong); background: var(--panel); z-index: 1; }
+.wz .wz-stage .wz-card > * { position: relative; z-index: 1; }
+.wz .wz-stage .wz-card.on { border-color: var(--cyan); background: var(--panel); }
+.wz .wz-stage .wz-card.on::before { transform: scaleX(1); }
+.wz .wz-stage .wz-card.on::after { background: var(--cyan) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 5' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 14px no-repeat; border-color: var(--cyan); }
+.wz .wz-stage .wz-card b { font-size: 17.5px; font-weight: 600; color: var(--heading); margin-bottom: 2px; }
+.wz .wz-stage .wz-card span, .wz .wz-stage .wz-card small { font-size: 14.5px; line-height: 1.35; color: var(--muted); }
+.wz .wz-stage .wz-card .wz-segtag { display: inline-block; font-family: var(--wz-sans); font-style: normal; font-size: 12.5px; font-weight: 600; letter-spacing: 0; border-radius: 999px; padding: 2px 9px; margin-bottom: 6px; background: var(--wash); color: var(--cyan); }
+.wz .wz-stage .wz-card .wz-segtag.vis { background: var(--panel2); color: var(--muted); }
+/* routeTag() says "ONLINE · OR WE VISIT" in capitals (lib, read-only here) — sentence case on screen only, like the kickers. */
+.wz .wz-stage .wz-card .wz-segtag { text-transform: lowercase; }
+.wz .wz-stage .wz-card .wz-segtag::first-letter { text-transform: uppercase; }
+
+/* chips — tick many: a square tick box on the left */
+.wz .wz-stage .wz-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.wz .wz-stage .wz-tile, .wz .wz-stage .wz-chip { display: inline-flex; align-items: center; gap: 9px; min-height: 50px; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--panel); color: var(--text); font-family: var(--wz-sans); font-size: 16.5px; font-weight: 500; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.wz .wz-stage .wz-tile.on, .wz .wz-stage .wz-chip.on { border-color: var(--cyan); background: var(--wash); color: var(--heading); }
+.wz .wz-stage .wz-tile.on::after { content: none; }
+.wz .wz-stage .wz-chips:not(.wz-segd) > [aria-pressed] { padding-left: 14px; }
+.wz .wz-stage .wz-chips:not(.wz-segd) > [aria-pressed]::before { content: ""; width: 22px; height: 22px; border-radius: 7px; border: 1.5px solid var(--line-strong); background: #fff; flex: none; }
+.wz .wz-stage .wz-chips:not(.wz-segd) > [aria-pressed="true"]::before { background: var(--cyan) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 5' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 13px no-repeat; border-color: var(--cyan); }
+.wz .wz-stage .wz-tile .wz-tile-flag { display: inline; margin: 0 0 0 4px; font-size: 13px; }
+
+/* segmented — pick one of a few short answers */
+.wz .wz-stage .wz-segd { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 14px; background: var(--panel2); }
+.wz .wz-stage .wz-segd > button { min-height: 50px; min-width: 58px; padding: 0 18px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-size: 17px; font-weight: 600; justify-content: center; }
+.wz .wz-stage .wz-segd > button.on { background: var(--panel); color: var(--heading); box-shadow: 0 1px 3px rgba(13,22,28,.18); }
+.wz .wz-stage .wz-segd--num > button { font-family: var(--wz-mono); font-size: 16px; }
+.wz .wz-stage .wz-seg button { min-height: 50px; border: 1.5px solid var(--line); border-radius: 14px; font-size: 16px; }
+.wz .wz-stage .wz-seg button.on { border-color: var(--cyan); background: var(--wash); }
+
+/* count rows — label and hint left, a 40px stepper right */
+.wz .wz-stage .wz-countrow { padding: 12px 14px 12px 16px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--panel); }
+.wz .wz-stage .wz-countrow:last-child { border-bottom: 1.5px solid var(--line); }
+.wz .wz-stage .wz-countrow + .wz-countrow { margin-top: 10px; }
+.wz .wz-stage .wz-countrow .wz-qtext { font-size: 17px; font-weight: 600; color: var(--heading); }
+.wz .wz-stage .wz-countrow .wz-qtext small { font-size: 14.5px; font-weight: 400; line-height: 1.35; color: var(--muted); }
+.wz .wz-stage .wz-stepper { gap: 4px; padding: 3px; border: 1.5px solid var(--line-strong); border-radius: 999px; background: var(--panel); }
+.wz .wz-stage .wz-stepper button { width: 40px; height: 40px; border-radius: 50%; background: var(--ink); font-size: 20px; font-weight: 600; }
+.wz .wz-stage .wz-stepper button:hover { background: var(--wash); }
+.wz .wz-stage .wz-stepper span { min-width: 36px; font-family: var(--wz-mono); font-size: 15px; }
+
+/* follow-up box — a sub-question an answer opened: white, cyan left edge */
+.wz .wz-stage .wz-follow { margin-top: 14px; padding: 18px; background: var(--panel); border: 1.5px solid var(--wash2); border-left: 6px solid var(--paint); border-radius: 16px; }
+.wz .wz-stage .wz-opencard { margin-top: 14px; padding: 18px; background: var(--panel); border: 1.5px solid var(--wash2); border-left: 6px solid var(--paint); border-radius: 16px; }
+
+/* drop boxes — upload a floorplan, add photos */
+.wz .wz-stage .wz-upload, .wz .wz-stage .wz-photo-stub { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 76px; padding: 16px; border: 1.5px dashed var(--line-strong); border-radius: 16px; background: var(--panel); color: var(--text); font-size: 16px; text-align: left; }
+.wz .wz-stage .wz-upload:hover, .wz .wz-stage .wz-photo-stub:hover { border-color: var(--cyan); background: var(--wash); }
+.wz .wz-stage .wz-upload.done, .wz .wz-stage .wz-photo-stub.done { border-style: solid; border-color: var(--emerald); }
+
+/* picture option cards (window types, sides) */
+.wz .wz-stage .wz-pk { border: 1.5px solid var(--line); border-radius: 16px; min-height: 112px; }
+.wz .wz-stage .wz-pk.on { border-color: var(--cyan); background: var(--wash); }
+.wz .wz-stage .wz-pk small { font-size: 15px; font-weight: 600; color: var(--heading); }
+.wz .wz-stage .wz-pk .wz-pksub { font-size: 13.5px; }
+
+/* the "both" choice — two door cards */
+.wz .wz-stage .wz-doors { margin-top: 26px; gap: 12px; }
+.wz .wz-stage .wz-door { min-height: 80px; padding: 16px 18px; border: 1.5px solid var(--line); border-radius: 18px; background: var(--panel); }
+.wz .wz-stage .wz-door:hover { border-color: var(--heading); }
+.wz .wz-stage .wz-door-text b { font-size: 18px; color: var(--heading); }
+.wz .wz-stage .wz-door-text span { font-size: 15px; color: var(--muted); }
+
+/* step nav — Back and Continue inside the column; one cyan pill */
+.wz .wz-stage .wz-nav--col { position: static; display: flex; align-items: center; gap: 14px; margin-top: 40px; padding: 0; background: none; border: 0; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.wz .wz-btn.wz-bpaint { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 240px; min-height: 58px; padding: 0 30px; border: 0; border-radius: 999px; background: var(--paint); color: var(--onpaint); font-size: 18px; box-shadow: 0 10px 24px -12px rgba(11,150,170,.9); }
+.wz .wz-btn.wz-bpaint:hover { background: #5fe2f0; }
+.wz .wz-btn.wz-bpaint:disabled { background: var(--panel2); color: #6b7882; box-shadow: none; opacity: 1; }
+.wz .wz-btn.wz-bpaint svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.wz .wz-btn.wz-btxt { min-height: 58px; padding: 0 14px; background: none; border: 0; color: var(--muted); font-size: 18px; }
+.wz .wz-btn.wz-btxt:hover { color: var(--heading); }
+.wz .wz-stage .wz-why { margin: 28px 0 0; font-size: 14.5px; color: var(--amber); }
+.wz .wz-stage .wz-why + .wz-nav--col { margin-top: 10px; }
+.wz .wz-shake { animation: wzshake .4s; }
+@keyframes wzshake { 20% { transform: translateX(-7px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+
+/* "Talk it through" — a compact card under the nav until S2 moves it to the right column */
+.wz .wz-stage .wz-talk { display: grid; gap: 10px; margin-top: 28px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; }
+.wz .wz-stage .wz-talk-head { margin: 0; font-size: 16px; color: var(--heading); }
+.wz .wz-stage .wz-talk .wz-hint { margin: -4px 0 0; }
+.wz .wz-stage .wz-talk-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.wz .wz-stage .wz-talk-row .wz-btn { min-height: 52px; display: flex; align-items: center; justify-content: center; text-align: center; text-decoration: none; background: var(--ink); border: 1px solid var(--line); border-radius: 14px; color: var(--heading); font-size: 15px; }
+.wz .wz-stage .wz-talk-row .wz-btn:hover { border-color: var(--cyan); background: var(--wash); }
+
+/* step change — content rises 14px and fades in */
+/* The CONTENT rises, staggered — never the step wrapper or the pane: a transform on any ancestor
+   makes it the containing block for the phone's fixed bottom bar, which then rides the animation
+   (and the page) instead of the screen. So the wrapper's own entrance is switched off here. */
+.wz .wz-wrap--stage .wz-step { animation: none; }
+.wz .wz-stage > .wz-pane > :not(.wz-nav--col):not(.wz-why) { animation: wzrise .45s backwards cubic-bezier(.2,.7,.2,1); }
+.wz .wz-stage > .wz-pane > :nth-child(2) { animation-delay: .04s; }
+.wz .wz-stage > .wz-pane > :nth-child(3) { animation-delay: .08s; }
+.wz .wz-stage > .wz-pane > :nth-child(4) { animation-delay: .12s; }
+.wz .wz-stage > .wz-pane > :nth-child(n+5) { animation-delay: .16s; }
+@keyframes wzrise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* focus you can see, on every control */
+.wz .wz-stage :focus-visible, .wz .wz-head :focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; border-radius: 10px; }
+
+/* ── phone: one column, the progress row, a fixed bottom bar ──────────── */
+@media (max-width: 900px) {
+  .wz .wz-head-in { height: 55px; padding: 0 16px; gap: 10px; }
+  .wz .wz-rail, .wz .wz-stripe, .wz .wz-tel span { display: none; }
+  .wz .wz-tel { width: 42px; height: 42px; min-height: 0; justify-content: center; border-radius: 50%; background: var(--panel); border: 1.5px solid var(--line-strong); }
+  .wz .wz-head-r { gap: 8px; }
+  .wz .wz-head .wz-head-save { padding: 0 12px; font-size: 13.5px; }
+  .wz .wz-mprog { display: block; padding: 0 16px 10px; }
+  .wz .wz-mprog p { display: flex; justify-content: space-between; gap: 10px; margin: 0 0 6px; font-size: 13.5px; color: var(--muted); }
+  .wz .wz-mprog p b { color: var(--heading); font-weight: 600; }
+  .wz .wz-mprog p span { margin-left: auto; white-space: nowrap; }
+  .wz .wz-mprog i { display: block; height: 6px; border-radius: 999px; background: var(--panel2); overflow: hidden; }
+  .wz .wz-mprog em { display: block; height: 100%; border-radius: 999px; background: var(--paint); transition: width .5s; }
+  .wz .wz-wrap.wz-wrap--stage { padding: 16px 16px 130px; }
+  .wz .wz-stage { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .wz .wz-side { display: none; }
+  .wz .wz-stage > .wz-pane { max-width: none; }
+  .wz .wz-stage h1 { font-size: 30px; }
+  .wz .wz-stage .wz-sub { font-size: 17px; margin-top: 10px; }
+  .wz .wz-stage .wz-qhead { margin-top: 28px; }
+  .wz .wz-stage [data-testid="ql-scope"], .wz .wz-stage [data-testid="ql-segment"], .wz .wz-stage [data-testid="wh-surf"] { grid-template-columns: 1fr; }
+  .wz .wz-stage .wz-nav--col { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--bar); border-top: 1px solid var(--line); }
+  .wz .wz-stage .wz-why + .wz-nav--col { margin-top: 0; }
+  .wz .wz-btn.wz-bpaint { flex: 1; min-width: 0; }
+  .wz .wz-stage .wz-why { position: fixed; left: 16px; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 41; margin: 0; padding: 8px 12px; background: var(--amber-wash); border: 1px solid var(--amber-line); border-radius: 12px; }
+  .wz .wz-chat.header .wz-chat-panel { top: auto; left: 0; right: 0; bottom: 0; width: 100%; height: min(78vh, 560px); border-radius: 18px 18px 0 0; }
+}
+@media (max-width: 420px) {
+  .wz .wz-stage [data-testid="ql-kind"], .wz .wz-stage [data-testid="ql-storeys"], .wz .wz-stage [data-testid="ql-occupied"], .wz .wz-stage [data-testid="ql-ext-storeys"] { grid-template-columns: 1fr 1fr; }
+  .wz .wz-stage .wz-card { padding: 14px 44px 14px 14px; }
+  .wz .wz-stage .wz-card b { font-size: 16.5px; }
+}
+
+/* motion only answers something the customer just did — and none of it under reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .wz .wz-stage *, .wz .wz-stage *::before, .wz .wz-stage *::after, .wz .wz-head *, .wz .wz-wrap--stage .wz-step { animation: none !important; transition: none !important; }
+}

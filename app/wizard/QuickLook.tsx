@@ -63,7 +63,7 @@ export type CommercialQuickProps = {
 const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
-  step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
+  step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, whyNot = null, busy, onBack, onNext,
   onBook, onMessage, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null, gate = null,
   planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
 }: {
@@ -104,11 +104,11 @@ export default function QuickLook({
   needsWork: { note: string; onNote: (v: string) => void; photoCount: number; onPhotos: () => void; onClearPhotos: () => void };
   error: string | null;
   canContinue: boolean;
+  /** UI refresh S1: why Continue is unavailable right now ("Connecting…", "Uploading…") — said, never silent. */
+  whyNot?: string | null;
   busy: boolean;
   onBack: (() => void) | null;
   onNext: () => void;
-  stepNo: number;
-  stepsTotal: number;
 }) {
   // Tom, 7 Oct 2026 (item 1): "don't wait" on the floorplan reading panel.
   const [skipPlanWait, setSkipPlanWait] = useState(false);
@@ -129,7 +129,8 @@ export default function QuickLook({
   const nextLabel = step === "gate" ? "Show my guide price" : step === "com_book" ? "Book it" : last ? "See my guide range" : lastQuestion && hasGate ? "Continue to the last question" : "Continue";
 
   return (
-    <div className="wz-wrap wz-quick" data-quick-step={step}>
+    <div className="wz-stage">
+    <div className="wz-wrap wz-quick wz-pane" data-quick-step={step}>
       {step === "start" && (
         <>
           <p className="wz-kick">A minute to a guide range</p>
@@ -210,11 +211,12 @@ export default function QuickLook({
           {quick.propertyKind !== "commercial" && quick.jobType !== "exterior" && (
             <>
               <p className="wz-qhead">How many bedrooms?</p>
-              <div className="wz-chips" data-testid="ql-bedrooms">
+              <div className="wz-chips wz-segd wz-segd--num" data-testid="ql-bedrooms">
                 {BEDROOMS.map((n) => (
                   <button
                     key={n} type="button"
                     className={`wz-tile ${quick.bedrooms === n ? "on" : ""}`}
+                    aria-pressed={quick.bedrooms === n}
                     data-testid={`ql-bedrooms-${n}`}
                     onClick={() => onQuick({ bedrooms: n })}
                   >{n === 5 ? "5+" : n}</button>
@@ -310,7 +312,8 @@ export default function QuickLook({
               in at one coat. The state is still `excluded`. */}
           {exclusionOptions(quick.scope).length > 0 && (
             <div className="wz-excl" data-testid="ql-excl">
-              <p className="wz-qhead">What&rsquo;s being painted? <span className="wz-opt">ALL TICKED — UNTICK ANYTHING WE&rsquo;RE NOT DOING</span></p>
+              <p className="wz-qhead">What&rsquo;s being painted?</p>
+              <p className="wz-hint">All ticked. Untick anything we&rsquo;re not doing.</p>
               <div className="wz-chips" data-testid="ql-excl-options">
                 {exclusionOptions(quick.scope).map((o) => {
                   const painted = !quick.excluded.includes(o.value);
@@ -351,14 +354,16 @@ export default function QuickLook({
             onPick={(k) => onQuick({ changing: toggleChanging(quick, k) })} />
           {tag("changing")}
 
-          <p className="wz-qhead">Any of them going much lighter, or a bold colour? <span className="wz-opt">NEEDS AN UNDERCOAT FIRST — WE ALLOW FOR IT</span></p>
+          <p className="wz-qhead">Any of them going much lighter, or a bold colour?</p>
+          <p className="wz-hint">That needs an undercoat first. We allow for it.</p>
           <Chips options={[{ value: "no", label: "No" }, { value: "yes", label: "Yes" }]} value={quick.bold ? "yes" : "no"}
             onPick={(v) => onQuick({ bold: v === "yes" })} name="bold" />
           {/* Tom, 15 Sep: "Yes" then WHICH — the groups being painted and changing colour.
               It used to assume every one of them (the walls first), and asked nothing. */}
           {quick.bold && (
             <>
-              <p className="wz-qhead">Which ones? <span className="wz-opt">TICK ALL THAT APPLY — THESE GET THE UNDERCOAT AND THIRD COAT</span></p>
+              <p className="wz-qhead">Which ones?</p>
+              <p className="wz-hint">Tick all that apply. These get the undercoat and third coat.</p>
               <Multi options={CHANGING_GROUPS.filter((o) => visibleChanging(quick.scope, quick.excluded).includes(o.value) && quick.changing[o.value])}
                 on={(quick.boldGroups ?? []).filter((k) => quick.changing[k])}
                 onPick={(k) => onQuick({ boldGroups: (quick.boldGroups ?? []).includes(k) ? (quick.boldGroups ?? []).filter((x) => x !== k) : [...(quick.boldGroups ?? []), k] })}
@@ -366,7 +371,8 @@ export default function QuickLook({
             </>
           )}
 
-          <p className="wz-qhead">Still choosing colours? <span className="wz-opt">FINE — WE ALLOW FOR NEW COLOURS AND YOU DECIDE LATER</span></p>
+          <p className="wz-qhead">Still choosing colours?</p>
+          <p className="wz-hint">That&rsquo;s fine. We allow for new colours and you decide later.</p>
           <Chips options={[{ value: "known", label: "I know roughly" }, { value: "undecided", label: "Still choosing" }]} value={quick.undecided ? "undecided" : "known"}
             onPick={(v) => onQuick({ undecided: v === "undecided" })} name="choosing" />
         </>
@@ -456,7 +462,8 @@ export default function QuickLook({
               the extra preparation. */}
           {quick.condition === "needs_work" && (
             <div className="wz-follow wz-alt" data-testid="ql-needs-work">
-              <p className="wz-qhead">Which areas need work? <span className="wz-opt">OPTIONAL — PHOTOS, A FEW WORDS, OR BOTH</span></p>
+              <p className="wz-qhead">Which areas need work? <span className="wz-opttag">Optional</span></p>
+              <p className="wz-hint">Photos, a few words, or both.</p>
               <textarea
                 className="wz-brief" data-testid="ql-damage-note" rows={3} maxLength={600} value={needsWork.note}
                 onChange={(e) => needsWork.onNote(e.target.value)}
@@ -502,7 +509,8 @@ export default function QuickLook({
           <ExteriorPickTiles options={EXT_ELEMENTS} on={outside.elements} name="ext-el"
             onPick={(v) => onOutside({ elements: toggleIn(outside.elements, v) })} />
 
-          <p className="wz-qhead">Any other areas being painted? <span className="wz-opt">TICK ALL THAT APPLY</span></p>
+          <p className="wz-qhead">Any other areas being painted?</p>
+          <p className="wz-hint">Tick all that apply.</p>
           <ExteriorPickTiles options={EXT_STANDALONE} on={outside.standalone} name="ext-sep"
             onPick={(v) => onOutside({ standalone: toggleIn(outside.standalone, v) })} />
 
@@ -532,7 +540,8 @@ export default function QuickLook({
 
           {outside.elements.includes("body") && (
             <div data-testid="ext-body-q">
-              <p className="wz-qhead">What are the walls made of? <span className="wz-opt">TICK EVERYTHING THAT NEEDS PAINTING</span></p>
+              <p className="wz-qhead">What are the walls made of?</p>
+              <p className="wz-hint">Tick everything that needs painting.</p>
               <Multi options={EXT_MATERIALS} on={outside.materials} name="ext-mat"
                 onPick={(v) => onOutside({ materials: toggleMaterial(outside.materials, v) })} />
               <p className="wz-chint">Nothing is ticked for you — brick and render are often left bare on purpose, so we&rsquo;d rather you told us.</p>
@@ -670,36 +679,48 @@ export default function QuickLook({
           </label>
         </>
       )}
-      <div className="wz-nav">
+      {/* UI refresh S1: Back and Continue sit INSIDE the column on a laptop and
+          become a fixed bar on a phone. Continue is never silently unavailable —
+          the reason is said in one line above it. */}
+      {whyNot && (!canContinue || busy) && <p className="wz-why" data-testid="ql-why" role="status">{whyNot}</p>}
+      <div className="wz-nav wz-nav--col">
         {onBack && (
-          <button type="button" className="wz-btn wz-bs" onClick={onBack} data-testid="ql-back">Back</button>
+          <button type="button" className="wz-btn wz-btxt" onClick={onBack} data-testid="ql-back">Back</button>
         )}
         {/* The "both" choice IS the answer — its two doors continue; there is no Continue to press. */}
         {step !== "both" && (
           <button
+            // A new error replays the shake on the button that was pressed.
+            key={error ?? "ok"}
             type="button"
-            className="wz-btn wz-bp"
+            className={`wz-btn wz-bp wz-bpaint ${error ? "wz-shake" : ""}`}
             disabled={!canContinue || busy}
             data-testid="ql-next"
             onClick={onNext}
           >
             {busy ? (step === "com_book" ? "Booking…" : "Working it out…") : nextLabel}
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5" /></svg>
           </button>
         )}
       </div>
-      <p className="wz-steps">Step {stepNo} of {stepsTotal}</p>
       {/* Visit booking addendum A, R3: on EVERY step before the range —
           "Would you rather talk it through?" A visit asked for here is a
           request for staff, never a booking; the message goes into the chat.
-          `ql-book` keeps its test id from the old "Book someone in". */}
-      <div className="wz-rather" data-testid="ql-talk">
-        <b>Would you rather talk it through?</b>
-        <div className="wz-rather-row">
+          `ql-book` keeps its test id from the old "Book someone in".
+          UI refresh S1: a compact card under the nav (no dashed box); S2 moves
+          it into the right-hand column. */}
+      <div className="wz-talk" data-testid="ql-talk">
+        <p className="wz-talk-head"><b>Would you rather talk it through?</b></p>
+        <div className="wz-talk-row">
           <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-book">Request a site visit</button>
           {phone && <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">Call us</a>}
           <button type="button" className="wz-btn wz-bs2" onClick={onMessage} data-testid="ql-message">Send a message</button>
         </div>
       </div>
+    </div>
+    {/* The picture column (brief §7.2): the live picture, "Your job so far" and
+        "Talk it through" arrive in S2. Present now so the layout is the final one. */}
+    <aside className="wz-side" aria-hidden="true" data-testid="ql-side" />
     </div>
   );
 }
@@ -709,11 +730,12 @@ function Chips<T extends string>({ options, value, onPick, name }: {
   options: Choice<T>[]; value: T; onPick: (v: T) => void; name: string;
 }) {
   return (
-    <div className="wz-chips" data-testid={`ql-${name}`}>
+    <div className="wz-chips wz-segd" data-testid={`ql-${name}`}>
       {options.map((o) => (
         <button
           key={o.value} type="button"
           className={`wz-tile ${value === o.value ? "on" : ""}`}
+          aria-pressed={value === o.value}
           data-testid={`ql-${name}-${o.value}`}
           onClick={() => onPick(o.value)}
         >{o.label}</button>
@@ -751,6 +773,7 @@ function Cards<T extends string>({ options, value, onPick, name }: {
         <button
           key={o.value} type="button"
           className={`wz-card ${value === o.value ? "on" : ""}`}
+          aria-pressed={value === o.value}
           data-testid={`ql-${name}-${o.value}`}
           onClick={() => onPick(o.value)}
         >
