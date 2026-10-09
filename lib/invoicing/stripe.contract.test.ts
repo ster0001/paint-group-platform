@@ -12,6 +12,8 @@ const CHECKOUT = read("app/i/[token]/checkout/route.ts");
 const STATUS = read("app/i/[token]/status/route.ts");
 const STRIPE = read("lib/invoicing/stripe.ts");
 const PANEL = read("app/i/[token]/PayPanel.tsx");
+const BOX = read("app/i/[token]/PayBox.tsx");
+const CARD = read("lib/invoicing/cardPayments.ts");
 
 function walk(dir: string, acc: string[] = []): string[] {
   for (const entry of readdirSync(resolve(process.cwd(), dir), { withFileTypes: true })) {
@@ -36,8 +38,8 @@ describe("only the webhook marks card payments paid (§5.3)", () => {
       .filter((f) => read(f).includes('"record_stripe_payment"'));
     expect(callers).toEqual(["app/api/webhooks/stripe/route.ts"]);
   });
-  it("the redirect surfaces only read: status route and PayPanel never write", () => {
-    for (const src of [STATUS, PANEL]) {
+  it("the redirect surfaces only read: status route, PayPanel and PayBox never write", () => {
+    for (const src of [STATUS, PANEL, BOX]) {
       expect(src).not.toMatch(/\.rpc\("(?!invoice_by_token)/);
       expect(src).not.toContain(".insert(");
       expect(src).not.toContain(".update(");
@@ -68,7 +70,13 @@ describe("the session is fresh at click time, server-computed (§5.1)", () => {
   });
   it("the surcharge is its own disclosed line (⚑4)", () => {
     expect(STRIPE).toContain("Card payment surcharge — avoid this by paying via bank transfer");
-    expect(PANEL).toContain("Includes a card surcharge of");
+    expect(BOX).toContain("Includes a card surcharge of");
+  });
+  it("the Settings switch gates the session — off means no checkout, whatever the key says (4 Oct)", () => {
+    expect(CARD).toContain("value?.cardPaymentsEnabled === true");
+    expect(STRIPE).toContain("cardPaymentsEnabledFromSettings(setting?.value");
+    expect(STRIPE).toContain('reason: "switched_off"');
+    expect(CHECKOUT).toContain('result.reason === "switched_off"');
   });
   it("no browser amount: the route takes only the token from the URL", () => {
     expect(CHECKOUT).not.toContain("req.json");

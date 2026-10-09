@@ -2,6 +2,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "./pdf";
 import { surchargeCents, surchargeFromSettings } from "./surcharge";
+import { cardPaymentsEnabledFromSettings } from "./cardPayments";
 
 /**
  * SERVER ONLY — Stripe over plain REST (the Resend/Twilio pattern; no SDK,
@@ -53,7 +54,7 @@ async function stripeGet(path: string): Promise<Record<string, unknown>> {
 
 export type CheckoutResult =
   | { ok: true; url: string }
-  | { ok: false; reason: "not_configured" | "not_payable" | "error"; message?: string };
+  | { ok: false; reason: "not_configured" | "switched_off" | "not_payable" | "error"; message?: string };
 
 /**
  * A FRESH Checkout Session at click time (§5.1 — sessions expire; the link
@@ -83,6 +84,10 @@ export async function createCheckoutSession(invoiceToken: string): Promise<Check
     service.from("payments").select("amount_cents").eq("invoice_id", inv.id).eq("status", "succeeded"),
     service.from("settings").select("value").eq("key", "invoicing").maybeSingle(),
   ]);
+  // The Settings switch (Tom, 4 Oct): off means no session, whatever the key says.
+  if (!cardPaymentsEnabledFromSettings(setting?.value as Record<string, unknown> | null)) {
+    return { ok: false, reason: "switched_off" };
+  }
   const paid = ((pays ?? []) as { amount_cents: number }[]).reduce((a, p) => a + p.amount_cents, 0);
   const balance = inv.total_inc_cents - paid;
   if (balance <= 0) return { ok: false, reason: "not_payable" };
