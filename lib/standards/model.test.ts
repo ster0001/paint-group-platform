@@ -4,6 +4,7 @@ import { standardsFromFile, type StandardsFile } from "./source";
 import { SURFACE_CODES } from "./codes";
 import {
   expectationsFor,
+  groupExpectations,
   levelFromParam, levelOf, resolveSurface, sectionHref, standardsLinksFor, surfaceHref, tapeCheckRequired,
 } from "./model";
 
@@ -124,5 +125,23 @@ describe("expectationsFor — one list for the top of the work order (Tom, 9 Oct
     expect(walls.checks.every((c) => typeof c.text === "string" && c.text.length > 0)).toBe(true);
     expect(walls.everyLevel.length).toBeGreaterThan(0);
     expect(items[1].href).toBe("/portal/help/standards/extwindows?level=4&job=job1");
+  });
+});
+
+describe("groupExpectations — one document, each standard once (Tom, 9 Oct 2026)", () => {
+  const doc = {
+    areas: [
+      { title: "Hallway", finishCode: "PG-3", surfaces: [{ key: "a0:0", label: "Walls" }, { key: "a0:1", label: "Gutters" }] },
+      { title: "Bedroom", finishCode: "PG-3", surfaces: [{ key: "a1:0", label: "Walls" }] },
+      { title: "Lounge", finishCode: "PG-4", surfaces: [{ key: "a2:0", label: "Walls" }] },
+    ],
+  };
+  test("walls in two Level 3 rooms is one section naming both rooms; the Level 4 room is its own section; unmapped lines are absent", () => {
+    const sections = groupExpectations(expectationsFor(standards, doc, "pc", "job1"));
+    expect(sections.map((s) => `${s.surfaceKey} L${s.level}: ${s.lines.map((l) => l.area).join(", ")}`))
+      .toEqual(["walls L3: Hallway, Bedroom", "walls L4: Lounge"]);
+    expect(sections[0].key).toBe("walls-3");
+    expect(sections[0].href).toBe("/pc/standards/walls?level=3&job=job1");
+    expect(sections[0].checks.length).toBeGreaterThan(0);
   });
 });

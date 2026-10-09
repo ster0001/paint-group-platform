@@ -263,3 +263,30 @@ export function expectationsFor(
   }
   return out;
 }
+
+/**
+ * The same expectations as ONE document (Tom, 9 Oct 2026: "1 drop down
+ * document … to save scrolling"): each standard once per level, with the scope
+ * lines it covers, in the order the scope first reaches it. Walls in six rooms
+ * is one Walls section listing six rooms, not six copies of the same checks.
+ */
+export type ExpectationSection = Omit<Expectation, "key" | "area" | "label"> & {
+  key: string;
+  lines: { key: string; area: string; label: string }[];
+};
+
+export function groupExpectations(items: Expectation[]): ExpectationSection[] {
+  const byKey = new Map<string, ExpectationSection>();
+  for (const it of items) {
+    const key = `${it.surfaceKey}-${it.level}`;
+    const line = { key: it.key, area: it.area, label: it.label };
+    const hit = byKey.get(key);
+    if (hit) { hit.lines.push(line); continue; }
+    byKey.set(key, {
+      key, surfaceKey: it.surfaceKey, surfaceName: it.surfaceName, side: it.side, level: it.level,
+      levelName: it.levelName, lookTest: it.lookTest, everyLevel: it.everyLevel, checks: it.checks,
+      href: it.href, lines: [line],
+    });
+  }
+  return [...byKey.values()];
+}
