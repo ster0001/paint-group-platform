@@ -48,7 +48,7 @@ test("the eight tiles come from the table, tagged by their route; a brief tile s
   await page.getByTestId("ql-next").click();
   // C14: the brief door walks the BRIEF, rendered from the strata row — no person screen, no number.
   await expect(page.locator("[data-quick-step='com_brief']")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("STRATA OR COMMON PROPERTY")).toBeVisible();
+  await expect(page.getByText("STRATA OR COMMON PROPERTY", { exact: true })).toBeVisible();
   // §4.16: no number anywhere on the brief door.
   await expect(page.locator("body")).not.toContainText(MONEY_RANGE);
 });

@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { resolveEstimator } from "@/lib/wizard/estimator";
+import { reportError } from "@/lib/monitoring/report";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
 import { substrateOptionsFromRates, type SubstrateGroups } from "@/lib/estimate/substrates";
 import { DEFAULT_BOOKING_RULES } from "@/lib/visits/schedule";
@@ -121,6 +123,15 @@ export default async function CustomerWizardPage({
       .filter((t) => !["exterior", "unknown", "excluded", "exterior_excluded"].includes(t))
       .sort();
     substrates = substrateOptionsFromRates(rateItems ?? []);
+  }
+  // UI refresh S2 (⚑ 23): "Talk it through" names the estimator the wizard
+  // already resolves — Settings → Estimator until an address names a patch.
+  // A failed read names nobody (the card says "one of our estimators") and is reported.
+  let estimatorName: string | null = null;
+  if (ref) {
+    const { data: profileRows, error: profileError } = await ref.from("settings").select("key, value").eq("key", "company_profile");
+    if (profileError) reportError(profileError, { where: "estimate.page.estimatorName" });
+    else estimatorName = (await resolveEstimator(ref, profileRows ?? [], null)).name;
   }
 
   // Existing customers (signed-in members) keep their builder even while the
@@ -273,6 +284,7 @@ export default async function CustomerWizardPage({
       mode="customer"
       logoUrl={company.logoUrlLight}
       companyPhone={company.phone || null}
+      estimatorName={estimatorName}
       gateOrder={gateOrder}
       resume={resume}
       assisted={assisted}

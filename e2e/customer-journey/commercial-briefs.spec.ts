@@ -92,7 +92,7 @@ test.describe("the brief path", () => {
 
     // The brief, rendered from the strata row: kicker, tiles, rows, the meeting date, photos, notes.
     await expect(page.locator("[data-quick-step='com_brief']")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("STRATA OR COMMON PROPERTY")).toBeVisible();
+    await expect(page.getByText("STRATA OR COMMON PROPERTY", { exact: true })).toBeVisible();
     await expect(page.getByTestId("brief-sub")).toContainText(/priced on site/);
     await noNumber(page);
     if (db) {
@@ -154,7 +154,7 @@ test.describe("the brief path", () => {
     await page.getByTestId("ql-segment-shopfront").click();
     await quickNext(page);
     await expect(page.locator("[data-quick-step='com_brief']")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("SHOP FRONT — THE FACADE")).toBeVisible();
+    await expect(page.getByText("SHOP FRONT — THE FACADE", { exact: true })).toBeVisible();
     await expect(page.getByTestId("brief-date")).toHaveCount(0);
     await page.getByTestId("brief-opt-where-is-it-shopping-centre").click();
     await quickNext(page);

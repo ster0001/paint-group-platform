@@ -49,6 +49,7 @@ import {
   DEFAULT_QUICK_LOOK, quickLookToState, stepsFor,
   colourFromChanges,
   type QuickLook as QuickLookAnswers,
+  type QuickLookStep,
 } from "@/lib/wizard/quick-look";
 import {
   applyExteriorQuickLook, exteriorQuickLookFromState, paintsSomething,
@@ -153,7 +154,9 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first" }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first" }: {
+  /** UI refresh S2 (⚑ 23): the estimator the wizard resolves (`resolveEstimator`), named in "Talk it through". Null names nobody. */
+  estimatorName?: string | null;
   /** S6 (R6): the gate order in Booking rules when the page loaded. A resumed session keeps its own. */
   gateOrder?: "details_first" | "range_first";
   roomTypes: string[];
@@ -1640,6 +1643,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     setError(null);
     if (page > 1) { setPage(page - 1); window.scrollTo({ top: 0 }); }
   }
+  /** UI refresh S2: "Change" on a row of Your job so far — back to that step, the way Back goes (never forward). */
+  function quickGo(step: QuickLookStep) {
+    const target = quickSteps.indexOf(step) + 1;
+    if (target < 1 || target >= page) return;
+    setError(null);
+    setPage(target);
+    window.scrollTo({ top: 0 });
+  }
 
   /**
    * C8 — open the Save & book sheet from wherever the customer is. The draft
@@ -1918,6 +1929,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 whyNot={nav.note}
                 busy={uploading || booking}
                 onBack={page > 1 ? quickBack : null}
+                steps={quickSteps}
+                onGo={quickGo}
+                address={state.address?.formatted ?? quickAddress}
+                suburb={state.address?.suburb || state.customer?.suburb || null}
+                estimatorName={estimatorName}
                 onNext={quickNext}
                 onBook={() => { flushDraft(lastScreen); setTalk({ mode: "visit" }); }}
                 onMessage={() => { flushDraft(lastScreen); setTalk({ mode: "message" }); }}
