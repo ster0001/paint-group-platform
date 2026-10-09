@@ -20,8 +20,8 @@ for (const e of ests) {
     const { data: up, error: upErr } = await db.from("wo_updates").select("*").eq("work_order_id", w.id).order("for_date", { ascending: false }).limit(10);
     if (upErr) console.log("updates read failed:", upErr.message);
     for (const u of up ?? []) console.log("  upd", u.for_date, u.status, (u.text ?? "").slice(0, 100));
-    const { data: s, error: sErr } = await db.from("wo_surfaces").select("id, state, updated_at").eq("work_order_id", w.id).order("updated_at", { ascending: false }).limit(8);
+    const { data: s, error: sErr } = await db.from("wo_surfaces").select("id, heading, label, state, state_changed_at").eq("work_order_id", w.id).order("state_changed_at", { ascending: false }).limit(8);
     if (sErr) console.log("surfaces read failed:", sErr.message);
-    for (const r of s ?? []) console.log("  surf", r.updated_at, r.state, r.id);
+    for (const r of s ?? []) console.log("  surf", r.state_changed_at, r.state, `${r.heading} · ${r.label}`);
   }
 }
