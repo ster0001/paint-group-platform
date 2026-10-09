@@ -56,7 +56,7 @@ export type ImportSurface = {
   size: null; hidden: false; isOption: false; media: never[];
   measureL: null; measureH: null; qtyOverride: number | null; rateOverride: null;
   paintingHrOverride: number; prepHr: 0; priceOverride: number;
-  productName: null; color: ""; colorHex: ""; coverageOverride: null; volumeOverride: 0; unitPriceOverride: null;
+  productName: string | null; color: ""; colorHex: ""; coverageOverride: null; volumeOverride: number; unitPriceOverride: number | null;
   crewNote: string; hideQty: boolean; showCoats: boolean; showPrice: false; useCustomRate: false; customRate: null; open: false;
 };
 
@@ -83,7 +83,7 @@ export type ImportBuilderState = {
   materials: Record<string, never>; materialColours: Record<string, never>; sheens: Record<string, never>; colourMatches: Record<string, never>;
   depositPct: number; inclusions: string[]; exclusions: string[];
   discountPct: 0; discountMode: "pct"; discountFixedCents: 0;
-  hourlyRateOverride: null; contractorRateOverride: null; preparationOverrideCents: 0;
+  hourlyRateOverride: null; contractorRateOverride: number | null; preparationOverrideCents: 0;
   sizeUpliftDisabled: true;
   aiDeferred: never[]; idealPainters: number | null; photoReview: null; extraPaints: never[];
   /** Provenance for the builder and the revision diff: never re-priced by the engine. */
@@ -103,7 +103,7 @@ export type BuiltBookedJob = {
   builderState: ImportBuilderState;
   sentSnapshot: CustomerSnapshot;
   woDoc: WorkOrderDoc;
-  totals: { subtotalCents: number; gstCents: number; totalCents: number; hours: number; contractorOfferCents: number | null };
+  totals: { subtotalCents: number; gstCents: number; totalCents: number; hours: number; contractorOfferCents: number | null; materialsCostCents: number };
   counts: { areas: number; lines: number; customLines: number };
   trayNote: string;
   externalRef: Record<string, unknown>;
@@ -204,6 +204,25 @@ export class SubstrateResolver {
 
 // ---- the build ---------------------------------------------------------------------
 
+/**
+ * A work-order line's materials as the engine reads them (Tom, 9 Oct 2026):
+ * PaintScout's product, its litres as the volume, and its printed cost turned
+ * into $ per litre — so the engine's materials cost, and with it the PC page's
+ * materials budget, is PaintScout's estimate (to within a cent a litre). A line
+ * with no litres keeps the old shape: no product, no volume.
+ */
+export function lineMaterials(it: { product?: string; litres?: number | null; material_cents?: number | null }): {
+  productName: string | null; volumeOverride: number; unitPriceOverride: number | null;
+} {
+  const litres = typeof it.litres === "number" && it.litres > 0 ? it.litres : 0;
+  const product = (it.product ?? "").trim();
+  if (!product || litres === 0) return { productName: null, volumeOverride: 0, unitPriceOverride: null };
+  const perLitre = typeof it.material_cents === "number" && it.material_cents > 0
+    ? Math.round(it.material_cents / litres) / 100
+    : null; // no printed cost: the catalogue's price for the product, if it has one
+  return { productName: product, volumeOverride: litres, unitPriceOverride: perLitre };
+}
+
 export function buildBookedJob(
   job: BookedJob,
   resolver: SubstrateResolver,
@@ -248,7 +267,12 @@ export function buildBookedJob(
           count: qty, size: null, hidden: false, isOption: false, media: [],
           measureL: null, measureH: null, qtyOverride: qty > 0 ? qty : null, rateOverride: null,
           paintingHrOverride: lineHours[i], prepHr: 0, priceOverride: dollars(shares[i]),
-          productName: null, color: "", colorHex: "", coverageOverride: null, volumeOverride: 0, unitPriceOverride: null,
+          // Tom, 9 Oct 2026: PaintScout's materials estimate rides on the line —
+          // its product, litres and $ per litre — so the materials budget is
+          // PaintScout's figure. The price override keeps the line's total;
+          // labour absorbs the difference, as for any typed price.
+          ...lineMaterials(it),
+          color: "", colorHex: "", coverageOverride: null,
           crewNote: it.unit === "m2" ? `${qty} m²` : it.unit === "m" ? `${qty} m` : "", hideQty: false, showCoats: true, showPrice: false,
           useCustomRate: false, customRate: null, open: false,
         };
@@ -419,7 +443,8 @@ export function buildBookedJob(
     finishCode,
     condition: null,
     contractorName: "",
-    contractorPaymentCents: job.contractor_offer_cents ?? totals.contractorOfferCents,
+    // A $0 offer is a blank, not an offer: price it (hours × the contractor rate).
+    contractorPaymentCents: job.contractor_offer_cents && job.contractor_offer_cents > 0 ? job.contractor_offer_cents : totals.contractorOfferCents,
     materials,
     areas: woAreas,
     exclusions: [],
@@ -446,7 +471,7 @@ export function buildBookedJob(
 
   return {
     quoteNo: job.quote_no, title, builderState, sentSnapshot, woDoc,
-    totals: { subtotalCents: totals.subtotalCents, gstCents: totals.gstCents, totalCents: totals.totalCents, hours, contractorOfferCents: job.contractor_offer_cents ?? null },
+    totals: { subtotalCents: totals.subtotalCents, gstCents: totals.gstCents, totalCents: totals.totalCents, hours, contractorOfferCents: job.contractor_offer_cents ?? null, materialsCostCents: totals.materialsCostCents },
     counts: { areas: job.areas.length, lines: job.areas.reduce((n, a) => n + a.items.length, 0), customLines },
     trayNote: trayNoteFor(job),
     externalRef,

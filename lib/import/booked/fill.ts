@@ -123,6 +123,7 @@ export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOr
     if (twin) twin.used = true;
     const items: BookedItem[] = a.items.map((it) => ({
       item: it.item, qty: it.qty, unit: it.unit, hours: it.hours, coats: it.coats, product: it.product || "",
+      litres: it.litres, material_cents: it.materialCents,
     }));
     const hours = items.length > 0 ? items.reduce((n, it) => n + (it.hours ?? 0), 0) : a.hours_total ?? 0;
     const price = twin ? twin.priceCents : null;
@@ -184,7 +185,9 @@ export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOr
     total_hours: totalHours,
     airtable_estimated_hours: typeof ref.airtable_estimated_hours === "number" ? ref.airtable_estimated_hours : null,
     estimated_materials_cents: typeof ref.estimated_materials_cents === "number" ? ref.estimated_materials_cents : null,
-    contractor_offer_cents: existing.contractorPaymentCents,
+    // A $0 pay is not an offer — it is the handover's blank (Tom, 9 Oct 2026:
+    // "the contractor amounts … are marked as 0.00"). Null lets the build price it.
+    contractor_offer_cents: existing.contractorPaymentCents && existing.contractorPaymentCents > 0 ? existing.contractorPaymentCents : null,
     start_date: str(ref.airtable_start_date),
     end_date: str(ref.airtable_end_date),
     number_of_workers: numOr(ref.airtable_workers, 0),
