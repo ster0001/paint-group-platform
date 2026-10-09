@@ -21,8 +21,8 @@
  *                           work order). The money proof still runs against the job's own prices.
  *     --contractor-rate <$/h>  the contractor rate for the job (Tom, 9 Oct 2026: "estimated hours × 65"):
  *                           written as the working scope's Contractor rate, so the margin box prices at it
- *                           and a later edit there moves the painter's pay; and, unless the job already
- *                           carries a real offer, the pay is set to hours × this rate.
+ *                           and a later edit there moves the painter's pay; and the pay is set to
+ *                           hours × this rate, replacing any earlier figure (migration 20270250).
  *     --area <wo>=<quote>[,…]  a work-order area with no same-named price takes the named quote area's
  *                           price: "Female toilets=Male toilets" when the quote named the room twice.
  *
@@ -199,10 +199,9 @@ async function main() {
     try {
       const built = buildBookedJob(joined.job, new SubstrateResolver([], nameMap), wctx.pricing, wctx.company, row.shareToken || "preflight00000000");
       if (contractorRate != null) {
+        // The office named the rate: the pay is hours × rate, replacing any earlier figure.
         built.builderState.contractorRateOverride = contractorRate;
-        if (!(joined.job.contractor_offer_cents && joined.job.contractor_offer_cents > 0)) {
-          built.woDoc.contractorPaymentCents = Math.round(built.totals.hours * contractorRate * 100);
-        }
+        built.woDoc.contractorPaymentCents = Math.round(built.totals.hours * contractorRate * 100);
       }
       console.log(`  contractor: $${((built.woDoc.contractorPaymentCents ?? 0) / 100).toFixed(2)}${contractorRate != null ? ` (${built.totals.hours} h × $${contractorRate})` : ""} · materials budget $${(built.totals.materialsCostCents / 100).toFixed(2)}`);
       console.log(`  proves: $${(built.totals.totalCents / 100).toFixed(2)} inc GST · ${built.totals.hours} h · ${built.counts.areas} areas · ${built.counts.lines} lines (${built.counts.customLines} on the custom row)`);
@@ -229,6 +228,8 @@ async function main() {
         ...(pageQuote !== row.quoteNo ? { work_order_quote_no: pageQuote } : {}),
       },
       surface_rows: seedRowsFromDoc(built.woDoc),
+      // 20270250: a named rate replaces the job's earlier pay in the sheet and the column.
+      ...(contractorRate != null ? { pay_override: true } : {}),
     };
     const { data, error } = await db.rpc("import_booked_job_set_scope", { p: payload });
     if (error) throw new Error(`quote ${row.quoteNo}: import_booked_job_set_scope: ${error.message}`);
