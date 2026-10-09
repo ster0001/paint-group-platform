@@ -2,7 +2,7 @@
 feature: standards
 role: employee
 title: Read the finish standards, and open the one for the surface you are painting
-summary: The Paint Group finish standards for Levels 2, 3 and 4 live under Help — a grid of interior and exterior surfaces, each with what we expect at every level, plus the rules for every job, extra time, the defect rule, the final checklist and the words we use. Every surface on a job sheet has a "What we expect" link that opens that surface at the job's level.
+summary: The Paint Group finish standards for Levels 2, 3 and 4 live under Help — a grid of interior and exterior surfaces, each with what we expect at every level, plus the rules for every job, extra time, the defect rule, the final checklist and the words we use. Every job sheet has one "What we expect on this job" drop-down at the top with the standards for that job's level.
 sources: app/portal/help/standards, app/components/standards, lib/standards, app/w/WorkOrderDoc.tsx, app/components/wo/TickList.tsx, docs/standards/finish-standards-v1.json
 ---
 
@@ -24,8 +24,8 @@ The level on your job sheet (Level 2, 3 or 4) tells you how much preparation to 
 5. Nothing is blocked for an employed painter, but please confirm within the week; the reminder texts stop the moment you do.
 
 ### From a job
-1. Open **Jobs** and tap the job. Near the top is one card, **What we expect on this job**: every line in the scope that has a finish standard, with the job's level. A line with no finish standard (gutters, a set-up line) shows nothing.
-2. Tap a line to open it in place — **Every level** first, then the rows for this job's level. **Open the full standard ›** shows that surface on its own page, locked to the level, for example **Level 3 on this job**. Read **Every level** first, then the rows for your level.
+1. Open **Jobs** and tap the job. Near the top is one closed drop-down, **What we expect on this job**, with the job's level. A line with no finish standard (gutters, a set-up line) is not in it.
+2. Tap it once to open the whole document — each standard once, for example **Walls · Level 3**, with the rooms it covers, **Every level** first, then the rows for this job's level. **Open the full standard ›** shows that surface on its own page, locked to the level, for example **Level 3 on this job**. Read **Every level** first, then the rows for your level.
 3. Tap **See other levels ›** to compare. Tap **← Job** at the top to go back.
 
 ### From Help

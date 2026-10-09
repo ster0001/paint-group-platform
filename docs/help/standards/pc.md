@@ -2,7 +2,7 @@
 feature: standards
 role: pc
 title: Judge a quality check against the finish standards the painter was given
-summary: The finish standards (Levels 2, 3 and 4) are data under PC Command → Standards, and every quality-check card and tick-list row on a job links each surface to its standard at that job's level — the same record the painter opens from their work order, so both of you judge against the same words. Also covers the small-job hours setting and how the standards are loaded.
+summary: The finish standards (Levels 2, 3 and 4) are data under PC Command → Standards, and every job carries one "What we expect on this job" drop-down with each surface's standard at that job's level — the same record the painter opens from their work order, so both of you judge against the same words. Also covers the small-job hours setting and how the standards are loaded.
 sources: app/pc/standards, app/pc/wo/[id]/QaCheck.tsx, app/pc/wo/[id]/page.tsx, app/components/standards, lib/standards, scripts/seed-standards.ts, supabase/migrations/20270224000000_finish_standards.sql
 ---
 
@@ -16,9 +16,9 @@ Paint Group's finish standards say, surface by surface, what a painter must do a
 ## Steps
 
 ### On a job
-1. Open the job in PC Command. Above **Scope & ticks** one card, **What we expect on this job**, lists every scope line that has a finish standard with the checks at the job's level; tap a line to read them, **Open the full standard ›** for the page. A row with no finish standard (gutters, an allowance line) has none.
-2. At the quality-check stage the same **What we expect on this job** card at the top of the page is your list: one line per scope surface with the checks at the job's level, for example **Lounge · Walls — what we expect ›**.
-3. Tap a link. The surface opens locked to **Level N on this job** with every check for that level. **See other levels ›** compares; **← Job** returns to the job.
+1. Open the job in PC Command. Above **Scope & ticks** is one closed drop-down, **What we expect on this job** — the same one the painter sees. Tap it once and it opens as one document: each standard once, for example **Walls · Level 3**, the rooms it covers, then the checks at the job's level. A row with no finish standard (gutters, an allowance line) is not in it. Tap the heading again to close it.
+2. At the quality-check stage the same drop-down at the top of the page is your list to judge against.
+3. Tap **Open the full standard ›** under a standard. The surface opens locked to **Level N on this job** with every check for that level. **See other levels ›** compares; **← Job** returns to the job.
 
 ### Who has signed
 1. **Contractors** (sidebar) carries a **Standards:** line on every card and a **Finish standards** row on each painter's page: confirmed with date and version, invited and inside the grace period, blocked (grace ended, no job offers), or not invited. **Send standards invite** / **Invite N to confirm the standards** start the grace period and send the invite; **Send reminder text** sends the reminder now.
