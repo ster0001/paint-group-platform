@@ -25,8 +25,13 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, onD
    * Absent = the bubble is the direct line to a person and nothing else.
    */
   onDescribe?: (text: string) => Promise<{ reply: string } | null>;
-  /** Where it is mounted — the marketing site sits above its own call bar. */
-  place?: "wizard" | "site";
+  /**
+   * Where it is mounted — the marketing site sits above its own call bar.
+   * "header" (UI refresh S1, ⚑ 10): the wizard's header carries it as an icon
+   * button, and the panel opens under the header instead of a bubble that
+   * floats over the questions. Same widget, same thread, same test ids.
+   */
+  place?: "wizard" | "site" | "header";
   /**
    * Tom, 8 Sep 2026: the same bubble on the website. A visitor there has no
    * anonymous session yet and we are not making one for every passer-by, so
@@ -126,7 +131,7 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, onD
   const live = snap?.status === "handed_off" && (snap.handoff?.status === "active" || snap.handoff?.status === "claimed");
 
   return (
-    <div className={`wz-chat ${place === "site" ? "site" : ""} ${open ? "open" : ""}`} data-testid="wz-chat">
+    <div className={`wz-chat ${place === "wizard" ? "" : place} ${open ? "open" : ""}`} data-testid="wz-chat">
       {open && (
         <div className="wz-chat-panel" role="dialog" aria-label="Chat with Paint Group" data-testid="wz-chat-panel" data-status={snap?.status ?? ""}>
           <div className="wz-chat-head">
@@ -165,8 +170,11 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, onD
           </form>
         </div>
       )}
-      <button type="button" className="wz-chat-bubble" onClick={toggle} aria-label={open ? "Minimise chat" : "Chat with us"} aria-expanded={open} data-testid="wz-chat-bubble">
-        <span aria-hidden="true">💬</span>
+      <button type="button" className="wz-chat-bubble" onClick={toggle} aria-label={open ? "Minimise chat" : "Chat with us"} aria-expanded={open} data-testid="wz-chat-bubble"
+        title={place === "header" ? "Chat with us" : undefined}>
+        {place === "header"
+          ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
+          : <span aria-hidden="true">💬</span>}
         <span className="wz-chat-bubble-lbl">{open ? "Close" : "Chat with us"}</span>
         {unread > 0 && !open && <span className="wz-chat-badge" data-testid="wz-chat-badge">{unread}</span>}
       </button>

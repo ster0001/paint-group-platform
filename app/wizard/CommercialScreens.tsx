@@ -54,6 +54,7 @@ export function SegmentScreen({ segments, value, onPick, jobType, onJobType, onB
           <button
             key={s.key} type="button"
             className={`wz-card ${value === s.key ? "on" : ""}`}
+            aria-pressed={value === s.key}
             data-testid={`ql-segment-${s.key}`}
             data-route={s.route}
             onClick={() => onPick(s.key)}
@@ -68,7 +69,7 @@ export function SegmentScreen({ segments, value, onPick, jobType, onJobType, onB
       {/* v2.2: every segment asks inside / outside / both — outside goes to
           the brief, both goes to one visit. The answer IS the job type. */}
       <p className="wz-qhead">Which part?</p>
-      <div className="wz-chips" data-testid="ql-cpart">
+      <div className="wz-chips wz-segd" data-testid="ql-cpart">
         {JOB_TYPES.map((o) => (
           <button
             key={o.value} type="button"
@@ -89,10 +90,10 @@ export function SegmentScreen({ segments, value, onPick, jobType, onJobType, onB
         </div>
       )}
 
-      <div className="wz-rather" data-testid="ql-seg-rather">
-        <b>Not sure, or in a hurry?</b>
-        <p>Book an estimator now. We bring the questions with us and you can skip the rest.</p>
-        <div className="wz-rather-row">
+      <div className="wz-talk" data-testid="ql-seg-rather">
+        <p className="wz-talk-head"><b>Not sure, or in a hurry?</b></p>
+        <p className="wz-hint">Book an estimator now. We bring the questions with us and you can skip the rest.</p>
+        <div className="wz-talk-row">
           <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-seg-book">Book someone in</button>
           {phone && (
             <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-seg-call">Call us</a>
@@ -130,14 +131,14 @@ export function AreasScreen({ segment, answers, onAnswers, photoCount, onPhotos 
 
   return (
     <>
-      <p className="wz-kick">{c.kick}</p>
+      <p className="wz-kick wz-kick--row">{c.kick}</p>
       <h1>{c.title ?? `Tell us about the ${segment.name.toLowerCase()}`}</h1>
       {c.sub && <p className="wz-sub">{c.sub}</p>}
 
       {c.kindQ && (
         <>
           <p className="wz-qhead">{c.kindQ[0]}</p>
-          <div className="wz-chips" data-testid="com-kind">
+          <div className="wz-chips wz-segd" data-testid="com-kind">
             {c.kindQ[1].map(([v, label]) => (
               <button
                 key={v} type="button"
@@ -173,7 +174,7 @@ export function AreasScreen({ segment, answers, onAnswers, photoCount, onPhotos 
       {n > 0 && c.openLabel && (
         <div className="wz-opencard" data-testid="com-open">
           <p className="wz-qhead" style={{ marginTop: 0 }}>
-            {c.openLabel}{n > 1 ? "s" : ""} <span className="wz-opt">{n > 1 ? "THE FIRST ONE; THE REST FOLLOW THE SAME SHAPE" : "THE SHAPE OF IT"}</span>
+            {c.openLabel}{n > 1 ? "s" : ""} <span className="wz-opttag">{n > 1 ? "The first one. The rest follow the same shape." : "The shape of it"}</span>
           </p>
           <p className="wz-chint" style={{ marginTop: 0 }}>
             {c.openCopy ?? "Open spaces are the easiest thing to misprice. Partitions look like less wall, but the cutting-in around them takes the same time. Tell us the size and the ceiling, and a photo lets your estimator check."}
@@ -281,10 +282,12 @@ export function JobScreen({ segment, answers, onAnswers, quick, onQuick }: {
           >{o.label}</button>
         ))}
       </div>
-      <p className="wz-qhead">Any of them going much lighter, or a bold colour? <span className="wz-opt">NEEDS AN UNDERCOAT FIRST — WE ALLOW FOR IT</span></p>
+      <p className="wz-qhead">Any of them going much lighter, or a bold colour?</p>
+      <p className="wz-hint">That needs an undercoat first. We allow for it.</p>
       <Pills options={[{ value: "no", label: "No" }, { value: "yes", label: "Yes" }]} value={quick.bold ? "yes" : "no"} name="bold"
         onPick={(v) => onQuick({ bold: v === "yes" })} />
-      <p className="wz-qhead">Still choosing colours? <span className="wz-opt">FINE — WE ALLOW FOR NEW COLOURS AND YOU DECIDE LATER</span></p>
+      <p className="wz-qhead">Still choosing colours?</p>
+      <p className="wz-hint">That&rsquo;s fine. We allow for new colours and you decide later.</p>
       <Pills options={[{ value: "known", label: "I know roughly" }, { value: "undecided", label: "Still choosing" }]} value={quick.undecided ? "undecided" : "known"} name="choosing"
         onPick={(v) => onQuick({ undecided: v === "undecided" })} />
 
@@ -294,6 +297,7 @@ export function JobScreen({ segment, answers, onAnswers, quick, onQuick }: {
           <button
             key={o.value} type="button"
             className={`wz-card ${quick.condition === o.value ? "on" : ""}`}
+            aria-pressed={quick.condition === o.value}
             data-testid={`ql-condition-${o.value}`}
             onClick={() => onQuick({ condition: o.value })}
           >
@@ -323,7 +327,7 @@ function Pills<T extends string>({ options, value, onPick, name }: {
   options: { value: T; label: string }[]; value: T | string; onPick: (v: T) => void; name: string;
 }) {
   return (
-    <div className="wz-chips" data-testid={`${name.startsWith("com-") || name.startsWith("wh-") ? name : `ql-${name}`}`}>
+    <div className="wz-chips wz-segd" data-testid={`${name.startsWith("com-") || name.startsWith("wh-") ? name : `ql-${name}`}`}>
       {options.map((o) => (
         <button
           key={o.value} type="button"
@@ -354,7 +358,7 @@ export function WarehouseScreen({ segment, answers, onAnswers }: {
   const typed = answers.lengthM != null || answers.widthM != null;
   return (
     <>
-      <p className="wz-kick">{segment.config.kick || "Industrial or warehouse"}</p>
+      <p className="wz-kick wz-kick--row">{segment.config.kick || "Industrial or warehouse"}</p>
       <h1>Tell us about the space</h1>
       <p className="wz-sub">Near enough is fine — brackets are fine. We&rsquo;ll size the walls from the floor area and the height.</p>
 
@@ -406,7 +410,8 @@ export function WarehouseScreen({ segment, answers, onAnswers }: {
 
       {on.has("walls") && (
         <div data-testid="wh-materials-q">
-          <p className="wz-qhead">What are the walls made of? <span className="wz-opt">TICK EVERYTHING</span></p>
+          <p className="wz-qhead">What are the walls made of?</p>
+          <p className="wz-hint">Tick everything.</p>
           <div className="wz-chips" data-testid="wh-mat">
             {WH_MATERIALS.map((o) => (
               <button
@@ -454,7 +459,7 @@ export function BriefScreen({ brief, answers, onAnswers, photoCount, onPhotos }:
     onAnswers({ what: answers.what.includes(w) ? answers.what.filter((x) => x !== w) : [...answers.what, w] });
   return (
     <>
-      <p className="wz-kick">{brief.kick}</p>
+      <p className="wz-kick wz-kick--row">{brief.kick}</p>
       <h1>{brief.title}</h1>
       <p className="wz-sub" data-testid="brief-sub">{brief.sub}</p>
 
@@ -474,7 +479,7 @@ export function BriefScreen({ brief, answers, onAnswers, photoCount, onPhotos }:
       {brief.rows.map(([q, opts]) => (
         <div key={q} data-testid={`brief-row-${slug(q)}`}>
           <p className="wz-qhead">{q}</p>
-          <div className="wz-chips">
+          <div className="wz-chips wz-segd">
             {opts.map((o) => (
               <button
                 key={o} type="button"
@@ -496,7 +501,7 @@ export function BriefScreen({ brief, answers, onAnswers, photoCount, onPhotos }:
         </div>
       )}
 
-      <p className="wz-qhead">Photos <span className="wz-opt">OPTIONAL, BUT THEY HELP A LOT</span></p>
+      <p className="wz-qhead">Photos <span className="wz-opttag">Optional, but they help a lot</span></p>
       <button type="button" className={`wz-photo-stub ${photoCount ? "done" : ""}`} onClick={onPhotos} data-testid="brief-photo" data-photos={photoCount}>
         {photoCount
           ? `✓ ${photoCount} photo${photoCount === 1 ? "" : "s"} added to your brief`

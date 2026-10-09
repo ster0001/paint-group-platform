@@ -57,6 +57,8 @@ import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered, pickResume } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
+import WizardHeader from "./WizardHeader";
+import { UI_FLAGS } from "@/lib/wizard/ui-flags";
 import { confirmAssistantFields, confirmAssistantStep } from "@/lib/wizard/describe";
 import { gateMessage, routeCommercial } from "@/lib/wizard/commercial";
 import {
@@ -1376,6 +1378,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const hasGate = isCustomer && gateVersion === "details_first";
   const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope, hasGate);
   const quickStep = quickSteps[Math.min(Math.max(page, 1), quickSteps.length) - 1];
+  /** UI refresh S1: the quick look (and its "working it out" screen) wears the new shell; the older page list (staff, `?entry=upload`) keeps its own (⚑ 21). */
+  const newShell = isCustomer && entry === "questions";
 
   /**
    * C12 — the commercial branch of the quick look. The segment key lives on
@@ -1763,7 +1767,20 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // in the first moments after load was silently lost. wz-waking turns off
     // pointer events so an early tap waits (and Playwright's actionability
     // check queues on it) instead of vanishing; data-ready is the spec hook.
-    <div className={ready ? undefined : "wz-waking"} data-ready={ready ? "1" : undefined}>
+    <div className={[ready ? "" : "wz-waking", newShell ? "wz-shell" : ""].filter(Boolean).join(" ") || undefined} data-ready={ready ? "1" : undefined}>
+      {newShell ? (
+        // UI refresh S1: the slim header with the step rail, built from the
+        // same `stepsFor()` list the screens walk. ⚑ 10: the chat is its icon.
+        <WizardHeader
+          logo={<Wordmark logoUrl={logoUrl} />}
+          steps={quickSteps}
+          at={quickStep}
+          done={screen === "processing"}
+          phone={companyPhone}
+          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready={ready} place="header" onDescribe={quickActive ? describeJob : undefined} /> : undefined}
+          onSaveBook={screen !== "processing" ? openBook : undefined}
+        />
+      ) : (
       <header className="wz-top">
         <Wordmark logoUrl={logoUrl} />
         <div className="wz-dots">
@@ -1778,6 +1795,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         )}
         {!isCustomer && <a className="wz-exit" href="/estimates">Exit</a>}
       </header>
+      )}
       {assisted && (
         <p className="wz-assisted" data-testid="assisted-banner">
           <b>Assisted session</b> — {assisted.who}&rsquo;s answers, picked up {assisted.screen ? `at ${assisted.screen.replace(/^quick:/, "").replace(/^page:/, "")}` : "where they left off"}. Nothing here changes their saved copy.
@@ -1841,7 +1859,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           <p className="wz-ptip" key={procTip}>{PROC_TIPS[procTip % PROC_TIPS.length]}</p>
         </div>
       ) : (
-        <div className="wz-wrap">
+        <div className={quickActive ? "wz-wrap wz-wrap--stage" : "wz-wrap"}>
           {resumed && (
             <div className="wz-resume" data-testid="wz-resume">
               <span>Welcome back — {resumed}. Everything you answered is still here.</span>
@@ -1872,7 +1890,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 assumed={state.assistant?.wrote ?? []}
                 planUpload={quick.jobType !== "exterior" ? (
                   <div className="wz-planupload" data-testid="ql-plan">
-                    <p className="wz-qhead">Have a floorplan or the listing? <span className="wz-opt">OPTIONAL — WE READ THE ROOMS OFF IT</span></p>
+                    <p className="wz-qhead">Have a floorplan or the listing? <span className="wz-opttag">Optional</span></p>
+                    <p className="wz-hint">We read the rooms and sizes off it.</p>
                     <input
                       ref={planInputRef} type="file" hidden accept="image/*,application/pdf"
                       onChange={(e) => { void uploadPlans([...(e.target.files ?? [])]); e.target.value = ""; }}
@@ -1894,10 +1913,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                     {planFileCount > 0 && <p className="wz-chint" data-testid="ql-plan-done">The rooms come off your plan — the next screens ask what&rsquo;s painted and the condition.</p>}
                   </div>
                 ) : null}
-                stepNo={Math.min(page, quickSteps.length)}
-                stepsTotal={quickSteps.length}
                 error={error}
                 canContinue={!nav.disabled}
+                whyNot={nav.note}
                 busy={uploading || booking}
                 onBack={page > 1 ? quickBack : null}
                 onNext={quickNext}
@@ -2098,7 +2116,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           {nav.note && <span className="wz-navnote">{nav.note}</span>}
         </nav>
       )}
-      {isCustomer && <ChatWidget ready={ready} onDescribe={quickActive ? describeJob : undefined} />}
+      {isCustomer && !(newShell && UI_FLAGS.chatInHeader) && <ChatWidget ready={ready} onDescribe={quickActive ? describeJob : undefined} />}
     </div>
   );
 }
