@@ -69,13 +69,17 @@ export const KIND_HEADING: Record<string, string> = {
 };
 
 export default function InvoiceSheet({
-  doc, entity, bank, payPanel = null, extraNote = null,
+  doc, entity, bank, payBox = null, payPanel = null, extraNote = null,
 }: {
   doc: SheetDoc;
   entity: Record<string, string>;
   bank: Record<string, string>;
   printMode?: boolean;
-  /** The card-payment panel, when the token page has one to offer. */
+  /** The customer's Pay button (opens the bank-details box). When given it
+   *  REPLACES the static "How to pay" box on screen; the print/PDF and every
+   *  staff preview leave it out and keep the static box. */
+  payBox?: ReactNode;
+  /** The post-checkout confirmation panel, when the customer just came back. */
   payPanel?: ReactNode;
   /** An extra status line (e.g. the revision preview's live-figures note). */
   extraNote?: ReactNode;
@@ -171,7 +175,8 @@ export default function InvoiceSheet({
       </table>
 
       <div className="bottom">
-        {(open || doc.status === "draft") && balance > 0 && (
+        {payBox}
+        {!payBox && (open || doc.status === "draft") && balance > 0 && (
           <div className="paybox">
             <h3>How to pay — bank transfer</h3>
             <div className="row"><span>Account name</span><b>{bank.accountName}</b></div>

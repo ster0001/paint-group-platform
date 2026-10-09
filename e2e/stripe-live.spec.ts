@@ -96,6 +96,23 @@ test.describe("Stripe test-card flow — C1 only", () => {
 
     const issued = await rpcAs(staff!, "invoice_issue", { p_invoice_id: depositId });
     expect(String(issued)).toContain("ok");
+
+    // The Settings switch (Tom, 4 Oct 2026): card payments are off unless
+    // the office turns them on — this spec turns them on for itself.
+    const { data: inv } = await sb.from("settings").select("value").eq("key", "invoicing").maybeSingle();
+    const prior = (inv?.value as Record<string, unknown> | null) ?? {};
+    await sb.from("settings").upsert(
+      { key: "invoicing", value: { ...prior, cardPaymentsEnabled: true } }, { onConflict: "key" },
+    );
+  });
+
+  test.afterAll(async () => {
+    if (!db) return;
+    const { data: inv } = await db.from("settings").select("value").eq("key", "invoicing").maybeSingle();
+    const prior = (inv?.value as Record<string, unknown> | null) ?? {};
+    await db.from("settings").upsert(
+      { key: "invoicing", value: { ...prior, cardPaymentsEnabled: false } }, { onConflict: "key" },
+    );
   });
 
   test.afterAll(async () => {
@@ -117,6 +134,8 @@ test.describe("Stripe test-card flow — C1 only", () => {
 
     // The customer's page offers the card path with the disclosed surcharge.
     await page.goto(`/i/${depositToken}`);
+    // The Pay button opens the box; the card option sits inside it (4 Oct).
+    await page.getByTestId("pay-button").click();
     await expect(page.getByTestId("pay-panel")).toBeVisible();
     await expect(page.getByTestId("pay-panel")).toContainText("surcharge");
 

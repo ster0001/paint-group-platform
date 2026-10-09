@@ -2,7 +2,7 @@
 feature: standards
 role: contractor
 title: Read the finish standards, and open the one for the surface you are painting
-summary: The Paint Group finish standards for Levels 2, 3 and 4 live under Help — a grid of interior and exterior surfaces, each with what we expect at every level, plus the rules for every job, your time and variations, the defect rule, the final checklist and the words we use. Every surface on a work order has a "What we expect" link that opens that surface at the job's level.
+summary: The Paint Group finish standards for Levels 2, 3 and 4 live under Help — a grid of interior and exterior surfaces, each with what we expect at every level, plus the rules for every job, your time and variations, the defect rule, the final checklist and the words we use. Every work order has one "What we expect on this job" drop-down at the top with the standards for that job's level.
 sources: app/portal/help/standards, app/components/standards, lib/standards, app/w/WorkOrderDoc.tsx, app/components/wo/TickList.tsx, docs/standards/finish-standards-v1.json
 ---
 
@@ -24,9 +24,9 @@ The level on your work order (Level 2, 3 or 4) tells you how much preparation to
 5. Until you confirm, Paint Group cannot send you new job offers once your grace period ends; jobs you have already started carry on as normal. The reminder texts stop the moment you confirm.
 
 ### From a job
-1. Open **Jobs** and tap the job. Near the top is one card, **What we expect on this job**: every line in the scope that has a finish standard — **Lounge · Walls**, **Outside · Double Hung Sash** — with the job's level. A line with no finish standard (gutters, a fuel allowance) is not listed.
-2. Tap a line. It opens in place: **Every level** first, then the rows for this job's level — Fill, Sand, Gaps, Lines and so on — and the look test distance.
-3. Tap **Open the full standard ›** to read that surface on its own page, locked to **Level 3 on this job**; **See other levels ›** compares; **← Job** comes back.
+1. Open **Jobs** and tap the job. Near the top is one closed drop-down, **What we expect on this job**, showing how many standards and lines it covers and the job's level.
+2. Tap it once. It opens as one document: each standard appears once — for example **Walls · Level 3** — with the rooms it covers underneath (**Hallway · Walls**, **Bedroom · Walls** …), then **Every level**, then the rows for this job's level (Fill, Sand, Gaps, Lines and so on) and the look test distance. A line with no finish standard (gutters, a fuel allowance) is not listed. Tap the heading again to close it.
+3. Tap **Open the full standard ›** under a standard to read that surface on its own page, locked to **Level 3 on this job**; **See other levels ›** compares; **← Job** comes back.
 
 ### From Help
 1. Tap **HELP** in the bar at the bottom, then the **Finish standards** card at the top.

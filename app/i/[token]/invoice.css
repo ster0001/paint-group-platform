@@ -131,6 +131,44 @@
   font-size: 14px; font-weight: 700; padding: 12px 0; border-radius: 9px;
 }
 .invoice-view .paycard .fine { font-size: 11px; color: var(--faint); margin: 8px 0 0; }
+.invoice-view .paybtn.secondary { background: #fff; color: var(--accent); border: 1.5px solid var(--accent); }
+
+/* ---------- the Pay button + box (Tom, 4 Oct 2026) ---------- */
+.invoice-view .paybox-cta .fine { font-size: 11px; color: var(--faint); margin: 8px 0 0; }
+.invoice-view .paydialog {
+  border: 0; border-radius: 14px; padding: 0; max-width: 420px; width: calc(100% - 32px);
+  box-shadow: 0 24px 60px rgba(0,0,0,.28); color: var(--text); font-family: var(--sans);
+}
+.invoice-view .paydialog::backdrop { background: rgba(15, 23, 32, .55); }
+.invoice-view .paydialog-inner { position: relative; padding: 22px 22px 18px; font-size: 13px; }
+.invoice-view .paydialog-close {
+  position: absolute; top: 10px; right: 12px; appearance: none; border: 0; background: transparent;
+  font-size: 22px; line-height: 1; color: var(--faint); cursor: pointer; padding: 4px 6px;
+}
+.invoice-view .paydialog-due { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; padding-right: 28px; }
+.invoice-view .paydialog-due span {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+}
+.invoice-view .paydialog-due b { font-size: 28px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+.invoice-view .paydialog h4 {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--faint); margin: 12px 0 8px;
+}
+.invoice-view .paydialog .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 0; color: var(--soft); border-bottom: 1px solid var(--rule); }
+.invoice-view .paydialog .row b { color: var(--text); font-weight: 600; font-family: var(--mono); font-size: 12.5px; text-align: right; }
+.invoice-view .paydialog .ref-row b { color: var(--accent); font-size: 14px; }
+.invoice-view .paydialog .copybtn {
+  appearance: none; border: 1px solid var(--rule); background: #f4f6f7; border-radius: 6px;
+  font-family: var(--sans); font-size: 11px; font-weight: 600; padding: 4px 8px; cursor: pointer; color: var(--text);
+}
+.invoice-view .paydialog .fine { font-size: 11px; color: var(--faint); margin: 8px 0 0; line-height: 1.5; }
+.invoice-view .paydialog-note { background: #fff6e8; border-radius: 8px; padding: 8px 10px; color: var(--soft); margin-bottom: 4px; line-height: 1.5; }
+.invoice-view .paydialog-card { margin-top: 14px; padding-top: 4px; border-top: 1px solid var(--rule); }
+.invoice-view .paydialog-done {
+  appearance: none; border: 0; cursor: pointer; width: 100%; margin-top: 16px;
+  background: var(--text); color: #fff; font-family: var(--sans);
+  font-size: 13.5px; font-weight: 600; padding: 11px 0; border-radius: 9px;
+}
 .invoice-view .totals { flex: 0 1 300px; margin-left: auto; min-width: 260px; }
 .invoice-view .trow { display: flex; justify-content: space-between; gap: 14px; padding: 4px 0; font-size: 12.5px; color: var(--soft); }
 .invoice-view .trow b { color: var(--text); font-weight: 600; font-family: var(--mono); font-size: 12px; white-space: nowrap; flex: none; }
