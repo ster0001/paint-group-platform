@@ -73,15 +73,19 @@ export default async function CalendarPage({
   // read is reported, not drawn as a free day.
   const { data: visits, error: visitError } = await supabase
     .from("wo_appointments")
-    .select("id, work_order_id, start_date, end_date")
+    .select("id, work_order_id, start_date, end_date, note")
     .eq("contractor_id", contractor.id);
   if (visitError) reportError(visitError, { where: "portal.calendar.appointments" });
   const jobById = new Map(jobs.map((j) => [j.id, j]));
-  for (const v of ((visits ?? []) as { id: string; work_order_id: string; start_date: string; end_date: string }[])) {
+  for (const v of ((visits ?? []) as { id: string; work_order_id: string; start_date: string; end_date: string; note: string }[])) {
     const job = jobById.get(v.work_order_id);
-    if (!job) continue; // a job this painter can no longer see has no days to draw
+    // Tom, 4 Oct: a visit can be on a project this painter is not otherwise
+    // on (a touch-up on a finished job). They still have to turn up, so the
+    // day is drawn from the visit itself; the office's note is the label.
     for (let d = v.start_date; d <= v.end_date; d = addDays(d, 1)) {
-      jobDays.push({ date: d, label: job.doc?.jobTitle || job.woRef, status: job.status, id: job.id });
+      jobDays.push(job
+        ? { date: d, label: job.doc?.jobTitle || job.woRef, status: job.status, id: job.id }
+        : { date: d, label: v.note ? `Extra visit — ${v.note}` : "Extra visit", status: "accepted", id: v.work_order_id });
     }
   }
 

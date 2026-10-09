@@ -1,9 +1,12 @@
+import { runStandardsReminderSweep } from "@/lib/automations/sweeps/standardsReminders";
+import { runPainterStatusSweep } from "@/lib/painterStatus/run";
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runSweep } from "@/lib/campaigns/runSweep";
 import { releaseDueHolds } from "@/lib/automations/dispatch";
 import { runMoneySignoffSweep } from "@/lib/automations/sweeps/moneySignoff";
 import { runJobReminderSweep } from "@/lib/automations/sweeps/jobReminders";
+import { runDefectTapeSweep } from "@/lib/automations/sweeps/defectTape";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -37,15 +40,27 @@ export async function GET(req: Request) {
     // `?only=reminders` (the e2e, a hand run) skips the campaign engine.
     const params = new URL(req.url).searchParams;
     const only = params.get("only");
-    const outcomes = only === "reminders" ? [] : await runSweep(db, now);
+    const outcomes = only === "reminders" || only === "standards" || only === "moments" || only === "status" || only === "defect" ? [] : await runSweep(db, now);
     // Session 3: money and sign-off reminder ladders, every half hour.
     // `?force=1` (the e2e, a deliberate hand run) ignores the offer reminder's
     // 22:00–04:59 Melbourne night window — the same word the wo-sweep uses.
     // Nothing else is forced: an offer still has to be live and its rung due.
-    const reminders = await runMoneySignoffSweep(db, now, { ignoreOfferWindow: params.get("force") === "1" });
+    const reminders = only === "moments" || only === "standards" || only === "status" || only === "defect" ? null : await runMoneySignoffSweep(db, now, { ignoreOfferWindow: params.get("force") === "1" });
     // Tom, 25 Sep: the painter's "update your work order" texts — day 1,
-    // mid-job and last-day moments by job length (lib/workorder/jobRhythm.ts).
-    const jobReminders = await runJobReminderSweep(db, now);
+    // mid-job and last-day moments by job length (lib/workorder/jobRhythm.ts);
+    // Tom, 8 Oct: plus the 7:30 heads-up on each 3:30 day.
+    const jobReminders = only === "standards" || only === "status" || only === "defect" ? null : await runJobReminderSweep(db, now);
+    // Tom, 8 Oct: the customer's "mark touch-ups with tape" text before the walkthrough.
+    const defectTape = only === "moments" || only === "standards" || only === "status" ? null : await runDefectTapeSweep(db, now);
+    // Standards Step 2: "please confirm the finish standards" on days 2, 4 and 6
+    // after the invite, and the new-version message (lib/standards/acks.ts).
+    const standards = only === "moments" || only === "status" || only === "defect" ? null : await runStandardsReminderSweep(db, now);
+    // Step 5: the evaluator, for painters whose jobs saw an event in the last
+    // 35 minutes (a tick, a check, a call back, a sign-off) — every trigger
+    // in §4.4 is an event. `?only=status` runs every painter.
+    const status = only === "status"
+      ? await runPainterStatusSweep(db, { now })
+      : await runPainterStatusSweep(db, { now, since: new Date(now.getTime() - 35 * 60_000) });
     // Session 1: automatic job messages held for quiet hours or the daily
     // cap are released here — every 30 minutes, so a held text goes at the
     // opening, not at the next daily sweep. Only messages the office already
@@ -58,6 +73,10 @@ export async function GET(req: Request) {
       released,
       reminders,
       jobReminders,
+      defectTape,
+      standards,
+      // The first few failures by name, so a run that writes nothing says why (9 Oct 2026: production had no status rows and no way to see the cause).
+      status: { ran: status.ran, failed: status.failed, errors: status.outcomes.filter((o) => !o.ok).slice(0, 5).map((o) => `${o.painterId.slice(0, 8)}: ${o.error ?? "?"}`) },
       note: "Campaign steps are queued only. Held automatic messages whose time has come are sent.",
     });
   } catch (e) {

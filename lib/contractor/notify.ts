@@ -1,12 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildEstimateEmailHtml } from "@/lib/messaging/send";
-import { sendAutomation } from "@/lib/automations/dispatch";
+import { buildEstimateEmailHtml, sendEmail, sendSms, type DeliveryResult } from "@/lib/messaging/send";
+import { outcomeWord, sendAutomation, type DispatchOutcome } from "@/lib/automations/dispatch";
 import { automationOn, normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { suburbOnly } from "@/lib/scheduling/offers";
+import { painterNotifyRecord, type NotifyRecord } from "@/lib/workorder/messageModel";
 
 /**
  * Contractor notifications (Tom, 1 Sep #2). SERVER ONLY — service client.
@@ -177,8 +179,36 @@ export async function notifyAssignment(
   }
 }
 
-/** "A variation is approved and waiting for you" — text, once per variation. */
-export async function notifyVariationReleased(service: SupabaseClient, variationId: string): Promise<void> {
+/**
+ * What a painter notification came to, in the office's words — the job page's
+ * "Remind the painter" shows it. "notified" is the only outcome that writes
+ * the once-guard event; a painter with nobody to reach is RECORDED as skipped
+ * (event `<type>_skipped`, with the reason), never marked notified — that is
+ * how 12A Cavell Court showed "notified" over no message at all (7 Oct 2026).
+ */
+export type PainterNotifyOutcome =
+  | { outcome: "notified"; channels: string[] }
+  | { outcome: "skipped"; reason: string }
+  | { outcome: "already" }
+  | { outcome: "not_applicable" };
+
+async function recordOutcome(
+  service: SupabaseClient, workOrderId: string, type: string, meta: Record<string, unknown>, d: DispatchOutcome,
+): Promise<PainterNotifyOutcome> {
+  if (d.outcome === "sent" || d.outcome === "pending" || d.outcome === "held") {
+    const channels = d.outcome === "sent" ? d.channels : ["queued"];
+    await record(service, workOrderId, type, { ...meta, channels });
+    return { outcome: "notified", channels };
+  }
+  const reason = d.outcome === "nobody" ? d.detail : d.outcome === "off" ? "The automation is switched off." : d.outcome === "error" ? d.message : "Nothing went out.";
+  await record(service, workOrderId, `${type}_skipped`, { ...meta, reason });
+  return { outcome: "skipped", reason };
+}
+
+/** "A variation is approved and waiting for you" — text + email, once per variation (or again, from the job page). */
+export async function notifyVariationReleased(
+  service: SupabaseClient, variationId: string, opts: { force?: boolean } = {},
+): Promise<PainterNotifyOutcome> {
   try {
     const { data: v } = await service
       .from("wo_variations")
@@ -189,25 +219,36 @@ export async function notifyVariationReleased(service: SupabaseClient, variation
       id: string; status: string; released_at: string | null; credit: boolean;
       work_order_id: string; work_orders: { wo_ref: string; contractor_id: string | null } | null;
     } | null;
-    if (!row?.work_orders?.contractor_id || row.status !== "customer_approved" || !row.released_at) return;
-    if (!(await once(service, row.work_order_id, "variation_release_notified", { variation_id: row.id }))) return;
+    if (!row?.work_orders?.contractor_id || row.status !== "customer_approved" || !row.released_at) return { outcome: "not_applicable" };
+    if (!opts.force && !(await once(service, row.work_order_id, "variation_release_notified", { variation_id: row.id }))) return { outcome: "already" };
     const { messaging, company } = await loadMessaging(service);
-    if (!automationOn(messaging, "contractor_variation_released")) return;
+    if (!automationOn(messaging, "contractor_variation_released")) return { outcome: "skipped", reason: "The automation is switched off." };
 
     const c = await contactFor(service, row.work_orders.contractor_id);
     const link = `${siteUrl()}/portal/jobs/${row.work_order_id}`;
-    const body = renderTemplate(messaging.variationReleasedSms, {
-      company_name: company.name || "Paint Group", wo_ref: row.work_orders.wo_ref,
+    const companyName = company.name || "Paint Group";
+    const vars = {
+      first_name: c.firstName, company_name: companyName, wo_ref: row.work_orders.wo_ref,
       action: row.credit ? "acknowledge" : "approve", link,
-    });
-    await sendAutomation(service, {
-      key: "contractor_variation_released", to: { phone: c.phone }, sms: { body },
+    };
+    const d = await sendAutomation(service, {
+      key: "contractor_variation_released",
+      to: { phone: c.phone, email: c.email && !isTestEmail(c.email) ? c.email : null },
+      sms: { body: renderTemplate(messaging.variationReleasedSms, vars) },
+      email: {
+        subject: renderTemplate(messaging.variationReleasedEmailSubject, vars),
+        html: buildEstimateEmailHtml({
+          companyName, logoUrl: emailLogoUrl(company),
+          intro: renderTemplate(messaging.variationReleasedEmailIntro, vars),
+          link, buttonLabel: "Open the job",
+        }),
+      },
       ctx: { workOrderId: row.work_order_id, kind: "variation_released" }, contractorId: row.work_orders.contractor_id,
     });
-
-    await record(service, row.work_order_id, "variation_release_notified", { variation_id: row.id });
+    return await recordOutcome(service, row.work_order_id, "variation_release_notified", { variation_id: row.id, again: !!opts.force }, d);
   } catch (e) {
     reportError(e, { where: "notify.variationReleased", extra: { variationId } });
+    return { outcome: "skipped", reason: "Something went wrong sending it — the error monitor has it." };
   }
 }
 
@@ -218,7 +259,7 @@ export async function notifyVariationReleased(service: SupabaseClient, variation
  * a contractor who has the job is told, not asked. Once per change; a
  * painter-raised variation (no revision_block_ref) is the release path's.
  */
-export async function notifyVariationAddedToJob(service: SupabaseClient, variationId: string): Promise<void> {
+export async function notifyVariationAddedToJob(service: SupabaseClient, variationId: string): Promise<PainterNotifyOutcome> {
   try {
     const { data: v, error: vErr } = await service
       .from("wo_variations")
@@ -231,27 +272,232 @@ export async function notifyVariationAddedToJob(service: SupabaseClient, variati
       contractor_delta_cents: number | null; needs_manual_deduction: boolean | null;
       work_order_id: string; work_orders: { wo_ref: string; contractor_id: string | null } | null;
     } | null;
-    if (!row?.work_orders?.contractor_id || !row.revision_block_ref || row.status !== "contractor_accepted") return;
-    if (await isEmployeePainter(service, row.work_orders.contractor_id)) return; // employees hear it in their own words
-    if (!(await once(service, row.work_order_id, "variation_added_notified", { variation_id: row.id }))) return;
+    if (!row?.work_orders?.contractor_id || !row.revision_block_ref || row.status !== "contractor_accepted") return { outcome: "not_applicable" };
+    if (await isEmployeePainter(service, row.work_orders.contractor_id)) return { outcome: "not_applicable" }; // employees hear it in their own words
+    if (!(await once(service, row.work_order_id, "variation_added_notified", { variation_id: row.id }))) return { outcome: "already" };
     const { messaging, company } = await loadMessaging(service);
-    if (!automationOn(messaging, "contractor_variation_added")) return;
+    if (!automationOn(messaging, "contractor_variation_added")) return { outcome: "skipped", reason: "The automation is switched off." };
 
     const c = await contactFor(service, row.work_orders.contractor_id);
     const link = `${siteUrl()}/portal/jobs/${row.work_order_id}`;
     const cents = Math.abs(row.contractor_delta_cents ?? 0);
     const money = "$" + (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const payLine = cents === 0 || row.needs_manual_deduction ? "" : row.credit ? ` — ${money} comes off your payment` : ` — ${money} added to your payment`;
-    const body = renderTemplate(messaging.variationAddedSms, {
-      company_name: company.name || "Paint Group", wo_ref: row.work_orders.wo_ref, pay_line: payLine, link,
-    });
-    await sendAutomation(service, {
-      key: "contractor_variation_added", to: { phone: c.phone }, sms: { body },
+    const companyName = company.name || "Paint Group";
+    const vars = { first_name: c.firstName, company_name: companyName, wo_ref: row.work_orders.wo_ref, pay_line: payLine, link };
+    const d = await sendAutomation(service, {
+      key: "contractor_variation_added",
+      to: { phone: c.phone, email: c.email && !isTestEmail(c.email) ? c.email : null },
+      sms: { body: renderTemplate(messaging.variationAddedSms, vars) },
+      email: {
+        subject: renderTemplate(messaging.variationAddedEmailSubject, vars),
+        html: buildEstimateEmailHtml({
+          companyName, logoUrl: emailLogoUrl(company),
+          intro: renderTemplate(messaging.variationAddedEmailIntro, vars),
+          link, buttonLabel: "Open the job",
+        }),
+      },
       ctx: { workOrderId: row.work_order_id, kind: "variation_added" }, contractorId: row.work_orders.contractor_id,
     });
-    await record(service, row.work_order_id, "variation_added_notified", { variation_id: row.id });
+    return await recordOutcome(service, row.work_order_id, "variation_added_notified", { variation_id: row.id }, d);
   } catch (e) {
     reportError(e, { where: "notify.variationAddedToJob", extra: { variationId } });
+    return { outcome: "skipped", reason: "Something went wrong sending it — the error monitor has it." };
+  }
+}
+
+/**
+ * "Your variation isn't going ahead" — the office's reply, text + email (Tom,
+ * 8 Oct 2026: "a button … to reject a variation, with a reply box which sends
+ * a message back to the contractor"). The reply is the staff member's own
+ * words, so this is a MANUAL send: straight through sendSms/sendEmail (both
+ * record a `messages` row with the sender), never the automation dispatcher —
+ * no switch, quiet hours or cap stands between the office and their reply.
+ *
+ * Who hears it: the painter who RAISED it (contractors.profile_id = raised_by);
+ * failing that, the job's painter. The outcome is recorded on the job the
+ * Cavell Court way — `variation_rejected_notified` {channels} only when a
+ * channel actually sent, else `variation_rejected_notified_skipped` {reason}.
+ */
+export async function notifyVariationRejected(
+  service: SupabaseClient, variationId: string, actorProfileId: string | null,
+): Promise<PainterNotifyOutcome & { painter?: string }> {
+  let workOrderId: string | null = null;
+  try {
+    const { data: v, error: vErr } = await service
+      .from("wo_variations")
+      .select("id, status, comment, office_rejected_at, office_reject_note, raised_by, work_order_id, work_orders(wo_ref, contractor_id)")
+      .eq("id", variationId).maybeSingle();
+    if (vErr) throw vErr;
+    const row = v as {
+      id: string; status: string; comment: string; office_rejected_at: string | null; office_reject_note: string;
+      raised_by: string | null; work_order_id: string; work_orders: { wo_ref: string; contractor_id: string | null } | null;
+    } | null;
+    if (!row?.work_orders || row.status !== "declined" || !row.office_rejected_at) return { outcome: "not_applicable" };
+    workOrderId = row.work_order_id;
+
+    let contractorId: string | null = null;
+    if (row.raised_by) {
+      const { data: raiser, error: rErr } = await service.from("contractors").select("id").eq("profile_id", row.raised_by).maybeSingle();
+      if (rErr) throw rErr;
+      contractorId = (raiser as { id: string } | null)?.id ?? null;
+    }
+    contractorId = contractorId ?? row.work_orders.contractor_id;
+    const meta = { variation_id: row.id };
+    if (!contractorId) {
+      return await recordSkip(service, row.work_order_id, meta, "No painter on this job to tell.");
+    }
+
+    const c = await contactFor(service, contractorId);
+    const email = c.email && !isTestEmail(c.email) ? c.email : null;
+    if (!c.phone && !email) {
+      return { ...(await recordSkip(service, row.work_order_id, { ...meta, contractor_id: contractorId }, `${c.firstName === "there" ? "The painter" : c.firstName} has no mobile or email on file.`)), painter: c.firstName };
+    }
+    const { company } = await loadMessaging(service);
+    const companyName = company.name || "Paint Group";
+    const link = `${siteUrl()}/portal/jobs/${row.work_order_id}`;
+    const what = row.comment.trim() ? `“${row.comment.trim().slice(0, 140)}${row.comment.trim().length > 140 ? "…" : ""}”` : "your variation";
+    const ctx = { workOrderId: row.work_order_id, kind: "variation_rejected", actorProfileId };
+
+    const results: Partial<Record<"sms" | "email", DeliveryResult>> = {};
+    if (c.phone) {
+      results.sms = await sendSms({
+        to: c.phone, ctx,
+        body: `${companyName}: your variation on ${row.work_orders.wo_ref} isn't going ahead. The office says: ${row.office_reject_note} ${link}`,
+      });
+    }
+    if (email) {
+      results.email = await sendEmail({
+        to: email, ctx, replyTo: company.email || undefined,
+        subject: `Your variation on ${row.work_orders.wo_ref} isn't going ahead`,
+        html: buildEstimateEmailHtml({
+          companyName, logoUrl: emailLogoUrl(company),
+          intro: `Hi ${c.firstName},\n\nThanks for raising ${what} on ${row.work_orders.wo_ref}. The office has looked at it and it isn't going ahead.\n\nThe office says:\n${row.office_reject_note}`,
+          link, buttonLabel: "Open the job",
+        }),
+      });
+    }
+    const sent = (Object.entries(results) as ["sms" | "email", DeliveryResult][]).filter(([, r]) => r.status === "sent").map(([ch]) => ch);
+    const statuses = Object.fromEntries(Object.entries(results).map(([ch, r]) => [ch, r.status]));
+    if (sent.length > 0) {
+      const { error } = await service.from("wo_events").insert({
+        work_order_id: row.work_order_id, type: "variation_rejected_notified", actor_kind: "system",
+        meta: { ...meta, contractor_id: contractorId, channels: sent, statuses },
+      });
+      if (error) reportError(error, { where: "notify.variationRejected.record" });
+      return { outcome: "notified", channels: sent, painter: c.firstName };
+    }
+    const why = Object.entries(results).map(([ch, r]) => {
+      const label = ch === "sms" ? "Text" : "Email";
+      return r.status === "not_configured" ? `${label}: not set up on this server`
+        : r.status === "suppressed" || r.status === "error" ? `${label}: ${r.message}` : `${label}: ${r.status}`;
+    }).join(" · ");
+    for (const r of Object.values(results)) if (r?.status === "error") reportError(new Error(r.message), { where: "notify.variationRejected.send" });
+    return { ...(await recordSkip(service, row.work_order_id, { ...meta, contractor_id: contractorId, statuses }, `Nothing went out — ${why}.`)), painter: c.firstName };
+  } catch (e) {
+    reportError(e, { where: "notify.variationRejected", extra: { variationId } });
+    const reason = "Something went wrong sending it — the error monitor has it.";
+    if (workOrderId) return recordSkip(service, workOrderId, { variation_id: variationId }, reason);
+    return { outcome: "skipped", reason };
+  }
+}
+
+async function recordSkip(
+  service: SupabaseClient, workOrderId: string, meta: Record<string, unknown>, reason: string,
+): Promise<PainterNotifyOutcome> {
+  const { error } = await service.from("wo_events").insert({
+    work_order_id: workOrderId, type: "variation_rejected_notified_skipped", actor_kind: "system", meta: { ...meta, reason },
+  });
+  if (error) reportError(error, { where: "notify.variationRejected.recordSkip" });
+  return { outcome: "skipped", reason };
+}
+
+/**
+ * "New message from Paint Group about <job ref, suburb>" (Tom, 9 Oct 2026) —
+ * the office wrote in a project's Messages box. Through the dispatcher (the
+ * office's Text / Email / Both, sending hours), with the outcome RECORDED, not
+ * the attempt: the message row carries what telling the painter came to in
+ * words (notify_status / notify_detail, shown under the message on the job
+ * page), and the job's log gets `message_notified` {channels} only when a
+ * channel actually sent, else `message_notified_skipped` {reason}.
+ *
+ * One per burst: wo_message_post decides under the thread's lock and stamps a
+ * message inside the window 'batched' — this is never called for those. A
+ * telling that came to nothing hands the burst clock back, so the office's
+ * next message tries again rather than being "covered" by a text that never
+ * went.
+ */
+export async function notifyPainterMessage(service: SupabaseClient, messageId: string): Promise<NotifyRecord> {
+  let where: { workOrderId: string; threadId: string; pingedAt: string } | null = null;
+  const settle = async (rec: NotifyRecord, meta: Record<string, unknown>): Promise<NotifyRecord> => {
+    const { error } = await service.from("wo_messages").update({ notify_status: rec.status, notify_detail: rec.detail }).eq("id", messageId);
+    if (error) reportError(error, { where: "notify.painterMessage.recordMessage", extra: { messageId } });
+    if (!where) return rec;
+    const told = rec.status === "sent" || rec.status === "queued";
+    const result = rec.status;
+    const ev = await service.from("wo_events").insert({
+      work_order_id: where.workOrderId,
+      type: told ? "message_notified" : "message_notified_skipped",
+      actor_kind: "system",
+      meta: { message_id: messageId, thread_id: where.threadId, result, detail: rec.detail, ...meta },
+    });
+    if (ev.error) reportError(ev.error, { where: "notify.painterMessage.recordEvent", extra: { messageId } });
+    if ((rec.status === "skipped" || rec.status === "off") && where.pingedAt) {
+      const back = await service.from("wo_message_threads").update({ painter_pinged_at: null })
+        .eq("id", where.threadId).eq("painter_pinged_at", where.pingedAt);
+      if (back.error) reportError(back.error, { where: "notify.painterMessage.releaseBurst", extra: { messageId } });
+    }
+    return rec;
+  };
+  try {
+    const { data, error } = await service
+      .from("wo_messages")
+      .select("id, author_kind, body, photo_paths, created_at, notify_status, wo_message_threads(id, work_order_id, contractor_id, painter_pinged_at, work_orders(wo_ref, wo_snapshot))")
+      .eq("id", messageId).maybeSingle();
+    if (error) throw error;
+    const m = data as {
+      id: string; author_kind: string; body: string; photo_paths: string[]; created_at: string; notify_status: string | null;
+      wo_message_threads: {
+        id: string; work_order_id: string; contractor_id: string; painter_pinged_at: string | null;
+        work_orders: { wo_ref: string; wo_snapshot: { jobAddress?: string } | null } | null;
+      } | null;
+    } | null;
+    const t = m?.wo_message_threads;
+    if (!m || !t?.work_orders) return { status: "skipped", detail: "Not sent — the message could not be found." };
+    if (m.author_kind !== "staff" || m.notify_status === "batched") return { status: "skipped", detail: "" };
+    where = { workOrderId: t.work_order_id, threadId: t.id, pingedAt: t.painter_pinged_at ?? "" };
+
+    const { messaging, company } = await loadMessaging(service);
+    const c = await contactFor(service, t.contractor_id);
+    const companyName = company.name || "Paint Group";
+    const suburb = suburbOnly(t.work_orders.wo_snapshot?.jobAddress);
+    const link = `${siteUrl()}/portal/jobs/${t.work_order_id}#messages`;
+    const photos = m.photo_paths.length;
+    const message = [m.body.trim(), photos ? `(${photos} photo${photos === 1 ? "" : "s"} attached)` : ""].filter(Boolean).join(" ");
+    const vars = { first_name: c.firstName, company_name: companyName, wo_ref: t.work_orders.wo_ref, suburb, message, link };
+    const d = await sendAutomation(service, {
+      key: "contractor_message",
+      to: { phone: c.phone, email: c.email && !isTestEmail(c.email) ? c.email : null },
+      sms: { body: renderTemplate(messaging.painterMessageSms, vars) },
+      email: {
+        subject: renderTemplate(messaging.painterMessageEmailSubject, vars),
+        replyTo: company.email || undefined,
+        html: buildEstimateEmailHtml({
+          companyName, logoUrl: emailLogoUrl(company),
+          intro: renderTemplate(messaging.painterMessageEmailIntro, vars),
+          link, buttonLabel: "Read and reply",
+        }),
+      },
+      ctx: { workOrderId: t.work_order_id, kind: "painter_message" },
+      contractorId: t.contractor_id,
+    });
+    for (const r of d.outcome === "sent" ? Object.values(d.results) : []) {
+      if (r?.status === "error") reportError(new Error(r.message), { where: "notify.painterMessage.send", bestEffort: true, extra: { messageId } });
+    }
+    return await settle(painterNotifyRecord(d, c.firstName), { contractor_id: t.contractor_id, outcome: outcomeWord(d) });
+  } catch (e) {
+    reportError(e, { where: "notify.painterMessage", extra: { messageId } });
+    return settle({ status: "skipped", detail: "Not sent — something went wrong sending it; the error monitor has it." }, {});
   }
 }
 

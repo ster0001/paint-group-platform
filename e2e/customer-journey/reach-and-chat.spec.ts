@@ -23,7 +23,6 @@ const stamp = Date.now();
 const callbackEmail = `e2e-reach-call-${stamp}@example.com`;
 const visitEmail = `e2e-reach-visit-${stamp}@example.com`;
 const callbackPhone = uniquePhone(), visitPhone = uniquePhone();
-void visitPhone;
 const accountByPhone = async (sb: SupabaseClient, phone: string) => {
   const { data } = await sb.rpc("crm_find_account", { p_email: null, p_phone: phone });
   return (data as string | null) ?? null;
@@ -78,7 +77,10 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
      * common case: the price comes before any contact form, so most people who
      * ask for a call back have given us nothing but the number in the box.
      */
-    await driveNoPlanWizard(page);
+    // S6 (7 Oct): under "details first" the walk answers the last question with a mobile —
+    // THIS test's number, or the account would be filed under the driver's shared default
+    // and the call back below would land on it instead of one found by callbackPhone.
+    await driveNoPlanWizard(page, { mobile: callbackPhone });
     // Tom, 14 Sep (items 1, 3): the reach strip lives on the booking page behind "Book a time".
     await expect(page.locator(".sc-btn.il-cta")).toBeEnabled();
     await page.getByTestId("scope-book").click();
@@ -125,49 +127,25 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     }, { timeout: 20_000 }).toBeGreaterThan(0);
   });
 
-  test("in the builder, rooms unconfirmed: a real visit booked from the footer strip", async ({ page }) => {
+  test("in the builder, rooms unconfirmed: the footer strip's visit door opens the visit page for this estimate", async ({ page }) => {
     test.setTimeout(240_000);
-    await driveNoPlanWizard(page, { email: visitEmail });
+    /**
+     * Since S3 (visit booking, 7 Oct 2026, 38ca5594) a visit is booked on its own page —
+     * calendar, a held slot and a texted code — not from slots inside the strip. The
+     * whole booking is walked by e2e/customer-journey/visit-booking.spec.ts; what THIS
+     * strip owes the customer is the way there, for their own estimate.
+     */
+    await driveNoPlanWizard(page, { email: visitEmail, mobile: visitPhone });
     await page.getByTestId("scope-book").click();
     await expect(page).toHaveURL(/\/estimate\/book\?id=/, { timeout: 60_000 });
+    const estimateId = new URL(page.url()).searchParams.get("id");
+    expect(estimateId).toBeTruthy();
     const strip = page.getByTestId("reach-strip");
     await expect(strip).toBeVisible({ timeout: 30_000 });
     await strip.getByTestId("reach-visit").click();
-    const slots = page.getByTestId("reach-slot");
-    await expect(slots.first()).toBeVisible({ timeout: 20_000 });
-    await slots.first().click();
-    await page.getByTestId("reach-book").click();
-    await expect(page.getByTestId("book-done")).toContainText(/Booked/, { timeout: 20_000 });
-    /**
-     * This one DID keep its estimate (the drive walked the keep door with
-     * `visitEmail`), so there is an account and the booking lands on it.
-     *
-     * ⚑⚑ A GAP WORTH KNOWING, flagged not papered over: booking a slot asks for
-     * a SLOT and nothing else. Had this customer not kept their estimate, the
-     * visit would carry no account and no phone — an estimator with an address
-     * and a time, and an office with no way to ring if anything changes. The
-     * call-back door on the same strip demands a number; this one probably
-     * should too. Tom's call.
-     */
-    const { data: acct } = await db!.from("accounts").select("id").eq("email", visitEmail).maybeSingle();
-    expect(acct, "keeping the estimate files the account the visit hangs off").toBeTruthy();
-    await expect.poll(async () => {
-      const { data } = await db!.from("visits").select("id, status, source, staff_id").eq("account_id", acct!.id);
-      return data ?? [];
-    }, { timeout: 30_000 }).toHaveLength(1);
-    const { data: visits } = await db!.from("visits").select("status, source, staff_id").eq("account_id", acct!.id);
-    expect(visits![0].status).toBe("booked");
-    expect(visits![0].source).toBe("wizard");
-    expect(visits![0].staff_id).toBe(staffId);
-    // The draft says "Booked: …" — Today raises no second "book visit" card.
-    // A person's session (the 2.5 s autosave) reads "Booked: …" so Today raises
-    // no second card; a test outruns that autosave, so the check is conditional.
-    const { data: est } = await db!.from("estimates").select("id").eq("account_id", acct!.id).order("created_at", { ascending: false }).limit(1).single();
-    const { data: drafts } = await db!.from("wizard_drafts").select("outcome, outcome_note").eq("estimate_id", est!.id);
-    for (const d of drafts ?? []) {
-      expect(d.outcome).toBe("visit_requested");
-      expect(d.outcome_note ?? "").toMatch(/^Booked:/);
-    }
+    await page.waitForURL((u) => u.pathname === "/estimate/visit" && u.searchParams.get("id") === estimateId, { timeout: 30_000 });
+    // A calendar to pick from, or (nothing free nearby) a time to request — a booking page either way.
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(/time|visit/i);
   });
 
   test("the chat bubble reaches the dock on a non-CRM staff screen; the reply comes back", async ({ browser, page: staffPage }) => {

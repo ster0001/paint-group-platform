@@ -27,7 +27,7 @@ export const KNOWN_MONEY_KEYS = [
   "payment_cents", "contractor_payment_cents", "contractorPaymentCents", "paymentCents",
   "contractor_delta_cents", "contractorDeltaCents", "deduction_cents", "deductionCents",
   "total_inc_cents", "totalIncCents", "offer_cents", "variation_delta_cents", "subtotal_ex_cents",
-  "gst_cents", "previously_invoiced_cents", "amount_cents", "est_cents", "cap_cents",
+  "gst_cents", "previously_invoiced_cents", "claimed_ex_cents", "amount_cents", "est_cents", "cap_cents",
   "adjustedCents", "invoicedCents", "thresholdCents", "price_cents", "priced_lines",
   "marginCents", "margin_cents", "subtotalCents", "subtotal_cents", "marginPct", "total_cents",
   // Session 6: the office's cost rate and the labour line it posts.

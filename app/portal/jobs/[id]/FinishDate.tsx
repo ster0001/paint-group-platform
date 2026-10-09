@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setFinishDate } from "./tickActions";
+import { qaCheckLabel } from "@/lib/workorder/qaSchedule";
 
 /**
  * The finish / walkthrough date, on the painter's phone (Tom, 23 Aug): what
@@ -11,8 +12,10 @@ import { setFinishDate } from "./tickActions";
  * earlier or later. Moving it moves the booking's end on the calendar and
  * re-books the walkthrough to the same day; the office is told.
  *
- * A mid-job quality check with a date shows here too, read-only — that one is
- * the office's.
+ * The main quality check's day shows here too, read-only — it is the
+ * office's (and it moves when this date moves it). The office's extra visits
+ * never reach this card (Tom, 9 Oct 2026: "logged just for Felipe") — the
+ * page filters them out before they are handed to the browser.
  */
 export default function FinishDate({
   workOrderId, finalDate, endDate, startDate, qaDates, stage,
@@ -67,7 +70,7 @@ export default function FinishDate({
         <div style={{ marginTop: 8, display: "grid", gap: 4 }} data-testid="qa-dates">
           {qaDates.map((q, i) => (
             <p key={i} className="hint" style={{ padding: 0, margin: 0 }}>
-              Paint Group quality check{q.kind === "mid" ? " (mid-job)" : ""}: <b>{fmt(q.date)}</b>
+              Paint Group {qaCheckLabel(q.kind).toLowerCase()}: <b>{fmt(q.date)}</b>
               {q.result ? ` · ${q.result}` : ""}
             </p>
           ))}

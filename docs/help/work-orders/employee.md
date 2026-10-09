@@ -4,7 +4,7 @@ role: employee
 title: Run a job from the first tick to the customer's signature
 summary: How an assigned job works on your phone as an employed painter — the pre-start list, before photos in one batch, ticking surfaces off, after photos of every room or side, the finishing-up list, the quality check and the walkthrough — the same as every painter, with no money on it.
 sources: app/portal/jobs, app/components/wo, app/s, lib/workorder, lib/contractor/employeeJobs.ts
-verified_at_commit: 3a6848a2fd
+verified_at_commit: 780c451640
 ---
 
 ## What this is for
@@ -22,18 +22,23 @@ Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is 
 1. Open **Jobs** and tap the job. Under **You're on this job**, **Ready to start?** shows how many pre-start items the office still has to tick. When the list is done, tap **Start the job** on your first morning on site. The job moves to **In progress** and the office sees you are there.
 
 ### Ticking surfaces off
+You are texted to update the job on day 1 at 7:30 am, then part-way through and on the last day at 3:30 pm; on each of those 3:30 pm days a 7:30 am text tells you today is an update day.
+**App updates on this job** lists each reminder moment with its state: Coming up, Due today, Answered (a tick or a photo landed that day), Missed, or No work that day (not counted). If nothing lands you get up to two more texts that day, never after 7 pm; one update answers one moment.
+Near the top of the job, **What we expect on this job** lists every scope line that has a finish standard, with the checks at this job's level (see [the finish standards guide](../standards/employee.md)). A line with no standard has no link. The job sheet also says whether the **Tape check** is required (not on jobs under 16 hours).
 2. **Scope & ticks** lists every area on the job sheet and its surfaces. Each row has three squares: to do, prepped, done. Tap a row once to mark it **PREPPED**, again to mark it **DONE**. The count at the top is the job's live progress.
-3. **Step 1 · Upload the before photos.** The job runs in four numbered steps. Until the job has its before photos the scope list is locked and says so. On the **Step 1** card tap the green **Upload photos** button and pick every before photo at once, camera or library; they upload the moment you choose them, with a count. Take photos of all rooms or all sides. Whoever on the crew uploads them, the moment they land every row on the job unlocks.
+3. **Step 1 · Upload the before / progress photos.** The job runs in four numbered steps. Until the job has its before photos the scope list is locked and says so. On the **Step 1 · Before / progress photos** card tap the green **Upload photos** button and pick every before photo at once, camera or library; they upload the moment you choose them, with a count. Take photos of all rooms or all sides. Whoever on the crew uploads them, the moment they land every row on the job unlocks. The card then folds to **Step 1 ✓ Before / progress photos are in — add more**; open it to add more photos as the job goes.
 4. Now tick. The row turns cyan **PREPPED** on the first tap and green **DONE** on the second. Your ticks are recorded under your name, and the office's daily update to the customer is drafted from them.
 5. **Step 3 · Upload the after photos.** When every surface is **DONE** the Step 3 card appears: tap the green **Upload photos** button for photos of all rooms or all sides now the work is finished. The job asks once, not per area, and Step 4 stays locked until they are in.
 
 ### Photos from the office
 Near the top of the job sheet, above the scope, a **From the office** section holds photos the office has attached for this job — the elevation the scaffold goes on, where the gear lives, the colour to match. Each says which area it belongs to (or **Whole job**) and what to notice. Tap one to see it full size.
 
+Above the materials, **Further instructions for the crew** is the office's note for this job — access, where to start, anything to watch for. The office can update it after the job has gone out, and the job sheet always shows the latest version, so look again before you start.
+
 On a job that came in from PaintScout these are often the only photos there are, so check them before you start. They can be added after the job is booked, so look again on the morning. They are separate from the photos you take, which stay under **Site photos**.
 
 ### Photos and notes from site
-6. **Got a question, or found something?** is the card under the steps, for questions only: a photo of an item you are unsure about and a short note for the office. Before and after photos go in Step 1 and Step 3, not here.
+6. **Got a question, or found something?** is the card under the steps, for questions only: a photo of an item you are unsure about and a short note for the office. Before / progress photos go in Step 1 and after photos in Step 3, not here.
 
 ### Found something? Raise a variation
 7. Rot, damage, extra scope, or something the customer asked for on the day: raise it from the job with a category, a note and a photo. The office prices it and the customer approves it. When it is approved you will see **Variation approved** on the job with the added scope and hours so the work can go ahead; if it is not, **Not going ahead** with the office's note. There is no price on it and nothing for you to accept.
@@ -41,6 +46,9 @@ On a job that came in from PaintScout these are often the only photos there are,
 
 ### Finishing up
 8. When every surface is done, the **finishing-up list** appears on the same screen: rubbish, equipment for collection, a note for the customer. Answer it and tap **Finish**. The job routes itself to the quality check or the walkthrough — nothing customer-facing for you to press.
+
+### Notes from Paint Group
+8b. If the office visits the job and wants you to know something, their note arrives as a message from the office in the job's **Messages** box (to the lead painter), with any photos — tap one to open it full size, and reply there. See `docs/help/painter-messages/employee.md`.
 
 ### The quality check
 9. If the office has scheduled a quality check, the job waits at **Quality check** and the page says so. If areas come back to put right, they are listed on the job with the inspector's notes and photos and reappear on your tick list; tick each one off once it is done and the check runs again.

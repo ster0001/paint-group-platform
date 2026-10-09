@@ -89,7 +89,8 @@ export type SideBlockLike = {
 export type SideGateCtx = {
   /** The side carries wall lines at all. */
   hasWalls: boolean;
-  /** Sum of the wall lines' shares, in percent. */
+  /** Sum of the wall lines' shares, in percent (sides.wallSumPct — a lone
+   * line the customer never touched counts as 100, an unchosen split as 0). */
   wallSumPct: number;
 };
 
@@ -134,7 +135,7 @@ export const SIDE_REQUIRED_QUESTIONS: ReadonlyArray<SideRequiredQuestion> = [
     answered: (_s, ctx) => ctx.wallSumPct > 0 && ctx.wallSumPct <= 100,
     refusal: (_s, ctx) => ctx.wallSumPct > 100
       ? `The wall surfaces add up to ${ctx.wallSumPct}% — they can't total more than 100%.`
-      : "Give at least one wall surface a share — or “No — skip this side” if none of it is being painted.",
+      : "Pick roughly what share each wall surface is — or “No — skip this side” if none of it is being painted.",
     action: "wall_share",
     acceptsNotSure: false,
   },

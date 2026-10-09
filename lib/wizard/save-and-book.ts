@@ -65,3 +65,26 @@ export function phoneOrNull(phone: string | undefined): string | null {
   const digits = (phone ?? "").replace(/[^0-9+]/g, "");
   return digits.replace(/\D/g, "").length >= 8 ? (phone ?? "").trim() : null;
 }
+
+/**
+ * The property address for the account link, read from the WIZARD state —
+ * `address = {street, suburb, state, postcode, formatted}` when a Places
+ * suggestion was picked, else the start screen's typed suburb and postcode on
+ * `customer`. (The builder's `{address, city, postal}` keys live on the
+ * ESTIMATE's `builder_state.jobAddress`, never on the draft; reading them here
+ * is the bug the S0 report of 5 Oct 2026 found.) No street → no property, by
+ * the one address-dedupe rule in `lib/accounts/link.ts`.
+ */
+export function propertyAddressFromState(state: unknown): { street: string; suburb: string; state: string; postcode: string } | undefined {
+  if (!state || typeof state !== "object") return undefined;
+  const st = state as { address?: { street?: string; suburb?: string; state?: string; postcode?: string } | null; customer?: { suburb?: string; postcode?: string } | null };
+  const a = st.address ?? null;
+  const street = (a?.street ?? "").trim();
+  if (!street) return undefined;
+  return {
+    street,
+    suburb: (a?.suburb || st.customer?.suburb || "").trim(),
+    state: (a?.state || "VIC").trim(),
+    postcode: (a?.postcode || st.customer?.postcode || "").trim(),
+  };
+}

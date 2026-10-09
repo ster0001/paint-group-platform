@@ -240,8 +240,25 @@ const isWindowLine = (s: LooseSurface) => substrateKeyForRateCode(String(s.code 
 const isDoorLine = (s: LooseSurface) => substrateKeyForRateCode(String(s.code ?? ""), "exterior") === "exterior_doors"
   || substrateKeyForRateCode(String(s.code ?? ""), "exterior") === "garage_doors";
 
+/**
+ * The share a wall line carries, in percent — THE ONE RULE for a line the
+ * customer has not touched. Tom, 5 Oct 2026: *"if it is just weatherboards
+ * ticked, it is assumed that it is 100%; if more substrates are ticked then
+ * the % needs to be chosen."* The wizard scaffolds every wall line with no
+ * share, so a lone line IS the whole wall (100%) — the gate, the measures
+ * the engine prices from and the tiles on the card all read it that way,
+ * and nobody is asked to tap 100 on a number the screen already shows.
+ * Two or more unshared lines are a split the customer has to make, so each
+ * reads 0% until they do. A share they set is always what it says.
+ */
+export function wallSharePct(s: LooseSurface, walls: ReadonlyArray<LooseSurface>): number {
+  if (s.sharePct != null) return Number(s.sharePct) || 0;
+  return walls.length === 1 ? 100 : 0;
+}
+
 export function wallSumPct(b: LooseBlock): number {
-  return (b.surfaces ?? []).filter(isWallLine).reduce((n, s) => n + (Number(s.sharePct) || 0), 0);
+  const walls = (b.surfaces ?? []).filter(isWallLine);
+  return walls.reduce((n, s) => n + wallSharePct(s, walls), 0);
 }
 
 /** Re-derive every wall line's measures from the side's L×H and its share —
@@ -249,20 +266,22 @@ export function wallSumPct(b: LooseBlock): number {
 function syncWallMeasures(b: LooseBlock): void {
   const L = Number(b.L) || 0;
   const H = Number(b.H) || 0;
-  for (const s of b.surfaces ?? []) {
-    if (!isWallLine(s)) continue;
-    const pct = Number(s.sharePct) || 0;
+  const walls = (b.surfaces ?? []).filter(isWallLine);
+  for (const s of walls) {
+    const pct = wallSharePct(s, walls);
     s.measureL = L > 0 ? Math.round(L * pct) / 100 : null; // L × pct/100
     s.measureH = H > 0 ? H : null;
   }
 }
 
-/** First-touch normalisation: a scaffolded side has one wall line with no
- * share — it means 100%. */
+/** First-touch normalisation: write the implied shares down before a share
+ * is edited or a line added/removed, so the balancing maths has numbers to
+ * work with — a lone line becomes 100, each line of an unchosen split 0
+ * (the same answer `wallSharePct` gives before anything is written). */
 function normaliseShares(b: LooseBlock): void {
   const walls = (b.surfaces ?? []).filter(isWallLine);
   if (walls.length && walls.every((s) => s.sharePct == null)) {
-    walls.forEach((s, i) => { s.sharePct = i === 0 ? 100 : 0; });
+    walls.forEach((s) => { s.sharePct = wallSharePct(s, walls); });
   }
   syncWallMeasures(b);
 }
@@ -841,7 +860,6 @@ export function sidesView(
     const c = customerOf(b);
     const surfaces = b.surfaces ?? [];
     const wallsRaw = surfaces.filter(isWallLine);
-    const defaulted = wallsRaw.length > 0 && wallsRaw.every((s) => s.sharePct == null);
     const custom = sideCustomLabel(b);
     sides.push({
       key,
@@ -853,7 +871,7 @@ export function sidesView(
       mirroredFrom: c.size == null && c.mirroredFrom ? c.mirroredFrom : null,
       L: Number(b.L) || 0,
       H: Number(b.H) || 0,
-      walls: wallsRaw.map((s, i) => ({
+      walls: wallsRaw.map((s) => ({
         id: Number(s.id) || 0,
         code: String(s.code ?? ""),
         // 14 Sep: a placeholder wall (no material ticked) is named as one —
@@ -862,9 +880,12 @@ export function sidesView(
         label: Array.isArray(s.assumedFields) && (s.assumedFields as string[]).includes("material")
           ? "Material to confirm"
           : (WALL_CODES.find((w) => w.code === String(s.code))?.label ?? String(s.code)),
-        pct: s.sharePct == null ? (defaulted && i === 0 ? 100 : 0) : Number(s.sharePct),
+        // 5 Oct: the tile shows the share the gate reads (wallSharePct) —
+        // a lone unshared line is 100, an unchosen split is 0 each — so the
+        // card never lights "100" over a side the confirm then refuses.
+        pct: wallSharePct(s, wallsRaw),
       })),
-      wallSum: defaulted ? 100 : wallSumPct(b),
+      wallSum: wallSumPct(b),
       tiles: surfaces.filter((s) => !isWallLine(s)).map((s) => ({
         id: Number(s.id) || 0,
         code: String(s.code ?? ""),

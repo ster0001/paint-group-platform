@@ -358,8 +358,10 @@ test.describe("board and paint usability, 18 Sep", () => {
       const after = await select.locator("option").evaluateAll((o) =>
         o.map((x) => x.textContent?.trim() ?? "").filter((t) => t && !t.startsWith("—")));
       expect(after.length).toBeLessThan(before.length);
-      expect(after.every((n) => n.toLowerCase().includes(term.toLowerCase()) || n === chosen),
-        `every paint left matches "${term}", except the one already chosen: ${after.join(" | ")}`).toBe(true);
+      // Since 8 Oct the box also matches brand and finish, which the option
+      // text does not show — so a match is asserted, not that every name holds it.
+      expect(after.some((n) => n.toLowerCase().includes(term.toLowerCase())),
+        `a paint named for "${term}" is still listed: ${after.join(" | ")}`).toBe(true);
       expect(after, "the chosen paint is never filtered away").toContain(chosen);
       expect(await select.inputValue(), "and the row still reads as itself").toBe(chosen);
 

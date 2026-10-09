@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 
 /**
  * C9 — What's changing colour, the details screen, What we'll do.
@@ -30,6 +30,7 @@ test("doors and trims changing, then water over oil: the panel gains the underco
   await quickNext(page);
 
   // The reveal: the range, and What we'll do beneath it — read-only.
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   const panel = page.getByTestId("what-we-do");
   await expect(panel).toBeVisible();
@@ -99,6 +100,7 @@ test("nothing ticked is the same colour: one coat on the walls, and no undercoat
   await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.getByTestId("what-we-do-walls")).toHaveAttribute("data-coats", "1");
   await expect(page.getByTestId("reveal-restatement")).toContainText("the same colours");

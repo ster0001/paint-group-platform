@@ -7,7 +7,7 @@
  * commercial never reaches fix-online).
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 
 test("retail → range → tighten → send to the estimator; no fix-online, a remote confirmation request", async ({ page }) => {
@@ -33,6 +33,7 @@ test("retail → range → tighten → send to the estimator; no fix-online, a r
   await quickNext(page);
 
   // The range, then tighten it online.
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.getByTestId("reveal-kicker")).toContainText(/Retail/);
   await page.getByTestId("door-tighten").click();

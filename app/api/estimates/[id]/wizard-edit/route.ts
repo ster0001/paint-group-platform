@@ -25,7 +25,7 @@ import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEF
 import { reconcileRoomAllowances, type AllowanceBlock } from "@/lib/wizard/allowances";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow, FENCE_CODE, FENCE_TYPE_LABEL } from "@/lib/wizard/starter";
 import {
-  applyCoats, applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
+  applyCoats, applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyPergolaSize, applyRename, applyToggle, applyWallsShare,
   customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, applyFenceType } from "@/lib/wizard/scope-editor";
 import { bookWizardSlot, wizardVisitSlots } from "@/lib/visits/wizard";
 import { ladderFor, mayFixOnline, requiresSiteCheck } from "@/lib/wizard/ladder";
@@ -41,7 +41,7 @@ import {
   type SidesLoopMeta, hoursPerItemCodes } from "@/lib/wizard/sides";
 import {
   CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, addRoomWindowGroup, applyCupboard, applyCupboardInterior, applyCupboardDoorInside, applyCupboardsEverywhere,
-  applyLineCount, applyRoomDims, applyRoomSizeOk, applyRoomWindowSize, confirmRoom,
+  applyCupboardDefaults, applyLineCount, applyRoomDims, applyRoomSizeOk, applyRoomWindowSize, confirmRoom,
   defaultInteriorLoop, interiorDwTotals, interiorProgress, removeLine, roomLoopViews,
   type InteriorLoopMeta,
 } from "@/lib/wizard/rooms-loop";
@@ -321,6 +321,8 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_extent"), extent: z.enum(["whole", "front", "front_sides"]) }),
   /** metres sets the fence length; null = "not sure" → amber note. */
   z.object({ action: z.literal("set_fence"), metres: z.number().min(1).max(500).nullable() }),
+  /** Tom, 5 Oct: the pergola top's length × width — it is priced on the area, never per pergola. */
+  z.object({ action: z.literal("set_pergola"), lengthM: z.number().min(0.5).max(30), widthM: z.number().min(0.5).max(30) }),
   /** Fence type — paling, picket brushed or picket sprayed (Tom, 5 Sep). */
   z.object({ action: z.literal("set_fence_type"), type: z.enum(["paling", "picket_hand", "picket_spray"]) }),
   /** Customer accepted online (self-serve tier) — desk check follows. */
@@ -394,7 +396,9 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm_loop_item"), item: z.enum(["extras", "cond", "dw", "sweep"]) }),
   // ---- R3: the interior confirm loop --------------------------------------
   z.object({ action: z.literal("room_size_ok"), areaId: z.number().int().positive() }),
-  z.object({ action: z.literal("room_dims"), areaId: z.number().int().positive(), lengthM: z.number().min(0.1).max(500), widthM: z.number().min(0.1).max(500) }),
+  z.object({ action: z.literal("room_dims"), areaId: z.number().int().positive(), lengthM: z.number().min(0.1).max(500), widthM: z.number().min(0.1).max(500),
+    /** Tom, 7 Oct 2026: this room's own ceiling height, metres (optional). */
+    heightM: z.number().min(2).max(6).nullable().optional() }),
   z.object({ action: z.literal("room_cupboard"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
   z.object({ action: z.literal("room_cupboard_interior"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
   /** Tom, 7 Sep: the inside face of the robe doors, and the sweep's "inside the cupboards" chips (every room at once). */
@@ -578,6 +582,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const isInteriorRoom = (b: LooseBlock) => b.kind === "area" && b.type !== "Exterior" && b.areaType !== "surface";
       blocks = blocks.map((b) => {
         if (!isInteriorRoom(b)) return b;
+        // Tom, 7 Oct 2026: a room whose height was set by hand keeps it.
+        if ((b.customer as { heightAdjusted?: boolean } | undefined)?.heightAdjusted === true) return b;
         const prior = Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : [];
         const cleared = prior.filter((f) => f !== "H");
         // A customer's height claim is a statement, not a settlement - marked so
@@ -903,6 +909,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (mergedRoom.areas.length === 0) {
         return { error: "Nothing is selected for that room type on this job.", status: 422 };
       }
+      // Tom, 7 Oct 2026: the new room's cupboard question starts answered like every other.
+      mergedRoom.areas = applyCupboardDefaults(mergedRoom.areas as unknown as LooseBlock[], new Set((await ctxPromise).rateItems.map((r) => r.code)), () => next++) as unknown as typeof mergedRoom.areas;
 
       // Tom, 14 Sep (item 29): measurements typed with the room are the
       // customer's own — the size question is answered before the card exists.
@@ -987,7 +995,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       blocks = result.blocks as LooseBlock[];
     }
 
-    if (act.action === "toggle_exterior" || act.action === "set_extent" || act.action === "set_fence") {
+    if (act.action === "toggle_exterior" || act.action === "set_extent" || act.action === "set_fence" || act.action === "set_pergola") {
       let next = Math.max(0, ...blocks.flatMap((b) => [
         Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
       ])) + 1;
@@ -1001,6 +1009,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         const result =
           act.action === "toggle_exterior" ? applyExteriorToggle(blocks, act.key, act.on, () => next++)
           : act.action === "set_extent" ? applyExtent(blocks, act.extent)
+          : act.action === "set_pergola" ? applyPergolaSize(blocks, act.lengthM, act.widthM)
           : applyFenceLength(blocks, act.metres as number);
         if (!result.ok) return { error: result.error, status: 400 };
         blocks = result.blocks as LooseBlock[];
@@ -1440,7 +1449,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         : act.action === "room_line_count" ? applyLineCount(blocks, act.areaId, act.surfaceId, act.count)
         : act.action === "room_remove_line" ? removeLine(blocks, act.areaId, act.surfaceId)
         : act.action === "room_size_ok" ? applyRoomSizeOk(blocks, act.areaId)
-        : act.action === "room_dims" ? applyRoomDims(blocks, act.areaId, act.lengthM, act.widthM)
+        : act.action === "room_dims" ? applyRoomDims(blocks, act.areaId, act.lengthM, act.widthM, act.heightM ?? null)
         : act.action === "room_cupboard" ? applyCupboard(blocks, act.areaId, act.on, act.count, () => next++)
         : act.action === "room_cupboard_interior" ? applyCupboardInterior(blocks, act.areaId, act.on, act.count, () => next++)
         : act.action === "room_cupboard_door_inside" ? applyCupboardDoorInside(blocks, act.areaId, act.on, act.count, () => next++)

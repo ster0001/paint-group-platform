@@ -15,6 +15,16 @@
  *     --save-dir <dir>      keep each page's text as <dir>/<quote>.txt (re-runnable from the file, no page load)
  *     --name-map <json>     line name → rate code (default docs/imports/substrate-name-map.json)
  *     --refill              also rewrite a job whose hours were already filled (still refused once it is worked)
+ *     --for <page>=<job>    the page's quote number is not the job's: "3096=3083" fills the job handed over
+ *                           as quote 3083 from the work order printed as quote 3096 (Tom, 1 Oct 2026 —
+ *                           9/552 Lonsdale St: the signed job is 3083's prices, the painter's scope is 3096's
+ *                           work order). The money proof still runs against the job's own prices.
+ *     --contractor-rate <$/h>  the contractor rate for the job (Tom, 9 Oct 2026: "estimated hours × 65"):
+ *                           written as the working scope's Contractor rate, so the margin box prices at it
+ *                           and a later edit there moves the painter's pay; and the pay is set to
+ *                           hours × this rate, replacing any earlier figure (migration 20270250).
+ *     --area <wo>=<quote>[,…]  a work-order area with no same-named price takes the named quote area's
+ *                           price: "Female toilets=Male toilets" when the quote named the room twice.
  *
  * A URL is loaded headless (Playwright's Chromium — the share page is
  * client-rendered and its API resists replay); a file is the page's text as
@@ -40,7 +50,7 @@ const flag = (name: string): string | undefined => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const has = (name: string) => argv.includes(name);
-const VALUE_FLAGS = new Set(["--save-dir", "--name-map"]);
+const VALUE_FLAGS = new Set(["--save-dir", "--name-map", "--for", "--area", "--contractor-rate"]);
 const positional = argv.filter((a, i) => !a.startsWith("--") && !(i > 0 && VALUE_FLAGS.has(argv[i - 1])));
 const [cmd, ...sources] = positional;
 const IMPORTS = ["paintscout-booked", "airtable-handover"];
@@ -119,9 +129,40 @@ async function loadExisting(db: SupabaseClient, quoteNo: string): Promise<Row | 
   };
 }
 
+/** --for 3096=3083[,…]: page quote → job quote. */
+function quoteAliases(): Map<string, string> {
+  const raw = flag("--for");
+  const out = new Map<string, string>();
+  if (!raw) return out;
+  for (const pair of raw.split(",")) {
+    const m = /^\s*(\d+)\s*=\s*(\d+)\s*$/.exec(pair);
+    if (!m) throw new Error(`--for expects <pageQuote>=<jobQuote>, got "${pair}"`);
+    out.set(m[1], m[2]);
+  }
+  return out;
+}
+
+/** --area "Female toilets=Male toilets[,…]": work-order area → quote area whose price it takes. */
+function areaAliases(): Record<string, string> {
+  const raw = flag("--area");
+  const out: Record<string, string> = {};
+  if (!raw) return out;
+  for (const pair of raw.split(",")) {
+    const i = pair.indexOf("=");
+    if (i <= 0 || i === pair.length - 1) throw new Error(`--area expects <workOrderArea>=<quoteArea>, got "${pair}"`);
+    out[pair.slice(0, i).trim()] = pair.slice(i + 1).trim();
+  }
+  return out;
+}
+
 async function main() {
   if (!cmd || !["parse", "check", "run"].includes(cmd) || sources.length === 0) usage();
   const saveDir = flag("--save-dir");
+  const aliases = quoteAliases();
+  const rateRaw = flag("--contractor-rate");
+  const contractorRate = rateRaw == null ? null : Number(rateRaw);
+  if (contractorRate != null && !(Number.isFinite(contractorRate) && contractorRate > 0 && contractorRate < 500)) throw new Error(`--contractor-rate expects dollars per hour, got "${rateRaw}"`);
+  const areaMap = areaAliases();
 
   const pages: Array<{ source: string; url: string; wo: ParsedWorkOrder }> = [];
   for (const s of sources) {
@@ -140,24 +181,32 @@ async function main() {
   const wctx = await loadBookedWriteContext(db);
 
   // Every page must join and prove before ANY job is written.
-  const plans: Array<{ row: Row; built: ReturnType<typeof buildBookedJob>; hours: number }> = [];
+  const plans: Array<{ row: Row; built: ReturnType<typeof buildBookedJob>; hours: number; pageQuote: string }> = [];
   const refusals: string[] = [];
   let skipped = 0;
   for (const { source, url, wo } of pages) {
     if (!wo.quoteNo) { refusals.push(`${source}: the page shows no Estimate ID`); continue; }
-    const row = await loadExisting(db, wo.quoteNo);
-    if (!row) { refusals.push(`quote ${wo.quoteNo}: no imported estimate on this project (crm_import_keys bk_${wo.quoteNo}) — the handover never arrived, or it is not an import`); continue; }
-    console.log(`\nquote ${wo.quoteNo} → ${row.title} · estimate ${row.estimateId} · work order ${row.workOrderId} · stage ${row.stage} · hours ${row.hoursPending ? "PENDING" : "already filled"}`);
+    const jobQuote = aliases.get(wo.quoteNo) ?? wo.quoteNo;
+    const row = await loadExisting(db, jobQuote);
+    if (!row) { refusals.push(`quote ${jobQuote}: no imported estimate on this project (crm_import_keys bk_${jobQuote}) — the handover never arrived, or it is not an import`); continue; }
+    if (jobQuote !== wo.quoteNo) console.log(`\nwork order ${wo.quoteNo} applies to the job handed over as quote ${jobQuote} (--for)`);
+    console.log(`\nquote ${jobQuote} → ${row.title} · estimate ${row.estimateId} · work order ${row.workOrderId} · stage ${row.stage} · hours ${row.hoursPending ? "PENDING" : "already filled"}`);
     if (!row.hoursPending && !has("--refill")) { console.log(`  skip:filled — the hours are already in; pass --refill to rewrite the scope (refused once the job is worked)`); skipped++; continue; }
-    const joined = jobFromWorkOrder(row, wo, { workOrderUrl: url || undefined });
+    const joined = jobFromWorkOrder(row, wo, { workOrderUrl: url || undefined, areaAliases: areaMap });
     for (const m of joined.mapping) console.log(`  ${m}`);
     for (const w of joined.warnings) console.log(`  ⚠ ${w}`);
     if (joined.hoursDisagree) { refusals.push(`quote ${wo.quoteNo}: the page's Total Hours and its lines disagree — read the page before trusting either`); continue; }
     try {
       const built = buildBookedJob(joined.job, new SubstrateResolver([], nameMap), wctx.pricing, wctx.company, row.shareToken || "preflight00000000");
+      if (contractorRate != null) {
+        // The office named the rate: the pay is hours × rate, replacing any earlier figure.
+        built.builderState.contractorRateOverride = contractorRate;
+        built.woDoc.contractorPaymentCents = Math.round(built.totals.hours * contractorRate * 100);
+      }
+      console.log(`  contractor: $${((built.woDoc.contractorPaymentCents ?? 0) / 100).toFixed(2)}${contractorRate != null ? ` (${built.totals.hours} h × $${contractorRate})` : ""} · materials budget $${(built.totals.materialsCostCents / 100).toFixed(2)}`);
       console.log(`  proves: $${(built.totals.totalCents / 100).toFixed(2)} inc GST · ${built.totals.hours} h · ${built.counts.areas} areas · ${built.counts.lines} lines (${built.counts.customLines} on the custom row)`);
       for (const n of built.roundingNotes) console.log(`  rounding: ${n}`);
-      plans.push({ row, built, hours: built.totals.hours });
+      plans.push({ row, built, hours: built.totals.hours, pageQuote: wo.quoteNo });
     } catch (e) {
       refusals.push(`quote ${wo.quoteNo}: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -168,13 +217,19 @@ async function main() {
   }
   if (cmd === "check") { console.log(`\ncheck: ${plans.length} job${plans.length === 1 ? "" : "s"} join and prove, ${skipped} already filled; nothing written`); return; }
 
-  for (const { row, built, hours } of plans) {
+  for (const { row, built, hours, pageQuote } of plans) {
     const payload = {
       estimate_id: row.estimateId, quote_no: row.quoteNo,
       subtotal_cents: built.totals.subtotalCents, total_cents: built.totals.totalCents, hours,
       builder_state: built.builderState, sent_snapshot: built.sentSnapshot, wo_snapshot: built.woDoc,
-      external_ref: { hours_pending: false, work_order_url: built.externalRef.work_order_url || row.externalRef.work_order_url || null, hours_filled_at: new Date().toISOString() },
+      external_ref: {
+        hours_pending: false, work_order_url: built.externalRef.work_order_url || row.externalRef.work_order_url || null, hours_filled_at: new Date().toISOString(),
+        // The work order came from a different PaintScout quote than the one the job was handed over as.
+        ...(pageQuote !== row.quoteNo ? { work_order_quote_no: pageQuote } : {}),
+      },
       surface_rows: seedRowsFromDoc(built.woDoc),
+      // 20270250: a named rate replaces the job's earlier pay in the sheet and the column.
+      ...(contractorRate != null ? { pay_override: true } : {}),
     };
     const { data, error } = await db.rpc("import_booked_job_set_scope", { p: payload });
     if (error) throw new Error(`quote ${row.quoteNo}: import_booked_job_set_scope: ${error.message}`);
@@ -183,7 +238,7 @@ async function main() {
     if (r.status === "ok") {
       const { error: noteErr } = await db.rpc("crm_log_event", {
         p_type: "note_added", p_account_id: row.accountId,
-        p_payload: { body: `Work order filled from PaintScout (quote ${row.quoteNo}): ${built.counts.areas} areas, ${built.counts.lines} lines, ${hours} h.`, origin: "paintscout_work_order" },
+        p_payload: { body: `Work order filled from PaintScout (quote ${row.quoteNo}${pageQuote !== row.quoteNo ? `, work order ${pageQuote}` : ""}): ${built.counts.areas} areas, ${built.counts.lines} lines, ${hours} h.`, origin: "paintscout_work_order" },
         p_source: "system", p_occurred_at: new Date().toISOString(), p_estimate_id: row.estimateId,
         p_work_order_id: row.workOrderId, p_invoice_id: null, p_property_id: null, p_dedupe_key: `paintscout_work_order:${row.estimateId}:filled`,
       });

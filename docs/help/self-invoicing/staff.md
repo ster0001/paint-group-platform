@@ -31,7 +31,7 @@ Contractors do not type invoices. The platform drafts each one from the job: the
 - **Approved variations** are variations the customer approved and the contractor accepted, at the contractor's rate.
 - **Less —** lines are credits for scope removed. Where work had already started, the office sets the figure on the variation and it appears to the contractor as "set by the office" with your note.
 - **Less previously invoiced** takes off progress claims already submitted on the same job, so a job is never invoiced twice.
-- **GST** is backed out of the total only when the contractor was registered at the time they submitted; the document then reads **TAX INVOICE**. Unregistered contractors submit an **INVOICE** with no GST.
+- **GST** is added **on top** of the agreed amount when the contractor was registered at the time they submitted (the offer, say 38.5 hours at $65 = $2,502.50, is the ex-GST subtotal and the invoice totals $2,752.75); the document then reads **TAX INVOICE**. Unregistered contractors submit an **INVOICE** for the agreed amount with no GST. What is "left to invoice" on a job is always counted in ex-GST figures, so a registered painter's GST never eats into their agreed amount.
 - Approved contractor expenses ride on their next invoice as separate at-cost reimbursement lines.
 - **RCTI**: a contractor who has signed the recipient-created tax invoice agreement shows an **RCTI** chip. Their drafts can be approved by the office without the contractor submitting.
 

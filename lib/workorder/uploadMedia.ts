@@ -28,7 +28,7 @@
  *
  * Client-safe: fetch/XHR only. The server decides everything that matters.
  */
-export type UploadKind = "before" | "progress" | "qa" | "completion" | "variation" | "reference";
+export type UploadKind = "before" | "progress" | "qa" | "completion" | "variation" | "reference" | "callback";
 
 export type UploadInput = {
   workOrderId: string;
@@ -191,6 +191,26 @@ export async function uploadWorkOrderMedia(input: UploadInput): Promise<{ id: st
   const done = (await ingest.json().catch(() => ({}))) as { id?: string; error?: string };
   if (!ingest.ok || !done.id) throw new UploadError(done.error ?? "The file uploaded but we couldn't file it — try again.", "ingest");
   return { id: done.id };
+}
+
+/**
+ * The storage half on its own, for a slot another step handed out (Tom,
+ * 9 Oct 2026 — photos in a project's messages, bucket wo-messages). Same
+ * shrink, the same declared type, the same stall timer and the same storage
+ * wording as a site photo; the caller's server action signs the slot, and the
+ * bytes are checked when the message is sent.
+ */
+export async function putToSignedSlot(
+  bucket: string, slot: { path: string; token: string }, file: File, onProgress?: (fraction: number) => void,
+): Promise<void> {
+  const type = declaredType(file);
+  onProgress?.(0);
+  const put = await putWithProgress(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${bucket}/${slot.path}?token=${slot.token}`,
+    file, type, onProgress,
+  );
+  if (!put.ok) throw new UploadError(await storageMessage(put, type, file.size), "store");
+  onProgress?.(1);
 }
 
 /** "Uploading… 42%" — the button's text while a file is on its way. */

@@ -194,12 +194,13 @@ export function smsLength(body: string): SmsLength {
  * registry.test pins it.
  */
 export const SAMPLE_VARS: Record<string, string> = {
-  first_name: "Sarah", name: "Sarah Chen", customer_name: "Sarah Chen", company_name: "Paint Group",
+  first_name: "Sarah", name: "Sarah Chen", customer_name: "Sarah Chen", company_name: "Paint Group", company_email: "info@paintgroup.com.au",
+  invite_line: "A calendar invitation from info@paintgroup.com.au will arrive separately — accept it and the visit sits in your calendar.",
   estimate_title: "12 Elm Grove, Thornbury", job_title: "12 Elm Grove, Thornbury", address: "12 Elm Grove, Thornbury",
   suburb: "Thornbury", total: "$4,850.00", deposit: "$485.00", amount: "$1,200.00", estimator_name: "Tom",
   link: "https://paintgroup.com.au/e/example", start_date: "Mon 5 Oct", painter_name: "Marco Rossi", painter_first_name: "Marco",
   walkthrough_line: "Your final walkthrough is booked for Fri 9 Oct at 3:00 pm.", walkthrough_when: "Fri 9 Oct, 3:00 pm",
-  wo_ref: "WO-1042", action: "accept", visit_when: "Tue 22 Sep, 10:00 am", signed_by: " by Sarah Chen",
+  wo_ref: "WO-1042", colour: "Yellow", count: "4", line: "Four call backs in the last 10 jobs.", action: "accept", visit_when: "Tue 22 Sep, 10:00 am", code: "482913", mobile: "0412 345 678", signed_by: " by Sarah Chen",
   dates: "Mon 5 Oct → Wed 7 Oct",
   invoice_number: "INV-2041", receipt_number: "R-0331", remittance_number: "RA-0117", contractor_company: "Rossi Painting",
   bank_reference: " (ref PG-1042)", next_step: "Your estimate is waiting on your account page.", where: "12 Elm Grove, Thornbury",
@@ -211,7 +212,8 @@ export const SAMPLE_VARS: Record<string, string> = {
   reminder: "Your job is finished and the photos are ready to look through. When you have a moment, please have a look and let us know you are happy.",
   hours_since: "74",
   customer: "Sarah Chen", message: "Is the ceiling included in the price?", hours_tag: "", valid_until: "Fri 2 Oct",
-  decision: "approved", kind_word: "leave",
+  decision: "approved", kind_word: "leave", version: "1", day: "Thu, 15 Oct", what: "paint on the lounge window glass",
+  finish_date: "Fri 9 Oct",
   review_link: "https://g.page/r/example", agency_name: "Northcote Property Co", agency_line: " for Northcote Property Co", who_asked: "Northcote Property Co has asked us",
 };
 

@@ -68,6 +68,10 @@ export function busyFromEvents(staffId: string, calendar: string, events: RawEve
     if (e.transparency === "transparent") continue;
     if (e.eventType === "workingLocation" || e.eventType === "birthday") continue;
     if (e.attendees?.some((a) => a.self && a.responseStatus === "declined")) continue;
+    // S5: the platform's own visit events and travel blocks live in the primary
+    // calendar now. They are bookings the engine already knows; counting them
+    // here would make every booked visit clash with itself (4.6 "Read").
+    if (e.extendedProperties?.private?.pgKind) continue;
     const label = (e.summary ?? "").trim() || "Busy";
     if (e.start?.dateTime && e.end?.dateTime) {
       const s = new Date(e.start.dateTime), en = new Date(e.end.dateTime);

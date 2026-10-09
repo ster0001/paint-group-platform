@@ -494,7 +494,7 @@ export function assumedList(q: QuickLook): Assumption[] {
  * after the place screen, then the segment's two screens (`s-com-areas`,
  * `s-com-job`) — the areas and job pattern, rendered from the row.
  */
-export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "job", "rooms", "condition", "outside", "sides"] as const;
+export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "job", "rooms", "condition", "outside", "sides", "gate"] as const;
 export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
 
 /**
@@ -516,8 +516,8 @@ export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
  * computed counts drift; this is the only place either is allowed to come from.
  */
 const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven"] as const;
-export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range", scope: ScopePreset = "whole"): string {
-  const n = stepsFor(jobType, propertyKind, pattern, door, scope).filter((s) => s !== "both").length;
+export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range", scope: ScopePreset = "whole", gate: boolean = false): string {
+  const n = stepsFor(jobType, propertyKind, pattern, door, scope, gate).filter((s) => s !== "both").length;
   return COUNT_WORD[n] ?? String(n);
 }
 
@@ -536,7 +536,17 @@ export type CommercialDoor = "range" | "brief" | "brief_after_areas";
  * segment screen — every commercial exterior is priced on site — so those
  * branches END there; `quickNext` hands off rather than advancing.
  */
-export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range", scope: ScopePreset = "whole"): QuickLookStep[] {
+/**
+ * Visit booking S6 (R5): with the gate order "details first", the last quick-look
+ * question is the GATE — full name, email, mobile — and the range is not shown
+ * (nor returned by the server) until it is answered. "Range first" (R6, the
+ * switch in Booking rules) leaves the steps as they were and asks for the
+ * details on the range screen instead (R7). A commercial brief never prices,
+ * so it never meets the gate.
+ */
+const withGate = (steps: QuickLookStep[], gate: boolean): QuickLookStep[] => (gate ? [...steps, "gate"] : steps);
+
+export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range", scope: ScopePreset = "whole", gate: boolean = false): QuickLookStep[] {
   // 14 Sep (evening): every inside job confirms its rooms before the gate — the plan's rooms
   // or the starter list, with add and remove. ("Some rooms" used to be the only one asked.)
   void scope;
@@ -550,13 +560,13 @@ export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook[
         ? ["start", "both", "place", "segment", "com_brief", "com_book"]
         : ["start", "place", "segment", "com_brief", "com_book"];
     }
-    return ["start", "place", "segment", pattern === "warehouse" ? "com_warehouse" : "com_areas", "com_job"];
+    return withGate(["start", "place", "segment", pattern === "warehouse" ? "com_warehouse" : "com_areas", "com_job"], gate);
   }
   // Tom, 15 Sep (late): "Which sides?" is its own screen, just before the gate —
   // the outside's version of the rooms-confirm step.
-  if (jobType === "exterior") return ["start", "place", "outside", "sides"];
-  if (jobType === "both") return ["start", "both", "place", "job", ...rooms, "condition", "outside", "sides"];
-  return ["start", "place", "job", ...rooms, "condition"];
+  if (jobType === "exterior") return withGate(["start", "place", "outside", "sides"], gate);
+  if (jobType === "both") return withGate(["start", "both", "place", "job", ...rooms, "condition", "outside", "sides"], gate);
+  return withGate(["start", "place", "job", ...rooms, "condition"], gate);
 }
 
 /**

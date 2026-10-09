@@ -196,8 +196,8 @@ describe("parseWorkOrderText", () => {
     expect(wo.quoteNo).toBe("9613");
     expect(wo.totalHours).toBe(31.5);
     expect(wo.materials).toEqual([
-      { product: "Dulux Weathershield", litres: 38 },
-      { product: "Haymes Expressions Wall", litres: 3 },
+      { product: "Dulux Weathershield", litres: 38, costCents: 87400 },
+      { product: "Haymes Expressions Wall", litres: 3, costCents: 5100 },
     ]);
     expect(wo.totalDimensions).toEqual({ Walls: 24.8, m: 62 });
   });
@@ -212,13 +212,13 @@ describe("parseWorkOrderText", () => {
     expect(wo.areas[0]).toMatchObject({ name: "Exterior Preparation", items: [], hours_total: null, hours_prep: null, hours_paint: null });
   });
 
-  it("reads each line's quantity, unit, coats, product, litres and hours, and the area's Prep + Painting split", () => {
+  it("reads each line's quantity, unit, coats, product, litres, materials $ and hours, and the area's Prep + Painting split", () => {
     const front = wo.areas[1];
     expect(front).toMatchObject({ length_m: 15, width_m: 3, height_m: null, hours_prep: 1, hours_paint: 9, hours_total: 10 });
     expect(front.items).toEqual([
-      { item: "Soffits / Eaves", qty: 15, unit: "m", coats: 2, hours: 4, product: "Dulux Weathershield", litres: 1.88 },
-      { item: "Fascias", qty: 15, unit: "m", coats: 2, hours: 2, product: "Dulux Weathershield", litres: 2 },
-      { item: "Doors", qty: 4, unit: "count", coats: 2, hours: 4, product: "Dulux Weathershield", litres: 2.4 },
+      { item: "Soffits / Eaves", qty: 15, unit: "m", coats: 2, hours: 4, product: "Dulux Weathershield", litres: 1.88, materialCents: 4312 },
+      { item: "Fascias", qty: 15, unit: "m", coats: 2, hours: 2, product: "Dulux Weathershield", litres: 2, materialCents: 4600 },
+      { item: "Doors", qty: 4, unit: "count", coats: 2, hours: 4, product: "Dulux Weathershield", litres: 2.4, materialCents: 5520 },
     ]);
     expect(wo.areas[3]).toMatchObject({ length_m: 4, width_m: 3.2, height_m: 2.4 });
     expect(wo.areas[3].items[0]).toMatchObject({ item: "Walls", qty: 12.8, unit: "m2", hours: 1.75 });
@@ -231,6 +231,14 @@ describe("parseWorkOrderText", () => {
 
   it("the lines and the hours-only areas add up to the banner", () => {
     expect(wo.hoursFromLines).toBe(31.5);
+  });
+
+  it("never reads the by-substrate Surfaces summary as an area (15 Pelmet Cres: 452 h against 226)", () => {
+    const summary = "Surfaces\nWalls (2,484m²)\nhr\nFront Side  (40m²)\nWalls 2 Coats\nDulux Weathershield  - 10 Litre - $100.00\nCoats: 2\n\t\n31.5\nTotal\nPainting: 31.5\n=\n31.5\n";
+    const withSummary = parseWorkOrderText(PAGE.replace("Options\nThese items", `${summary}Options\nThese items`));
+    expect(withSummary.areas.map((a) => a.name)).toEqual(wo.areas.map((a) => a.name));
+    expect(withSummary.hoursFromLines).toBe(31.5);
+    expect(withSummary.optionHeadings).toEqual(wo.optionHeadings);
   });
 
   it("a page with no Areas block yields nothing, not a crash", () => {

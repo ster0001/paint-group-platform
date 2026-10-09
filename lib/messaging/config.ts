@@ -72,8 +72,23 @@ export type MessagingSettings = {
   officeInvoicePaidBody: string;
   officeVariationRaisedSubject: string;
   officeVariationRaisedBody: string;
+  /** Tom, 7 Oct 2026: PC Command alerts. */
+  officeVariationDeclinedSubject: string;
+  officeVariationDeclinedBody: string;
+  /** Office (Tom, 9 Oct 2026): a painter wrote in a project's Messages box — optional, per Staff logins. */
+  officePainterMessageSubject: string;
+  officePainterMessageBody: string;
+  officeUpdateDraftedSubject: string;
+  officeUpdateDraftedBody: string;
+  officeUpdateDueSubject: string;
+  officeUpdateDueBody: string;
   officeContractorInvoiceSubject: string;
   officeContractorInvoiceBody: string;
+  /** Painter status Step 7 (message 9, owner). */
+  officeBonusReviewSubject: string;
+  officeBonusReviewBody: string;
+  officePainterRedSubject: string;
+  officePainterRedBody: string;
   /** The tenant access text a trade customer sends from the portal (manual; wording editable). */
   tenantLinkSms: string;
 
@@ -125,14 +140,37 @@ export type MessagingSettings = {
   leaveDecidedSms: string;
   /** Painter: an approved addition is waiting for their acceptance. */
   variationReleasedSms: string;
+  variationReleasedEmailSubject: string;
+  variationReleasedEmailIntro: string;
   /** Painter: a change from the revision working scope the customer signed is on their job — told, not asked (Tom, 24 Sep 2026). */
   variationAddedSms: string;
+  variationAddedEmailSubject: string;
+  variationAddedEmailIntro: string;
+  /** Painter (Tom, 9 Oct 2026): the office wrote in the project's Messages box — one text/email per burst. */
+  painterMessageSms: string;
+  painterMessageEmailSubject: string;
+  painterMessageEmailIntro: string;
   /** Painter: a failed quality check, areas to put right. */
   qaFailSms: string;
   /** P6 — Customer: the estimator visit, confirmed with a calendar invite; and the text the evening before. */
   visitConfirmSubject: string;
   visitConfirmBody: string;
   visitReminderSms: string;
+  /** Visit booking addendum A (S3): the 6-digit code, and the "booked" text. */
+  visitCodeSms: string;
+  visitBookedSms: string;
+  /** Visit booking S4: requests, the staff-offered time, and the customer's own message copy. */
+  requestReceivedSubject: string;
+  requestReceivedBody: string;
+  callRequestReceivedSubject: string;
+  callRequestReceivedBody: string;
+  timeOfferedSms: string;
+  timeOfferedSubject: string;
+  timeOfferedBody: string;
+  customerMessageSubject: string;
+  customerMessageBody: string;
+  /** S5: the visit was cancelled — the guest declined, or the estimator deleted it in Google. */
+  visitCancelledSms: string;
   /** Customer + painter: the final walkthrough calendar invite. */
   walkthroughInviteSubject: string;
   walkthroughInviteCustomerBody: string;
@@ -159,6 +197,41 @@ export type MessagingSettings = {
   officeEmail: string;
   acceptedOfficeSubject: string;
   acceptedOfficeBody: string;
+  /** Painter (standards Step 2, message 1): the one-time invite to read and confirm the finish standards. */
+  standardsInviteSms: string;
+  standardsInviteEmailSubject: string;
+  standardsInviteEmailIntro: string;
+  /** Painter (message 2): reminder while unsigned — days 2, 4 and 6 after the invite, or the PC's button. */
+  standardsReminderSms: string;
+  /** Painter (message 3): the PDF copy, emailed on confirming. */
+  standardsConfirmedEmailSubject: string;
+  standardsConfirmedEmailIntro: string;
+  /** Painter (message 4): a material new version needs a fresh confirmation. */
+  standardsNewVersionSms: string;
+  standardsNewVersionEmailSubject: string;
+  standardsNewVersionEmailIntro: string;
+  /** Painter (call backs Step 3, message 7): a return visit is booked. */
+  callbackBookedSms: string;
+  /** Painter (Step 4, message 5): the second and third texts for an unanswered reminder moment. */
+  contractorJobUpdateSms2: string;
+  contractorJobUpdateSms3: string;
+  /** Painter (Step 6, message 5): the third text when the painter is Green. */
+  contractorJobUpdateSms3Green: string;
+  /** Painter (Step 6, message 6): the colour changed. */
+  statusGreenSms: string;
+  statusGreenLeadSms: string;
+  statusDroppedSms: string;
+  bonusApprovedSms: string;
+  bonusApprovedEmployeeSms: string;
+  /** Painter (Tom, 8 Oct): the morning heads-up on a day with a 3:30 pm update moment. */
+  contractorJobUpdateMorningSms: string;
+  contractorJobUpdateMorningEmailSubject: string;
+  contractorJobUpdateMorningEmailIntro: string;
+  /** Customer (Tom, 8 Oct): mark the touch-ups with tape before the final walkthrough — first and second text. */
+  defectTapeSms: string;
+  defectTapeSms2: string;
+  defectTapeEmailSubject: string;
+  defectTapeEmailIntro: string;
 };
 
 export const DEFAULT_MESSAGING: MessagingSettings = {
@@ -212,6 +285,14 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeInvoicePaidBody: "{{who}} has paid {{amount}} on invoice {{invoice_number}} for {{job}} ({{method}}).",
   officeVariationRaisedSubject: "Variation raised — {{job}}",
   officeVariationRaisedBody: "{{painter}} has raised a variation on {{wo_ref}} ({{job}}): {{category}}{{hours_line}}.\n\n“{{comment}}”\n\nIt is waiting to be priced.",
+  officeVariationDeclinedSubject: "Painter declined an approved change — {{job}}",
+  officeVariationDeclinedBody: "{{painter}} has declined the change the client approved on {{wo_ref}} ({{job}}){{hours_line}}.\n\nThey wrote: “{{comment}}”\n\nIt is back with you in PC Command — revise it with the client, or set the painter's amount.",
+  officePainterMessageSubject: "{{painter}} replied on {{wo_ref}} — {{job}}",
+  officePainterMessageBody: "{{painter}} wrote about {{wo_ref}} ({{job}}):\n\n“{{message}}”\n\nRead it and reply in PC Command.",
+  officeUpdateDraftedSubject: "Customer update ready to send — {{job}}",
+  officeUpdateDraftedBody: "{{painter}} has updated their work order on {{wo_ref}} ({{job}}). A customer update has been drafted from it — read it, change anything, and send it.",
+  officeUpdateDueSubject: "Customer update due — {{job}}",
+  officeUpdateDueBody: "The customer on {{wo_ref}} ({{job}}) is due an update{{hours_line}}. Nothing is drafted — write them a line on progress from the job page.",
   officeContractorInvoiceSubject: "Contractor invoice in — {{painter}} · {{amount}}",
   officeContractorInvoiceBody: "{{painter}} has submitted invoice {{invoice_number}} for {{amount}} on {{wo_ref}} ({{job}}). It is waiting for approval in Payments.",
   // THE TENANT TEXT IS THE ONE MESSAGE THAT GOES TO SOMEONE WHO NEVER ASKED US
@@ -299,18 +380,48 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}}: your {{kind_word}} request for {{dates}} was {{decision}}.{{reason_line}}",
   variationReleasedSms:
     "{{company_name}}: a variation on {{wo_ref}} is approved and waiting on you — {{action}} it in your dashboard: {{link}}",
+  variationReleasedEmailSubject: "A variation on {{wo_ref}} is waiting on you",
+  variationReleasedEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "The customer has approved a variation on {{wo_ref}} and it's waiting on you to {{action}} it. " +
+    "Open the job in your portal to see the hours and the amount, and give your answer.",
+  painterMessageSms:
+    "New message from {{company_name}} about {{wo_ref}}, {{suburb}}. Read it and reply (photos too): {{link}}",
+  painterMessageEmailSubject: "New message from {{company_name}} about {{wo_ref}}, {{suburb}}",
+  painterMessageEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "The office has sent you a message about {{wo_ref}} ({{suburb}}):\n\n" +
+    "“{{message}}”\n\n" +
+    "Open the job to read it and reply — you can send photos back from your phone.",
   variationAddedSms:
     "{{company_name}}: the customer approved a change to {{wo_ref}}. It's on your job sheet and tick list{{pay_line}}: {{link}}",
+  variationAddedEmailSubject: "The customer approved a change to {{wo_ref}}",
+  variationAddedEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "The customer has approved a change to {{wo_ref}}. It's on your job sheet and your tick list{{pay_line}}. " +
+    "Open the job in your portal to see it.",
   qaFailSms:
     "{{company_name}}: the quality check on {{wo_ref}} found areas that need rectifying. The details and photos are on the job in your portal: {{link}}",
   visitConfirmSubject: "Your visit is booked — {{visit_when}}",
   visitConfirmBody:
     "Hello {{first_name}},\n\n" +
     "{{estimator_name}} from {{company_name}} will be at {{address}} on {{visit_when}} to look at the job with you.\n\n" +
-    "The attached invite drops it into your calendar. It usually takes about an hour: we walk through what's being painted, check the surfaces, and confirm your price.\n\n" +
+    "{{invite_line}} It usually takes about an hour: we walk through what's being painted, check the surfaces, and confirm your price.\n\n" +
     "If that time no longer suits, reply to this email or call us and we'll move it.",
   visitReminderSms:
     "{{company_name}}: a reminder that {{estimator_name}} is visiting {{address}} tomorrow, {{visit_when}}. Reply or call us if anything's changed.",
+  visitCodeSms: "{{code}} is your {{company_name}} code to book your site visit. It expires in 10 minutes.",
+  visitBookedSms: "{{company_name}}: your site visit is booked for {{visit_when}} at {{address}}. A calendar invitation from {{company_email}} is on its way by email — please accept it. We will text a reminder the evening before. To cancel, decline the invitation or call us.",
+  requestReceivedSubject: "We have your request — {{company_name}}",
+  requestReceivedBody: "Hi {{first_name}},\n\nThank you, we have your request for a site visit at {{address}}. We will be in touch within one working day to arrange a time.\n\n{{company_name}}",
+  callRequestReceivedSubject: "We will call you — {{company_name}}",
+  callRequestReceivedBody: "Hi {{first_name}},\n\nThank you. We will call you on {{mobile}} within one working day to finalise your booking.\n\n{{company_name}}",
+  timeOfferedSms: "{{company_name}}: we have booked your site visit for {{visit_when}} at {{address}}. A calendar invitation is on its way by email. We will text a reminder the evening before. To change it, reply or call us.",
+  timeOfferedSubject: "Your site visit — {{visit_when}}",
+  timeOfferedBody: "Hi {{first_name}},\n\nFollowing your request, we have booked your site visit for {{visit_when}} at {{address}}. {{estimator_name}} will be there. A calendar invitation is attached.\n\nIf that time does not suit, reply to this email or call us and we will find another.\n\n{{company_name}}",
+  customerMessageSubject: "Message from {{customer}} — {{job}}",
+  customerMessageBody: "{{customer}} wrote:\n\n“{{message}}”\n\nReply from the chat in the platform, or to this email. The customer has this copy too and we will reply within one working day.",
+  visitCancelledSms: "{{company_name}}: your site visit on {{visit_when}} is cancelled. If you would like another time, book again from your estimate or call us.",
   walkthroughInviteSubject: "Final walk through — ({{customer_name}} x {{painter_name}})",
   walkthroughInviteCustomerBody:
     "Hello {{first_name}},\n\n" +
@@ -354,6 +465,54 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Your estimate is saved in your {{company_name}} account.\n\n" +
     "The button below signs you straight in — no password needed. {{next_step}}\n\n" +
     "The sign-in link lasts an hour; you can always ask for a fresh one from the account page.",
+  standardsInviteSms: "{{company_name}}: please read and confirm our finish standards. It takes about 10 minutes. {{link}}",
+  standardsInviteEmailSubject: "Please read and confirm the {{company_name}} finish standards",
+  standardsInviteEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "{{company_name}} has written down what we expect on every surface at Levels 2, 3 and 4 — the same words our quality checks and walk-throughs are judged against. " +
+    "Please read the six short sections and confirm each one. It takes about 10 minutes, and you will need to have done it to keep getting job offers.",
+  standardsReminderSms: "Reminder: confirm the {{company_name}} finish standards to keep getting job offers. {{link}}",
+  standardsConfirmedEmailSubject: "Your copy of the {{company_name}} finish standards (Version {{version}})",
+  standardsConfirmedEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "Thank you for confirming the finish standards. Your copy is attached, and it is saved in your documents in the portal so you can read it any time, with or without signal. " +
+    "Every surface on your work orders links to its standard at the job's level.",
+  standardsNewVersionSms: "{{company_name}}: we updated the finish standards. Please read what changed and confirm. {{link}}",
+  standardsNewVersionEmailSubject: "We updated the finish standards — please read what changed and confirm",
+  standardsNewVersionEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "{{company_name}} has updated the finish standards (Version {{version}}). Please read what changed, then confirm the six sections again to keep getting job offers.",
+  callbackBookedSms: "{{company_name}}: call back at {{address}} on {{day}}: {{what}}. Details and the fix photo are on the job: {{link}}",
+  contractorJobUpdateSms2: "{{company_name}}: please update your job in the app today — {{wo_ref}} at {{suburb}}, {{day_label}}. {{link}}",
+  contractorJobUpdateSms3: "{{company_name}}: last reminder today. Please update your job in the app — {{wo_ref}} at {{suburb}}. {{link}}",
+  contractorJobUpdateSms3Green: "{{company_name}}: update today to keep your Green — {{wo_ref}} at {{suburb}}. {{link}}",
+  statusGreenSms: "{{company_name}}: you are on Green. You now get priority on new jobs and faster payment. {{link}}",
+  statusGreenLeadSms: "{{company_name}}: you are on Green. Thank you for the clean work. {{link}}",
+  statusDroppedSms: "{{company_name}}: your status is now {{colour}}. Open the app to see why and what to do next. {{link}}",
+  /** Painter (Step 7, message 8; Tom 8 Oct 2026): a bonus was approved — the amount and how it is paid. */
+  bonusApprovedSms: "{{company_name}}: a {{amount}} bonus has been approved for your clean work on Green. Claim it in the app and it is paid like any invoice. {{link}}",
+  bonusApprovedEmployeeSms: "{{company_name}}: a {{amount}} bonus has been approved for your clean work on Green. It will be in your next pay run. Thank you.",
+  officeBonusReviewSubject: "Bonus review due — {{painter}}",
+  officeBonusReviewBody: "{{painter}} has {{count}} clean jobs of 16 hours or more while on Green. Set the amount and approve or decline on their page.",
+  officePainterRedSubject: "{{painter}} dropped to Red",
+  officePainterRedBody: "{{painter}} is now on Red: {{line}} No new job offers go to them until you record \"Spoken with, offers allowed\" on their page.",
+  contractorJobUpdateMorningSms:
+    "{{company_name}}: morning {{first_name}}, today is an update day on {{wo_ref}} at {{suburb}} ({{day_label}}). Before you finish, tick what's done and add today's photos in the app. {{link}}",
+  contractorJobUpdateMorningEmailSubject: "Update day today — {{wo_ref}} at {{suburb}}",
+  contractorJobUpdateMorningEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "Today ({{day_label}}) is an update day on {{wo_ref}} at {{suburb}}. Before you finish this afternoon, please open the job in the app, tick what's done and add today's photos.\n\n" +
+    "{{link}}",
+  defectTapeSms:
+    "Hi {{first_name}}, it's {{company_name}}. Your painting at {{suburb}} is nearly done (finishing {{finish_date}}). Before the final walkthrough, please put a small piece of the painter's tape on any spot you'd like touched up. The painter will fix each one.",
+  defectTapeSms2:
+    "Hi {{first_name}}, a quick reminder from {{company_name}}: before the final walkthrough, mark any spots you'd like touched up with a small piece of the painter's tape, and the painter will fix each one.",
+  defectTapeEmailSubject: "Your painting is nearly done — mark any touch-ups with tape",
+  defectTapeEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "Your painting at {{address}} is nearly done — the last day is {{finish_date}}.\n\n" +
+    "Before the final walkthrough, please walk around and put a small piece of the painter's tape on any spot you'd like touched up. The painter will fix each one before we sign the job off.\n\n" +
+    "Thank you,\n{{company_name}}",
 };
 
 /**
@@ -378,6 +537,13 @@ export const TEMPLATE_PLACEHOLDERS = [
 ] as const;
 
 export type TemplateVars = {
+  /** Standards messages: the version number being confirmed. */
+  version?: string;
+  /** Defect-tape text (Tom, 8 Oct): the job's booked last day, "Fri 9 Oct". */
+  finish_date?: string;
+  /** Call back booked: the visit day and what is wrong. */
+  day?: string;
+  what?: string;
   /** S7: "approved" | "declined" | "rejected", and "leave" | "RDO". */
   decision?: string;
   kind_word?: string;
@@ -387,6 +553,10 @@ export type TemplateVars = {
   address?: string;
   name?: string;
   company_name?: string;
+  /** S7 (Tom, 7 Oct): the address the Google Calendar invitation arrives from, so the email and text can name it. */
+  company_email?: string;
+  /** S7: one sentence on how the calendar invitation reaches the customer — Google's invitation (named sender) or the attached .ics. */
+  invite_line?: string;
   estimate_title?: string;
   total?: string;
   estimator_name?: string;
@@ -395,8 +565,12 @@ export type TemplateVars = {
   painter_name?: string;
   /** A whole sentence about the final walkthrough — booked or to-be-confirmed. */
   walkthrough_line?: string;
-  /** P6: "Tue 8 Sep at 10:00 am" for the visit confirmation and reminder. */
+  /** P6: "Tue 8 Sep at 10:00 am" for the visit confirmation and reminder; S3: "Monday 5 October, 2:00 pm to 3:00 pm". */
   visit_when?: string;
+  /** S3: the 6-digit text code. */
+  code?: string;
+  /** S4: the mobile a call request named. */
+  mobile?: string;
   // Automations (3 Sep) — each template documents which of these it uses.
   wo_ref?: string;
   /** Painter texts: the job's suburb (never the full address in a reminder) and "day 3 of 5". */

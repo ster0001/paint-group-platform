@@ -40,6 +40,8 @@ export function buildContractorInvoiceHtml(opts: {
   additionsCents: number;
   deductionLines: CiPdfDeduction[];
   previouslyInvoicedCents: number;
+  /** The ex-GST figure claimed against the job (the claim's one line). */
+  claimedExCents: number;
   subtotalExCents: number;
   gstCents: number;
   totalIncCents: number;
@@ -52,7 +54,7 @@ export function buildContractorInvoiceHtml(opts: {
           .format(new Date(iso.slice(0, 10) + "T00:00:00Z"))
       : "";
   const deductions = (opts.deductionLines ?? []).filter((d) => (d.cents ?? 0) > 0);
-  const isClaim = opts.source === "claim";
+  const isClaim = opts.source === "claim" || opts.source === "bonus";
 
   const customLines = (opts.customLines ?? []).filter((l) => (l.cents ?? 0) > 0);
   const lines = isClaim
@@ -60,7 +62,7 @@ export function buildContractorInvoiceHtml(opts: {
       ? customLines.map((l) =>
           `<tr><td>${esc(l.label ?? "Work performed")}<small>${esc(opts.woRef)}${opts.jobTitle ? ` · ${esc(opts.jobTitle)}` : ""}</small></td><td class="r mono">${money(l.cents ?? 0)}</td></tr>`,
         ).join("")
-      : `<tr><td>Progress payment claim — ${esc(opts.woRef)}${opts.claimPct ? ` (${Number(opts.claimPct)}% of contract)` : ""}${opts.jobTitle ? `<small>${esc(opts.jobTitle)}</small>` : ""}</td><td class="r mono">${money(opts.totalIncCents)}</td></tr>`
+      : `<tr><td>Progress payment claim — ${esc(opts.woRef)}${opts.claimPct ? ` (${Number(opts.claimPct)}% of contract)` : ""}${opts.jobTitle ? `<small>${esc(opts.jobTitle)}</small>` : ""}</td><td class="r mono">${money(opts.claimedExCents)}</td></tr>`
     : [
         `<tr><td>Contract work — ${esc(opts.woRef)}${opts.jobTitle ? `<small>${esc(opts.jobTitle)}</small>` : ""}</td><td class="r mono">${money(opts.offerCents)}</td></tr>`,
         opts.additionsCents > 0 ? `<tr><td>Approved variations</td><td class="r mono">${money(opts.additionsCents)}</td></tr>` : "",
@@ -141,8 +143,8 @@ export function buildContractorInvoiceHtml(opts: {
 
   <div class="totals">
     ${opts.gstCents > 0 ? `<div class="trow"><span>Subtotal (ex GST)</span><b>${money(opts.subtotalExCents)}</b></div>
-    <div class="trow"><span>GST</span><b>${money(opts.gstCents)}</b></div>` : ""}
-    <div class="trow big"><span>Total due</span><b>${money(opts.totalIncCents)}</b></div>
+    <div class="trow"><span>GST (10%)</span><b>${money(opts.gstCents)}</b></div>` : ""}
+    <div class="trow big"><span>Total due${opts.gstCents > 0 ? " (inc GST)" : ""}</span><b>${money(opts.totalIncCents)}</b></div>
     ${opts.gstCents === 0 ? `<div class="trow"><span>No GST — supplier not registered</span><b>—</b></div>` : ""}
     ${opts.dueOn ? `<div class="trow"><span>Payment due</span><b>${esc(fmtDate(opts.dueOn))}</b></div>` : ""}
   </div>

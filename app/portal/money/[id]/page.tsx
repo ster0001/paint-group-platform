@@ -5,7 +5,7 @@ import { missingProfileFields } from "@/lib/contractor/model";
 import { createClient } from "@/lib/supabase/server";
 import { signedDocUrl } from "@/lib/invoicing/pdf";
 import { ciDocumentHeading } from "@/lib/invoicing/ciStateMachine";
-import { gstFromIncCents } from "@/lib/invoicing/gst";
+import { gstOnExCents } from "@/lib/invoicing/gst";
 import SubmitInvoice from "./SubmitInvoice";
 
 export const dynamic = "force-dynamic";
@@ -34,12 +34,12 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
 
   const { data } = await supabase
     .from("contractor_invoices")
-    .select("id, number, status, offer_cents, variation_delta_cents, deduction_lines, subtotal_ex_cents, gst_cents, total_inc_cents, due_on, submitted_at, approved_at, paid_at, bank_reference, remittance_number, remittance_pdf_path, gst_registered_at_submit, entity_snapshot, rcti, work_order_id, auto_draft_source, claim_pct, previously_invoiced_cents, invoice_pdf_path, work_orders(wo_ref, contractor_payment_cents, wo_snapshot)")
+    .select("id, number, status, offer_cents, variation_delta_cents, deduction_lines, claimed_ex_cents, subtotal_ex_cents, gst_cents, total_inc_cents, due_on, submitted_at, approved_at, paid_at, bank_reference, remittance_number, remittance_pdf_path, gst_registered_at_submit, entity_snapshot, rcti, work_order_id, auto_draft_source, claim_pct, previously_invoiced_cents, invoice_pdf_path, work_orders(wo_ref, contractor_payment_cents, wo_snapshot)")
     .eq("id", id).maybeSingle();
   const ci = data as {
     id: string; number: string | null; status: string;
     offer_cents: number; variation_delta_cents: number; deduction_lines: DeductionLine[];
-    subtotal_ex_cents: number; gst_cents: number; total_inc_cents: number;
+    claimed_ex_cents: number; subtotal_ex_cents: number; gst_cents: number; total_inc_cents: number;
     due_on: string | null; submitted_at: string | null; approved_at: string | null;
     paid_at: string | null; bank_reference: string; remittance_number: string | null;
     remittance_pdf_path: string | null; gst_registered_at_submit: boolean | null;
@@ -93,17 +93,21 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
   let prevInvoiced = ci.previously_invoiced_cents ?? 0;
   if (draft) {
     const { data: siblings } = await supabase
-      .from("contractor_invoices").select("total_inc_cents")
+      .from("contractor_invoices").select("claimed_ex_cents")
       .eq("work_order_id", ci.work_order_id).neq("status", "draft");
-    prevInvoiced = ((siblings ?? []) as { total_inc_cents: number }[])
-      .reduce((s, r) => s + r.total_inc_cents, 0);
+    prevInvoiced = ((siblings ?? []) as { claimed_ex_cents: number }[])
+      .reduce((s, r) => s + r.claimed_ex_cents, 0);
   }
   const isClaim = ci.auto_draft_source === "claim";
-  const total = draft
-    ? Math.max(0, offer + additions - deductionCents - prevInvoiced)
-    : ci.total_inc_cents;
+  // The agreed figure (offer + additions − deductions) is EX GST (Tom, 7 Oct).
+  // Registered: GST goes on top. Not registered: the net amount only.
   const gstRegistered = draft ? (contractor?.gst_registered ?? false) : (ci.gst_registered_at_submit ?? false);
-  const gst = draft ? (gstRegistered ? gstFromIncCents(total) : 0) : ci.gst_cents;
+  const claimedEx = draft
+    ? Math.max(0, offer + additions - deductionCents - prevInvoiced)
+    : ci.claimed_ex_cents;
+  const subtotal = draft ? claimedEx : ci.subtotal_ex_cents;
+  const gst = draft ? (gstRegistered ? gstOnExCents(claimedEx) : 0) : ci.gst_cents;
+  const total = draft ? subtotal + gst : ci.total_inc_cents;
   const heading = ciDocumentHeading(gstRegistered);
 
   const missing = missingProfileFields(contractor);
@@ -144,7 +148,7 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
                 Progress payment claim — {ci.work_orders?.wo_ref}
                 {ci.claim_pct ? ` (${Number(ci.claim_pct)}% of contract)` : ""}
               </span>
-              <b style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)" }}>{money(ci.total_inc_cents)}</b>
+              <b style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)" }}>{money(claimedEx)}</b>
             </div>
           ) : (
           <>
@@ -176,15 +180,21 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
           )}
           </>
           )}
-          <div style={{ display: "flex", padding: "10px 0 2px", fontSize: "15px" }}>
-            <b>Total</b>
-            <b style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)" }} data-testid="ci-total">{money(total)}</b>
-          </div>
+          {gstRegistered && (
+            <div style={{ display: "flex", padding: "8px 0 0", fontSize: "12.5px", color: "var(--muted)" }} data-testid="ci-subtotal">
+              <span>Subtotal (ex GST)</span>
+              <span style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)" }}>{money(subtotal)}</span>
+            </div>
+          )}
           <div style={{ display: "flex", fontSize: "12px", color: "var(--muted)" }}>
-            <span>{gstRegistered ? "Includes GST of" : "No GST — not registered"}</span>
+            <span>{gstRegistered ? "GST (10%)" : "No GST — not registered"}</span>
             <span style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)" }} data-testid="ci-gst">
               {gstRegistered ? money(gst) : "$0.00"}
             </span>
+          </div>
+          <div style={{ display: "flex", padding: "10px 0 2px", fontSize: "15px" }}>
+            <b>Total{gstRegistered ? " (inc GST)" : ""}</b>
+            <b style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)" }} data-testid="ci-total">{money(total)}</b>
           </div>
         </div>
 

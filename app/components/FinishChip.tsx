@@ -5,8 +5,9 @@ import { finishLevel } from "@/lib/workorder/finish";
 import "./finish.css";
 
 /**
- * The PG finish-level chip. Tapping it opens the standard the contractor is
- * actually held to — prep committed and how the work gets judged at walkthrough.
+ * The PG finish-level chip. Tapping it opens the approved one-screen summary of
+ * the level — the guide's five rows (filling, sanding, gaps, old problems, the
+ * look test) — and, where the host says so, a link to the full standards.
  *
  * Works inside both the staff work order (.wo) and the contractor portal (.pt);
  * the stylesheet only uses colour tokens that both define.
@@ -16,6 +17,7 @@ export default function FinishChip({
   variant = "full",
   differs = false,
   fallbackLabel = "",
+  standardsHref,
 }: {
   code: string | null;
   /** "full" = header chip with wording; "mini" = compact per-area pill. */
@@ -24,6 +26,8 @@ export default function FinishChip({
   differs?: boolean;
   /** Shown when the estimate's level has no PG standard — the internal label. */
   fallbackLabel?: string;
+  /** Where the full finish standards live for this reader (the portal's Help, PC Command). */
+  standardsHref?: string;
 }) {
   const [open, setOpen] = useState(false);
   const level = finishLevel(code);
@@ -50,6 +54,8 @@ export default function FinishChip({
     );
   }
 
+  const number = level.code.split("-")[1];
+
   return (
     <>
       <button
@@ -57,11 +63,12 @@ export default function FinishChip({
         className={`fchip ${variant === "mini" ? "mini" : ""} ${differs ? "diff" : ""}`}
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
+        data-testid={variant === "full" ? "finish-chip" : undefined}
       >
         <b>{level.code}</b>
         {variant === "full" ? (
           <>
-            {level.name} finish — what this means
+            Level {number} · {level.name} — what this means
             <span className="fchev" aria-hidden>
               ›
             </span>
@@ -74,27 +81,28 @@ export default function FinishChip({
       </button>
 
       {open && (
-        <div className="fsheet-wrap" role="dialog" aria-modal="true" aria-label={`${level.code} ${level.name} finish standard`}>
+        <div className="fsheet-wrap" role="dialog" aria-modal="true" aria-label={`Level ${number} — ${level.name}`} data-testid="finish-sheet">
           <div className="fsheet-scrim" onClick={() => setOpen(false)} />
           <div className="fsheet">
-            <div className="fs-code">{level.code}</div>
-            <h3>{level.name} finish</h3>
-            <div className="fs-sum">{level.summary}</div>
-            <div className="fs-use">{level.typicalUse}</div>
+            <div className="fs-code">{level.code} · Level {number}</div>
+            <h3>{level.name}</h3>
+            <div className="fs-sum">Look test: stand {level.lookTest} back. If you can see a problem from there, fix it.</div>
 
-            <div className="fs-lab">Prep included at this level</div>
-            <ul>
-              {level.prep.map((p, i) => (
-                <li key={i}>{p}</li>
+            <div className="fs-lab">What this level means</div>
+            <dl className="fs-rows">
+              {level.rows.map((r) => (
+                <div key={r.label}>
+                  <dt>{r.label}</dt>
+                  <dd>{r.text}</dd>
+                </div>
               ))}
-            </ul>
+            </dl>
 
-            <div className="fs-lab">How it will be judged</div>
-            <ul className="fs-accept">
-              {level.acceptance.map((a, i) => (
-                <li key={i}>{a}</li>
-              ))}
-            </ul>
+            {standardsHref && (
+              <a className="fs-link" href={standardsHref} data-testid="finish-sheet-standards">
+                Open the finish standards ›
+              </a>
+            )}
 
             <button type="button" className="fs-close" onClick={() => setOpen(false)}>
               Got it

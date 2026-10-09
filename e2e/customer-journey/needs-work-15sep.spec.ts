@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
 
 /**
  * Tom, 15 Sep (late): "Needs work" on the quick look.
@@ -43,6 +43,7 @@ test("needs work: a note and a photo, both optional, and the range still arrives
   await expect(page.getByTestId("ql-damage-photo-count")).toContainText(/1 photo ready/);
 
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 120_000 });
   await expect(page.getByTestId("reveal-prep-check")).toContainText(/checked by our estimator before/i);
   await page.getByTestId("door-tighten").click();
@@ -75,6 +76,7 @@ test("needs work with nothing added still reaches a range, flagged for the estim
   await page.getByTestId("ql-condition-needs_work").click();
   await quickNext(page);
   await expect(page.locator(".wz-err")).toHaveCount(0);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 120_000 });
   await expect(page.getByTestId("reveal-prep-check")).toBeVisible();
   if (url && serviceKey) {

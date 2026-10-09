@@ -1,6 +1,6 @@
 import { test, expect, devices } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, uniquePhone , openQuickLook, fillQuickAddress, quickNext, MONEY_RANGE } from "./drive";
+import { driveNoPlanWizard, uniquePhone , openQuickLook, fillQuickAddress, quickNext, MONEY_RANGE, passGateIfShown } from "./drive";
 import { DEFAULT_ONLINE_ESTIMATES } from "../../lib/wizard/publicFlag";
 
 /**
@@ -109,6 +109,7 @@ test.describe("holding page + honest defaults", () => {
     await quickNext(page);
 
     // The range still shows — declining to guess is not declining to quote.
+    await passGateIfShown(page); // S6: the details-first question sits before the range
     await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
     // And we say out loud that a person checks it.

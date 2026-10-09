@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildBookedJob, CUSTOM_SURFACE_CODE, dateSpan, splitPriceByHours, SubstrateResolver, trayNoteFor, type CompanyLetterhead } from "./build";
+import { buildBookedJob, CUSTOM_SURFACE_CODE, dateSpan, lineMaterials, splitPriceByHours, SubstrateResolver, trayNoteFor, type CompanyLetterhead } from "./build";
 import { parseBookedJobs, substrateMapRowSchema, type BookedJob, type SubstrateMapRow } from "./types";
 import type { PricingContext } from "@/lib/pricing/estimate";
 import { parseCsv } from "@/lib/import/csv";
@@ -202,5 +202,46 @@ describe.skipIf(!hasPack)("the real pack: all 35 signed jobs", () => {
     const j2826 = by("2826");
     expect(j2826.trayNote).toBe("Airtable: booked 16–20 Nov 2026 with Jacob (admin@djdecor.com.au) — painter accepted. Send the offer.");
     expect(j2826.totals.hours).toBe(64.5);
+  });
+});
+
+
+/**
+ * Tom, 9 Oct 2026: on the filled handover jobs the contractor pay read $0.00,
+ * and the materials budget had nothing in it. The work-order lines carry
+ * PaintScout's litres and $; a $0 offer is a blank, not an offer.
+ */
+describe("work-order materials and the contractor pay", () => {
+  const CODES = ["Ceilings", "Standard Cornices", "Walls", "Skirting Boards"];
+  it("a line's materials become product, litres and $ per litre; no litres keeps the old shape", () => {
+    expect(lineMaterials({ product: "Haymes Expressions Wall", litres: 175.5, material_cents: 180000 }))
+      .toEqual({ productName: "Haymes Expressions Wall", volumeOverride: 175.5, unitPriceOverride: 10.26 });
+    expect(lineMaterials({ product: "Haymes Expressions Wall", litres: 2, material_cents: null }))
+      .toEqual({ productName: "Haymes Expressions Wall", volumeOverride: 2, unitPriceOverride: null });
+    expect(lineMaterials({ product: "", litres: 2, material_cents: 4600 })).toEqual({ productName: null, volumeOverride: 0, unitPriceOverride: null });
+    expect(lineMaterials({ product: "Dulux", litres: null })).toEqual({ productName: null, volumeOverride: 0, unitPriceOverride: null });
+  });
+
+  const withMaterials: BookedJob = {
+    ...SYNTHETIC,
+    areas: SYNTHETIC.areas.map((a) => a.name !== "Kitchen" ? a : {
+      ...a,
+      items: a.items.map((it, i) => ({ ...it, product: "Paint not in the catalogue", litres: [4, 2, 3, 1.5, 0.5][i], material_cents: [4800, 2400, 3600, 1800, 600][i] })),
+    }),
+  };
+  const plain = buildBookedJob(SYNTHETIC, new SubstrateResolver(SYNTHETIC_MAP), ctxFor(CODES), COMPANY, "abcdefgh12345678901234567890");
+  const filled = buildBookedJob(withMaterials, new SubstrateResolver(SYNTHETIC_MAP), ctxFor(CODES), COMPANY, "abcdefgh12345678901234567890");
+
+  it("the materials budget is PaintScout's line costs, and the customer's price does not move", () => {
+    expect(filled.totals.materialsCostCents).toBe(4800 + 2400 + 3600 + 1800 + 600);
+    expect(filled.totals.totalCents).toBe(plain.totals.totalCents);
+    expect(filled.totals.subtotalCents).toBe(plain.totals.subtotalCents);
+    expect(filled.totals.hours).toBe(plain.totals.hours);
+  });
+
+  it("a $0 offer is a blank: the sheet's pay is priced from the hours; a real offer is kept", () => {
+    const blank = buildBookedJob({ ...SYNTHETIC, contractor_offer_cents: 0 }, new SubstrateResolver(SYNTHETIC_MAP), ctxFor(CODES), COMPANY, "t");
+    expect(blank.woDoc.contractorPaymentCents).toBeGreaterThan(0);
+    expect(plain.woDoc.contractorPaymentCents).toBe(96000);
   });
 });

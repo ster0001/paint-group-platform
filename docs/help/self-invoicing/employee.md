@@ -27,6 +27,9 @@ As an employed painter you never invoice Paint Group — you are paid through pa
 ### Asking before you buy
 6. Over $100? Tap **Ask before I buy**, say what you need and roughly what it costs, and send. The office's answer — a yes with a spending cap, or a no — shows on the same tab. A claim inside the cap goes through without the flag.
 
+### Your bonus
+When Paint Group approves a bonus for the jobs you led on Green, you get a text with the amount and **Expenses** shows **Bonus approved $X · It will be in your next pay run**. Nothing to press — it goes through payroll, not through the app.
+
 ## What the colours and labels mean
 - **submitted** (amber) — with the office.
 - **approved** (cyan) — the office agreed. If you paid yourself, the money is on its way.

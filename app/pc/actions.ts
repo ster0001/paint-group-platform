@@ -12,10 +12,18 @@ import { isCorrectableFinishModifier } from "@/lib/workorder/finish";
 import { onChecklistAnswered } from "@/lib/colourRecords/transitions";
 import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { requireStaff } from "@/lib/supabase/guards";
 import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
+import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
+import { qaWhenMessage } from "@/lib/workorder/qaSchedule";
+import { runPainterStatus, runPainterStatusSweep } from "@/lib/painterStatus/run";
 import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
+import { deliverSiteVisitNote } from "@/lib/workorder/siteNoteMessage";
+import { SITE_VISIT_NOTE_MAX } from "@/lib/workorder/siteVisits";
 import { melbourneDate } from "@/lib/workorder/console";
+import { logCrmEvent } from "@/lib/crm/events";
+import { reportError } from "@/lib/monitoring/report";
 
 /**
  * The console's own actions — the three PC surfaces the earlier steps deferred
@@ -484,6 +492,19 @@ export async function recordQa(raw: unknown): Promise<QaResult> {
       after(() => notifyQaFail(service, checkId));
     }
   }
+  // §4.4: a quality check result recomputes the painter's status.
+  if (s.startsWith("ok:")) {
+    const service = createServiceClient();
+    if (service) {
+      const checkId = parsed.data.checkId;
+      after(async () => {
+        const { data: chk, error } = await service.from("wo_qa_checks").select("work_orders(contractor_id)").eq("id", checkId).maybeSingle();
+        if (error) { reportError(error, { where: "recordQa.painterStatus" }); return; }
+        const painterId = (chk as { work_orders?: { contractor_id?: string | null } | null } | null)?.work_orders?.contractor_id;
+        if (painterId) await runPainterStatus(service, painterId);
+      });
+    }
+  }
   if (!s.startsWith("ok:")) {
     const reason = s.replace("error:", "");
     if (reason.startsWith("standards_outstanding:")) {
@@ -540,6 +561,8 @@ export async function setQaWaived(raw: unknown): Promise<PcResult> {
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
     revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+    // Waiving takes the due checks off the books — their invites are cancelled.
+    reconcileQaInvites(parsed.data.workOrderId);
     if (s === "ok:waived:walkthrough") return { ok: true, message: "No quality check on this job — the pack has gone to the customer, sign-off is running." };
     if (s === "ok:waived:closed") return { ok: true, message: "No quality check on this job — no walkthrough either, so it's closed: invoice stage." };
     if (s.startsWith("ok:waived:error:gate:")) return { ok: true, message: `No quality check on this job — but the handover can't go yet: ${humaniseGate(s.slice("ok:waived:error:gate:".length))}` };
@@ -605,11 +628,200 @@ export async function closeWithoutWalkthrough(raw: unknown): Promise<PcResult> {
   return r;
 }
 
-/** A mid-job quality check, on top of the standard final (Tom, 23 Aug). */
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+/** The RPC's refusal, in the office's words (lib/workorder/qaSchedule.ts). */
+function qaWhenRefusal(r: PcResult): PcResult {
+  if (r.ok) return r;
+  const key = r.message.replace(/ /g, "_");
+  if (key === "past" || key === "after_final" || key === "no_time" || key === "already_recorded" || key === "closed") {
+    return { ok: false, message: qaWhenMessage(key) };
+  }
+  return r;
+}
+
+/** Felipe's calendar follows any change to a check's day (Tom, 8 Oct 2026). */
+function reconcileQaInvites(workOrderId: string) {
+  const service = createServiceClient();
+  if (service) after(() => sendQaCheckInvites(service, workOrderId));
+}
+
+/**
+ * An extra check on top of the main end-of-job one: a job check-in on a day
+ * and time (Tom, 8 Oct 2026: "the option to add additional job check-ins in
+ * the PC Command"), or a spot check (R13). Before the final, or refused.
+ */
 export async function addQaCheck(raw: unknown): Promise<PcResult> {
-  const parsed = z.object({ workOrderId: uuid, date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }).safeParse(raw);
+  const parsed = z.object({ workOrderId: uuid, date: ymd.nullable(), time: hhmm.nullable().default(null), kind: z.enum(["mid", "spot"]).default("mid") }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-  return call("wo_add_qa_check", { p_work_order_id: parsed.data.workOrderId, p_date: parsed.data.date }, "Mid-job check added.");
+  const v = parsed.data;
+  if (v.kind === "mid" && (!v.date || !v.time)) return { ok: false, message: qaWhenMessage("no_time") };
+  const r = qaWhenRefusal(await call("wo_add_qa_check", { p_work_order_id: v.workOrderId, p_date: v.date, p_kind: v.kind, p_time: v.time },
+    v.kind === "spot" ? "Spot check added — it is on the painter's job." : "Job check-in added — it is in the quality-check calendar and on the painter's job."));
+  if (r.ok) {
+    revalidatePath(`/pc/wo/${v.workOrderId}`);
+    reconcileQaInvites(v.workOrderId);
+  }
+  return r;
+}
+
+/**
+ * Site check-ins (Tom, 9 Oct 2026; 20270248): Felipe's own visit — "logged
+ * just for Felipe", never pass/fail, never a hold on the job. A day and a time
+ * before the final, the same refusals as a check; the visit goes in the same
+ * calendar (the invite reconciler reads wo_site_visits too). Nobody else is
+ * told: no painter text, no customer anything.
+ */
+export async function addSiteVisit(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, date: ymd, time: hhmm }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: qaWhenMessage("no_time") };
+  const v = parsed.data;
+  const r = qaWhenRefusal(await call("wo_add_site_visit", { p_work_order_id: v.workOrderId, p_date: v.date, p_time: v.time },
+    "Site check-in added — it is in the quality-check calendar. Nobody else is told."));
+  if (r.ok) {
+    revalidatePath(`/pc/wo/${v.workOrderId}`);
+    reconcileQaInvites(v.workOrderId);
+  }
+  return r;
+}
+
+async function siteVisitJob(visitId: string): Promise<{ workOrderId: string | null; log: Record<string, unknown>[] }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("wo_site_visits").select("work_order_id, invite_log").eq("id", visitId).maybeSingle();
+  if (error) reportError(error, { where: "siteVisit.job", extra: { visitId } });
+  const row = data as { work_order_id: string; invite_log: Record<string, unknown>[] | null } | null;
+  return { workOrderId: row?.work_order_id ?? null, log: Array.isArray(row?.invite_log) ? row.invite_log : [] };
+}
+
+function siteVisitRefusal(r: PcResult): PcResult {
+  if (r.ok) return r;
+  if (r.message === "already recorded") return { ok: false, message: "This visit is already marked visited." };
+  if (r.message === "has notes") return { ok: false, message: "This visit has notes on it — it stays as the record. Mark it visited instead." };
+  if (r.message === "not staff") return { ok: false, message: "Only the office can do that." };
+  return qaWhenRefusal(r);
+}
+
+export async function scheduleSiteVisit(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ visitId: uuid, date: ymd, time: hhmm }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: qaWhenMessage("no_time") };
+  const v = parsed.data;
+  const r = siteVisitRefusal(await call("wo_site_visit_set_schedule", { p_visit_id: v.visitId, p_date: v.date, p_time: v.time },
+    "Moved — the calendar invite follows."));
+  if (!r.ok) return r;
+  const { workOrderId } = await siteVisitJob(v.visitId);
+  if (workOrderId) {
+    revalidatePath(`/pc/wo/${workOrderId}`);
+    reconcileQaInvites(workOrderId);
+  }
+  return r;
+}
+
+export async function removeSiteVisit(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ visitId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  // Its invite history goes with the row — read it first, so the calendar
+  // entry can be cancelled after.
+  const { workOrderId, log } = await siteVisitJob(parsed.data.visitId);
+  const r = siteVisitRefusal(await call("wo_remove_site_visit", { p_visit_id: parsed.data.visitId }, "Removed — and taken out of the calendar."));
+  if (r.ok && workOrderId) {
+    revalidatePath(`/pc/wo/${workOrderId}`);
+    const service = createServiceClient();
+    const removed = [{ id: parsed.data.visitId, log }];
+    if (service) after(() => sendQaCheckInvites(service, workOrderId, removed));
+  }
+  return r;
+}
+
+/** "Mark visited" — what clears the PC Command card. Never a pass or a fail. */
+export async function markSiteVisitVisited(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ visitId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const r = siteVisitRefusal(await call("wo_site_visit_mark_visited", { p_visit_id: parsed.data.visitId }, "Marked visited."));
+  if (r.ok) {
+    const { workOrderId } = await siteVisitJob(parsed.data.visitId);
+    if (workOrderId) revalidatePath(`/pc/wo/${workOrderId}`);
+  }
+  return r;
+}
+
+/**
+ * A progress note on a visit. Returns the note's id so the page can attach
+ * its photos (app/api/wo/site-visits/photos) BEFORE it is sent — the text the
+ * painter gets says how many photos there are. Sending is its own step.
+ */
+export async function addSiteVisitNote(raw: unknown): Promise<PcResult & { noteId?: string }> {
+  const parsed = z.object({
+    visitId: uuid,
+    body: z.string().trim().min(1, "Write the note first.").max(SITE_VISIT_NOTE_MAX, `Keep a note under ${SITE_VISIT_NOTE_MAX} characters.`),
+    sendToPainter: z.boolean().default(false),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_site_visit_add_note", {
+    p_visit_id: parsed.data.visitId, p_body: parsed.data.body, p_send: parsed.data.sendToPainter,
+  });
+  if (error) {
+    reportError(error, { where: "siteVisit.addNote", extra: { visitId: parsed.data.visitId } });
+    return { ok: false, message: "The note didn't save — try again." };
+  }
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) return siteVisitRefusal({ ok: false, message: s.replace("error:", "").replace(/_/g, " ") });
+  const { workOrderId } = await siteVisitJob(parsed.data.visitId);
+  if (workOrderId) revalidatePath(`/pc/wo/${workOrderId}`);
+  return { ok: true, message: "Note saved.", noteId: s.slice(3) };
+}
+
+/**
+ * Send a note to the job's lead painter — as a MESSAGE in the job's thread
+ * with them (Tom, 9 Oct 2026: one route for messages to the painter;
+ * lib/workorder/siteNoteMessage.ts). Shares it first if it was kept
+ * office-only. Synchronous, so the office reads the outcome: in their
+ * messages and how they were told, or why it didn't go.
+ */
+export async function sendSiteVisitNote(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ noteId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const shared = await call("wo_site_visit_share_note", { p_note_id: parsed.data.noteId });
+  if (!shared.ok) return siteVisitRefusal(shared);
+  const service = createServiceClient();
+  if (!service) return { ok: false, message: "Sending isn't set up on this server." };
+  const supabase = await createClient();
+  const out = await deliverSiteVisitNote(supabase, service, parsed.data.noteId);
+  const { data: noteRow, error } = await supabase.from("wo_site_visit_notes").select("work_order_id").eq("id", parsed.data.noteId).maybeSingle();
+  if (error) reportError(error, { where: "siteVisit.sendNote.job", extra: { noteId: parsed.data.noteId } });
+  const workOrderId = (noteRow as { work_order_id: string } | null)?.work_order_id;
+  if (workOrderId) revalidatePath(`/pc/wo/${workOrderId}`);
+  if (out.outcome === "sent") return { ok: true, message: `In the painter's messages. ${out.detail}`.trim() };
+  if (out.outcome === "already") return { ok: true, message: out.detail };
+  if (out.outcome === "skipped") return { ok: false, message: `Not delivered: ${out.detail}` };
+  return { ok: false, message: out.detail };
+}
+
+/**
+ * Give a check its day and time, move it, or clear it (date null). Must be
+ * before the booked final walkthrough; the invite to whoever takes quality
+ * checks follows (a move updates it, a clear cancels it).
+ */
+export async function scheduleQaCheck(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ checkId: uuid, date: ymd.nullable(), time: hhmm.nullable().default(null) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const v = parsed.data;
+  const r = qaWhenRefusal(await call("wo_qa_set_schedule", { p_check_id: v.checkId, p_date: v.date, p_time: v.time },
+    v.date ? "Scheduled — the calendar invite is on its way." : "Taken out of the calendar."));
+  if (!r.ok) return r;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("wo_qa_checks").select("work_order_id").eq("id", v.checkId).maybeSingle();
+  if (error) {
+    reportError(error, { where: "scheduleQaCheck.job", extra: { checkId: v.checkId } });
+    return r;
+  }
+  const workOrderId = (data as { work_order_id: string } | null)?.work_order_id;
+  if (workOrderId) {
+    revalidatePath(`/pc/wo/${workOrderId}`);
+    reconcileQaInvites(workOrderId);
+  }
+  return r;
 }
 
 /**
@@ -776,11 +988,28 @@ export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: 
   // completion_prep is invisible: from in_progress this walks the hidden stage
   // and routes in one press. Already past the ticks? The finish no-ops with
   // not_in_progress and the confirm still runs.
-  const { data: finished } = await supabase.rpc("wo_contractor_finish", {
+  //
+  // Tom, 6 Oct 2026 (568 Collins St, 40 Jacka Blvd stuck at In progress):
+  // EVERY refusal of the finish is reported in words. This used to pass only
+  // the gate refusals on and drop the rest — so a job short of its after
+  // photos ran the confirm anyway, which answered "not at prep", a code with
+  // nothing to do about it.
+  const { data: finished, error: finishError } = await supabase.rpc("wo_contractor_finish", {
     p_work_order_id: parsed.data.workOrderId,
   });
+  if (finishError) return { ok: false, message: finishError.message };
   const f = String(finished ?? "");
   if (f.startsWith("error:gate:")) return { ok: false, message: humaniseGate(f.slice("error:gate:".length)) };
+  if (f === "error:after_photos_required") {
+    return {
+      ok: false,
+      message: "The job's after photos aren't in yet — the painter's Step 3. Upload them here if they've sent them to you, or press \"Move on without after photos\" and say why.",
+    };
+  }
+  if (f === "error:not_yours") return { ok: false, message: "Only the office or this job's painter can finish it." };
+  if (!f.startsWith("ok:") && f !== "error:not_in_progress") {
+    return { ok: false, message: f.replace("error:", "").replace(/_/g, " ") };
+  }
 
   const { data, error } = await supabase.rpc("wo_contractor_confirm_prep", {
     p_work_order_id: parsed.data.workOrderId,
@@ -789,7 +1018,7 @@ export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: 
 
   const s = String(data ?? "");
   if (s === "ok:qa" || s === "ok:walkthrough" || s === "ok:closed") {
-    revalidatePath("/pc"); revalidatePath("/pc/flow");
+    revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
     return {
       ok: true,
       to: s === "ok:qa" ? "qa" : s === "ok:closed" ? "closed" : "walkthrough",
@@ -801,6 +1030,40 @@ export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: 
     };
   }
   if (s.startsWith("error:gate:")) return { ok: false, message: humaniseGate(s.slice("error:gate:".length)) };
+  // The finish said "not in progress" and the confirm "not at prep": the job
+  // is somewhere else already (another tab moved it, or it is at Quality check).
+  if (s === "error:not_at_prep") return { ok: false, message: "This job isn't at In progress any more — reload the page to see where it is." };
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+}
+
+/**
+ * The office waives the job's after photos (Tom, 6 Oct 2026) — with a reason,
+ * recorded as a wo_event on the timeline. The painter's Step 3 rule stands;
+ * this is the office's key to it, for the job whose finished shots arrived by
+ * text or were never going to come. Migration 20270215.
+ */
+export async function waiveAfterPhotos(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, reason: z.string().trim().min(3).max(500) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Say why in a few words — it goes on the job's record." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_staff_waive_after_photos", {
+    p_work_order_id: parsed.data.workOrderId, p_reason: parsed.data.reason,
+  });
+  if (error) {
+    if (isMissingRpc(error.message, "wo_staff_waive_after_photos")) {
+      return { ok: false, message: "This needs database migration 20270215 run first — nothing was changed." };
+    }
+    return { ok: false, message: error.message };
+  }
+  const s = String(data ?? "");
+  if (s === "ok:waived" || s === "ok:already") {
+    revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+    return { ok: true, message: "Noted on the job — it can move on without after photos. Press All done — next step." };
+  }
+  if (s === "ok:not_needed") return { ok: true, message: "The after photos are already in — nothing to waive. Press All done — next step." };
+  if (s === "error:not_staff") return { ok: false, message: "Only the office can waive the after photos." };
+  if (s === "error:not_in_progress") return { ok: false, message: "This job isn't at In progress — reload the page." };
+  if (s === "error:reason_required") return { ok: false, message: "Say why in a few words — it goes on the job's record." };
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
 }
 
@@ -907,6 +1170,45 @@ export async function setFinishLevel(raw: unknown): Promise<PcResult> {
   return r;
 }
 
+// ---- Further instructions for the crew (Tom, 8 Oct 2026) --------------------
+
+const crewNotesInput = z.object({
+  workOrderId: uuid,
+  notes: z.string().max(4000, "long"),
+});
+
+/**
+ * Write the work order's "further instructions for the crew" from PC Command.
+ * work_orders.crew_notes is the one place it lives; a trigger (20270244)
+ * carries it onto the issued job sheet in the same statement, so the painter's
+ * /w link, crew link and portal job page read the new text on next load.
+ */
+export async function setCrewNotes(raw: unknown): Promise<PcResult> {
+  const p = crewNotesInput.safeParse(raw);
+  if (!p.success) {
+    const long = p.error.issues.some((i) => i.message === "long");
+    return { ok: false, message: long ? "That's too long — keep it under 4,000 characters." : "Check the instructions and try again." };
+  }
+  const r = await call("wo_set_crew_notes", {
+    p_work_order_id: p.data.workOrderId,
+    p_notes: p.data.notes,
+  }, "Saved — the work order carries the new instructions.");
+  if (r.ok) {
+    revalidatePath("/portal/jobs");
+    revalidatePath(`/pc/wo/${p.data.workOrderId}`);
+    return r;
+  }
+  if (isMissingRpc(r.message, "wo_set_crew_notes")) {
+    return { ok: false, message: "Crew instructions need database migration 20270244 run first — nothing was changed." };
+  }
+  if (r.message === "closed") return { ok: false, message: "This job is closed — its work order is final." };
+  if (r.message === "too long") return { ok: false, message: "That's too long — keep it under 4,000 characters." };
+  if (r.message === "not found") return { ok: false, message: "That work order isn't there any more — reload the page." };
+  if (r.message === "not staff") return { ok: false, message: "Only office staff can change the crew's instructions." };
+  reportError(new Error(r.message), { where: "pc.setCrewNotes", extra: { workOrderId: p.data.workOrderId } });
+  return { ok: false, message: "Couldn't save the instructions — try again." };
+}
+
 // ---- Photos the office attaches for the painter (Tom, 23 Sep 2026) ---------
 
 /**
@@ -929,4 +1231,73 @@ export async function deleteReferencePhoto(raw: unknown): Promise<PcResult> {
   if (!r.ok && r.message === "not staff") return { ok: false, message: "Only the office can do that." };
   if (r.ok) revalidatePath("/portal/jobs");
   return r;
+}
+
+/**
+ * Tom, 7 Oct 2026 (PC Command item 5): a client-update note. Two records, one
+ * action: the job's own timeline (wo_events 'client_update_note', via the
+ * staff-only RPC) and the customer's CRM record (crm_events note_added, origin
+ * client_update) so the CRM timeline carries it too. The CRM copy is
+ * best-effort — a job with no customer account simply has no CRM row.
+ */
+export async function addClientUpdateNote(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, body: z.string().trim().min(2).max(2000) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Write what the client was told — a line is plenty (under 2,000 characters)." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_add_client_update_note", {
+    p_work_order_id: parsed.data.workOrderId, p_body: parsed.data.body,
+  });
+  if (error) {
+    if (isMissingRpc(error.message, "wo_add_client_update_note")) {
+      return { ok: false, message: "This needs database migration 20270220 run first — nothing was saved." };
+    }
+    return { ok: false, message: error.message };
+  }
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) {
+    if (s === "error:not_staff") return { ok: false, message: "Only the office can log client updates." };
+    return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") || "That didn't save." };
+  }
+
+  // The customer's CRM record: the account behind the job's estimate.
+  let crm = "";
+  const { data: wo, error: woErr } = await supabase.from("work_orders").select("estimate_id, estimates(account_id)").eq("id", parsed.data.workOrderId).maybeSingle();
+  if (woErr) reportError(woErr, { where: "pc.clientUpdateNote.account" });
+  const est = (wo as { estimates?: { account_id: string | null } | { account_id: string | null }[] | null } | null)?.estimates;
+  const accountId = (Array.isArray(est) ? est[0]?.account_id : est?.account_id) ?? null;
+  if (accountId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: me } = user ? await supabase.from("profiles").select("name").eq("id", user.id).maybeSingle() : { data: null };
+    const author = ((me as { name?: string | null } | null)?.name ?? "").trim() || undefined;
+    const id = await logCrmEvent(supabase, {
+      type: "note_added", accountId, workOrderId: parsed.data.workOrderId,
+      estimateId: (wo as { estimate_id?: string | null } | null)?.estimate_id ?? null,
+      source: "staff", payload: { body: `Client update: ${parsed.data.body}`, ...(author ? { author } : {}), origin: "client_update" },
+    });
+    crm = id ? " and on the customer's CRM record" : " (the CRM copy did not save — it has been reported)";
+    if (!id) reportError(new Error("crm_log_event returned nothing"), { where: "pc.clientUpdateNote.crm", extra: { accountId } });
+  }
+  revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+  if (accountId) revalidatePath(`/crm/customers/${accountId}`);
+  return { ok: true, message: `Logged on the job's timeline${crm}.` };
+}
+
+// ---- Painter status: recompute every painter now (9 Oct 2026) -------------------
+
+/**
+ * The same pass the daily sweep runs, on demand from PC Command → Contractors.
+ * Staff only. Exists because the scheduled sweeps carry a secret the office
+ * cannot read, and the day the tables landed nobody could seed the painters
+ * until 6 pm. Idempotent: the writer diffs and writes events only for change.
+ */
+export async function recomputePainterStatusesAction(): Promise<PcResult & { ran?: number; failed?: number; errors?: string[] }> {
+  const supabase = await createClient();
+  if (!(await requireStaff(supabase))) return { ok: false, message: "Staff only." };
+  const service = createServiceClient();
+  const r = await runPainterStatusSweep(service ?? supabase, { now: new Date() });
+  const errors = r.outcomes.filter((o) => !o.ok).map((o) => `${o.painterId.slice(0, 8)}: ${o.error ?? "?"}`).slice(0, 5);
+  revalidatePath("/pc/contractors"); revalidatePath("/pc"); revalidatePath("/portal");
+  return r.failed === 0
+    ? { ok: true, message: `Recomputed ${r.ran} painter${r.ran === 1 ? "" : "s"}.`, ran: r.ran, failed: 0 }
+    : { ok: false, message: `Recomputed ${r.ran}; ${r.failed} failed — ${errors.join("; ")}`, ran: r.ran, failed: r.failed, errors };
 }

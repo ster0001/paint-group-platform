@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 
 /**
  * C13 — the warehouse pattern (addendum S6b, prototype `s-com-warehouse`).
@@ -71,10 +71,11 @@ test("Tom's check: 1,000–2,500 m², 4–6 m, precast, some racking, operating 
   await expect(page.getByTestId("com-surf")).toHaveCount(0);
   await expect(page.getByTestId("ql-condition-wear")).toContainText(/forklift/i);
   await expect(page.getByTestId("com-occ")).toHaveCount(0);
-  await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range/);
+  await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range|Continue to the last question/);
   await quickNext(page);
 
   // The reveal — the warehouse words and the scissor-lift line on the assume list.
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.getByTestId("reveal-kicker")).toContainText(/Industrial or warehouse/);
   await expect(page.getByTestId("reveal-restatement")).toContainText(/a large warehouse, 4–6 m high, racking against some walls/);
@@ -91,9 +92,10 @@ test("Tom's check: 1,000–2,500 m², 4–6 m, precast, some racking, operating 
   await page.getByTestId("door-tighten").click();
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
   await expect(page.getByTestId("estimator-strip").first()).toBeVisible({ timeout: 60_000 });
-  const body = await page.locator("body").innerText();
-  expect(body).toContain("Warehouse floor");
-  expect(body).toContain("Office 1");
+  // Retrying assertions: the strip can paint before the room cards do, and a
+  // one-shot innerText read the page in that gap ("0 OF 2 ROOMS" and no names).
+  await expect(page.locator("body")).toContainText("Warehouse floor", { timeout: 30_000 });
+  await expect(page.locator("body")).toContainText("Office 1");
   // Tom, 14 Sep (item 26): the settle list is the estimator's (the pack); the
   // customer read the scissor lift and the racking on the reveal's assumed list above.
   await expect(page.locator(".wz-confirmonsite")).toHaveCount(0);
@@ -107,6 +109,7 @@ test("a lift on site removes the scissor-lift line; up to 4 m never has one", as
   await page.getByTestId("wh-lift-yes").click();
   await quickNext(page);
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("reveal-assumed-toggle").click();
   await expect(page.getByTestId("reveal-assumed-height")).toContainText(/Your lift used — no hire allowed for/);

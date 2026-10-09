@@ -19,7 +19,6 @@ import {
  */
 
 type Props = {
-  workOrderId: string;
   surfaces: SurfaceRow[];
   /** Step 1 done: a before photo exists anywhere on the job. */
   hasBeforePhoto: boolean;
@@ -145,8 +144,8 @@ export default function TickList({
                   <span className="chip amb">Removed from scope</span>
                 </div>
               ) : (
+                <div key={row.id} className="tickwrap">
                 <button
-                  key={row.id}
                   type="button"
                   className={`tickrow ${row.state}${locked && !row.photosOptional ? " locked" : ""}`}
                   onClick={() => tap(row)}
@@ -170,6 +169,7 @@ export default function TickList({
                     {LABEL[row.state]}
                   </span>
                 </button>
+                </div>
               ),
             )}
 

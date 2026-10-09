@@ -7,6 +7,9 @@ import { useRef, useState } from "react";
  * size is too small to read while working. Zoom with the +/− controls, the
  * wheel, or a slider; drag to pan when zoomed in. No dependencies: a CSS
  * transform inside an overflow-hidden frame.
+ *
+ * Tom, 7 Oct 2026 (item 3): pinch to zoom on a phone — two pointers tracked
+ * by id; the zoom follows the change in the distance between them.
  */
 export default function PlanViewer({ src, title = "THE FLOORPLAN", note = "AS UPLOADED", onExpand, onClose }: {
   src: string;
@@ -23,6 +26,13 @@ export default function PlanViewer({ src, title = "THE FLOORPLAN", note = "AS UP
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinch = useRef<{ dist: number; zoom: number } | null>(null);
+  const pinchDist = () => {
+    const pts = [...pointers.current.values()];
+    if (pts.length < 2) return null;
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  };
 
   const clampZoom = (z: number) => Math.min(5, Math.max(1, Math.round(z * 20) / 20));
   const setZ = (z: number) => {
@@ -53,16 +63,26 @@ export default function PlanViewer({ src, title = "THE FLOORPLAN", note = "AS UP
         className="wz-planframe"
         onWheel={(e) => { if (e.ctrlKey || e.metaKey || zoom > 1) { e.preventDefault(); setZ(zoom - e.deltaY * 0.002); } }}
         onPointerDown={(e) => {
+          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          const d = pinchDist();
+          if (d != null) { pinch.current = { dist: d, zoom }; drag.current = null; setDragging(false); return; }
           if (zoom <= 1) return;
           drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
           setDragging(true);
-          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         }}
         onPointerMove={(e) => {
+          if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (pinch.current) {
+            const d = pinchDist();
+            if (d != null && pinch.current.dist > 0) setZ(pinch.current.zoom * (d / pinch.current.dist));
+            return;
+          }
           if (!drag.current) return;
           setPan({ x: drag.current.px + (e.clientX - drag.current.x), y: drag.current.py + (e.clientY - drag.current.y) });
         }}
-        onPointerUp={() => { drag.current = null; setDragging(false); }}
+        onPointerUp={(e) => { pointers.current.delete(e.pointerId); if (pointers.current.size < 2) pinch.current = null; drag.current = null; setDragging(false); }}
+        onPointerCancel={(e) => { pointers.current.delete(e.pointerId); pinch.current = null; drag.current = null; setDragging(false); }}
         style={{ cursor: zoom > 1 ? (dragging ? "grabbing" : "grab") : "default" }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}

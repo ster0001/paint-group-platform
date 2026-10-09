@@ -1,0 +1,1655 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paint Group estimator wizard: redesign mockup, all job types</title>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ───────── tokens: the live wizard's light theme, used with more conviction ───────── */
+:root{
+  --page:#F2F5F6; --card:#FFFFFF; --soft:#E8EEF1; --line:#D5DDE2; --line2:#B4C0C8;
+  --ink:#0D161C; --text:#16212A; --muted:#54626D;
+  --paint:#3BD8E9; --paint-ink:#03272D; --teal:#0A7C8E; --wash:#DFF6FA; --wash2:#BDEBF3;
+  --amber:#9A5F0A; --amber-wash:#FCF3E0; --amber-line:#E5C078;
+  --green:#1F8A55; --clay:#A8402F;
+  --sans:"Switzer","Geist",-apple-system,"Segoe UI",system-ui,sans-serif;
+  --mono:"Martian Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:16px; --shadow:0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28);
+  --swatch:#F3EFE6;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--sans);font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+h1,h2,h3,p{margin:0}
+:focus-visible{outline:3px solid var(--teal);outline-offset:3px;border-radius:8px}
+.mono{font-family:var(--mono);font-feature-settings:"zero" 0}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ───────── mockup-only jump bar ───────── */
+.mockbar{background:var(--ink);color:#C9D3D9;font-size:13px;display:flex;align-items:center;gap:6px;padding:7px 14px;overflow-x:auto;white-space:nowrap}
+.mockbar b{color:#fff;font-weight:600;margin-right:6px}
+.mockbar button{background:none;border:1px solid #33424D;color:#DCE4E8;border-radius:99px;padding:5px 12px;font-size:13px}
+.mockbar button.on{background:var(--paint);border-color:var(--paint);color:var(--paint-ink);font-weight:600}
+
+/* ───────── top bar ───────── */
+.top{position:sticky;top:0;z-index:30;background:rgba(242,245,246,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;gap:20px}
+.logo{font-weight:700;letter-spacing:.02em;font-size:17px;color:var(--ink);text-decoration:none;flex:none}
+.logo span{color:#7B8791;font-weight:600}
+.logo i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--paint);margin-left:3px;transform:translateY(-8px)}
+.rail{flex:1;display:flex;align-items:center;justify-content:center;gap:4px;min-width:0;overflow:hidden;padding:0 8px}
+.rail li{list-style:none;display:flex;align-items:center;gap:7px;font-size:14px;color:var(--muted);white-space:nowrap}
+.rail ol{display:flex;gap:16px;margin:0;padding:0;align-items:center}
+.rail .n{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;font-size:12px;font-family:var(--mono);background:var(--card);flex:none}
+.rail li.done .n{background:var(--teal);border-color:var(--teal);color:#fff}
+.rail li.cur{color:var(--ink);font-weight:600}
+.rail li.cur .n{border-color:var(--ink);background:var(--ink);color:#fff}
+.rail li.end{color:var(--teal);font-weight:600;padding-left:16px;border-left:1.5px solid var(--line2)}
+.stripe{position:absolute;left:0;bottom:-1px;height:3px;background:var(--paint);transition:width .6s cubic-bezier(.2,.7,.2,1);border-radius:0 3px 3px 0}
+.top-r{display:flex;align-items:center;gap:14px;flex:none;margin-left:auto}
+.saved{font-size:13.5px;color:var(--green);display:none;align-items:center;gap:5px}
+@media (min-width:1500px){.saved.show{display:flex}}
+.iconb{width:42px;height:42px;border-radius:50%;background:var(--card);border:1.5px solid var(--line2);display:grid;place-items:center;color:var(--ink);padding:0}
+.iconb svg{width:19px;height:19px}
+.iconb:hover{border-color:var(--ink)}
+.tel{font-family:var(--mono);font-size:14px;color:var(--ink);text-decoration:none;font-weight:600;display:flex;align-items:center;gap:7px}
+.tel svg{width:17px;height:17px}
+.ghost{background:var(--card);border:1.5px solid var(--line2);border-radius:99px;padding:9px 16px;font-size:14.5px;font-weight:600;color:var(--ink)}
+.ghost:hover{border-color:var(--ink)}
+.mprog{display:none}
+
+/* ───────── wizard layout: questions left, the live picture right ───────── */
+.stage{max-width:1240px;margin:0 auto;padding:44px 24px 120px;display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:64px;align-items:start}
+.pane{max-width:640px;min-width:0}
+.kick{font-size:14.5px;color:var(--teal);font-weight:600;margin-bottom:10px}
+h1{font-size:clamp(30px,3.5vw,46px);line-height:1.06;letter-spacing:-.035em;font-weight:600;color:var(--ink);text-wrap:balance}
+.sub{color:var(--muted);font-size:18px;margin-top:14px;max-width:34em}
+.q{margin-top:34px}
+.q > h2{font-size:19px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.q > .hint{color:var(--muted);font-size:15.5px;margin-top:3px}
+.q > .body{margin-top:12px}
+.opt-tag{font-size:13px;font-weight:500;color:var(--muted);background:var(--soft);border-radius:99px;padding:2px 9px;margin-left:8px;vertical-align:2px}
+.enter .pane > *{animation:rise .45s both cubic-bezier(.2,.7,.2,1)}
+.enter .pane > *:nth-child(2){animation-delay:.04s}.enter .pane > *:nth-child(3){animation-delay:.08s}
+.enter .pane > *:nth-child(4){animation-delay:.12s}.enter .pane > *:nth-child(n+5){animation-delay:.16s}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+/* option cards: selecting one paints it */
+.opts{display:grid;gap:12px}
+.opts.c2{grid-template-columns:1fr 1fr}.opts.c3{grid-template-columns:repeat(3,1fr)}
+.opt{position:relative;text-align:left;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:16px 48px 16px 16px;min-height:72px;display:flex;gap:14px;align-items:center;overflow:hidden;transition:border-color .15s, box-shadow .15s, transform .1s}
+.opt:hover{border-color:var(--line2);box-shadow:var(--shadow)}
+.opt:active{transform:scale(.99)}
+.opt::before{content:"";position:absolute;inset:0;background:var(--wash);transform:scaleX(0);transform-origin:left;transition:none;z-index:0}
+.opt.on{border-color:var(--teal)}
+.opt.on::before{transform:scaleX(1)}
+.opt.on.just::before{animation:roll .42s cubic-bezier(.3,.7,.2,1)}
+@keyframes roll{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.opt > *{position:relative;z-index:1}
+.opt b{display:block;font-weight:600;font-size:17.5px;color:var(--ink)}
+.opt small{display:block;color:var(--muted);font-size:14.5px;line-height:1.35;margin-top:2px}
+.opt .pic{width:46px;height:46px;flex:none;color:var(--muted)}
+.opt.on .pic{color:var(--teal)}
+.opt .tick{position:absolute;right:14px;top:50%;margin-top:-13px;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line2);background:var(--card);display:grid;place-items:center;z-index:1}
+.opt .tick svg{width:14px;height:14px;opacity:0;transform:scale(.4);transition:.2s .12s}
+.opt.on .tick{background:var(--teal);border-color:var(--teal);color:#fff}
+.opt.on .tick svg{opacity:1;transform:none}
+.opt.col{flex-direction:column;align-items:flex-start;padding:16px;min-height:132px;gap:10px}
+.opt.col .tick{top:14px;margin-top:0}
+
+/* chips (tick-many) and segmented (pick-one) */
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{display:inline-flex;align-items:center;gap:9px;min-height:50px;padding:0 18px 0 14px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);font-weight:500;font-size:16.5px;color:var(--text);transition:.15s}
+.chip .bx{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line2);display:grid;place-items:center;flex:none;background:#fff}
+.chip .bx svg{width:13px;height:13px;opacity:0}
+.chip.on{border-color:var(--teal);background:var(--wash);color:var(--ink)}
+.chip.on .bx{background:var(--teal);border-color:var(--teal);color:#fff}
+.chip.on .bx svg{opacity:1}
+.chip.plain{padding:0 20px}
+.seg{display:inline-flex;background:var(--soft);border-radius:14px;padding:4px;gap:4px;flex-wrap:wrap}
+.seg button{min-width:58px;min-height:50px;border:0;border-radius:11px;background:transparent;font-weight:600;font-size:17px;color:var(--muted);padding:0 18px}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(13,22,28,.18)}
+.seg.num button{font-family:var(--mono);font-size:16px}
+
+/* fields */
+.field{display:block;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:11px 16px 12px;transition:.15s}
+.field:focus-within{border-color:var(--teal);box-shadow:0 0 0 4px var(--wash)}
+.field span{display:block;font-size:14px;color:var(--muted);font-weight:500}
+.field input{display:block;width:100%;border:0;outline:0;background:transparent;font-size:18px;padding:2px 0 0;color:var(--ink)}
+.field.big{display:flex;align-items:center;gap:12px;padding:6px 8px 6px 16px}
+.field.big svg{width:24px;height:24px;color:var(--teal);flex:none}
+.field.big input{font-size:19px;padding:13px 0}
+.sugg{margin-top:6px;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+.sugg button{display:flex;gap:10px;width:100%;text-align:left;border:0;background:none;padding:13px 16px;font-size:16.5px;border-top:1px solid var(--soft)}
+.sugg button:first-child{border-top:0}.sugg button:hover{background:var(--wash)}
+.addr-ok{display:flex;align-items:center;gap:10px;margin-top:8px;color:var(--green);font-size:15px;font-weight:500}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.drop{border:1.5px dashed var(--line2);border-radius:var(--r);background:var(--card);padding:16px;display:flex;gap:12px;align-items:center;text-align:left;width:100%;min-height:76px}
+.drop:hover{border-color:var(--teal);background:var(--wash)}
+.drop svg{width:30px;height:30px;color:var(--teal);flex:none}
+.drop b{display:block;font-size:16px}.drop small{color:var(--muted);font-size:14px}
+.consent{display:flex;gap:11px;align-items:flex-start;font-size:15.5px;color:var(--muted);margin-top:14px;cursor:pointer}
+.consent input{width:22px;height:22px;accent-color:var(--teal);flex:none;margin:1px 0 0}
+
+/* step nav */
+.nav{display:flex;align-items:center;gap:14px;margin-top:40px}
+.btn{border:0;border-radius:99px;min-height:58px;padding:0 30px;font-weight:600;font-size:18px;display:inline-flex;align-items:center;justify-content:center;gap:10px;transition:transform .1s, box-shadow .15s, background .15s}
+.btn.pri{background:var(--paint);color:var(--paint-ink);min-width:240px;box-shadow:0 10px 24px -12px rgba(11,150,170,.9)}
+.btn.pri:hover{background:#5FE2F0}
+.btn.pri:active{transform:translateY(1px)}
+.btn.pri[disabled]{background:var(--soft);color:#8894A0;box-shadow:none;cursor:not-allowed}
+.btn.sec{background:var(--card);border:1.5px solid var(--line2);color:var(--ink)}
+.btn.sec:hover{border-color:var(--ink)}
+.btn.txt{background:none;color:var(--muted);padding:0 14px;min-width:0}
+.btn.txt:hover{color:var(--ink)}
+.btn svg{width:18px;height:18px}
+.navnote{font-size:14.5px;color:var(--muted)}
+.why{margin-top:10px;font-size:14.5px;color:var(--amber);display:none}
+.why.show{display:block}
+
+/* ───────── the side panel: your job, drawn ───────── */
+.side{position:sticky;top:88px;display:grid;gap:16px}
+.viz{background:var(--card);border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:var(--shadow)}
+.viz-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:14px 18px 10px}
+.viz-head b{font-size:15.5px;font-weight:600}
+.viz-head span{font-size:13.5px;color:var(--muted)}
+.viz-art{background:linear-gradient(#EEF3F5,#E3EAEE);position:relative;aspect-ratio:4/3}
+.viz-art svg{position:absolute;inset:0;width:100%;height:100%;display:none}
+.viz-art svg.show{display:block}
+.viz-note{padding:11px 18px 13px;font-size:14.5px;color:var(--muted);min-height:46px;border-top:1px solid var(--soft)}
+.viz-note b{color:var(--ink);font-weight:600}
+.swatches{display:none;align-items:center;gap:9px;padding:0 18px 14px;font-size:14px;color:var(--muted);flex-wrap:wrap}
+.swatches.show{display:flex}
+.swatches button{width:34px;height:34px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1.5px var(--line2);padding:0}
+.swatches button.on{box-shadow:0 0 0 2.5px var(--teal)}
+/* room drawing */
+#room .s{transition:fill .7s cubic-bezier(.4,0,.2,1);stroke:#16212A;stroke-opacity:.16;stroke-width:1;stroke-linejoin:round}
+#room .s-ceiling{fill:#DAD3C2}#room .s-ceiling.on{fill:#FBFCFC}
+#room .s-wall{fill:#C9BB9C}#room .s-wall.on{fill:var(--swatch);transition-delay:.08s}
+#room .s-cornice{fill:#CFC5AE}#room .s-cornice.on{fill:#FFFFFF}
+#room .s-skirting{fill:#BFB08C}#room .s-skirting.on{fill:#FFFFFF;transition-delay:.16s}
+#room .s-arch{fill:#BFB08C}#room .s-arch.on{fill:#FFFFFF;transition-delay:.2s}
+#room .s-door{fill:#CDBE9C}#room .s-door.on{fill:#FBFBF8;transition-delay:.24s}
+#room .s-win{fill:#BFB08C}#room .s-win.on{fill:#FFFFFF;transition-delay:.28s}
+#room .shade{fill:#0D161C;opacity:.07;pointer-events:none}
+#room .floor{fill:#B79C78}
+#room .hl{stroke:var(--teal);stroke-opacity:1;stroke-width:3;animation:pulse 1s 2}
+@keyframes pulse{50%{stroke-width:5.5}}
+#room .marks > g{opacity:0;transition:opacity .4s}
+#room.c-good .m1,#room.c-wear .m1,#room.c-wear .m2,#room.c-needs_work .m1,#room.c-needs_work .m2,#room.c-needs_work .m3{opacity:1}
+#room.painted .marks > g{opacity:0}
+#room .roller{opacity:0}
+#room .roller.go{animation:sweep .95s cubic-bezier(.4,0,.2,1)}
+@keyframes sweep{0%{opacity:0;transform:translate(0,0)}12%{opacity:1}50%{transform:translate(190px,26px)}88%{opacity:1}100%{opacity:0;transform:translate(60px,-8px)}}
+#room .people{opacity:0;transition:opacity .4s}#room.occ .people{opacity:1}
+/* house drawing */
+#house .hr{fill:#55636E}#house .ht{fill:#fff;stroke:#16212A;stroke-opacity:.25}
+#house .glass{fill:#9FB3BF;transition:fill .6s}#house.p-in .glass,#house.p-both .glass{fill:#FFE9A8}
+#house .up,#house .roof{transition:transform .6s cubic-bezier(.2,.8,.2,1), opacity .4s}
+#house .up{opacity:0;transform:translateY(70px)}#house.two .up{opacity:1;transform:none}
+#house.two .roof{transform:translateY(-70px)}
+#house .kind{display:none}
+#house[data-k~="k1"] .k1,#house[data-k~="k2"] .k2,#house[data-k~="k3"] .k3,#house[data-k~="k4"] .k4,#house[data-k~="k5"] .k5{display:block}
+/* plan drawing */
+.plansvg rect.rm{fill:#fff;stroke:#16212A;stroke-opacity:.45;stroke-width:1.5;transition:fill .6s}
+.plansvg g.off rect.rm{fill:transparent;stroke-dasharray:5 4;stroke-opacity:.3}
+.plansvg g.off text{opacity:.4}
+.plansvg g.todo rect.rm{fill:var(--amber-wash);stroke:var(--amber);stroke-opacity:.8}
+.plansvg g.ok rect.rm{fill:#8FDDE8;stroke:var(--teal);stroke-opacity:1}
+.plansvg g.cur rect.rm{stroke-width:3}
+.plansvg text{font:500 11px var(--sans);fill:#16212A;pointer-events:none}
+.plansvg g[data-a]{cursor:pointer}
+.plansvg .tk{opacity:0;transition:opacity .3s .3s}.plansvg g.ok .tk{opacity:1}
+
+.sofar{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px 18px}
+.sofar h3{font-size:15.5px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline}
+.sofar h3 span{font-weight:400;color:var(--muted);font-size:14px}
+.sofar ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:0}
+.sofar li{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:start;padding:9px 0;border-top:1px solid var(--soft);font-size:15px}
+.sofar li.new{animation:rise .5s both}
+.sofar li svg{width:18px;height:18px;color:var(--teal);margin-top:2px}
+.sofar li small{display:block;color:var(--muted);font-size:13.5px}
+.sofar li button{border:0;background:none;color:var(--teal);font-size:14px;text-decoration:underline;text-underline-offset:3px;padding:2px}
+.sofar .empty{color:var(--muted);font-size:15px;padding:10px 0 2px;border-top:1px solid var(--soft);margin-top:10px}
+.talk{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px 16px;display:grid;gap:12px}
+.who{display:flex;gap:12px;align-items:center}
+.av{width:46px;height:46px;border-radius:50%;background:var(--paint);color:var(--paint-ink);display:grid;place-items:center;font-weight:700;font-size:15px;flex:none;position:relative}
+.av::after{content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;border-radius:50%;background:var(--green);border:2.5px solid #fff}
+.who b{display:block;font-size:16px;line-height:1.25}.who small{color:var(--muted);font-size:14px}
+.talk-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.talk-row a,.talk-row button{display:flex;flex-direction:column;align-items:center;gap:5px;text-decoration:none;color:var(--ink);background:var(--page);border:1px solid var(--line);border-radius:14px;padding:10px 6px;font-size:14px;font-weight:600;min-height:64px;justify-content:center}
+.talk-row svg{width:20px;height:20px;color:var(--teal)}
+.talk-row a:hover,.talk-row button:hover{border-color:var(--teal);background:var(--wash)}
+.talk-m{display:none}
+
+/* working */
+.working{padding:70px 0;text-align:left}
+.working ol{list-style:none;padding:0;margin:28px 0 0;display:grid;gap:14px}
+.working li{display:flex;gap:12px;align-items:center;font-size:18px;color:var(--muted);opacity:.35;transition:.3s}
+.working li.on{opacity:1;color:var(--ink)}
+.working li i{width:26px;height:26px;border-radius:50%;border:2px solid var(--line2);display:grid;place-items:center;flex:none}
+.working li.on i{background:var(--teal);border-color:var(--teal);color:#fff}
+.working li i svg{width:13px;height:13px;opacity:0}.working li.on i svg{opacity:1}
+.bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:30px;max-width:420px}
+.bar i{display:block;height:100%;background:var(--paint);width:0;transition:width 1.9s cubic-bezier(.3,.6,.2,1);border-radius:99px}
+
+/* ───────── range reveal ───────── */
+.wide{max-width:1240px;margin:0 auto;padding:40px 24px 120px}
+.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:28px;align-items:stretch}
+.rangecard{background:var(--card);border:1px solid var(--line);border-radius:26px;padding:34px 36px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.rangecard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:10px;background:var(--paint)}
+.rlabel{font-size:15.5px;font-weight:600;color:var(--teal);display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;font-size:13px;font-weight:600;padding:3px 11px;border:1.5px solid var(--amber-line);color:var(--amber);background:var(--amber-wash)}
+.pill.det{border-color:var(--wash2);color:var(--teal);background:var(--wash)}
+.pill.ok{border-color:#BFE3CF;color:var(--green);background:#E8F6EE}
+.bigrange{font-family:var(--mono);font-weight:700;letter-spacing:-.04em;font-size:clamp(34px,5.4vw,68px);line-height:1.05;color:var(--ink);margin-top:14px;white-space:nowrap}
+.bigrange span{color:var(--line2);font-weight:400;margin:0 .12em}
+.gst{color:var(--muted);font-size:15px;margin-top:10px}
+.based{font-size:17.5px;margin-top:18px;max-width:36em}
+.ladder{margin-top:26px;display:grid;gap:9px}
+.ladder .row{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:center;font-size:14.5px;color:var(--muted)}
+.ladder .row b{color:var(--ink);font-weight:600}
+.ladder .trk{height:14px;border-radius:99px;background:var(--soft);position:relative}
+.ladder .trk i{position:absolute;top:0;bottom:0;border-radius:99px;background:var(--line2);left:50%;transform:translateX(-50%);width:0;transition:width 1s .5s cubic-bezier(.2,.7,.2,1)}
+.ladder .row.now .trk i{background:var(--paint)}
+.ladder .row em{font-style:normal;display:block;font-size:13.5px}
+.doors{display:grid;gap:12px;align-content:start}
+.doors h2{font-size:21px;font-weight:600;letter-spacing:-.01em;margin:6px 0 4px}
+.door{display:grid;grid-template-columns:48px 1fr 22px;gap:14px;align-items:center;text-align:left;background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:16px 18px;min-height:80px;transition:.15s}
+.door:hover{border-color:var(--ink);box-shadow:var(--shadow)}
+.door .ic{width:48px;height:48px;border-radius:14px;background:var(--page);display:grid;place-items:center;color:var(--teal)}
+.door .ic svg{width:24px;height:24px}
+.door b{display:block;font-size:18px}.door small{color:var(--muted);font-size:15px}
+.door > svg{width:20px;height:20px;color:var(--muted)}
+.door.heroD{background:var(--paint);border-color:var(--paint);color:var(--paint-ink);min-height:104px;box-shadow:0 14px 30px -16px rgba(11,150,170,.9)}
+.door.heroD .ic{background:rgba(255,255,255,.55);color:var(--paint-ink)}
+.door.heroD small{color:#0A4651}.door.heroD b{font-size:21px}.door.heroD > svg{color:var(--paint-ink)}
+.door.heroD:hover{background:#5FE2F0;border-color:#5FE2F0}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:28px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:22px}
+.card h3{font-size:18px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.card h3 span{font-size:14px;font-weight:400;color:var(--muted)}
+.assumed{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:0}
+.assumed li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--soft);font-size:15.5px}
+.assumed li span{color:var(--muted)}
+.assumed li > span:first-child{white-space:nowrap}
+#edmain > *,.rc-b > *,.tiles > *,.sizeq > *,.qq > *,.hero > *,.fin > *,.grid3 > *{min-width:0}
+.mprog:empty{display:none!important}
+.assumed li.open b{color:var(--amber);font-weight:500}
+.job{display:grid;gap:10px;margin-top:12px}
+.job .ph{aspect-ratio:16/9;border-radius:14px;background:linear-gradient(135deg,#CFE9EE,#F3EFE6);display:grid;place-items:center;color:var(--muted);font-size:13.5px;border:1px dashed var(--line2)}
+.job p{font-size:15.5px}.job .mono{font-weight:700;font-size:17px}
+.proof{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:12px}
+.proof li{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:center;font-size:15.5px}
+.proof li i{width:40px;height:40px;border-radius:12px;background:var(--wash);display:grid;place-items:center;color:var(--teal)}
+.proof li i svg{width:20px;height:20px}
+.proof b{display:block}.proof small{color:var(--muted);font-size:14px}
+.wwd{margin-top:20px}
+.wwd-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 36px;margin-top:8px}
+.wwd-grid div{padding:14px 0;border-top:1px solid var(--soft)}
+.wwd-grid b{display:flex;justify-content:space-between;gap:10px;font-size:16.5px}
+.wwd-grid b span{font-family:var(--mono);font-size:12.5px;color:var(--teal);font-weight:600;white-space:nowrap}
+.wwd-grid p{color:var(--muted);font-size:15px;margin-top:3px}
+.wwd-grid p.warn{color:var(--amber);font-size:14px}
+.signoff{margin-top:20px;background:var(--ink);color:#E5ECEF;border-radius:22px;padding:18px 22px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.signoff .who b{color:#fff}.signoff .who small{color:#A9B6BE}
+.signoff .sp{flex:1}
+.signoff .btn{min-height:50px;font-size:16px;padding:0 22px}
+
+/* ───────── room by room ───────── */
+.ed{max-width:1240px;margin:0 auto;padding:30px 24px 140px;display:grid;grid-template-columns:minmax(0,1fr) 410px;gap:36px;align-items:start}
+.ed-main{min-width:0;display:grid;gap:14px}
+.ed-title h1{font-size:clamp(26px,2.8vw,36px)}
+.ed-title p{color:var(--muted);margin-top:8px;font-size:17px}
+.sect{font-size:14.5px;font-weight:600;color:var(--muted);margin:14px 2px 0;display:flex;justify-content:space-between}
+.rc{background:var(--card);border:1px solid var(--line);border-radius:20px;overflow:hidden;transition:box-shadow .2s, border-color .2s}
+.rc.open{border-color:var(--amber-line);box-shadow:var(--shadow)}
+.rc.ok{border-color:var(--wash2)}
+.rc-h{display:grid;grid-template-columns:34px 1fr auto;gap:14px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:16px 18px;min-height:68px}
+.rc-h .st{width:34px;height:34px;border-radius:50%;border:2px solid var(--amber-line);background:var(--amber-wash);display:grid;place-items:center;color:var(--amber);font-family:var(--mono);font-size:13px;font-weight:600}
+.rc.ok .rc-h .st{background:var(--teal);border-color:var(--teal);color:#fff}
+.rc-h .st svg{width:15px;height:15px}
+.rc-h b{font-size:18.5px;font-weight:600;color:var(--ink)}
+.rc-h small{display:block;color:var(--muted);font-size:14.5px}
+.rc-h .act{font-size:14.5px;font-weight:600;color:var(--amber);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.rc.ok .rc-h .act{color:var(--teal)}
+.rc-h .act svg{width:16px;height:16px;transition:transform .2s}
+.rc.open .rc-h .act svg{transform:rotate(180deg)}
+.rc-b{padding:4px 18px 20px;display:grid;gap:22px;animation:rise .35s both}
+.blk > h3{font-size:16.5px;font-weight:600;display:flex;align-items:center;gap:9px}
+.blk > h3 i{width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;font-style:normal;font-family:var(--mono);font-size:12px;display:grid;place-items:center;flex:none}
+.blk > h3 i.done{background:var(--teal)}
+.blk > .body{margin-top:12px}
+.sizeq{display:grid;grid-template-columns:120px 1fr;gap:18px;align-items:center;background:var(--amber-wash);border:1px solid var(--amber-line);border-radius:16px;padding:14px 16px}
+.sizeq.done{background:var(--wash);border-color:var(--wash2)}
+.sizeq svg{width:120px;height:92px}
+.sizeq p{font-size:17.5px;font-weight:600;color:var(--ink)}
+.sizeq p span{font-family:var(--mono);font-size:16px}
+.sizeq .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.pillbtn{min-height:48px;border-radius:99px;border:1.5px solid var(--line2);background:var(--card);padding:0 20px;font-weight:600;font-size:16px}
+.pillbtn.on{background:var(--teal);border-color:var(--teal);color:#fff}
+.pillbtn:hover{border-color:var(--ink)}
+.stepper{display:inline-flex;align-items:center;gap:4px;background:var(--card);border:1.5px solid var(--line2);border-radius:99px;padding:3px}
+.stepper button{width:40px;height:40px;border-radius:50%;border:0;background:var(--page);font-size:20px;font-weight:600;line-height:1}
+.stepper button:hover{background:var(--wash)}
+.stepper output{min-width:58px;text-align:center;font-family:var(--mono);font-weight:600;font-size:15px}
+.dim{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.tile{position:relative;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:12px;min-height:92px;display:flex;flex-direction:column;gap:6px;text-align:left;transition:.15s}
+.tile .t{display:flex;align-items:center;gap:9px;background:none;border:0;padding:0;text-align:left;font-weight:600;font-size:15.5px;width:100%;min-height:30px}
+.tile .t svg.pic{width:26px;height:26px;color:var(--muted);flex:none}
+.tile .t .bx{margin-left:auto;width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line2);display:grid;place-items:center;flex:none;background:#fff}
+.tile .t .bx svg{width:13px;height:13px;opacity:0}
+.tile.on{border-color:var(--teal);background:var(--wash)}
+.tile.on .t svg.pic{color:var(--teal)}
+.tile.on .t .bx{background:var(--teal);border-color:var(--teal);color:#fff}.tile.on .t .bx svg{opacity:1}
+.tile:not(.on){color:var(--muted)}
+.tile .ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:auto}
+.tile .stepper{padding:2px}.tile .stepper button{width:34px;height:34px}.tile .stepper output{min-width:26px}
+.mini{display:inline-flex;background:#fff;border:1.5px solid var(--line2);border-radius:99px;padding:2px}
+.mini button{border:0;background:none;border-radius:99px;min-width:36px;height:34px;font-size:13.5px;font-weight:600;color:var(--muted);padding:0 9px}
+.mini button.on{background:var(--teal);color:#fff}
+.tile.w2{grid-column:span 2}
+.flag{font-size:12.5px;color:var(--amber);font-weight:600}
+.yn{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:11px 0;border-top:1px solid var(--soft);font-size:16px}
+.yn:first-child{border-top:0}
+.yn .mini button{min-width:54px;height:40px;font-size:15px}
+.confirm{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.confirm .btn{min-height:54px}
+.shake{animation:shake .4s}
+@keyframes shake{20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+.qq{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;display:grid;grid-template-columns:150px 1fr;gap:20px;align-items:center}
+.qq .art{aspect-ratio:1;border-radius:14px;background:var(--page);display:grid;place-items:center}
+.qq .art svg{width:82%;height:82%}
+.qq .meta{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);gap:10px}
+.qq .meta b{color:var(--teal);font-weight:600}
+.qq h3{font-size:20px;font-weight:600;margin-top:4px;letter-spacing:-.01em}
+.qq p{color:var(--muted);font-size:15.5px;margin-top:2px}
+.qq .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center}
+.qq .skip{border:0;background:none;color:var(--muted);text-decoration:underline;text-underline-offset:3px;font-size:15px;padding:8px}
+.qq.done{grid-template-columns:1fr;background:var(--wash);border-color:var(--wash2)}
+.dots{display:flex;gap:5px;align-items:center}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--line2)}.dots i.d{background:var(--teal)}.dots i.c{width:20px;border-radius:99px;background:var(--ink)}
+.extras{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
+.extras .chip{min-height:46px;font-size:15.5px}
+.extras .chip .mono{font-size:13px;color:var(--muted)}
+
+.ed-side{position:sticky;top:88px;display:grid;gap:14px}
+.price{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:var(--shadow)}
+.price .lab{display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:600}
+.price .num{font-family:var(--mono);font-weight:700;font-size:clamp(22px,2.2vw,29px);letter-spacing:-.04em;margin-top:10px;color:var(--ink);white-space:nowrap}
+.price .gst{font-size:13.5px;margin-top:4px}
+.band{height:16px;background:var(--soft);border-radius:99px;position:relative;margin-top:16px}
+.band .was{position:absolute;top:0;bottom:0;border-radius:99px;border:1.5px dashed var(--line2)}
+.band .now{position:absolute;top:0;bottom:0;border-radius:99px;background:var(--paint);transition:left .7s cubic-bezier(.2,.7,.2,1), width .7s cubic-bezier(.2,.7,.2,1)}
+.bandlab{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-top:6px}
+.todo{list-style:none;padding:0;margin:16px 0 0;display:grid}
+.todo li{display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--soft);font-size:15px}
+.todo li i{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center}
+.todo li i svg{width:12px;height:12px;opacity:0}
+.todo li.d i{background:var(--teal);border-color:var(--teal);color:#fff}.todo li.d i svg{opacity:1}
+.todo li span{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.price .btn{width:100%;margin-top:14px}
+.price .btn.sec{margin-top:8px;min-height:52px;font-size:16.5px}
+.mapcard{background:var(--card);border:1px solid var(--line);border-radius:22px;overflow:hidden}
+.mapcard .viz-art{aspect-ratio:4/2.9}
+.key{display:flex;gap:14px;padding:10px 16px 12px;font-size:13.5px;color:var(--muted);flex-wrap:wrap}
+.key i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:6px;vertical-align:-1px}
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,30px);background:var(--ink);color:#fff;border-radius:99px;padding:12px 20px;font-size:15.5px;font-weight:500;opacity:0;transition:.3s;z-index:60;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast b{color:var(--paint);font-family:var(--mono);font-size:14px}
+.mstrip{display:none}
+.dock{display:none}
+
+/* finish */
+.fin{max-width:1100px;margin:0 auto;padding:44px 24px 120px;display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start}
+.steps4{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:0}
+.steps4 li{display:grid;grid-template-columns:34px 1fr;gap:14px;padding:12px 0;border-top:1px solid var(--soft)}
+.steps4 li i{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;font-style:normal;font-family:var(--mono);font-size:13px}
+.steps4 li.d i{background:var(--teal);border-color:var(--teal);color:#fff}
+.steps4 li.c i{background:var(--ink);border-color:var(--ink);color:#fff}
+.steps4 b{display:block;font-size:16.5px}.steps4 small{color:var(--muted);font-size:14.5px}
+.slots{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
+.slots button{border:1.5px solid var(--line2);background:var(--card);border-radius:14px;padding:10px 14px;font-size:15px;font-weight:600;text-align:left;min-height:56px}
+.slots button small{display:block;font-weight:400;color:var(--muted);font-size:13.5px}
+.slots button.on{border-color:var(--teal);background:var(--wash)}
+
+
+/* ───────── phone and small tablet ───────── */
+@media (max-width:1380px){
+  .rail li span.l{display:none}.rail li.cur span.l,.rail li.end span.l{display:inline}.rail ol{gap:10px}
+}
+@media (max-width:900px){
+  body{font-size:17px}
+  .top-in{height:56px;padding:0 16px;gap:10px}
+  .rail,.saved,.tel span,.ghost.sv,.stripe{display:none!important}
+  .tel{width:42px;height:42px;border-radius:50%;background:var(--card);border:1.5px solid var(--line2);justify-content:center}
+  .mprog{display:block;padding:0 16px 10px}
+  .mprog .t{display:flex;justify-content:space-between;font-size:13.5px;color:var(--muted);margin-bottom:6px}
+  .mprog .t b{color:var(--ink);font-weight:600}
+  .mprog .b{height:6px;border-radius:99px;background:var(--soft);overflow:hidden}
+  .mprog .b i{display:block;height:100%;background:var(--paint);border-radius:99px;transition:width .5s}
+  .stage{display:flex;flex-direction:column-reverse;gap:18px;padding:16px 16px 130px}
+  .side{position:static;width:100%}
+  .side .sofar,.side .talk{display:none}
+  .viz{border-radius:18px}
+  .viz-art{aspect-ratio:auto;height:168px}
+  .viz-head{padding:10px 14px 8px}.viz-note{padding:9px 14px 10px;min-height:0;font-size:14px}
+  .swatches{padding:0 14px 12px}
+  .pane{max-width:none;width:100%}
+  h1{font-size:30px}.sub{font-size:17px;margin-top:10px}
+  .q{margin-top:28px}
+  .opts.c2{grid-template-columns:1fr}.opts.c3{grid-template-columns:repeat(3,1fr)}
+  .opts.keep2{grid-template-columns:1fr 1fr}
+  .opts.keep2 .opt{flex-direction:column;align-items:flex-start;padding:14px;gap:8px;min-height:116px}
+  .opts.keep2 .opt .tick{top:12px;right:12px;margin-top:0}
+  .opts.keep2 .opt b{font-size:16.5px}.opts.keep2 .opt small{font-size:13.5px}
+  .opts.keep2 .opt .pic{width:38px;height:38px}
+  .opt.col{min-height:112px;padding:12px}
+  .two{grid-template-columns:1fr}
+  .nav{position:fixed;left:0;right:0;bottom:0;margin:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(242,245,246,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);z-index:40;gap:8px}
+  .nav .btn.pri{flex:1;min-width:0}.nav .navnote{display:none}
+  .talk-m{display:grid;margin-top:34px}
+  .wide{padding:18px 16px 120px}
+  .hero{grid-template-columns:1fr;gap:18px}
+  .rangecard{padding:24px 20px 24px 26px;border-radius:22px}
+  .bigrange{font-size:clamp(27px,8.6vw,44px)}
+  .ladder .row{grid-template-columns:128px 1fr}
+  .grid3{grid-template-columns:1fr;gap:14px;margin-top:18px}
+  .wwd-grid{grid-template-columns:1fr}
+  .signoff .sp{display:none}.signoff .btn{flex:1}
+  .ed{display:flex;flex-direction:column;align-items:stretch;padding:0 16px 150px;gap:14px}
+  .ed-main,.ed-side{display:contents}
+  .ed-side .price{display:none}
+  .mstrip{order:0}.mapcard{order:1}#edmain{order:2}.ed-side .talk{order:3}
+  .mstrip{display:flex;position:sticky;top:57px;z-index:28;background:var(--ink);color:#fff;margin:0 -16px;padding:10px 16px;align-items:center;gap:12px}
+  .mstrip .mono{font-weight:700;font-size:16px;letter-spacing:-.03em;white-space:nowrap}
+  .mstrip small{display:block;font-size:12.5px;color:#A9B6BE}
+  .mstrip .band{flex:1;margin:0;background:#2A3842;height:10px}.mstrip .band .was{border-color:#51626E}
+  .mapcard .viz-art{height:140px;aspect-ratio:auto}
+  .sechead{font-size:20px;scroll-margin-top:140px}
+  .tiles{grid-template-columns:1fr 1fr}
+  .sizeq{grid-template-columns:84px 1fr;gap:12px;padding:12px}
+  .sizeq svg{width:84px;height:66px}
+  .sizeq p span{white-space:normal}
+  .tile.w2{grid-column:1/-1}
+  .tile:not(.w2) .t{display:grid;grid-template-columns:1fr auto;row-gap:6px;align-items:center}
+  .tile:not(.w2) .t .lb{grid-column:1/-1;grid-row:2}
+  .tile{min-height:88px}
+  .yn{font-size:15.5px}
+  .qq{grid-template-columns:84px 1fr;gap:14px;padding:16px}
+  .qq h3{font-size:18px}
+  .dock{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;gap:8px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(242,245,246,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line)}
+  .dock .btn{flex:1;min-width:0;padding:0 14px;font-size:16.5px;min-height:54px}
+  .dock .btn.sec{flex:.7}
+  .toast{bottom:88px}
+  .fin{grid-template-columns:1fr;padding:18px 16px 120px;gap:16px}
+  .assumed.stack li{display:block}.assumed.stack li b{display:block;text-align:left!important;margin-top:2px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ───────── v2 additions: every job type ───────── */
+.mockbar{display:block;padding:6px 14px;overflow:visible;white-space:normal}
+.mockrow{display:flex;gap:6px;align-items:center;overflow-x:auto;white-space:nowrap;padding:2px 0;scrollbar-width:none}
+.mockrow::-webkit-scrollbar{display:none}
+.mockrow b{min-width:66px}
+.mockbar button[disabled]{opacity:.35;cursor:not-allowed}
+.rail.compact li span.l{display:none}.rail.compact li.cur span.l,.rail.compact li.end span.l{display:inline}.rail.compact ol{gap:10px}
+
+.tag{display:inline-block;font-size:12.5px;font-weight:600;border-radius:99px;padding:2px 9px;background:var(--wash);color:var(--teal)}
+.tag.vis{background:var(--soft);color:var(--muted)}
+.opt .tag{margin-bottom:6px}
+.crow{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 14px 12px 16px;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r)}
+.crow + .crow{margin-top:10px}
+.crow b{font-weight:600;font-size:17px;display:block;color:var(--ink)}
+.crow small{color:var(--muted);font-size:14.5px;display:block;line-height:1.35}
+.crow .stepper{flex:none}
+.crow .stepper output{min-width:36px}
+.follow{margin-top:14px;background:var(--card);border:1.5px solid var(--wash2);border-left:6px solid var(--paint);border-radius:var(--r);padding:18px;animation:rise .35s both}
+.follow > .q:first-child{margin-top:0}
+.follow .q{margin-top:22px}
+.follow .q > h2{font-size:17.5px}
+.note{font-size:15px;color:var(--muted);margin-top:10px;max-width:38em}
+.note.warn{color:var(--amber)}
+.note a{color:var(--teal)}
+.inline-fields{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.inline-fields .field{flex:1;min-width:120px;padding:8px 14px}
+textarea.ta{display:block;width:100%;min-height:96px;border:1.5px solid var(--line);border-radius:var(--r);padding:12px 16px;font-size:17px;background:var(--card);resize:vertical}
+textarea.ta:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 4px var(--wash)}
+.how{list-style:none;padding:0;margin:0;display:grid;gap:10px;counter-reset:how}
+.how li{display:grid;grid-template-columns:34px 1fr;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;counter-increment:how}
+.how li::before{content:counter(how);width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-family:var(--mono);font-size:13px}
+.how b{display:block;font-size:17px}.how span{color:var(--muted);font-size:15px}
+.opt .wpic{width:54px;height:54px;flex:none}
+.opts.c4{grid-template-columns:repeat(4,1fr)}
+.sidepic{width:46px;height:50px;flex:none}
+
+.parts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.part{background:var(--page);border-radius:14px;padding:12px 14px}
+.part span{font-size:14px;color:var(--muted);display:block}
+.part b{font-family:var(--mono);font-size:clamp(14px,1.4vw,17px);letter-spacing:-.03em;white-space:nowrap}
+.cnote{margin-top:14px;padding:12px 14px;border-radius:14px;background:var(--amber-wash);border:1px solid var(--amber-line);font-size:15.5px;max-width:38em}
+.ladder .plain{font-size:14.5px;color:var(--muted);padding-top:2px}
+.ladder .plain b{color:var(--ink)}
+.tabs{display:inline-flex;background:var(--soft);border-radius:14px;padding:4px;gap:4px;justify-self:start}
+.tabs button{min-height:48px;border:0;border-radius:11px;background:transparent;font-weight:600;font-size:16px;color:var(--muted);padding:0 18px;display:flex;align-items:center;gap:8px}
+.tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(13,22,28,.18)}
+.tabs button span{font-family:var(--mono);font-size:12.5px;font-weight:400}
+.mix{font-size:14.5px;font-weight:600;margin-top:10px;color:var(--amber)}
+.mix.ok{color:var(--green)}
+.sechead{font-size:22px;font-weight:600;letter-spacing:-.02em;color:var(--ink);margin:22px 0 -4px;padding-top:14px;border-top:1px solid var(--line);scroll-margin-top:90px}
+.tabs + .sechead{border-top:0;margin-top:4px;padding-top:0}
+button.rc{background:var(--card);padding:0;font:inherit;color:inherit}
+.rc.skip{border-style:dashed}
+.rc.skip .rc-h .st{background:var(--soft);border-color:var(--line2);color:var(--muted)}
+.rc.skip .rc-h .act{color:var(--muted)}
+.booked{max-width:760px;margin:0 auto;padding:56px 24px 120px}
+.booked .bigtick{width:72px;height:72px;border-radius:50%;background:var(--paint);color:var(--paint-ink);display:grid;place-items:center;margin-bottom:22px}
+.booked .bigtick svg{width:34px;height:34px}
+
+/* house, in detail: every ticked element paints in */
+#house .e{transition:fill .7s cubic-bezier(.4,0,.2,1);stroke:#16212A;stroke-opacity:.14;stroke-width:1}
+#house .e-body{fill:#D2CBBB}#house .e-body.on{fill:var(--extc,#A9D6DE)}
+#house .e-windows{fill:#BFB296}#house .e-windows.on{fill:#FFFFFF}
+#house .e-doors{fill:#BFB296}#house .e-doors.on{fill:#FFFFFF}
+#house .e-doors.leaf{fill:#8A7B62}#house .e-doors.leaf.on{fill:#0A7C8E}
+#house .e-fascias{fill:#C4B89C}#house .e-fascias.on{fill:#FFFFFF}
+#house .e-gutters{fill:#A39A84}#house .e-gutters.on{fill:#4E5F6B}
+#house .e-eaves{fill:#B4AB96}#house .e-eaves.on{fill:#F4F6F7}
+#house .hl{stroke:var(--teal);stroke-opacity:1;stroke-width:3;animation:pulse 1s 2}
+#house .x{display:none}
+#house .x.on{display:block;animation:pop .45s both cubic-bezier(.2,.9,.3,1.2)}
+@keyframes pop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+#house .mat{display:none}
+#house.m-weatherboards .mat-wb,#house.m-brick .mat-br,#house.m-cement_sheet .mat-cs,#house.m-panelling .mat-cs{display:block}
+#house.ext .trees{display:none}
+#house.k-seg-warehouse .k5,#house.k-seg-shop .k4,#house.k-seg-block .k3{display:block}
+/* top-down sides */
+#top .edge{stroke:#B4C0C8;stroke-width:5;stroke-dasharray:7 6;stroke-linecap:round;transition:stroke .4s,stroke-width .3s}
+#top g.on .edge{stroke:var(--teal);stroke-width:9;stroke-dasharray:none}
+#top g.todo .edge{stroke:#D9A441;stroke-width:9;stroke-dasharray:none}
+#top g.ok .edge{stroke:var(--teal);stroke-width:9;stroke-dasharray:none}
+#top g.cur .edge{stroke-width:13}
+#top text,.topsvg text{font:600 12px var(--sans);fill:#16212A}
+#top g.off text,.topsvg g.skip text{opacity:.4}
+.topsvg .edge{stroke:#B4C0C8;stroke-width:5;stroke-dasharray:7 6;stroke-linecap:round;transition:stroke .4s,stroke-width .3s}
+.topsvg g.todo .edge{stroke:#D9A441;stroke-width:9;stroke-dasharray:none}
+.topsvg g.ok .edge{stroke:var(--teal);stroke-width:9;stroke-dasharray:none}
+.topsvg g.cur .edge{stroke-width:13}
+.topsvg g[data-a],#top g[data-a]{cursor:pointer}
+.topsvg .hit,#top .hit{stroke:transparent;stroke-width:34}
+/* warehouse */
+#wh .w{transition:fill .7s cubic-bezier(.4,0,.2,1),stroke .7s,opacity .5s;stroke:#16212A;stroke-opacity:.14}
+#wh .w-walls{fill:#B9BCB6}#wh .w-walls.on{fill:#EEF1F2}
+#wh .w-roof{fill:#9FA39D}#wh .w-roof.on{fill:#F6F8F9}
+#wh .w-steel{fill:#8C6A55}#wh .w-steel.on{fill:#3F5868}
+#wh .w-roller{fill:#8F9492}#wh .w-roller.on{fill:#DCE4E8}
+#wh .w-personnel{fill:#9A8F7A}#wh .w-personnel.on{fill:#0A7C8E}
+#wh .w-bollards{fill:#A8985A}#wh .w-bollards.on{fill:#F2C230}
+#wh .w-lines{fill:#C9B76A;opacity:.35}#wh .w-lines.on{fill:#F2C230;opacity:1}
+#wh .w-offices{fill:#C4BDAC}#wh .w-offices.on{fill:#FFFFFF}
+#wh .w-mezz{fill:#868A88}#wh .w-mezz.on{fill:#3F5868}
+
+@media (max-width:900px){
+  .opts.c4{grid-template-columns:1fr 1fr}
+  .parts{gap:8px}.part{padding:10px 12px}
+  .crow{padding:12px}
+  .booked{padding:26px 16px 120px}
+  .tabs{width:100%}.tabs button{flex:1;justify-content:center;padding:0 8px;font-size:15px}
+}
+
+.opt.stack .tick{top:16px;margin-top:0}
+.mockbar{font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="mockbar" role="navigation" aria-label="Mockup controls">
+  <div class="mockrow" id="mockType"><b>Job type</b>
+    <button data-a="type" data-v="int">Home · inside</button>
+    <button data-a="type" data-v="ext">Home · outside</button>
+    <button data-a="type" data-v="both">Home · both</button>
+    <button data-a="type" data-v="office">Commercial · office</button>
+    <button data-a="type" data-v="wh">Commercial · warehouse</button>
+    <button data-a="type" data-v="strata">Commercial · visit only</button>
+  </div>
+  <div class="mockrow" id="mockScreen"><b>Screen</b>
+    <button data-a="jump" data-v="wizard">1 · The steps</button>
+    <button data-a="jump" data-v="reveal">2 · Your range</button>
+    <button data-a="jump" data-v="editor">3 · Check it</button>
+    <button data-a="jump" data-v="finish">4 · Finalise</button>
+    <button data-a="jump" data-v="booked">Booked</button>
+  </div>
+</div>
+
+<header class="top">
+  <div class="top-in">
+    <a class="logo" href="#" data-a="jump" data-v="wizard" aria-label="Paint Group">PAINT<span>GROUP</span><i></i></a>
+    <nav class="rail" id="railWrap" aria-label="Progress"><ol id="rail"></ol></nav>
+    <div class="top-r">
+      <span class="saved" id="saved"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 5"/></svg>Saved</span>
+      <a class="tel" href="tel:0388409414" aria-label="Call Paint Group on 03 8840 9414"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/></svg><span>03 8840 9414</span></a>
+      <button class="iconb" data-a="noop" aria-label="Chat with us" title="Chat with us"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg></button>
+      <button class="ghost sv" data-a="noop">Save &amp; book</button>
+    </div>
+  </div>
+  <div class="stripe" id="stripe"></div>
+  <div class="mprog" id="mprog"></div>
+</header>
+
+<div class="stage" id="stage">
+  <section class="pane" id="pane" aria-live="polite"></section>
+
+  <aside class="side" id="side" aria-label="Your job so far">
+    <div class="viz">
+      <div class="viz-head"><b id="vizTitle">Your place</b><span id="vizTag"></span></div>
+      <div class="viz-art">
+        <!-- the building: answers change it, and on an outside job every ticked element paints in -->
+        <svg id="house" class="show" data-k="k1" viewBox="0 0 400 300" aria-hidden="true">
+          <defs>
+            <pattern id="brk" width="20" height="10" patternUnits="userSpaceOnUse"><path d="M0 .5H20M0 5.5H20M5 .5V5.5M15 5.5V10" stroke="#16212A" stroke-opacity=".16" fill="none"/></pattern>
+            <pattern id="pk" width="10" height="26" patternUnits="userSpaceOnUse"><path d="M3 26V6l2-4 2 4v20z" fill="#FFFFFF" stroke="#16212A" stroke-opacity=".3" stroke-width=".8"/></pattern>
+          </defs>
+          <rect x="0" y="250" width="400" height="50" fill="#C9D6CC"/>
+          <g class="kind k2"><rect x="18" y="170" width="72" height="80" fill="#DCE3E7"/><rect x="310" y="170" width="72" height="80" fill="#DCE3E7"/><polygon points="8,170 54,138 100,170" fill="#B4C0C8"/><polygon points="300,170 346,138 392,170" fill="#B4C0C8"/></g>
+          <g class="kind k1">
+            <g class="x x-paling_fence"><rect x="6" y="214" width="84" height="36" fill="#B79C78"/><rect x="310" y="214" width="84" height="36" fill="#B79C78"/><path d="M14 214v36M22 214v36M30 214v36M38 214v36M46 214v36M54 214v36M62 214v36M70 214v36M78 214v36M318 214v36M326 214v36M334 214v36M342 214v36M350 214v36M358 214v36M366 214v36M374 214v36M382 214v36" stroke="#16212A" stroke-opacity=".18"/></g>
+            <g class="x x-shed"><rect x="338" y="210" width="52" height="40" fill="#E9EEF1" stroke="#16212A" stroke-opacity=".2"/><polygon points="332,210 364,192 396,210" fill="#6B7780"/><rect x="355" y="224" width="18" height="26" fill="#55636E"/></g>
+            <g class="x x-pergola"><path d="M18 250V198M82 250V198" stroke="#5E6E79" stroke-width="6"/><path d="M8 198h84M8 206h84" stroke="#5E6E79" stroke-width="5"/><path d="M22 192v18M36 192v18M50 192v18M64 192v18M78 192v18" stroke="#5E6E79" stroke-width="3"/></g>
+            <g class="up">
+              <rect class="e e-body" data-e="body" x="90" y="90" width="220" height="72"/>
+              <g class="mat mat-wb" stroke="#16212A" stroke-opacity=".1"><path d="M90 102h220M90 114h220M90 126h220M90 138h220M90 150h220"/></g>
+              <rect class="mat mat-br" x="90" y="90" width="220" height="72" fill="url(#brk)"/>
+              <rect class="e e-windows" data-e="windows" x="118" y="106" width="52" height="38" rx="2"/><rect class="glass" x="123" y="111" width="42" height="28"/>
+              <rect class="e e-windows" data-e="windows" x="230" y="106" width="52" height="38" rx="2"/><rect class="glass" x="235" y="111" width="42" height="28"/>
+              <rect class="e e-gutters" data-e="gutters" x="303" y="176" width="5" height="74"/>
+            </g>
+            <rect class="e e-body" data-e="body" x="90" y="160" width="220" height="90"/>
+            <g class="mat mat-wb" stroke="#16212A" stroke-opacity=".1"><path d="M90 175h220M90 190h220M90 205h220M90 220h220M90 235h220"/></g>
+            <rect class="mat mat-br" x="90" y="160" width="220" height="90" fill="url(#brk)"/>
+            <g class="mat mat-cs" stroke="#16212A" stroke-opacity=".14"><path d="M134 160v90M178 160v90M222 160v90M266 160v90"/></g>
+            <g class="roof">
+              <polygon class="hr" points="66,162 200,88 334,162"/><rect x="250" y="100" width="20" height="34" fill="#55636E"/>
+              <polygon class="e e-fascias" data-e="fascias" points="66,162 200,88 334,162 326,162 200,96 74,162"/>
+              <rect class="e e-eaves" data-e="eaves" x="74" y="162" width="252" height="6"/>
+              <rect class="e e-gutters" data-e="gutters" x="62" y="157" width="276" height="5" rx="2"/>
+              <rect class="e e-gutters" data-e="gutters" x="303" y="162" width="5" height="88"/>
+            </g>
+            <rect class="e e-doors" data-e="doors" x="183" y="190" width="34" height="60" rx="2"/><rect class="e e-doors leaf" data-e="doors" x="187" y="194" width="26" height="56"/><circle cx="208" cy="224" r="2" fill="#fff"/>
+            <rect class="e e-windows" data-e="windows" x="112" y="186" width="54" height="40" rx="2"/><rect class="glass" x="117" y="191" width="44" height="30"/><rect class="e e-windows" data-e="windows" x="138" y="191" width="2.5" height="30" style="stroke:none"/>
+            <g class="winR"><rect class="e e-windows" data-e="windows" x="234" y="186" width="54" height="40" rx="2"/><rect class="glass" x="239" y="191" width="44" height="30"/><rect class="e e-windows" data-e="windows" x="260" y="191" width="2.5" height="30" style="stroke:none"/></g>
+            <g class="x x-garage_door"><rect x="228" y="190" width="68" height="60" fill="#F4F6F7" stroke="#16212A" stroke-opacity=".25"/><path d="M228 202h68M228 214h68M228 226h68M228 238h68" stroke="#16212A" stroke-opacity=".16"/></g>
+            <g class="x x-deck"><rect x="148" y="248" width="104" height="10" fill="#B08A5E" stroke="#16212A" stroke-opacity=".2"/><path d="M160 248v10M174 248v10M188 248v10M202 248v10M216 248v10M230 248v10M242 248v10" stroke="#16212A" stroke-opacity=".2"/></g>
+          </g>
+          <g class="x x-picket_fence"><rect x="6" y="252" width="170" height="26" fill="url(#pk)"/><rect x="6" y="264" width="170" height="3" fill="#fff" stroke="#16212A" stroke-opacity=".2" stroke-width=".6"/></g>
+          <g class="x x-wall"><rect x="224" y="258" width="170" height="18" fill="#E4DED2" stroke="#16212A" stroke-opacity=".2"/><rect x="222" y="254" width="174" height="5" fill="#C4BBA8"/></g>
+          <g class="kind k3"><rect x="110" y="46" width="180" height="204" fill="#E9E4D8"/><rect x="104" y="40" width="192" height="10" fill="#55636E"/>
+            <g class="glass"><rect x="128" y="66" width="38" height="30"/><rect x="181" y="66" width="38" height="30"/><rect x="234" y="66" width="38" height="30"/><rect x="128" y="112" width="38" height="30"/><rect x="234" y="112" width="38" height="30"/><rect x="128" y="158" width="38" height="30"/><rect x="181" y="158" width="38" height="30"/><rect x="234" y="158" width="38" height="30"/></g>
+            <rect x="181" y="112" width="38" height="30" fill="#FFE9A8" stroke="#0A7C8E" stroke-width="3"/><rect x="184" y="206" width="32" height="44" fill="#0A7C8E"/></g>
+          <g class="kind k4"><rect x="60" y="110" width="280" height="140" fill="#E9E4D8"/><rect x="60" y="110" width="280" height="30" fill="#0D161C"/><rect x="150" y="119" width="100" height="12" rx="3" fill="#3BD8E9"/><polygon points="60,140 340,140 352,164 48,164" fill="#0A7C8E"/><rect class="glass" x="80" y="176" width="110" height="74"/><rect class="glass" x="250" y="176" width="70" height="74"/><rect x="204" y="176" width="34" height="74" fill="#55636E"/></g>
+          <g class="kind k5"><polygon points="40,128 200,92 360,128" fill="#6B7780"/><rect x="48" y="128" width="304" height="122" fill="#DCE3E7"/><path d="M48 150h304M48 172h304M48 194h304M48 216h304M48 238h304" stroke="#16212A" stroke-opacity=".07"/><rect x="84" y="160" width="96" height="90" fill="#F4F6F7" stroke="#16212A" stroke-opacity=".25"/><path d="M84 174h96M84 188h96M84 202h96M84 216h96M84 230h96" stroke="#16212A" stroke-opacity=".16"/><rect x="214" y="192" width="26" height="58" fill="#0A7C8E"/><rect class="glass" x="262" y="166" width="64" height="26"/><rect x="74" y="232" width="5" height="18" fill="#F2C230"/><rect x="185" y="232" width="5" height="18" fill="#F2C230"/></g>
+          <g class="trees"><circle cx="52" cy="232" r="20" fill="#8FB59A"/><rect x="49" y="240" width="6" height="14" fill="#6E5B45"/><circle cx="356" cy="238" r="14" fill="#8FB59A"/></g>
+        </svg>
+        <svg id="room" class="painted c-wear" viewBox="0 0 400 300" aria-hidden="true">
+          <polygon class="floor" points="0,300 400,300 310,220 90,220"/>
+          <polygon class="s s-ceiling" data-s="ceilings" points="0,0 400,0 310,70 90,70"/>
+          <polygon class="s s-wall" data-s="walls" points="0,0 90,70 90,220 0,300"/>
+          <polygon class="s s-wall" data-s="walls" points="400,0 310,70 310,220 400,300"/>
+          <rect class="s s-wall" data-s="walls" x="90" y="70" width="220" height="150"/>
+          <polygon class="shade" points="0,0 90,70 90,220 0,300"/><polygon class="shade" points="400,0 310,70 310,220 400,300" style="opacity:.11"/>
+          <g class="marks">
+            <g class="m1"><path d="M240 196q10-3 22 1M28 210q8-5 16 0" stroke="#7E6F50" stroke-width="2" fill="none" opacity=".55"/><circle cx="196" cy="100" r="1.6" fill="#6B5D43"/><circle cx="182" cy="96" r="1.6" fill="#6B5D43"/></g>
+            <g class="m2"><path d="M300 78l-9 22 5 14-7 20" stroke="#6B5D43" stroke-width="1.4" fill="none"/><ellipse cx="60" cy="150" rx="9" ry="14" fill="#A99A78" opacity=".6"/><path d="M335 200q12-8 24 0" stroke="#7E6F50" stroke-width="2.5" fill="none" opacity=".55"/></g>
+            <g class="m3"><path d="M236 84l14 8-4 12 12 6-2 12" stroke="#5B4E38" stroke-width="1.8" fill="none"/><path d="M150 76q20 14 4 30 22 0 30-14-12-4-34-16z" fill="#EFE8D6" stroke="#8B7B5B" stroke-width="1"/><path d="M356 60q14 30 4 64" stroke="#8C7A52" stroke-width="7" fill="none" opacity=".35"/></g>
+          </g>
+          <polygon class="s s-cornice" data-s="cornices" points="0,0 90,70 90,80 0,13"/><polygon class="s s-cornice" data-s="cornices" points="400,0 310,70 310,80 400,13"/><rect class="s s-cornice" data-s="cornices" x="90" y="70" width="220" height="10"/>
+          <polygon class="s s-skirting" data-s="skirting" points="0,300 90,220 90,210 0,285"/><polygon class="s s-skirting" data-s="skirting" points="400,300 310,220 310,210 400,285"/><rect class="s s-skirting" data-s="skirting" x="90" y="210" width="220" height="10"/>
+          <path class="s s-arch" data-s="architraves" d="M108 220V112h64v108h-8V120h-48v100z"/>
+          <rect class="s s-door" data-s="doors" x="116" y="120" width="48" height="100"/>
+          <g pointer-events="none"><rect x="122" y="128" width="36" height="34" fill="none" stroke="#16212A" stroke-opacity=".14"/><rect x="122" y="170" width="36" height="42" fill="none" stroke="#16212A" stroke-opacity=".14"/><circle cx="156" cy="170" r="2.6" fill="#8C97A0"/></g>
+          <rect class="s s-win" data-s="windows" x="212" y="102" width="82" height="68"/>
+          <rect x="219" y="109" width="68" height="54" fill="#BFE3F2"/><path d="M219 150q20-14 34-4t34-8v25h-68z" fill="#9CCFA8" opacity=".8"/>
+          <path class="s s-win" data-s="windows" d="M251 109h4v54h-4z"/>
+          <g class="people"><ellipse cx="282" cy="262" rx="46" ry="8" fill="#0D161C" opacity=".1"/><rect x="244" y="228" width="78" height="26" rx="8" fill="#E9EEF1" stroke="#16212A" stroke-opacity=".25"/><rect x="238" y="238" width="90" height="22" rx="6" fill="#DCE3E7" stroke="#16212A" stroke-opacity=".25"/></g>
+          <g><ellipse cx="72" cy="268" rx="18" ry="5" fill="#0D161C" opacity=".14"/><rect x="58" y="244" width="28" height="24" rx="2" fill="#E9EEF1" stroke="#16212A" stroke-opacity=".3"/><rect x="58" y="244" width="28" height="7" fill="#3BD8E9"/><path d="M60 244q12-14 24 0" fill="none" stroke="#55636E" stroke-width="1.6"/></g>
+          <g class="roller"><rect x="92" y="96" width="16" height="62" rx="5" fill="#3BD8E9" stroke="#03272D" stroke-opacity=".4"/><path d="M108 127h12v54" fill="none" stroke="#55636E" stroke-width="3" stroke-linecap="round"/></g>
+        </svg>
+        <svg id="plan" class="plansvg" viewBox="0 0 400 300" aria-hidden="true"></svg>
+        <svg id="top" class="topsvg" viewBox="0 0 400 300" aria-hidden="true"></svg>
+        <!-- a warehouse, inside: ticking a surface paints it -->
+        <svg id="wh" viewBox="0 0 400 300" aria-hidden="true">
+          <polygon points="0,300 400,300 300,210 100,210" fill="#A7ABA8"/>
+          <polygon class="w w-roof" data-w="roof" points="0,0 400,0 300,60 100,60"/>
+          <path d="M33 20h334M66 40h268" stroke="#16212A" stroke-opacity=".12"/>
+          <polygon class="w w-walls" data-w="walls" points="0,0 100,60 100,210 0,300"/>
+          <polygon class="w w-walls" data-w="walls" points="400,0 300,60 300,210 400,300"/>
+          <rect class="w w-walls" data-w="walls" x="100" y="60" width="200" height="150"/>
+          <polygon points="0,0 100,60 100,210 0,300" fill="#0D161C" opacity=".08"/><polygon points="400,0 300,60 300,210 400,300" fill="#0D161C" opacity=".12"/>
+          <polygon class="w w-steel" data-w="steel" points="0,0 9,0 107,60 100,60"/><polygon class="w w-steel" data-w="steel" points="400,0 391,0 293,60 300,60"/>
+          <rect class="w w-steel" data-w="steel" x="100" y="60" width="200" height="6"/><rect class="w w-steel" data-w="steel" x="97" y="60" width="7" height="150"/><rect class="w w-steel" data-w="steel" x="296" y="60" width="7" height="150"/><rect class="w w-steel" data-w="steel" x="211" y="66" width="6" height="144"/>
+          <rect class="w w-roller" data-w="roller" x="118" y="108" width="82" height="102"/><path d="M118 122h82M118 136h82M118 150h82M118 164h82M118 178h82M118 192h82" stroke="#16212A" stroke-opacity=".16"/>
+          <rect class="w w-personnel" data-w="personnel" x="230" y="150" width="24" height="60"/>
+          <rect class="w w-offices" data-w="offices" x="262" y="144" width="32" height="66"/><rect x="267" y="152" width="22" height="16" fill="#BFE3F2"/>
+          <polygon class="w w-mezz" data-w="mezz" points="0,118 100,128 100,137 0,131"/><path d="M0 100l100 14M12 102v17M30 104v17M48 107v17M66 109v17M84 112v17" stroke="#55636E" stroke-width="1.6"/>
+          <polygon class="w w-lines" data-w="lines" points="58,300 68,300 119,210 115,210" style="stroke:none"/><polygon class="w w-lines" data-w="lines" points="342,300 332,300 281,210 285,210" style="stroke:none"/>
+          <rect class="w w-bollards" data-w="bollards" x="108" y="194" width="6" height="20" rx="2"/><rect class="w w-bollards" data-w="bollards" x="204" y="194" width="6" height="20" rx="2"/>
+          <g><path d="M22 34v232M16 34h12M16 266h12" stroke="#0A7C8E" stroke-width="2"/><rect x="30" y="140" width="54" height="22" rx="6" fill="#fff"/><text id="whH" x="57" y="155" text-anchor="middle" style="font:600 11px var(--mono);fill:#0A7C8E">4–6 m</text></g>
+        </svg>
+      </div>
+      <p class="viz-note" id="vizNote"></p>
+      <div class="swatches" id="swatches">Try a colour
+        <button data-a="swatch" data-v="#F3EFE6" style="background:#F3EFE6" aria-label="Soft white"></button>
+        <button data-a="swatch" data-v="#D9DEDC" style="background:#D9DEDC" aria-label="Pale grey"></button>
+        <button data-a="swatch" data-v="#B7C8B4" style="background:#B7C8B4" aria-label="Sage green"></button>
+        <button data-a="swatch" data-v="#E3C2AE" style="background:#E3C2AE" aria-label="Warm clay"></button>
+        <button data-a="swatch" data-v="#47657F" style="background:#47657F" aria-label="Deep blue"></button>
+        <span style="margin-left:auto">Preview only</span>
+      </div>
+    </div>
+    <div class="sofar"><h3>Your job so far <span id="sofarN"></span></h3><ul id="sofar"></ul></div>
+    <div class="talk" id="talk"></div>
+  </aside>
+</div>
+
+<div id="screen"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ───────── helpers ───────── */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const money=n=>'$'+Math.round(n).toLocaleString('en-AU');
+const TICK='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 5"/></svg>';
+const tick=(n)=>TICK.replace('<svg',`<svg width="${n}" height="${n}"`);
+const ARROW='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12M11 5l5 5-5 5"/></svg>';
+const CHEV='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>';
+const I=(d)=>`<svg class="pic" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const PIC={
+  in:I('<path d="M6 42V10h36v32"/><path d="M6 42h36"/><rect x="14" y="20" width="9" height="22"/><rect x="29" y="18" width="9" height="10"/>'),
+  out:I('<path d="M5 24L24 8l19 16"/><path d="M10 21v20h28V21"/><rect x="20" y="29" width="8" height="12"/>'),
+  both:I('<path d="M5 24L24 8l19 16"/><path d="M10 21v20h28V21"/><path d="M10 31h28M24 21v20"/>'),
+  house:I('<path d="M5 24L24 8l19 16"/><path d="M10 21v20h28V21"/><rect x="20" y="29" width="8" height="12"/>'),
+  townhouse:I('<path d="M4 41V20l10-8 10 8v21"/><path d="M24 41V20l10-8 10 8v21"/><path d="M2 41h44"/><path d="M11 41v-8h6v8M31 41v-8h6v8"/>'),
+  unit_apartment:I('<rect x="11" y="6" width="26" height="36"/><path d="M17 13h4M27 13h4M17 21h4M27 21h4M17 29h4M27 29h4M21 42v-6h6v6"/>'),
+  commercial:I('<path d="M6 42V18h36v24M4 42h40"/><path d="M6 18l4-9h28l4 9"/><rect x="12" y="25" width="12" height="10"/><path d="M30 42V25h7v17"/>'),
+  single:I('<path d="M5 30L24 16l19 14"/><path d="M10 28v13h28V28"/>'),
+  double:I('<path d="M5 20L24 6l19 14"/><path d="M10 18v23h28V18M10 30h28"/>'),
+  good:I('<rect x="8" y="8" width="32" height="32" rx="3"/><path d="M17 25l5 5 10-11"/>'),
+  wear:I('<rect x="8" y="8" width="32" height="32" rx="3"/><path d="M14 30q5-4 9 0M28 16l-3 7 4 4"/><circle cx="33" cy="33" r="1.2"/>'),
+  needs_work:I('<rect x="8" y="8" width="32" height="32" rx="3"/><path d="M30 8l-5 10 5 6-6 8 3 8"/><path d="M12 14q8 6 2 12"/>'),
+  empty:I('<path d="M6 42V10h36v32M6 42h36"/><path d="M6 34h36" stroke-dasharray="3 4"/>'),
+  home:I('<path d="M6 42V10h36v32M6 42h36"/><rect x="13" y="28" width="22" height="9" rx="3"/><path d="M16 28v-5h16v5"/>'),
+  walls:I('<rect x="7" y="9" width="34" height="30" rx="2"/><path d="M7 19h34M7 29h34M19 9v10M30 19v10M17 29v10"/>'),
+  ceilings:I('<path d="M4 12h40L36 24H12z"/><path d="M12 24v16M36 24v16"/>'),
+  cornices:I('<path d="M6 10h36M6 16h30q-9 0-9 9v15"/><path d="M6 10v6"/>'),
+  skirting:I('<path d="M6 8v24h36M6 40h36M6 32v8M42 32v8"/>'),
+  architraves:I('<path d="M12 42V8h24v34"/><path d="M18 42V14h12v28"/>'),
+  doors:I('<rect x="13" y="6" width="22" height="36" rx="1"/><rect x="18" y="11" width="12" height="10"/><rect x="18" y="26" width="12" height="11"/><circle cx="31" cy="24" r="1"/>'),
+  windows:I('<rect x="8" y="9" width="32" height="30" rx="1"/><path d="M24 9v30M8 24h32"/>'),
+  balustrades:I('<path d="M6 14l36 10M6 14v24M42 24v14M14 17v21M22 19v19M30 21v17M36 22.5V38"/>'),
+  fascias:I('<path d="M4 26L24 10l20 16"/><path d="M4 32L24 16l20 16"/>'),
+  gutters:I('<path d="M6 14h30q4 0 4 4v22"/><path d="M6 20h26q2 0 2 2v18"/>'),
+  eaves:I('<path d="M4 22L24 8l20 14"/><path d="M12 22h24v6H12z"/><path d="M14 28v12M34 28v12"/>'),
+  roller:I('<rect x="8" y="8" width="32" height="32"/><path d="M8 16h32M8 24h32M8 32h32"/>'),
+  steel:I('<path d="M14 6h20M14 42h20M24 6v36M18 6v4M30 6v4M18 38v4M30 38v4"/>'),
+  lines:I('<path d="M10 42L20 6M38 42L28 6M24 12v6M24 24v6M24 36v6"/>'),
+  paint:I('<path d="M10 20h28v8a6 6 0 01-6 6H16a6 6 0 01-6-6z"/><path d="M14 20q10-14 20 0M24 34v8"/>'),
+  rot:I('<rect x="8" y="14" width="32" height="20" rx="2"/><path d="M16 14q3 8-2 20M28 14q-4 9 2 20M34 20l3 3-3 4"/>'),
+  access:I('<path d="M6 40L24 12l18 28z"/><path d="M24 22v9"/><circle cx="24" cy="35" r="1"/>'),
+};
+const W=(d)=>`<svg class="wpic" viewBox="0 0 54 54" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="8" y="6" width="38" height="42" rx="1.5"/>${d}</svg>`;
+const WINPIC={casement:W('<path d="M27 6v42M8 27l14-9v18zM46 27l-14-9v18z" stroke-width="1.5"/>'),sash:W('<path d="M8 27h38M27 6v21"/>'),colonial:W('<path d="M20.5 6v42M33.5 6v42M8 16.5h38M8 27h38M8 37.5h38"/>'),winder:W('<path d="M8 14h38M8 22h38M8 30h38M8 38h38"/>')};
+const SIDEPIC=(k)=>{const L={front:'10,54 50,54',back:'10,10 50,10',left:'10,10 10,54',right:'50,10 50,54'}[k];
+  return `<svg class="sidepic" viewBox="0 0 60 64"><rect x="10" y="10" width="40" height="44" fill="#F2F5F6" stroke="${k==='all'?'#0A7C8E':'#B4C0C8'}" stroke-width="${k==='all'?5:1.5}"/>${L?`<polyline points="${L}" fill="none" stroke="#0A7C8E" stroke-width="5" stroke-linecap="round"/>`:''}</svg>`};
+const icon=(d)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const IC={
+  pin:icon('<path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>'),
+  phone:icon('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/>'),
+  msg:icon('<path d="M4 5h16v11H9l-5 4z"/>'),
+  cal:icon('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/>'),
+  tight:icon('<path d="M4 12h5M15 12h5M9 7v10M15 7v10"/><path d="M6.5 9.5L9 12l-2.5 2.5M17.5 9.5L15 12l2.5 2.5"/>'),
+  star:icon('<path d="M12 3.5l2.6 5.3 5.9.900-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.900z"/>'),
+  shield:icon('<path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"/><path d="M9 12l2.2 2.2L15 10"/>'),
+  doc:icon('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/>'),
+  plan:icon('<rect x="3.5" y="4" width="17" height="16" rx="1.5"/><path d="M3.5 11h8v9M11.5 4v4M15 11h5.5"/>'),
+  cam:icon('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+  key:icon('<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/>'),
+};
+
+/* ───────── content, taken from the live wizard ───────── */
+const KINDS={house:['House',''],townhouse:['Townhouse',''],unit_apartment:['Unit or apartment',''],commercial:['Commercial','Office, shop, strata, industrial']};
+const SURF=[['walls','Walls'],['ceilings','Ceilings'],['skirting','Skirting boards'],['architraves','Architraves'],['doors','Doors'],['windows','Window frames']];
+const GLOSS={walls:'<b>Walls</b>: every wall in the rooms you pick.',ceilings:'<b>Ceilings</b>: includes the cornice where it meets the wall.',skirting:'<b>Skirting boards</b>: the timber strip along the bottom of each wall.',architraves:'<b>Architraves</b>: the timber frame around each door.',doors:'<b>Doors</b>: both sides and the edges.',windows:'<b>Window frames</b>: the frame and sill, not the glass.',
+  body:'<b>The body of the house</b>: the walls themselves.',fascias:'<b>Fascias</b>: the board behind the gutter.',gutters:'<b>Gutters and downpipes</b>: washed, any rust treated, then painted.',eaves:'<b>Eaves</b>: the underside of the roof overhang.'};
+const SCOPES={whole:{l:'The whole interior',h:'Walls, ceilings, skirtings, doors, frames and window frames. The usual full repaint.',s:{walls:1,ceilings:1,skirting:1,architraves:1,doors:1,windows:1}},
+  some_rooms:{l:'Some rooms',h:'You pick which ones on the next screen.',s:{walls:1,ceilings:1,skirting:1,architraves:1,doors:1,windows:1}},
+  walls_ceilings:{l:'Walls and ceilings only',h:'Trims and doors stay as they are.',s:{walls:1,ceilings:1}},
+  trims_doors:{l:'Doors, windows and trims',h:'Doors, window frames, architraves and skirtings.',s:{skirting:1,architraves:1,doors:1,windows:1}}};
+const CONDS={good:['Good, just tired','Sound surfaces. A light sand and it is ready.'],wear:['Some wear','Scuffs, marks, the odd hairline crack or nail hole.'],needs_work:['Needs work','Flaking, cracked plaster, water marks or damage.']};
+const EXT_EL=[['body','The body of the house','The walls themselves'],['windows','Windows','Frames and sashes'],['doors','Doors','And their frames'],['fascias','Fascias','The board behind the gutter'],['gutters','Gutters & downpipes',''],['eaves','Eaves','The underside of the overhang']];
+const EXT_SEP=[['garage_door','Garage door'],['paling_fence','Paling fence'],['picket_fence','Picket fence'],['deck','Deck'],['pergola','Pergola'],['shed','Shed / garage'],['wall','Wall']];
+const EXT_MAT=[['weatherboards','Weatherboard'],['brick','Brick'],['render','Render'],['stucco','Stucco'],['cement_sheet','Cement sheet'],['panelling','Cladding or panelling'],['unsure','Not sure']];
+const EXT_WIN=[['casement','Casement','Hinged, opens out'],['sash','Sash','Slides up and down'],['colonial','Colonial','Small panes, lots of bars'],['winder','Winder','Louvres on a crank']];
+const EXT_COL=[['same','The same colours again','Colour-matched. A freshen up.'],['new','New colours','Two coats, standard preparation'],['bold','Going much lighter','An undercoat first, then two coats']];
+const EXT_ACC=[['steep','Steep block'],['tight','Tight side access'],['lift','Needs a lift or scaffold'],['none','Nothing tricky']];
+const SIDES=[['front','Front','The street side'],['left','Left side','Looking from the street'],['back','Back',''],['right','Right side','Looking from the street']];
+const HB=[['business','Business hours'],['after','After hours'],['weekend','Weekends']];
+const SEG={
+  office:{name:'Office',hint:'Suites, floors, fit-out make-good',route:'range',pic:'k3',title:'Tell us about the office',sub:'Counts are fine. We size each one from typicals and you can adjust any of them after.',
+    counts:[['offices','Private offices','Enclosed, one or two desks',4,'Private office',[3.5,3]],['open','Open-plan areas','Workstations, breakout. We ask about the ceiling next.',1,'Open-plan area',[12,10]],['meeting','Meeting rooms and boardrooms','',1,'Meeting room',[5,4]]],
+    openKey:'open',openLabel:'Open-plan area',openCopy:'Open spaces are the easiest thing to misprice. Partitions look like less wall, but the cutting-in around them takes the same time. Tell us the size and the ceiling, and a photo lets your estimator check.',
+    also:['Reception','Corridors','Kitchen or break room','Amenities','Server or comms room','Fire stairs'],
+    surf:['Walls','Ceilings — plaster only','Doors','Door frames','Window frames — timber only','Skirtings','Columns and bulkheads','Feature walls'],
+    keys:{'Walls':'walls','Ceilings — plaster only':'ceilings','Doors':'doors','Door frames':'architraves','Window frames — timber only':'windows','Skirtings':'skirting'},
+    hours:HB,occ:['Is it occupied?',[['vacant','Vacant, between tenants'],['occ','Occupied, furniture stays']]],wear:'Scuffs, picture hooks, holes from the last fit-out',work:'Damaged plaster, water marks, patched walls'},
+  warehouse:{name:'Industrial or warehouse',hint:'Factory, storage, workshop',route:'range',pattern:'warehouse',pic:'k5',hours:HB,occ:null,wear:'Dust, scuffs, forklift marks',work:'Forklift damage, rust, cracked blockwork'},
+  retail:{name:'Retail, hospitality, restaurants',hint:'Shops, cafés, restaurants, bars',route:'range',pic:'k4',title:'Tell us about the shop or venue',sub:'Shops, cafés, restaurants and bars follow the same shape: the front of house is the part that’s easy to misprice, and kitchens get a washable system.',
+    counts:[['floor','Sales floor or dining areas','Usually one or two. We ask about the ceiling next.',1,'Sales floor',[12,8]],['boh','Back of house, kitchens and store rooms','Commercial kitchens get a washable, wipe-down system',1,'Back of house',[6,5]],['fit','Fitting rooms or private dining','',0,'Fitting room',[2,1.5]]],
+    openKey:'floor',openLabel:'Front of house area',openCopy:'Front of house is where prices go wrong: exposed or black ceilings, a full-width frontage, a lot of cutting-in. Tell us the size and the ceiling, and a photo lets your estimator check.',
+    also:['Bar','Amenities','Staff room','Corridor','Covered outdoor dining'],alsoFlag:{'Covered outdoor dining':'outside, priced on site'},
+    surf:['Walls','Ceilings — plaster only','Exposed ceiling — sprayed','Kitchen walls — washable','Doors','Door frames','Skirtings','Feature walls'],
+    keys:{'Walls':'walls','Ceilings — plaster only':'ceilings','Doors':'doors','Door frames':'architraves','Skirtings':'skirting'},
+    hours:[['after','After trading'],['before','Before opening'],['closed','Any time, closed for refit']],occ:['Stock, fixtures and furniture?',[['vacant','Cleared, empty'],['occ','Stays, we work around it']]],wear:'Scuffs, fixing holes, sign shadows, grease near the kitchen',work:'Damaged plaster, water marks, heat damage behind the kitchen line'},
+  health:{name:'Healthcare or aged care',hint:'Aged care and clinics online · hospitals we visit',route:'range',pic:'k3',title:'Tell us about the facility',sub:'Counts are fine. We work in small areas at a time around residents and patients, and price it that way.',
+    kindQ:['Which kind?',[['aged','Aged care'],['clinic','Medical centre or clinic'],['hospital','Hospital (we visit)']]],
+    counts:[['rooms','Resident rooms, wards or treatment rooms','',12,'Resident room',[4,3.5]],['lounges','Lounges and dining rooms','Open spaces. We ask about them next.',2,'Lounge',[10,8]],['corr','Corridors or wings','',2,'Corridor',[20,2]]],
+    openKey:'lounges',openLabel:'Lounge or dining room',openCopy:'Lounges and dining rooms are open, with tiled or set ceilings and a lot of cutting-in. Tell us the size and the ceiling; a photo or two lets your estimator check.',
+    also:['Nurses’ stations','Reception','Amenities','Kitchen','Fire stairs'],
+    surf:['Walls','Ceilings — plaster only','Doors','Door frames','Handrails and bump rails','Skirtings','Window frames — timber only','Feature walls'],
+    keys:{'Walls':'walls','Ceilings — plaster only':'ceilings','Doors':'doors','Door frames':'architraves','Skirtings':'skirting','Window frames — timber only':'windows'},
+    hours:[['business','Daytime'],['after','After hours'],['staged','Staged, a wing at a time']],occ:['Working around residents or patients?',[['occ','Yes, small areas at a time'],['vacant','No, the area will be closed']]],wear:'Scuffs, trolley marks, bed-head knocks',work:'Damaged plaster, bump-rail damage, water marks'},
+  school:{name:'School or education',hint:'Classrooms, halls, corridors',route:'range',pic:'k3',title:'Tell us about the school',sub:'Counts are fine. Most school work happens in the holidays. Tell us the window and we plan around it.',openMode:'height',
+    counts:[['classrooms','Classrooms','',8,'Classroom',[8,7]],['halls','Halls or gyms','High ceilings. We ask about them next.',1,'Hall',[20,12]],['corr','Corridors','',2,'Corridor',[20,2.5]]],
+    openKey:'halls',openLabel:'Hall or gym',openCopy:'Halls and gyms have high walls. Above about four metres we allow for a platform or lift, shown as its own line. The height matters more than the floor area.',
+    also:['Admin offices','Staff room','Toilets','Library','Covered outdoor areas','Canteen'],alsoFlag:{'Covered outdoor areas':'outside, priced on site'},
+    surf:['Walls','Ceilings — plaster only','Doors','Door frames','Skirtings','Window frames — timber only','Pinboard surrounds','Feature walls'],
+    keys:{'Walls':'walls','Ceilings — plaster only':'ceilings','Doors':'doors','Door frames':'architraves','Skirtings':'skirting','Window frames — timber only':'windows'},
+    hours:[['holidays','School holidays'],['after','After hours in term'],['weekend','Weekends']],occ:['Which holidays?',[['next','The next break'],['later','A later one'],['ns','Not sure yet']]],wear:'Scuffs, blu-tack, pinboard marks',work:'Damaged plaster, water marks, graffiti'},
+  strata:{name:'Strata or common property',hint:'Lobbies, stairwells, facade',route:'brief',pic:'k3'},
+  shopfront:{name:'Shop front, the facade',hint:'Street frontage, awnings, signage',route:'brief',pic:'k4'},
+  other:{name:'Something else',hint:'Church, club, gym, hotel…',route:'brief',pic:'k3'},
+};
+const BRIEF={
+  strata:{kick:'Strata or common property',title:'Tell us what the building needs',sub:'Buildings like this are priced on site. Access, heights and shared areas can’t be guessed from a form. Four quick questions get us ready, then you pick a time.',
+    what:['Lobbies and corridors','Stairwells','Lift lobbies','Car park','Fire doors','Exterior facade','Balconies','Fences and gates'],
+    rows:[['Levels',['1–3','4–8','9+']],['Approx. units',['Under 10','10–30','30–80','80+']],['You are',['Owners corp manager','Committee member','Building manager','Owner']],['Is there a scope of works already?',['Yes, I can send it','No']],['Timing',['Before the next meeting','No rush']]],
+    photo:'The lobby, a corridor, a stairwell, the outside from the street',date:['Your next meeting date','The quote is held to it, so we work back from it']},
+  shopfront:{kick:'Shop front, the facade',title:'Tell us about the frontage',sub:'Shop fronts are priced on site. Awnings, signage, heights and the footpath change everything. A few questions get us ready, then you pick a time.',
+    what:['Render or masonry','Timber','Metal frames or shutters','Awning or verandah','Signage to work around','Roller shutter or grille'],
+    rows:[['Levels on the frontage',['Ground only','Two','More']],['Where is it?',['Strip shop','Shopping centre','Stand-alone']],['Trading hours we work around?',['Yes','No, closed for refit']],['Footpath in front?',['Yes','No']]],photo:'From across the street, and one close up of the frontage'},
+  other:{kick:'Something else',title:'Tell us a bit about the place',sub:'A few questions get us ready, then you pick a time.',what:['Inside','Outside','Both'],
+    rows:[['Roughly how big?',['One room or space','A few spaces','A whole building']],['Approx. height',['Up to 4 m','Over 4 m']],['You are',['Owner','Manager','Committee']]],photo:'A few of the spaces'},
+  hospital:{kick:'Hospital',title:'Tell us about the hospital',sub:'Hospitals are priced on site. Infection control, clearances and approvals come before the painting. A few questions get us ready, then you pick a time.',
+    what:['Wards','Corridors','Treatment rooms','Theatres or clinical areas','Common areas and reception','Exterior'],rows:[['Working hours',['Staged around patients','Closed areas only','After hours']],['You are',['Facilities manager','Maintenance','Project manager']]],photo:'A ward, a corridor, a treatment room'},
+  exterior:{kick:'Commercial, outside',title:'Tell us about the outside',sub:'The outside of a commercial building is always priced on site. Heights, access equipment and traffic management decide the job. A few questions get us ready, then you pick a time.',
+    what:['Render or masonry','Precast or tilt slab','Metal cladding','Timber','Windows and frames','Roller doors','Fences and gates','Signage to work around'],
+    rows:[['Levels',['Ground only','Two','More']],['Street frontage or footpath?',['Yes','No']],['Trading or operating while we work?',['Yes','No']]],photo:'From across the street, and each side you can reach'},
+};
+const WH_AREAS=[['500','Up to 500 m²',[25,20]],['1000','500–1,000',[35,25]],['2500','1,000–2,500',[50,35]],['5000','2,500–5,000',[80,50]],['9000','Over 5,000',[110,80]]];
+const WH_HEIGHTS=[['4','Up to 4 m'],['6','4–6 m'],['9','6–9 m'],['12','Over 9 m']];
+const WH_SURF=[['walls','Walls','Precast, blockwork, sheeting. We ask which next.'],['roof','Underside of the roof','Usually sprayed. A person confirms.',0,1],['steel','Structural steel and columns','Rust treatment where flagged',0,1],['roller','Roller doors','Inside face. Both if you tick outside.','rollerN'],['personnel','Personnel doors and frames','Enamel, both sides','personnelN'],['bollards','Bollards and safety yellow','Counted on site',0,1],['lines','Line marking','Priced per metre. A person confirms.',0,1],['offices','Offices inside','Priced like an office','officesN'],['mezz','Mezzanine','Walls and balustrade',0,1],['amenities','Amenities and kitchen','']];
+const WH_MAT=[['precast','Precast or tilt slab'],['blockwork','Blockwork'],['sheeting','Metal sheeting'],['cement_sheet','Cement sheet'],['plasterboard','Plasterboard'],['unsure','Not sure']];
+const OPEN_SIZES=[['50','Up to 50 m²'],['150','50–150'],['400','150–400'],['800','400+']];
+const OPEN_HEIGHTS=[['4','Up to 4 m'],['6','4–6 m'],['9','Over 6 m']];
+const OPEN_CEIL=[['tiles','Tiles, not painted'],['plaster','Plaster, painted'],['exposed','Exposed, not included']];
+
+/* ───────── state ───────── */
+const S={phase:'wizard',i:0,enter:true,just:'',
+  addr:'',addrOk:false,what:'interior',kind:'house',beds:3,storeys:'single',plan:false,bothHow:null,
+  scope:'whole',surf:{walls:1,ceilings:1,skirting:1,architraves:1,doors:1,windows:1},
+  colour:{walls:1,ceilings:1,trims:1,windows:1},bold:false,undecided:false,
+  roomsOff:{},added:[],cond:'wear',occ:'no',
+  ext:{el:{},sep:{},mats:{},win:'unsure',winN:8,doorN:2,colour:'new',storeys:'single',access:{},sides:{front:1,left:1,back:1,right:1},pgL:4,pgW:3},
+  seg:null,com:null,wh:null,brief:null,slot:null,
+  name:'',email:'',mobile:'',news:false,
+  rooms:null,sides:null,tab:'in',open:null,qi:0,qa:[],qj:0,qb:[],checks:false,checksOut:false,extras:{},
+};
+const isCom=()=>S.kind==='commercial';
+function briefKey(){if(!isCom()||!S.seg)return null;const g=SEG[S.seg];if(g.route==='brief')return S.seg;if(S.what!=='interior')return 'exterior';if(S.seg==='health'&&S.com&&S.com.kind==='hospital')return 'hospital';return null}
+/** int · ext · both · com (areas pattern) · wh (warehouse) · brief (visit only) */
+function flow(){if(isCom()){if(!S.seg)return 'com';if(briefKey())return 'brief';return SEG[S.seg].pattern==='warehouse'?'wh':'com'}return {interior:'int',exterior:'ext',both:'both'}[S.what]}
+const hasIn=()=>['int','both','com','wh'].includes(flow()), hasOut=()=>['ext','both'].includes(flow());
+/** The same step order the live wizard uses (lib/wizard/quick-look.ts → stepsFor). */
+function seq(){
+  if(isCom()){
+    if(!S.seg)return ['start','place','segment'];
+    const bk=briefKey();
+    if(bk==='hospital')return ['start','place','segment','com_areas','com_brief','com_book'];
+    if(bk)return ['start','place','segment','com_brief','com_book'];
+    return ['start','place','segment',SEG[S.seg].pattern==='warehouse'?'com_warehouse':'com_areas','com_job','gate'];
+  }
+  if(S.what==='exterior')return ['start','place','outside','sides','gate'];
+  if(S.what==='both')return ['start','both','place','job','rooms','condition','outside','sides','gate'];
+  return ['start','place','job','rooms','condition','gate'];
+}
+const key=()=>{const q=seq();if(S.i>=q.length)S.i=q.length-1;return q[S.i]};
+const LBL={start:['Address','Address'],both:['','Inside and outside'],place:['Place','The place'],job:['Job','The job'],rooms:['Rooms','The rooms'],condition:['Condition','Condition'],outside:['Outside','The outside'],sides:['Sides','Which sides'],
+  segment:['Space','The space'],com_areas:['Areas','The areas'],com_warehouse:['Building','The building'],com_job:['Job','The job'],com_brief:['Questions','A few questions'],com_book:['Book','Book a visit'],gate:['Details','Your details']};
+function defCom(k){const g=SEG[k];if(!g.counts)return {kind:null,counts:{},also:{},surfaces:{},hours:g.hours?g.hours[0][0]:'',occ:null,openSize:'150',openHeight:'6',ceiling:'tiles',photo:false};
+  return {kind:g.kindQ?g.kindQ[1][0][0]:null,counts:Object.fromEntries(g.counts.map(c=>[c[0],c[3]])),also:{},surfaces:Object.fromEntries(g.surf.slice(0,6).map(s=>[s,1])),hours:g.hours[0][0],occ:g.occ?g.occ[1][0][0]:null,openSize:'150',openHeight:'6',ceiling:'tiles',photo:false}}
+const defWh=()=>({area:'1000',L:'',W:'',height:'6',surf:{walls:1},mats:{},rollerN:2,personnelN:2,officesN:1,racking:'no',operating:false,lift:false});
+function defBrief(k){const b=BRIEF[k];return {what:{[b.what[0]]:1},answers:Object.fromEntries(b.rows.map(([q,o])=>[q,o[0]])),date:'',notes:'',photo:false}}
+function baseRooms(){const r=[];const n=S.beds>=5?5:S.beds;for(let i=1;i<=n;i++)r.push({name:'Bed '+i,l:3.5,w:3.25,t:'bed'});
+  r.push({name:'Living room',l:4,w:4,t:'liv'},{name:'Kitchen / Meals',l:4,w:3,t:'kit'},{name:'Bathroom',l:2,w:1.5,t:'wet'},{name:'Laundry',l:2,w:1.5,t:'wet'},{name:'Hall & Entry',l:6,w:2,t:'hall'});
+  if(S.storeys==='double')r.push({name:'Stairwell & upper hall',l:5,w:2,t:'hall'});
+  return r.concat(S.added.map(n=>({name:n,l:3,w:3,t:'bed',added:true})))}
+const onRooms=()=>baseRooms().filter(r=>!S.roomsOff[r.name]);
+function comRooms(){const g=SEG[S.seg],c=S.com,out=[];
+  g.counts.forEach(([k,,,,one,dim])=>{const n=c.counts[k]||0;for(let i=1;i<=n;i++)out.push({name:n>1?`${one} ${i}`:one,l:dim[0],w:dim[1],t:k===g.openKey?'liv':'bed',grp:k})});
+  Object.keys(c.also).filter(a=>c.also[a]&&!(g.alsoFlag||{})[a]).forEach(a=>out.push({name:a,l:/orridor/.test(a)?12:4,w:/orridor/.test(a)?2:3,t:/orridor/.test(a)?'hall':'wet'}));
+  return out}
+function whRooms(){const w=S.wh,d=w.L&&w.W?[+w.L,+w.W]:WH_AREAS.find(a=>a[0]===w.area)[2],out=[{name:'Warehouse floor',l:d[0],w:d[1],t:'wh'}];
+  if(w.surf.offices)for(let i=1;i<=w.officesN;i++)out.push({name:w.officesN>1?'Office '+i:'Office',l:3.5,w:3,t:'bed'});
+  if(w.surf.amenities)out.push({name:'Amenities',l:3,w:2,t:'wet'});return out}
+
+/* ───────── event plumbing ───────── */
+document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(!t||t.disabled)return;e.preventDefault();const f=A[t.dataset.a];if(f)f(t.dataset.v,t)});
+document.addEventListener('input',e=>{const k=e.target.dataset.f;if(!k)return;
+  const o=k.includes('.')?S[k.split('.')[0]]:S,p=k.split('.').pop();
+  o[p]=e.target.type==='checkbox'?e.target.checked:e.target.value;
+  if(k==='addr'){S.addrOk=false;renderSugg()} syncNav()});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&S.phase==='wizard'&&e.target.tagName==='INPUT'){const b=$('#next');if(b)b.click()}});
+function re(){S.enter=false;saved();render()}
+function pick(k,v){S[k]=v;S.just=k+':'+v;re()}
+function saved(){$('#saved').classList.add('show')}
+function toast(html){const t=$('#toast');t.innerHTML=html;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),2400)}
+function top0(){window.scrollTo(0,0)}
+const tog=(o,k)=>{o[k]=o[k]?0:1};
+function resetCheck(){S.rooms=null;S.sides=null;S.open=null;S.qi=0;S.qa=[];S.qj=0;S.qb=[];S.checks=false;S.checksOut=false;S.tab=hasIn()?'in':'out'}
+function demoFill(){ /* so a jump straight to a later screen has sensible answers behind it */
+  if(!S.addr){S.addr='12 Elm Street, Northcote VIC 3070';S.addrOk=true}
+  if(!S.name)S.name='Alex Morgan';
+  if(hasOut()&&!Object.values(S.ext.el).some(Boolean)){S.ext.el={body:1,windows:1,doors:1,fascias:1,gutters:1,eaves:1};S.ext.mats={weatherboards:1};S.ext.win='sash';S.ext.access={none:1}}
+}
+const PRESET={int:{kind:'house',what:'interior'},ext:{kind:'house',what:'exterior'},both:{kind:'house',what:'both'},office:{kind:'commercial',seg:'office',what:'interior'},wh:{kind:'commercial',seg:'warehouse',what:'interior'},strata:{kind:'commercial',seg:'strata',what:'interior'}};
+const curType=()=>({int:'int',ext:'ext',both:'both',com:'office',wh:'wh',brief:'strata'}[flow()]);
+function setSeg(k){S.seg=k;S.com=defCom(k);S.wh=defWh();const b=briefKey();S.brief=b?defBrief(b):null}
+const A={
+  noop(){},
+  type(v){Object.assign(S,PRESET[v]);if(PRESET[v].seg)setSeg(PRESET[v].seg);else S.seg=null;resetCheck();
+    if(flow()==='brief'&&!['wizard','booked'].includes(S.phase))S.phase='wizard';
+    if(flow()!=='brief'&&S.phase==='booked')S.phase='wizard';
+    if(S.phase==='wizard')S.i=0;else demoFill();S.enter=true;top0();render();if(S.phase==='reveal')playReveal()},
+  jump(v){if(v!=='wizard')demoFill();if(v==='editor'||v==='finish')ensureUnits();
+    if(v==='finish'){(S.rooms||[]).forEach(r=>{r.sizeOk=true;r.ok=true});(S.sides||[]).forEach(r=>{r.sizeOk=true;r.ok=true});S.qi=QIN().length;S.qa=QIN().map(q=>q[2][0][0]);S.qj=QOUT.length;S.qb=QOUT.map(q=>q[2][0][0]);S.checks=S.checksOut=true}
+    S.phase=v;if(v==='wizard')S.i=0;S.enter=true;top0();render();if(v==='reveal')playReveal()},
+  go(v){const n=seq().indexOf(v);if(n>=0){S.i=n;S.enter=true;top0();render()}},
+  back(){if(S.i>0){S.i--;S.enter=true;top0();render()}},
+  next(){const k=key();if(!canNext(k)){const w=$('#why');if(w){w.classList.add('show');$('#next').classList.add('shake');setTimeout(()=>$('#next').classList.remove('shake'),450)}return}
+    saved();S.enter=true;top0();
+    if(k==='gate'){S.phase='working';resetCheck();render();return}
+    if(k==='com_book'){S.phase='booked';render();return}
+    S.i++;render()},
+  addr(v){S.addr=v;S.addrOk=true;re()},
+  what(v){S.what=v;S.just='what:'+v;if(isCom()&&S.seg)setSeg(S.seg);re()},
+  kind(v){S.kind=v;S.just='kind:'+v;if(v!=='commercial')S.seg=null;re()},
+  beds(v){pick('beds',+v)},storeys(v){pick('storeys',v)},
+  plan(){S.plan=!S.plan;re()},
+  bothHow(v){S.bothHow=v;if(v==='book'){demoFill();ensureUnits();S.phase='finish';S.enter=true;top0();render()}else{S.i++;S.enter=true;top0();render()}},
+  scope(v){S.scope=v;S.surf={...SCOPES[v].s};S.just='scope:'+v;re();sweep()},
+  surf(v){tog(S.surf,v);S.gloss=v;re();if(v==='walls'&&S.surf[v])sweep()},
+  colour(v){tog(S.colour,v);re()},
+  bold(v){pick('bold',v==='1')},undecided(v){pick('undecided',v==='1')},
+  swatch(v){document.documentElement.style.setProperty('--swatch',v);S.sw=v;syncSide();sweep()},
+  room(v){S.roomsOff[v]=!S.roomsOff[v];re()},
+  addroom(){const s=$('#addsel');if(!s.value)return;let n=s.value,i=2;const names=baseRooms().map(r=>r.name);while(names.includes(n))n=s.value+' '+(i++);S.added.push(n);re()},
+  cond(v){pick('cond',v)},occ(v){pick('occ',v)},
+  /* outside */
+  el(v){tog(S.ext.el,v);S.gloss=v;re()},
+  sep(v){tog(S.ext.sep,v);re()},
+  mat(v){if(v==='unsure')S.ext.mats=S.ext.mats.unsure?{}:{unsure:1};else{delete S.ext.mats.unsure;tog(S.ext.mats,v)}re()},
+  win(v){S.ext.win=v;S.just='win:'+v;re()},
+  xn(v,t){const k=t.dataset.k;S.ext[k]=Math.max(0,Math.min(60,S.ext[k]+ +v));re()},
+  xcol(v){S.ext.colour=v;S.just='xcol:'+v;re()},
+  xst(v){S.ext.storeys=v;S.just='xst:'+v;re()},
+  acc(v){if(v==='none')S.ext.access=S.ext.access.none?{}:{none:1};else{delete S.ext.access.none;tog(S.ext.access,v)}re()},
+  side(v){if(v==='all')S.ext.sides={front:1,left:1,back:1,right:1};else tog(S.ext.sides,v);re()},
+  /* commercial */
+  seg(v){setSeg(v);S.just='seg:'+v;re()},
+  ckind(v){S.com.kind=v;S.brief=briefKey()?defBrief(briefKey()):null;re()},
+  ccount(v,t){const k=t.dataset.k;S.com.counts[k]=Math.max(0,Math.min(500,(S.com.counts[k]||0)+ +v));re()},
+  cset(v,t){S.com[t.dataset.k]=v;re()},
+  calso(v){tog(S.com.also,v);re()},
+  csurf(v){tog(S.com.surfaces,v);S.gloss=(SEG[S.seg].keys||{})[v];re()},
+  cphoto(){S.com.photo=!S.com.photo;re()},
+  wset(v,t){const k=t.dataset.k;S.wh[k]=v==='true'?true:v==='false'?false:v;if(k==='area'){S.wh.L='';S.wh.W=''}re()},
+  wsurf(v){tog(S.wh.surf,v);re()},
+  wn(v,t){const k=t.dataset.k;S.wh[k]=Math.max(0,Math.min(60,S.wh[k]+ +v));re()},
+  wmat(v){if(v==='unsure')S.wh.mats=S.wh.mats.unsure?{}:{unsure:1};else{delete S.wh.mats.unsure;tog(S.wh.mats,v)}re()},
+  bwhat(v){tog(S.brief.what,v);re()},
+  bans(v,t){S.brief.answers[t.dataset.k]=v;re()},
+  bphoto(){S.brief.photo=!S.brief.photo;re()},
+  slot(v){S.slot=S.slot===v?null:v;S.enter=false;render()},
+  /* after the range */
+  tighten(){ensureUnits();S.phase='editor';S.enter=true;top0();render()},
+  finish(){ensureUnits();S.phase='finish';S.enter=true;top0();render()},
+  tab(v){S.tab=v;const nx=U().findIndex(x=>!x.ok);S.open=nx<0?null:nx;renderEd();const el=$('#sec-'+v);el&&el.scrollIntoView({behavior:'smooth',block:'start'})},
+  xopen(v,t){const same=S.tab===t.dataset.t;S.tab=t.dataset.t;S.open=same&&S.open===+v?null:+v;renderEd();const el=$('#rc'+v);if(el&&S.open===+v)el.scrollIntoView({behavior:'smooth',block:'nearest'})},
+  xsep(v){tog(S.ext.sep,v);renderEd()},
+  open(v){S.open=S.open===+v?null:+v;renderEd();const el=$('#rc'+v);if(el&&S.open===+v)el.scrollIntoView({behavior:'smooth',block:'nearest'})},
+  sizeok(v){const r=U()[+v];r.sizeOk=true;r.adj=false;r.unsure=false;renderEd()},
+  sizeadj(v){const r=U()[+v];r.adj=true;r.sizeOk=false;renderEd()},
+  sizens(v){const r=U()[+v];r.sizeOk=true;r.unsure=true;r.adj=false;renderEd();toast('Not a problem. We’ll measure this side on the day.')},
+  dim(v,t){const r=U()[+t.dataset.r],k=t.dataset.k,st=r.t==='wh'?1:k==='h'?0.1:0.25,mx=r.t==='wh'?200:k==='h'?12:S.tab==='out'?40:15;r[k]=Math.min(mx,Math.max(1,+(r[k]+ +v*st).toFixed(2)));renderEd()},
+  tile(v,t){const r=U()[+t.dataset.r];r.s[v].on=!r.s[v].on;renderEd()},
+  cnt(v,t){const o=U()[+t.dataset.r].s[t.dataset.k];o.n=Math.max(1,Math.min(40,o.n+ +v));renderEd()},
+  opt(v,t){const o=U()[+t.dataset.r].s[t.dataset.k];o[t.dataset.p]=v;renderEd()},
+  robe(v,t){U()[+t.dataset.r].robe=v;renderEd()},
+  paint(v,t){const r=U()[+t.dataset.r];r.paint=v;if(v==='no'){r.ok=true;r.sizeOk=true;const nx=U().findIndex(x=>!x.ok);S.open=nx<0?null:nx}renderEd()},
+  share(v,t){const r=U()[+t.dataset.r],m=t.dataset.k,ks=Object.keys(r.walls);r.walls[m]=+v;if(ks.length===2){const o=ks.find(k=>k!==m);r.walls[o]=100-+v}renderEd()},
+  confirm(v){const i=+v,r=U()[i],gap=$('#gap'+i);
+    const bad=(sel,msg)=>{const el=$('#rc'+i+' '+sel);if(el){el.classList.add('shake');setTimeout(()=>el.classList.remove('shake'),450)}gap.textContent=msg};
+    if(!r.sizeOk)return bad('.sizeq',S.tab==='out'?'Check the size of this side first.':'Check the room size first.');
+    if(S.tab==='out'&&r.walls&&Object.values(r.walls).reduce((a,b)=>a+b,0)!==100)return bad('.mixbox','The wall surfaces need to add up to 100%.');
+    const before=range();r.ok=true;let nx=U().findIndex(x=>!x.ok);if(nx<0&&hasIn()&&hasOut()){const o=S.tab==='in'?'out':'in',ol=o==='out'?S.sides:S.rooms,k=ol.findIndex(x=>!x.ok);if(k>=0){S.tab=o;nx=k}}S.open=nx<0?null:nx;renderEd();tightened(before);
+    if(nx>=0)setTimeout(()=>{const el=$('#rc'+nx);el&&el.scrollIntoView({behavior:'smooth',block:'center'})},60)},
+  qans(v){const before=range();if(S.tab==='out'){S.qb[S.qj]=v;S.qj++}else{S.qa[S.qi]=v;S.qi++}renderEd();tightened(before)},
+  qskip(){if(S.tab==='out'){S.qb[S.qj]=null;S.qj++}else{S.qa[S.qi]=null;S.qi++}renderEd()},
+  checks(){const before=range();if(S.tab==='out')S.checksOut=true;else S.checks=true;renderEd();tightened(before)},
+  extra(v){S.extras[v]=!S.extras[v];renderEd()},
+};
+function sweep(){const r=$('#room .roller');if(!r)return;r.classList.remove('go');void r.getBoundingClientRect();r.classList.add('go')}
+const contactOk=()=>S.name.trim().length>1&&/.+@.+\..+/.test(S.email)&&S.mobile.replace(/\D/g,'').length>=8;
+function canNext(k){switch(k){
+  case 'start':return S.addrOk;
+  case 'place':return true;
+  case 'segment':return !!S.seg;
+  case 'job':return Object.values(S.surf).some(Boolean);
+  case 'rooms':return onRooms().length>0;
+  case 'outside':return Object.values(S.ext.el).some(Boolean)||Object.values(S.ext.sep).some(Boolean);
+  case 'sides':return Object.values(S.ext.sides).some(Boolean);
+  case 'com_areas':return Object.values(S.com.counts).some(n=>n>0);
+  case 'com_warehouse':return Object.values(S.wh.surf).some(Boolean);
+  case 'com_brief':return Object.values(S.brief.what).some(Boolean);
+  case 'gate':case 'com_book':return contactOk();
+  default:return true}}
+const WHY={start:'Pick your address from the list to carry on.',segment:'Pick the closest kind of place.',job:'Tick at least one thing to paint.',rooms:'Tick at least one room, or add one.',outside:'Tick at least one thing to paint.',sides:'Tick at least one side.',
+  com_areas:'Add at least one area.',com_warehouse:'Tick at least one thing to paint.',com_brief:'Tick at least one thing that needs painting.',gate:'Add your name, email and mobile to see your range.',com_book:'Add your name, email and mobile so we can confirm the visit.'};
+function syncNav(){const b=$('#next');if(!b)return;const ok=canNext(key());b.style.cssText=ok?'':'background:var(--soft);color:#7C8994;box-shadow:none';b.toggleAttribute('aria-disabled',!ok);if(ok){const w=$('#why');w&&w.classList.remove('show')}}
+
+/* ───────── render ───────── */
+function render(){
+  document.body.dataset.phase=S.phase;
+  const fl=flow(),brief=fl==='brief';
+  $$('#mockType button').forEach(b=>b.classList.toggle('on',b.dataset.v===curType()));
+  $$('#mockScreen button').forEach(b=>{const v=b.dataset.v;b.classList.toggle('on',v===(S.phase==='working'?'wizard':S.phase));
+    b.style.display=(v==='booked')===brief||v==='wizard'?'':'none';
+    if(v==='editor')b.textContent=hasOut()&&!hasIn()?'3 · Side by side':hasOut()?'3 · Rooms and sides':isCom()?'3 · Area by area':'3 · Room by room'});
+  const wiz=S.phase==='wizard'||S.phase==='working';
+  $('#stage').style.display=wiz?'':'none';$('#screen').style.display=wiz?'none':'';
+  renderRail();
+  if(S.phase==='wizard'){renderStep();syncSide()}
+  else if(S.phase==='working'){renderWorking();syncSide()}
+  else if(S.phase==='reveal')renderReveal();
+  else if(S.phase==='editor'){renderEdShell();renderEd()}
+  else if(S.phase==='booked')renderBooked();
+  else renderFinish();
+  S.just='';
+}
+function renderRail(){
+  const r=$('#rail'),m=$('#mprog'),dot=(i,cur,l)=>`<li class="${i<cur?'done':i===cur?'cur':''}"><span class="n">${i<cur?tick(12):i+1}</span><span class="l">${l}</span></li>`;
+  if(S.phase==='wizard'||S.phase==='working'){
+    const k=key(),sq=seq().filter(x=>x!=='both'),cur=k==='both'?0.5:sq.indexOf(k),brief=flow()==='brief';
+    $('#railWrap').classList.toggle('compact',sq.length>6);
+    r.innerHTML=sq.map((x,i)=>dot(i,cur,LBL[x][0])).join('')+`<li class="end"><span class="l">${brief?'Booked':'Your range'}</span></li>`;
+    const left=sq.length-1-Math.floor(cur),tail=brief?'your visit':'your range';
+    const frac=(cur+(S.phase==='working'?1:.5))/sq.length;
+    $('#stripe').style.width=(frac*100)+'%';
+    m.innerHTML=`<div class="t"><span><b>Step ${Math.floor(cur)+1} of ${sq.length}</b> · ${LBL[k][1]}</span><span>${left<=0?'Last step':left+(left===1?' step':' steps')+' to '+tail}</span></div><div class="b"><i style="width:${frac*100}%"></i></div>`;
+  }else{
+    $('#railWrap').classList.remove('compact');
+    if(S.phase==='booked'){r.innerHTML=dot(0,1,'Your brief')+dot(1,1,'Visit booked');$('#stripe').style.width='100%';m.innerHTML='';return}
+    const st={reveal:0,editor:1,finish:2}[S.phase],L=['Guide range',hasOut()&&!hasIn()?'Side by side':hasOut()?'Rooms and sides':isCom()?'Area by area':'Room by room','Fixed by Tom'];
+    $('#stripe').style.width=((st+1)/3*100)+'%';
+    r.innerHTML=L.map((l,i)=>dot(i,st,l)).join('');
+    m.innerHTML=S.phase==='editor'?'':`<div class="t"><span><b>${L[st]}</b></span><span>${st+1} of 3</span></div><div class="b"><i style="width:${(st+1)/3*100}%"></i></div>`;
+  }
+}
+const optCard=(a,v,on,label,hint,pic,cls='',extra='')=>`<button class="opt ${cls} ${on?'on':''} ${S.just===a+':'+v?'just':''}" data-a="${a}" data-v="${v}" ${extra} aria-pressed="${!!on}">${pic||''}<span><b>${label}</b>${hint?`<small>${hint}</small>`:''}</span><span class="tick">${TICK}</span></button>`;
+const chip=(a,v,on,label,extra='')=>`<button class="chip ${on?'on':''}" data-a="${a}" data-v="${v}" ${extra} aria-pressed="${!!on}"><span class="bx">${TICK}</span>${label}</button>`;
+const seg=(a,opts,val,cls='',extra='')=>`<div class="seg ${cls}" role="group">${opts.map(([v,l])=>`<button class="${String(val)===String(v)?'on':''}" data-a="${a}" data-v="${v}" ${extra} aria-pressed="${String(val)===String(v)}">${l}</button>`).join('')}</div>`;
+const Q=(title,body,hint='',tag='')=>`<div class="q"><h2>${title}${tag?`<span class="opt-tag">${tag}</span>`:''}</h2>${hint?`<p class="hint">${hint}</p>`:''}<div class="body">${body}</div></div>`;
+const stepper=(a,k,n,label)=>`<span class="stepper"><button data-a="${a}" data-v="-1" data-k="${k}" aria-label="Fewer ${label}">−</button><output>${n}</output><button data-a="${a}" data-v="1" data-k="${k}" aria-label="More ${label}">+</button></span>`;
+const crow=(title,hint,ctl)=>`<div class="crow"><span><b>${title}</b>${hint?`<small>${hint}</small>`:''}</span>${ctl}</div>`;
+const drop=(a,on,t1,t2,ic=IC.cam)=>`<button class="drop" data-a="${a}">${ic}<span><b>${on?'Added. Thank you.':t1}</b><small>${t2}</small></span></button>`;
+const head=(k,h,s)=>`<p class="kick">${k}</p><h1>${h}</h1>${s?`<p class="sub">${s}</p>`:''}`;
+const first=`style="margin-top:26px"`;
+const estName='Tom Roman';
+const talkHTML=()=>`<div class="who"><span class="av">TR</span><span><b>Rather talk it through?</b><small>${estName} is your estimator. Mon to Fri, 8am to 5pm.</small></span></div>
+  <div class="talk-row"><button data-a="noop">${IC.cal}Request a visit</button><a href="tel:0388409414">${IC.phone}Call us</a><button data-a="noop">${IC.msg}Send a message</button></div>`;
+const contactFields=()=>`<label class="field"><span>Full name</span><input data-f="name" value="${S.name}" autocomplete="name"></label>
+      <div class="two"><label class="field"><span>Email</span><input data-f="email" type="email" inputmode="email" value="${S.email}" autocomplete="email"></label>
+      <label class="field"><span>Mobile number</span><input data-f="mobile" type="tel" inputmode="tel" placeholder="04" value="${S.mobile}" autocomplete="tel"></label></div>`;
+const jobBits=()=>`${Q('Going much lighter, or a bold colour?',seg('bold',[['0','No'],['1','Yes']],S.bold?'1':'0'),'That needs an undercoat first. We allow for it.')}
+    ${Q('Still choosing colours?',seg('undecided',[['0','I know roughly'],['1','Still choosing']],S.undecided?'1':'0'),'That’s fine. We allow for new colours and you decide later.')}`;
+const colourChips=()=>Q('What’s changing colour?',`<div class="chips">${[['walls','Walls'],['ceilings','Ceilings'],['trims','Doors and trims'],['windows','Window frames']].map(([v,l])=>chip('colour',v,S.colour[v],l)).join('')}</div>`,'Anything unticked here is still painted, in the colour it is now.');
+
+/* every screen of every path: same words and order as the live wizard, new layout */
+const STEP={
+  start:()=>`${head('A minute to a guide range','Let’s price your painting','A few quick screens, then your guide range. Nothing you say here is a commitment, and every answer can be changed.')}
+    ${Q('Where is the property?',`<label class="field big">${IC.pin}<span class="vh">Address</span><input data-f="addr" id="addr" value="${S.addr}" placeholder="Start typing your address" autocomplete="off"></label><div id="sugg"></div>${S.addrOk?`<p class="addr-ok">${tick(18)} Got it. We paint in your area.</p>`:''}`)}
+    ${Q('What’s being painted?',`<div class="opts c3">${optCard('what','interior',S.what==='interior','Inside','',PIC.in,'col')}${optCard('what','exterior',S.what==='exterior','Outside','',PIC.out,'col')}${optCard('what','both',S.what==='both','Both','',PIC.both,'col')}</div>`)}`,
+
+  both:()=>`${head('Inside and outside','Two jobs, two ways to do this','Inside and outside are priced differently, so we take them one at a time. Pick whichever suits you.')}
+    <div class="doors q" ${first}>
+      <button class="door" data-a="bothHow" data-v="self"><span class="ic">${IC.tight}</span><span><b>Price them yourself, one after the other</b><small>Inside first, then outside. About a minute to a guide range for each, and you can tighten either one whenever you like.</small></span>${ARROW}</button>
+      <button class="door" data-a="bothHow" data-v="book"><span class="ic">${IC.cal}</span><span><b>Book an estimator for both</b><small>One visit covers the lot. Takes a minute to book, and you don’t have to answer anything else.</small></span>${ARROW}</button>
+    </div><p class="note">Either way your answers are saved, and a person can pick up wherever you leave off.</p>`,
+
+  place:()=>`${head('About the place','What kind of property is it?',S.what==='exterior'?'Near enough is fine. You can change it later.':'Near enough is fine. This sets up the rooms, and you can change any of them later.')}
+    <div class="q" ${first}><div class="opts c2 keep2">${Object.entries(KINDS).map(([v,[l,hh]])=>optCard('kind',v,S.kind===v,l,hh,PIC[v])).join('')}</div></div>
+    ${isCom()||S.what==='exterior'?'':`${Q('How many bedrooms?',seg('beds',[[1,'1'],[2,'2'],[3,'3'],[4,'4'],[5,'5+']],S.beds,'num'))}
+    ${Q('How many storeys?',`<div class="opts c2 keep2">${optCard('storeys','single',S.storeys==='single','Single storey','',PIC.single)}${optCard('storeys','double',S.storeys==='double','Two storeys','Adds the stairwell and upper hall',PIC.double)}</div>`)}
+    ${Q('Have a floorplan or the listing?',`<div class="two">${drop('plan',S.plan,'Upload a floorplan',S.plan?'We will read the rooms off it':'A photo or a PDF',IC.plan)}<label class="field"><span>Or paste the listing link</span><input placeholder="realestate.com.au or Domain"></label></div>`,'We read the rooms and sizes off it, which narrows your range straight away.','Optional')}`}
+    ${isCom()?`<p class="note">Next we ask what kind of space it is. Some we can range online; others are better priced on a visit.</p>`:''}`,
+
+  job:()=>`${head('The job','What’s the job?','We’ve ticked the usual full repaint. Untick anything we’re not doing and watch the room change.')}
+    <div class="q" ${first}><div class="opts c2">${Object.entries(SCOPES).map(([v,o])=>optCard('scope',v,S.scope===v,o.l,o.h)).join('')}</div></div>
+    ${Q('What’s being painted?',`<div class="chips">${SURF.map(([v,l])=>chip('surf',v,S.surf[v],l)).join('')}</div>`,'All ticked. Untick anything we’re not doing.')}
+    ${colourChips().replace('What’s changing colour?','Of those, what’s changing colour?')}${jobBits()}`,
+
+  rooms:()=>{const rs=baseRooms();return `${head('The rooms',S.scope==='some_rooms'?'Which rooms are we painting?':'Are these the rooms we’re painting?','From your answers. Untick any we’re not painting and add any we’ve missed. You check each room’s size after you’ve seen your range.')}
+    ${Q(`${onRooms().length} of ${rs.length} rooms`,`<div class="chips">${rs.map(r=>chip('room',r.name,!S.roomsOff[r.name],r.name)).join('')}</div>`)}
+    ${Q('Missed one?',`<div style="display:flex;gap:10px;flex-wrap:wrap"><label class="field" style="flex:1;min-width:200px;padding:6px 14px"><span>Room type</span><select id="addsel" style="border:0;background:none;width:100%;font-size:17px;padding:4px 0;outline:0"><option value="">Choose a room</option>${['Hallway','Bedroom','Bathroom','Dining','Living','Kitchen','Laundry','Study','WC','Storage','Garage'].map(x=>`<option>${x}</option>`).join('')}</select></label><button class="pillbtn" data-a="addroom" style="min-height:60px">Add this room</button></div>`)}`},
+
+  condition:()=>`${head('Condition','How’s it looking?','Honest is best. It sets the preparation we allow for, so the price holds.')}
+    <div class="q" ${first}><div class="opts">${Object.entries(CONDS).map(([v,[l,hh]])=>optCard('cond',v,S.cond===v,l,hh,PIC[v])).join('')}</div></div>
+    ${S.cond==='needs_work'?Q('Which areas need work?',drop('noop',false,'Add photos or a few words','Either helps your estimator price the preparation properly'),'','Optional'):''}
+    ${Q('Will anyone be living there while we paint?',`<div class="opts c2 keep2">${optCard('occ','no',S.occ==='no','No, it’ll be empty','',PIC.empty)}${optCard('occ','yes',S.occ==='yes','Yes, we’ll be there','We work room by room and pack down each day',PIC.home)}</div>`)}`,
+
+  outside:()=>{const x=S.ext;return `${head('Outside','What are we painting?','Tick everything. We only ask about the bits you’ve ticked, and every outside price is confirmed by your estimator before it’s fixed.')}
+    ${Q('On the house',`<div class="opts c2">${EXT_EL.map(([v,l,h])=>optCard('el',v,x.el[v],l,h,PIC[v==='body'?'walls':v])).join('')}</div>`)}
+    ${Q('Any other areas being painted?',`<div class="chips">${EXT_SEP.map(([v,l])=>chip('sep',v,x.sep[v],l)).join('')}</div>`,'Tick all that apply.')}
+    ${x.sep.pergola?`<div class="follow">${Q('Roughly how big is the pergola top?',`<div class="inline-fields"><span class="dim">Long ${stepper('xn','pgL',x.pgL+' m','metres long')}</span><span class="dim">Wide ${stepper('xn','pgW',x.pgW+' m','metres wide')}</span></div>`,'Near enough is fine. It’s priced on the top’s area, not per pergola.')}</div>`:''}
+    ${x.el.body?Q('What are the walls made of?',`<div class="chips">${EXT_MAT.map(([v,l])=>chip('mat',v,x.mats[v],l)).join('')}</div><p class="note">Nothing is ticked for you. Brick and render are often left bare on purpose, so we’d rather you told us.</p>`,'Tick everything that needs painting.'):''}
+    ${x.el.windows?`${Q('What type of windows, mostly?',`<div class="opts c4">${EXT_WIN.map(([v,l,h])=>optCard('win',v,x.win===v,l,h,WINPIC[v],'col')).join('')}</div><div class="chips" style="margin-top:10px">${[['alu','Aluminium'],['unsure','Not sure']].map(([v,l])=>`<button class="chip plain ${x.win===v?'on':''}" data-a="win" data-v="${v}">${l}</button>`).join('')}</div>${x.win==='alu'?`<p class="note warn">Aluminium usually isn’t painted. Your estimator will check.</p>`:''}`)}
+      <div class="q" style="margin-top:14px">${crow('How many windows, all up?','A rough count is fine. We check it side by side later.',stepper('xn','winN',x.winN,'windows'))}</div>`:''}
+    ${x.el.doors?`<div class="q" style="margin-top:${x.el.windows?10:34}px">${crow('How many doors?','Including the garage’s personnel door, if it’s painted',stepper('xn','doorN',x.doorN,'doors'))}</div>`:''}
+    ${Q('Colours',`<div class="opts">${EXT_COL.map(([v,l,h])=>optCard('xcol',v,x.colour===v,l,h)).join('')}</div>`)}
+    ${Q('Single or double storey?',`<div class="opts c2 keep2">${optCard('xst','single',x.storeys==='single','Single','Up to about 4 m',PIC.single)}${optCard('xst','double',x.storeys==='double','Double','Over 4 m. Additional access equipment required.',PIC.double)}</div>`)}
+    ${Q('Anything tricky about getting to it?',`<div class="chips">${EXT_ACC.map(([v,l])=>chip('acc',v,x.access[v],l)).join('')}</div>${x.access.lift?`<p class="note">Nothing for scaffolding or a lift is in this price. If the job needs one we’ll quote it with you before we start, as a separate line. Never a surprise on the invoice.</p>`:''}`)}`},
+
+  sides:()=>{const s=S.ext.sides,all=SIDES.every(([k])=>s[k]);return `${head('Which sides','Which sides are we painting?','Looking at the house from the street. Untick any side we’re not painting. You size each one after the range.')}
+    <div class="q" ${first}><div class="opts">${optCard('side','all',all,'The full exterior','All four sides',SIDEPIC('all'))}</div>
+    <div class="opts c2 keep2" style="margin-top:12px">${SIDES.map(([v,l,h])=>optCard('side',v,s[v],l,h,SIDEPIC(v))).join('')}</div>
+    <p class="note">A side you leave off won’t be on your estimate at all.</p></div>`},
+
+  segment:()=>{const g=S.seg?SEG[S.seg]:null,bk=briefKey();return `${head('About the space','What kind of space?','Every one of these can be a visit. Just say so. Offices, warehouses, retail and hospitality, schools and aged care can also be ranged online first. Strata and shop fronts are priced on site.')}
+    <div class="q" ${first}><div class="opts c2">${Object.entries(SEG).map(([v,o])=>`<button class="opt ${S.seg===v?'on':''} ${S.just==='seg:'+v?'just':''}" data-a="seg" data-v="${v}" aria-pressed="${S.seg===v}"><span><span class="tag ${o.route==='range'?'':'vis'}">${o.route==='range'?'Online, or we visit':'We visit'}</span><b>${o.name}</b><small>${o.hint}</small></span><span class="tick">${TICK}</span></button>`).join('')}</div></div>
+    ${Q('Which part?',seg('what',[['interior','Inside'],['exterior','Outside'],['both','Both']],S.what),'Outsides of commercial buildings are priced on site. Inside and outside together are one visit.')}
+    ${g&&bk?`<div class="follow"><b>This one is priced on site.</b><p class="note" style="margin-top:4px">From what you’ve told us, a form can’t price it honestly. A few quick questions get us ready, then you pick a time.</p></div>`:''}
+    <p class="note">Trade or property manager? <a href="#" data-a="noop">Sign in to your trade account</a> for saved specs, your address book and one-tap rebooking.</p>`},
+
+  com_areas:()=>{const g=SEG[S.seg],c=S.com,n=c.counts[g.openKey]||0;return `${head(g.name,g.title,g.sub)}
+    ${g.kindQ?Q(g.kindQ[0],seg('ckind',g.kindQ[1],c.kind)):''}
+    <div class="q" ${g.kindQ?'':first}>${g.counts.map(([k,l,h])=>crow(l,h,stepper('ccount',k,c.counts[k]||0,l.toLowerCase()))).join('')}</div>
+    ${n>0?`<div class="follow"><div class="q"><h2>${g.openLabel}${n>1?'s':''}<span class="opt-tag">${n>1?'The first one. The rest follow the same shape.':'The shape of it'}</span></h2><p class="hint">${g.openCopy}</p></div>
+      ${Q('Roughly how big?',seg('cset',OPEN_SIZES,c.openSize,'','data-k="openSize"'))}
+      ${g.openMode==='height'?Q('How high are the walls?',seg('cset',OPEN_HEIGHTS,c.openHeight,'','data-k="openHeight"')):''}
+      ${Q('The ceiling',seg('cset',OPEN_CEIL,c.ceiling,'','data-k="ceiling"'))}
+      <div class="q" style="margin-top:18px">${drop('cphoto',c.photo,'Add a photo or two',c.photo?'Your estimator checks the shape of it':'Without one the range stays wider')}</div></div>`:''}
+    ${Q('Also being painted?',`<div class="chips">${g.also.map(a=>chip('calso',a,c.also[a],a+((g.alsoFlag||{})[a]?` <small style="color:var(--amber);font-size:13px">${g.alsoFlag[a]}</small>`:''))).join('')}</div>`)}`},
+
+  com_warehouse:()=>{const w=S.wh;return `${head('Industrial or warehouse','Tell us about the space','Near enough is fine. We size the walls from the floor area and the height.')}
+    ${Q('Floor area',`${seg('wset',WH_AREAS,w.L&&w.W?'':w.area,'','data-k="area"')}<div class="inline-fields" style="margin-top:10px"><label class="field"><span>Or type the length (m)</span><input data-f="wh.L" inputmode="decimal" value="${w.L}"></label><label class="field"><span>and the width (m)</span><input data-f="wh.W" inputmode="decimal" value="${w.W}"></label></div>`)}
+    ${Q('Height to the underside of the roof',`${seg('wset',WH_HEIGHTS,w.height,'','data-k="height"')}<p class="note">Above about four metres we allow for a scissor lift. It shows as its own line, and you can tell us if you have one on site.</p>`)}
+    ${Q('What’s being painted?',`<div class="opts c2">${WH_SURF.map(([v,l,h,cnt,flag])=>`<div class="opt stack ${w.surf[v]?'on':''}" style="padding:0;display:block"><button data-a="wsurf" data-v="${v}" aria-pressed="${!!w.surf[v]}" style="all:unset;cursor:pointer;display:block;padding:14px 48px 14px 16px;position:relative;z-index:1;box-sizing:border-box;width:100%"><b style="display:block;font-weight:600;font-size:17px">${l}</b><small style="display:block;color:var(--muted);font-size:14.5px;line-height:1.35">${h}</small></button><span class="tick">${TICK}</span>${w.surf[v]&&cnt?`<div style="position:relative;z-index:1;padding:0 16px 14px">${stepper('wn',cnt,w[cnt],l.toLowerCase())}</div>`:''}</div>`).join('')}</div>`)}
+    ${w.surf.walls?Q('What are the walls made of?',`<div class="chips">${WH_MAT.map(([v,l])=>chip('wmat',v,w.mats[v],l)).join('')}</div><p class="note">Nothing is ticked for you. Precast is often left bare on purpose, so we’d rather you told us.</p>`,'Tick everything.'):''}
+    ${Q('Three things that change access',`${crow('Racking or stock against the walls?','We paint above it, or you clear it. It changes the price a lot.',seg('wset',[['no','No'],['some','Some'],['most','Most walls']],w.racking,'','data-k="racking"'))}${crow('Operating during the works?','',seg('wset',[['true','Yes'],['false','No']],String(w.operating),'','data-k="operating"'))}${crow('A scissor lift or forklift on site we can use?','',seg('wset',[['true','Yes'],['false','No']],String(w.lift),'','data-k="lift"'))}`)}`},
+
+  com_job:()=>{const g=SEG[S.seg],c=S.com;return `${head('The job','What’s being painted, and how?','Tick the surfaces. We work out the coats and preparation from your colour and condition answers, and show you exactly what we’ve allowed for.')}
+    ${g.surf?Q('The surfaces',`<div class="chips">${g.surf.map(s=>chip('csurf',s,c.surfaces[s],s.replace(' — ',', '))).join('')}</div>`):''}
+    ${colourChips()}${jobBits()}
+    ${Q('How’s it looking?',`<div class="opts">${optCard('cond','good',S.cond==='good','Good, just tired','Sound surfaces. A light sand and it is ready.',PIC.good)}${optCard('cond','wear',S.cond==='wear','Some wear',g.wear+'.',PIC.wear)}${optCard('cond','needs_work',S.cond==='needs_work','Needs work',g.work+'.',PIC.needs_work)}</div>`)}
+    ${Q('When can we work?',seg('cset',g.hours,c.hours,'','data-k="hours"'))}
+    ${g.occ?Q(g.occ[0],seg('cset',g.occ[1],c.occ,'','data-k="occ"')):''}`},
+
+  com_brief:()=>{const b=BRIEF[briefKey()],a=S.brief;return `${head(b.kick,b.title,b.sub)}
+    ${Q('What needs painting?',`<div class="chips">${b.what.map(w=>chip('bwhat',w,a.what[w],w)).join('')}</div>`)}
+    ${b.rows.map(([q,o])=>Q(q,seg('bans',o.map(x=>[x,x]),a.answers[q],'',`data-k="${q}"`))).join('')}
+    ${b.date&&a.answers['Timing']==='Before the next meeting'?`<div class="q" style="margin-top:14px"><label class="field"><span>${b.date[0]}</span><input type="date" data-f="brief.date" value="${a.date}"></label><p class="note">${b.date[1]}.</p></div>`:''}
+    ${Q('Photos',drop('bphoto',a.photo,'Add photos',b.photo),'','Optional, but they help a lot')}
+    ${Q('Anything else we should know?',`<textarea class="ta" data-f="brief.notes" placeholder="Water damage, a consultant’s scope, a deadline, who to ask for on site…">${a.notes}</textarea>`)}`},
+
+  com_book:()=>`${head('Let’s get someone out','Book your commercial estimator','A site visit is the right way to price this. Here’s how it goes.')}
+    <ol class="how q" ${first}><li><span><b>We visit and measure</b><span>Usually within a week. We bring your brief and photos, so it’s quick.</span></span></li>
+      <li><span><b>You get a scope of works and a fixed quote</b><span>Itemised, with our insurance certificates and safe work method statements attached.</span></span></li>
+      <li><span><b>Nothing is fixed until you say so</b><span>Quotes are held for 60 days, or to your meeting date if you gave us one.</span></span></li></ol>
+    ${Q('Pick a time that suits',slotsHTML())}
+    <div class="q"><h2>Where to send the confirmation</h2><div class="body" style="display:grid;gap:12px">${contactFields()}</div></div>
+    <p class="note">Something urgent? <a href="tel:0388409414">Call 03 8840 9414</a></p>`,
+
+  gate:()=>`${head('Last question','Where shall we send your estimate?','Enter your details to see your guide range. We save your estimate and email you a link, so you can come back to it.')}
+    <div class="q" style="display:grid;gap:12px;margin-top:26px">${contactFields()}
+      <label class="consent"><input type="checkbox" data-f="news" ${S.news?'checked':''}> Send me occasional news and offers from Paint Group (optional)</label></div>`,
+};
+const SLOTS=[['Mon 12 Oct','11:00am'],['Mon 12 Oct','12:30pm'],['Wed 14 Oct','8:00am'],['Fri 16 Oct','9:30am']];
+const slotsHTML=()=>`<div class="slots">${SLOTS.map(([d,t],i)=>`<button class="${S.slot==i?'on':''}" data-a="slot" data-v="${i}">${d}<small>${t}</small></button>`).join('')}</div>`;
+
+function renderStep(){
+  const k=key(),q=seq(),nx=q[S.i+1];
+  const nextL=k==='gate'?'Show my guide range':k==='com_book'?'Book it':'Continue';
+  const note=nx?(nx==='gate'?'Next: your details, then your range':'Next: '+LBL[nx][1].toLowerCase()):'';
+  let h=STEP[k]();
+  if(k!=='both')h+=`<p class="why" id="why">${WHY[k]||''}</p><div class="nav">${S.i>0?`<button class="btn txt" data-a="back">Back</button>`:''}<button class="btn pri" id="next" data-a="next">${nextL} ${ARROW}</button><span class="navnote">${note}</span></div>`;
+  else h+=`<div class="nav"><button class="btn txt" data-a="back">Back</button></div>`;
+  h+=`<div class="talk talk-m">${talkHTML()}</div>`;
+  $('#pane').innerHTML=h;$('#stage').classList.toggle('enter',S.enter);$('#talk').innerHTML=talkHTML();
+  syncNav();if(k==='start')renderSugg();
+}
+function renderSugg(){const b=$('#sugg');if(!b)return;const v=S.addr.trim();
+  if(S.addrOk||v.length<3){b.innerHTML='';return}
+  const demo=['12 Elm Street, Northcote VIC 3070','27 Wattle Avenue, Coburg VIC 3058','4/22 High Street, Northcote VIC 3070'];
+  b.innerHTML=`<div class="sugg">${demo.map(d=>`<button data-a="addr" data-v="${d}">${IC.pin.replace('<svg','<svg width="20" height="20" style="color:var(--teal);flex:none"')}${d}</button>`).join('')}</div>`}
+function renderWorking(){
+  const fl=flow(),l1=fl==='ext'?'Sizing '+Object.values(S.ext.sides).filter(Boolean).length+' sides from typical houses':fl==='wh'?'Sizing the walls from the floor area and height':fl==='com'?'Adding up '+comRooms().length+' areas':fl==='both'?'Adding up the rooms and the sides':'Adding up '+onRooms().length+' rooms';
+  $('#pane').innerHTML=`<div class="working"><p class="kick">Thanks${S.name?', '+S.name.split(' ')[0]:''}</p><h1>Working out your range</h1>
+  <ol><li><i>${TICK}</i>${l1}</li><li><i>${TICK}</i>Allowing for preparation and the coats you need</li><li><i>${TICK}</i>Pricing it at today’s rates, including GST</li></ol><div class="bar"><i></i></div></div>`;
+  const li=$$('.working li');requestAnimationFrame(()=>{$('.bar i').style.width='100%'});
+  li.forEach((l,i)=>setTimeout(()=>l.classList.add('on'),250+i*600));
+  setTimeout(()=>{if(S.phase==='working'){S.phase='reveal';S.enter=true;top0();render();playReveal()}},2300);
+}
+
+/* ───────── the side panel: one persistent picture, synced to the answers ───────── */
+const list=(a)=>a.length<2?a.join(''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
+const SUM={
+  start:()=>[S.addr,'Address'],
+  place:()=>[isCom()?'Commercial':`${KINDS[S.kind][0]}${S.what==='exterior'?'':` · ${S.beds>=5?'5+':S.beds} bed · ${S.storeys==='double'?'two storeys':'single storey'}`}`,'Property · '+{interior:'inside',exterior:'outside',both:'inside and outside'}[S.what]],
+  both:()=>['One after the other','Inside and outside'],
+  job:()=>[`${SCOPES[S.scope].l}${S.bold?' · bold colour':''}`,'The job'],
+  rooms:()=>[onRooms().length+' rooms','Rooms'],
+  condition:()=>[`${CONDS[S.cond][0]} · ${S.occ==='yes'?'lived in':'empty'}`,'Condition'],
+  outside:()=>{const e=EXT_EL.filter(([k])=>S.ext.el[k]).length,s=EXT_SEP.filter(([k])=>S.ext.sep[k]).length,m=EXT_MAT.filter(([k])=>S.ext.mats[k]&&k!=='unsure').map(x=>x[1].toLowerCase());
+    return [`${e} on the house${s?`, ${s} other area${s>1?'s':''}`:''}${m.length?' · '+m.join(', '):''} · ${S.ext.storeys} storey`,'The outside']},
+  sides:()=>{const s=SIDES.filter(([k])=>S.ext.sides[k]);return [s.length===4?'All four sides':list(s.map(x=>x[1])),'Sides']},
+  segment:()=>[SEG[S.seg].name,'The space · '+{interior:'inside',exterior:'outside',both:'inside and outside'}[S.what]],
+  com_areas:()=>{const g=SEG[S.seg];return [g.counts.filter(c=>S.com.counts[c[0]]>0).map(c=>`${S.com.counts[c[0]]} ${c[1].toLowerCase().split(',')[0].split(' and ')[0]}`).join(', '),'Areas']},
+  com_warehouse:()=>[`${S.wh.L&&S.wh.W?S.wh.L+' × '+S.wh.W+' m':WH_AREAS.find(a=>a[0]===S.wh.area)[1]} · ${WH_HEIGHTS.find(a=>a[0]===S.wh.height)[1]} high`,'The building'],
+  com_job:()=>{const g=SEG[S.seg];return [`${CONDS[S.cond][0]} · ${(g.hours.find(h=>h[0]===S.com.hours)||['',''])[1].toLowerCase()}`,'The job']},
+  com_brief:()=>[Object.values(S.brief.what).filter(Boolean).length+' things to paint','Your answers'],
+};
+function syncSide(){
+  const k=key(),fl=flow(),house=$('#house'),room=$('#room'),plan=$('#plan'),topS=$('#top'),wh=$('#wh');
+  const which={start:'house',both:'house',place:'house',segment:'house',com_brief:'house',com_book:'house',job:'room',condition:'room',com_job:fl==='wh'?'wh':'room',rooms:'plan',com_areas:'plan',outside:'house',sides:'top',com_warehouse:'wh',
+    gate:hasOut()?'house':fl==='wh'?'wh':'room'}[k];
+  [['house',house],['room',room],['plan',plan],['top',topS],['wh',wh]].forEach(([n,el])=>el.classList.toggle('show',n===which));
+
+  /* building */
+  const extMode=!isCom()&&(k==='outside'||(k==='gate'&&hasOut())),x=S.ext;
+  const kshow=isCom()?(S.seg?SEG[S.seg].pic:'k4'):S.kind==='townhouse'?'k1 k2':S.kind==='unit_apartment'?'k3':'k1';
+  house.dataset.k=kshow;
+  const two=extMode||S.what==='exterior'?x.storeys==='double':S.storeys==='double';
+  const mat=['weatherboards','brick','cement_sheet','panelling'].find(m=>x.mats[m])||(Object.values(x.mats).some(Boolean)?'':'weatherboards');
+  house.setAttribute('class',`${which==='house'?'show':''} ${two?'two':''} ${extMode?'ext':''} p-${{interior:'in',exterior:'out',both:'both'}[S.what]} m-${mat}`);
+  house.style.setProperty('--extc',{same:'#EFEAE0',new:'#A9D6DE',bold:'#FAF8F3'}[x.colour]);
+  $$('#house .e').forEach(el=>{const e=el.dataset.e;el.classList.toggle('on',extMode?!!x.el[e]:(e==='body'?S.what!=='interior':true));el.classList.toggle('hl',extMode&&k==='outside'&&S.gloss===e&&!!GLOSS[e])});
+  $$('#house .x').forEach(el=>{const n=[...el.classList].find(c=>c.startsWith('x-')).slice(2);el.classList.toggle('on',extMode&&!!x.sep[n])});
+  $('#house .winR').style.display=extMode&&x.sep.garage_door?'none':'';
+
+  /* room */
+  const today=k==='condition';
+  room.setAttribute('class',`${which==='room'?'show':''} ${today?'':'painted'} c-${S.cond} ${S.occ==='yes'&&today?'occ':''}`);
+  let on={walls:S.surf.walls,ceilings:S.surf.ceilings,cornices:S.surf.ceilings,skirting:S.surf.skirting,architraves:S.surf.architraves,doors:S.surf.doors,windows:S.surf.windows};
+  if(fl==='com'&&S.com){const ks=SEG[S.seg].keys;on={};Object.keys(S.com.surfaces).forEach(s=>{if(S.com.surfaces[s]&&ks[s])on[ks[s]]=1});on.cornices=on.ceilings}
+  $$('#room .s').forEach(el=>{el.classList.toggle('on',!today&&!!on[el.dataset.s]);el.classList.toggle('hl',(k==='job'||k==='com_job')&&S.gloss===el.dataset.s)});
+  clearTimeout(syncSide.t);syncSide.t=setTimeout(()=>{$$('.hl').forEach(e=>e.classList.remove('hl'));S.gloss=null},2100);
+  $('#swatches').classList.toggle('show',which==='room'&&!today&&!!on.walls);
+  $$('#swatches button').forEach(b=>b.classList.toggle('on',(S.sw||'#F3EFE6')===b.dataset.v));
+
+  /* warehouse */
+  if(S.wh){$$('#wh .w').forEach(el=>el.classList.toggle('on',!!S.wh.surf[el.dataset.w]));$('#whH').textContent=WH_HEIGHTS.find(a=>a[0]===S.wh.height)[1].replace('Up to ','≤ ').replace('Over ','> ')}
+
+  /* plan and sides */
+  if(k==='rooms')drawPlan(plan,baseRooms().map(r=>({name:r.name,w:r.l*r.w,t:r.t,cls:S.roomsOff[r.name]?'off':''})));
+  if(k==='com_areas'){const g=SEG[S.seg];drawPlan(plan,g.counts.filter(c=>S.com.counts[c[0]]>0).map(c=>({name:`${c[4]}${S.com.counts[c[0]]>1?' × '+S.com.counts[c[0]]:''}`,w:c[5][0]*c[5][1]*Math.min(S.com.counts[c[0]],4),t:c[0]===g.openKey?'liv':'bed'}))
+    .concat(g.also.filter(a=>S.com.also[a]).map(a=>({name:a,w:10,t:/orridor/.test(a)?'hall':'wet',cls:(g.alsoFlag||{})[a]?'off':''}))))}
+  if(k==='sides')drawTop(topS,SIDES.map(([v,l])=>({key:v,label:l.replace(' side',''),cls:x.sides[v]?'on':'off',a:'side',v})));
+
+  /* captions */
+  const nS=Object.values(on).filter(Boolean).length,nE=Object.values(x.el).filter(Boolean).length+Object.values(x.sep).filter(Boolean).length;
+  const T={
+    house:[extMode?(k==='gate'?'Ready to price':'Your home, once we’ve painted'):isCom()?'Your building':'Your place',extMode?nE+' ticked':S.addrOk?(S.addr.split(',')[1]||'').trim():''],
+    plan:[k==='com_areas'?'Your areas':'Your rooms',k==='com_areas'?comRooms().length+' to paint':onRooms().length+' to paint'],
+    top:['Your home from above',Object.values(x.sides).filter(Boolean).length+' of 4 sides'],
+    wh:[k==='gate'?'Ready to price':'Your warehouse, once we’ve painted',Object.values((S.wh||{surf:{}}).surf).filter(Boolean).length+' ticked'],
+    room:[today?(isCom()?'A space today':'A room today'):k==='gate'?'Ready to price':isCom()?'A space, once we’ve painted':'A room, once we’ve painted',today?'':nS+' surfaces']}[which];
+  $('#vizTitle').textContent=T[0];$('#vizTag').textContent=T[1];
+  const gl=S.gloss&&GLOSS[S.gloss];
+  const note={start:S.what==='interior'?'Inside only. The lights are on.':S.what==='exterior'?'Outside only. The walls are getting a fresh coat.':'Inside and out.',
+    both:'Inside and out. Two ranges, added together.',
+    place:isCom()?'A commercial property. Next: what kind of space.':`${KINDS[S.kind][0]}${S.what==='exterior'?'':`, ${S.beds>=5?'5 or more':S.beds} bedroom${S.beds>1?'s':''}, ${S.storeys==='double'?'two storeys':'single storey'}`}.`,
+    job:gl||'Tick or untick a surface and it paints in or out of the picture.',
+    rooms:'Dashed rooms are left out. Tap a room in the list to bring it back.',
+    condition:`<b>${CONDS[S.cond][0]}.</b> ${CONDS[S.cond][1]}`,
+    outside:gl||(nE?'Each thing you tick gets its fresh coat in the picture.':'Nothing ticked yet. Tick what we’re painting and watch the house change.'),
+    sides:'Thick lines are the sides we’re painting. Tap a side in the list to change it.',
+    segment:S.seg?`<b>${SEG[S.seg].name}.</b> ${briefKey()?'Priced on a site visit.':'We can give you a range online.'}`:'Pick the closest kind of place.',
+    com_areas:'One block per kind of area. You size each one after the range.',
+    com_warehouse:'Each surface you tick gets its fresh coat in the picture.',
+    com_job:gl||'Tick or untick a surface and it paints in or out of the picture.',
+    com_brief:'This one is priced on site. Your answers go with the estimator.',
+    com_book:'Pick a time and your estimator arrives with your brief.',
+    gate:'That’s everything we need. Your guide range appears as soon as you add your details.'}[k];
+  $('#vizNote').innerHTML=note;
+
+  /* your job so far */
+  const q=seq(),rows=q.slice(0,S.i).filter(s=>SUM[s]).map(s=>[...SUM[s](),s]);
+  const left=q.length-1-S.i,brief=fl==='brief';
+  $('#sofarN').textContent=!rows.length?'':left<=0?'Last step':`${left} step${left>1?'s':''} to ${brief?'your visit':'your range'}`;
+  $('#sofar').innerHTML=rows.length?rows.map(([v,l,s],i)=>`<li class="${i>=(syncSide.n||0)?'new':''}">${TICK}<span>${v}<small>${l}</small></span><button data-a="go" data-v="${s}">Change</button></li>`).join(''):`<p class="empty">Your answers collect here as you go, so you can check and change them.</p>`;
+  syncSide.n=rows.length;
+}
+function drawPlan(svg,rooms){
+  const row=r=>r.t==='bed'||r.t==='wh'?'top':r.t==='hall'?'mid':'bot';
+  let top=rooms.filter(r=>row(r)==='top'),hall=rooms.filter(r=>row(r)==='mid'),bot=rooms.filter(r=>row(r)==='bot');
+  if(!top.length&&bot.length>1){top=bot.slice(0,Math.ceil(bot.length/2));bot=bot.slice(top.length)}
+  if(top.length>5){bot=top.slice(5).concat(bot);top=top.slice(0,5)}
+  if(bot.length>6){hall=hall.concat(bot.slice(6));bot=bot.slice(0,6)}
+  const X=22,Wd=356,rowsN=[top,hall,bot].filter(a=>a.length);let h='';
+  const wt=r=>Math.max(Math.sqrt(r.w),2);
+  const cell=(r,x,y,w,hgt)=>{let nm=r.name;if(nm.length>w/6.4)nm=nm.replace('room','').replace(' / Meals','').replace('Stairwell & upper hall','Stairs').replace(' & Entry','').replace('Private office','Office').replace('Open-plan area','Open plan').replace('Resident ','').replace('Warehouse floor','Warehouse').trim();if(nm.length>w/6.4)nm=nm.slice(0,Math.max(3,Math.floor(w/7)));
+    return `<g class="${r.cls||''}" ${r.i!=null?`data-a="xopen" data-t="in" data-v="${r.i}"`:''}><rect class="rm" x="${x+2}" y="${y+2}" width="${w-4}" height="${hgt-4}" rx="5"/><text x="${x+w/2}" y="${y+hgt/2+4}" text-anchor="middle">${nm}</text><g class="tk" transform="translate(${x+w-22},${y+10})"><circle cx="6" cy="6" r="8" fill="#0A7C8E"/><path d="M2.5 6.3l2.4 2.4L9.7 3.9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g></g>`};
+  const line=(l,y,hgt)=>{const tot=l.reduce((a,r)=>a+wt(r),0);let x=X;l.forEach(r=>{const w=wt(r)/tot*Wd;h+=cell(r,x,y,w,hgt);x+=w})};
+  if(rowsN.length===1)line(rowsN[0],22,256);
+  else if(!hall.length){line(top,22,128);line(bot,150,128)}
+  else if(!top.length||!bot.length){line(top.length?top:bot,22,190);line(hall,212,66)}
+  else{line(top,22,104);line(hall,126,46);line(bot,172,106)}
+  svg.innerHTML=`<rect x="14" y="14" width="372" height="272" rx="10" fill="#F7F9FA" stroke="#16212A" stroke-opacity=".35" stroke-width="2"/>${h}`;
+}
+function drawTop(svg,sides){
+  const G={front:[112,226,288,226,200,250],back:[112,56,288,56,200,42],left:[110,58,110,224,74,146],right:[290,58,290,224,326,146]};
+  svg.innerHTML=`<rect x="0" y="266" width="400" height="34" fill="#DDE3E7"/><text x="200" y="288" text-anchor="middle" style="font-weight:500;fill:#54626D;font-size:11.5px">Street</text>
+    <rect x="110" y="56" width="180" height="170" rx="3" fill="#fff" stroke="#16212A" stroke-opacity=".12"/><path d="M110 56l90 85 90-85M110 226l90-85 90 85" stroke="#16212A" stroke-opacity=".1" fill="none"/>`
+    +sides.map(s=>{const g=G[s.key];return `<g class="${s.cls}" ${s.a?`data-a="${s.a}" data-v="${s.v}" ${s.t?`data-t="${s.t}"`:''}`:''}><line class="hit" x1="${g[0]}" y1="${g[1]}" x2="${g[2]}" y2="${g[3]}"/><line class="edge" x1="${g[0]}" y1="${g[1]}" x2="${g[2]}" y2="${g[3]}"/><text x="${g[4]}" y="${g[5]}" text-anchor="middle">${s.label}</text></g>`}).join('');
+}
+
+/* ───────── ranges (illustrative numbers; the engine supplies the real ones) ───────── */
+const RNG={int:[[7960,14700],[10420,11660]],ext:[[11200,19600],[14300,16100]],com:[[9400,16800],[12100,13900]],wh:[[18500,34000],[23800,27400]]};
+const partKeys=()=>flow()==='both'?['int','ext']:[flow()==='brief'?'com':flow()];
+const QS_IN=[['Do you have cornices?','The moulding where the walls meet the ceiling.',[['yes','Yes'],['no','No']],'cornices'],
+  ['What type of doors, mostly?','Pick what’s closest. “Mostly” is fine.',[['flat','Flat'],['panel','Panelled']],'doors'],
+  ['Are the doors and skirtings shiny?','Gloss paint needs a little more preparation.',[['yes','Yes, glossy'],['no','No'],['unsure','Not sure']],'skirting'],
+  ['How high are the ceilings?','Approximate is fine.',[['2.4','Standard, about 2.4 m'],['2.7','High, about 2.7 m'],['3','Very high, 3 m or more']],'ceilings'],
+  ['What type of windows, mostly?','Pick what’s closest.',[['plain','Plain, one pane'],['bars','Several panes']],'windows']];
+const QOUT=[['How’s the paintwork holding up overall?','Your range prices this from good to peeling until you answer.',[['good','Good overall'],['weathered','Weathered'],['peeling','Peeling and flaking']],'walls'],
+  ['Any timber rot anywhere?','Soft or crumbling timber: fascias, window sills, weatherboards, posts.',[['no','No, looks solid'],['little','A little'],['lots','Quite a bit']],'rot'],
+  ['Anything tricky about access?','',[['steep','Steep block'],['tight','Tight side access'],['none','None of these']],'access']];
+const QIN=()=>flow()==='wh'?QS_IN.slice(1,3):isCom()?QS_IN.slice(1):QS_IN;
+function closedOf(part){ /* how much of one part's range has been closed, 0 to 1 */
+  if(part==='ext'){const s=S.sides||[],q=S.qb.filter(a=>a!=null).length;return !S.sides?0:(q/QOUT.length)*.5+(s.length?s.filter(x=>x.ok).length/s.length:0)*.42+(S.checksOut?.08:0)}
+  const r=S.rooms||[],n=QIN().length,q=S.qa.filter(a=>a!=null).length;return !S.rooms?0:(q/n)*.5+(r.length?r.filter(x=>x.ok).length/r.length:0)*.42+(S.checks?.08:0)}
+function rangeOf(part,f=closedOf(part)){const [a,b]=RNG[part];return [Math.round((a[0]+(b[0]-a[0])*f)/10)*10,Math.round((a[1]+(b[1]-a[1])*f)/10)*10]}
+function range(){return partKeys().map(p=>rangeOf(p)).reduce((t,r)=>[t[0]+r[0],t[1]+r[1]],[0,0])}
+function range0(){return partKeys().map(p=>rangeOf(p,0)).reduce((t,r)=>[t[0]+r[0],t[1]+r[1]],[0,0])}
+const closed=()=>{const p=partKeys();return p.map(closedOf).reduce((a,b)=>a+b,0)/p.length};
+const tier=()=>closed()>=.8?'det':'guide';
+const pct=(r=range())=>Math.round((r[1]-r[0])/(r[1]+r[0])*100);
+
+function basedOn(){const fl=flow(),x=S.ext;
+  const inT=`a ${S.beds>=5?'5-bedroom':S.beds+'-bedroom'}, ${S.storeys==='double'?'two-storey':'single-storey'} ${KINDS[S.kind][0].toLowerCase()}, ${SCOPES[S.scope].l.toLowerCase()}, ${Object.values(S.colour).every(Boolean)?'new colours throughout':'some new colours'}, ${CONDS[S.cond][0].toLowerCase().replace(', just tired','')}${S.cond==='good'?' condition':''}`;
+  const el=EXT_EL.filter(([k])=>x.el[k]).map(e=>e[1].toLowerCase().replace('the body of the house','the walls')).concat(EXT_SEP.filter(([k])=>x.sep[k]).map(e=>e[1].toLowerCase()));
+  const m=EXT_MAT.filter(([k])=>x.mats[k]&&k!=='unsure').map(e=>e[1].toLowerCase());
+  const outT=`${list(el)||'the outside'}${m.length?` (${list(m)})`:''}${x.el.windows?`, ${x.winN} ${x.win==='unsure'||x.win==='alu'?'':x.win+' '}windows`:''}${x.el.doors?`, ${x.doorN} door${x.doorN===1?'':'s'}`:''}, ${{same:'the same colours',new:'new colours',bold:'going much lighter'}[x.colour]}, the paintwork priced from good to peeling, ${x.storeys} storey`;
+  if(fl==='ext')return `Based on ${outT}. If that’s about right, this is about right.`;
+  if(fl==='both')return `Inside: ${inT}. Outside: ${outT}. If that’s about right, this is about right.`;
+  if(fl==='wh'){const w=S.wh;return `Based on a warehouse of ${w.L&&w.W?w.L+' × '+w.W+' m':WH_AREAS.find(a=>a[0]===w.area)[1].toLowerCase()}, ${WH_HEIGHTS.find(a=>a[0]===w.height)[1].toLowerCase()} to the roof, ${list(WH_SURF.filter(s=>w.surf[s[0]]).map(s=>s[1].toLowerCase()))}, ${CONDS[S.cond][0].toLowerCase().replace(', just tired','')}. If that’s about right, this is about right.`}
+  if(fl==='com'){const g=SEG[S.seg],c=S.com;return `Based on ${g.counts.filter(k=>c.counts[k[0]]>0).map(k=>`${c.counts[k[0]]} ${(c.counts[k[0]]>1?k[1]:k[4]).toLowerCase().split(',')[0]}`).join(', ')}${Object.keys(c.also).filter(a=>c.also[a]).length?', plus '+list(Object.keys(c.also).filter(a=>c.also[a]).map(a=>a.toLowerCase())):''}, new colours, ${CONDS[S.cond][0].toLowerCase().replace(', just tired','')}, ${(g.hours.find(h=>h[0]===c.hours)||['',''])[1].toLowerCase()}. If that’s about right, this is about right.`}
+  return `Based on ${inT}. If that’s about right, this is about right.`}
+const TRIM_NOTE='Extra coats may be needed going from oil to water-based, or over raw or stained timber.';
+const WWD_IN=[['Walls','2 coats','New colour. Fill nail holes and hairline cracks, light sand, spot-prime the fills, then two coats of water-based acrylic.'],
+  ['Ceilings and cornices','2 coats','White again. One fresh coat of flat ceiling white over a sound surface. Two if we’re covering marks or a colour.'],
+  ['Skirtings, architraves and door frames','2 coats','Sand and clean, fill any dents, then two coats of water-based enamel.',TRIM_NOTE],
+  ['Doors','2 coats','Both sides and edges. We mask off or remove the hardware, then two coats of water-based enamel.',TRIM_NOTE],
+  ['Windows','2 coats','Sand and fill, then two coats to frames and sashes. Glass edges cut in by hand.']];
+function wwdOut(){const x=S.ext,one=x.colour==='same',c=one?'1 coat':'2 coats',cs=one?'one coat':'two coats',o=[];
+  const sys={same:'Same colour again. Wash down, scrape and sand any loose paint, spot-prime the bare patches, then one full coat.',new:'New colour. Wash down, scrape and sand back to sound, prime the bare patches, then two full coats.',bold:'A bold colour, or going to white. Wash down, prepare and prime, then two full coats. Some colours need a third for full coverage, and we’ll tell you before we start that wall rather than after.'}[x.colour];
+  const m=EXT_MAT.filter(([k])=>x.mats[k]&&k!=='unsure').map(e=>e[1].toLowerCase());
+  if(x.el.body)o.push([m.length?'Walls: '+m.join(', '):'Walls: material to confirm',c,sys,m.length?'':'A person confirms this one before your price is fixed.']);
+  if(x.el.windows)o.push([`${x.winN} ${x.win==='unsure'?'':x.win==='alu'?'aluminium ':x.win+' '}windows`,x.win==='alu'?'':c,x.win==='alu'?'Aluminium frames are usually left unpainted. Nothing is priced for them, and your estimator checks whether any are to be done.':x.win==='colonial'?'Frames, sashes and every glazing bar. Colonial windows are cut in by hand, bar by bar, which is why they take longer than a casement.':`Frames and sashes, sanded back and ${cs}, glass edges cut in by hand.`,x.win==='unsure'?'The type is confirmed by your estimator.':'']);
+  if(x.el.doors)o.push([`${x.doorN} doors`,c,`Doors and their frames, sanded back and ${cs}. The front door is done last so it can dry with the house open.`]);
+  if(x.el.fascias)o.push(['Fascias',c,`The board behind the gutter, scraped, sanded and ${cs}.`]);
+  if(x.el.gutters)o.push(['Gutters and downpipes',c,`Washed down, any rust treated, then ${cs} of exterior enamel.`]);
+  if(x.el.eaves)o.push(['Eaves',c,`The underside of the overhang, dusted and washed, then ${cs} of a flat exterior finish.`]);
+  if(x.sep.paling_fence||x.sep.picket_fence)o.push(['Fence',c,'Brushed or sprayed depending on the fence, both sides where they are yours.']);
+  if(x.sep.deck)o.push(['Deck','','Cleaned and prepared, then a deck coating in the number of coats the product needs.','A person confirms this one before your price is fixed.']);
+  o.push(['Not included','','Equipment hire (scaffold, lifts), replacing rotten timber, and anything not visible from the ground. Each is quoted separately if it turns out to be needed.']);return o}
+function assumedList(){const fl=flow(),x=S.ext,o=[];
+  if(fl==='int'||fl==='both'){o.push(['Property',`${S.beds>=5?'5+':S.beds}-bed ${KINDS[S.kind][0].toLowerCase()}`],['Rooms',`${onRooms().length}, typical sizes`],['The job',SCOPES[S.scope].l],['Inside condition',CONDS[S.cond][0]]);if(fl==='int')o.push(['Colours',S.bold?'Bold or much lighter':'New, similar depth'],['Living there',S.occ==='yes'?'Yes':'No, empty'],['Ceiling height','Still open',1],['Door and window styles','Still open',1])}
+  if(fl==='ext'||fl==='both'){const n=Object.values(x.sides).filter(Boolean).length;o.push(['Sides',`${n===4?'All four':n}, typical sizes`],['Windows',x.el.windows?`About ${x.winN}`:'Not painting'],['The paintwork','Good to peeling: still open',1],['Each side’s size','Still open',1]);if(fl==='ext')o.push(['Walls',EXT_MAT.filter(([k])=>x.mats[k]).map(e=>e[1]).join(', ')||'Material to confirm',!Object.values(x.mats).some(Boolean)],['Storeys',x.storeys==='double'?'Double':'Single'],['Colours',{same:'Same again',new:'New colours',bold:'Much lighter'}[x.colour]],['Access equipment','Not included'])}
+  if(fl==='com'){const g=SEG[S.seg],c=S.com;o.push(['Areas',`${comRooms().length}, typical sizes`],['Open space',`${OPEN_SIZES.find(s=>s[0]===c.openSize)[1]} m², ${OPEN_CEIL.find(s=>s[0]===c.ceiling)[1].toLowerCase()}`],['Systems','From your colour and condition answers'],['Hours',(g.hours.find(h=>h[0]===c.hours)||['',''])[1]+', allowed for in the labour'],['Condition',CONDS[S.cond][0]],['Photo of the open area',c.photo?'Added':'Not yet: still open',!c.photo],['Ceiling height','Still open',1],['Not included','Access equipment, after-hours security'])}
+  if(fl==='wh'){const w=S.wh;o.push(['Floor area',w.L&&w.W?w.L+' × '+w.W+' m':WH_AREAS.find(a=>a[0]===w.area)[1]],['Height',WH_HEIGHTS.find(a=>a[0]===w.height)[1]],['Walls',WH_MAT.filter(([k])=>w.mats[k]).map(e=>e[1]).join(', ')||'Material to confirm',!Object.values(w.mats).some(Boolean)],['Racking',{no:'None',some:'Some',most:'Most walls'}[w.racking]],['Scissor lift',+w.height>4?(w.lift?'Yours, on site':'Allowed for, own line'):'Not needed'],['Roof and steel',w.surf.roof||w.surf.steel?'A person confirms':'Not painting',w.surf.roof||w.surf.steel],['Condition',CONDS[S.cond][0]],['Operating',w.operating?'Yes, we work around it':'No'])}
+  return o}
+function renderReveal(){
+  const fl=flow(),[lo,hi]=range0(),first=S.name?S.name.split(' ')[0]:'',com=isCom(),how=hasOut()&&!hasIn()?'side by side':hasOut()?'room by room, then side by side':com?'area by area':'room by room';
+  const wwd=fl==='ext'?wwdOut():fl==='both'?WWD_IN.map(w=>['Inside: '+w[0],...w.slice(1)]).concat(wwdOut().map(w=>['Outside: '+w[0],...w.slice(1)])):fl==='wh'?[['Walls','2 coats','Wash down, patch and prime the repairs, then two coats. The system depends on the wall material, which your estimator confirms.'],['Roller doors and personnel doors','2 coats','Degrease, abrade, then two coats of enamel.'],['Roof, steel, bollards and line marking','','Priced on site where you ticked them. A person confirms each one before your price is fixed.']]:WWD_IN;
+  const as=assumedList();
+  const job=fl==='int'?['3 bedroom Art Deco apartment','Interior · East Melbourne · 8 days on site','$8,060 – $9,060']:fl==='ext'||fl==='both'?['Exterior double storey weatherboard','Exterior · Murrumbeena · 26 days on site','$26,000 – $33,000']:['A commercial job from Showcase jobs','Chosen to match the kind of space',''];
+  $('#screen').innerHTML=`<div class="wide ${S.enter?'enter':''}">
+  <div class="hero">
+    <div class="rangecard">
+      <p class="rlabel">${com?SEG[S.seg].name+' · your guide range':first?first+', here’s your guide range':'Your guide range'} <span class="pill">Guide · within ${pct([lo,hi])}%</span></p>
+      <p class="bigrange" id="big"><b id="lo">${money(lo)}</b><span>–</span><b id="hi">${money(hi)}</b></p>
+      <p class="gst">Includes GST. Excludes access equipment and structural repairs.</p>
+      ${fl==='both'?`<div class="parts"><div class="part"><span>Inside</span><b>${money(RNG.int[0][0])} – ${money(RNG.int[0][1])}</b></div><div class="part"><span>Outside</span><b>${money(RNG.ext[0][0])} – ${money(RNG.ext[0][1])}</b></div></div>`:''}
+      ${com?`<p class="cnote">A guide range for a commercial job. One of our estimators confirms it before any price is fixed.${fl==='com'&&!S.com.photo?' A photo of the open area narrows it straight away.':''}</p>`:''}
+      <p class="based">${basedOn()}</p>
+      <div class="ladder" aria-label="How the range narrows">
+        <div class="row now"><span><b>Guide</b><em>where you are now</em></span><span class="trk"><i data-w="92"></i></span></div>
+        <div class="row"><span><b>Detailed</b><em>after ${how.split(',')[0]}</em></span><span class="trk"><i data-w="34"></i></span></div>
+        ${hasOut()||com?`<p class="plain"><b>Then a visit.</b> ${com?'Every commercial price':'Every outside price'} is confirmed on site by your estimator before it’s fixed.</p>`:`<div class="row"><span><b>Confirmed</b><em>fixed with Tom</em></span><span class="trk"><i data-w="5"></i></span></div>`}
+      </div>
+    </div>
+    <div class="doors">
+      <h2>Where would you like to go from here?</h2>
+      <button class="door heroD" data-a="tighten"><span class="ic">${IC.tight}</span><span><b>Tighten my price</b><small>Get a more accurate quote now. A few minutes, ${how}.</small></span>${ARROW}</button>
+      ${fl==='int'?`<button class="door" data-a="noop"><span class="ic">${IC.phone}</span><span><b>Speak with us</b><small>Request a call to finalise your booking</small></span>${ARROW}</button>`:''}
+      <button class="door" data-a="finish"><span class="ic">${IC.cal}</span><span><b>Book a site visit</b><small>Choose a time for us to see the property</small></span>${ARROW}</button>
+      <button class="door" data-a="noop"><span class="ic">${IC.msg}</span><span><b>Send us a message</b><small>Ask a question about your estimate</small></span>${ARROW}</button>
+    </div>
+  </div>
+  <div class="signoff"><div class="who"><span class="av">TR</span><span><b>${estName}, your estimator</b><small>Tom looks every estimate over and confirms the price with you, ${hasOut()||com?'on site':'on a call or a visit'}, before anything is fixed.</small></span></div><span class="sp"></span><a class="btn pri" href="tel:0388409414" style="min-width:0;text-decoration:none">${IC.phone.replace('<svg','<svg width="18" height="18"')} 03 8840 9414</a></div>
+  <div class="grid3">
+    <div class="card"><h3>What we’ve assumed <span>${as.length} things</span></h3><ul class="assumed">${as.map(([k,v,open])=>`<li class="${open?'open':''}"><span>${k}</span><b>${v}</b></li>`).join('')}</ul>
+      <p style="font-size:14.5px;color:var(--muted);margin-top:10px">Answering the open ones narrows your range.</p></div>
+    <div class="card"><h3>A job like yours <span>finished</span></h3><div class="job"><div class="ph">Real job photo from Showcase jobs</div>
+      <p><b>${job[0]}</b><br><span style="color:var(--muted)">${job[1]}</span></p>${job[2]?`<p class="mono">${job[2]}</p>`:''}</div></div>
+    <div class="card"><h3>Why ${com?'businesses':'people'} choose us</h3><ul class="proof">
+      <li><i>${IC.star}</i><span><b>5.0 from 93 Google reviews</b><small>Read them before you decide</small></span></li>
+      ${com?`<li><i>${IC.doc}</i><span><b>Certificates and SWMS with every quote</b><small>Insurance and safe work method statements attached</small></span></li>`:`<li><i>${IC.shield}</i><span><b>2-year workmanship warranty</b><small>In writing, in your portal</small></span></li>`}
+      <li><i>${com?IC.shield:IC.doc}</i><span><b>$20M public liability</b><small>Certificate on file from day one</small></span></li></ul></div>
+  </div>
+  <div class="card wwd"><h3>What we’ll do <span>in plain English</span></h3><div class="wwd-grid">${wwd.map(w=>`<div><b>${w[0]}<span>${w[1]||''}</span></b><p>${w[2]}</p>${w[3]?`<p class="warn">${w[3]}</p>`:''}</div>`).join('')}</div></div>
+  </div>
+  <div class="dock"><button class="btn pri" data-a="tighten">Tighten my price ${ARROW}</button></div>`;
+}
+function playReveal(){
+  const red=matchMedia('(prefers-reduced-motion:reduce)').matches,[a,b]=range0();
+  setTimeout(()=>$$('.ladder i').forEach(i=>i.style.width=i.dataset.w+'%'),60);
+  if(red)return;const lo=$('#lo'),hi=$('#hi');if(!lo)return;const t0=performance.now(),d=1100;
+  (function f(t){const k=Math.min(1,(t-t0)/d),e=1-Math.pow(1-k,3);lo.textContent=money(Math.round(a*e/10)*10);hi.textContent=money(Math.round(b*e/10)*10);if(k<1)requestAnimationFrame(f)})(t0);
+}
+
+/* ───────── checking it: room by room, side by side ───────── */
+const STD=[['walls','Walls','share','w2'],['ceilings','Ceilings'],['cornices','Cornices'],['doors','Doors','doors','w2'],['windows','Windows','win','w2'],['skirting','Skirting boards'],['architraves','Architraves'],['balustrades','Balustrades']];
+const WHT=[['walls','Walls','share','w2'],['roof','Underside of roof'],['steel','Structural steel'],['roller','Roller doors','count','w2'],['doors','Personnel doors','count','w2'],['lines','Line marking']];
+const SDT=[['windows','Windows','win','w2'],['doors','Doors','count','w2'],['fascias','Fascias'],['gutters','Gutters & downpipes'],['eaves','Eaves']];
+const TP={roof:'ceilings',steel:'steel',roller:'roller',lines:'lines',fascias:'fascias',gutters:'gutters',eaves:'eaves'};
+function ensureUnits(){
+  const fl=flow();
+  if(hasIn()&&!S.rooms){
+    const src=fl==='com'?comRooms():fl==='wh'?whRooms():onRooms();
+    let on={walls:S.surf.walls,ceilings:S.surf.ceilings,skirting:S.surf.skirting,architraves:S.surf.architraves,doors:S.surf.doors,windows:S.surf.windows};
+    if(fl==='com'){const ks=SEG[S.seg].keys;on={};Object.keys(S.com.surfaces).forEach(s=>{if(S.com.surfaces[s]&&ks[s])on[ks[s]]=1})}
+    S.rooms=src.map(r=>r.t==='wh'
+      ?{...r,sizeOk:false,ok:false,tiles:WHT,s:{walls:{on:!!S.wh.surf.walls,share:'All'},roof:{on:!!S.wh.surf.roof},steel:{on:!!S.wh.surf.steel},roller:{on:!!S.wh.surf.roller,n:S.wh.rollerN||1},doors:{on:!!S.wh.surf.personnel,n:S.wh.personnelN||1},lines:{on:!!S.wh.surf.lines}}}
+      :{...r,sizeOk:false,ok:false,tiles:STD,robe:!isCom()&&r.t==='bed'?'yes':null,
+        s:{walls:{on:fl==='wh'||!!on.walls,share:'All'},ceilings:{on:!!on.ceilings},cornices:{on:!isCom()&&!!on.ceilings},skirting:{on:!!on.skirting},architraves:{on:!!on.architraves},doors:{on:fl==='wh'||!!on.doors,n:r.t==='hall'?2:1,frame:'frame'},windows:{on:!!on.windows&&r.t!=='hall',n:1,size:'M'},balustrades:{on:false}}});
+  }
+  if(hasOut()&&!S.sides){
+    const x=S.ext,mats=EXT_MAT.filter(([k])=>x.mats[k]&&k!=='unsure').map(e=>e[1]),h=x.storeys==='double'?5.4:2.6;
+    const ch=SIDES.filter(([k])=>x.sides[k]),wn=[3,2,2,1],dn=[1,0,1,0];
+    S.sides=ch.map(([k,l],i)=>({key:k,name:l,l:k==='front'||k==='back'?12:15,h,t:'side',paint:'yes',sizeOk:false,ok:false,tiles:SDT,
+      walls:x.el.body?(mats.length>1?Object.fromEntries(mats.map((m,j)=>[m,j===0?75:j===1?25:0])):{[mats[0]||'Wall, material to confirm']:100}):null,
+      s:{windows:{on:!!x.el.windows&&x.win!=='alu',n:Math.max(1,Math.round(x.winN*wn[SIDES.findIndex(s=>s[0]===k)]/8)),size:'M'},doors:{on:!!x.el.doors&&dn[SIDES.findIndex(s=>s[0]===k)]>0,n:1},fascias:{on:!!x.el.fascias},gutters:{on:!!x.el.gutters},eaves:{on:!!x.el.eaves}}}));
+  }
+  if(!hasIn())S.tab='out';else if(!hasOut())S.tab='in';
+  if(S.open==null)S.open=0;
+}
+const U=()=>S.tab==='out'?S.sides:S.rooms;
+const unitWord=()=>S.tab==='out'?'side':isCom()?'area':'room';
+function renderEdShell(){
+  const both=hasIn()&&hasOut();
+  $('#screen').innerHTML=`<div class="ed ${S.enter?'enter':''}">
+  <div class="ed-main"><div class="mstrip" id="mstrip"></div><div id="edmain" style="display:grid;gap:14px"></div></div>
+  <aside class="ed-side">
+    <div class="price" id="price"></div>
+    <div class="mapcard"><div class="viz-head"><b id="mapT">Your home</b><span id="mapN"></span></div><div class="viz-art" id="artPlan"><svg id="plan2" class="plansvg show" viewBox="0 0 400 300" aria-label="Rooms"></svg></div><div class="viz-art" id="artTop"><svg id="top2" class="topsvg show" viewBox="0 0 400 300" aria-label="Sides"></svg></div>
+      <p class="key"><span><i style="background:var(--amber-wash);border:1.5px solid var(--amber)"></i>Still to check</span><span><i style="background:#8FDDE8;border:1.5px solid var(--teal)"></i>Checked</span>${hasOut()?`<span><i style="border:1.5px dashed var(--line2)"></i>Not painting</span>`:''}</p></div>
+    <div class="talk"><div class="who"><span class="av">TR</span><span><b>${estName}, your estimator</b><small>${hasOut()||isCom()?'Confirms your price on site before it’s fixed.':'Confirms your price, with or without a visit.'}</small></span></div>
+      <div class="talk-row"><button data-a="finish">${IC.cal}Book a time</button><a href="tel:0388409414">${IC.phone}Call Tom</a><button data-a="noop">${IC.msg}Message</button></div></div>
+  </aside></div>
+  <div class="dock"><button class="btn sec" data-a="finish">Book a time</button><button class="btn pri" data-a="finish">Finalise my price</button></div>`;
+}
+function unitSummary(r){if(r.paint==='no')return 'not painting';const p=[];if(r.walls)p.push(Object.keys(r.walls).filter(m=>r.walls[m]>0).map(m=>m.toLowerCase()+' '+r.walls[m]+'%').join(', '));
+  r.tiles.forEach(([k,l,ctl])=>{const o=r.s[k];if(!o||!o.on)return;p.push(o.n?`${o.n} ${l.toLowerCase().replace(/s$/,'')}${o.n>1?'s':''}`:l.toLowerCase().replace('ceilings','ceiling').replace(' boards',''))});return p.join(', ')}
+const dimTxt=r=>r.t==='side'?`${r.l} m long × ${r.h} m high`:`${r.l} × ${r.w} m`;
+function tileHTML(r,i,[k,label,ctl,cls]){const o=r.s[k],on=o.on;let c='';
+  if(on&&ctl==='share')c=`<span class="mini">${['All','75%','50%','25%'].map(x=>`<button class="${o.share===x?'on':''}" data-a="opt" data-v="${x}" data-r="${i}" data-k="${k}" data-p="share">${x}</button>`).join('')}</span>`;
+  const st=`<span class="stepper"><button data-a="cnt" data-v="-1" data-r="${i}" data-k="${k}" aria-label="One fewer">−</button><output>${o.n}</output><button data-a="cnt" data-v="1" data-r="${i}" data-k="${k}" aria-label="One more">+</button></span>`;
+  if(on&&ctl==='doors')c=st+`<span class="mini"><button class="${o.frame==='door'?'on':''}" data-a="opt" data-v="door" data-r="${i}" data-k="${k}" data-p="frame">Door only</button><button class="${o.frame==='frame'?'on':''}" data-a="opt" data-v="frame" data-r="${i}" data-k="${k}" data-p="frame">With frame</button></span>`;
+  if(on&&ctl==='win')c=st+`<span class="mini">${['S','M','L'].map(x=>`<button class="${o.size===x?'on':''}" data-a="opt" data-v="${x}" data-r="${i}" data-k="${k}" data-p="size" aria-label="Size ${x}">${x}</button>`).join('')}</span>`;
+  if(on&&ctl==='count')c=st;
+  return `<div class="tile ${on?'on':''} ${on&&c?cls||'':''}"><button class="t" data-a="tile" data-v="${k}" data-r="${i}" aria-pressed="${on}">${PIC[TP[k]||k]||PIC.walls}<span class="lb">${label}</span><span class="bx">${TICK}</span></button>${c?`<div class="ctl">${c}</div>`:''}</div>`}
+function sizeBlock(r,i,n){
+  const side=r.t==='side',a=r.l,b=side?r.h:r.w,sc=side?6:r.t==='wh'?1.6:16,sw=Math.min(96,Math.max(26,a*sc)),sh=Math.min(70,Math.max(side?14:20,b*(side?9:sc)));
+  const stp=(k,lab,less,more)=>`<span class="dim">${lab} <span class="stepper"><button data-a="dim" data-v="-1" data-r="${i}" data-k="${k}" aria-label="${less}">−</button><output>${r[k]} m</output><button data-a="dim" data-v="1" data-r="${i}" data-k="${k}" aria-label="${more}">+</button></span></span>`;
+  return `<div class="blk"><h3><i class="${r.sizeOk?'done':''}">${r.sizeOk?tick(12):n}</i>The size of this ${side?'side':isCom()?'area':'room'}</h3><div class="body">
+    <div class="sizeq ${r.sizeOk?'done':''}"><svg viewBox="0 0 120 92"><rect x="${60-sw/2}" y="${42-sh/2}" width="${sw}" height="${sh}" rx="3" fill="#fff" stroke="#16212A" stroke-opacity=".5" stroke-width="1.5"/><path d="M${60-sw/2} ${48+sh/2}h${sw}" stroke="#0A7C8E" stroke-width="2"/><text x="60" y="${62+sh/2}" text-anchor="middle" font-size="10" fill="#0A7C8E" font-family="Martian Mono,monospace">${a} m</text><text x="${66+sw/2}" y="45" font-size="10" fill="#0A7C8E" font-family="Martian Mono,monospace">${b}</text></svg>
+    <div><p>${r.unsure?'We’ll measure this side on the day.':`Is about <span>${a} m long × ${b} m ${side?'high':'wide'}</span> right?`}</p>
+    ${r.adj?`<div class="row">${stp('l','Long','Shorter','Longer')}${stp(side?'h':'w',side?'High':'Wide',side?'Lower':'Narrower',side?'Higher':'Wider')}<button class="pillbtn on" data-a="sizeok" data-v="${i}">That’s right</button></div>`
+    :`<div class="row"><button class="pillbtn ${r.sizeOk&&!r.unsure?'on':''}" data-a="sizeok" data-v="${i}">Looks right</button><button class="pillbtn" data-a="sizeadj" data-v="${i}">Adjust it</button>${side?`<button class="pillbtn ${r.unsure?'on':''}" data-a="sizens" data-v="${i}">Not sure</button>`:''}</div>
+      <p style="font-size:14.5px;color:var(--muted);margin-top:8px">${side?'Pace the length. A big step is about a metre. A single storey is usually 2.4 to 2.7 m high.':'Near enough is fine. We measure on the day.'}</p>`}</div></div></div></div>`}
+function unitBody(r,i,us){
+  const side=r.t==='side',next=us.find((x,j)=>j>i&&!x.ok)||us.find(x=>!x.ok&&x!==r);let n=1,h='<div class="rc-b">';
+  if(side){h+=`<div class="blk"><h3><i class="done">${tick(12)}</i>Are we painting this side?</h3><div class="body"><div class="row" style="display:flex;gap:10px"><button class="pillbtn ${r.paint==='yes'?'on':''}" data-a="paint" data-v="yes" data-r="${i}">Yes</button><button class="pillbtn" data-a="paint" data-v="no" data-r="${i}">No, leave it off</button></div></div></div>`;n=2}
+  h+=sizeBlock(r,i,n++);
+  if(side&&r.walls){const ks=Object.keys(r.walls),sum=ks.reduce((a,k)=>a+r.walls[k],0);
+    h+=`<div class="blk mixbox"><h3><i>${n++}</i>The walls on this side</h3><div class="body"><div class="tiles">${ks.map(m=>`<div class="tile on w2"><span class="t" style="cursor:default">${PIC.walls}<span class="lb">${m}</span></span><div class="ctl"><span class="mini">${[25,50,75,100].map(p=>`<button class="${r.walls[m]===p?'on':''}" data-a="share" data-v="${p}" data-r="${i}" data-k="${m}">${p}%</button>`).join('')}</span></div></div>`).join('')}</div>
+      <p class="mix ${sum===100?'ok':''}">${sum===100?'Adds up to 100%.':`Adds up to ${sum}%. Tap a share on each surface.`}</p></div></div>`}
+  h+=`<div class="blk"><h3><i>${n++}</i>${side?'Also on this side':'What we’re painting in here'}</h3><div class="body"><div class="tiles">${r.tiles.map(t=>tileHTML(r,i,t)).join('')}
+      <button class="tile" data-a="noop" style="border-style:dashed;align-items:center;justify-content:center;font-weight:600;color:var(--teal)">+ Add a surface</button></div></div></div>`;
+  if(r.robe)h+=`<div class="blk"><h3><i>${n++}</i>Built-in robe</h3><div class="body"><div class="yn"><span>Paint the robe doors?</span><span class="mini">${[['yes','Yes'],['no','No']].map(([v,l])=>`<button class="${r.robe===v?'on':''}" data-a="robe" data-v="${v}" data-r="${i}">${l}</button>`).join('')}</span></div><div class="yn"><span>Paint the walls inside the robe?</span><span class="mini"><button>Yes</button><button class="on">No</button></span></div></div></div>`;
+  h+=`<div class="confirm"><button class="btn pri" data-a="confirm" data-v="${i}">${tick(18)} Confirm ${r.name.toLowerCase()==='front'||side?'the '+r.name.toLowerCase():r.name}</button><span class="flag" id="gap${i}"></span><span style="font-size:14.5px;color:var(--muted)">${next?'Then on to '+(side?'the '+next.name.toLowerCase():next.name):'Then the last checks'}</span></div></div>`;
+  return h}
+/* One section of the checking screen (inside or outside). On a "both" job the two are STACKED on one page
+   (Tom's ruling, Batch 4): inside first, then the sides, one combined count, one pair of buttons. */
+function sectionHTML(active){
+  const t=S.tab,out=t==='out',us=U(),done=us.filter(r=>r.ok).length;
+  const QL=out?QOUT:QIN(),qi=out?S.qj:S.qi,qd=(out?S.qb:S.qa).filter(a=>a!=null).length,chk=out?S.checksOut:S.checks;
+  let h=`<p class="sect"><span>${out?'A few questions first':isCom()?'About the whole space':'About the whole home'}</span><span>${Math.min(qi,QL.length)} of ${QL.length}</span></p>`;
+  if(!active)h+=`<button class="rc" data-a="tab" data-v="${t}" style="text-align:left;width:100%"><span class="rc-h" style="display:grid"><span class="st">${qd===QL.length?TICK:'?'}</span><span><b>${qd} of ${QL.length} answered</b><small>${out?'Paintwork, timber rot and access':'A few quick details about what’s there'}</small></span><span class="act">${qd===QL.length?'Done':'Answer these'} ${CHEV}</span></span></button>`;
+  else if(qi<QL.length){const q=QL[qi],p=out?'ext':partKeys().find(x=>x!=='ext'),share=.5*(RNG[p][0][1]-RNG[p][0][0]-(RNG[p][1][1]-RNG[p][1][0]))/QL.length;
+    h+=`<div class="qq"><div class="art">${PIC[q[3]].replace('class="pic"','style="color:var(--teal)"')}</div><div><div class="meta"><span class="dots">${QL.map((_,i)=>`<i class="${i<qi?'d':i===qi?'c':''}"></i>`).join('')}</span><b>Closes about ${money(share)} of your range</b></div>
+      <h3>${q[0]}</h3>${q[1]?`<p>${q[1]}</p>`:''}<div class="row">${q[2].map(([v,l])=>`<button class="pillbtn" data-a="qans" data-v="${v}">${l}</button>`).join('')}<button class="skip" data-a="qskip">Skip for now</button></div></div></div>`;
+  }else h+=`<div class="qq done"><div style="display:flex;gap:12px;align-items:center;font-weight:600"><span class="av" style="width:34px;height:34px;background:var(--teal);color:#fff">${tick(15)}</span>${qd} of ${QL.length} answered. ${qd<QL.length?'You can come back to the rest.':'Thank you.'}</div></div>`;
+  h+=`<p class="sect"><span>${out?'Side by side':isCom()?'Area by area':'Room by room'}</span><span>${done} of ${us.length} checked</span></p>`;
+  us.forEach((r,i)=>{const open=active&&S.open===i,skip=r.paint==='no';
+    h+=`<div class="rc ${open?'open':''} ${r.ok&&!skip?'ok':''} ${skip?'skip':''}" id="${active?'rc':'rx'+t}${i}"><button class="rc-h" data-a="${active?'open':'xopen'}" data-t="${t}" data-v="${i}" aria-expanded="${open}"><span class="st">${r.ok&&!skip?TICK:i+1}</span><span><b>${r.name}</b><small><span class="mono" style="font-size:13px">${dimTxt(r)}</span>${r.ok?' · '+unitSummary(r):''}</small></span><span class="act">${skip?'Not painting':r.ok?'Checked':open?'Close':'Check this '+unitWord()} ${CHEV}</span></button>${open?unitBody(r,i,us):''}</div>`});
+  const doors=us.reduce((a,r)=>a+(r.paint!=='no'&&r.s.doors&&r.s.doors.on?r.s.doors.n:0),0),wins=us.reduce((a,r)=>a+(r.paint!=='no'&&r.s.windows&&r.s.windows.on?r.s.windows.n:0),0);
+  h+=`<p class="sect"><span>Last checks</span><span>${chk?'Done':''}</span></p>
+  <div class="qq ${chk?'done':''}" style="grid-template-columns:1fr"><div><h3 style="margin:0">We make it ${doors} door${doors===1?'':'s'}${S.rooms&&S.rooms[0]&&S.rooms[0].t==='wh'&&!out?'':` and ${wins} window${wins===1?'':'s'}`} ${out?'around the house':isCom()?'across the space':'across the home'}. Is that right?</h3>${out?`<p style="margin-top:6px">And any sides or bits we’ve missed? Sheds, side gates and the fence behind the house are the usual ones.</p>`:''}${chk?'':`<div class="row"><button class="pillbtn" data-a="${active?'checks':'tab'}" data-v="${t}">${active?'Nothing missed':'Check these'}</button>${active?`<button class="pillbtn" data-a="noop">Something’s off, I’ll adjust</button>`:''}</div>`}</div></div>`;
+  if(out){const sep=EXT_SEP.filter(([k])=>S.ext.sep[k]);
+    h+=`<div class="card" style="border-radius:20px"><h3>Freestanding extras <span>${sep.length?sep.length+' ticked':'Optional'}</span></h3><p style="color:var(--muted);font-size:15.5px;margin-top:4px">Not on a wall: fences, pergolas and the like. Tick any that apply.</p>
+    <div class="extras">${EXT_SEP.map(([k,l])=>`<button class="chip ${S.ext.sep[k]?'on':''}" data-a="xsep" data-v="${k}"><span class="bx">${TICK}</span>${l}</button>`).join('')}<button class="chip plain" data-a="noop">+ Something else</button></div></div>`}
+  else if(!isCom())h+=`<div class="card" style="border-radius:20px"><h3>Anything we haven’t listed? <span>Optional</span></h3><p style="color:var(--muted);font-size:15.5px;margin-top:4px">Tap to add. Anything unusual, tell us in your own words and a person will price it properly.</p>
+    <div class="extras">${[['Air vent',180],['Mantle',95],['Picture rails',95],['Window reveals',95]].map(([n,p])=>`<button class="chip ${S.extras[n]?'on':''}" data-a="extra" data-v="${n}"><span class="bx">${TICK}</span>${n} <span class="mono">${money(p)}</span></button>`).join('')}<button class="chip plain" data-a="noop">+ Something else</button></div></div>`;
+  else h+=`<div class="card" style="border-radius:20px"><h3>Anything we haven’t listed? <span>Optional</span></h3><p style="color:var(--muted);font-size:15.5px;margin-top:4px">Tell us in your own words and your estimator will price it properly on the visit.</p><div class="extras"><button class="chip plain" data-a="noop">+ Add something</button></div></div>`;
+  return h}
+function renderEd(){
+  const act=S.tab,both=hasIn()&&hasOut(),[lo,hi]=range(),tr=tier();
+  const all=(S.rooms||[]).concat(S.sides||[]),doneAll=all.filter(r=>r.ok).length;
+  let h=`<div class="ed-title"><h1>${act==='out'&&!both?'Walk around the house, one side at a time':'Now let’s get it exact'}</h1><p>${act==='out'&&!both?'Front, both sides, back. Check each one and it turns blue.':`Check each ${isCom()?'area':'room'}${both?', then each side,':''} and answer a few quick questions.`} Your range narrows as you go, and nothing is fixed until Tom has confirmed it with you.</p></div>`;
+  if(both)h+=`<div class="tabs" role="navigation" aria-label="Jump to"><button class="${act==='in'?'on':''}" data-a="tab" data-v="in">Inside <span>${S.rooms.filter(r=>r.ok).length}/${S.rooms.length} rooms</span></button><button class="${act==='out'?'on':''}" data-a="tab" data-v="out">Outside <span>${S.sides.filter(r=>r.ok).length}/${S.sides.length} sides</span></button></div>`;
+  (both?['in','out']:[act]).forEach(t=>{S.tab=t;if(both)h+=`<h2 class="sechead" id="sec-${t}">${t==='in'?'Inside, room by room':'Now the outside, one side at a time'}</h2>`;h+=sectionHTML(t===act)});
+  S.tab=act;
+  $('#edmain').innerHTML=h;
+
+  /* price rail */
+  const [g0,g1]=range0(),mn=g0-(g1-g0)*.12,mx=g1+(g1-g0)*.12,scale=v=>(v-mn)/(mx-mn)*100;
+  const pe=$('#price');
+  if(!pe.dataset.built){pe.dataset.built=1;pe.innerHTML=`<div class="lab"><span>Your range</span><span class="pill" id="pTier"></span></div><p class="num" id="pNum"></p><p class="gst">Includes GST</p><div id="pParts"></div>
+    <div class="band"><span class="was" style="left:${scale(g0)}%;width:${scale(g1)-scale(g0)}%"></span><span class="now" id="pBand"></span></div><div class="bandlab"><span>Dashed line: where your guide range started</span></div>
+    <ul class="todo" id="pTodo"></ul><button class="btn pri" data-a="finish">Finalise my price ${ARROW}</button><button class="btn sec" data-a="finish">Book a time with Tom</button>`}
+  $('#pTier').className='pill '+(tr==='det'?'det':'');$('#pTier').textContent=(tr==='det'?'Detailed':'Guide')+' · within '+pct()+'%';
+  $('#pNum').textContent=money(lo)+' – '+money(hi);
+  $('#pParts').innerHTML=both?`<div class="parts" style="margin-top:12px"><div class="part"><span>Inside</span><b>${rangeOf('int').map(money).join(' – ')}</b></div><div class="part"><span>Outside</span><b>${rangeOf('ext').map(money).join(' – ')}</b></div></div>`:'';
+  $('#pBand').style.left=scale(lo)+'%';$('#pBand').style.width=(scale(hi)-scale(lo))+'%';
+  const rows=[];
+  if(hasIn())rows.push([isCom()?'Quick questions':'Questions about the home',`${S.qa.filter(a=>a!=null).length}/${QIN().length}`,S.qa.filter(a=>a!=null).length===QIN().length],[isCom()?'Areas checked':'Rooms checked',`${S.rooms.filter(r=>r.ok).length}/${S.rooms.length}`,S.rooms.every(r=>r.ok)]);
+  if(hasOut())rows.push(['Questions about the outside',`${S.qb.filter(a=>a!=null).length}/${QOUT.length}`,S.qb.filter(a=>a!=null).length===QOUT.length],['Sides checked',`${S.sides.filter(r=>r.ok).length}/${S.sides.length}`,S.sides.every(r=>r.ok)]);
+  const cn=(hasIn()?1:0)+(hasOut()?1:0),cd=(hasIn()&&S.checks?1:0)+(hasOut()&&S.checksOut?1:0);rows.push(['Last checks',`${cd}/${cn}`,cd===cn]);
+  $('#pTodo').innerHTML=rows.map(([l,c,d])=>`<li class="${d?'d':''}"><i>${TICK}</i>${l}<span>${c}</span></li>`).join('');
+  const word=both?'rooms and sides':hasOut()?'sides':isCom()?'areas':'rooms';
+  $('#mstrip').innerHTML=`<span><span class="mono">${money(lo)} – ${money(hi)}</span><small>${tr==='det'?'Detailed':'Guide'} · within ${pct()}% · ${doneAll} of ${all.length} ${word}</small></span><div class="band"><span class="was" style="left:${scale(g0)}%;width:${scale(g1)-scale(g0)}%"></span><span class="now" style="left:${scale(lo)}%;width:${scale(hi)-scale(lo)}%"></span></div>`;
+  $('#mapT').textContent=both?'Your home, inside and out':hasOut()?'Your home from above':isCom()?'Your space':'Your home';
+  $('#mapN').textContent=`${doneAll} of ${all.length} checked`;
+  $('#artPlan').style.display=hasIn()?'':'none';$('#artTop').style.display=hasOut()?'':'none';
+  if(hasOut()){const by=Object.fromEntries(S.sides.map((s,i)=>[s.key,[s,i]]));
+    drawTop($('#top2'),SIDES.map(([k,l])=>{const e=by[k];return e?{key:k,label:l.replace(' side',''),cls:(e[0].paint==='no'?'skip':e[0].ok?'ok':'todo')+(act==='out'&&S.open===e[1]?' cur':''),a:'xopen',t:'out',v:e[1]}:{key:k,label:l.replace(' side',''),cls:'skip'}}))}
+  if(hasIn())drawPlan($('#plan2'),S.rooms.map((r,i)=>({name:r.name,w:r.t==='wh'?400:r.l*r.w,t:r.t,i,cls:(r.ok?'ok':'todo')+(act==='in'&&S.open===i?' cur':'')})));
+}
+function tightened(before){const [a,b]=range(),d=(before[1]-before[0])-(b-a);if(d>0)toast(`Range narrowed by <b>${money(d)}</b>`)}
+
+A.extra=function(v){if(S.phase==='editor'&&S.tab==='out'&&EXT_SEP.some(e=>e[0]===v))tog(S.ext.sep,v);else S.extras[v]=!S.extras[v];renderEd()};
+
+/* ───────── finalise ───────── */
+const NEXT4=(com)=>`<ol class="steps4">
+      <li class="d"><i>${tick(14)}</i><span><b>See your price</b><small>Done. Your range is saved to your account.</small></span></li>
+      <li class="c"><i>2</i><span><b>We confirm it with you</b><small>${com?'On site. You get a scope of works and a fixed quote, with our insurance certificates and safe work method statements attached.':hasOut()?'On site. Then the price is fixed.':'In person or over the phone. Then the price is fixed.'}</small></span></li>
+      <li><i>3</i><span><b>Pick your dates</b><small>You’ll know who’s coming before the date is locked in.</small></span></li>
+      <li><i>4</i><span><b>Sign off, then pay</b><small>A walkthrough with you at the end. The final invoice waits for it.</small></span></li></ol>`;
+function renderFinish(){
+  const [lo,hi]=range(),tr=tier(),com=isCom(),both=hasIn()&&hasOut(),us=(S.rooms||[]).concat(S.sides||[]),visit=hasOut()||com;
+  $('#screen').innerHTML=`<div class="fin ${S.enter?'enter':''}">
+  <div style="display:grid;gap:16px">
+    <div class="rangecard"><p class="rlabel">Your ${tr==='det'?'detailed':'guide'} range <span class="pill ${tr==='det'?'det':''}">${tr==='det'?'Detailed':'Guide'} · within ${pct()}%</span></p>
+      <p class="bigrange" style="font-size:clamp(26px,3.6vw,46px)">${money(lo)}<span>–</span>${money(hi)}</p><p class="gst">Includes GST. ${S.addr}</p>
+      ${both?`<div class="parts"><div class="part"><span>Inside</span><b>${rangeOf('int').map(money).join(' – ')}</b></div><div class="part"><span>Outside</span><b>${rangeOf('ext').map(money).join(' – ')}</b></div></div>`:''}
+      <p class="based">One step left: Tom confirms it with you${visit?' on site':''}, and then it’s a fixed price. No surprises on the invoice.</p></div>
+    <div class="card"><h3>What you’ve told us <span>${us.filter(r=>r.ok).length} of ${us.length} checked</span></h3><ul class="assumed stack">${us.map(r=>`<li><span>${r.name} <span class="mono" style="font-size:12.5px">${dimTxt(r)}</span></span><b style="font-weight:500;text-align:right">${unitSummary(r)}</b></li>`).join('')}</ul></div>
+  </div>
+  <div style="display:grid;gap:16px">
+    <div class="card"><h3>${com?'Book your commercial estimator':'Make it a fixed price'}</h3>
+      <div class="who" style="margin-top:14px"><span class="av">TR</span><span><b>${estName}, your estimator</b><small>A one-hour visit. Tom checks the details and confirms your price${com?' with a written scope of works':' on the spot'}.</small></span></div>
+      <p style="font-weight:600;margin-top:16px;font-size:16px">Times Tom is in your area</p>
+      ${slotsHTML()}
+      <button class="btn pri" style="width:100%;margin-top:16px" data-a="noop">${S.slot!=null?'Book this visit':'Choose a time'} ${ARROW}</button>
+      <button class="btn sec" style="width:100%;margin-top:8px;min-height:52px;font-size:16.5px" data-a="noop">${visit?'None of these suit? Request a time':'Request a call instead'}</button>
+      ${visit?`<p class="note">${com?'Commercial jobs':'Outside jobs'} are always confirmed on site, so there’s no phone sign-off for this one.</p>`:''}</div>
+    <div class="card"><h3>What happens next</h3>${NEXT4(com)}</div>
+  </div></div>`;
+}
+function renderBooked(){
+  const b=BRIEF[briefKey()]||BRIEF.strata,sl=S.slot!=null?SLOTS[S.slot]:null,first=S.name?S.name.split(' ')[0]:'';
+  $('#screen').innerHTML=`<div class="booked enter"><div class="pane" style="max-width:none">
+    <div class="bigtick">${TICK}</div>
+    <p class="kick">Booked</p><h1>${sl?'You’re booked in':'Your brief is with us'}</h1>
+    <p class="sub">${sl?`${first?first+', your':'Your'} estimator will be at ${S.addr||'the property'} on ${sl[0]} at ${sl[1]}, with your brief and photos in hand.`:'We’ll call to arrange a time that suits. Your answers are saved, so nobody asks you twice.'}</p>
+    <div class="card" style="margin-top:28px"><h3>What happens next</h3><ol class="steps4">
+      <li class="d"><i>${tick(14)}</i><span><b>${b.title.replace('Tell us','You told us')}</b><small>Done. A confirmation is on its way to ${S.email||'your email'}.</small></span></li>
+      <li class="c"><i>2</i><span><b>We visit and measure</b><small>Usually within a week. We bring your brief and photos, so it’s quick.</small></span></li>
+      <li><i>3</i><span><b>You get a scope of works and a fixed quote</b><small>Itemised, with our insurance certificates and safe work method statements attached.</small></span></li>
+      <li><i>4</i><span><b>Nothing is fixed until you say so</b><small>Quotes are held for 60 days, or to your meeting date if you gave us one.</small></span></li></ol></div>
+    <p class="note" style="margin-top:18px">Nothing is fixed until you say so, and nothing is owed. Something urgent? <a href="tel:0388409414">Call 03 8840 9414</a></p>
+    <div class="talk" style="margin-top:22px">${talkHTML().replace('Rather talk it through?','Need to change something?')}</div>
+  </div></div>`;
+}
+render();
+</script>
+</body>
+</html>

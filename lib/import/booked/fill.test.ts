@@ -151,6 +151,42 @@ describe("jobFromWorkOrder", () => {
   const wo = parseWorkOrderText(WO_TEXT);
   const r = jobFromWorkOrder(existing, wo, { workOrderUrl: "https://example.com/w" });
 
+  it("takes a named quote area's price for a work-order area with no twin (--area), consuming it", () => {
+    const aliased = jobFromWorkOrder(existing, wo, { areaAliases: { "Fall protection": "Scaffolding" } });
+    const fall = aliased.job.areas.find((a) => a.name === "Fall protection");
+    expect(fall?.price_ex_gst_cents).toBe(110000);
+    expect(fall?.hours_total).toBe(15.75);
+    // The quote's own "Scaffolding" line is consumed, so it is not kept a second time.
+    expect(aliased.job.areas.filter((a) => a.name === "Scaffolding")).toHaveLength(0);
+    expect(aliased.mapping.find((m) => m.startsWith("Fall protection"))).toContain('its "Scaffolding" price');
+    expect(aliased.warnings).toEqual([]);
+  });
+
+  it("an alias wins over a same-named $0 block from an earlier fill, and that block is dropped", () => {
+    const state = JSON.parse(JSON.stringify(existing.builderState)) as { blocks: Array<Record<string, unknown>> };
+    // A visible $0 custom line, as the first fill writes for an area it could not price.
+    const refilled = { ...existing, builderState: { ...state, blocks: [...state.blocks, { kind: "custom", name: "Fall protection", custom: 0, hidden: false }] } };
+    expect(pricedBlocksOf(refilled.builderState).filter((b) => b.name === "Fall protection")).toEqual([{ name: "Fall protection", priceCents: 0, kind: "line" }]);
+    const r2 = jobFromWorkOrder(refilled, wo, { areaAliases: { "Fall protection": "Scaffolding" } });
+    const fall = r2.job.areas.filter((a) => a.name === "Fall protection");
+    expect(fall).toHaveLength(1);
+    expect(fall[0].price_ex_gst_cents).toBe(110000);
+    expect(r2.job.areas.filter((a) => a.name === "Scaffolding")).toHaveLength(0);
+    expect(r2.mapping).toContain("Fall protection: $0.00 on the quote, not on the work order · dropped");
+    expect(r2.warnings).toEqual([]);
+  });
+
+  it("a repeated name takes its own priced block first; the alias covers only what is left", () => {
+    const state = JSON.parse(JSON.stringify(existing.builderState)) as { blocks: Array<Record<string, unknown>> };
+    // The job carries "Front Side" once and the second price under another name; the page repeats "Front Side".
+    const blocks = state.blocks.map((b) => (b.name === "Front Side" && Number(b.custom) === 300 ? { ...b, name: "Side return" } : b));
+    const renamed = { ...existing, builderState: { ...state, blocks } };
+    expect(pricedBlocksOf(renamed.builderState).filter((b) => b.name === "Side return")).toEqual([{ name: "Side return", priceCents: 30000, kind: "line" }]);
+    const r3 = jobFromWorkOrder(renamed, wo, { areaAliases: { "Front Side": "Side return" } });
+    expect(r3.job.areas.filter((a) => a.name === "Front Side").map((a) => a.price_ex_gst_cents)).toEqual([120000, 30000]);
+    expect(r3.job.areas.filter((a) => a.name === "Side return")).toHaveLength(0);
+  });
+
   it("gives each work-order area the price of its first unconsumed twin on the quote, repeated names in order", () => {
     const byName = r.job.areas.map((a) => [a.name, a.price_ex_gst_cents, a.items.length, a.hours_total]);
     expect(byName).toEqual([
@@ -169,7 +205,7 @@ describe("jobFromWorkOrder", () => {
     expect(r.warnings.some((w) => w.startsWith('"Scaffolding" is priced on the quote'))).toBe(true);
     expect(r.hoursDisagree).toBe(false);
     expect(r.job.total_hours).toBe(31.5);
-    expect(r.job.materials).toEqual([{ product: "Dulux Weathershield", litres: 38 }]);
+    expect(r.job.materials).toEqual([{ product: "Dulux Weathershield", litres: 38, costCents: 87400 }]);
   });
 
   it("carries the estimate's own facts, not the page's", () => {

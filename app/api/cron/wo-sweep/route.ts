@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { runPainterStatusSweep } from "@/lib/painterStatus/run";
 import { createServiceClient } from "@/lib/supabase/service";
 import { composeUpdate, type TickEvent } from "@/lib/workorder/updates";
 import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
@@ -8,10 +9,13 @@ import { releaseDueHolds } from "@/lib/automations/dispatch";
 import { EVENING_HOUR, isMelbourneHour, melbourneParts } from "@/lib/time/businessHours";
 import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
+import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
 import { reconcileAllConnected } from "@/lib/gcal/sync";
 import { reconcileAllStaff } from "@/lib/gcal/staff";
 import { sendVisitReminders } from "@/lib/visits/notify";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
+import { staffCustomerUpdateDrafted } from "@/lib/staff/notify";
+import { sendCustomerUpdateDueAlerts } from "@/lib/automations/sweeps/customerUpdateDue";
 
 /**
  * The daily sweep: draft today's customer updates, flag the silent sites, and
@@ -135,8 +139,17 @@ async function sweep(opts: { force?: boolean } = {}) {
       p_photo_count: photoCount ?? 0,
     });
     if (error) reportError(error, { where: "cron.woSweep.draft", extra: { workOrderId } });
-    else drafted += 1;
+    else {
+      drafted += 1;
+      // Tom, 7 Oct 2026: the backstop tells the office the same way the tick does (once per job per day).
+      await staffCustomerUpdateDrafted(db, workOrderId, today);
+    }
   }
+
+  // Tom, 7 Oct 2026: a customer due an update with nothing drafted — remind the
+  // office (email + text per their alert settings), once per job per day.
+  let updateDueAlerts = { due: 0, sent: 0 };
+  try { updateDueAlerts = await sendCustomerUpdateDueAlerts(db, now); } catch (e) { reportError(e, { where: "wo-sweep.updateDue" }); }
 
   const { data: flagged, error: sweepError } = await db.rpc("wo_zero_tick_sweep");
   if (sweepError) reportError(sweepError, { where: "cron.woSweep.zeroTick" });
@@ -222,6 +235,14 @@ async function sweep(opts: { force?: boolean } = {}) {
   let heldReleased = { released: 0, skipped: 0, failed: 0 };
   try { heldReleased = await releaseDueHolds(db, now); } catch (e) { reportError(e, { where: "wo-sweep.releaseHolds" }); }
 
+  // Step 5: the evaluator's daily pass — every active painter, so pending
+  // results finalise once their seven days pass and a new painter is New.
+  let painterStatus: { ran: number; failed: number; errors: string[] } = { ran: 0, failed: 0, errors: [] };
+  try {
+    const r = await runPainterStatusSweep(db, { now });
+    painterStatus = { ran: r.ran, failed: r.failed, errors: r.outcomes.filter((o) => !o.ok).slice(0, 5).map((o) => `${o.painterId.slice(0, 8)}: ${o.error ?? "?"}`) };
+  } catch (e) { reportError(e, { where: "wo-sweep.painterStatus" }); painterStatus.errors = [e instanceof Error ? e.message : String(e)]; }
+
   let apptConfirmed = 0;
   try {
     const threeDaysAgo = new Date(now.getTime() - 3 * 86_400_000).toISOString();
@@ -239,6 +260,29 @@ async function sweep(opts: { force?: boolean } = {}) {
     });
   } catch (e) { reportError(e, { where: "wo-sweep.apptConfirm" }); }
 
+  // Quality-check invites backstop (Tom, 8 Oct 2026): every job with a check
+  // still to come re-reconciles, so a move whose invite was lost (a closed
+  // tab, a Resend outage) reaches the calendar by the next morning.
+  let qaInviteJobs = 0;
+  const { data: dueChecks, error: dueError } = await db
+    .from("wo_qa_checks").select("work_order_id")
+    .is("result", null).gte("scheduled_for", today)
+    .order("scheduled_for").limit(RPC_CAP);
+  // Site check-ins (20270248) go in the same calendar.
+  const { data: dueVisits, error: dueVisitsError } = await db
+    .from("wo_site_visits").select("work_order_id")
+    .is("visited_at", null).gte("scheduled_for", today)
+    .order("scheduled_for").limit(RPC_CAP);
+  if (dueVisitsError) reportError(dueVisitsError, { where: "wo-sweep.siteVisitInvites" });
+  if (dueError) reportError(dueError, { where: "wo-sweep.qaInvites" });
+  else {
+    const ids = [...new Set([
+      ...((dueChecks ?? []) as { work_order_id: string }[]),
+      ...((dueVisitsError ? [] : dueVisits ?? []) as { work_order_id: string }[]),
+    ].map((r) => r.work_order_id))];
+    await eachLimit(ids, 4, async (id) => { await sendQaCheckInvites(db, id); qaInviteJobs += 1; });
+  }
+
   return {
     ok: true as const, date: today, drafted,
     flagged: flagged ?? 0, started: started ?? 0, lapsed: lapsed ?? 0,
@@ -248,8 +292,10 @@ async function sweep(opts: { force?: boolean } = {}) {
     // backstop is running behind the business, not that it covered everything.
     qaDeferred,
     qaRouteDeferred,
+    painterStatus,
     preStartSent,
     apptConfirmed,
+    qaInviteJobs,
     gcalContractors: gcal.contractors,
     gcalErrors: gcal.errors,
     staffGcal: staffGcal.staff,
@@ -258,6 +304,7 @@ async function sweep(opts: { force?: boolean } = {}) {
     heldReleased,
     timesheetsFilled,
     timesheetsManual,
+    updateDueAlerts,
   };
 }
 

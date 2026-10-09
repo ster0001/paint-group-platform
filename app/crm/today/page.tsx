@@ -38,9 +38,19 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   message_approval: "Approve",
   hours_to_confirm: "Hours to confirm",
   employee_reassign: "Reassign",
-  employee_unaccepted: "Not accepted", leave_request: "Time off", timesheet_approval: "Timesheets",
-  job_checkin: "Check-in", job_followup: "Follow-up",
-  hold_pending: "Held dates",
+  employee_unaccepted: "Not accepted", leave_request: "Time off",
+  job_checkin: "Check-in", job_followup: "Follow-up", standards_unsigned: "Standards",
+  walkthrough_flagged: "Walk-through", callback_unbooked: "Call back", callback_visit_soon: "Call back", callback_fixed: "Call back",
+  hold_pending: "Held dates", qa_check_due: "Quality check", qa_check_final_cancelled: "Quality check", site_visit_due: "Site check-in",
+  painter_message: "Painter message",
+  painter_orange: "Painter", painter_red: "Painter", bonus_due: "Bonus", bonus_changed: "Bonus", payment_hold: "Payment hold",
+  unmapped_suburb: "Suburb",
+  visit_request: "Request",
+  holidays_next_year: "Holidays",
+  visit_declined: "Declined",
+  visit_moved_in_google: "Moved in Google",
+  gcal_sync_failed: "Calendar",
+  estimator_calendar_missing: "Calendar",
 };
 
 const GROUP_ICON: Record<Exclude<FilterGroup, "all">, string> = {
@@ -52,6 +62,15 @@ const BUCKETS = [
   { key: "today", label: "Due today", bad: false },
   { key: "waiting", label: "Waiting on them", bad: false },
 ] as const;
+
+/**
+ * Tom, 8 Oct: "Not this one" on a desk check (fix the price without a visit)
+ * just closes it — one tap, for good. Every other card keeps the snooze +
+ * reason form.
+ */
+function oneTapFor(kind: string): { reason: string } | undefined {
+  return kind === "desk_check" ? { reason: "Not this one (one tap)" } : undefined;
+}
 
 function ago(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -161,7 +180,7 @@ export default async function TodayPage({ searchParams }: {
                       <span className="qb qalso" key={r.key} data-testid="also">
                         <span className="qsrc">{KIND_TAG[r.kind]}</span>{r.title}
                         <Link href={r.action.href} className="qgo" style={{ marginLeft: 8 }}>{r.action.label} →</Link>
-                        <DismissControl itemKey={r.key} accountId={r.accountId} />
+                        <DismissControl itemKey={r.key} accountId={r.accountId} oneTap={oneTapFor(r.kind)} />
                       </span>
                     ))}
                     <span className="qact">
@@ -170,7 +189,7 @@ export default async function TodayPage({ searchParams }: {
                         <a href={telHref(phoneOf.get(item.accountId)!)} className="qtel mono" data-testid="item-phone">☎ {phoneOf.get(item.accountId)}</a>
                       )}
                       {item.accountId && <LogSheet accountId={item.accountId} />}
-                      <DismissControl itemKey={item.key} accountId={item.accountId} />
+                      <DismissControl itemKey={item.key} accountId={item.accountId} oneTap={oneTapFor(item.kind)} />
                     </span>
                   </span>
                   <span className={`qw mono ${item.bucket === "overdue" ? "bad" : ""}`}>{ago(item.since)}</span>

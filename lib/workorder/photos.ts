@@ -16,12 +16,12 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const WO_PHOTO_KINDS = ["reference", "before", "progress", "qa", "completion", "variation"] as const;
+export const WO_PHOTO_KINDS = ["reference", "before", "progress", "qa", "completion", "variation", "callback"] as const;
 export type WOPhotoKind = (typeof WO_PHOTO_KINDS)[number];
 
 /** Display order — the job's own order, not the enum's. */
 export const WO_PHOTO_KIND_ORDER: readonly WOPhotoKind[] = [
-  "reference", "before", "progress", "variation", "qa", "completion",
+  "reference", "before", "progress", "variation", "qa", "completion", "callback",
 ];
 
 export const WO_PHOTO_KIND_LABEL: Record<WOPhotoKind, string> = {
@@ -31,6 +31,7 @@ export const WO_PHOTO_KIND_LABEL: Record<WOPhotoKind, string> = {
   variation: "Variation",
   qa: "Quality check",
   completion: "Completion",
+  callback: "Call back",
 };
 
 export const PHOTO_URL_TTL_SECONDS = 3600;

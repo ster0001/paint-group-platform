@@ -5,6 +5,8 @@ import { EMPLOYEES_ENABLED_KEY, employeesSwitchFrom } from "@/lib/painters/emplo
 import { reportError } from "@/lib/monitoring/report";
 import { isEmploymentType } from "@/lib/painters/capabilities";
 import ContractorsManager, { type BankAlert, type ContractorSummary, type InviteRow } from "./ContractorsManager";
+import { loadStandardsStatuses } from "@/lib/standards/status";
+import { staffStatusLine } from "@/lib/standards/acks";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +88,11 @@ export default async function ContractorsPage() {
     .map((r) => [r.id, isEmploymentType(r.employment_type) ? r.employment_type : "contractor" as const]));
   const employeesEnabled = !flagErr && employeesSwitchFrom((flagRow as { value?: unknown } | null)?.value).enabled;
 
+  // Finish standards (Step 2): who has confirmed, who is invited, who is blocked.
+  const standardsRes = await loadStandardsStatuses(supabase);
+  const standardsOf = new Map(standardsRes.rows.map((r) => [r.contractorId, r]));
+  const now = new Date();
+
   const contractors: ContractorSummary[] = ((rows as Row[] | null) ?? []).map((c) => ({
     id: c.id,
     name: c.profiles?.name || c.company_name || "Contractor",
@@ -112,6 +119,10 @@ export default async function ContractorsPage() {
     weekend: weekendMap.get(c.id) ?? null,
     employmentType: typeOf.get(c.id) ?? "contractor",
     costRateCents: rateOf.get(c.id) ?? null,
+    standards: (() => {
+      const r = standardsOf.get(c.id);
+      return r ? { status: r.status, line: staffStatusLine(r.status, { ...r, confirmedNo: r.confirmedVersion, now }) } : null;
+    })(),
   }));
 
   type EventRow = { id: string; contractor_id: string; detail: unknown; created_at: string };
@@ -135,6 +146,7 @@ export default async function ContractorsPage() {
       invites={(invites as InviteRow[] | null) ?? []}
       bankAlerts={bankAlerts}
       employeesEnabled={employeesEnabled}
+      standardsError={standardsRes.error}
     />
   );
 }

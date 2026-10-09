@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>Contractor Traffic Light Mockup</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Martian+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one phone-width column. A demo strip on top switches between the painter's app and PC Command.
+   Dark-first, with a light theme. The build uses the contractor portal's own theme tokens, not these values. */
+:root{
+  color-scheme:dark;
+  --ink:#0A0E11; --graphite:#10161A; --raised:#182026; --line:#27333C; --text:#E9EEF0; --muted:#93A3AC;
+  --cyan:#3BD8E9; --on-cyan:#03272D; --paint:#2FB9CB; --amber:#E0A83C; --emerald:#2FA46B; --clay:#B3574A;
+  /* text-safe versions of the semantic colours, per theme */
+  --t-cyan:#3BD8E9; --t-amber:#E0A83C; --t-green:#35C47E; --clay-text:#E08D7F;
+  --t-yellow:#F1CF46; --t-orange:#F08C3A; --t-red:#F0706C; --t-blue:#8FB3F8;
+  /* traffic light lamps: the same in both themes, always inside a dark housing */
+  --l-green:#35C47E; --l-yellow:#F1CF46; --l-orange:#F08C3A; --l-red:#E5524E; --l-blue:#6C9BF5;
+  --lamp-off:#222C33; --housing:#05080A; --housing-line:#27333C; --track:#222C33; --dot-ring:transparent;
+  --sans:"Switzer","Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){
+  color-scheme:light;
+  --ink:#EDF1F3; --graphite:#F6F8F9; --raised:#FFFFFF; --line:#D3DBE0; --text:#0E1418; --muted:#586872;
+  --t-cyan:#0B7785; --t-amber:#8A5E06; --t-green:#1B7A4B; --clay-text:#9B4335;
+  --t-yellow:#8A6A00; --t-orange:#B4530A; --t-red:#C0352F; --t-blue:#2F5FD0;
+  --housing:#141B20; --housing-line:#141B20; --track:#DCE3E7; --dot-ring:rgba(14,20,24,.28);
+} }
+:root[data-theme="light"]{
+  color-scheme:light;
+  --ink:#EDF1F3; --graphite:#F6F8F9; --raised:#FFFFFF; --line:#D3DBE0; --text:#0E1418; --muted:#586872;
+  --t-cyan:#0B7785; --t-amber:#8A5E06; --t-green:#1B7A4B; --clay-text:#9B4335;
+  --t-yellow:#8A6A00; --t-orange:#B4530A; --t-red:#C0352F; --t-blue:#2F5FD0;
+  --housing:#141B20; --housing-line:#141B20; --track:#DCE3E7; --dot-ring:rgba(14,20,24,.28);
+}
+*{box-sizing:border-box}
+html,body{background:var(--ink)}
+body{color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+h1{font-size:24px;line-height:1.15;font-weight:700;text-wrap:balance}
+h2{font-size:17px;line-height:1.25;font-weight:650;text-wrap:balance}
+h3{font-size:15px;font-weight:650}
+button{font-family:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.eyebrow{font:600 10.5px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)} .small{font-size:13px} .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* demo strip */
+.demo{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--graphite);border-bottom:1px solid var(--line)}
+.demo-in{max-width:440px;margin:0 auto;padding:8px 16px;display:flex;flex-direction:column;gap:8px}
+.demo-row{display:flex;align-items:center;gap:8px;min-width:0}
+.demo-row .eyebrow{flex:none}
+.demo-row>.chip{flex:none}
+.seg{display:flex;flex:1;min-width:0;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;min-width:0;appearance:none;border:0;background:transparent;color:var(--muted);font-weight:600;font-size:13px;padding:7px 6px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--raised);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+.chips{display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0;scrollbar-width:none;padding-block:2px}
+.chip{flex:none;appearance:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--ink);color:var(--muted);font-weight:600;font-size:12.5px;padding:6px 10px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{color:var(--text);border-color:var(--muted);background:var(--raised)}
+.dot{display:inline-block;flex:none;width:10px;height:10px;border-radius:50%;background:var(--c,var(--track));box-shadow:0 0 0 1px var(--dot-ring)}
+
+/* device */
+.wrap{max-width:440px;margin:0 auto;padding-inline:16px;padding-block:16px 0}
+.device{display:flex;flex-direction:column;gap:14px;min-height:78vh}
+.screen{display:flex;flex-direction:column;gap:14px;flex:1;padding-bottom:20px}
+@media(min-width:520px){.wrap{padding-block:24px}.device{border:1px solid var(--line);border-radius:28px;background:var(--graphite);padding:20px 16px 0;overflow:clip}}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.av{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--raised);border:1px solid var(--line);font:600 12px var(--mono)}
+.back{appearance:none;align-self:flex-start;border:0;background:transparent;color:var(--t-cyan);font-weight:600;font-size:14px;padding:4px 0;cursor:pointer}
+.card{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.plain{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;align-items:center;gap:10px;min-width:0}
+.row>.grow{flex:1;min-width:0}
+.btn{appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--text);font-weight:600;font-size:14px;padding:11px 14px;border-radius:10px;cursor:pointer;text-align:center}
+.btn.pri{background:var(--cyan);color:var(--on-cyan);border-color:transparent}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.btn[aria-pressed="true"]{border-color:var(--t-cyan);color:var(--t-cyan)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}.btns .btn{flex:1 1 130px}
+.link{appearance:none;border:0;background:transparent;color:var(--t-cyan);font-weight:600;font-size:13.5px;padding:0;cursor:pointer;text-align:left}
+.pill{display:inline-flex;align-items:center;gap:6px;font:600 10.5px/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:5px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.ok{color:var(--t-green);border-color:color-mix(in srgb,var(--emerald) 55%,var(--line))}
+.pill.wait{color:var(--t-amber);border-color:color-mix(in srgb,var(--amber) 55%,var(--line))}
+.pill.bad{color:var(--clay-text);border-color:color-mix(in srgb,var(--clay) 70%,var(--line))}
+.pill.info{color:var(--t-cyan);border-color:color-mix(in srgb,var(--paint) 55%,var(--line))}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+ul.clean,ol.clean{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}
+
+/* traffic light */
+.tl{flex:none;display:flex;flex-direction:column;gap:7px;padding:9px;background:var(--housing);border:1px solid var(--housing-line);border-radius:24px}
+.tl.big .lamp{width:44px;height:44px}
+.lamp{width:30px;height:30px;border-radius:50%;background:color-mix(in srgb,var(--c) 14%,var(--lamp-off));box-shadow:inset 0 2px 5px rgba(0,0,0,.65)}
+.lamp.on{background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--c) 70%,white),var(--c) 60%);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 28%,transparent),0 0 18px var(--c);animation:pulse 1.9s ease-in-out infinite}
+.tl.new{border-color:var(--l-blue);box-shadow:0 0 0 3px color-mix(in srgb,var(--l-blue) 22%,transparent);animation:ring 2.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 28%,transparent),0 0 12px var(--c);filter:brightness(1)}50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--c) 18%,transparent),0 0 30px var(--c);filter:brightness(1.18)}}
+@keyframes ring{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--l-blue) 22%,transparent)}50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--l-blue) 12%,transparent)}}
+@media(prefers-reduced-motion:reduce){.lamp.on,.tl.new{animation:none}}
+.statuscard{appearance:none;width:100%;text-align:left;cursor:pointer;flex-direction:row;align-items:center;gap:16px}
+.statusname{font-size:30px;line-height:1.05;font-weight:700;color:var(--ct)}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.steps i{height:9px;border-radius:5px;background:var(--track)}
+.steps i.on{background:var(--emerald)}
+.big{font:600 34px/1 var(--mono);font-variant-numeric:tabular-nums}
+
+/* measures and job dots */
+.measure{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:center}
+.measure .dot{grid-row:span 2;width:14px;height:14px}
+.measure b{font-weight:650}
+.jobs{display:flex;gap:5px}
+.jd{appearance:none;flex:1;min-width:0;max-width:30px;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font:700 11px/1 var(--mono);cursor:pointer;padding:0;border:2px solid transparent}
+.jd.ok{background:var(--emerald);color:#04150C}
+.jd.slip{background:transparent;border-color:var(--clay);color:var(--clay-text)}
+.jd.todo{background:transparent;border:2px dashed var(--line);color:var(--muted);cursor:default}
+.jd[aria-pressed="true"]{outline:2px solid var(--text);outline-offset:2px}
+.tick{color:var(--t-green);font-weight:700} .cross{color:var(--clay-text);font-weight:700}
+.perk{display:flex;gap:10px;align-items:flex-start}
+.perk .ic{flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:700 11px/1 var(--mono);background:var(--graphite);border:1px solid var(--line);color:var(--muted)}
+.perk.on .ic{background:var(--emerald);border-color:transparent;color:#04150C}
+.perk.off{color:var(--muted)}
+.colourkey{display:grid;grid-template-columns:auto 1fr;gap:10px 10px;align-items:start}
+details.card{display:block}
+details.card>*:not(summary){margin-top:10px}
+details.card>summary{cursor:pointer;font-weight:650;list-style:none;display:flex;justify-content:space-between;gap:10px}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary::after{content:"+";font-family:var(--mono);color:var(--muted)}
+details.card[open]>summary::after{content:"–"}
+
+/* standards */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tile{appearance:none;text-align:left;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px;font-weight:600;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;align-items:center;min-width:0}
+.tile::after{content:"›";color:var(--muted)}
+.listbtn{appearance:none;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:12px 0;font-weight:600;font-size:14.5px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+.listbtn:last-child{border-bottom:0}.listbtn::after{content:"›";color:var(--muted)}
+.rows{display:flex;flex-direction:column;gap:12px;margin:0}
+.rows dt{font:600 10.5px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--t-cyan);margin-bottom:3px}
+.rows dd{margin:0}
+.lv{display:inline-block;font:600 10.5px/1 var(--mono);padding:3px 5px;border-radius:5px;background:var(--graphite);border:1px solid var(--line);color:var(--muted);margin-right:6px}
+.every{border-color:color-mix(in srgb,var(--paint) 45%,var(--line))}
+.note{border:1px dashed var(--line);border-radius:12px;padding:12px;color:var(--muted);font-size:14px}
+.r3 p{margin-top:5px}
+.check{appearance:none;display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:14px;font-weight:600;cursor:pointer}
+.check .box{flex:none;width:24px;height:24px;border-radius:7px;border:2px solid var(--muted);display:grid;place-items:center;font:700 14px/1 var(--mono);color:transparent}
+.check[aria-checked="true"]{border-color:var(--emerald)}
+.check[aria-checked="true"] .box{background:var(--emerald);border-color:var(--emerald);color:#04150C}
+.progress{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.progress i{height:5px;border-radius:3px;background:var(--track)}.progress i.on{background:var(--paint)}
+
+/* tab bar */
+.tabbar{position:sticky;bottom:0;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;background:var(--graphite);border-top:1px solid var(--line);margin-inline:-16px;padding:6px 10px calc(6px + env(safe-area-inset-bottom,0px));margin-top:auto}
+.tabbar button{appearance:none;border:0;background:transparent;color:var(--muted);font-weight:600;font-size:12.5px;padding:9px 4px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.tabbar button[aria-current="page"]{color:var(--on-cyan);background:var(--cyan)}
+
+/* PC command */
+.q{border-color:var(--line)}
+.q.crit{border-color:color-mix(in srgb,var(--clay) 75%,var(--line))}
+.q.warn{border-color:color-mix(in srgb,var(--amber) 60%,var(--line))}
+.q.info{border-color:color-mix(in srgb,var(--paint) 55%,var(--line))}
+.result{background:var(--graphite);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
+.lanes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.lane{min-width:0;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.lane.cb{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;border-color:var(--clay);background:color-mix(in srgb,var(--clay) 14%,var(--raised))}
+.mini{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.mini span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.mini b{font:600 13px/1.2 var(--mono);font-variant-numeric:tabular-nums}
+.lane b{font:600 22px/1 var(--mono)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.stat b{font:600 22px/1 var(--mono)}
+.lights{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.lightcount{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.lightcount b{font:600 20px/1 var(--mono)}
+.lightcount .dot{width:14px;height:14px}
+.crow{appearance:none;width:100%;text-align:left;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.crow[aria-expanded="true"]{border-color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label,.field .lab{font:600 10.5px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.field input,.field textarea{background:var(--graphite);border:1px solid var(--line);border-radius:10px;color:var(--text);font:inherit;padding:10px 12px;width:100%}
+.field textarea{min-height:64px;resize:vertical}
+.sheet{border-color:var(--paint)}
+</style>
+
+</head>
+<body>
+<div class="demo" id="demo"></div>
+<main class="wrap"><div class="device" id="app"></div></main>
+<script>
+/* ---------- Finish standards content (from the approved painter guide) ---------- */
+const LV = {
+  2: { n: "Clean, tidy repaint", d: "3 m" },
+  3: { n: "Our standard finish", d: "1.5 m" },
+  4: { n: "Premium finish", d: "0.5 m" }
+};
+const LEVEL_ROWS = [
+  ["Filling", "All holes, nail holes and open cracks. Small marks in the old surface can stay.", "Every mark you can see from 1.5 m.", "Every mark you can see from 0.5 m."],
+  ["Sanding", "Light sand. Remove loose paint and dust.", "Sand well. Smooth to touch.", "Sand smooth before the first coat and between coats."],
+  ["Gaps (caulking)", "Edges of frames and trim.", "Edges, mitres and corners.", "Every gap and join."],
+  ["Old problems", "Old runs, old paint on glass and old brush marks can stay.", "Fix what you can see from 1.5 m.", "Fix all of them."],
+  ["Look test", "Stand 3 m back.", "Stand 1.5 m back.", "Stand 0.5 m back (arm's length)."]
+];
+const LOOK_TEST = [
+  "First, do everything in the list for the surface. The list is the rule.",
+  "Then stand back at the distance for the level on your work order.",
+  "Look straight at the surface in normal light: daylight, or the room lights on. Do not use a torch.",
+  "If you can see a problem from that distance, fix it."
+];
+const RULES = [
+  ["No drips or runs", "No drips, runs or sags on any painted surface."],
+  ["No paint where it should not be", "No paint on floors, carpet, tiles, benchtops, cupboards, furniture, switches, power points, lights, paths, driveways, decks, roofs, plants or cars."],
+  ["No paint on hardware", "No paint on handles, hinges, locks, latches, window winders or door stops. Remove the hardware or mask it."],
+  ["Protect first", "Cover floors and furniture with drop sheets and plastic before you start."],
+  ["Full cover", "No missed spots, no thin patches and no old colour showing through."],
+  ["Clean finish", "No dust, hair, grit or brush hairs stuck in the paint."],
+  ["Clean site every day", "Remove job rubbish every day. Leave your materials tidy before you go."],
+  ["Clean site at the end", "Remove all tape, plastic, drop sheets, empty tins and rubbish. Clean up sanding dust. Put back any hardware or cover plates you removed."]
+];
+const PREP_INT = ["Cover floors and furniture.", "Scrape loose and flaking paint.", "Fill holes, nail holes, cracks and dents to the level on your work order.", "Fill gaps with gap filler to the level on your work order.", "Sand to the level on your work order.", "Sand and clean glossy surfaces so new paint will stick.", "Prime all filler and bare patches."];
+const PREP_EXT = ["Wash or clean the surface. Paint only clean, dry surfaces.", "Scrape and sand loose and peeling paint.", "Fill holes and cracks in timber to the level on your work order.", "Fill gaps with exterior gap filler to the level on your work order.", "Sand to the level on your work order.", "Prime all bare timber and bare patches.", "Protect paths, plants and anything not being painted."];
+const EXTRA = [
+  ["Bogging", "Heavy repairs with two-part filler (builder's bog). Normal filler cannot do this job.", "Rotten timber on sills, fascias and weatherboards. Deep holes. Broken corners and edges."],
+  ["Stain blocking", "Sealing a stain with stain-block primer, so it does not come through the new paint.", "Water stains on ceilings. Smoke and nicotine. Timber stain (tannin) bleeding through. Mould marks after cleaning. Pen and marker."],
+  ["Additional coats", "More coats than normal, so the new colour covers fully.", "A big colour change, dark to light or light to dark. Bare or new surfaces that need a primer or undercoat. Colours that cover poorly, such as strong yellows and reds."]
+];
+const VARIATION = ["Stop before you do the extra work.", "Take clear photos of the problem.", "Raise a variation in your portal. Say what the problem is and how many extra hours it needs.", "Wait for us to approve it. The customer must agree to the extra cost first.", "Do the work when the variation is approved."];
+const DEFECT_STEPS = ["Finish all painting and clean the site.", "Walk through every room, or every side of the house, on your own.", "Do the look test on every surface, at the distance for the level on your work order.", "Put a small piece of painter's tape next to every defect you find.", "Fix every taped defect. Take the tape off as you fix each one.", "Check that all tape is gone. The job is now ready for the final walk-through."];
+const DEFECT_WHY = ["Fewer defects are found at the final walk-through.", "The customer sees that we are one step ahead.", "You finish the job in one visit and you do not have to come back."];
+const DEFECTS = [
+  ["Paint faults", "Runs, drips, sags, missed spots, thin patches, old colour showing through, roller lines, patchy areas."],
+  ["Preparation not done to the level", "Holes, cracks or gaps not filled. Filler not sanded flat. Rough areas not sanded."],
+  ["Lines", "Wavy or untidy lines between colours, at ceilings, trim and glass."],
+  ["Paint in the wrong place", "Paint on glass, hardware, floors, switches, power points, paths or furniture."],
+  ["Dirt in the finish", "Dust, hair, grit or brush hairs stuck in the paint."],
+  ["Things that do not work", "Windows or doors stuck with paint. Hardware or cover plates not put back."]
+];
+const CHECKLIST = ["Every surface on the work order is painted, with the number of coats on the work order.", "Preparation on every surface matches the level on the work order.", "No drips, runs, missed spots or patchy areas.", "No paint on glass, hardware, floors, switches, paths or anything not being painted.", "All windows and doors open and close.", "All hardware and cover plates are back in place.", "You have found and fixed your own defects. If you used tape, all tape is removed.", "The site is clean: no rubbish, no tape, no plastic, no dust."];
+const WORDS = [
+  ["Level", "The standard of preparation and finish for the job: 2, 3 or 4. It is on your work order."],
+  ["Look test", "Stand back at the distance for the level. If you can see a problem, fix it."],
+  ["Fill", "Put filler in holes, dents and cracks, then sand it flat."],
+  ["Gap filler (caulk)", "Flexible filler for gaps and joins between two surfaces."],
+  ["Bog", "Strong two-part filler for heavy repairs, such as rotten timber."],
+  ["Mitre", "The corner join where two pieces of trim meet at an angle."],
+  ["Prime", "A first coat on bare timber, bare patches or filler, so the top coats stick and cover evenly."],
+  ["Stain block", "A special primer that stops a stain coming through new paint."],
+  ["Sand the edges soft", "Sand the edge of old paint or filler until you cannot feel a step. Also called feathering."],
+  ["Hardware", "Handles, locks, latches, hinges, winders and door stops."],
+  ["Defect", "Anything that does not meet the standard for the level."],
+  ["Variation", "Extra paid work that is not on your work order. It must be approved before you do it."]
+];
+const EXT_RULES = [
+  "Paint only clean, dry, solid surfaces.",
+  "Scrape off all loose and flaking paint. Prime all bare timber and bare patches before the top coats.",
+  "No paint on paths, driveways, decks, roofs, gutters, plants, cars or the neighbour's property, unless it is on your work order.",
+  "Rotten timber needs bogging. Check your work order for bogging time. If there is none, raise a variation.",
+  "Old homes can have asbestos sheet or lead paint. If you think you have found either, stop. Do not sand or scrape. Call us."
+];
+
+/* shared rows */
+const FILL_TRIM = ["Fill", "Holes, nail holes and open cracks. Small dents and knocks can stay.", "Every hole, dent and chip you can see from 1.5 m.", "Every hole, dent and chip you can see from 0.5 m."];
+const SAND_TRIM = ["Sand", "Light sand to remove loose paint and take the shine off.", "Sand well until smooth to touch. Remove old runs and drips.", "Sand smooth before the first coat and between coats. No old brush marks or runs showing."];
+const FIN_TRIM = ["Finish", "Even cover. No runs.", "Smooth, with an even shine.", "Smooth and even from 0.5 m. Very light brush marks only."];
+const GLASS = ["Glass", "Remove all paint that you put on the glass. Old paint on the glass can stay.", "Remove all paint from the glass, new and old, for sharp lines.", "Remove all paint from the glass. Sharp, straight lines on every pane. Leave the glass clean."];
+const FILL_WIN = ["Fill", "Large holes, nail holes and cracks in the timber. Minor defects in the timber can stay.", "Every mark you can see from 1.5 m.", "Every mark you can see from 0.5 m."];
+const FILL_DOOR = ["Fill", "Holes, cracks, deep dents and chipped edges. Small dents can stay.", "Every hole, dent and chip you can see from 1.5 m.", "Every hole, dent and chip you can see from 0.5 m."];
+const FIN_DOOR = ["Finish", "Even cover. No runs. Light brush or roller marks are OK.", "Smooth, with an even shine. Brush marks all run the same way.", "Smooth and even from 0.5 m on faces and edges."];
+
+const SURFACES = {
+  interior: [
+    { id: "walls", name: "Walls",
+      every: "Full, even cover. No patchy areas, no roller lines and no missed spots. Prime all filler and bare patches before the top coats, so repairs do not show through. No paint on switches or power points.",
+      rows: [
+        ["Fill", "All holes, nail and screw holes, open cracks and deep dents. Small dents and light scratches can stay.", "Every hole, dent, crack and mark you can see from 1.5 m.", "Every hole, dent, crack and mark you can see from 0.5 m."],
+        ["Sand", "Sand filler flat. Remove loose paint, lumps and dust.", "Sand filler flat with soft edges, so the patch cannot be seen from 1.5 m. Sand the whole wall.", "Sand the whole wall before the first coat and lightly between coats. Patches cannot be seen from 0.5 m."],
+        ["Old surface", "Old roller texture, old patches and old drips can stay.", "Remove old drips and lumps you can see from 1.5 m.", "Remove all old drips, lumps and rough patches."],
+        ["Lines", "Straight and tidy from 3 m.", "Sharp and straight from 1.5 m.", "Sharp and straight from 0.5 m."]
+      ] },
+    { id: "ceilings", name: "Ceilings",
+      every: "Even, flat finish. No roller lines, no patchy areas and no missed spots. No ceiling paint on walls, lights, fans, vents or smoke alarms. Do the look test from the floor.",
+      rows: [
+        ["Fill", "Holes and open cracks. Fine cracks (thinner than 1 mm) can stay.", "Every hole, crack and dent you can see from the floor.", "Every hole, crack and dent. Also check by looking across the ceiling toward the window."],
+        ["Sand", "Scrape loose and flaking paint. Sand filler flat.", "Sand filler flat with soft edges. Sand the edges of scraped paint smooth. Sand the whole ceiling.", "Sand the whole ceiling before the first coat and lightly between coats. No old patch or paint edge showing."],
+        ["Stains", "Tell us about any water stain. Stain blocking is extra time.", "Tell us about any water stain. Stain blocking is extra time.", "Tell us about any water stain. Stain blocking is extra time."]
+      ] },
+    { id: "cornices", name: "Cornices",
+      every: "Full cover, including inside the pattern on decorative cornices. No thick paint filling the pattern. Straight lines where the cornice meets a different colour.",
+      rows: [
+        ["Gaps", "Open gaps and cracks between cornice and wall, and between cornice and ceiling.", "Also the corner joins (mitres) and joins along the length.", "Every gap and join filled and smooth. No join can be seen from the floor."],
+        ["Fill", "Large chips and holes.", "Every chip and hole you can see from the floor.", "Every chip and hole."],
+        ["Sand", "Remove loose paint and dust.", "Sand filler smooth. Remove old drips.", "Sand filler and old paint edges smooth. Remove all old drips."]
+      ],
+      note: "Broken or missing pieces of cornice are a repair. Tell us before you start." },
+    { id: "skirting", name: "Skirting boards",
+      every: "No paint on the floor or carpet. Clean dust and hair off the skirting and the floor edge before you paint. Straight line along the top. No runs.",
+      rows: [FILL_TRIM, ["Gaps", "Top edge, where the skirting meets the wall.", "Top edge, corners (mitres) and joins.", "Every gap and join, filled smooth."], SAND_TRIM, FIN_TRIM] },
+    { id: "architraves", name: "Architraves",
+      every: "No paint on hinges, door hardware or the floor. Straight lines where the architrave meets the wall. Door frames follow this same standard.",
+      rows: [FILL_TRIM, ["Gaps", "Outside edge, where the architrave meets the wall.", "Outside edge, top corners (mitres) and the join to the door or window frame.", "Every gap and join, filled smooth."], SAND_TRIM, FIN_TRIM] },
+    { id: "windowframes", name: "Window frames",
+      every: "No paint on hardware: locks, latches, handles, winders, hinges, tracks, rubber seals and flyscreens. Remove the hardware or mask it. Windows must open and close after painting. Do not scratch the glass when you scrape it.",
+      rows: [GLASS, FILL_WIN, ["Gaps", "Edges of the frame, where the frame meets the wall.", "Edges, mitres and corners of the frame.", "Every gap and join, filled smooth."], ["Sand", "Light sand to remove loose paint and dirt only.", "Sand well for a smooth finish.", "Sand smooth before the first coat and between coats. Remove old runs and brush marks."]] },
+    { id: "doors", name: "Doors",
+      every: "No paint on hardware: handles, locks, latches, hinges and door stops. Remove the hardware or mask it. Paint the faces and every edge you can see. The door must open and close without sticking. No runs in panel corners or on edges.",
+      rows: [FILL_DOOR, ["Sand", "Light sand to remove loose paint and take the shine off.", "Sand the whole door smooth. Remove old runs and drips.", "Sand smooth before the first coat and between coats. No old brush marks, runs or roller texture showing."], FIN_DOOR] }
+  ],
+  exterior: [
+    { id: "weatherboards", name: "Weatherboards",
+      every: "Paint the bottom edge of every board. Do not fill the gap under each board, because boards need to move. No missed spots at board ends and corners.",
+      rows: [
+        ["Scrape and sand", "Scrape all loose paint. Light sand of rough edges. Edges of old paint can show.", "Scrape all loose paint. Sand the edges of old paint soft, so they are hard to see from 1.5 m.", "Scrape and sand every board. Old paint edges cannot be seen from 0.5 m."],
+        ["Fill", "Open splits and large holes. Nail heads can show.", "Splits, holes and nail holes you can see from 1.5 m.", "Every split, hole and nail hole you can see from 0.5 m."],
+        ["Gaps", "Where boards meet window frames, door frames and corner boards.", "Also open joins between board ends.", "Every upright gap and join, filled smooth."]
+      ] },
+    { id: "brick", name: "Brick",
+      intro: "For painted brick, the three levels are almost the same. The difference is crack filling.",
+      every: "Brush off dirt, cobwebs and loose paint first. Full cover inside every mortar joint. Check from the left, from the right and from below: no bare spots. Straight lines at the ground, paths and windows.",
+      rows: [
+        ["Cracks", "No filling needed. Cracks can stay.", "Fill open cracks in mortar and bricks that you can see from 1.5 m.", "Fill every crack you can see from 0.5 m."],
+        ["Finish", "Full cover.", "Full cover. No roller lines from 1.5 m.", "Full cover. No roller lines from 0.5 m."]
+      ] },
+    { id: "render", name: "Render",
+      every: "Even cover. No roller lines and no patchy areas. Do not paint over loose or hollow render. Tell us, because it is a repair.",
+      rows: [
+        ["Cracks", "Fill open cracks. Fine cracks (thinner than 1 mm) can stay.", "Fill every crack you can see from 1.5 m.", "Fill every crack you can see from 0.5 m."],
+        ["Repairs", "Filler flat. Repairs can show.", "Filler flat, with texture to match. Hard to see from 1.5 m.", "Filler flat, with texture to match. Cannot be seen from 0.5 m."]
+      ] },
+    { id: "picket", name: "Picket fence",
+      every: "Paint the sides on your work order. On those sides, paint every face: front, both edges and the top of each picket, plus rails and posts. No missed strips between pickets. No drips at the bottom of pickets. No paint on paths, plants or the neighbour's side.",
+      rows: [
+        ["Scrape and sand", "Scrape loose paint. Light sand.", "Scrape loose paint. Sand the edges of old paint soft.", "Scrape and sand every picket smooth."],
+        ["Fill", "No filling needed.", "Holes and splits you can see from 1.5 m.", "Every hole and split you can see from 0.5 m."]
+      ],
+      note: "Loose, broken or rotten pickets are a repair. Tell us before you paint them." },
+    { id: "extwindows", name: "Windows",
+      every: "No paint on hardware: locks, latches, handles, winders, hinges, tracks, rubber seals and flyscreens. Remove the hardware or mask it. Windows must open and close after painting. Do not scratch the glass. Sills get the most weather, so prepare and prime them fully.",
+      rows: [GLASS, ["Scrape and sand", "Scrape loose paint. Light sand to remove loose paint and dirt only.", "Scrape loose paint. Sand well for a smooth finish.", "Sand smooth before the first coat and between coats. Remove old runs and brush marks."], FILL_WIN, ["Gaps", "Edges of the frame, where the frame meets the wall.", "Edges, mitres and corners of the frame and sill.", "Every gap and join, filled smooth."]],
+      note: "Loose or missing putty and rotten timber need extra time. Check your work order. If no extra time is allowed, raise a variation." },
+    { id: "extdoors", name: "Doors",
+      every: "No paint on hardware: handles, locks, hinges, door numbers, door bells, letter slots and rubber seals. Remove the hardware or mask it. Paint the faces and every edge you can see. The door must close and lock without sticking. No runs in panel corners or on edges.",
+      rows: [FILL_DOOR, ["Sand", "Scrape loose paint. Light sand to take the shine off.", "Sand the whole door smooth. Remove old runs and drips.", "Sand smooth before the first coat and between coats. No old brush marks, runs or roller texture showing."], FIN_DOOR] },
+    { id: "fascias", name: "Fascias",
+      every: "Paint the face and the bottom edge. No paint on gutters, roof tiles or roof sheets, unless they are on your work order. Do the look test from the ground.",
+      rows: [
+        ["Scrape and sand", "Scrape loose paint. Light sand.", "Scrape loose paint. Sand the edges of old paint soft.", "Scrape and sand smooth. No old paint edge can be seen from the ground."],
+        ["Fill", "Open splits and large holes.", "Splits, holes and nail holes you can see from the ground.", "Every split, hole and nail hole."],
+        ["Gaps", "No gap filling needed.", "Corners (mitres) and joins between boards.", "Every gap and join, filled smooth."]
+      ] },
+    { id: "eaves", name: "Eaves",
+      every: "Clean off cobwebs, dirt and mould before you paint. Even cover with no roller lines. No paint on walls, lights or vents, unless they are on your work order. Do the look test from the ground.",
+      rows: [
+        ["Fill", "Large holes only.", "Holes and cracks you can see from the ground.", "Every hole and crack."],
+        ["Gaps", "No gap filling needed.", "Open gaps where the eave meets the fascia or timber trim.", "Every gap and join, filled smooth."],
+        ["Lines", "Tidy.", "Sharp and straight from the ground.", "Sharp and straight from the ground, on every edge."]
+      ] },
+    { id: "strapping", name: "Strapping",
+      intro: "Strapping means the cover strips over the joins in sheet eaves, gables and walls.",
+      every: "Paint the face and both edges of every strip. No missed lines along the edges.",
+      rows: [
+        ["Fill", "No filling needed.", "Nail holes and splits you can see from 1.5 m, or from the ground for high areas.", "Every nail hole and split."],
+        ["Gaps", "No gap filling needed.", "Open gaps between the strip and the sheet that you can see.", "Both edges of every strip, filled smooth."],
+        ["Lines (strip in a different colour)", "Tidy.", "Sharp and straight from 1.5 m.", "Sharp and straight from 0.5 m."]
+      ],
+      note: "Loose or broken strips are a repair. Tell us before you paint them." },
+    { id: "fretwork", name: "Fretwork",
+      intro: "Fretwork means the decorative timber on verandahs and gables.",
+      every: "Paint every face and edge, including inside the cut-outs. Check from the front, from the back and from below. No runs, drips or thick paint in corners and cut-outs.",
+      rows: [
+        ["Scrape and sand", "Scrape loose paint.", "Scrape loose paint. Sand the edges of old paint soft.", "Scrape and sand smooth. The pattern stays sharp."],
+        ["Fill", "No filling needed.", "Splits and holes you can see from 1.5 m, or from the ground for high areas.", "Every split and hole."],
+        ["Gaps", "No gap filling needed.", "Open joins where the fretwork meets posts and beams.", "Every gap and join, filled smooth."]
+      ],
+      note: "Rotten or broken fretwork needs bogging or a repair. Check your work order. If no extra time is allowed, raise a variation." }
+  ]
+};
+
+/* ---------- Sample scoring data (invented for the mockup) ---------- */
+const ADDR = [["14 Rosella St", 52], ["22 Banksia Rd", 14], ["8 Wattle Ave", 46], ["61 Acacia Cres", 60], ["9 Grevillea Ct", 12], ["27 Kurrajong Rd", 38], ["5 Jasmine St", 72], ["110 Waratah Pde", 44], ["19 Bottlebrush Dr", 56], ["7 Lilly Pilly Ln", 40]];
+const LAMP = { green: "var(--l-green)", yellow: "var(--l-yellow)", orange: "var(--l-orange)", red: "var(--l-red)", blue: "var(--l-blue)" };
+const NAME = { green: "Green", yellow: "Yellow", orange: "Orange", red: "Red", blue: "New" };
+/* slips: index in the last-10 list (0 = oldest) -> reasons */
+const PROFILE = {
+  blue: { count: 2, slips: {}, checks: [2, 2], rem: [5, 5], credits: 1, cb: 0, streak: 2, best: 2,
+    line: "Finish 4 clean jobs in a row to reach Green.",
+    tips: ["Add your before photos on day 1, when the 7:30 am text arrives.", "Update the app the same day you get a reminder text.", "Check your own work before every walk-through. Use tape on jobs of 16 hours or more."] },
+  green: { count: 10, slips: {}, checks: [3, 3], rem: [28, 28], credits: 2, cb: 0, streak: 11, best: 11,
+    line: "Your last 4 jobs were all clean.",
+    tips: ["Keep answering each reminder text the same day.", "An update on a day with no reminder earns a credit. A credit covers one missed reminder.", "One job that is not clean moves you off Green. Four clean jobs in a row win it back."] },
+  yellow: { count: 10, slips: { 7: ["Call back: paint left on window glass. Return visit needed."] }, checks: [5, 5], rem: [29, 29], credits: 0, cb: 1, streak: 2, best: 9,
+    line: "One call back in your last 10 jobs.",
+    tips: ["Your call back at 110 Waratah Pde moved you off Green.", "Check glass and hardware last, before the walk-through. Use tape to mark what you find.", "Two more clean jobs in a row and you are back on Green."] },
+  orange: { count: 10, slips: { 2: ["Quality check failed first time: filler not sanded flat."], 4: ["Missed 2 of 2 reminders."], 6: ["Call back: runs on two doors."], 8: ["Quality check failed first time.", "Call back: skirting gaps not filled."], 9: ["Missed 2 of 3 reminders."] }, checks: [3, 5], rem: [20, 30], credits: 0, cb: 2, streak: 0, best: 5,
+    line: "Two call backs and two failed checks in your last 10 jobs.",
+    tips: ["Open Standards on each job and read the surface at your job's level before you start.", "Update the app the same day you get a reminder text. You answered 20 of 30.", "Felipe will call you this week to go through it."] },
+  red: { count: 10, slips: { 1: ["Call back: missed spots on ceiling."], 2: ["Missed all reminders."], 3: ["Quality check failed first time."], 5: ["Call back: paint on floor."], 6: ["Missed all reminders.", "Quality check failed first time."], 7: ["Call back: doors sticking."], 8: ["Missed 3 of 3 reminders."], 9: ["Call back: gaps not filled.", "Quality check failed first time."] }, checks: [2, 5], rem: [12, 30], credits: 0, cb: 4, streak: 0, best: 3,
+    line: "Four call backs in your last 10 jobs.",
+    tips: ["New job offers are on hold until you have talked with us.", "Jobs you have already started continue as normal.", "We will agree a plan with you to get back to Yellow, then Green."] }
+};
+const BANDS = [
+  ["green", "Your last 4 jobs were all clean.", "Priority on new jobs. Paid within 3 business days of sign-off. Bonus eligible."],
+  ["yellow", "8 in 10 or better on checks and reminders, and no more than 1 call back in your last 10 jobs.", "Normal job offers and normal payment."],
+  ["orange", "Between 5 and 8 in 10 on checks or reminders, or 2 to 3 call backs.", "Offers come after Green and Yellow. A quality check on every job. A call from Felipe."],
+  ["red", "Under 5 in 10 on checks or reminders, or 4 or more call backs.", "No new job offers until you have talked with us."],
+  ["blue", "Your first 4 jobs.", "Normal job offers and normal payment. A quality check on your first 3 jobs."]
+];
+const CONTRACTORS = [
+  { n: "Marco R.", st: "green", ch: "3/3", app: "100%", cb: 0, streak: 11, tr: "up", tags: [] },
+  { n: "Li W.", st: "green", ch: "2/2", app: "100%", cb: 0, streak: 9, tr: "flat", tags: [["Bonus due", "info"]] },
+  { n: "Aiden P.", st: "green", ch: "1/1", app: "100%", cb: 0, streak: 5, tr: "up", tags: [] },
+  { n: "Nikos A.", st: "green", ch: "2/2", app: "100%", cb: 0, streak: 4, tr: "up", tags: [["Lead painter, employed", ""]] },
+  { n: "Sam T.", st: "yellow", ch: "5/5", app: "100%", cb: 1, streak: 2, tr: "down", tags: [["Open call back", "bad"]] },
+  { n: "Josh B.", st: "yellow", ch: "4/4", app: "84%", cb: 0, streak: 1, tr: "flat", tags: [] },
+  { n: "Ravi S.", st: "yellow", ch: "4/5", app: "93%", cb: 0, streak: 3, tr: "up", tags: [] },
+  { n: "Dan K.", st: "orange", ch: "3/5", app: "67%", cb: 2, streak: 0, tr: "down", tags: [["Open call back", "bad"], ["Check every job", "wait"]] },
+  { n: "Tomas V.", st: "blue", ch: "2/2", app: "100%", cb: 0, streak: 2, tr: "up", tags: [["Job 2 of 4", ""]] },
+  { n: "Ben H.", st: "blue", ch: "0/0", app: "No jobs yet", cb: 0, streak: 0, tr: "flat", tags: [["Standards not signed", "wait"]] }
+];
+
+/* ---------- State ---------- */
+const S = {
+  view: "painter", screen: "home", status: "green", role: "contractor",
+  std: { side: "interior", surface: null, level: 3, locked: false, section: null },
+  jobSel: null,
+  sign: { step: -1, ticks: [false, false, false, false, false, false], confirmed: true },
+  pc: { tab: "command", openCb: true, row: null, spot: false,
+        wt: { choice: null, date: null }, qc: { res: null, choice: null, date: null },
+        bonus: false, nudge: false,
+        cust: { open: false, reason: "work", date: "Fri 9 Oct", done: false, text: "Paint on the lounge window glass. Customer sent 2 photos." },
+        sched: { cb: true, wt: false, done: false } }
+};
+const $ = s => document.querySelector(s);
+const pct = (a, b) => b ? Math.round(a / b * 100) : null;
+const band = p => p === null ? null : p === 100 ? "green" : p >= 80 ? "yellow" : p >= 50 ? "orange" : "red";
+const cbBand = n => n === 0 ? "green" : n === 1 ? "yellow" : n <= 3 ? "orange" : "red";
+const dot = st => `<span class="dot" style="--c:${st ? LAMP[st] : "var(--track)"}"></span>`;
+const TXT = { green: "var(--t-green)", yellow: "var(--t-yellow)", orange: "var(--t-orange)", red: "var(--t-red)", blue: "var(--t-blue)" };
+
+/* ---------- Shared pieces ---------- */
+function light(st, big) {
+  const order = ["red", "orange", "yellow", "green"];
+  return `<div class="tl ${big ? "big" : ""} ${st === "blue" ? "new" : ""}" role="img" aria-label="Traffic light showing ${NAME[st]}">` +
+    order.map(k => `<div class="lamp ${k === st ? "on" : ""}" style="--c:${LAMP[k]}"></div>`).join("") + `</div>`;
+}
+function stepsToGreen(p) {
+  const n = Math.min(p.streak, 4);
+  return `<div class="plain"><div class="row"><div class="eyebrow grow">Steps to Green</div><div class="num small">${n} of 4</div></div>
+    <div class="steps">${[0, 1, 2, 3].map(i => `<i class="${i < n ? "on" : ""}"></i>`).join("")}</div>
+    <p class="small muted">${n >= 4 ? "Done." : (4 - n) + " more clean " + (4 - n === 1 ? "job" : "jobs") + " in a row to reach Green."}</p></div>`;
+}
+function jobsOf(st) {
+  const p = PROFILE[st];
+  return ADDR.slice(0, st === "blue" ? 4 : 10).map((a, i) => i < p.count ? { addr: a[0], hrs: a[1], why: p.slips[i] || null } : null);
+}
+
+/* ---------- Painter: Home ---------- */
+function home() {
+  const st = S.status, p = PROFILE[st];
+  const sub = st === "green" ? (S.role === "lead" ? "Bonus eligible" : "Priority jobs · Paid in 3 business days · Bonus eligible")
+    : st === "blue" ? "Clean job " + p.streak + " of 4"
+    : st === "red" ? "No new job offers until you talk with us"
+    : (4 - Math.min(p.streak, 4)) + " more clean jobs in a row to Green";
+  return `<div class="screen">
+    <div class="top"><div><div class="eyebrow">Paint Group</div><h1>Hi Marco</h1></div><div class="av">MR</div></div>
+    <button class="card statuscard" data-a="go" data-v="status" style="--ct:${TXT[st]}">
+      ${light(st)}
+      <div class="plain grow" style="min-width:0">
+        <div class="eyebrow">Your status</div>
+        <div class="statusname">${NAME[st]}</div>
+        <div class="small">${sub}</div>
+        ${st === "green" ? "" : `<div class="steps">${[0, 1, 2, 3].map(i => `<i class="${i < Math.min(p.streak, 4) ? "on" : ""}"></i>`).join("")}</div>`}
+        <div class="link">See your score ›</div>
+      </div>
+    </button>
+    <div class="card">
+      <div class="row"><div class="grow"><div class="eyebrow">Today · Day 3 of 6</div><h2>14 Rosella St</h2></div><span class="pill">Level 3</span></div>
+      <div class="pills"><span class="pill wait">Update due today, 3:30 pm</span></div>
+      <div class="btns"><button class="btn pri" data-a="go" data-v="job">Open job</button></div>
+    </div>
+    <div class="card">
+      <div class="row"><div class="grow"><div class="eyebrow">Finish standards</div><h3>What we expect on every surface</h3></div></div>
+      <div class="pills"><span class="pill ok">✓ Confirmed 7 Oct 2026</span><span class="pill">Version 1</span></div>
+      <button class="link" data-a="go" data-v="standards">Open standards ›</button>
+    </div>
+  </div>` + tabbar();
+}
+
+/* ---------- Painter: My status ---------- */
+function perksFor(st) {
+  const lead = S.role === "lead", locked = "Unlocks on Green";
+  const g = [["Priority on new jobs", !lead], ["Paid within 3 business days of sign-off", !lead], ["Bonus eligible", true]].filter(x => x[1]).map(x => x[0]);
+  if (st === "green") return g.map(t => ["on", t]);
+  if (st === "yellow" || st === "blue") return [["on", lead ? "Jobs go in your calendar as normal" : "Normal job offers and normal payment"]]
+    .concat(st === "blue" ? [["on", "A quality check on your first 3 jobs"]] : [["on", "A quality check on 1 job in 3"]])
+    .concat(g.map(t => ["off", t + " · " + locked]));
+  if (st === "orange") return [["warn", lead ? "A quality check on every job you lead" : "Job offers come after Green and Yellow painters"], ...(lead ? [] : [["warn", "A quality check on every job"]]), ["warn", "Felipe will call you to help"], ...g.map(t => ["off", t + " · " + locked])];
+  return [["warn", lead ? "Talk with us before you lead another job" : "No new job offers until you have talked with us"], ["on", "Jobs you have started continue as normal"], ...g.map(t => ["off", t + " · " + locked])];
+}
+function status() {
+  const st = S.status, p = PROFILE[st], jobs = jobsOf(st);
+  const cp = pct(p.checks[0], p.checks[1]), rp = pct(p.rem[0], p.rem[1]);
+  const sel = S.jobSel !== null ? jobs[S.jobSel] : null;
+  const measure = (bandKey, title, line) => `<div class="measure">${dot(bandKey)}<b>${title}</b><span class="small muted">${line}</span></div>`;
+  return `<div class="screen" style="--ct:${TXT[st]}">
+    <button class="back" data-a="go" data-v="home">‹ Home</button>
+    <div class="card" style="flex-direction:row;align-items:center;gap:18px">
+      ${light(st, true)}
+      <div class="plain grow" style="min-width:0">
+        <div class="eyebrow">${S.role === "lead" ? "Your status · jobs you led" : "Your status"}</div>
+        <div class="statusname" style="font-size:36px">${NAME[st]}</div>
+        <p>${p.line}</p>
+      </div>
+    </div>
+    ${st === "green" ? `<div class="card">
+        <div class="row"><div class="grow"><div class="eyebrow">Clean jobs in a row</div><div class="big">${p.streak}</div></div><div class="small muted" style="text-align:right">Your best<br><span class="num">${p.best}</span></div></div>
+        <hr><div class="row"><div class="grow"><div class="eyebrow">Next bonus review</div><p class="small">1 more clean job of 16 hours or more.</p></div><span class="pill info">3 of 4</span></div>
+      </div>` : `<div class="card">${stepsToGreen(p)}${st === "blue" ? "" : `<hr><p class="small muted">Your best run so far: <span class="num">${p.best}</span> clean jobs in a row.</p>`}</div>`}
+    <div class="card">
+      <div class="eyebrow">What you get on ${NAME[st]}</div>
+      ${perksFor(st).map(([k, t]) => `<div class="perk ${k}"><span class="ic">${k === "on" ? "✓" : k === "warn" ? "!" : "·"}</span><span>${t}</span></div>`).join("")}
+    </div>
+    <div class="card">
+      <div class="eyebrow">${st === "blue" ? "Your jobs so far" : "Your last 10 jobs"}</div>
+      ${measure(band(cp), "Quality checks", p.checks[1] ? p.checks[0] + " of " + p.checks[1] + " passed first time" : "No checks yet")}
+      ${measure(band(rp), "App updates", p.rem[0] + " of " + p.rem[1] + " reminders answered" + (p.credits ? " · " + p.credits + (p.credits === 1 ? " credit" : " credits") + " spare" : ""))}
+      ${measure(cbBand(p.cb), "Call backs", p.cb === 0 ? "None" : p.cb + (p.cb === 1 ? " call back" : " call backs"))}
+      <hr>
+      <div class="jobs">${jobs.map((j, i) => j ? `<button class="jd ${j.why ? "slip" : "ok"}" data-a="job-dot" data-v="${i}" aria-pressed="${S.jobSel === i}" aria-label="${j.addr}, ${j.why ? "not clean" : "clean"}">${j.why ? "!" : "✓"}</button>` : `<span class="jd todo" aria-label="Job to come">${i + 1}</span>`).join("")}</div>
+      <p class="small muted">Oldest on the left. Tap a job to see why.</p>
+      ${sel ? `<div class="result"><div class="row"><b class="grow">${sel.addr}</b><span class="pill ${sel.why ? "bad" : "ok"}">${sel.why ? "Not clean" : "Clean job"}</span></div>
+        <p class="small muted">${sel.hrs} hours${sel.hrs < 16 ? " · small job: counts for your colour, not for a bonus" : ""}</p>
+        ${sel.why ? `<ul class="clean small" style="margin-top:6px">${sel.why.map(w => `<li>${w}</li>`).join("")}</ul>` : `<p class="small" style="margin-top:6px"><span class="tick">✓</span> Reminders answered &nbsp;<span class="tick">✓</span> Checks passed &nbsp;<span class="tick">✓</span> No call back</p>`}</div>` : ""}
+    </div>
+    <div class="card"><div class="eyebrow">What to do next</div><ol class="clean">${p.tips.map(t => `<li>${t}</li>`).join("")}</ol></div>
+    <details class="card"><summary>How the colours work</summary>
+      <p class="small muted">A clean job has every reminder answered, every check passed first time, and no call back in the 7 days after sign-off.</p>
+      <div class="colourkey">${BANDS.map(([k, rule, gets]) => `<span class="dot" style="--c:${LAMP[k]};width:14px;height:14px;margin-top:4px"></span><div><b>${NAME[k]}</b><p class="small">${rule}</p><p class="small muted">${k === "green" && S.role === "lead" ? "Bonus eligible." : gets}</p></div>`).join("")}</div>
+    </details>
+  </div>` + tabbar();
+}
+
+/* ---------- Painter: Standards help base ---------- */
+const SECTIONS = { levels: "The three levels", rules: "Rules for every job", time: "Your time and variations", defect: "The defect rule", checklist: "Final checklist", words: "Words we use" };
+function sectionBody(k) {
+  if (k === "levels") return [2, 3, 4].map(l => `<div class="card"><div class="row"><h3 class="grow">Level ${l}</h3><span class="pill">Look test ${LV[l].d}</span></div><p class="muted small">${LV[l].n}</p>
+      <dl class="rows">${LEVEL_ROWS.map(r => `<div><dt>${r[0]}</dt><dd>${r[l - 1]}</dd></div>`).join("")}</dl></div>`).join("") +
+    `<div class="card"><h3>How to use the look test</h3><ol class="clean">${LOOK_TEST.map(t => `<li>${t}</li>`).join("")}</ol><p class="small muted">For high areas (ceilings, cornices, eaves, fascias, second storey), do the look test from the floor or the ground.</p></div>`;
+  if (k === "rules") return `<p>These rules are the same at Level 2, Level 3 and Level 4.</p><div class="card"><dl class="rows">${RULES.map(r => `<div><dt>${r[0]}</dt><dd>${r[1]}</dd></div>`).join("")}</dl></div><div class="note">If you spill or drip paint, clean it straight away. If it will not come off, tell us the same day.</div>`;
+  if (k === "time") return `<p>The time on your work order for each surface already includes all standard preparation for that level. You are not paid extra for standard preparation.</p>
+    <div class="card"><h3>Standard preparation, interior</h3><ul class="clean">${PREP_INT.map(t => `<li>${t}</li>`).join("")}</ul></div>
+    <div class="card"><h3>Standard preparation, exterior</h3><ul class="clean">${PREP_EXT.map(t => `<li>${t}</li>`).join("")}</ul></div>
+    <div class="card"><h3>Extra time, shown on your work order</h3><dl class="rows">${EXTRA.map(r => `<div><dt>${r[0]}</dt><dd>${r[1]}<p class="small muted" style="margin-top:4px">${r[2]}</p></dd></div>`).join("")}</dl></div>
+    <div class="card"><h3>Variations</h3><p>If you find an area that needs extra time and it is not on your work order, you can charge a variation.</p><ol class="clean">${VARIATION.map(t => `<li>${t}</li>`).join("")}</ol></div>
+    <div class="note">Standard preparation is never a variation. Apply every coat at the thickness on the tin.</div>`;
+  if (k === "defect") return `<p>You find and fix your own defects before the customer sees them.</p>
+    <div class="card"><ol class="clean">${DEFECT_STEPS.map(t => `<li>${t}</li>`).join("")}</ol></div>
+    <div class="note">On jobs under 16 hours, the tape step is not required. You still check your own work and fix every defect before the walk-through.</div>
+    <div class="card"><h3>Why we do this</h3><ul class="clean">${DEFECT_WHY.map(t => `<li>${t}</li>`).join("")}</ul></div>
+    <div class="card"><h3>What counts as a defect</h3><dl class="rows">${DEFECTS.map(r => `<div><dt>${r[0]}</dt><dd>${r[1]}</dd></div>`).join("")}</dl></div>`;
+  if (k === "checklist") return `<p>Check these eight things before you tell us the job is finished.</p><div class="card"><ol class="clean">${CHECKLIST.map(t => `<li>${t}</li>`).join("")}</ol></div>`;
+  return `<div class="card"><dl class="rows">${WORDS.map(r => `<div><dt>${r[0]}</dt><dd>${r[1]}</dd></div>`).join("")}</dl></div>`;
+}
+function surfaceCards(sf, level) {
+  return `${sf.intro ? `<p>${sf.intro}</p>` : ""}
+    <div class="card every"><div class="eyebrow">Every level</div><p>${sf.every}</p></div>
+    <div class="card"><div class="row"><div class="eyebrow grow">Level ${level} · ${LV[level].n}</div><span class="pill">Look test ${LV[level].d}</span></div>
+      <dl class="rows">${sf.rows.map(r => `<div><dt>${r[0]}</dt><dd>${r[level - 1]}</dd></div>`).join("")}</dl></div>
+    ${sf.note ? `<div class="note">${sf.note}</div>` : ""}`;
+}
+function surfaceAll(sf) { /* all three levels, used in the sign-off */
+  return `<details class="card"><summary>${sf.name}</summary>${sf.intro ? `<p class="small">${sf.intro}</p>` : ""}
+    <p class="small"><b>Every level:</b> ${sf.every}</p>
+    <dl class="rows">${sf.rows.map(r => `<div class="r3"><dt>${r[0]}</dt><dd>${[2, 3, 4].map(l => `<p><span class="lv">L${l}</span>${r[l - 1]}</p>`).join("")}</dd></div>`).join("")}</dl>
+    ${sf.note ? `<p class="small muted">${sf.note}</p>` : ""}</details>`;
+}
+function standards() {
+  const side = S.std.side;
+  return `<div class="screen">
+    <div class="top"><div><div class="eyebrow">Help</div><h1>Finish standards</h1></div></div>
+    <div class="card"><div class="pills"><span class="pill ok">✓ You confirmed these on 7 Oct 2026</span><span class="pill">Version 1</span></div>
+      <p class="small muted">A copy is saved in your documents, so you can read it with no signal.</p>
+      <button class="link" data-a="sign-start">Replay the first-time sign-off ›</button></div>
+    <div class="plain"><div class="eyebrow">Find a surface</div>
+      <div class="seg">${["interior", "exterior"].map(k => `<button data-a="side" data-v="${k}" aria-pressed="${side === k}">${k === "interior" ? "Interior" : "Exterior"}</button>`).join("")}</div>
+      <div class="grid2">${SURFACES[side].map(sf => `<button class="tile" data-a="surface" data-v="${sf.id}">${sf.name}</button>`).join("")}</div>
+    </div>
+    <div class="card" style="gap:0"><div class="eyebrow" style="margin-bottom:4px">The rules</div>
+      ${Object.entries(SECTIONS).map(([k, t]) => `<button class="listbtn" data-a="section" data-v="${k}">${t}</button>`).join("")}</div>
+  </div>` + tabbar();
+}
+function findSurface(id) { return SURFACES.interior.concat(SURFACES.exterior).find(s => s.id === id); }
+function surface() {
+  const sf = findSurface(S.std.surface), L = S.std.level, isExt = SURFACES.exterior.includes(sf);
+  return `<div class="screen">
+    <button class="back" data-a="go" data-v="${S.std.locked ? "job" : "standards"}">‹ ${S.std.locked ? "14 Rosella St" : "Standards"}</button>
+    <div><div class="eyebrow">${isExt ? "Exterior" : "Interior"}</div><h1>${sf.name}</h1></div>
+    ${S.std.locked ? `<div class="row"><span class="pill info">Level ${L} on this job</span><button class="link" data-a="unlock">See other levels ›</button></div>`
+      : `<div class="seg">${[2, 3, 4].map(l => `<button data-a="level" data-v="${l}" aria-pressed="${L === l}">Level ${l}</button>`).join("")}</div>`}
+    ${surfaceCards(sf, L)}
+    ${isExt ? `<details class="card"><summary>Rules for every exterior surface</summary><ul class="clean">${EXT_RULES.map(t => `<li>${t}</li>`).join("")}</ul></details>` : ""}
+  </div>` + tabbar();
+}
+function section() {
+  return `<div class="screen"><button class="back" data-a="go" data-v="standards">‹ Standards</button><h1>${SECTIONS[S.std.section]}</h1>${sectionBody(S.std.section)}</div>` + tabbar();
+}
+
+/* ---------- Painter: Job (work order) ---------- */
+function job() {
+  const lines = [["walls", "Walls", "Done", "ok"], ["ceilings", "Ceilings", "Done", "ok"], ["skirting", "Skirting boards", "Prepped", "wait"], ["architraves", "Architraves", "Prepped", "wait"], ["windowframes", "Window frames", "To do", ""], ["doors", "Doors", "To do", ""]];
+  return `<div class="screen">
+    <div><div class="eyebrow">Work order · Interior</div><h1>14 Rosella St</h1></div>
+    <div class="pills"><span class="pill info">Level 3</span><span class="pill">52 hours</span><span class="pill">Day 3 of 6</span><span class="pill wait">Tape check required</span></div>
+    <div class="card"><div class="eyebrow">App updates on this job</div>
+      <div class="row"><span class="tick">✓</span><span class="grow">Day 1, 7:30 am</span><span class="small muted">Answered</span></div>
+      <div class="row"><span style="color:var(--t-amber);font-weight:700">●</span><span class="grow">Half way, today 3:30 pm</span><span class="pill wait">Due today</span></div>
+      <div class="row"><span class="muted">○</span><span class="grow">Last day, 3:30 pm</span><span class="small muted">Mon 12 Oct</span></div>
+      <p class="small muted">Update the same day you get the text and it counts. Up to 3 texts on the day, and they stop once you update.</p>
+      <div class="btns"><button class="btn pri">Update progress</button></div>
+    </div>
+    <div class="card" style="gap:0"><div class="eyebrow" style="margin-bottom:4px">Surfaces</div>
+      ${lines.map(([id, n, s, c]) => `<div class="row" style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="grow"><b>${n}</b><br><button class="link" data-a="expect" data-v="${id}">What we expect ›</button></div><span class="pill ${c}">${s}</span></div>`).join("")}
+      <div class="row" style="padding-top:10px"><div class="grow"><b>Extra time on this job</b><p class="small muted">Stain blocking, ceiling in bedroom 2 · 1.5 hours</p></div></div>
+    </div>
+    <div class="note">Found something that needs extra time and is not listed? Stop, take photos and raise a variation before you do the work.</div>
+  </div>` + tabbar();
+}
+
+/* ---------- Painter: first-time sign-off ---------- */
+const SIGN = [["The three levels and the look test", () => sectionBody("levels")], ["Rules for every job", () => sectionBody("rules")], ["Your time, extra time and variations", () => sectionBody("time")],
+  ["Interior surfaces", () => `<p>Tap each surface to read it. The level on your work order tells you which line to follow.</p>` + SURFACES.interior.map(surfaceAll).join("")],
+  ["Exterior surfaces", () => `<div class="card"><h3>Every exterior surface</h3><ul class="clean">${EXT_RULES.map(t => `<li>${t}</li>`).join("")}</ul></div>` + SURFACES.exterior.map(surfaceAll).join("")],
+  ["The defect rule and final checklist", () => sectionBody("defect") + `<div class="card"><h3>Final checklist</h3><ol class="clean">${CHECKLIST.map(t => `<li>${t}</li>`).join("")}</ol></div>`]];
+function signoff() {
+  const i = S.sign.step;
+  if (i === -1) return `<div class="screen">
+    <div class="eyebrow">Before your next job offer</div><h1>Read and confirm the Paint Group finish standards</h1>
+    <p>This is what we expect on every job, and what our team checks against. It also shows when you can charge a variation.</p>
+    <div class="card"><div class="row"><b class="grow">6 short sections</b><span class="num muted">about 10 min</span></div>
+      <ol class="clean">${SIGN.map(s => `<li>${s[0]}</li>`).join("")}</ol></div>
+    <div class="note">You will not receive job offers until all 6 sections are confirmed. Jobs you have already started are not affected.</div>
+    <div class="btns"><button class="btn pri" data-a="sign-next">Start</button></div>
+    <button class="link" data-a="go" data-v="standards">Close the demo ›</button></div>`;
+  if (i === 6) return `<div class="screen">
+    <div class="eyebrow">All done</div><h1>Standards confirmed</h1>
+    <div class="card"><div class="perk on"><span class="ic">✓</span><span>6 of 6 sections confirmed</span></div><div class="perk on"><span class="ic">✓</span><span>Wed 7 Oct 2026 · Version 1</span></div><div class="perk on"><span class="ic">✓</span><span>A copy is saved in your documents</span></div></div>
+    <p class="muted">You can read the standards any time in the Standards tab, or from any surface on a work order.</p>
+    <div class="btns"><button class="btn pri" data-a="go" data-v="home">Go to my jobs</button></div></div>`;
+  return `<div class="screen">
+    <div class="plain"><div class="row"><div class="eyebrow grow">Section ${i + 1} of 6</div>${i > 0 ? `<button class="link" data-a="sign-back">‹ Back</button>` : ""}</div>
+      <div class="progress">${SIGN.map((s, k) => `<i class="${k <= i ? "on" : ""}"></i>`).join("")}</div></div>
+    <h1>${SIGN[i][0]}</h1>
+    ${SIGN[i][1]()}
+    <button class="check" role="checkbox" aria-checked="${S.sign.ticks[i]}" data-a="sign-tick"><span class="box">✓</span><span>I have read and understand this</span></button>
+    <div class="btns"><button class="btn pri" data-a="sign-next" ${S.sign.ticks[i] ? "" : "disabled"}>${i === 5 ? "Confirm" : "Next section"}</button></div>
+  </div>`;
+}
+function tabbar() {
+  const cur = S.screen === "home" || S.screen === "status" ? "home" : S.screen === "job" || (S.screen === "surface" && S.std.locked) ? "job" : "standards";
+  return `<nav class="tabbar" aria-label="Painter app">${[["home", "Home"], ["job", "Job"], ["standards", "Standards"]].map(([k, t]) => `<button data-a="go" data-v="${k}" ${cur === k ? 'aria-current="page"' : ""}>${t}</button>`).join("")}</nav>`;
+}
+const PAINTER = { home, status, standards, surface, section, job, signoff };
+
+/* ---------- PC Command ---------- */
+const DATES = ["Thu 8 Oct", "Fri 9 Oct", "Mon 12 Oct"];
+const dateChips = (act, cur) => `<div class="field"><span class="lab">Return visit</span><div class="chips">${DATES.map(d => `<button class="chip" data-a="${act}" data-v="${d}" aria-pressed="${cur === d}">${d}</button>`).join("")}</div></div>`;
+function pcTabs() {
+  return `<nav class="tabbar" aria-label="PC Command">${[["command", "Command"], ["flow", "Flow"], ["contractors", "Contractors"], ["callbacks", "Call backs"]].map(([k, t]) => `<button data-a="pc-tab" data-v="${k}" ${S.pc.tab === k ? 'aria-current="page"' : ""}>${t}</button>`).join("")}</nav>`;
+}
+function pcCommand() {
+  const P = S.pc, wt = P.wt;
+  return `<div class="screen">
+    <div class="top"><div><div class="eyebrow">PC Command · Felipe</div><h1>5 things need you</h1></div><div class="av">FE</div></div>
+    <div class="card q crit"><div class="row"><span class="pill bad">Critical</span><span class="grow"></span>${dot("orange")}<span class="small">Orange</span></div>
+      <h3>Dan K. dropped to Orange</h3><p class="small muted">2 call backs and 3 of 5 checks passed in his last 10 jobs. Every job now gets a quality check.</p>
+      <div class="btns"><button class="btn" data-a="pc-open" data-v="Dan K.">Open Dan's score</button></div></div>
+    <div class="card q warn"><div class="pills"><span class="pill wait">Waiting on you</span></div>
+      <h3>Walk-through failed at 12 Hakea Ct</h3><p class="small muted">Josh B. · the customer flagged 2 areas on his phone at 2:10 pm. Is a call back required?</p>
+      ${wt.choice === "fixed" ? `<div class="result"><span class="tick">✓</span> Recorded as passed after a fix. Not a call back. It does not count against Josh.</div>`
+      : wt.choice === "cb" && wt.date ? `<div class="result"><span class="tick">✓</span> Call back logged against Josh B. Return visit added to his scheduler for ${wt.date}.</div>`
+      : wt.choice === "cb" ? dateChips("wt-date", wt.date)
+      : `<div class="btns"><button class="btn" data-a="wt" data-v="fixed">No, fixed and signed today</button><button class="btn pri" data-a="wt" data-v="cb">Yes, call back</button></div>`}</div>
+    <div class="card q info"><div class="row"><span class="pill info">Reward</span><span class="grow"></span>${dot("green")}<span class="small">Green</span></div>
+      <h3>Bonus due: Li W.</h3><p class="small muted">4 more clean jobs of 16 hours or more while on Green. Last bonus $500 on 2 Sep. Tom sets the amount.</p>
+      ${P.bonus ? `<div class="result"><span class="tick">✓</span> Sent to Tom to set the amount and approve. It will go on Li's next payment as its own line.</div>` : `<div class="btns"><button class="btn pri" data-a="bonus">Tell Tom</button></div>`}</div>
+    <div class="card q warn"><div class="pills"><span class="pill wait">Standards</span></div>
+      <h3>Ben H. has not signed the standards</h3><p class="small muted">Invited 7 days ago. 3 reminder texts sent. No job offers until he confirms.</p>
+      ${P.nudge ? `<div class="result"><span class="tick">✓</span> Reminder text sent to Ben H.</div>` : `<div class="btns"><button class="btn" data-a="nudge">Send reminder text</button></div>`}</div>
+    <div class="card q warn"><div class="pills"><span class="pill wait">Call back</span></div>
+      <h3>Call back visit tomorrow: 31 Correa St</h3><p class="small muted">Sam T. · customer called back on day 2 after sign-off. Invoice chasing is paused until it is closed.</p>
+      <div class="btns"><button class="btn" data-a="pc-tab" data-v="flow">See in Flow</button></div></div>
+  </div>` + pcTabs();
+}
+function pcFlow() {
+  const open = S.pc.openCb;
+  const lanes = [["Offered", 2], ["Pre-start", 3], ["In progress", 6], ["QA", 1], ["Walk-through", 2], ["Closed", 4]];
+  return `<div class="screen">
+    <div class="top"><div><div class="eyebrow">PC Command</div><h1>The flow</h1></div></div>
+    <div class="plain"><div class="eyebrow">Demo: open call backs</div><div class="seg"><button data-a="cb-toggle" data-v="1" aria-pressed="${open}">2 open</button><button data-a="cb-toggle" data-v="0" aria-pressed="${!open}">None</button></div></div>
+    <div class="lanes">${lanes.map(([n, c]) => `<div class="lane"><span class="eyebrow">${n}</span><b>${c}</b></div>`).join("")}${open ? `<div class="lane cb"><span class="eyebrow" style="color:var(--clay-text)">Call backs</span><b>2</b></div>` : ""}</div>
+    <p class="small muted">${open ? "The Call backs column shows only while a call back is open." : "No open call backs, so the column is hidden."}</p>
+    ${open ? `<div class="plain"><div class="eyebrow">Call backs</div>
+      <div class="card q crit"><div class="row"><h3 class="grow">31 Correa St</h3><span class="pill bad">Call back</span></div>
+        <p class="small muted">Sam T. · customer called back Wed 7 Oct · paint on lounge window glass</p>
+        <div class="pills"><span class="pill">Return visit Thu 8 Oct</span><span class="pill wait">Invoice chasing paused</span></div></div>
+      <div class="card q crit"><div class="row"><h3 class="grow">4 Boronia Ave</h3><span class="pill bad">Call back</span></div>
+        <p class="small muted">Dan K. · quality check failed Tue 6 Oct · could not be fixed the same day</p>
+        <div class="pills"><span class="pill">Return visit Fri 9 Oct</span></div></div></div>` : ""}
+    <div class="plain"><div class="eyebrow">In progress</div>
+      <div class="card"><div class="row"><h3 class="grow">14 Rosella St</h3>${dot("green")}<span class="small">Marco R.</span></div><div class="pills"><span class="pill">Day 3 of 6</span><span class="pill wait">Update due 3:30 pm</span></div></div>
+      <div class="card"><div class="row"><h3 class="grow">9 Melaleuca Way</h3>${dot("yellow")}<span class="small">Ravi S.</span></div><div class="pills"><span class="pill ok">Wrapping up</span><span class="pill">Spot check booked</span></div></div>
+    </div>
+  </div>` + pcTabs();
+}
+function pcContractors() {
+  const count = k => CONTRACTORS.filter(c => c.st === k).length, P = S.pc;
+  const arrow = { up: "↑", down: "↓", flat: "→" }, arrowLabel = { up: "better than last month", down: "worse than last month", flat: "same as last month" };
+  return `<div class="screen">
+    <div class="top"><div><div class="eyebrow">PC Command</div><h1>Contractors</h1></div></div>
+    <div class="lights">${["green", "yellow", "orange", "red", "blue"].map(k => `<div class="lightcount">${dot(k)}<b>${count(k)}</b><span class="eyebrow">${NAME[k]}</span></div>`).join("")}</div>
+    <div class="stats"><div class="stat"><span class="eyebrow">Open call backs</span><b>${P.openCb ? 2 : 0}</b></div><div class="stat"><span class="eyebrow">Rewards due</span><b>1</b></div><div class="stat"><span class="eyebrow">Not signed</span><b>1</b></div></div>
+    <div class="plain">${CONTRACTORS.map(c => {
+      const openRow = P.row === c.n, pr = PROFILE[c.st], jobs = jobsOf(c.st), none = c.app === "No jobs yet";
+      return `<button class="crow" data-a="pc-row" data-v="${c.n}" aria-expanded="${openRow}">
+        <div class="row">${dot(c.st)}<b class="grow">${c.n}</b><span class="small muted">${NAME[c.st]}</span><span class="num" title="${arrowLabel[c.tr]}" aria-label="${arrowLabel[c.tr]}">${arrow[c.tr]}</span></div>
+        <div class="mini">${[["Checks", none ? "–" : c.ch], ["App", none ? "–" : c.app], ["Call backs", c.cb], ["Streak", c.streak]].map(([l, v]) => `<span><span class="eyebrow">${l}</span><b>${v}</b></span>`).join("")}</div>
+        ${c.tags.length ? `<div class="pills">${c.tags.map(([t, k]) => `<span class="pill ${k}">${t}</span>`).join("")}</div>` : ""}
+      </button>${openRow ? `<div class="card sheet">
+        <div class="eyebrow">${c.n} · last 10 jobs</div>
+        <div class="jobs">${jobs.map((j, i) => j && c.app !== "No jobs yet" ? `<span class="jd ${j.why ? "slip" : "ok"}">${j.why ? "!" : "✓"}</span>` : `<span class="jd todo">${i + 1}</span>`).join("")}</div>
+        <p class="small muted">${c.app === "No jobs yet" ? "No finished jobs yet. He cannot be offered work until he signs the standards." : pr.line.replace("Your", "Their").replace("your", "their")}</p>
+        ${c.n === "Li W." ? `<p class="small"><b>Bonus history (staff only):</b> <span class="num">$500</span> on 2 Sep 2026.</p>` : ""}
+        ${P.spot ? `<div class="result"><span class="tick">✓</span> Spot check added to ${c.n}'s current job.</div>` : ""}
+        <div class="btns"><button class="btn" data-a="spot">Spot check</button><button class="btn" data-a="pc-tab" data-v="callbacks">Log call back</button></div>
+      </div>` : ""}`;
+    }).join("")}</div>
+    <p class="small muted">Scores, lights and bonus amounts are never shown to customers. Painters see their own light only.</p>
+  </div>` + pcTabs();
+}
+function pcCallbacks() {
+  const P = S.pc, qc = P.qc, cu = P.cust, sc = P.sched;
+  return `<div class="screen">
+    <div class="top"><div><div class="eyebrow">PC Command</div><h1>Logging a call back</h1></div></div>
+    <p class="muted">Four ways in. All four create the same call back record against the painter who did the job.</p>
+
+    <div class="card"><div class="eyebrow">1 · Quality check</div><h3>4 Boronia Ave · Dan K.</h3>
+      <div class="field"><span class="lab">Result</span><div class="btns"><button class="btn" data-a="qc-res" data-v="pass" aria-pressed="${qc.res === "pass"}">Pass</button><button class="btn" data-a="qc-res" data-v="fail" aria-pressed="${qc.res === "fail"}">Fail</button></div></div>
+      ${qc.res === "pass" ? `<div class="result"><span class="tick">✓</span> Passed first time.</div>` : ""}
+      ${qc.res === "fail" ? `<div class="card sheet"><h3>Can the contractor rectify today, or is it a call back?</h3>
+        ${qc.choice === "today" ? `<div class="result"><span class="tick">✓</span> Recorded as a failed check, fixed the same day. Not a call back.</div>`
+        : qc.choice === "cb" && qc.date ? `<div class="result"><span class="tick">✓</span> Call back logged against Dan K. Return visit added to his scheduler for ${qc.date}.</div>`
+        : qc.choice === "cb" ? dateChips("qc-date", qc.date)
+        : `<div class="btns"><button class="btn" data-a="qc" data-v="today">Fixed today</button><button class="btn pri" data-a="qc" data-v="cb">Call back</button></div>`}</div>` : ""}
+    </div>
+
+    <div class="card"><div class="eyebrow">2 · Final walk-through</div><h3>Appears as a card in Command</h3>
+      <p class="small muted">The walk-through runs on the painter's phone, so Felipe answers the question, not the painter.</p>
+      <button class="link" data-a="pc-tab" data-v="command">See the card in Command ›</button></div>
+
+    <div class="card"><div class="eyebrow">3 · Property page</div>
+      <div class="row"><div class="grow"><h3>31 Correa St</h3><p class="small muted">Sam T. · signed off Mon 5 Oct · day 2 of 7</p></div><span class="pill ok">Closed</span></div>
+      ${cu.done ? `<div class="result"><p><span class="tick">✓</span> Call back logged against Sam T.</p>
+          <ul class="clean small" style="margin-top:6px"><li>${cu.reason === "work" ? "Workmanship, inside 7 days of sign-off: it counts toward his score." : "Not workmanship: it is logged but does not count toward his score."}</li><li>Return visit added to his scheduler for ${cu.date}.</li><li>Invoice chasing and reminders are paused until it is closed.</li></ul></div>`
+      : cu.open ? `<div class="card sheet">
+          <div class="field"><label for="cb-date">Date the customer called</label><input id="cb-date" value="Wed 7 Oct 2026" readonly></div>
+          <div class="field"><label for="cb-text">What is wrong</label><textarea id="cb-text" data-bind="cust-text">${cu.text}</textarea></div>
+          <div class="field"><span class="lab">Reason</span><div class="seg"><button data-a="cu-reason" data-v="work" aria-pressed="${cu.reason === "work"}">Workmanship</button><button data-a="cu-reason" data-v="other" aria-pressed="${cu.reason === "other"}">Not workmanship</button></div></div>
+          ${dateChips("cu-date", cu.date)}
+          <div class="btns"><button class="btn pri" data-a="cu-save">Log call back</button></div></div>`
+      : `<div class="btns"><button class="btn pri" data-a="cu-open">Customer called back</button></div>`}
+    </div>
+
+    <div class="card"><div class="eyebrow">4 · Scheduler</div><h3>New appointment</h3>
+      <div class="field"><label for="sc-addr">Address</label><input id="sc-addr" value="31 Correa St" readonly></div>
+      <div class="field"><label for="sc-who">Painter and day</label><input id="sc-who" value="Sam T. · Thu 8 Oct" readonly></div>
+      <button class="check" role="checkbox" aria-checked="${sc.wt}" data-a="sc-wt"><span class="box">✓</span><span>Walk-through not required</span></button>
+      <button class="check" role="checkbox" aria-checked="${sc.cb}" data-a="sc-cb"><span class="box">✓</span><span>Call back</span></button>
+      ${sc.cb ? `<p class="small muted">Ticking Call back links this visit to the finished job at this address. If a call back is already open there, it joins that one, so nothing is counted twice.</p>` : ""}
+      ${sc.done ? `<div class="result"><span class="tick">✓</span> Appointment saved${sc.cb ? " and linked to the open call back at 31 Correa St" : ""}.</div>` : `<div class="btns"><button class="btn pri" data-a="sc-save">Save appointment</button></div>`}
+    </div>
+  </div>` + pcTabs();
+}
+const PC = { command: pcCommand, flow: pcFlow, contractors: pcContractors, callbacks: pcCallbacks };
+
+/* ---------- Demo strip, actions, boot ---------- */
+function demoBar() {
+  const painter = S.view === "painter";
+  return `<div class="demo-in">
+    <div class="demo-row"><div class="seg"><button data-a="view" data-v="painter" aria-pressed="${painter}">Painter app</button><button data-a="view" data-v="pc" aria-pressed="${!painter}">PC Command</button></div><button class="chip" data-a="theme" aria-label="Switch to ${theme() === "dark" ? "light" : "dark"} mode">${theme() === "dark" ? "Light mode" : "Dark mode"}</button></div>
+    ${painter ? `<div class="demo-row"><span class="eyebrow">Status</span><div class="chips">${["blue", "green", "yellow", "orange", "red"].map(k => `<button class="chip" data-a="status" data-v="${k}" aria-pressed="${S.status === k}">${dot(k)}${NAME[k]}</button>`).join("")}</div></div>
+    <div class="demo-row"><span class="eyebrow">Viewer</span><div class="chips"><button class="chip" data-a="role" data-v="contractor" aria-pressed="${S.role === "contractor"}">Contractor</button><button class="chip" data-a="role" data-v="lead" aria-pressed="${S.role === "lead"}">Employed lead painter</button></div></div>`
+    : `<div class="demo-row"><span class="eyebrow">Sample data</span><span class="small muted">Names, addresses and numbers are examples.</span></div>`}
+  </div>`;
+}
+const root = document.documentElement, hostTheme = root.getAttribute("data-theme");
+const theme = () => root.getAttribute("data-theme") || (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+let scrollTop = false;
+const go = s => { S.screen = s; scrollTop = true; };
+const ACT = {
+  view: v => { S.view = v; scrollTop = true; },
+  theme: () => { root.setAttribute("data-theme", theme() === "dark" ? "light" : "dark"); },
+  status: v => { S.status = v; S.jobSel = null; if (!["home", "status"].includes(S.screen)) go("status"); },
+  role: v => { S.role = v; if (!["home", "status"].includes(S.screen)) go("status"); },
+  go: v => { if (v === "standards") S.std.locked = false; go(v); },
+  "job-dot": v => { S.jobSel = S.jobSel === +v ? null : +v; },
+  side: v => { S.std.side = v; },
+  surface: v => { S.std.surface = v; S.std.locked = false; go("surface"); },
+  expect: v => { S.std.surface = v; S.std.level = 3; S.std.locked = true; go("surface"); },
+  unlock: () => { S.std.locked = false; },
+  level: v => { S.std.level = +v; },
+  section: v => { S.std.section = v; go("section"); },
+  "sign-start": () => { S.sign = { step: -1, ticks: [false, false, false, false, false, false], confirmed: true }; go("signoff"); },
+  "sign-tick": () => { S.sign.ticks[S.sign.step] = !S.sign.ticks[S.sign.step]; },
+  "sign-next": () => { S.sign.step++; scrollTop = true; },
+  "sign-back": () => { S.sign.step--; scrollTop = true; },
+  "pc-tab": v => { S.pc.tab = v; scrollTop = true; },
+  "pc-open": v => { S.pc.tab = "contractors"; S.pc.row = v; S.pc.spot = false; scrollTop = true; },
+  "pc-row": v => { S.pc.row = S.pc.row === v ? null : v; S.pc.spot = false; },
+  spot: () => { S.pc.spot = true; },
+  wt: v => { S.pc.wt.choice = v; }, "wt-date": v => { S.pc.wt.date = v; },
+  bonus: () => { S.pc.bonus = true; }, nudge: () => { S.pc.nudge = true; },
+  "cb-toggle": v => { S.pc.openCb = v === "1"; },
+  "qc-res": v => { S.pc.qc = { res: v, choice: null, date: null }; }, qc: v => { S.pc.qc.choice = v; }, "qc-date": v => { S.pc.qc.date = v; },
+  "cu-open": () => { S.pc.cust.open = true; }, "cu-reason": v => { S.pc.cust.reason = v; }, "cu-date": v => { S.pc.cust.date = v; }, "cu-save": () => { S.pc.cust.done = true; },
+  "sc-wt": () => { S.pc.sched.wt = !S.pc.sched.wt; S.pc.sched.done = false; }, "sc-cb": () => { S.pc.sched.cb = !S.pc.sched.cb; S.pc.sched.done = false; }, "sc-save": () => { S.pc.sched.done = true; }
+};
+function render() {
+  $("#demo").innerHTML = demoBar();
+  $("#app").innerHTML = S.view === "painter" ? PAINTER[S.screen]() : PC[S.pc.tab]();
+  if (scrollTop) { window.scrollTo(0, 0); scrollTop = false; }
+}
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-a]");
+  if (!el || el.disabled) return;
+  const fn = ACT[el.dataset.a];
+  if (fn) { fn(el.dataset.v, el); render(); }
+});
+document.addEventListener("input", e => { if (e.target.dataset.bind === "cust-text") S.pc.cust.text = e.target.value; });
+render();
+
+</script>
+</body>
+</html>

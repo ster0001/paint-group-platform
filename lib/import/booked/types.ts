@@ -22,6 +22,11 @@ export const bookedItemSchema = z.object({
   /** The product PaintScout printed on the line ("Dulux Weathershield"); the
    *  work-order page carries it, the pack and the Zap feed do not. */
   product: nstr(120).optional(),
+  /** Litres PaintScout allowed for the line, and its materials cost in cents
+   *  ("- 175.50 Litre - $1800.00") — work-order page only (Tom, 9 Oct 2026:
+   *  the materials estimate carried across for the materials budget). */
+  litres: nullableNum.optional(),
+  material_cents: z.union([z.number().int().nonnegative(), z.null()]).optional(),
 });
 export type BookedItem = z.infer<typeof bookedItemSchema>;
 

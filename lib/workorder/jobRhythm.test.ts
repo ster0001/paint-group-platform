@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { customerCheckins, dayAt, dayLabel, jobDays, painterUpdateRungs, rungInstant } from "./jobRhythm";
+import {
+  customerCheckins, customerDefectTapeRungs, dayAt, dayLabel, jobDays, painterMorningHeadsUps, painterUpdateRungs, rungInstant,
+} from "./jobRhythm";
 
 // Mon 5 Oct 2026 → Fri 9 Oct is a five-day week; the 10th/11th are a weekend.
 const week5 = jobDays("2026-10-05", "2026-10-09");
@@ -79,5 +81,73 @@ describe("the office's customer check-ins (Tom, 25 Sep)", () => {
   it("says which day of the job a date is", () => {
     expect(dayLabel(week5, "2026-10-07")).toBe("day 3 of 5");
     expect(dayLabel(week5, "2026-10-10")).toBe("");
+  });
+});
+
+// Tom, 8 Oct 2026. October 2026: Thu 1, Fri 2, Sat 3, Sun 4 (daylight saving starts), Mon 5 … Fri 9, Sat 10, Sun 11, Mon 12.
+describe("the painter's morning heads-up (Tom, 8 Oct)", () => {
+  it("every day with a 3:30 pm moment gets a morning heads-up; a day that already has a 7:30 text does not", () => {
+    expect(painterMorningHeadsUps(week5)).toEqual([
+      { forRung: "mid", date: "2026-10-07" },
+      { forRung: "last", date: "2026-10-09" },
+    ]);
+    expect(painterMorningHeadsUps(["2026-10-05", "2026-10-06"])).toEqual([{ forRung: "day2", date: "2026-10-06" }]);
+  });
+  it("a one-day job's only day already starts with the 7:30 text — no second morning text", () => {
+    expect(painterMorningHeadsUps(["2026-10-05"])).toEqual([]);
+    expect(painterMorningHeadsUps([])).toEqual([]);
+  });
+  it("a 7-day job across the weekend and the clock change: 30%, 60% and the last day", () => {
+    const seven = jobDays("2026-10-01", "2026-10-09");
+    expect(seven).toHaveLength(7);
+    expect(painterMorningHeadsUps(seven)).toEqual([
+      { forRung: "mid30", date: "2026-10-05" },
+      { forRung: "mid60", date: "2026-10-07" },
+      { forRung: "last", date: "2026-10-09" },
+    ]);
+  });
+});
+
+describe("the customer's defect-tape text (Tom, 8 Oct)", () => {
+  it("jobs of one or two days get none", () => {
+    expect(customerDefectTapeRungs([])).toEqual([]);
+    expect(customerDefectTapeRungs(["2026-10-05"])).toEqual([]);
+    expect(customerDefectTapeRungs(["2026-10-05", "2026-10-06"])).toEqual([]);
+  });
+  it("3 days: two working days before the end is day 1 — a morning and an afternoon text", () => {
+    expect(customerDefectTapeRungs(jobDays("2026-10-05", "2026-10-07"))).toEqual([
+      { id: "am", date: "2026-10-05" },
+      { id: "pm", date: "2026-10-05" },
+    ]);
+  });
+  it("4 days across a weekend: counts WORKING days back from the end (Fri, not Sun)", () => {
+    const four = jobDays("2026-10-01", "2026-10-06");
+    expect(four).toEqual(["2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06"]);
+    expect(customerDefectTapeRungs(four)).toEqual([
+      { id: "am", date: "2026-10-02" },
+      { id: "pm", date: "2026-10-02" },
+    ]);
+  });
+  it("4 days for a painter who works weekends: the weekend days count", () => {
+    const four = jobDays("2026-10-02", "2026-10-05", { worksSaturday: true, worksSunday: true });
+    expect(customerDefectTapeRungs(four).map((r) => r.date)).toEqual(["2026-10-03", "2026-10-03"]);
+  });
+  it("6 days across the weekend and the clock change: two texts on day 4", () => {
+    const six = jobDays("2026-09-30", "2026-10-07");
+    expect(six).toHaveLength(6);
+    expect(customerDefectTapeRungs(six)).toEqual([
+      { id: "am", date: "2026-10-05" },
+      { id: "pm", date: "2026-10-05" },
+    ]);
+  });
+  it("7 days: one morning text, three working days before the end", () => {
+    const seven = jobDays("2026-10-05", "2026-10-13");
+    expect(seven).toHaveLength(7);
+    expect(customerDefectTapeRungs(seven)).toEqual([{ id: "am", date: "2026-10-08" }]);
+  });
+  it("10 days across two weekends: three working days back from Wed 14 is Fri 9", () => {
+    const ten = jobDays("2026-10-01", "2026-10-14");
+    expect(ten).toHaveLength(10);
+    expect(customerDefectTapeRungs(ten)).toEqual([{ id: "am", date: "2026-10-09" }]);
   });
 });

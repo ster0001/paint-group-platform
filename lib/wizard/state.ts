@@ -381,6 +381,10 @@ export const wizardStateShapeSchema = z.object({
     email: z.string().trim().max(160).default(""),
     phone: z.string().trim().max(40).default(""),
   }).default({ name: "", email: "", phone: "" }),
+  /** S6 (R6): which gate order this session started under — frozen for the session. */
+  gateVersion: z.enum(["details_first", "range_first"]).optional(),
+  /** S6: the optional marketing tick on the gate, unticked by default. */
+  marketingOptIn: z.boolean().default(false),
 
   paint: z.object({
     /** 1 Sep: Porters + Wattyl added, and "unsure" is its own tile (kept as a
@@ -418,7 +422,7 @@ export const wizardStateShapeSchema = z.object({
     substrates: z.array(z.enum(["weatherboards", "render", "concrete", "brick", "stucco", "cement_sheet", "colorbond", "other", "none"])).default(["weatherboards"]),
     /** Tom, 7 Sep: "What are we painting? tick all that apply" — the house,
      * and/or the freestanding things. Absent (older states) = the house. */
-    targets: z.array(z.enum(["house", "fence", "floor", "deck", "shed", "wall"])).default(["house"]),
+    targets: z.array(z.enum(["house", "fence", "floor", "deck", "shed", "wall", "pergola"])).default(["house"]),
     /** Tom, 7 Sep: the house's trims, one tick each (windows / doors / eaves /
      * fascias / gutters / garage door). Absent (older states) = derived from
      * `painting` below, which stays the summary the scaffold reads. */
@@ -452,6 +456,14 @@ export const wizardStateShapeSchema = z.object({
     }).nullable().default(null),
     /** Floor coatings — rough area; priced by the estimator (no rate row). */
     floor: z.object({ m2: z.number().min(1).max(2000).nullable().default(null) }).nullable().default(null),
+    /** Tom, 5 Oct 2026: a pergola is priced on its TOP's footprint, not per
+     * pergola — the customer gives the length and width and confirms them
+     * (lib/pricing/pergola.ts turns that into card items). */
+    pergola: z.object({
+      lengthM: z.number().min(0.5).max(30).nullable().default(null),
+      widthM: z.number().min(0.5).max(30).nullable().default(null),
+      confirmed: z.boolean().default(false),
+    }).nullable().default(null),
     /** What are we painting — roofline pre-ticked per the standard scope. */
     painting: z.object({
       body: z.boolean().default(true),
@@ -564,6 +576,12 @@ export const wizardStateSchema = wizardStateShapeSchema.superRefine((s, ctx) => 
    * Customer mode demands the property answers — the guardrails run on them,
    * and a hazard question nobody answered must not read as "no".
    *
+   * ⚑ UPDATE 7 Oct 2026 (visit booking addendum A, R5/R6): a contact gate is
+   * BACK as the last quick-look question under the "details first" order,
+   * enforced by the submit route (409 gate_required); "range first" is the
+   * switch in Booking rules. The history below stands as the reason the
+   * earlier gate was taken out; the addendum's rulings are the current ones.
+   *
    * ⚑ THE EMAIL GATE IS GONE (estimator journey v2 ⚑1, phase 2). This rule
    * used to read "and the email gate before anything is revealed", and it was
    * the single biggest thing standing between a visitor and a number: §2.6
@@ -645,6 +663,7 @@ export function defaultWizardState(): WizardState {
       damagePhotoCount: 0, siteAccess: {}, extraNote: "",
     },
     contact: { name: "", email: "", phone: "" },
+    marketingOptIn: false,
     paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null, base: null },
     exterior: null,
   };
@@ -657,7 +676,7 @@ export function defaultExterior(): WizardExterior {
     storeys: "single",
     substrates: ["weatherboards"],
     targets: ["house"],
-    shed: null, wall: null, floor: null,
+    shed: null, wall: null, floor: null, pergola: null,
     painting: { body: true, windowsDoors: true, roofline: true, garage: false },
     condition: null,
     access: [],
@@ -688,7 +707,7 @@ export function exteriorSurfaceKeys(ext: WizardExterior): WizardSurfaceKey[] {
   if (house && el.garage) keys.push("garage_doors");
   if (ext.extras.deck || ext.targets.includes("deck")) keys.push("deck");
   if ((ext.extras.fence || ext.targets.includes("fence")) && ext.extras.fenceType !== "metal") keys.push("fence");
-  if (ext.extras.pergola) keys.push("pergola");
+  if (ext.extras.pergola || ext.targets.includes("pergola")) keys.push("pergola");
   if (ext.extras.balustrade) keys.push("balustrade");
   return [...new Set(keys)];
 }

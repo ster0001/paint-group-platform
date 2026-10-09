@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { STAFF_EVENTS, type StaffEventKey, type StaffNotifyChannel, type StaffNotifyMap } from "@/lib/staff/notifyEvents";
+import { STAFF_EVENTS, emailOnlyEvent, type StaffEventKey, type StaffNotifyChannel, type StaffNotifyMap } from "@/lib/staff/notifyEvents";
 import { listStaffAction, updateStaffNotifyAction, type StaffRow } from "./staffActions";
 
 /**
@@ -82,7 +82,7 @@ export default function StaffAlertsMatrix() {
                   {STAFF_EVENTS.map((e) => (
                     <td key={e.key} className="px-2 py-2 align-top">
                       <div className="flex flex-col gap-1">
-                        {(["email", "sms"] as const).map((c) => {
+                        {(emailOnlyEvent(e.key) ? ["email"] as const : ["email", "sms"] as const).map((c) => {
                           const disabled = !canEdit(row) || (c === "sms" && !row.phone);
                           return (
                             <label key={c} className={`flex items-center gap-1 ${disabled ? "text-gray-300" : "text-gray-700"}`} title={c === "sms" && !row.phone ? "Add a mobile under Staff logins" : undefined}>

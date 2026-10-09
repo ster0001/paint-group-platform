@@ -44,7 +44,7 @@ export async function startDayAction(raw: unknown): Promise<TimesheetResult> {
   return call("timesheet_start", { p_work_order_id: parsed.data.workOrderId ?? null });
 }
 
-/** Finish day — closes the running day with the break taken; the office approves. */
+/** Finish day — closes the running day with the break taken; it approves itself where a cost rate covers it (7 Oct 2026). */
 export async function finishDayAction(raw: unknown): Promise<TimesheetResult> {
   const parsed = z.object({ breakMinutes: z.number().int().min(0).max(240) }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: WORDING.bad_break };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition, type ReactNode } from "react";
 import { answerChecklistItem, tickChecklistItem } from "../../actions";
 
 export type ChecklistItem = {
@@ -32,13 +32,16 @@ export type ChecklistItem = {
  * customer. The office can answer on the painter's behalf, and sees the answers.
  */
 export default function Checklist({
-  title, caption, items, outstanding, coloursHref, footer,
+  title, caption, items, outstanding, coloursHref, footer, extras,
 }: {
   title: string; caption: string; items: ChecklistItem[]; outstanding: number;
   /** The job sheet, opened at the colours. Omitted when there is no estimate. */
   coloursHref?: string;
   /** A line under the list — the prep list's scope confirmation. */
   footer?: string;
+  /** Drawn under the tick item with that id — the pre-start materials /
+   *  equipment lists (Tom, 8 Oct 2026). Outside the tick button: typing never ticks. */
+  extras?: Record<string, ReactNode>;
 }) {
   const [rows, setRows] = useState(items);
   const [message, setMessage] = useState<string | null>(null);
@@ -112,8 +115,8 @@ export default function Checklist({
         const kind = item.kind ?? "tick";
         if (kind === "tick") {
           return (
+            <Fragment key={item.id}>
             <button
-              key={item.id}
               type="button"
               className={`chk ${item.done ? "on" : ""} ${item.auto ? "auto" : ""}`}
               onClick={() => tick(item)}
@@ -127,6 +130,8 @@ export default function Checklist({
               </span>
               {item.auto && <span className="pill">auto</span>}
             </button>
+            {extras?.[item.id]}
+            </Fragment>
           );
         }
 

@@ -1,8 +1,10 @@
+import type { ReactNode } from "react";
+import EstimatorNotes from "@/app/components/estimator-notes/EstimatorNotes";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/monitoring/report";
 import { LANES, LANE_LABELS, laneFor, stageTitle, type WoStage } from "@/lib/workorder/stages";
-import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
+import { jobNeedsAfterPhotos, progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
 import { staffSignsOff as staffSignsOffFor, supersededQaIds } from "@/lib/workorder/qa";
 import PhotosOptionalToggle from "./PhotosOptionalToggle";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
@@ -10,10 +12,17 @@ import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorde
 import PriceVariation from "./PriceVariation";
 import UpdateComposer from "./UpdateComposer";
 import Checklist, { type ChecklistItem } from "./Checklist";
+import PrestartListBox from "./PrestartListBox";
+import { loadPrestartList } from "@/lib/workorder/pcNotes";
 import WalkthroughCard from "./WalkthroughCard";
 import ReviewCard, { type ReviewState } from "./ReviewCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
 import QaControls from "./QaControls";
+import QaSchedule from "./QaSchedule";
+import { defaultQaWhen, qaCheckLabel } from "@/lib/workorder/qaSchedule";
+import { inviteLineText, loadQaSchedule } from "@/lib/workorder/qaScheduleLoad";
+import { melbourneDate } from "@/lib/workorder/console";
+import { requestNow } from "@/lib/time/requestClock";
 import ColourMatchCard from "@/app/components/wo/ColourMatchCard";
 import { humaniseGate } from "@/lib/workorder/gateText";
 import TickList from "@/app/components/wo/TickList";
@@ -24,21 +33,37 @@ import RebuildTicks from "./RebuildTicks";
 import SetDeduction from "./SetDeduction";
 import MaterialsCard, { type MaterialRowProp } from "./MaterialsCard";
 import FinishLevelCard from "./FinishLevelCard";
+import CrewNotesCard from "./CrewNotesCard";
+import ClientUpdates, { type ClientTimelineEntry } from "./ClientUpdates";
 import ReferencePhotosCard from "./ReferencePhotosCard";
+import SiteVisitsCard from "./SiteVisitsCard";
+import { loadSiteVisits } from "@/lib/workorder/siteVisits";
 import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
 import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
+import { loadStandards } from "@/lib/standards/load";
+import { loadCallbacksForJob } from "@/lib/callbacks/load";
+import { CALLBACK_SOURCES, type CallbackSource } from "@/lib/callbacks/model";
+import CallbackPanel from "./CallbackPanel";
+import NoWorkDay from "./NoWorkDay";
+import type { MomentRow } from "@/lib/workorder/reminderMoments";
+import { expectationsFor } from "@/lib/standards/model";
+import WhatWeExpect from "@/app/components/standards/WhatWeExpect";
+import RejectVariation from "@/app/pc/RejectVariation";
+import MessageThread from "@/app/components/wo/MessageThread";
+import { loadJobPainters, loadThread, pickPainter } from "@/lib/workorder/messagesLoad";
 
 export const dynamic = "force-dynamic";
 
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
 
-export default async function PcWorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PcWorkOrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ callback?: string; painter?: string }> }) {
   const { id } = await params;
+  const { callback: callbackParam, painter: painterParam } = await searchParams;
   const supabase = await createClient();
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_id, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, crew_notes, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
@@ -47,6 +72,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     contractor_payment_cents: number | null; start_date: string | null; end_date: string | null;
     qa_required: boolean | null; qa_waived: boolean | null; walkthrough_required: boolean | null;
     colours: Record<string, { status?: string; match?: { code?: string; brand?: string; canSize?: string; by?: string } }> | null;
+    crew_notes: string | null;
     wo_snapshot: { jobTitle?: string; jobAddress?: string } | null;
     contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
     estimates: { total_cents: number | null; deposit_paid_at: string | null } | null;
@@ -85,7 +111,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_variations")
-        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents")
+        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents, contractor_declined_at, contractor_decline_note, office_rejected_at, office_reject_note")
         .eq("work_order_id", id).order("created_at", { ascending: false }),
       supabase.from("wo_updates").select("id, draft_text, final_text, status, for_date")
         .eq("work_order_id", id).order("for_date", { ascending: false }).limit(1),
@@ -106,9 +132,60 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         .select("id, kind, scheduled_date, status")
         .eq("work_order_id", id).order("created_at", { ascending: true }),
       supabase.from("wo_signoff")
-        .select("signed_at, client_unavailable_at")
+        .select("signed_at, client_unavailable_at, areas")
         .eq("work_order_id", id).maybeSingle(),
     ]);
+
+  // Messages with the painter (Tom, 9 Oct 2026): one thread per painter on
+  // the job; the office picks whose (?painter=), else one with something
+  // unread, else the lead. Read through the staff session (RLS).
+  const jobPainters = await loadJobPainters(supabase, id, (wo as { contractor_id?: string | null }).contractor_id ?? null);
+  const messagePainterId = pickPainter(jobPainters.painters, painterParam);
+  const messageThread = messagePainterId ? await loadThread(supabase, id, messagePainterId, "staff") : null;
+  const messagePainter = jobPainters.painters.find((p) => p.contractorId === messagePainterId) ?? null;
+
+  // Quality checks with their day and time, the final they sit before, and
+  // what reached the calendar (Tom, 8 Oct 2026).
+  const qaSchedule = await loadQaSchedule(supabase, id);
+  if (qaSchedule.failure) reportError(new Error(qaSchedule.failure), { where: "pc.wo.qaSchedule", bestEffort: true });
+  const inviteAt = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+  // Call backs (Step 3): every one on the job, the painters who could fix it,
+  // the photos on each, whether this staff member may void one, and the areas
+  // the customer flagged that nobody has put right (route 2's question).
+  const [callbacksLoad, painterRows, ownerRes] = await Promise.all([
+    loadCallbacksForJob(supabase, id),
+    supabase.from("contractors").select("id, company_name, profiles(name)").eq("active", true).order("company_name"),
+    supabase.rpc("has_dashboard_role", { p_roles: ["owner"] }),
+  ]);
+  if (painterRows.error) reportError(painterRows.error, { where: "pc.wo.painters", bestEffort: true });
+  if (ownerRes.error) reportError(ownerRes.error, { where: "pc.wo.ownerRole", bestEffort: true });
+  const painters = ((painterRows.error ? [] : painterRows.data ?? []) as unknown as { id: string; company_name: string | null; profiles: { name: string | null } | null }[])
+    .map((c) => ({ id: c.id, name: c.profiles?.name || c.company_name || "Painter" }));
+  const callbackPhotoRes = callbacksLoad.callbacks.length
+    ? await supabase.from("wo_photos").select("id, work_order_id, kind, area, caption, storage_path, created_at, variation_id, callback_id")
+        .eq("work_order_id", id).in("callback_id", callbacksLoad.callbacks.map((c) => c.id)).order("created_at", { ascending: true })
+    : { data: [], error: null };
+  if (callbackPhotoRes.error) reportError(callbackPhotoRes.error, { where: "pc.wo.callbackPhotos", bestEffort: true });
+  const callbackPhotos: Record<string, Awaited<ReturnType<typeof signPhotos>>> = {};
+  if (!callbackPhotoRes.error) {
+    const signed = await signPhotos(supabase, (callbackPhotoRes.data ?? []) as WOPhotoRow[]);
+    const byId = new Map(((callbackPhotoRes.data ?? []) as { id: string; callback_id: string | null }[]).map((r) => [r.id, r.callback_id]));
+    for (const ph of signed) { const cid = byId.get(ph.id); if (cid) (callbackPhotos[cid] ??= []).push(ph); }
+  }
+  // Reminder moments (Step 4) and the days the PC marked No work (R10).
+  const [momentRes, flagRes] = await Promise.all([
+    supabase.from("wo_reminder_moments").select("id, work_order_id, kind, day, due_at, sends_count, last_sent_at, answered_at, skipped_reason").eq("work_order_id", id).order("due_at"),
+    supabase.from("wo_day_flags").select("day, reason").eq("work_order_id", id).eq("flag", "no_work").order("day"),
+  ]);
+  if (momentRes.error) reportError(momentRes.error, { where: "pc.wo.moments", bestEffort: true });
+  if (flagRes.error) reportError(flagRes.error, { where: "pc.wo.dayFlags", bestEffort: true });
+  const moments: MomentRow[] = ((momentRes.error ? [] : momentRes.data ?? []) as { id: string; work_order_id: string; kind: MomentRow["kind"]; day: string; due_at: string; sends_count: number; last_sent_at: string | null; answered_at: string | null; skipped_reason: MomentRow["skippedReason"] }[])
+    .map((m) => ({ id: m.id, workOrderId: m.work_order_id, kind: m.kind, day: m.day, dueAt: m.due_at, sendsCount: m.sends_count, lastSentAt: m.last_sent_at, answeredAt: m.answered_at, skippedReason: m.skipped_reason }));
+  const noWorkFlags = (flagRes.error ? [] : flagRes.data ?? []) as { day: string; reason: string }[];
+  const signoffAreas = ((signoffRow as { areas?: Record<string, { flagged_at?: string; rectified_at?: string; flag_withdrawn_at?: string }> | null } | null)?.areas) ?? {};
+  const flaggedAreas = Object.entries(signoffAreas).filter(([, a]) => a?.flagged_at && !a?.rectified_at && !a?.flag_withdrawn_at).map(([h]) => h);
+  const openCallbackSource = (CALLBACK_SOURCES as readonly string[]).includes(callbackParam ?? "") ? (callbackParam as CallbackSource) : null;
 
   // Derived items answer from the data they read, so the screen and the gate
   // can never disagree about whether a stage is ready.
@@ -197,6 +274,13 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   }));
   const qaScheduled = ((qaRows ?? []) as unknown[]).length > 0;
 
+  // Site check-ins (Tom, 9 Oct 2026; 20270248): Felipe's own visits, with their
+  // notes and photos. Never a check — nothing here gates the job.
+  const siteVisits = await loadSiteVisits(supabase, id);
+  if (siteVisits.failure) reportError(new Error(siteVisits.failure), { where: "pc.wo.siteVisits", bestEffort: true });
+  // Who a "Send to the painter" note goes to: the lead painter, else the job's contractor.
+  const notePainter = crew.find((c) => c.isLead)?.name ?? (painterName || null);
+
   // The job sheet, opened on the work-order view where the colours live, and
   // carrying `from` so the builder's top-left link comes back here rather than
   // dumping you on the estimates list.
@@ -238,6 +322,16 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   // without the gallery's limit, so an old first photo never falls off the end.
   const { data: gateRows, error: gateError } = await supabase.from("wo_photos").select("kind").eq("work_order_id", id).eq("kind", "before").limit(1);
   const hasBeforePhoto = !gateError && ((gateRows as { kind: string }[] | null) ?? []).length > 0;
+  // The finish gate (Step 3) reads the same way; and the office's waiver of it
+  // (Tom, 6 Oct, migration 20270215) is an event on the job, never a column.
+  const [{ data: afterRows, error: afterError }, { data: waiverRows, error: waiverError }] = await Promise.all([
+    supabase.from("wo_photos").select("kind").eq("work_order_id", id).eq("kind", "completion").limit(1),
+    supabase.from("wo_events").select("id").eq("work_order_id", id).eq("type", "after_photos_waived").limit(1),
+  ]);
+  if (afterError) reportError(afterError, { where: "pc.wo.afterPhotoGate", bestEffort: true, extra: { workOrderId: id } });
+  if (waiverError) reportError(waiverError, { where: "pc.wo.afterPhotoWaiver", bestEffort: true, extra: { workOrderId: id } });
+  const hasAfterPhoto = !afterError && ((afterRows as { kind: string }[] | null) ?? []).length > 0;
+  const afterPhotosWaived = !waiverError && ((waiverRows as { id: string }[] | null) ?? []).length > 0;
 
   // Materials (Tom, 4 Sep): the colour breakdown per substrate off the frozen
   // job sheet, and the budget — the estimate's engine materials cost against
@@ -308,19 +402,45 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   // Tom, 24 Sep: a job that went through a quality check is the office's to
   // sign off — derived from the checks, same rule as wo_staff_signs_off.
   const staffSignsOff = staffSignsOffFor(qaChecks);
+  const todayMelbourne = melbourneDate(requestNow());
+  const checkInDue = new Set(qaSchedule.checks
+    .filter((c) => c.kind !== "final" && c.result === null && c.date !== null && c.date <= todayMelbourne)
+    .map((c) => c.id));
 
   const forPhase = (phase: string) => checklist.filter((c) => c.phase === phase);
   const outstanding = (phase: string) =>
     forPhase(phase).filter((c) => c.required && !c.done).length;
+
+  // Tom, 8 Oct 2026: the materials / equipment a job needs, written under
+  // those two pre-start items and saved before either is ticked.
+  const prestart = row.stage === "pre_start" ? await loadPrestartList(supabase, id) : null;
+  const prestartExtras: Record<string, ReactNode> = {};
+  if (prestart) {
+    const pre = forPhase("pre_start");
+    const materialsItem = pre.find((c) => /^materials/i.test(c.label));
+    const equipmentItem = pre.find((c) => /^equipment/i.test(c.label));
+    if (materialsItem) prestartExtras[materialsItem.id] =
+      <PrestartListBox workOrderId={id} kind="materials" initial={prestart.list.materials} />;
+    if (equipmentItem) prestartExtras[equipmentItem.id] =
+      <PrestartListBox workOrderId={id} kind="equipment" initial={prestart.list.equipment} />;
+  }
 
   const contractorRateCents = Math.round(
     Number((rateRow as { value?: { value?: number } } | null)?.value?.value ?? 60) * 100,
   );
 
   const surfaces = ((liveSurfaceRows ?? []) as {
-    id: string; heading: string; heading_meta: string; label: string;
+    id: string; heading: string; heading_meta: string; label: string; surface_key?: string | null;
     state: SurfaceRow["state"]; rectification: boolean; removed_from_scope?: boolean; photos_optional?: boolean | null;
   }[]).map((s) => ({ ...s, removed: s.removed_from_scope ?? false, photosOptional: Boolean(s.photos_optional) }));
+
+  // Finish standards (Step 1, ruling S12): the PC's tick list and quality
+  // check link each surface to THE SAME record the painter reads, at the
+  // job's level. A refused read is reported by the loader; the links are
+  // simply absent here and the standards page itself says why.
+  const standardsLoad = await loadStandards();
+  // Tom, 9 Oct: one "What we expect on this job" card above the scope, not a link per row.
+  const expectations = standardsLoad.standards && snapshotDoc ? expectationsFor(standardsLoad.standards, snapshotDoc, "pc", id) : [];
   const progress = progressOf(surfaces);
   const byHeading = progressByHeading(surfaces);
   const headings = [...new Set(surfaces.map((s) => s.heading))];
@@ -331,7 +451,35 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     contractor_delta_cents: number | null; released_at: string | null;
     credit: boolean; signed_name: string | null; signed_at: string | null;
     needs_manual_deduction: boolean; deduction_cents: number | null;
+    contractor_declined_at?: string | null; contractor_decline_note?: string | null;
+    office_rejected_at?: string | null; office_reject_note?: string | null;
   }[]);
+
+  // Tom, 7 Oct 2026 (PC Command item 5): the client-updates timeline — every
+  // update that reached the customer and every note the office logged about
+  // telling them, newest first. Both reads check their error (a rejected
+  // query must never read as "no updates yet").
+  const [sentUpdatesRes, clientNotesRes] = await Promise.all([
+    supabase.from("wo_updates").select("id, final_text, draft_text, status, for_date, sent_at, approved_at")
+      .eq("work_order_id", id).in("status", ["approved", "sent"]).order("for_date", { ascending: false }).limit(40),
+    supabase.from("wo_events").select("id, created_at, meta, actor")
+      .eq("work_order_id", id).eq("type", "client_update_note").order("created_at", { ascending: false }).limit(80),
+  ]);
+  // wo_events.actor points at auth.users, not profiles — names are a second, keyed read.
+  const noteActorIds = [...new Set(((clientNotesRes.data ?? []) as { actor: string | null }[]).map((e) => e.actor).filter((x): x is string => !!x))];
+  const noteActors = noteActorIds.length
+    ? await supabase.from("profiles").select("id, name").in("id", noteActorIds)
+    : { data: [] as { id: string; name: string | null }[], error: null };
+  const actorName = new Map(((noteActors.data ?? []) as { id: string; name: string | null }[]).map((p) => [p.id, p.name]));
+  const clientTimelineFailures: string[] = [];
+  if (sentUpdatesRes.error) { reportError(sentUpdatesRes.error, { where: "pc.wo.clientUpdates.sent" }); clientTimelineFailures.push("sent updates"); }
+  if (clientNotesRes.error) { reportError(clientNotesRes.error, { where: "pc.wo.clientUpdates.notes" }); clientTimelineFailures.push("notes"); }
+  const clientTimeline: ClientTimelineEntry[] = [
+    ...((sentUpdatesRes.data ?? []) as { id: string; final_text: string | null; draft_text: string; status: string; for_date: string; sent_at: string | null; approved_at: string | null }[])
+      .map((u) => ({ id: `u:${u.id}`, kind: u.status === "sent" ? "sent" as const : "approved" as const, at: u.sent_at ?? u.approved_at ?? `${u.for_date}T12:00:00Z`, body: u.final_text ?? u.draft_text, who: null })),
+    ...((clientNotesRes.data ?? []) as { id: string; created_at: string; meta: { body?: string } | null; actor: string | null }[])
+      .map((e) => ({ id: `n:${e.id}`, kind: "note" as const, at: e.created_at, body: String(e.meta?.body ?? ""), who: (e.actor ? actorName.get(e.actor) : null) ?? null })),
+  ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   const contract = row.estimates?.total_cents ?? 0;
   const contractorPay = row.contractor_payment_cents ?? 0;
@@ -459,10 +607,30 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         </div>
       )}
 
+      {/* Tom, 4 Oct: what the estimator wrote or said about this job — internal,
+          staff only, loaded client-side so no note text sits in this page's HTML. */}
+      {estimateId && <EstimatorNotes estimateId={estimateId} surface="console" who="the project coordinator" />}
+
+      {/* Messages with the painter (Tom, 9 Oct 2026): text and photos both
+          ways, one thread per painter on the job. Opening a thread the painter
+          wrote in clears its "replied" card on PC Command. */}
+      {messageThread ? (
+        <MessageThread mode="staff" thread={jobPainters.failure && !messageThread.failure ? { ...messageThread, failure: jobPainters.failure } : messageThread}
+          painters={jobPainters.painters}
+          canWrite={Boolean(messagePainter?.onJob)}
+          cantWriteReason={`${messagePainter?.name ?? "This painter"} isn't on this job any more — their messages are kept here to read.`} />
+      ) : (
+        <div className="card msgbox" id="messages" data-testid="msg-box-none">
+          <b>Messages</b>
+          <p className="note">{jobPainters.failure ?? "No painter on this job yet — once one is offered it or assigned, you can message them here."}</p>
+        </div>
+      )}
+
+      {expectations.length > 0 && row.stage !== "closed" && <WhatWeExpect items={expectations} mode="pc" />}
+
       <div className="grid2">
         {row.stage === "in_progress" ? (
           <TickList
-            workOrderId={id}
             surfaces={surfaces.map((s) => ({
               id: s.id, heading: s.heading, label: s.label, state: s.state,
               rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional,
@@ -532,6 +700,29 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             today={today}
             walkthroughRequired={row.walkthrough_required !== false}
             staffSignsOff={staffSignsOff}
+            readiness={row.stage === "in_progress" || row.stage === "completion_prep" ? {
+              surfacesLeft: progress.total - progress.done,
+              surfacesTotal: progress.total,
+              needsAfterPhotos: jobNeedsAfterPhotos(surfaces, hasAfterPhoto),
+              afterPhotosWaived,
+              prepLeft: outstanding("completion_prep"),
+              variationsWaiting: variations.filter((v) => v.status === "raised" || v.status === "priced" || v.status === "customer_approved").length,
+              areas: headings,
+            } : null}
+          />
+
+          {/* Further instructions for the crew (Tom, 8 Oct): the builder's
+              work-order note, written here too. work_orders.crew_notes is the
+              one place it lives; the issued sheet follows it (20270244). A
+              blank column shows what the sheet already says rather than an
+              empty box over a sheet that carries a note. */}
+          <CrewNotesCard
+            workOrderId={id}
+            notes={(row.crew_notes ?? "") || (snapshotDoc?.crewNotes ?? "")}
+            sheetNotes={snapshotDoc && (row.crew_notes ?? "") !== ""
+              && (snapshotDoc.crewNotes ?? "") !== (row.crew_notes ?? "")
+              ? (snapshotDoc.crewNotes ?? "") : null}
+            canEdit={row.stage !== "closed"}
           />
 
           {/* Colour matches (Tom, 23 Aug): flagged by the estimator or opened by
@@ -625,7 +816,11 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               items={forPhase("pre_start")}
               outstanding={outstanding("pre_start")}
               coloursHref={coloursHref}
+              extras={prestartExtras}
             />
+          )}
+          {prestart?.failure && (
+            <p className="note" style={{ color: "var(--amber)" }} data-testid="prestart-list-failure">{prestart.failure}</p>
           )}
 
           {/* A job at pre-start with no list is a fault, not a finished list —
@@ -687,10 +882,17 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               logged record (and where its re-check went) stays in view while
               the painter rectifies; the unlogged re-check itself waits for
               their next finish before it is drawn. */}
-          {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
-            && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null).map((c) => (
-            <QaCheck key={c.id} check={c} workOrderId={id} />
-          ))}
+          {/* Tom, 8 Oct 2026: a mid-job or spot check whose day has come is
+              recorded while the job is still running — its PC Command card
+              ("Record the check") lands here. Site check-ins are NOT checks
+              (9 Oct): they have their own card just below. */}
+          <div id="qa">
+            {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
+              && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null || checkInDue.has(c.id)).map((c) => (
+              <QaCheck key={c.id} check={c} workOrderId={id} />
+            ))}
+          </div>
+          <SiteVisitsCard visits={siteVisits.visits} painter={notePainter} closed={row.stage === "closed"} failure={siteVisits.failure} />
           {/* Dashboard 0c: reviews requested → received, a person's tick until the API. */}
           {(row.stage === "walkthrough" || row.stage === "closed") && (
             <ReviewCard workOrderId={id} review={reviewState} />
@@ -715,6 +917,18 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                 <b>Move to completion prep</b> above to continue.
               </p>
             </div>
+          )}
+
+          {(row.stage === "pre_start" || row.stage === "in_progress" || row.stage === "completion_prep" || moments.length > 0) && (
+            <NoWorkDay workOrderId={id} moments={moments} flags={noWorkFlags} />
+          )}
+
+          {callbacksLoad.error ? (
+            <div className="card" data-testid="callbacks-unavailable"><h3>Call backs</h3><p className="note" style={{ color: "var(--amber)" }}>{callbacksLoad.error}</p></div>
+          ) : (
+            <CallbackPanel workOrderId={id} callbacks={callbacksLoad.callbacks} painters={painters}
+              jobPainterId={(wo as { contractor_id?: string | null }).contractor_id ?? null}
+              canVoid={!ownerRes.error && Boolean(ownerRes.data)} photos={callbackPhotos} flaggedAreas={flaggedAreas} openSource={openCallbackSource} />
           )}
 
           {variations.map((v) => (
@@ -743,6 +957,21 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                     : ""}
                 </p>
               )}
+              {/* Tom, 7 Oct 2026: the client approved it; the painter declined it, with a note. */}
+              {v.status === "declined" && v.contractor_declined_at && (
+                <p className="note" data-testid={`variation-painter-declined-${v.id}`} style={{ color: "var(--clay, #c2410c)" }}>
+                  Declined by the painter{v.contractor_declined_at ? ` on ${new Date(v.contractor_declined_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}` : ""} after the client approved it
+                  {v.contractor_decline_note ? <> — they wrote: &ldquo;{v.contractor_decline_note}&rdquo;</> : "."} Revise it with the client in <b>Revise scope</b>, or set the painter&rsquo;s amount and re-send.
+                </p>
+              )}
+              {/* Tom, 8 Oct 2026: the office turned it down, with a reply to the painter. */}
+              {v.status === "declined" && v.office_rejected_at && (
+                <p className="note" data-testid={`variation-office-rejected-${v.id}`} style={{ color: "var(--clay, #c2410c)" }}>
+                  Rejected by the office on {new Date(v.office_rejected_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" })}
+                  {v.office_reject_note ? <> — the reply to the painter: &ldquo;{v.office_reject_note}&rdquo;</> : "."}
+                </p>
+              )}
+              {v.status === "raised" && <RejectVariation variationId={v.id} />}
               {/* What the painter photographed when they raised it — pricing a
                   variation off a one-line comment was guesswork. */}
               <PhotoGrid
@@ -794,6 +1023,11 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             </div>
           )}
 
+          {/* Tom, 7 Oct 2026: a notes box for what the client was told (a call, a
+              text, a conversation on site) — on this job's timeline AND on the
+              customer's CRM record. */}
+          <ClientUpdates workOrderId={id} entries={clientTimeline} failures={clientTimelineFailures} />
+
           <div className="card" data-testid="site-photos">
             <h3>From site <em data-testid="photo-count">{photos.length} photo{photos.length === 1 ? "" : "s"}</em></h3>
             {photos.length === 0 ? (
@@ -823,14 +1057,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                   : (qaRows ?? []).length === 0 ? "Not required — established" : `${(qaRows ?? []).length} scheduled`}
               </span>
             </div>
-            {((qaRows ?? []) as { id: string; kind: string; result: string | null; thin_record: boolean; scheduled_for: string | null }[]).map((q) => (
-              <div className="tick" key={q.id}>
-                <p>{q.kind === "mid" ? "mid-job" : q.kind.replace(/_/g, " ")}{retryOf.get(q.id) ? " · re-check" : ""}{q.scheduled_for ? ` · ${q.scheduled_for}` : ""}</p>
-                <span className={`pill ${q.result === "pass" ? "p-em" : q.result === "fail" ? "p-clay" : "p-amber"}`}>
-                  {q.result ?? "due"}{q.result === "fail" && superseded.has(q.id) ? " · re-checked" : ""}{q.thin_record ? " · thin record" : ""}
-                </span>
-              </div>
-            ))}
+            {qaSchedule.failure && <p className="note" style={{ color: "var(--amber)" }} data-testid="qa-schedule-failure">{qaSchedule.failure}</p>}
+            <QaSchedule
+              rows={qaSchedule.checks.map((q) => ({
+                id: q.id, label: qaCheckLabel(q.kind), recheck: Boolean(retryOf.get(q.id)), result: q.result,
+                superseded: superseded.has(q.id), thinRecord: q.thinRecord, date: q.date, time: q.time,
+                suggested: q.kind === "final" && !retryOf.get(q.id) && qaSchedule.final ? defaultQaWhen(qaSchedule.final.date, qaSchedule.holidays) : null,
+                invite: inviteLineText(qaSchedule.invites.get(q.id), inviteAt),
+              }))}
+              final={qaSchedule.final} today={todayMelbourne} closed={row.stage === "closed"} />
             <QaControls workOrderId={id} qaRequired={Boolean(row.qa_required)} qaWaived={Boolean(row.qa_waived)}
               scheduledCount={(qaRows ?? []).length} closed={row.stage === "closed"} />
           </div>

@@ -42,6 +42,7 @@ import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import QuickLook from "./QuickLook";
 import SaveAndBookSheet from "./SaveAndBookSheet";
+import TalkSheet, { type TalkMode } from "./TalkSheet";
 import ConditionBox from "./ConditionBox";
 import Reveal from "./Reveal";
 import {
@@ -56,6 +57,8 @@ import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered, pickResume } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
+import WizardHeader from "./WizardHeader";
+import { UI_FLAGS } from "@/lib/wizard/ui-flags";
 import { confirmAssistantFields, confirmAssistantStep } from "@/lib/wizard/describe";
 import { gateMessage, routeCommercial } from "@/lib/wizard/commercial";
 import {
@@ -150,7 +153,9 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first" }: {
+  /** S6 (R6): the gate order in Booking rules when the page loaded. A resumed session keeps its own. */
+  gateOrder?: "details_first" | "range_first";
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
@@ -356,6 +361,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [quickOutOfArea, setQuickOutOfArea] = useState(false);
   /** C8 — the Save & book sheet, reachable from every screen. */
   const [bookOpen, setBookOpen] = useState(false);
+  useEffect(() => {
+    if (mode === "customer" && !state.gateVersion) setState((s) => ({ ...s, gateVersion: gateOrder }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /** Visit booking S4: the talk sheet (request a site visit / send a message) and the range screen's "sent" screen. */
+  const [talk, setTalk] = useState<{ mode: TalkMode; then?: () => void } | null>(null);
+  /** S6: name + email + mobile are held (the gate, the keep door, or a details sheet). */
+  const contactKnown = Boolean(state.contact.name.trim() && /.+@.+\..+/.test(state.contact.email.trim()) && state.contact.phone.replace(/\D/g, "").length >= 10);
+  const [sent, setSent] = useState<{ title: string; line: string } | null>(null);
   /** The revealed range, held on the client so the three doors can act on it. */
   const [reveal, setReveal] = useState<{ payload: CustomerPayload; estimateId: string } | null>(null);
 
@@ -1307,6 +1321,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (pageKey === "house" && (ext?.targets.length ?? 0) === 0) return "What are we painting? Tick at least one.";
       if (pageKey === "house" && ext?.targets.includes("house") && ext.substrates.length === 0) return "What's the house made of? Tick at least one — or “None” if the walls aren't being painted.";
       if (pageKey === "scope" && ext && !Object.values(ext.painting).some(Boolean)) return "Tick at least one thing we're painting.";
+      if (pageKey === "scope" && ext?.targets.includes("pergola") && !(ext.pergola?.confirmed && ext.pergola.lengthM != null && ext.pergola.widthM != null)) return "Roughly how big is the pergola top? Length and width in metres, then Confirm.";
       if (pageKey === "ext_condition" && ext?.condition == null) return "How's the paintwork holding up overall?";
       return null;
     }
@@ -1357,8 +1372,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // ---- the quick look -------------------------------------------------------
 
-  const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope);
+  // S6: the session keeps the gate order it started with (R6). Staff and
+  // internal runs never meet the gate.
+  const gateVersion: "details_first" | "range_first" = state.gateVersion ?? gateOrder;
+  const hasGate = isCustomer && gateVersion === "details_first";
+  const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope, hasGate);
   const quickStep = quickSteps[Math.min(Math.max(page, 1), quickSteps.length) - 1];
+  /** UI refresh S1: the quick look (and its "working it out" screen) wears the new shell; the older page list (staff, `?entry=upload`) keeps its own (⚑ 21). */
+  const newShell = isCustomer && entry === "questions";
 
   /**
    * C12 — the commercial branch of the quick look. The segment key lives on
@@ -1367,6 +1388,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * on `state.commercial`. Both autosave and resume like everything else.
    */
   const commercialSeg = segmentByKey(segments, state.customer?.commercialSegment);
+  // The talk sheet sends these with a request or message so it is zoned at once.
+  // A typed address with no picked suggestion lives on `state.title` (the sheet shows it the same way).
+  const talkPlace = state.address
+    ? { street: state.address.street ?? "", suburb: state.address.suburb ?? "", postcode: state.address.postcode ?? "" }
+    : state.customer ? { street: state.title ?? "", suburb: state.customer.suburb ?? "", postcode: state.customer.postcode ?? "" } : null;
   const commercialAnswers: CommercialAnswers | null =
     state.commercial && commercialSeg && state.commercial.segment === commercialSeg.key
       ? state.commercial
@@ -1457,6 +1483,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       setError("Which ones are going much lighter or bold? Tick at least one.");
       return;
     }
+    // S6 (R5): the gate — the last question. Nothing is revealed without it, and the server checks too.
+    if (quickStep === "gate") {
+      const c = state.contact;
+      if (!(c.name.trim().length >= 2 && /.+@.+\..+/.test(c.email.trim()) && c.phone.replace(/\D/g, "").length >= 10)) {
+        setError("Please fill in your name, email and mobile number.");
+        return;
+      }
+    }
     // C16 (a): Continue on a screen confirms the fields the assistant filled in on it.
     if (state.assistant) setState((s) => ({ ...s, assistant: confirmAssistantStep(s.assistant, quickStep) }));
     /**
@@ -1538,6 +1572,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       setError("Tick at least one thing we're painting — on the house, or standing on its own.");
       return;
     }
+    // Tom, 5 Oct: a ticked pergola is priced on its top — the size has to be confirmed.
+    if (quickStep === "outside" && outside.standalone.includes("pergola") && !(outside.pergola?.confirmed && outside.pergola.lengthM != null && outside.pergola.widthM != null)) {
+      setError("Roughly how big is the pergola top? Length and width in metres, then Confirm.");
+      return;
+    }
     // Tom, 15 Sep (late): the sides screen comes next — it starts with all four
     // ticked, and the answer (even "all four") marks the sides as asked.
     if (quickStep === "outside" && outside.sides == null) setOutside({ sides: [...ALL_SIDES] });
@@ -1546,6 +1585,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       return;
     }
     if (page < quickSteps.length) {
+      if (quickSteps[page] === "gate") flushDraft("quick:gate");
       setPage(page + 1);
       window.scrollTo({ top: 0 });
       return;
@@ -1564,7 +1604,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
      * itself, rather than as a tick on a screen before they have seen a plan.
      */
     const derived = quickLookToState(quick, state);
-    if (quickStep === "com_job" && commercialSeg && commercialAnswers) {
+    // A COMMERCIAL walk submits as commercial whichever screen is last. Since S6
+    // (7 Oct) "details first" puts the gate after com_job, so testing
+    // `quickStep === "com_job"` sent every commercial job through the HOUSEHOLD
+    // derivation: the segment's substrate keys were replaced by household ticks,
+    // the merge stripped a warehouse floor's tilt-slab walls and doors, and the
+    // empty floor was dropped — the estimate priced as its offices alone
+    // (9 Oct 2026, found by commercial-warehouse.spec).
+    if (quickSteps.includes("com_job") && commercialSeg && commercialAnswers) {
       /**
        * C12: the rooms come from the segment's counts and typicals, not the
        * home basics — `basics` is null and `commercial` carries the answers.
@@ -1599,6 +1646,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * is flushed FIRST with the screen tag, so the session the route marks
    * carries the resume point (`last_screen`) and nothing is inferred.
    */
+  /** S6 (§4.7): which option the customer chose on the range screen — the first one counts. */
+  async function recordRangeOption(estimateId: string, option: "tighten" | "speak" | "visit" | "message") {
+    try { await fetch("/api/wizard/range-option", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ estimateId, option }) }); } catch { /* best effort */ }
+  }
+
   function openBook() {
     flushDraft(lastScreen);
     setBookOpen(true);
@@ -1658,6 +1710,27 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           estimateId={reveal.estimateId}
           prefill={{ email: prefill?.email ?? state.contact.email, phone: prefill?.phone ?? state.contact.phone, name: prefill?.name ?? state.contact.name }}
         />
+        {talk && (
+          <TalkSheet
+            open mode={talk.mode}
+            onClose={() => setTalk(null)}
+            estimateId={reveal.estimateId}
+            prefill={{ name: prefill?.name ?? state.contact.name, email: prefill?.email ?? state.contact.email, mobile: prefill?.phone ?? state.contact.phone }}
+            hasContact={contactKnown}
+            address={state.address?.formatted ?? state.title ?? ""}
+            place={talkPlace}
+            onDone={(c) => { set({ contact: { name: c.name, email: c.email, phone: c.mobile } }); const then = talk.then; setTalk(null); then?.(); }}
+          />
+        )}
+        {sent ? (
+          <main className="wz-wrap" data-testid="reveal-sent">
+            <p className="wz-kick">Your estimate</p>
+            <div className="wz-sent-status" aria-hidden="true">✓</div>
+            <h1>{sent.title}</h1>
+            <p>{sent.line}</p>
+            <p className="wz-chint"><button type="button" className="wz-linkish" onClick={() => setSent(null)} data-testid="reveal-sent-back">Back to your guide price</button></p>
+          </main>
+        ) : (
         <Reveal
           payload={reveal.payload}
           quick={quick}
@@ -1670,10 +1743,20 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           // 14 Sep: the estimate exists once the range is on screen — a walk
           // resumed from the local cache after this point was a stale "Welcome
           // back — you were at Scope" over a brand-new job.
-          onTighten={() => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
-          onBook={() => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}#reach`); }}
+          onTighten={() => {
+            void recordRangeOption(reveal.estimateId, "tighten");
+            // R7 (range first): any option asks for the details before going further.
+            if (!contactKnown) { setTalk({ mode: "details", then: () => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); } }); return; }
+            clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`);
+          }}
+          onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
+          speakWithUs={Boolean((reveal.payload as { speakWithUs?: boolean }).speakWithUs)}
+          onSpeak={() => { void recordRangeOption(reveal.estimateId, "speak"); setTalk({ mode: "call" }); }}
+          onMessage={() => { void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
+          contactKnown={contactKnown}
           prefillEmail={prefill?.email}
         />
+        )}
       </div>
     );
   }
@@ -1684,7 +1767,20 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // in the first moments after load was silently lost. wz-waking turns off
     // pointer events so an early tap waits (and Playwright's actionability
     // check queues on it) instead of vanishing; data-ready is the spec hook.
-    <div className={ready ? undefined : "wz-waking"} data-ready={ready ? "1" : undefined}>
+    <div className={[ready ? "" : "wz-waking", newShell ? "wz-shell" : ""].filter(Boolean).join(" ") || undefined} data-ready={ready ? "1" : undefined}>
+      {newShell ? (
+        // UI refresh S1: the slim header with the step rail, built from the
+        // same `stepsFor()` list the screens walk. ⚑ 10: the chat is its icon.
+        <WizardHeader
+          logo={<Wordmark logoUrl={logoUrl} />}
+          steps={quickSteps}
+          at={quickStep}
+          done={screen === "processing"}
+          phone={companyPhone}
+          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready={ready} place="header" onDescribe={quickActive ? describeJob : undefined} /> : undefined}
+          onSaveBook={screen !== "processing" ? openBook : undefined}
+        />
+      ) : (
       <header className="wz-top">
         <Wordmark logoUrl={logoUrl} />
         <div className="wz-dots">
@@ -1699,10 +1795,21 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         )}
         {!isCustomer && <a className="wz-exit" href="/estimates">Exit</a>}
       </header>
+      )}
       {assisted && (
         <p className="wz-assisted" data-testid="assisted-banner">
           <b>Assisted session</b> — {assisted.who}&rsquo;s answers, picked up {assisted.screen ? `at ${assisted.screen.replace(/^quick:/, "").replace(/^page:/, "")}` : "where they left off"}. Nothing here changes their saved copy.
         </p>
+      )}
+      {isCustomer && talk && (
+        <TalkSheet
+          open mode={talk.mode}
+          onClose={() => setTalk(null)}
+          estimateId={reveal?.estimateId ?? null}
+          prefill={{ name: prefill?.name ?? state.contact.name, email: prefill?.email ?? state.contact.email, mobile: prefill?.phone ?? state.contact.phone }}
+          address={state.address?.formatted ?? state.title ?? ""}
+          place={talkPlace}
+        />
       )}
       {isCustomer && (
         <SaveAndBookSheet
@@ -1752,7 +1859,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           <p className="wz-ptip" key={procTip}>{PROC_TIPS[procTip % PROC_TIPS.length]}</p>
         </div>
       ) : (
-        <div className="wz-wrap">
+        <div className={quickActive ? "wz-wrap wz-wrap--stage" : "wz-wrap"}>
           {resumed && (
             <div className="wz-resume" data-testid="wz-resume">
               <span>Welcome back — {resumed}. Everything you answered is still here.</span>
@@ -1783,7 +1890,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 assumed={state.assistant?.wrote ?? []}
                 planUpload={quick.jobType !== "exterior" ? (
                   <div className="wz-planupload" data-testid="ql-plan">
-                    <p className="wz-qhead">Have a floorplan or the listing? <span className="wz-opt">OPTIONAL — WE READ THE ROOMS OFF IT</span></p>
+                    <p className="wz-qhead">Have a floorplan or the listing? <span className="wz-opttag">Optional</span></p>
+                    <p className="wz-hint">We read the rooms and sizes off it.</p>
                     <input
                       ref={planInputRef} type="file" hidden accept="image/*,application/pdf"
                       onChange={(e) => { void uploadPlans([...(e.target.files ?? [])]); e.target.value = ""; }}
@@ -1805,14 +1913,20 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                     {planFileCount > 0 && <p className="wz-chint" data-testid="ql-plan-done">The rooms come off your plan — the next screens ask what&rsquo;s painted and the condition.</p>}
                   </div>
                 ) : null}
-                stepNo={Math.min(page, quickSteps.length)}
-                stepsTotal={quickSteps.length}
                 error={error}
                 canContinue={!nav.disabled}
+                whyNot={nav.note}
                 busy={uploading || booking}
                 onBack={page > 1 ? quickBack : null}
                 onNext={quickNext}
-                onBook={openBook}
+                onBook={() => { flushDraft(lastScreen); setTalk({ mode: "visit" }); }}
+                onMessage={() => { flushDraft(lastScreen); setTalk({ mode: "message" }); }}
+                gate={hasGate ? {
+                  contact: state.contact,
+                  onContact: (c) => set({ contact: c }),
+                  marketing: state.marketingOptIn,
+                  onMarketing: (v) => set({ marketingOptIn: v }),
+                } : null}
                 onChooseBoth={chooseBoth}
                 phone={companyPhone}
                 outside={outside}
@@ -2002,7 +2116,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           {nav.note && <span className="wz-navnote">{nav.note}</span>}
         </nav>
       )}
-      {isCustomer && <ChatWidget ready={ready} onDescribe={quickActive ? describeJob : undefined} />}
+      {isCustomer && !(newShell && UI_FLAGS.chatInHeader) && <ChatWidget ready={ready} onDescribe={quickActive ? describeJob : undefined} />}
     </div>
   );
 }
@@ -2713,20 +2827,20 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, stepNo = 4, a
       <p className="wz-qhead">What type of doors, mostly?</p>
       <div className="wz-pick">
         <button className={`wz-pk ${d.doorStyle === "panel" ? "on" : ""}`} onClick={() => set({ details: { ...d, doorStyle: "panel" } })}>
-          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B" /><rect x="19" y="9" width="10" height="16" fill="#12161A" stroke="#39424B" /><rect x="31" y="9" width="10" height="16" fill="#12161A" stroke="#39424B" /><rect x="19" y="29" width="10" height="26" fill="#12161A" stroke="#39424B" /><rect x="31" y="29" width="10" height="26" fill="#12161A" stroke="#39424B" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#D5DCE3" stroke="#B9C2CB" /><rect x="19" y="9" width="10" height="16" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="31" y="9" width="10" height="16" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="19" y="29" width="10" height="26" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="31" y="29" width="10" height="26" fill="#EEF2F5" stroke="#B9C2CB" /></svg>
           <small>Panel</small>
         </button>
         <button className={`wz-pk ${d.doorStyle === "flat" ? "on" : ""}`} onClick={() => set({ details: { ...d, doorStyle: "flat" } })}>
-          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B" /><circle cx="41" cy="33" r="1.8" fill="#8C959D" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#D5DCE3" stroke="#B9C2CB" /><circle cx="41" cy="33" r="1.8" fill="#6B7A86" /></svg>
           <small>Flat</small>
         </button>
         <button className={`wz-pk ${d.doorStyle === "unsure" ? "on" : ""}`} onClick={() => set({ details: { ...d, doorStyle: "unsure" } })}>
-          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B" /><text x="30" y="40" textAnchor="middle" fill="#8C959D" fontSize="22">?</text></svg>
+          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#D5DCE3" stroke="#B9C2CB" /><text x="30" y="40" textAnchor="middle" fill="#6B7A86" fontSize="22">?</text></svg>
           <small>Not sure</small>
         </button>
         <button className={`wz-pk ${d.doorStyle === "na" ? "on" : ""}`} onClick={() => set({ details: { ...d, doorStyle: "na" } })}
           data-testid="door-style-na">
-          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B" /><line x1="20" y1="50" x2="40" y2="14" stroke="#8C959D" strokeWidth="2" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#D5DCE3" stroke="#B9C2CB" /><line x1="20" y1="50" x2="40" y2="14" stroke="#6B7A86" strokeWidth="2" /></svg>
           <small>Not applicable</small>
         </button>
       </div>
@@ -2788,28 +2902,28 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, stepNo = 4, a
       <p className="wz-qhead">What type of windows, mostly?</p>
       <div className="wz-pick">
         <button className={`wz-pk ${d.windowStyle === "casement" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "casement" } })}>
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><line x1="30" y1="8" x2="30" y2="56" stroke="#39424B" /><path d="M30 12 L46 32 L30 52" fill="none" stroke="#2F3941" strokeDasharray="3 2" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><line x1="30" y1="8" x2="30" y2="56" stroke="#B9C2CB" /><path d="M30 12 L46 32 L30 52" fill="none" stroke="#C9D1D8" strokeDasharray="3 2" /></svg>
           <small>Casement</small>
         </button>
         <button className={`wz-pk ${d.windowStyle === "sash" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "sash" } })}>
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><rect x="13" y="11" width="34" height="20" fill="none" stroke="#39424B" /><rect x="13" y="33" width="34" height="20" fill="none" stroke="#39424B" /><line x1="10" y1="32" x2="50" y2="32" stroke="#4A555F" strokeWidth="2" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="13" y="11" width="34" height="20" fill="none" stroke="#B9C2CB" /><rect x="13" y="33" width="34" height="20" fill="none" stroke="#B9C2CB" /><line x1="10" y1="32" x2="50" y2="32" stroke="#8A97A3" strokeWidth="2" /></svg>
           <small>Sash</small>
         </button>
         <button className={`wz-pk ${d.windowStyle === "colonial" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "colonial" } })}>
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><line x1="30" y1="8" x2="30" y2="56" stroke="#39424B" /><line x1="10" y1="24" x2="50" y2="24" stroke="#39424B" /><line x1="10" y1="40" x2="50" y2="40" stroke="#39424B" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><line x1="30" y1="8" x2="30" y2="56" stroke="#B9C2CB" /><line x1="10" y1="24" x2="50" y2="24" stroke="#B9C2CB" /><line x1="10" y1="40" x2="50" y2="40" stroke="#B9C2CB" /></svg>
           <small>Colonial</small>
         </button>
         <button className={`wz-pk ${d.windowStyle === "winder" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "winder" } })}>
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><rect x="10" y="40" width="40" height="16" fill="#1A2027" stroke="#39424B" /><path d="M14 52 L30 43 L46 52" fill="none" stroke="#2F3941" strokeDasharray="3 2" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="10" y="40" width="40" height="16" fill="#EEF2F5" stroke="#B9C2CB" /><path d="M14 52 L30 43 L46 52" fill="none" stroke="#C9D1D8" strokeDasharray="3 2" /></svg>
           <small>Winder</small>
         </button>
         <button className={`wz-pk ${d.windowStyle === "unsure" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "unsure" } })}>
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><text x="30" y="40" textAnchor="middle" fill="#8C959D" fontSize="22">?</text></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><text x="30" y="40" textAnchor="middle" fill="#6B7A86" fontSize="22">?</text></svg>
           <small>Not sure</small>
         </button>
         <button className={`wz-pk ${d.windowStyle === "na" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "na" } })}
           data-testid="window-style-na">
-          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><line x1="16" y1="50" x2="44" y2="14" stroke="#8C959D" strokeWidth="2" /></svg>
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#EEF2F5" stroke="#B9C2CB" /><line x1="16" y1="50" x2="44" y2="14" stroke="#6B7A86" strokeWidth="2" /></svg>
           <small>Not applicable</small>
         </button>
       </div>
@@ -3059,8 +3173,10 @@ function PageExteriorHouse({ state, set, substrates, stepsTotal, stepNo = 2 }: {
       ...ext.extras,
       deck: targets.includes("deck"),
       fence: targets.includes("fence"),
+      pergola: targets.includes("pergola"),
       ...(targets.includes("fence") ? {} : { fenceMetres: null }),
     },
+    pergola: targets.includes("pergola") ? (ext.pergola ?? { lengthM: null, widthM: null, confirmed: false }) : null,
     shed: targets.includes("shed") ? (ext.shed ?? { substrate: "colorbond" }) : null,
     wall: targets.includes("wall") ? (ext.wall ?? { substrate: "brick", metres: null }) : null,
     floor: targets.includes("floor") ? (ext.floor ?? { m2: null }) : null,
@@ -3134,6 +3250,7 @@ function PageExteriorHouse({ state, set, substrates, stepsTotal, stepNo = 2 }: {
         {target("fence", "Fence")}
         {target("floor", "Floor coatings")}
         {target("deck", "Deck")}
+        {target("pergola", "Pergola", "priced on the top's size")}
         {target("shed", "Garage / workshop / shed")}
         {target("wall", "Wall", "a boundary or retaining wall")}
       </div>
@@ -3143,12 +3260,12 @@ function PageExteriorHouse({ state, set, substrates, stepsTotal, stepNo = 2 }: {
           <p className="wz-qhead">Single or double storey?</p>
           <div className="wz-pick">
             <button className={`wz-pk ${ext.storeys === "single" ? "on" : ""}`} onClick={() => setExt({ storeys: "single" })}>
-              <svg viewBox="0 0 60 64"><polygon points="8,28 30,12 52,28" fill="#1F262C" stroke="#39424B" /><rect x="12" y="28" width="36" height="24" fill="#12161A" stroke="#39424B" /><rect x="26" y="38" width="8" height="14" fill="#152A31" stroke="#2FB9CB" /></svg>
+              <svg viewBox="0 0 60 64"><polygon points="8,28 30,12 52,28" fill="#D5DCE3" stroke="#B9C2CB" /><rect x="12" y="28" width="36" height="24" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="26" y="38" width="8" height="14" fill="#D6F1F5" stroke="#0E9FB4" /></svg>
               <small>Single storey</small>
               <em className="wz-pksub">up to 4 metres</em>
             </button>
             <button className={`wz-pk ${ext.storeys === "double" ? "on" : ""}`} onClick={() => setExt({ storeys: "double" })}>
-              <svg viewBox="0 0 60 64"><polygon points="8,20 30,6 52,20" fill="#1F262C" stroke="#39424B" /><rect x="12" y="20" width="36" height="36" fill="#12161A" stroke="#39424B" /><line x1="12" y1="38" x2="48" y2="38" stroke="#39424B" /><rect x="26" y="44" width="8" height="12" fill="#152A31" stroke="#2FB9CB" /></svg>
+              <svg viewBox="0 0 60 64"><polygon points="8,20 30,6 52,20" fill="#D5DCE3" stroke="#B9C2CB" /><rect x="12" y="20" width="36" height="36" fill="#EEF2F5" stroke="#B9C2CB" /><line x1="12" y1="38" x2="48" y2="38" stroke="#B9C2CB" /><rect x="26" y="44" width="8" height="12" fill="#D6F1F5" stroke="#0E9FB4" /></svg>
               <small>Double storey</small>
               <em className="wz-pksub">over 4 metres</em>
             </button>
@@ -3292,6 +3409,24 @@ function PageExteriorScope({ state, set, substrates, stepsTotal, stepNo = 3 }: {
         </div>
       )}
 
+      {/* Tom, 5 Oct 2026: a pergola is priced on its top's footprint — length
+          and width, then Confirm — never per pergola. */}
+      {ext.targets.includes("pergola") && (
+        <div className="wz-follow" data-testid="ext-pergola">
+          <p className="wz-q">Roughly how big is the pergola top?</p>
+          <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "0 0 8px" }}>Length and width in metres — near enough is fine. It&rsquo;s priced on the top&rsquo;s area, not per pergola.</p>
+          <div className="wz-seg" style={{ alignItems: "center" }}>
+            {metresInput(ext.pergola?.lengthM ?? null, (v) => setExt({ pergola: { lengthM: v == null ? null : Math.min(30, v), widthM: ext.pergola?.widthM ?? null, confirmed: false } }), "length m", "ext-pergola-length")}
+            {metresInput(ext.pergola?.widthM ?? null, (v) => setExt({ pergola: { lengthM: ext.pergola?.lengthM ?? null, widthM: v == null ? null : Math.min(30, v), confirmed: false } }), "width m", "ext-pergola-width")}
+            <button type="button" className={`wz-btn wz-bs2 ${ext.pergola?.confirmed ? "on" : ""}`} data-testid="ext-pergola-confirm"
+              disabled={!(ext.pergola?.lengthM != null && ext.pergola?.widthM != null)}
+              onClick={() => setExt({ pergola: { lengthM: ext.pergola?.lengthM ?? null, widthM: ext.pergola?.widthM ?? null, confirmed: true } })}>
+              {ext.pergola?.confirmed ? "Confirmed ✓" : "Confirm"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {ext.targets.includes("deck") && (
         <div className="wz-follow" data-testid="ext-deck">
           <p className="wz-q">Deck — noted.</p>
@@ -3342,9 +3477,9 @@ function PageExteriorCondition({ state, set, stepsTotal, stepNo = 4 }: {
 
       <p className="wz-qhead">How&rsquo;s the paintwork holding up?</p>
       <div className="wz-cards">
-        {cond("good", "Good overall", "Sound paint, the odd mark — a repaint, not a rescue.")}
-        {cond("weathered", "Weathered", "Chalky or faded in places — extra preparation allowed for.")}
-        {cond("peeling", "Peeling & flaking", "Coming away in places — needs a proper look before a fixed price.")}
+        {cond("good", "Good overall", "A few spots to fill and the odd mark, but mostly sound — a wash, a light sand and a repaint rather than a rescue.")}
+        {cond("weathered", "Weathered", "Chalky, faded or thin in places, maybe a little lifting on the sunny side — more sanding and spot-priming is allowed for.")}
+        {cond("peeling", "Peeling & flaking", "Paint lifting or flaking with bare timber showing through — scraping back and proper preparation before any paint goes on, and a closer look before a fixed price.")}
       </div>
 
       {/* Tom, 7 Sep (late): the "built before 1970" question is gone — the office finds the build year itself. */}
@@ -3404,9 +3539,10 @@ const GEAR_LABEL: Record<WizardExterior["accessEquipment"][number], string> = {
 
 function PageExteriorExtras({ state, set, stepsTotal, stepNo = 5, embedPaint = true }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number; stepNo?: number; embedPaint?: boolean }) {
   const { ext, setExt } = useExt(state, set);
-  // Tom, 7 Sep: deck and fence are answered on "What are we painting?" now;
-  // this page keeps the things that are easy to forget.
-  const extra = (k: "pergola" | "balustrade", label: string) => (
+  // Tom, 7 Sep: deck and fence are answered on "What are we painting?" now —
+  // and the pergola since 5 Oct (it is sized there); this page keeps the
+  // things that are easy to forget.
+  const extra = (k: "balustrade", label: string) => (
     <button
       key={k}
       className={`wz-tile ${ext.extras[k] ? "on" : ""}`}
@@ -3421,7 +3557,6 @@ function PageExteriorExtras({ state, set, stepsTotal, stepNo = 5, embedPaint = t
       <h1>Anything else out there?</h1>
       <p className="wz-sub">The things that are easy to forget.</p>
       <div className="wz-tiles">
-        {extra("pergola", "Pergola")}
         {extra("balustrade", "Balustrades & hand rails")}
       </div>
       {embedPaint && <PagePaint state={state} set={set} embedded stepsTotal={stepsTotal} />}

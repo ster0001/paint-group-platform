@@ -172,11 +172,25 @@ export type DraftResult =
   | { ok: false; message: string };
 
 export async function draftRevisionVariationsAction(raw: unknown): Promise<DraftResult> {
-  const parsed = z.object({ estimateId: uuid }).safeParse(raw);
+  const parsed = z.object({ estimateId: uuid, sourceVariationId: uuid.optional() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
   const estimateId = parsed.data.estimateId;
+  // Tom, 7 Oct 2026: the painter's request the builder was opened from. The
+  // RPC writes the first addition INTO that row (once — it ignores the id
+  // for credits and once the request is no longer 'raised').
+  const sourceVariationId = parsed.data.sourceVariationId ?? null;
 
   const supabase = await createClient();
+
+  // The request keeps the category the painter chose (Bogging, Stain blocking…)
+  // when the office prices it — the RPC writes whatever category it is handed
+  // onto the adopted row, and it used to be handed "extra_scope" every time.
+  let sourceCategory: string | null = null;
+  if (sourceVariationId) {
+    const src = await supabase.from("wo_variations").select("category").eq("id", sourceVariationId).maybeSingle();
+    if (src.error) return { ok: false, message: `Could not read the painter's request: ${src.error.message}` };
+    sourceCategory = (src.data as { category?: string | null } | null)?.category?.trim() || null;
+  }
 
   const [{ data: scope }, { data: estimate }] = await Promise.all([
     supabase.from("wo_working_scopes")
@@ -252,7 +266,7 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
     const { data, error } = await supabase.rpc("wo_draft_revision_variation", {
       p_estimate_id: estimateId,
       p_block_ref: change.blockRef,
-      p_category: credit ? "scope_removed" : "extra_scope",
+      p_category: credit ? "scope_removed" : (sourceCategory ?? "extra_scope"),
       p_comment: comment,
       p_credit: credit,
       p_surface_keys: change.surfaceKeys,
@@ -271,6 +285,7 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
       p_priced_lines: pricedLines,
       p_hours: draftHours,
       p_contractor_rate_cents: rateCents,
+      p_source_variation_id: sourceVariationId,
     });
 
     const s = String(data ?? "");

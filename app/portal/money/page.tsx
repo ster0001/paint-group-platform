@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireContractor } from "@/lib/contractor/session";
+import BonusClaimCard from "./BonusClaimCard";
 import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
-import { reportIfError } from "@/lib/monitoring/report";
+import { reportError, reportIfError } from "@/lib/monitoring/report";
 import { missingProfileFields } from "@/lib/contractor/model";
 import { createClient } from "@/lib/supabase/server";
 import { contractorVariationsCents, type PayVariation } from "@/lib/workorder/contractorPay";
@@ -28,6 +29,14 @@ const CHIP: Record<string, { cls: string; label: string }> = {
  * contractor checks and submits it, rather than typing an invoice from
  * scratch. RLS scopes the list to their own rows.
  */
+/** Painter status Step 7 (Tom, 8 Oct 2026): approved bonuses not yet claimed — RLS returns only the painter's own approved / paid ones. */
+async function approvedBonuses(contractorId: string): Promise<{ id: string; amountCents: number; decidedAt: string | null }[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("painter_bonuses").select("id, amount_cents, decided_at, payment_ref").eq("painter_id", contractorId).eq("status", "approved").eq("payment_ref", "");
+  if (error) { reportError(error, { where: "portal.money.bonuses", bestEffort: true }); return []; }
+  return ((data ?? []) as { id: string; amount_cents: number | null; decided_at: string | null }[]).map((b) => ({ id: b.id, amountCents: b.amount_cents ?? 0, decidedAt: b.decided_at }));
+}
+
 export default async function MoneyPage() {
   const { contractor, capabilities } = await requireContractor();
   // Ruling 4: an employee's money tab is EXPENSES ONLY — no invoices, no
@@ -35,7 +44,7 @@ export default async function MoneyPage() {
   // invoice reads below ever run for them.
   if (!capabilities.canSelfInvoice) {
     if (!capabilities.canClaimExpenses || !contractor) notFound();
-    return <ExpensesOnly />;
+    return <ExpensesOnly contractorId={contractor?.id ?? null} />;
   }
   const missing = missingProfileFields(contractor);
   const supabase = await createClient();
@@ -75,7 +84,7 @@ export default async function MoneyPage() {
       : Promise.resolve({ data: [] }),
     woIds.length
       ? supabase.from("contractor_invoices")
-          .select("work_order_id, status, total_inc_cents")
+          .select("work_order_id, status, claimed_ex_cents")
           .in("work_order_id", woIds).neq("status", "draft")
       : Promise.resolve({ data: [] }),
   ]);
@@ -93,9 +102,11 @@ export default async function MoneyPage() {
       // snapshot's offer figure — an accepted job with an agreed amount must
       // never read as "nothing to invoice" (Tom, 25 Aug; the Josef data gap).
       adjustedCents: Math.max(0, Number(w.contractor_payment_cents ?? w.wo_snapshot?.contractorPaymentCents ?? 0) + contractorVariationsCents(vars)),
-      invoicedCents: ((ciTotals ?? []) as { work_order_id: string; total_inc_cents: number }[])
+      // Σ the ex-GST figure each invoice claimed — GST (when registered)
+      // sits on top and never eats into what remains (Tom, 7 Oct).
+      invoicedCents: ((ciTotals ?? []) as { work_order_id: string; claimed_ex_cents: number }[])
         .filter((c) => c.work_order_id === w.id)
-        .reduce((s, c) => s + c.total_inc_cents, 0),
+        .reduce((s, c) => s + c.claimed_ex_cents, 0),
       deductionPending: vars.some((v) => v.credit && v.needs_manual_deduction && v.deduction_cents == null),
     };
   });
@@ -138,10 +149,14 @@ export default async function MoneyPage() {
     workOrderId: w.id, title: titleByWo.get(w.id) ?? w.wo_ref,
   }));
 
+  const bonuses = contractor ? await approvedBonuses(contractor.id) : [];
+
   return (
     <div className="wrap">
       <h1>Invoicing</h1>
       <p className="slab">Your invoices to Paint Group — drafted for you at sign-off</p>
+
+      <BonusClaimCard bonuses={bonuses} employee={false} />
 
       {missing.length > 0 && (
         <div className="card amberish">
@@ -154,7 +169,7 @@ export default async function MoneyPage() {
         </div>
       )}
 
-      {missing.length === 0 && <RequestClaim jobs={claimJobs} />}
+      {missing.length === 0 && <RequestClaim jobs={claimJobs} gstRegistered={contractor?.gst_registered ?? false} />}
 
       {expenseJobs.length > 0 && (
         <Expenses jobs={expenseJobs} expenses={expenses} preapprovals={preapprovals}
@@ -183,7 +198,7 @@ export default async function MoneyPage() {
                 {ci.number ?? "Draft — no number until you submit"}
                 {ci.auto_draft_source === "claim"
                   ? ` · payment claim${ci.claim_pct ? ` (${Number(ci.claim_pct)}%)` : ""}`
-                  : ""}
+                  : ci.auto_draft_source === "bonus" ? " · bonus" : ""}
                 {" · "}{ci.work_orders?.wo_ref}
                 {ci.due_on ? ` · payment due ${new Date(ci.due_on + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}` : ""}
               </div>
@@ -219,8 +234,9 @@ export default async function MoneyPage() {
  * invoices exists on this page — not the composer, not the RCTI text, not a
  * job's contract figure. Jobs come through the money-free RPC.
  */
-async function ExpensesOnly() {
+async function ExpensesOnly({ contractorId }: { contractorId: string | null }) {
   const supabase = await createClient();
+  const bonuses = contractorId ? await approvedBonuses(contractorId) : [];
   const jobs = await listEmployeeJobs();
   const [expenseRes, preRes, settingsRes] = await Promise.all([
     supabase.from("contractor_expenses")
@@ -263,6 +279,7 @@ async function ExpensesOnly() {
     <div className="wrap" data-testid="expenses-only">
       <h1>Expenses</h1>
       <p className="slab">Receipts for things you bought for a job</p>
+      <BonusClaimCard bonuses={bonuses} employee />
       {failed.length > 0 && (
         <div className="err">Couldn&rsquo;t read your claims just now — pull down to refresh, or ring the office.</div>
       )}

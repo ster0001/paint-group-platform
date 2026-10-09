@@ -9,6 +9,13 @@ import { formatDMY } from "@/lib/scheduling/offers";
 import { isEmploymentType } from "@/lib/painters/capabilities";
 import DeleteContractor from "./DeleteContractor";
 import ContractorLogin from "./ContractorLogin";
+import ContractorMobile from "./ContractorMobile";
+import ContractorStatusPanel, { type BonusRow, type StatusRow } from "./ContractorStatusPanel";
+import { staffVisibility } from "@/lib/staff/gate";
+import ContractorBank from "./ContractorBank";
+import ContractorStandards from "./ContractorStandards";
+import { loadStandardsStatuses } from "@/lib/standards/status";
+import { staffStatusLine } from "@/lib/standards/acks";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +61,13 @@ export default async function ContractorDetailPage({ params }: { params: Promise
   const qaMode = c.qa_mode === "every_job" || c.qa_mode === "none" || c.qa_mode === "first_jobs"
     ? c.qa_mode : c.requires_qa ? "every_job" : "first_jobs";
   const failures: string[] = [];
+
+  // Finish standards (Step 2, ruling S7): confirmed date and version, or where they are.
+  const standardsRes = await loadStandardsStatuses(supabase);
+  if (standardsRes.error) failures.push("the finish standards status");
+  const standardsRow = standardsRes.rows.find((r) => r.contractorId === id) ?? null;
+  const standardsStatus = standardsRow?.status ?? "not_required";
+  const standardsLine = standardsRow ? staffStatusLine(standardsRow.status, { ...standardsRow, confirmedNo: standardsRow.confirmedVersion, now: new Date() }) : "No standards published";
 
   // Their jobs. A contractor holds the work order; an employed painter is on it
   // by assignment, so both paths are read and merged.
@@ -114,6 +128,23 @@ export default async function ContractorDetailPage({ params }: { params: Promise
     else email = u.user?.email ?? null;
   }
 
+  // Painter status Step 7: the colour, the Red clearance and the bonus reviews (owner / admin / PC read the amounts).
+  const [authRes, statusRes, bonusRes, rulesRes] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("painter_status").select("colour, line, streak, bonus_counter, offers_cleared_at, offers_cleared_reason, computed_at").eq("painter_id", id).maybeSingle(),
+    supabase.from("painter_bonuses").select("id, status, triggered_at, handed_over_at, suggested_cents, amount_cents, decided_at, note, qualifying_changed_at, qualifying_wo_ids, payment_ref").eq("painter_id", id).order("triggered_at", { ascending: false }),
+    supabase.from("settings").select("value").eq("key", "painter_status_rules").maybeSingle(),
+  ]);
+  if (statusRes.error) { reportError(statusRes.error, { where: "contractorDetail.status" }); failures.push("painter status"); }
+  if (bonusRes.error) { reportError(bonusRes.error, { where: "contractorDetail.bonuses" }); failures.push("bonus reviews"); }
+  if (rulesRes.error) reportError(rulesRes.error, { where: "contractorDetail.rules", bestEffort: true });
+  const isOwner = authRes.data.user ? (await staffVisibility(supabase, authRes.data.user.id)).isOwner : false;
+  const st = statusRes.data as { colour: string; line: string; streak: number; bonus_counter: number; offers_cleared_at: string | null; offers_cleared_reason: string; computed_at: string } | null;
+  const statusRow: StatusRow | null = st ? { colour: st.colour, line: st.line, streak: st.streak, bonusCounter: st.bonus_counter, clearedAt: st.offers_cleared_at, clearedReason: st.offers_cleared_reason, computedAt: st.computed_at } : null;
+  const bonuses: BonusRow[] = ((bonusRes.data ?? []) as { id: string; status: BonusRow["status"]; triggered_at: string; handed_over_at: string | null; suggested_cents: number; amount_cents: number | null; decided_at: string | null; note: string; qualifying_changed_at: string | null; qualifying_wo_ids: unknown; payment_ref: string }[])
+    .map((b) => ({ id: b.id, status: b.status, triggeredAt: b.triggered_at, handedOverAt: b.handed_over_at, suggestedCents: b.suggested_cents, amountCents: b.amount_cents, decidedAt: b.decided_at, note: b.note, qualifyingChangedAt: b.qualifying_changed_at, qualifyingCount: Array.isArray(b.qualifying_wo_ids) ? b.qualifying_wo_ids.length : 0, paymentRef: b.payment_ref }));
+  const approvalsOn = ((rulesRes.data as { value?: { bonusApprovalsEnabled?: unknown } } | null)?.value?.bonusApprovalsEnabled) === true;
+
   const docs = ((docsRes.error ? [] : docsRes.data ?? []) as ContractorDoc[]);
   const offers = (offersRes.error ? [] : offersRes.data ?? []) as { state: string }[];
   const invoices = (invoicesRes.error ? [] : invoicesRes.data ?? []) as { id: string; number: string | null; status: string; total_inc_cents: number; created_at: string }[];
@@ -146,9 +177,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
         <section className="rounded-lg border border-gray-200 bg-white p-4" data-testid="card-who">
           <h2 className="text-sm font-semibold">Their details</h2>
           <div className="mt-2">
-            <Field label="Mobile" value={c.phone?.trim()
-              ? <a href={`tel:${c.phone.replace(/\s+/g, "")}`} className="text-sky-700 hover:underline">{c.phone}</a>
-              : <span className="text-gray-400">not given</span>} />
+            <Field label="Mobile" value={<ContractorMobile id={c.id} phone={c.phone ?? null} />} />
             <Field label="Email" value={email
               ? <a href={`mailto:${email}`} className="text-sky-700 hover:underline">{email}</a>
               : <span className="text-gray-400">unknown</span>} />
@@ -158,8 +187,9 @@ export default async function ContractorDetailPage({ params }: { params: Promise
             <Field label="GST" value={c.gst_registered ? "Registered" : "Not registered"} />
             <Field label="Address" value={c.address?.trim() || <span className="text-gray-400">not given</span>} />
             <Field label="Weekends" value={`Sat ${c.works_saturday ? "yes" : "no"} · Sun ${c.works_sunday ? "yes" : "no"}`} />
-            <Field label="Bank" value={c.bank_account_last4 ? `${c.bank_bsb ?? "—"} · ···· ${c.bank_account_last4}` : <span className="text-gray-400">not on file</span>} />
+            <Field label="Bank" value={<ContractorBank id={c.id} bsb={c.bank_bsb ?? null} last4={c.bank_account_last4 ?? null} />} />
             <Field label="RCTI agreement" value={c.rcti_agreement_signed_at ? `signed ${formatDMY(c.rcti_agreement_signed_at.slice(0, 10))}` : "not signed"} />
+            <Field label="Finish standards" value={<ContractorStandards id={c.id} status={standardsStatus} line={standardsLine} />} />
           </div>
         </section>
 
@@ -193,6 +223,8 @@ export default async function ContractorDetailPage({ params }: { params: Promise
           )}
         </section>
       </div>
+
+      <ContractorStatusPanel painterId={id} status={statusRow} bonuses={bonuses} isOwner={isOwner} approvalsOn={approvalsOn} employee={employmentType === "employee"} />
 
       <section className="mt-4 rounded-lg border border-gray-200 bg-white p-4" data-testid="card-qa">
         <h2 className="text-sm font-semibold">

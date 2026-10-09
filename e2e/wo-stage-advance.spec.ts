@@ -174,3 +174,77 @@ test.describe("moving a job forward from the console", () => {
     expect((data as { evidence_pack_sent_at: string | null }).evidence_pack_sent_at).toBeTruthy();
   });
 });
+
+/**
+ * Tom, 6 Oct 2026 — "2 jobs stuck on In progress, all the boxes ticked but I
+ * can't move them to the next step." The console's one routed button ran the
+ * painter's finish and then the confirm; a finish refused for want of the
+ * job's after photos (Tom's 30 Sep rule) was DROPPED, so the confirm answered
+ * "not at prep" — a code, with nothing to do about it. The office now sees
+ * what is left before it presses, the refusal in words, and has a way
+ * through: upload the after photos itself, or waive them with a reason.
+ */
+test.describe("the office's next step from In progress", () => {
+  test.skip(!staff || !contractor, missingCreds("STAFF"));
+  test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to build the fixture job");
+
+  let ticked: LoopFixture | null = null;
+
+  test.beforeAll(async () => {
+    const contractorId = await contractorIdForEmail(db!, contractor!.email);
+    ticked = await createLoopFixture(db!, contractorId!, [{ heading: "Front", labels: ["Walls", "Doors"] }]);
+    await db!.from("work_orders").update({ stage: "in_progress" }).eq("id", ticked.workOrderId);
+    // Every box ticked — by hand, the way the office does from Painter's view.
+    await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", ticked.workOrderId);
+    await completePrep(db!, staff!, ticked.workOrderId);
+  });
+
+  test.afterAll(async () => { await destroyLoopFixture(db!, ticked); });
+
+  test("with the boxes ticked and no after photos, the card says so before and after the press", async ({ page }) => {
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`/pc/wo/${ticked!.workOrderId}`);
+
+    // Before the press: the one thing left is named.
+    await expect(page.getByTestId("readiness-after-photos")).toContainText(/after photos/i);
+    await expect(page.getByTestId("readiness-after-photos")).toHaveAttribute("data-done", "0");
+
+    await page.getByTestId("advance-confirm-prep").click();
+    const message = page.getByTestId("stage-message");
+    await expect(message).toContainText("after photos");
+    await expect(message).not.toContainText("not at prep");
+
+    const { data } = await db!.from("work_orders").select("stage").eq("id", ticked!.workOrderId).single();
+    expect((data as { stage: string }).stage).toBe("in_progress");
+  });
+
+  test("the office waives the after photos with a reason, and the same button moves the job", async ({ page }) => {
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`/pc/wo/${ticked!.workOrderId}`);
+
+    await page.getByTestId("waive-after-photos-open").click();
+    await page.getByTestId("waive-after-photos-reason").fill("Painter sent the finished shots by text — filed on the estimate.");
+    await page.getByTestId("waive-after-photos-confirm").click();
+    await expect(page.getByTestId("stage-message")).toContainText("without after photos");
+
+    // The waiver is a record on the job, not a UI state.
+    const { data: events } = await db!.from("wo_events")
+      .select("type, actor_kind, meta").eq("work_order_id", ticked!.workOrderId).eq("type", "after_photos_waived");
+    expect((events ?? []).length).toBe(1);
+    expect(((events ?? []) as { actor_kind: string }[])[0].actor_kind).toBe("staff");
+
+    // Only the office can waive — the painter's own rule stands.
+    expect(await rpcAs(contractor!, "wo_staff_waive_after_photos", { p_work_order_id: ticked!.workOrderId, p_reason: "x" })).toBe("error:not_staff");
+
+    // Any check the console scheduled for a new contractor would park the job
+    // at Quality check; settle it so this press is about leaving In progress.
+    await db!.from("wo_qa_checks").delete().eq("work_order_id", ticked!.workOrderId);
+
+    await page.getByTestId("advance-confirm-prep").click();
+    await expect(page.getByTestId("stage-moved")).toContainText(/Quality check|Walkthrough|Closed/);
+
+    const { data } = await db!.from("work_orders").select("stage").eq("id", ticked!.workOrderId).single();
+    expect((data as { stage: string }).stage).not.toBe("in_progress");
+    expect((data as { stage: string }).stage).not.toBe("completion_prep");
+  });
+});

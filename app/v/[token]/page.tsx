@@ -1,3 +1,4 @@
+import { variationCategoryLabel } from "@/lib/workorder/variations";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -23,13 +24,6 @@ type Row = {
   estimate_token: string | null;
 };
 
-const CATEGORY_LABEL: Record<string, string> = {
-  rot: "Rot / substrate",
-  damage: "Damage",
-  extra_scope: "Extra scope",
-  customer_request: "Your request",
-  scope_removed: "Scope reduced",
-};
 
 /**
  * A priced OFFER, as a mini-estimate: every change behind this token (one, or
@@ -91,7 +85,8 @@ export default async function VariationPage({ params }: { params: Promise<{ toke
   // approved once signed; declined only if every row was declined.
   const pending = rows.some((r) => r.status === "priced");
   const status = pending ? "priced"
-    : rows.some((r) => r.status === "customer_approved" || r.status === "contractor_accepted") ? "customer_approved"
+    // Tom, 7 Oct 2026: a row the PAINTER declined still carries the customer's signature — that is the customer's answer.
+    : rows.some((r) => r.status === "customer_approved" || r.status === "contractor_accepted" || (r.status === "declined" && r.signed_at != null)) ? "customer_approved"
     : "declined";
   const netCents = rows.reduce((s, r) => s + offerRowCents(r), 0);
   const credit = netCents < 0;
@@ -129,7 +124,7 @@ export default async function VariationPage({ params }: { params: Promise<{ toke
           const lines = Array.isArray(row.priced_lines) ? row.priced_lines : [];
           return (
             <div className="cv-card" key={row.id} data-testid="offer-item">
-              <div className="cv-cat">{CATEGORY_LABEL[row.category] ?? row.category}</div>
+              <div className="cv-cat">{variationCategoryLabel(row.category, "customer")}</div>
               <p className="cv-comment">&ldquo;{row.comment}&rdquo;</p>
               {photos.length > 0 ? (
                 <div className="cv-photos" data-testid="variation-photos">

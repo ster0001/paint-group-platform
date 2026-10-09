@@ -62,6 +62,45 @@ test.describe("contractor portal", () => {
     await expect(page.getByRole("heading", { name: /my profile/i })).toBeVisible();
     await expect(page.locator("body")).toContainText(/ready for work|not yet offerable/i);
   });
+
+  // Tom, 7 Oct 2026: a mobile is required. With none on file the profile says
+  // so and refuses the other saves; the field cannot be cleared or half-typed.
+  test("the profile requires a mobile: no other save until it is on file, and it cannot be cleared", async ({ page }) => {
+    const db = serviceClient();
+    test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to blank and restore the painter's mobile");
+    const id = await contractorIdForEmail(db!, creds!.email);
+    expect(id).toBeTruthy();
+    const { data: before } = await db!.from("contractors").select("phone").eq("id", id!).single();
+    const original = (before as { phone: string | null }).phone;
+    try {
+      const blank = await db!.from("contractors").update({ phone: null }).eq("id", id!);
+      expect(blank.error?.message ?? "").toBe("");
+
+      await signIn(page, creds!, /\/portal/);
+      await page.goto("/portal/profile");
+      await expect(page.getByTestId("mobile-required")).toBeVisible();
+      // Company details refuse until the mobile is there.
+      await page.getByRole("button", { name: /^save$/i }).first().click();
+      await expect(page.locator("body")).toContainText(/add your mobile first/i);
+
+      await page.getByTestId("contractor-phone").fill("0400 1");
+      await page.getByRole("button", { name: /save mobile/i }).click();
+      await expect(page.getByTestId("phone-card")).toContainText(/full Australian mobile/i);
+
+      await page.getByTestId("contractor-phone").fill("0400 555 666");
+      await page.getByRole("button", { name: /save mobile/i }).click();
+      await expect(page.getByTestId("phone-card")).toContainText(/saved/i);
+      await expect(page.getByTestId("mobile-required")).toHaveCount(0);
+
+      await page.getByTestId("contractor-phone").fill("");
+      await page.getByRole("button", { name: /save mobile/i }).click();
+      await expect(page.getByTestId("phone-card")).toContainText(/can't be cleared/i);
+      const { data: after } = await db!.from("contractors").select("phone").eq("id", id!).single();
+      expect((after as { phone: string | null }).phone).toBe("0400 555 666");
+    } finally {
+      await db!.from("contractors").update({ phone: original }).eq("id", id!);
+    }
+  });
 });
 
 /**

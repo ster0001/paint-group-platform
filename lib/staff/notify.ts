@@ -66,6 +66,24 @@ export function recipientsFor(
   return out;
 }
 
+/**
+ * The staff logins, with the sign-in email of everyone who takes `key` by
+ * email — the input recipientsFor() reads. Throws when the list cannot be
+ * read: "nobody is ticked" and "we could not look" must never look alike.
+ */
+export async function loadStaffForEvent(
+  service: SupabaseClient,
+  key: StaffEventKey,
+): Promise<Array<StaffProfile & { email: string | null }>> {
+  const { data: rows, error } = await service.from("profiles").select("id, name, phone, staff_notify").eq("role", "staff");
+  if (error) throw new Error(`staff list: ${error.message}`);
+  return Promise.all(((rows ?? []) as StaffProfile[]).map(async (p) => {
+    if (!wantsChannel(parseStaffNotify(p.staff_notify), key, "email")) return { ...p, email: null };
+    const { data: u } = await service.auth.admin.getUserById(p.id);
+    return { ...p, email: u?.user?.email ?? null };
+  }));
+}
+
 export async function notifyStaff(service: SupabaseClient, alert: StaffAlert): Promise<StaffAlertOutcome> {
   try {
     const { messaging, company } = await loadMessaging(service);
@@ -86,15 +104,7 @@ export async function notifyStaff(service: SupabaseClient, alert: StaffAlert): P
     const claimId = (claim.data as { id: string }[] | null)?.[0]?.id;
     if (!claimId) return "already";
 
-    const { data: rows } = await service.from("profiles").select("id, name, phone, staff_notify").eq("role", "staff");
-    const staff = (rows ?? []) as StaffProfile[];
-    const withEmail = await Promise.all(staff.map(async (p) => {
-      const wantsEmail = wantsChannel(parseStaffNotify(p.staff_notify), alert.key, "email");
-      if (!wantsEmail) return { ...p, email: null };
-      const { data: u } = await service.auth.admin.getUserById(p.id);
-      return { ...p, email: u?.user?.email ?? null };
-    }));
-    const recipients = recipientsFor(withEmail, alert.key, alert.skipEmails);
+    const recipients = recipientsFor(await loadStaffForEvent(service, alert.key), alert.key, alert.skipEmails);
     if (recipients.length === 0) {
       await service.from("staff_notifications").update({ recipients: [] }).eq("id", claimId);
       return "nobody";
@@ -273,6 +283,197 @@ export async function staffContractorInvoice(service: SupabaseClient, invoiceId:
     });
   } catch (e) {
     reportError(e, { where: "staffContractorInvoice", extra: { invoiceId } });
+    return "error";
+  }
+}
+
+// ---- Tom, 7 Oct 2026: PC Command alerts ------------------------------------
+
+/** The painter declined a change the client approved — back with the office. Once per variation. */
+export async function staffVariationDeclinedByPainter(service: SupabaseClient, variationId: string): Promise<StaffAlertOutcome> {
+  try {
+    const { data, error } = await service
+      .from("wo_variations")
+      .select("id, est_hours, contractor_decline_note, work_orders(id, wo_ref, estimate_id, estimates(title, sent_snapshot), contractors(company_name, profiles(name)))")
+      .eq("id", variationId).maybeSingle();
+    if (error) throw error;
+    const v = data as {
+      id: string; est_hours: number | null; contractor_decline_note: string | null;
+      work_orders: (WoJoin & { contractors: { company_name: string | null; profiles: { name: string | null } | null } | null }) | null;
+    } | null;
+    if (!v?.work_orders) return "error";
+    const painter = (v.work_orders.contractors?.profiles?.name || v.work_orders.contractors?.company_name || "The painter").trim();
+    const job = jobTitle(v.work_orders.estimates, v.work_orders.wo_ref);
+    const comment = (v.contractor_decline_note ?? "").trim() || "(no note)";
+    const hours_line = v.est_hours ? ` (${v.est_hours} h)` : "";
+    return notifyStaff(service, {
+      key: "office_variation_declined", entityId: v.id,
+      subject: `Painter declined an approved change — ${job}`,
+      message: `${painter} has declined the change the client approved on ${v.work_orders.wo_ref} (${job})${hours_line}.\n\nThey wrote: “${comment}”\n\nIt is back with you in PC Command — revise it with the client, or set the painter's amount.`,
+      link: `${siteUrl()}/pc/wo/${v.work_orders.id}#variation-${v.id}`,
+      templates: { subject: "officeVariationDeclinedSubject", body: "officeVariationDeclinedBody" },
+      vars: { painter, job, wo_ref: v.work_orders.wo_ref, hours_line, comment },
+      estimateId: v.work_orders.estimate_id,
+    });
+  } catch (e) {
+    reportError(e, { where: "staffVariationDeclinedByPainter", extra: { variationId } });
+    return "error";
+  }
+}
+
+/**
+ * Tom, 9 Oct 2026: a painter wrote in a project's Messages box. The PC work
+ * item ("<painter> replied on <job>") is the record and clears when someone
+ * reads the thread; this is the OPTIONAL email/text, for whoever ticks
+ * "Painter message" under Staff logins — nobody is ticked by default. Once
+ * per burst: the post only asks for it when the thread's staff side was not
+ * told in the last 10 minutes (wo_message_post), and the claim is per message.
+ * Deliberately NOT tagged with the estimate: an emailed reply to this alert
+ * must never land in the customer's estimate chat.
+ */
+export async function staffPainterMessage(service: SupabaseClient, messageId: string): Promise<StaffAlertOutcome> {
+  try {
+    const { data, error } = await service
+      .from("wo_messages")
+      .select("id, author_kind, body, photo_paths, notify_status, wo_message_threads(work_order_id, contractor_id, contractors(company_name, profiles(name)), work_orders(id, wo_ref, estimate_id, estimates(title, sent_snapshot)))")
+      .eq("id", messageId).maybeSingle();
+    if (error) throw error;
+    const m = data as {
+      id: string; author_kind: string; body: string; photo_paths: string[]; notify_status: string | null;
+      wo_message_threads: {
+        work_order_id: string; contractor_id: string;
+        contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
+        work_orders: WoJoin | null;
+      } | null;
+    } | null;
+    const t = m?.wo_message_threads;
+    if (!m || !t?.work_orders || m.author_kind !== "painter" || m.notify_status === "batched") return "already";
+    const painter = (t.contractors?.profiles?.name || t.contractors?.company_name || "The painter").trim();
+    const job = jobTitle(t.work_orders.estimates, t.work_orders.wo_ref);
+    const photos = m.photo_paths.length;
+    const message = [m.body.trim(), photos ? `(${photos} photo${photos === 1 ? "" : "s"} attached)` : ""].filter(Boolean).join(" ");
+    const outcome = await notifyStaff(service, {
+      key: "office_painter_message", entityId: m.id,
+      subject: `${painter} replied on ${t.work_orders.wo_ref} — ${job}`,
+      message: `${painter} wrote about ${t.work_orders.wo_ref} (${job}):\n\n“${message}”\n\nRead it and reply in PC Command.`,
+      link: `${siteUrl()}/pc/wo/${t.work_order_id}?painter=${t.contractor_id}#messages`,
+      templates: { subject: "officePainterMessageSubject", body: "officePainterMessageBody" },
+      vars: { painter, job, wo_ref: t.work_orders.wo_ref, message },
+    });
+    const { error: recErr } = await service.from("wo_messages")
+      .update({ notify_status: outcome === "sent" ? "sent" : outcome === "off" ? "off" : "skipped", notify_detail: `Office alert: ${outcome}` })
+      .eq("id", m.id);
+    if (recErr) reportError(recErr, { where: "staffPainterMessage.record", bestEffort: true });
+    return outcome;
+  } catch (e) {
+    reportError(e, { where: "staffPainterMessage", extra: { messageId } });
+    return "error";
+  }
+}
+
+async function woForAlert(service: SupabaseClient, workOrderId: string) {
+  const { data, error } = await service
+    .from("work_orders")
+    .select("id, wo_ref, estimate_id, estimates(title, sent_snapshot), contractors(company_name, profiles(name))")
+    .eq("id", workOrderId).maybeSingle();
+  if (error) throw error; // the callers' try/catch reports it
+  const w = data as (WoJoin & { contractors: { company_name: string | null; profiles: { name: string | null } | null } | null }) | null;
+  if (!w) return null;
+  return {
+    w,
+    painter: (w.contractors?.profiles?.name || w.contractors?.company_name || "The painter").trim(),
+    job: jobTitle(w.estimates, w.wo_ref),
+  };
+}
+
+/** A customer update was drafted from the painter's ticks — confirm and send it. Once per job per Melbourne day. */
+export async function staffCustomerUpdateDrafted(service: SupabaseClient, workOrderId: string, day: string): Promise<StaffAlertOutcome> {
+  try {
+    const got = await woForAlert(service, workOrderId);
+    if (!got) return "error";
+    const { w, painter, job } = got;
+    return notifyStaff(service, {
+      key: "office_update_drafted", entityId: `${w.id}:${day}`,
+      subject: `Customer update ready to send — ${job}`,
+      message: `${painter} has updated their work order on ${w.wo_ref} (${job}). A customer update has been drafted from it — read it, change anything, and send it.`,
+      link: `${siteUrl()}/pc/updates`,
+      templates: { subject: "officeUpdateDraftedSubject", body: "officeUpdateDraftedBody" },
+      vars: { painter, job, wo_ref: w.wo_ref, hours_line: "", comment: "" },
+      estimateId: w.estimate_id,
+    });
+  } catch (e) {
+    reportError(e, { where: "staffCustomerUpdateDrafted", extra: { workOrderId } });
+    return "error";
+  }
+}
+
+/** The customer is due an update and nothing is drafted — write one. Once per job per Melbourne day while due. */
+export async function staffCustomerUpdateDue(service: SupabaseClient, workOrderId: string, day: string, quietDays: number): Promise<StaffAlertOutcome> {
+  try {
+    const got = await woForAlert(service, workOrderId);
+    if (!got) return "error";
+    const { w, painter, job } = got;
+    const hours_line = quietDays > 0 ? ` — nothing sent for ${quietDays} day${quietDays === 1 ? "" : "s"}` : "";
+    return notifyStaff(service, {
+      key: "office_update_due", entityId: `${w.id}:${day}`,
+      subject: `Customer update due — ${job}`,
+      message: `The customer on ${w.wo_ref} (${job}) is due an update${hours_line}. Nothing is drafted — write them a line on progress from the job page.`,
+      link: `${siteUrl()}/pc/wo/${w.id}`,
+      templates: { subject: "officeUpdateDueSubject", body: "officeUpdateDueBody" },
+      vars: { painter, job, wo_ref: w.wo_ref, hours_line, comment: "" },
+      estimateId: w.estimate_id,
+    });
+  } catch (e) {
+    reportError(e, { where: "staffCustomerUpdateDue", extra: { workOrderId } });
+    return "error";
+  }
+}
+
+// ---- Painter status Step 7 (brief §9 message 9): the owner --------------------
+
+/** A bonus review was raised — the owner sets the amount. Once per review. */
+export async function staffBonusReview(service: SupabaseClient, bonusId: string): Promise<StaffAlertOutcome> {
+  try {
+    const { data, error } = await service.from("painter_bonuses")
+      .select("id, painter_id, qualifying_wo_ids, contractors(company_name, profiles(name))").eq("id", bonusId).maybeSingle();
+    if (error) throw error;
+    const b = data as { id: string; painter_id: string; qualifying_wo_ids: unknown; contractors: { company_name: string | null; profiles: { name: string | null } | null } | null } | null;
+    if (!b) return "error";
+    const painter = (b.contractors?.profiles?.name || b.contractors?.company_name || "A painter").trim();
+    const count = String(Array.isArray(b.qualifying_wo_ids) ? b.qualifying_wo_ids.length : 4);
+    return notifyStaff(service, {
+      key: "office_bonus_review", entityId: b.id,
+      subject: `Bonus review due — ${painter}`,
+      message: `${painter} has ${count} clean jobs of 16 hours or more while on Green. Set the amount and approve or decline on their page.`,
+      link: `${siteUrl()}/contractors/${b.painter_id}`,
+      templates: { subject: "officeBonusReviewSubject", body: "officeBonusReviewBody" },
+      vars: { painter, count },
+    });
+  } catch (e) {
+    reportError(e, { where: "staffBonusReview", extra: { bonusId } });
+    return "error";
+  }
+}
+
+/** A painter dropped to Red. Keyed on the status-change event so each drop is told once. */
+export async function staffPainterRed(service: SupabaseClient, painterId: string, changeEventId: string): Promise<StaffAlertOutcome> {
+  try {
+    const { data, error } = await service.from("painter_status")
+      .select("line, contractors(company_name, profiles(name))").eq("painter_id", painterId).maybeSingle();
+    if (error) throw error;
+    const s = data as { line: string; contractors: { company_name: string | null; profiles: { name: string | null } | null } | null } | null;
+    const painter = (s?.contractors?.profiles?.name || s?.contractors?.company_name || "A painter").trim();
+    const line = s?.line || "";
+    return notifyStaff(service, {
+      key: "office_painter_red", entityId: changeEventId,
+      subject: `${painter} dropped to Red`,
+      message: `${painter} is now on Red: ${line} No new job offers go to them until you record "Spoken with, offers allowed" on their page.`,
+      link: `${siteUrl()}/contractors/${painterId}`,
+      templates: { subject: "officePainterRedSubject", body: "officePainterRedBody" },
+      vars: { painter, line },
+    });
+  } catch (e) {
+    reportError(e, { where: "staffPainterRed", extra: { painterId } });
     return "error";
   }
 }

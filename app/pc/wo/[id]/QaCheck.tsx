@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { recordQa, tickQaItem } from "../../actions";
+import { logCallbackAction } from "@/app/pc/callbackActions";
 import { uploadFailureText, uploadWorkOrderMedia } from "@/lib/workorder/uploadMedia";
 
 export type QaStandard = { id: string; label: string; detail: string; done: boolean };
@@ -28,6 +29,7 @@ export type QaCheckView = {
  * re-finish brings the job back here and THAT card is the one with controls.
  * The failed card stays as the record and says where its re-check went.
  */
+
 export default function QaCheck({ check, workOrderId }: { check: QaCheckView; workOrderId: string }) {
   const router = useRouter();
   const [standards, setStandards] = useState(check.standards);
@@ -43,6 +45,11 @@ export default function QaCheck({ check, workOrderId }: { check: QaCheckView; wo
   // job's fail card. Multiple allowed.
   const [failPhotos, setFailPhotos] = useState(0);
   const [uploading, setUploading] = useState(false);
+  // Step 3 route 1 (ruling C2/C4): a logged FAIL asks whether the painter can
+  // rectify today (a failed check, no call back) or it needs another day.
+  const [askCallback, setAskCallback] = useState(false);
+  const [callbackDate, setCallbackDate] = useState("");
+  const [callbackDone, setCallbackDone] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
 
   async function uploadFailPhoto(file: File) {
@@ -86,6 +93,7 @@ export default function QaCheck({ check, workOrderId }: { check: QaCheckView; wo
         setResult(outcome);
         setMessage(r.message ?? null);
         setFailing(false);
+        if (outcome === "fail") setAskCallback(true);
         // The last PASS sends the pack and the job moves to Walkthrough; a FAIL
         // sends it back to In progress. Either way the rest of this page (next
         // step, walkthrough card, rail) must show the new stage — refresh it.
@@ -97,6 +105,19 @@ export default function QaCheck({ check, workOrderId }: { check: QaCheckView; wo
 
   const kindLabel = check.kind === "mid" ? "mid-job" : check.kind.replace(/_/g, " ");
 
+  function logCallback() {
+    setMessage(null);
+    startTransition(async () => {
+      const r = await logCallbackAction({
+        workOrderId, source: "qc_fail", reason: "workmanship", qaCheckId: check.id,
+        description: label.trim() ? `Quality check failed: ${label.trim()}` : "Quality check failed",
+        returnStart: callbackDate || null, returnEnd: callbackDate || null,
+      });
+      if (r.ok) { setCallbackDone(r.message); setAskCallback(false); router.refresh(); }
+      else setMessage(r.message);
+    });
+  }
+
   if (result) {
     // A fail logged this session has its re-check on the way (the refresh
     // draws it); one loaded from the record has it already.
@@ -104,6 +125,20 @@ export default function QaCheck({ check, workOrderId }: { check: QaCheckView; wo
     return (
       <div className="card" data-testid={`qa-${check.id}`}>
         <h3>Quality check <em>{kindLabel}{check.retryOf ? " · re-check" : ""}</em></h3>
+        {askCallback && (
+          <div className="card" style={{ borderColor: "rgba(224,168,60,.45)" }} data-testid={`qa-callback-ask-${check.id}`}>
+            <h3>Can the contractor rectify today, or is it a call back?</h3>
+            <p className="note">Fixed today: a failed check, no call back. Another day: a call back is logged against the painter and the return visit goes in their scheduler.</p>
+            <div className="row" style={{ alignItems: "flex-end" }}>
+              <button type="button" className="btn" disabled={pending} onClick={() => setAskCallback(false)} data-testid={`qa-callback-today-${check.id}`}>Fixed today</button>
+              <label className="fld">Return visit
+                <input type="date" className="num" style={{ width: 150 }} value={callbackDate} onChange={(e) => setCallbackDate(e.target.value)} data-testid={`qa-callback-date-${check.id}`} />
+              </label>
+              <button type="button" className="btn primary" disabled={pending} onClick={logCallback} data-testid={`qa-callback-yes-${check.id}`}>Call back</button>
+            </div>
+          </div>
+        )}
+        {callbackDone && <p className="note" data-testid={`qa-callback-done-${check.id}`}>{callbackDone}</p>}
         <p className="note" data-testid={`qa-result-${check.id}`}>
           Logged: <b style={{ color: result === "pass" ? "var(--emerald)" : "var(--clay)" }}>
             {result.toUpperCase()}
@@ -130,6 +165,10 @@ export default function QaCheck({ check, workOrderId }: { check: QaCheckView; wo
       </p>
 
       {message && <p className="note" style={{ color: "var(--amber)" }} data-testid={`qa-msg-${check.id}`}>{message}</p>}
+
+      {/* The finish standard for each surface on the job, at the job's level —
+          the same record the painter opened from their work order, so both
+          sides judge against the same words. */}
 
       {standards.map((s) => (
         <button key={s.id} type="button" className={`chk ${s.done ? "on" : ""}`}

@@ -5,7 +5,7 @@ title: Offer a job to a painter and manage the booking on the scheduling board
 summary: How the Schedule tab works — drag an accepted job onto a contractor's row to send a 24-hour offer, or onto an employed painter's row to assign it (several painters, one lead), handle proposals and reschedule requests, cancel or move a booking, and what the customer receives.
 walkthrough: media/staff-walkthrough.gif
 sources: app/pc/schedule, lib/scheduling, lib/workorder/appointmentEmail.ts
-verified_at_commit: b75c8dc899
+verified_at_commit: 327435ea3a
 ---
 
 ## What this is for
@@ -31,6 +31,11 @@ The scheduling board is where an accepted job gets a painter and dates. Every is
 6. Click the block at any time to see its details: dates, reference, price, finish and **Expires in**. From here you can **Cancel this offer** with a reason, which returns the job to the tray, or **Open the job — stage view**.
    ![](media/staff-04.png)
 
+### Who to offer it to: the traffic light on every lane
+1. Every lane carries the painter's status in words — **GREEN**, **YELLOW**, **NEW**, **ORANGE**, **RED** — and the lanes are in that order, Green first (Yellow and New together). You still choose; nothing is offered automatically.
+2. **RED · NO OFFERS** means an offer to them will be refused until the owner records "Spoken with, offers allowed" on their page (Contractors → name → Status and bonus). The re-offer picker on PC Command leaves them out for the same reason.
+3. A Red employed painter cannot be set as lead on a new job either — same clearance.
+
 ### When the contractor proposes a different date
 7. A proposal appears at the top of the tray under **Needs your decision**, with the contractor's name, **PROPOSED A NEW DATE**, the date they want and their note. Ring the customer first, then tap **Approve** or **Reject**. The amber countdown on this card is your clock, not theirs; it turns red when overdue.
    ![](media/staff-05.png)
@@ -49,6 +54,14 @@ The scheduling board is where an accepted job gets a painter and dates. Every is
     ![](media/staff-08.png)
 12. To reassign, drag an existing block onto another contractor's row. The **Move this booking?** sheet opens; confirming cancels the old booking and sends a fresh 24-hour offer to the new contractor.
 
+### Changing the finish date of a job under way
+A job in progress (a cyan block) cannot be dragged: the painter has started, so its start date stays where it is. Its last day can still move.
+1. Click the job's block. The sheet shows **Finish date — the job has started, so the start stays**, with a date box holding the current last day.
+2. Pick the new last day. The line underneath reads **Last day …**; if you picked a day the painter does not work (a weekend, unless they work Saturdays or Sundays), it moves to their next working day and says so.
+3. Tap **Save finish date**. The message reads "Finish date moved to … The final walkthrough moved with it." The block on the board grows or shrinks to the new day.
+The booking, the job's own dates, the painter's job page, their Google Calendar and a booked final walkthrough (same time, new day) all follow. The same box is on a green (accepted) block's sheet when only the last day needs to change. A date before the job started is refused: "That's before the job started — pick a later day."
+For a job with employed painters, open each painter's block and change the second date of **… days on this job**; once the job is running and their first day has passed, their start date box is locked.
+
 ### When an offer lapses
 13. An offer not answered within 24 hours is withdrawn on its own. The tray shows a banner, "1 offer came back to you", and the job card carries an amber note naming the contractor who did not accept. Offer it to someone else.
     ![](media/staff-09.png)
@@ -59,8 +72,8 @@ The scheduling board is where an accepted job gets a painter and dates. Every is
 ### A second visit on a job already booked
 Sometimes a painter has to break off a job for a day or two — a small job in between — and come back to it later. The job needs a **second run of days** on the board, not a new booking.
 1. Drag across **empty space** on the painter's row, over the days of the return visit. The sheet that opens has three tabs at the top: **Block out**, **Extra visit** and **Hold**. Tap **Extra visit**.
-2. Under **Which job**, pick the job the visit belongs to. Only jobs this painter already has on the board are listed; if the list is empty, drop the job from the tray first.
-3. Add a note if it helps ("back to finish the ceilings") and tap **Add the visit**. The job appears a second time on the row, in its own colour (green, cyan or dashed-green exactly as the first block), labelled **EXTRA VISIT** with a dotted left edge. The painter sees the extra days in their portal calendar.
+2. Under **Which project**, type two or more letters of the job's reference, title, address or the customer's name. Every project is searched, whatever its status — a finished job counts, for a touch-up — and open jobs list first. Tap the result; **Change** picks a different one. With the box empty, the jobs already on this painter's row are offered as quick picks. You can add as many visits to a row as you need, for the same project or different ones.
+3. Add a note if it helps ("back to finish the ceilings") and tap **Add the visit**. The job appears on the row in its colour (green, or cyan while in progress), labelled **EXTRA VISIT** with a dotted left edge. The painter sees the days in their portal calendar; on a project they are not otherwise on, the day shows as **Extra visit** with your note.
 4. Drag the visit along the row to move it (**Move this visit?** → **Move visit**). Click it and tap **Remove this visit** to take it off; the job's own booking is untouched. An extra visit does not change the painter's price — it is more days on a job they already have.
 
 ### Holding days while the client decides
@@ -101,9 +114,9 @@ When a client is close to saying yes and you want to keep the painter's week for
 - **"This contractor has blocked these days out."** You can still send, but expect a decline or a proposal. Better to pick different days or another row.
 - **The send fails with a message about the walkthrough.** Enter both a date and a time, or tick **Walkthrough not required**.
 - **The contractor cannot be offered a job.** Check **Contractors** in the sidebar: their insurance has lapsed or they are suspended. They upload a new certificate in their portal profile.
-- **"That painter isn't booked on this job."** An extra visit can only go on a job the painter already has. Drop the job on their row first, then add the visit.
 - **A pink hold is still there after the job was booked.** It clears on its own only when the job it names is booked. A hold with no job, or one for a different job, is released by hand from the block.
 - **A job you expected is not in the tray.** It has a live offer or an accepted booking already (look along the rows), or its work order has not been issued.
+- **"This job has started, so its start date stays."** You tried to move the start of a running job. Change the finish date from the job's block instead.
 - **The customer did not get a confirmation.** Check **Settings → Messaging** is configured and the automation is on; the overnight sweep resends anything missed.
 
 ## Related

@@ -92,17 +92,15 @@ test.describe("save-and-return", () => {
     const anon = await browser.newContext({ ...devices["iPhone 13"] });
     const p1 = await anon.newPage();
     /**
-     * ⚑1 in practice: nothing asked for an email on the way to the price, so
-     * the customer gives one at the REVEAL, through "Keep this estimate" —
-     * which is also what creates the account the magic link then signs into.
+     * The customer's email files the account the magic link then signs into.
+     * Under S6's "details first" (the default since 7 Oct 2026) it is given at
+     * the last question, before the range, and the reveal shows no Keep door;
+     * under "range first" it is given at the reveal through "Keep this
+     * estimate". The driver walks whichever this environment shows.
      */
-    await driveNoPlanWizard(p1, { stopAtReveal: true });
+    await driveNoPlanWizard(p1, { stopAtReveal: true, email: returnEmail });
     const estimateId = await p1.getByTestId("reveal").getAttribute("data-estimate-id");
     expect(estimateId).toBeTruthy();
-    await p1.getByTestId("door-keep").click();
-    await p1.getByTestId("reveal-keep-email").fill(returnEmail);
-    await p1.getByTestId("reveal-keep-send").click();
-    await expect(p1.getByTestId("reveal-kept")).toContainText(returnEmail, { timeout: 30_000 });
     await anon.close();
 
     // A fresh browser (no anonymous session) with the emailed link.

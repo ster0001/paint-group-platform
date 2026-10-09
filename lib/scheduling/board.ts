@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { loadStandardsStatuses } from "@/lib/standards/status";
 import { addDays } from "./dates";
 import { reportIfError } from "@/lib/monitoring/report";
 import { OFFER_COLUMNS, effectiveState, isLive, type BookingOffer } from "./offers";
@@ -39,7 +40,16 @@ export type Lane = {
   /** Tom, 22 Sep: the days this painter works besides Monday–Friday; a booking's end date skips the rest. */
   worksSaturday?: boolean;
   worksSunday?: boolean;
+  /** Standards Step 2 (ruling S6): confirmed / grace / blocked… — "blocked" means send_offer refuses. */
+  standardsStatus?: string;
+  /** Painter status Step 7 (⚑7): the traffic-light colour; lanes sort Green first. Absent until the evaluator has run. */
+  statusColour?: "new" | "green" | "yellow" | "orange" | "red";
+  /** ⚑8: Red with no owner clearance — send_offer refuses. */
+  offersBlocked?: boolean;
 };
+
+/** ⚑7: Green first, then Yellow and New, then Orange, then Red. */
+export const STATUS_ORDER: Record<NonNullable<Lane["statusColour"]>, number> = { green: 0, yellow: 1, new: 1, orange: 2, red: 3 };
 
 /**
  * `assigned` = an employee's assignment (S2). Hollow until they tap Accept.
@@ -279,9 +289,12 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       // Tom, 1 Oct: extra visits on booked jobs, and the office's holds. Both
       // small and windowed; both staff-readable only (the painter reads their
       // own visits in the portal, never a hold).
+      // The job rides along: a visit can be on ANY project (Tom, 4 Oct — a
+      // touch-up on a finished job), so it cannot rely on the board's own
+      // work-order read, which leaves closed jobs out.
       supabase
         .from("wo_appointments")
-        .select("id, work_order_id, contractor_id, start_date, end_date, note")
+        .select("id, work_order_id, contractor_id, start_date, end_date, note, work_orders ( id, estimate_id, wo_ref, stage, status, wo_snapshot, issued_at, estimates ( title ) )")
         .lte("start_date", to)
         .gte("end_date", from),
       supabase
@@ -310,6 +323,16 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     hErr && `holds: ${hErr.message}`,
   ].filter(Boolean) as string[];
 
+  // Finish standards (Step 2): which lanes send_offer would refuse. Reported if
+  // it cannot be read; the lanes then carry no status and the RPC still refuses.
+  const standardsRes = await loadStandardsStatuses(supabase);
+  if (standardsRes.error) errors.push(`standards: ${standardsRes.error}`);
+  const standardsOf = new Map(standardsRes.rows.map((r) => [r.contractorId, r.status as string]));
+  // Painter status Step 7 (⚑7, ⚑8): the colour on every lane, and whether a Red is cleared.
+  const statusRes = await supabase.from("painter_status").select("painter_id, colour, offers_cleared_at");
+  if (statusRes.error) errors.push(`painter status: ${statusRes.error.message}`);
+  const statusOf = new Map(((statusRes.data ?? []) as { painter_id: string; colour: Lane["statusColour"]; offers_cleared_at: string | null }[]).map((r) => [r.painter_id, r]));
+
   type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; employment_type?: string | null; works_saturday?: boolean | null; works_sunday?: boolean | null; profiles: { name: string | null } | null };
   const lanes: Lane[] = ((contractors as CRow[] | null) ?? []).map((c) => ({
     contractorId: c.id,
@@ -324,7 +347,12 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     worksSunday: Boolean(c.works_sunday),
     // Anything but the literal 'employee' is a contractor — lib/painters/capabilities rule.
     employmentType: c.employment_type === "employee" ? "employee" : "contractor",
+    standardsStatus: standardsOf.get(c.id),
+    statusColour: statusOf.get(c.id)?.colour,
+    offersBlocked: statusOf.get(c.id)?.colour === "red" && !statusOf.get(c.id)?.offers_cleared_at,
   }));
+  // ⚑7: the picker IS the lane order — Green first; ties keep the name order the query gave.
+  lanes.sort((a, b) => (a.statusColour ? STATUS_ORDER[a.statusColour] : 1) - (b.statusColour ? STATUS_ORDER[b.statusColour] : 1));
 
   // Jobs with a crew of employees on them. The lead IS work_orders.contractor_id,
   // so the "direct assignment" block below must not draw the job a second time.
@@ -441,9 +469,10 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
 
   // --- extra visits: more days on a job the painter already has (Tom, 1 Oct) ---
   // Same colour as the job's own block, so the board reads "this job, again".
-  for (const a of ((appointmentRows ?? []) as AppointmentRow[])) {
-    const w = woById.get(a.work_order_id);
-    if (!w || w.stage === "closed") continue;
+  type ApptJoin = AppointmentRow & { work_orders: Pick<WRow, "id" | "estimate_id" | "wo_ref" | "stage" | "status" | "wo_snapshot" | "issued_at" | "estimates"> | null };
+  for (const a of ((appointmentRows ?? []) as unknown as ApptJoin[])) {
+    const w = woById.get(a.work_order_id) ?? a.work_orders;
+    if (!w) continue; // the job was deleted under it; the row cascades away
     const doc = snapshotOf(w.wo_snapshot);
     const asEmployee = (assignmentsByWo.get(a.work_order_id) ?? []).some((x) => x.contractor_id === a.contractor_id);
     blocks.push({
@@ -453,7 +482,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       contractorId: a.contractor_id,
       start: a.start_date,
       end: a.end_date,
-      title: doc?.jobTitle || w.wo_ref,
+      title: doc?.jobTitle || w.estimates?.title || w.wo_ref,
       woRef: w.wo_ref,
       workOrderId: w.id,
       offerId: null,

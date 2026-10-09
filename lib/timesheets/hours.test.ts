@@ -27,15 +27,15 @@ describe("timesheet hours (Session 6)", () => {
     expect(melbourneClock("2026-09-16T21:00:00Z")).toBe("07:00");
   });
 
-  test("the payroll CSV carries hours only — no rate, no pay, no cents column", () => {
+  test("the payroll CSV carries hours only on a timesheet row — no rate, no pay; the one money column is the bonus (⚑11)", () => {
     const csv = payrollCsv([{
       painter: "Alfa Painter", woRef: "WO-TEST1", workDate: "2026-09-17",
       startedAt: "2026-09-17T07:00:00+10:00", finishedAt: "2026-09-17T15:06:00+10:00",
       breakMinutes: 30, source: "pc", approvedAt: "2026-09-17T16:00:00+10:00",
     }]);
-    expect(csv.split("\n")[0]).toBe("painter,job,date,start,finish,break_minutes,hours,source,approved_at");
+    expect(csv.split("\n")[0]).toBe("painter,job,date,start,finish,break_minutes,hours,source,approved_at,bonus_cents");
     expect(csv).toContain("Alfa Painter,WO-TEST1,2026-09-17,07:00,15:06,30,7.60,pc,");
-    expect(csv).not.toMatch(/rate|pay|cents|\$/i);
+    expect(csv.split("\n")[1]).not.toMatch(/rate|pay|cents|\$/i);
   });
 
   test("a painter name with a comma is quoted", () => {
@@ -51,5 +51,10 @@ describe("timesheet hours (Session 6)", () => {
     expect(allocatedHours({ areas: [{ surfaces: [{ hours: 2 }, { hours: 1.5 }] }, { surfaces: [{ hours: "4" }] }] })).toBe(7.5);
     expect(allocatedHours(null)).toBe(0);
     expect(allocatedHours({ areas: "nope" })).toBe(0);
+  });
+
+  test("an employed lead's approved bonus is its own row — hours 0, source bonus, the amount in the last column (⚑11)", () => {
+    const csv = payrollCsv([], [{ painter: "Lead Painter", woRef: "WO-9", decidedOn: "2026-10-08", amountCents: 50_000, approvedAt: "2026-10-08T03:00:00Z" }]);
+    expect(csv.split("\n")[1]).toBe("Lead Painter,WO-9,2026-10-08,,,0,0.00,bonus,2026-10-08T03:00:00Z,50000");
   });
 });

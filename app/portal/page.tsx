@@ -10,6 +10,15 @@ import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 import { createClient } from "@/lib/supabase/server";
 import { loadMyTimesheet } from "@/lib/contractor/timesheets";
 import TimesheetCard from "./TimesheetCard";
+import { redirect } from "next/navigation";
+import { loadMyStandards } from "@/lib/standards/status";
+import { needsSignoff, painterStatusLine } from "@/lib/standards/acks";
+import { loadMyCallbacks } from "@/lib/callbacks/load";
+import { callbackLine } from "@/lib/callbacks/model";
+import { loadMyStatus } from "@/lib/painterStatus/mine";
+import StatusCard from "./StatusCard";
+import { loadMyThreads } from "@/lib/workorder/messagesLoad";
+import { messageWhen } from "@/lib/workorder/messageModel";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +33,7 @@ const melbourneDate = () =>
 const firstName = (full: string) => full.trim().split(/\s+/)[0] || "there";
 
 export default async function PortalHome() {
-  const { name, contractor, capabilities } = await requireContractor();
+  const { name, contractor, capabilities, employmentType } = await requireContractor();
 
   // Staff haven't finished setting this account up.
   if (!contractor) {
@@ -41,6 +50,23 @@ export default async function PortalHome() {
       </div>
     );
   }
+
+  // Finish standards (Step 2): a painter whose grace has run out, or who just
+  // joined, sees the sign-off and nothing else until it is done (full screen
+  // when the gate applies — brief §7). Jobs in progress are untouched: the
+  // Jobs tab and every job page stay open. A refused read is reported and
+  // the Home simply shows no standards card.
+  const supabaseForStandards = await createClient();
+  const { my: myStandards } = await loadMyStandards(supabaseForStandards, contractor.id);
+  if (myStandards?.status === "blocked") redirect("/portal/standards/confirm");
+
+  // Call backs (Step 3): open ones about this painter, or booked for them to fix.
+  const myCallbacks = await loadMyCallbacks(supabaseForStandards, contractor.id);
+  // Messages with the office (Tom, 9 Oct 2026): one thread per job, named by
+  // job ref + suburb only; their own threads, through their session.
+  const myMessages = await loadMyThreads(supabaseForStandards);
+  // Painter status (Step 6): their own row, or nothing — RLS decides (⚑21, R17).
+  const { status: myStatus } = await loadMyStatus(supabaseForStandards, contractor.id);
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
   const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
@@ -152,6 +178,8 @@ export default async function PortalHome() {
 
       {docsError && <div className="err">{docsErrorMessage(docsError)}</div>}
 
+      {myStatus && <StatusCard status={myStatus} lead={employmentType === "employee"} />}
+
       {/* Can this contractor be offered work? The single most important fact —
           for a contractor. An employee is assigned, never offered (ruling 1). */}
       {capabilities.acceptsOffers && (
@@ -211,6 +239,34 @@ export default async function PortalHome() {
         </div>
       )}
 
+      {/* Messages from the office, one line per job (Tom, 9 Oct 2026). */}
+      <div className={`card${myMessages.threads.some((t) => t.unread > 0) ? " amberish" : ""}`} data-testid="home-messages">
+        <h3>Messages</h3>
+        {myMessages.failure && <p className="hint" role="status">{myMessages.failure}</p>}
+        {myMessages.threads.length === 0 && !myMessages.failure && (
+          <p className="hint" style={{ padding: 0, marginTop: 4 }}>
+            Nothing yet. When the office writes to you about a job it shows here, and you can reply — with photos — from the job page.
+          </p>
+        )}
+        {myMessages.threads.map((t) => (
+          <Link key={t.threadId} href={`/portal/jobs/${t.workOrderId}#messages`} className="act" data-testid={`home-message-${t.workOrderId}`}>
+            <i aria-hidden>✉</i>
+            <span style={{ minWidth: 0 }}>
+              <span data-testid="home-message-job">{t.label}</span>
+              <br />
+              <span style={{ fontSize: "12px", color: "var(--muted)", overflowWrap: "anywhere" }}>
+                {t.lastLine}{t.lastAt ? ` · ${messageWhen(t.lastAt)}` : ""}
+              </span>
+            </span>
+            <span className="push">
+              {t.unread > 0
+                ? <span className="chip amb" data-testid="home-message-unread">{t.unread} new</span>
+                : <span className="chip gry">Read</span>}
+            </span>
+          </Link>
+        ))}
+      </div>
+
       {/* Variations the customer has approved, waiting on the painter. */}
       {waitingVariations.length > 0 && (
         <div className="card amberish" data-testid="home-variations">
@@ -226,6 +282,25 @@ export default async function PortalHome() {
               <span className="push">
                 <span className="chip amb">{v.credit ? "Acknowledge" : "Approve"}</span>
               </span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Call backs (Step 3): what is wrong and when to go back. */}
+      {(myCallbacks.callbacks.length > 0 || myCallbacks.error) && (
+        <div className="card amberish" data-testid="home-callbacks">
+          <h3>Call backs</h3>
+          {myCallbacks.error && <p className="hint">{myCallbacks.error}</p>}
+          {myCallbacks.callbacks.map((c) => (
+            <Link key={c.id} href={`/portal/jobs/${c.workOrderId}`} className="act" data-testid={`home-callback-${c.id}`}>
+              <i aria-hidden>↩</i>
+              <span>
+                {jobTitle.get(c.workOrderId) ?? "A finished job"}
+                <br />
+                <span style={{ fontSize: "12px", color: "var(--muted)" }}>{c.description || callbackLine(c)}</span>
+              </span>
+              <span className="push"><span className="chip cly">{c.status === "fixed" ? "Waiting" : "Call back"}</span></span>
             </Link>
           ))}
         </div>
@@ -261,6 +336,26 @@ export default async function PortalHome() {
               workOrderId={o.offer.work_order_id} myBlocks={[]} myJobDays={[]} />
           ))}
         </div>
+      )}
+
+      {/* Finish standards (Step 1): the rule book every job is judged against,
+          one tap from Home as the mockup draws it. The confirmed date and
+          version join this card in Step 2. */}
+      {myStandards && needsSignoff(myStandards.status) ? (
+        <Link href="/portal/standards/confirm" className="card amberish" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-standards-signoff">
+          <span className="chip amb">Please confirm</span>
+          <h3 style={{ marginTop: 8 }}>Read and confirm the finish standards</h3>
+          <p className="hint" style={{ marginTop: 2 }}>{painterStatusLine(myStandards.status, myStandards)} About 10 minutes, six short sections. Start ›</p>
+        </Link>
+      ) : (
+        <Link href="/portal/help/standards" className="card" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-standards">
+          <span className="slab" style={{ marginBottom: 4 }}>Finish standards</span>
+          <h3>What we expect on every surface</h3>
+          {myStandards?.status === "confirmed" && (
+            <div style={{ marginTop: 6 }}><span className="chip grn" data-testid="home-standards-confirmed">✓ {painterStatusLine("confirmed", myStandards)}</span></div>
+          )}
+          <p className="hint" style={{ marginTop: 2 }}>Open standards ›</p>
+        </Link>
       )}
 
       {/* Real jobs once any have been issued; otherwise say so plainly. */}

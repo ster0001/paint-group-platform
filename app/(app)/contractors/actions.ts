@@ -9,6 +9,7 @@ import { reportError } from "@/lib/monitoring/report";
 import { createServiceClient } from "@/lib/supabase/service";
 import { PASSWORD_MIN, sendPasswordResetLink, setPasswordForUser } from "@/lib/auth/adminPassword";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { isAuMobile } from "@/lib/validation/contact";
 
 /**
  * Tom, 18 Sep 2026: "send an invitation link to them when registering on the
@@ -180,4 +181,181 @@ export async function sendContractorResetLinkAction(raw: unknown): Promise<Login
   const t = await painterLogin(parsed.data.id);
   if (!t.ok) return t;
   return sendPasswordResetLink({ email: t.email, firstName: t.name });
+}
+
+/**
+ * Tom, 7 Oct 2026: nine jobs' "update your work order" texts went nowhere
+ * because three painters had no mobile on file and only the painter could
+ * add one. The office now types it on the painter's page. A full Australian
+ * mobile or nothing — a half number is what makes a text vanish silently —
+ * and the contractors_staff_all policy is the gate (a non-staff session
+ * updates no row, which the action reports as not found).
+ */
+export type SetMobileResult = { ok: boolean; message: string; phone?: string | null };
+
+export async function setContractorMobileAction(raw: unknown): Promise<SetMobileResult> {
+  const parsed = z.object({ id: uuid, phone: z.string().max(40) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't read that — try again." };
+  const phone = parsed.data.phone.trim();
+  if (phone && !isAuMobile(phone)) {
+    return { ok: false, message: "That doesn't look like a full Australian mobile (04xx xxx xxx) — texts can't reach it." };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("contractors")
+    .update({ phone: phone || null }).eq("id", parsed.data.id).select("id, phone").maybeSingle();
+  if (error) { reportError(error, { where: "contractors.setMobile" }); return { ok: false, message: "Couldn't save the mobile — it has been reported." }; }
+  if (!data) return { ok: false, message: "Couldn't find that painter." };
+  revalidatePath(`/contractors/${parsed.data.id}`);
+  revalidatePath("/contractors");
+  const saved = (data as { phone: string | null }).phone;
+  return { ok: true, phone: saved, message: saved ? `Saved. Job offers, variations and work-order reminders now text ${saved}.` : "Mobile cleared — they will get no texts until one is added." };
+}
+
+/**
+ * Tom, 7 Oct 2026: "no way to see their bank details". The account number is
+ * encrypted at rest and shown masked; this is the click that reveals it, through
+ * `contractor_get_bank` (definer: is_staff() or self, logs a `bank_viewed`
+ * event for staff — 20270223). Nothing is cached: the number lives in the
+ * client's state only until they hide it or leave the page.
+ */
+export type RevealBankResult = { ok: true; bsb: string; account: string } | { ok: false; message: string };
+
+export async function revealContractorBankAction(raw: unknown): Promise<RevealBankResult> {
+  const parsed = z.object({ id: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't find that painter." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("contractor_get_bank", { p_contractor_id: parsed.data.id });
+  if (error) {
+    reportError(error, { where: "contractors.revealBank" });
+    if (error.code === "42501") return { ok: false, message: "Revealing bank details needs migration 20270223 on this database." };
+    return { ok: false, message: /not authorised/.test(error.message) ? "Only staff can see a painter's bank details." : "Couldn't read the bank details — it has been reported." };
+  }
+  const row = (Array.isArray(data) ? data[0] : data) as { bsb: string | null; account: string | null } | undefined;
+  if (!row) return { ok: false, message: "Couldn't find that painter." };
+  return { ok: true, bsb: row.bsb ?? "", account: row.account ?? "" };
+}
+
+// ---- Finish standards (brief Step 2) -----------------------------------------
+import { loadStandardsStatuses } from "@/lib/standards/status";
+import { sendStandardsInvite, sendStandardsReminder } from "@/lib/standards/notify";
+import { notifyBonusApproved } from "@/lib/painterStatus/notify";
+
+export type StandardsActionResult = { ok: true; message: string } | { ok: false; message: string };
+
+/**
+ * Invite one existing painter to confirm the standards (message 1): the RPC
+ * records the invite and starts the grace period (the gate), then the message
+ * goes through the dispatcher and leaves an outcome on the record. Staff only
+ * (the RPC refuses anyone else).
+ */
+export async function inviteStandardsAction(raw: unknown): Promise<StandardsActionResult> {
+  const parsed = z.object({ id: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't read that — try again." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("standards_invite", { p_contractor_id: parsed.data.id });
+  if (error) { reportError(error, { where: "standards.invite" }); return { ok: false, message: "Couldn't record the invite — it has been reported." }; }
+  const r = String(data ?? "");
+  if (r === "error:already_confirmed") return { ok: false, message: "They have already confirmed the standards." };
+  if (!r.startsWith("ok:")) return { ok: false, message: `Couldn't invite them (${r}).` };
+  const service = createServiceClient();
+  const outcome = service ? await sendStandardsInvite(service, parsed.data.id) : "no service client";
+  revalidatePath("/contractors"); revalidatePath(`/contractors/${parsed.data.id}`);
+  return { ok: true, message: outcome === "sent" ? "Invited. The text and email have gone; their grace period has started." : `Invited and the grace period has started, but the message was not sent (${outcome}) — check their mobile and email.` };
+}
+
+/** Invite every active painter who has not been invited yet, in one press (launch day). */
+export async function inviteAllStandardsAction(): Promise<StandardsActionResult> {
+  const supabase = await createClient();
+  const { rows, error } = await loadStandardsStatuses(supabase);
+  if (error) return { ok: false, message: `Couldn't read who has signed (${error}).` };
+  const { data: active, error: aErr } = await supabase.from("contractors").select("id").eq("active", true);
+  if (aErr) return { ok: false, message: "Couldn't read the painters." };
+  const activeIds = new Set(((active ?? []) as { id: string }[]).map((c) => c.id));
+  const due = rows.filter((r) => activeIds.has(r.contractorId) && (r.status === "not_invited" || (r.status === "employee_unsigned" && !r.invitedAt)));
+  let sent = 0, failed = 0;
+  for (const r of due) {
+    const res = await inviteStandardsAction({ id: r.contractorId });
+    if (res.ok) sent += 1; else failed += 1;
+  }
+  return { ok: true, message: `Invited ${sent} painter${sent === 1 ? "" : "s"}${failed ? `, ${failed} failed` : ""}.` };
+}
+
+/** Send the reminder text now (message 2) — the PC queue card's action and the detail page's button. */
+export async function remindStandardsAction(raw: unknown): Promise<StandardsActionResult> {
+  const parsed = z.object({ id: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't read that — try again." };
+  const supabase = await createClient();
+  const { data: status, error } = await supabase.rpc("standards_status", { p_contractor_id: parsed.data.id });
+  if (error) return { ok: false, message: "Couldn't read their status." };
+  if (status === "confirmed") return { ok: false, message: "They have already confirmed the standards." };
+  const service = createServiceClient();
+  if (!service) return { ok: false, message: "No service client." };
+  const outcome = await sendStandardsReminder(service, parsed.data.id, "office");
+  revalidatePath("/pc"); revalidatePath(`/contractors/${parsed.data.id}`);
+  return outcome === "sent" ? { ok: true, message: "Reminder text sent." } : { ok: false, message: `Reminder not sent (${outcome}) — do they have a mobile on file?` };
+}
+
+// ---- Painter status Step 7: the Red clearance and the bonus review ----------
+
+export type StatusActionResult = { ok: boolean; message: string };
+
+/** ⚑8: the owner records "Spoken with, offers allowed" with a reason. Lasts until the colour next changes. */
+export async function clearRedAction(raw: unknown): Promise<StatusActionResult> {
+  const parsed = z.object({ id: uuid, reason: z.string().trim().min(3).max(500) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Write a short reason first (what was agreed)." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("painter_clear_red", { p_painter_id: parsed.data.id, p_reason: parsed.data.reason });
+  if (error) { reportError(error, { where: "status.clearRed" }); return { ok: false, message: "Couldn't record it — it has been reported." }; }
+  const r = String(data ?? "");
+  if (r === "error:not_owner") return { ok: false, message: "Only the owner can clear a Red painter for offers." };
+  if (r === "error:not_red") return { ok: false, message: "They are not on Red — nothing to clear." };
+  if (!r.startsWith("ok:")) return { ok: false, message: `Couldn't record it (${r}).` };
+  revalidatePath(`/contractors/${parsed.data.id}`); revalidatePath("/pc"); revalidatePath("/pc/schedule");
+  return { ok: true, message: "Recorded. Offers to them are allowed again until their colour next changes." };
+}
+
+/** "Tell Tom": the PC hands a due review to the owner. */
+export async function bonusHandOverAction(raw: unknown): Promise<StatusActionResult> {
+  const parsed = z.object({ bonusId: uuid, painterId: uuid.optional() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't read that — try again." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("bonus_hand_over", { p_id: parsed.data.bonusId });
+  if (error) { reportError(error, { where: "bonus.handOver" }); return { ok: false, message: "Couldn't hand it over — it has been reported." }; }
+  const r = String(data ?? "");
+  if (r === "error:not_due") return { ok: false, message: "This review is already with the owner or decided." };
+  if (!r.startsWith("ok:")) return { ok: false, message: `Couldn't hand it over (${r}).` };
+  revalidatePath("/pc"); if (parsed.data.painterId) revalidatePath(`/contractors/${parsed.data.painterId}`);
+  return { ok: true, message: "Handed to Tom. It stays on the painter's page until he decides." };
+}
+
+/** The owner approves (with the amount, dollars in) or declines. Approve is refused while the Settings switch is off. */
+export async function bonusDecideAction(raw: unknown): Promise<StatusActionResult> {
+  const parsed = z.object({
+    bonusId: uuid, painterId: uuid, approve: z.boolean(),
+    amount: z.coerce.number().min(0).max(100_000).optional(), note: z.string().trim().max(500).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Check the amount and try again." };
+  const v = parsed.data;
+  const cents = v.approve ? Math.round((v.amount ?? 0) * 100) : null;
+  if (v.approve && (!cents || cents <= 0)) return { ok: false, message: "Enter the bonus amount in dollars." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("bonus_decide", { p_id: v.bonusId, p_approve: v.approve, p_amount_cents: cents, p_note: v.note });
+  if (error) { reportError(error, { where: "bonus.decide" }); return { ok: false, message: "Couldn't record the decision — it has been reported." }; }
+  const r = String(data ?? "");
+  if (r === "error:not_owner") return { ok: false, message: "Only the owner decides a bonus." };
+  if (r === "error:approvals_off") return { ok: false, message: "Bonus approvals are switched off until the GST and payroll questions are settled (Settings → painter_status_rules.bonusApprovalsEnabled). Declining still works." };
+  if (!r.startsWith("ok:")) return { ok: false, message: `Couldn't record it (${r}).` };
+  let told = "";
+  if (v.approve && cents) {
+    const service = createServiceClient();
+    if (service) {
+      const { data: c, error: cErr } = await service.from("contractors").select("employment_type").eq("id", v.painterId).maybeSingle();
+      if (cErr) reportError(cErr, { where: "bonus.decide.painter", bestEffort: true });
+      const employee = (c as { employment_type?: string } | null)?.employment_type === "employee";
+      const outcome = await notifyBonusApproved(service, v.painterId, v.bonusId, cents, employee);
+      told = outcome === "sent" ? (employee ? " They have been told it goes on their next pay run." : " They have been told and can claim it in the app.") : ` The text was not sent (${outcome}).`;
+    }
+  }
+  revalidatePath(`/contractors/${v.painterId}`); revalidatePath("/pc"); revalidatePath("/portal/money");
+  return { ok: true, message: v.approve ? `Approved.${told}` : "Declined and recorded." };
 }

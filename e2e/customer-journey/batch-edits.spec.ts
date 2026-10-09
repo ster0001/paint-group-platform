@@ -55,13 +55,19 @@ test.describe("batched edits", () => {
     const id = new URL(page.url()).searchParams.get("id")!;
     const seed = await post(page, id, { view: "customer", action: "iloop_dw", ok: true });
     const areaId = (seed.json.scopeRooms ?? [])[0]?.areaId as number;
+    // Since 7 Oct (badc7058) cupboards start ANSWERED — a robe Yes (2), a kitchen No — so the
+    // never-runs action must ask for the OPPOSITE of where this room starts, or it proves nothing.
+    type Cup = { on?: boolean; count?: number | null } | null | undefined;
+    const startCup = ((seed.json.interiorLoop?.rooms ?? []) as Array<{ areaId: number; cupboard?: Cup }>)
+      .find((x) => x.areaId === areaId)?.cupboard ?? null;
+    const flipped = startCup?.on === true ? { on: false, count: null } : { on: true, count: 7 };
 
     const r = await post(page, id, {
       view: "customer",
       actions: [
         { action: "room_size_ok", areaId },                       // applies
         { action: "confirm_room_loop", areaId: 999999 },           // refused
-        { action: "room_cupboard", areaId, on: true, count: 2 },   // never runs
+        { action: "room_cupboard", areaId, ...flipped },           // never runs
       ],
     });
     expect(r.status).toBe(200);
@@ -69,7 +75,8 @@ test.describe("batched edits", () => {
     expect(r.json.appliedCount).toBe(1);
     const room = r.json.interiorLoop.rooms.find((x: { areaId: number }) => x.areaId === areaId);
     expect(room.size, "work done before the refusal is NOT thrown away").toBe("yes");
-    expect(room.cupboard?.on ?? null, "nothing after the refusal is applied").not.toBe(true);
+    expect(room.cupboard?.on ?? null, "nothing after the refusal is applied").toBe(startCup?.on ?? null);
+    expect(room.cupboard?.count ?? null).toBe(startCup?.count ?? null);
   });
 
   test("a batch whose FIRST action fails answers as an error, saving nothing", async ({ page }) => {

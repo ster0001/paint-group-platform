@@ -246,16 +246,19 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
     await expect(page.getByTestId("completion-report")).not.toContainText(CREW_NAME);
   });
 
-  test("6 · the lead's day is approved onto the job, and the office is nudged once it has waited a day", async ({ page }) => {
+  test("6 · the lead's day lands on the job approved, and nothing about it waits on Today (Tom, 7 Oct 2026: salaried, no approval step)", async ({ page }) => {
     const rec = await rpcAs(staff!, "timesheet_record", {
       p_contractor_id: leadCid, p_work_order_id: fixture!.workOrderId,
       p_started_at: new Date(Date.now() - 30 * 3_600_000).toISOString(), p_finished_at: new Date(Date.now() - 26 * 3_600_000).toISOString(), p_break_minutes: 0,
     });
     expect(rec).toMatch(/^ok:/);
+    const { data: day } = await db!.from("timesheet_entries").select("status, approved_by").eq("id", rec.slice(3)).single();
+    expect((day as { status: string }).status).toBe("approved");
+    expect((day as { approved_by: string | null }).approved_by).toBeNull();
     await signIn(page, staff!, /\/(home|estimates)/);
-    expect(await onToday(page, "approvals", new RegExp(`1 clocked day from ${LEAD_NAME} waiting on approval`))).toBe(true);
-    expect(await rpcAs(staff!, "timesheet_approve", { p_entry_id: rec.slice(3) })).toMatch(/^ok:/);
     expect(await onToday(page, "approvals", new RegExp(`clocked day from ${LEAD_NAME}`))).toBe(false);
+    // Approving by hand is idempotent — the same cost line, nothing posted twice.
+    expect(await rpcAs(staff!, "timesheet_approve", { p_entry_id: rec.slice(3) })).toMatch(/^ok:/);
     const { data: costs } = await db!.from("job_costs").select("amount_ex_cents").eq("work_order_id", fixture!.workOrderId).eq("category", "labour");
     expect((costs as { amount_ex_cents: number }[]).map((c) => c.amount_ex_cents)).toEqual([20_000]); // 4 h × $50
   });

@@ -1,5 +1,5 @@
 import { test, expect, devices } from "@playwright/test";
-import { driveNoPlanWizard, MONEY_RANGE } from "./drive";
+import { driveNoPlanWizard, MONEY_RANGE, passGateIfShown } from "./drive";
 
 /**
  * The QUICK LOOK — estimator journey v2 §3, phase 2.
@@ -9,9 +9,12 @@ import { driveNoPlanWizard, MONEY_RANGE } from "./drive";
  * is now the thing under test instead: **under a minute, under ten taps, and
  * the price before the contact form.**
  *
- *  1. Four screens, and the last button says "See my guide range" — then a
- *     range appears with the customer's own answers read back under it, with
- *     no name, email or phone asked for anywhere along the way (⚑1).
+ *  1. Four screens with no name, email or phone asked for on the way (⚑1).
+ *     Since S6 (7 Oct 2026, "details first", the default) the last button
+ *     leads to ONE contact question — name, email, mobile — and the range
+ *     follows it; under "range first" the button says "See my guide range"
+ *     and the range comes straight away. Either way the customer's own
+ *     answers are read back under the range.
  *  2. The answers really do drive the room tree: a 5-bedroom home prices
  *     above a 2-bedroom one, from the same four screens.
  *  3. The door style, which the quick look deliberately never asks, is still
@@ -19,7 +22,7 @@ import { driveNoPlanWizard, MONEY_RANGE } from "./drive";
  */
 
 test.describe("the quick look", () => {
-  test("four screens to a guide range, and not one contact field on the way", async ({ browser }) => {
+  test("four screens with not one contact field on the way, then the details question, then a guide range", async ({ browser }) => {
     test.setTimeout(120_000);
     const ctx = await browser.newContext({ ...devices["iPhone 13"] });
     const page = await ctx.newPage();
@@ -60,22 +63,28 @@ test.describe("the quick look", () => {
     await page.getByTestId("ql-next").click();
 
     await expect(page.locator("[data-quick-step='condition']")).toBeVisible();
-    await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range/);
+    await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range|Continue to the last question/);
 
-    // ⚑1: nothing has asked who they are. That is the whole point.
+    // ⚑1: nothing on the four screens has asked who they are.
     await expect(page.locator(".wz-crow input")).toHaveCount(0);
     await expect(page.getByText(/Who should we send your estimate to/)).toHaveCount(0);
 
     await page.getByTestId("ql-next").click();
+    // S6: under "details first" the one contact question comes here, then the range.
+    const gateShown = await passGateIfShown(page);
 
     // The reveal: a RANGE, their own answers read back, and three doors.
     await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
     await expect(page.getByTestId("reveal-restatement")).toContainText("4-bedroom");
     await expect(page.getByTestId("reveal-restatement")).toContainText("the same colours");
-    for (const door of ["door-tighten", "door-book", "door-keep"]) {
+    for (const door of ["door-tighten", "door-book"]) {
       await expect(page.getByTestId(door)).toBeVisible();
     }
+    // "Keep this estimate" asks for an email — so it is offered only when the
+    // details question did not already take one (range first).
+    if (gateShown) await expect(page.getByTestId("door-keep")).toHaveCount(0);
+    else await expect(page.getByTestId("door-keep")).toBeVisible();
     // Every assumption we made for them is listed, not hidden.
     await page.getByTestId("reveal-assumed-toggle").click();
     await expect(page.getByTestId("reveal-assumed-hazards")).toBeVisible();

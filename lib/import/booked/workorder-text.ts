@@ -30,6 +30,8 @@
  *     "Total" ↵ "Prep: 4" ↵ "+" ↵ "Painting: 17" ↵ "=" ↵ "21"   (the Prep block is absent when zero)
  *     heading ↵ "hr" ↵ description… ↵ "3" ↵ "Total" ↵ "Painting: 3" ↵ "=" ↵ "3"   crew work with no lines
  *     heading ↵ "hr" ↵ description… ↵ "Total"   a heading with neither lines nor hours
+ *   "Surfaces" …                                 the same areas regrouped by substrate (Tom, 8 Oct
+ *                                                2026 — 15 Pelmet Cres): a summary, never a job area
  *   "Options" … "Media" …                        not part of the job: ignored
  */
 
@@ -42,6 +44,8 @@ export type ParsedWorkOrderItem = {
   product: string;
   /** Litres PaintScout allowed for this line, when printed. */
   litres: number | null;
+  /** PaintScout's materials cost for this line, in cents ("- 175.50 Litre - $1800.00"), when printed. */
+  materialCents: number | null;
 };
 
 export type ParsedWorkOrderArea = {
@@ -62,7 +66,7 @@ export type ParsedWorkOrder = {
   totalHours: number | null;
   /** Sum of every line's hours plus the total of every hours-only area — the figure the builder will carry. */
   hoursFromLines: number;
-  materials: Array<{ product: string; litres: number | null }>;
+  materials: Array<{ product: string; litres: number | null; costCents: number | null }>;
   totalDimensions: Record<string, number>;
   areas: ParsedWorkOrderArea[];
   /** Headings printed under "Options" — priced extras the customer did not take. Never imported. */
@@ -72,8 +76,14 @@ export type ParsedWorkOrder = {
 const itemRe = /^(.{2,60}?)\s*\((\d+(?:\.\d+)?)\s*(m²|m2|m)?\)$/;
 const dimsRe = /^\(([\d.]+)'?\s*x\s*([\d.]+)'?(?:\s*x\s*([\d.]+)'?)?\)$/i;
 const bareNumber = /^\d+(?:\.\d+)?$/;
-const productLineRe = /^(.+?)\s+-\s+([\d.]+)\s*litres?\s+-\s+\$/i;
-const materialRe = /^(.+?)\s*\(Estimated:\s*([\d.]+)\s*litres?\b.*\)$/i;
+const productLineRe = /^(.+?)\s+-\s+([\d.]+)\s*litres?\s+-\s+\$([\d,]+(?:\.\d+)?)?/i;
+const materialRe = /^(.+?)\s*\(Estimated:\s*([\d.]+)\s*litres?\b(?:\s*-\s*\$([\d,]+(?:\.\d+)?))?.*\)$/i;
+/** "$1,800.00" → 180000; null when absent. */
+const dollarsToCents = (s: string | undefined): number | null => {
+  if (!s) return null;
+  const n = Number(s.replace(/,/g, ""));
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+};
 
 const num = (s: string | undefined | null): number | null => {
   if (s == null) return null;
@@ -97,7 +107,7 @@ export function parseWorkOrderText(text: string): ParsedWorkOrder {
   if (pdIdx >= 0) {
     for (let i = pdIdx + 1; i < lines.length && !/^(Total Dimensions|Areas)\b/i.test(lines[i]); i++) {
       const m = lines[i].match(materialRe);
-      if (m) materials.push({ product: m[1].trim(), litres: num(m[2]) });
+      if (m) materials.push({ product: m[1].trim(), litres: num(m[2]), costCents: dollarsToCents(m[3]) });
     }
   }
 
@@ -128,10 +138,15 @@ export function parseWorkOrderText(text: string): ParsedWorkOrder {
 
   let current: ParsedWorkOrderArea | null = null;
   let inOptions = false;
+  let inSurfaces = false;
   for (let i = areasIdx + 1; i < lines.length; i++) {
     const l = lines[i];
     if (/^Media$/i.test(l) || /^Amazing On-Site Estimation$/i.test(l)) break;
-    if (/^Options$/i.test(l)) { inOptions = true; current = null; continue; }
+    if (/^Options$/i.test(l)) { inOptions = true; inSurfaces = false; current = null; continue; }
+    // The by-substrate summary repeats every line already read under its area;
+    // reading it as an area doubled 15 Pelmet Cres to 452 h against a 226 h banner.
+    if (/^Surfaces$/i.test(l)) { inSurfaces = true; current = null; continue; }
+    if (inSurfaces) continue;
     if (inOptions) {
       if (isHeadingAt(i) || (/^\$[\d,.]+$/.test(lines[i + 1] ?? "") && !/^\$/.test(l) && !/^Item$/i.test(l))) optionHeadings.push(l);
       continue;
@@ -181,6 +196,7 @@ export function parseWorkOrderText(text: string): ParsedWorkOrder {
       let hours: number | null = null;
       let product = "";
       let litres: number | null = null;
+      let materialCents: number | null = null;
       let j = i + 1;
       for (; j < Math.min(i + 12, lines.length); j++) {
         const s = lines[j];
@@ -188,12 +204,12 @@ export function parseWorkOrderText(text: string): ParsedWorkOrder {
         const cm = s.match(/^Coats:\s*(\d+)$/i);
         if (cm) { coats = num(cm[1]); continue; }
         const pm = s.match(productLineRe);
-        if (pm) { product = pm[1].trim(); litres = num(pm[2]); continue; }
+        if (pm) { product = pm[1].trim(); litres = num(pm[2]); materialCents = dollarsToCents(pm[3]); continue; }
         if (bareNumber.test(s)) { hours = num(s); break; }
       }
       if (hours == null && coats == null) continue;
       const unit: ParsedWorkOrderItem["unit"] = m[3] ? (m[3] === "m" ? "m" : "m2") : "count";
-      current.items.push({ item: m[1].trim(), qty: num(m[2]), unit, coats, hours, product, litres });
+      current.items.push({ item: m[1].trim(), qty: num(m[2]), unit, coats, hours, product, litres, materialCents });
       i = hours == null ? i : j; // the hours line ends the item
       continue;
     }

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 
 /**
  * C11 — the human moments and the reveal.
@@ -26,6 +26,7 @@ test("the estimator strip is on the reveal, the tighten screen and the finish li
   await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
 
   const stripName = async () => (await page.getByTestId("estimator-name").first().textContent())!.trim();
@@ -71,6 +72,7 @@ test("the footer line changes with the not-sures, and the offers appear at their
   await quickNext(page);
   await page.getByTestId("ql-condition-wear").click();
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("door-tighten").click();
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });

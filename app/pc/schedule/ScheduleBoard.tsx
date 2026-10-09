@@ -1,5 +1,7 @@
 "use client";
 
+import { logCallbackAction } from "@/app/pc/callbackActions";
+import { setNoWorkDayAction } from "@/app/pc/noWorkActions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -11,7 +13,7 @@ import {
   sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote,
   assignJobAction, reassignDatesAction, setLeadPainterAction, releaseAssignmentAction,
   addAppointmentAction, moveAppointmentAction, removeAppointmentAction, holdDatesAction, moveHoldAction, releaseHoldAction,
-  type ActionResult,
+  searchProjectsAction, setFinishDateAction, type ActionResult, type VisitProjectHit,
 } from "./actions";
 import type { Block, BoardWalkthrough, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
@@ -232,8 +234,32 @@ export default function ScheduleBoard({
   // to a job this painter already has, or HOLD the days while the client
   // decides. Block-out stays the default so nothing about it changes.
   const [blockMode, setBlockMode] = useState<"block" | "visit" | "hold">("block");
-  const [visitWo, setVisitWo] = useState("");
+  // Tom, 4 Oct: the visit's project comes from a SEARCH over every project,
+  // any status — not a list of what this painter already has.
+  const [visitPick, setVisitPick] = useState<VisitProjectHit | null>(null);
+  const [visitQuery, setVisitQuery] = useState("");
+  const [visitHits, setVisitHits] = useState<VisitProjectHit[]>([]);
+  const [visitSearching, setVisitSearching] = useState(false);
+  const [visitSearchErr, setVisitSearchErr] = useState("");
   const [visitNote, setVisitNote] = useState("");
+  // Debounced; every state write happens inside the timer, never synchronously
+  // in the effect (react-hooks/set-state-in-effect). Stale hits for a query
+  // that has since been shortened are simply not rendered.
+  useEffect(() => {
+    const needle = visitQuery.trim();
+    if (needle.length < 2) return;
+    let live = true;
+    const t = setTimeout(() => {
+      setVisitSearching(true);
+      searchProjectsAction({ q: needle }).then((r) => {
+        if (!live) return;
+        setVisitSearching(false);
+        if (r.ok) { setVisitHits(r.hits); setVisitSearchErr(""); }
+        else { setVisitHits([]); setVisitSearchErr(r.message); }
+      });
+    }, 220);
+    return () => { live = false; clearTimeout(t); };
+  }, [visitQuery]);
   const [holdWo, setHoldWo] = useState("");
   const [holdNote, setHoldNote] = useState("");
 
@@ -602,6 +628,11 @@ export default function ScheduleBoard({
   const editEnd = edit && detail && edit.blockId === detail.id ? edit.end : (detail?.end ?? "");
   const setEditStart = (v: string) => { if (detail) setEdit({ blockId: detail.id, start: v, end: editEnd }); };
   const setEditEnd = (v: string) => { if (detail) setEdit({ blockId: detail.id, start: editStart, end: v }); };
+  // Tom, 8 Oct: the finish date of a booked or running job, from its sheet.
+  // Same derived-per-block shape as `edit` above.
+  const [finishEdit, setFinishEdit] = useState<{ blockId: string; end: string } | null>(null);
+  const finishEnd = finishEdit && detail && finishEdit.blockId === detail.id ? finishEdit.end : (detail?.end ?? "");
+  const [finishMsg, setFinishMsg] = useState<{ blockId: string; text: string; ok: boolean } | null>(null);
   // Employed painters (S2): the detail sheet's "add a painter" picker.
   const [addPainterId, setAddPainterId] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
@@ -827,18 +858,32 @@ export default function ScheduleBoard({
     return [...seen.values()].sort((a, b) => a.start.localeCompare(b.start));
   }, [blocks]);
 
+  // Call backs Step 3, route 4 (ruling C2): the visit IS a call back on a
+  // finished job. One record — on a job with a call back already open the
+  // visit joins it, never a second record.
+  const [visitCallback, setVisitCallback] = useState(false);
+  // R10 (Step 4): "No work today" from the block detail.
+  const todayMelb = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const [noWorkDay, setNoWorkDay] = useState(todayMelb());
+  const [noWorkReason, setNoWorkReason] = useState("");
+
   /** Tom, 1 Oct: a second run of days on a job this painter already has. */
   async function saveVisit() {
     if (!pendingBlock) return;
-    if (!visitWo) { setErr("Pick the job the visit is for."); return; }
+    if (!visitPick) { setErr("Search for the project the visit is for, then pick it."); return; }
     setBusy(true);
     setErr("");
-    const r = await addAppointmentAction({
-      workOrderId: visitWo, contractorId: pendingBlock.contractorId,
-      startDate: pendingBlock.start, endDate: pendingBlock.end, note: visitNote,
-    });
-    if (handle(r, "Visit added — it's on the board and in their calendar.")) {
-      setPendingBlock(null); setVisitWo(""); setVisitNote(""); setBlockMode("block");
+    const r = visitCallback
+      ? await logCallbackAction({
+          workOrderId: visitPick.workOrderId, source: "scheduler", reason: "workmanship", description: visitNote,
+          returnStart: pendingBlock.start, returnEnd: pendingBlock.end, fixedBy: pendingBlock.contractorId,
+        }).then((x) => (x.ok ? { ok: true as const, state: "ok" as const, message: x.message } : { ok: false as const, kind: "error" as const, message: x.message }))
+      : await addAppointmentAction({
+          workOrderId: visitPick.workOrderId, contractorId: pendingBlock.contractorId,
+          startDate: pendingBlock.start, endDate: pendingBlock.end, note: visitNote,
+        });
+    if (handle(r, visitCallback ? "Call back booked — it's on the board, in their calendar, and the customer's invoice chasing is paused until it is closed." : "Visit added — it's on the board and in their calendar.")) {
+      setPendingBlock(null); setVisitPick(null); setVisitQuery(""); setVisitHits([]); setVisitNote(""); setBlockMode("block"); setVisitCallback(false);
     }
     setBusy(false);
   }
@@ -1378,6 +1423,13 @@ export default function ScheduleBoard({
                           ) : (
                             <span className={l.offerable ? "q" : "no"}>{l.offerable ? "READY" : "NOT READY"}</span>
                           )}
+                          {/* Painter status Step 7 (⚑7, R19): the light, in words, on every lane. */}
+                          {l.statusColour && (
+                            <span className={`stl stl-${l.statusColour}`} data-testid={`lane-status-${l.contractorId}`} data-colour={l.statusColour}
+                              title={l.offersBlocked ? "Red — no new offers until Tom records the clearance" : `Status: ${l.statusColour}`}>
+                              {l.offersBlocked ? "RED · NO OFFERS" : l.statusColour.toUpperCase()}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="tg">TIER {l.tier}{l.company ? ` · ${l.company.toUpperCase()}` : ""}</div>
@@ -1439,6 +1491,8 @@ export default function ScheduleBoard({
                             data-hold-id={b.holdId}
                             data-appointment-id={b.appointmentId}
                             data-work-order-id={b.workOrderId ?? undefined}
+                            data-start={b.start}
+                            data-end={b.end}
                             data-lead={b.isLead ? "1" : undefined}
                             data-accepted={b.acceptedAt ? "1" : undefined}
                             style={{
@@ -1649,6 +1703,14 @@ export default function ScheduleBoard({
               </div>
             )}
 
+            {pendingDrop.kind === "tray" && !isEmployeeLane(pendingDrop.contractorId)
+              && lanes.find((l) => l.contractorId === pendingDrop.contractorId)?.standardsStatus === "blocked" && (
+              <div className="err" data-testid="drop-standards-blocked">
+                <b>Standards not signed.</b> This painter has not confirmed the finish standards and
+                their grace period has ended — no new offers until they do. Send them a reminder from
+                the Contractors page, or hold the dates instead.
+              </div>
+            )}
             {pendingDrop.blocked && (
               <div className="err">
                 This contractor has blocked these days out. You can still send it, but
@@ -1665,7 +1727,8 @@ export default function ScheduleBoard({
 
             <button
               className="btn cy"
-              disabled={busy}
+              disabled={busy || (pendingDrop.kind === "tray" && !isEmployeeLane(pendingDrop.contractorId)
+                && lanes.find((l) => l.contractorId === pendingDrop.contractorId)?.standardsStatus === "blocked")}
               data-testid="drop-confirm"
               onClick={
                 pendingDrop.kind === "tray"
@@ -1708,6 +1771,69 @@ export default function ScheduleBoard({
             </p>
             <div className="frow"><span className="l">Dates</span><span className="v">{formatDMY(detail.start)} → {formatDMY(detail.end)}</span></div>
             {detail.woRef && <div className="frow"><span className="l">Reference</span><span className="v">{detail.woRef}</span></div>}
+            {/* Tom, 8 Oct: change the LAST day of a booked or running job. A
+                running job can't be dragged — its start stays — so this is
+                where its end moves. Crew jobs move per painter below. */}
+            {detail.workOrderId && detail.offerId && (detail.kind === "in_progress" || detail.kind === "accepted")
+              && !detail.assignmentId && !detail.holdId && !detail.appointmentId && (() => {
+              const snapped = finishEnd ? addWorkingDays(finishEnd, 1, weekFor(detail.contractorId)) : "";
+              const msg = finishMsg && finishMsg.blockId === detail.id ? finishMsg : null;
+              return (
+                <div className="frow" style={{ display: "block", marginTop: 10 }} data-testid="finish-date-row">
+                  <span className="l" style={{ display: "block", marginBottom: 6 }}>
+                    Finish date{detail.kind === "in_progress" ? " — the job has started, so the start stays" : ""}
+                  </span>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <input type="date" value={finishEnd} min={detail.start} data-testid="finish-date"
+                      onChange={(e) => { if (e.target.value) { setFinishEdit({ blockId: detail.id, end: e.target.value }); setFinishMsg(null); } }} />
+                    <button className="btn dim" data-testid="finish-date-save"
+                      disabled={busy || !finishEnd || snapped === detail.end}
+                      onClick={async () => {
+                        setBusy(true); setFinishMsg(null);
+                        const r = await setFinishDateAction({ workOrderId: detail.workOrderId!, endDate: finishEnd });
+                        if (r.ok) {
+                          setDetail({ ...detail, end: r.endDate });
+                          setFinishEdit(null);
+                          setFinishMsg({ blockId: detail.id, ok: true, text: `Finish date moved to ${formatDMY(r.endDate)}. The final walkthrough moved with it.` });
+                          router.refresh();
+                        } else {
+                          setFinishMsg({ blockId: detail.id, ok: false, text: r.message });
+                        }
+                        setBusy(false);
+                      }}>
+                      {busy ? "Saving…" : "Save finish date"}
+                    </button>
+                  </div>
+                  {snapped && (
+                    <span className="l" style={{ display: "block", marginTop: 6 }} data-testid="finish-date-snapped" data-end={snapped}>
+                      Last day {formatDMY(snapped)}{snapped !== finishEnd ? " — the next day they work" : ""}. A booked final walkthrough moves to that day, same time.
+                    </span>
+                  )}
+                  {msg && (
+                    <span className="l" role="status" data-testid="finish-date-msg"
+                      style={{ display: "block", marginTop: 6, color: msg.ok ? "var(--emerald)" : "var(--clay)" }}>
+                      {msg.text}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+            {/* R10 (Step 4): a rained-off day on a job under way — today, or a past day of the block. */}
+            {detail.workOrderId && (detail.kind === "in_progress" || detail.kind === "accepted" || detail.kind === "assigned") && !detail.holdId && !detail.appointmentId && (
+              <div className="frow" style={{ display: "block", marginTop: 10 }} data-testid="no-work-row">
+                <span className="l" style={{ display: "block", marginBottom: 6 }}>No work on a day (rain, site locked) — its reminders are not counted</span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <input type="date" value={noWorkDay} max={todayMelb()} data-testid="no-work-day" onChange={(e) => setNoWorkDay(e.target.value)} />
+                  <input type="text" value={noWorkReason} data-testid="no-work-reason" placeholder="why" onChange={(e) => setNoWorkReason(e.target.value)} style={{ width: 160 }} />
+                  <button className="btn dim" disabled={busy || !noWorkDay} data-testid="no-work-save" onClick={async () => {
+                    setBusy(true); setErr("");
+                    const r = await setNoWorkDayAction({ workOrderId: detail.workOrderId!, day: noWorkDay, reason: noWorkReason });
+                    if (r.ok) { flash(r.message); setNoWorkReason(""); router.refresh(); } else setErr(r.message);
+                    setBusy(false);
+                  }}>No work that day</button>
+                </div>
+              </div>
+            )}
             {detail.paymentCents != null && <div className="frow"><span className="l">Their price</span><span className="v">{money(detail.paymentCents)}</span></div>}
             {detail.finishCode && <div className="frow"><span className="l">Finish</span><span className="v">{detail.finishCode}</span></div>}
             {detail.expiresAt && <div className="frow"><span className="l">Expires in</span><span className="v" style={{ color: "var(--amber)" }}>{coarseCountdown(detail.expiresAt)}</span></div>}
@@ -1720,6 +1846,9 @@ export default function ScheduleBoard({
               const onJob = new Set(crew.map((b) => b.contractorId));
               const spare = lanes.filter((l) => l.employmentType === "employee" && l.active && !onJob.has(l.contractorId));
               const nameOf = (id: string) => lanes.find((l) => l.contractorId === id)?.name ?? "Painter";
+              // Tom, 8 Oct: once the job is running and their first day has
+              // passed, the start is history (reassign_dates says the same).
+              const startLocked = detail.kind === "in_progress" && detail.start <= todayMelb();
               return (
                 <div data-testid="assignment-detail">
                   <div className="frow">
@@ -1742,6 +1871,8 @@ export default function ScheduleBoard({
                     </span>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <input type="date" value={editStart} max={editEnd || undefined} data-testid="assignment-start"
+                        disabled={startLocked}
+                        title={startLocked ? "The job has started — the start stays. Change the last day." : undefined}
                         onChange={(e) => e.target.value && setEditStart(e.target.value)} />
                       <span className="l">→</span>
                       <input type="date" value={editEnd} min={editStart || undefined} data-testid="assignment-end"
@@ -1919,30 +2050,71 @@ export default function ScheduleBoard({
               <span className="v" data-testid="empty-drag-dates" data-start={pendingBlock.start} data-end={pendingBlock.end}>{formatDMY(pendingBlock.start)}{pendingBlock.end !== pendingBlock.start ? ` → ${formatDMY(pendingBlock.end)}` : ""}</span>
             </div>
             {blockMode === "visit" && (() => {
-              const jobs = bookedJobsFor(pendingBlock.contractorId);
+              const mine = bookedJobsFor(pendingBlock.contractorId);
+              const stageWord = (st: string) => st === "closed" ? "FINISHED" : st.replace(/_/g, " ").toUpperCase();
               return (
                 <>
-                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Which job</label>
-                  {jobs.length === 0 ? (
-                    <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
-                      Nothing booked on this row yet. Drop a job from the tray first — a visit is extra days on a job they already have.
-                    </p>
+                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Which project</label>
+                  {visitPick ? (
+                    <div className="frow" data-testid="visit-picked" data-work-order-id={visitPick.workOrderId} style={{ alignItems: "center" }}>
+                      <span className="v" style={{ flex: 1 }}>
+                        {visitPick.title.toUpperCase()}
+                        <span className="l" style={{ display: "block" }}>{visitPick.woRef}{visitPick.customer ? ` · ${visitPick.customer}` : ""}{visitPick.address ? ` · ${visitPick.address}` : ""} · {stageWord(visitPick.lifecycle)}</span>
+                      </span>
+                      <button className="btn dim" style={{ marginTop: 0, padding: "6px 10px", fontSize: 12, width: "auto" }} data-testid="visit-change"
+                        onClick={() => { setVisitPick(null); setVisitQuery(""); }}>Change</button>
+                    </div>
                   ) : (
-                    <select value={visitWo} onChange={(e) => setVisitWo(e.target.value)} data-testid="visit-job" style={{ width: "100%" }}>
-                      <option value="">Pick the job…</option>
-                      {jobs.map((j) => (
-                        <option key={j.workOrderId!} value={j.workOrderId!}>
-                          {j.title} · {j.woRef} · {formatDMY(j.start)}{j.end !== j.start ? `–${formatDMY(j.end)}` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    <>
+                      {/* Tom, 4 Oct: every project, any status — reference, job title, address or customer. */}
+                      <input type="search" value={visitQuery} onChange={(e) => setVisitQuery(e.target.value)} data-testid="visit-search"
+                        placeholder="Search any project — reference, title, address or customer" style={{ width: "100%" }} autoFocus />
+                      <div className="visit-hits" data-testid="visit-hits">
+                        {visitQuery.trim().length >= 2 ? (
+                          visitSearchErr ? <div className="err" style={{ margin: 8 }}>{visitSearchErr}</div>
+                          : visitSearching && visitHits.length === 0 ? <div className="l" style={{ padding: 8 }}>Searching…</div>
+                          : visitHits.length === 0 ? <div className="l" style={{ padding: 8 }}>No project matches that.</div>
+                          : visitHits.map((h) => (
+                            <button key={h.workOrderId} type="button" className="hit" data-testid="visit-hit" data-work-order-id={h.workOrderId}
+                              onClick={() => { setVisitPick(h); setErr(""); }}>
+                              <span className="t">{h.title}</span>
+                              <span className="m">{h.woRef}{h.customer ? ` · ${h.customer}` : ""}{h.address ? ` · ${h.address}` : ""} · {stageWord(h.lifecycle)}</span>
+                            </button>
+                          ))
+                        ) : mine.length > 0 ? (
+                          <>
+                            <div className="l" style={{ padding: "6px 8px 2px" }}>On this row already</div>
+                            {mine.map((j) => (
+                              <button key={j.workOrderId!} type="button" className="hit" data-testid="visit-hit" data-work-order-id={j.workOrderId!}
+                                onClick={() => { setVisitPick({ workOrderId: j.workOrderId!, woRef: j.woRef, title: j.title, address: "", lifecycle: j.kind, customer: "" }); setErr(""); }}>
+                                <span className="t">{j.title}</span>
+                                <span className="m">{j.woRef} · {formatDMY(j.start)}{j.end !== j.start ? `–${formatDMY(j.end)}` : ""}</span>
+                              </button>
+                            ))}
+                          </>
+                        ) : (
+                          <div className="l" style={{ padding: 8 }}>Type two letters of a reference, title, address or customer. Finished jobs count too.</div>
+                        )}
+                      </div>
+                    </>
                   )}
-                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Note (optional)</label>
+                  <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>{visitCallback ? "What is wrong" : "Note (optional)"}</label>
                   <input type="text" value={visitNote} onChange={(e) => setVisitNote(e.target.value)} data-testid="visit-note"
-                    placeholder="e.g. back to finish the ceilings" style={{ width: "100%" }} maxLength={300} />
+                    placeholder={visitCallback ? "e.g. paint on the lounge window glass" : "e.g. back to finish the ceilings"} style={{ width: "100%" }} maxLength={300} />
+                  {/* Call backs Step 3, route 4 — beside "Walkthrough not required" in spirit: the
+                      tray drop's box lives on the offer sheet, a visit's on this one. */}
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, cursor: "pointer" }}>
+                    <input type="checkbox" checked={visitCallback} onChange={(e) => setVisitCallback(e.target.checked)} data-testid="visit-callback" />
+                    Call back — this visit fixes workmanship on a finished job
+                  </label>
+                  {visitCallback && (
+                    <span style={{ fontSize: 11, color: "var(--muted)", display: "block", marginTop: 4 }} data-testid="visit-callback-note">
+                      Logged against the painter who did the job. If a call back is already open there, this visit joins it — nothing is counted twice. Invoice chasing pauses until the office closes it.
+                    </span>
+                  )}
                   {err && <div className="err">{err}</div>}
-                  <button className="btn cy" disabled={busy || jobs.length === 0} data-testid="visit-save" onClick={saveVisit}>Add the visit</button>
-                  <button className="btn gh" onClick={() => { setPendingBlock(null); setVisitWo(""); setVisitNote(""); setErr(""); setBlockMode("block"); }}>Cancel</button>
+                  <button className="btn cy" disabled={busy || !visitPick} data-testid="visit-save" onClick={saveVisit}>Add the visit</button>
+                  <button className="btn gh" onClick={() => { setPendingBlock(null); setVisitPick(null); setVisitQuery(""); setVisitHits([]); setVisitNote(""); setErr(""); setBlockMode("block"); }}>Cancel</button>
                 </>
               );
             })()}

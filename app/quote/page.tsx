@@ -15,6 +15,7 @@ import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEM
 import { parseBackTo } from "@/lib/navigation/backTo";
 import { estimateDocuments } from "@/lib/wizard/documents";
 import type { ExistingRevisionVariation } from "./RevisionPanel";
+import { reportError } from "@/lib/monitoring/report";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
 export default async function QuotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; template?: string; view?: string; from?: string; mode?: string; tab?: string }>;
+  searchParams: Promise<{ id?: string; template?: string; view?: string; from?: string; mode?: string; tab?: string; variation?: string }>;
 }) {
   const supabase = await createClient();
 
@@ -56,7 +57,7 @@ export default async function QuotePage({
     .eq("is_active", true)
     .single();
 
-  const { id, template, view, from, mode, tab } = await searchParams;
+  const { id, template, view, from, mode, tab, variation } = await searchParams;
   const initialView = view === "workorder" || view === "customer" ? view : undefined;
   // Where the top-left link goes. Validated, because `from` comes off the URL —
   // see lib/navigation/backTo.ts. Null falls back to the estimates list.
@@ -204,6 +205,25 @@ export default async function QuotePage({
         .eq("work_order_id", woId).not("revision_block_ref", "is", null)
         .order("created_at", { ascending: true })
     : { data: null };
+  // Tom, 7 Oct 2026 (12A Cavell Court): opened from a painter's request on the
+  // job page, the builder prices THAT request — the change drafted here is
+  // written into the painter's own row (20270222), so it moves on their portal
+  // and on the console instead of sitting at "with the office" for ever.
+  const requestId = revisionMode && woId && variation && /^[0-9a-f-]{36}$/i.test(variation) ? variation : null;
+  const { data: requestRow, error: requestError } = requestId
+    ? await supabase.from("wo_variations")
+        .select("id, comment, category, status, created_at, profiles:raised_by(name)")
+        .eq("id", requestId).eq("work_order_id", woId!).maybeSingle()
+    : { data: null, error: null };
+  // A request that cannot be read is reported, and the builder opens without
+  // it — the office can still price; the row just won't be adopted.
+  if (requestError) reportError(requestError, { where: "quote.page.revisionRequest", extra: { requestId }, bestEffort: true });
+  const revisionRequest = requestRow
+    ? (() => {
+        const r = requestRow as unknown as { id: string; comment: string; category: string; status: string; created_at: string; profiles: { name: string | null } | null };
+        return { id: r.id, comment: r.comment, category: r.category, status: r.status, raisedBy: r.profiles?.name ?? null, raisedAt: r.created_at };
+      })()
+    : null;
   const woPhotos = await signPhotos(supabase, (photoRows as WOPhotoRow[] | null) ?? []);
   // Tom, 7 Sep: the customer's own photos (condition, facade) — the
   // estimator signs off any extra prep from them before the price is fixed.
@@ -311,6 +331,7 @@ export default async function QuotePage({
       mode={revisionMode ? "revision" : "estimate"}
       revisionBaseline={revisionScope?.accepted ?? null}
       revisionVariations={(revVarRows ?? []) as ExistingRevisionVariation[]}
+      revisionRequest={revisionRequest}
       rateItems={rateItems.data ?? []}
       modifiers={modifiers.data ?? []}
       products={products.data ?? []}

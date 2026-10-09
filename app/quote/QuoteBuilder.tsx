@@ -24,6 +24,7 @@ import {
 } from "@/lib/pricing/estimate";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import EstimatorNotes from "@/app/components/estimator-notes/EstimatorNotes";
 import NumInput from "@/app/components/NumInput";
 import { useSaveBeforeLeave, type LeaveChoice } from "@/app/components/useSaveBeforeLeave";
 import { formatEstimateNumber } from "@/lib/estimate/number";
@@ -57,7 +58,7 @@ import { PHOTO_REVIEW_KIND } from "@/lib/wizard/merge";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 import { downscale, SCREEN_MAX_EDGE } from "@/lib/uploads/downscale";
 import { reportIfError, errorMessage } from "@/lib/monitoring/report";
-import RevisionPanel, { type ExistingRevisionVariation } from "./RevisionPanel";
+import RevisionPanel, { type ExistingRevisionVariation, type RevisionRequest } from "./RevisionPanel";
 import InvoiceSheet, { type SheetLine } from "@/app/i/[token]/InvoiceSheet";
 import "@/app/i/[token]/invoice.css";
 import { saveWorkingScopeAction } from "./revisionActions";
@@ -308,6 +309,7 @@ export default function QuoteBuilder({
   mode = "estimate",
   revisionBaseline = null,
   revisionVariations = [],
+  revisionRequest = null,
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -355,6 +357,8 @@ export default function QuoteBuilder({
   revisionBaseline?: unknown;
   /** Revision-drafted variations already on the job (for the panel). */
   revisionVariations?: ExistingRevisionVariation[];
+  /** The painter's raised request this revision prices (?variation=), if any. */
+  revisionRequest?: RevisionRequest | null;
 }) {
   const chargeFor = (t: string) => chargeOutCents(t, rateItems, hourlyRateOverride);
 
@@ -527,7 +531,13 @@ export default function QuoteBuilder({
   // starts from (Settings → Products still edits that).
   const [sheens, setSheens] = useState<Record<string, string>>(() => loaded?.sheens ?? {});
   const sheenForKey = (key: string, productName: string): string => sheens[key] ?? productByName.get(productName)?.finish ?? "";
-  const sheenFor = (type: string, s: Surface): string => sheenForKey(materialKey(type, s.code), productNameFor(type, s) ?? "");
+  // Tom, 7 Oct: a NAMED group of surfaces (its own Materials row) may carry its
+  // own sheen; the substrate's sheen is the fallback.
+  const sheenFor = (type: string, s: Surface): string => {
+    const label = s.clientLabel.trim();
+    const named = label && label !== s.code ? sheens[`${materialKey(type, s.code)}::${label}`] : undefined;
+    return named ?? sheenForKey(materialKey(type, s.code), productNameFor(type, s) ?? "");
+  };
   const [discountMode, setDiscountMode] = useState<"pct" | "fixed">(() => loaded?.discountMode ?? "pct");
   const [discountPct, setDiscountPct] = useState<number>(() => loaded?.discountPct ?? 0);
   const [discountFixedCents, setDiscountFixedCents] = useState<number>(() => loaded?.discountFixedCents ?? 0);
@@ -1307,37 +1317,79 @@ export default function QuoteBuilder({
   // Materials rows — one per distinct surface type (type::code) used anywhere in
   // the quote. Auto-builds from the blocks: add a new substrate to any area and a
   // row appears; the row's product cascades to every un-pinned surface of that type.
-  const materialRows = useMemo(() => {
-    const map = new Map<string, { key: string; type: "Interior" | "Exterior"; code: string; label: string; labels: Set<string>; count: number; customCount: number }>();
+  /**
+   * The Materials card, one row per NAME (Tom, 7 Oct 2026, 9 Broadway: "I
+   * updated the names of Baseboards / Back gable / Cladded wall / Base Boards
+   * to separate them, and they are still combined").
+   *
+   * Surfaces group by substrate, then by client label. The substrate's own
+   * row (the surfaces still called by the substrate's name — else the first
+   * named group) is the BASE row: its product, sheen and colour are the
+   * estimate-wide defaults (`materials` / `sheens` / `materialColours`, keyed
+   * `Type::Code` as always). Every other name is its own row whose product and
+   * colour are PINNED onto exactly those surfaces (`productName` / `color`,
+   * the per-surface overrides the surface editor has always had) and whose
+   * sheen is keyed `Type::Code::Label`. So "Weatherboards" is listed on its
+   * own, and "Cladded wall" can be a different stain in a different colour.
+   */
+  type MaterialRow = {
+    key: string; baseKey: string; base: boolean; type: "Interior" | "Exterior"; code: string; label: string;
+    surfaceIds: Set<string>; count: number; customCount: number; colourPins: number;
+    /** Named rows: the product pinned on the group (null = follows the base row). */
+    product: string | null;
+    /** Named rows: the colour pinned on the group (null = follows the base row). */
+    colour: { name: string; hex: string } | null;
+  };
+  const materialRows = useMemo<MaterialRow[]>(() => {
+    const groups = new Map<string, Map<string, MaterialRow>>(); // baseKey → label ("" = plain) → row
     for (const b of blocks) {
       if (b.kind !== "area") continue;
       for (const s of b.surfaces) {
         // Tom, 7 Sep: no paint in an allowance — the ceilings-only / colour-match
         // rows and plastering never make a Materials row.
         if (!s.code || isAllowanceLine(s)) continue;
-        const key = `${b.type}::${s.code}`;
-        const row = map.get(key) ?? { key, type: b.type, code: s.code, label: s.code, labels: new Set<string>(), count: 0, customCount: 0 };
+        const baseKey = `${b.type}::${s.code}`;
+        const trimmed = s.clientLabel.trim();
+        const label = trimmed && trimmed !== s.code ? trimmed : "";
+        const byLabel = groups.get(baseKey) ?? new Map<string, MaterialRow>();
+        const row = byLabel.get(label) ?? {
+          key: label ? `${baseKey}::${label}` : baseKey, baseKey, base: false, type: b.type, code: s.code,
+          label: label || s.code, surfaceIds: new Set<string>(), count: 0, customCount: 0, colourPins: 0,
+          product: s.productName, colour: s.color ? { name: s.color, hex: s.colorHex || "" } : null,
+        };
+        row.surfaceIds.add(`${b.id}:${s.id}`);
         row.count += 1;
         if (s.productName != null) row.customCount += 1;
-        // Tom, 22 Sep: the Materials row reads the way the customer's copy does —
-        // a surface's Client Label, not the substrate's code, once it has one.
-        const label = s.clientLabel.trim();
-        if (label && label !== s.code) row.labels.add(label);
-        map.set(key, row);
+        if (s.color) row.colourPins += 1;
+        byLabel.set(label, row);
+        groups.set(baseKey, byLabel);
       }
     }
-    for (const row of map.values()) if (row.labels.size) row.label = [...row.labels].join(" / ");
-    return [...map.values()].sort((a, z) => a.type.localeCompare(z.type) || a.code.localeCompare(z.code));
+    const rows: MaterialRow[] = [];
+    for (const byLabel of groups.values()) {
+      const ordered = [...byLabel.entries()].sort(([a], [z]) => (a === "" ? -1 : z === "" ? 1 : a.localeCompare(z))).map(([, r]) => r);
+      ordered[0].base = true;
+      ordered[0].key = ordered[0].baseKey; // the base row keeps the substrate key whatever it is called
+      rows.push(...ordered);
+    }
+    return rows.sort((a, z) => a.type.localeCompare(z.type) || a.code.localeCompare(z.code) || (a.base ? -1 : z.base ? 1 : a.label.localeCompare(z.label)));
   }, [blocks]);
-  // Reset every pinned (custom) surface of a given type back to the global default.
-  const clearMaterialPins = (type: string, code: string) =>
+  /** Patch every surface a Materials row stands for. */
+  const patchRowSurfaces = (row: MaterialRow, patch: Partial<Surface>) =>
     setBlocks((bs) =>
       bs.map((b) =>
-        b.kind === "area" && b.type === type
-          ? { ...b, surfaces: b.surfaces.map((s) => (s.code === code ? { ...s, productName: null } : s)) }
+        b.kind === "area" && b.type === row.type
+          ? { ...b, surfaces: b.surfaces.map((s) => (row.surfaceIds.has(`${b.id}:${s.id}`) ? { ...s, ...patch } : s)) }
           : b,
       ),
     );
+  // Reset every pinned (custom) surface of a row back to the global default.
+  const clearMaterialPins = (row: MaterialRow) => patchRowSurfaces(row, { productName: null });
+  // Tom, 7 Oct: "change once, applies everywhere" holds for colour too — the
+  // base row's colour clears its surfaces' per-area colour overrides (9
+  // Broadway: weatherboard areas pinned to Merbau kept it after the row was
+  // set to Ironstone, and nothing on screen said so).
+  const clearColourPins = (row: MaterialRow) => patchRowSurfaces(row, { color: "", colorHex: "" });
 
   const mainBlocks = blocks.filter((b) => !b.isOption);
   const optionBlocks = blocks.filter((b) => b.isOption);
@@ -1435,9 +1487,11 @@ export default function QuoteBuilder({
         photoUrl: p?.photo_url ?? p?.image_url ?? "",
         customerVisible: visible,
         isPrep: /prep|primer/i.test(category),
-        usage: usage.slice(0, 3),
+        // Tom, 7 Oct: every surface and every area — the first three / six
+        // used to be it, so a renamed "Base boards" never reached the card.
+        usage,
         colours: [...(coloursByProduct.get(gkey)?.values() ?? [])].map((g) => ({
-          name: g.name, hex: g.hex, match: g.match, areas: [...g.areas].slice(0, 6),
+          name: g.name, hex: g.hex, match: g.match, areas: [...g.areas],
         })),
       });
     }
@@ -1628,7 +1682,7 @@ export default function QuoteBuilder({
         const conditionHours = s.paintingHrOverride == null ? conditionExtraHours(calc.paintingHr, conditionMult) : 0;
         conditionHoursTotal += conditionHours;
         surfaces.push({
-          key, label: s.clientLabel || s.code, coats: s.coats, product: pname,
+          key, label: s.clientLabel || s.code, code: s.code, coats: s.coats, product: pname,
           finish: pname ? sheenFor(b.type, s) : undefined,
           colourName: col.name, colourHex: col.hex,
           colourKey: pname ? materialColourKey(pname, col.name) : undefined,
@@ -1648,6 +1702,7 @@ export default function QuoteBuilder({
       areasDoc.push({
         id: String(b.id),
         title: b.name || "Area",
+        side: b.type === "Exterior" ? "exterior" : "interior",
         surfaces,
         photos,
         finishCode: areaOverride ?? jobFinishCode,
@@ -2386,6 +2441,15 @@ export default function QuoteBuilder({
         </div>
       )}
 
+      {/* Tom, 4 Oct: estimator notes AT THE TOP — typed or spoken, internal,
+          read again on the project's PC command page. Never on the customer's
+          copy or the work order; the component loads its list staff-side. */}
+      {!folderEl && !customerView && !workOrderView && (
+        <div className="mt-6">
+          <EstimatorNotes estimateId={quoteId} surface="builder" who="PC command" />
+        </div>
+      )}
+
       {/* The estimate header (company / estimator / banking / contact) only shows
           in build mode, and not when drilled into a folder. */}
       {!folderEl && !customerView && !workOrderView && (
@@ -2419,6 +2483,7 @@ export default function QuoteBuilder({
             onViewInvoice={() => setViewMode("customer")}
             workOrderId={workOrder?.id ?? null}
             photoCounts={variationPhotoCounts}
+            request={revisionRequest}
           />
         </div>
       )}
@@ -2559,11 +2624,13 @@ export default function QuoteBuilder({
                     {/* Tom, 18 Sep: the catalogue is long. One box narrows every
                         paint dropdown below; the paint already chosen on a row
                         always stays in its own list, so filtering can never
-                        silently swap a product. */}
+                        silently swap a product. Tom, 8 Oct: every list offers the
+                        whole catalogue (Interior and Exterior), so the box is
+                        how you get to the one you want. */}
                     <input
                       type="search"
                       className="mt-3 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                      placeholder="Search the paints — e.g. Dulux, low sheen"
+                      placeholder="Search all paints — name, brand or finish, e.g. Dulux, low sheen"
                       aria-label="Search the paint list"
                       value={paintSearch}
                       onChange={(e) => setPaintSearch(e.target.value)}
@@ -2571,16 +2638,23 @@ export default function QuoteBuilder({
                     />
                     <div className="mt-3 divide-y divide-gray-100">
                       {materialRows.map((r) => {
-                        const globalName = materials[r.key] ?? itemByKey.get(r.key)?.default_product ?? "";
-                        // Int/Ext type, then the search box, then A-Z — and the
-                        // paint already chosen is kept whatever either says.
-                        // The rule lives in lib/workorder/materials.ts with its
-                        // own tests, because getting it wrong changes what a job
-                        // is quoted with.
-                        const opts = paintOptions(products, { surfaceType: r.type, chosen: globalName, search: paintSearch });
+                        const globalName = materials[r.baseKey] ?? itemByKey.get(r.baseKey)?.default_product ?? "";
+                        // A named row shows its pinned product, else the base row's.
+                        const shownName = r.base ? globalName : (r.product ?? globalName);
+                        // Every paint (Tom, 8 Oct: no Int/Ext pigeon-holing),
+                        // narrowed by the search box, A-Z — and the paint
+                        // already chosen is kept whatever the search says. The
+                        // rule lives in lib/workorder/materials.ts with its own
+                        // tests, because getting it wrong changes what a job is
+                        // quoted with.
+                        const opts = paintOptions(products, { chosen: shownName, search: paintSearch });
+                        const sheenValue = r.base ? sheenForKey(r.baseKey, globalName) : (sheens[r.key] ?? sheenForKey(r.baseKey, shownName));
+                        const colourValue = r.base
+                          ? (materialColours[r.baseKey]?.name ? materialColours[r.baseKey] : null)
+                          : (r.colour ?? (materialColours[r.baseKey]?.name ? materialColours[r.baseKey] : null));
                         return (
-                          <div key={r.key} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2" data-testid={`material-row-${r.key}`}>
-                            <div className="flex w-40 shrink-0 items-center gap-1.5">
+                          <div key={r.key} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2${r.base ? "" : " pl-4"}`} data-testid={`material-row-${r.key}`} data-base={r.base ? "true" : "false"}>
+                            <div className={`flex shrink-0 items-center gap-1.5 ${r.base ? "w-40" : "w-36"}`}>
                               <span className="text-sm font-medium text-gray-900" data-testid={`material-row-label-${r.key}`} title={r.label !== r.code ? `Substrate: ${r.code}` : undefined}>{r.label}</span>
                               <span className={`rounded px-1 py-0.5 text-[10px] font-medium ${r.type === "Exterior" ? "bg-orange-100 text-orange-700" : "bg-sky-100 text-sky-700"}`}>
                                 {r.type === "Exterior" ? "Ext" : "Int"}
@@ -2588,76 +2662,99 @@ export default function QuoteBuilder({
                             </div>
                             <select
                               className="min-w-[12rem] flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                              value={globalName}
+                              value={r.base ? globalName : (r.product ?? "")}
                               data-testid={`paint-pick-${r.key}`}
-                              onChange={(e) => setMaterials((m) => ({ ...m, [r.key]: e.target.value }))}
+                              onChange={(e) => r.base
+                                ? setMaterials((m) => ({ ...m, [r.baseKey]: e.target.value }))
+                                : patchRowSurfaces(r, { productName: e.target.value || null })}
                             >
-                              {globalName === "" && <option value="">— choose a product —</option>}
+                              {r.base && globalName === "" && <option value="">— choose a product —</option>}
+                              {!r.base && <option value="">— same as {r.code}{globalName ? ` · ${globalName}` : ""} —</option>}
                               {/* A default_product that's not in the catalogue must still
                                   DISPLAY as itself — a <select> with no matching option
                                   silently shows the first product, which is how every trim
                                   once read "Dulux Wash and Wear" (Tom, 30 Aug). */}
-                              {globalName !== "" && !opts.some((p) => p.name === globalName) && (
-                                <option value={globalName}>{globalName} (not in catalogue)</option>
+                              {shownName !== "" && !opts.some((p) => p.name === shownName) && (
+                                <option value={shownName}>{shownName} (not in catalogue)</option>
                               )}
                               {opts.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
                             </select>
-                            {globalName && (
+                            {shownName && (
                               <select
                                 className="w-32 shrink-0 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                                value={sheenForKey(r.key, globalName)}
+                                value={sheenValue}
                                 onChange={(e) => setSheens((m) => ({ ...m, [r.key]: e.target.value }))}
-                                title="Finish / sheen for this surface type (this estimate only)"
+                                title={r.base ? "Finish / sheen for this surface type (this estimate only)" : `Finish / sheen for ${r.label} (this estimate only)`}
                                 data-testid={`sheen-${r.key}`}
                               >
                                 <option value="">— sheen —</option>
-                                {sheenForKey(r.key, globalName) && !SHEEN_LEVELS.includes(sheenForKey(r.key, globalName)) && <option value={sheenForKey(r.key, globalName)}>{sheenForKey(r.key, globalName)}</option>}
+                                {sheenValue && !SHEEN_LEVELS.includes(sheenValue) && <option value={sheenValue}>{sheenValue}</option>}
                                 {SHEEN_LEVELS.map((s) => <option key={s} value={s}>{s}</option>)}
                               </select>
                             )}
-                            {globalName && (
-                              <ColourPicker
-                                value={materialColours[r.key]?.name ? materialColours[r.key] : null}
-                                onChange={(c) => setMaterialColours((m) => ({ ...m, [r.key]: c }))}
-                                compact
-                              />
+                            {shownName && (
+                              <span data-testid={`material-colour-${r.key}`}>
+                                <ColourPicker
+                                  value={colourValue}
+                                  onChange={(c) => {
+                                    if (r.base) { setMaterialColours((m) => ({ ...m, [r.baseKey]: c })); clearColourPins(r); }
+                                    else patchRowSurfaces(r, { color: c.name, colorHex: c.hex });
+                                  }}
+                                  compact
+                                />
+                              </span>
                             )}
-                            {globalName && (
+                            {!r.base && r.colour && (
+                              <button onClick={() => clearColourPins(r)} className="text-[11px] font-medium text-blue-600 hover:text-blue-800" data-testid={`colour-pins-reset-${r.key}`}>
+                                same colour as {r.code}
+                              </button>
+                            )}
+                            {r.base && shownName && (
                               <label className="flex items-center gap-1.5 text-[11px] text-gray-600" title="This colour needs a colour match — codes here, or the painter supplies them on the job">
-                                <input type="checkbox" checked={Boolean(colourMatches[r.key]?.required)}
-                                  data-testid={`colour-match-${r.key}`}
+                                <input type="checkbox" checked={Boolean(colourMatches[r.baseKey]?.required)}
+                                  data-testid={`colour-match-${r.baseKey}`}
                                   onChange={(e) => setColourMatches((m) => ({
-                                    ...m, [r.key]: { required: e.target.checked, code: m[r.key]?.code ?? "", brand: m[r.key]?.brand ?? "", canSize: m[r.key]?.canSize ?? "" },
+                                    ...m, [r.baseKey]: { required: e.target.checked, code: m[r.baseKey]?.code ?? "", brand: m[r.baseKey]?.brand ?? "", canSize: m[r.baseKey]?.canSize ?? "" },
                                   }))} />
                                 Colour match
                               </label>
                             )}
-                            {globalName && colourMatches[r.key]?.required && (
-                              <div className="flex w-full flex-wrap items-center gap-2 pl-40 text-xs" data-testid={`colour-match-fields-${r.key}`}>
+                            {r.base && shownName && colourMatches[r.baseKey]?.required && (
+                              <div className="flex w-full flex-wrap items-center gap-2 pl-40 text-xs" data-testid={`colour-match-fields-${r.baseKey}`}>
                                 <input className="w-32 rounded-md border border-gray-300 px-2 py-1 text-xs" placeholder="Colour code"
-                                  value={colourMatches[r.key]?.code ?? ""}
-                                  onChange={(e) => setColourMatches((m) => ({ ...m, [r.key]: { ...(m[r.key] ?? { required: true, code: "", brand: "", canSize: "" }), code: e.target.value } }))} />
+                                  value={colourMatches[r.baseKey]?.code ?? ""}
+                                  onChange={(e) => setColourMatches((m) => ({ ...m, [r.baseKey]: { ...(m[r.baseKey] ?? { required: true, code: "", brand: "", canSize: "" }), code: e.target.value } }))} />
                                 <input className="w-32 rounded-md border border-gray-300 px-2 py-1 text-xs" placeholder="Paint brand"
-                                  value={colourMatches[r.key]?.brand ?? ""}
-                                  onChange={(e) => setColourMatches((m) => ({ ...m, [r.key]: { ...(m[r.key] ?? { required: true, code: "", brand: "", canSize: "" }), brand: e.target.value } }))} />
+                                  value={colourMatches[r.baseKey]?.brand ?? ""}
+                                  onChange={(e) => setColourMatches((m) => ({ ...m, [r.baseKey]: { ...(m[r.baseKey] ?? { required: true, code: "", brand: "", canSize: "" }), brand: e.target.value } }))} />
                                 <input className="w-24 rounded-md border border-gray-300 px-2 py-1 text-xs" placeholder="Can size"
-                                  value={colourMatches[r.key]?.canSize ?? ""}
-                                  onChange={(e) => setColourMatches((m) => ({ ...m, [r.key]: { ...(m[r.key] ?? { required: true, code: "", brand: "", canSize: "" }), canSize: e.target.value } }))} />
+                                  value={colourMatches[r.baseKey]?.canSize ?? ""}
+                                  onChange={(e) => setColourMatches((m) => ({ ...m, [r.baseKey]: { ...(m[r.baseKey] ?? { required: true, code: "", brand: "", canSize: "" }), canSize: e.target.value } }))} />
                                 <span className="text-[11px] text-gray-500">
-                                  {colourMatches[r.key]?.code ? "Code on the job sheet." : "Leave the code blank and the painter supplies it — the job can't go to sign-off until it's in."}
+                                  {colourMatches[r.baseKey]?.code ? "Code on the job sheet." : "Leave the code blank and the painter supplies it — the job can't go to sign-off until it's in."}
                                 </span>
                               </div>
                             )}
-                            {r.customCount > 0 && (
+                            {r.base && r.customCount > 0 && (
                               <div className="flex items-center gap-2">
                                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
                                   {r.customCount} area{r.customCount > 1 ? "s" : ""} custom
                                 </span>
                                 <button
-                                  onClick={() => clearMaterialPins(r.type, r.code)}
+                                  onClick={() => clearMaterialPins(r)}
                                   className="text-[11px] font-medium text-blue-600 hover:text-blue-800"
                                 >
                                   reset to default
+                                </button>
+                              </div>
+                            )}
+                            {r.base && r.colourPins > 0 && (
+                              <div className="flex items-center gap-2" data-testid={`colour-pins-${r.key}`}>
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                                  {r.colourPins} area{r.colourPins > 1 ? "s" : ""} own colour
+                                </span>
+                                <button onClick={() => clearColourPins(r)} className="text-[11px] font-medium text-blue-600 hover:text-blue-800" data-testid={`colour-pins-reset-${r.key}`}>
+                                  use this colour everywhere
                                 </button>
                               </div>
                             )}
@@ -2689,7 +2786,10 @@ export default function QuoteBuilder({
                             data-testid="extra-paint-pick"
                           >
                             <option value="">— choose a paint to show (primer, stain blocker…) —</option>
-                            {products.filter((p) => !extraPaints.some((x) => x.productName === p.name)).map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                            {/* The same search box and A-Z as the rows above (Tom, 8 Oct). */}
+                            {paintOptions(products, { chosen: extraPick, search: paintSearch })
+                              .filter((p) => !extraPaints.some((x) => x.productName === p.name))
+                              .map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
                           </select>
                           <button
                             onClick={() => { if (!extraPick) return; setExtraPaints((list) => [...list, { productName: extraPick, usage: "" }]); setExtraPick(""); }}
@@ -4098,6 +4198,8 @@ function SurfaceEditor({
   onRemove: () => void;
 }) {
   const isItem = calc.isItem;
+  const [paintSearch, setPaintSearch] = useState("");
+  const surfacePaints = paintOptions(products, { chosen: s.productName ?? "", search: paintSearch });
   const inp = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm";
   const num = (v: number, on: (n: number | null) => void, ph?: string) => (
     <NumInput className={inp} placeholder={ph} value={Number.isFinite(v) ? v : null} onCommit={on} />
@@ -4216,9 +4318,23 @@ function SurfaceEditor({
             <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Product · Estimated paint</div>
             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               <F label={`Product${s.productName != null ? " · custom" : ""}`}>
-                <select className={inp} value={s.productName ?? ""} onChange={(e) => onPatch({ productName: e.target.value || null })}>
+                {/* Tom, 8 Oct: type to find — every paint in the catalogue, A-Z,
+                    and the one already chosen never filtered away. */}
+                <input
+                  type="search"
+                  className={`${inp} mb-1`}
+                  placeholder="Search paints…"
+                  aria-label="Search the paints for this surface"
+                  value={paintSearch}
+                  onChange={(e) => setPaintSearch(e.target.value)}
+                  data-testid="surface-paint-search"
+                />
+                <select className={inp} value={s.productName ?? ""} onChange={(e) => onPatch({ productName: e.target.value || null })} data-testid="surface-paint-pick" aria-label="Product">
                   <option value="">— Default · {materialDefault || "none"} —</option>
-                  {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                  {s.productName != null && !surfacePaints.some((p) => p.name === s.productName) && (
+                    <option value={s.productName}>{s.productName} (not in catalogue)</option>
+                  )}
+                  {surfacePaints.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
                 </select>
                 {s.productName != null && (
                   <button onClick={() => onPatch({ productName: null })} className="mt-1 text-[11px] font-medium text-blue-600 hover:text-blue-800">
@@ -4464,7 +4580,7 @@ function LineMaterials({ line: l, products, calc, onPatch }: {
   const setRows = (next: LineMaterial[]) => onPatch({ materials: next });
   const patchRow = (id: number, patch: Partial<LineMaterial>) => setRows(rows.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   const add = () => setRows([...rows, { id: Date.now() + Math.floor(Math.random() * 1000), productName: "", litres: 0, unitPriceOverride: null, sheen: "", colourName: "", colourHex: "", note: "" }]);
-  const opts = (chosen: string) => paintOptions(products, { surfaceType: l.type, chosen, search });
+  const opts = (chosen: string) => paintOptions(products, { chosen, search });
   return (
     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3" data-testid="line-materials">
       <div className="flex flex-wrap items-center justify-between gap-2">

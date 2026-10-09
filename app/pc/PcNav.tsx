@@ -18,6 +18,8 @@ const TABS = [
   { href: "/pc/updates", label: "Updates" },
   // Employed painters (S6): the days waiting on approval, and the payroll CSV.
   { href: "/pc/timesheets", label: "Timesheets" },
+  // Painter status (Step 8): the Contractors section — lights, call backs, rewards, who has signed.
+  { href: "/pc/contractors", label: "Contractors" },
   // Invoicing left PC Command (Tom, 24 Aug) — it lives in the sidebar as its
   // own tab; job pages still deep-link to their own money view.
 ];

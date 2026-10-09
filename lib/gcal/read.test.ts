@@ -40,3 +40,12 @@ test("busyFromEvents: Google's own free/busy rule", () => {
   expect(leave.startsAt).toBe("2026-09-09T14:00:00.000Z");
   expect(leave.endsAt).toBe("2026-09-11T14:00:00.000Z");
 });
+
+test("S5 — the platform's own events (pgKind visit or travel) are not busy; everything else is", () => {
+    const out = busyFromEvents("s1", "info@", [
+      { id: "v", summary: "Site visit — Alex", start: { dateTime: "2026-10-12T08:00:00+11:00" }, end: { dateTime: "2026-10-12T09:00:00+11:00" }, extendedProperties: { private: { pgKind: "visit", pgVisitId: "x" } } },
+      { id: "t", summary: "Travel", start: { dateTime: "2026-10-12T09:00:00+11:00" }, end: { dateTime: "2026-10-12T09:30:00+11:00" }, extendedProperties: { private: { pgKind: "travel", pgVisitId: "x" } } },
+      { id: "d", summary: "Dentist", start: { dateTime: "2026-10-12T13:00:00+11:00" }, end: { dateTime: "2026-10-12T13:30:00+11:00" } },
+    ]);
+    expect(out.map((b) => b.label)).toEqual(["Dentist"]);
+});

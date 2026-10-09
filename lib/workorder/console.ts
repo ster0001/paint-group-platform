@@ -7,6 +7,8 @@
  * it there; when the data changes, the card leaves by itself.
  */
 
+import { variationCategoryLabel } from "./variations";
+
 export type Severity = "critical" | "warning" | "info";
 
 export type QueueCard = {
@@ -55,6 +57,8 @@ export type ConsoleInput = {
     credit?: boolean; needsManualDeduction?: boolean; deductionCents?: number | null;
     /** Tom, 17 Sep: what the "Variations for approval" list shows per row. */
     category?: string; comment?: string; priceCents?: number | null; raisedKind?: string;
+    /** Tom, 7 Oct 2026: the painter declined the client-approved change, with a note. */
+    contractorDeclinedAt?: string | null; declineNote?: string;
   }[];
   updates: { id: string; workOrderId: string; status: string; createdAt: string }[];
   /** 3a-5: open "Report an issue" submissions from the customer portal. */
@@ -344,6 +348,23 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
       }
     }
 
+    // Tom, 7 Oct 2026: the client approved it, the painter declined it — it is
+    // back with the office: revise it with the client or set the painter's amount.
+    if (v.status === "declined" && v.contractorDeclinedAt) {
+      cards.push({
+        key: `variation-painter-declined:${v.id}`,
+        severity: "warning",
+        title: "Painter declined an approved change",
+        detail: v.declineNote?.trim()
+          ? `They wrote: “${v.declineNote.trim().slice(0, 160)}” — revise it with the client, or set their amount.`
+          : "No note came with it. Ring them, then revise it with the client or set their amount.",
+        ref: label(v.workOrderId),
+        workOrderId: v.workOrderId,
+        ageHours: hoursBetween(v.contractorDeclinedAt, now),
+        action: { label: "Revise it", kind: "price", href: `/pc/wo/${v.workOrderId}#variation-${v.id}` },
+      });
+    }
+
     // A3 ruling 3: a signed removal hit scope that was already started, so
     // the pay deduction is a PERSON's decision and the job's money is wrong
     // until someone makes it.
@@ -420,8 +441,9 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
   }
 
   // 5c. Quality checks (Tom, 23 Aug): a job waiting at Quality check with a
-  // check still to log, or a dated (mid-job) check due today or overdue.
-  const today = melbourneDate(now);
+  // check still to log. A DATED check on its day is the work queue's
+  // qa_check_due card (lib/crm/work-queue.ts, Tom 8 Oct 2026) — one card per
+  // check, at its time — so it is not repeated here.
   const qaByWo = new Map<string, NonNullable<ConsoleInput["qaChecks"]>>();
   for (const c of input.qaChecks ?? []) {
     const list = qaByWo.get(c.workOrderId) ?? [];
@@ -431,22 +453,17 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
   for (const [woId, checks] of qaByWo) {
     const w = byId.get(woId);
     if (!w || w.stage === "closed") continue;
-    const dated = checks.filter((c) => c.scheduledFor && c.scheduledFor <= today);
-    const atQa = w.stage === "qa";
-    if (!atQa && dated.length === 0) continue;
+    if (w.stage !== "qa") continue;
     const oldest = checks.reduce((a, b) => (a.createdAt < b.createdAt ? a : b));
     const kinds = [...new Set(checks.map((c) => c.kind === "mid" ? "mid-job" : c.kind.replace(/_/g, " ")))].join(" + ");
     cards.push({
       key: `qa-due:${woId}`,
       severity: "warning",
-      title: atQa ? "Quality check to do" : "Mid-job quality check due",
-      detail: atQa
-        ? `The painter has finished — ${checks.length} check${checks.length === 1 ? "" : "s"} to log (${kinds}) before the job can be signed off.`
-        : `Booked for ${dated[0].scheduledFor === today ? "today" : dated[0].scheduledFor} — log it on the job page.`,
+      title: "Quality check to do",
+      detail: `The painter has finished — ${checks.length} check${checks.length === 1 ? "" : "s"} to log (${kinds}) before the job can be signed off.`,
       ref: label(woId),
       workOrderId: woId,
-      ageHours: atQa ? hoursBetween(w.stage === "qa" ? oldest.createdAt : oldest.createdAt, now)
-        : Math.max(1, (Date.parse(today) - Date.parse(dated[0].scheduledFor as string)) / 3_600_000 + 1),
+      ageHours: hoursBetween(oldest.createdAt, now),
       action: { label: "Check it", kind: "qa", href: `/pc/wo/${woId}` },
     });
   }
@@ -582,10 +599,6 @@ export type VariationForApproval = {
   href: string;
 };
 
-const VARIATION_CATEGORY_LABEL: Record<string, string> = {
-  rot: "Rot / substrate", damage: "Damage", extra_scope: "Extra scope",
-  customer_request: "Customer request", scope_removed: "Scope removed",
-};
 
 export function variationsForApproval(input: ConsoleInput): VariationForApproval[] {
   const byId = new Map(input.workOrders.map((w) => [w.id, w]));
@@ -604,7 +617,7 @@ export function variationsForApproval(input: ConsoleInput): VariationForApproval
         : waitingOn === "customer"
           ? "Priced — waiting on the customer"
           : `Customer approved — waiting on ${w?.contractorName ?? "the painter"}`,
-      category: VARIATION_CATEGORY_LABEL[v.category ?? ""] ?? (v.category ?? "Variation"),
+      category: v.category ? variationCategoryLabel(v.category, "office") : "Variation",
       comment: v.comment ?? "",
       priceCents: v.priceCents ?? null,
       credit: Boolean(v.credit),

@@ -1,8 +1,32 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { advanceStage, closeWithoutWalkthrough, confirmPrepStaff, deliverEvidencePack, reopenSignoff, staffComplete, startNow } from "../../actions";
+import { useRouter } from "next/navigation";
+import { advanceStage, closeWithoutWalkthrough, confirmPrepStaff, deliverEvidencePack, reopenSignoff, staffComplete, startNow, waiveAfterPhotos } from "../../actions";
 import { LANE_LABELS, STAGE_LANES, laneFor, nextStages, type WoStage } from "@/lib/workorder/stages";
+import BatchUploader from "@/app/components/wo/BatchUploader";
+
+/**
+ * What stands between an In-progress job and its next step, counted on the
+ * server from the same rows the gates read — so the card can say it BEFORE
+ * the press, in the order the office would fix it.
+ */
+export type Readiness = {
+  /** Working rows not yet Done (struck rows excluded). */
+  surfacesLeft: number;
+  /** Working rows in total. */
+  surfacesTotal: number;
+  /** Rows done, rows that want photos, and no after photo on the job. */
+  needsAfterPhotos: boolean;
+  /** The office has waived the after photos on this job (migration 20270215). */
+  afterPhotosWaived: boolean;
+  /** Required finishing-up items still to tick or answer. */
+  prepLeft: number;
+  /** Variations raised, priced or customer-approved — not yet settled. */
+  variationsWaiting: number;
+  /** Area headings, for tagging an after-photo batch. */
+  areas: string[];
+};
 
 /**
  * Moving a job to its next stage — the control that was missing.
@@ -14,9 +38,11 @@ import { LANE_LABELS, STAGE_LANES, laneFor, nextStages, type WoStage } from "@/l
  * which it then explains in the gate's own words.
  */
 export default function StageAdvance({
-  workOrderId, stage, startDate, today, walkthroughRequired = true, staffSignsOff = false,
+  workOrderId, stage, startDate, today, walkthroughRequired = true, staffSignsOff = false, readiness = null,
 }: {
   workOrderId: string; stage: WoStage;
+  /** In progress only: what is left before the next step, said up front. */
+  readiness?: Readiness | null;
   /** The booked start date, so starting early can be recognised as such. */
   startDate: string | null;
   /** Today in Melbourne, computed on the server so the two agree. */
@@ -39,6 +65,13 @@ export default function StageAdvance({
   const [pending, startTransition] = useTransition();
   const [reopening, setReopening] = useState(false);
   const [reason, setReason] = useState("");
+  const [waiving, setWaiving] = useState(false);
+  const [waiveReason, setWaiveReason] = useState("");
+  const [waived, setWaived] = useState(readiness?.afterPhotosWaived ?? false);
+  const router = useRouter();
+  // The rest of the page (ticks, checklist, QA cards, the rail) is server
+  // rendered; after a move it re-reads so the whole screen agrees with this card.
+  const moveTo = (to: WoStage, note: string | null) => { setMoved(to); setMessage(note); router.refresh(); };
 
   // Forward moves only: going back happens by a quality-check fail or a
   // customer's flag,
@@ -79,7 +112,7 @@ export default function StageAdvance({
                 onClick={() => startTransition(async () => {
                   setMessage(null);
                   const r = await reopenSignoff({ workOrderId, reason: reason.trim() });
-                  if (r.ok) { setMoved("walkthrough"); setMessage(r.message ?? null); setReopening(false); }
+                  if (r.ok) { moveTo("walkthrough", r.message ?? null); setReopening(false); }
                   else setMessage(r.message);
                 })}>
                 {pending ? "Reopening…" : "Reopen — back to sign-off"}
@@ -131,7 +164,7 @@ export default function StageAdvance({
           : to === "in_progress" && early
             ? await startNow({ workOrderId })
             : await advanceStage({ workOrderId, to });
-      if (result.ok) { setMoved(to); setMessage(result.message ?? null); }
+      if (result.ok) moveTo(to, result.message ?? null);
       else setMessage(result.message);
     });
   }
@@ -151,6 +184,72 @@ export default function StageAdvance({
         </p>
       )}
 
+      {readiness && (stage === "completion_prep" || stage === "in_progress") && (() => {
+        const needsPhotos = readiness.needsAfterPhotos && !waived;
+        const items: { key: string; done: boolean; text: string }[] = [
+          { key: "surfaces", done: readiness.surfacesLeft === 0 && readiness.surfacesTotal > 0,
+            text: readiness.surfacesTotal === 0 ? "No tick list on this job yet — build it from the job sheet"
+              : readiness.surfacesLeft === 0 ? `Every surface ticked off (${readiness.surfacesTotal})`
+              : `${readiness.surfacesLeft} of ${readiness.surfacesTotal} surfaces still to tick off` },
+          { key: "after-photos", done: !needsPhotos && readiness.surfacesLeft === 0,
+            text: waived ? "After photos waived by the office"
+              : readiness.surfacesLeft > 0 ? "After photos — the painter's Step 3, once the ticks are done"
+              : needsPhotos ? "After photos of all rooms or all sides — not in yet"
+              : "After photos in" },
+          { key: "prep", done: readiness.prepLeft === 0,
+            text: readiness.prepLeft === 0 ? "Finishing-up list answered"
+              : `${readiness.prepLeft} finishing-up item${readiness.prepLeft === 1 ? "" : "s"} to tick or answer` },
+          ...(readiness.variationsWaiting > 0 ? [{ key: "variations", done: false,
+            text: `${readiness.variationsWaiting} variation${readiness.variationsWaiting === 1 ? "" : "s"} still waiting on a decision` }] : []),
+        ];
+        return (
+          <div data-testid="readiness" style={{ marginBottom: 10 }}>
+            <p className="note" style={{ margin: "0 0 4px" }}>Before the next step:</p>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 4 }}>
+              {items.map((i) => (
+                <li key={i.key} data-testid={`readiness-${i.key}`} data-done={i.done ? "1" : "0"}
+                  style={{ display: "flex", gap: 8, alignItems: "baseline", color: i.done ? "var(--em, inherit)" : "var(--amber)" }}>
+                  <span aria-hidden="true">{i.done ? "✓" : "○"}</span>
+                  <span>{i.text}</span>
+                </li>
+              ))}
+            </ul>
+            {needsPhotos && readiness.surfacesLeft === 0 && (
+              <div style={{ display: "grid", gap: 8, marginTop: 10 }} data-testid="after-photos-routes">
+                <BatchUploader workOrderId={workOrderId} kind="completion" testId="console-after"
+                  title="Upload the after photos" buttonLabel="Upload after photos"
+                  hint="If the painter has sent them to you — all rooms or all sides. The job can move on the moment they land."
+                  areas={readiness.areas} />
+                {waiving ? (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <textarea className="edit" rows={2} value={waiveReason} data-testid="waive-after-photos-reason"
+                      placeholder="Why — e.g. painter texted the finished shots, filed on the estimate"
+                      onChange={(e) => setWaiveReason(e.target.value)} />
+                    <div className="row">
+                      <button type="button" className="btn primary" disabled={pending} data-testid="waive-after-photos-confirm"
+                        onClick={() => startTransition(async () => {
+                          setMessage(null);
+                          const r = await waiveAfterPhotos({ workOrderId, reason: waiveReason.trim() });
+                          setMessage(r.message ?? null);
+                          if (r.ok) { setWaived(true); setWaiving(false); router.refresh(); }
+                        })}>
+                        {pending ? "Saving…" : "Move on without after photos"}
+                      </button>
+                      <button type="button" className="btn" onClick={() => setWaiving(false)}>Cancel</button>
+                    </div>
+                    <p className="note" style={{ margin: 0 }}>Goes on the job&rsquo;s record with your name. The painter&rsquo;s own rule is unchanged.</p>
+                  </div>
+                ) : (
+                  <button type="button" className="btn dim" data-testid="waive-after-photos-open" onClick={() => setWaiving(true)}>
+                    No after photos coming — move on without them
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {stage === "completion_prep" || stage === "in_progress" ? (
         <div className="row">
           {/* One routed step, same as the painter's: the server decides
@@ -161,7 +260,7 @@ export default function StageAdvance({
             onClick={() => startTransition(async () => {
               setMessage(null);
               const r = await confirmPrepStaff({ workOrderId });
-              if (r.ok && r.to) { setMoved(r.to); setMessage(r.message ?? null); }
+              if (r.ok && r.to) moveTo(r.to, r.message ?? null);
               else setMessage(r.message ?? "That didn't work.");
             })}>
             {pending ? "Working…" : "All done — next step"}
@@ -188,7 +287,7 @@ export default function StageAdvance({
         {stage === "pre_start" ? (early
             ? "Tick the list whenever you like — the job starts itself on its booked date."
             : "The pre-start list has to be true before a job can start.")
-          : stage === "in_progress" ? "Every surface has to be ticked off first."
+          : stage === "in_progress" ? "One press: the server sends the job to a quality check if one is due, otherwise to the customer's walkthrough. Anything still in the way is said here in words."
           : stage === "qa" ? (walkthroughRequired
               ? "Every scheduled check has to be logged as a pass."
               : "Every scheduled check has to be logged as a pass — then the job closes (no walkthrough on this booking).")

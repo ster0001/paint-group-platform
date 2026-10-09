@@ -13,6 +13,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { HoldRow } from "./dispatch";
+import { melbourneDateKey } from "./controls";
 
 export type NeedVerdict = { ok: true } | { ok: false; reason: string };
 type Checker = (db: SupabaseClient, hold: HoldRow) => Promise<NeedVerdict>;
@@ -61,6 +62,18 @@ CHECKERS.contractor_job_update_reminder = async (db, hold) => {
   const s = (data as { stage?: string } | null)?.stage;
   return s && ["pre_start", "in_progress", "completion_prep"].includes(s) ? { ok: true } : { ok: false, reason: `The job is at ${s ?? "gone"}.` };
 };
+// Tom, 8 Oct: the morning heads-up asks the same question.
+CHECKERS.contractor_job_update_morning = CHECKERS.contractor_job_update_reminder;
+// Tom, 8 Oct: a defect-tape text held overnight (a Sunday, the daily cap) is moot once the job has moved on or finished.
+CHECKERS.customer_defect_tape = async (db, hold) => {
+  if (!hold.work_order_id) return { ok: true };
+  const { data, error } = await db.from("work_orders").select("stage, end_date").eq("id", hold.work_order_id).maybeSingle();
+  if (error) throw error;
+  const w = data as { stage?: string; end_date?: string | null } | null;
+  if (!w?.stage || !["pre_start", "in_progress", "completion_prep"].includes(w.stage)) return { ok: false, reason: `The job is at ${w?.stage ?? "gone"}.` };
+  if (!w.end_date || w.end_date < melbourneDateKey(new Date())) return { ok: false, reason: "The job's last day has passed." };
+  return { ok: true };
+};
 CHECKERS.contractor_invoice_prompt = async (db, hold) => {
   if (!hold.work_order_id) return { ok: true };
   const { data } = await db.from("contractor_invoices").select("status").eq("work_order_id", hold.work_order_id).eq("auto_draft_source", "signoff").limit(1).maybeSingle();
@@ -80,6 +93,17 @@ CHECKERS.contractor_offer_reminder = async (db, hold) => {
   if (!o || o.state !== "offered") return { ok: false, reason: "The offer has been answered." };
   if (new Date(o.expires_at).getTime() <= Date.now()) return { ok: false, reason: "The offer has expired." };
   return { ok: true };
+};
+
+// Tom, 9 Oct 2026: a "new message from the office" text held for sending hours
+// is moot once the painter has read the thread in the app.
+CHECKERS.contractor_message = async (db, hold) => {
+  if (!hold.work_order_id || !hold.contractor_id) return { ok: true };
+  const { data, error } = await db.from("wo_message_threads").select("painter_read_at")
+    .eq("work_order_id", hold.work_order_id).eq("contractor_id", hold.contractor_id).maybeSingle();
+  if (error) throw error;
+  const readAt = (data as { painter_read_at: string | null } | null)?.painter_read_at;
+  return readAt && new Date(readAt).getTime() >= new Date(hold.created_at).getTime() ? { ok: false, reason: "They read the message in the app already." } : { ok: true };
 };
 
 export async function stillNeeded(db: SupabaseClient, hold: HoldRow): Promise<NeedVerdict> {

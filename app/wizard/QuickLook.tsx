@@ -13,6 +13,7 @@ import {
 import { AreasScreen, BookScreen, BriefScreen, JobScreen, SegmentScreen, WarehouseScreen, type BookContact } from "./CommercialScreens";
 import type { BriefAnswers, CommercialAnswers, Segment, SegmentBrief } from "@/lib/wizard/segments";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
+import PlanViewer from "./PlanViewer";
 import { ExteriorPickTiles } from "./ExteriorTiles";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 
@@ -62,8 +63,8 @@ export type CommercialQuickProps = {
 const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
-  step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
-  onBook, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null,
+  step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, whyNot = null, busy, onBack, onNext,
+  onBook, onMessage, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null, gate = null,
   planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
 }: {
   /** Tom, 14 Sep (evening): the confirm-rooms step — the plan's rooms (or the starter list), a preview, and the rooms added by hand. */
@@ -80,7 +81,12 @@ export default function QuickLook({
   /** C12: the commercial screens (segment, areas, job), rendered from the row. */
   commercial?: CommercialQuickProps | null;
   /** C8: "Book someone in" on screen 1, and "book an estimator for both" — opens the Save & book sheet. */
+  /** R3: "Request a site visit" — a request for staff to follow up, never a booking. */
   onBook: () => void;
+  /** R3: "Send a message". */
+  onMessage: () => void;
+  /** S6 (R5): the gate — the last question before the range, when the session's order is "details first". */
+  gate?: { contact: { name: string; email: string; phone: string }; onContact: (c: { name: string; email: string; phone: string }) => void; marketing: boolean; onMarketing: (v: boolean) => void } | null;
   /** C8: the "both" choice screen (prototype `s-both`). */
   onChooseBoth: (how: "self" | "book") => void;
   /** The office number, for "Call us". Null = the card offers booking only. */
@@ -98,15 +104,20 @@ export default function QuickLook({
   needsWork: { note: string; onNote: (v: string) => void; photoCount: number; onPhotos: () => void; onClearPhotos: () => void };
   error: string | null;
   canContinue: boolean;
+  /** UI refresh S1: why Continue is unavailable right now ("Connecting…", "Uploading…") — said, never silent. */
+  whyNot?: string | null;
   busy: boolean;
   onBack: (() => void) | null;
   onNext: () => void;
-  stepNo: number;
-  stepsTotal: number;
 }) {
+  // Tom, 7 Oct 2026 (item 1): "don't wait" on the floorplan reading panel.
+  const [skipPlanWait, setSkipPlanWait] = useState(false);
   /** Tom, 14 Sep (evening): the "anything NOT being painted?" popup, open right after a preset is picked. */
   // Tom, 15 Sep (late): an outside job ends on the sides screen, not the outside screen.
-  const last = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "sides";
+  // S6: with a gate, the question before it says so, and the gate is the last screen.
+  const hasGate = Boolean(gate);
+  const lastQuestion = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "sides";
+  const last = step === "gate" || (lastQuestion && !hasGate);
   // C16 (a): the amber tag under a field the assistant filled in. A tap on
   // the field, or Continue on this screen, confirms it and the tag goes.
   const tag = (field: string) => assumed.includes(field)
@@ -115,10 +126,11 @@ export default function QuickLook({
   const pattern = commercial?.segment?.config.pattern === "warehouse" ? "warehouse" as const : "areas" as const;
   const door = commercial?.door ?? "range";
   // C14: the booking screen's button books; it never says "range".
-  const nextLabel = step === "com_book" ? "Book it" : last ? "See my guide range" : "Continue";
+  const nextLabel = step === "gate" ? "Show my guide price" : step === "com_book" ? "Book it" : last ? "See my guide range" : lastQuestion && hasGate ? "Continue to the last question" : "Continue";
 
   return (
-    <div className="wz-wrap wz-quick" data-quick-step={step}>
+    <div className="wz-stage">
+    <div className="wz-wrap wz-quick wz-pane" data-quick-step={step}>
       {step === "start" && (
         <>
           <p className="wz-kick">A minute to a guide range</p>
@@ -146,16 +158,6 @@ export default function QuickLook({
             screen after it — so leaving is never a dead end and everything
             typed so far goes with them."
           */}
-          <div className="wz-rather" data-testid="ql-rather-not">
-            <b>Rather not fill anything in?</b>
-            <p>Book an estimator or call us. Either takes about a minute, and we do the rest.</p>
-            <div className="wz-rather-row">
-              <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-book">Book someone in</button>
-              {phone && (
-                <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">Call us</a>
-              )}
-            </div>
-          </div>
         </>
       )}
 
@@ -209,11 +211,12 @@ export default function QuickLook({
           {quick.propertyKind !== "commercial" && quick.jobType !== "exterior" && (
             <>
               <p className="wz-qhead">How many bedrooms?</p>
-              <div className="wz-chips" data-testid="ql-bedrooms">
+              <div className="wz-chips wz-segd wz-segd--num" data-testid="ql-bedrooms">
                 {BEDROOMS.map((n) => (
                   <button
                     key={n} type="button"
                     className={`wz-tile ${quick.bedrooms === n ? "on" : ""}`}
+                    aria-pressed={quick.bedrooms === n}
                     data-testid={`ql-bedrooms-${n}`}
                     onClick={() => onQuick({ bedrooms: n })}
                   >{n === 5 ? "5+" : n}</button>
@@ -309,7 +312,8 @@ export default function QuickLook({
               in at one coat. The state is still `excluded`. */}
           {exclusionOptions(quick.scope).length > 0 && (
             <div className="wz-excl" data-testid="ql-excl">
-              <p className="wz-qhead">What&rsquo;s being painted? <span className="wz-opt">ALL TICKED — UNTICK ANYTHING WE&rsquo;RE NOT DOING</span></p>
+              <p className="wz-qhead">What&rsquo;s being painted?</p>
+              <p className="wz-hint">All ticked. Untick anything we&rsquo;re not doing.</p>
               <div className="wz-chips" data-testid="ql-excl-options">
                 {exclusionOptions(quick.scope).map((o) => {
                   const painted = !quick.excluded.includes(o.value);
@@ -350,14 +354,16 @@ export default function QuickLook({
             onPick={(k) => onQuick({ changing: toggleChanging(quick, k) })} />
           {tag("changing")}
 
-          <p className="wz-qhead">Any of them going much lighter, or a bold colour? <span className="wz-opt">NEEDS AN UNDERCOAT FIRST — WE ALLOW FOR IT</span></p>
+          <p className="wz-qhead">Any of them going much lighter, or a bold colour?</p>
+          <p className="wz-hint">That needs an undercoat first. We allow for it.</p>
           <Chips options={[{ value: "no", label: "No" }, { value: "yes", label: "Yes" }]} value={quick.bold ? "yes" : "no"}
             onPick={(v) => onQuick({ bold: v === "yes" })} name="bold" />
           {/* Tom, 15 Sep: "Yes" then WHICH — the groups being painted and changing colour.
               It used to assume every one of them (the walls first), and asked nothing. */}
           {quick.bold && (
             <>
-              <p className="wz-qhead">Which ones? <span className="wz-opt">TICK ALL THAT APPLY — THESE GET THE UNDERCOAT AND THIRD COAT</span></p>
+              <p className="wz-qhead">Which ones?</p>
+              <p className="wz-hint">Tick all that apply. These get the undercoat and third coat.</p>
               <Multi options={CHANGING_GROUPS.filter((o) => visibleChanging(quick.scope, quick.excluded).includes(o.value) && quick.changing[o.value])}
                 on={(quick.boldGroups ?? []).filter((k) => quick.changing[k])}
                 onPick={(k) => onQuick({ boldGroups: (quick.boldGroups ?? []).includes(k) ? (quick.boldGroups ?? []).filter((x) => x !== k) : [...(quick.boldGroups ?? []), k] })}
@@ -365,7 +371,8 @@ export default function QuickLook({
             </>
           )}
 
-          <p className="wz-qhead">Still choosing colours? <span className="wz-opt">FINE — WE ALLOW FOR NEW COLOURS AND YOU DECIDE LATER</span></p>
+          <p className="wz-qhead">Still choosing colours?</p>
+          <p className="wz-hint">That&rsquo;s fine. We allow for new colours and you decide later.</p>
           <Chips options={[{ value: "known", label: "I know roughly" }, { value: "undecided", label: "Still choosing" }]} value={quick.undecided ? "undecided" : "known"}
             onPick={(v) => onQuick({ undecided: v === "undecided" })} name="choosing" />
         </>
@@ -373,6 +380,31 @@ export default function QuickLook({
 
       {step === "rooms" && (() => {
         const fromPlan = planRooms != null && planRooms.length > 0;
+        // Tom, 7 Oct 2026 (item 1): while the plan is still being read, the
+        // list from the ANSWERS is not shown — a tick made on a guessed name
+        // never matched the plan's names, and the screen read as pre-filled
+        // with the wrong rooms. A reading panel takes its place, with a way
+        // past it for anyone who would rather not wait.
+        if (planPending && !fromPlan && !skipPlanWait) {
+          return (
+            <>
+              <p className="wz-kick">Confirm the rooms</p>
+              <h1>Reading your floorplan&hellip;</h1>
+              <p className="wz-sub">We&rsquo;re picking the rooms and their sizes off the plan you uploaded. This usually takes under a minute.</p>
+              <div className="wz-planreading" data-testid="ql-plan-reading-panel" role="status" aria-live="polite">
+                <div className="wz-ring" />
+                <p className="wz-psteps">
+                  <span className="wz-pstep on"><i className="wz-pdot" aria-hidden /> Finding the rooms on the plan</span>
+                  <span className="wz-pstep"><i className="wz-pdot" aria-hidden /> Reading each room&rsquo;s measurements</span>
+                  <span className="wz-pstep"><i className="wz-pdot" aria-hidden /> Listing them here for you to confirm</span>
+                </p>
+                <button type="button" className="wz-linkish" data-testid="ql-plan-skip-wait" onClick={() => setSkipPlanWait(true)}>
+                  Don&rsquo;t wait — start from my answers and we&rsquo;ll swap in the plan&rsquo;s rooms when it finishes
+                </button>
+              </div>
+            </>
+          );
+        }
         const names = fromPlan ? planRooms.map((r) => r.name) : starterRoomNames(quick);
         const isOn = (name: string) => !quick.rooms || quick.rooms.includes(name);
         const toggle = (name: string) => {
@@ -391,9 +423,9 @@ export default function QuickLook({
             </p>
             {planPending && !fromPlan && <p className="wz-chint" data-testid="ql-plan-reading">Still reading your floorplan — the list below is from your answers until it finishes.</p>}
             {planPreviewUrl && (
+              // Tom, 7 Oct 2026 (item 3): the plan is zoomable here too — pinch, the wheel, or + / −, and drag to pan.
               <figure className="wz-planpreview" data-testid="ql-plan-preview">
-                {/* eslint-disable-next-line @next/next/no-img-element -- a signed, short-lived preview of the customer's own upload */}
-                <img src={planPreviewUrl} alt="Your floorplan" />
+                <PlanViewer src={planPreviewUrl} title="YOUR FLOORPLAN" note="PINCH OR USE + TO ZOOM" />
               </figure>
             )}
             <div className="wz-chips" data-testid="ql-rooms">
@@ -430,7 +462,8 @@ export default function QuickLook({
               the extra preparation. */}
           {quick.condition === "needs_work" && (
             <div className="wz-follow wz-alt" data-testid="ql-needs-work">
-              <p className="wz-qhead">Which areas need work? <span className="wz-opt">OPTIONAL — PHOTOS, A FEW WORDS, OR BOTH</span></p>
+              <p className="wz-qhead">Which areas need work? <span className="wz-opttag">Optional</span></p>
+              <p className="wz-hint">Photos, a few words, or both.</p>
               <textarea
                 className="wz-brief" data-testid="ql-damage-note" rows={3} maxLength={600} value={needsWork.note}
                 onChange={(e) => needsWork.onNote(e.target.value)}
@@ -476,13 +509,39 @@ export default function QuickLook({
           <ExteriorPickTiles options={EXT_ELEMENTS} on={outside.elements} name="ext-el"
             onPick={(v) => onOutside({ elements: toggleIn(outside.elements, v) })} />
 
-          <p className="wz-qhead">Any other areas being painted? <span className="wz-opt">TICK ALL THAT APPLY</span></p>
+          <p className="wz-qhead">Any other areas being painted?</p>
+          <p className="wz-hint">Tick all that apply.</p>
           <ExteriorPickTiles options={EXT_STANDALONE} on={outside.standalone} name="ext-sep"
             onPick={(v) => onOutside({ standalone: toggleIn(outside.standalone, v) })} />
 
+          {/* Tom, 5 Oct 2026: a pergola is priced on its top's footprint, not
+              per pergola — length and width, then Confirm, right under the tick. */}
+          {outside.standalone.includes("pergola") && (() => {
+            const pg = outside.pergola ?? { lengthM: null, widthM: null, confirmed: false };
+            const num = (v: string) => { const m = parseFloat(v.replace(/[^0-9.]/g, "")); return isNaN(m) ? null : Math.min(30, Math.max(0.5, m)); };
+            const ready = pg.lengthM != null && pg.widthM != null;
+            return (
+              <div className="wz-follow" data-testid="ext-pergola-q">
+                <p className="wz-q">Roughly how big is the pergola top?</p>
+                <p className="wz-chint" style={{ marginTop: 0 }}>Length and width in metres — near enough is fine. It&rsquo;s priced on the top&rsquo;s area, not per pergola.</p>
+                <div className="wz-seg" style={{ alignItems: "center" }}>
+                  <input className="wz-field" style={{ flex: "0 1 150px", marginBottom: 0 }} inputMode="decimal" placeholder="length m" data-testid="ext-pergola-length"
+                    defaultValue={pg.lengthM ?? ""} onBlur={(e) => onOutside({ pergola: { ...pg, lengthM: num(e.target.value), confirmed: false } })} />
+                  <input className="wz-field" style={{ flex: "0 1 150px", marginBottom: 0 }} inputMode="decimal" placeholder="width m" data-testid="ext-pergola-width"
+                    defaultValue={pg.widthM ?? ""} onBlur={(e) => onOutside({ pergola: { ...pg, widthM: num(e.target.value), confirmed: false } })} />
+                  <button type="button" className={`wz-btn wz-bs2 ${pg.confirmed ? "on" : ""}`} data-testid="ext-pergola-confirm" disabled={!ready}
+                    onClick={() => onOutside({ pergola: { ...pg, confirmed: true } })}>
+                    {pg.confirmed ? "Confirmed ✓" : "Confirm"}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
           {outside.elements.includes("body") && (
             <div data-testid="ext-body-q">
-              <p className="wz-qhead">What are the walls made of? <span className="wz-opt">TICK EVERYTHING THAT NEEDS PAINTING</span></p>
+              <p className="wz-qhead">What are the walls made of?</p>
+              <p className="wz-hint">Tick everything that needs painting.</p>
               <Multi options={EXT_MATERIALS} on={outside.materials} name="ext-mat"
                 onPick={(v) => onOutside({ materials: toggleMaterial(outside.materials, v) })} />
               <p className="wz-chint">Nothing is ticked for you — brick and render are often left bare on purpose, so we&rsquo;d rather you told us.</p>
@@ -553,16 +612,6 @@ export default function QuickLook({
             </p>
           )}
 
-          <div className="wz-rather" data-testid="ext-rather">
-            <b>Rather we just came out?</b>
-            <p>Every outside job is signed off by a person anyway. Book now and skip the rest.</p>
-            <div className="wz-rather-row">
-              <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ext-book">Book someone in</button>
-              {phone && (
-                <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ext-call">Call us</a>
-              )}
-            </div>
-          </div>
         </>
       )}
 
@@ -585,7 +634,7 @@ export default function QuickLook({
             <div className="wz-pick sc-tiles wz-exttiles" data-testid="ql-ext-sides">
               <button type="button" className={`wz-pk ${all ? "on" : ""}`} aria-pressed={all} data-testid="ql-ext-side-all"
                 onClick={() => onOutside({ sides: [...ALL_SIDES] })}>
-                <svg viewBox="0 0 60 64"><rect x="10" y="10" width="40" height="44" fill="#12161A" stroke="#2FB9CB" strokeWidth="4" /></svg>
+                <svg viewBox="0 0 60 64"><rect x="10" y="10" width="40" height="44" fill="#EEF2F5" stroke="#0E9FB4" strokeWidth="4" /></svg>
                 <small>The full exterior</small><em className="wz-pksub">all four sides</em>
               </button>
               {EXT_SIDES.map((o) => {
@@ -594,11 +643,11 @@ export default function QuickLook({
                   <button key={o.value} type="button" className={`wz-pk ${on ? "on" : ""}`} aria-pressed={on}
                     data-testid={`ql-ext-side-${o.value}`} onClick={() => toggle(o.value)}>
                     <svg viewBox="0 0 60 64">
-                      <rect x="10" y="10" width="40" height="44" fill="#12161A" stroke="#39424B" />
-                      {o.value === "front" && <line x1="10" y1="54" x2="50" y2="54" stroke="#2FB9CB" strokeWidth="4" />}
-                      {o.value === "back" && <line x1="10" y1="10" x2="50" y2="10" stroke="#2FB9CB" strokeWidth="4" />}
-                      {o.value === "left" && <line x1="10" y1="10" x2="10" y2="54" stroke="#2FB9CB" strokeWidth="4" />}
-                      {o.value === "right" && <line x1="50" y1="10" x2="50" y2="54" stroke="#2FB9CB" strokeWidth="4" />}
+                      <rect x="10" y="10" width="40" height="44" fill="#EEF2F5" stroke="#B9C2CB" />
+                      {o.value === "front" && <line x1="10" y1="54" x2="50" y2="54" stroke="#0E9FB4" strokeWidth="4" />}
+                      {o.value === "back" && <line x1="10" y1="10" x2="50" y2="10" stroke="#0E9FB4" strokeWidth="4" />}
+                      {o.value === "left" && <line x1="10" y1="10" x2="10" y2="54" stroke="#0E9FB4" strokeWidth="4" />}
+                      {o.value === "right" && <line x1="50" y1="10" x2="50" y2="54" stroke="#0E9FB4" strokeWidth="4" />}
                     </svg>
                     <small>{o.label}</small>
                     {o.hint && <em className="wz-pksub">{o.hint}</em>}
@@ -614,24 +663,64 @@ export default function QuickLook({
 
       {error && <div className="wz-err" data-testid="ql-error">{error}</div>}
 
-      <div className="wz-nav">
+      {step === "gate" && gate && (
+        <>
+          <p className="wz-kick">Last question</p>
+          <h1>Where shall we send your estimate?</h1>
+          <p className="wz-sub">Enter your details to see your guide price. We will save your estimate so you can come back to it.</p>
+          <label className="wz-field"><span>Full name</span>
+            <input value={gate.contact.name} autoComplete="name" data-testid="gate-name" onChange={(e) => gate.onContact({ ...gate.contact, name: e.target.value })} /></label>
+          <label className="wz-field"><span>Email</span>
+            <input type="email" inputMode="email" value={gate.contact.email} autoComplete="email" data-testid="gate-email" onChange={(e) => gate.onContact({ ...gate.contact, email: e.target.value })} /></label>
+          <label className="wz-field"><span>Mobile number</span>
+            <input type="tel" inputMode="tel" placeholder="04" value={gate.contact.phone} autoComplete="tel" data-testid="gate-mobile" onChange={(e) => gate.onContact({ ...gate.contact, phone: e.target.value })} /></label>
+          <label className="wz-chint wz-consent" data-testid="gate-marketing">
+            <input type="checkbox" checked={gate.marketing} onChange={(e) => gate.onMarketing(e.target.checked)} /> Send me occasional news and offers from Paint Group (optional)
+          </label>
+        </>
+      )}
+      {/* UI refresh S1: Back and Continue sit INSIDE the column on a laptop and
+          become a fixed bar on a phone. Continue is never silently unavailable —
+          the reason is said in one line above it. */}
+      {whyNot && (!canContinue || busy) && <p className="wz-why" data-testid="ql-why" role="status">{whyNot}</p>}
+      <div className="wz-nav wz-nav--col">
         {onBack && (
-          <button type="button" className="wz-btn wz-bs" onClick={onBack} data-testid="ql-back">Back</button>
+          <button type="button" className="wz-btn wz-btxt" onClick={onBack} data-testid="ql-back">Back</button>
         )}
         {/* The "both" choice IS the answer — its two doors continue; there is no Continue to press. */}
         {step !== "both" && (
           <button
+            // A new error replays the shake on the button that was pressed.
+            key={error ?? "ok"}
             type="button"
-            className="wz-btn wz-bp"
+            className={`wz-btn wz-bp wz-bpaint ${error ? "wz-shake" : ""}`}
             disabled={!canContinue || busy}
             data-testid="ql-next"
             onClick={onNext}
           >
             {busy ? (step === "com_book" ? "Booking…" : "Working it out…") : nextLabel}
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5" /></svg>
           </button>
         )}
       </div>
-      <p className="wz-steps">Step {stepNo} of {stepsTotal}</p>
+      {/* Visit booking addendum A, R3: on EVERY step before the range —
+          "Would you rather talk it through?" A visit asked for here is a
+          request for staff, never a booking; the message goes into the chat.
+          `ql-book` keeps its test id from the old "Book someone in".
+          UI refresh S1: a compact card under the nav (no dashed box); S2 moves
+          it into the right-hand column. */}
+      <div className="wz-talk" data-testid="ql-talk">
+        <p className="wz-talk-head"><b>Would you rather talk it through?</b></p>
+        <div className="wz-talk-row">
+          <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-book">Request a site visit</button>
+          {phone && <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">Call us</a>}
+          <button type="button" className="wz-btn wz-bs2" onClick={onMessage} data-testid="ql-message">Send a message</button>
+        </div>
+      </div>
+    </div>
+    {/* The picture column (brief §7.2): the live picture, "Your job so far" and
+        "Talk it through" arrive in S2. Present now so the layout is the final one. */}
+    <aside className="wz-side" aria-hidden="true" data-testid="ql-side" />
     </div>
   );
 }
@@ -641,11 +730,12 @@ function Chips<T extends string>({ options, value, onPick, name }: {
   options: Choice<T>[]; value: T; onPick: (v: T) => void; name: string;
 }) {
   return (
-    <div className="wz-chips" data-testid={`ql-${name}`}>
+    <div className="wz-chips wz-segd" data-testid={`ql-${name}`}>
       {options.map((o) => (
         <button
           key={o.value} type="button"
           className={`wz-tile ${value === o.value ? "on" : ""}`}
+          aria-pressed={value === o.value}
           data-testid={`ql-${name}-${o.value}`}
           onClick={() => onPick(o.value)}
         >{o.label}</button>
@@ -683,6 +773,7 @@ function Cards<T extends string>({ options, value, onPick, name }: {
         <button
           key={o.value} type="button"
           className={`wz-card ${value === o.value ? "on" : ""}`}
+          aria-pressed={value === o.value}
           data-testid={`ql-${name}-${o.value}`}
           onClick={() => onPick(o.value)}
         >

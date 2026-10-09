@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { needsSignoff, standardsCardDueAt, type StandardsRules, type StandardsStatus } from "@/lib/standards/acks";
+import { loadStandardsRules, loadStandardsStatuses } from "@/lib/standards/status";
 import { inSlices as sliceRead } from "@/lib/supabase/inSlices";
 import { isQuiet } from "./states";
 import { loadCrmThresholds, type CrmThresholds } from "./thresholds";
@@ -11,10 +13,13 @@ import {
 } from "@/lib/wizard/policy";
 import { sortQueue } from "@/lib/wizard/confirmation";
 import { DEFAULT_TURNAROUND_SETTING, isOverdue, turnaroundFromSettings, type TurnaroundSetting } from "@/lib/wizard/confirmation-actions";
-import { addBusinessHours, melbourneInstant, nextBusinessMorning } from "@/lib/time/businessHours";
+import { addBusinessHours, melbourneInstant, melbourneParts, nextBusinessMorning } from "@/lib/time/businessHours";
+import { nextYearHolidaysMissing } from "@/lib/time/workingDays";
+import { mergeBookingRules } from "@/lib/visits/schedule";
 import { customerCheckins, dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
 import { melbourneDayStartUtc } from "@/lib/workorder/console";
 import { openHolds } from "@/lib/scheduling/holds";
+import { qaCheckLabel } from "@/lib/workorder/qaSchedule";
 
 /**
  * The work queue (shell brief §3) — the one answer to "what needs a human?".
@@ -53,10 +58,34 @@ export const WORK_ITEM_KINDS = [
   "change_request",
   /** Assistant S7: a customer is waiting for a person in a live chat. */
   "handoff_requested",
+  /** Visit booking addendum A §4.1: a Victorian suburb the zone list does not know. */
+  "unmapped_suburb",
+  /** Visit booking addendum A §4.4: a request (time / visit before the range / call) waiting for a reply. */
+  "visit_request",
+  /** Visit booking addendum A §4.4: it is November and next year's public holidays are not in Settings yet. */
+  "holidays_next_year",
+  /** S5 (R22): the customer declined the calendar invitation; the visit is cancelled and the slot reopened. */
+  "visit_declined",
+  /** S5 (R27): Tom moved the visit in Google Calendar; the platform did not follow — confirm the new time with the customer. */
+  "visit_moved_in_google",
+  /** S5 (4.6): Google Calendar writes keep failing for an estimator. */
+  "gcal_sync_failed",
+  /** S5 (4.6): a zone's estimator has no connected Google Calendar we can write to, so customers there cannot book. */
+  "estimator_calendar_missing",
   /** Buckets brief §4: a wizard session that asked for a call or a visit (A). */
   "wizard_ready",
   /** Buckets brief §4: a wizard session that asked a question or for help (B). */
   "wizard_help",
+  /** Standards Step 2 (⚑17): a painter has not confirmed the finish standards after the grace period. */
+  "standards_unsigned",
+  /** Call backs Step 3 (brief §8): the final walk-through flagged an area — is a call back required? */
+  "walkthrough_flagged",
+  /** Call backs: open with no return visit booked. */
+  "callback_unbooked",
+  /** Call backs: the return visit is today or tomorrow. */
+  "callback_visit_soon",
+  /** Call backs: the painter marked it fixed — confirm and close. */
+  "callback_fixed",
   /** Buckets brief §4: priced, idle, nothing asked (C+). */
   "wizard_priced",
   /** CRM v2 P1: a sent estimate passed its valid_until — chase or close? Lapsed is not lost (decision 8.11). */
@@ -86,8 +115,6 @@ export const WORK_ITEM_KINDS = [
   "employee_unaccepted",
   /** S7: an employee asked for leave or an RDO — approve or decline before the day. */
   "leave_request",
-  /** S7: clocked days waiting on the office for more than a day. */
-  "timesheet_approval",
   /**
    * Tom, 25 Sep 2026: ring the customer part-way through a job — half way on
    * a 3–6 day job, 35% and 70% on a longer one. High importance: a customer
@@ -102,6 +129,32 @@ export const WORK_ITEM_KINDS = [
    * release it — the hold is the reminder, this is the nudge.
    */
   "hold_pending",
+  /**
+   * Painter status Step 7 (brief §8): a painter dropped to Orange (ring them)
+   * or Red (the owner is told too and must clear them before new offers); a
+   * bonus review is due ("Tell Tom"); a qualifying job changed after a review
+   * was raised (owner reviews); a Green painter's fast payment is on hold.
+   */
+  "painter_orange",
+  "painter_red",
+  "bonus_due",
+  "bonus_changed",
+  "payment_hold",
+  /**
+   * Tom, 8 Oct 2026: a quality check on its day — "the quality check being
+   * the main check at the end of the job before the walk through". Recording
+   * the check clears it. (Site check-ins are site_visit_due, 9 Oct.)
+   */
+  "qa_check_due",
+  /** Tom, 8 Oct 2026: a dated quality check whose final walkthrough was cancelled and not rebooked — the check stays put; rebook the final or move it. */
+  "qa_check_final_cancelled",
+  /** Tom, 9 Oct 2026: a painter wrote in a project's Messages box and nobody in the office has read it yet. Reading the thread clears it. */
+  "painter_message",
+  /**
+   * Tom, 9 Oct 2026: a site check-in (wo_site_visits, 20270248) on its day —
+   * Felipe's own visit, never a check, never a hold. "Mark visited" clears it.
+   */
+  "site_visit_due",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -109,7 +162,7 @@ export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
 export type WorkItemBucket = "overdue" | "today" | "waiting";
 
 export type SubjectRef = {
-  type: "account" | "estimate" | "invoice" | "work_order" | "visit" | "event" | "campaign_queue" | "thread" | "wizard_session";
+  type: "account" | "estimate" | "invoice" | "work_order" | "visit" | "event" | "campaign_queue" | "thread" | "wizard_session" | "contractor";
   id: string;
 };
 
@@ -176,6 +229,9 @@ const CUSTOMER_VISIBLE: ReadonlySet<WorkItemKind> = new Set([
   "handoff_requested",
   "wizard_ready",
   "wizard_help",
+  "visit_request",
+  "visit_declined",
+  "visit_moved_in_google",
   "photo_review",
   "job_checkin",
   "job_followup",
@@ -186,10 +242,50 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
 }
 
 /**
+ * Where a kind is WORKED (Tom, 6 Oct 2026: "move all job check-ins out of the
+ * CRM system and into PC Command"). Still one evaluator and one set of
+ * dismissals — a kind homed on "pc" is built here, keyed here and dismissed
+ * through crm_dismiss_work_item like any other; it is simply shown on the PC
+ * console (`buildPcWorkItems`) and left off Today, the tab badge and the home
+ * dashboard (`crmItems`). Two queues would be a single-source violation; two
+ * SCREENS over one queue is not.
+ */
+export type WorkItemHome = "crm" | "pc";
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "painter_message", "site_visit_due"]);
+export function homeOf(kind: WorkItemKind): WorkItemHome {
+  return PC_HOMED.has(kind) ? "pc" : "crm";
+}
+/** The items the CRM shows: everything not homed on the PC console. */
+export function crmItems(items: readonly WorkItem[]): WorkItem[] {
+  return items.filter((i) => homeOf(i.kind) === "crm");
+}
+/** The items PC Command shows. */
+export function pcItems(items: readonly WorkItem[]): WorkItem[] {
+  return items.filter((i) => homeOf(i.kind) === "pc");
+}
+
+/**
  * ⚑7.2 — these weights are defaults chosen to be defensible, not ruled. They
  * live in one object so Tom's ruling is a one-line change and not a hunt.
  */
 export const KIND_WEIGHT: Record<WorkItemKind, number> = {
+  painter_red: 28,
+  painter_orange: 24,
+  bonus_changed: 16,
+  bonus_due: 12,
+  payment_hold: 16,
+  standards_unsigned: 14,
+  walkthrough_flagged: 24,
+  callback_unbooked: 18,
+  callback_visit_soon: 10,
+  callback_fixed: 18,
+  unmapped_suburb: 16,
+  visit_request: 24,
+  holidays_next_year: 8,
+  visit_declined: 22,
+  visit_moved_in_google: 20,
+  gcal_sync_failed: 14,
+  estimator_calendar_missing: 18,
   message_unanswered: 26,
   callback_requested: 24,
   message_unmatched: 18,
@@ -224,13 +320,20 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   // A yes/no before the day, and then the board is right.
   leave_request: 12,
   // Payroll waits on this, but a day, not an hour.
-  timesheet_approval: 10,
   // Tom, 25 Sep: mid-job check-ins are HIGH importance — top of the customer band.
   job_checkin: 30,
   // A courtesy call after a short job; ranks with the other follow-ups.
   job_followup: 14,
   // Days reserved for a client who hasn't said yes — chase them before the painter loses the week.
   hold_pending: 16,
+  // A visit on site today — the day's plan, not a fire.
+  qa_check_due: 20,
+  // Felipe is booked for a check with no final behind it — sort it before the day.
+  qa_check_final_cancelled: 18,
+  // A painter on site is waiting on an answer — ranks with a customer's unanswered message.
+  painter_message: 26,
+  // Felipe's own visit on the day — the day's plan, like a check.
+  site_visit_due: 20,
 };
 
 export type PriorityInput = {
@@ -296,6 +399,23 @@ export const FILTER_GROUPS = ["all", "messages", "followups", "approvals", "mone
 export type FilterGroup = (typeof FILTER_GROUPS)[number];
 
 export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = {
+  painter_red: "followups",
+  painter_orange: "followups",
+  bonus_due: "approvals",
+  bonus_changed: "approvals",
+  payment_hold: "money",
+  standards_unsigned: "approvals",
+  walkthrough_flagged: "approvals",
+  callback_unbooked: "followups",
+  callback_visit_soon: "followups",
+  callback_fixed: "approvals",
+  unmapped_suburb: "followups",
+  visit_request: "followups",
+  holidays_next_year: "approvals",
+  visit_declined: "followups",
+  visit_moved_in_google: "followups",
+  gcal_sync_failed: "approvals",
+  estimator_calendar_missing: "approvals",
   message_unanswered: "messages",
   message_unmatched: "messages",
   callback_requested: "messages",
@@ -323,10 +443,13 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   employee_reassign: "followups",
   employee_unaccepted: "followups",
   leave_request: "approvals",
-  timesheet_approval: "approvals",
   job_checkin: "followups",
   job_followup: "followups",
   hold_pending: "followups",
+  qa_check_due: "followups",
+  qa_check_final_cancelled: "followups",
+  painter_message: "messages",
+  site_visit_due: "followups",
 };
 
 // ---- source: customer check-ins on a running job (Tom, 25 Sep 2026) ----------
@@ -426,7 +549,6 @@ export type ActiveAssignmentRow = {
 export type LeaveRequestRow = {
   id: string; contractor_id: string; kind: string; start_date: string; end_date: string; reason: string; created_at: string;
 };
-export type TimesheetPendingRow = { id: string; contractor_id: string; work_order_id: string; work_date: string; finished_at: string | null };
 export type DatesChangedEventRow = { created_at: string; meta: { assignment_id?: string } | null };
 
 /**
@@ -481,7 +603,7 @@ export function buildEmployeeReassignItems(
   });
 }
 
-// ---- sources: employee_unaccepted · leave_request · timesheet_approval (S7, brief §3.9) ----
+// ---- sources: employee_unaccepted · leave_request (S7, brief §3.9) ----
 
 const dmyOf = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
 const daysOf = (start: string, end: string) => start === end ? dmyOf(start) : `${dmyOf(start)}–${dmyOf(end)}`;
@@ -575,33 +697,8 @@ export function buildLeaveRequestItems(rows: LeaveRequestRow[], painterNames: Ma
   });
 }
 
-/**
- * Clocked days waiting on the office for more than 24 hours — one item per
- * painter, counting their days, keyed on the painter so the count changing
- * never resurrects a dismissal.
- */
-export function buildTimesheetApprovalItems(rows: TimesheetPendingRow[], painterNames: Map<string, string>, now: Date): WorkItem[] {
-  const byPainter = new Map<string, TimesheetPendingRow[]>();
-  for (const r of rows) {
-    if (!r.finished_at || now.getTime() - Date.parse(r.finished_at) < 86_400_000) continue;
-    byPainter.set(r.contractor_id, [...(byPainter.get(r.contractor_id) ?? []), r]);
-  }
-  return [...byPainter.entries()].map(([cid, entries]) => {
-    const oldest = entries.reduce((a, b) => (a.finished_at! < b.finished_at! ? a : b));
-    const who = painterNames.get(cid) ?? "A painter";
-    return finish({
-      key: itemKey("timesheet_approval", "work_order", oldest.work_order_id, cid),
-      kind: "timesheet_approval",
-      accountId: null,
-      subjectRef: { type: "work_order", id: oldest.work_order_id },
-      title: `${entries.length} clocked day${entries.length === 1 ? "" : "s"} from ${who} waiting on approval`,
-      detail: `Oldest is ${dmyOf(oldest.work_date)}. Approve posts the labour to the job; payroll takes the approved days.`,
-      since: oldest.finished_at!,
-      dueAt: new Date(Date.parse(oldest.finished_at!) + 86_400_000).toISOString(),
-      action: { label: "Approve", href: "/pc/timesheets" },
-    }, { valueCents: null, promisedToCustomer: false }, now);
-  });
-}
+// Tom, 7 Oct 2026: there is no timesheet_approval item any more — days approve
+// themselves on submit (migration 20270219); the office is not reminded to approve.
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
 
@@ -731,6 +828,19 @@ export type CallbackEventRow = {
 
 export type ContactEventRow = { account_id: string; occurred_at: string };
 
+/**
+ * Tom, 7 Oct 2026: "if a job is accepted, remove all follow-ups from the CRM
+ * automatically." The stored reminder is cleared by the database trigger
+ * (migration 20270219); the DERIVED follow-ups — a quiet quote, a callback, an
+ * online estimate — are answered here: anything that was asked for at or
+ * before the customer's latest acceptance is no longer waiting on the office.
+ */
+export function answeredByAcceptance(acceptedAt: Map<string, string>, accountId: string | null | undefined, askedAt: string): boolean {
+  if (!accountId) return false;
+  const at = acceptedAt.get(accountId);
+  return !!at && at >= askedAt;
+}
+
 /** ⚑7.8 default — a callback goes overdue after this many hours. */
 export const CALLBACK_OVERDUE_HOURS = 4;
 
@@ -745,11 +855,13 @@ export function buildCallbackItems(
   attempts: ContactEventRow[],
   accountNames: Map<string, string>,
   now: Date,
+  acceptedAt: Map<string, string> = new Map(),
 ): WorkItem[] {
   const items: WorkItem[] = [];
   for (const cb of callbacks) {
     const answered = attempts.some((a) => a.account_id === cb.account_id && a.occurred_at > cb.occurred_at);
     if (answered) continue;
+    if (answeredByAcceptance(acceptedAt, cb.account_id, cb.occurred_at)) continue;
     const who = accountNames.get(cb.account_id) ?? "Someone";
     const note = cb.payload?.note;
     const phone = cb.payload?.phone;
@@ -823,12 +935,13 @@ const money = (c: number) => `$${Math.round(c / 100).toLocaleString("en-AU")}`;
  * hours in Melbourne: 4 for a call or visit request, 2 for help, the next
  * business morning for "priced, no request".
  */
-export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventRow[], now: Date): WorkItem[] {
+export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventRow[], now: Date, acceptedAt: Map<string, string> = new Map()): WorkItem[] {
   const items: WorkItem[] = [];
   for (const r of rows) {
     const bucket = r.bucket as WizardBucket;
     const since = r.outcome_at ?? r.dropped_at ?? r.last_seen_at;
     if (r.account_id && attempts.some((a) => a.account_id === r.account_id && a.occurred_at > since)) continue;
+    if (answeredByAcceptance(acceptedAt, r.account_id, since)) continue;
     const who = journeyWho(r);
     const where = r.address || r.suburb || "";
     const line = journeyLine({ furthestPage: r.furthest_page, pagesTotal: r.pages_total, activeSeconds: r.active_seconds, lastActiveAt: r.last_seen_at }, now);
@@ -840,6 +953,8 @@ export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventR
       // the Diary (a visits row, an invite sent) — the note says "Booked: …"
       // and no "book visit" card is raised on top of it.
       if (visit && (r.outcome_note ?? "").startsWith("Booked:")) continue;
+      // Visit booking S4: a request made online is its own row (visit_requests) and its own card.
+      if ((r.outcome_note ?? "").startsWith("Requested online:")) continue;
       items.push(finish({
         ...base,
         key: itemKey("wizard_ready", "wizard_session", r.id, visit ? "visit" : "call"),
@@ -937,8 +1052,42 @@ export type DeskCheckRow = {
      * made the whole query error and the queue show nothing at all. */
     total_cents: number | null;
     builder_state: { blocks?: Array<{ kind?: string; type?: string }> } | null;
+    /** First send (`send_estimate` coalesces it). Optional: the customer-side
+     * reader (lib/portal/waiting.ts) does not select it. */
+    sent_at?: string | null;
   } | null;
 };
+
+/**
+ * Tom, 8 Oct: "Fix price without a visit needs to automatically go out of the
+ * CRM once an estimate has been sent."
+ *
+ * A send AFTER the customer asked is the answer to the ask, whichever door the
+ * estimator used — the pack's Fix-price button (which moves the row to `fixed`
+ * and so already drops out of the open-status read) or the ordinary builder
+ * Send, which never touches `confirmation_requests` and left the card on Today
+ * for good. So the fact is the send itself: an `estimate_events` 'sent' row
+ * (catches a re-send), the estimate's own `sent_at`, or any estimate of the SAME
+ * customer sent since the ask (the estimator priced it on a fresh estimate).
+ *
+ * Derived, never stored — no dismissal is written. A send BEFORE the ask (the
+ * customer re-opened a sent estimate in the wizard and asked again) does not
+ * count: that ask is new work.
+ */
+export type DeskCheckSend = { estimateId: string; accountId: string | null; at: string };
+
+export function deskCheckAnswered(row: DeskCheckRow, sends: readonly DeskCheckSend[]): boolean {
+  const asked = Date.parse(row.requested_at);
+  if (!Number.isFinite(asked)) return false;
+  const after = (iso: string | null | undefined) => {
+    const t = iso ? Date.parse(iso) : NaN;
+    return Number.isFinite(t) && t >= asked;
+  };
+  if (after(row.estimates?.sent_at)) return true;
+  const account = row.estimates?.account_id ?? null;
+  return sends.some((s) => after(s.at)
+    && (s.estimateId === row.estimate_id || (account != null && s.accountId === account)));
+}
 
 /**
  * One item per estimate whose customer has asked us to fix their price.
@@ -958,8 +1107,11 @@ export function buildDeskCheckItems(
   now: Date,
   /** What we told the customer (Settings `confirmation_turnaround`). */
   turnaround: TurnaroundSetting = DEFAULT_TURNAROUND_SETTING,
+  /** Sends since the oldest ask — an answered ask is not work (Tom, 8 Oct). */
+  sends: readonly DeskCheckSend[] = [],
 ): WorkItem[] {
   const items: WorkItem[] = [];
+  rows = rows.filter((r) => !deskCheckAnswered(r, sends));
   /**
    * Value × readiness (plan §2.6), from the one sorter in
    * lib/wizard/confirmation.ts — a fixable job outranks a bigger one that
@@ -1078,6 +1230,189 @@ export function buildApprovalItem(queuedCount: number, now: Date): WorkItem[] {
     dueAt: null,
     action: { label: n === 1 ? "Review" : "Review all", href: "/crm/campaigns/queue" },
   }, { valueCents: null, promisedToCustomer: false }, now)];
+}
+
+// ---- source: unmapped_suburb (visit booking addendum A §4.1) -----------------
+
+/** A row of `visit_unmapped_suburbs` with no `resolved_at`. */
+export type UnmappedSuburbRow = {
+  id: string;
+  suburb: string;
+  postcode: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  hits: number;
+  last_estimate_id: string | null;
+};
+
+/**
+ * One item per unknown Victorian suburb a customer typed. The fact is the row;
+ * the item disappears when the suburb is added to the list in Settings (which
+ * sets `resolved_at`). Due the next business morning — the customer went down
+ * the request-a-time path and is waiting on a reply.
+ */
+export function buildUnmappedSuburbItems(rows: UnmappedSuburbRow[], now: Date): WorkItem[] {
+  return rows.map((r) => {
+    const where = `${r.suburb}${r.postcode ? ` ${r.postcode}` : ""}`;
+    return finish({
+      key: itemKey("unmapped_suburb", "event", r.id, "zone"),
+      kind: "unmapped_suburb",
+      accountId: null,
+      subjectRef: r.last_estimate_id ? { type: "estimate", id: r.last_estimate_id } : { type: "event", id: r.id },
+      since: r.first_seen_at,
+      title: `Unmapped suburb: ${where}`,
+      detail: `${r.hits === 1 ? "A customer" : `${r.hits} customers`} gave an address in ${where}, which is not in the visit zones list. Add it as a zone, pre-arranged or out of area so the next one gets an answer.`,
+      dueAt: nextBusinessMorning(new Date(r.first_seen_at)).toISOString(),
+      action: { label: "Add the suburb", href: "/settings#visit-zones" },
+    }, { valueCents: null, promisedToCustomer: true }, now);
+  });
+}
+
+// ---- source: visit_request + holidays_next_year (visit booking addendum A §4.4) --
+
+/** A row of `visit_requests` with no `answered_at`. */
+export type VisitRequestRow = {
+  id: string;
+  kind: "time" | "visit" | "call";
+  account_id: string | null;
+  estimate_id: string | null;
+  zone: string;
+  suburb: string | null;
+  name: string;
+  mobile: string | null;
+  note: string | null;
+  preferred_days: number[];
+  time_of_day: string | null;
+  created_at: string;
+  due_at: string;
+};
+
+const DAY3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const ZONE_WORDS: Record<string, string> = { zone_1: "Zone 1", zone_2: "Zone 2", zone_3: "Zone 3", zone_4: "Zone 4", zone_5: "Zone 5", pre_arranged: "pre-arranged area", out_of_area: "out of area", unmapped: "unmapped suburb" };
+
+/**
+ * One item per open request, due at the row's `due_at` — the end of the next
+ * working day after it was made, public holidays excluded (R23, R33). Staff
+ * answer it by offering a time, which books the slot and sets `answered_at`.
+ */
+export function buildVisitRequestItems(rows: VisitRequestRow[], now: Date): WorkItem[] {
+  return rows.map((r) => {
+    const where = [r.suburb, ZONE_WORDS[r.zone] ?? r.zone].filter(Boolean).join(", ");
+    const prefs = r.kind === "time" && (r.preferred_days.length || r.time_of_day)
+      ? ` — ${r.preferred_days.map((d) => DAY3[d] ?? "").filter(Boolean).join(" ")}${r.time_of_day ? `, ${r.time_of_day}` : ""}`
+      : "";
+    const title = r.kind === "call" ? `Call ${r.name} to finalise by phone` : r.kind === "visit" ? `Arrange a site visit — ${r.name}` : `Offer a visit time — ${r.name}`;
+    return finish({
+      key: itemKey("visit_request", "event", r.id, r.kind),
+      kind: "visit_request",
+      accountId: r.account_id,
+      subjectRef: r.estimate_id ? { type: "estimate", id: r.estimate_id } : { type: "event", id: r.id },
+      since: r.created_at,
+      title,
+      detail: [where, r.mobile, prefs ? `prefers${prefs}` : null, r.note].filter(Boolean).join(" · ") || "Reply within one working day",
+      dueAt: r.due_at,
+      action: { label: r.kind === "call" ? "Call" : "Offer a time", href: `/crm/visit-requests/${r.id}` },
+    }, { valueCents: null, promisedToCustomer: true }, now);
+  });
+}
+
+/** From 1 November, until next year's public holidays are in Settings → Booking rules. */
+export function buildHolidaysItem(holidays: readonly string[], now: Date): WorkItem[] {
+  if (!nextYearHolidaysMissing(holidays, now)) return [];
+  const year = melbourneParts(now).y + 1;
+  return [finish({
+    key: itemKey("holidays_next_year", "event", `holidays-${year}`, "settings"),
+    kind: "holidays_next_year",
+    accountId: null,
+    subjectRef: { type: "event", id: `holidays-${year}` },
+    since: now.toISOString(),
+    title: `Add the ${year} Victorian public holidays`,
+    detail: "Booking rules has none for next year yet. Customers could book visits on a holiday and request replies would be due on one.",
+    dueAt: null,
+    action: { label: "Open Booking rules", href: "/settings#booking-rules" },
+  }, { valueCents: null, promisedToCustomer: false }, now)];
+}
+
+// ---- source: Google Calendar (visit booking addendum A §4.6, S5) ----------------
+
+export type DeclinedVisitRow = { id: string; account_id: string | null; estimate_id: string | null; starts_at: string; cancelled_at: string; cancel_reason: string | null; customer_name: string | null; suburb: string | null };
+export type MovedVisitRow = { id: string; visit_id: string; staff_id: string; google_start: string; moved_seen_at: string; visit_start: string; account_id: string | null; estimate_id: string | null; customer_name: string | null; estimator_name: string | null };
+export type GcalConnectionRow = { staff_id: string; google_email: string | null; sync_error: string | null; scopes: string | null; estimator_name: string | null };
+export type ZoneEstimatorRow = { key: string; estimator_id: string | null; estimator_name: string | null };
+
+const whenWords = (iso: string) => { const p = melbourneParts(new Date(iso)); const h = p.h % 12 || 12; return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][p.weekday]} ${p.d}/${p.m} ${h}:${String(p.min).padStart(2, "0")} ${p.h < 12 ? "am" : "pm"}`; };
+
+/** R22: the guest declined. The visit is already cancelled and the slot reopened; the card says so until dismissed. */
+export function buildDeclinedVisitItems(rows: DeclinedVisitRow[], now: Date): WorkItem[] {
+  return rows.filter((r) => r.cancel_reason === "declined_invitation").map((r) => finish({
+    key: itemKey("visit_declined", "visit", r.id, "declined"),
+    kind: "visit_declined",
+    accountId: r.account_id,
+    subjectRef: { type: "visit", id: r.id },
+    since: r.cancelled_at,
+    title: `${r.customer_name || "A customer"} declined the visit — ${whenWords(r.starts_at)}`,
+    detail: `The calendar invitation was declined, so the visit is cancelled and the time is free again${r.suburb ? ` (${r.suburb})` : ""}. Ring them if you want to rebook.`,
+    dueAt: nextBusinessMorning(new Date(r.cancelled_at)).toISOString(),
+    action: { label: "Open the estimate", href: r.estimate_id ? `/quote?id=${r.estimate_id}` : "/crm/diary" },
+  }, { valueCents: null, promisedToCustomer: true }, now));
+}
+
+/** R27: moved in Google, unchanged here. Staff confirm with the customer, then move it on the Diary (or dismiss). */
+export function buildMovedVisitItems(rows: MovedVisitRow[], now: Date): WorkItem[] {
+  return rows.map((r) => finish({
+    key: itemKey("visit_moved_in_google", "visit", r.visit_id, r.google_start),
+    kind: "visit_moved_in_google",
+    accountId: r.account_id,
+    subjectRef: { type: "visit", id: r.visit_id },
+    since: r.moved_seen_at,
+    title: `${r.estimator_name || "The estimator"} moved ${r.customer_name || "a customer"}'s visit in Google — ${whenWords(r.visit_start)} → ${whenWords(r.google_start)}`,
+    detail: "Nothing changed in the platform. Confirm the new time with the customer, then move the visit on the Diary so the invitation and the slot follow.",
+    dueAt: addBusinessHours(new Date(r.moved_seen_at), 4).toISOString(),
+    action: { label: "Open the Diary", href: "/crm/diary" },
+  }, { valueCents: null, promisedToCustomer: true }, now));
+}
+
+/** 4.6: creating or updating events keeps failing for an estimator. */
+export function buildGcalFailedItems(rows: GcalConnectionRow[], now: Date): WorkItem[] {
+  return rows.filter((r) => r.sync_error).map((r) => finish({
+    key: itemKey("gcal_sync_failed", "event", r.staff_id, "gcal"),
+    kind: "gcal_sync_failed",
+    accountId: null,
+    subjectRef: { type: "event", id: r.staff_id },
+    since: now.toISOString(),
+    title: `Google Calendar sync is failing for ${r.estimator_name || r.google_email || "an estimator"}`,
+    detail: `${r.sync_error}. Booked visits are safe in the platform; they are not reaching Google until this is fixed.`,
+    dueAt: null,
+    action: { label: "Open the Diary", href: "/crm/diary#gcal" },
+  }, { valueCents: null, promisedToCustomer: false }, now));
+}
+
+/** 4.6: a zone whose estimator cannot be written to — customers there get the request path instead of the calendar. */
+export function buildCalendarMissingItems(zones: ZoneEstimatorRow[], connections: GcalConnectionRow[], calendarRequired: boolean, now: Date): WorkItem[] {
+  if (!calendarRequired) return [];
+  const byStaff = new Map(connections.map((c) => [c.staff_id, c]));
+  const seen = new Set<string>();
+  const items: WorkItem[] = [];
+  for (const z of zones) {
+    if (!z.estimator_id || seen.has(z.estimator_id)) continue;
+    const c = byStaff.get(z.estimator_id);
+    const canWrite = !!c && typeof c.scopes === "string" && c.scopes.includes("calendar.events");
+    if (canWrite) continue;
+    seen.add(z.estimator_id);
+    const zonesOf = zones.filter((x) => x.estimator_id === z.estimator_id).map((x) => x.key.replace("zone_", "Zone ")).join(", ");
+    items.push(finish({
+      key: itemKey("estimator_calendar_missing", "event", z.estimator_id, c ? "scope" : "none"),
+      kind: "estimator_calendar_missing",
+      accountId: null,
+      subjectRef: { type: "event", id: z.estimator_id },
+      since: now.toISOString(),
+      title: `${z.estimator_name || "An estimator"}'s Google Calendar is ${c ? "connected without permission to write visits" : "not connected"}`,
+      detail: `Customers in ${zonesOf} cannot book a time until it is; they are offered a request instead. ${c ? "Reconnect" : "Connect"} Google Calendar on the Diary.`,
+      dueAt: null,
+      action: { label: c ? "Reconnect" : "Connect", href: "/crm/diary#gcal" },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
 }
 
 // ---- assembly --------------------------------------------------------------
@@ -1325,11 +1660,17 @@ export function buildQuietQuoteItems(
   thresholds: Pick<CrmThresholds, "chaseUnopenedDays" | "chaseOpenedDays" | "goingColdDays">, now: Date,
   /** accounts.temperature by account — only read for imported history quotes. */
   temperature: Map<string, string | null> = new Map(),
+  /** Tom, 7 Oct 2026: the account's latest acceptance. A quote sent before the
+   *  customer said yes to one (an alternative, an earlier revision) is answered,
+   *  not quiet — no follow-up. A quote sent AFTER the acceptance is a new job and
+   *  is chased as before. */
+  acceptedAt: Map<string, string> = new Map(),
 ): WorkItem[] {
   const items: WorkItem[] = [];
   const newestByAccount = new Map<string, QuietQuoteRow>();
   for (const r of rows) {
     if (r.status !== "sent" || !r.account_id) continue;
+    if (answeredByAcceptance(acceptedAt, r.account_id, r.sent_at ?? r.created_at)) continue;
     // Tom, 16 Sep 2026: the 210 open quotes brought across from Airtable raise
     // a card only where the customer is hot or warm ("in negotiation" is hot
     // in the pack); a cold or unrated one waits until somebody touches it.
@@ -1516,6 +1857,592 @@ async function inSlices<T>(ids: string[], run: (slice: string[]) => PromiseLike<
  * arrive with their modules. Each is one function plus a call here — never a
  * change to the queue itself.
  */
+/** The joined shapes PostgREST returns for the S5 reads, flattened. A moved event only counts while the visit is still booked. */
+function movedRows(rows: unknown[], visits: Array<{ id: string; starts_at: string; status: string; account_id: string | null; estimate_id: string | null; customer_name: string | null }>): MovedVisitRow[] {
+  const byId = new Map(visits.map((v) => [v.id, v]));
+  const out: MovedVisitRow[] = [];
+  for (const raw of rows as Array<{ id: string; ref_id: string; staff_id: string; google_start: string | null; moved_seen_at: string | null; profiles?: { name?: string | null } | null }>) {
+    const v = byId.get(raw.ref_id);
+    if (!raw.google_start || !raw.moved_seen_at || !v || v.status !== "booked") continue;
+    if (Math.abs(new Date(raw.google_start).getTime() - new Date(v.starts_at).getTime()) < 60_000) continue;
+    out.push({ id: raw.id, visit_id: raw.ref_id, staff_id: raw.staff_id, google_start: raw.google_start, moved_seen_at: raw.moved_seen_at, visit_start: v.starts_at, account_id: v.account_id, estimate_id: v.estimate_id, customer_name: v.customer_name, estimator_name: raw.profiles?.name ?? null });
+  }
+  return out;
+}
+function connRows(rows: unknown[]): GcalConnectionRow[] {
+  return (rows as Array<{ staff_id: string; google_email: string | null; sync_error: string | null; scopes: string | null; profiles?: { name?: string | null } | null }>)
+    .map((r) => ({ staff_id: r.staff_id, google_email: r.google_email, sync_error: r.sync_error, scopes: r.scopes, estimator_name: r.profiles?.name ?? null }));
+}
+
+/** Booked jobs whose last day is within the last fortnight — the rows the check-in planner reads. */
+async function readJobCheckinRows(supabase: SupabaseClient, now: Date): Promise<{ rows: JobCheckinRow[]; error: string | null }> {
+  const res = await supabase.from("work_orders")
+    .select("id, wo_ref, stage, start_date, end_date, wo_snapshot, estimates(account_id, accepted_name, title), contractors(company_name, works_saturday, works_sunday, profiles(name))")
+    .not("start_date", "is", null).not("end_date", "is", null).neq("stage", "offered")
+    .gte("end_date", new Date(now.getTime() - 14 * 86_400_000).toISOString().slice(0, 10))
+    .lte("start_date", now.toISOString().slice(0, 10))
+    .order("start_date", { ascending: true }).limit(300);
+  if (res.error) return { rows: [], error: res.error.message };
+  return { rows: (res.data ?? []) as unknown as JobCheckinRow[], error: null };
+}
+
+/**
+ * The PC-homed slice of the one queue, for PC Command (Tom, 6 Oct 2026): the
+ * customer check-ins and after-job calls, with the same dismissals Today
+ * honours. Two bounded reads, no evaluator fan-out — the console does not
+ * need the messages, invoices or wizard sessions to list its calls.
+ *
+ * A failed read is a line the screen can show, never an empty list.
+ */
+/**
+ * Standards Step 2 (⚑17, ⚑2): a painter invited pcCardDay days ago (Settings →
+ * standards_rules) who has still not confirmed the six sections. One card per
+ * painter per required version; it clears itself the moment they confirm.
+ * Contractors past their grace have no job offers; an employee is a reminder
+ * only — the card says which.
+ */
+export type StandardsUnsignedRow = {
+  contractorId: string; name: string; status: StandardsStatus; invitedAt: string | null;
+  graceUntil: string | null; ackedSections: number; requiredVersion: number | null; remindersSent: number;
+};
+
+export function buildStandardsItems(rows: readonly StandardsUnsignedRow[], rules: StandardsRules, now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const r of rows) {
+    if (!needsSignoff(r.status) || !r.invitedAt) continue;
+    const due = standardsCardDueAt(new Date(r.invitedAt), rules);
+    if (now.getTime() < due.getTime()) continue;
+    const days = Math.floor((now.getTime() - new Date(r.invitedAt).getTime()) / 86_400_000);
+    const consequence = r.status === "blocked" ? "No job offers until they confirm."
+      : r.status === "grace" ? `Job offers stop ${new Date(r.graceUntil as string).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" })}.`
+      : "Employed painter — a reminder, nothing is blocked.";
+    items.push(finish({
+      key: itemKey("standards_unsigned", "contractor", r.contractorId, `v${r.requiredVersion ?? 0}`),
+      kind: "standards_unsigned",
+      accountId: null,
+      subjectRef: { type: "contractor", id: r.contractorId },
+      title: `${r.name} has not signed the finish standards`,
+      detail: `Invited ${days} day${days === 1 ? "" : "s"} ago · ${r.ackedSections} of 6 sections ticked · ${r.remindersSent} reminder text${r.remindersSent === 1 ? "" : "s"} sent. ${consequence}`,
+      since: r.invitedAt,
+      dueAt: due.toISOString(),
+      action: { label: "Send reminder text", href: `/contractors/${r.contractorId}` },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
+async function readStandardsRows(supabase: SupabaseClient): Promise<{ rows: StandardsUnsignedRow[]; rules: StandardsRules; error: string | null }> {
+  const [{ rows: statuses, error }, rules, names, reminders, version] = await Promise.all([
+    loadStandardsStatuses(supabase),
+    loadStandardsRules(supabase),
+    supabase.from("contractors").select("id, company_name, profiles(name)"),
+    supabase.from("contractor_events").select("contractor_id").eq("type", "standards_reminder_sent").limit(2000),
+    supabase.from("standards_versions").select("version_no").not("published_at", "is", null).eq("is_material", true).order("version_no", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (error) return { rows: [], rules, error };
+  if (names.error) return { rows: [], rules, error: names.error.message };
+  const nameOf = new Map(((names.data ?? []) as unknown as { id: string; company_name: string | null; profiles: { name: string | null } | null }[])
+    .map((c) => [c.id, c.profiles?.name || c.company_name || "Painter"]));
+  const sent = new Map<string, number>();
+  for (const e of (reminders.error ? [] : reminders.data ?? []) as { contractor_id: string }[]) sent.set(e.contractor_id, (sent.get(e.contractor_id) ?? 0) + 1);
+  const requiredVersion = (version.data as { version_no?: number } | null)?.version_no ?? null;
+  return {
+    rows: statuses.map((s) => ({
+      contractorId: s.contractorId, name: nameOf.get(s.contractorId) ?? "Painter", status: s.status, invitedAt: s.invitedAt,
+      graceUntil: s.graceUntil, ackedSections: s.ackedSections, requiredVersion, remindersSent: sent.get(s.contractorId) ?? 0,
+    })),
+    rules, error: null,
+  };
+}
+
+
+/**
+ * The sends that answer an open desk-check ask (Tom, 8 Oct — see
+ * `deskCheckAnswered`). Two bounded, indexed reads, sliced, both from the
+ * oldest open ask onward:
+ *   · 'sent' events on the asked-about estimates (estimate_events_estimate_idx)
+ *     — a re-send after the ask counts even though `sent_at` keeps the first;
+ *   · estimates of the same customers sent since (estimates_account_idx).
+ * A failed read returns its error and NO sends, so the cards stay up rather
+ * than vanishing on a refused query.
+ */
+async function readDeskCheckSends(supabase: SupabaseClient, rows: DeskCheckRow[]): Promise<{ sends: DeskCheckSend[]; error: string | null }> {
+  if (!rows.length) return { sends: [], error: null };
+  const oldest = rows.reduce((m, r) => (r.requested_at < m ? r.requested_at : m), rows[0].requested_at);
+  const estimateIds = [...new Set(rows.map((r) => r.estimate_id))];
+  const accountIds = [...new Set(rows.map((r) => r.estimates?.account_id).filter((x): x is string => !!x))];
+  const accountOf = new Map(rows.map((r) => [r.estimate_id, r.estimates?.account_id ?? null]));
+  const [events, others] = await Promise.all([
+    sliceRead<{ estimate_id: string; created_at: string }>(estimateIds, (ids) => supabase.from("estimate_events")
+      .select("estimate_id, created_at").eq("type", "sent").gte("created_at", oldest).in("estimate_id", ids)),
+    sliceRead<{ id: string; account_id: string | null; sent_at: string | null }>(accountIds, (ids) => supabase.from("estimates")
+      .select("id, account_id, sent_at").gte("sent_at", oldest).in("account_id", ids)),
+  ]);
+  const error = events.error ?? others.error;
+  // Surfaced through `counts.truncated` by the caller, like every other source here.
+  if (error) return { sends: [], error: error.message ?? "read failed" };
+  return {
+    sends: [
+      ...events.rows.map((e) => ({ estimateId: e.estimate_id, accountId: accountOf.get(e.estimate_id) ?? null, at: e.created_at })),
+      ...others.rows.filter((e) => e.sent_at).map((e) => ({ estimateId: e.id, accountId: e.account_id, at: e.sent_at as string })),
+    ],
+    error: null,
+  };
+}
+/**
+ * Call backs (brief §8), each trigger exactly one card that clears itself:
+ *   · walkthrough_flagged — the customer flagged an area and nobody has put
+ *     it right, withdrawn the flag or logged a call back: "Is a call back
+ *     required?" Critical once the flag's day has passed unsigned.
+ *   · callback_unbooked — open with no return visit: book it.
+ *   · callback_visit_soon — the visit is today or tomorrow: view the job.
+ *   · callback_fixed — the painter marked it fixed: confirm and close.
+ */
+export type CallbackQueueRow = {
+  id: string; workOrderId: string; status: string; source: string; description: string; createdAt: string; fixedAt: string | null;
+  visit: { start: string; end: string } | null; woRef: string; where: string; painter: string | null;
+};
+export type FlaggedWalkthroughRow = { workOrderId: string; woRef: string; where: string; painter: string | null; areas: string[]; flaggedAt: string };
+
+export function buildWoCallbackItems(callbacks: readonly CallbackQueueRow[], flagged: readonly FlaggedWalkthroughRow[], now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  const today = MELB_DAY_KEY.format(now);
+  const tomorrow = MELB_DAY_KEY.format(new Date(now.getTime() + 86_400_000));
+  for (const f of flagged) {
+    const flaggedDay = MELB_DAY_KEY.format(new Date(f.flaggedAt));
+    items.push(finish({
+      key: itemKey("walkthrough_flagged", "work_order", f.workOrderId, flaggedDay),
+      kind: "walkthrough_flagged", accountId: null, subjectRef: { type: "work_order", id: f.workOrderId },
+      title: `Walk-through flagged ${f.areas.length === 1 ? "an area" : `${f.areas.length} areas`} at ${f.where}`,
+      detail: `${f.woRef}${f.painter ? ` · ${f.painter}` : ""} · ${f.areas.join(", ")}. Is a call back required? Fixed and signed today is a pass after a fix.${flaggedDay < today ? " Not signed by the end of that day." : ""}`,
+      since: f.flaggedAt,
+      // Due at the end of the flag's day: past it, the card is overdue (critical).
+      dueAt: melbInstant(flaggedDay, 18).toISOString(),
+      action: { label: "Is a call back required?", href: `/pc/wo/${f.workOrderId}?callback=walkthrough_fail#callbacks` },
+    }, { valueCents: null, promisedToCustomer: true }, now));
+  }
+  for (const c of callbacks) {
+    const who = `${c.woRef}${c.painter ? ` · ${c.painter}` : ""}`;
+    if (c.status === "fixed") {
+      items.push(finish({
+        key: itemKey("callback_fixed", "work_order", c.workOrderId, c.id),
+        kind: "callback_fixed", accountId: null, subjectRef: { type: "work_order", id: c.workOrderId },
+        title: `${c.painter ?? "The painter"} marked the call back at ${c.where} fixed`,
+        detail: `${who} · ${c.description || "no description"}. Confirm it and close the call back — invoice chasing resumes when you do.`,
+        since: c.fixedAt ?? c.createdAt, dueAt: nextBusinessMorning(new Date(c.fixedAt ?? c.createdAt)).toISOString(),
+        action: { label: "Confirm and close", href: `/pc/wo/${c.workOrderId}#callbacks` },
+      }, { valueCents: null, promisedToCustomer: true }, now));
+      continue;
+    }
+    if (!c.visit) {
+      items.push(finish({
+        key: itemKey("callback_unbooked", "work_order", c.workOrderId, c.id),
+        kind: "callback_unbooked", accountId: null, subjectRef: { type: "work_order", id: c.workOrderId },
+        title: `Call back at ${c.where} has no return visit booked`,
+        detail: `${who} · ${c.description || "no description"}. Book the visit in the painter's scheduler.`,
+        since: c.createdAt, dueAt: nextBusinessMorning(new Date(c.createdAt)).toISOString(),
+        action: { label: "Book the visit", href: `/pc/wo/${c.workOrderId}#callbacks` },
+      }, { valueCents: null, promisedToCustomer: true }, now));
+      continue;
+    }
+    if (c.visit.start === today || c.visit.start === tomorrow) {
+      items.push(finish({
+        key: itemKey("callback_visit_soon", "work_order", c.workOrderId, `${c.id}:${c.visit.start}`),
+        kind: "callback_visit_soon", accountId: null, subjectRef: { type: "work_order", id: c.workOrderId },
+        title: `Call back visit ${c.visit.start === today ? "today" : "tomorrow"}: ${c.where}`,
+        detail: `${who} · ${c.description || "no description"}.`,
+        since: c.createdAt, dueAt: null,
+        action: { label: "View job", href: `/pc/wo/${c.workOrderId}#callbacks` },
+      }, { valueCents: null, promisedToCustomer: false }, now));
+    }
+  }
+  return items;
+}
+
+async function readCallbackRows(supabase: SupabaseClient): Promise<{ callbacks: CallbackQueueRow[]; flagged: FlaggedWalkthroughRow[]; error: string | null }> {
+  const [cbRes, flagRes] = await Promise.all([
+    supabase.from("wo_callbacks")
+      .select("id, work_order_id, status, source, description, created_at, fixed_at, wo_appointments(start_date, end_date), work_orders(wo_ref, wo_snapshot, contractors(company_name, profiles(name)))")
+      .in("status", ["open", "booked", "fixed"]).order("created_at").limit(300),
+    supabase.from("wo_signoff")
+      .select("work_order_id, areas, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)))")
+      .is("signed_at", null).not("evidence_pack_sent_at", "is", null).limit(300),
+  ]);
+  if (cbRes.error) return { callbacks: [], flagged: [], error: cbRes.error.code === "42P01" ? "call backs are not switched on yet (migration 20270226)" : cbRes.error.message };
+  if (flagRes.error) return { callbacks: [], flagged: [], error: flagRes.error.message };
+  type WoBit = { wo_ref: string; stage?: string; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null; contractors: { company_name: string | null; profiles: { name: string | null } | null } | null } | null;
+  const nameOf = (w: WoBit) => w?.contractors?.profiles?.name || w?.contractors?.company_name || null;
+  const whereOf = (w: WoBit) => w?.wo_snapshot?.jobAddress || w?.wo_snapshot?.jobTitle || w?.wo_ref || "the job";
+  const callbacks = ((cbRes.data ?? []) as unknown as { id: string; work_order_id: string; status: string; source: string; description: string; created_at: string; fixed_at: string | null; wo_appointments: { start_date: string; end_date: string } | null; work_orders: WoBit }[])
+    .map((r) => ({ id: r.id, workOrderId: r.work_order_id, status: r.status, source: r.source, description: r.description, createdAt: r.created_at, fixedAt: r.fixed_at,
+      visit: r.wo_appointments ? { start: r.wo_appointments.start_date, end: r.wo_appointments.end_date } : null,
+      woRef: r.work_orders?.wo_ref ?? "", where: whereOf(r.work_orders), painter: nameOf(r.work_orders) }));
+  const openWalkthroughCallback = new Set(callbacks.filter((c) => c.source === "walkthrough_fail").map((c) => c.workOrderId));
+  const flagged: FlaggedWalkthroughRow[] = [];
+  for (const r of (flagRes.data ?? []) as unknown as { work_order_id: string; areas: Record<string, { flagged_at?: string; rectified_at?: string; flag_withdrawn_at?: string }> | null; work_orders: WoBit }[]) {
+    if (openWalkthroughCallback.has(r.work_order_id)) continue;
+    if (r.work_orders?.stage === "closed") continue;
+    const open = Object.entries(r.areas ?? {}).filter(([, a]) => a?.flagged_at && !a?.rectified_at && !a?.flag_withdrawn_at);
+    if (open.length === 0) continue;
+    flagged.push({ workOrderId: r.work_order_id, woRef: r.work_orders?.wo_ref ?? "", where: whereOf(r.work_orders), painter: nameOf(r.work_orders),
+      areas: open.map(([h]) => h), flaggedAt: open.map(([, a]) => a.flagged_at as string).sort()[0] });
+  }
+  return { callbacks, flagged, error: null };
+}
+
+// ---- source: painter status, bonus reviews, payment holds (Step 7, brief §8) --
+
+export type PainterStatusQueueRow = { painter_id: string; colour: string; offers_cleared_at: string | null; computed_at: string; name: string };
+/** The latest status_changed event per painter — the episode a card belongs to, so "Rang them" outlives the half-hourly recompute. */
+export type StatusChangeRow = { id: string; contractor_id: string; created_at: string; to: string | null };
+export type BonusQueueRow = { id: string; painter_id: string; status: string; triggered_at: string; handed_over_at: string | null; qualifying_changed_at: string | null; qualifying_wo_ids: unknown; name: string };
+export type HeldInvoiceRow = { id: string; contractor_id: string; terms_held_at: string | null; terms_hold_reason: string; due_on: string | null; status: string; wo_ref: string | null; name: string };
+
+/**
+ * One card per trigger, cleared by the fact itself: Orange clears when the
+ * colour moves on (or the PC dismisses "Rang them" for this episode); Red
+ * clears when the owner records the clearance or the colour changes; a bonus
+ * card clears when it is handed over, decided, or its change is reviewed; a
+ * hold card clears when the hold is released or the invoice paid.
+ */
+export function buildPainterStatusItems(
+  statuses: readonly PainterStatusQueueRow[], changes: readonly StatusChangeRow[],
+  bonuses: readonly BonusQueueRow[], held: readonly HeldInvoiceRow[], now: Date,
+): WorkItem[] {
+  const items: WorkItem[] = [];
+  const episode = new Map<string, StatusChangeRow>();
+  for (const c of changes) if (!episode.has(c.contractor_id)) episode.set(c.contractor_id, c);
+  for (const s of statuses) {
+    if (s.colour !== "orange" && s.colour !== "red") continue;
+    if (s.colour === "red" && s.offers_cleared_at) continue;
+    const ep = episode.get(s.painter_id);
+    const since = ep?.created_at ?? s.computed_at;
+    const kind: WorkItemKind = s.colour === "red" ? "painter_red" : "painter_orange";
+    items.push(finish({
+      key: itemKey(kind, "contractor", s.painter_id, ep?.id ?? s.colour),
+      kind, accountId: null, subjectRef: { type: "contractor", id: s.painter_id },
+      title: s.colour === "red" ? `${s.name} dropped to Red` : `${s.name} dropped to Orange`,
+      detail: s.colour === "red"
+        ? "No new job offers until Tom has spoken with them and recorded the clearance. Jobs under way finish as normal."
+        : "Ring them this week and go through the score. Every job now gets a quality check; offers come after Green and Yellow.",
+      since, dueAt: new Date(new Date(since).getTime() + (s.colour === "red" ? 1 : 3) * 86_400_000).toISOString(),
+      action: { label: "Open their score", href: `/contractors/${s.painter_id}` },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  for (const b of bonuses) {
+    if (b.status === "due") {
+      items.push(finish({
+        key: itemKey("bonus_due", "contractor", b.painter_id, b.id),
+        kind: "bonus_due", accountId: null, subjectRef: { type: "contractor", id: b.painter_id },
+        title: `Bonus due: ${b.name}`,
+        detail: `${Array.isArray(b.qualifying_wo_ids) ? b.qualifying_wo_ids.length : 4} clean jobs of 16 hours or more while on Green. Tom sets the amount.`,
+        since: b.triggered_at, dueAt: new Date(new Date(b.triggered_at).getTime() + 7 * 86_400_000).toISOString(),
+        action: { label: "Tell Tom", href: `/contractors/${b.painter_id}` },
+      }, { valueCents: null, promisedToCustomer: false }, now));
+    }
+    if (b.qualifying_changed_at && (b.status === "due" || b.status === "with_owner")) {
+      items.push(finish({
+        key: itemKey("bonus_changed", "contractor", b.painter_id, `${b.id}:${b.qualifying_changed_at}`),
+        kind: "bonus_changed", accountId: null, subjectRef: { type: "contractor", id: b.painter_id },
+        title: `A qualifying job changed: ${b.name}`,
+        detail: "One of the clean jobs behind this bonus review is no longer clean (a late call back or a changed reason). The review stands — look before deciding.",
+        since: b.qualifying_changed_at, dueAt: new Date(new Date(b.qualifying_changed_at).getTime() + 3 * 86_400_000).toISOString(),
+        action: { label: "Review", href: `/contractors/${b.painter_id}` },
+      }, { valueCents: null, promisedToCustomer: false }, now));
+    }
+  }
+  for (const h of held) {
+    if (h.status === "paid") continue;
+    const since = h.terms_held_at ?? now.toISOString();
+    items.push(finish({
+      key: itemKey("payment_hold", "invoice", h.id, since),
+      kind: "payment_hold", accountId: null, subjectRef: { type: "invoice", id: h.id },
+      title: `Payment hold: ${h.name}${h.wo_ref ? ` · ${h.wo_ref}` : ""}`,
+      detail: `${h.terms_hold_reason || "No reason recorded"}. Their Green fast payment is back on the default terms${h.due_on ? ` (due ${h.due_on})` : ""} — release it or keep it.`,
+      since, dueAt: new Date(new Date(since).getTime() + 2 * 86_400_000).toISOString(),
+      action: { label: "Release or keep", href: "/invoicing?tab=payables" },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
+async function readPainterStatusRows(supabase: SupabaseClient): Promise<{ statuses: PainterStatusQueueRow[]; changes: StatusChangeRow[]; bonuses: BonusQueueRow[]; held: HeldInvoiceRow[]; error: string | null }> {
+  type CJoin = { company_name: string | null; profiles: { name: string | null } | null } | null;
+  const nameOf = (c: CJoin) => c?.profiles?.name?.trim() || c?.company_name?.trim() || "A painter";
+  const [st, ch, bo, he] = await Promise.all([
+    supabase.from("painter_status").select("painter_id, colour, offers_cleared_at, computed_at, contractors(company_name, profiles(name))").in("colour", ["orange", "red"]),
+    supabase.from("contractor_events").select("id, contractor_id, created_at, detail").eq("type", "status_changed").order("created_at", { ascending: false }).limit(300),
+    supabase.from("painter_bonuses").select("id, painter_id, status, triggered_at, handed_over_at, qualifying_changed_at, qualifying_wo_ids, contractors(company_name, profiles(name))").in("status", ["due", "with_owner"]),
+    supabase.from("contractor_invoices").select("id, contractor_id, terms_held_at, terms_hold_reason, due_on, status, work_orders(wo_ref), contractors(company_name, profiles(name))").eq("terms_kind", "held").neq("status", "paid"),
+  ]);
+  // The bonus table is owner / admin / PC only; a session outside those roles gets rows it may not read refused — that is not a failure of the queue.
+  const errors = [st.error, ch.error, he.error].filter(Boolean).map((e) => e!.message);
+  return {
+    statuses: ((st.data ?? []) as unknown as { painter_id: string; colour: string; offers_cleared_at: string | null; computed_at: string; contractors: CJoin }[]).map((r) => ({ painter_id: r.painter_id, colour: r.colour, offers_cleared_at: r.offers_cleared_at, computed_at: r.computed_at, name: nameOf(r.contractors) })),
+    changes: ((ch.data ?? []) as { id: string; contractor_id: string; created_at: string; detail: { to?: string } | null }[]).map((r) => ({ id: r.id, contractor_id: r.contractor_id, created_at: r.created_at, to: r.detail?.to ?? null })),
+    bonuses: bo.error ? [] : ((bo.data ?? []) as unknown as { id: string; painter_id: string; status: string; triggered_at: string; handed_over_at: string | null; qualifying_changed_at: string | null; qualifying_wo_ids: unknown; contractors: CJoin }[]).map((r) => ({ ...r, name: nameOf(r.contractors) })),
+    held: ((he.data ?? []) as unknown as { id: string; contractor_id: string; terms_held_at: string | null; terms_hold_reason: string; due_on: string | null; status: string; work_orders: { wo_ref: string | null } | null; contractors: CJoin }[]).map((r) => ({ id: r.id, contractor_id: r.contractor_id, terms_held_at: r.terms_held_at, terms_hold_reason: r.terms_hold_reason, due_on: r.due_on, status: r.status, wo_ref: r.work_orders?.wo_ref ?? null, name: nameOf(r.contractors) })),
+    error: errors.length ? errors.join("; ") : null,
+  };
+}
+
+// ---- source: quality checks and job check-ins on their day (Tom, 8 Oct 2026) ---
+
+export type QaCheckQueueRow = {
+  id: string; workOrderId: string; kind: string; date: string; time: string | null;
+  stage: string; woRef: string; where: string; painter: string | null;
+  /** The job's final walkthroughs, newest first. */
+  finals: { status: string; date: string }[];
+};
+
+/**
+ * Derived from the open, dated checks — never stored. Two facts:
+ *   · qa_check_due — the check's day has come (or gone): one card per check,
+ *     due at its time; recording the check is the done action and clears it.
+ *     A job parked at Quality check is left to the console's "Quality check to
+ *     do" card, which already says the same thing for the whole job.
+ *   · qa_check_final_cancelled — the main check is booked but the job's last
+ *     final walkthrough was cancelled and nothing replaced it. The check is
+ *     left where it was (moving it onto a date nobody agreed would be a
+ *     guess); rebooking the final moves it.
+ */
+export function buildQaCheckItems(rows: readonly QaCheckQueueRow[], now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  const today = MELB_DAY_KEY.format(now);
+  for (const r of rows) {
+    if (r.stage === "closed") continue;
+    const label = qaCheckLabel(r.kind);
+    const at = r.time ? r.time.slice(0, 5) : null;
+    const who = `${r.woRef}${r.painter ? ` · ${r.painter}` : ""}`;
+    const [hh, mm] = (at ?? "17:00").split(":").map(Number);
+    if (r.date <= today && r.stage !== "qa") {
+      items.push(finish({
+        key: itemKey("qa_check_due", "work_order", r.workOrderId, r.id),
+        kind: "qa_check_due", accountId: null, subjectRef: { type: "work_order", id: r.workOrderId },
+        title: `${label} ${r.date === today ? "today" : `since ${r.date}`}${at ? ` at ${at}` : ""} — ${r.where}`,
+        detail: `${who}. ${r.kind === "final" ? "The main check before the final walkthrough." : "An extra check the office booked."} Record it on the job page — that clears this card.`,
+        since: melbInstant(r.date, 7).toISOString(),
+        dueAt: melbInstant(r.date, hh, mm).toISOString(),
+        action: { label: "Record the check", href: `/pc/wo/${r.workOrderId}#qa` },
+      }, { valueCents: null, promisedToCustomer: false }, now));
+    }
+    const lastFinal = r.finals[0];
+    if (r.kind === "final" && lastFinal && lastFinal.status === "cancelled" && !r.finals.some((f) => f.status === "booked")) {
+      items.push(finish({
+        key: itemKey("qa_check_final_cancelled", "work_order", r.workOrderId, `${r.id}:${lastFinal.date}`),
+        kind: "qa_check_final_cancelled", accountId: null, subjectRef: { type: "work_order", id: r.workOrderId },
+        title: `Quality check still booked for ${r.date}${at ? ` at ${at}` : ""}, but the final walkthrough was cancelled — ${r.where}`,
+        detail: `${who}. Rebook the final and the check moves with it, or move the check on the job page.`,
+        since: melbInstant(r.date, 7).toISOString(),
+        dueAt: melbInstant(r.date, 7).toISOString(),
+        action: { label: "Open the job", href: `/pc/wo/${r.workOrderId}#qa` },
+      }, { valueCents: null, promisedToCustomer: false }, now));
+    }
+  }
+  return items;
+}
+
+async function readQaCheckRows(supabase: SupabaseClient): Promise<{ rows: QaCheckQueueRow[]; error: string | null }> {
+  const { data, error } = await supabase.from("wo_qa_checks")
+    .select("id, work_order_id, kind, scheduled_for, scheduled_time, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)), wo_walkthroughs(kind, status, scheduled_date, created_at))")
+    .is("result", null).not("scheduled_for", "is", null)
+    .order("scheduled_for").limit(300);
+  if (error) return { rows: [], error: error.message };
+  type Row = {
+    id: string; work_order_id: string; kind: string; scheduled_for: string; scheduled_time: string | null;
+    work_orders: {
+      wo_ref: string; stage: string; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null;
+      contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
+      wo_walkthroughs: { kind: string; status: string; scheduled_date: string; created_at: string }[] | null;
+    } | null;
+  };
+  const rows = ((data ?? []) as unknown as Row[]).filter((r) => r.work_orders).map((r) => {
+    const w = r.work_orders!;
+    return {
+      id: r.id, workOrderId: r.work_order_id, kind: r.kind, date: r.scheduled_for, time: r.scheduled_time,
+      stage: w.stage, woRef: w.wo_ref, where: w.wo_snapshot?.jobAddress || w.wo_snapshot?.jobTitle || w.wo_ref,
+      painter: w.contractors?.profiles?.name || w.contractors?.company_name || null,
+      finals: (w.wo_walkthroughs ?? []).filter((f) => f.kind === "final")
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((f) => ({ status: f.status, date: f.scheduled_date })),
+    };
+  });
+  return { rows, error: null };
+}
+
+// ---- source: a painter wrote in a project's messages (Tom, 9 Oct 2026) -------
+
+export type PainterMessageQueueRow = {
+  threadId: string; workOrderId: string; contractorId: string;
+  /** The newest painter message — the item's discriminator, so a new one after a dismissal re-fires. */
+  lastPainterAt: string;
+  /** The office had written on this thread before — "replied" rather than "wrote". */
+  officeWroteFirst: boolean;
+  woRef: string; where: string; painter: string;
+  /** Painter messages the office has not read, newest first (capped by the reader). */
+  unread: { body: string; photos: number; at: string }[];
+};
+
+/** A painter's message waits this long before it reads as overdue — the same clock as a customer's (MESSAGE_OVERDUE_HOURS). */
+export const PAINTER_MESSAGE_OVERDUE_HOURS = 4;
+
+/**
+ * Derived from the threads, never stored: a painter message the office has
+ * not read (wo_message_threads.staff_unread). Opening the thread on the job
+ * page marks the staff side read and the card is gone; so is replying.
+ */
+export function buildPainterMessageItems(rows: readonly PainterMessageQueueRow[], now: Date): WorkItem[] {
+  return rows.map((r) => {
+    const n = r.unread.length;
+    const latest = r.unread[0];
+    const said = latest ? (latest.body.replace(/\s+/g, " ").trim().slice(0, 140) || (latest.photos ? `${latest.photos} photo${latest.photos === 1 ? "" : "s"}` : "")) : "";
+    const since = r.unread[n - 1]?.at ?? r.lastPainterAt;
+    return finish({
+      key: itemKey("painter_message", "thread", r.threadId, r.lastPainterAt),
+      kind: "painter_message", accountId: null, subjectRef: { type: "thread", id: r.threadId },
+      title: `${r.painter} ${r.officeWroteFirst ? "replied on" : "wrote about"} ${r.woRef} — ${r.where}`,
+      detail: `${n > 1 ? `${n} messages: ` : ""}${said ? `“${said}”` : "A message"}${latest?.photos && latest.body.trim() ? ` + ${latest.photos} photo${latest.photos === 1 ? "" : "s"}` : ""}. Open it to read and reply — that clears this card.`,
+      since,
+      dueAt: new Date(new Date(since).getTime() + PAINTER_MESSAGE_OVERDUE_HOURS * 3_600_000).toISOString(),
+      action: { label: "Read and reply", href: `/pc/wo/${r.workOrderId}?painter=${r.contractorId}#messages` },
+    }, { valueCents: null, promisedToCustomer: false }, now);
+  });
+}
+
+async function readPainterMessageRows(supabase: SupabaseClient): Promise<{ rows: PainterMessageQueueRow[]; error: string | null }> {
+  const { data, error } = await supabase.from("wo_message_threads")
+    .select("id, work_order_id, contractor_id, last_painter_message_at, last_staff_message_at, staff_read_at, work_orders(wo_ref, wo_snapshot), contractors(company_name, profiles(name))")
+    .eq("staff_unread", true).order("last_painter_message_at", { ascending: false }).limit(200);
+  if (error) return { rows: [], error: error.message };
+  type Row = {
+    id: string; work_order_id: string; contractor_id: string; last_painter_message_at: string;
+    last_staff_message_at: string | null; staff_read_at: string | null;
+    work_orders: { wo_ref: string; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null } | null;
+    contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
+  };
+  const threads = (data ?? []) as unknown as Row[];
+  if (threads.length === 0) return { rows: [], error: null };
+  const { data: msgs, error: mErr } = await supabase.from("wo_messages")
+    .select("thread_id, body, photo_paths, created_at")
+    .in("thread_id", threads.map((t) => t.id)).eq("author_kind", "painter")
+    .order("created_at", { ascending: false }).limit(1000);
+  if (mErr) return { rows: [], error: mErr.message };
+  const byThread = new Map<string, { body: string; photos: number; at: string }[]>();
+  const readAt = new Map(threads.map((t) => [t.id, t.staff_read_at]));
+  for (const m of (msgs ?? []) as { thread_id: string; body: string; photo_paths: string[]; created_at: string }[]) {
+    const seen = readAt.get(m.thread_id);
+    if (seen && new Date(m.created_at).getTime() <= new Date(seen).getTime()) continue;
+    const list = byThread.get(m.thread_id) ?? [];
+    list.push({ body: m.body, photos: m.photo_paths.length, at: m.created_at });
+    byThread.set(m.thread_id, list);
+  }
+  return {
+    error: null,
+    rows: threads.map((t) => ({
+      threadId: t.id, workOrderId: t.work_order_id, contractorId: t.contractor_id,
+      lastPainterAt: t.last_painter_message_at,
+      officeWroteFirst: t.last_staff_message_at !== null,
+      woRef: t.work_orders?.wo_ref ?? "a job",
+      where: t.work_orders?.wo_snapshot?.jobAddress || t.work_orders?.wo_snapshot?.jobTitle || t.work_orders?.wo_ref || "",
+      painter: (t.contractors?.profiles?.name || t.contractors?.company_name || "A painter").trim(),
+      unread: byThread.get(t.id) ?? [],
+    })),
+  };
+}
+
+// ---- source: site check-ins on their day (Tom, 9 Oct 2026) -------------------
+
+export type SiteVisitQueueRow = {
+  id: string; workOrderId: string; date: string; time: string | null;
+  stage: string; woRef: string; where: string; painter: string | null;
+};
+
+/**
+ * Derived from the open, dated site check-ins — never stored. One card per
+ * visit from the morning of its day, due at its time; "Mark visited" on the
+ * job page is the done action. Unlike a quality check it stays on a job parked
+ * at Quality check too — the console's "Quality check to do" card says nothing
+ * about a visit.
+ */
+export function buildSiteVisitItems(rows: readonly SiteVisitQueueRow[], now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  const today = MELB_DAY_KEY.format(now);
+  for (const r of rows) {
+    if (r.stage === "closed" || r.date > today) continue;
+    const at = r.time ? r.time.slice(0, 5) : null;
+    const [hh, mm] = (at ?? "17:00").split(":").map(Number);
+    items.push(finish({
+      key: itemKey("site_visit_due", "work_order", r.workOrderId, r.id),
+      kind: "site_visit_due", accountId: null, subjectRef: { type: "work_order", id: r.workOrderId },
+      title: `Site check-in ${r.date === today ? "today" : `since ${r.date}`}${at ? ` at ${at}` : ""} — ${r.where}`,
+      detail: `${r.woRef}${r.painter ? ` · ${r.painter}` : ""}. Your own visit — no pass or fail, and nobody else is told. Add notes or photos if you like; Mark visited clears this card.`,
+      since: melbInstant(r.date, 7).toISOString(),
+      dueAt: melbInstant(r.date, hh, mm).toISOString(),
+      action: { label: "Open the check-in", href: `/pc/wo/${r.workOrderId}#site-visits` },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
+async function readSiteVisitRows(supabase: SupabaseClient): Promise<{ rows: SiteVisitQueueRow[]; error: string | null }> {
+  const { data, error } = await supabase.from("wo_site_visits")
+    .select("id, work_order_id, scheduled_for, scheduled_time, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)))")
+    .is("visited_at", null).not("scheduled_for", "is", null)
+    .order("scheduled_for").limit(300);
+  if (error) return { rows: [], error: error.message };
+  type Row = {
+    id: string; work_order_id: string; scheduled_for: string; scheduled_time: string | null;
+    work_orders: {
+      wo_ref: string; stage: string; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null;
+      contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
+    } | null;
+  };
+  const rows = ((data ?? []) as unknown as Row[]).filter((r) => r.work_orders).map((r) => {
+    const w = r.work_orders!;
+    return {
+      id: r.id, workOrderId: r.work_order_id, date: r.scheduled_for, time: r.scheduled_time,
+      stage: w.stage, woRef: w.wo_ref, where: w.wo_snapshot?.jobAddress || w.wo_snapshot?.jobTitle || w.wo_ref,
+      painter: w.contractors?.profiles?.name || w.contractors?.company_name || null,
+    };
+  });
+  return { rows, error: null };
+}
+
+export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
+  const [checkins, standards, callbacks, painters, qaChecks, painterMessages, siteVisits, dismissed] = await Promise.all([
+    readJobCheckinRows(supabase, now),
+    readStandardsRows(supabase),
+    readCallbackRows(supabase),
+    readPainterStatusRows(supabase),
+    readQaCheckRows(supabase),
+    readPainterMessageRows(supabase),
+    readSiteVisitRows(supabase),
+    supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
+  ]);
+  if (checkins.error) return { items: [], failure: `Couldn't read the jobs for check-ins: ${checkins.error}` };
+  const dismissals = (dismissed.error ? [] : (dismissed.data ?? [])) as Dismissal[];
+  const built = [
+    ...buildJobCheckinItems(checkins.rows, now),
+    ...buildStandardsItems(standards.rows, standards.rules, now),
+    ...buildWoCallbackItems(callbacks.callbacks, callbacks.flagged, now),
+    ...buildPainterStatusItems(painters.statuses, painters.changes, painters.bonuses, painters.held, now),
+    ...buildQaCheckItems(qaChecks.rows, now),
+    ...buildPainterMessageItems(painterMessages.rows, now),
+    ...buildSiteVisitItems(siteVisits.rows, now),
+  ];
+  const items = sortItems(applyDismissals(pcItems(built), dismissals, now));
+  const failures = [
+    dismissed.error ? `Dismissals couldn't be read (${dismissed.error.message}) — a call you already made may show again.` : null,
+    standards.error ? `Couldn't read who has signed the standards (${standards.error}).` : null,
+    callbacks.error ? `Couldn't read the call backs (${callbacks.error}).` : null,
+    painters.error ? `Couldn't read painter status (${painters.error}).` : null,
+    qaChecks.error ? `Couldn't read the quality checks (${qaChecks.error}).` : null,
+    painterMessages.error ? `Couldn't read the painters' messages (${painterMessages.error}).` : null,
+    siteVisits.error ? `Couldn't read the site check-ins (${siteVisits.error}).` : null,
+  ].filter(Boolean);
+  return { items, failure: failures.length ? failures.join(" ") : null };
+}
+
 export async function buildWorkQueue(supabase: SupabaseClient, now = new Date()): Promise<WorkQueue> {
   const nowIso = now.toISOString();
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString();
@@ -1525,7 +2452,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // read that fills its cap is reported on the queue rather than dropped silently.
   const CAP = { followups: 500, invoices: 500, callbacks: 200, wizard: 300, lapsed: 300, inbound: 400, rebook: 200, quotes: 500 };
   const truncated: string[] = [];
-  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, pendingHolds, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds, unmappedSuburbs, visitRequests, bookingRules, declinedVisits, movedEvents, gcalConns, zoneEstimators] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -1595,6 +2522,26 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .order("state_until", { ascending: true })
       .limit(300),
     loadCrmThresholds(supabase),
+    supabase.from("visit_unmapped_suburbs")
+      .select("id, suburb, postcode, first_seen_at, last_seen_at, hits, last_estimate_id")
+      .is("resolved_at", null)
+      .order("first_seen_at", { ascending: true })
+      .limit(CAP.callbacks),
+    supabase.from("visit_requests")
+      .select("id, kind, account_id, estimate_id, zone, suburb, name, mobile, note, preferred_days, time_of_day, created_at, due_at")
+      .is("answered_at", null)
+      .order("due_at", { ascending: true })
+      .limit(CAP.callbacks),
+    supabase.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle(),
+    supabase.from("visits")
+      .select("id, account_id, estimate_id, starts_at, cancelled_at, cancel_reason, customer_name, suburb")
+      .eq("status", "cancelled").eq("cancel_reason", "declined_invitation").gte("cancelled_at", since30d)
+      .order("cancelled_at", { ascending: false }).limit(CAP.rebook),
+    supabase.from("staff_gcal_events")
+      .select("id, ref_id, staff_id, google_start, moved_seen_at, profiles!staff_gcal_events_staff_id_fkey(name)")
+      .eq("kind", "visit").not("moved_seen_at", "is", null).is("moved_acknowledged_at", null).limit(CAP.rebook),
+    supabase.from("staff_gcal_connections").select("staff_id, google_email, sync_error, scopes, profiles!staff_gcal_connections_staff_id_fkey(name)").limit(50),
+    supabase.from("visit_zones").select("key, estimator_id, profiles!visit_zones_estimator_id_fkey(name)").limit(10),
   ]);
   const delayedRows = ((delayedAcc.error ? [] : (delayedAcc.data ?? [])) as Array<DelayedAccountRow & { relationship_state: string }>);
   const hit = (name: string, rows: unknown[] | null | undefined, cap: number) => { if ((rows?.length ?? 0) >= cap) truncated.push(name); };
@@ -1610,6 +2557,22 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     .order("sent_at", { ascending: false }).limit(CAP.quotes);
   const quoteRows = (quoteRes.error ? [] : (quoteRes.data ?? [])) as unknown as QuietQuoteRow[];
   hit("quotes out", quoteRows, CAP.quotes);
+  // Tom, 7 Oct: who has said yes lately — the latest acceptance per customer
+  // answers every follow-up asked for before it (quiet quote, callback, online
+  // estimate). 90 days matches the quote window above; a read that fails
+  // suppresses nothing, so a follow-up is shown rather than lost.
+  const acceptRes = await supabase.from("estimates").select("account_id, accepted_at, created_at")
+    .eq("status", "accepted").not("account_id", "is", null)
+    .or(`accepted_at.gte.${since90d},and(accepted_at.is.null,created_at.gte.${since90d})`)
+    .order("accepted_at", { ascending: false, nullsFirst: false }).limit(1000);
+  if (acceptRes.error) truncated.push("acceptances: read failed");
+  const acceptedAt = new Map<string, string>();
+  for (const r of (acceptRes.error ? [] : (acceptRes.data ?? [])) as Array<{ account_id: string | null; accepted_at: string | null; created_at: string }>) {
+    if (!r.account_id) continue;
+    const at = r.accepted_at ?? r.created_at;
+    const have = acceptedAt.get(r.account_id);
+    if (!have || at > have) acceptedAt.set(r.account_id, at);
+  }
   const quoteAccountIds = [...new Set(quoteRows.map((r) => r.account_id).filter(Boolean))];
   const [quoteAttempts, quoteAccounts] = await Promise.all([
     inSlices(quoteAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
@@ -1640,17 +2603,12 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const flagRows = (flagRes.error ? [] : (flagRes.data ?? [])) as unknown as CantMakeItEventRow[];
   const activeRows = (activeRes.error ? [] : (activeRes.data ?? [])) as unknown as ActiveAssignmentRow[];
   const moveRows = (moveRes.error ? [] : (moveRes.data ?? [])) as unknown as DatesChangedEventRow[];
-  // S7: undecided leave / RDO requests and clocked days nobody has approved.
-  // Both tables are staff-only; a session that cannot read them gets nothing.
-  const [leaveRes, tsRes] = await Promise.all([
-    supabase.from("contractor_unavailability").select("id, contractor_id, kind, start_date, end_date, reason, created_at")
+  // S7: undecided leave / RDO requests. Staff-only table; a session that
+  // cannot read it gets nothing. (Clocked days no longer wait on anyone — 7 Oct 2026.)
+  const leaveRes = await supabase.from("contractor_unavailability").select("id, contractor_id, kind, start_date, end_date, reason, created_at")
       .in("kind", ["leave", "rdo"]).is("approved_at", null).is("declined_at", null)
-      .gte("end_date", now.toISOString().slice(0, 10)).order("start_date", { ascending: true }).limit(200),
-    supabase.from("timesheet_entries").select("id, contractor_id, work_order_id, work_date, finished_at")
-      .eq("status", "submitted").order("finished_at", { ascending: true }).limit(500),
-  ]);
+      .gte("end_date", now.toISOString().slice(0, 10)).order("start_date", { ascending: true }).limit(200);
   const leaveRows = (leaveRes.error ? [] : (leaveRes.data ?? [])) as LeaveRequestRow[];
-  const tsRows = (tsRes.error ? [] : (tsRes.data ?? [])) as TimesheetPendingRow[];
   // Tom, 1 Oct: open holds starting within the week, and whether their job
   // has since been booked (which resolves them). Staff-only table; a table
   // that predates 20270209 simply yields nothing.
@@ -1669,20 +2627,15 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   ]);
   const holdBooked = new Set<string>([...holdOffers, ...holdAssignments].map((r) => (r as { work_order_id: string }).work_order_id));
   // Tom, 25 Sep: customer check-ins on running jobs, and the after-job call on
-  // short ones. Booked jobs whose last day is within the last fortnight.
-  const checkinRes = await supabase.from("work_orders")
-    .select("id, wo_ref, stage, start_date, end_date, wo_snapshot, estimates(account_id, accepted_name, title), contractors(company_name, works_saturday, works_sunday, profiles(name))")
-    .not("start_date", "is", null).not("end_date", "is", null).neq("stage", "offered")
-    .gte("end_date", new Date(now.getTime() - 14 * 86_400_000).toISOString().slice(0, 10))
-    .lte("start_date", now.toISOString().slice(0, 10))
-    .order("start_date", { ascending: true }).limit(300);
+  // short ones. Built here so the keys exist for dismissals; SHOWN on PC
+  // Command (homeOf = "pc"), not on Today.
+  const checkinRes = await readJobCheckinRows(supabase, now);
   if (checkinRes.error) truncated.push("job_checkins: read failed");
-  const checkinRows = (checkinRes.error ? [] : (checkinRes.data ?? [])) as unknown as JobCheckinRow[];
+  const checkinRows = checkinRes.rows;
   const flagPainterIds = [...new Set([
     ...flagRows.map((f) => f.meta?.contractor_id),
     ...activeRows.filter((a) => !a.accepted_at).map((a) => a.contractor_id),
     ...leaveRows.map((r) => r.contractor_id),
-    ...tsRows.map((r) => r.contractor_id),
     ...holdRows.map((h) => h.contractor_id),
   ].filter((x): x is string => !!x))];
   const flagPainters = await inSlices(flagPainterIds, (ids) => supabase.from("contractors").select("id, company_name, profiles(name)").in("id", ids));
@@ -1705,10 +2658,13 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
    * turnaround warning chases the open ones.
    */
   const deskRes = await supabase.from("confirmation_requests")
-    .select("id, estimate_id, requested_at, kind, status, suggested_action, assigned_to, estimates(title, account_id, total_cents, builder_state)")
+    .select("id, estimate_id, requested_at, kind, status, suggested_action, assigned_to, estimates(title, account_id, total_cents, builder_state, sent_at)")
     .in("status", ["requested", "question_asked"])
     .limit(200);
+  if (deskRes.error) truncated.push("confirmation_requests: read failed");
   const deskRows = (deskRes.error ? [] : (deskRes.data ?? [])) as unknown as DeskCheckRow[];
+  const deskSends = await readDeskCheckSends(supabase, deskRows);
+  if (deskSends.error) truncated.push("desk check sends: read failed");
   // The turnaround the customer was promised — the same row the hand-off screen
   // reads, so the queue cannot chase a different number than the one we gave.
   const deskTurnaround = await supabase
@@ -1798,29 +2754,45 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const names = new Map(((cbAccounts) as Array<{ id: string; name: string | null; email: string }>)
     .map((a) => [a.id, a.name || a.email]));
 
+  // S5: the visits behind "moved in Google" mapping rows (ref_id carries no FK, so no embed).
+  const movedIds = ((movedEvents.error ? [] : (movedEvents.data ?? [])) as Array<{ ref_id: string }>).map((r) => r.ref_id);
+  const movedVisits = movedIds.length
+    ? (await inSlices(movedIds, (ids) => supabase.from("visits").select("id, starts_at, status, account_id, estimate_id, customer_name").in("id", ids))) as Array<{ id: string; starts_at: string; status: string; account_id: string | null; estimate_id: string | null; customer_name: string | null }>
+    : [];
+
   const raw = [
     ...buildSnoozeItems(snoozeRows, reasons as SnoozeReasonRow[], now),
     ...buildInvoiceItems(invRows, payments, now),
-    ...buildCallbackItems(cbRows, attempts as ContactEventRow[], names, now),
+    ...buildCallbackItems(cbRows, attempts as ContactEventRow[], names, now, acceptedAt),
     ...buildApprovalItem(queued.count ?? 0, now),
     ...buildMessageApprovalItem(pendingHolds.error ? 0 : pendingHolds.count ?? 0, now),
     ...buildChangeRequestItems(crRows, staffReplies as StaffReplyRow[], now),
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
-    ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now),
+    ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now, acceptedAt),
     ...buildLapsedItems(lapsedRows, lapsedAttempts as ContactEventRow[], lapsedNames, now),
-    ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps),
+    ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps, acceptedAt),
     ...buildHoursPendingItems(hoursRows, now),
+    // A read that fails before migration 20270212 is on the database adds nothing (same shape as handoffs above).
+    ...buildUnmappedSuburbItems(((unmappedSuburbs.error ? [] : unmappedSuburbs.data) ?? []) as UnmappedSuburbRow[], now),
+    ...buildVisitRequestItems(((visitRequests.error ? [] : visitRequests.data) ?? []) as unknown as VisitRequestRow[], now),
+    ...buildHolidaysItem(bookingRules.error ? [] : mergeBookingRules(bookingRules.data?.value).publicHolidays, now),
+    ...buildDeclinedVisitItems(((declinedVisits.error ? [] : declinedVisits.data) ?? []) as unknown as DeclinedVisitRow[], now),
+    ...buildMovedVisitItems(movedRows(movedEvents.error ? [] : (movedEvents.data ?? []), movedVisits), now),
+    ...buildGcalFailedItems(connRows(gcalConns.error ? [] : (gcalConns.data ?? [])), now),
+    ...buildCalendarMissingItems(
+      ((zoneEstimators.error ? [] : (zoneEstimators.data ?? [])) as unknown as Array<{ key: string; estimator_id: string | null; profiles?: { name?: string | null } | null }>).map((z) => ({ key: z.key, estimator_id: z.estimator_id, estimator_name: z.profiles?.name ?? null })),
+      connRows(gcalConns.error ? [] : (gcalConns.data ?? [])),
+      bookingRules.error ? false : mergeBookingRules(bookingRules.data?.value).calendarRequired, now),
     ...buildEmployeeReassignItems(flagRows, activeRows, moveRows, painterNames, now),
     ...buildEmployeeUnacceptedItems(activeRows, painterNames, now),
     ...buildLeaveRequestItems(leaveRows, painterNames, now),
-    ...buildTimesheetApprovalItems(tsRows, painterNames, now),
     ...buildHoldItems(holdRows, holdBooked, painterNames, now),
     ...buildJobCheckinItems(checkinRows, now),
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),
     ...buildPhotoReviewItems(photoRows, now),
-    ...buildDeskCheckItems(deskRows, deskPolicy, now, deskTurnaround),
+    ...buildDeskCheckItems(deskRows, deskPolicy, now, deskTurnaround, deskSends.sends),
   ];
 
   // P7: the states and owners of the customers actually on the queue — a
@@ -1839,7 +2811,9 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // read errors; the queue must still stand up (house law: inert-but-safe).
   const dismissals = (dismissed.error ? [] : (dismissed.data ?? [])) as Dismissal[];
 
-  return assembleQueue(suppressQuiet(raw, quietIds), dismissals, now, truncated);
+  // The CRM's queue: Today, the badge, the dashboard. PC-homed kinds are built
+  // (their keys are what dismissals hang off) and then handed to PC Command.
+  return assembleQueue(crmItems(suppressQuiet(raw, quietIds)), dismissals, now, truncated);
 }
 
 // ---- C7b: the estimates page's view of the queue ----------------------------

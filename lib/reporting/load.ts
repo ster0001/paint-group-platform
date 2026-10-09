@@ -26,6 +26,7 @@ import {
 import { loadDashboard as loadInvoicingDashboard, toDerive, toDerivePayments, type InvoiceRow } from "@/app/invoicing/data";
 import { effectiveRoles, isDashboardRole, type DashboardRole, type DashboardSection } from "./roles";
 import { loadReportingExclusions, without, type ReportingExclusions } from "./exclusions";
+import { loadContractorsView } from "@/lib/painterStatus/contractorsLoad";
 
 export async function loadRoles(supabase: SupabaseClient): Promise<DashboardRole[]> {
   const { data, error } = await supabase.rpc("dashboard_roles");
@@ -297,10 +298,11 @@ async function loadSalesSlice(supabase: SupabaseClient, range: Range, viewer: Vi
   };
 }
 
-type DraftRow = { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; accounts: { lead_source: string | null } | null };
+type DraftRow = { id: string; started_at: string; email: string | null; estimate_id: string | null; converted_at: string | null; last_seen_at: string | null; accounts: { lead_source: string | null } | null;
+  gate_version: string | null; gate_shown_at: string | null; gate_completed_at: string | null; range_shown_at: string | null; range_option: string | null };
 async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures: LoadFailure[]): Promise<FunnelSlice> {
   const { fromIso, toIso } = windowOf(range);
-  const drafts = await pageAll<DraftRow>((from, to) => supabase.from("wizard_drafts").select("id, started_at, email, estimate_id, converted_at, last_seen_at, accounts(lead_source)")
+  const drafts = await pageAll<DraftRow>((from, to) => supabase.from("wizard_drafts").select("id, started_at, email, estimate_id, converted_at, last_seen_at, gate_version, gate_shown_at, gate_completed_at, range_shown_at, range_option, accounts(lead_source)")
     .gte("started_at", fromIso).lte("started_at", toIso).order("started_at", { ascending: false }).order("id").range(from, to), 10);
   if (drafts.truncated) failure(failures, "wizard sessions", new Error("more than 10,000 sessions in the window — the funnel counts the newest 10,000"));
   if (drafts.error) { failure(failures, "wizard sessions", drafts.error); return { drafts: [], estimates: [] }; }
@@ -309,7 +311,8 @@ async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures:
   const ests = estIds.length ? await inSlices(estIds, (s) => supabase.from("estimates").select("id, status, sent_at, viewed_at, accepted_at, declined_at, lead_source").in("id", s)) : { rows: [], error: null };
   if (ests.error) failure(failures, "estimates behind wizard sessions", ests.error);
   return {
-    drafts: rows.map((d) => ({ id: d.id, started_at: d.started_at, email: d.email, estimate_id: d.estimate_id, converted_at: d.converted_at, last_seen_at: d.last_seen_at, lead_source: d.accounts?.lead_source ?? null })),
+    drafts: rows.map((d) => ({ id: d.id, started_at: d.started_at, email: d.email, estimate_id: d.estimate_id, converted_at: d.converted_at, last_seen_at: d.last_seen_at, lead_source: d.accounts?.lead_source ?? null,
+      gate_version: d.gate_version ?? null, gate_shown_at: d.gate_shown_at ?? null, gate_completed_at: d.gate_completed_at ?? null, range_shown_at: d.range_shown_at ?? null, range_option: d.range_option ?? null })),
     estimates: ((ests.rows ?? []) as FunnelSlice["estimates"]),
   };
 }
@@ -484,7 +487,7 @@ export async function loadDashboard(
   // Session 6: one wave for everything that depends on nothing else; the two
   // that need the console or the closed jobs follow. The critical path is the
   // slowest single read, not the sum of three stages.
-  const [excl, console_, estRaw, closedRaw, thresholdRes, contractorRaw, salesRaw, funnelRaw, activitySlice, invoicingRaw] = await Promise.all([
+  const [excl, console_, estRaw, closedRaw, thresholdRes, contractorRaw, salesRaw, funnelRaw, activitySlice, invoicingRaw, painterStatusRaw] = await Promise.all([
     timed("exclusions", loadReportingExclusions(supabase)),
     wantsConsole ? timed("console", loadConsole(supabase, now).catch((e: unknown) => { failure(failures, "PC console", e); return null; })) : null,
     wantsEstimates ? timed("estimates", loadEstimates(supabase, range)) : Promise.resolve({ rows: [] as EstimateRow[], failures: [] as LoadFailure[] }),
@@ -495,7 +498,10 @@ export async function loadDashboard(
     sections.includes("funnel") || sections.includes("marketing") ? timed("funnel", loadFunnelSlice(supabase, range, failures)) : Promise.resolve(null),
     sections.includes("activity") ? timed("activity", loadActivitySlice(supabase, range, roles, viewer, failures)) : Promise.resolve(null),
     sections.includes("invoicing") ? timed("invoicing", loadInvoicingSlice(supabase, range, now, failures)) : Promise.resolve(null),
+    // Painter status Step 8: the Contractors view — the same model PC Command → Contractors renders.
+    sections.includes("contractors") ? timed("painter_status", loadContractorsView(supabase, now).catch((e: unknown) => { failure(failures, "painter status", e); return null; })) : Promise.resolve(null),
   ]);
+  if (painterStatusRaw?.error) failure(failures, "painter status", new Error(painterStatusRaw.error));
   failures.push(...estRaw.failures);
   if (thresholdRes.error) failure(failures, "anomaly threshold", thresholdRes.error);
   if (excl.error) failure(failures, "dashboard exclusions", excl.error);
@@ -517,7 +523,7 @@ export async function loadDashboard(
   const plSlice = plRaw ? { ...plRaw, payments: without(plRaw.payments, (p) => p.invoice_id, x.invoiceIds) } : null;
   timings.total = Math.round(performance.now() - t0);
   return {
-    input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, sales: salesSlice, funnel: funnelSlice, activity: activitySlice, invoicing: invoicingSlice, pl: plSlice, thresholds: { anomalyPct } },
+    input: { now, estimates: est.rows, console: consoleSlice, contractors: contractorSlice, painterStatus: painterStatusRaw?.view ?? null, sales: salesSlice, funnel: funnelSlice, activity: activitySlice, invoicing: invoicingSlice, pl: plSlice, thresholds: { anomalyPct } },
     queue,
     strip: { workItems: [], consoleCards: consoleSlice?.cards ?? [] },
     failures,

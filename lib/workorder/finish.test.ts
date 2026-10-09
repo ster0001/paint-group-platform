@@ -1,6 +1,8 @@
 /**
  * The finish-level mapping. This decides what prep a contractor is contractually
  * held to on site, so the FIN-1 case below is a business rule, not a default.
+ * The WORDS of each level are pinned to the approved guide in
+ * lib/standards/source.test.ts; this file is about the mapping.
  */
 import { test, expect } from "vitest";
 import {
@@ -12,13 +14,13 @@ import {
 } from "./finish.ts";
 
 test("FIN-n maps to PG-n by NUMBER, not by the label", () => {
-  // The rate card calls FIN-4 "Premium" while the spec calls PG-3 "Premium".
-  // The numbers are what map; the words clash at different rungs.
+  // The rate card calls FIN-4 "Premium" while the guide calls Level 3 "Our
+  // standard finish" and Level 4 "Premium finish". The numbers are what map.
   expect(finishFromModifier("FIN-2")).toBe("PG-2");
   expect(finishFromModifier("FIN-3")).toBe("PG-3");
   expect(finishFromModifier("FIN-4")).toBe("PG-4");
-  expect(FINISH_LEVELS["PG-3"].name).toBe("Premium");
-  expect(FINISH_LEVELS["PG-4"].name).toBe("Showcase");
+  expect(FINISH_LEVELS["PG-3"].name).toBe("Our standard finish");
+  expect(FINISH_LEVELS["PG-4"].name).toBe("Premium finish");
 });
 
 test("FIN-1 is deliberately unmapped", () => {
@@ -41,28 +43,27 @@ test("modifier codes are matched regardless of case or stray spacing", () => {
 });
 
 test("finishLevel is a safe lookup — a bad code never throws on a work order", () => {
-  expect(finishLevel("PG-4")?.name).toBe("Showcase");
+  expect(finishLevel("PG-4")?.name).toBe("Premium finish");
   expect(finishLevel("pg-2")?.code).toBe("PG-2");
   expect(finishLevel("PG-9")).toBeNull();
   expect(finishLevel(null)).toBeNull();
 });
 
-test("every level states both what to do and how it will be judged", () => {
-  // A level with no acceptance test is unenforceable at walkthrough, which is
-  // the whole point of the standard.
+test("every level has its five summary rows and a look-test distance", () => {
   for (const code of FINISH_ORDER) {
     const level = FINISH_LEVELS[code];
-    expect(level.prep.length).toBeGreaterThan(0);
-    expect(level.acceptance.length).toBeGreaterThan(0);
-    expect(level.summary.trim()).not.toBe("");
+    expect(level.rows.map((r) => r.label)).toEqual([
+      "Filling", "Sanding", "Gaps (caulking)", "Old problems (old runs, old paint on glass, old brush marks)", "Look test",
+    ]);
+    expect(level.lookTest).toMatch(/^\d(\.\d)? m$/);
   }
 });
 
 test("the levels get stricter as the number rises", () => {
   expect(FINISH_ORDER).toEqual(["PG-2", "PG-3", "PG-4"]);
-  // The viewing distance in the acceptance test tightens with the level.
-  expect(FINISH_LEVELS["PG-3"].acceptance.join(" ")).toContain("1.5 m");
-  expect(FINISH_LEVELS["PG-4"].acceptance.join(" ")).toContain("0.5 m");
+  expect(FINISH_LEVELS["PG-2"].lookTest).toBe("3 m");
+  expect(FINISH_LEVELS["PG-3"].lookTest).toBe("1.5 m");
+  expect(FINISH_LEVELS["PG-4"].lookTest).toBe("0.5 m");
 });
 
 test("the default level is the ordinary residential repaint", () => {

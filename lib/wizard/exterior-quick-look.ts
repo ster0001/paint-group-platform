@@ -31,7 +31,7 @@ import type { Choice } from "./quick-look";
 
 export type ExteriorElement = "body" | "windows" | "doors" | "fascias" | "gutters" | "eaves";
 /** Tom, 15 Sep (item 6a): "any other areas being painted?" — each seeds its own rate row. */
-export type ExteriorStandalone = "garage_door" | "paling_fence" | "picket_fence" | "deck" | "shed" | "wall";
+export type ExteriorStandalone = "garage_door" | "paling_fence" | "picket_fence" | "deck" | "shed" | "wall" | "pergola";
 export type ExteriorMaterial = "weatherboards" | "brick" | "render" | "stucco" | "cement_sheet" | "panelling" | "unsure";
 export type ExteriorWindowType = "casement" | "sash" | "colonial" | "winder" | "alu" | "unsure";
 export type ExteriorColour = "same" | "new" | "bold";
@@ -61,6 +61,12 @@ export type ExteriorQuickLook = {
    * = the full exterior). A side left off is not scaffolded at all.
    */
   sides: ExteriorSide[] | null;
+  /**
+   * Tom, 5 Oct 2026: a ticked pergola asks for its top's length and width
+   * and a Confirm — it is priced on that footprint (lib/pricing/pergola.ts),
+   * never "per pergola". Null until the tile is ticked.
+   */
+  pergola: { lengthM: number | null; widthM: number | null; confirmed: boolean } | null;
 };
 
 export type ExteriorSide = "front" | "left" | "back" | "right";
@@ -85,6 +91,7 @@ export const DEFAULT_EXTERIOR_QUICK_LOOK: ExteriorQuickLook = {
   storeys: "single",
   access: ["none"],
   sides: null,
+  pergola: null,
 };
 
 export const EXT_ELEMENTS: Choice<ExteriorElement>[] = [
@@ -101,6 +108,7 @@ export const EXT_STANDALONE: Choice<ExteriorStandalone>[] = [
   { value: "paling_fence", label: "Paling fence" },
   { value: "picket_fence", label: "Picket fence" },
   { value: "deck", label: "Deck" },
+  { value: "pergola", label: "Pergola", hint: "Priced on the top's size" },
   { value: "shed", label: "Shed / garage", hint: "The building itself" },
   { value: "wall", label: "Wall", hint: "Boundary or retaining" },
 ];
@@ -213,6 +221,7 @@ export function applyExteriorQuickLook(q: ExteriorQuickLook, base: WizardState):
     ...(q.standalone.includes("deck") ? ["deck" as const] : []),
     ...(q.standalone.includes("shed") ? ["shed" as const] : []),
     ...(q.standalone.includes("wall") ? ["wall" as const] : []),
+    ...(q.standalone.includes("pergola") ? ["pergola" as const] : []),
   ];
   const fenceOn = q.standalone.includes("paling_fence") || q.standalone.includes("picket_fence");
   const substrates = [...new Set(q.materials.map((m) => MATERIAL_TO_SUBSTRATE[m]))];
@@ -257,9 +266,11 @@ export function applyExteriorQuickLook(q: ExteriorQuickLook, base: WizardState):
       accessEquipment: q.access.includes("lift") ? ["scaffold"] : [],
       shed: q.standalone.includes("shed") ? (ext.shed ?? { substrate: "colorbond" }) : null,
       wall: q.standalone.includes("wall") ? (ext.wall ?? { substrate: "brick", metres: null }) : null,
+      pergola: q.standalone.includes("pergola") ? (q.pergola ?? ext.pergola ?? { lengthM: null, widthM: null, confirmed: false }) : null,
       extras: {
         ...ext.extras,
         fence: fenceOn,
+        pergola: q.standalone.includes("pergola"),
         // Tom, 15 Sep: the tick names the fence — paling, or picket (brushed).
         fenceType: q.standalone.includes("picket_fence") ? "picket_hand" : q.standalone.includes("paling_fence") ? "paling" : ext.extras.fenceType,
         deck: q.standalone.includes("deck"),
@@ -308,6 +319,7 @@ export function exteriorQuickLookFromState(ext: WizardExterior | null | undefine
   if (ext.extras.deck || ext.targets.includes("deck")) standalone.push("deck");
   if (ext.targets.includes("shed")) standalone.push("shed");
   if (ext.targets.includes("wall")) standalone.push("wall");
+  if (ext.extras.pergola || ext.targets.includes("pergola")) standalone.push("pergola");
   const materials = ext.substrates
     .map((s): ExteriorMaterial | null =>
       s === "weatherboards" || s === "brick" || s === "render" || s === "stucco" || s === "cement_sheet" ? s
@@ -330,6 +342,7 @@ export function exteriorQuickLookFromState(ext: WizardExterior | null | undefine
     storeys: ext.storeys,
     access: access.length ? access : ["none"],
     sides: ext.sidesAnswered ? (ext.sides && ext.sides.length > 0 ? [...ext.sides] : [...ALL_SIDES]) : null,
+    pergola: ext.pergola ?? null,
   };
 }
 

@@ -245,6 +245,13 @@
 .sb .btn.hold:hover { background: rgba(255, 45, 155, 0.3); }
 .sb .held-note { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 12.5px; background: rgba(255, 45, 155, 0.12); border: 1px solid rgba(255, 45, 155, 0.5); color: #ffd6ea; }
 .sb .seg.modes { display: flex; margin: 4px 0 12px; }
+/* Tom, 4 Oct: the Extra visit project search — results under the box, same chrome as a tray card. */
+.sb .visit-hits { margin-top: 6px; max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); }
+.sb .visit-hits .hit { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--text); padding: 8px 10px; cursor: pointer; }
+.sb .visit-hits .hit:last-child { border-bottom: 0; }
+.sb .visit-hits .hit:hover { background: rgba(59, 216, 233, 0.08); }
+.sb .visit-hits .hit .t { display: block; font-size: 13px; font-weight: 600; }
+.sb .visit-hits .hit .m { display: block; font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 2px; letter-spacing: 0.04em; }
 .sb .seg.modes button { flex: 1; }
 .sb .blk .crew { font-family: var(--mono); font-size: 8.5px; opacity: 0.9; margin-left: 6px; }
 .sb .blk .lead { color: var(--amber); margin-right: 4px; }

@@ -4,7 +4,7 @@
  * to remove and "Add a room" (a type and a name). The submit honours the list.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
 
 test("the rooms are confirmed before the range: untick one, add one, and the editor shows exactly that", async ({ page }) => {
   test.setTimeout(240_000);
@@ -39,6 +39,7 @@ test("the rooms are confirmed before the range: untick one, add one, and the edi
   await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
+  await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("door-tighten").click();
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
