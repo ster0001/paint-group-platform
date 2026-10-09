@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { credentials, missingCreds, signIn } from "./helpers";
+import { fillQuickAddress, passGateIfShown, quickNext, MONEY_RANGE } from "./customer-journey/drive";
 
 /**
  * Tom (20 Aug): "new estimate → start with the wizard" must land in the NEW
@@ -15,21 +16,25 @@ test("staff wizard submit lands in the new confirm-loop editor", async ({ page }
   await signIn(page, staff!, /\/(home|estimates)/);
 
   await page.goto("/estimates");
-  await page.getByRole("button", { name: /New estimate/i }).click();
+  // Exact name: the list's own rows can be titled "New estimate (assistant)", and their
+  // Duplicate / Delete buttons carry that title in their labels — a pattern matched 39 of them.
+  await page.getByRole("button", { name: "+ New estimate", exact: true }).click();
   await page.getByRole("link", { name: /Start with the wizard/i }).click();
-  await expect(page).toHaveURL(/\/wizard/);
+  // Since 6 Sep (6ac528dd) "Start with the wizard" is the CUSTOMER estimator, run by staff —
+  // the quick look at /estimate, not the old five-page /wizard this spec used to walk.
+  await expect(page).toHaveURL(/\/estimate(\?|$)/);
+  await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
 
-  await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
-  const next = async () => {
-    await page.getByRole("button", { name: /Continue|See my estimate/ }).first().click();
-    const err = page.locator(".wz-err");
-    if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
-  };
-  await next(); // surfaces
-  await next(); // condition
-  await next(); // details
-  await next(); // paint
-  await page.getByRole("button", { name: "See my estimate" }).click();
+  await fillQuickAddress(page);
+  await quickNext(page); // address
+  await quickNext(page); // the place
+  await quickNext(page); // the job
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+  await quickNext(page); // the rooms
+  await quickNext(page); // condition
+  await passGateIfShown(page, { email: `staff.wizard.${Date.now()}@example.com` });
+  await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+  await page.getByTestId("door-tighten").click();
 
   // The NEW editor: confirm-loop chrome, amber cards — and no margin.
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 90_000 });
