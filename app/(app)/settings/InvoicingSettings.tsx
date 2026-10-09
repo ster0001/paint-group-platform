@@ -28,17 +28,51 @@ const BANK_DEFAULTS: Bank = {
 const CORE_DEFAULTS: Core = { depositPct: 10, paymentTermsDays: 7, finalTermsDays: 7 };
 
 export default function InvoicingSettings({
-  initialEntity, initialBank, initialCore,
+  initialEntity, initialBank, initialCore, initialCardPaymentsOn, stripeKeyConfigured,
 }: {
   initialEntity: Partial<Entity> | null;
   initialBank: Partial<Bank> | null;
   initialCore: Partial<Core> | null;
+  /** `invoicing.cardPaymentsEnabled` — the Stripe switch (Tom, 4 Oct 2026). */
+  initialCardPaymentsOn: boolean;
+  /** Whether the server holds a Stripe secret key — the switch can be on, but
+   *  without a key the customer still sees bank transfer only. */
+  stripeKeyConfigured: boolean;
 }) {
   const [entity, setEntity] = useState<Entity>({ ...ENTITY_DEFAULTS, ...(initialEntity ?? {}) });
   const [bank, setBank] = useState<Bank>({ ...BANK_DEFAULTS, ...(initialBank ?? {}) });
   const [core, setCore] = useState<Core>({ ...CORE_DEFAULTS, ...(initialCore ?? {}) });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [cardOn, setCardOn] = useState(initialCardPaymentsOn);
+  const [cardSaving, setCardSaving] = useState(false);
+  const [cardMsg, setCardMsg] = useState("");
+
+  // The card-payments switch saves the moment it is pressed — one button,
+  // one key, merged into `invoicing` so the surcharge and terms survive.
+  async function toggleCardPayments() {
+    setCardSaving(true);
+    setCardMsg("");
+    const next = !cardOn;
+    const supabase = createClient();
+    const { data: existing, error: readErr } = await supabase.from("settings").select("value").eq("key", "invoicing").maybeSingle();
+    if (readErr) {
+      setCardSaving(false);
+      setCardMsg(readErr.message);
+      return;
+    }
+    const merged = { ...((existing?.value as Record<string, unknown>) ?? {}), cardPaymentsEnabled: next };
+    const { error } = await supabase.from("settings").upsert({ key: "invoicing", value: merged }, { onConflict: "key" });
+    setCardSaving(false);
+    if (error) {
+      setCardMsg(error.message);
+      return;
+    }
+    setCardOn(next);
+    setCardMsg(next
+      ? "Card payments are ON — the customer's Pay box now offers a card option as well as bank transfer."
+      : "Card payments are OFF — the customer's Pay box shows bank transfer only.");
+  }
 
   async function save() {
     setSaving(true);
@@ -106,6 +140,34 @@ export default function InvoicingSettings({
           {field("Account number", bank.acc, (v) => setBank({ ...bank, acc: v }))}
         </div>
         <p className="text-xs text-gray-400">Customers are asked to use the invoice number as the payment reference.</p>
+      </div>
+
+      <div className="space-y-3" data-testid="card-payments-settings">
+        <h3 className="text-sm font-semibold text-gray-900">Card payments (Stripe)</h3>
+        <p className="text-sm text-gray-500">
+          When a customer presses <b>Pay</b> on an invoice, a box opens with the amount due, our bank
+          details and the invoice number to use as the reference. Turn card payments on to add
+          &ldquo;pay by card&rdquo; (with the surcharge disclosed) to that box; off, the box is bank transfer only.
+        </p>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-700">
+            Card payments are{" "}
+            <b data-testid="card-payments-state">{cardOn ? "on" : "off"}</b>
+          </span>
+          <button type="button" onClick={toggleCardPayments} disabled={cardSaving}
+            data-testid="card-payments-toggle"
+            className={`rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 ${
+              cardOn ? "border border-gray-300 bg-white text-gray-900" : "bg-gray-900 text-white"
+            }`}>
+            {cardSaving ? "Saving…" : cardOn ? "Remove card payments" : "Add card payments"}
+          </button>
+        </div>
+        {cardMsg && <p className="text-sm text-gray-500" data-testid="card-payments-msg">{cardMsg}</p>}
+        {cardOn && !stripeKeyConfigured && (
+          <p className="text-xs text-amber-700" data-testid="card-payments-no-key">
+            No Stripe key is configured on the server, so customers still see bank transfer only until one is added.
+          </p>
+        )}
       </div>
 
       <div className="space-y-3">

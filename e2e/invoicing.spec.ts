@@ -392,11 +392,11 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     expect(String(again.data)).toBe("error:pdf_immutable");
   });
 
-  // ---- Step 4: Stripe, degraded mode -------------------------------------
-  // Without STRIPE_SECRET_KEY (per Tom's C1 ruling, test keys live only in
-  // the dedicated test project) the card path must vanish CLEANLY: bank
-  // transfer only, a friendly refusal on the checkout route, and a webhook
-  // that answers 503 rather than pretending. Test-card e2e runs on C1.
+  // ---- Step 4: the Pay box, card payments OFF ------------------------------
+  // Card payments are a Settings switch (Tom, 4 Oct 2026), off by default.
+  // Off, the customer's Pay button opens the bank-details box alone, the
+  // checkout route refuses with a friendly line, and a webhook with no
+  // secret answers 503 rather than pretending. Test-card e2e runs on C1.
 
   // Tom, 17 Sep 2026: a customer who pays by bank transfer before we have sent
   // the invoice must not force a send. The 25% progress claim above is still a
@@ -437,32 +437,99 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     expect(types.find((e) => e.type === "payment_received")?.meta.paid_before_send).toBe(true);
   });
 
-  test("without Stripe keys the card path degrades to bank-transfer only", async ({ browser }) => {
-    test.skip(Boolean(process.env.STRIPE_SECRET_KEY),
-      "Stripe keys are configured — the degraded-mode assertions don't apply");
+  test("the customer's Pay button opens the bank-details box — amount, bank, invoice number as reference", async ({ page, browser }) => {
+    // Tom, 4 Oct 2026: card payments are OFF unless Settings turns them on.
+    // Pin the switch off for this test so the box is bank transfer alone,
+    // whatever the server's Stripe env says.
+    const { data: inv } = await db!.from("settings").select("value").eq("key", "invoicing").maybeSingle();
+    const prior = (inv?.value as Record<string, unknown> | null) ?? {};
+    await db!.from("settings").upsert(
+      { key: "invoicing", value: { ...prior, cardPaymentsEnabled: false } }, { onConflict: "key" },
+    );
 
-    // Issue the progress draft so there is an OPEN invoice with a balance —
-    // the strongest case: payable, and still bank-transfer only.
-    const { data: prog } = await db!.from("invoices")
-      .select("id, token").eq("estimate_id", estimateId!).eq("kind", "progress").single();
-    const progress = prog as { id: string; token: string };
+    // The first progress claim was paid in full by the test above, so draft a
+    // SECOND one as staff and issue it: an OPEN invoice with a balance.
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await openMoneyView(page);
+    await page.getByRole("button", { name: "Request payment" }).click();
+    await page.locator(".pchip", { hasText: "25%" }).click();
+    await page.getByRole("button", { name: "Draft invoice" }).click();
+    await expect(page.getByText("Draft created.")).toBeVisible({ timeout: 15_000 });
+    const { data: prog, error: progErr } = await db!.from("invoices")
+      .select("id, token, number").eq("estimate_id", estimateId!).eq("kind", "progress")
+      .eq("status", "draft").single();
+    expect(progErr).toBeNull();
+    const progress = prog as { id: string; token: string; number: string | null };
     const issued = await rpcAs(staff!, "invoice_issue", { p_invoice_id: progress.id });
     expect(String(issued)).toContain("ok");
     const token = progress.token;
+    const { data: after } = await db!.from("invoices")
+      .select("number, total_inc_cents").eq("id", progress.id).single();
+    const row = after as { number: string; total_inc_cents: number };
+    const owed = "$" + (row.total_inc_cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
 
     const ctx = await browser.newContext();
-    const page = await ctx.newPage();
-    await page.goto(`/i/${token}`);
-    await expect(page.getByTestId("invoice-sheet")).toBeVisible();
-    await expect(page.getByText("How to pay — bank transfer")).toBeVisible();
-    await expect(page.getByTestId("pay-panel")).toHaveCount(0);
+    const customer = await ctx.newPage();
+    await customer.goto(`/i/${token}`);
+    await expect(customer.getByTestId("invoice-sheet")).toBeVisible();
 
-    const checkout = await page.request.post(`/i/${token}/checkout`);
+    // On screen: no static box, one Pay button carrying the balance.
+    await expect(customer.getByText("How to pay — bank transfer")).toHaveCount(0);
+    const payButton = customer.getByTestId("pay-button");
+    await expect(payButton).toHaveText(`Pay ${owed}`);
+    await expect(customer.getByTestId("pay-dialog")).toBeHidden();
+
+    await payButton.click();
+    const dialog = customer.getByTestId("pay-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Payment due");
+    await expect(customer.getByTestId("pay-dialog-amount")).toHaveText(owed);
+    await expect(dialog).toContainText("Bank transfer");
+    await expect(dialog).toContainText("Account name");
+    await expect(customer.getByTestId("pay-dialog-reference")).toHaveText(row.number);
+    // Card payments are off: no card option in the box.
+    await expect(customer.getByTestId("pay-panel")).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Done" }).click();
+    await expect(dialog).toBeHidden();
+
+    // The PDF print keeps the static box — a printout has nothing to press.
+    await customer.goto(`/i/${token}?print=1`);
+    await expect(customer.getByText("How to pay — bank transfer")).toBeVisible();
+    await expect(customer.getByTestId("pay-button")).toHaveCount(0);
+
+    // The checkout route refuses while the switch is off, and the webhook
+    // answers honestly when it has no secret.
+    const checkout = await customer.request.post(`/i/${token}/checkout`);
     expect(checkout.status()).toBe(503);
     expect(await checkout.text()).toContain("bank transfer");
-
-    const webhook = await page.request.post("/api/webhooks/stripe", { data: "{}" });
-    expect(webhook.status()).toBe(503);
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      const webhook = await customer.request.post("/api/webhooks/stripe", { data: "{}" });
+      expect(webhook.status()).toBe(503);
+    }
     await ctx.close();
+  });
+
+  test("Settings → Invoicing has the one button that adds or removes card payments", async ({ page }) => {
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto("/settings#invoicing");
+    const section = page.getByTestId("card-payments-settings");
+    await expect(section).toBeVisible();
+    await expect(page.getByTestId("card-payments-state")).toHaveText("off");
+    await expect(page.getByTestId("card-payments-toggle")).toHaveText("Add card payments");
+
+    await page.getByTestId("card-payments-toggle").click();
+    await expect(page.getByTestId("card-payments-state")).toHaveText("on");
+    await expect(page.getByTestId("card-payments-toggle")).toHaveText("Remove card payments");
+    const { data: on } = await db!.from("settings").select("value").eq("key", "invoicing").single();
+    expect((on?.value as { cardPaymentsEnabled?: boolean }).cardPaymentsEnabled).toBe(true);
+
+    // Survives a reload (it is the saved value, not the button's memory).
+    await page.reload();
+    await expect(page.getByTestId("card-payments-state")).toHaveText("on");
+
+    await page.getByTestId("card-payments-toggle").click();
+    await expect(page.getByTestId("card-payments-state")).toHaveText("off");
+    const { data: off } = await db!.from("settings").select("value").eq("key", "invoicing").single();
+    expect((off?.value as { cardPaymentsEnabled?: boolean }).cardPaymentsEnabled).toBe(false);
   });
 });
