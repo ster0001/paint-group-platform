@@ -7,7 +7,7 @@ Preflight is run sheet §3. Postflight is run sheet §6.
 | Session | What | Status | Date | Merge SHA | Units before → after | Specs added or edited | ⚑ touched (value shipped) | Next session should know |
 |---|---|---|---|---|---|---|---|---|
 | S0 | Commit the pack; baseline screenshots | DONE | 9 Oct 2026 | `6cddf09` (PR #221) | 3375 → 3375 (332 files) | Added `e2e/customer-journey/ui-refresh-baseline.spec.ts` — 11 journeys × 390/1440, 43 shots each width, 22/22 on C1 (3.1 min, teardown 26 → 0). No spec edited. | none | Built on `main` `964a1dd`; nothing in app/wizard, app/estimate, lib/wizard or e2e/customer-journey changed since `ed5a94c`, hooks list identical. **customer-journey is RED on main** (36 failed, S6 details-first gate) — fix is the unmerged `fix/customer-journey-gate-9oct`; S1's gate "existing wizard e2e pass unchanged" needs that merged first. Shots are in `ui-refresh-shots/before/` (gitignored), NOT `test-results/` (ruling 9 Oct). **S9 must run in this same worktree** (`../paint-group-platform-uirefresh`). **Re-take the before set after the gate fix merges** (ruling 9 Oct), then S1. |
-| S1 | The shell, on every path | TODO | | | | | 10, 21 | |
+| S1 | The shell, on every path | DONE | 9 Oct 2026 | PR from `feat/wizard-ui-refresh-s1` (head `adac147`; SHA on merge) | 3375 → 3413 (+38 `app/wizard/stepRail.test.ts`; 3416 with main) | Added `e2e/customer-journey/ui-refresh-steps.spec.ts` (rail = `stepsFor()` on 8 paths; 64px header, 560–640px column, fixed phone bar). No spec edited. Spec FIX shipped separately: `staff-wizard-new-editor.spec.ts` (#224 — exact "+ New estimate" name; walks /estimate). | 10 ON (chat in header); 21 default (page list untouched); capitals: CSS only | S2 fills `.wz-side` (aside `ql-side`, sticky, 430px) and moves `ql-talk` into it. Keep motion on `.wz-pane > *` children only — a transform on any ancestor of `.wz-nav--col` un-fixes the phone bar. Rail names live in `app/wizard/stepRail.ts`. S1 screenshots: `ui-refresh-shots/s1/`. Inside/Outside/Both picture cards and the Job surface order (Walls first) are S2's. |
 | S2 | Live picture and "Your job so far" (home, inside) | TODO | | | | | 1 | |
 | S3 | The range screen, every path | TODO | | | | | 2, 5, 14 | |
 | S4 | Room by room, area by area | TODO | | | | | 7, 17 | |
@@ -22,7 +22,7 @@ Preflight is run sheet §3. Postflight is run sheet §6.
 | Session | Checked on | Result |
 |---|---|---|
 | S0 (mockup, all six job types) | 9 Oct 2026 | **"mockup approved"** (Tom, all six job types, on the published page; Switzer was blocked by the viewer, so the type is judged in S1) |
-| S1 | | |
+| S1 | 9 Oct 2026 | **"s1 looks good"** (Tom, phone + laptop, on the C1 test server) |
 | S2 | | |
 | S3 | | |
 | S4 | | |

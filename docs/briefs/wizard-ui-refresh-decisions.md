@@ -106,4 +106,5 @@ Claude Code appends one line per ruling: date, ⚑ number, the ruling in Tom's w
 | 9 Oct 2026 | — | The three unreachable screens are parked for S8. S8 first says whether a customer can reach the "can't price this online" screen at all; if not, it is logged as a finding and not redesigned. The floorplan-being-read shot uses a sample plan from the test files. | S8 |
 | 9 Oct 2026 | — | Segment kickers in capitals: fixed on screen only, in S1/S7. The seed/row wording fix is a separate change for Tom to approve. | S1, S7 |
 | 9 Oct 2026 | — | "mockup approved" — all six job types, phone check done. | S0 |
+| 9 Oct 2026 | — | S1 diff approved, incl. `vitest.config.mts` running `app/wizard/**/*.test.ts`, page colour kept `#F4F6F8`, new `--onpaint`. Phone check: "s1 looks good". | S1 |
 | 9 Oct 2026 | 12 | "Imported · Custom surface" chip: its own small fix, written up separately, to land before go-live; not in this plan. | — (`docs/briefs/fix-imported-custom-surface-chip.md`) |
