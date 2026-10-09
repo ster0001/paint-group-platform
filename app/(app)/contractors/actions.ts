@@ -260,7 +260,9 @@ export async function inviteStandardsAction(raw: unknown): Promise<StandardsActi
   const service = createServiceClient();
   const outcome = service ? await sendStandardsInvite(service, parsed.data.id) : "no service client";
   revalidatePath("/contractors"); revalidatePath(`/contractors/${parsed.data.id}`);
-  return { ok: true, message: outcome === "sent" ? "Invited. The text and email have gone; their grace period has started." : `Invited and the grace period has started, but the message was not sent (${outcome}) — check their mobile and email.` };
+  return { ok: true, message: outcome === "sent" ? "Invited. The text and email have gone; their grace period has started."
+    : outcome === "held" ? "Invited and their grace period has started. It is after hours, so the text and email are queued for the morning sending window."
+    : `Invited and the grace period has started, but the message was not sent (${outcome}) — check their mobile and email.` };
 }
 
 /** Invite every active painter who has not been invited yet, in one press (launch day). */
@@ -292,7 +294,9 @@ export async function remindStandardsAction(raw: unknown): Promise<StandardsActi
   if (!service) return { ok: false, message: "No service client." };
   const outcome = await sendStandardsReminder(service, parsed.data.id, "office");
   revalidatePath("/pc"); revalidatePath(`/contractors/${parsed.data.id}`);
-  return outcome === "sent" ? { ok: true, message: "Reminder text sent." } : { ok: false, message: `Reminder not sent (${outcome}) — do they have a mobile on file?` };
+  if (outcome === "sent") return { ok: true, message: "Reminder text sent." };
+  if (outcome === "held") return { ok: true, message: "It is after hours — the reminder is queued for the morning sending window. Pressing again queues another." };
+  return { ok: false, message: `Reminder not sent (${outcome}) — do they have a mobile on file?` };
 }
 
 // ---- Painter status Step 7: the Red clearance and the bonus review ----------
@@ -353,7 +357,8 @@ export async function bonusDecideAction(raw: unknown): Promise<StatusActionResul
       if (cErr) reportError(cErr, { where: "bonus.decide.painter", bestEffort: true });
       const employee = (c as { employment_type?: string } | null)?.employment_type === "employee";
       const outcome = await notifyBonusApproved(service, v.painterId, v.bonusId, cents, employee);
-      told = outcome === "sent" ? (employee ? " They have been told it goes on their next pay run." : " They have been told and can claim it in the app.") : ` The text was not sent (${outcome}).`;
+      told = outcome === "sent" ? (employee ? " They have been told it goes on their next pay run." : " They have been told and can claim it in the app.")
+        : outcome === "held" ? " The text is queued for the morning sending window." : ` The text was not sent (${outcome}).`;
     }
   }
   revalidatePath(`/contractors/${v.painterId}`); revalidatePath("/pc"); revalidatePath("/portal/money");
