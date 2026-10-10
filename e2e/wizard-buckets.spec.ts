@@ -1,6 +1,6 @@
-import { test, expect, devices } from "@playwright/test";
+import { expect, devices } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { credentials, signIn } from "./helpers";
+import { credentials, signIn, test } from "./helpers";
 import { driveNoPlanWizard, openScopeEditor } from "./customer-journey/drive";
 
 /**

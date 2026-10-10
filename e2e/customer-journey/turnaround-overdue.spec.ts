@@ -7,10 +7,10 @@
  * customer's own words, that the promise has passed — the one evaluator's
  * sentence (lib/crm/work-queue.ts buildDeskCheckItems), not a second opinion.
  */
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
-import { credentials, signIn } from "../helpers";
+import { credentials, signIn, test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
 import { defaultWizardState } from "../../lib/wizard/state";
 

@@ -1,7 +1,7 @@
-import { test, expect, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, test } from "./helpers";
 import { PREPARATION_DESCRIPTION } from "../lib/customer/snapshot";
 
 /**

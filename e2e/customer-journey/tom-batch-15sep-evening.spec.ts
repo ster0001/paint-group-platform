@@ -1,7 +1,7 @@
-import { test, expect, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
-import { credentials, signIn } from "../helpers";
+import { credentials, signIn, test } from "../helpers";
 
 /**
  * Tom, 15 Sep (evening) — four items:

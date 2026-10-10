@@ -1,6 +1,6 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, drawSignature, missingCreds, signIn } from "./helpers";
+import { credentials, drawSignature, missingCreds, signIn, test } from "./helpers";
 import { createLoopFixture, destroyLoopFixture, rpcAs, serviceClient, type LoopFixture } from "./fixtures/woLoop";
 import { KNOWN_MONEY_KEYS } from "../lib/painters/money";
 

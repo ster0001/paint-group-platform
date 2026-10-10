@@ -1,8 +1,8 @@
 import { createHmac } from "node:crypto";
-import { test, expect, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { rpcAs, serviceClient } from "./fixtures/woLoop";
-import { credentials } from "./helpers";
+import { credentials, test } from "./helpers";
 
 /**
  * The §8 Step 4 money e2e — REAL Stripe test-mode, C1 TEST PROJECT ONLY.

@@ -1,8 +1,8 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
-import { TINY_SIGNATURE_PNG } from "./helpers";
+import { TINY_SIGNATURE_PNG, test } from "./helpers";
 
 /**
  * Trade portal v2 · Session 2B — the colour_records write path, driven AS

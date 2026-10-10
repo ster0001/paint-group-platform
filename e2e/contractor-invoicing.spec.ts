@@ -1,10 +1,10 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   serviceClient, rpcAs, type LoopFixture,
 } from "./fixtures/woLoop";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, test } from "./helpers";
 import { gstOnExCents } from "../lib/invoicing/gst";
 
 /**

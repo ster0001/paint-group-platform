@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { test } from "./helpers";
 
 /**
  * CRM v2 · P7 — the volume gate (deep dive §4.7.5).

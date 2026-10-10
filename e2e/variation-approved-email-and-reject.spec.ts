@@ -1,8 +1,8 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { contractorIdForEmail, createLoopFixture, destroyLoopFixture, rpcAs, serviceClient, type LoopFixture } from "./fixtures/woLoop";
-import { credentials, drawSignature, missingCreds, signIn } from "./helpers";
+import { credentials, drawSignature, missingCreds, signIn, test } from "./helpers";
 
 /**
  * Tom, 8 Oct 2026 — two things in the variation flow.

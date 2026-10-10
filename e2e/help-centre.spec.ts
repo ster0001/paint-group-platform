@@ -1,6 +1,6 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, test } from "./helpers";
 
 /**
  * The help centre (brief Phase C, session C1): every guide the index lists is

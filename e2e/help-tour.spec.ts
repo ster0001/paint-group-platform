@@ -1,8 +1,8 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { rpcAs, serviceClient } from "./fixtures/woLoop";
-import { authUserIdByEmail, credentials, missingCreds, signIn } from "./helpers";
+import { authUserIdByEmail, credentials, missingCreds, signIn, test } from "./helpers";
 
 /**
  * The first-sign-in tour (help brief Phase C, C3), through a REAL invite:

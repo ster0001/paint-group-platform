@@ -1,7 +1,7 @@
-import { test, expect, type Browser, type Page } from "@playwright/test";
+import { expect, type Browser, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds, signIn, userIdFor, TINY_SIGNATURE_PNG } from "./helpers";
+import { credentials, missingCreds, signIn, userIdFor, TINY_SIGNATURE_PNG, test } from "./helpers";
 import {
   completePreStart, completePrep, contractorIdForEmail, createLoopFixture, customerIdForEmail,
   destroyLoopFixture, rpcAs, rpcAsJson, serviceClient, type LoopFixture,

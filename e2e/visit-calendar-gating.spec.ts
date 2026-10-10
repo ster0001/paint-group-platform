@@ -1,7 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "./fixtures/woLoop";
-import { authUserIdByEmail, gotoTodayWith } from "./helpers";
+import { authUserIdByEmail, gotoTodayWith, test } from "./helpers";
 import { fillDetailsIfAsked, loginStaff, staffEmail, startCustomer, type Customer, cleanupCustomers } from "./customer-journey/visitHelpers";
 import { STANDARD_WEEK } from "../lib/visits/schedule";
 

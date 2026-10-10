@@ -1,8 +1,8 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
-import { credentials, missingCreds } from "./helpers";
+import { credentials, missingCreds, test } from "./helpers";
 
 /**
  * Homepage v2 · session 2 — showcase_jobs under RLS, proven through each

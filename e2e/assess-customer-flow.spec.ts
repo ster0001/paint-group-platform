@@ -1,5 +1,4 @@
-import { test } from "@playwright/test";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, test } from "./helpers";
 
 /**
  * Honest self-assessment harness for Tom's 8 complaints (2026-08-19).
