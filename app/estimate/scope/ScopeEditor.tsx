@@ -60,6 +60,8 @@ const DARK_TO_LIGHT_SURFACES: Array<[string, string]> = [
 
 import type { InteriorLoopMeta, RoomLoopView } from "@/lib/wizard/rooms-loop";
 import Wordmark from "@/app/wizard/Wordmark";
+import WizardHeader from "@/app/wizard/WizardHeader";
+import PlanMap from "@/app/wizard/pictures/PlanMap";
 
 /** R3: the interior confirm-loop state that rides every customer response. */
 export type InteriorLoopView = {
@@ -696,6 +698,18 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
 
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
+  // UI refresh S4: the price card's band — the dashed outline is where the guide range
+  // started (the range this page opened with), the bar is the range now. Positions only;
+  // no money is computed here.
+  const [startRange] = useState(() => ({ lo: initial.rangeLoCents, hi: initial.rangeHiCents }));
+  const band = (() => {
+    const { lo: g0, hi: g1 } = startRange;
+    const pad = Math.max(1, (g1 - g0) * 0.12);
+    const mn = Math.min(g0, payload.rangeLoCents) - pad, mx = Math.max(g1, payload.rangeHiCents) + pad;
+    const at = (v: number) => `${((v - mn) / (mx - mn)) * 100}%`;
+    const w = (a: number, b: number) => `${((b - a) / (mx - mn)) * 100}%`;
+    return { was: { left: at(g0), width: w(g0, g1) }, now: { left: at(payload.rangeLoCents), width: w(payload.rangeLoCents, payload.rangeHiCents) } };
+  })();
 
   // ---- Tom, 14 Sep (items 5, 14, 15): the details, one question at a time ----
   const detailSteps: PaginatedStep[] = [];
@@ -932,76 +946,24 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           confidence score all stay on screen while the cards scroll under
           them, so "how far am I" and "how sure are we" are never more than
           a glance away. */}
+      {/* UI refresh S4 (brief §7.5): the frozen stack shrinks to the one slim header — the
+          range, the tier, the progress and the estimator moved into the rail on the right
+          (on a phone: the dark range strip under the header). Still `.sc-freeze`, pinned. */}
       <div className="sc-freeze">
-        <header className="wz-top">
-          <Wordmark logoUrl={logoUrl} />
-          {/* Tom, 9 Sep: "estimate confirmed" was the wrong word for this
-              moment — WE have not confirmed anything yet, and the customer has
-              not accepted. All it means is that they have checked every card
-              and the ball is back in their court. Saying so removes a promise
-              nobody had made. */}
-          {iloop && (
-            <span className={`sd-status ${combined!.allDone ? "ok" : ""}`}>
-              {combined!.allDone ? "AWAITING YOUR SIGN-OFF" : initialSides ? "IN REVIEW · INSIDE THEN OUTSIDE" : "IN REVIEW · CONFIRM EACH ROOM"}
-            </span>
-          )}
-        </header>
-        {iloop && (
-          <div className="il-progwrap">
-            <div className="sd-lbl">
-              {/* Phase 0 (6 Sep plan): rooms and the two whole-job checks are
-                  counted apart — "0 of 9 confirmed" read as nine rooms. */}
-              <span className="il-prog">{initialSides
-                ? `${combined!.done} OF ${combined!.total} CONFIRMED`
-                : `${iloop.rooms.filter((r) => r.confirmed).length} OF ${iloop.rooms.length} ROOMS · ${Number(iloop.meta.done.dw) + Number(iloop.meta.done.sweep)} OF 2 CHECKS`}</span>
-              <span>ORANGE = STILL TO CONFIRM · BLUE = CONFIRMED</span>
-            </div>
-            <div className={`sd-pbar ${combined!.allDone ? "ok" : ""}`}>
-              <i style={{ width: `${(combined!.done / Math.max(1, combined!.total)) * 100}%` }} />
-            </div>
-          </div>
-        )}
-        {/* Tom, 14 Sep (item 4): the estimator — and the Call button — live in the frozen header. */}
-        {!chatMode && (
-          <div className="sc-estwrap">
-            <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={() => scrollToReach()} compact />
-          </div>
-        )}
-        <div className="sc-scorewrap">
-          <div className="sc-scorebar">
-            <div className="sc-score">
-              <div className={`sc-ring ${pendingCount > 0 ? "live" : ""}`} data-live={pendingCount > 0 ? "1" : "0"}>
-                <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx="24" cy="24" r="20" fill="none" stroke="#D9E0E6" strokeWidth="4" />
-                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 90 ? "#1F8A55" : "#A86A12"}
-                    strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
-                    strokeDashoffset={(125.6 * Math.max(0, Math.min(1, (payload.bandPct - (payload.tightPct ?? 4)) / Math.max(1, (payload.widePct ?? 15) - (payload.tightPct ?? 4))))).toFixed(1)} />
-                </svg>
-                <div className="sc-num" data-testid="range-width">±{payload.bandPct}%</div>
-              </div>
-              <div className="sc-lbl">
-                <b>Your range <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
-                {/* PR 1 of the tiers plan: the next unlock never names a target this
-                    road can't reach — a no-plan job is shown Detailed as its goal and
-                    Confirmed as "upload your floorplan". */}
-                <span data-testid="tier-next">{ladder.nextUnlock
-                  ? `${ladder.nextUnlock.needs.length === 1 ? "One step" : `${ladder.nextUnlock.needs.length} steps`} to ${TIER_LABEL[ladder.nextUnlock.tier]}: ${ladder.nextUnlock.needs.join(" · ")}`
-                  : combined?.allDone
-                    ? "Everything confirmed — this is as sure as we get before we see it"
-                    : "It climbs with every room you confirm — we\u2019ll reprice as you go"}</span>
-              </div>
-            </div>
-            <div className="sc-range" key={flash}>
-              <small>YOUR ESTIMATE · INCL. GST</small>
-              <div className="sc-r">{rangeText}</div>
-            </div>
-          </div>
-        </div>
-        <div className="sc-scorewrap" style={{ paddingTop: 0 }}>
-          <PlanPanel docs={docs} variant="peek" />
-        </div>
+        <WizardHeader
+          logo={<Wordmark logoUrl={logoUrl} />}
+          steps={[]}
+          at="gate"
+          after={{
+            at: 1,
+            labels: ["Guide range", initialSides ? "Rooms and sides" : payload.commercial ? "Area by area" : "Room by room",
+              `Fixed by ${estimator?.name?.trim().split(/\s+/)[0] || "your estimator"}`],
+          }}
+          phone={companyPhone}
+        />
       </div>
 
+      <div className="sc-ed">
       <main className="sc-wrap">
         {complete && autoSend !== "idle" && <AllDoneBanner estimator={estimator?.name ?? null} sentHref={sentHref} state={autoSend === "sending" ? "sending" : autoSend === "sent" ? "sent" : "failed"} />}
         {/* R1.3 lives HERE now the interstitial result screen is gone
@@ -1749,20 +1711,92 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           {/* Tom, 14 Sep (item 8): What we'll do sits at the very bottom of the page. */}
           {!chatMode && <WhatWeDo lines={systems} tellUsHref={`/estimate/book?id=${estimateId}`} />}
         </div>
-        <PlanPanel docs={docs} variant="column" />
         </div>
       </main>
 
-      {/* Tom, 14 Sep (item 1): the bottom strip is two buttons — nothing else. The
-          price, the tier and the estimator live in the frozen header above. */}
-      <div className="sc-stick sc-stick-two" ref={stickRef}>
-        <div className="sr-only" data-testid="last-change" aria-live="polite">{lastChange ? `Last change: ${lastChange}` : ""}</div>
-        <div className="sc-two">
-          <button type="button" className="sc-btn il-cta" data-testid="scope-finalise" onClick={onFinalise}>
-            {autoSend === "sent" ? "See what happens next" : "Finalise my price"}
-          </button>
-          <button type="button" className="sc-btn sc-btn2" data-testid="scope-book" onClick={() => scrollToReach()}>Book a time</button>
-        </div>
+      {/* UI refresh S4: the rail — the price card, Your home, the estimator. Sticky on a
+          laptop so the range and the progress never leave the screen (R5); on a phone it
+          dissolves into the page: the price card becomes the dark strip under the header,
+          the buttons the bottom bar (ONE `.sc-stick`, moved by CSS, never a copy). */}
+      <aside className="sc-rail" aria-label="Your range">
+        <section className="sc-price" data-testid="price-card">
+          <div className="sc-lbl">
+            <b>Your range <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
+            {/* PR 1 of the tiers plan: the next unlock never names a target this road can't reach. */}
+            <span data-testid="tier-next">{ladder.nextUnlock
+              ? `${ladder.nextUnlock.needs.length === 1 ? "One step" : `${ladder.nextUnlock.needs.length} steps`} to ${TIER_LABEL[ladder.nextUnlock.tier]}: ${ladder.nextUnlock.needs.join(" · ")}`
+              : combined?.allDone
+                ? "Everything confirmed — this is as sure as we get before we see it"
+                : "It climbs with every room you confirm — we\u2019ll reprice as you go"}</span>
+          </div>
+          <div className="sc-range" key={flash}>
+            <div className="sc-r">{rangeText}</div>
+            <small><span className="sc-gst">Includes GST · within </span><span className={`sc-num ${pendingCount > 0 ? "live" : ""}`} data-testid="range-width">±{payload.bandPct}%</span></small>
+          </div>
+          {/* The band: the dashed outline is where the guide range started; the bar is now. */}
+          <div className="sc-band" aria-hidden="true">
+            <span className="was" style={band.was} />
+            <span className="now" style={band.now} />
+          </div>
+          <p className="sc-bandlab">Dashed line: where your guide range started</p>
+          {iloop && (
+            <p className="il-prog">{initialSides
+              ? `${combined!.done} OF ${combined!.total} CONFIRMED`
+              : `${iloop.rooms.filter((r) => r.confirmed).length} OF ${iloop.rooms.length} ROOMS · ${Number(iloop.meta.done.dw) + Number(iloop.meta.done.sweep)} OF 2 CHECKS`}</p>
+          )}
+          {iloop && (
+            <ul className="sc-todo">
+              {detailSteps.length > 0 && (
+                <li className={detailSteps.every((d) => d.answered) ? "d" : ""}>
+                  <i aria-hidden="true" />{payload.commercial ? "About the whole space" : "About the whole home"}
+                  <span>{detailSteps.filter((d) => d.answered).length}/{detailSteps.length}</span>
+                </li>
+              )}
+              <li className={iloop.rooms.every((r) => r.confirmed) ? "d" : ""}>
+                <i aria-hidden="true" />{payload.commercial ? "Areas checked" : "Rooms checked"}
+                <span>{iloop.rooms.filter((r) => r.confirmed).length}/{iloop.rooms.length}</span>
+              </li>
+              <li className={iloop.meta.done.dw && iloop.meta.done.sweep ? "d" : ""}>
+                <i aria-hidden="true" />Last checks
+                <span>{Number(iloop.meta.done.dw) + Number(iloop.meta.done.sweep)}/2</span>
+              </li>
+            </ul>
+          )}
+          {/* Tom, 14 Sep (item 1): two buttons — nothing else. */}
+          <div className="sc-stick sc-stick-two" ref={stickRef}>
+            <div className="sr-only" data-testid="last-change" aria-live="polite">{lastChange ? `Last change: ${lastChange}` : ""}</div>
+            <div className="sc-two">
+              <button type="button" className="sc-btn il-cta" data-testid="scope-finalise" onClick={onFinalise}>
+                {autoSend === "sent" ? "See what happens next" : "Finalise my price"}
+              </button>
+              <button type="button" className="sc-btn sc-btn2" data-testid="scope-book" onClick={() => scrollToReach()}>Book a time</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="sc-home" aria-label="Your home">
+          <p className="sc-home-head"><b>{payload.commercial ? "Your space" : "Your home"}</b>
+            {iloop && <span>{iloop.rooms.filter((r) => r.confirmed).length} of {iloop.rooms.length} checked</span>}</p>
+          <PlanPanel docs={docs} variant="peek" />
+          <PlanPanel docs={docs} variant="column" />
+          {!docs.plan && iloop && (
+            <div className="sc-home-art">
+              <PlanMap rooms={rooms.filter((r) => r.garagePending !== true).map((r) => ({
+                name: r.name, roomType: roomTypeForName(r.name),
+                state: loopOf(r.areaId)?.confirmed ? "ok" as const : "todo" as const,
+              }))} />
+            </div>
+          )}
+          <p className="sc-home-key"><span className="todo">Still to check</span><span className="ok">Checked</span></p>
+        </section>
+
+        {/* Tom, 14 Sep (item 4): the estimator — and the Call button — always to hand. */}
+        {!chatMode && (
+          <div className="sc-estwrap">
+            <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={() => scrollToReach()} compact />
+          </div>
+        )}
+      </aside>
       </div>
       <FinalisePrompt open={prompt} onAnswer={answerRemaining} onBook={() => scrollToReach()} onClose={() => setPrompt(false)} />
       {toast && <div className="sc-toast">{toast}</div>}

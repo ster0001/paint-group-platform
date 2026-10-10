@@ -43,9 +43,9 @@ test("the estimator strip is on the reveal, the tighten screen and the finish li
   // No banned heading, no icon-tile row.
   await expect(page.getByText("Book in your estimator")).toHaveCount(0);
   await expect(page.locator(".reach-b")).toHaveCount(0);
-  // Tom, 14 Sep (item 1): the strip is two buttons; the estimator is in the frozen header.
+  // Tom, 14 Sep (item 1): the strip is two buttons. UI refresh S4 (Tom, 10 Oct): the estimator is in the rail.
   await expect(page.getByTestId("scope-book")).toBeVisible();
-  await expect(page.locator(".sc-freeze").getByTestId("estimator-strip")).toBeVisible();
+  await expect(page.locator(".sc-rail").getByTestId("estimator-strip")).toBeVisible();
   await expect(page.getByTestId("cta-hint")).toHaveCount(0);
 
   // Finalise before everything is answered prompts them to finish (item 2); the finish line itself is reached directly here.

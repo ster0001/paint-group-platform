@@ -21,9 +21,10 @@ test("two buttons, the estimator up top, and the finalise prompt when questions 
   await expect(page.locator(".sc-tier")).toHaveCount(0);
   await expect(page.getByTestId("human-line")).toHaveCount(0);
   await expect(page.getByTestId("reach-strip")).toHaveCount(0);
-  // The estimator — with the Call button — in the frozen header, and nowhere in the body.
-  const header = page.locator(".sc-freeze");
-  await expect(header.getByTestId("estimator-strip")).toBeVisible();
+  // The estimator — with the Call button — always to hand, and nowhere in the body.
+  // UI refresh S4 (Tom, 10 Oct): it moved from the frozen header to the rail beside the cards.
+  const rail = page.locator(".sc-rail");
+  await expect(rail.getByTestId("estimator-strip")).toBeVisible();
   await expect(page.locator("main").getByTestId("estimator-strip")).toHaveCount(0);
   // Finalise with rooms unconfirmed → the prompt, with the exact words.
   await page.getByTestId("scope-finalise").click();
