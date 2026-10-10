@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "./fixtures/woLoop";
-import { minimiseStaffDock } from "./helpers";
+import { authUserIdByEmail, minimiseStaffDock } from "./helpers";
 
 /**
  * Visit booking addendum A · S2 — the schedule and booking rules, as staff on
@@ -37,10 +37,8 @@ test.describe("S2 — visit schedule and booking rules", () => {
 
   test.beforeAll(async () => {
     const sb = db!;
-    const { data: users } = await sb.auth.admin.listUsers({ perPage: 1000 });
-    const u = users?.users.find((x) => (x.email ?? "").toLowerCase() === staff.email.toLowerCase());
-    if (!u) throw new Error("staff login not found");
-    staffId = u.id;
+    staffId = (await authUserIdByEmail(sb, staff.email)) ?? "";
+    if (!staffId) throw new Error("staff login not found");
     const { data: slots, error } = await sb.from("visit_slots").select("id").eq("estimator_id", staffId).limit(1);
     if (error) throw new Error(`visit_slots: ${error.message} — run migration 20270213 on the test project`);
     hadWeek = !!slots?.length;

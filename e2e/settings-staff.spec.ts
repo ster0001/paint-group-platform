@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
-import { credentials, missingCreds, signIn, userIdFor } from "./helpers";
+import { authUserIdByEmail, credentials, missingCreds, signIn, userIdFor } from "./helpers";
 import { serviceClient } from "./fixtures/woLoop";
 
 /**
@@ -20,17 +20,6 @@ const staff = credentials("STAFF");
 const db: SupabaseClient | null = serviceClient();
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-async function userIdByEmail(sb: SupabaseClient, email: string): Promise<string | null> {
-  const wanted = email.toLowerCase();
-  for (let page = 1; page <= 20; page++) {
-    const { data } = await sb.auth.admin.listUsers({ page, perPage: 200 });
-    const u = data?.users?.find((x) => (x.email ?? "").toLowerCase() === wanted);
-    if (u) return u.id;
-    if (!data?.users || data.users.length < 200) return null;
-  }
-  return null;
-}
 
 test.describe("Settings → Staff logins", () => {
   test.skip(!staff || !db || !url || !anonKey, missingCreds("STAFF") + " + service key");
@@ -52,7 +41,7 @@ test.describe("Settings → Staff logins", () => {
   });
   test.afterAll(async () => {
     if (!db) return;
-    const id = await userIdByEmail(db, email);
+    const id = await authUserIdByEmail(db, email);
     if (id) await db.auth.admin.deleteUser(id);
     if (!masterWasOwner) await db.from("profiles").update({ is_owner: false }).eq("id", masterId);
   });
@@ -172,7 +161,7 @@ test.describe("Settings → Staff logins", () => {
     await form.getByTestId("staff-password").fill(password);
     await form.getByTestId("staff-submit").click();
     await expect(page.getByTestId("staff-msg")).toContainText("can sign in", { timeout: 20_000 });
-    const againId = await userIdByEmail(db!, email);
+    const againId = await authUserIdByEmail(db!, email);
     expect(againId).toBeTruthy();
     const ban = await db!.auth.admin.updateUserById(againId!, { ban_duration: "876000h" });
     expect(ban.error).toBeNull();
@@ -195,6 +184,6 @@ test.describe("Settings → Staff logins", () => {
     await signIn(p7, { email, password: password4 }, /\/(home|estimates)/);
     await ctx7.close();
     // The same auth id came back — anything filed under it before is still theirs.
-    expect(await userIdByEmail(db!, email)).toBe(againId);
+    expect(await authUserIdByEmail(db!, email)).toBe(againId);
   });
 });

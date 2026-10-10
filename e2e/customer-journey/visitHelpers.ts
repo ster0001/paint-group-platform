@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { driveNoPlanWizard } from "./drive";
 import { STANDARD_WEEK } from "../../lib/visits/schedule";
+import { authUserIdByEmail } from "../helpers";
 
 /**
  * Shared by the visit-booking specs (S3, S4): an anonymous customer at the
@@ -53,10 +54,8 @@ export async function codeFor(sb: SupabaseClient, mobile: string): Promise<strin
 
 /** The staff login covers every zone and has a week, for the length of the run. */
 export async function ensureEstimator(sb: SupabaseClient): Promise<{ staffId: string; restore: () => Promise<void> }> {
-  const { data: users } = await sb.auth.admin.listUsers({ perPage: 1000 });
-  const u = users?.users.find((x) => (x.email ?? "").toLowerCase() === staffEmail.toLowerCase());
-  if (!u) throw new Error("staff login not found");
-  const staffId = u.id;
+  const staffId = await authUserIdByEmail(sb, staffEmail);
+  if (!staffId) throw new Error("staff login not found");
   const { data: zones } = await sb.from("visit_zones").select("key, estimator_id");
   const before = new Map((zones ?? []).map((z) => [z.key as string, z.estimator_id as string | null]));
   await sb.from("visit_zones").update({ estimator_id: staffId }).is("estimator_id", null);

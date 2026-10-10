@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
+import { authUserIdByEmail } from "./helpers";
 
 /**
  * Trade portal v2 · Session 7 — the three-persona proof (brief §7 row 7),
@@ -196,8 +197,7 @@ test.describe("three personas (trade portal v2, session 7)", () => {
     test.skip(!seeded, "run scripts/portal/seed-trade-demo.mjs first");
     test.setTimeout(120_000);
     const sb = db!;
-    const { data: users } = await sb.auth.admin.listUsers({ perPage: 1000 });
-    test.skip(!users?.users?.some((u) => u.email === FINANCE), "run scripts/portal/seed-trade-demo.mjs first");
+    test.skip(!(await authUserIdByEmail(sb, FINANCE)), "run scripts/portal/seed-trade-demo.mjs first");
     await login(page, FINANCE);
     await page.goto("/account");
     await page.waitForURL(/\/account\/money/);

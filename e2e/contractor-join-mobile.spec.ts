@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { rpcAs, serviceClient } from "./fixtures/woLoop";
-import { credentials, missingCreds } from "./helpers";
+import { authUserIdByEmail, credentials, missingCreds } from "./helpers";
 
 /**
  * Joining requires a mobile (Tom, 7 Oct 2026). Through a REAL invite: the
@@ -18,12 +18,11 @@ const password = "JoinMobile-2026!";
 
 test.afterAll(async () => {
   if (!db) return;
-  const { data: users } = await db.auth.admin.listUsers({ perPage: 200 });
-  const u = users?.users.find((x) => x.email === email);
-  if (u) {
-    await db.from("contractors").delete().eq("profile_id", u.id);
-    await db.from("profiles").delete().eq("id", u.id);
-    await db.auth.admin.deleteUser(u.id);
+  const uid = await authUserIdByEmail(db, email);
+  if (uid) {
+    await db.from("contractors").delete().eq("profile_id", uid);
+    await db.from("profiles").delete().eq("id", uid);
+    await db.auth.admin.deleteUser(uid);
   }
   await db.from("contractor_invites").delete().eq("email", email);
 });
@@ -62,10 +61,9 @@ test("an invited painter cannot join without a full mobile; with one it is on th
   await create.click();
   await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
 
-  const { data: u } = await db!.auth.admin.listUsers({ perPage: 200 });
-  const user = u?.users.find((x) => x.email === email);
-  expect(user).toBeTruthy();
-  const { data: c, error } = await db!.from("contractors").select("phone").eq("profile_id", user!.id).single();
+  const userId = await authUserIdByEmail(db!, email);
+  expect(userId).toBeTruthy();
+  const { data: c, error } = await db!.from("contractors").select("phone").eq("profile_id", userId!).single();
   expect(error?.message ?? "").toBe("");
   expect((c as { phone: string | null }).phone).toBe("0400 123 456");
 });
