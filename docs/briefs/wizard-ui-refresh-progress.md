@@ -24,7 +24,7 @@ Preflight is run sheet §3. Postflight is run sheet §6.
 | S0 (mockup, all six job types) | 9 Oct 2026 | **"mockup approved"** (Tom, all six job types, on the published page; Switzer was blocked by the viewer, so the type is judged in S1) |
 | S1 | 9 Oct 2026 | **"s1 looks good"** (Tom, phone + laptop, on the C1 test server) |
 | S2 | 10 Oct 2026 | **"s2 looks good"** — with one change: walls painted WHITE and a bigger difference when unticked (done the same day) |
-| S3 | 10 Oct 2026 | Merged by Tom (#233) after the phone link was sent; no list of changes came back |
+| S3 | 10 Oct 2026 | **"phone check good"** (Tom, after merging #233) |
 | S4 | | |
 | S5 | | |
 | S6 | | |
