@@ -1349,7 +1349,7 @@
 .wz .wz-stage .wz-cards { display: grid; gap: 12px; }
 .wz .wz-stage [data-testid="ql-kind"], .wz .wz-stage [data-testid="ql-scope"], .wz .wz-stage [data-testid="ql-storeys"],
 .wz .wz-stage [data-testid="ql-occupied"], .wz .wz-stage [data-testid="ql-segment"], .wz .wz-stage [data-testid="ql-ext-storeys"],
-.wz .wz-stage [data-testid="wh-surf"] { grid-template-columns: 1fr 1fr; }
+.wz .wz-stage [data-testid="wh-surf"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .wz .wz-stage .wz-card { position: relative; display: block; overflow: hidden; min-height: 72px; padding: 16px 52px 16px 16px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--text); text-align: left; transition: border-color .15s, box-shadow .15s, transform .1s; }
 .wz .wz-stage .wz-card:hover { border-color: var(--line-strong); box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
 .wz .wz-stage .wz-card:active { transform: scale(.99); }
@@ -1468,8 +1468,17 @@
   .wz .wz-mprog i { display: block; height: 6px; border-radius: 999px; background: var(--panel2); overflow: hidden; }
   .wz .wz-mprog em { display: block; height: 100%; border-radius: 999px; background: var(--paint); transition: width .5s; }
   .wz .wz-wrap.wz-wrap--stage { padding: 16px 16px 130px; }
-  .wz .wz-stage { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .wz .wz-side { display: none; }
+  /* stretch, not the laptop grid's `start`: in a flex COLUMN, `start` sizes the pane to its own
+     content, and one wide row (the suburb + postcode pair, three cards) then makes the page wider
+     than the phone — which zooms the page out and drops the fixed Continue bar off the screen. */
+  .wz .wz-stage { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+  .wz .wz-stage > *, .wz .wz-side > * { width: 100%; min-width: 0; }
+  /* S2: the side column dissolves into the flow — the picture above the question,
+     "Your job so far" hidden, "Talk it through" at the foot. One DOM node each. */
+  .wz .wz-side { display: contents; }
+  .wz .wz-side .wz-pic { order: -1; margin-bottom: 18px; }
+  .wz .wz-side .wz-sofar { display: none; }
+  .wz .wz-side .wz-talk { order: 1; margin-top: 28px; }
   .wz .wz-stage > .wz-pane { max-width: none; }
   .wz .wz-stage h1 { font-size: 30px; }
   .wz .wz-stage .wz-sub { font-size: 17px; margin-top: 10px; }
@@ -1482,7 +1491,7 @@
   .wz .wz-chat.header .wz-chat-panel { top: auto; left: 0; right: 0; bottom: 0; width: 100%; height: min(78vh, 560px); border-radius: 18px 18px 0 0; }
 }
 @media (max-width: 420px) {
-  .wz .wz-stage [data-testid="ql-kind"], .wz .wz-stage [data-testid="ql-storeys"], .wz .wz-stage [data-testid="ql-occupied"], .wz .wz-stage [data-testid="ql-ext-storeys"] { grid-template-columns: 1fr 1fr; }
+  .wz .wz-stage [data-testid="ql-kind"], .wz .wz-stage [data-testid="ql-storeys"], .wz .wz-stage [data-testid="ql-occupied"], .wz .wz-stage [data-testid="ql-ext-storeys"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wz .wz-stage .wz-card { padding: 14px 44px 14px 14px; }
   .wz .wz-stage .wz-card b { font-size: 16.5px; }
 }
@@ -1490,4 +1499,136 @@
 /* motion only answers something the customer just did — and none of it under reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .wz .wz-stage *, .wz .wz-stage *::before, .wz .wz-stage *::after, .wz .wz-head *, .wz .wz-wrap--stage .wz-step { animation: none !important; transition: none !important; }
+}
+
+
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD UI REFRESH — S2: the live picture, "Your job so far", Talk it through
+   (brief §7.2, §6; components doc §4). Same scope as S1: .wz-stage only.
+   ═════════════════════════════════════════════════════════════════════════ */
+/* Laptop only: on a phone the column dissolves into the flow (display: contents, in the S1 phone block). */
+@media (min-width: 901px) { .wz .wz-side { display: grid; gap: 16px; align-content: start; } }
+
+/* the picture card — a fixed 4:3 box, so nothing shifts when it changes */
+.wz .wz-pic { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
+.wz .wz-pic-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 14px 18px 10px; }
+.wz .wz-pic-head b { font-size: 15.5px; font-weight: 600; color: var(--heading); }
+.wz .wz-pic-head span { font-size: 13.5px; color: var(--muted); }
+.wz .wz-pic-art { position: relative; aspect-ratio: 4 / 3; background: linear-gradient(#eef3f5, #e3eaee); }
+.wz .wz-pic-art > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wz .wz-pic-art.real { background: var(--panel); }
+.wz .wz-pic-art .wz-planpreview { position: absolute; inset: 0; margin: 0; }
+.wz .wz-pic-art .wz-planpreview .wz-planframe { height: 100%; }
+.wz .wz-pic-note { margin: 0; padding: 11px 18px 13px; font-size: 14.5px; line-height: 1.45; color: var(--muted); min-height: 46px; border-top: 1px solid var(--panel2); }
+.wz .wz-pic-note b { color: var(--heading); font-weight: 600; }
+.wz .wz-pic-reading { position: absolute; inset: 0; display: grid; align-content: center; gap: 12px; padding: 24px; }
+.wz .wz-pic-reading p { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--muted); opacity: .45; }
+.wz .wz-pic-reading p.on { opacity: 1; color: var(--heading); }
+.wz .wz-pic-reading i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line-strong); flex: none; }
+.wz .wz-pic-reading p.on i { border-color: var(--cyan); border-top-color: transparent; animation: wzspin 1s linear infinite; }
+@keyframes wzspin { to { transform: rotate(360deg); } }
+
+/* the room: each surface paints in when ticked; "today" shows the marks */
+.wz .wz-room .s { transition: fill .7s cubic-bezier(.4,0,.2,1); stroke: #16212a; stroke-opacity: .16; stroke-width: 1; stroke-linejoin: round; }
+.wz .wz-room .s-ceiling { fill: #dad3c2; } .wz .wz-room .s-ceiling.on { fill: #fbfcfc; }
+.wz .wz-room .s-wall { fill: #c9bb9c; } .wz .wz-room .s-wall.on { fill: var(--swatch, #f3efe6); transition-delay: .08s; }
+.wz .wz-room .s-cornice { fill: #cfc5ae; } .wz .wz-room .s-cornice.on { fill: #ffffff; }
+.wz .wz-room .s-skirting { fill: #bfb08c; } .wz .wz-room .s-skirting.on { fill: #ffffff; transition-delay: .16s; }
+.wz .wz-room .s-arch { fill: #bfb08c; } .wz .wz-room .s-arch.on { fill: #ffffff; transition-delay: .2s; }
+.wz .wz-room .s-door { fill: #cdbe9c; } .wz .wz-room .s-door.on { fill: #fbfbf8; transition-delay: .24s; }
+.wz .wz-room .s-win { fill: #bfb08c; } .wz .wz-room .s-win.on { fill: #ffffff; transition-delay: .28s; }
+.wz .wz-room .shade { fill: #0d161c; opacity: .07; pointer-events: none; }
+.wz .wz-room .floor { fill: #b79c78; }
+.wz .wz-room .s.hl { stroke: var(--cyan); stroke-opacity: 1; stroke-width: 3; animation: wzpulse 1s 2; }
+@keyframes wzpulse { 50% { stroke-width: 5.5; } }
+.wz .wz-room .marks > g { opacity: 0; transition: opacity .4s; }
+.wz .wz-room .marks > g.show { opacity: 1; }
+.wz .wz-room .roller { opacity: 0; }
+.wz .wz-room .roller.go { animation: wzsweep .95s cubic-bezier(.4,0,.2,1); }
+@keyframes wzsweep { 0% { opacity: 0; transform: translate(0,0); } 12% { opacity: 1; } 50% { transform: translate(190px,26px); } 88% { opacity: 1; } 100% { opacity: 0; transform: translate(60px,-8px); } }
+
+/* the house: the roof lifts and the upper floor slides in for two storeys; inside lights the windows */
+.wz .wz-house .body { fill: #d2cbbb; stroke: #16212a; stroke-opacity: .14; transition: fill .7s; }
+.wz .wz-house.fresh .body { fill: #a9d6de; }
+.wz .wz-house .frame { fill: #ffffff; stroke: #16212a; stroke-opacity: .2; }
+.wz .wz-house .glass { fill: #9fb3bf; transition: fill .6s; }
+.wz .wz-house.lit .glass { fill: #ffe9a8; }
+.wz .wz-house .roof-tiles { fill: #55636e; }
+.wz .wz-house .trim { fill: #ffffff; stroke: #16212a; stroke-opacity: .14; }
+.wz .wz-house .up, .wz .wz-house .roof { transition: transform .6s cubic-bezier(.2,.8,.2,1), opacity .4s; }
+.wz .wz-house .up { opacity: 0; transform: translateY(70px); }
+.wz .wz-house.two .up { opacity: 1; transform: none; }
+.wz .wz-house.two .roof { transform: translateY(-70px); }
+
+/* the floor plan: dashed = left out; amber = still to check; cyan with a tick = checked (S4) */
+.wz .wz-plan .rm { fill: #ffffff; stroke: #16212a; stroke-opacity: .45; stroke-width: 1.5; transition: fill .6s, stroke-opacity .3s; }
+.wz .wz-plan g.off .rm { fill: transparent; stroke-dasharray: 5 4; stroke-opacity: .3; }
+.wz .wz-plan g.off text { opacity: .4; }
+.wz .wz-plan g.todo .rm { fill: var(--amber-wash); stroke: var(--amber); stroke-opacity: .8; }
+.wz .wz-plan g.ok .rm { fill: #8fdde8; stroke: var(--cyan); stroke-opacity: 1; }
+.wz .wz-plan text { font: 500 11px var(--wz-sans); fill: #16212a; }
+.wz .wz-plan .tk { opacity: 0; transition: opacity .3s .3s; }
+.wz .wz-plan g.ok .tk { opacity: 1; }
+
+/* Your job so far */
+.wz .wz-sofar { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 16px 18px; }
+.wz .wz-sofar h3 { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 15.5px; font-weight: 600; color: var(--heading); }
+.wz .wz-sofar h3 span { font-size: 14px; font-weight: 400; color: var(--muted); }
+.wz .wz-sofar ul { list-style: none; margin: 10px 0 0; padding: 0; }
+.wz .wz-sofar li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--panel2); font-size: 15px; color: var(--heading); animation: wzrise .5s backwards; }
+.wz .wz-sofar li svg { width: 18px; height: 18px; margin-top: 2px; fill: none; stroke: var(--cyan); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.wz .wz-sofar li small { display: block; font-size: 13.5px; color: var(--muted); }
+.wz .wz-sofar li button { border: 0; background: none; padding: 2px 4px; min-height: 32px; color: var(--cyan); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.wz .wz-sofar .empty { margin: 10px 0 2px; padding-top: 10px; border-top: 1px solid var(--panel2); font-size: 15px; color: var(--muted); }
+
+/* Talk it through — in the side column now, with the estimator */
+@media (min-width: 901px) { .wz .wz-stage .wz-side .wz-talk { margin-top: 0; } }
+.wz .wz-talk-who { display: flex; align-items: center; gap: 12px; }
+.wz .wz-talk-av { width: 46px; height: 46px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--paint); color: var(--onpaint); font-weight: 700; font-size: 15px; }
+.wz .wz-stage .wz-talk-head { display: grid; gap: 1px; }
+.wz .wz-talk-head small { font-size: 14px; font-weight: 400; color: var(--muted); }
+.wz .wz-stage .wz-side .wz-talk-row { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+.wz .wz-stage .wz-side .wz-talk-row .wz-btn { flex-direction: column; gap: 5px; min-height: 64px; padding: 10px 6px; font-size: 14px; }
+.wz .wz-stage .wz-talk-row .wz-btn svg { width: 20px; height: 20px; fill: none; stroke: var(--cyan); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* option cards with a pictogram; Inside / Outside / Both with the picture on top */
+.wz .wz-stage .wz-card:has(.wz-pic-icon) { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.wz .wz-stage .wz-card .wz-pic-icon { width: 46px; height: 46px; flex: none; fill: none; stroke: var(--muted); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.wz .wz-stage .wz-card.on .wz-pic-icon { stroke: var(--cyan); }
+.wz .wz-stage .wz-card:has(.wz-pic-icon) > b { flex: 1; margin: 0; }
+.wz .wz-stage .wz-card:has(.wz-pic-icon) > span { flex-basis: 100%; margin-left: 60px; margin-top: -10px; }
+/* minmax(0, 1fr) + min-width: 0 everywhere: a card's words and icon must never set the page
+   wider than a phone. On a real phone (not a narrow window) any overflow makes the browser
+   zoom the page out, which pushes the fixed Continue bar off the screen — S2 hit exactly that. */
+/* Lower specificity on purpose: the per-question 2-up and 3-up rules must still win. */
+.wz-stage .wz-cards { grid-template-columns: minmax(0, 1fr); }
+.wz .wz-stage .wz-card { min-width: 0; overflow-wrap: anywhere; }
+.wz .wz-stage .wz-cards--col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wz .wz-stage .wz-cards--col .wz-card { flex-direction: column; align-items: flex-start; min-height: 132px; padding: 16px; }
+.wz .wz-stage .wz-cards--col .wz-card > b { flex: none; }
+.wz .wz-stage [data-testid="ql-condition"] { grid-template-columns: 1fr; }
+
+/* the floorplan upload and the listing link side by side */
+@media (min-width: 901px) {
+  .wz .wz-stage .wz-planupload { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .wz .wz-stage .wz-planupload > .wz-qhead, .wz .wz-stage .wz-planupload > .wz-hint, .wz .wz-stage .wz-planupload > .wz-chint, .wz .wz-stage .wz-planupload > [data-testid="ql-plan-listing-go"] { grid-column: 1 / -1; }
+  .wz .wz-stage .wz-planupload > .wz-field { margin: 0; min-height: 76px; }
+}
+
+@media (max-width: 900px) {
+  .wz .wz-pic { border-radius: 18px; }
+  .wz .wz-pic-head { display: none; }
+  .wz .wz-pic-art { aspect-ratio: auto; height: 112px; }
+  .wz .wz-pic-note { padding: 7px 14px 8px; min-height: 0; font-size: 13.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .wz .wz-stage .wz-cards--col { gap: 8px; }
+  .wz .wz-stage .wz-cards--col .wz-card { min-height: 104px; padding: 12px 10px; gap: 8px; }
+  .wz .wz-stage .wz-cards--col .wz-card::after { top: 10px; right: 10px; width: 22px; height: 22px; background-size: 12px; }
+  .wz .wz-stage .wz-cards--col .wz-card .wz-pic-icon { width: 36px; height: 36px; }
+  .wz .wz-stage .wz-cards--col .wz-card > b { font-size: 16px; }
+  .wz .wz-stage .wz-cards--col .wz-card > span { margin-left: 0; }
+  .wz .wz-stage .wz-card:has(.wz-pic-icon) > span { margin-left: 0; margin-top: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wz .wz-pic *, .wz .wz-sofar * { animation: none !important; transition: none !important; }
 }

@@ -13,7 +13,10 @@ import {
 import { AreasScreen, BookScreen, BriefScreen, JobScreen, SegmentScreen, WarehouseScreen, type BookContact } from "./CommercialScreens";
 import type { BriefAnswers, CommercialAnswers, Segment, SegmentBrief } from "@/lib/wizard/segments";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
-import PlanViewer from "./PlanViewer";
+import PictureCard from "./PictureCard";
+import JobSoFar from "./JobSoFar";
+import TalkCard from "./TalkCard";
+import { Pic } from "./pictures/pictograms";
 import { ExteriorPickTiles } from "./ExteriorTiles";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 
@@ -66,7 +69,17 @@ export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, whyNot = null, busy, onBack, onNext,
   onBook, onMessage, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null, gate = null,
   planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
+  steps = [], address = "", suburb = null, estimatorName = null, onGo = () => undefined,
 }: {
+  /** UI refresh S2: `stepsFor()` for these answers — "Your job so far" and its Change links read it. */
+  steps?: readonly QuickLookStep[];
+  /** The address as typed or picked, and its suburb (the house card's tag). */
+  address?: string;
+  suburb?: string | null;
+  /** ⚑ 23: whoever the wizard resolves as the estimator — never typed in. */
+  estimatorName?: string | null;
+  /** "Change" on a row of Your job so far: back to that step. */
+  onGo?: (step: QuickLookStep) => void;
   /** Tom, 14 Sep (evening): the confirm-rooms step — the plan's rooms (or the starter list), a preview, and the rooms added by hand. */
   planRooms?: Array<{ name: string; roomType: string }> | null;
   planPreviewUrl?: string | null;
@@ -126,6 +139,18 @@ export default function QuickLook({
   const pattern = commercial?.segment?.config.pattern === "warehouse" ? "warehouse" as const : "areas" as const;
   const door = commercial?.door ?? "range";
   // C14: the booking screen's button books; it never says "range".
+  // The rooms step's list, for the floor plan in the picture card: the plan's
+  // rooms (or the starter list), the ones added by hand, and which are left out.
+  const roomNames = planRooms != null && planRooms.length > 0 ? planRooms.map((r) => r.name) : starterRoomNames(quick);
+  const planList = [
+    ...roomNames.map((name) => ({
+      name,
+      roomType: planRooms?.find((r) => r.name === name)?.roomType ?? roomTypeForName(name),
+      state: (!quick.rooms || quick.rooms.includes(name) ? "on" : "off") as "on" | "off",
+    })),
+    ...addedRooms.map((r) => ({ name: r.name, roomType: r.roomType, state: "on" as const })),
+  ];
+  const roomCount = planList.filter((r) => r.state === "on").length;
   const nextLabel = step === "gate" ? "Show my guide price" : step === "com_book" ? "Book it" : last ? "See my guide range" : lastQuestion && hasGate ? "Continue to the last question" : "Continue";
 
   return (
@@ -148,7 +173,7 @@ export default function QuickLook({
           </p>
           {addressField}
           <p className="wz-qhead">What&rsquo;s being painted?</p>
-          <Chips options={JOB_TYPES} value={quick.jobType} onPick={(jobType) => onQuick({ jobType })} name="jobtype" />
+          <Cards options={JOB_TYPES} value={quick.jobType} onPick={(jobType) => onQuick({ jobType })} name="jobtype" pics col />
           {tag("jobType")}
 
           {/*
@@ -203,7 +228,7 @@ export default function QuickLook({
           <p className="wz-sub">
             Near enough is fine — this seeds the rooms, and you can change any of them later.
           </p>
-          <Cards options={PROPERTY_KINDS} value={quick.propertyKind} onPick={(propertyKind) => onQuick({ propertyKind })} name="kind" />
+          <Cards options={PROPERTY_KINDS} value={quick.propertyKind} onPick={(propertyKind) => onQuick({ propertyKind })} name="kind" pics />
           {tag("propertyKind")}
 
           {/* C8b: an OUTSIDE job has no rooms to seed — no bedrooms here, and
@@ -225,7 +250,7 @@ export default function QuickLook({
               {tag("bedrooms")}
 
               <p className="wz-qhead">Storeys</p>
-              <Cards options={STOREYS} value={quick.storeys} onPick={(storeys) => onQuick({ storeys })} name="storeys" />
+              <Cards options={STOREYS} value={quick.storeys} onPick={(storeys) => onQuick({ storeys })} name="storeys" pics />
               {tag("storeys")}
               {planUpload}
             </>
@@ -315,7 +340,7 @@ export default function QuickLook({
               <p className="wz-qhead">What&rsquo;s being painted?</p>
               <p className="wz-hint">All ticked. Untick anything we&rsquo;re not doing.</p>
               <div className="wz-chips" data-testid="ql-excl-options">
-                {exclusionOptions(quick.scope).map((o) => {
+                {sortSurfaces(exclusionOptions(quick.scope)).map((o) => {
                   const painted = !quick.excluded.includes(o.value);
                   return (
                     <button key={o.value} type="button" className={`wz-tile ${painted ? "on" : ""}`} aria-pressed={painted} data-testid={`ql-excl-${o.value}`}
@@ -422,12 +447,7 @@ export default function QuickLook({
                 : "From your answers — untick any we're not painting, add any we've missed. Sizes come from typical rooms for now; you confirm each one after the range."}
             </p>
             {planPending && !fromPlan && <p className="wz-chint" data-testid="ql-plan-reading">Still reading your floorplan — the list below is from your answers until it finishes.</p>}
-            {planPreviewUrl && (
-              // Tom, 7 Oct 2026 (item 3): the plan is zoomable here too — pinch, the wheel, or + / −, and drag to pan.
-              <figure className="wz-planpreview" data-testid="ql-plan-preview">
-                <PlanViewer src={planPreviewUrl} title="YOUR FLOORPLAN" note="PINCH OR USE + TO ZOOM" />
-              </figure>
-            )}
+            {/* UI refresh S2: the zoomable plan (Tom, 7 Oct, item 3) lives in the picture card now. */}
             <div className="wz-chips" data-testid="ql-rooms">
               {names.map((name, i) => {
                 const on = isOn(name);
@@ -453,7 +473,7 @@ export default function QuickLook({
             Honest is best — it sets the preparation we allow for. You can point out particular
             spots later, with photos.
           </p>
-          <Cards options={CONDITION_BANDS} value={quick.condition} onPick={(condition) => onQuick({ condition })} name="condition" />
+          <Cards options={CONDITION_BANDS} value={quick.condition} onPick={(condition) => onQuick({ condition })} name="condition" pics />
           {tag("condition")}
 
           {/* Tom, 15 Sep: "Needs work" used to demand photos with nowhere to add
@@ -487,7 +507,7 @@ export default function QuickLook({
           )}
 
           <p className="wz-qhead">Will anyone be living there while we paint?</p>
-          <Cards options={OCCUPIED} value={quick.occupied} onPick={(occupied) => onQuick({ occupied })} name="occupied" />
+          <Cards options={OCCUPIED} value={quick.occupied} onPick={(occupied) => onQuick({ occupied })} name="occupied" pics />
           {tag("occupied")}
         </>
       )}
@@ -703,24 +723,19 @@ export default function QuickLook({
           </button>
         )}
       </div>
-      {/* Visit booking addendum A, R3: on EVERY step before the range —
-          "Would you rather talk it through?" A visit asked for here is a
-          request for staff, never a booking; the message goes into the chat.
-          `ql-book` keeps its test id from the old "Book someone in".
-          UI refresh S1: a compact card under the nav (no dashed box); S2 moves
-          it into the right-hand column. */}
-      <div className="wz-talk" data-testid="ql-talk">
-        <p className="wz-talk-head"><b>Would you rather talk it through?</b></p>
-        <div className="wz-talk-row">
-          <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-book">Request a site visit</button>
-          {phone && <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">Call us</a>}
-          <button type="button" className="wz-btn wz-bs2" onClick={onMessage} data-testid="ql-message">Send a message</button>
-        </div>
-      </div>
     </div>
-    {/* The picture column (brief §7.2): the live picture, "Your job so far" and
-        "Talk it through" arrive in S2. Present now so the layout is the final one. */}
-    <aside className="wz-side" aria-hidden="true" data-testid="ql-side" />
+    {/* The picture column (brief §7.2): the live picture, "Your job so far", and
+        "Talk it through" (addendum A, R3 — on every step before the range). On a
+        phone the picture sits above the question and the talk card at the foot. */}
+    <aside className="wz-side" data-testid="ql-side" aria-label="Your job">
+      <PictureCard step={step} quick={quick} suburb={suburb} rooms={planList} planPreviewUrl={planPreviewUrl} planPending={planPending}
+        segmentName={commercial?.segment?.name ?? null} />
+      <JobSoFar steps={steps} at={step} quick={quick} outside={outside} address={address} roomCount={roomCount}
+        segmentName={commercial?.segment?.name ?? null}
+        areaCount={commercial?.answers ? Object.values(commercial.answers.counts).reduce((a, n) => a + n, 0) : 0}
+        briefCount={commercial?.brief?.what.length ?? 0} onGo={onGo} />
+      <TalkCard estimatorName={estimatorName} phone={phone} onBook={onBook} onMessage={onMessage} />
+    </aside>
     </div>
   );
 }
@@ -764,11 +779,15 @@ function Multi<T extends string>({ options, on, onPick, name }: {
 }
 
 /** Cards — for answers that need a line of explanation under them. */
-function Cards<T extends string>({ options, value, onPick, name }: {
+function Cards<T extends string>({ options, value, onPick, name, pics = false, col = false }: {
   options: Choice<T>[]; value: T; onPick: (v: T) => void; name: string;
+  /** UI refresh S2: a pictogram for a trade word or a picture answer (brief §7.2). */
+  pics?: boolean;
+  /** The picture on top (Inside / Outside / Both). */
+  col?: boolean;
 }) {
   return (
-    <div className="wz-cards" data-testid={`ql-${name}`}>
+    <div className={`wz-cards ${col ? "wz-cards--col" : ""}`} data-testid={`ql-${name}`}>
       {options.map((o) => (
         <button
           key={o.value} type="button"
@@ -777,6 +796,7 @@ function Cards<T extends string>({ options, value, onPick, name }: {
           data-testid={`ql-${name}-${o.value}`}
           onClick={() => onPick(o.value)}
         >
+          {pics && <Pic name={`${name}-${o.value}`} />}
           <b>{o.label}</b>
           {o.hint && <span>{o.hint}</span>}
         </button>
@@ -827,4 +847,10 @@ function AddRoomInline({ onAdd }: { onAdd: (room: { name: string; roomType: stri
       )}
     </div>
   );
+}
+
+/** Brief §7.2: the surfaces in the order a person thinks about a room — not the list's own order. */
+const SURFACE_ORDER = ["walls", "ceilings", "skirting", "architraves", "doors", "windows"];
+function sortSurfaces<T extends { value: string }>(options: T[]): T[] {
+  return [...options].sort((a, b) => SURFACE_ORDER.indexOf(a.value) - SURFACE_ORDER.indexOf(b.value));
 }

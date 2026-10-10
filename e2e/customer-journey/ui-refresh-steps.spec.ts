@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
 import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
@@ -134,7 +134,12 @@ test.describe("UI refresh S1 · the shell's layout contract", () => {
     await toPlace(page);
     await expect(page.getByTestId("wz-mprog")).toContainText(/Step 2 of \d+ · The place/);
     await expect(page.locator(".wz-rail")).toBeHidden();
-    await expect(page.getByTestId("ql-side")).toBeHidden();
+    // S2: the picture sits ABOVE the question, about a fifth of the screen; "Your job so far" is hidden.
+    const pic = (await page.getByTestId("ql-picture").boundingBox())!;
+    const h1 = (await page.locator(".wz-pane h1").boundingBox())!;
+    expect(pic.y + pic.height).toBeLessThanOrEqual(h1.y);
+    expect(pic.height, "the phone picture stays small").toBeLessThanOrEqual(844 * 0.22);
+    await expect(page.getByTestId("ql-sofar")).toBeHidden();
     const sw = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(sw, "no horizontal scroll").toBeLessThanOrEqual(390);
     const head = (await page.getByTestId("wz-head").boundingBox())!;
@@ -157,5 +162,104 @@ test.describe("UI refresh S1 · the shell's layout contract", () => {
     await page.getByTestId("ql-next").click();
     await expect(page.locator("[data-quick-step='rooms']")).toBeVisible();
     await expect(page.getByTestId("ql-error").or(page.getByTestId("ql-rooms-none")).first()).toContainText(/room/i);
+  });
+});
+
+test.describe("UI refresh S2 · the live picture and Your job so far (home, inside)", () => {
+  test("Job step: ticking and unticking each surface paints it in and out of the room", async ({ page }) => {
+    await toPlace(page);
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("ql-picture")).toHaveAttribute("data-picture", "room");
+    const room = page.getByTestId("pic-room");
+    // Brief §7.2: the surfaces in the order a person thinks about a room.
+    const order = await page.getByTestId("ql-excl-options").locator("[data-testid^='ql-excl-']:not([data-testid='ql-excl-none'])")
+      .evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.testid!.replace("ql-excl-", "")));
+    expect(order).toEqual(["walls", "ceilings", "skirting", "architraves", "doors", "windows"]);
+    for (const s of order) {
+      const shape = room.locator(`[data-s='${s}']`).first();
+      await expect(shape).toHaveAttribute("data-on", "1");
+      await page.getByTestId(`ql-excl-${s}`).click();
+      await expect(shape, `${s} goes back to "today"`).toHaveAttribute("data-on", "0");
+      await expect(page.getByTestId("ql-picture-note")).toContainText(/:/); // the trade word, explained
+      await page.getByTestId(`ql-excl-${s}`).click();
+      await expect(shape).toHaveAttribute("data-on", "1");
+    }
+  });
+
+  test("Rooms step: a room left out goes dashed on the plan; Your job so far lists the answers with Change links", async ({ page }) => {
+    await toPlace(page);
+    await quickNext(page);
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("ql-picture")).toHaveAttribute("data-picture", "plan");
+    const first = page.getByTestId("ql-room-0");
+    const name = (await first.innerText()).trim();
+    await expect(page.getByTestId("pic-plan").locator(`g[data-room="${name}"]`)).toHaveAttribute("data-state", "on");
+    await first.click();
+    await expect(page.getByTestId("pic-plan").locator(`g[data-room="${name}"]`)).toHaveAttribute("data-state", "off");
+    // One row per answered step, each with a Change link that goes back to it.
+    const sofar = page.getByTestId("ql-sofar");
+    await expect(sofar.locator("li[data-step]")).toHaveCount(3); // address, the place, the job
+    await sofar.getByTestId("ql-sofar-change-place").click();
+    await expect(page.locator("[data-quick-step='place']")).toBeVisible();
+  });
+
+  test("Talk it through sits in the picture column on a laptop, named for the estimator, the three ways in intact", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await toPlace(page);
+    const talk = page.getByTestId("ql-side").getByTestId("ql-talk");
+    await expect(talk).toContainText("Would you rather talk it through?");
+    await expect(talk.getByTestId("ql-book")).toBeVisible();
+    await expect(talk.getByTestId("ql-message")).toBeVisible();
+    await expect(page.getByTestId("ql-talk")).toHaveCount(1); // rendered once, never a copy
+  });
+
+  test("the picture never moves the page: a fixed 4:3 box, aria-hidden art", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await toPlace(page);
+    const art = page.getByTestId("ql-picture").locator(".wz-pic-art");
+    const a = (await art.boundingBox())!;
+    expect(Math.round((a.width / a.height) * 100) / 100).toBeCloseTo(4 / 3, 1);
+    await expect(page.getByTestId("pic-house")).toHaveAttribute("aria-hidden", "true");
+    await page.getByTestId("ql-storeys-double").click();
+    await expect(page.getByTestId("pic-house")).toHaveAttribute("data-storeys", "double");
+    const b = (await art.boundingBox())!;
+    expect(b.height).toBeCloseTo(a.height, 0);
+  });
+});
+
+test.describe("UI refresh · on a real phone (iPhone 13 emulation) no screen is wider than the phone", () => {
+  /**
+   * A narrow WINDOW and a PHONE differ: on a phone, anything wider than the
+   * screen makes the browser zoom the whole page out, which pushes the fixed
+   * Continue bar below the visible screen — S2's three Inside / Outside / Both
+   * cards did exactly that (the page laid out at 506px) and every phone spec
+   * stalled on step 1. So this walks the steps on an emulated iPhone and
+   * checks the page width on each one.
+   */
+  test("inside path and the commercial screens fit a 390px phone", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+    const page = await ctx.newPage();
+    const fits = async (where: string) => {
+      const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: window.innerWidth }));
+      expect(w.sw, `${where}: page ${w.sw}px wide on a 390px phone`).toBeLessThanOrEqual(390);
+      expect(w.vw, `${where}: the browser zoomed out`).toBeLessThanOrEqual(390);
+    };
+    await openQuickLook(page);
+    await fits("address");
+    await fillQuickAddress(page);
+    await fits("address, with the suburb and postcode boxes"); // the row that tipped S2 over
+    await quickNext(page);
+    for (const step of ["place", "job", "rooms", "condition"]) {
+      await expect(page.locator(`[data-quick-step='${step}']`)).toBeVisible({ timeout: 30_000 });
+      await fits(step);
+      if (step === "place") { await page.getByTestId("ql-kind-commercial").click(); await fits("place, commercial"); await page.getByTestId("ql-kind-house").click(); }
+      await quickNext(page);
+    }
+    const gate = page.locator("[data-quick-step='gate']");
+    if (await gate.count()) await fits("gate");
+    await ctx.close();
   });
 });
