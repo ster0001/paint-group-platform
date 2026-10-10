@@ -1633,3 +1633,110 @@
 @media (prefers-reduced-motion: reduce) {
   .wz .wz-pic *, .wz .wz-sofar * { animation: none !important; transition: none !important; }
 }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD UI REFRESH — S3: the range screen (brief §7.4, §7.8–§7.10; components
+   doc §5). Everything hangs off .wz-reveal--v2, so the editors that share the
+   estimator strip and What we'll do keep their own look until S4.
+   ═════════════════════════════════════════════════════════════════════════ */
+.wz .wz-opttag { display: inline-block; font-size: 13px; font-weight: 500; color: var(--muted); background: var(--panel2); border-radius: 999px; padding: 2px 9px; letter-spacing: 0; text-transform: none; }
+
+.wz .wz-wrap.wz-reveal--v2 { max-width: 1240px; padding: 40px 24px 120px; font-size: 17px; }
+.wz .wz-rv-hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 28px; align-items: stretch; }
+
+/* the range card — a cyan edge, the range in Martian Mono, the GST line, the basis, the ladder */
+.wz .wz-rv-card { position: relative; overflow: hidden; padding: 34px 36px; background: var(--panel); border: 1px solid var(--line); border-radius: 26px; box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
+.wz .wz-rv-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: var(--paint); }
+.wz .wz-rv-label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; }
+.wz .wz-reveal--v2 .wz-rv-label .wz-kick { margin: 0; font-family: var(--wz-sans); font-size: 15.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--cyan); }
+.wz .wz-rv-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 11px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--amber-line); color: var(--amber); background: var(--amber-wash); }
+.wz .wz-reveal--v2 .wz-range { margin-top: 14px; font-family: var(--wz-mono); font-weight: 700; letter-spacing: -.04em; font-size: clamp(30px, 3.6vw, 52px); line-height: 1.05; color: var(--heading); white-space: nowrap; }
+/* A five-figure range on a "both" job is the widest it gets: it must fit the card at 901px and up. */
+.wz .wz-reveal--v2 .wz-range-note { margin: 10px 0 0; font-size: 15px; color: var(--muted); }
+.wz .wz-reveal--v2 .wz-parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0 0; }
+.wz .wz-reveal--v2 .wz-part { padding: 12px 14px; border-radius: 14px; background: var(--ink); border: 0; }
+.wz .wz-reveal--v2 .wz-part span { display: block; font-size: 14px; color: var(--muted); }
+.wz .wz-reveal--v2 .wz-part b { font-family: var(--wz-mono); font-size: clamp(14px, 1.4vw, 17px); letter-spacing: -.03em; white-space: nowrap; }
+.wz .wz-reveal--v2 .wz-rv-cnote { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--amber-wash); border: 1px solid var(--amber-line); font-size: 15.5px; color: var(--text); }
+.wz .wz-reveal--v2 .wz-restate { margin: 18px 0 0; font-size: 17.5px; color: var(--text); max-width: 36em; }
+
+/* the ladder — bars of decreasing width; an explanation, not a control */
+.wz .wz-reveal--v2 .wz-ladder { display: grid; gap: 9px; margin-top: 26px; }
+.wz .wz-ladder-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 14px; align-items: center; }
+.wz .wz-ladder-row p { margin: 0; font-size: 14.5px; color: var(--muted); }
+.wz .wz-reveal--v2 .wz-ladder-row p span { display: inline; padding: 0; border: 0; background: none; font-family: var(--wz-sans); font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--heading); }
+.wz .wz-ladder-row p em { display: block; font-style: normal; font-size: 13.5px; }
+.wz .wz-ladder-row i { position: relative; height: 14px; border-radius: 999px; background: var(--panel2); }
+.wz .wz-ladder-row i b { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); border-radius: 999px; background: var(--line-strong); animation: wzgrow 1s .5s backwards cubic-bezier(.2,.7,.2,1); }
+.wz .wz-ladder-row.now i b { background: var(--paint); }
+@keyframes wzgrow { from { width: 0; } }
+.wz .wz-ladder-visit { margin: 2px 0 0; font-size: 14.5px; color: var(--muted); }
+.wz .wz-ladder-visit b { color: var(--heading); }
+
+/* the doors — Tighten my price is the one cyan card */
+.wz .wz-rv-doors { display: grid; align-content: start; gap: 12px; }
+.wz .wz-reveal--v2 .wz-doors-head { margin: 6px 0 4px; font-size: 21px; font-weight: 600; letter-spacing: -.01em; color: var(--heading); }
+.wz .wz-reveal--v2 .wz-doors { display: grid; gap: 12px; }
+.wz .wz-reveal--v2 .wz-door { display: grid; grid-template-columns: 48px minmax(0, 1fr) 22px; gap: 14px; align-items: center; min-height: 80px; padding: 16px 18px; text-align: left; background: var(--panel); border: 1.5px solid var(--line); border-radius: 18px; color: var(--text); }
+.wz .wz-reveal--v2 .wz-door:hover { border-color: var(--heading); box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
+.wz .wz-reveal--v2 .wz-door-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--ink); color: var(--cyan); font-size: 20px; }
+.wz .wz-reveal--v2 .wz-door-text b { font-size: 18px; color: var(--heading); }
+.wz .wz-reveal--v2 .wz-door-text span { font-size: 15px; color: var(--muted); }
+.wz .wz-reveal--v2 .wz-door-go { font-size: 22px; color: var(--muted); }
+.wz .wz-reveal--v2 .wz-door-hero { min-height: 104px; background: var(--paint); border-color: var(--paint); color: var(--onpaint); box-shadow: 0 14px 30px -16px rgba(11,150,170,.9); }
+.wz .wz-reveal--v2 .wz-door-hero:hover { background: #5fe2f0; border-color: #5fe2f0; }
+.wz .wz-reveal--v2 .wz-door-hero .wz-door-icon { background: rgba(255,255,255,.55); color: var(--onpaint); }
+.wz .wz-reveal--v2 .wz-door-hero .wz-door-text b { font-size: 21px; color: var(--onpaint); }
+.wz .wz-reveal--v2 .wz-door-hero .wz-door-text span, .wz .wz-reveal--v2 .wz-door-hero .wz-door-go { color: #0a4651; }
+
+/* the estimator strip — the one dark bar on a customer screen */
+.wz .wz-rv-sign { margin-top: 20px; }
+.wz .wz-rv-sign .wz-est { margin: 0; padding: 18px 22px; border: 0; border-radius: 22px; background: var(--heading); color: #e5ecef; flex-wrap: wrap; gap: 16px; }
+.wz .wz-rv-sign .wz-est-avatar { width: 46px; height: 46px; background: var(--paint); color: var(--onpaint); font-family: var(--wz-sans); font-size: 15px; }
+.wz .wz-rv-sign .wz-est-text b { color: #fff; font-size: 16px; }
+.wz .wz-rv-sign .wz-est-text span { color: #a9b6be; font-size: 14px; }
+.wz .wz-rv-sign .wz-est-actions .wz-btn { min-height: 50px; padding: 0 20px; border-radius: 999px; font-size: 16px; display: inline-flex; align-items: center; }
+.wz .wz-rv-sign .wz-est-actions .wz-btn:last-child { background: var(--paint); border-color: var(--paint); color: var(--onpaint); }
+
+/* row 3 — What we've assumed, and why people choose us (⚑ 2 off: two cards) */
+.wz .wz-rv-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 28px; }
+.wz .wz-rv-cards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wz .wz-rv-c { padding: 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; }
+.wz .wz-rv-c h3 { margin: 0; font-size: 18px; font-weight: 600; color: var(--heading); }
+.wz .wz-reveal--v2 .wz-assumed-head { display: flex; justify-content: space-between; align-items: baseline; width: 100%; margin: 0; padding: 0; background: none; border: 0; font-size: 18px; font-weight: 600; color: var(--heading); cursor: pointer; text-align: left; min-height: 32px; }
+.wz .wz-reveal--v2 .wz-assumed-head em { font-style: normal; font-family: var(--wz-sans); font-size: 14px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--cyan); text-decoration: underline; text-underline-offset: 3px; }
+.wz .wz-rv-c-note { margin: 10px 0 0; font-size: 15px; color: var(--muted); }
+.wz .wz-reveal--v2 .wz-assumed { margin: 12px 0 0; }
+.wz .wz-rv-proof { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; }
+.wz .wz-rv-proof li { display: grid; gap: 2px; padding-left: 14px; border-left: 3px solid var(--wash2); font-size: 15.5px; }
+.wz .wz-rv-proof b { color: var(--heading); }
+.wz .wz-rv-proof small, .wz .wz-rv-proof a { font-size: 14px; color: var(--muted); }
+.wz .wz-rv-proof a { color: var(--cyan); }
+
+/* row 4 — What we'll do, two columns; the content is unchanged */
+.wz .wz-reveal--v2 .wz-do { margin-top: 20px; padding: 22px; border-radius: 22px; }
+.wz .wz-reveal--v2 .wz-do-head h2 { font-size: 18px; }
+.wz .wz-reveal--v2 .wz-do-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 36px; }
+.wz .wz-reveal--v2 .wz-do-list li { padding: 14px 0; border-top: 1px solid var(--panel2); }
+.wz .wz-reveal--v2 .wz-do-list li:first-child { border-top: 1px solid var(--panel2); padding-top: 14px; }
+.wz .wz-reveal--v2 .wz-do-list b { font-size: 16.5px; }
+.wz .wz-reveal--v2 .wz-do-list p { font-size: 15px; }
+.wz .wz-reveal--v2 .wz-do-coats { font-size: 12.5px; font-weight: 600; }
+.wz .wz-reveal--v2 .wz-reveal-flag { margin: 14px 0 0; font-size: 15px; }
+
+.wz .wz-rv-dock { display: none; }
+
+@media (max-width: 900px) {
+  .wz .wz-wrap.wz-reveal--v2 { padding: 18px 16px 120px; }
+  .wz .wz-rv-hero { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .wz .wz-rv-card { padding: 24px 20px 24px 26px; border-radius: 22px; }
+  .wz .wz-reveal--v2 .wz-range { font-size: clamp(27px, 8.6vw, 44px); }
+  .wz .wz-ladder-row { grid-template-columns: 128px minmax(0, 1fr); }
+  .wz .wz-rv-cards, .wz .wz-rv-cards.three { grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 18px; }
+  .wz .wz-reveal--v2 .wz-do-list { grid-template-columns: minmax(0, 1fr); }
+  .wz .wz-rv-sign .wz-est-actions { width: 100%; }
+  .wz .wz-rv-sign .wz-est-actions .wz-btn { flex: 1; justify-content: center; }
+  .wz .wz-rv-dock { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--bar); border-top: 1px solid var(--line); }
+  .wz .wz-rv-dock .wz-btn { flex: 1; min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .wz .wz-ladder-row i b { animation: none !important; } }

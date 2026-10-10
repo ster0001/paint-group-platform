@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
-import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE } from "./drive";
 
 /**
  * Wizard UI refresh, S1 — the shell, on every path (brief §7.1, §7.7, §10).
@@ -260,6 +260,103 @@ test.describe("UI refresh · on a real phone (iPhone 13 emulation) no screen is 
     }
     const gate = page.locator("[data-quick-step='gate']");
     if (await gate.count()) await fits("gate");
+    await ctx.close();
+  });
+});
+
+test.describe("UI refresh S3 · the range screen, every path", () => {
+  const money = (t: string) => { const m = t.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/); return m ? [Number(m[1]), Number(m[2])] : null; };
+
+  test("home inside: range card, three bars ending in Confirmed, Tighten is the one cyan door, the dark estimator strip", async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await driveNoPlanWizard(page, { stopAtReveal: true });
+    await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
+    const tiers = page.getByTestId("reveal-tiers");
+    await expect(tiers.locator("span.on")).toHaveText("Guide");
+    await expect(tiers).toContainText("Detailed");
+    await expect(tiers).toContainText("Confirmed");
+    await expect(page.getByTestId("reveal-tiers-visit")).toHaveCount(0);
+    await expect(page.getByTestId("door-tighten")).toHaveAttribute("data-hero", "1");
+    await expect(page.locator(".wz-doors [data-hero='1']")).toHaveCount(1);
+    await expect(page.getByTestId("estimator-strip")).toBeVisible();
+    // After the details the rail is the three accuracy steps.
+    await expect(page.getByTestId("wz-rail")).toHaveAttribute("data-phase", "after");
+    await expect(page.getByTestId("wz-rail")).toContainText("Guide range");
+    // Two columns: the doors sit to the right of the range card.
+    const card = (await page.locator(".wz-rv-card").boundingBox())!;
+    const doors = (await page.locator(".wz-rv-doors").boundingBox())!;
+    expect(doors.x).toBeGreaterThan(card.x + card.width - 1);
+  });
+
+  test("home outside: two bars and the visit sentence — never a Confirmed bar", async ({ page }) => {
+    test.setTimeout(180_000);
+    await openQuickLook(page);
+    await fillQuickAddress(page);
+    await page.getByTestId("ql-jobtype-exterior").click();
+    await quickNext(page);
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-ext-el-body").click();
+    await page.getByTestId("ql-ext-mat-weatherboards").click();
+    await quickNext(page);
+    await quickNext(page);
+    await passGateIfShown(page);
+    await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+    await expect(page.getByTestId("reveal-tiers")).not.toContainText("Confirmed");
+    await expect(page.getByTestId("reveal-tiers-visit")).toContainText(/Every outside price is confirmed on site/);
+    // "Speak with us" is the server's call (R25/R34 — under the phone limit, outside jobs included): not asserted here.
+  });
+
+  test("home both: the inside and outside ranges add up to the range shown", async ({ page }) => {
+    test.setTimeout(240_000);
+    await driveNoPlanWizard(page, { jobType: "both", stopAtReveal: true });
+    const total = money(await page.getByTestId("reveal-range").innerText())!;
+    const inside = money(await page.getByTestId("reveal-part-interior").innerText())!;
+    const outside = money(await page.getByTestId("reveal-part-exterior").innerText())!;
+    // Whole dollars on screen: each figure is rounded, so allow a dollar per part.
+    expect(Math.abs(inside[0] + outside[0] - total[0])).toBeLessThanOrEqual(2);
+    expect(Math.abs(inside[1] + outside[1] - total[1])).toBeLessThanOrEqual(2);
+    await expect(page.getByTestId("reveal-tiers")).not.toContainText("Confirmed");
+    // The widest range there is (two five-figure ends) still fits inside its card on a laptop.
+    for (const width of [1280, 1440, 1000]) {
+      await page.setViewportSize({ width, height: 900 });
+      const fits = await page.locator(".wz-rv-card").evaluate((card) => {
+        const r = card.querySelector("[data-testid='reveal-range']")!.getBoundingClientRect();
+        const c = card.getBoundingClientRect();
+        return r.right <= c.right - 10 && card.scrollWidth <= card.clientWidth;
+      });
+      expect(fits, `the range fits its card at ${width}px`).toBe(true);
+    }
+  });
+
+  test("commercial (office): the segment's kicker, the commercial note, two bars, the commercial trust line", async ({ page }) => {
+    test.setTimeout(180_000);
+    await toSegment(page);
+    await page.getByTestId("ql-segment-office").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='com_areas']")).toBeVisible({ timeout: 20_000 });
+    await quickNext(page);
+    await quickNext(page);
+    await passGateIfShown(page);
+    await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+    await expect(page.getByTestId("reveal-kicker")).toContainText(/Office/);
+    await expect(page.getByTestId("reveal-commercial-note")).toBeVisible();
+    await expect(page.getByTestId("reveal-tiers")).not.toContainText("Confirmed");
+    await expect(page.getByTestId("reveal-tiers-visit")).toContainText(/Every commercial price/);
+    // "Speak with us" is the server's call (R25/R34 — under the phone limit, outside jobs included): not asserted here.
+    await expect(page.getByTestId("reveal-trust")).toContainText("Certificates and SWMS with every quote");
+  });
+
+  test("phone: one column, nothing wider than the phone, Tighten in reach at the bottom", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+    const page = await ctx.newPage();
+    await driveNoPlanWizard(page, { stopAtReveal: true });
+    const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: window.innerWidth }));
+    expect(w.sw).toBeLessThanOrEqual(390);
+    expect(w.vw).toBeLessThanOrEqual(390);
+    await expect(page.getByTestId("reveal-dock-tighten")).toBeVisible();
     await ctx.close();
   });
 });

@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { resolveEstimator } from "@/lib/wizard/estimator";
 import { reportError } from "@/lib/monitoring/report";
+import { getGoogleReviews } from "@/lib/marketing/googleReviews";
+import { getSiteCopy } from "@/lib/marketing/siteCopy";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
 import { substrateOptionsFromRates, type SubstrateGroups } from "@/lib/estimate/substrates";
 import { DEFAULT_BOOKING_RULES } from "@/lib/visits/schedule";
@@ -127,6 +129,17 @@ export default async function CustomerWizardPage({
   // UI refresh S2 (⚑ 23): "Talk it through" names the estimator the wizard
   // already resolves — Settings → Estimator until an address names a patch.
   // A failed read names nobody (the card says "one of our estimators") and is reported.
+  // UI refresh S3 (⚑ 5): the range screen's trust card says exactly what the homepage says — the
+  // Google rating and count from the same (hour-cached) source, the warranty line from its copy.
+  // Anything unavailable is left OUT, never filled in.
+  const [reviews, homeCopy] = await Promise.all([getGoogleReviews(), getSiteCopy("home")]);
+  const trust = {
+    rating: reviews && reviews.count > 0 ? reviews.rating : null,
+    count: reviews && reviews.count > 0 ? reviews.count : null,
+    url: reviews?.url || null,
+    warranty: homeCopy.promise?.row_4_title?.trim() || null,
+    warrantyNote: homeCopy.promise?.row_4_sub?.trim() || null,
+  };
   let estimatorName: string | null = null;
   if (ref) {
     const { data: profileRows, error: profileError } = await ref.from("settings").select("key, value").eq("key", "company_profile");
@@ -285,6 +298,7 @@ export default async function CustomerWizardPage({
       logoUrl={company.logoUrlLight}
       companyPhone={company.phone || null}
       estimatorName={estimatorName}
+      trust={trust}
       gateOrder={gateOrder}
       resume={resume}
       assisted={assisted}
