@@ -19,6 +19,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { resolveSeedTarget } from "./seed-target.mjs";
+import { authUserIdByEmail } from "../lib/auth/userByEmail";
 
 function loadEnv() {
   const raw = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
@@ -36,18 +37,12 @@ const token = () =>
   Array.from({ length: 4 }, () => Math.random().toString(36).slice(2)).join("");
 
 async function idFor(db: SupabaseClient, email: string, table: "contractors" | "customers") {
-  const wanted = email.toLowerCase();
-  for (let page = 1; page <= 10; page++) {
-    const { data } = await db.auth.admin.listUsers({ page, perPage: 200 });
-    if (!data?.users?.length) return null;
-    const user = data.users.find((u) => (u.email ?? "").toLowerCase() === wanted);
-    if (user) {
-      const { data: row } = await db.from(table).select("id").eq("profile_id", user.id).maybeSingle();
-      return (row as { id: string } | null)?.id ?? null;
-    }
-    if (data.users.length < 200) return null;
-  }
-  return null;
+  // One lookup by email — capped listUsers paging lost older logins past 2,000.
+  const userId = await authUserIdByEmail(db, email);
+  if (!userId) return null;
+  const { data: row, error } = await db.from(table).select("id").eq("profile_id", userId).maybeSingle();
+  if (error) throw new Error(`${table} for ${email}: ${error.message}`);
+  return (row as { id: string } | null)?.id ?? null;
 }
 
 async function destroy(db: SupabaseClient) {

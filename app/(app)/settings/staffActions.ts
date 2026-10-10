@@ -8,7 +8,8 @@ import { reportError } from "@/lib/monitoring/report";
 import { STAFF_AREA_KEYS, parseStaffAccess, type StaffAccess } from "@/lib/staff/access";
 import { STAFF_EVENT_KEYS, parseStaffNotify, type StaffNotifyMap } from "@/lib/staff/notifyEvents";
 import { normalisePhoneAU } from "@/lib/messaging/config";
-import { findAuthUserByEmail, isBanned, sendPasswordResetLink, setPasswordForUser, PASSWORD_MIN } from "@/lib/auth/adminPassword";
+import { lookupAuthUserByEmail } from "@/lib/auth/userByEmail";
+import { isBanned, sendPasswordResetLink, setPasswordForUser, PASSWORD_MIN } from "@/lib/auth/adminPassword";
 
 /**
  * Settings → Company → Staff logins (Tom, 5 Sep 2026).
@@ -146,7 +147,9 @@ export async function createStaffAction(input: { email: string; name: string; ph
       // the auth user and demotes it, so the address stays taken. A banned
       // user IS a removed login — lift the ban, set the new password and
       // make it staff again; their old records keep pointing at the same id.
-      const existing = await findAuthUserByEmail(svc, email);
+      const found = await lookupAuthUserByEmail(svc, email);
+      if (found.status === "error") throw new Error(found.message);
+      const existing = found.status === "found" ? found.user : null;
       if (!existing || !isBanned(existing)) {
         return { status: "error", message: `${email} already has a login. Remove it first, or use a different address.` };
       }
