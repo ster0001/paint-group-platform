@@ -9,7 +9,8 @@ import { resolveTeardownWindow, type RunMarker } from "@/lib/testing/teardown-wi
  *
  * Runs once after every spec has finished, PASS OR FAIL (⚑45): Playwright
  * calls globalTeardown whenever globalSetup completed, whatever the suite did.
- * It removes the anonymous users and pg.e2e.* logins CREATED BY THIS RUN —
+ * It removes the anonymous users, pg.e2e.* logins and stamped journey
+ * addresses (RUN_EMAIL_PATTERNS in hygiene-rules.mjs) CREATED BY THIS RUN —
  * identified by the marker global-setup recorded, never by a pattern over
  * all time — and the estimate chains, leads and @example.com accounts that
  * hang off them, in the order the foreign keys require.

@@ -96,6 +96,42 @@ export function seededExclusion(resolved) {
 }
 
 /**
+ * WHICH USERS A RUN MAKES. Anonymous wizard customers, `pg.e2e.*` logins —
+ * and the customer-journey drives below, which sign in anonymously and then
+ * attach the typed email, so `is_anonymous` flips to false and neither of the
+ * first two markers ever saw them again. 540 of them had piled up on C1 by
+ * 11 Oct 2026 (e2e-return 311, e2e-scroll 165, ui.refresh.brief 50,
+ * e2e-reach-visit 7, ui.cover.brief 2), about 15–35 a day, past 1,000 users.
+ *
+ * Each pattern is anchored at both ends, requires the 13-digit Date.now()
+ * stamp the spec puts in it, and requires @example.com, so it names exactly
+ * the address a spec builds — never a seeded login (pg.demo.*, pg.*@gmail),
+ * never a fixed fixture address. Written in the regex subset JavaScript and
+ * Postgres agree on, so lib/testing/hygiene.test.ts proves the very strings
+ * the runner sends. A new spec uses the `pg.e2e.` prefix; it does not add a
+ * line here.
+ */
+export const RUN_EMAIL_PATTERNS = Object.freeze([
+  // save-and-return.spec.ts, tom-batch-7sep.spec.ts, reach-and-chat.spec.ts
+  "^e2e-(return|scroll|describe|reach-visit|reach-call)-[0-9]{13}@example\\.com$",
+  // ui-refresh-baseline.spec.ts (ui.refresh.brief.<width>.<ms>), ui-refresh-coverage.spec.ts
+  "^ui\\.(refresh|cover)\\.([a-z0-9]+\\.)*[0-9]{13}@example\\.com$",
+]);
+
+/** The same decision `runUserSql` makes, for one user — what the tests prove. */
+export function isRunUser({ isAnonymous = false, email = "" } = {}) {
+  if (isAnonymous) return true;
+  const e = String(email ?? "");
+  return e.startsWith("pg.e2e.") || RUN_EMAIL_PATTERNS.some((p) => new RegExp(p).test(e));
+}
+
+/** The WHERE fragment over auth.users. The patterns are constants with no quotes in them; quoting is belt and braces. */
+export function runUserSql() {
+  const lit = (s) => `'${s.replace(/'/g, "''")}'`;
+  return `(is_anonymous or email like 'pg.e2e.%' or email ~ any(array[${RUN_EMAIL_PATTERNS.map(lit).join(", ")}]::text[]))`;
+}
+
+/**
  * Columns whose row BELONGS to the user even though the FK says NO ACTION.
  * `estimates.created_by` is the common case: an anonymous wizard customer
  * writes it on their first save, so the estimate chain must go before the
@@ -162,7 +198,7 @@ export function verdict(counts, thresholds = DEFAULTS) {
   ].filter(([, n]) => Number.isFinite(Number(n)))
     .map(([k, n]) => `${k} ${Number(n).toLocaleString("en-AU")}`);
   const carried = hangers.length ? ` · carrying ${hangers.join(", ")}` : "";
-  const line = `test-project rows · anonymous users ${anonymous.toLocaleString("en-AU")} · pg.e2e.* logins ${e2eLogins.toLocaleString("en-AU")} · total ${total.toLocaleString("en-AU")} (warn ${thresholds.warnRows.toLocaleString("en-AU")} · fail ${thresholds.failRows.toLocaleString("en-AU")})${carried}`;
+  const line = `test-project rows · anonymous users ${anonymous.toLocaleString("en-AU")} · e2e logins ${e2eLogins.toLocaleString("en-AU")} · total ${total.toLocaleString("en-AU")} (warn ${thresholds.warnRows.toLocaleString("en-AU")} · fail ${thresholds.failRows.toLocaleString("en-AU")})${carried}`;
   const level = total > thresholds.failRows ? "fail" : total > thresholds.warnRows ? "warn" : "ok";
   return { level, total, line };
 }

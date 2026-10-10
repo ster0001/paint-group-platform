@@ -26,7 +26,7 @@
  */
 import pg from "pg";
 import { productionRef } from "./env.mjs";
-import { checkTarget, DEFAULTS, EXIT, fkAction, parseArgs, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
+import { checkTarget, DEFAULTS, EXIT, fkAction, parseArgs, runUserSql, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
 import {
   E2E_RUN_LOCK_KEY,
   LOCK_HOLDER_QUERY,
@@ -59,11 +59,15 @@ await client.connect();
 await client.query("set statement_timeout = '120s'");
 const q = async (text, params = []) => (await client.query(text, params)).rows;
 
+/** Users a run makes: anonymous customers, pg.e2e.* logins and the journey
+ * drives' stamped addresses (RUN_EMAIL_PATTERNS). Nothing else, ever. */
+const RUN_USER = runUserSql();
+
 // ---- counts (the tripwire) -------------------------------------------------
 async function counts() {
   const [c] = await q(`
     select (select count(*) from auth.users where is_anonymous)::int as anonymous,
-           (select count(*) from auth.users where email like 'pg.e2e.%')::int as e2e_logins,
+           (select count(*) from auth.users where not is_anonymous and ${RUN_USER})::int as e2e_logins,
            (select count(*) from public.estimates)::int as estimates,
            (select count(*) from public.accounts)::int as accounts,
            now() as now`);
@@ -203,8 +207,6 @@ async function removeOrphans(days, stats) {
 }
 
 // ---- selecting whom to remove ----------------------------------------------
-/** Users a run makes: anonymous customers, and pg.e2e.* logins. Nothing else, ever. */
-const RUN_USER = "(is_anonymous or email like 'pg.e2e.%')";
 
 async function removeUsers(where, params, cap, budgetMs, stats) {
   const started = Date.now();
