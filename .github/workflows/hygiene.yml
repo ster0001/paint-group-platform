@@ -5,7 +5,8 @@
 # but not installed, and installing it would be a `create extension` that
 # must never reach production — so the schedule lives here instead.
 #
-# Deletes anonymous users and pg.e2e.* logins older than 1 day (⚑43), 1,000
+# Deletes anonymous users, pg.e2e.* logins and the stamped journey addresses
+# (RUN_EMAIL_PATTERNS) older than 1 day (⚑43), 1,000
 # per run (bounded, oldest first), with the estimate chains, leads, sources
 # and @example.com accounts that hang off them. The seeded logins are excluded
 # by id; the guard refuses anything but the test project. The sweep takes the

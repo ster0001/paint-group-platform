@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 // build) and this suite read the SAME file.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — an .mjs module with no declarations
-import { checkTarget, DEFAULTS, fkAction, OWNED, parseArgs, projectRefOf, seededExclusion, summaryLine, verdict } from "../../scripts/c1/hygiene-rules.mjs";
+import { checkTarget, DEFAULTS, fkAction, isRunUser, OWNED, parseArgs, projectRefOf, RUN_EMAIL_PATTERNS, runUserSql, seededExclusion, summaryLine, verdict } from "../../scripts/c1/hygiene-rules.mjs";
 
 const TEST = "qarfyjrzgdeoqbnbbxfp";
 const reasonOf = (r: ReturnType<typeof checkTarget>): string => (r.ok ? "" : r.reason);
@@ -52,6 +52,39 @@ describe("the seeded logins are excluded by id, and an empty list refuses", () =
   });
 });
 
+describe("which users a run makes (11 Oct: 540 stamped journey addresses no marker reached)", () => {
+  const ms = "1760140800123";
+  it.each([
+    `e2e-return-${ms}@example.com`, `e2e-scroll-${ms}@example.com`, `e2e-reach-visit-${ms}@example.com`,
+    `e2e-reach-call-${ms}@example.com`, `e2e-describe-${ms}@example.com`,
+    `ui.refresh.brief.390.${ms}@example.com`, `ui.refresh.brief.1440.${ms}@example.com`, `ui.cover.brief.${ms}@example.com`,
+    `ui.refresh.${ms}@example.com`, `ui.cover.far.${ms}@example.com`, `pg.e2e.role.abc@example.com`,
+  ])("%s is a run user", (email) => {
+    expect(isRunUser({ email })).toBe(true);
+  });
+  it("an anonymous user is a run user whatever its email", () => {
+    expect(isRunUser({ isAnonymous: true, email: "" })).toBe(true);
+  });
+  it.each([
+    // the seeded logins — never, ever
+    "pg.demo.finance@example.com", "pg.demo.volume@example.com", "pg.demo.agency@example.com",
+    "pg.demo.facilities@example.com", "pg.demo.insurer@example.com", "pg.sam.staff@gmail.com",
+    "pg.josef.contractor@gmail.com", "pg.melissa.customer@gmail.com", "tjhroman@gmail.com",
+    // near misses: no stamp, wrong domain, unanchored, a fixed fixture address
+    "e2e-return-@example.com", `e2e-return-${ms}@gmail.com`, `x.e2e-return-${ms}@example.com`,
+    `e2e-return-${ms}@example.com.au`, `e2e-return-${ms.slice(0, 10)}@example.com`, "ui.refresh.brief.390@example.com",
+    "hello@example.com", "sarah@example.com", `e2e-consent-${ms}@example.com`,
+  ])("%s is NOT a run user", (email) => {
+    expect(isRunUser({ email })).toBe(false);
+  });
+  it("the SQL carries every pattern verbatim, quoted, with the two older markers", () => {
+    const sql = runUserSql();
+    expect(sql.startsWith("(is_anonymous or email like 'pg.e2e.%' or email ~ any(array[")).toBe(true);
+    for (const p of RUN_EMAIL_PATTERNS) expect(sql).toContain(`'${p}'`);
+    for (const p of RUN_EMAIL_PATTERNS) expect(p).not.toContain("'");
+  });
+});
+
 describe("what a foreign key means when its parent goes (brief step 2: the order is not a preference)", () => {
   const fk = (child: string, column: string, rule: string, nullable = true) => ({ child, column, rule, nullable });
   it.each([
@@ -81,7 +114,7 @@ describe("the tripwire (⚑44): the line is always produced, the thresholds are 
   it("logs the counts at zero, and says ok", () => {
     const v = verdict({ anonymous: 0, e2eLogins: 0 });
     expect(v.level).toBe("ok");
-    expect(v.line).toBe("test-project rows · anonymous users 0 · pg.e2e.* logins 0 · total 0 (warn 5,000 · fail 20,000)");
+    expect(v.line).toBe("test-project rows · anonymous users 0 · e2e logins 0 · total 0 (warn 5,000 · fail 20,000)");
   });
 
   // 19 Sep 2026: 8,711 users were carrying 66,168 estimates and 27,225

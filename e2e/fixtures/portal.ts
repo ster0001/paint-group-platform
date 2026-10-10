@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { authUserIdByEmail } from "../helpers";
 
 /** Shared fixtures for the customer-portal suites (3a-2+). */
 
@@ -32,20 +33,13 @@ export async function magicLinkFor(sb: SupabaseClient, email: string): Promise<s
 }
 
 export async function deleteUserByEmail(sb: SupabaseClient, email: string) {
-  const wanted = email.toLowerCase();
-  for (let pageNo = 1; pageNo <= 10; pageNo++) {
-    const { data } = await sb.auth.admin.listUsers({ page: pageNo, perPage: 200 });
-    const user = data?.users?.find((u) => (u.email ?? "").toLowerCase() === wanted);
-    if (user) {
-      // supabase-js returns the error rather than throwing, and a swallowed
-      // FK refusal is how 75 e2e logins piled up on the test project (5 Sep).
-      // Say so in the log; the spec's own result is not the place for it.
-      const { error } = await sb.auth.admin.deleteUser(user.id);
-      if (error) console.warn(`deleteUserByEmail(${email}): ${error.message}`);
-      return;
-    }
-    if (!data?.users || data.users.length < 200) return;
-  }
+  const userId = await authUserIdByEmail(sb, email);
+  if (!userId) return;
+  // supabase-js returns the error rather than throwing, and a swallowed
+  // FK refusal is how 75 e2e logins piled up on the test project (5 Sep).
+  // Say so in the log; the spec's own result is not the place for it.
+  const { error } = await sb.auth.admin.deleteUser(userId);
+  if (error) console.warn(`deleteUserByEmail(${email}): ${error.message}`);
 }
 
 /** Tear down everything hanging off an account by its email — invoices and
