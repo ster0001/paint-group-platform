@@ -24,7 +24,9 @@ test("a reprice tap shows a visible pending state until the server answers", asy
     await route.continue();
   });
 
-  await page.locator(".sc-tl").first().click();
+  // UI refresh S9 (Tom's OK, 11 Oct): Walls is the first tile now (S4b) and its middle is the
+  // share chips — tap Ceilings, a plain on/off tile, so the tap reprices.
+  await page.locator(".sc-tl").filter({ hasText: /^Ceilings/ }).first().click();
   await expect(page.locator(".sd-saving")).toBeVisible({ timeout: 3_000 });
   await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 15_000 });
   await expect(page.locator(".sc-r")).toHaveText(MONEY_RANGE);

@@ -191,15 +191,18 @@
       "feature": "estimator",
       "role": "commercial",
       "title": "A price for an office, warehouse, shop or building — online where we can, a quick visit where we can't",
-      "summary": "Pick the kind of place; offices, warehouses and shops get a guide range in two screens that an estimator confirms; strata, hospitals and any outside work get a short brief and a booked visit instead.",
+      "summary": "Pick the kind of space; offices, warehouses, retail, aged care, clinics and schools get a guide range that an estimator confirms; strata, shop fronts, hospitals and any outside work get a short brief and a booked visit instead.",
       "path": "docs/help/estimator/commercial.md",
       "walkthrough": null,
       "media": [],
       "verified_at_commit": "4ef1a0aa72",
       "sources": [
         "app/wizard/CommercialScreens.tsx",
+        "app/wizard/PictureCard.tsx",
+        "app/wizard/pictures/SegmentBuilding.tsx",
+        "app/wizard/pictures/AreaPlan.tsx",
+        "app/wizard/pictures/WarehousePicture.tsx",
         "lib/wizard/segments.ts",
-        "lib/wizard/commercial.ts",
         "app/api/wizard/brief-book/route.ts"
       ]
     },
@@ -207,7 +210,7 @@
       "feature": "estimator",
       "role": "customer",
       "title": "Get a painting price online, in about two minutes",
-      "summary": "Four quick screens give you a guide range; then you can tighten it room by room, fix the price online if it qualifies, or send it to your estimator to confirm.",
+      "summary": "A few quick screens give you a guide range; then you can tighten it room by room or side by side, and send it to your estimator to fix the price — or book a visit at any point.",
       "path": "docs/help/estimator/customer.md",
       "walkthrough": null,
       "media": [],
@@ -216,8 +219,12 @@
         "app/estimate/page.tsx",
         "app/wizard/WizardApp.tsx",
         "app/wizard/QuickLook.tsx",
+        "app/wizard/PictureCard.tsx",
         "app/wizard/Reveal.tsx",
-        "app/estimate/scope/ScopeEditor.tsx"
+        "app/estimate/scope/ScopeEditor.tsx",
+        "app/estimate/scope/SidesEditor.tsx",
+        "app/estimate/finish/Finish.tsx",
+        "app/estimate/sent/Sent.tsx"
       ]
     },
     {

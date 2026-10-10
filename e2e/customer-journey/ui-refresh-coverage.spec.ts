@@ -109,6 +109,7 @@ test.describe("UI refresh · nothing left behind (1440px, as a customer)", () =>
     await page.goto(`/estimate/finish?id=${id}`);
     await expect(page.getByTestId("finish")).toBeVisible({ timeout: 30_000 });
     expect(await head(page)).toBeLessThanOrEqual(64);
+    await twoColumns(page, ".wz-fin-main", ".wz-fin-side"); // S9: the range left, "Make it a fixed price" right
     await noFullBleedBar(page);
     await page.getByTestId("finish-send_for_confirmation").click();
     await page.waitForURL(/\/estimate\/sent/, { timeout: 30_000 });

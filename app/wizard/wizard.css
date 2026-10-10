@@ -49,12 +49,13 @@
 .wz .wz-logo { display: block; max-height: 26px; max-width: 150px; object-fit: contain; }
 .wz .wz-exit { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 12px; padding: 5px 11px; cursor: pointer; text-decoration: none; }
 .wz .wz-exit:hover { border-color: var(--muted); color: var(--text); }
-.wz .wz-dots { display: flex; gap: 7px; align-items: center; }
-.wz .wz-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); font-style: normal; transition: all .25s; }
-.wz .wz-dots i.on { background: var(--cyan); width: 20px; border-radius: 100px; }
-.wz .wz-dots i.done { background: var(--emerald); }
 
-.wz .wz-wrap { max-width: 640px; margin: 0 auto; padding: 34px 20px 130px; }
+/* UI refresh S9: no 640px cap on every page — the shared frame is the shell's 1240px; the
+   pages that read best narrow (the staff page list, working-it-out, the visit page, the
+   holding page) set their own width below. */
+.wz .wz-wrap { max-width: 1240px; margin: 0 auto; padding: 34px 24px 130px; }
+.wz .wz-wrap.wz-wrap--pages, .wz .wz-wrap.wz-proc, .wz .wz-wrap.wz-hold, .wz main.wz-wrap[data-testid="reveal-sent"] { max-width: 720px; }
+.wz .wz-pcount { font-family: var(--wz-sans); font-size: 14px; color: var(--muted); }
 .wz .wz-step { animation: wzin .3s; }
 @keyframes wzin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
 .wz .wz-kick { font-family: var(--wz-mono); font-size: 10px; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
@@ -820,7 +821,6 @@
 }
 .wz .wz-quick-fallback { margin-top: 10px; display: flex; gap: 8px; }
 .wz .wz-quick-fallback .wz-in { flex: 1; min-width: 0; }
-.wz .wz-steps { margin-top: 14px; font-size: 12px; color: var(--wz-muted, #8C959D); text-align: center; }
 
 /* ---- the reveal ---------------------------------------------------------- */
 
@@ -1007,11 +1007,6 @@
 .wz .wz-sent-status span { display: block; margin-top: 3px; font-size: 13px; line-height: 1.45; color: var(--wz-muted, #8C959D); }
 
 /* ---- C8: screen-1 card, the Save & book pill and sheet, the "both" choice ---- */
-.wz .wz-rather { margin-top: 22px; padding: 16px; border: 1px dashed var(--line); border-radius: 14px; }
-.wz .wz-rather b { display: block; font-size: 15px; }
-.wz .wz-rather p { margin: 4px 0 12px; font-size: 13px; color: var(--muted); line-height: 1.45; }
-.wz .wz-rather-row { display: flex; gap: 10px; flex-wrap: wrap; }
-.wz .wz-rather-row .wz-btn { flex: 1; text-align: center; text-decoration: none; }
 .wz .wz-bs2 { background: var(--panel); color: var(--text); border-color: var(--line); }
 .wz .wz-book { background: rgba(59,216,233,.08); border-color: var(--cyan); color: var(--cyan); margin-left: auto; }
 .wz .wz-top .wz-book { margin-right: 8px; }
@@ -2271,3 +2266,64 @@
 /* The status detail can start with a lower-case fallback ("your estimator is checking it") — sentence case on screen. */
 .wz .wz-sent .wz-sent-status span { display: block; }
 .wz .wz-sent .wz-sent-status span::first-letter { text-transform: uppercase; }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD UI REFRESH — S9: Finalise, the visit page, and the plain header the
+   end-of-journey pages wear (Sent, Book a time, Finalise, the visit page).
+   ═════════════════════════════════════════════════════════════════════════ */
+/* the plain header: the shell's height and frame */
+.wz > .wz-top { min-height: 64px; display: flex; align-items: center; gap: 16px; padding: 0 max(16px, calc((100vw - 1240px) / 2 + 24px)); background: var(--bar); border-bottom: 1px solid var(--line); }
+.wz .wz-finish .wz-kick, .wz .wz-vpage .wz-kick { font-family: var(--wz-sans); font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: lowercase; color: var(--cyan); }
+.wz .wz-finish .wz-kick::first-letter, .wz .wz-vpage .wz-kick::first-letter { text-transform: uppercase; }
+
+/* Finalise — two columns: the range and what you've told us; "Make it a fixed price" and the person */
+.wz .wz-wrap.wz-finish { display: grid; grid-template-columns: minmax(0, 1fr) 420px; column-gap: 36px; align-items: start; padding-top: 40px; font-size: 17px; }
+.wz .wz-finish .wz-fin-main { grid-column: 1; min-width: 0; }
+.wz .wz-finish .wz-fin-side { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: 24px; display: grid; gap: 14px; align-content: start; }
+.wz .wz-finish .wz-fin-range { padding: 26px; background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--paint); border-radius: 22px; box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
+.wz .wz-finish .wz-range { font-family: var(--wz-mono); font-weight: 700; font-size: clamp(32px, 3.6vw, 48px); letter-spacing: -.04em; color: var(--heading); white-space: nowrap; }
+.wz .wz-finish .wz-range-note { font-size: 15px; color: var(--muted); }
+.wz .wz-finish .wz-tiers { display: inline-flex; gap: 4px; padding: 4px; margin-top: 14px; border-radius: 14px; background: var(--panel2); }
+.wz .wz-finish .wz-tiers span { min-height: 40px; display: inline-flex; align-items: center; padding: 0 16px; border: 0; border-radius: 11px; background: none; color: var(--muted); font-family: var(--wz-sans); font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.wz .wz-finish .wz-tiers span.on { background: var(--panel); color: var(--heading); box-shadow: 0 1px 3px rgba(13,22,28,.18); }
+.wz .wz-finish .wz-fin-fix { padding: 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
+.wz .wz-finish .wz-doors-head { margin: 0 0 12px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--heading); }
+.wz .wz-finish .wz-fin-told .wz-doors-head { margin-top: 30px; }
+.wz .wz-finish .wz-doors { display: grid; gap: 10px; }
+.wz .wz-finish .wz-door { min-height: 76px; padding: 16px; border: 1.5px solid var(--line); border-radius: 18px; background: var(--panel); text-align: left; }
+.wz .wz-finish .wz-door:first-child { border-color: var(--cyan); background: var(--wash); }
+.wz .wz-finish .wz-door:hover { border-color: var(--heading); }
+.wz .wz-finish .wz-door-text b { font-size: 17px; color: var(--heading); }
+.wz .wz-finish .wz-door-text span { font-size: 15px; line-height: 1.4; color: var(--muted); }
+.wz .wz-finish .wz-fixed { display: grid; gap: 6px; padding: 16px; border-radius: 16px; background: var(--wash); border: 1.5px solid var(--wash2); font-size: 15.5px; }
+.wz .wz-finish .wz-fixed b { font-size: 17px; color: var(--heading); }
+.wz .wz-finish .wz-fin-side .wz-est { margin: 0; border-radius: 22px; }
+.wz .wz-finish .wz-fin-side .wz-reveal-call { margin: 0; font-size: 15.5px; }
+.wz .wz-finish .wz-summary li { padding: 14px 0; font-size: 16px; }
+.wz .wz-finish .wz-notincluded { font-size: 15px; padding: 16px 18px; border-radius: 16px; }
+@media (max-width: 900px) {
+  .wz .wz-wrap.wz-finish { display: flex; flex-direction: column; align-items: stretch; gap: 16px; padding: 18px 16px 120px; }
+  .wz .wz-finish > * { width: 100%; min-width: 0; }
+  .wz .wz-finish .wz-fin-side { position: static; }
+  .wz .wz-finish .wz-range { font-size: 30px; }
+  .wz .wz-finish .wz-tiers { display: flex; }
+  .wz .wz-finish .wz-tiers span { flex: 1; justify-content: center; padding: 0 8px; }
+}
+
+/* the visit page — every state one centred card, the shell's controls */
+.wz .wz-vpage .wz-wrap { max-width: 640px; margin: 40px auto 80px; padding: 32px 30px; background: var(--panel); border: 1px solid var(--line); border-radius: 26px; box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 18px 40px -24px rgba(13,22,28,.3); font-size: 17px; }
+.wz .wz-vpage h1 { font-size: clamp(30px, 3.5vw, 42px); font-weight: 600; letter-spacing: -.035em; line-height: 1.1; }
+.wz .wz-vpage .wz-sub { font-size: 17px; line-height: 1.5; }
+.wz .wz-vpage .wz-btn { min-height: 54px; padding: 0 24px; border-radius: 999px; border: 1.5px solid var(--line-strong); background: var(--panel); color: var(--heading); font-size: 17px; font-weight: 600; }
+.wz .wz-vpage .wz-btn.wz-bp { border: 0; background: var(--paint); color: var(--onpaint); box-shadow: 0 10px 24px -12px rgba(11,150,170,.9); }
+.wz .wz-vpage .wz-chips button { min-height: 50px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--panel); font-size: 15.5px; }
+.wz .wz-vpage .wz-chips button.on, .wz .wz-vpage .wz-chips button[aria-pressed="true"] { border-color: var(--cyan); background: var(--wash); }
+.wz .wz-vpage input.wz-field, .wz .wz-vpage .wz-field input, .wz .wz-vpage textarea { min-height: 52px; font-size: 16px; border: 1.5px solid var(--line-strong); border-radius: 14px; }
+.wz .wz-vpage .wz-vcard { padding: 16px; border-radius: 18px; border: 1.5px solid var(--wash2); background: var(--wash); }
+.wz .wz-vpage .wz-chint { font-size: 15px; }
+@media (max-width: 560px) { .wz .wz-vpage .wz-wrap { margin: 16px; padding: 24px 18px; border-radius: 22px; } }
+/* S9 fix: the header's chat button is also the close — the step chat panel starts below the
+   64px header so the button stays in reach (found by assistant-describe in the S9 gate). */
+@media (min-width: 901px) {
+  .wz .wz-chat.header .wz-chat-panel { top: 64px; height: calc(100vh - 64px); }
+}

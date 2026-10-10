@@ -215,11 +215,15 @@ test("Tom, 8 Sep evening: the estimate page fits the screen at every width", asy
       const last = cards[cards.length - 1];
       const stick = document.querySelector<HTMLElement>(".sd-stick, .sc-stick");
       if (!last || !stick) return null;
-      return { cardBottom: last.getBoundingClientRect().bottom, stickTop: stick.getBoundingClientRect().top };
+      return { cardBottom: last.getBoundingClientRect().bottom, stickTop: stick.getBoundingClientRect().top, fixed: getComputedStyle(stick).position === "fixed" };
     });
     expect(buried, `${w}px: no cards or no sticky footer to measure`).not.toBeNull();
-    expect(buried!.cardBottom, `${w}px: the last card is buried under the sticky footer`)
-      .toBeLessThanOrEqual(buried!.stickTop + 1);
+    // UI refresh S9 (Tom's OK, 11 Oct): since S4 the buttons live in the right-hand rail on a
+    // laptop — only a FIXED footer (the phone's bottom bar) can bury the last card.
+    if (buried!.fixed) {
+      expect(buried!.cardBottom, `${w}px: the last card is buried under the sticky footer`)
+        .toBeLessThanOrEqual(buried!.stickTop + 1);
+    }
 
     await page.screenshot({ path: `test-results/8sep-estimate-${w}.png`, fullPage: false });
   }

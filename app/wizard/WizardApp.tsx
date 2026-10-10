@@ -1833,11 +1833,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       ) : (
       <header className="wz-top">
         <Wordmark logoUrl={logoUrl} />
-        <div className="wz-dots">
-          {Array.from({ length: lastPage }, (_, i) => i + 1).map((d) => (
-            <i key={d} className={d < page || screen === "processing" ? "done" : d === page ? "on" : ""} />
-          ))}
-        </div>
+        {/* UI refresh S9: the old dots are gone (brief §10) — the staff page list says where it is in words. */}
+        <span className="wz-pcount" data-testid="pages-count">{screen === "processing" ? "Working it out" : `Step ${page} of ${lastPage}`}</span>
         {/* C8 — Save & book in the header of every screen (prototype: every
             screen except the map). Leaving is never a dead end. */}
         {isCustomer && screen !== "processing" && (
@@ -1909,7 +1906,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           <p className="wz-ptip" key={procTip}>{PROC_TIPS[procTip % PROC_TIPS.length]}</p>
         </div>
       ) : (
-        <div className={quickActive ? "wz-wrap wz-wrap--stage" : "wz-wrap"}>
+        <div className={quickActive ? "wz-wrap wz-wrap--stage" : "wz-wrap wz-wrap--pages"}>
           {resumed && (
             <div className="wz-resume" data-testid="wz-resume">
               <span>Welcome back — {resumed}. Everything you answered is still here.</span>
