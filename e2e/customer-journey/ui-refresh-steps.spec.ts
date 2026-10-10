@@ -592,10 +592,9 @@ test.describe("UI refresh S7 · commercial — every segment, inside, outside an
     });
   }
 
-  // ⚑ Found in S7 (10 Oct): choosing "Both" ON the Space screen inserts the "both" step
-  // before it (stepsFor), so the first Continue leaves the customer on Space. A routing
-  // fix, not presentation — its own change (parking lot). Remove .fixme when it lands.
-  test.fixme("commercial Both chosen on the Space screen: ONE Continue reaches the questions", async ({ page }) => {
+  // Found in S7 (10 Oct): choosing "Both" ON the Space screen used to drop the customer back
+  // on Place. Fixed in fix/commercial-both-step-anchor (the page follows its step by name).
+  test("commercial Both chosen on the Space screen: ONE Continue reaches the questions", async ({ page }) => {
     await toSegment(page);
     await page.getByTestId("ql-segment-office").click();
     await page.getByTestId("ql-cpart-both").click();
