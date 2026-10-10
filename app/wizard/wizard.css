@@ -2058,3 +2058,26 @@
   .wz .sd .sd-mrow { flex-wrap: wrap; }
   .wz .sd .sd-mrow input { flex: 1 1 110px; width: auto; min-width: 0; }
 }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD UI REFRESH — S6: home, both (brief §7.9). One stacked page: the
+   inside, then "Now the outside, one side at a time"; two jump links at the
+   top; the price card's part ranges and five rows; the plan with the house
+   from above under it.
+   ═════════════════════════════════════════════════════════════════════════ */
+.wz .sc-ed .sd { padding-bottom: 0; }
+.wz .sc-ed .sd-wrap.sd-stacked { max-width: none; margin: 34px 0 0; padding: 26px 0 0; border-top: 1.5px solid var(--line); scroll-margin-top: 150px; }
+.wz .sc-cards#inside { scroll-margin-top: 150px; }
+.wz .sc-jump { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 18px; }
+.wz .sc-jump button { display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--amber-line); background: var(--amber-wash); color: var(--amber); font-family: var(--wz-sans); font-size: 16px; font-weight: 600; cursor: pointer; }
+.wz .sc-jump button b { font-family: var(--wz-mono); font-size: 14px; font-weight: 600; }
+.wz .sc-jump button.done { border-color: var(--wash2); background: var(--wash); color: var(--cyan); }
+.wz .sc-home .sc-home-top { border-top: 1px solid var(--line); }
+@media (min-width: 901px) {
+  .wz .sc-home .sc-home-top { aspect-ratio: auto; height: 160px; }
+  .wz .sc-home .sc-home-top .wz-top-view text { font-size: 24px; }
+  .wz .sc-home .sc-home-top .wz-top-view text.street { font-size: 20px; }
+}
+@media (max-width: 900px) {
+  .wz .sc-home .sc-home-top { height: 150px; }
+}
