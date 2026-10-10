@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { authUserIdByEmail } from "../helpers";
 
 /**
  * A throwaway job for the tick-list tests.
@@ -24,35 +25,14 @@ export function serviceClient(): SupabaseClient | null {
 }
 
 /**
- * Email lives on auth.users, not on profiles — profiles carries id/role/name/
- * contact only. So the map from a test login to its contractors row goes
- * through the admin user list.
+ * Email lives on auth.users, not on profiles — so the map from a test login to
+ * its contractors/customers row goes through `authUserIdByEmail` (e2e/helpers),
+ * one `generateLink` call. This file used to page `listUsers` (the cap went
+ * 10 → 50 pages and was outgrown at 10,820 users on 11 Sep), then held a
+ * private magic-link lookup, which CREATED any email it could not find.
  */
-/**
- * The auth user for an email — WITHOUT paging.
- *
- * This used to walk `listUsers` a page at a time. The cap was 10 pages, then
- * 50 (10,000 users) after the test project's anonymous wizard sign-ins pushed
- * auth.users past 2,000 and the E2E contractor fell off the end — silently,
- * so a fixture got built with contractor_id "null" (6 Sep, help capture).
- *
- * It happened again on 11 Sep at the higher number: the project now holds
- * 10,820 profiles, `ledger-parity` and `wo-rls` both failed in CI with "no
- * contractors row" / "needs a customers row", and the rows were there all
- * along. Raising the cap a third time only moves the cliff.
- *
- * `generateLink` resolves one email to its user in a single call. It generates
- * a link and does not send anything, which is why it is safe here — and it
- * cannot be outgrown.
- */
-async function authUserIdForEmail(db: SupabaseClient, email: string): Promise<string | null> {
-  const { data, error } = await db.auth.admin.generateLink({ type: "magiclink", email });
-  if (error) return null;
-  return data?.user?.id ?? null;
-}
-
 export async function contractorIdForEmail(db: SupabaseClient, email: string): Promise<string | null> {
-  const userId = await authUserIdForEmail(db, email);
+  const userId = await authUserIdByEmail(db, email);
   if (!userId) return null;
   const { data: row } = await db.from("contractors").select("id").eq("profile_id", userId).maybeSingle();
   return (row as { id: string } | null)?.id ?? null;
@@ -252,7 +232,7 @@ export async function rpcAsJson<T = unknown>(
 
 /** The customers row behind a login, for fixtures that need customer-side RLS. */
 export async function customerIdForEmail(db: SupabaseClient, email: string): Promise<string | null> {
-  const userId = await authUserIdForEmail(db, email);
+  const userId = await authUserIdByEmail(db, email);
   if (!userId) return null;
   const { data: row } = await db.from("customers").select("id").eq("profile_id", userId).maybeSingle();
   return (row as { id: string } | null)?.id ?? null;

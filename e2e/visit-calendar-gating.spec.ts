@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "./fixtures/woLoop";
-import { gotoTodayWith } from "./helpers";
+import { authUserIdByEmail, gotoTodayWith } from "./helpers";
 import { fillDetailsIfAsked, loginStaff, staffEmail, startCustomer, type Customer, cleanupCustomers } from "./customer-journey/visitHelpers";
 import { STANDARD_WEEK } from "../lib/visits/schedule";
 
@@ -29,8 +29,7 @@ test.describe("S5 — booking without a connected Google Calendar", () => {
 
   test.beforeAll(async () => {
     const sb = db!;
-    const { data: users } = await sb.auth.admin.listUsers({ perPage: 1000 });
-    staffId = users?.users.find((x) => (x.email ?? "").toLowerCase() === staffEmail.toLowerCase())?.id ?? "";
+    staffId = (await authUserIdByEmail(sb, staffEmail)) ?? "";
     if (!staffId) throw new Error("staff login not found");
     const { data: zones } = await sb.from("visit_zones").select("key, estimator_id");
     for (const z of zones ?? []) zonesBefore.set(z.key as string, z.estimator_id as string | null);

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { rpcAs, serviceClient } from "./fixtures/woLoop";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { authUserIdByEmail, credentials, missingCreds, signIn } from "./helpers";
 
 /**
  * The first-sign-in tour (help brief Phase C, C3), through a REAL invite:
@@ -24,12 +24,11 @@ test.describe.configure({ mode: "serial" });
 test.afterAll(async () => {
   if (!db) return;
   // Remove the painter this spec invited: contractors row, profile, auth user, invite.
-  const { data: users } = await db.auth.admin.listUsers({ perPage: 200 });
-  const u = users?.users.find((x) => x.email === email);
-  if (u) {
-    await db.from("contractors").delete().eq("profile_id", u.id);
-    await db.from("profiles").delete().eq("id", u.id);
-    await db.auth.admin.deleteUser(u.id);
+  const uid = await authUserIdByEmail(db, email);
+  if (uid) {
+    await db.from("contractors").delete().eq("profile_id", uid);
+    await db.from("profiles").delete().eq("id", uid);
+    await db.auth.admin.deleteUser(uid);
   }
   await db.from("contractor_invites").delete().eq("email", email);
 });

@@ -12,6 +12,7 @@
 import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { STANDARD_WEEK, slotsPerZone } from "../lib/visits/schedule";
+import { authUserIdByEmail } from "../lib/auth/userByEmail";
 import { loadTestEnv, refuseProduction, parseEnvFile } from "./c1/env.mjs";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
@@ -35,11 +36,10 @@ console.log(`target: ${url.match(/https:\/\/([a-z0-9]+)\./)?.[1] ?? url} (${PROD
 
 async function main() {
   const db = createClient(url as string, key as string, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data: users, error: uErr } = await db.auth.admin.listUsers({ perPage: 1000 });
-  if (uErr) { console.error(uErr.message); process.exit(1); }
-  const user = users.users.find((u) => (u.email ?? "").toLowerCase() === email.toLowerCase());
-  if (!user) { console.error(`no login with email ${email}`); process.exit(1); }
-  const { data: prof, error: pErr } = await db.from("profiles").select("id, name, role").eq("id", user.id).maybeSingle();
+  // One lookup by email — never page 1 of listUsers (newest first; staff are old).
+  const userId = await authUserIdByEmail(db, email);
+  if (!userId) { console.error(`no login with email ${email}`); process.exit(1); }
+  const { data: prof, error: pErr } = await db.from("profiles").select("id, name, role").eq("id", userId).maybeSingle();
   if (pErr || !prof || prof.role !== "staff") { console.error(`${email} is not a staff profile`); process.exit(1); }
 
   const { data: existing, error: sErr } = await db.from("visit_slots").select("id").eq("estimator_id", prof.id).limit(1);

@@ -14,29 +14,6 @@ export const PASSWORD_MIN = 8;
 /** The page a reset link lands on once the click has proved the inbox. */
 export const RESET_PASSWORD_PATH = "/reset-password";
 
-/**
- * Find the auth user behind an email. `auth.admin` has no lookup-by-email,
- * and paging `listUsers` stopped finding anyone once the wizard's anon
- * sessions pushed the test project past the page cap (10 Sep). `generateLink`
- * answers directly with the user and sends nothing (the trade portal relies
- * on the same trick); the token it mints is discarded unused.
- */
-export async function findAuthUserByEmail(svc: SupabaseClient, email: string): Promise<User | null> {
-  const wanted = email.trim().toLowerCase();
-  if (!wanted) return null;
-  const link = await svc.auth.admin.generateLink({ type: "magiclink", email: wanted });
-  if (!link.error && link.data?.user) return link.data.user;
-  // Last resort: a short walk through the list.
-  for (let page = 1; page <= 5; page++) {
-    const { data, error } = await svc.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) { reportError(error, { where: "adminPassword.listUsers", bestEffort: true }); return null; }
-    const u = data.users.find((x) => (x.email ?? "").toLowerCase() === wanted);
-    if (u) return u;
-    if (data.users.length < 200) break;
-  }
-  return null;
-}
-
 /** A login the office removed (removeStaffAction's fallback bans it for a hundred years). */
 export function isBanned(u: Pick<User, "banned_until"> | null | undefined): boolean {
   const until = u?.banned_until;

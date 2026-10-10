@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ensureAccount } from "@/lib/accounts/link";
 import { reportError } from "@/lib/monitoring/report";
+import { lookupAuthUserByEmail } from "@/lib/auth/userByEmail";
 
 /**
  * Back-office trade account creation (Tom, 28 Aug): "this needs to be
@@ -75,10 +76,12 @@ export async function createTradeAccountAction(formData: FormData): Promise<Crea
         throw new Error(res.error.message);
       }
       // Existing login: NEVER overwrite their password. Resolve their user id
-      // via generateLink (admin-side, sends nothing) for the membership below.
+      // (one lookup, sends nothing) for the membership below.
       created = false;
-      const link = await svc.auth.admin.generateLink({ type: "magiclink", email });
-      userId = link.data?.user?.id ?? null;
+      const found = await lookupAuthUserByEmail(svc, email);
+      if (found.status === "error") throw new Error(found.message);
+      if (found.status !== "found") throw new Error(`the existing login for ${email} could not be found`);
+      userId = found.user.id;
     } else {
       userId = res.data.user?.id ?? null;
     }

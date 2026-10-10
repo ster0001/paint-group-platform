@@ -1,5 +1,6 @@
 import { test as base, expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
+import { authUserIdByEmail as libAuthUserIdByEmail } from "../lib/auth/userByEmail";
 
 export type Credentials = { email: string; password: string };
 
@@ -42,6 +43,18 @@ export async function userIdFor(creds: Credentials): Promise<string | null> {
   const id = data.user?.id ?? null;
   await sb.auth.signOut().catch(() => {});
   return id;
+}
+
+/**
+ * The auth user id for an email, through the service client — ONE call, no
+ * paging. Every e2e lookup by email goes through here, and here is the app's
+ * own lookup (`lib/auth/userByEmail.ts`, generateLink `recovery`), so the
+ * specs and the Team invite / staff re-create / trade account paths can never
+ * drift apart. Null for an unknown email; any other failure throws rather than
+ * reading as "not found".
+ */
+export async function authUserIdByEmail(sb: SupabaseClient, email: string): Promise<string | null> {
+  return libAuthUserIdByEmail(sb, email);
 }
 
 export async function signOutIfPossible(page: Page) {
