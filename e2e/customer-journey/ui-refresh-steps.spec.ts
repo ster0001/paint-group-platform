@@ -647,3 +647,61 @@ test.describe("UI refresh S7 · commercial — every segment, inside, outside an
     await expect(page.locator(".wz-stage")).not.toContainText(/\$\d/);
   });
 });
+
+test.describe("UI refresh S8a · the sheet pattern", () => {
+  /** The sheet panel's box against the viewport. */
+  async function sheetBox(page: Page, sel: string) {
+    return page.locator(sel).first().evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, vw: window.innerWidth, vh: window.innerHeight };
+    });
+  }
+
+  test("laptop: Talk it through, Save & book and the chat open as a 480px panel from the right, full height", async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await toPlace(page);
+    await page.getByTestId("ql-book").click();
+    await expect(page.getByTestId("talk-sheet")).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(400);
+    let b = await sheetBox(page, "[data-testid='talk-sheet'] .wz-sheet");
+    expect(Math.round(b.right)).toBe(b.vw);
+    expect(Math.round(b.width)).toBeLessThanOrEqual(480);
+    expect(Math.round(b.top)).toBe(0);
+    expect(Math.round(b.bottom)).toBe(b.vh);
+    await page.getByTestId("talk-sheet").getByRole("button", { name: "Close", exact: true }).click();
+    await expect(page.getByTestId("talk-sheet")).toHaveCount(0);
+
+    await quickNext(page);
+    await page.getByTestId("save-and-book-pill").first().click();
+    await expect(page.getByTestId("sab-email")).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(400);
+    b = await sheetBox(page, "[data-testid='save-and-book'] .wz-sheet");
+    expect(Math.round(b.right)).toBe(b.vw);
+    expect(Math.round(b.top)).toBe(0);
+    await page.getByTestId("sab-close").click();
+
+    await page.getByTestId("wz-chat-bubble").click();
+    await expect(page.getByTestId("wz-chat-panel")).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(400);
+    b = await sheetBox(page, "[data-testid='wz-chat-panel']");
+    expect(Math.round(b.right)).toBe(b.vw);
+    expect(Math.round(b.width)).toBeLessThanOrEqual(480);
+  });
+
+  test("phone: the same sheets come up from the bottom, full width — never a full-page takeover", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+    const page = await ctx.newPage();
+    await toPlace(page);
+    await page.getByTestId("ql-book").click();
+    await expect(page.getByTestId("talk-sheet")).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(400);
+    const b = await sheetBox(page, "[data-testid='talk-sheet'] .wz-sheet");
+    expect(Math.round(b.bottom)).toBe(b.vh);
+    expect(Math.round(b.left)).toBe(0);
+    expect(Math.round(b.right)).toBe(b.vw);
+    expect(b.top, "the page behind still shows above the sheet").toBeGreaterThan(20);
+    await ctx.close();
+  });
+});

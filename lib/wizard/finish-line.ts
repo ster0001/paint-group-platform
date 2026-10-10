@@ -281,7 +281,9 @@ export function handoffSteps(input: {
     },
     {
       title: "We fix your price",
-      body: `Usually ${input.turnaround}. It arrives by email, with everything itemised.`,
+      // Tom, 10 Oct 2026: no "Usually" here — the turnaround setting carries its own
+      // wording, and "Usually usually by the next working day" was the result.
+      body: `${capitalise(input.turnaround.trim())}. It arrives by email, with everything itemised.`,
     },
     {
       title: "If we need a look in person, we'll say so",

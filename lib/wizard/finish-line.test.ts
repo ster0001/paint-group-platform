@@ -100,7 +100,14 @@ describe("the hand-off steps", () => {
     const steps = handoffSteps({ roomsTotal: 8, spots: 3, photos: 2, turnaround: "by the next working day" });
     expect(steps).toHaveLength(3);
     expect(steps[0].body).toContain("8 rooms, 3 flagged spots and your photos");
-    expect(steps[1].body).toContain("by the next working day");
+    // Tom, 10 Oct 2026: the turnaround setting's own words, no "Usually" in front.
+    expect(steps[1].body).toBe("By the next working day. It arrives by email, with everything itemised.");
+  });
+
+  it("never doubles the setting's own hedge (the 'Usually usually' bug)", () => {
+    const steps = handoffSteps({ roomsTotal: 1, spots: 0, photos: 0, turnaround: "usually by the next working day" });
+    expect(steps[1].body).toBe("Usually by the next working day. It arrives by email, with everything itemised.");
+    expect(steps[1].body).not.toMatch(/usually usually/i);
   });
 
   it("says nothing about photos or spots when there are none", () => {

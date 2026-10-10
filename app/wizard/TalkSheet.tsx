@@ -108,6 +108,8 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
   return (
     <div className="wz-sheetback" role="dialog" aria-modal="true" aria-label={mode === "visit" ? "Request a site visit" : mode === "call" ? "Speak with us" : mode === "details" ? "A few details first" : "Send us a message"} data-testid="talk-sheet" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="wz-sheet">
+        {/* UI refresh S8: close in the corner — the sheet pattern (brief §7.12). */}
+        <button type="button" className="wz-sheet-x" aria-label="Close" onClick={onClose}>×</button>
         {stage === "sent" ? (
           <>
             <div className="wz-sent-status" aria-hidden="true">✓</div>
