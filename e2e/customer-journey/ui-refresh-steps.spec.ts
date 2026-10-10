@@ -445,3 +445,95 @@ test.describe("UI refresh S4b · the room cards", () => {
     await expect(cards.nth(1)).toHaveClass(/\bopen\b/, { timeout: 10_000 });
   });
 });
+
+test.describe("UI refresh S5 · home outside", () => {
+  /** To the Outside step of an outside-only job. */
+  async function toOutside(page: Page) {
+    await openQuickLook(page);
+    await fillQuickAddress(page);
+    await page.getByTestId("ql-jobtype-exterior").click();
+    await quickNext(page);
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
+  }
+
+  test("Tom's check: each tick paints into the house; a side left off goes dashed from above, and stays grey in the editor", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await toOutside(page);
+    const pic = page.getByTestId("pic-outside");
+    await expect(pic).toBeVisible();
+    // Nothing pre-ticked: the walls and frames are today's colour.
+    await expect(pic.locator("[data-e='body'][data-on]").first()).toHaveAttribute("data-on", "0");
+    await page.getByTestId("ql-ext-el-body").click();
+    await expect(pic.locator("[data-e='body'][data-on]").first()).toHaveAttribute("data-on", "1");
+    await expect(page.getByTestId("ql-picture-note")).toContainText("Walls");
+    await page.getByTestId("ql-ext-el-windows").click();
+    await expect(pic.locator("[data-e='windows'][data-on]")).toHaveAttribute("data-on", "1");
+    await page.getByTestId("ql-ext-sep-picket_fence").click();
+    await expect(pic.locator("[data-x='picket_fence']")).toHaveAttribute("data-on", "1");
+    await expect(page.getByTestId("ql-picture-note")).toContainText("Picket fence");
+    await page.getByTestId("ql-ext-mat-weatherboards").click();
+    await page.getByTestId("ql-ext-storeys-double").click();
+    await expect(pic).toHaveClass(/two/);
+    // On the house: two columns of picture cards on a laptop.
+    const a = (await page.getByTestId("ql-ext-el-body").boundingBox())!;
+    const b = (await page.getByTestId("ql-ext-el-windows").boundingBox())!;
+    expect(Math.abs(a.y - b.y), "body and windows share a row").toBeLessThan(4);
+
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+    const top = page.getByTestId("pic-top");
+    await expect(top.locator("[data-edge='right']")).toHaveAttribute("data-state", "on");
+    await page.getByTestId("ql-ext-side-right").click();
+    await expect(top.locator("[data-edge='right']")).toHaveAttribute("data-state", "off");
+
+    await quickNext(page);
+    await passGateIfShown(page);
+    await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+    await page.getByTestId("door-tighten").click();
+    await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
+    await openScopeEditor(page);
+    // The S4 frame: one slim header, the price card and the house from above in the rail.
+    const head = (await page.locator(".sc-freeze").boundingBox())!;
+    expect(head.height).toBeLessThanOrEqual(64);
+    const main = (await page.locator(".sd-ed > .sc-wrap").boundingBox())!;
+    const price = (await page.getByTestId("price-card").boundingBox())!;
+    expect(price.x, "the price card sits in the right-hand rail").toBeGreaterThan(main.x + main.width);
+    const above = page.locator(".sc-rail .sd-visual");
+    await expect(above.getByTestId("pic-top")).toBeVisible();
+    await expect(above.locator("[data-edge='right']")).toHaveAttribute("data-state", "skip");
+    await expect(above.locator("[data-edge='front']")).toHaveAttribute("data-state", "todo");
+    await expect(page.locator(".sc-rail").getByTestId("estimator-strip")).toBeVisible();
+    // Tap a side from above and its card opens.
+    await above.locator("[data-edge='back']").click();
+    await expect(page.locator(".sd-card[data-side='back'] .sd-body")).toBeVisible();
+  });
+
+  test("phone: the outside step and the side-by-side editor fit the phone, the bar at the bottom", async ({ browser }) => {
+    test.setTimeout(240_000);
+    const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+    const page = await ctx.newPage();
+    await toOutside(page);
+    await page.getByTestId("ql-ext-el-body").click();
+    await page.getByTestId("ql-ext-sep-deck").click();
+    let w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: window.innerWidth }));
+    expect(w.sw).toBeLessThanOrEqual(390);
+    await quickNext(page);
+    await quickNext(page);
+    await passGateIfShown(page);
+    await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+    await page.getByTestId("door-tighten").click();
+    await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
+    await openScopeEditor(page);
+    await page.evaluate(() => window.scrollTo(0, 900));
+    await page.waitForTimeout(400);
+    await expect(page.locator(".sc-num")).toBeInViewport();
+    w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: window.innerWidth }));
+    expect(w.sw).toBeLessThanOrEqual(390);
+    expect(w.vw).toBeLessThanOrEqual(390);
+    const bar = (await page.locator(".sc-stick").boundingBox())!;
+    expect(bar.y + bar.height).toBeGreaterThanOrEqual(664 - 2);
+    await ctx.close();
+  });
+});

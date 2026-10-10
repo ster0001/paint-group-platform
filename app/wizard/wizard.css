@@ -1890,3 +1890,171 @@
   .wz .sc-ed .il-first > .il-outline { width: 84px; height: 56px; }
   .wz .sc-ed .sc-sum { margin-left: 0; }
 }
+
+/* ==========================================================================
+   WIZARD UI REFRESH — S5a: home outside (brief §7.8; components doc §4).
+   "On the house" as six picture cards in two columns (drawing left, words
+   right); other areas as tick chips with a small drawing; the house drawn
+   element by element; the house from above on Sides.
+   ========================================================================== */
+.wz .wz-stage .wz-exttiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: none; }
+.wz .wz-stage .wz-exttiles .wz-pk { display: grid; grid-template-columns: 56px 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; align-content: center; min-height: 84px; padding: 12px 14px; text-align: left; }
+.wz .wz-stage .wz-exttiles .wz-pk svg { grid-row: 1 / span 2; width: 56px; height: 56px; margin: 0; }
+.wz .wz-stage .wz-exttiles .wz-pk small { font-size: 16.5px; line-height: 1.2; align-self: end; }
+.wz .wz-stage .wz-exttiles .wz-pk .wz-pksub { font-size: 14px; line-height: 1.3; align-self: start; }
+.wz .wz-stage .wz-exttiles .wz-pk small:last-child { grid-row: 1 / span 2; align-self: center; }
+.wz .wz-stage .wz-exttiles .wz-pk { position: relative; }
+.wz .wz-stage .wz-exttiles .wz-pk.on::after { content: "✓"; position: absolute; top: 8px; right: 11px; color: var(--cyan); font-weight: 700; font-size: 14px; }
+/* other areas: chips */
+.wz .wz-stage .wz-extchips { display: flex; flex-wrap: wrap; gap: 10px; }
+.wz .wz-stage .wz-extchips .wz-pk { display: inline-flex; align-items: center; gap: 8px; min-height: 50px; padding: 0 16px 0 10px; border-radius: 999px; }
+.wz .wz-stage .wz-extchips .wz-pk svg { grid-row: auto; width: 32px; height: 32px; }
+.wz .wz-stage .wz-extchips .wz-pk small { font-size: 16px; font-weight: 500; }
+.wz .wz-stage .wz-extchips .wz-pk .wz-pksub { display: none; }
+.wz .wz-stage .wz-extchips .wz-pk.on::after { position: static; margin-left: 2px; }
+/* window types and sides keep the picture-over-words card, four across on a desktop */
+.wz .wz-stage [data-testid="ql-ext-win"], .wz .wz-stage [data-testid="ql-ext-sides"] { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-width: none; }
+.wz .wz-stage [data-testid="ql-ext-sides"] .wz-pk { display: block; text-align: center; min-height: 112px; }
+.wz .wz-stage [data-testid="ql-ext-sides"] .wz-pk svg { width: 100%; height: 56px; margin: 0 0 6px; }
+.wz .wz-stage [data-testid="ql-ext-sides"] .wz-pk.on::after { content: none; }
+.wz .wz-stage [data-testid="ql-ext-win"] .wz-pk.on::after { content: none; }
+@media (max-width: 420px) {
+  .wz .wz-stage .wz-exttiles:not(.wz-extchips) .wz-pk { grid-template-columns: 40px 1fr; column-gap: 8px; padding: 10px; min-height: 76px; }
+  .wz .wz-stage .wz-exttiles:not(.wz-extchips) .wz-pk svg { width: 40px; height: 40px; }
+  .wz .wz-stage .wz-exttiles .wz-pk small { font-size: 15px; }
+  .wz .wz-stage .wz-exttiles .wz-pk .wz-pksub { font-size: 13.5px; }
+}
+
+/* the house, element by element: today's tone until ticked, then its fresh coat */
+.wz .wz-outhouse .e { stroke: #16212a; stroke-opacity: .16; stroke-width: 1; transition: fill .7s cubic-bezier(.4,0,.2,1), stroke .3s; }
+.wz .wz-outhouse .e-body { fill: #cfc6b3; } .wz .wz-outhouse .e-body.on { fill: var(--extc, #a9d6de); }
+.wz .wz-outhouse .e-windows { fill: #b3a07a; } .wz .wz-outhouse .e-windows.on { fill: #ffffff; }
+.wz .wz-outhouse .e-doors { fill: #8c7b5a; } .wz .wz-outhouse .e-doors.on { fill: #2f6f7a; }
+.wz .wz-outhouse .e-doors.leaf { stroke-opacity: .25; }
+.wz .wz-outhouse .e-fascias { fill: #a99d84; } .wz .wz-outhouse .e-fascias.on { fill: #ffffff; }
+.wz .wz-outhouse .e-eaves { fill: #b7ab92; } .wz .wz-outhouse .e-eaves.on { fill: #ffffff; }
+.wz .wz-outhouse .e-gutters { fill: #8f8a80; } .wz .wz-outhouse .e-gutters.on { fill: #eef2f4; }
+.wz .wz-outhouse .e.hl { stroke: var(--cyan); stroke-opacity: 1; stroke-width: 3; animation: wzpulse 1s 2; }
+.wz .wz-outhouse .glass { fill: #9fb3bf; }
+.wz .wz-outhouse .hr { fill: #55636e; }
+.wz .wz-outhouse .up, .wz .wz-outhouse .roof { transition: transform .6s cubic-bezier(.2,.8,.2,1), opacity .4s; }
+.wz .wz-outhouse .up { opacity: 0; transform: translateY(70px); }
+.wz .wz-outhouse.two .up { opacity: 1; transform: none; }
+.wz .wz-outhouse.two .roof { transform: translateY(-70px); }
+.wz .wz-outhouse .x { opacity: 0; transform: scale(.6); transform-box: fill-box; transform-origin: 50% 100%; transition: opacity .3s, transform .45s cubic-bezier(.2,1.4,.4,1); }
+.wz .wz-outhouse .x.on { opacity: 1; transform: none; }
+
+/* the house from above: cyan = painting, grey dashed = left off; amber = to check, cyan = checked (editor) */
+.wz .wz-top-view text { font-family: var(--wz-sans); font-size: 15px; font-weight: 600; fill: var(--heading); }
+.wz .wz-top-view text.street { font-size: 13px; font-weight: 500; fill: var(--muted); }
+.wz .wz-top-view .hit { stroke: transparent; stroke-width: 28; }
+.wz .wz-top-view .edge { stroke-width: 9; stroke-linecap: round; transition: stroke .3s; }
+.wz .wz-top-view .on .edge, .wz .wz-top-view .ok .edge { stroke: var(--cyan); }
+.wz .wz-top-view .todo .edge { stroke: #e5c078; }
+.wz .wz-top-view .todo text { fill: var(--amber); }
+.wz .wz-top-view .off .edge, .wz .wz-top-view .skip .edge { stroke: #b9c2cb; stroke-width: 5; stroke-dasharray: 9 8; }
+.wz .wz-top-view .off text, .wz .wz-top-view .skip text { fill: var(--muted); font-weight: 500; }
+@media (prefers-reduced-motion: reduce) {
+  .wz .wz-outhouse .e, .wz .wz-outhouse .x, .wz .wz-outhouse .up, .wz .wz-outhouse .roof { transition: none; }
+  .wz .wz-outhouse .e.hl { animation: none; }
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD UI REFRESH — S5b: the side-by-side editor in the S4 frame (brief §7.8).
+   Scoped to .sd-ed (the exterior-only page); a "both" job's sides sit inside
+   the room editor's .sc-ed and pick up the same card rules below.
+   Amber only on the OPEN card; checked = pale cyan; a side left off = dashed.
+   ═════════════════════════════════════════════════════════════════════════ */
+.wz .sd:has(> .sd-ed) { padding-bottom: 0; }
+.wz .sc-ed .sd-rangebar, .wz .sd .sd-rangebar { border: 0; background: none; padding: 0; margin: 0 0 18px; display: block; }
+.wz .sc-ed .sd-rangebar b, .wz .sd .sd-rangebar b { font-size: clamp(26px, 3vw, 38px); font-weight: 600; letter-spacing: -.03em; line-height: 1.1; color: var(--heading); }
+.wz .sc-ed .sd-rangebar span, .wz .sd .sd-rangebar span { display: block; margin-top: 8px; font-size: 17px; color: var(--muted); }
+.wz .sd-ed .sd-cards, .wz .sc-ed .sd-cards { gap: 14px; }
+
+.wz .sd .sd-card { border: 1px solid var(--line); border-radius: 20px; box-shadow: none; transition: box-shadow .2s, border-color .2s; }
+.wz .sd .sd-card.open:not(.done):not(.skip) { border-color: var(--amber-line); box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
+.wz .sd .sd-card.done { border-color: var(--wash2); }
+.wz .sd .sd-card.skip { border: 1.5px dashed var(--line-strong); background: var(--panel2); }
+.wz .sd .sd-hd { min-height: 64px; padding: 14px 16px; }
+.wz .sd .sd-hd b { font-size: 18px; color: var(--heading); }
+.wz .sd .sd-pill { font-family: var(--wz-sans); font-size: 14.5px; font-weight: 600; letter-spacing: 0; border: 0; padding: 0; color: var(--amber); }
+.wz .sd .sd-card.done .sd-pill { color: var(--cyan); }
+.wz .sd .sd-card.skip .sd-pill { color: var(--muted); }
+.wz .sd .sd-body { padding: 0 18px 18px; border-top: 1px solid var(--panel2); }
+.wz .sd .sd-q { margin-top: 18px; }
+.wz .sd .sd-ql { font-size: 16.5px; font-weight: 600; color: var(--heading); margin-bottom: 10px; }
+.wz .sd .sd-req, .wz .sd .sd-opt { font-family: var(--wz-sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: lowercase; display: inline-block; margin-left: 4px; }
+.wz .sd .sd-req { color: var(--amber); }
+.wz .sd .sd-opt { color: var(--muted); font-weight: 500; }
+.wz .sd .sd-req::first-letter, .wz .sd .sd-opt::first-letter { text-transform: uppercase; }
+.wz .sd .il-kick { font-family: var(--wz-sans); font-size: 13.5px; letter-spacing: 0; text-transform: lowercase; color: var(--muted); display: inline-block; }
+.wz .sd .il-kick::first-letter { text-transform: uppercase; }
+.wz .sd .sd-help { font-size: 15px; line-height: 1.4; }
+.wz .sd .sd-chip { min-height: 48px; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--panel); color: var(--text); font-size: 16px; font-weight: 500; }
+.wz .sd .sd-chip.on { border-color: var(--cyan); background: var(--wash); color: var(--heading); }
+.wz .sd .sd-chip.has-hint { border-radius: 16px; padding: 10px 14px; }
+.wz .sd .sd-tgrid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.wz .sd .sd-tl { border: 1.5px solid var(--line); border-radius: 14px; background: var(--panel); padding: 12px 14px; font-size: 15.5px; color: var(--text); }
+.wz .sd .sd-tl.on { border-color: var(--wash2); background: var(--wash); color: var(--heading); }
+.wz .sd .sd-st button, .wz .sd .sd-wseg button, .wz .sd .sd-pc { min-width: 40px; height: 40px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--panel); font-size: 14px; }
+.wz .sd .sd-st b { font-size: 15px; }
+.wz .sd .sd-pc.on, .wz .sd .sd-wseg button.on { border-color: var(--cyan); background: var(--wash); color: var(--heading); }
+.wz .sd .sd-pcts i, .wz .sd .sd-wseg i { font-size: 13.5px; }
+.wz .sd .sd-wallsum { font-size: 15px; font-weight: 600; }
+.wz .sd .sd-mrow input { min-height: 48px; font-size: 16px; border-radius: 12px; background: var(--panel); border: 1.5px solid var(--line-strong); }
+.wz .sd .sd-mrow button { min-height: 48px; border-radius: 999px; font-size: 15.5px; padding: 0 18px; }
+.wz .sd .sd-addsurf { min-height: 52px; border-radius: 16px; font-size: 16px; }
+.wz .sd .sd-pl, .wz .sd .sd-gl { font-family: var(--wz-sans); font-size: 14px; letter-spacing: 0; text-transform: lowercase; color: var(--muted); }
+.wz .sd .sd-pl::first-letter, .wz .sd .sd-gl::first-letter { text-transform: uppercase; }
+.wz .sd .sd-confirm { min-height: 54px; border-radius: 999px; border: 0; background: var(--paint); color: var(--onpaint); font-size: 17px; }
+.wz .sd .sd-card.done .sd-confirm { background: var(--wash); color: var(--cyan); border: 1.5px solid var(--wash2); }
+
+/* Your home from above, in the rail (and in the room editor for a "both" job) */
+.wz .sd-visual.sc-home { padding: 0; border-radius: 22px; }
+.wz .sd-visual .sc-home-art { aspect-ratio: 4 / 3; }
+.wz .sd-visual .sd-geo { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 10px 16px 0; margin: 0; }
+.wz .sd-visual .sd-g { font-family: var(--wz-sans); font-size: 13.5px; letter-spacing: 0; text-transform: lowercase; color: var(--text); }
+.wz .sd-visual .sd-g::first-letter { text-transform: uppercase; }
+.wz .sd-visual .sd-g i { color: var(--muted); }
+.wz .sd-visual .sd-geo button { font-size: 14px; color: var(--cyan); background: none; border: 0; padding: 6px 0; text-decoration: underline; cursor: pointer; }
+.wz .sc-home-key .off::before { background: transparent; border: 1.5px dashed #b9c2cb; }
+@media (min-width: 901px) { .wz .sd-ed .sd-visual .sc-home-art { aspect-ratio: 4 / 2.6; } }
+.wz .sd-grid > .sd-rail .sd-visual { position: static; }
+
+@media (max-width: 900px) {
+  .wz .sd-ed .sd-visual { order: -1; }
+  .wz .sd-ed .sd-visual .sc-home-art { aspect-ratio: auto; height: 170px; }
+  .wz .sd .sd-tgrid { grid-template-columns: 1fr 1fr; }
+  .wz .sd .sd-wall { grid-column: 1 / -1; }
+}
+/* S5 fix: the room badge's number lives in CSS so "Bedroom…" stays the first text in the card (specs read it). */
+.wz .sc-ed .sc-badge::before { content: attr(data-n); }
+
+/* S5b polish (from the gate screenshots) */
+/* other-area chips: the label sits on the drawing's centre line */
+.wz .sd-wrap .wz-extchips .wz-pk small, .wz .wz-stage .wz-extchips .wz-pk small { align-self: center; display: inline; }
+.wz .wz-stage .wz-extchips .wz-pk svg { flex: none; }
+/* the side cards are not room cards: S4b's two-column size block (the room outline) does not apply */
+.wz .sd .il-first { display: block; }
+.wz .sd .il-first > * { grid-column: auto; }
+/* header: the name left, the pill and the × right */
+.wz .sd .sd-hd > b, .wz .sd .sd-hd > .sd-rn { margin-right: auto; }
+/* labels in sentence case on screen (the words in the page are unchanged) */
+.wz .sd .sd-rename { font-family: var(--wz-sans); font-size: 13px; letter-spacing: 0; text-transform: none; padding: 4px 10px; }
+.wz .sd .sd-pill, .wz .sc-ed .il-pill { text-transform: lowercase; display: inline-block; }
+.wz .sd .sd-pill::first-letter, .wz .sc-ed .il-pill::first-letter { text-transform: uppercase; }
+/* the rail fits a laptop screen: the house from above is a short strip, not a 4:3 box */
+@media (min-width: 901px) {
+  .wz .sd-ed .sd-visual .sc-home-art { aspect-ratio: auto; height: 190px; }
+  .wz .sd-ed .sd-visual .wz-top-view { inset: 6px 0; height: calc(100% - 12px); }
+}
+@media (min-width: 901px) {
+  .wz .sd-ed .sd-visual .sc-home-art { height: 165px; }
+  .wz .sd-ed .wz-top-view text { font-size: 24px; }
+  .wz .sd-ed .wz-top-view text.street { font-size: 20px; }
+}
+/* the size row wraps on a phone instead of pushing Update off the screen */
+@media (max-width: 560px) {
+  .wz .sd .sd-mrow { flex-wrap: wrap; }
+  .wz .sd .sd-mrow input { flex: 1 1 110px; width: auto; min-width: 0; }
+}

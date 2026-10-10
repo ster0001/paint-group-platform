@@ -7,6 +7,9 @@ import HousePicture from "./pictures/HousePicture";
 import RoomPicture, { type RoomSurface } from "./pictures/RoomPicture";
 import PlanMap, { type PlanRoom } from "./pictures/PlanMap";
 import PlanViewer from "./PlanViewer";
+import OutsideHousePicture from "./pictures/OutsideHousePicture";
+import TopView, { type TopSide } from "./pictures/TopView";
+import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 
 /**
  * The picture card (UI refresh S2, brief §7.2; components doc §4) — the live
@@ -14,9 +17,10 @@ import PlanViewer from "./PlanViewer";
  *
  * Which picture follows the step: the house on Address and Place, the room on
  * the Job, Condition and details steps, the floor plan on Rooms (or the
- * customer's own floorplan, zoomable, once it has been read). The outside
- * picture, the view from above and the warehouse are S5 and S7's; until then
- * those steps show the house.
+ * customer's own floorplan, zoomable, once it has been read). S5: the house
+ * element by element on the Outside step (and an outside job's gate), the
+ * house from above on Sides. The warehouse is S7's; until then commercial
+ * steps show the building.
  *
  * ⚑ 1 (colour try-on swatches) is OFF (`UI_FLAGS.colourTryOn`): the walls take one neutral
  * fresh tone and no swatches are drawn until Tom rules.
@@ -38,15 +42,22 @@ const NAME: Record<RoomSurface, string> = {
   architraves: "Architraves", doors: "Doors", windows: "Window frames",
 };
 const KIND: Record<QuickLook["propertyKind"], string> = { house: "House", townhouse: "Townhouse", unit_apartment: "Unit or apartment", commercial: "Commercial" };
+const EXT_NAME: Record<string, string> = {
+  body: "Walls", windows: "Window frames", doors: "Doors", fascias: "Fascias", gutters: "Gutters and downpipes", eaves: "Eaves",
+  garage_door: "Garage door", paling_fence: "Paling fence", picket_fence: "Picket fence", deck: "Deck", shed: "Garage or shed", wall: "Front wall", pergola: "Pergola",
+};
+const SIDE_NAME: Record<TopSide["key"], string> = { front: "Front", back: "Back", left: "Left", right: "Right" };
 const CONDITION: Record<string, [string, string]> = {
   good: ["Good, just tired.", "Sound surfaces. A light sand and it is ready."],
   wear: ["Some wear.", "Scuffs, marks, the odd hairline crack or nail hole."],
   needs_work: ["Needs work.", "Flaking, cracked plaster, water marks or damage."],
 };
 
-export default function PictureCard({ step, quick, suburb, rooms, planPreviewUrl, planPending, segmentName }: {
+export default function PictureCard({ step, quick, outside, suburb, rooms, planPreviewUrl, planPending, segmentName }: {
   step: QuickLookStep;
   quick: QuickLook;
+  /** The outside answers, for the Outside and Sides pictures. */
+  outside: ExteriorQuickLook;
   /** The suburb from the address, for the house card's tag. */
   suburb: string | null;
   /** The rooms step's list, with what is left out. */
@@ -56,10 +67,13 @@ export default function PictureCard({ step, quick, suburb, rooms, planPreviewUrl
   segmentName: string | null;
 }) {
   const interior = quick.jobType !== "exterior" && quick.propertyKind !== "commercial";
-  const which: "house" | "room" | "plan" =
-    interior && (step === "job" || step === "condition" || step === "gate") ? "room"
-      : interior && step === "rooms" ? "plan"
-        : "house";
+  const outsideJob = quick.jobType === "exterior" && quick.propertyKind !== "commercial";
+  const which: "house" | "room" | "plan" | "outside" | "top" =
+    step === "outside" || (outsideJob && step === "gate") ? "outside"
+      : step === "sides" ? "top"
+        : interior && (step === "job" || step === "condition" || step === "gate") ? "room"
+          : interior && step === "rooms" ? "plan"
+            : "house";
 
   const painted = useMemo(() => paintedSurfaces(quick.scope, quick.excluded), [quick.scope, quick.excluded]);
   // The surface just ticked or unticked: outlined for two seconds and named in the caption.
@@ -76,6 +90,25 @@ export default function PictureCard({ step, quick, suburb, rooms, planPreviewUrl
     const t = setTimeout(() => setTouched(null), 2100);
     return () => clearTimeout(t);
   }, [painted]);
+
+  // The outside element or area just ticked or unticked: named in the caption, outlined in the picture.
+  const extOn = useMemo(() => [...outside.elements, ...outside.standalone] as string[], [outside.elements, outside.standalone]);
+  const extPrev = useRef<string[]>(extOn);
+  const [extTouched, setExtTouched] = useState<{ key: string; on: boolean } | null>(null);
+  useEffect(() => {
+    const added = extOn.find((k) => !extPrev.current.includes(k));
+    const removed = extPrev.current.find((k) => !extOn.includes(k));
+    extPrev.current = extOn;
+    const key = added ?? removed;
+    if (!key) return;
+    setExtTouched({ key, on: !!added });
+    const t = setTimeout(() => setExtTouched(null), 2100);
+    return () => clearTimeout(t);
+  }, [extOn]);
+  const chosenSides = outside.sides ?? (["front", "back", "left", "right"] as const);
+  const topSides: TopSide[] = (["front", "back", "left", "right"] as const).map((k) => ({
+    key: k, label: SIDE_NAME[k], state: chosenSides.includes(k) ? "on" : "off",
+  }));
 
   const onCount = rooms.filter((r) => r.state !== "off").length;
   let title = "Your place";
@@ -99,6 +132,21 @@ export default function PictureCard({ step, quick, suburb, rooms, planPreviewUrl
       : planPreviewUrl
         ? "Pinch or use + to zoom. Drag to look around."
         : "Dashed rooms are left out. Tap a room in the list to bring it back.";
+  } else if (which === "outside") {
+    title = step === "gate" ? "Ready to price" : "Your home, outside";
+    tag = extOn.length ? `${extOn.length} to paint` : "";
+    note = step === "gate"
+      ? "That’s everything we need. Your guide range appears as soon as you add your details."
+      : extTouched
+        ? <><b>{EXT_NAME[extTouched.key] ?? extTouched.key}</b> {extTouched.on ? "is in." : "is left off."}</>
+        : extOn.length === 0
+          ? "Tick what we’re painting and it takes its fresh coat in the picture."
+          : "Each part you tick takes its fresh coat. Areas off the house appear beside it.";
+  } else if (which === "top") {
+    title = "Your home from above";
+    const n = topSides.filter((s) => s.state === "on").length;
+    tag = n === 4 ? "All four sides" : `${n} of 4 sides`;
+    note = n === 0 ? "Tick at least one side." : "The street is at the bottom. A dashed side is left off.";
   } else {
     if (quick.propertyKind === "commercial") title = "Your building";
     note = step === "start"
@@ -119,6 +167,11 @@ export default function PictureCard({ step, quick, suburb, rooms, planPreviewUrl
       <div className="wz-pic-head"><b>{title}</b>{tag && <span>{tag}</span>}</div>
       <div className={`wz-pic-art ${which === "plan" && planPreviewUrl ? "real" : ""}`}>
         {which === "house" && <HousePicture kind={quick.propertyKind} storeys={quick.storeys} jobType={quick.jobType} />}
+        {which === "outside" && (
+          <OutsideHousePicture elements={outside.elements} standalone={outside.standalone} materials={outside.materials}
+            storeys={outside.storeys} colour={outside.colour} highlight={extTouched?.on ? extTouched.key : null} />
+        )}
+        {which === "top" && <TopView sides={topSides} />}
         {which === "room" && (
           <RoomPicture painted={painted} today={step === "condition"} condition={quick.condition} occupied={quick.occupied === "yes"}
             highlight={step === "job" ? touched : null} />

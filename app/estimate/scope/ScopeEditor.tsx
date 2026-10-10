@@ -61,6 +61,7 @@ const DARK_TO_LIGHT_SURFACES: Array<[string, string]> = [
 import type { InteriorLoopMeta, RoomLoopView } from "@/lib/wizard/rooms-loop";
 import Wordmark from "@/app/wizard/Wordmark";
 import WizardHeader from "@/app/wizard/WizardHeader";
+import { rangeBand } from "./rangeBand";
 import PlanMap from "@/app/wizard/pictures/PlanMap";
 
 /** R3: the interior confirm-loop state that rides every customer response. */
@@ -702,18 +703,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
 
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
-  // UI refresh S4: the price card's band — the dashed outline is where the guide range
-  // started (the range this page opened with), the bar is the range now. Positions only;
-  // no money is computed here.
+  // UI refresh S4: the price card's band (rangeBand.ts) — where the guide range started vs now.
   const [startRange] = useState(() => ({ lo: initial.rangeLoCents, hi: initial.rangeHiCents }));
-  const band = (() => {
-    const { lo: g0, hi: g1 } = startRange;
-    const pad = Math.max(1, (g1 - g0) * 0.12);
-    const mn = Math.min(g0, payload.rangeLoCents) - pad, mx = Math.max(g1, payload.rangeHiCents) + pad;
-    const at = (v: number) => `${((v - mn) / (mx - mn)) * 100}%`;
-    const w = (a: number, b: number) => `${((b - a) / (mx - mn)) * 100}%`;
-    return { was: { left: at(g0), width: w(g0, g1) }, now: { left: at(payload.rangeLoCents), width: w(payload.rangeLoCents, payload.rangeHiCents) } };
-  })();
+  const band = rangeBand(startRange, { lo: payload.rangeLoCents, hi: payload.rangeHiCents });
 
   // ---- Tom, 14 Sep (items 5, 14, 15): the details, one question at a time ----
   const detailSteps: PaginatedStep[] = [];
@@ -1193,7 +1185,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   ) : (
                     <b>
                       {/* UI refresh S4b: a number until it is checked, then a tick (the word is beside it too). */}
-                      {loop && <span className={`sc-badge ${loop.confirmed ? "ok" : ""}`} aria-hidden="true">{loop.confirmed ? "✓" : roomIndex + 1}</span>}
+                      {/* The number is drawn by CSS (data-n), so the card's text still starts with the room's name. */}
+                      {loop && <span className={`sc-badge ${loop.confirmed ? "ok" : ""}`} aria-hidden="true" data-n={loop.confirmed ? "✓" : String(roomIndex + 1)} />}
                       {room.name}
                       {loop && (
                         <span className="il-hm"> · {loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span>
