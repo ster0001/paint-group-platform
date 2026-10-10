@@ -36,11 +36,13 @@ const D: Record<string, ReactElement> = {
   all: <svg viewBox="0 0 60 64"><rect x="10" y="10" width="40" height="44" fill={F} stroke={C} strokeWidth="4" /></svg>,
 };
 
-export function ExteriorPickTiles<T extends string>({ options, on, onPick, name }: {
+export function ExteriorPickTiles<T extends string>({ options, on, onPick, name, chips = false }: {
   options: Choice<T>[]; on: readonly T[]; onPick: (v: T) => void; name: string;
+  /** UI refresh S5 (brief §7.8): "other areas" are tick chips with a small drawing, not picture cards. */
+  chips?: boolean;
 }) {
   return (
-    <div className="wz-pick sc-tiles wz-exttiles" data-testid={`ql-${name}`}>
+    <div className={`wz-pick sc-tiles wz-exttiles ${chips ? "wz-extchips" : ""}`} data-testid={`ql-${name}`}>
       {options.map((o) => {
         const isOn = on.includes(o.value);
         return (

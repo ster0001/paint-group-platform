@@ -21,6 +21,10 @@ const D: Record<string, string> = {
   "occupied-yes": '<path d="M6 42V10h36v32M6 42h36"/><rect x="13" y="28" width="22" height="9" rx="3"/><path d="M16 28v-5h16v5"/>',
 };
 
+// UI refresh S5: the Outside step's storeys cards use the same two drawings.
+D["ext-storeys-single"] = D["storeys-single"];
+D["ext-storeys-double"] = D["storeys-double"];
+
 export function Pic({ name }: { name: string }) {
   const d = D[name];
   if (!d) return null;

@@ -20,6 +20,10 @@ import PlanPanel from "./PlanPanel";
 import { useCoalesced } from "./useCoalesced";
 import { useStickyRoom } from "./useStickyRoom";
 import type { EstimateDocuments } from "@/lib/wizard/documents";
+import WizardHeader from "@/app/wizard/WizardHeader";
+import Wordmark from "@/app/wizard/Wordmark";
+import TopView, { type TopSide } from "@/app/wizard/pictures/TopView";
+import { rangeBand } from "./rangeBand";
 
 /**
  * R2b — the exterior confirm-loop editor, BY SIDES.
@@ -285,6 +289,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   }
 
   const range = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
+  // UI refresh S5: the price card's band (rangeBand.ts) — where the guide range started vs now.
+  const [startRange] = useState(() => ({ lo: initial.rangeLoCents, hi: initial.rangeHiCents }));
+  const band = rangeBand(startRange, { lo: payload.rangeLoCents, hi: payload.rangeHiCents });
   const prog = sides.progress;
   const allDone = prog.allDone;
   // Tom, 14 Sep (items 2, 3, 31) — see ScopeEditor: the same gate, the same send.
@@ -336,7 +343,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
 
   function sideCard(s: SideView) {
     const isOpen = open === s.key;
-    const pill = s.confirmed ? (s.include === false ? "NOT PAINTING ✓" : "CONFIRMED ✓") : "CONFIRM THIS SIDE";
+    // UI refresh S5 (⚑ 7, the mockup's wording): the same pill words as the room cards.
+    const pill = s.confirmed ? (s.include === false ? "Not painting" : "Checked ✓") : isOpen ? "Close" : "Check this side";
     const cls = `sd-card ${s.confirmed ? (s.include === false ? "skip" : "done") : ""} ${isOpen ? "open" : ""} ${shake === s.key ? "shake" : ""}`;
     return (
       <section className={cls} key={s.key} data-side={s.key}>
@@ -393,7 +401,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                     opt: [`which:${s.key}`, "0"],
                   })}
                 >
-                  No — remove this side
+                  No, leave it off
                 </button>
               </div>
             </div>
@@ -720,14 +728,14 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     );
   }
 
-  const edgeClass = (k: SideKey) => {
-    const s = sides.sides.find((x) => x.key === k);
-    // Tom, 8 Sep: a side the customer never asked for is not in the estimate
-    // at all — the plan shows it greyed rather than waiting to be confirmed.
-    if (!s) return "sd-edge gone";
-    if (s.include === false) return "sd-edge skip";
-    return s.confirmed ? "sd-edge done" : "sd-edge";
-  };
+  // A side the customer never asked for is not in the estimate at all (Tom, 8 Sep): grey.
+  const liveSides = sides.sides.filter((x) => x.include !== false);
+  const topSides: TopSide[] = (["front", "back", "left", "right"] as const).map((k) => {
+    const x = sides.sides.find((y) => y.key === k);
+    const label = k === "front" ? "Front" : k === "back" ? "Back" : k === "left" ? "Left" : "Right";
+    return { key: k, label, state: !x || x.include === false ? "skip" : x.confirmed ? "ok" : "todo" };
+  });
+
 
   /** Stepper display honours the optimistic target while the queue drains. */
   function shownCount(sideKey: string, t: { id: number; count: number }): number {
@@ -945,210 +953,215 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         { describe: withDelta(`${t.label} ×${next}`), opt: [`cnt:${sideKey}:${t.id}`, String(next)] }));
   }
 
+  // UI refresh S5: the left column — the questions, the side cards, the extras, the last checks.
+  const cards = (
+      <div className="sd-cards">
+        {/* Tom, 15 Sep (late, items 6–8, 11): condition & access are the FIRST
+            questions, one at a time, above the sides. The old "Which sides?"
+            card is gone — that is asked before the gate now (item 3), and a
+            side left off there is not on this screen at all (item 4). */}
+        <Paginated
+          testid="sides-q"
+          title="A few questions first"
+          pill="TIGHTENS YOUR RANGE"
+          steps={condSteps}
+          cardClass={`sd-card ${m.done.cond ? "done" : ""}`}
+          attrs={{ "data-side": "cond" }}
+          settledText={condSettled}
+        />
+        {sides.sides.map(sideCard)}
+
+        {metaCard("extras", "Freestanding extras", (
+          <div className={`sd-q ${extrasAnswered ? "ok" : ""}`}>
+            <p className="sd-ql">Not on a wall — fences, pergolas and the like. <span className="sd-opt">TICK ANY THAT APPLY</span><span className="sd-okc">✓</span></p>
+            <div className="sd-chips">
+              {extrasTiles.map((t) => (
+                <Chip key={String(t.key)} on={t.on} label={`${t.on ? "✓ " : "+ "}${t.label}`}
+                  onClick={() => act({ action: "toggle_exterior", key: String(t.key), on: !t.on }, { done: `${t.on ? "Removed" : "Added"} ${t.label.toLowerCase()}.` })} />
+              ))}
+            </div>
+            {extrasTiles.some((t) => t.key === "fence" && t.on) && (
+              <div className="sd-chips" style={{ marginTop: 9 }} data-testid="fence-type">
+                {([["paling", "Paling Fence", "Paling"], ["picket_hand", "Picket Fence (Hand Paint)", "Picket (brushed)"], ["picket_spray", "Picket Fence (Spray)", "Picket (sprayed)"]] as const).map(([type, code, label]) => (
+                  <Chip key={type} on={(exterior?.fenceCode ?? "Paling Fence") === code} label={label}
+                    onClick={() => act({ action: "set_fence_type", type }, { done: `${label} fence — repriced.` })} />
+                ))}
+              </div>
+            )}
+            {extrasTiles.some((t) => t.key === "fence" && t.on) && (
+              <div className="sd-mrow" style={{ display: "flex", marginTop: 9 }}>
+                <input placeholder="fence metres — or 'not sure'" value={fenceText} onChange={(e) => setFenceText(e.target.value)} />
+                <button
+                  onClick={() => {
+                    const v = fenceText.trim().toLowerCase();
+                    if (!v) return;
+                    const metres = parseFloat(v.replace(/[^0-9.]/g, ""));
+                    act(
+                      { action: "set_fence", metres: v.includes("not") || isNaN(metres) ? null : metres },
+                      { done: v.includes("not") ? "Not a problem — we'll measure it on the day." : `Fence set to ${metres} m — repriced.` },
+                    );
+                  }}
+                >
+                  Set
+                </button>
+              </div>
+            )}
+            {/* Tom, 5 Oct: the pergola is priced on its top's length × width — never per pergola. */}
+            {extrasTiles.some((t) => t.key === "pergola" && t.on) && (
+              <div data-testid="pergola-size" style={{ marginTop: 9 }}>
+                <p className="sd-help" style={{ margin: "0 0 6px" }}>
+                  {exterior?.pergola
+                    ? `Priced on a top of about ${exterior.pergola.lengthM} × ${exterior.pergola.widthM} m. Change it below and confirm.`
+                    : "Roughly how big is the pergola top? Length and width in metres, then Confirm — it's priced on the area."}
+                </p>
+                <div className="sd-mrow" style={{ display: "flex", flexWrap: "wrap" }}>
+                  <input placeholder="top length m" inputMode="decimal" value={pergolaL} onChange={(e) => setPergolaL(e.target.value)} data-testid="pergola-length" />
+                  <input placeholder="top width m" inputMode="decimal" value={pergolaW} onChange={(e) => setPergolaW(e.target.value)} data-testid="pergola-width" />
+                  <button data-testid="pergola-confirm"
+                    onClick={() => {
+                      const L = parseFloat(pergolaL.replace(/[^0-9.]/g, ""));
+                      const W = parseFloat(pergolaW.replace(/[^0-9.]/g, ""));
+                      if (!(L > 0 && W > 0)) return;
+                      act({ action: "set_pergola", lengthM: L, widthM: W }, { done: `Pergola top ${L} × ${W} m — repriced.` });
+                    }}
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ), "Confirm extras ✓")}
+
+        {/* Tom, 15 Sep (late, items 9–10): the two last checks, one at a time,
+            each confirmed with a tick box — no "That's right", no "No — that's
+            everything". A missed side is added back from here (item 4). */}
+        <Paginated
+          testid="sides-last"
+          title="Last checks"
+          pill="NEARLY THERE"
+          steps={lastSteps}
+          cardClass={`sd-card ${m.done.dw && m.done.sweep ? "done" : ""}`}
+          attrs={{ "data-side": "last" }}
+          settledText="Counts confirmed, nothing missing."
+        />
+      </div>
+  );
+
+  // UI refresh S5 (brief §7.8): "Your home from above" — amber = still to check, cyan =
+  // checked, grey dashed = not painting; tap a side to open it. The rail card on a laptop,
+  // the top of the page on a phone; inside the room editor for a "both" job.
+  const fromAbove = (
+    <section className="sc-home sd-visual" aria-label="Your home from above">
+      <p className="sc-home-head"><b>Your home from above</b>
+        <span>{liveSides.filter((x) => x.confirmed).length} of {liveSides.length} checked</span></p>
+      {!embedded && <PlanPanel docs={docs} variant="peek" />}
+      {!embedded && <PlanPanel docs={docs} variant="column" />}
+      <div className="sc-home-art">
+        <TopView sides={topSides} onPick={(k) => setOpen(k)} />
+      </div>
+      {sides.geo && (
+        <div className="sd-geo">
+          {sides.geo.storeys && (
+            <span className="sd-g">{sides.geo.storeys === "double" ? "DOUBLE" : "SINGLE"} STOREY · <i>FROM YOUR ANSWERS</i></span>
+          )}
+          {sides.geo.substrates.slice(0, 2).map((sub) => (
+            <span className="sd-g" key={sub}>{sub.toUpperCase()} · <i>FROM YOUR ANSWERS</i></span>
+          ))}
+          <button
+            onClick={() => act({ action: "flag_geometry" }, {
+              done: "Flagged — geometry is ours to verify, so your estimator will confirm this on site.",
+            })}
+          >
+            Not right? Tell us
+          </button>
+        </div>
+      )}
+      <p className="sc-home-key"><span className="todo">Still to check</span><span className="ok">Checked</span><span className="off">Not painting</span></p>
+    </section>
+  );
+
   return (
     <div className={`sd ${ready || embedded ? "" : "wz-waking"}`} data-ready={embedded ? undefined : ready ? "1" : undefined}>
       {!embedded && !ready && <div className="sd-saving">ONE MOMENT…</div>}
       {!embedded && ready && pendingCount > 0 && <div className="sd-saving">SAVING…</div>}
+      {/* UI refresh S5 (brief §7.8): the S4 frame — ONE slim header, the side cards on the
+          left, the rail on the right (price card, Your home from above, the estimator); on a
+          phone the price card is the dark range strip and the buttons the bottom bar. A
+          "both" job embeds this inside the room editor, which owns the frame. */}
       {!embedded && (
-      <header className="sd-top">
-        <div className="sd-row">
-          {logoUrl ? <img className="wz-logo" src={logoUrl} alt="Paint Group" /> : <div className="sd-wm">PAINT<span>—</span>GROUP</div>}
-          <span className={`sd-status ${allDone ? "ok" : ""}`}>{allDone ? "AWAITING YOUR SIGN-OFF" : "IN REVIEW · CONFIRM EACH SIDE"}</span>
-        </div>
-        <div className="sd-progwrap">
-          <div className="sd-lbl"><span className="sd-prog">{prog.done} OF {prog.total} CONFIRMED</span><span>ORANGE = TO CONFIRM · BLUE = CONFIRMED</span></div>
-          <div className={`sd-pbar ${allDone ? "ok" : ""}`}><i style={{ width: `${(prog.done / prog.total) * 100}%` }} /></div>
-        </div>
-        {/* R5: an exterior-only job had no confidence score at all — same
-            ring, same one function, frozen with the rest of the header. */}
-        <div className="sc-estwrap">
-          <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={goBook} compact />
-        </div>
-        <div className="sd-scorewrap">
-          <div className="sc-scorebar">
-            <div className="sc-score">
-              <div className={`sc-ring ${pendingCount > 0 ? "live" : ""}`} data-live={pendingCount > 0 ? "1" : "0"}>
-                <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx="24" cy="24" r="20" fill="none" stroke="#D9E0E6" strokeWidth="4" />
-                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 85 ? "#1F8A55" : "#A86A12"}
-                    strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
-                    strokeDashoffset={(125.6 * Math.max(0, Math.min(1, (payload.bandPct - (payload.tightPct ?? 4)) / Math.max(1, (payload.widePct ?? 15) - (payload.tightPct ?? 4))))).toFixed(1)} />
-                </svg>
-                <div className="sc-num" data-testid="range-width">±{payload.bandPct}%</div>
-              </div>
-              <div className="sc-lbl">
-                <b>Your range <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
-                <span data-testid="tier-next">{ladder.nextUnlock
-                  ? `${ladder.nextUnlock.needs.length === 1 ? "One step" : `${ladder.nextUnlock.needs.length} steps`} to ${TIER_LABEL[ladder.nextUnlock.tier]}: ${ladder.nextUnlock.needs.join(" · ")}`
-                  : allDone
-                    ? "Everything confirmed — this is as sure as we get before we see it"
-                    : "It climbs with every side you confirm"}</span>
-              </div>
-            </div>
-            <div className="sc-range" data-role="range"><small>YOUR ESTIMATE · INCL. GST</small><div className="sc-r">{range}</div></div>
-          </div>
-        </div>
-        {!embedded && <div className="sd-scorewrap" style={{ marginTop: 8 }}><PlanPanel docs={docs} variant="peek" /></div>}
-      </header>
+      <div className="sc-freeze">
+        <WizardHeader
+          logo={<Wordmark logoUrl={logoUrl} />}
+          steps={[]}
+          at="gate"
+          after={{ at: 1, labels: ["Guide range", "Side by side", `Fixed by ${estimator?.name?.trim().split(/\s+/)[0] || "your estimator"}`] }}
+          phone={companyPhone}
+        />
+      </div>
       )}
 
+      {embedded ? (
       <main className="sd-wrap">
-        {!embedded && allDone && autoSend !== "idle" && <AllDoneBanner estimator={estimator?.name ?? null} sentHref={sentHref} state={autoSend === "sending" ? "sending" : autoSend === "sent" ? "sent" : "failed"} />}
         <div className="sd-rangebar">
-          <div><b>{embedded ? "Now the outside — one side at a time" : "Walk around the house, one side at a time"}</b><span>Front, both sides, back — confirm each and it turns blue.</span></div>
+          <div><b>Now the outside — one side at a time</b><span>Front, both sides, back — confirm each and it turns blue.</span></div>
         </div>
-
         <div className="sd-grid">
-          {/* The rail: the plan/photos on file and the house-from-above, one
-              column that stays put. R5 added the PlanPanel as a THIRD child of
-              a two-column grid, which pushed the side cards onto row 2 in the
-              360px column — Tom, 29 Aug: "the box in the bottom left hand
-              corner is way too small… this needs to fill the full page".
-              Wrapping the two together gives the cards the whole wide column
-              back. */}
-          <div className="sd-rail">
-            {!embedded && <PlanPanel docs={docs} variant="column" />}
-            <div className="sd-visual">
-              <p className="sd-t">YOUR HOME FROM ABOVE · TAP A SIDE</p>
-              <svg viewBox="0 0 300 240" className="sd-house">
-                <rect x="62" y="52" width="176" height="136" fill="#EEF2F5" stroke="#D9E0E6" />
-                <line className={edgeClass("back")} x1="66" y1="52" x2="234" y2="52" onClick={() => setOpen("back")} />
-                <line className={edgeClass("left")} x1="62" y1="56" x2="62" y2="184" onClick={() => setOpen("left")} />
-                <line className={edgeClass("right")} x1="238" y1="56" x2="238" y2="184" onClick={() => setOpen("right")} />
-                <line className={edgeClass("front")} x1="66" y1="188" x2="234" y2="188" onClick={() => setOpen("front")} />
-                <rect x="138" y="180" width="24" height="8" fill="#D6F1F5" stroke="#0E9FB4" strokeWidth="1" />
-                <text x="124" y="212">FRONT · STREET</text>
-                <text x="132" y="42">BACK</text>
-                <text x="14" y="124">LEFT</text>
-                <text x="248" y="124">RIGHT</text>
-              </svg>
-              {sides.geo && (
-                <div className="sd-geo">
-                  {sides.geo.storeys && (
-                    <span className="sd-g">{sides.geo.storeys === "double" ? "DOUBLE" : "SINGLE"} STOREY · <i>FROM YOUR ANSWERS</i></span>
-                  )}
-                  {sides.geo.substrates.slice(0, 2).map((sub) => (
-                    <span className="sd-g" key={sub}>{sub.toUpperCase()} · <i>FROM YOUR ANSWERS</i></span>
-                  ))}
-                  <button
-                    onClick={() => act({ action: "flag_geometry" }, {
-                      done: "Flagged — geometry is ours to verify, so your estimator will confirm this on site.",
-                    })}
-                  >
-                    Not right? Tell us
-                  </button>
-                </div>
-              )}
-              <div className="sd-legend">
-                <span><i style={{ background: "var(--amber)" }} />TO CONFIRM</span>
-                <span><i style={{ background: "var(--cyan)" }} />CONFIRMED</span>
-                <span><i style={{ background: "#B9C2CB" }} />NOT PAINTING</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="sd-cards">
-            {/* Tom, 15 Sep (late, items 6–8, 11): condition & access are the FIRST
-                questions, one at a time, above the sides. The old "Which sides?"
-                card is gone — that is asked before the gate now (item 3), and a
-                side left off there is not on this screen at all (item 4). */}
-            <Paginated
-              testid="sides-q"
-              title="A few questions first"
-              pill="TIGHTENS YOUR RANGE"
-              steps={condSteps}
-              cardClass={`sd-card ${m.done.cond ? "done" : ""}`}
-              attrs={{ "data-side": "cond" }}
-              settledText={condSettled}
-            />
-            {sides.sides.map(sideCard)}
-
-            {metaCard("extras", "Freestanding extras", (
-              <div className={`sd-q ${extrasAnswered ? "ok" : ""}`}>
-                <p className="sd-ql">Not on a wall — fences, pergolas and the like. <span className="sd-opt">TICK ANY THAT APPLY</span><span className="sd-okc">✓</span></p>
-                <div className="sd-chips">
-                  {extrasTiles.map((t) => (
-                    <Chip key={String(t.key)} on={t.on} label={`${t.on ? "✓ " : "+ "}${t.label}`}
-                      onClick={() => act({ action: "toggle_exterior", key: String(t.key), on: !t.on }, { done: `${t.on ? "Removed" : "Added"} ${t.label.toLowerCase()}.` })} />
-                  ))}
-                </div>
-                {extrasTiles.some((t) => t.key === "fence" && t.on) && (
-                  <div className="sd-chips" style={{ marginTop: 9 }} data-testid="fence-type">
-                    {([["paling", "Paling Fence", "Paling"], ["picket_hand", "Picket Fence (Hand Paint)", "Picket (brushed)"], ["picket_spray", "Picket Fence (Spray)", "Picket (sprayed)"]] as const).map(([type, code, label]) => (
-                      <Chip key={type} on={(exterior?.fenceCode ?? "Paling Fence") === code} label={label}
-                        onClick={() => act({ action: "set_fence_type", type }, { done: `${label} fence — repriced.` })} />
-                    ))}
-                  </div>
-                )}
-                {extrasTiles.some((t) => t.key === "fence" && t.on) && (
-                  <div className="sd-mrow" style={{ display: "flex", marginTop: 9 }}>
-                    <input placeholder="fence metres — or 'not sure'" value={fenceText} onChange={(e) => setFenceText(e.target.value)} />
-                    <button
-                      onClick={() => {
-                        const v = fenceText.trim().toLowerCase();
-                        if (!v) return;
-                        const metres = parseFloat(v.replace(/[^0-9.]/g, ""));
-                        act(
-                          { action: "set_fence", metres: v.includes("not") || isNaN(metres) ? null : metres },
-                          { done: v.includes("not") ? "Not a problem — we'll measure it on the day." : `Fence set to ${metres} m — repriced.` },
-                        );
-                      }}
-                    >
-                      Set
-                    </button>
-                  </div>
-                )}
-                {/* Tom, 5 Oct: the pergola is priced on its top's length × width — never per pergola. */}
-                {extrasTiles.some((t) => t.key === "pergola" && t.on) && (
-                  <div data-testid="pergola-size" style={{ marginTop: 9 }}>
-                    <p className="sd-help" style={{ margin: "0 0 6px" }}>
-                      {exterior?.pergola
-                        ? `Priced on a top of about ${exterior.pergola.lengthM} × ${exterior.pergola.widthM} m. Change it below and confirm.`
-                        : "Roughly how big is the pergola top? Length and width in metres, then Confirm — it's priced on the area."}
-                    </p>
-                    <div className="sd-mrow" style={{ display: "flex", flexWrap: "wrap" }}>
-                      <input placeholder="top length m" inputMode="decimal" value={pergolaL} onChange={(e) => setPergolaL(e.target.value)} data-testid="pergola-length" />
-                      <input placeholder="top width m" inputMode="decimal" value={pergolaW} onChange={(e) => setPergolaW(e.target.value)} data-testid="pergola-width" />
-                      <button data-testid="pergola-confirm"
-                        onClick={() => {
-                          const L = parseFloat(pergolaL.replace(/[^0-9.]/g, ""));
-                          const W = parseFloat(pergolaW.replace(/[^0-9.]/g, ""));
-                          if (!(L > 0 && W > 0)) return;
-                          act({ action: "set_pergola", lengthM: L, widthM: W }, { done: `Pergola top ${L} × ${W} m — repriced.` });
-                        }}
-                      >
-                        Confirm
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ), "Confirm extras ✓")}
-
-            {/* Tom, 15 Sep (late, items 9–10): the two last checks, one at a time,
-                each confirmed with a tick box — no "That's right", no "No — that's
-                everything". A missed side is added back from here (item 4). */}
-            <Paginated
-              testid="sides-last"
-              title="Last checks"
-              pill="NEARLY THERE"
-              steps={lastSteps}
-              cardClass={`sd-card ${m.done.dw && m.done.sweep ? "done" : ""}`}
-              attrs={{ "data-side": "last" }}
-              settledText="Counts confirmed, nothing missing."
-            />
-          </div>
+          <div className="sd-rail">{fromAbove}</div>
+          {cards}
         </div>
       </main>
+      ) : (
+      <div className="sc-ed sd-ed">
+        <main className="sc-wrap">
+          {allDone && autoSend !== "idle" && <AllDoneBanner estimator={estimator?.name ?? null} sentHref={sentHref} state={autoSend === "sending" ? "sending" : autoSend === "sent" ? "sent" : "failed"} />}
+          <div className="sd-rangebar">
+            <div><b>Walk around the house, one side at a time</b><span>Front, both sides, back — confirm each and it turns blue.</span></div>
+          </div>
+          {cards}
+        </main>
 
-      {!embedded && (
-      <div className="sd-stick sc-stick-two" ref={stickRef}>
-        <div className="sc-two">
-          <button type="button" className="sd-cta" data-testid="scope-finalise" onClick={onFinalise}>
-            {autoSend === "sent" ? "See what happens next" : "Finalise my price"}
-          </button>
-          <button type="button" className="sc-btn sc-btn2" data-testid="scope-book" onClick={goBook}>Book a time</button>
-        </div>
+        <aside className="sc-rail" aria-label="Your range">
+          <section className="sc-price" data-testid="price-card">
+            <div className="sc-lbl">
+              <b>Your range <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
+              <span data-testid="tier-next">{ladder.nextUnlock
+                ? `${ladder.nextUnlock.needs.length === 1 ? "One step" : `${ladder.nextUnlock.needs.length} steps`} to ${TIER_LABEL[ladder.nextUnlock.tier]}: ${ladder.nextUnlock.needs.join(" · ")}`
+                : allDone
+                  ? "Everything confirmed — this is as sure as we get before we see it"
+                  : "It climbs with every side you confirm"}</span>
+            </div>
+            <div className="sc-range" data-role="range">
+              <div className="sc-r">{range}</div>
+              <small><span className="sc-gst">Includes GST · within </span><span className={`sc-num ${pendingCount > 0 ? "live" : ""}`} data-testid="range-width">±{payload.bandPct}%</span></small>
+            </div>
+            <div className="sc-band" aria-hidden="true">
+              <span className="was" style={band.was} />
+              <span className="now" style={band.now} />
+            </div>
+            <p className="sc-bandlab">Dashed line: where your guide range started</p>
+            <p className="il-prog sd-prog">{prog.done} OF {prog.total} CONFIRMED</p>
+            <ul className="sc-todo">
+              <li className={m.done.cond ? "d" : ""}><i aria-hidden="true" />Questions about the outside<span>{Number(m.done.cond)}/1</span></li>
+              <li className={liveSides.length > 0 && liveSides.every((x) => x.confirmed) ? "d" : ""}>
+                <i aria-hidden="true" />Sides checked<span>{liveSides.filter((x) => x.confirmed).length}/{liveSides.length}</span>
+              </li>
+              <li className={m.done.dw && m.done.sweep ? "d" : ""}><i aria-hidden="true" />Last checks<span>{Number(m.done.dw) + Number(m.done.sweep)}/2</span></li>
+            </ul>
+            <div className="sd-stick sc-stick sc-stick-two" ref={stickRef}>
+              <div className="sc-two">
+                <button type="button" className="sd-cta sc-btn il-cta" data-testid="scope-finalise" onClick={onFinalise}>
+                  {autoSend === "sent" ? "See what happens next" : "Finalise my price"}
+                </button>
+                <button type="button" className="sc-btn sc-btn2" data-testid="scope-book" onClick={goBook}>Book a time</button>
+              </div>
+            </div>
+          </section>
+          {fromAbove}
+          <div className="sc-estwrap">
+            <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={goBook} compact />
+          </div>
+        </aside>
       </div>
       )}
       <FinalisePrompt open={prompt} onAnswer={answerRemaining} onBook={goBook} onClose={() => setPrompt(false)} />

@@ -531,7 +531,7 @@ export default function QuickLook({
 
           <p className="wz-qhead">Any other areas being painted?</p>
           <p className="wz-hint">Tick all that apply.</p>
-          <ExteriorPickTiles options={EXT_STANDALONE} on={outside.standalone} name="ext-sep"
+          <ExteriorPickTiles options={EXT_STANDALONE} on={outside.standalone} name="ext-sep" chips
             onPick={(v) => onOutside({ standalone: toggleIn(outside.standalone, v) })} />
 
           {/* Tom, 5 Oct 2026: a pergola is priced on its top's footprint, not
@@ -618,7 +618,7 @@ export default function QuickLook({
               prices it good-to-peeling; the tighten screen asks it first. */}
 
           <p className="wz-qhead">Single or double storey?</p>
-          <Cards options={EXT_STOREYS} value={outside.storeys} onPick={(storeys) => onOutside({ storeys })} name="ext-storeys" />
+          <Cards options={EXT_STOREYS} value={outside.storeys} onPick={(storeys) => onOutside({ storeys })} name="ext-storeys" pics />
 
           <p className="wz-qhead">Anything tricky about getting to it?</p>
           <Multi
@@ -728,7 +728,7 @@ export default function QuickLook({
         "Talk it through" (addendum A, R3 — on every step before the range). On a
         phone the picture sits above the question and the talk card at the foot. */}
     <aside className="wz-side" data-testid="ql-side" aria-label="Your job">
-      <PictureCard step={step} quick={quick} suburb={suburb} rooms={planList} planPreviewUrl={planPreviewUrl} planPending={planPending}
+      <PictureCard step={step} quick={quick} outside={outside} suburb={suburb} rooms={planList} planPreviewUrl={planPreviewUrl} planPending={planPending}
         segmentName={commercial?.segment?.name ?? null} />
       <JobSoFar steps={steps} at={step} quick={quick} outside={outside} address={address} roomCount={roomCount}
         segmentName={commercial?.segment?.name ?? null}

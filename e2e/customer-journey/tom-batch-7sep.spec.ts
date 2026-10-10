@@ -207,7 +207,7 @@ test.describe("Tom's 7 Sep batch", () => {
     for (const side of ["left", "right", "back"]) {
       await expect(page.locator(`[data-side="${side}"]`)).toHaveCount(0);
     }
-    await expect(page.locator('[data-side="front"]').locator(".sd-pill")).toHaveText(/CONFIRM THIS SIDE/);
+    await expect(page.locator('[data-side="front"]').locator(".sd-pill")).toHaveText(/Check this side|Close/); // UI refresh S5 (⚑ 7): the mockup's pill wording
     await expect(page.locator(".sd-prog")).toContainText(/OF 5/);
     await expect(page.locator(".sc-r, .sd-range").first()).toHaveText(MONEY_RANGE, { timeout: 30_000 });
 
