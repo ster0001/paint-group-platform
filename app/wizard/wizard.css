@@ -1530,13 +1530,14 @@
 
 /* the room: each surface paints in when ticked; "today" shows the marks */
 .wz .wz-room .s { transition: fill .7s cubic-bezier(.4,0,.2,1); stroke: #16212a; stroke-opacity: .16; stroke-width: 1; stroke-linejoin: round; }
-.wz .wz-room .s-ceiling { fill: #dad3c2; } .wz .wz-room .s-ceiling.on { fill: #fbfcfc; }
-.wz .wz-room .s-wall { fill: #c9bb9c; } .wz .wz-room .s-wall.on { fill: var(--swatch, #f3efe6); transition-delay: .08s; }
-.wz .wz-room .s-cornice { fill: #cfc5ae; } .wz .wz-room .s-cornice.on { fill: #ffffff; }
-.wz .wz-room .s-skirting { fill: #bfb08c; } .wz .wz-room .s-skirting.on { fill: #ffffff; transition-delay: .16s; }
-.wz .wz-room .s-arch { fill: #bfb08c; } .wz .wz-room .s-arch.on { fill: #ffffff; transition-delay: .2s; }
-.wz .wz-room .s-door { fill: #cdbe9c; } .wz .wz-room .s-door.on { fill: #fbfbf8; transition-delay: .24s; }
-.wz .wz-room .s-win { fill: #bfb08c; } .wz .wz-room .s-win.on { fill: #ffffff; transition-delay: .28s; }
+.wz .wz-room .s-ceiling { fill: #cdc3ab; } .wz .wz-room .s-ceiling.on { fill: #ffffff; }
+/* Tom, 10 Oct: painted walls are WHITE, and "today" is a deeper, older tone, so an untick is an obvious change. */
+.wz .wz-room .s-wall { fill: #b3a07a; } .wz .wz-room .s-wall.on { fill: var(--swatch, #ffffff); transition-delay: .08s; }
+.wz .wz-room .s-cornice { fill: #bfb294; } .wz .wz-room .s-cornice.on { fill: #ffffff; }
+.wz .wz-room .s-skirting { fill: #a4926a; } .wz .wz-room .s-skirting.on { fill: #ffffff; transition-delay: .16s; }
+.wz .wz-room .s-arch { fill: #a4926a; } .wz .wz-room .s-arch.on { fill: #ffffff; transition-delay: .2s; }
+.wz .wz-room .s-door { fill: #b8a67f; } .wz .wz-room .s-door.on { fill: #fbfbf8; transition-delay: .24s; }
+.wz .wz-room .s-win { fill: #a4926a; } .wz .wz-room .s-win.on { fill: #ffffff; transition-delay: .28s; }
 .wz .wz-room .shade { fill: #0d161c; opacity: .07; pointer-events: none; }
 .wz .wz-room .floor { fill: #b79c78; }
 .wz .wz-room .s.hl { stroke: var(--cyan); stroke-opacity: 1; stroke-width: 3; animation: wzpulse 1s 2; }
