@@ -6,10 +6,10 @@
  * moves to `visit_booked` through the one confirmations route, the CRM gets
  * the event, and the strip refuses a second booking.
  */
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
-import { credentials, signIn } from "../helpers";
+import { credentials, signIn, test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
 import { defaultWizardState, defaultCustomer } from "../../lib/wizard/state";
 

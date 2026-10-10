@@ -1,6 +1,6 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds } from "./helpers";
+import { credentials, missingCreds, test } from "./helpers";
 import {
   accessTokenFor, contractorIdForEmail, createLoopFixture, customerIdForEmail,
   destroyLoopFixture, serviceClient, type LoopFixture,

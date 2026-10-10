@@ -1,6 +1,6 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, signIn } from "./helpers";
+import { credentials, signIn, test } from "./helpers";
 import { contractorIdForEmail, createLoopFixture, destroyLoopFixture, serviceClient, type LoopFixture } from "./fixtures/woLoop";
 
 /** Screenshot walk for the 4 Sep materials batch — not a gate; run by hand. */

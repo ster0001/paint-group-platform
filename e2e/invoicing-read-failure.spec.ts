@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { expect } from "@playwright/test";
+import { credentials, missingCreds, signIn, test } from "./helpers";
 
 /**
  * The 16 Sep 2026 regression, AS STAFF on the real screen.

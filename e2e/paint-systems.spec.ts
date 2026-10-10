@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { expect } from "@playwright/test";
+import { credentials, missingCreds, signIn, test } from "./helpers";
 
 /**
  * Estimator journey v2, phase 3 — the paint-systems derivation, driven on the

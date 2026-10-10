@@ -1,7 +1,7 @@
-import { test, expect, type Browser } from "@playwright/test";
+import { expect, type Browser } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { credentials, signIn, gotoTodayWith } from "./helpers";
+import { credentials, signIn, gotoTodayWith, test } from "./helpers";
 import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
 
 /**

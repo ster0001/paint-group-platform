@@ -1,7 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { contractorIdForEmail, rpcAs, serviceClient } from "./fixtures/woLoop";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, test } from "./helpers";
 import { priceEstimateTotals, type PricingContext, type BlockInput } from "../lib/pricing/estimate";
 import { revisionContractorPay } from "../lib/revision/contractorRate";
 import type { RateItem, Product } from "../lib/pricing/types";

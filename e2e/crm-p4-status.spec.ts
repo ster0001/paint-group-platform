@@ -1,5 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
-import { pickDay, gotoTodayWith } from "./helpers";
+import { expect, type Page } from "@playwright/test";
+import { pickDay, gotoTodayWith, test } from "./helpers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";

@@ -1,8 +1,8 @@
-import { test, expect, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
-import { gotoTodayWith } from "./helpers";
+import { gotoTodayWith, test } from "./helpers";
 
 /**
  * CRM v2 · P7 — the scale gate's screens, and the theme (C1).

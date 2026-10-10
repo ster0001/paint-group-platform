@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { serviceClient } from "./fixtures/woLoop";
 import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, test } from "./helpers";
 import { buildWorkQueue } from "../lib/crm/work-queue";
 
 /**

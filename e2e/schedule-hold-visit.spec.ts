@@ -1,6 +1,6 @@
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, test } from "./helpers";
 import { contractorIdForEmail, serviceClient } from "./fixtures/woLoop";
 import { addDays } from "../lib/scheduling/dates";
 

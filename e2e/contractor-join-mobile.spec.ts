@@ -1,7 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { rpcAs, serviceClient } from "./fixtures/woLoop";
-import { credentials, missingCreds } from "./helpers";
+import { credentials, missingCreds, test } from "./helpers";
 
 /**
  * Joining requires a mobile (Tom, 7 Oct 2026). Through a REAL invite: the

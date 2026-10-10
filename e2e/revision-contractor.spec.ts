@@ -1,10 +1,10 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   serviceClient, rpcAs, type LoopFixture,
 } from "./fixtures/woLoop";
-import { credentials, missingCreds, signIn, TINY_SIGNATURE_PNG } from "./helpers";
+import { credentials, missingCreds, signIn, TINY_SIGNATURE_PNG, test } from "./helpers";
 
 /**
  * Addendum A3, AS CONTRACTOR (rulings 2–3), as amended 24 Sep 2026 (Tom:

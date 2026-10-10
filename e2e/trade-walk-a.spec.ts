@@ -14,11 +14,11 @@
  *
  * Desktop at 1280 and phone at 430 (brief: both compositions checked).
  */
-import { test, expect, type Browser } from "@playwright/test";
+import { expect, type Browser } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
-import { credentials, signIn } from "./helpers";
+import { credentials, signIn, test } from "./helpers";
 import { serviceClient } from "./fixtures/woLoop";
 import { assertNoPasswordField, deleteUserByEmail, magicLinkFor } from "./fixtures/portal";
 import { defaultWizardState } from "../lib/wizard/state";

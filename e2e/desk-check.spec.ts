@@ -1,7 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
-import { credentials, signIn } from "./helpers";
+import { credentials, signIn, test } from "./helpers";
 import { serviceClient } from "./fixtures/woLoop";
 import { defaultWizardState } from "../lib/wizard/state";
 

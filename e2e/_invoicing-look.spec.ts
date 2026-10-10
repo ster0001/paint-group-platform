@@ -1,5 +1,4 @@
-import { test } from "@playwright/test";
-import { credentials, signIn } from "./helpers";
+import { credentials, signIn, test } from "./helpers";
 const OUT = process.env.LOOK_OUT ?? "test-results/invoicing-look";
 
 test("invoicing screens on a phone", async ({ page }) => {

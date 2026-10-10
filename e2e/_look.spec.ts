@@ -1,5 +1,4 @@
-import { test } from "@playwright/test";
-import { credentials, signIn } from "./helpers";
+import { credentials, signIn, test } from "./helpers";
 const OUT = "/private/tmp/claude-501/-Users-tomroman-Documents-paint-group-platform-/06c484f8-b472-48c8-ac41-1becfb5f4c2a/scratchpad/shots";
 
 test("edit job sheet path", async ({ page }) => {
