@@ -107,4 +107,5 @@ Claude Code appends one line per ruling: date, ⚑ number, the ruling in Tom's w
 | 9 Oct 2026 | — | Segment kickers in capitals: fixed on screen only, in S1/S7. The seed/row wording fix is a separate change for Tom to approve. | S1, S7 |
 | 9 Oct 2026 | — | "mockup approved" — all six job types, phone check done. | S0 |
 | 9 Oct 2026 | — | S1 diff approved, incl. `vitest.config.mts` running `app/wizard/**/*.test.ts`, page colour kept `#F4F6F8`, new `--onpaint`. Phone check: "s1 looks good". | S1 |
+| 10 Oct 2026 | — | S2 approved ("s2 looks good"); painted walls white, "today" a deeper tone so an untick shows a bigger difference. Spec edits `{ exact: true }` ×3 approved. | S2 |
 | 9 Oct 2026 | 12 | "Imported · Custom surface" chip: its own small fix, written up separately, to land before go-live; not in this plan. | — (`docs/briefs/fix-imported-custom-surface-chip.md`) |
