@@ -67,7 +67,7 @@ function Chip({ on, label, hint, onClick }: { on: boolean; label: string; hint?:
   );
 }
 
-export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, estimator = null, customerSuburb = null }: {
+export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, openKey, onOpenKey, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, estimator = null, customerSuburb = null }: {
   estimateId: string;
   initial: CustomerPayload;
   initialSides: SidesView;
@@ -91,13 +91,19 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
    * embedded mode drops SidesEditor's own chrome (header/range/CTA) and
    * reports progress + range upward so the host owns one combined loop. */
   embedded?: boolean;
-  onState?: (s: { progress: SidesView["progress"]; payload: CustomerPayload }) => void;
+  onState?: (s: { progress: SidesView["progress"]; payload: CustomerPayload; sides: SidesView }) => void;
+  /** UI refresh S6: on a "both" page the room editor owns the ONE open card —
+   * it passes the side that is open ("" = none of these) and hears every open. */
+  openKey?: string;
+  onOpenKey?: (key: string) => void;
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [sides, setSides] = useState<SidesView>(initialSides);
   const [exterior, setExterior] = useState<CustomerExteriorView | null>(initialExterior);
   const [ladder, setLadder] = useState<Ladder>(initialLadder);
-  const [open, setOpen] = useState<string>("front");
+  const [ownOpen, setOwnOpen] = useState<string>("front");
+  const open = openKey ?? ownOpen;
+  const setOpen = (k: string) => { if (onOpenKey) onOpenKey(k); else setOwnOpen(k); };
   const [dims, setDims] = useState({ L: "", H: "" });
   const [addOpen, setAddOpen] = useState<SideKey | null>(null);
   /** Tom, 8 Sep: a side can be given the customer's own name ("Courtyard"). */
@@ -213,7 +219,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         }
         setPayload(j);
         if (j.sides) setSides(j.sides);
-        if (j.sides) onState?.({ progress: j.sides.progress, payload: j });
+        if (j.sides) onState?.({ progress: j.sides.progress, payload: j, sides: j.sides });
         if (j.exterior !== undefined) setExterior(j.exterior ?? null);
         if (j.ladder) setLadder(j.ladder);
         // The interior editor's $-delta toasts, same recipe: the range
@@ -1102,14 +1108,13 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       )}
 
       {embedded ? (
-      <main className="sd-wrap">
+      // UI refresh S6 (brief §7.9): the outside half of the stacked page. The house from
+      // above lives in the room editor's "Your home" card, under the plan.
+      <main className="sd-wrap sd-stacked" id="outside">
         <div className="sd-rangebar">
-          <div><b>Now the outside — one side at a time</b><span>Front, both sides, back — confirm each and it turns blue.</span></div>
+          <div><b>Now the outside, one side at a time</b><span>Front, both sides, back — check each and it turns blue.</span></div>
         </div>
-        <div className="sd-grid">
-          <div className="sd-rail">{fromAbove}</div>
-          {cards}
-        </div>
+        {cards}
       </main>
       ) : (
       <div className="sc-ed sd-ed">

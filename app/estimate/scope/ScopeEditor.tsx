@@ -63,6 +63,7 @@ import Wordmark from "@/app/wizard/Wordmark";
 import WizardHeader from "@/app/wizard/WizardHeader";
 import { rangeBand } from "./rangeBand";
 import PlanMap from "@/app/wizard/pictures/PlanMap";
+import TopView, { type TopSide } from "@/app/wizard/pictures/TopView";
 
 /** R3: the interior confirm-loop state that rides every customer response. */
 export type InteriorLoopView = {
@@ -224,6 +225,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const addRoomType = addRoom.type ?? (addRoom.name.trim() ? roomTypeForName(addRoom.name) : null);
   const [extras, setExtras] = useState({ on: initialExtras.on, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
+  // UI refresh S6: the outside half's sides, for the jump chips, the checklist and the house from above.
+  const [sidesView, setSidesView] = useState<SidesView | null>(initialSides);
   const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; H?: string; open: boolean }>>({});
   // Tom, 7 Oct 2026 (item 7): "Add room" opens the new room straight away,
   // size boxes ready — the ids on screen before the add, so the newcomer is
@@ -290,6 +293,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     setOpenCard(key);
     // The card's NAME must land in view — not its middle (see scrollCard.ts).
     afterLayout(() => scrollCardToTop(document.querySelector(`[data-card="${key}"]`)));
+  }
+  /** UI refresh S6: a "both" page — the inside is done, so the first side still to check opens. */
+  function openFirstSide() {
+    const order = ["front", "left", "right", "back"];
+    const next = order.find((k) => { const x = sidesView?.sides.find((y) => y.key === k); return x && x.include !== false && !x.confirmed; });
+    if (!next) return;
+    setOpenCard(`side:${next}`);
+    afterLayout(() => scrollCardToTop(document.querySelector(`.sd-card[data-side="${next}"]`)));
   }
   function nextUnconfirmed(il: InteriorLoopView): string {
     const room = il.rooms.find((r) => !r.confirmed);
@@ -547,7 +558,11 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         say(done);
         if (j.interiorLoop) {
           const nxt = nextUnconfirmed(j.interiorLoop);
-          if (nxt) openAndScroll(nxt);
+          // UI refresh S6 (Tom, 10 Oct): on a "both" page, checking the LAST room opens the
+          // front straight away; the inside's last checks wait further down the page.
+          const lastRoom = cardKey.startsWith("room:") && j.interiorLoop.rooms.every((r: { confirmed: boolean }) => r.confirmed);
+          if (initialSides && (lastRoom || !nxt)) openFirstSide();
+          else if (nxt) openAndScroll(nxt);
         }
       } catch {
         say("That didn't save — check the connection and try again.");
@@ -670,6 +685,13 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     setNotes((n) => ({ ...n, [areaId]: "" }));
   }
 
+  // UI refresh S6: the sides still on the estimate, and their state from above.
+  const liveSides = sidesView ? sidesView.sides.filter((x) => x.include !== false) : null;
+  const topSides: TopSide[] | null = sidesView ? (["front", "back", "left", "right"] as const).map((k) => {
+    const x = sidesView.sides.find((y) => y.key === k);
+    const label = k === "front" ? "Front" : k === "back" ? "Back" : k === "left" ? "Left" : "Right";
+    return { key: k, label, state: !x || x.include === false ? "skip" : x.confirmed ? "ok" : "todo" };
+  }) : null;
   // Batch 4: ONE loop — interior items plus the embedded sides items.
   const combined = iloop ? {
     done: iloop.progress.done + (sidesProg?.done ?? 0),
@@ -971,6 +993,19 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             <button type="button" className="wz-linkish" style={{ display: "inline", margin: 0 }} onClick={() => router.push(`/estimate/scope?id=${estimateId}`)} data-testid="chat-open-editor">Open the full editor →</button>
           </p>
         )}
+        {/* UI refresh S6 (brief §7.9): jump links, not tabs — they scroll, never hide a section. */}
+        {initialSides && iloop && liveSides && (
+          <nav className="sc-jump" aria-label="Jump to" data-testid="both-jump">
+            <button type="button" className={iloop.rooms.every((r) => r.confirmed) ? "done" : ""} data-testid="both-jump-inside"
+              onClick={() => scrollCardToTop(document.getElementById("inside"))}>
+              Inside <b>{iloop.rooms.filter((r) => r.confirmed).length}/{iloop.rooms.length}</b> rooms
+            </button>
+            <button type="button" className={liveSides.every((x) => x.confirmed) ? "done" : ""} data-testid="both-jump-outside"
+              onClick={() => scrollCardToTop(document.getElementById("outside"))}>
+              Outside <b>{liveSides.filter((x) => x.confirmed).length}/{liveSides.length}</b> sides
+            </button>
+          </nav>
+        )}
         {/* Tom, 14 Sep (item 4): the estimator strip moved into the frozen header. */}
         {/* Tom, 14 Sep (items 5, 14, 15): the details to settle, one question at a time. */}
         {!chatMode && detailSteps.length > 0 && (
@@ -1154,7 +1189,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             came to check below the fold. They now follow the rooms, where they
             read as the last two questions rather than the first two. */}
         <div className="sc-cols">
-        <div className="sc-cards">
+        <div className="sc-cards" id="inside">
           {rooms.filter((r) => r.garagePending !== true).map((room, roomIndex) => {
             const main = room.tiles.filter((t) => !t.longTail);
             const tail = room.tiles.filter((t) => t.longTail);
@@ -1643,22 +1678,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             );
           })}
 
-          {initialSides && (
-            // Batch 4: the Both-job editor stacks the SIDES loop below the
-            // rooms — the embedded SidesEditor owns its cards and actions,
-            // reports progress + range up so this page's single header/CTA
-            // covers the whole walk. (The old element-grouped exterior
-            // editor is deleted — no estimate renders it any more.)
-            <SidesEditor
-              estimateId={estimateId}
-              initial={initial}
-              initialSides={initialSides}
-              initialExterior={initialExterior}
-              initialLadder={ladder}
-              embedded
-              onState={({ progress, payload: p }) => { setSidesProg(progress); setPayload(p); }}
-            />
-          )}
 
           {!iloop && (
             <div className="sc-addrooms">
@@ -1713,6 +1732,26 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               attrs={{ "data-dw-done": iloop?.meta.done.dw ? "1" : "0", "data-sweep-done": iloop?.meta.done.sweep ? "1" : "0" }}
             />
           )}
+          {initialSides && (
+            // Batch 4: the Both-job editor stacks the SIDES loop below the
+            // inside (UI refresh S6: below the inside's last checks, brief §7.9 order) and the
+            // rooms — the embedded SidesEditor owns its cards and actions,
+            // reports progress + range up so this page's single header/CTA
+            // covers the whole walk. (The old element-grouped exterior
+            // editor is deleted — no estimate renders it any more.)
+            <SidesEditor
+              estimateId={estimateId}
+              initial={initial}
+              initialSides={initialSides}
+              initialExterior={initialExterior}
+              initialLadder={ladder}
+              embedded
+              onState={({ progress, payload: p, sides: v }) => { setSidesProg(progress); setPayload(p); setSidesView(v); }}
+              // UI refresh S6 (brief §7.9): ONE open card across the whole page.
+              openKey={openCard.startsWith("side:") ? openCard.slice(5) : ""}
+              onOpenKey={(k) => setOpenCard(k ? `side:${k}` : "")}
+            />
+          )}
           {/* Tom, 14 Sep (item 8): What we'll do sits at the very bottom of the page. */}
           {!chatMode && <WhatWeDo lines={systems} tellUsHref={`/estimate/book?id=${estimateId}`} />}
         </div>
@@ -1749,7 +1788,27 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               ? `${combined!.done} OF ${combined!.total} CONFIRMED`
               : `${iloop.rooms.filter((r) => r.confirmed).length} OF ${iloop.rooms.length} ROOMS · ${Number(iloop.meta.done.dw) + Number(iloop.meta.done.sweep)} OF 2 CHECKS`}</p>
           )}
-          {iloop && (
+          {iloop && sidesView && liveSides && (
+            <ul className="sc-todo" data-testid="price-todo-both">
+              <li className={detailSteps.every((d) => d.answered) ? "d" : ""}>
+                <i aria-hidden="true" />About the whole home<span>{detailSteps.filter((d) => d.answered).length}/{detailSteps.length}</span>
+              </li>
+              <li className={iloop.rooms.every((r) => r.confirmed) ? "d" : ""}>
+                <i aria-hidden="true" />Rooms checked<span>{iloop.rooms.filter((r) => r.confirmed).length}/{iloop.rooms.length}</span>
+              </li>
+              <li className={sidesView.meta.done.cond ? "d" : ""}>
+                <i aria-hidden="true" />Questions about the outside<span>{Number(sidesView.meta.done.cond)}/1</span>
+              </li>
+              <li className={liveSides.every((x) => x.confirmed) ? "d" : ""}>
+                <i aria-hidden="true" />Sides checked<span>{liveSides.filter((x) => x.confirmed).length}/{liveSides.length}</span>
+              </li>
+              <li className={iloop.meta.done.dw && iloop.meta.done.sweep && sidesView.meta.done.dw && sidesView.meta.done.sweep ? "d" : ""}>
+                <i aria-hidden="true" />Last checks
+                <span>{Number(iloop.meta.done.dw) + Number(iloop.meta.done.sweep) + Number(sidesView.meta.done.dw) + Number(sidesView.meta.done.sweep)}/4</span>
+              </li>
+            </ul>
+          )}
+          {iloop && !sidesView && (
             <ul className="sc-todo">
               {detailSteps.length > 0 && (
                 <li className={detailSteps.every((d) => d.answered) ? "d" : ""}>
@@ -1792,7 +1851,13 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               }))} />
             </div>
           )}
-          <p className="sc-home-key"><span className="todo">Still to check</span><span className="ok">Checked</span></p>
+          {/* UI refresh S6: a "both" job — the house from above under the plan; tap a side to open it. */}
+          {topSides && (
+            <div className="sc-home-art sc-home-top" data-testid="both-from-above">
+              <TopView sides={topSides} onPick={(k) => { setOpenCard(`side:${k}`); afterLayout(() => scrollCardToTop(document.querySelector(`.sd-card[data-side="${k}"]`))); }} />
+            </div>
+          )}
+          <p className="sc-home-key"><span className="todo">Still to check</span><span className="ok">Checked</span>{topSides && <span className="off">Not painting</span>}</p>
         </section>
 
         {/* Tom, 14 Sep (item 4): the estimator — and the Call button — always to hand. */}

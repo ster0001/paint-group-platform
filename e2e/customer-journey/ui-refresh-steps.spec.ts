@@ -537,3 +537,33 @@ test.describe("UI refresh S5 · home outside", () => {
     await ctx.close();
   });
 });
+
+test.describe("UI refresh S6 · home, both — one stacked page", () => {
+  test("rooms then sides on one page; ONE open card across both; jump links scroll; five rows; the house from above under the plan", async ({ page }) => {
+    test.setTimeout(300_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await driveNoPlanWizard(page, { jobType: "both" });
+    await openScopeEditor(page);
+    // Both halves are in the page, the outside under its own heading.
+    await expect(page.locator(".sc-rc[data-room]").first()).toBeVisible();
+    await expect(page.locator("#outside")).toContainText("Now the outside, one side at a time");
+    // One open card: a room is open, so no side is.
+    await expect(page.locator(".sc-rc.open")).toHaveCount(1);
+    await expect(page.locator(".sd-card.open")).toHaveCount(0);
+    // The price card: five rows; Your home: the house from above under the plan.
+    await expect(page.getByTestId("price-todo-both").locator("li")).toHaveCount(5);
+    const above = page.getByTestId("both-from-above");
+    await expect(above.locator("[data-edge='front']")).toHaveAttribute("data-state", "todo");
+    // A jump link scrolls; it never hides the other half.
+    await page.getByTestId("both-jump-outside").click();
+    await expect(page.locator("#outside .sd-rangebar")).toBeInViewport();
+    await expect(page.locator(".sc-rc[data-room]").first()).toBeAttached();
+    // Tap a side from above: it opens and the room closes.
+    await above.locator("[data-edge='back']").click();
+    await expect(page.locator(".sd-card[data-side='back'].open")).toHaveCount(1);
+    await expect(page.locator(".sc-rc.open")).toHaveCount(0);
+    // And back: opening a room closes the side.
+    await page.locator(".sc-rc[data-room] .il-hd").first().click();
+    await expect(page.locator(".sd-card.open")).toHaveCount(0);
+  });
+});
