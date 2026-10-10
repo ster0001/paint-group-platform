@@ -12,6 +12,7 @@ import { AFTER_HOURS_NOTE, officeOpenAt } from "@/lib/messaging/officeHours";
 import SignaturePad from "@/app/components/SignaturePad";
 import { warrantyAttachmentLine } from "@/lib/warranty/terms";
 import "../customer.css";
+import { clientId } from "@/app/components/clientId";
 
 // The public token page keeps this row shape; the builder passes a live snapshot
 // with preview=true (no token, no writes).
@@ -150,7 +151,7 @@ export default function CustomerEstimate({
   useEffect(() => {
     if (!interactive) return;
     const supabase = createClient();
-    const session = crypto.randomUUID();
+    const session = clientId();
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     let ms = 0;
     // NB: the supabase query builder is lazy — it only fires when awaited, so

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { clientId } from "./clientId";
 
 /**
  * Address autocomplete over the server proxy (/api/places/*) — the ONE
@@ -24,7 +25,7 @@ export function useAddressLookup() {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [available, setAvailable] = useState(true);
-  const sessionRef = useRef<string>(crypto.randomUUID());
+  const sessionRef = useRef<string>(clientId());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seqRef = useRef(0);
 
@@ -71,11 +72,11 @@ export function useAddressLookup() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ placeId: s.placeId, sessionToken: sessionRef.current }),
       });
-      sessionRef.current = crypto.randomUUID(); // a session ends at details
+      sessionRef.current = clientId(); // a session ends at details
       if (!res.ok) return null;
       return (await res.json()) as { address: PickedAddress; inServiceArea: boolean | null };
     } catch {
-      sessionRef.current = crypto.randomUUID();
+      sessionRef.current = clientId();
       return null;
     }
   }
