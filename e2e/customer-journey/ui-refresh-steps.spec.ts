@@ -687,6 +687,9 @@ test.describe("UI refresh S8a · the sheet pattern", () => {
     b = await sheetBox(page, "[data-testid='wz-chat-panel']");
     expect(Math.round(b.right)).toBe(b.vw);
     expect(Math.round(b.width)).toBeLessThanOrEqual(480);
+    // The header's chat button is also the close — it must stay clickable with the panel open.
+    await page.getByTestId("wz-chat-bubble").click();
+    await expect(page.getByTestId("wz-chat-panel")).toHaveCount(0);
   });
 
   test("phone: the same sheets come up from the bottom, full width — never a full-page takeover", async ({ browser }) => {

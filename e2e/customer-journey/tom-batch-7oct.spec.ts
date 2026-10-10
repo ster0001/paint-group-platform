@@ -67,10 +67,12 @@ test("Add room by name alone opens the new room with its size boxes ready; a wal
   // 5 · sized as a walk-in robe.
   await expect(wir.locator(".il-size").first()).toContainText("2 × 1.25 m");
   // And the card's name is in view (its header is inside the viewport), not off the bottom of the page.
-  const box = await wir.locator(".il-hd").boundingBox();
+  // UI refresh S9 (Tom's OK, 11 Oct): the page smooth-scrolls up to the new room (about 0.8s
+  // in the S4 layout) — wait for it to land rather than measuring mid-scroll.
   const vp = page.viewportSize()!;
-  expect(box, "the new room's header is on screen").not.toBeNull();
-  expect(box!.y).toBeGreaterThanOrEqual(0);
+  await expect.poll(async () => (await wir.locator(".il-hd").boundingBox())?.y ?? -1, { timeout: 3_000, message: "the new room's header is on screen" })
+    .toBeGreaterThanOrEqual(0);
+  const box = await wir.locator(".il-hd").boundingBox();
   expect(box!.y).toBeLessThan(vp.height);
 
   // 8 · its own ceiling height, with the size.

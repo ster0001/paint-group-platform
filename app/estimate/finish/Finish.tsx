@@ -150,6 +150,10 @@ export default function Finish({
 
   return (
     <div className="wz-wrap wz-finish" data-testid="finish">
+      {/* UI refresh S9 (brief §7.6): two columns — the range and what you've told us on the
+          left, "Make it a fixed price" and the person on the right. Same data, same doors. */}
+      <div className="wz-fin-main">
+      <section className="wz-fin-range">
       <p className="wz-kick">Your detailed range</p>
       <div className="wz-range" data-testid="finish-range">
         {fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}
@@ -165,7 +169,11 @@ export default function Finish({
         <span className={tier === "detailed" ? "on" : ""}>Detailed</span>
         <span className={tier === "confirmed" ? "on" : ""}>Confirmed</span>
       </div>
+      </section>
+      </div>
 
+      <aside className="wz-fin-side" aria-label="Make it a fixed price">
+      <section className="wz-fin-fix">
       <h2 className="wz-doors-head">Make it a fixed price</h2>
       {/**
         * C7 — once it IS a fixed price, the doors are gone.
@@ -258,6 +266,20 @@ export default function Finish({
         />
       )}
 
+      </section>
+      {/* C11 — the person is in the screen, on the finish line too. */}
+      <EstimatorStrip estimator={estimator} suburb={suburb} companyPhone={companyPhone} bookHref={`/estimate/book?id=${estimateId}`} />
+
+      {companyPhone && (
+        <p className="wz-reveal-call">
+          <a href={`tel:${companyPhone.replace(/[^0-9+]/g, "")}`}>Call {companyPhone}</a>
+          {" · "}
+          <a href={`/estimate/book?id=${estimateId}`}>Request a call back</a>
+        </p>
+      )}
+      </aside>
+
+      <div className="wz-fin-main wz-fin-told">
       <h2 className="wz-doors-head">What you&rsquo;ve told us</h2>
       <ul className="wz-summary" data-testid="finish-summary">
         {rows.map((r) => (
@@ -274,20 +296,10 @@ export default function Finish({
       <WhatWeDo lines={whatWeDoLines(input.systems)} tellUsHref={`/estimate/book?id=${estimateId}`} />
 
       <p className="wz-notincluded" data-testid="finish-excluded">{NOT_INCLUDED}</p>
-
-      {/* C11 — the person is in the screen, on the finish line too. */}
-      <EstimatorStrip estimator={estimator} suburb={suburb} companyPhone={companyPhone} bookHref={`/estimate/book?id=${estimateId}`} />
-
-      {companyPhone && (
-        <p className="wz-reveal-call">
-          <a href={`tel:${companyPhone.replace(/[^0-9+]/g, "")}`}>Call {companyPhone}</a>
-          {" · "}
-          <a href={`/estimate/book?id=${estimateId}`}>Request a call back</a>
-        </p>
-      )}
       <p className="wz-reveal-call">
         <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}`}>← Back to your estimate</a>
       </p>
+      </div>
     </div>
   );
 }

@@ -47,7 +47,7 @@ export default async function VisitPage({ searchParams }: { searchParams: Promis
 
   const [ctx, { company }, contact] = await Promise.all([loadVisitContext(svc, est), loadMessaging(svc), getCompanyContact()]);
   return (
-    <div className="wz">
+    <div className="wz wz-vpage">
       <header className="wz-top"><Wordmark logoUrl={contact.logoUrlLight || company.logoUrl || null} /></header>
       <VisitBooking
         estimateId={est.id}
