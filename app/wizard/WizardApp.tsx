@@ -154,9 +154,11 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first" }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first" }: {
   /** UI refresh S2 (⚑ 23): the estimator the wizard resolves (`resolveEstimator`), named in "Talk it through". Null names nobody. */
   estimatorName?: string | null;
+  /** UI refresh S3 (⚑ 5): the homepage's trust claims, for the range screen. */
+  trust?: { rating: number | null; count: number | null; url: string | null; warranty: string | null; warrantyNote: string | null } | null;
   /** S6 (R6): the gate order in Booking rules when the page loaded. A resumed session keeps its own. */
   gateOrder?: "details_first" | "range_first";
   roomTypes: string[];
@@ -1708,11 +1710,24 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   }
   if (screen === "reveal" && reveal) {
     return (
-      <div data-ready="1">
-        <header className="wz-top">
-          <Wordmark logoUrl={logoUrl} />
-          <button type="button" className="wz-exit wz-book" onClick={() => setBookOpen(true)} data-testid="save-and-book-pill">Save &amp; book</button>
-        </header>
+      <div data-ready="1" className="wz-shell">
+        {/* UI refresh S3 (brief §7.1): after the details, the rail is the three accuracy steps. */}
+        <WizardHeader
+          logo={<Wordmark logoUrl={logoUrl} />}
+          steps={[]}
+          at="gate"
+          after={{
+            at: 0,
+            labels: [
+              "Guide range",
+              reveal.payload.parts ? "Rooms and sides" : quick.jobType === "exterior" ? "Side by side" : reveal.payload.commercial ? "Area by area" : "Room by room",
+              `Fixed by ${reveal.payload.estimator?.name?.trim().split(/\s+/)[0] || "your estimator"}`,
+            ],
+          }}
+          phone={companyPhone}
+          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready place="header" /> : undefined}
+          onSaveBook={() => setBookOpen(true)}
+        />
         <SaveAndBookSheet
           open={bookOpen}
           onClose={() => setBookOpen(false)}
@@ -1766,6 +1781,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           onMessage={() => { void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
           contactKnown={contactKnown}
           prefillEmail={prefill?.email}
+          firstName={prefill?.name ?? state.contact.name}
+          trust={trust}
         />
         )}
       </div>

@@ -18,7 +18,9 @@ import { railFor, STEP_LABELS } from "./stepRail";
  * finds it. No backdrop-filter: that would make it the containing block for
  * the chat panel, which is `position: fixed` and lives inside it.
  */
-export default function WizardHeader({ logo, steps, at, done = false, phone, chat, onSaveBook }: {
+export default function WizardHeader({ logo, steps, at, done = false, phone, chat, onSaveBook, after }: {
+  /** UI refresh S3: after the details, the rail is Guide range → (how it is checked) → Fixed by (estimator). */
+  after?: { at: 0 | 1 | 2; labels: [string, string, string] };
   logo: ReactNode;
   /** `stepsFor()` for the answers so far — never a list of our own. */
   steps: readonly QuickLookStep[];
@@ -31,13 +33,26 @@ export default function WizardHeader({ logo, steps, at, done = false, phone, cha
   onSaveBook?: () => void;
 }) {
   const rail = railFor(steps, at);
-  const progress = done ? 1 : rail.progress;
+  const progress = after ? (after.at + 1) / 3 : done ? 1 : rail.progress;
   const tel = phone ? `tel:${phone.replace(/\s+/g, "")}` : null;
   return (
     <header className="wz-top wz-head" data-testid="wz-head">
       <div className="wz-head-in">
         <span className="wz-head-logo">{logo}</span>
         <nav className={`wz-rail ${rail.compact ? "compact" : ""}`} aria-label="Progress">
+          {after ? (
+            <ol data-testid="wz-rail" data-steps={3} data-phase="after">
+              {after.labels.map((l, i) => {
+                const state = i < after.at ? "done" : i === after.at ? "cur" : "todo";
+                return (
+                  <li key={l} className={state} data-state={state} aria-current={state === "cur" ? "step" : undefined}>
+                    <span className="n" aria-hidden="true">{state === "done" ? <Tick /> : i + 1}</span>
+                    <span className="l">{l}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : (
           <ol data-testid="wz-rail" data-steps={rail.steps.length}>
             {rail.steps.map((s, i) => {
               const state = done || i < rail.current ? "done" : i === rail.current ? "cur" : "todo";
@@ -50,6 +65,7 @@ export default function WizardHeader({ logo, steps, at, done = false, phone, cha
             })}
             <li className="end" data-testid="wz-rail-end"><span className="l">{rail.end}</span></li>
           </ol>
+          )}
         </nav>
         <div className="wz-head-r">
           {tel && (
@@ -66,7 +82,9 @@ export default function WizardHeader({ logo, steps, at, done = false, phone, cha
       </div>
       <i className="wz-stripe" style={{ width: `${Math.round(progress * 1000) / 10}%` }} aria-hidden="true" />
       <div className="wz-mprog" data-testid="wz-mprog">
-        <p><b>{rail.phoneLine.split(" · ")[0]}</b> · {STEP_LABELS[at].long}<span>{done ? "Working it out" : rail.remaining}</span></p>
+        {after
+          ? <p><b>{after.labels[after.at]}</b><span>{after.at + 1} of 3</span></p>
+          : <p><b>{rail.phoneLine.split(" · ")[0]}</b> · {STEP_LABELS[at].long}<span>{done ? "Working it out" : rail.remaining}</span></p>}
         <i aria-hidden="true"><em style={{ width: `${Math.round(progress * 1000) / 10}%` }} /></i>
       </div>
     </header>

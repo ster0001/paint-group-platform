@@ -30,7 +30,7 @@ export default function WhatWeDo({ lines, tellUsHref, compact = false }: {
     <section className={`wz-do ${compact ? "wz-do-compact" : ""}`} data-testid="what-we-do">
       <div className="wz-do-head">
         <h2>What we&rsquo;ll do</h2>
-        <span className="wz-opt">PLAIN ENGLISH</span>
+        <span className="wz-opttag">In plain English</span>
       </div>
       <ul className="wz-do-list">
         {/* C8b: the exterior derivation gives several lines one group, so the
