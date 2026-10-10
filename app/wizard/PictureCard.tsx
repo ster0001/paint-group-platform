@@ -10,6 +10,11 @@ import PlanViewer from "./PlanViewer";
 import OutsideHousePicture from "./pictures/OutsideHousePicture";
 import TopView, { type TopSide } from "./pictures/TopView";
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
+import AreaPlan, { type AreaBlock } from "./pictures/AreaPlan";
+import WarehousePicture from "./pictures/WarehousePicture";
+import SegmentBuilding from "./pictures/SegmentBuilding";
+import { commercialSurfaceKeys, isWarehouse, type CommercialAnswers, type Segment } from "@/lib/wizard/segments";
+import { WH_HEIGHTS } from "@/lib/wizard/warehouse";
 
 /**
  * The picture card (UI refresh S2, brief §7.2; components doc §4) — the live
@@ -19,8 +24,10 @@ import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
  * the Job, Condition and details steps, the floor plan on Rooms (or the
  * customer's own floorplan, zoomable, once it has been read). S5: the house
  * element by element on the Outside step (and an outside job's gate), the
- * house from above on Sides. The warehouse is S7's; until then commercial
- * steps show the building.
+ * house from above on Sides. S7: commercial — the area plan on Areas (one
+ * block per kind of area, in the segment's words), the warehouse inside on
+ * Building, the room (area segments) or the warehouse on Job; the building on
+ * the visit-only steps.
  *
  * ⚑ 1 (colour try-on swatches) is OFF (`UI_FLAGS.colourTryOn`): the walls take one neutral
  * fresh tone and no swatches are drawn until Tom rules.
@@ -53,7 +60,7 @@ const CONDITION: Record<string, [string, string]> = {
   needs_work: ["Needs work.", "Flaking, cracked plaster, water marks or damage."],
 };
 
-export default function PictureCard({ step, quick, outside, suburb, rooms, planPreviewUrl, planPending, segmentName }: {
+export default function PictureCard({ step, quick, outside, suburb, rooms, planPreviewUrl, planPending, segmentName, com = null }: {
   step: QuickLookStep;
   quick: QuickLook;
   /** The outside answers, for the Outside and Sides pictures. */
@@ -65,11 +72,19 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
   planPreviewUrl: string | null;
   planPending: boolean;
   segmentName: string | null;
+  /** S7: the chosen segment and its answers, for the commercial pictures. */
+  com?: { segment: Segment | null; answers: CommercialAnswers | null; segmentKey?: string | null } | null;
 }) {
   const interior = quick.jobType !== "exterior" && quick.propertyKind !== "commercial";
   const outsideJob = quick.jobType === "exterior" && quick.propertyKind !== "commercial";
-  const which: "house" | "room" | "plan" | "outside" | "top" =
-    step === "outside" || (outsideJob && step === "gate") ? "outside"
+  const seg = com?.segment ?? null;
+  const ans = com?.answers ?? null;
+  const wh = !!seg && isWarehouse(seg);
+  const which: "house" | "room" | "plan" | "outside" | "top" | "areas" | "warehouse" | "comroom" =
+    seg && ans && (step === "com_warehouse" || (step === "com_job" && wh)) ? "warehouse"
+      : seg && ans && step === "com_areas" ? "areas"
+        : seg && ans && step === "com_job" ? "comroom"
+          : step === "outside" || (outsideJob && step === "gate") ? "outside"
       : step === "sides" ? "top"
         : interior && (step === "job" || step === "condition" || step === "gate") ? "room"
           : interior && step === "rooms" ? "plan"
@@ -110,6 +125,16 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
     key: k, label: SIDE_NAME[k], state: chosenSides.includes(k) ? "on" : "off",
   }));
 
+  // S7: the commercial pictures read the segment row and the answers — no area named here.
+  const areaBlocks: AreaBlock[] = seg && ans ? [
+    ...(seg.config.counts ?? []).map(([key, label]) => ({ key, label, count: ans.counts[key] ?? 0 })),
+    ...ans.also.map((label) => ({ key: `also:${label}`, label, count: 1, also: true })),
+  ] : [];
+  const comPainted: RoomSurface[] = seg && ans && !wh
+    ? (commercialSurfaceKeys(seg, ans).keys.filter((k) => k in NAME) as RoomSurface[])
+    : [];
+  const heightLabel = ans ? WH_HEIGHTS.find((h) => h.value === ans.roofHeight)?.label ?? "" : "";
+
   const onCount = rooms.filter((r) => r.state !== "off").length;
   let title = "Your place";
   let tag = suburb ?? "";
@@ -132,6 +157,18 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
       : planPreviewUrl
         ? "Pinch or use + to zoom. Drag to look around."
         : "Dashed rooms are left out. Tap a room in the list to bring it back.";
+  } else if (which === "areas") {
+    title = "Your space";
+    tag = `${areaBlocks.filter((b) => !b.also).reduce((n, b) => n + b.count, 0)} areas`;
+    note = "Each kind of area is a block. Change a count and the plan follows.";
+  } else if (which === "warehouse") {
+    title = "Your space";
+    tag = heightLabel;
+    note = "Each surface you tick takes its fresh coat. The height follows your answer.";
+  } else if (which === "comroom") {
+    title = "An area, once we\u2019ve painted";
+    tag = `${comPainted.length} surfaces`;
+    note = "The surfaces you tick are the ones we paint.";
   } else if (which === "outside") {
     title = step === "gate" ? "Ready to price" : "Your home, outside";
     tag = extOn.length ? `${extOn.length} to paint` : "";
@@ -166,12 +203,20 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
     <div className="wz-pic" data-testid="ql-picture" data-picture={which}>
       <div className="wz-pic-head"><b>{title}</b>{tag && <span>{tag}</span>}</div>
       <div className={`wz-pic-art ${which === "plan" && planPreviewUrl ? "real" : ""}`}>
-        {which === "house" && <HousePicture kind={quick.propertyKind} storeys={quick.storeys} jobType={quick.jobType} />}
+        {/* Tom, 10 Oct: on a commercial job the building follows the space picked. */}
+        {which === "house" && (quick.propertyKind === "commercial" && step !== "start" && step !== "place"
+          ? <SegmentBuilding segment={com?.segmentKey ?? com?.segment?.key ?? null} jobType={quick.jobType} />
+          : <HousePicture kind={quick.propertyKind} storeys={quick.storeys} jobType={quick.jobType} />)}
         {which === "outside" && (
           <OutsideHousePicture elements={outside.elements} standalone={outside.standalone} materials={outside.materials}
             storeys={outside.storeys} colour={outside.colour} highlight={extTouched?.on ? extTouched.key : null} />
         )}
         {which === "top" && <TopView sides={topSides} />}
+        {which === "areas" && <AreaPlan blocks={areaBlocks} />}
+        {which === "warehouse" && ans && (
+          <WarehousePicture surfaces={ans.whSurfaces} heightLabel={heightLabel} rollerDoors={ans.rollerDoors} personnelDoors={ans.personnelDoors} offices={ans.offices} />
+        )}
+        {which === "comroom" && <RoomPicture painted={comPainted} today={false} condition={quick.condition} occupied={false} highlight={null} />}
         {which === "room" && (
           <RoomPicture painted={painted} today={step === "condition"} condition={quick.condition} occupied={quick.occupied === "yes"}
             highlight={step === "job" ? touched : null} />
