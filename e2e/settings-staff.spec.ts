@@ -1,7 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
-import { authUserIdByEmail, credentials, missingCreds, signIn, userIdFor } from "./helpers";
+import { authUserIdByEmail, credentials, missingCreds, signIn, test, userIdFor } from "./helpers";
 import { serviceClient } from "./fixtures/woLoop";
 
 /**
