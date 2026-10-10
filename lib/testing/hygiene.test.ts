@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 // build) and this suite read the SAME file.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — an .mjs module with no declarations
-import { checkTarget, DEFAULTS, fkAction, isRunUser, OWNED, parseArgs, projectRefOf, RUN_EMAIL_PATTERNS, runUserSql, seededExclusion, summaryLine, verdict } from "../../scripts/c1/hygiene-rules.mjs";
+import { checkTarget, DEFAULTS, exampleAccountSql, fkAction, isRunUser, OWNED, parseArgs, projectRefOf, RUN_EMAIL_PATTERNS, runUserSql, seededExclusion, summaryLine, verdict } from "../../scripts/c1/hygiene-rules.mjs";
 
 const TEST = "qarfyjrzgdeoqbnbbxfp";
 const reasonOf = (r: ReturnType<typeof checkTarget>): string => (r.ok ? "" : r.reason);
@@ -82,6 +82,22 @@ describe("which users a run makes (11 Oct: 540 stamped journey addresses no mark
     expect(sql.startsWith("(is_anonymous or email like 'pg.e2e.%' or email ~ any(array[")).toBe(true);
     for (const p of RUN_EMAIL_PATTERNS) expect(sql).toContain(`'${p}'`);
     for (const p of RUN_EMAIL_PATTERNS) expect(p).not.toContain("'");
+  });
+});
+
+describe("which accounts a run makes (11 Oct: three seeded demo orgs had been swept as @example.com)", () => {
+  const sql = exampleAccountSql();
+  it("never a pg.demo.* org", () => {
+    expect(sql).toContain("a.email not like 'pg.demo.%'");
+  });
+  it("never an account a non-run login belongs to — the member test is the user rule, qualified so it cannot read accounts.email", () => {
+    expect(sql).toContain("not exists (select 1 from public.account_users au join auth.users u on u.id = au.profile_id");
+    expect(sql).toContain(`and not ${runUserSql("u")}`);
+    expect(runUserSql("u")).toMatch(/^\(u\.is_anonymous or u\.email like 'pg\.e2e\.%' or u\.email ~ any/);
+    expect(runUserSql("u")).not.toMatch(/[^.]\bemail\b(?! ~| like)/);
+  });
+  it("still only @example.com", () => {
+    expect(sql.startsWith("(a.email like '%@example.com'")).toBe(true);
   });
 });
 

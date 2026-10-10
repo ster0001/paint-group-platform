@@ -26,7 +26,7 @@
  */
 import pg from "pg";
 import { productionRef } from "./env.mjs";
-import { checkTarget, DEFAULTS, EXIT, fkAction, parseArgs, runUserSql, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
+import { checkTarget, DEFAULTS, EXIT, exampleAccountSql, fkAction, parseArgs, runUserSql, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
 import {
   E2E_RUN_LOCK_KEY,
   LOCK_HOLDER_QUERY,
@@ -239,10 +239,10 @@ async function removeUsers(where, params, cap, budgetMs, stats) {
   return { selected: ids.length, deleted, exhausted };
 }
 
-/** Accounts the drives create for anonymous customers (@example.com), with everything RESTRICTed to them. */
+/** Accounts the drives create for anonymous customers (exampleAccountSql — never a seeded org), with everything RESTRICTed to them. */
 async function removeExampleAccounts(where, params, cap, budgetMs, stats, started) {
   const ids = (await q(
-    `select id from public.accounts where email like '%@example.com' and ${where} order by created_at asc limit ${Number(cap)}`,
+    `select a.id from public.accounts a where ${exampleAccountSql()} and a.${where} order by a.created_at asc limit ${Number(cap)}`,
     params,
   )).map((r) => r.id);
   let deleted = 0;

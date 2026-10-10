@@ -125,10 +125,32 @@ export function isRunUser({ isAnonymous = false, email = "" } = {}) {
   return e.startsWith("pg.e2e.") || RUN_EMAIL_PATTERNS.some((p) => new RegExp(p).test(e));
 }
 
-/** The WHERE fragment over auth.users. The patterns are constants with no quotes in them; quoting is belt and braces. */
-export function runUserSql() {
+/**
+ * The WHERE fragment over auth.users (`alias` qualifies the columns when the
+ * fragment sits inside a query that has its own `email`). The patterns are
+ * constants with no quotes in them; quoting is belt and braces.
+ */
+export function runUserSql(alias = "") {
   const lit = (s) => `'${s.replace(/'/g, "''")}'`;
-  return `(is_anonymous or email like 'pg.e2e.%' or email ~ any(array[${RUN_EMAIL_PATTERNS.map(lit).join(", ")}]::text[]))`;
+  const c = (col) => (alias ? `${alias}.${col}` : col);
+  return `(${c("is_anonymous")} or ${c("email")} like 'pg.e2e.%' or ${c("email")} ~ any(array[${RUN_EMAIL_PATTERNS.map(lit).join(", ")}]::text[]))`;
+}
+
+/**
+ * WHICH ACCOUNTS A RUN MAKES. `@example.com` alone is not a marker: the
+ * seeded trade demo (scripts/portal/seed-trade-demo.mjs) is four ORG accounts
+ * at pg.demo.*@example.com, and on 11 Oct 2026 three of them — facilities,
+ * insurer, volume with its 40 properties — had been swept, their logins left
+ * standing with nothing to log in to; agency survived only because a
+ * RESTRICT child refused. So an account is a run's only when its email is
+ * @example.com, it is not pg.demo.*, AND every person who belongs to it is a
+ * run user — an account any seeded or real login belongs to is never ours.
+ * A fragment over `public.accounts a`.
+ */
+export function exampleAccountSql() {
+  return `(a.email like '%@example.com' and a.email not like 'pg.demo.%'` +
+    ` and not exists (select 1 from public.account_users au join auth.users u on u.id = au.profile_id` +
+    ` where au.account_id = a.id and not ${runUserSql("u")}))`;
 }
 
 /**
