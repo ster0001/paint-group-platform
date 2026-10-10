@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { test as base, expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export type Credentials = { email: string; password: string };
@@ -115,15 +115,27 @@ export async function gotoTodayWith(page: Page, url: string, target: Locator, ma
 }
 
 /**
- * The staff chat dock pops open on any staff page when a customer line this
- * browser has not seen arrives (a customer spec earlier in the run is enough),
- * and it sits over the bottom of the page — a click on a control under it is
- * intercepted. Minimise it, as a person would.
+ * The staff chat dock (app/components/StaffChatDock.tsx) pops open over the
+ * bottom of every staff page whenever the inbox holds a customer line this
+ * browser hasn't seen — on mount, every 12 s, and on every realtime insert
+ * into agent_messages, which other runs on C1 produce. Minimising it only
+ * stored pg-dock-open=0, so the next refresh reopened it and it intercepted
+ * clicks (settings-staff `staff-submit`, visit-schedule `sched-day-1`, 11 Oct).
+ *
+ * The dock is the ONLY reader of /api/agent/inbox, so answering that route
+ * with an empty inbox keeps it a closed pill for the whole context — no race,
+ * and the product still pops for real staff. Specs that exercise the dock
+ * itself opt out with `test.use({ staffDock: "live" })`.
  */
-export async function minimiseStaffDock(page: Page): Promise<void> {
-  const dock = page.getByTestId("staff-dock");
-  if (!(await dock.count())) return;
-  if ((await dock.getAttribute("data-open")) !== "1") return;
-  await page.getByTestId("dock-minimise").first().click();
-  await expect(dock).toHaveAttribute("data-open", "0");
+export async function quietStaffDock(target: BrowserContext | Page): Promise<void> {
+  await target.route("**/api/agent/inbox", (route) => route.fulfill({ json: { rows: [] } }));
 }
+
+/** `test` for staff specs: every page in the default context gets a quiet dock. */
+export const test = base.extend<{ staffDock: "quiet" | "live" }>({
+  staffDock: ["quiet", { option: true }],
+  context: async ({ context, staffDock }, provide) => {
+    if (staffDock === "quiet") await quietStaffDock(context);
+    await provide(context);
+  },
+});
