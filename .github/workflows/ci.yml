@@ -11,7 +11,16 @@ name: CI
 on:
   push:
     branches: ["**"]
+  # `closed` (10 Oct 2026, Tom): when a PR is merged or closed, its e2e run is
+  # pointless — the code is already on main, or not going there — yet it held
+  # the one test project for an hour and blocked the next piece of work, and
+  # Tom was cancelling it by hand after every merge. A `closed` event starts a
+  # run in the SAME workflow-level group (ci-refs/pull/N/merge) below, whose
+  # cancel-in-progress is true off main — so it cancels the PR's run, queued or
+  # running, and then does nothing itself (every job is skipped on `closed`).
+  # A cancelled run's rows are swept by hygiene.yml, as for any cancelled run.
   pull_request:
+    types: [opened, synchronize, reopened, closed]
   # C7 · a branch with no PR open can still be exercised against the test
   # project deliberately — Actions → CI → Run workflow. The point of the gate
   # below is to stop e2e running on EVERY push automatically, not to make it
@@ -34,6 +43,8 @@ jobs:
   gate:
     name: typecheck · lint · unit
     runs-on: ubuntu-latest
+    # A closed PR's run exists only to cancel the PR's earlier run (see `on:`).
+    if: github.event.action != 'closed'
     steps:
       # Full history: the help index compares each help file's
       # verified_at_commit against later commits to its source paths.
@@ -124,8 +135,9 @@ jobs:
     # gate. A PR merged by SQUASH has no such message and DOES run again —
     # that is deliberate: a squash tree is not the tree the PR tested.
     if: >-
-      github.event_name != 'push'
-      || (github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'Merge pull request #'))
+      github.event.action != 'closed'
+      && (github.event_name != 'push'
+      || (github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'Merge pull request #')))
     # ONE e2e RUN AT A TIME, ACROSS THE WHOLE REPOSITORY (11 Sep 2026).
     #
     # The workflow-level group above is keyed on `github.ref`, so it only ever
