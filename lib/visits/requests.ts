@@ -33,6 +33,7 @@ import { emailLogoUrl } from "@/lib/messaging/logo";
 import { reportError } from "@/lib/monitoring/report";
 import { endOfNextWorkingDay } from "@/lib/time/workingDays";
 import { loadAddress, markGateCompleted, maskMobile, saveVisitDetails, type EstimateCore, type VisitAddress } from "./holds";
+import type { AnsweredFacts } from "./answeredSummary";
 import { sendVisitConfirmation, visitWhen } from "./notify";
 import { availability, speakWithUsFor, type OfferedDay, type ScheduleBooking, type ScheduleBusy, type ScheduleHold } from "./schedule";
 import { loadBookingRules, loadVisitScheduleData } from "./scheduleDb";
@@ -168,6 +169,41 @@ export async function loadRequest(db: SupabaseClient, id: string): Promise<Visit
   const { data, error } = await db.from("visit_requests").select(REQUEST_SELECT).eq("id", id).maybeSingle();
   if (error) throw new Error(`visit_requests read failed: ${error.message}`);
   return (data as VisitRequestRow | null) ?? null;
+}
+
+/**
+ * The facts behind an answered request's line (answeredSummary.ts): the
+ * booked visit and whether the time-offered message reached the customer.
+ * Errors throw — the page shows them instead of a line that guesses.
+ */
+export async function loadAnsweredSummary(svc: SupabaseClient, req: VisitRequestRow): Promise<AnsweredFacts | null> {
+  if (!req.answered_at || !req.visit_id) return null;
+  const { data: v, error: vErr } = await svc.from("visits").select("starts_at, ends_at, staff_id").eq("id", req.visit_id).maybeSingle();
+  if (vErr) throw new Error(`visits read failed: ${vErr.message}`);
+  if (!v) return null;
+  let estimatorName: string | null = null;
+  if (v.staff_id) {
+    const { data: p, error: pErr } = await svc.from("profiles").select("name").eq("id", v.staff_id as string).maybeSingle();
+    if (pErr) throw new Error(`profiles read failed: ${pErr.message}`);
+    estimatorName = (p?.name as string | null) ?? null;
+  }
+  // From a minute before the answer: the send happens just after the row is written.
+  const since = new Date(new Date(req.answered_at).getTime() - 60_000).toISOString();
+  const to = [req.mobile, req.email].filter((x): x is string => !!x);
+  let sms = false, email = false, waiting = false;
+  if (to.length) {
+    const [m, h] = await Promise.all([
+      svc.from("messages").select("channel").eq("direction", "out").eq("meta->>automation", "time_offered").in("to_address", to).gte("occurred_at", since).limit(10),
+      svc.from("automation_holds").select("id").eq("automation_key", "time_offered").in("status", ["pending", "held"]).gte("created_at", since)
+        .or(to.map((t) => (t.includes("@") ? `to_email.eq."${t}"` : `to_phone.eq."${t}"`)).join(",")).limit(1),
+    ]);
+    if (m.error) throw new Error(`messages read failed: ${m.error.message}`);
+    if (h.error) throw new Error(`automation_holds read failed: ${h.error.message}`);
+    sms = (m.data ?? []).some((r) => r.channel === "sms");
+    email = (m.data ?? []).some((r) => r.channel === "email");
+    waiting = (h.data ?? []).length > 0;
+  }
+  return { visit: { when: visitWhen(v.starts_at as string, v.ends_at as string), estimatorName }, sent: { sms, email }, waiting, mobile: req.mobile };
 }
 
 export type StaffSlotDay = OfferedDay & { estimatorId: string; estimatorName: string };

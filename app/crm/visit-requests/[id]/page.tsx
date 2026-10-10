@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireStaff } from "@/lib/supabase/guards";
 import { melbourneParts } from "@/lib/time/businessHours";
-import { loadRequest, staffOfferableSlots, type StaffSlotDay } from "@/lib/visits/requests";
+import { answeredWords } from "@/lib/visits/answeredSummary";
+import { loadAnsweredSummary, loadRequest, staffOfferableSlots, type StaffSlotDay } from "@/lib/visits/requests";
 import OfferTime from "./OfferTime";
 
 /**
@@ -44,6 +45,13 @@ export default async function VisitRequestPage({ params }: { params: Promise<{ i
   if (!req.answered_at) {
     try { days = await staffOfferableSlots(svc, req); } catch (e) { slotsError = e instanceof Error ? e.message : "read failed"; }
   }
+  // The answered line is the one confirmation staff see: the action revalidates
+  // this page, so it replaces <OfferTime> the moment the answer is saved.
+  let booked: string[] = [];
+  let bookedError: string | null = null;
+  if (req.answered_at) {
+    try { const f = await loadAnsweredSummary(svc, req); booked = f ? answeredWords(f) : []; } catch (e) { bookedError = e instanceof Error ? e.message : "read failed"; }
+  }
   const overdue = isOverdue(req.due_at, req.answered_at);
 
   return (
@@ -65,9 +73,11 @@ export default async function VisitRequestPage({ params }: { params: Promise<{ i
       </dl>
 
       {req.answered_at ? (
-        <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" data-testid="request-answered">
-          Answered {when(req.answered_at)}{req.answer ? ` — ${req.answer}` : ""}{req.visit_id ? ". The visit is on the Diary." : ""}
-        </p>
+        <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" data-testid="request-answered">
+          <p>Answered {when(req.answered_at)}{req.answer ? ` — ${req.answer}` : ""}.</p>
+          {booked.map((l) => <p key={l}>{l}</p>)}
+          {bookedError && <p className="text-red-700" data-testid="request-answered-error">The booking details could not be loaded: {bookedError}</p>}
+        </div>
       ) : (
         <OfferTime requestId={req.id} kind={req.kind} days={days} slotsError={slotsError} />
       )}
