@@ -743,7 +743,7 @@
       "feature": "team",
       "role": "customer",
       "title": "Invite someone to your organisation's workspace",
-      "summary": "An admin of a trade organisation adds a person under Team by email and access level; they are emailed a sign-in link, and it works whether or not that email already has a Paint Group login.",
+      "summary": "An admin of a trade organisation adds a person under Team by email and access level; someone new is emailed a link to choose a password, someone with a login already is emailed a link that opens the workspace.",
       "path": "docs/help/team/customer.md",
       "walkthrough": null,
       "media": [],
@@ -784,6 +784,17 @@
         "app/api/cron/wo-sweep/route.ts",
         "app/(app)/contractors/ContractorsManager.tsx"
       ]
+    },
+    {
+      "feature": "trade-accounts",
+      "role": "staff",
+      "title": "Create a trade login or give an existing customer the trade workspace",
+      "summary": "Settings → Trade accounts makes a trade organisation from an email and a starting password, or flips an existing customer to trade; a new trade account is matched by its email only, never by phone.",
+      "path": "docs/help/trade-accounts/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
     },
     {
       "feature": "training",

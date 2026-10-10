@@ -8,6 +8,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { isTestEmail, normaliseEmail } from "@/lib/accounts/identity";
 import { sendMagicLink } from "@/lib/portal/auth";
 import { lookupAuthUserByEmail } from "@/lib/auth/userByEmail";
+import { inviteEmail } from "@/lib/portal/teamInvite";
 import { reportError } from "@/lib/monitoring/report";
 import { randomBytes } from "node:crypto";
 
@@ -51,11 +52,12 @@ export async function inviteTeamMember(raw: unknown): Promise<TeamResult> {
   // has one; then look the login up by email — one call, never page 1 of
   // listUsers (newest first, so older logins fell off it: 11 Oct 2026).
   let userId: string | null = null;
+  let madeTheLogin = false;
   const created = await svc.auth.admin.createUser({
     email, email_confirm: true,
     password: `pg-${randomBytes(18).toString("base64url")}`,
   });
-  if (created.data.user) userId = created.data.user.id;
+  if (created.data.user) { userId = created.data.user.id; madeTheLogin = true; }
   else if (created.error && !/already been registered|already exists/i.test(created.error.message)) {
     reportError(created.error, { where: "team.invite.createUser" });
     return { ok: false, message: "Couldn't set up that login just now — try again in a minute." };
@@ -86,12 +88,8 @@ export async function inviteTeamMember(raw: unknown): Promise<TeamResult> {
   }
 
   if (!isTestEmail(email)) {
-    await sendMagicLink({
-      email,
-      subject: "You've been added to your team's Paint Group workspace",
-      intro: "Your organisation set you up with access — properties, colours and progress, all in one place.",
-      buttonLabel: "Open your workspace",
-    }).catch((e: unknown) => reportError(e, { where: "team.invite.magicLink", bestEffort: true }));
+    await sendMagicLink({ email, ...inviteEmail(madeTheLogin) })
+      .catch((e: unknown) => reportError(e, { where: "team.invite.magicLink", bestEffort: true }));
   }
   revalidatePath("/account/team");
   return { ok: true };
