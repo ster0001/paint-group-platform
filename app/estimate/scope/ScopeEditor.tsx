@@ -501,6 +501,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
 
   // ---- R3: the confirm loop -------------------------------------------------
   const loopOf = (areaId: number) => iloop?.rooms.find((r) => r.areaId === areaId) ?? null;
+  /** UI refresh S4b: a checked card's one line — "walls, ceilings, skirting boards, 1 door, 1 window". */
+  const roomSummary = (room: CustomerScopeRoom) => sortTiles(room.tiles.filter((t) => tileOn(room, t)))
+    .map((t) => (t.countable ? `${shownCount(room, t)} ${t.label.toLowerCase().replace(/s$/, "")}${shownCount(room, t) === 1 ? "" : "s"}` : t.label.toLowerCase()))
+    .join(", ");
   function refuseCard(key: string, msg: string) {
     setShakeCard(key);
     setTimeout(() => setShakeCard(null), 400);
@@ -1159,14 +1163,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             read as the last two questions rather than the first two. */}
         <div className="sc-cols">
         <div className="sc-cards">
-          {rooms.filter((r) => r.garagePending !== true).map((room) => {
+          {rooms.filter((r) => r.garagePending !== true).map((room, roomIndex) => {
             const main = room.tiles.filter((t) => !t.longTail);
             const tail = room.tiles.filter((t) => t.longTail);
             
             const loop = loopOf(room.areaId);
             return (
               <section
-                className={`sc-rc ${loop?.confirmed ? "done" : loop ? "amber" : ""} ${shakeCard === `room:${room.areaId}` ? "shake" : ""}`}
+                className={`sc-rc ${loop?.confirmed ? "done" : loop ? "amber" : ""} ${loop && openCard === `room:${room.areaId}` ? "open" : ""} ${shakeCard === `room:${room.areaId}` ? "shake" : ""}`}
                 key={room.areaId}
                 data-room={room.areaId}
                 data-card={`room:${room.areaId}`}
@@ -1188,15 +1192,20 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     </form>
                   ) : (
                     <b>
+                      {/* UI refresh S4b: a number until it is checked, then a tick (the word is beside it too). */}
+                      {loop && <span className={`sc-badge ${loop.confirmed ? "ok" : ""}`} aria-hidden="true">{loop.confirmed ? "✓" : roomIndex + 1}</span>}
                       {room.name}
                       {loop && (
                         <span className="il-hm"> · {loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span>
+                      )}
+                      {loop?.confirmed && openCard !== `room:${room.areaId}` && (
+                        <small className="sc-sum" data-testid={`room-summary-${room.areaId}`}>{roomSummary(room)}</small>
                       )}
                     </b>
                   )}
                   <span className="sc-m">
                     {loop ? (
-                      <span className={`il-pill ${loop.confirmed ? "done" : ""}`}>{loop.confirmed ? "CONFIRMED ✓" : "CONFIRM THIS ROOM"}</span>
+                      <span className={`il-pill ${loop.confirmed ? "done" : ""}`}>{loop.confirmed ? "Checked ✓" : openCard === `room:${room.areaId}` ? "Close" : "Check this room"}</span>
                     ) : (
                       room.m2 != null && `${room.m2.toFixed(1)} m²`
                     )}
@@ -1218,7 +1227,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     like the tiles above it. */}
                 {loop && (
                   <div className={`il-q il-first ${loop.size != null ? "ok" : ""}`}>
-                    <p className="il-kick">FIRST — THE SIZE OF THIS ROOM</p>
+                    <p className="il-kick il-blk"><i aria-hidden="true">{loop.size != null ? "✓" : "1"}</i><span className="il-blk-t">FIRST — THE SIZE OF THIS ROOM</span></p>
+                    <RoomOutline label={loop.sizeLabel} />
                     <p className="il-ql">
                       Is <span className="il-size">{loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span> about
                       the size of this room? <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
@@ -1277,8 +1287,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     )}
                   </div>
                 )}
+                {loop && <p className="il-kick il-blk"><i aria-hidden="true">2</i><span className="il-blk-t">What we&rsquo;re painting in here</span></p>}
                 <div className="sc-tgrid">
-                  {[...main, ...tail.filter((t) => t.on)]
+                  {sortTiles([...main, ...tail.filter((t) => t.on)])
                     .filter((t) => !(loop && String(t.key) === "windows" && loop.windows.length > 0))
                     .map((t) => (
                     <div
@@ -1449,6 +1460,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     {loop.customs.map((name, i) => <div className="sc-tl on custom" key={i}>{name}</div>)}
                   </div>
                 )}
+                {loop?.cupboard && <p className="il-kick il-blk"><i aria-hidden="true">3</i><span className="il-blk-t">Cupboards and robes</span></p>}
                 {loop?.cupboard && (
                   <div className={`il-q il-cup ${loop.cupboard.on != null ? "ok" : ""}`}>
                     <p className="il-ql">{loop.cupboard.question} <span className="il-req">REQUIRED</span><span className="il-okc">✓</span></p>
@@ -1801,5 +1813,33 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       <FinalisePrompt open={prompt} onAnswer={answerRemaining} onBook={() => scrollToReach()} onClose={() => setPrompt(false)} />
       {toast && <div className="sc-toast">{toast}</div>}
     </div>
+  );
+}
+
+/** Brief §7.5: the surfaces in the order a person thinks about a room (Walls first), not the card's own order. */
+const TILE_ORDER = ["walls", "ceilings", "cornices", "doors", "windows", "skirting", "architraves", "balustrade", "balustrades"];
+function sortTiles<T extends { key: string | number; label: string }>(tiles: T[]): T[] {
+  const rank = (t: T) => {
+    const k = String(t.key).toLowerCase();
+    const i = TILE_ORDER.findIndex((o) => k === o || t.label.toLowerCase().startsWith(o.replace(/s$/, "")));
+    return i < 0 ? TILE_ORDER.length : i;
+  };
+  return tiles.map((t, i) => ({ t, i })).sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i).map((x) => x.t);
+}
+
+/** Brief §7.5 block 1: a small to-scale outline of the room beside its size question. Decorative. */
+function RoomOutline({ label }: { label: string }) {
+  const m = label.replace(",", ".").match(/([\d.]+)\s*[×x]\s*([\d.]+)/);
+  if (!m) return null;
+  const L = Number(m[1]), W = Number(m[2]);
+  if (!(L > 0 && W > 0)) return null;
+  const scale = Math.min(84 / L, 56 / W);
+  const w = Math.max(18, L * scale), h = Math.max(14, W * scale);
+  return (
+    <svg className="il-outline" viewBox="0 0 120 80" aria-hidden="true">
+      <rect x={60 - w / 2} y={36 - h / 2} width={w} height={h} rx="3" fill="#fff" stroke="#16212a" strokeOpacity=".5" strokeWidth="1.5" />
+      <path d={`M${60 - w / 2} ${42 + h / 2}h${w}`} stroke="#0a7c8e" strokeWidth="2" />
+      <text x="60" y={54 + h / 2} textAnchor="middle" fontSize="10" fill="#0a7c8e">{L} m</text>
+    </svg>
   );
 }

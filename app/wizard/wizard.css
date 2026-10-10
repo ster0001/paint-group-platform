@@ -1835,3 +1835,58 @@
   .wz .sc-home-head { padding: 12px 16px 8px; }
   .wz .sc-home-key { padding: 8px 16px 10px; }
 }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD UI REFRESH — S4b: the room cards (brief §7.5; components doc §5).
+   Amber only on the OPEN card; checked cards pale cyan with a one-line summary;
+   three numbered blocks; tiles Walls first, the counted ones wide. Scoped to
+   .sc-ed so the side-by-side editor (S5) is untouched.
+   ═════════════════════════════════════════════════════════════════════════ */
+.wz .sc-ed .sc-rc { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; box-shadow: none; transition: box-shadow .2s, border-color .2s; }
+.wz .sc-ed .sc-rc.amber { border-color: var(--line); }
+.wz .sc-ed .sc-rc.amber.open { border-color: var(--amber-line); box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
+.wz .sc-ed .sc-rc.done { border-color: var(--wash2); }
+.wz .sc-ed .sc-rc > .il-hd { min-height: 64px; padding: 14px 16px; }
+.wz .sc-ed .sc-rc > .il-hd > b { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 18px; font-weight: 600; color: var(--heading); }
+.wz .sc-ed .sc-badge { width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; border: 2px solid var(--amber-line); background: var(--amber-wash); color: var(--amber); font-family: var(--wz-mono); font-size: 13px; font-weight: 600; }
+.wz .sc-ed .sc-badge.ok { border-color: var(--cyan); background: var(--cyan); color: #fff; font-family: var(--wz-sans); }
+.wz .sc-ed .il-hm { font-family: var(--wz-mono); font-size: 13px; font-weight: 400; color: var(--muted); }
+.wz .sc-ed .sc-sum { flex-basis: 100%; margin-left: 46px; font-size: 14.5px; font-weight: 400; color: var(--muted); }
+.wz .sc-ed .il-pill { font-family: var(--wz-sans); font-size: 14.5px; font-weight: 600; letter-spacing: 0; text-transform: none; border: 0; background: none; padding: 0; color: var(--amber); }
+.wz .sc-ed .il-pill.done { color: var(--cyan); }
+
+/* the numbered blocks */
+.wz .sc-ed .il-blk { display: flex; align-items: center; gap: 9px; margin: 18px 0 10px; font-family: var(--wz-sans); font-size: 16.5px; font-weight: 600; letter-spacing: 0; color: var(--heading); text-transform: lowercase; }
+.wz .sc-ed .il-blk { text-transform: none; }
+.wz .sc-ed .il-blk-t { display: inline-block; text-transform: lowercase; }
+.wz .sc-ed .il-blk-t::first-letter { text-transform: uppercase; }
+.wz .sc-ed .il-blk i { width: 24px; height: 24px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--heading); color: #fff; font-style: normal; font-family: var(--wz-mono); font-size: 12px; text-transform: none; }
+.wz .sc-ed .il-first { display: grid; grid-template-columns: 120px minmax(0, 1fr); column-gap: 18px; align-items: center; padding: 14px 16px; background: var(--amber-wash); border: 1px solid var(--amber-line); border-radius: 16px; }
+.wz .sc-ed .il-first.ok { background: var(--wash); border-color: var(--wash2); }
+.wz .sc-ed .il-first > .il-blk { grid-column: 1 / -1; margin-top: 0; }
+.wz .sc-ed .il-first > .il-outline { grid-row: span 3; width: 120px; height: 80px; }
+.wz .sc-ed .il-first > :not(.il-blk):not(.il-outline) { grid-column: 2; }
+.wz .sc-ed .il-first .il-ql { font-size: 17px; font-weight: 600; color: var(--heading); }
+.wz .sc-ed .il-size { font-family: var(--wz-mono); font-size: 16px; }
+.wz .sc-ed .il-req { font-family: var(--wz-sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: lowercase; color: var(--amber); }
+.wz .sc-ed .il-req::first-letter { text-transform: uppercase; }
+.wz .sc-ed .sd-chip { min-height: 48px; border-radius: 999px; padding: 0 18px; font-size: 15.5px; }
+
+/* the tiles — four across; Walls, Doors and Windows widen when on and carry their controls */
+.wz .sc-ed .sc-tgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.wz .sc-ed .sc-tl { min-height: 92px; padding: 12px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--muted); font-size: 15.5px; font-weight: 600; display: flex; flex-direction: column; gap: 6px; }
+.wz .sc-ed .sc-tl.on { border-color: var(--cyan); background: var(--wash); color: var(--heading); }
+.wz .sc-ed .sc-tl.on:has(.sc-st), .wz .sc-ed .sc-tl.on:has(.sd-wseg) { grid-column: span 2; }
+.wz .sc-ed .sc-styleconfirm { text-transform: lowercase; font-family: var(--wz-sans); letter-spacing: 0; font-size: 12.5px; }
+
+/* the whole-home questions and the last checks are cards like the rest — amber is not the default */
+.wz .sc-ed .sc-details, .wz .sc-ed [data-card="sweep"] { border-color: var(--line); }
+.wz .sc-ed .il-pill:not(.done) { white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .wz .sc-ed .sc-tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wz .sc-ed .sc-tl.on:has(.sc-st), .wz .sc-ed .sc-tl.on:has(.sd-wseg) { grid-column: 1 / -1; }
+  .wz .sc-ed .il-first { grid-template-columns: 84px minmax(0, 1fr); column-gap: 12px; padding: 12px; }
+  .wz .sc-ed .il-first > .il-outline { width: 84px; height: 56px; }
+  .wz .sc-ed .sc-sum { margin-left: 0; }
+}

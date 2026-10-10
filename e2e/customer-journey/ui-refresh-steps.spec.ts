@@ -414,3 +414,34 @@ test.describe("UI refresh S4 · room by room", () => {
     await expect(page.locator(".sc-tl.on", { hasText: /^Cornices/ })).toHaveCount(0, { timeout: 30_000 });
   });
 });
+
+test.describe("UI refresh S4b · the room cards", () => {
+  test("tiles Walls first; only the open card is amber; a checked card shows its tick and a one-line summary", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await driveNoPlanWizard(page);
+    await openScopeEditor(page);
+    const cards = page.locator(".sc-rc[data-room]");
+    const first = cards.first();
+    await first.locator(".il-hd").click().catch(() => undefined);
+    await expect(first).toHaveClass(/\bopen\b/);
+    // Walls is the first tile in the open card.
+    await expect(first.locator(".sc-tgrid .sc-tl").first()).toContainText(/^Walls/);
+    // Only the open card carries the amber border; the closed ones do not.
+    const amberBorders = await cards.evaluateAll((els) => els.filter((e) => e.classList.contains("open")).length);
+    expect(amberBorders).toBe(1);
+    // Confirm it the way a customer would: the size, the robe questions, then Confirm.
+    await first.getByRole("button", { name: "Looks right" }).click();
+    for (let i = 0; i < 4 && (await first.locator(".il-cup:not(.ok)").count()); i++) {
+      await first.locator(".il-cup:not(.ok)").first().getByRole("button", { name: "No", exact: true }).click();
+      await page.waitForTimeout(300);
+    }
+    await first.locator(".il-confirm").click();
+    await expect(first).toHaveClass(/done/, { timeout: 30_000 });
+    await expect(first.locator(".sc-badge.ok")).toBeVisible();
+    await expect(first.locator(".il-pill.done")).toHaveText(/Checked/);
+    await expect(first.locator(".sc-sum")).toContainText(/walls/);
+    // The next room opens by itself.
+    await expect(cards.nth(1)).toHaveClass(/\bopen\b/, { timeout: 10_000 });
+  });
+});
