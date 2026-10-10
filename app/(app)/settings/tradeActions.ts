@@ -86,8 +86,13 @@ export async function createTradeAccountAction(formData: FormData): Promise<Crea
       userId = res.data.user?.id ?? null;
     }
 
-    // 2. The account — find-or-create by email, then make it trade.
-    const ensured = await ensureAccount(svc, { email, name, phone });
+    // 2. The account — find-or-create by EMAIL ONLY, then make it trade.
+    // Never by phone (Tom, 11 Oct 2026): the demo login for info@modvs.com
+    // was typed with Tom's own mobile, ensureAccount matched it to an
+    // existing customer account carrying that number, and that customer's
+    // account became the new organisation — renamed, made trade, owned by
+    // the new login. The phone is written onto the account below instead.
+    const ensured = await ensureAccount(svc, { email, name });
     if (!ensured.accountId) throw new Error("couldn't create the account row");
     const upd = await svc.from("accounts")
       .update({ account_type: "trade", ...(name ? { name } : {}), ...(phone ? { phone } : {}) })
