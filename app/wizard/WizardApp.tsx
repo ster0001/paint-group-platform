@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { browserClient } from "@/lib/supabase/lazyClient";
 import { checkUpload } from "@/lib/uploads/validate";
 import {
   defaultCustomer,
@@ -642,10 +642,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   useEffect(() => {
     if (!isCustomer) return;
     let live = true;
-    const supabase = createBrowserClient();
-
     /** One full try: use the session we have, else ask for an anonymous one. */
     const attempt = async () => {
+      const supabase = await browserClient();
       const { data } = await supabase.auth.getSession();
       if (data.session) return true;
       const { error: signInError } = await supabase.auth.signInAnonymously();
@@ -732,7 +731,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (slots.length !== files.length) { setError("The upload couldn't start — try again."); return null; }
 
     // 2. the bytes go straight to storage, one file at a time, with progress
-    const supabase = createBrowserClient();
+    const supabase = await browserClient();
     const staged: Array<{ path: string; name: string }> = [];
     for (let i = 0; i < files.length; i++) {
       setUploadNote(files.length > 1 ? `Uploading ${i + 1} of ${files.length}…` : "Uploading…");
@@ -869,7 +868,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     const files = damageFilesRef.current.slice(0, 12);
     if (!files.length) return [];
     const issues: string[] = [];
-    const supabase = createBrowserClient();
+    const supabase = await browserClient();
     const staged: Array<{ path: string; name: string }> = [];
     try {
       for (let at = 0; at < files.length; at += 5) {
@@ -1383,6 +1382,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const hasGate = isCustomer && gateVersion === "details_first";
   const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope, hasGate);
   const quickStep = quickSteps[Math.min(Math.max(page, 1), quickSteps.length) - 1];
+  /**
+   * The screen the page LANDED on skips the step entrance (.wz-landing in
+   * wizard.css); every screen after it rises in as before. The entrance is
+   * about moving between steps — on arrival it only hid the first screen's
+   * text for half a second, and Lighthouse timed the page's largest paint to
+   * the END of that fade, which charged every script on the page to it
+   * (LCP 4.6s on a 1.9s first paint, 11 Oct). Cleared the first time the
+   * step changes, so coming back to the first screen animates like any other.
+   */
+  const quickStepKey = `quick-${quickStep}`;
+  const [landingStepKey, setLandingStepKey] = useState<string | null>(quickStepKey);
+  if (landingStepKey !== null && landingStepKey !== quickStepKey) setLandingStepKey(null);
   /**
    * The page is a POSITION in the step list, and an answer can change the
    * list in front of it: commercial "Both" (picked on the Space screen) puts
@@ -1920,7 +1931,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               customer. The pages themselves are untouched and still serve
               staff, the describe route and the upload route. */}
           {quickActive ? (
-            <div className="wz-step" key={`quick-${quickStep}`}>
+            <div className={landingStepKey === quickStepKey ? "wz-step wz-landing" : "wz-step"} key={quickStepKey}>
               {/* C12: the open-space photo rides the condition-photo upload —
                   it goes up with the submit and the estimator reviews it. */}
               <input

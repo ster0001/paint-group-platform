@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import PhotoDrop from "./PhotoDrop";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { browserClient } from "@/lib/supabase/lazyClient";
 
 /**
  * Tom, 15 Sep (late, item 7): a photo of the peeling, attached from the
@@ -27,7 +27,7 @@ export default function PeelingPhotos({ estimateId, count, busy, onUploaded }: {
     setError(null);
     setUploading(true);
     try {
-      const supabase = createBrowserClient();
+      const supabase = await browserClient();
       const prep = await fetch("/api/extract/upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

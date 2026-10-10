@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { browserClient } from "@/lib/supabase/lazyClient";
 import {
   EXTENT_LABEL, majorExtentNotice, prepPrompt, SPOT_EXTENTS, tagsFor,
   type RoomCondition, type SpotExtent,
@@ -91,7 +91,7 @@ export default function RoomSpots({
 
   /** Stage one photo, claim it, and read it. */
   async function uploadPhoto(file: File): Promise<{ sourceId: string | null; suggestion: SuggestedSpot | null }> {
-    const supabase = createBrowserClient();
+    const supabase = await browserClient();
     const prep = await fetch("/api/extract/upload-url", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ files: [{ name: file.name, size: file.size }] }),
