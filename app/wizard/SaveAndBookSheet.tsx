@@ -79,6 +79,8 @@ export default function SaveAndBookSheet({
   return (
     <div className="wz-sheetback" role="dialog" aria-modal="true" aria-label="Save and book a person" data-testid="save-and-book" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="wz-sheet">
+        {/* UI refresh S8: close in the corner — the sheet pattern (brief §7.12). */}
+        <button type="button" className="wz-sheet-x" aria-label="Close" onClick={onClose}>×</button>
         {done ? (
           <>
             <h2>Saved — a person has it</h2>

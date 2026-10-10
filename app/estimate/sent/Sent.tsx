@@ -55,7 +55,12 @@ export default function Sent({
   }
 
   return (
-    <div className="wz-wrap wz-sent" data-testid="sent">
+    <div className="wz-wrap wz-sent wz-booked" data-testid="sent">
+      {/* UI refresh S8 (brief §7.12): the Booked screen's layout — tick, headline, one line,
+          the "What happens next" card, the call line. Words unchanged. */}
+      <div className="wz-bigtick" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+      </div>
       <p className="wz-kick">Sent to your estimator</p>
       <h1>Thanks — {coordinator} has it</h1>
       <p className="wz-sub">
@@ -79,6 +84,8 @@ export default function Sent({
         </div>
       )}
 
+      <section className="wz-next" aria-label="What happens next">
+      <h2>What happens next</h2>
       <ol className="wz-steps-list" data-testid="sent-steps">
         {steps.map((s, i) => (
           <li key={s.title}>
@@ -90,6 +97,7 @@ export default function Sent({
           </li>
         ))}
       </ol>
+      </section>
 
       {/* A visit stays available even though we have just said most jobs like
           this one don't need one — §1's rule that the two doors have no

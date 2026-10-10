@@ -15,6 +15,8 @@ export default function FinalisePrompt({ open, onAnswer, onBook, onClose }: {
   return (
     <div className="wz-sheetback" role="dialog" aria-modal="true" aria-label="A few questions left" data-testid="finalise-prompt" onClick={onClose}>
       <div className="wz-sheet" onClick={(e) => e.stopPropagation()}>
+        {/* UI refresh S8: close in the corner — the sheet pattern (brief §7.12). */}
+        <button type="button" className="wz-sheet-x" aria-label="Close" onClick={onClose}>×</button>
         <h2>Nearly there</h2>
         <p className="wz-sub">Please answer the remaining questions to finalise your price, or book in a time.</p>
         <div className="wz-sheet-row">
