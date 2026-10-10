@@ -231,7 +231,13 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     const slot = page.getByTestId("request-slot").first();
     const startsAt = await slot.getAttribute("data-starts-at");
     await slot.click();
-    await expect(page.getByTestId("request-done")).toContainText("Booked");
+    // One confirmation, server-rendered (the action revalidates the page, so a
+    // client-side "done" line raced the re-render and was usually never seen).
+    const answered = page.getByTestId("request-answered");
+    await expect(answered).toContainText("Time offered");
+    await expect(answered).toContainText("Booked");
+    await expect(answered).toContainText("The visit is on the Diary.");
+    await expect(answered).toContainText("The customer was sent the details by text");
     const { data: req } = await db!.from("visit_requests").select("answered_at, visit_id, answer").eq("id", sorrentoRequestId).single();
     expect(req?.answered_at).not.toBeNull();
     expect(req?.answer).toBe("Time offered");
@@ -242,7 +248,8 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     const { data: texts } = await db!.from("messages").select("body").eq("to_address", `+61${sorrento.mobile.slice(1)}`).ilike("body", "%we have booked your site visit%");
     expect(texts?.length).toBe(1);
     await page.reload();
-    await expect(page.getByTestId("request-answered")).toContainText("Time offered");
+    await expect(answered).toContainText("Time offered");
+    await expect(answered).toContainText("The customer was sent the details by text");
     // The card is gone from Today.
     await page.goto("/crm/today?f=followups");
     await expect(page.getByText(`Offer a visit time — ${sorrentoName}`)).toHaveCount(0);

@@ -1,32 +1,34 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { StaffSlotDay } from "@/lib/visits/requests";
 import { markAnsweredAction, offerTimeAction } from "./actions";
 
-/** The free slots staff may offer, and the "answered another way" box. */
+/**
+ * The free slots staff may offer, and the "answered another way" box. On
+ * success there is no client-side "done" line: the action revalidates the
+ * page, which swaps this for the server's answered summary (what was booked
+ * and whether the customer was told). The buttons stay disabled until then.
+ */
 export default function OfferTime({ requestId, kind, days, slotsError }: { requestId: string; kind: "time" | "visit" | "call"; days: StaffSlotDay[]; slotsError: string | null }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [answer, setAnswer] = useState("");
-  const [done, setDone] = useState<string | null>(null);
+  const router = useRouter();
 
-  async function offer(estimatorId: string, startsAt: string, label: string) {
+  async function offer(estimatorId: string, startsAt: string) {
     setBusy(true); setMsg("");
     const r = await offerTimeAction({ requestId, estimatorId, startsAt });
-    setBusy(false);
-    if (!r.ok) { setMsg(r.message); return; }
-    setDone(`Booked ${label}. The customer has been sent the details and the invitation.`);
+    if (!r.ok) { setBusy(false); setMsg(r.message); return; }
+    router.refresh();
   }
   async function markDone() {
     setBusy(true); setMsg("");
     const r = await markAnsweredAction({ requestId, answer });
-    setBusy(false);
-    if (!r.ok) { setMsg(r.message); return; }
-    setDone("Marked as answered.");
+    if (!r.ok) { setBusy(false); setMsg(r.message); return; }
+    router.refresh();
   }
-
-  if (done) return <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" data-testid="request-done">{done}</p>;
 
   return (
     <div className="mt-5 space-y-5">
@@ -44,7 +46,7 @@ export default function OfferTime({ requestId, kind, days, slotsError }: { reque
                   {d.slots.map((s) => (
                     <button key={s.startsAt} type="button" disabled={busy} data-testid="request-slot" data-starts-at={s.startsAt}
                       className="rounded-md border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
-                      onClick={() => void offer(d.estimatorId, s.startsAt, `${d.dayWords}, ${s.timeWords}`)}>{s.timeWords}</button>
+                      onClick={() => void offer(d.estimatorId, s.startsAt)}>{s.timeWords}</button>
                   ))}
                 </div>
               </div>
