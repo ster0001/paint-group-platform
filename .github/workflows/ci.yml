@@ -15,7 +15,7 @@ on:
   # pointless — the code is already on main, or not going there — yet it held
   # the one test project for an hour and blocked the next piece of work, and
   # Tom was cancelling it by hand after every merge. A `closed` event starts a
-  # run in the SAME workflow-level group (ci-refs/pull/N/merge) below, whose
+  # run in the SAME workflow-level group (ci-pr-N, below), whose
   # cancel-in-progress is true off main — so it cancels the PR's run, queued or
   # running, and then does nothing itself (every job is skipped on `closed`).
   # A cancelled run's rows are swept by hygiene.yml, as for any cancelled run.
@@ -28,7 +28,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # Grouped by PR NUMBER for every pull_request event (10 Oct 2026, second fix):
+  # the first `closed` fix keyed on github.ref, but a merged PR's `closed` run
+  # does not run on the PR's merge ref, so it landed in a different group and
+  # cancelled nothing — S5's PR run held the test project after its merge. The
+  # PR number is the same on opened / synchronize / closed, merged or not.
+  group: ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.ref }}
   # On a BRANCH, cancelling a superseded run is what you want. On MAIN it is
   # how the test project fills up: the cancelled run's e2e job never reaches
   # global-teardown, so its anonymous users, estimates and accounts are left
@@ -37,7 +42,7 @@ concurrency:
   # backlog. Main runs now finish and clean up after themselves; the e2e job's
   # own `e2e-test-project` group still serialises them, so they queue rather
   # than overlap.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
 
 jobs:
   gate:
