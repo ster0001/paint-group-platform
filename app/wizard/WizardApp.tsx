@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
@@ -1383,6 +1383,27 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const hasGate = isCustomer && gateVersion === "details_first";
   const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope, hasGate);
   const quickStep = quickSteps[Math.min(Math.max(page, 1), quickSteps.length) - 1];
+  /**
+   * The page is a POSITION in the step list, and an answer can change the
+   * list in front of it: commercial "Both" (picked on the Space screen) puts
+   * the `both` step at the front, so position 3 stopped being Space and the
+   * customer was dropped back on Place — their next Continue only brought
+   * them back, which read as Continue doing nothing (found 10 Oct 2026). When
+   * the LIST changes and the page did not, the page follows the step it was
+   * showing, by name. A step the new list no longer has keeps the position.
+   */
+  const quickListKey = quickSteps.join(",");
+  const quickAnchor = useRef<{ list: string; page: number; step: string | undefined }>({ list: quickListKey, page, step: quickStep });
+  // A layout effect, so the wrong screen never paints for a frame in between.
+  useLayoutEffect(() => {
+    if (!quickActive) return;
+    const a = quickAnchor.current;
+    if (a.list !== quickListKey && a.page === page && a.step && quickSteps[page - 1] !== a.step) {
+      const at = quickSteps.indexOf(a.step as (typeof quickSteps)[number]);
+      if (at >= 0) { setPage(at + 1); return; }
+    }
+    quickAnchor.current = { list: quickListKey, page, step: quickSteps[page - 1] };
+  }, [quickActive, quickListKey, page]); // eslint-disable-line react-hooks/exhaustive-deps -- quickSteps is quickListKey
   /** UI refresh S1: the quick look (and its "working it out" screen) wears the new shell; the older page list (staff, `?entry=upload`) keeps its own (⚑ 21). */
   const newShell = isCustomer && entry === "questions";
 
