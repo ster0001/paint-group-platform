@@ -567,3 +567,84 @@ test.describe("UI refresh S6 · home, both — one stacked page", () => {
     await expect(page.locator(".sd-card.open")).toHaveCount(0);
   });
 });
+
+test.describe("UI refresh S7 · commercial — every segment, inside, outside and both", () => {
+  const SEGMENTS = ["office", "warehouse", "retail", "health", "school", "strata", "shopfront", "other"] as const;
+  const RANGED = new Set(["office", "warehouse", "retail", "health", "school"]);
+  for (const seg of SEGMENTS) {
+    test(`${seg}: inside goes to its own screen and picture; outside goes to the questions with no price`, async ({ page }) => {
+      test.setTimeout(180_000);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await toSegment(page);
+      for (const part of ["interior", "exterior"] as const) {
+        await page.getByTestId(`ql-segment-${seg}`).click();
+        await page.getByTestId(`ql-cpart-${part}`).click();
+        await quickNext(page);
+        const inside = part === "interior";
+        const step = inside && RANGED.has(seg) ? (seg === "warehouse" ? "com_warehouse" : "com_areas") : "com_brief";
+        await expect(page.locator(`[data-quick-step='${step}']`), `${seg} · ${part}`).toBeVisible({ timeout: 20_000 });
+        const picture = step === "com_warehouse" ? "warehouse" : step === "com_areas" ? "areas" : "house";
+        await expect(page.getByTestId("ql-picture")).toHaveAttribute("data-picture", picture);
+        if (step === "com_brief") await expect(page.locator(".wz-stage"), "no price on a visit-only path").not.toContainText(/\$\d/);
+        await page.getByRole("button", { name: "Back", exact: true }).click();
+        await expect(page.locator("[data-quick-step='segment']")).toBeVisible({ timeout: 20_000 });
+      }
+    });
+  }
+
+  // ⚑ Found in S7 (10 Oct): choosing "Both" ON the Space screen inserts the "both" step
+  // before it (stepsFor), so the first Continue leaves the customer on Space. A routing
+  // fix, not presentation — its own change (parking lot). Remove .fixme when it lands.
+  test.fixme("commercial Both chosen on the Space screen: ONE Continue reaches the questions", async ({ page }) => {
+    await toSegment(page);
+    await page.getByTestId("ql-segment-office").click();
+    await page.getByTestId("ql-cpart-both").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='com_brief']")).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("Tom, 10 Oct: the building on the Space step follows the space picked", async ({ page }) => {
+    test.setTimeout(120_000);
+    await toSegment(page);
+    for (const seg of SEGMENTS) {
+      await page.getByTestId(`ql-segment-${seg}`).click();
+      await expect(page.getByTestId("pic-segment")).toHaveAttribute("data-segment", seg);
+    }
+  });
+
+  test("the area plan follows the counts in the segment's own words; the warehouse follows its ticks and height", async ({ page }) => {
+    test.setTimeout(180_000);
+    await toSegment(page);
+    await page.getByTestId("ql-segment-office").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='com_areas']")).toBeVisible({ timeout: 20_000 });
+    const plan = page.getByTestId("pic-areas");
+    const first = plan.locator("[data-area]").first();
+    const key = (await first.getAttribute("data-area"))!;
+    const before = Number(await first.getAttribute("data-count"));
+    await page.getByTestId(`com-count-${key}-plus`).click();
+    await expect(first).toHaveAttribute("data-count", String(before + 1));
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await page.getByTestId("ql-segment-warehouse").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='com_warehouse']")).toBeVisible({ timeout: 20_000 });
+    const wh = page.getByTestId("pic-warehouse");
+    await expect(wh.locator("[data-s='roof']")).toHaveAttribute("data-on", "0");
+    await page.getByTestId("wh-surf-roof").click();
+    await expect(wh.locator("[data-s='roof']")).toHaveAttribute("data-on", "1");
+    await page.getByTestId("wh-height-12").click();
+    await expect(wh).toContainText("Over 9 m");
+  });
+
+  test("hospital: the areas screen, then the questions — no price anywhere", async ({ page }) => {
+    test.setTimeout(180_000);
+    await toSegment(page);
+    await page.getByTestId("ql-segment-health").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='com_areas']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("com-kind-hospital").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='com_brief']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(".wz-stage")).not.toContainText(/\$\d/);
+  });
+});

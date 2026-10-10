@@ -521,6 +521,19 @@ export function BriefScreen({ brief, answers, onAnswers, photoCount, onPhotos }:
 
 export type BookContact = { email: string; name: string; phone: string };
 
+/**
+ * How a commercial visit goes — ONE list, read by the Book screen and the
+ * Booked screen's "What happens next" (UI refresh S7).
+ * ⚑27: "usually within a week" is the prototype's line — Tom confirms what he can hold to.
+ */
+function bookSteps(holdDays: number): Array<[string, string]> {
+  return [
+    ["We visit and measure", "Usually within a week. We bring your brief and photos, so it\u2019s quick."],
+    ["You get a scope of works and a fixed quote", "Itemised, with our insurance certificates and safe work method statements attached."],
+    ["Nothing is fixed until you say so", `Quotes are held for ${holdDays} days — or to your meeting date, if you gave us one.`],
+  ];
+}
+
 export function BookScreen({ slots, slot, onSlot, contact, onContact, phone, error, holdDays }: {
   slots: string[];
   slot: string | null;
@@ -537,10 +550,7 @@ export function BookScreen({ slots, slot, onSlot, contact, onContact, phone, err
       <h1>Book your commercial estimator</h1>
       <p className="wz-sub">A site visit is the right way to price this. Here&rsquo;s how it goes.</p>
       <ol className="wz-book-steps" data-testid="book-steps">
-        {/* ⚑27: "usually within a week" is the prototype's line — Tom confirms what he can hold to. */}
-        <li><b>We visit and measure</b><span>Usually within a week. We bring your brief and photos, so it&rsquo;s quick.</span></li>
-        <li><b>You get a scope of works and a fixed quote</b><span>Itemised, with our insurance certificates and safe work method statements attached.</span></li>
-        <li><b>Nothing is fixed until you say so</b><span>Quotes are held for {holdDays} days — or to your meeting date, if you gave us one.</span></li>
+        {bookSteps(holdDays).map(([t, d]) => <li key={t}><b>{t}</b><span>{d}</span></li>)}
       </ol>
 
       <p className="wz-qhead">Pick a time that suits</p>
@@ -572,33 +582,49 @@ export function BookScreen({ slots, slot, onSlot, contact, onContact, phone, err
   );
 }
 
-/** After Book it: what happened, in plain words. No number anywhere. */
-export function BriefDone({ slot, emailed, booked, bookingProblem, email, phone }: {
+/**
+ * After Book it: what happened, in plain words. No number anywhere.
+ * UI refresh S7 (brief §7.11): a large tick, the time, and a four-step "What
+ * happens next" — the brief done, then the Book screen's own three steps.
+ */
+export function BriefDone({ slot, emailed, booked, bookingProblem, email, phone, address = null, holdDays = 60 }: {
   slot: string | null;
   emailed: boolean;
   booked: boolean;
   bookingProblem: string | null;
   email: string;
   phone: string | null;
+  address?: string | null;
+  holdDays?: number;
 }) {
+  const steps = bookSteps(holdDays);
   return (
-    <div className="wz-wrap" data-testid="brief-done">
+    <div className="wz-wrap wz-booked" data-testid="brief-done">
+      <div className="wz-bigtick" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+      </div>
       <p className="wz-kick">Booked</p>
       <h1>{booked && slot ? "You're booked in" : "Your brief is with us"}</h1>
       <p className="wz-sub" data-testid="brief-done-line">
         {booked && slot
-          ? `We've got you down for ${slot}. We bring your brief and photos with us, so the visit is quick.`
+          ? `We've got you down for ${slot}${address ? ` at ${address}` : ""}. We bring your brief and photos with us, so the visit is quick.`
           : bookingProblem
             ? `${bookingProblem} Your brief and photos are saved, and one of us will call to arrange a time.`
             : "One of us will call within one working day to arrange a time. Your brief and photos come with us."}
       </p>
-      <p className="wz-chint" data-testid="brief-done-email">
-        {emailed ? `A confirmation is on its way to ${email}.` : `Saved to ${email} — the email is taking its time, but everything is kept.`}
+      <section className="wz-next" aria-label="What happens next">
+        <h2>What happens next</h2>
+        <ol>
+          <li className="d"><i aria-hidden="true">✓</i><span><b>Your brief is in</b>
+            <small data-testid="brief-done-email">{emailed ? `Done. A confirmation is on its way to ${email}.` : `Saved to ${email} — the email is taking its time, but everything is kept.`}</small></span></li>
+          {steps.map(([t, d], i) => (
+            <li key={t} className={i === 0 ? "c" : ""}><i aria-hidden="true">{i + 2}</i><span><b>{t}</b><small>{d}</small></span></li>
+          ))}
+        </ol>
+      </section>
+      <p className="wz-chint">Nothing is fixed until you say so, and nothing is owed.
+        {phone && <> Something urgent? <a href={`tel:${phone.replace(/\s+/g, "")}`}>Call {phone}</a></>}
       </p>
-      <p className="wz-chint">Nothing is fixed until you say so, and nothing is owed.</p>
-      {phone && (
-        <p className="wz-chint">Something urgent? <a href={`tel:${phone.replace(/\s+/g, "")}`}>Call {phone}</a></p>
-      )}
     </div>
   );
 }

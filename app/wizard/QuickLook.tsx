@@ -729,7 +729,8 @@ export default function QuickLook({
         phone the picture sits above the question and the talk card at the foot. */}
     <aside className="wz-side" data-testid="ql-side" aria-label="Your job">
       <PictureCard step={step} quick={quick} outside={outside} suburb={suburb} rooms={planList} planPreviewUrl={planPreviewUrl} planPending={planPending}
-        segmentName={commercial?.segment?.name ?? null} />
+        segmentName={commercial?.segment?.name ?? null}
+        com={commercial ? { segment: commercial.segment, answers: commercial.answers, segmentKey: commercial.segmentKey } : null} />
       <JobSoFar steps={steps} at={step} quick={quick} outside={outside} address={address} roomCount={roomCount}
         segmentName={commercial?.segment?.name ?? null}
         areaCount={commercial?.answers ? Object.values(commercial.answers.counts).reduce((a, n) => a + n, 0) : 0}
