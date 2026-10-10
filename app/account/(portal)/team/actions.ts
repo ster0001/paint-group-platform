@@ -7,6 +7,9 @@ import { viewerTradeRole } from "@/lib/portal/approvalData";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isTestEmail, normaliseEmail } from "@/lib/accounts/identity";
 import { sendMagicLink } from "@/lib/portal/auth";
+import { lookupAuthUserByEmail } from "@/lib/auth/userByEmail";
+import { reportError } from "@/lib/monitoring/report";
+import { randomBytes } from "node:crypto";
 
 export type TeamResult = { ok: true } | { ok: false; message: string };
 
@@ -44,19 +47,27 @@ export async function inviteTeamMember(raw: unknown): Promise<TeamResult> {
   if (!svc) return { ok: false, message: "Try again shortly." };
 
   const email = normaliseEmail(parsed.data.email);
-  // Find or create the login. createUser refuses duplicates, so fall back
-  // to the (small) user listing — the seed-script pattern.
+  // Find or create the login. createUser refuses an address that already
+  // has one; then look the login up by email — one call, never page 1 of
+  // listUsers (newest first, so older logins fell off it: 11 Oct 2026).
   let userId: string | null = null;
   const created = await svc.auth.admin.createUser({
     email, email_confirm: true,
-    password: `pg-${Math.random().toString(36).slice(2)}${Date.now()}`,
+    password: `pg-${randomBytes(18).toString("base64url")}`,
   });
   if (created.data.user) userId = created.data.user.id;
-  else {
-    const { data: users } = await svc.auth.admin.listUsers({ perPage: 1000 });
-    userId = users?.users?.find((u) => u.email === email)?.id ?? null;
+  else if (created.error && !/already been registered|already exists/i.test(created.error.message)) {
+    reportError(created.error, { where: "team.invite.createUser" });
+    return { ok: false, message: "Couldn't set up that login just now — try again in a minute." };
+  } else {
+    const found = await lookupAuthUserByEmail(svc, email);
+    if (found.status === "found") userId = found.user.id;
+    else {
+      reportError(new Error(found.status === "error" ? found.message : `existing login not found (${found.status})`),
+        { where: "team.invite.lookup", extra: { status: found.status } });
+      return { ok: false, message: "Couldn't set up that login just now — try again in a minute." };
+    }
   }
-  if (!userId) return { ok: false, message: "Couldn't set up that login just now." };
 
   const membership = {
     account_id: admin.accountId,
@@ -80,7 +91,7 @@ export async function inviteTeamMember(raw: unknown): Promise<TeamResult> {
       subject: "You've been added to your team's Paint Group workspace",
       intro: "Your organisation set you up with access — properties, colours and progress, all in one place.",
       buttonLabel: "Open your workspace",
-    }).catch(() => {});
+    }).catch((e: unknown) => reportError(e, { where: "team.invite.magicLink", bestEffort: true }));
   }
   revalidatePath("/account/team");
   return { ok: true };

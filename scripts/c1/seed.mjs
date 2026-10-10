@@ -15,6 +15,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { loadTestEnv, refuseProduction } from "./env.mjs";
+import { authUserIdByEmail } from "../../lib/auth/userByEmail.ts";
 
 loadTestEnv();
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -37,8 +38,10 @@ async function ensureUser(email, password, role, name) {
     userId = created.data.user.id;
     console.log(`+ created ${role}: ${email}`);
   } else if (/already/i.test(created.error?.message ?? "")) {
-    const { data } = await service.auth.admin.listUsers({ perPage: 200 });
-    userId = data?.users?.find((u) => u.email === email)?.id ?? null;
+    // One lookup by email — page 1 of listUsers is the NEWEST users, and the
+    // seeded logins are the oldest on C1 (11 Oct 2026).
+    userId = await authUserIdByEmail(service, email);
+    if (!userId) throw new Error(`create ${email} said "already exists" but no login has that email`);
     console.log(`= exists  ${role}: ${email}`);
   } else {
     throw new Error(`create ${email}: ${created.error?.message}`);

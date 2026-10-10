@@ -2,7 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
-import { authUserIdByEmail } from "./helpers";
+import { authUserIdByEmail, credentials } from "./helpers";
+import { isTestEmail } from "../lib/accounts/identity";
 
 /**
  * Trade portal v2 · Session 6 — the sessions-doc acceptance list:
@@ -214,6 +215,39 @@ test.describe("trade money + team + digest (trade portal v2, session 6)", () => 
     expect(seat?.role).toBe("viewer");
     // Tom, 31 Aug: seats are org-wide — invites never write a property scope.
     expect(seat?.property_scope).toBeNull();
+  });
+
+  // 11 Oct 2026: inviting an address that ALREADY had a login fell back to
+  // `listUsers({ perPage: 1000 })` + `.find()`. GoTrue lists newest first, so
+  // an older login — here the seeded customer, one of the first users made on
+  // C1, which passed 1,000 users that day — was never on that page and the
+  // admin saw "Couldn't set up that login just now". Production has thousands
+  // of anonymous wizard users, so every long-standing login was out of reach.
+  test("inviting an OLDER existing login gives them the seat", async ({ page }) => {
+    test.skip(!migrationReady, "run migration 20261216000000_trade_digest_colourcard.sql first");
+    const existing = credentials("CUSTOMER");
+    test.skip(!existing, "set E2E_CUSTOMER_EMAIL and E2E_CUSTOMER_PASSWORD to run this");
+    // The invite emails a sign-in link to anything that isn't a test address.
+    test.skip(!isTestEmail(existing!.email.toLowerCase()), "E2E_CUSTOMER_EMAIL must be a test address");
+    test.setTimeout(120_000);
+    const sb = db!;
+    const oldId = await authUserIdByEmail(sb, existing!.email);
+    expect(oldId, "the seeded customer login exists").toBeTruthy();
+
+    await login(page, admin.email);
+    await page.goto("/account/team");
+    await page.getByTestId("invite-email").fill(existing!.email);
+    await page.getByTestId("invite-role").selectOption("approver");
+    await page.getByTestId("invite-go").click();
+    await expect(page.getByText("Invited ✓", { exact: false })).toBeVisible();
+    await expect(page.getByText("Couldn't set up that login", { exact: false })).toHaveCount(0);
+
+    // The seat is on the EXISTING login — no second user was made. afterAll
+    // removes every account_users row on this throwaway org, this one too.
+    const { data: seat, error } = await sb.from("account_users")
+      .select("role, profile_id").eq("account_id", accountId).eq("profile_id", oldId!).maybeSingle();
+    expect(error).toBeNull();
+    expect(seat?.role).toBe("approver");
   });
 
   test("digest: scope decides the content, quiet scopes get nothing", async ({ page }) => {

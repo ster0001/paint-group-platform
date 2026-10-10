@@ -16,6 +16,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { resolveSeedTarget } from "./seed-target.mjs";
+import { authUserIdByEmail } from "../lib/auth/userByEmail";
 
 const SEED = {
   email: "pg.melissa.customer@gmail.com",
@@ -97,9 +98,9 @@ async function main() {
     userId = created.data.user?.id ?? null;
     console.log(`+ ${SEED.email}: account created`);
   } else {
-    const link = await admin.auth.admin.generateLink({ type: "magiclink", email: SEED.email });
-    if (link.error) throw new Error(`${SEED.email}: ${created.error.message} / ${link.error.message}`);
-    userId = link.data.user?.id ?? null;
+    // lib/auth/userByEmail: `recovery`, never `magiclink` — a lookup must not create.
+    userId = await authUserIdByEmail(admin, SEED.email);
+    if (!userId) throw new Error(`${SEED.email}: ${created.error.message} — and no existing login has that email`);
     console.log(`· ${SEED.email}: already existed, re-using`);
   }
 

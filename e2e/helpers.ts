@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
+import { authUserIdByEmail as libAuthUserIdByEmail } from "../lib/auth/userByEmail";
 
 export type Credentials = { email: string; password: string };
 
@@ -46,26 +47,14 @@ export async function userIdFor(creds: Credentials): Promise<string | null> {
 
 /**
  * The auth user id for an email, through the service client — ONE call, no
- * paging. Every e2e lookup by email goes through here.
- *
- * `auth.admin.listUsers({ perPage: 1000 })` + `.find()` reads page 1 only,
- * and GoTrue lists NEWEST first — so the seeded logins, the OLDEST users on the
- * project, are the first to fall off it. On 11 Oct 2026 C1 passed 1,000 users
- * and every visit spec died with "staff login not found". Paging with a cap
- * (10, 20, 30 pages) only moves the cliff; it has been hit at 2,000 and 10,000.
- *
- * `generateLink` resolves one email in one request and sends nothing.
- * `recovery`, not `magiclink`: an unknown email answers 404 `user_not_found`,
- * where a magic link would CREATE the user — wrong for a lookup, and worse in
- * a teardown. Any other error throws rather than reading as "not found".
+ * paging. Every e2e lookup by email goes through here, and here is the app's
+ * own lookup (`lib/auth/userByEmail.ts`, generateLink `recovery`), so the
+ * specs and the Team invite / staff re-create / trade account paths can never
+ * drift apart. Null for an unknown email; any other failure throws rather than
+ * reading as "not found".
  */
 export async function authUserIdByEmail(sb: SupabaseClient, email: string): Promise<string | null> {
-  const { data, error } = await sb.auth.admin.generateLink({ type: "recovery", email });
-  if (error) {
-    if (error.status === 404 || error.code === "user_not_found") return null;
-    throw new Error(`authUserIdByEmail(${email}): ${error.message}`);
-  }
-  return data.user?.id ?? null;
+  return libAuthUserIdByEmail(sb, email);
 }
 
 export async function signOutIfPossible(page: Page) {

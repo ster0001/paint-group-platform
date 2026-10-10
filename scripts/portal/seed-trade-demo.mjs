@@ -21,6 +21,7 @@
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { loadTestEnv, refuseProduction } from "../c1/env.mjs";
+import { authUserIdByEmail } from "../../lib/auth/userByEmail.ts";
 
 // --prod seeds the LIVE project as a showcase (the Margaret precedent):
 // reads .env.local itself, still gated on SEED_ALLOW_PRODUCTION=1, titles
@@ -100,17 +101,15 @@ async function destroyOrg(email) {
     if (propIds.length) await db.from("properties").delete().in("id", propIds);
     await db.from("accounts").delete().eq("id", acct.id);
   }
-  const { data: users } = await db.auth.admin.listUsers({ perPage: 1000 });
-  const u = users?.users?.find((x) => x.email === email);
-  if (u) await db.auth.admin.deleteUser(u.id);
+  const uid = await authUserIdByEmail(db, email);
+  if (uid) await db.auth.admin.deleteUser(uid);
 }
 
 async function destroyOrgUserOnly(email) {
-  const { data: users } = await db.auth.admin.listUsers({ perPage: 1000 });
-  const u = users?.users?.find((x) => x.email === email);
-  if (u) {
-    await db.from("account_users").delete().eq("profile_id", u.id);
-    await db.auth.admin.deleteUser(u.id);
+  const uid = await authUserIdByEmail(db, email);
+  if (uid) {
+    await db.from("account_users").delete().eq("profile_id", uid);
+    await db.auth.admin.deleteUser(uid);
   }
 }
 

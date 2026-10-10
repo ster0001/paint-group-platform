@@ -740,6 +740,17 @@
       ]
     },
     {
+      "feature": "team",
+      "role": "customer",
+      "title": "Invite someone to your organisation's workspace",
+      "summary": "An admin of a trade organisation adds a person under Team by email and access level; they are emailed a sign-in link, and it works whether or not that email already has a Paint Group login.",
+      "path": "docs/help/team/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "timesheets",
       "role": "employee",
       "title": "Your hours — logged for you, plus any extra you work",

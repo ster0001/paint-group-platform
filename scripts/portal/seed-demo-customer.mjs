@@ -7,6 +7,7 @@
 import zlib from "node:zlib";
 import { createClient } from "@supabase/supabase-js";
 import { resolveSeedTarget } from "../seed-target.mjs";
+import { authUserIdByEmail } from "../../lib/auth/userByEmail.ts";
 
 // F1-03: this used to read .env.local directly and ignore the environment —
 // 23 write call sites, including account creation, straight into production.
@@ -78,12 +79,7 @@ async function main() {
   await wipe();
 
   // Alice's auth user → membership.
-  let aliceId = null;
-  for (let page = 1; page <= 10 && !aliceId; page++) {
-    const { data } = await db.auth.admin.listUsers({ page, perPage: 200 });
-    aliceId = data?.users?.find((u) => (u.email ?? "").toLowerCase() === EMAIL)?.id ?? null;
-    if (!data?.users?.length || data.users.length < 200) break;
-  }
+  const aliceId = await authUserIdByEmail(db, EMAIL);
   if (!aliceId) throw new Error(`${EMAIL} has no auth user — create the test login first`);
 
   const { data: acct } = await db.from("accounts")
