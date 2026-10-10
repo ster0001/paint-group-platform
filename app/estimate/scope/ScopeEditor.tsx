@@ -60,6 +60,8 @@ const DARK_TO_LIGHT_SURFACES: Array<[string, string]> = [
 
 import type { InteriorLoopMeta, RoomLoopView } from "@/lib/wizard/rooms-loop";
 import Wordmark from "@/app/wizard/Wordmark";
+import WizardHeader from "@/app/wizard/WizardHeader";
+import PlanMap from "@/app/wizard/pictures/PlanMap";
 
 /** R3: the interior confirm-loop state that rides every customer response. */
 export type InteriorLoopView = {
@@ -499,6 +501,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
 
   // ---- R3: the confirm loop -------------------------------------------------
   const loopOf = (areaId: number) => iloop?.rooms.find((r) => r.areaId === areaId) ?? null;
+  /** UI refresh S4b: a checked card's one line — "walls, ceilings, skirting boards, 1 door, 1 window". */
+  const roomSummary = (room: CustomerScopeRoom) => sortTiles(room.tiles.filter((t) => tileOn(room, t)))
+    .map((t) => (t.countable ? `${shownCount(room, t)} ${t.label.toLowerCase().replace(/s$/, "")}${shownCount(room, t) === 1 ? "" : "s"}` : t.label.toLowerCase()))
+    .join(", ");
   function refuseCard(key: string, msg: string) {
     setShakeCard(key);
     setTimeout(() => setShakeCard(null), 400);
@@ -696,6 +702,18 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
 
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
+  // UI refresh S4: the price card's band — the dashed outline is where the guide range
+  // started (the range this page opened with), the bar is the range now. Positions only;
+  // no money is computed here.
+  const [startRange] = useState(() => ({ lo: initial.rangeLoCents, hi: initial.rangeHiCents }));
+  const band = (() => {
+    const { lo: g0, hi: g1 } = startRange;
+    const pad = Math.max(1, (g1 - g0) * 0.12);
+    const mn = Math.min(g0, payload.rangeLoCents) - pad, mx = Math.max(g1, payload.rangeHiCents) + pad;
+    const at = (v: number) => `${((v - mn) / (mx - mn)) * 100}%`;
+    const w = (a: number, b: number) => `${((b - a) / (mx - mn)) * 100}%`;
+    return { was: { left: at(g0), width: w(g0, g1) }, now: { left: at(payload.rangeLoCents), width: w(payload.rangeLoCents, payload.rangeHiCents) } };
+  })();
 
   // ---- Tom, 14 Sep (items 5, 14, 15): the details, one question at a time ----
   const detailSteps: PaginatedStep[] = [];
@@ -932,76 +950,24 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           confidence score all stay on screen while the cards scroll under
           them, so "how far am I" and "how sure are we" are never more than
           a glance away. */}
+      {/* UI refresh S4 (brief §7.5): the frozen stack shrinks to the one slim header — the
+          range, the tier, the progress and the estimator moved into the rail on the right
+          (on a phone: the dark range strip under the header). Still `.sc-freeze`, pinned. */}
       <div className="sc-freeze">
-        <header className="wz-top">
-          <Wordmark logoUrl={logoUrl} />
-          {/* Tom, 9 Sep: "estimate confirmed" was the wrong word for this
-              moment — WE have not confirmed anything yet, and the customer has
-              not accepted. All it means is that they have checked every card
-              and the ball is back in their court. Saying so removes a promise
-              nobody had made. */}
-          {iloop && (
-            <span className={`sd-status ${combined!.allDone ? "ok" : ""}`}>
-              {combined!.allDone ? "AWAITING YOUR SIGN-OFF" : initialSides ? "IN REVIEW · INSIDE THEN OUTSIDE" : "IN REVIEW · CONFIRM EACH ROOM"}
-            </span>
-          )}
-        </header>
-        {iloop && (
-          <div className="il-progwrap">
-            <div className="sd-lbl">
-              {/* Phase 0 (6 Sep plan): rooms and the two whole-job checks are
-                  counted apart — "0 of 9 confirmed" read as nine rooms. */}
-              <span className="il-prog">{initialSides
-                ? `${combined!.done} OF ${combined!.total} CONFIRMED`
-                : `${iloop.rooms.filter((r) => r.confirmed).length} OF ${iloop.rooms.length} ROOMS · ${Number(iloop.meta.done.dw) + Number(iloop.meta.done.sweep)} OF 2 CHECKS`}</span>
-              <span>ORANGE = STILL TO CONFIRM · BLUE = CONFIRMED</span>
-            </div>
-            <div className={`sd-pbar ${combined!.allDone ? "ok" : ""}`}>
-              <i style={{ width: `${(combined!.done / Math.max(1, combined!.total)) * 100}%` }} />
-            </div>
-          </div>
-        )}
-        {/* Tom, 14 Sep (item 4): the estimator — and the Call button — live in the frozen header. */}
-        {!chatMode && (
-          <div className="sc-estwrap">
-            <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={() => scrollToReach()} compact />
-          </div>
-        )}
-        <div className="sc-scorewrap">
-          <div className="sc-scorebar">
-            <div className="sc-score">
-              <div className={`sc-ring ${pendingCount > 0 ? "live" : ""}`} data-live={pendingCount > 0 ? "1" : "0"}>
-                <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx="24" cy="24" r="20" fill="none" stroke="#D9E0E6" strokeWidth="4" />
-                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 90 ? "#1F8A55" : "#A86A12"}
-                    strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
-                    strokeDashoffset={(125.6 * Math.max(0, Math.min(1, (payload.bandPct - (payload.tightPct ?? 4)) / Math.max(1, (payload.widePct ?? 15) - (payload.tightPct ?? 4))))).toFixed(1)} />
-                </svg>
-                <div className="sc-num" data-testid="range-width">±{payload.bandPct}%</div>
-              </div>
-              <div className="sc-lbl">
-                <b>Your range <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
-                {/* PR 1 of the tiers plan: the next unlock never names a target this
-                    road can't reach — a no-plan job is shown Detailed as its goal and
-                    Confirmed as "upload your floorplan". */}
-                <span data-testid="tier-next">{ladder.nextUnlock
-                  ? `${ladder.nextUnlock.needs.length === 1 ? "One step" : `${ladder.nextUnlock.needs.length} steps`} to ${TIER_LABEL[ladder.nextUnlock.tier]}: ${ladder.nextUnlock.needs.join(" · ")}`
-                  : combined?.allDone
-                    ? "Everything confirmed — this is as sure as we get before we see it"
-                    : "It climbs with every room you confirm — we\u2019ll reprice as you go"}</span>
-              </div>
-            </div>
-            <div className="sc-range" key={flash}>
-              <small>YOUR ESTIMATE · INCL. GST</small>
-              <div className="sc-r">{rangeText}</div>
-            </div>
-          </div>
-        </div>
-        <div className="sc-scorewrap" style={{ paddingTop: 0 }}>
-          <PlanPanel docs={docs} variant="peek" />
-        </div>
+        <WizardHeader
+          logo={<Wordmark logoUrl={logoUrl} />}
+          steps={[]}
+          at="gate"
+          after={{
+            at: 1,
+            labels: ["Guide range", initialSides ? "Rooms and sides" : payload.commercial ? "Area by area" : "Room by room",
+              `Fixed by ${estimator?.name?.trim().split(/\s+/)[0] || "your estimator"}`],
+          }}
+          phone={companyPhone}
+        />
       </div>
 
+      <div className="sc-ed">
       <main className="sc-wrap">
         {complete && autoSend !== "idle" && <AllDoneBanner estimator={estimator?.name ?? null} sentHref={sentHref} state={autoSend === "sending" ? "sending" : autoSend === "sent" ? "sent" : "failed"} />}
         {/* R1.3 lives HERE now the interstitial result screen is gone
@@ -1197,14 +1163,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             read as the last two questions rather than the first two. */}
         <div className="sc-cols">
         <div className="sc-cards">
-          {rooms.filter((r) => r.garagePending !== true).map((room) => {
+          {rooms.filter((r) => r.garagePending !== true).map((room, roomIndex) => {
             const main = room.tiles.filter((t) => !t.longTail);
             const tail = room.tiles.filter((t) => t.longTail);
             
             const loop = loopOf(room.areaId);
             return (
               <section
-                className={`sc-rc ${loop?.confirmed ? "done" : loop ? "amber" : ""} ${shakeCard === `room:${room.areaId}` ? "shake" : ""}`}
+                className={`sc-rc ${loop?.confirmed ? "done" : loop ? "amber" : ""} ${loop && openCard === `room:${room.areaId}` ? "open" : ""} ${shakeCard === `room:${room.areaId}` ? "shake" : ""}`}
                 key={room.areaId}
                 data-room={room.areaId}
                 data-card={`room:${room.areaId}`}
@@ -1226,15 +1192,20 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     </form>
                   ) : (
                     <b>
+                      {/* UI refresh S4b: a number until it is checked, then a tick (the word is beside it too). */}
+                      {loop && <span className={`sc-badge ${loop.confirmed ? "ok" : ""}`} aria-hidden="true">{loop.confirmed ? "✓" : roomIndex + 1}</span>}
                       {room.name}
                       {loop && (
                         <span className="il-hm"> · {loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span>
+                      )}
+                      {loop?.confirmed && openCard !== `room:${room.areaId}` && (
+                        <small className="sc-sum" data-testid={`room-summary-${room.areaId}`}>{roomSummary(room)}</small>
                       )}
                     </b>
                   )}
                   <span className="sc-m">
                     {loop ? (
-                      <span className={`il-pill ${loop.confirmed ? "done" : ""}`}>{loop.confirmed ? "CONFIRMED ✓" : "CONFIRM THIS ROOM"}</span>
+                      <span className={`il-pill ${loop.confirmed ? "done" : ""}`}>{loop.confirmed ? "Checked ✓" : openCard === `room:${room.areaId}` ? "Close" : "Check this room"}</span>
                     ) : (
                       room.m2 != null && `${room.m2.toFixed(1)} m²`
                     )}
@@ -1256,7 +1227,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     like the tiles above it. */}
                 {loop && (
                   <div className={`il-q il-first ${loop.size != null ? "ok" : ""}`}>
-                    <p className="il-kick">FIRST — THE SIZE OF THIS ROOM</p>
+                    <p className="il-kick il-blk"><i aria-hidden="true">{loop.size != null ? "✓" : "1"}</i><span className="il-blk-t">FIRST — THE SIZE OF THIS ROOM</span></p>
+                    <RoomOutline label={loop.sizeLabel} />
                     <p className="il-ql">
                       Is <span className="il-size">{loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span> about
                       the size of this room? <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
@@ -1315,8 +1287,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     )}
                   </div>
                 )}
+                {loop && <p className="il-kick il-blk"><i aria-hidden="true">2</i><span className="il-blk-t">What we&rsquo;re painting in here</span></p>}
                 <div className="sc-tgrid">
-                  {[...main, ...tail.filter((t) => t.on)]
+                  {sortTiles([...main, ...tail.filter((t) => t.on)])
                     .filter((t) => !(loop && String(t.key) === "windows" && loop.windows.length > 0))
                     .map((t) => (
                     <div
@@ -1487,6 +1460,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     {loop.customs.map((name, i) => <div className="sc-tl on custom" key={i}>{name}</div>)}
                   </div>
                 )}
+                {loop?.cupboard && <p className="il-kick il-blk"><i aria-hidden="true">3</i><span className="il-blk-t">Cupboards and robes</span></p>}
                 {loop?.cupboard && (
                   <div className={`il-q il-cup ${loop.cupboard.on != null ? "ok" : ""}`}>
                     <p className="il-ql">{loop.cupboard.question} <span className="il-req">REQUIRED</span><span className="il-okc">✓</span></p>
@@ -1749,23 +1723,123 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           {/* Tom, 14 Sep (item 8): What we'll do sits at the very bottom of the page. */}
           {!chatMode && <WhatWeDo lines={systems} tellUsHref={`/estimate/book?id=${estimateId}`} />}
         </div>
-        <PlanPanel docs={docs} variant="column" />
         </div>
       </main>
 
-      {/* Tom, 14 Sep (item 1): the bottom strip is two buttons — nothing else. The
-          price, the tier and the estimator live in the frozen header above. */}
-      <div className="sc-stick sc-stick-two" ref={stickRef}>
-        <div className="sr-only" data-testid="last-change" aria-live="polite">{lastChange ? `Last change: ${lastChange}` : ""}</div>
-        <div className="sc-two">
-          <button type="button" className="sc-btn il-cta" data-testid="scope-finalise" onClick={onFinalise}>
-            {autoSend === "sent" ? "See what happens next" : "Finalise my price"}
-          </button>
-          <button type="button" className="sc-btn sc-btn2" data-testid="scope-book" onClick={() => scrollToReach()}>Book a time</button>
-        </div>
+      {/* UI refresh S4: the rail — the price card, Your home, the estimator. Sticky on a
+          laptop so the range and the progress never leave the screen (R5); on a phone it
+          dissolves into the page: the price card becomes the dark strip under the header,
+          the buttons the bottom bar (ONE `.sc-stick`, moved by CSS, never a copy). */}
+      <aside className="sc-rail" aria-label="Your range">
+        <section className="sc-price" data-testid="price-card">
+          <div className="sc-lbl">
+            <b>Your range <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
+            {/* PR 1 of the tiers plan: the next unlock never names a target this road can't reach. */}
+            <span data-testid="tier-next">{ladder.nextUnlock
+              ? `${ladder.nextUnlock.needs.length === 1 ? "One step" : `${ladder.nextUnlock.needs.length} steps`} to ${TIER_LABEL[ladder.nextUnlock.tier]}: ${ladder.nextUnlock.needs.join(" · ")}`
+              : combined?.allDone
+                ? "Everything confirmed — this is as sure as we get before we see it"
+                : "It climbs with every room you confirm — we\u2019ll reprice as you go"}</span>
+          </div>
+          <div className="sc-range" key={flash}>
+            <div className="sc-r">{rangeText}</div>
+            <small><span className="sc-gst">Includes GST · within </span><span className={`sc-num ${pendingCount > 0 ? "live" : ""}`} data-testid="range-width">±{payload.bandPct}%</span></small>
+          </div>
+          {/* The band: the dashed outline is where the guide range started; the bar is now. */}
+          <div className="sc-band" aria-hidden="true">
+            <span className="was" style={band.was} />
+            <span className="now" style={band.now} />
+          </div>
+          <p className="sc-bandlab">Dashed line: where your guide range started</p>
+          {iloop && (
+            <p className="il-prog">{initialSides
+              ? `${combined!.done} OF ${combined!.total} CONFIRMED`
+              : `${iloop.rooms.filter((r) => r.confirmed).length} OF ${iloop.rooms.length} ROOMS · ${Number(iloop.meta.done.dw) + Number(iloop.meta.done.sweep)} OF 2 CHECKS`}</p>
+          )}
+          {iloop && (
+            <ul className="sc-todo">
+              {detailSteps.length > 0 && (
+                <li className={detailSteps.every((d) => d.answered) ? "d" : ""}>
+                  <i aria-hidden="true" />{payload.commercial ? "About the whole space" : "About the whole home"}
+                  <span>{detailSteps.filter((d) => d.answered).length}/{detailSteps.length}</span>
+                </li>
+              )}
+              <li className={iloop.rooms.every((r) => r.confirmed) ? "d" : ""}>
+                <i aria-hidden="true" />{payload.commercial ? "Areas checked" : "Rooms checked"}
+                <span>{iloop.rooms.filter((r) => r.confirmed).length}/{iloop.rooms.length}</span>
+              </li>
+              <li className={iloop.meta.done.dw && iloop.meta.done.sweep ? "d" : ""}>
+                <i aria-hidden="true" />Last checks
+                <span>{Number(iloop.meta.done.dw) + Number(iloop.meta.done.sweep)}/2</span>
+              </li>
+            </ul>
+          )}
+          {/* Tom, 14 Sep (item 1): two buttons — nothing else. */}
+          <div className="sc-stick sc-stick-two" ref={stickRef}>
+            <div className="sr-only" data-testid="last-change" aria-live="polite">{lastChange ? `Last change: ${lastChange}` : ""}</div>
+            <div className="sc-two">
+              <button type="button" className="sc-btn il-cta" data-testid="scope-finalise" onClick={onFinalise}>
+                {autoSend === "sent" ? "See what happens next" : "Finalise my price"}
+              </button>
+              <button type="button" className="sc-btn sc-btn2" data-testid="scope-book" onClick={() => scrollToReach()}>Book a time</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="sc-home" aria-label="Your home">
+          <p className="sc-home-head"><b>{payload.commercial ? "Your space" : "Your home"}</b>
+            {iloop && <span>{iloop.rooms.filter((r) => r.confirmed).length} of {iloop.rooms.length} checked</span>}</p>
+          <PlanPanel docs={docs} variant="peek" />
+          <PlanPanel docs={docs} variant="column" />
+          {!docs.plan && iloop && (
+            <div className="sc-home-art">
+              <PlanMap rooms={rooms.filter((r) => r.garagePending !== true).map((r) => ({
+                name: r.name, roomType: roomTypeForName(r.name),
+                state: loopOf(r.areaId)?.confirmed ? "ok" as const : "todo" as const,
+              }))} />
+            </div>
+          )}
+          <p className="sc-home-key"><span className="todo">Still to check</span><span className="ok">Checked</span></p>
+        </section>
+
+        {/* Tom, 14 Sep (item 4): the estimator — and the Call button — always to hand. */}
+        {!chatMode && (
+          <div className="sc-estwrap">
+            <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={() => scrollToReach()} compact />
+          </div>
+        )}
+      </aside>
       </div>
       <FinalisePrompt open={prompt} onAnswer={answerRemaining} onBook={() => scrollToReach()} onClose={() => setPrompt(false)} />
       {toast && <div className="sc-toast">{toast}</div>}
     </div>
+  );
+}
+
+/** Brief §7.5: the surfaces in the order a person thinks about a room (Walls first), not the card's own order. */
+const TILE_ORDER = ["walls", "ceilings", "cornices", "doors", "windows", "skirting", "architraves", "balustrade", "balustrades"];
+function sortTiles<T extends { key: string | number; label: string }>(tiles: T[]): T[] {
+  const rank = (t: T) => {
+    const k = String(t.key).toLowerCase();
+    const i = TILE_ORDER.findIndex((o) => k === o || t.label.toLowerCase().startsWith(o.replace(/s$/, "")));
+    return i < 0 ? TILE_ORDER.length : i;
+  };
+  return tiles.map((t, i) => ({ t, i })).sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i).map((x) => x.t);
+}
+
+/** Brief §7.5 block 1: a small to-scale outline of the room beside its size question. Decorative. */
+function RoomOutline({ label }: { label: string }) {
+  const m = label.replace(",", ".").match(/([\d.]+)\s*[×x]\s*([\d.]+)/);
+  if (!m) return null;
+  const L = Number(m[1]), W = Number(m[2]);
+  if (!(L > 0 && W > 0)) return null;
+  const scale = Math.min(84 / L, 56 / W);
+  const w = Math.max(18, L * scale), h = Math.max(14, W * scale);
+  return (
+    <svg className="il-outline" viewBox="0 0 120 80" aria-hidden="true">
+      <rect x={60 - w / 2} y={36 - h / 2} width={w} height={h} rx="3" fill="#fff" stroke="#16212a" strokeOpacity=".5" strokeWidth="1.5" />
+      <path d={`M${60 - w / 2} ${42 + h / 2}h${w}`} stroke="#0a7c8e" strokeWidth="2" />
+      <text x="60" y={54 + h / 2} textAnchor="middle" fontSize="10" fill="#0a7c8e">{L} m</text>
+    </svg>
   );
 }

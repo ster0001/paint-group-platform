@@ -15,7 +15,11 @@ export function scrollCardToTop(el: Element | null | undefined, gap = 10) {
       document.querySelector<HTMLElement>(".sc-freeze") ??
       document.querySelector<HTMLElement>(".sd-top") ??
       document.querySelector<HTMLElement>(".wz-top");
-    return sticky ? sticky.getBoundingClientRect().height : 0;
+    // UI refresh S4: on a phone the price card is a sticky strip UNDER the header — the
+    // card's name must land below both, not behind the strip.
+    const strip = document.querySelector<HTMLElement>(".sc-price");
+    const stripH = strip && getComputedStyle(strip).position === "sticky" ? strip.getBoundingClientRect().height : 0;
+    return (sticky ? sticky.getBoundingClientRect().height : 0) + stripH;
   };
   const target = () => Math.max(0, Math.round(el.getBoundingClientRect().top + window.scrollY - stickyHeight() - gap));
   window.scrollTo({ top: target(), behavior: "smooth" });

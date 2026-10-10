@@ -1740,3 +1740,153 @@
   .wz .wz-rv-dock .wz-btn { flex: 1; min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .wz .wz-ladder-row i b { animation: none !important; } }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD UI REFRESH — S4a: the editor's frame (brief §7.5; components doc §5).
+   The slim header (.sc-freeze), the two-column page (.sc-ed) and the rail
+   (.sc-rail: the price card, Your home, the estimator). The room cards' insides
+   are S4b's.
+   ═════════════════════════════════════════════════════════════════════════ */
+.wz .sc-freeze { background: var(--bar); border-bottom: 0; }
+.wz .sc-ed { max-width: 1240px; margin: 0 auto; padding: 30px 24px 60px; display: grid; grid-template-columns: minmax(0, 1fr) 410px; gap: 36px; align-items: start; font-size: 17px; }
+.wz .sc-ed > .sc-wrap { max-width: none; margin: 0; padding: 0; min-width: 0; }
+.wz .sc-ed .sc-cols { grid-template-columns: minmax(0, 1fr); }
+.wz .sc-rail { position: sticky; top: 80px; display: grid; gap: 14px; align-content: start; max-height: calc(100vh - 96px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* the price card — range, accuracy, band, checklist, the two buttons */
+.wz .sc-price { padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
+.wz .sc-price .sc-lbl { display: grid; gap: 4px; }
+.wz .sc-price .sc-lbl b { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--heading); }
+.wz .sc-price .tier-chip { font-family: var(--wz-sans); font-size: 12px; font-weight: 600; letter-spacing: .02em; border-radius: 999px; padding: 3px 10px; border: 1.5px solid var(--amber-line); color: var(--amber); background: var(--amber-wash); }
+.wz .sc-price .tier-chip.detailed, .wz .sc-price .tier-chip.confirmed { border-color: var(--wash2); color: var(--cyan); background: var(--wash); }
+.wz .sc-price .sc-lbl > span { font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+.wz .sc-price .sc-range { margin-top: 10px; text-align: left; }
+.wz .sc-price .sc-r { font-family: var(--wz-mono); font-weight: 700; font-size: clamp(22px, 2.2vw, 29px); letter-spacing: -.04em; color: var(--heading); white-space: nowrap; }
+.wz .sc-price .sc-range small { display: block; margin-top: 4px; font-size: 13.5px; color: var(--muted); letter-spacing: 0; text-transform: none; font-family: var(--wz-sans); }
+.wz .sc-price .sc-num { position: static; display: inline; inset: auto; transform: none; width: auto; height: auto; font: inherit; color: var(--heading); font-weight: 600; }
+.wz .sc-band { position: relative; height: 16px; margin-top: 16px; border-radius: 999px; background: var(--panel2); }
+.wz .sc-band .was { position: absolute; top: 0; bottom: 0; border-radius: 999px; border: 1.5px dashed var(--line-strong); }
+.wz .sc-band .now { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: var(--paint); transition: left .7s cubic-bezier(.2,.7,.2,1), width .7s cubic-bezier(.2,.7,.2,1); }
+.wz .sc-bandlab { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.wz .sc-price .il-prog { margin: 14px 0 0; font-family: var(--wz-mono); font-size: 11.5px; letter-spacing: .08em; color: var(--muted); }
+.wz .sc-todo { list-style: none; margin: 10px 0 0; padding: 0; }
+.wz .sc-todo li { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--panel2); font-size: 15px; color: var(--text); }
+.wz .sc-todo li i { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line-strong); }
+.wz .sc-todo li.d i { background: var(--cyan) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3.2L13 5' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat; border-color: var(--cyan); }
+.wz .sc-todo li span { font-family: var(--wz-mono); font-size: 13px; color: var(--muted); }
+@media (min-width: 901px) {
+  .wz .sc-rail .sc-stick { position: static; margin-top: 14px; padding: 0; background: none; border: 0; backdrop-filter: none; -webkit-backdrop-filter: none; z-index: auto; }
+  .wz .sc-rail .sc-two { display: grid; grid-template-columns: 1fr; gap: 8px; max-width: none; }
+}
+.wz .sc-rail .sc-btn { min-height: 54px; border-radius: 999px; font-size: 17px; font-weight: 600; }
+.wz .sc-rail .sc-btn.il-cta { background: var(--paint); color: var(--onpaint); border: 0; box-shadow: 0 10px 24px -12px rgba(11,150,170,.9); }
+.wz .sc-rail .sc-btn.sc-btn2 { background: var(--panel); color: var(--heading); border: 1.5px solid var(--line-strong); }
+
+/* Your home — the real plan when there is one, the drawn one when there isn't (never an empty rail) */
+.wz .sc-home { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; }
+.wz .sc-home-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0; padding: 14px 16px 10px; font-size: 15.5px; }
+.wz .sc-home-head b { color: var(--heading); font-weight: 600; }
+.wz .sc-home-head span { font-size: 13.5px; color: var(--muted); }
+.wz .sc-home-art { position: relative; aspect-ratio: 4 / 2.9; background: linear-gradient(#eef3f5, #e3eaee); }
+.wz .sc-home-art > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wz .sc-home .pp-side { position: static; top: auto; padding: 0 12px; }
+.wz .sc-home-key { display: flex; gap: 14px; margin: 0; padding: 10px 16px 12px; font-size: 13.5px; color: var(--muted); }
+.wz .sc-home-key span::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 4px; vertical-align: -1px; }
+.wz .sc-home-key .todo::before { background: var(--amber-wash); border: 1.5px solid var(--amber); }
+.wz .sc-home-key .ok::before { background: #8fdde8; border: 1.5px solid var(--cyan); }
+.wz .sc-rail .sc-estwrap { padding: 0; }
+.wz .sc-rail .sc-estwrap .wz-est { margin: 0; border-radius: 22px; padding: 14px 16px; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .wz .sc-ed { display: flex; flex-direction: column; align-items: stretch; gap: 14px; padding: 0 16px 150px; }
+  .wz .sc-ed > *, .wz .sc-rail > * { width: 100%; min-width: 0; }
+  .wz .sc-rail { display: contents; }
+  /* the dark range strip — one line under the header, the range and the count always in view */
+  /* The editor's header drops its own progress row on a phone — the range strip says it. */
+  .wz .sc-freeze .wz-mprog { display: none; }
+  .wz .sc-price { order: -2; position: sticky; top: 56px; z-index: 44; width: auto; margin: 0 -16px; padding: 9px 16px; border: 0; border-radius: 0; box-shadow: none; background: var(--heading); color: #fff; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center; }
+  .wz .sc-price .sc-lbl, .wz .sc-price .sc-bandlab, .wz .sc-price .sc-todo { display: none; }
+  .wz .sc-price .sc-range { grid-column: 1; grid-row: 1; margin: 0; }
+  .wz .sc-price .sc-r { color: #fff; font-size: 16px; }
+  .wz .sc-price .sc-range { display: flex; align-items: baseline; gap: 8px; }
+  .wz .sc-price .sc-range small { margin: 0; font-size: 12.5px; color: #a9b6be; white-space: nowrap; }
+  .wz .sc-price .sc-gst { display: none; }
+  .wz .sc-price .sc-num { color: #fff; }
+  .wz .sc-price .sc-band { grid-column: 2; grid-row: 1; margin: 0; height: 10px; background: #2a3842; }
+  .wz .sc-price .sc-band .was { border-color: #51626e; }
+  .wz .sc-price .il-prog { grid-column: 1 / -1; margin: 2px 0 0; font-size: 11px; color: #a9b6be; }
+  .wz .sc-home { order: -1; }
+  .wz .sc-home-art { aspect-ratio: auto; height: 140px; }
+  .wz .sc-ed > .sc-wrap { order: 0; }
+  .wz .sc-estwrap { order: 1; }
+  .wz .sc-price .sc-stick .sc-two { display: grid; grid-template-columns: .7fr 1fr; gap: 8px; }
+  .wz .sc-price .sc-stick .sc-btn.sc-btn2 { order: -1; }
+}
+/* S4a: the rail fits a 900px-tall laptop screen — price card, Your home and the estimator together. */
+@media (min-width: 901px) {
+  .wz .sc-rail { gap: 12px; }
+  .wz .sc-price { padding: 16px 18px; }
+  .wz .sc-price .sc-lbl > span { font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .wz .sc-price .sc-range { margin-top: 8px; }
+  .wz .sc-band { margin-top: 12px; height: 14px; }
+  .wz .sc-todo li { padding: 7px 0; font-size: 14.5px; }
+  .wz .sc-rail .sc-btn { min-height: 50px; }
+  .wz .sc-home-art { aspect-ratio: 4 / 2.4; }
+  .wz .sc-home-head { padding: 12px 16px 8px; }
+  .wz .sc-home-key { padding: 8px 16px 10px; }
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD UI REFRESH — S4b: the room cards (brief §7.5; components doc §5).
+   Amber only on the OPEN card; checked cards pale cyan with a one-line summary;
+   three numbered blocks; tiles Walls first, the counted ones wide. Scoped to
+   .sc-ed so the side-by-side editor (S5) is untouched.
+   ═════════════════════════════════════════════════════════════════════════ */
+.wz .sc-ed .sc-rc { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; box-shadow: none; transition: box-shadow .2s, border-color .2s; }
+.wz .sc-ed .sc-rc.amber { border-color: var(--line); }
+.wz .sc-ed .sc-rc.amber.open { border-color: var(--amber-line); box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28); }
+.wz .sc-ed .sc-rc.done { border-color: var(--wash2); }
+.wz .sc-ed .sc-rc > .il-hd { min-height: 64px; padding: 14px 16px; }
+.wz .sc-ed .sc-rc > .il-hd > b { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 18px; font-weight: 600; color: var(--heading); }
+.wz .sc-ed .sc-badge { width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; border: 2px solid var(--amber-line); background: var(--amber-wash); color: var(--amber); font-family: var(--wz-mono); font-size: 13px; font-weight: 600; }
+.wz .sc-ed .sc-badge.ok { border-color: var(--cyan); background: var(--cyan); color: #fff; font-family: var(--wz-sans); }
+.wz .sc-ed .il-hm { font-family: var(--wz-mono); font-size: 13px; font-weight: 400; color: var(--muted); }
+.wz .sc-ed .sc-sum { flex-basis: 100%; margin-left: 46px; font-size: 14.5px; font-weight: 400; color: var(--muted); }
+.wz .sc-ed .il-pill { font-family: var(--wz-sans); font-size: 14.5px; font-weight: 600; letter-spacing: 0; text-transform: none; border: 0; background: none; padding: 0; color: var(--amber); }
+.wz .sc-ed .il-pill.done { color: var(--cyan); }
+
+/* the numbered blocks */
+.wz .sc-ed .il-blk { display: flex; align-items: center; gap: 9px; margin: 18px 0 10px; font-family: var(--wz-sans); font-size: 16.5px; font-weight: 600; letter-spacing: 0; color: var(--heading); text-transform: lowercase; }
+.wz .sc-ed .il-blk { text-transform: none; }
+.wz .sc-ed .il-blk-t { display: inline-block; text-transform: lowercase; }
+.wz .sc-ed .il-blk-t::first-letter { text-transform: uppercase; }
+.wz .sc-ed .il-blk i { width: 24px; height: 24px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--heading); color: #fff; font-style: normal; font-family: var(--wz-mono); font-size: 12px; text-transform: none; }
+.wz .sc-ed .il-first { display: grid; grid-template-columns: 120px minmax(0, 1fr); column-gap: 18px; align-items: center; padding: 14px 16px; background: var(--amber-wash); border: 1px solid var(--amber-line); border-radius: 16px; }
+.wz .sc-ed .il-first.ok { background: var(--wash); border-color: var(--wash2); }
+.wz .sc-ed .il-first > .il-blk { grid-column: 1 / -1; margin-top: 0; }
+.wz .sc-ed .il-first > .il-outline { grid-row: span 3; width: 120px; height: 80px; }
+.wz .sc-ed .il-first > :not(.il-blk):not(.il-outline) { grid-column: 2; }
+.wz .sc-ed .il-first .il-ql { font-size: 17px; font-weight: 600; color: var(--heading); }
+.wz .sc-ed .il-size { font-family: var(--wz-mono); font-size: 16px; }
+.wz .sc-ed .il-req { font-family: var(--wz-sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: lowercase; color: var(--amber); }
+.wz .sc-ed .il-req::first-letter { text-transform: uppercase; }
+.wz .sc-ed .sd-chip { min-height: 48px; border-radius: 999px; padding: 0 18px; font-size: 15.5px; }
+
+/* the tiles — four across; Walls, Doors and Windows widen when on and carry their controls */
+.wz .sc-ed .sc-tgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.wz .sc-ed .sc-tl { min-height: 92px; padding: 12px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--muted); font-size: 15.5px; font-weight: 600; display: flex; flex-direction: column; gap: 6px; }
+.wz .sc-ed .sc-tl.on { border-color: var(--cyan); background: var(--wash); color: var(--heading); }
+.wz .sc-ed .sc-tl.on:has(.sc-st), .wz .sc-ed .sc-tl.on:has(.sd-wseg) { grid-column: span 2; }
+.wz .sc-ed .sc-styleconfirm { text-transform: lowercase; font-family: var(--wz-sans); letter-spacing: 0; font-size: 12.5px; }
+
+/* the whole-home questions and the last checks are cards like the rest — amber is not the default */
+.wz .sc-ed .sc-details, .wz .sc-ed [data-card="sweep"] { border-color: var(--line); }
+.wz .sc-ed .il-pill:not(.done) { white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .wz .sc-ed .sc-tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wz .sc-ed .sc-tl.on:has(.sc-st), .wz .sc-ed .sc-tl.on:has(.sd-wseg) { grid-column: 1 / -1; }
+  .wz .sc-ed .il-first { grid-template-columns: 84px minmax(0, 1fr); column-gap: 12px; padding: 12px; }
+  .wz .sc-ed .il-first > .il-outline { width: 84px; height: 56px; }
+  .wz .sc-ed .sc-sum { margin-left: 0; }
+}

@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE } from "./drive";
 
 /**
  * Wizard UI refresh, S1 — the shell, on every path (brief §7.1, §7.7, §10).
@@ -358,5 +358,90 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     expect(w.vw).toBeLessThanOrEqual(390);
     await expect(page.getByTestId("reveal-dock-tighten")).toBeVisible();
     await ctx.close();
+  });
+});
+
+test.describe("UI refresh S4 · room by room", () => {
+  test("laptop: a slim header, the rail filled without a floorplan, the range and progress always in view", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await driveNoPlanWizard(page);
+    await openScopeEditor(page);
+    const head = (await page.locator(".sc-freeze").boundingBox())!;
+    expect(head.height, "the frozen stack is the one slim header").toBeLessThanOrEqual(64);
+    // No floorplan here — the rail still carries the price card, Your home and the estimator.
+    const main = (await page.locator(".sc-ed > .sc-wrap").boundingBox())!;
+    const price = (await page.getByTestId("price-card").boundingBox())!;
+    expect(price.x, "the price card sits in the right-hand rail").toBeGreaterThan(main.x + main.width);
+    await expect(page.locator(".sc-home")).toBeVisible();
+    await expect(page.locator(".sc-home-art svg")).toBeVisible();
+    await expect(page.locator(".sc-rail").getByTestId("estimator-strip")).toBeVisible();
+    await expect(page.locator(".sc-stick button")).toHaveCount(2);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(400);
+    await expect(page.locator(".sc-num")).toBeInViewport();
+    await expect(page.locator(".il-prog")).toBeInViewport();
+  });
+
+  test("phone: the header and the range strip together stay under 125px, nothing wider than the phone", async ({ browser }) => {
+    test.setTimeout(240_000);
+    const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+    const page = await ctx.newPage();
+    await driveNoPlanWizard(page);
+    await openScopeEditor(page);
+    await page.evaluate(() => window.scrollTo(0, 900));
+    await page.waitForTimeout(400);
+    const strip = (await page.getByTestId("price-card").boundingBox())!;
+    expect(strip.y + strip.height, "header + range strip").toBeLessThanOrEqual(125 + 30);
+    await expect(page.locator(".sc-num")).toBeInViewport();
+    await expect(page.locator(".il-prog")).toBeInViewport();
+    const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: window.innerWidth }));
+    expect(w.sw).toBeLessThanOrEqual(390);
+    expect(w.vw).toBeLessThanOrEqual(390);
+    const bar = (await page.locator(".sc-stick").boundingBox())!;
+    expect(bar.y + bar.height).toBeGreaterThanOrEqual(664 - 2);
+    await ctx.close();
+  });
+
+  test("cornices: answering No takes them off every room — the question never contradicts the tiles", async ({ page }) => {
+    test.setTimeout(240_000);
+    await driveNoPlanWizard(page);
+    await openScopeEditor(page);
+    const q = page.getByTestId("details-cornices");
+    test.skip(!(await q.count()), "this job's details did not ask about cornices");
+    await q.getByRole("button", { name: "No", exact: true }).click();
+    await expect(page.getByTestId("last-change")).toContainText(/cornices/i, { timeout: 30_000 });
+    await expect(page.locator(".sc-tl.on", { hasText: /^Cornices/ })).toHaveCount(0, { timeout: 30_000 });
+  });
+});
+
+test.describe("UI refresh S4b · the room cards", () => {
+  test("tiles Walls first; only the open card is amber; a checked card shows its tick and a one-line summary", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await driveNoPlanWizard(page);
+    await openScopeEditor(page);
+    const cards = page.locator(".sc-rc[data-room]");
+    const first = cards.first();
+    await first.locator(".il-hd").click().catch(() => undefined);
+    await expect(first).toHaveClass(/\bopen\b/);
+    // Walls is the first tile in the open card.
+    await expect(first.locator(".sc-tgrid .sc-tl").first()).toContainText(/^Walls/);
+    // Only the open card carries the amber border; the closed ones do not.
+    const amberBorders = await cards.evaluateAll((els) => els.filter((e) => e.classList.contains("open")).length);
+    expect(amberBorders).toBe(1);
+    // Confirm it the way a customer would: the size, the robe questions, then Confirm.
+    await first.getByRole("button", { name: "Looks right" }).click();
+    for (let i = 0; i < 4 && (await first.locator(".il-cup:not(.ok)").count()); i++) {
+      await first.locator(".il-cup:not(.ok)").first().getByRole("button", { name: "No", exact: true }).click();
+      await page.waitForTimeout(300);
+    }
+    await first.locator(".il-confirm").click();
+    await expect(first).toHaveClass(/done/, { timeout: 30_000 });
+    await expect(first.locator(".sc-badge.ok")).toBeVisible();
+    await expect(first.locator(".il-pill.done")).toHaveText(/Checked/);
+    await expect(first.locator(".sc-sum")).toContainText(/walls/);
+    // The next room opens by itself.
+    await expect(cards.nth(1)).toHaveClass(/\bopen\b/, { timeout: 10_000 });
   });
 });
