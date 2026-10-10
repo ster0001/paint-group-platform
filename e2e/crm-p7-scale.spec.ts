@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
-import { gotoTodayWith } from "./helpers";
+import { authUserIdByEmail, gotoTodayWith } from "./helpers";
 
 /**
  * CRM v2 · P7 — the scale gate's screens, and the theme (C1).
@@ -42,12 +42,7 @@ test.describe("CRM v2 P7 — scale gate and theme", () => {
     const { data: profiles } = await sb.from("profiles").select("id").eq("role", "staff").order("created_at").limit(5);
     const ids = (profiles ?? []).map((p) => p.id as string);
     // The e2e login's id comes from its email via the admin API.
-    for (let pageNo = 1; pageNo <= 30 && !meId; pageNo++) {
-      const { data } = await sb.auth.admin.listUsers({ page: pageNo, perPage: 200 });
-      const u = data?.users?.find((x) => (x.email ?? "").toLowerCase() === staff.email.toLowerCase());
-      if (u) meId = u.id;
-      if (!data?.users?.length || data.users.length < 200) break;
-    }
+    meId = (await authUserIdByEmail(sb, staff.email)) ?? "";
     otherId = ids.find((id) => id !== meId) ?? "";
     // C1 has one staff login: make a second, temporary one to own a customer.
     if (!otherId) {

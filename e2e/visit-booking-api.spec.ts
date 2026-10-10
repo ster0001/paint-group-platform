@@ -2,6 +2,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
+import { authUserIdByEmail } from "./helpers";
 import { driveNoPlanWizard } from "./customer-journey/drive";
 import { STANDARD_WEEK } from "../lib/visits/schedule";
 import { melbourneInstant, melbourneParts } from "../lib/time/businessHours";
@@ -70,8 +71,7 @@ test.describe("Section 8 — tests that try to break it (API)", () => {
 
   test.beforeAll(async () => {
     const sb = db!;
-    const { data: users } = await sb.auth.admin.listUsers({ perPage: 1000 });
-    staffId = users?.users.find((x) => (x.email ?? "").toLowerCase() === staffEmail.toLowerCase())?.id ?? "";
+    staffId = (await authUserIdByEmail(sb, staffEmail)) ?? "";
     if (!staffId) throw new Error("staff login not found");
     const { data: zones } = await sb.from("visit_zones").select("key, estimator_id");
     for (const z of zones ?? []) zonesBefore.set(z.key as string, z.estimator_id as string | null);

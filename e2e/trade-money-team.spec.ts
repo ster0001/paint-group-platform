@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
+import { authUserIdByEmail } from "./helpers";
 
 /**
  * Trade portal v2 · Session 6 — the sessions-doc acceptance list:
@@ -140,9 +141,8 @@ test.describe("trade money + team + digest (trade portal v2, session 6)", () => 
       await sb.from("accounts").delete().eq("id", accountId);
     }
     for (const u of [admin, adminB, finance]) if (u.id) await sb.auth.admin.deleteUser(u.id);
-    const { data: users } = await sb.auth.admin.listUsers({ perPage: 1000 });
-    const inv = users?.users?.find((x) => x.email === invitee);
-    if (inv) await sb.auth.admin.deleteUser(inv.id);
+    const invId = await authUserIdByEmail(sb, invitee);
+    if (invId) await sb.auth.admin.deleteUser(invId);
   });
 
   async function login(page: Page, email: string) {
@@ -207,11 +207,10 @@ test.describe("trade money + team + digest (trade portal v2, session 6)", () => 
     await expect(page.getByText("Invited ✓", { exact: false })).toBeVisible();
 
     const sb = db!;
-    const { data: users } = await sb.auth.admin.listUsers({ perPage: 1000 });
-    const user = users?.users?.find((u) => u.email === invitee);
-    expect(user).toBeTruthy();
+    const userId = await authUserIdByEmail(sb, invitee);
+    expect(userId).toBeTruthy();
     const { data: seat } = await sb.from("account_users")
-      .select("role, property_scope").eq("account_id", accountId).eq("profile_id", user!.id).single();
+      .select("role, property_scope").eq("account_id", accountId).eq("profile_id", userId!).single();
     expect(seat?.role).toBe("viewer");
     // Tom, 31 Aug: seats are org-wide — invites never write a property scope.
     expect(seat?.property_scope).toBeNull();
