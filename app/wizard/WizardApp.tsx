@@ -1725,7 +1725,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         <header className="wz-top">
           <Wordmark logoUrl={logoUrl} />
         </header>
-        <BriefDone slot={briefDone.slot} emailed={briefDone.emailed} booked={briefDone.booked} bookingProblem={briefDone.bookingProblem} email={briefDone.email} phone={companyPhone} />
+        <BriefDone slot={briefDone.slot} emailed={briefDone.emailed} booked={briefDone.booked} bookingProblem={briefDone.bookingProblem} email={briefDone.email} phone={companyPhone}
+          address={state.address?.formatted ?? quickAddress ?? null} holdDays={holdDays} />
       </div>
     );
   }

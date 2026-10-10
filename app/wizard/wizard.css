@@ -2081,3 +2081,52 @@
 @media (max-width: 900px) {
   .wz .sc-home .sc-home-top { height: 150px; }
 }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD UI REFRESH — S7: commercial (brief §7.10, §7.11). The area plan,
+   the warehouse inside, and the Booked screen.
+   ═════════════════════════════════════════════════════════════════════════ */
+.wz .wz-areaplan .room { fill: #a9d6de; stroke: #0a7c8e; stroke-opacity: .5; stroke-width: 1.5; transition: fill .4s; }
+.wz .wz-areaplan .cell { fill: #ffffff; fill-opacity: .55; stroke: #0a7c8e; stroke-opacity: .25; }
+.wz .wz-areaplan .also .room { fill: #eef3f5; stroke: #16212a; stroke-opacity: .2; stroke-dasharray: 5 4; }
+.wz .wz-areaplan text { font-family: var(--wz-sans); font-size: 13px; font-weight: 600; fill: var(--heading); }
+.wz .wz-areaplan text .n { font-family: var(--wz-mono); font-weight: 500; fill: #0a7c8e; }
+.wz .wz-areaplan .blk { transition: opacity .3s; }
+
+.wz .wz-warehouse .s { stroke: #16212a; stroke-opacity: .16; stroke-width: 1; transition: fill .7s cubic-bezier(.4,0,.2,1); }
+.wz .wz-warehouse .s-walls { fill: #c9c2b2; } .wz .wz-warehouse .s-walls.on { fill: #f4f6f7; }
+.wz .wz-warehouse .s-roof { fill: #8e959a; } .wz .wz-warehouse .s-roof.on { fill: #e6ebee; }
+.wz .wz-warehouse .truss { fill: #6e767c; stroke: #6e767c; } .wz .wz-warehouse .truss.on { fill: #0a7c8e; stroke: #0a7c8e; }
+.wz .wz-warehouse .s-roller { fill: #a8a294; } .wz .wz-warehouse .s-roller.on { fill: #d6dde1; }
+.wz .wz-warehouse .slats { stroke: #16212a; stroke-opacity: .16; fill: none; }
+.wz .wz-warehouse .s-personnel { fill: #8c7b5a; } .wz .wz-warehouse .s-personnel.on { fill: #2f6f7a; }
+.wz .wz-warehouse .s-offices, .wz .wz-warehouse .s-amenities { fill: #e8e4da; } .wz .wz-warehouse .s-offices.on, .wz .wz-warehouse .s-amenities.on { fill: #ffffff; }
+.wz .wz-warehouse .s-mezz { fill: #6e767c; } .wz .wz-warehouse .s-mezz.on { fill: #0a7c8e; }
+.wz .wz-warehouse .rail { stroke: #6e767c; fill: none; stroke-width: 2; }
+.wz .wz-warehouse .glass { fill: #9fb3bf; }
+.wz .wz-warehouse .lbl { font-family: var(--wz-mono); font-size: 11px; fill: var(--muted); }
+.wz .wz-warehouse .line { stroke: #f2c230; stroke-width: 4; fill: none; }
+.wz .wz-warehouse .bol { fill: #f2c230; stroke: #16212a; stroke-opacity: .3; }
+.wz .wz-warehouse .hgt path { stroke: var(--heading); stroke-width: 1.5; fill: none; }
+.wz .wz-warehouse .hgt text { font-family: var(--wz-mono); font-size: 13px; font-weight: 600; fill: var(--heading); }
+.wz .wz-warehouse .x { opacity: 0; transition: opacity .35s; }
+.wz .wz-warehouse .x.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .wz .wz-warehouse .s, .wz .wz-warehouse .x { transition: none; } }
+
+/* Booked — a large tick, the time, and what happens next */
+.wz .wz-booked { max-width: 640px; padding-top: 40px; padding-bottom: 80px; }
+.wz .wz-bigtick { width: 72px; height: 72px; border-radius: 50%; background: var(--paint); display: grid; place-items: center; margin-bottom: 22px; box-shadow: 0 12px 28px -14px rgba(11,150,170,.9); }
+.wz .wz-bigtick svg { width: 38px; height: 38px; fill: none; stroke: var(--onpaint); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.wz .wz-booked h1 { font-size: clamp(30px, 3.5vw, 46px); font-weight: 600; letter-spacing: -.035em; }
+.wz .wz-booked .wz-sub { font-size: 17px; }
+.wz .wz-next { margin: 28px 0 18px; padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; }
+.wz .wz-next h2 { margin: 0 0 12px; font-size: 17px; font-weight: 600; color: var(--heading); }
+.wz .wz-next ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.wz .wz-next li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; }
+.wz .wz-next li i { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-family: var(--wz-mono); font-size: 13px; font-weight: 600; border: 1.5px solid var(--line-strong); color: var(--muted); }
+.wz .wz-next li.d i { background: var(--cyan); border-color: var(--cyan); color: #fff; font-family: var(--wz-sans); }
+.wz .wz-next li.c i { border-color: var(--cyan); color: var(--cyan); }
+.wz .wz-next li b { display: block; font-size: 16px; color: var(--heading); }
+.wz .wz-next li small { display: block; margin-top: 2px; font-size: 15px; line-height: 1.4; color: var(--muted); }
+.wz .wz-booked .wz-kick { font-family: var(--wz-sans); font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--cyan); }
+.wz .wz-booked .wz-kick::first-letter { text-transform: uppercase; }
