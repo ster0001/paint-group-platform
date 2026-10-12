@@ -687,6 +687,20 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Once per drop (keyed on the status-change event).",
   },
   {
+    key: "office_prestart_due", name: "Pre-start checklist not filled out", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "Tom, 12 Oct 2026 (PC Command): at 14:00 on a business day, a reminder with the number of jobs starting within 2 business days whose pre-start checklist isn't filled out (a required pre-start tick still open, or no list yet) — and a FINAL reminder for the jobs starting on the next business day. Whoever is ticked for \"Pre-start\" under Staff logins gets it.",
+    wording: "Fixed wording — \"Reminder: 3 jobs start within 2 business days and haven't had the pre-start checklist filled out\" (or \"FINAL reminder … next business day\") and a link to PC Command.",
+    guard: "Once per reminder per day; nothing sent when no job is behind.",
+  },
+  {
+    key: "office_followups_digest", name: "Today's follow ups (estimates)", audience: "office", channels: ["email"], kind: "automatic",
+    defaultChannel: "email", sendKind: "staff_alert", quietExempt: true, capExempt: true,
+    trigger: "Tom, 12 Oct 2026: Monday to Friday from 8am, one email to tom@paintgroup.com.au listing the estimates sent 3 days ago that are still not accepted — customer, address, phone and a link to the estimate. Monday's email also covers the estimates sent the Wednesday and Thursday before (their 3 days ran out over the weekend).",
+    wording: "Fixed wording — a table of customer, address, phone and estimate link.",
+    guard: "Once per day; nothing sent when no estimate is due.",
+  },
+  {
     key: "office_qa_check_invite", name: "Quality check calendar invite", audience: "office", channels: ["email", "ics"], kind: "automatic",
     defaultChannel: "email", sendKind: "staff_alert", quietExempt: true, capExempt: true,
     trigger: "Tom, 8 Oct 2026: a quality check or job check-in is given a day and time — booked by the office, placed at booking for a new painter's first jobs, or moved because the final walkthrough moved. Whoever is ticked for \"QA invite\" in Staff alerts gets a calendar invite; a move updates it, a removed check cancels it.",

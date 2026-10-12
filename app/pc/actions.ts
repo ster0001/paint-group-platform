@@ -1073,10 +1073,12 @@ export async function waiveAfterPhotos(raw: unknown): Promise<PcResult> {
 export async function dismissCard(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ workOrderId: uuid, cardKey: z.string().min(1).max(120) }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-  return call("wo_dismiss_card", {
+  const res = await call("wo_dismiss_card", {
     p_work_order_id: parsed.data.workOrderId,
     p_key: parsed.data.cardKey,
   }, "Closed off.");
+  if (res.ok) revalidatePath("/home");   // Tom, 12 Oct: Home's strip closes cards off too
+  return res;
 }
 
 // ---- Materials on the PC job page (Tom, 4 Sep) ------------------------------

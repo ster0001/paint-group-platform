@@ -78,7 +78,8 @@ describe("estimatePill — brief 2.2: every state derived, none stored", () => {
     ["accepted with a work order", base({ status: "accepted", acceptedAt: "2026-09-08T01:00:00Z", hasWorkOrder: true }), "Accepted 08/09 · job created", null],
     ["accepted, no work order yet", base({ status: "accepted", acceptedAt: "2026-09-08T01:00:00Z" }), "Accepted 08/09", "no job yet"],
     ["sent · confirm remotely, with the mono line", base({ request: req(), loop: { confirmed: 9, total: 9, unit: "rooms" }, photos: 7, bandPct: 4 }), "Sent · confirm remotely", "9 of 9 · ±4% · 7 photos · 41m ago"],
-    ["sent · needs a visit, sides", base({ request: req({ kind: "visit", suggestedAction: "visit" }), loop: { confirmed: 3, total: 4, unit: "sides" }, photos: 9, bandPct: 11 }), "Sent · needs a visit", "3 of 4 sides · ±11% · 9 photos · 41m ago"],
+    ["sent · needs a visit, sides", base({ request: req({ kind: "visit", suggestedAction: "visit" }), loop: { confirmed: 3, total: 4, unit: "sides" }, photos: 9, bandPct: 11 }), "Sent · not opened yet", "3 of 4 sides · ±11% · 9 photos · 41m ago"],
+    ["sent · needs a visit, opened 3 times — the count, not the visit", base({ status: "sent", viewedAt: ago(200), views: { count: 3, lastAt: ago(20) }, request: req({ kind: "visit", suggestedAction: "visit" }) }), "Viewed 3×", "41m ago · last opened 20m ago"],
     ["question unanswered counts days", base({ request: req({ status: "question_asked", requestedAt: new Date(NOW.getTime() - 2.4 * 86_400_000).toISOString() }), photos: 1 }), "Question unanswered · 2d", "1 photo · 2d ago"],
     ["viewed, fixed, no reply — the hold", base({ status: "sent", viewedAt: ago(300), views: { count: 4, lastAt: ago(120) }, validUntil: "2026-09-26", request: req({ status: "fixed", fixedPriceCents: 2_460_000 }) }), "Viewed 4× · no reply", "last opened 2h ago · hold ends in 14d"],
     ["viewed, not fixed — it expires rather than holds", base({ status: "sent", viewedAt: ago(30), views: { count: 0, lastAt: null }, validUntil: "2026-09-26" }), "Viewed 1× · no reply", "last opened 30m ago · expires in 14d"],
@@ -96,6 +97,13 @@ describe("estimatePill — brief 2.2: every state derived, none stored", () => {
   it("waiting on us outranks waiting on them: an open request beats 'viewed · no reply'", () => {
     const p = estimatePill(base({ status: "sent", viewedAt: ago(10), views: { count: 2, lastAt: ago(10) }, request: req() }));
     expect(p.state).toBe("sent_remote");
+  });
+  it("needs a visit rides as a flag beside the pill, never instead of the view count", () => {
+    const p = estimatePill(base({ status: "sent", viewedAt: ago(10), views: { count: 2, lastAt: ago(10) }, request: req({ kind: "visit" }) }));
+    expect(p.state).toBe("sent_visit");
+    expect(p.label).toBe("Viewed 2×");
+    expect(p.flag).toBe("Needs a visit");
+    expect(estimatePill(base({ request: req() })).flag).toBeUndefined();
   });
   it("a fix online is a fixed price, not an open request", () => {
     const p = estimatePill(base({ status: "sent", request: req({ kind: "fix_online", status: "fixed", fixedPriceCents: 900_000 }), wizard: wiz() }));
