@@ -12,13 +12,20 @@ import { credentials, missingCreds, signIn, TINY_SIGNATURE_PNG, test } from "./h
  * approval "and then back to the customer again"):
  *
  *   a signed clean removal → the tick-row is STRUCK (visible, not deleted),
- *   the change is IN THE JOB at the signature (no acknowledge tap) and the
- *   pay delta is the engine's;
- *   a signed addition is IN THE JOB at the signature too — no release, no
- *   accept — with engine hours and pay, and the release/accept RPCs have
- *   nothing left to do;
+ *   and the pay delta is the engine's;
  *   a removal that hits started work routes to the PC, who sets the deduction
  *   by hand — and the contractor sees the figure, told not asked.
+ *
+ * As amended 7 Oct 2026 (20270220, Tom: "when the variation is approved by
+ * the customer we send it to the contractor for their approval") and restated
+ * 12 Oct (20270253: "released to them to Accept (an addition) or acknowledge
+ * (fewer hours)"): with a painter ON the job a signed revision change is no
+ * longer folded in at the signature —
+ *   a clean removal waits at customer_approved for the painter's Acknowledge
+ *   (no veto: a removal is the customer's call);
+ *   an addition is RELEASED to the painter at the signature and waits on their
+ *   Accept (or Decline — e2e/pc-painter-approval-7oct.spec.ts).
+ * With nobody on the job yet both still fold straight in.
  */
 
 const db: SupabaseClient | null = serviceClient();
@@ -71,7 +78,7 @@ test.describe("the contractor loop — acknowledge, accept, started-work guard",
     return result.slice(3); // the customer token
   }
 
-  test("a signed clean removal strikes the row and is in the job at the signature", async ({ page }) => {
+  test("a signed clean removal strikes the row; the painter on the job acknowledges it", async ({ page }) => {
     const token = await draft("block:pergola", {
       credit: true, surfaceKeys: ["a1:0"], priceCents: 48_000, hours: 2,
       comment: "Pergola — removed from scope",
@@ -86,8 +93,8 @@ test.describe("the contractor loop — acknowledge, accept, started-work guard",
       .eq("work_order_id", fixture!.workOrderId).eq("credit", true).single();
     const row = v as { id: string; status: string; needs_manual_deduction: boolean; contractor_delta_cents: number };
     cleanCreditId = row.id;
-    // Told, not asked: the customer's signature is the last word on a revision change.
-    expect(row.status).toBe("contractor_accepted");
+    // A painter is on the job: the removal waits on their Acknowledge (7 Oct 2026).
+    expect(row.status).toBe("customer_approved");
     expect(row.needs_manual_deduction).toBe(false);
     expect(row.contractor_delta_cents).toBe(2 * HOURS_RATE);
 
@@ -105,13 +112,19 @@ test.describe("the contractor loop — acknowledge, accept, started-work guard",
     await expect(struckRow).toContainText("Removed from scope");
     await expect(page.getByTestId("tick-progress")).toHaveText("0 / 2");
 
-    // Nothing to acknowledge — the figure is already the engine's, and shown.
-    await expect(page.getByTestId(`acknowledge-${cleanCreditId}`)).toHaveCount(0);
-    await expect(page.getByTestId(`delta-${cleanCreditId}`)).toContainText("comes off your payment");
-    expect(await rpcAs(contractor!, "wo_contractor_acknowledge_variation", { p_variation_id: cleanCreditId })).toMatch(/^error:/);
+    // Acknowledge, with the engine's figure on the button — no Decline on a removal.
+    const ack = page.getByTestId(`acknowledge-${cleanCreditId}`);
+    await expect(ack).toContainText("− $120.00");
+    await expect(page.getByTestId(`decline-${cleanCreditId}`)).toHaveCount(0);
+    expect(await rpcAs(contractor!, "wo_contractor_decline_variation", { p_variation_id: cleanCreditId, p_note: "Not removing it" }))
+      .toBe("error:credit_not_declinable");
+    await ack.click();
+    await expect(page.getByTestId(`delta-${cleanCreditId}`)).toContainText("$120.00 comes off your payment", { timeout: 15_000 });
+    const { data: after } = await db!.from("wo_variations").select("status").eq("id", cleanCreditId).single();
+    expect((after as { status: string }).status).toBe("contractor_accepted");
   });
 
-  test("a signed addition is in the job at the signature — no release, no accept", async ({ page }) => {
+  test("a signed addition is released to the painter on the job, who accepts it", async ({ page }) => {
     const token = await draft("block:porch", {
       credit: false, surfaceKeys: [], priceCents: 84_000, hours: 3,
       comment: "Front porch — added",
@@ -125,21 +138,26 @@ test.describe("the contractor loop — acknowledge, accept, started-work guard",
       .eq("work_order_id", fixture!.workOrderId).eq("revision_block_ref", "block:porch").single();
     const row = v as { id: string; status: string; released_at: string | null; contractor_accepted_at: string | null; contractor_delta_cents: number };
     additionId = row.id;
-    expect(row.status).toBe("contractor_accepted");
-    expect(row.contractor_accepted_at).not.toBeNull();
+    // Asked, not told (7 Oct 2026): released at the signature, waiting on the painter.
+    expect(row.status).toBe("customer_approved");
+    expect(row.released_at).not.toBeNull();
+    expect(row.contractor_accepted_at).toBeNull();
     expect(row.contractor_delta_cents).toBe(3 * HOURS_RATE);
-    const { data: ev } = await db!.from("wo_events").select("type").eq("work_order_id", fixture!.workOrderId).eq("type", "variation_added_to_job");
-    expect((ev ?? []).length).toBeGreaterThanOrEqual(1);
+    const { data: ev } = await db!.from("wo_events").select("type").eq("work_order_id", fixture!.workOrderId).eq("type", "variation_sent_to_painter");
+    expect((ev ?? []).length).toBe(1);
 
-    // The release/accept doors are shut — there is nothing left to do behind them.
-    expect(await rpcAs(staff!, "wo_release_variation", { p_variation_id: additionId })).not.toBe("ok:released");
-    expect(await rpcAs(contractor!, "wo_contractor_accept_variation", { p_variation_id: additionId })).toMatch(/^error:/);
-
-    // The painter sees it accepted, with the pay, and no button to press.
+    // The painter sees the client's approval with their figure, and accepts it in one tap.
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${fixture!.workOrderId}`);
-    await expect(page.getByTestId(`accept-${additionId}`)).toHaveCount(0);
-    await expect(page.getByTestId(`delta-${additionId}`)).toContainText("$180.00 added to your payment");
+    await expect(page.getByTestId(`approved-by-client-${additionId}`)).toContainText(/Variation approved by the client/i);
+    await expect(page.getByTestId(`approved-amount-${additionId}`)).toHaveText("$180.00");
+    await page.getByTestId(`accept-${additionId}`).click();
+    await expect(page.getByTestId(`delta-${additionId}`)).toContainText("$180.00 added to your payment", { timeout: 15_000 });
+    const { data: after } = await db!.from("wo_variations").select("status, contractor_accepted_at").eq("id", additionId).single();
+    expect((after as { status: string }).status).toBe("contractor_accepted");
+    expect((after as { contractor_accepted_at: string | null }).contractor_accepted_at).not.toBeNull();
+    // Accepted once: a second accept has nothing to do.
+    expect(await rpcAs(contractor!, "wo_contractor_accept_variation", { p_variation_id: additionId })).toMatch(/^error:/);
   });
 
   test("a removal on STARTED work routes to the PC, never a computed deduction", async ({ page }) => {

@@ -33,6 +33,17 @@ const garage = AREA(3, "Garage", 6, 6, 31);
 const MODSEL = { "Level of Finish": "FIN-3" };
 const acceptedState = { blocks: [lounge], modSel: MODSEL };
 
+/** The contractor-safe sheet the builder freezes at send, at the engine's offer. */
+const woDocFor = (contractorPaymentCents: number) => ({
+  version: 1, woRef: "WO-RATE1", status: "issued", jobTitle: "Interior repaint",
+  jobAddress: `7 Rate Test Pl ${process.pid}`, contactFirstName: "Rate", contactPhone: "", startDate: null,
+  accessNotes: "", crewNotes: "", levelOfFinish: "Level 3", finishCode: "PG-3",
+  contractorName: "", contractorPaymentCents, materials: [],
+  areas: [{ id: "1", title: "Lounge", finishCode: "PG-3", finishOverridden: false, photos: [],
+            surfaces: [{ key: "1:11", label: "Walls", coats: 2, product: "", prep: "", hours: 1, status: "not_started" }] }],
+  exclusions: [], company: { name: "Paint Group", phone: "", logoUrl: "" },
+});
+
 let estimateId = "";
 let workOrderId = "";
 let ctx: PricingContext | null = null;
@@ -65,7 +76,11 @@ test.describe("the revision's contractor rate is the painter's rate", () => {
     const { data: est, error } = await sb.from("estimates").insert({
       title: "Contractor rate e2e", status: "sent", sent_at: new Date().toISOString(), level_of_finish: 3,
       share_token: token, rate_card_id: card.id, rate_card_version: card.version, total_cents: totals.totalCents,
-      builder_state: acceptedState,
+      // The builder saves its work-order sheet (woDoc) with every save; acceptance
+      // issues the job from it, and the base pay is its contractorPaymentCents
+      // (accept_estimate → wo_snapshot → t_wo_fill_pay_from_snapshot, 20270208).
+      // Without one the job is a draft with no pay — not what a sent estimate is.
+      builder_state: { ...acceptedState, woDoc: woDocFor(totals.contractorOfferCents) },
       sent_snapshot: {
         version: 1,
         company: { name: "Paint Group", addressLine1: "", addressLine2: "", phone: "", abn: "", email: "", estimatorName: "", estimatorTitle: "", estimatorPhone: "", logoUrl: "" },
@@ -101,6 +116,8 @@ test.describe("the revision's contractor rate is the painter's rate", () => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}&mode=revision`);
     await expect(page.getByTestId("revision-badge")).toBeVisible();
+    // The contractor rate lives in the tools bar's Calculations panel, closed until opened.
+    await page.getByRole("button", { name: /Calculations/ }).click();
     const rate = page.getByTestId("contractor-rate");
     await rate.scrollIntoViewIfNeeded();
     await rate.fill("75");
@@ -152,6 +169,8 @@ test.describe("the revision's contractor rate is the painter's rate", () => {
 
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}&mode=revision`);
+    // The contractor rate lives in the tools bar's Calculations panel, closed until opened.
+    await page.getByRole("button", { name: /Calculations/ }).click();
     const rate = page.getByTestId("contractor-rate");
     await rate.scrollIntoViewIfNeeded();
     await rate.fill("90");

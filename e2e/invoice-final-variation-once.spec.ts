@@ -32,7 +32,10 @@ test.describe("the final invoice skips a variation already billed", () => {
 
     const { data: v, error: vErr } = await db!.from("wo_variations").insert({
       work_order_id: job.workOrderId, category: "extra_scope", comment: "Extra coat on the hall",
-      status: "customer_approved", customer_responded_at: new Date().toISOString(), price_cents: 55_000,
+      // Signed AND accepted, as at Collins Street: a customer_approved row is still
+      // waiting on the painter, and the stage gate (rightly) refuses to close over it.
+      status: "contractor_accepted", customer_responded_at: new Date().toISOString(),
+      contractor_accepted_at: new Date().toISOString(), price_cents: 55_000,
     }).select("id").single();
     if (vErr) throw new Error(`variation: ${vErr.message}`);
     variationId = (v as { id: string }).id;

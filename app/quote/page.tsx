@@ -210,19 +210,29 @@ export default async function QuotePage({
   // written into the painter's own row (20270222), so it moves on their portal
   // and on the console instead of sitting at "with the office" for ever.
   const requestId = revisionMode && woId && variation && /^[0-9a-f-]{36}$/i.test(variation) ? variation : null;
+  // 12 Oct 2026: NOT an embed — `profiles:raised_by(name)` asked PostgREST for a
+  // wo_variations → profiles relationship that does not exist (raised_by
+  // references auth.users), so this read failed on every load since 7 Oct, the
+  // request was never adopted, and every "Price it in the builder" drafted a
+  // SECOND row beside the painter's. The name is its own read, by the same id.
   const { data: requestRow, error: requestError } = requestId
     ? await supabase.from("wo_variations")
-        .select("id, comment, category, status, created_at, profiles:raised_by(name)")
+        .select("id, comment, category, status, created_at, raised_by")
         .eq("id", requestId).eq("work_order_id", woId!).maybeSingle()
     : { data: null, error: null };
   // A request that cannot be read is reported, and the builder opens without
   // it — the office can still price; the row just won't be adopted.
   if (requestError) reportError(requestError, { where: "quote.page.revisionRequest", extra: { requestId }, bestEffort: true });
-  const revisionRequest = requestRow
-    ? (() => {
-        const r = requestRow as unknown as { id: string; comment: string; category: string; status: string; created_at: string; profiles: { name: string | null } | null };
-        return { id: r.id, comment: r.comment, category: r.category, status: r.status, raisedBy: r.profiles?.name ?? null, raisedAt: r.created_at };
-      })()
+  const request = requestRow as { id: string; comment: string; category: string; status: string; created_at: string; raised_by: string | null } | null;
+  const { data: raiserRow, error: raiserError } = request?.raised_by
+    ? await supabase.from("profiles").select("name").eq("id", request.raised_by).maybeSingle()
+    : { data: null, error: null };
+  // The name only words the banner ("Pricing Qudrat's request") — without it
+  // the banner says "the painter's", and the request is still adopted.
+  if (raiserError) reportError(raiserError, { where: "quote.page.revisionRequestRaiser", extra: { requestId }, bestEffort: true });
+  const revisionRequest = request
+    ? { id: request.id, comment: request.comment, category: request.category, status: request.status,
+        raisedBy: (raiserRow as { name: string | null } | null)?.name ?? null, raisedAt: request.created_at }
     : null;
   const woPhotos = await signPhotos(supabase, (photoRows as WOPhotoRow[] | null) ?? []);
   // Tom, 7 Sep: the customer's own photos (condition, facade) — the

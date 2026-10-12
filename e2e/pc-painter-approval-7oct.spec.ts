@@ -33,6 +33,10 @@ async function seedRevisionChange(workOrderId: string, comment: string, hours: n
   return data as { id: string; customer_token: string };
 }
 
+// One job walked through in order: a failure must not re-run beforeAll and hand
+// the later tests a fresh job with two undecided changes on it.
+test.describe.configure({ mode: "serial" });
+
 test.describe("PC Command — the painter approves a client-approved change; QA with no checks moves on; client-update notes", () => {
   test.skip(!contractor, missingCreds("CONTRACTOR"));
   test.skip(!staff, missingCreds("STAFF"));
@@ -117,8 +121,10 @@ test.describe("PC Command — the painter approves a client-approved change; QA 
   test("the office sees the decline: a console card with the note, the job page names it, and the alert row was claimed", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc");
-    const card = page.locator(".card, .qcard, [data-card-key]", { hasText: "Painter declined an approved change" }).first();
+    // Console cards are `div.al` keyed `card-<key>` (app/pc/page.tsx).
+    const card = page.getByTestId(`card-variation-painter-declined:${declineId}`);
     await expect(card).toBeVisible({ timeout: 30_000 });
+    await expect(card).toContainText("Painter declined an approved change");
     await expect(card).toContainText(/sanding back/);
     await page.goto(`/pc/wo/${fixture!.workOrderId}`);
     await expect(page.getByTestId(`variation-painter-declined-${declineId}`)).toContainText(/Declined by the painter/);
@@ -129,6 +135,10 @@ test.describe("PC Command — the painter approves a client-approved change; QA 
   test("a job parked at Quality check with NO check on it moves on when anyone looks (25 Bunney Road)", async () => {
     const { error } = await db!.from("work_orders").update({ stage: "qa", stage_entered_at: new Date().toISOString(), walkthrough_required: true }).eq("id", fixture!.workOrderId);
     if (error) throw new Error(error.message);
+    // The office opened this job in the test before, and the page schedules its check
+    // (wo_schedule_qa). Bunney Road's checks were turned off after it got here: none left.
+    const { error: delErr } = await db!.from("wo_qa_checks").delete().eq("work_order_id", fixture!.workOrderId);
+    if (delErr) throw new Error(delErr.message);
     const { count } = await db!.from("wo_qa_checks").select("id", { count: "exact", head: true }).eq("work_order_id", fixture!.workOrderId);
     expect(count).toBe(0);
     expect(await rpcAs(staff!, "wo_qa_route_passed", { p_work_order_id: fixture!.workOrderId })).toBe("ok:walkthrough");

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { staffVariationDeclinedByPainter, staffVariationRaised } from "@/lib/staff/notify";
 import { VARIATION_CATEGORIES } from "@/lib/workorder/variations";
+import { reportError } from "@/lib/monitoring/report";
 
 /**
  * The contractor's side: raising a variation, and one-tapping the adjusted
@@ -56,7 +57,11 @@ export async function declineVariationAction(raw: unknown): Promise<AcceptResult
   const { data, error } = await supabase.rpc("wo_contractor_decline_variation", {
     p_variation_id: parsed.data.variationId, p_note: parsed.data.note,
   });
-  if (error) return { ok: false, message: "Couldn't send that just now — check your signal and try again." };
+  if (error) {
+    // 12 Oct 2026: this branch hid a 42703 (no such column) from everyone for five days.
+    reportError(error, { where: "portal.declineVariation", extra: { variationId: parsed.data.variationId } });
+    return { ok: false, message: "Couldn't send that just now — check your signal and try again." };
+  }
   const s = String(data ?? "");
   if (s === "ok:declined" || s === "ok:already") {
     revalidatePath("/portal/jobs");
@@ -82,7 +87,10 @@ export async function raiseVariationAction(raw: unknown): Promise<RaiseResult> {
     p_photo_ids: v.photoIds,
     p_est_hours: v.estHours ?? null,
   });
-  if (error) return { ok: false, message: "Couldn't send that just now — check your signal and try again." };
+  if (error) {
+    reportError(error, { where: "portal.raiseVariation", extra: { workOrderId: v.workOrderId } });
+    return { ok: false, message: "Couldn't send that just now — check your signal and try again." };
+  }
 
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
@@ -109,7 +117,10 @@ export async function acknowledgeVariationAction(raw: unknown): Promise<AcceptRe
   const { data, error } = await supabase.rpc("wo_contractor_acknowledge_variation", {
     p_variation_id: parsed.data.variationId,
   });
-  if (error) return { ok: false, message: "Couldn't record that just now — try again." };
+  if (error) {
+    reportError(error, { where: "portal.acknowledgeVariation", extra: { variationId: parsed.data.variationId } });
+    return { ok: false, message: "Couldn't record that just now — try again." };
+  }
 
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
@@ -131,7 +142,10 @@ export async function acceptVariationAction(raw: unknown): Promise<AcceptResult>
   const { data, error } = await supabase.rpc("wo_contractor_accept_variation", {
     p_variation_id: parsed.data.variationId,
   });
-  if (error) return { ok: false, message: "Couldn't accept that just now — try again." };
+  if (error) {
+    reportError(error, { where: "portal.acceptVariation", extra: { variationId: parsed.data.variationId } });
+    return { ok: false, message: "Couldn't accept that just now — try again." };
+  }
 
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
