@@ -116,6 +116,8 @@ test.describe("the revision's contractor rate is the painter's rate", () => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}&mode=revision`);
     await expect(page.getByTestId("revision-badge")).toBeVisible();
+    // The contractor rate lives in the tools bar's Calculations panel, closed until opened.
+    await page.getByRole("button", { name: /Calculations/ }).click();
     const rate = page.getByTestId("contractor-rate");
     await rate.scrollIntoViewIfNeeded();
     await rate.fill("75");
@@ -167,6 +169,8 @@ test.describe("the revision's contractor rate is the painter's rate", () => {
 
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/quote?id=${estimateId}&mode=revision`);
+    // The contractor rate lives in the tools bar's Calculations panel, closed until opened.
+    await page.getByRole("button", { name: /Calculations/ }).click();
     const rate = page.getByTestId("contractor-rate");
     await rate.scrollIntoViewIfNeeded();
     await rate.fill("90");

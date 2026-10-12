@@ -208,22 +208,15 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
     }, { timeout: 20_000 }).toBe(2);
   });
 
-  test("5 · prep, quality check, then the walkthrough on the lead's device — signed, closed, the report names the lead", async ({ page }) => {
+  test("5 · prep, then the walkthrough on the lead's device — signed, closed, the report names the lead", async ({ page }) => {
     expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: fixture!.workOrderId, p_to: "completion_prep" })).toBe("ok:completion_prep");
     await completePrep(db!, staff!, fixture!.workOrderId);
-    expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: fixture!.workOrderId, p_to: "qa" })).toBe("ok:qa");
-    const { data: check } = await db!.from("wo_qa_checks").insert({ work_order_id: fixture!.workOrderId, kind: "final" }).select("id").single();
-    for (let i = 0; i < 3; i++) await photoFor("qa");
-    const { data: qaItems } = await db!.from("wo_qa_items").select("id").eq("qa_check_id", (check as { id: string }).id);
-    for (const item of (qaItems ?? []) as { id: string }[]) await rpcAs(staff!, "wo_tick_qa_item", { p_item_id: item.id, p_done: true });
-    // The last pass routes the job on by itself (20261104) — or, with a sibling
-    // cadence check still open, reads as a plain pass and the office delivers.
-    const passed = await rpcAs(staff!, "wo_record_qa", { p_check_id: (check as { id: string }).id, p_result: "pass", p_notes: "All good.", p_rectify: [] });
-    expect(passed).toMatch(/^ok:pass/);
-    if (!passed.startsWith("ok:pass:walkthrough")) {
-      await db!.from("wo_qa_checks").update({ result: "pass" }).eq("work_order_id", fixture!.workOrderId).is("result", null);
-      expect(await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: fixture!.workOrderId })).toMatch(/^ok:/);
-    }
+    // Tom, 24 Sep 2026: a job that PASSED a quality check is signed off by the office —
+    // the painter runs no walkthrough on it (lib/workorder/qa.ts staffSignsOff). The lead's
+    // own-device walkthrough (Mode A) is for a job with no check: the office waives it on
+    // this job (20270197) and delivers the evidence pack.
+    await db!.from("work_orders").update({ qa_waived: true, qa_required: false }).eq("id", fixture!.workOrderId);
+    expect(await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: fixture!.workOrderId })).toMatch(/^ok:/);
     const { data: so } = await db!.from("wo_signoff").select("customer_token").eq("work_order_id", fixture!.workOrderId).single();
     signoffToken = (so as { customer_token: string }).customer_token;
     const { data: atWt } = await db!.from("work_orders").select("stage").eq("id", fixture!.workOrderId).single();
@@ -238,6 +231,9 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
     await expect(page).toHaveURL(/\/s\//, { timeout: 20_000 });
     await page.getByTestId("approve-Front").click();
     await page.getByTestId("approve-Left").click();
+    // The approved change from test 4 is an area of the job too (its tick row's heading).
+    await page.getByTestId("approve-Variations").click();
+    await expect(page.getByTestId("sign")).toContainText("Sign off the job");
     await drawSignature(page);
     await page.getByTestId("sign").click();
     await expect(page.getByTestId("signed")).toContainText("Signed off", { timeout: 20_000 });
@@ -377,8 +373,8 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
     expect(moves[0]).toBe("offered>pre_start");
     expect(moves).toContain("pre_start>in_progress");
     expect(moves).toContain("in_progress>completion_prep");
-    expect(moves).toContain("completion_prep>qa");
-    expect(moves).toContain("qa>walkthrough");
+    // No quality check on this job (test 5): prep hands straight to the walkthrough.
+    expect(moves).toContain("completion_prep>walkthrough");
     expect(moves[moves.length - 1]).toBe("walkthrough>closed");
   });
 });
