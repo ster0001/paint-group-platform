@@ -20,6 +20,10 @@ import { contactSearchOr } from "@/lib/contacts/match";
 const replyInput = z.object({
   estimateId: z.string().uuid(),
   body: z.string().trim().min(1, "Type a message.").max(4000),
+  // Payments → Message (payments-merge Step 4): which invoice the message chases and
+  // which template it started from — logged on the invoice as a `nudge_sent` event.
+  invoiceId: z.string().uuid().optional(),
+  template: z.enum(["deposit", "reminder", "overdue", "received", "custom"]).optional(),
 });
 
 /** Per-channel outcome shown back in the send dialog. */
@@ -225,7 +229,7 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
   if (!parsed.success) {
     return { ok: false, kind: "invalid", message: parsed.error.issues[0]?.message ?? "That message isn't valid." };
   }
-  const { estimateId, body } = parsed.data;
+  const { estimateId, body, invoiceId, template } = parsed.data;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -241,6 +245,14 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
   // (Tom, 20 Sep) — the dock and an emailed reply post the same way.
   const r = await postStaffChatReply(supabase, { estimateId, body, authorName });
   if (!r.ok) return { ok: false, kind: "error", message: r.message };
+  if (invoiceId) {
+    // The message is posted; a failed log only costs the invoice's history line — reported, not fatal.
+    const { data: logged, error: logErr } = await supabase.rpc("invoice_log_message", { p_invoice_id: invoiceId, p_template: template ?? "custom" });
+    if (logErr || String(logged ?? "").startsWith("error:")) {
+      reportError(logErr ?? new Error(String(logged)), { where: "quote.replyToEstimateChat.logMessage", extra: { invoiceId } });
+    }
+    revalidatePath("/invoicing/payments");
+  }
   return { ok: true, state: "sent", delivery: r.delivery };
 }
 

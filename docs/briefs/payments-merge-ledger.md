@@ -100,3 +100,25 @@ Brief: `docs/briefs/claude-code-brief-payments-merge.md`. Branch `feat/payments-
   - The page fixture had set `work_orders.status` to a stage name. That enum differs, so the update failed silently and Step 2's stage-filter check passed for the wrong reason. Shared fixture now: `e2e/fixtures/paymentsJobs.ts`.
   - The fixture's dates are now Melbourne days.
 - Noted, not changed: a CRM "invoice paid" event emitted at the payment stays in the customer's CRM history after an Undo. The CRM facts recompute from the invoice status, so the customer's state is right.
+
+## Step 4 — message follow-up (13 Oct 2026)
+- ⚑P7 ruled by Tom (13 Oct): **text and email.** The existing estimate-chat reply already does both:
+  - an email carrying the whole message
+  - a text (`chatReplySms`) with a link to the chat. It does not carry the message itself.
+- Migration `20270257000000_payments_message_log.sql`, additive: `invoice_log_message` (staff) writes a `nudge_sent` event on the invoice. Applied on C1, read-back 2/2. **LIVE on production** (ledger 12 Oct 20:57 UTC; production read-back 2/2 matched). Tom, 13 Oct: keep the text as a link to the chat.
+- The dock is reused, not copied:
+  - `app/components/staffDockBus.ts` `openEstimateChat()` fires `pg:open-estimate-chat`.
+  - `StaffChatDock` opens on that estimate's thread (a synthesised row when it isn't in the inbox) with a compose mode: template chips, a multi-line box pre-filled, "Written for you. Edit it, then send."
+  - Send uses `replyToEstimateChatAction`, now with an optional `invoiceId` and `template`, which it logs.
+- Drafts come from `paymentMessageDraftAction` (`app/invoicing/actions.ts`), on the server:
+  - Template choice: Deposit reminder for the deposit slot, Friendly reminder otherwise, then Overdue (pre-selected when the invoice is overdue), then Payment received.
+  - Filled in: the amount (balance), address, due and start dates (long form), first name, and the pay link `/i/<token>`.
+  - A draft invoice gets no link, because the token page opens issued invoices only.
+- Templates live in the `messaging` settings row as `paymentMsgDeposit`, `paymentMsgReminder`, `paymentMsgOverdue` and `paymentMsgReceived`, seeded from Appendix A. They are editable under Settings → Automations → "Payment messages from Payments" (a manual entry). New placeholder: `{{pay_link}}`, added to `TemplateVars` and `SAMPLE_VARS`.
+- "Last messaged": the newest staff line on the job's chat (`estimate_messages`) gives `row.lastMessagedDays`, shown on the card's context line.
+- Fixed while testing: the deferred receipt now claims BEFORE building the PDF. Headless Chromium can take seconds, and Undo must close when the window does.
+- Gate:
+  - Unit 3,548 passing, including `lib/messaging/paymentMessages.test.ts` (Appendix A wording, English tone, placeholders, the Settings entry).
+  - Typecheck clean. Lint within the ceiling. Help index current.
+  - e2e on C1: `payments-message` 3/3, `payments-actions` 8/8, `payments-page` 4/4.
+  - Regression 20/20: estimate chat, customer asks, settings automations, dock specs.

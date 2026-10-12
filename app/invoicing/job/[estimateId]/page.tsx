@@ -101,6 +101,7 @@ export default async function JobMoneyPage({
       case "amended": return { tone: "amber", title: "Draft amended", meta: at };
       case "reminders_paused": return { tone: "amber", title: "Reminders paused", meta: `${m.reason ?? ""} · ${at}` };
       case "reminders_resumed": return { tone: "cyan", title: "Reminders resumed", meta: at };
+      case "nudge_sent": return { tone: "cyan", title: "Payment message sent", meta: at };
       default: return { tone: "", title: e.type.replaceAll("_", " "), meta: at };
     }
   });

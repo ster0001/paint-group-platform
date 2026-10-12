@@ -343,3 +343,12 @@ describe("Step 3 — sheet previews (the server still decides)", () => {
     expect(depositPreview(100_000, { cents: 500_000 }).depositCents).toBe(100_000);
   });
 });
+
+describe("Step 4 — last messaged (§4.4)", () => {
+  it("Melbourne days since the newest staff line; null when never messaged", () => {
+    const j = job("lark", "2 Lark St", "pre_start", "2026-10-20", 200_000, { lastMessagedAt: "2026-10-09T23:30:00Z" }); // 10 Oct, 10:30 am Melbourne
+    expect(jobMoneyRow(j, [], [], NOW).lastMessagedDays).toBe(2);
+    expect(jobMoneyRow({ ...j, lastMessagedAt: "2026-10-12T01:00:00Z" }, [], [], NOW).lastMessagedDays).toBe(0);
+    expect(row("kite").lastMessagedDays).toBeNull();
+  });
+});

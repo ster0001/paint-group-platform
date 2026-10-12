@@ -82,6 +82,8 @@ function eventLine(e: EventRow, byId: Map<string, InvoiceRow>): ActivityProp {
       return { tone: "amber", title: "Reminders paused", meta: meta(`${m.reason ?? ""} · ${at}`) };
     case "reminders_resumed":
       return { tone: "cyan", title: "Reminders resumed", meta: meta(at) };
+    case "nudge_sent":
+      return { tone: "cyan", title: "Payment message sent", meta: meta(at) };
     case "extension":
       return { tone: "amber", title: "Payment terms extended", meta: meta(at) };
     case "amended":

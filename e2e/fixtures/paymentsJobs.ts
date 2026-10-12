@@ -25,6 +25,8 @@ export async function makePaymentsJob(
   const { error: estErr } = await db.from("estimates").update({
     accepted_name: `${label} Customer`, accepted_total_cents: opts.contractCents, total_cents: opts.contractCents,
     sent_snapshot: { jobAddress: address, contactEmail: `${label.toLowerCase()}.${stamp.toLowerCase()}@payments-e2e.invalid` },
+    // The chat reply (Payments → Message) notifies this contact: an .invalid address, no phone — nothing can be delivered.
+    builder_state: { contact: { first_name: label, email: `${label.toLowerCase()}.${stamp.toLowerCase()}@payments-e2e.invalid`, phone: "" } },
   }).eq("id", f.estimateId);
   if (estErr) throw estErr;
   // Only the STAGE moves: work_orders.status is a different enum (draft/issued/in_progress/complete).
@@ -63,6 +65,9 @@ export async function cleanupPaymentsJobs(db: SupabaseClient, jobs: readonly Pay
       await db.from("invoice_lines").delete().in("invoice_id", ids);
       await db.from("invoices").delete().in("id", ids);
     }
+    await db.from("estimate_messages").delete().eq("estimate_id", j.f.estimateId);
+    await db.from("estimate_events").delete().eq("estimate_id", j.f.estimateId);
+    await db.from("messages").delete().eq("estimate_id", j.f.estimateId);
     await destroyLoopFixture(db, j.f);
   }
 }

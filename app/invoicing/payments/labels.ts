@@ -48,6 +48,12 @@ export function startText(r: JobMoneyRow): string {
   return "";
 }
 
+/** "last messaged today" / "yesterday" / "3 days ago" (§4.4). */
+export function lastMessagedText(days: number | null): string | null {
+  if (days === null) return null;
+  return days === 0 ? "messaged today" : days === 1 ? "last messaged yesterday" : `last messaged ${days} days ago`;
+}
+
 /** "due today" / "due yesterday" / "due Thu 15 Oct" / "3 days overdue" / "not sent". */
 export function dueText(lead: SlotLead): string {
   if (lead.state === "over" && lead.overdueDays !== null) return `${plural(lead.overdueDays, "day")} overdue`;
@@ -141,5 +147,6 @@ export function actionSpec(r: JobMoneyRow, jobHref: string): ActionSpec {
     jobHref, contractCents: r.contractCents, startDate: r.startDate, startText: startText(r),
     primary, payable,
     depositDraft: dep && dep.kind === "deposit" && !dep.sent ? { invoiceId: dep.invoiceId, totalCents: dep.balanceCents } : null,
+    messageInvoiceId: n?.lead?.invoiceId ?? leads[0]?.lead.invoiceId ?? null,
   };
 }

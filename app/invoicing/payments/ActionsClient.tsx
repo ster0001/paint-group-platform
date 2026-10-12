@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { centsAsInput, depositPreview, parseDollarsToCents } from "@/lib/invoicing/jobMoney";
 import {
-  createDepositAction, invoiceInFullAction, quickPayAction, recordPaymentAction,
+  createDepositAction, invoiceInFullAction, paymentMessageDraftAction, quickPayAction, recordPaymentAction,
   sendWithDueAction, setDepositAction, undoPaymentAction,
 } from "../actions";
+import { openEstimateChat } from "@/app/components/staffDockBus";
 import { fmt2 } from "../format";
 
 /**
@@ -39,6 +40,8 @@ export type ActionSpec = {
   payable: PayTarget[];
   /** The draft deposit the adjuster changes, when there is one. */
   depositDraft: { invoiceId: string; totalCents: number } | null;
+  /** The invoice Message chases (§4.4) — the row's next one; null when nothing is owing. */
+  messageInvoiceId: string | null;
 };
 
 export type PaymentsUiSettings = { depositOptionsPct: number[]; notifyPaymentDefault: boolean; today: string };
@@ -56,6 +59,7 @@ type Ui = {
   adjustOpen: (estimateId: string) => boolean;
   toggleAdjust: (estimateId: string) => void;
   setDeposit: (spec: ActionSpec, pick: { pct: number } | { cents: number }) => void;
+  message: (spec: ActionSpec) => void;
 };
 
 const Ctx = createContext<Ui | null>(null);
@@ -115,7 +119,13 @@ export function PaymentsUiProvider({ settings, children }: { settings: PaymentsU
         mode: "pct" in pick ? "percent" : "fixed", value: "pct" in pick ? pick.pct : pick.cents,
       })));
     },
-  }), [settings, busy, adjust, done, router, show, start]);
+    // Message (§4.4): the server writes the draft and the pay link; the dock shows it; a person sends it.
+    message: (spec) => start(async () => {
+      const d = await paymentMessageDraftAction(spec.messageInvoiceId ? { estimateId: spec.estimateId, invoiceId: spec.messageInvoiceId } : { estimateId: spec.estimateId });
+      if (!d.ok) { say(d.message); return; }
+      openEstimateChat({ estimateId: d.estimateId, who: d.who, phone: d.phone, accountId: d.accountId, invoiceId: d.invoiceId, presets: d.presets, selected: d.selected });
+    }),
+  }), [settings, busy, adjust, done, router, say, show, start]);
 
   const undo = (change: boolean) => {
     const u = toast?.undo;
@@ -148,9 +158,9 @@ export function PaymentsUiProvider({ settings, children }: { settings: PaymentsU
 export function RowActions({ spec, small = false }: { spec: ActionSpec; small?: boolean }) {
   const ui = useUi();
   const cls = small ? "b sm" : "b";
-  const message = <button type="button" className={cls} data-step="4" disabled>Message</button>;
+  const message = <button type="button" className={cls} disabled={ui.busy} onClick={() => ui.message(spec)}>Message</button>;
   const p = spec.primary;
-  if (p.kind === "open") return small ? null : <Link className={cls} href={spec.jobHref}>Open job</Link>;
+  if (p.kind === "open") return small ? null : <><Link className={cls} href={spec.jobHref}>Open job</Link>{message}</>;
   if (p.kind === "create_deposit" || p.kind === "create_final") {
     if (small) return null;
     return <><button type="button" className={`${cls} pri`} disabled={ui.busy} onClick={() => ui.create(spec)}>

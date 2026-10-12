@@ -42,6 +42,8 @@ export type JobMoneyJob = {
   startDate: string | null;
   acceptedTotalCents: number;
   variations: readonly LedgerVariation[];
+  /** The newest staff message on the job's chat (estimate_messages), an ISO timestamp — "last messaged N days ago". */
+  lastMessagedAt?: string | null;
 };
 
 /** An invoice as the row needs it: the derive shape plus its number and when it was drafted. */
@@ -168,6 +170,8 @@ export type JobMoneyRow = {
   section: Section;
   /** A deposit not in on a job starting within a week or already under way — the orange row pulses (⚑P1). */
   pulse: boolean;
+  /** Melbourne days since staff last messaged the customer on the job's chat; null = never (§4.4). */
+  lastMessagedDays: number | null;
   /** Leftover drafts hidden by rule (§6.1 $0 drafts, §6.2 deposit drafts beside a final). Never deleted. */
   hiddenDraftIds: string[];
 };
@@ -340,6 +344,7 @@ export function jobMoneyRow(
     overdueCount: overdueInvs.length,
     health, section,
     pulse: (health === "need" || health === "noinv") && (underWay || lane === "pre_start"),
+    lastMessagedDays: job.lastMessagedAt ? Math.max(0, daysBetween(melbourneToday(new Date(job.lastMessagedAt)), today)) : null,
     hiddenDraftIds: hidden.map((i) => i.id),
   };
 }

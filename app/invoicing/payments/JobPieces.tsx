@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LANES } from "@/lib/workorder/stages";
 import type { JobMoneyRow, SlotKey } from "@/lib/invoicing/jobMoney";
 import {
-  SLOT_LETTER, SLOT_NAME, STAGE_NAME, actionSpec, money, oweOf, pillOf, plural, railLabel, startText, stillToInvoicePill,
+  SLOT_LETTER, SLOT_NAME, STAGE_NAME, actionSpec, lastMessagedText, money, oweOf, pillOf, plural, railLabel, startText, stillToInvoicePill,
   type PillView,
 } from "./labels";
 import { AdjustButton, DepositAdjust, RowActions } from "./ActionsClient";
@@ -49,7 +49,7 @@ export function Pills({ row }: { row: JobMoneyRow }) {
   return <div className="pills">{pills.map((p, i) => <Pill key={i} p={p} estimateId={row.estimateId} />)}{extra ? <Pill p={extra} estimateId={row.estimateId} /> : null}</div>;
 }
 
-/** The context line: start timing, opens, booking. ("Last messaged" arrives with Step 4.) */
+/** The context line: start timing, opens, last messaged (§4.4), booking. */
 function Context({ row }: { row: JobMoneyRow }) {
   const bits: React.ReactNode[] = [];
   const lead = row.next?.lead ?? null;
@@ -58,6 +58,8 @@ function Context({ row }: { row: JobMoneyRow }) {
     bits.push(<b key="s" className={hot ? "hot" : ""}>{startText(row)}</b>);
   }
   if (lead?.sent) bits.push(lead.views ? `Invoice opened ${plural(lead.views, "time")}` : "Invoice not opened yet");
+  const messaged = lastMessagedText(row.lastMessagedDays);
+  if (messaged) bits.push(messaged);
   if (row.lane === "offered" && lead && !lead.sent) bits.push("Not booked in yet");
   if (!bits.length) return null;
   return <div className="ctx">{bits.map((b, i) => <span key={i}>{i ? " · " : ""}{b}</span>)}</div>;

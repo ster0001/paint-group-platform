@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { ensureInvoicePdf, ensureReceiptPdf, ensureRemittancePdf, signedDocUrl } from "@/lib/invoicing/pdf";
+import { ensureInvoicePdf, ensureReceiptPdf, ensureRemittancePdf, signedDocUrl, siteUrl } from "@/lib/invoicing/pdf";
 import { sendInvoiceEmail, sendInvoiceSms, sendReceiptEmail, sendRemittanceEmail } from "@/lib/invoicing/sendInvoice";
 import { staffInvoicePaid } from "@/lib/staff/notify";
 import { COST_DOCS_BUCKET, isOwnReceiptPath } from "@/lib/costs/store";
@@ -13,6 +13,11 @@ import { sniffKind } from "@/lib/extract/normalise";
 import { notifyExpenseDecided } from "@/lib/contractor/notify";
 import { reportError } from "@/lib/monitoring/report";
 import { paymentsSettings } from "@/lib/invoicing/settings";
+import { DEFAULT_MESSAGING, MESSAGING_KEY, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
+import { invoiceBalanceCents, invoiceIsOverdue, type DerivePayment } from "@/lib/invoicing/derive";
+import { slotOf, type JobMoneyInvoice } from "@/lib/invoicing/jobMoney";
+import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
+import { fmt2 } from "./format";
 
 /**
  * Invoicing actions — thin, zod-validated translations over the Step 1/2
@@ -189,8 +194,8 @@ export async function recordPaymentAction(raw: unknown): Promise<InvoicingResult
         .order("created_at", { ascending: false }).limit(1).maybeSingle();
       const paymentId = (data as { id: string } | null)?.id;
       if (!paymentId) return;
-      await ensureReceiptPdf(paymentId);
       if (notify) await sendClaimedReceipt(service, paymentId);
+      else await ensureReceiptPdf(paymentId);   // the record keeps its receipt even when nothing is sent
       await staffInvoicePaid(service, paymentId); // Tom, 10 Sep: staff alert
     });
   }
@@ -206,6 +211,9 @@ async function sendClaimedReceipt(service: NonNullable<ReturnType<typeof createS
   const { data, error } = await service.rpc("payment_claim_receipt", { p_payment_id: paymentId });
   if (error) { reportError(error, { where: "sendClaimedReceipt", extra: { paymentId } }); return; }
   if (data !== "ok:claimed") return;   // undone in the window, or already sent
+  // Claimed FIRST, then the slow part: the PDF (headless Chromium) can take seconds,
+  // and Undo must be closed the moment the window is — not when the PDF is done.
+  await ensureReceiptPdf(paymentId);
   await sendReceiptEmail(service, paymentId);
 }
 
@@ -243,7 +251,6 @@ export async function quickPayAction(raw: unknown): Promise<InvoicingResult & { 
     const { data, error } = await service.from("payments").select("status").eq("id", paymentId).maybeSingle();
     if (error) { reportError(error, { where: "quickPayAction.after", extra: { paymentId } }); return; }
     if ((data as { status: string } | null)?.status !== "succeeded") return;   // undone in the window
-    await ensureReceiptPdf(paymentId);
     await sendClaimedReceipt(service, paymentId);
     await staffInvoicePaid(service, paymentId);
   });
@@ -790,4 +797,89 @@ export async function releaseFastTermsAction(raw: unknown): Promise<InvoicingRes
   const result = await call("contractor_invoice_release_fast_terms", { p_id: p.data.contractorInvoiceId }, {}, "Released — back on the Green 3-business-day terms.");
   if (result.ok) { revalidatePath("/pc"); revalidatePath("/portal/money"); }
   return result;
+}
+
+
+// ---- Payments merge Step 4: message follow-up (brief §4.4) -----------------------
+
+export type PaymentTemplate = "deposit" | "reminder" | "overdue" | "received";
+export type PaymentMessageDraft =
+  | {
+      ok: true; estimateId: string; invoiceId: string | null; who: string; phone: string | null; accountId: string | null;
+      presets: { key: PaymentTemplate; label: string; text: string }[]; selected: PaymentTemplate;
+    }
+  | { ok: false; message: string };
+
+const LABEL: Record<PaymentTemplate, string> = { deposit: "Deposit reminder", reminder: "Friendly reminder", overdue: "Overdue", received: "Payment received" };
+const FIELD: Record<PaymentTemplate, keyof MessagingSettings> = {
+  deposit: "paymentMsgDeposit", reminder: "paymentMsgReminder", overdue: "paymentMsgOverdue", received: "paymentMsgReceived",
+};
+/** "Monday 19 October" — a yyyy-mm-dd is a Melbourne day already, so it is formatted in UTC. */
+const longDay = (ymd: string) =>
+  new Intl.DateTimeFormat("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${ymd}T00:00:00Z`)).replace(",", "");
+
+/**
+ * The messages Payments → Message pre-fills (⚑P8: Settings → Automations →
+ * "Payment messages"). The template is chosen from the invoice's state —
+ * Overdue is pre-selected when it is overdue — and every figure and the pay
+ * link are filled HERE, on the server. Nothing is sent: the dock shows the
+ * draft and a person presses Send.
+ */
+export async function paymentMessageDraftAction(raw: unknown): Promise<PaymentMessageDraft> {
+  const p = z.object({ estimateId: uuid, invoiceId: uuid.optional() }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+  const supabase = await createClient();
+  const [est, wo, inv, settings] = await Promise.all([
+    supabase.from("estimates").select("id, title, accepted_name, account_id, job_address:sent_snapshot->>jobAddress, contact:builder_state->contact").eq("id", p.data.estimateId).maybeSingle(),
+    supabase.from("work_orders").select("start_date").eq("estimate_id", p.data.estimateId).maybeSingle(),
+    supabase.from("invoices").select("id, estimate_id, kind, status, number, total_inc_cents, due_on, issued_on, created_at, token").eq("estimate_id", p.data.estimateId),
+    supabase.from("settings").select("key, value").eq("key", MESSAGING_KEY),
+  ]);
+  const failed = est.error ?? wo.error ?? inv.error ?? settings.error;
+  if (failed) { reportError(failed, { where: "paymentMessageDraftAction", extra: { estimateId: p.data.estimateId } }); return { ok: false, message: "Couldn't load this job just now." }; }
+  if (!est.data) return { ok: false, message: "That job no longer exists." };
+
+  const e = est.data as { title: string | null; accepted_name: string | null; account_id: string | null; job_address: string | null; contact: { first_name?: string; phone?: string } | null };
+  type InvRow = { id: string; estimate_id: string; kind: JobMoneyInvoice["kind"]; status: InvoiceStatus; number: string | null; total_inc_cents: number; due_on: string | null; issued_on: string | null; created_at: string; token: string };
+  const invoices = ((inv.data ?? []) as InvRow[]).filter((i) => i.status !== "void" && i.status !== "written_off");
+  const asJob = (i: InvRow): JobMoneyInvoice => ({ id: i.id, estimateId: i.estimate_id, kind: i.kind, status: i.status, totalIncCents: i.total_inc_cents, dueOn: i.due_on, issuedOn: i.issued_on, number: i.number, createdAt: i.created_at });
+  const target = p.data.invoiceId ? invoices.find((i) => i.id === p.data.invoiceId) ?? null : null;
+  if (p.data.invoiceId && !target) return { ok: false, message: "That invoice isn't on this job." };
+
+  let payments: DerivePayment[] = [];
+  if (target) {
+    const { data, error } = await supabase.from("payments").select("invoice_id, amount_cents, status, paid_on").eq("invoice_id", target.id);
+    if (error) { reportError(error, { where: "paymentMessageDraftAction.payments" }); return { ok: false, message: "Couldn't load this job just now." }; }
+    payments = ((data ?? []) as { invoice_id: string; amount_cents: number; status: string; paid_on: string | null }[])
+      .map((x) => ({ invoiceId: x.invoice_id, amountCents: x.amount_cents, status: x.status, paidOn: x.paid_on }));
+  }
+
+  const messaging: MessagingSettings = { ...DEFAULT_MESSAGING, ...(((settings.data ?? [])[0] as { value?: Partial<MessagingSettings> } | undefined)?.value ?? {}) };
+  const address = (e.job_address || e.title || "your home").split(",")[0].trim();
+  const first = (e.contact?.first_name || (e.accepted_name ?? "").split(/\s+/)[0] || "").trim();
+  const startDate = (wo.data as { start_date: string | null } | null)?.start_date ?? null;
+  const owing = target ? invoiceBalanceCents(asJob(target), payments) : 0;
+  const vars = {
+    first_name: first || "there",
+    amount: fmt2(Math.max(owing, 0)),
+    address,
+    due_date: target?.due_on ? longDay(target.due_on) : "receipt",
+    start_date: startDate ? longDay(startDate) : "the agreed start date",
+    // The token link only opens an issued invoice: a draft gets no link until it is sent.
+    pay_link: target && target.status !== "draft" ? `${siteUrl()}/i/${target.token}` : "",
+  };
+
+  const keys: PaymentTemplate[] = [];
+  if (target && owing > 0) {
+    keys.push(slotOf(asJob(target), invoices.map(asJob)) === "deposit" ? "deposit" : "reminder", "overdue");
+  }
+  keys.push("received");
+  const overdue = !!target && invoiceIsOverdue(asJob(target), payments, new Date());
+  const presets = keys.map((k) => ({ key: k, label: LABEL[k], text: renderTemplate(String(messaging[FIELD[k]] ?? ""), vars).replace(/\n{3,}/g, "\n\n").trim() }));
+  return {
+    ok: true, estimateId: p.data.estimateId, invoiceId: target?.id ?? null,
+    who: [e.accepted_name || "Customer", address].filter(Boolean).join(" · "),
+    phone: e.contact?.phone ?? null, accountId: e.account_id,
+    presets, selected: overdue ? "overdue" : keys[0],
+  };
 }
