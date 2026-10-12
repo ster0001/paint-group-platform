@@ -5,14 +5,15 @@ Brief: `docs/briefs/claude-code-brief-payments-merge.md`. Branch `feat/payments-
 ## Step 0 — kickoff (12 Oct 2026)
 - Report: `docs/briefs/payments-merge-step0-kickoff.md`. No app code changed.
 - Baseline (§3A.4), production, read 12 Oct 11:37 UTC with `scripts/diag/payments-baseline.mjs --prod`. It matches the brief's figures: 86 invoices, $36,819.33 outstanding on 7, $17,226.71 in 5 contractor invoices to approve. The JSON is kept OUTSIDE the repo (live business totals; the repo is public), in `~/Documents/paint-group-private/payments-merge/`.
-- Mockup: the original has real customer names, so it is not committed. An anonymised copy sits at `design/reference/payments-merged-v3-mockup.html`. It is still git-excluded until Tom confirms it may go into the public repo. The original and the name map are in the private folder.
+- Mockup: the original has real customer names, so it stays outside git (private folder, with the name map). The anonymised copy at `design/reference/payments-merged-v3-mockup.html` is committed (Tom, 13 Oct).
 
 ## Tom's rulings (12 Oct 2026), answering the kickoff's open items
 1. Urgency: no new `lib/invoicing/attention.ts`. Urgency comes from the one shared overdue rule plus the CRM work queue (CLAUDE.md "one work queue").
 2. **Overdue = midday Melbourne on the day after the due date.** Shipped in PR #260 (`ledger.ts` `overdueFrom` / `isOverdue(invoice, now)`). The chase sweep, CRM, portal and reporting all call it.
 3. Deposit: **50% standard, adjustable** (Step 3). The old brief's DBCA-cap warning is not built; the legal check stays an open ⚑ for the final PR.
 4. Drafts may be **edited or deleted before they are sent**. The leftover drafts (§6.1–6.2) are still hidden by rule until Tom approves deleting a listed set.
-5. The mockup lives outside git, with an anonymised copy for the repo (pending Tom's OK to commit it).
+5. The mockup lives outside git; the anonymised copy is in the repo (Tom, 13 Oct).
+7. **One switch-over at Step 8** (Tom, 13 Oct): no side-by-side preview. Steps 1–7 stay on `feat/payments-merge`; `main` keeps the current Payments page until Step 8 replaces it.
 6. Prework fixes merged first (PR #260, `20270255` LIVE on production 12 Oct 11:59 UTC): definer guards, Pause/Resume reminders via an RPC, money deep links, Melbourne dates.
 
 ## Step 1 — the job money row and the headline (12 Oct 2026)
