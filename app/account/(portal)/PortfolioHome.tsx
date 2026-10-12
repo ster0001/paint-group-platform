@@ -23,6 +23,7 @@ export default async function PortfolioHome({ ctx }: { ctx: PortalContext }) {
     payments: money.payments,
     variations,
     todayYmd: melbourneTodayYmd(),
+    now: new Date(),
   });
 
   return (

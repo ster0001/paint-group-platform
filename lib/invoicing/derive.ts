@@ -2,14 +2,18 @@
  * Screen derivations for the §7 invoicing surfaces — every figure the job
  * money view and the /invoicing dashboard show comes from here (or from
  * ledger.ts / the invoice_ledger_staff RPC). Components format; they never
- * compute. All dates are Melbourne calendar-day strings supplied by the
- * caller (lib/workorder/console.ts `melbourneDate`) — this module never
- * reads the clock.
+ * compute. The caller supplies `now`; calendar days are taken in Melbourne
+ * (`melbourneToday`), and "overdue" is ledger.ts `isOverdue` — midday on the
+ * day after the due date. This module never reads the clock.
  */
 
 import type { InvoiceStatus } from "./stateMachine";
 import { OPEN_STATUSES } from "./stateMachine";
 import { isOverdue } from "./ledger";
+import { melbourneDatePlus } from "@/lib/time/workingDays";
+
+/** The Melbourne calendar day of `now` (yyyy-mm-dd) — never toISOString().slice(0, 10). */
+export const melbourneToday = (now: Date): string => melbourneDatePlus(now, 0);
 
 export type InvoiceKind = "deposit" | "progress" | "final" | "variation" | "standalone";
 
@@ -56,7 +60,7 @@ export function daysBetween(a: string, b: string): number {
 export function invoiceIsOverdue(
   invoice: DeriveInvoice,
   payments: readonly DerivePayment[],
-  todayIso: string,
+  now: Date,
 ): boolean {
   return isOverdue(
     {
@@ -65,7 +69,7 @@ export function invoiceIsOverdue(
       totalIncCents: invoice.totalIncCents,
       paidCents: invoicePaidCents(invoice, payments),
     },
-    todayIso,
+    now,
   );
 }
 
@@ -73,10 +77,11 @@ export function invoiceIsOverdue(
 export function ageInfo(
   invoice: DeriveInvoice,
   payments: readonly DerivePayment[],
-  todayIso: string,
+  now: Date,
 ): { overdueDays: number } | { dueInDays: number } | null {
   if (!invoice.dueOn || !OPEN_STATUSES.includes(invoice.status)) return null;
-  if (invoiceIsOverdue(invoice, payments, todayIso)) {
+  const todayIso = melbourneToday(now);
+  if (invoiceIsOverdue(invoice, payments, now)) {
     return { overdueDays: daysBetween(invoice.dueOn, todayIso) };
   }
   return { dueInDays: daysBetween(todayIso, invoice.dueOn) };
@@ -103,8 +108,9 @@ export type DashboardTiles = {
 export function dashboardTiles(
   invoices: readonly DeriveInvoice[],
   payments: readonly DerivePayment[],
-  todayIso: string,
+  now: Date,
 ): DashboardTiles {
+  const todayIso = melbourneToday(now);
   let outstandingCents = 0, outstandingCount = 0;
   let overdueCents = 0, overdueCount = 0, overdueOldestDays = 0;
   let dueThisWeekCents = 0, dueThisWeekCount = 0;
@@ -117,7 +123,7 @@ export function dashboardTiles(
     outstandingCents += balance;
     outstandingCount += 1;
     jobs.add(inv.estimateId);
-    if (invoiceIsOverdue(inv, payments, todayIso)) {
+    if (invoiceIsOverdue(inv, payments, now)) {
       overdueCents += balance;
       overdueCount += 1;
       overdueOldestDays = Math.max(overdueOldestDays, daysBetween(inv.dueOn!, todayIso));
@@ -152,14 +158,15 @@ export function dashboardTiles(
 export function agedBucketsCents(
   invoices: readonly DeriveInvoice[],
   payments: readonly DerivePayment[],
-  todayIso: string,
+  now: Date,
 ): [number, number, number, number, number] {
+  const todayIso = melbourneToday(now);
   const buckets: [number, number, number, number, number] = [0, 0, 0, 0, 0];
   for (const inv of invoices) {
     if (!OPEN_STATUSES.includes(inv.status)) continue;
     const balance = invoiceBalanceCents(inv, payments);
     if (balance <= 0) continue;
-    const days = invoiceIsOverdue(inv, payments, todayIso)
+    const days = invoiceIsOverdue(inv, payments, now)
       ? daysBetween(inv.dueOn!, todayIso)
       : 0;
     const idx = days <= 0 ? 0 : days <= 7 ? 1 : days <= 14 ? 2 : days <= 30 ? 3 : 4;
@@ -183,12 +190,12 @@ export type PaymentStage = {
 function groupState(
   group: readonly DeriveInvoice[],
   payments: readonly DerivePayment[],
-  todayIso: string,
+  now: Date,
 ): { state: StageState; amountCents: number | null } {
   const live = group.filter((i) => i.status !== "void" && i.status !== "written_off");
   if (live.length === 0) return { state: "upcoming", amountCents: null };
   const total = live.reduce((a, i) => a + i.totalIncCents, 0);
-  if (live.some((i) => invoiceIsOverdue(i, payments, todayIso))) {
+  if (live.some((i) => invoiceIsOverdue(i, payments, now))) {
     return { state: "overdue", amountCents: total };
   }
   if (live.some((i) => OPEN_STATUSES.includes(i.status))) {
@@ -202,12 +209,12 @@ export function paymentStages(
   invoices: readonly DeriveInvoice[],
   payments: readonly DerivePayment[],
   balanceCents: number,
-  todayIso: string,
+  now: Date,
 ): PaymentStage[] {
   const of = (kinds: InvoiceKind[]) => invoices.filter((i) => kinds.includes(i.kind));
-  const deposit = groupState(of(["deposit"]), payments, todayIso);
-  const progress = groupState(of(["progress", "variation", "standalone"]), payments, todayIso);
-  const final = groupState(of(["final"]), payments, todayIso);
+  const deposit = groupState(of(["deposit"]), payments, now);
+  const progress = groupState(of(["progress", "variation", "standalone"]), payments, now);
+  const final = groupState(of(["final"]), payments, now);
   const anythingLive = invoices.some((i) => i.status !== "void");
   const paidInFull = balanceCents <= 0 && anythingLive;
   return [
@@ -226,9 +233,9 @@ export function paymentStages(
 export function stageDots(
   invoices: readonly DeriveInvoice[],
   payments: readonly DerivePayment[],
-  todayIso: string,
+  now: Date,
 ): ("paid" | "open" | "none")[] {
-  const stages = paymentStages(invoices, payments, 1, todayIso).slice(0, 3);
+  const stages = paymentStages(invoices, payments, 1, now).slice(0, 3);
   return stages.map((s) =>
     s.state === "paid" ? "paid" : s.state === "upcoming" ? "none" : "open",
   );

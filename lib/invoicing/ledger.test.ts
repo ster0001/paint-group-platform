@@ -5,11 +5,13 @@
  * schema.contract.test.ts.
  */
 import { describe, expect, it } from "vitest";
+import { melbourneInstant } from "@/lib/time/businessHours";
 import {
   adjustedContractCents,
   invoicedCents,
   isOverdue,
   ledger,
+  overdueFrom,
   paidCents,
   variationsCents,
   type LedgerVariation,
@@ -114,23 +116,31 @@ describe("the whole ledger — the mockup money strip", () => {
 
 describe("overdue is derived, never stored", () => {
   const base = { status: "sent" as const, dueOn: "2026-08-20", totalIncCents: 100_000, paidCents: 0 };
+  const at = (d: number, h: number, min = 0) => melbourneInstant(2026, 8, d, h, min);
 
   it("due date passed + balance owing = overdue", () => {
-    expect(isOverdue(base, "2026-08-24")).toBe(true);
+    expect(isOverdue(base, at(24, 9))).toBe(true);
   });
-  it("not before the due date, and not ON the due date", () => {
-    expect(isOverdue(base, "2026-08-19")).toBe(false);
-    expect(isOverdue(base, "2026-08-20")).toBe(false);
+  it("Tom, 12 Oct: not before, not on the due date, and not the morning after — from MIDDAY the day after", () => {
+    expect(isOverdue(base, at(19, 13))).toBe(false);
+    expect(isOverdue(base, at(20, 23, 59))).toBe(false);
+    expect(isOverdue(base, at(21, 11, 59))).toBe(false);
+    expect(isOverdue(base, at(21, 12))).toBe(true);
+  });
+  it("the overdue instant is midday Melbourne, measured across both offsets", () => {
+    expect(overdueFrom("2026-08-20").toISOString()).toBe("2026-08-21T02:00:00.000Z"); // AEST +10
+    expect(overdueFrom("2026-10-03").toISOString()).toBe("2026-10-04T01:00:00.000Z"); // the clock-change day, AEDT +11
+    expect(overdueFrom("2026-12-31").toISOString()).toBe("2027-01-01T01:00:00.000Z"); // year boundary
   });
   it("a paid-off invoice can't be overdue whatever the date says", () => {
-    expect(isOverdue({ ...base, paidCents: 100_000 }, "2026-08-24")).toBe(false);
+    expect(isOverdue({ ...base, paidCents: 100_000 }, at(24, 13))).toBe(false);
   });
   it("draft, paid, void and written_off are never overdue", () => {
     for (const status of ["draft", "paid", "void", "written_off"] as const) {
-      expect(isOverdue({ ...base, status }, "2026-08-24")).toBe(false);
+      expect(isOverdue({ ...base, status }, at(24, 13))).toBe(false);
     }
   });
   it("no due date, no overdue", () => {
-    expect(isOverdue({ ...base, dueOn: null }, "2026-08-24")).toBe(false);
+    expect(isOverdue({ ...base, dueOn: null }, at(24, 13))).toBe(false);
   });
 });

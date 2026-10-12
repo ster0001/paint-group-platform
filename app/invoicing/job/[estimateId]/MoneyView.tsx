@@ -81,7 +81,7 @@ const STAGE_LABEL: Record<PaymentStage["key"], string> = {
 };
 
 export default function MoneyView({
-  estimateId, woId, woRef, address, jobTitle, stages, strip, cards, feed, costs, loadError = null, costsError = null, backTo = null,
+  estimateId, woId, woRef, address, jobTitle, stages, strip, cards, feed, costs, loadError = null, costsError = null, backTo = null, initialTab = "payments",
 }: {
   estimateId: string;
   /** Tom, 1 Oct: arrived from Invoicing → the crumb goes back there, not to PC Command. From ?from=, validated in lib/navigation/backTo. */
@@ -97,6 +97,8 @@ export default function MoneyView({
   };
   cards: InvoiceCardProp[];
   feed: FeedProp[];
+  /** `?tab=` off the URL, validated on the server — PC Command links straight to Costs. */
+  initialTab?: "payments" | "invoices" | "costs";
   /** Set when a read behind this view failed — never present its figures as fact then. */
   loadError?: ReadFailure | null;
   /** The same, for this job's cost lists — tolerant, but not silent. */
@@ -112,7 +114,7 @@ export default function MoneyView({
   };
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"payments" | "invoices" | "costs">("payments");
+  const [tab, setTab] = useState<"payments" | "invoices" | "costs">(initialTab);
   const [sheet, setSheet] = useState<null | "request" | { record: InvoiceCardProp }>(null);
   const [addCost, setAddCost] = useState(false);
   const [sendFor, setSendFor] = useState<string | null>(null); // invoiceId

@@ -84,6 +84,7 @@ export async function getTradePortfolio(ctx: PortalContext, view: "trade"): Prom
     variations,
     pendingApprovals: (pendingRes.data ?? []) as Array<{ estimate_id: string; approver_name: string }>,
     todayYmd: melbourneTodayYmd(),
+    now: new Date(),
   });
 }
 
@@ -111,6 +112,7 @@ export async function getTradeMoney(ctx: PortalContext, view: "trade"): Promise<
     invoices: money.invoices,
     payments: money.payments,
     todayYmd: melbourneTodayYmd(),
+    now: new Date(),
   });
 }
 

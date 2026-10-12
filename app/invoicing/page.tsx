@@ -38,6 +38,17 @@ const METHOD_LABEL: Record<string, string> = {
   other: "payment",
 };
 
+/**
+ * "Due today" / "Due in 3 days" / "Due yesterday". An invoice is not overdue
+ * until midday the day after its due date (ledger.ts `isOverdue`), so the
+ * morning after it reads "Due yesterday", never "Due in -1 days".
+ */
+function dueWhen(days: number): string {
+  if (days === 0) return "Due today";
+  if (days === -1) return "Due yesterday";
+  return `Due in ${days} day${days === 1 ? "" : "s"}`;
+}
+
 function eventLine(e: EventRow, byId: Map<string, InvoiceRow>): ActivityProp {
   const inv = byId.get(e.invoice_id);
   const job = inv?.estimates?.job_address || inv?.estimates?.title || "—";
@@ -67,6 +78,10 @@ function eventLine(e: EventRow, byId: Map<string, InvoiceRow>): ActivityProp {
       return { tone: "clay", title: "Invoice voided", meta: meta(`${m.reason ?? ""} · ${at}`) };
     case "written_off":
       return { tone: "clay", title: "Invoice written off", meta: meta(at) };
+    case "reminders_paused":
+      return { tone: "amber", title: "Reminders paused", meta: meta(`${m.reason ?? ""} · ${at}`) };
+    case "reminders_resumed":
+      return { tone: "cyan", title: "Reminders resumed", meta: meta(at) };
     case "extension":
       return { tone: "amber", title: "Payment terms extended", meta: meta(at) };
     case "amended":
@@ -83,7 +98,8 @@ export default async function InvoicingDashboardPage({
 }) {
   const { f, tab, k, d: dueParam } = await searchParams;
   const supabase = await createClient();
-  const today = melbourneDate(new Date());
+  const now = new Date();
+  const today = melbourneDate(now);
   const [{ invoices, loadError, payablesError, payments, events, contractorInvoices, materialsToMatch: materialRows }, capture] = await Promise.all([
     loadDashboard(supabase),
     loadCostCapture(supabase),
@@ -100,9 +116,9 @@ export default async function InvoicingDashboardPage({
   const rows: RowProp[] = invoices.map((r) => {
     const d = derive.find((x) => x.id === r.id)!;
     const balance = invoiceBalanceCents(d, dPays);
-    const age = ageInfo(d, dPays, today);
+    const age = ageInfo(d, dPays, now);
     const job = r.estimates?.job_address || r.estimates?.title || "Untitled job";
-    const dots = stageDots(byEstimate.get(r.estimate_id) ?? [], dPays, today);
+    const dots = stageDots(byEstimate.get(r.estimate_id) ?? [], dPays, now);
 
     let filter: RowProp["filter"] = "other";
     let ageLabel = "";
@@ -118,12 +134,12 @@ export default async function InvoicingDashboardPage({
       ageLabel = `${age.overdueDays} day${age.overdueDays === 1 ? "" : "s"} overdue`;
     } else if (r.status === "partially_paid") {
       filter = "partial"; ageTone = "cyan";
-      ageLabel = age && "dueInDays" in age ? `Part paid · due in ${age.dueInDays} days` : "Part paid";
+      ageLabel = age && "dueInDays" in age ? `Part paid · ${dueWhen(age.dueInDays).toLowerCase()}` : "Part paid";
     } else if (age && "dueInDays" in age) {
       filter = "awaiting";
       ageTone = r.status === "viewed" ? "cyan" : "amber";
       const hint = r.status === "viewed" ? "viewed" : r.status === "sent" ? "sent, not yet viewed" : "issued, not yet sent";
-      ageLabel = `${age.dueInDays === 0 ? "Due today" : `Due in ${age.dueInDays} days`} · ${hint}`;
+      ageLabel = `${dueWhen(age.dueInDays)} · ${hint}`;
     } else if (r.status === "void") {
       ageLabel = `Void — ${r.voided_reason}`;
     } else {
@@ -162,8 +178,8 @@ export default async function InvoicingDashboardPage({
     };
   }).sort((a, b) => a.sortKey - b.sortKey);
 
-  const tiles = dashboardTiles(derive, dPays, today);
-  const buckets = agedBucketsCents(derive, dPays, today);
+  const tiles = dashboardTiles(derive, dPays, now);
+  const buckets = agedBucketsCents(derive, dPays, now);
   const activity = events.map((e) => eventLine(e, byId));
 
   // Step 5 — the Payables tab: submitted first (they need a decision), then

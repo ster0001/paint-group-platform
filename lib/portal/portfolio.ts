@@ -69,6 +69,8 @@ export function buildPortfolio(input: {
   payments: MoneyPayment[];
   variations: PortfolioVariation[];
   todayYmd: string;
+  /** The caller's clock — "overdue" is an instant (midday the day after the due date), not a day. */
+  now: Date;
 }): { tiles: PortfolioTiles; attention: AttentionItem[]; underway: UnderwayJob[] } {
   const { estimates, workOrders, invoices, payments, variations, todayYmd } = input;
   const estById = new Map(estimates.map((e) => [e.id, e]));
@@ -127,7 +129,7 @@ export function buildPortfolio(input: {
   for (const inv of invoices) {
     if (!VISIBLE_INVOICE.has(inv.status) || inv.status === "paid") continue;
     const d = toDerive(inv);
-    if (!invoiceIsOverdue(d, dPayments, todayYmd)) continue;
+    if (!invoiceIsOverdue(d, dPayments, input.now)) continue;
     const e = estById.get(inv.estimate_id);
     attention.push({
       key: `invoice:${inv.id}`,

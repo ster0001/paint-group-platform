@@ -2,7 +2,7 @@
 feature: invoicing
 role: staff
 title: Record a customer payment, including one that arrives before you send the invoice
-summary: How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, including the date it arrived, what happens when the invoice is still a draft, what the customer sees when they press Pay, the one Settings button that adds or removes card payments, the Payables tiles including Materials to match, and what each contractor invoice colour means.
+summary: How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, including the date it arrived, what happens when the invoice is still a draft, what the customer sees when they press Pay, the one Settings button that adds or removes card payments, the moment an invoice turns overdue, pausing and resuming the payment reminders, the Payables tiles including Materials to match, and what each contractor invoice colour means.
 ---
 
 ## What this is for
@@ -55,7 +55,13 @@ A deposit invoice lists every line item from the accepted estimate under **Contr
 - **Draft (unnumbered)** — not yet issued. Recording a payment issues it.
 - **Awaiting** — issued or sent, balance still owing.
 - **Paid in full** — the balance is zero. A partial payment shows the remaining balance on the card.
-- **Overdue** — the due date has passed with money owing. Recording the payment clears it.
+- **Due yesterday** — the due date was yesterday and it is not yet midday. The invoice is not overdue yet.
+- **Overdue** — money is still owing at **midday the day after the due date**. An invoice due Tuesday turns overdue at 12:00 on Wednesday. The first payment reminder goes at the same moment. Recording the payment clears it.
+
+## Pausing the payment reminders
+On the job's **Invoices** tab, an unpaid invoice that has been issued has **Pause reminders**. Press it, type why (a dispute or a payment plan, for example) and press OK. No reminder goes to the customer while it is paused, and the button changes to **Resume reminders**. Hover over it to see the reason. Press **Resume reminders** to start the reminders again. Both steps show in the activity feed.
+
+While a call back is open on the job, its reminders are paused automatically and the button cannot resume them. They start again when the call back is closed.
 
 ## The Payables tiles
 Open **Invoicing → Payables**. Three tiles sit at the top:

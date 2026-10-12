@@ -113,6 +113,8 @@ export function buildTradePortfolio(input: {
   /** Undecided external approvals, by estimate (session 5). */
   pendingApprovals?: Array<{ estimate_id: string; approver_name: string }>;
   todayYmd: string;
+  /** The caller's clock — "overdue" is an instant (midday the day after the due date), not a day. */
+  now: Date;
 }): TradePortfolio {
   const { todayYmd } = input;
   const estById = new Map(input.estimates.map((e) => [e.id, e]));
@@ -174,7 +176,7 @@ export function buildTradePortfolio(input: {
   }
   for (const inv of input.invoices) {
     const d = toDerive(inv);
-    if (!invoiceIsOverdue(d, dPayments, todayYmd)) continue;
+    if (!invoiceIsOverdue(d, dPayments, input.now)) continue;
     attention.push({
       key: `invoice:${inv.id}`,
       address: addrForEstimate(inv.estimate_id),
@@ -201,7 +203,7 @@ export function buildTradePortfolio(input: {
     const awaitingVariation = input.variations.some((v) =>
       estIds.has(v.estimate_id) && v.status === "priced" && v.customer_token && !v.customer_responded_at);
     const overdueInvoices = input.invoices.filter((i) =>
-      estIds.has(i.estimate_id) && invoiceIsOverdue(toDerive(i), dPayments, todayYmd));
+      estIds.has(i.estimate_id) && invoiceIsOverdue(toDerive(i), dPayments, input.now));
     const closed = wos.filter((w) => w.stage === "closed");
 
     const currentWo = active ?? atWalkthrough ?? preStart ?? null;

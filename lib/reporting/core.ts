@@ -139,6 +139,8 @@ export type InvoicingSlice = {
   ageingEdges: [number, number];
   /** Melbourne today, yyyy-mm-dd — the instant the /invoicing tiles are also computed for. */
   today: string;
+  /** The same instant as a clock — "overdue" is midday the day after the due date (ledger.ts isOverdue). */
+  now: Date;
   /** Supplier (materials) invoices with no job yet — the Payables "Materials to match" rows (lib/invoicing/materialsToMatch). */
   materialsToMatch?: import("@/lib/invoicing/materialsToMatch").MaterialToMatch[];
 };

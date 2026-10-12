@@ -4,6 +4,7 @@
  * not a hope.
  */
 import { describe, expect, it } from "vitest";
+import { melbourneInstant } from "@/lib/time/businessHours";
 import {
   agedBucketsCents,
   ageInfo,
@@ -18,6 +19,8 @@ import {
 } from "./derive";
 
 const TODAY = "2026-08-24";
+/** 1pm Melbourne on TODAY — past the midday overdue line, so day-level expectations hold. */
+const NOW = melbourneInstant(2026, 8, 24, 13);
 
 const inv = (o: Partial<DeriveInvoice> & { id: string }): DeriveInvoice => ({
   estimateId: "job-" + o.id,
@@ -46,9 +49,9 @@ describe("balances and ages", () => {
   });
 
   it("ageInfo: 6 days overdue / due in 4 days / nothing for drafts", () => {
-    expect(ageInfo(inv({ id: "a", dueOn: "2026-08-18" }), [], TODAY)).toEqual({ overdueDays: 6 });
-    expect(ageInfo(inv({ id: "b", dueOn: "2026-08-28" }), [], TODAY)).toEqual({ dueInDays: 4 });
-    expect(ageInfo(inv({ id: "c", status: "draft", dueOn: "2026-08-18" }), [], TODAY)).toBeNull();
+    expect(ageInfo(inv({ id: "a", dueOn: "2026-08-18" }), [], NOW)).toEqual({ overdueDays: 6 });
+    expect(ageInfo(inv({ id: "b", dueOn: "2026-08-28" }), [], NOW)).toEqual({ dueInDays: 4 });
+    expect(ageInfo(inv({ id: "c", status: "draft", dueOn: "2026-08-18" }), [], NOW)).toBeNull();
   });
 });
 
@@ -68,7 +71,7 @@ describe("the mockup dashboard, in cents", () => {
   ];
 
   it("tiles: outstanding / overdue / due-this-week / collected", () => {
-    const t = dashboardTiles(rows, pays, TODAY);
+    const t = dashboardTiles(rows, pays, NOW);
     expect(t.outstandingCents).toBe(626_200 + 197_800 + 593_500 + 697_500); // $21,150
     expect(t.outstandingCount).toBe(4);
     expect(t.outstandingJobs).toBe(4);
@@ -83,11 +86,11 @@ describe("the mockup dashboard, in cents", () => {
   });
 
   it("aged buckets: current $12,910 · 1–7d $8,240 · rest zero", () => {
-    expect(agedBucketsCents(rows, pays, TODAY)).toEqual([1_291_000, 824_000, 0, 0, 0]);
+    expect(agedBucketsCents(rows, pays, NOW)).toEqual([1_291_000, 824_000, 0, 0, 0]);
   });
 
   it("a paid invoice contributes nothing anywhere", () => {
-    const t = dashboardTiles([inv({ id: "malvern", status: "paid" })], pays, TODAY);
+    const t = dashboardTiles([inv({ id: "malvern", status: "paid" })], pays, NOW);
     expect(t.outstandingCents).toBe(0);
   });
 });
@@ -100,7 +103,7 @@ describe("the §7.1 stage rail", () => {
   ];
 
   it("the mockup: deposit paid · progress awaiting · final upcoming · not paid in full", () => {
-    const s = paymentStages([deposit, progress], pays, 1_780_470, TODAY);
+    const s = paymentStages([deposit, progress], pays, 1_780_470, NOW);
     expect(s.map((x) => x.state)).toEqual(["paid", "awaiting", "upcoming", "upcoming"]);
     expect(s[0].amountCents).toBe(197_800);
     expect(s[1].amountCents).toBe(593_500);
@@ -109,21 +112,21 @@ describe("the §7.1 stage rail", () => {
   it("balance at zero lights Paid in full; a void invoice never counts", () => {
     const paidFinal = inv({ id: "f", kind: "final", status: "paid", totalIncCents: 100 });
     const voided = inv({ id: "v", kind: "progress", status: "void" });
-    const s = paymentStages([deposit, paidFinal, voided], pays, 0, TODAY);
+    const s = paymentStages([deposit, paidFinal, voided], pays, 0, NOW);
     expect(s[3].state).toBe("paid");
     expect(s[1].state).toBe("upcoming"); // the void progress claim is invisible
   });
 
   it("an unissued draft deposit reads amber (draft), and dots mirror it", () => {
     const draft = inv({ id: "pine", kind: "deposit", status: "draft", totalIncCents: 212_000 });
-    const s = paymentStages([draft], [], 212_000, TODAY);
+    const s = paymentStages([draft], [], 212_000, NOW);
     expect(s[0].state).toBe("draft");
-    expect(stageDots([draft], [], TODAY)).toEqual(["open", "none", "none"]);
+    expect(stageDots([draft], [], NOW)).toEqual(["open", "none", "none"]);
   });
 
   it("an overdue stage reads clay", () => {
     const late = inv({ id: "late", kind: "deposit", totalIncCents: 197_800, dueOn: "2026-08-22" });
-    expect(paymentStages([late], [], 197_800, TODAY)[0].state).toBe("overdue");
+    expect(paymentStages([late], [], 197_800, NOW)[0].state).toBe("overdue");
   });
 });
 

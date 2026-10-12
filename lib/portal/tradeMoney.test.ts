@@ -1,8 +1,11 @@
 import { test, expect } from "vitest";
+import { melbourneInstant } from "@/lib/time/businessHours";
 import { buildTradeMoney, tradeMoneyCsv } from "./tradeMoney";
 import type { MoneyInvoice, MoneyPayment } from "./money";
 
 const TODAY = "2026-08-31";
+/** 1pm Melbourne on TODAY — past the midday overdue line, so day-level expectations hold. */
+const NOW = melbourneInstant(2026, 8, 31, 13);
 const inv = (over: Partial<MoneyInvoice>): MoneyInvoice => ({
   id: "i1", estimate_id: "e1", kind: "final", status: "issued", number: "PG-1",
   token: "t1", issued_on: "2026-08-10", due_on: "2026-09-10",
@@ -19,7 +22,7 @@ const base = () => ({
   estimates: [{ id: "e1", property_id: "p1" }, { id: "e2", property_id: "p2" }],
   invoices: [] as MoneyInvoice[],
   payments: [] as MoneyPayment[],
-  todayYmd: TODAY,
+  todayYmd: TODAY, now: NOW,
 });
 
 test("tiles sum outstanding balances and overdue balances to the cent; drafts never appear", () => {

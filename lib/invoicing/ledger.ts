@@ -21,6 +21,7 @@
  */
 
 import type { InvoiceStatus } from "./stateMachine";
+import { melbourneInstant } from "@/lib/time/businessHours";
 import { OPEN_STATUSES } from "./stateMachine";
 
 /** wo_variations statuses that count toward the adjusted contract. */
@@ -117,19 +118,32 @@ export function ledger(input: LedgerInput): Ledger {
 }
 
 /**
- * `overdue` is DERIVED, never stored (§3.2). An invoice is overdue when its
- * due date has passed and it still carries a balance in an open status.
+ * The instant an invoice falls overdue: MIDDAY Melbourne on the day AFTER its
+ * due date (Tom, 12 Oct 2026). Due Tuesday → overdue from Wednesday 12:00.
+ * The chase ladder's first rung (+1 day from the due date's midday) fires at
+ * this same instant, so the reminder and the red badge can never disagree.
+ * Measured with the zone, never a written-down offset (+10 / +11).
+ */
+export function overdueFrom(dueOn: string): Date {
+  const [y, m, d] = dueOn.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  return melbourneInstant(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 12);
+}
+
+/**
+ * `overdue` is DERIVED, never stored (§3.2). An invoice is overdue when it is
+ * open, still carries a balance, and `now` has reached `overdueFrom(dueOn)`.
  *
- * `todayIsoDate` is the CALLER's Melbourne calendar day (yyyy-mm-dd) — this
- * module never reads the clock, per the house dates rule
- * (`toISOString().slice(0,10)` is the UTC day, not the local one).
+ * `now` is the CALLER's clock — this module never reads it. This is the ONE
+ * overdue rule: the screens, the CRM work queue, the portal and the chase
+ * sweep (lib/automations/sweeps/moneySignoff.ts) all call it.
  */
 export function isOverdue(
   invoice: { status: InvoiceStatus; dueOn: string | null; totalIncCents: number; paidCents: number },
-  todayIsoDate: string,
+  now: Date,
 ): boolean {
   if (!OPEN_STATUSES.includes(invoice.status)) return false;
   if (!invoice.dueOn) return false;
   if (invoice.totalIncCents - invoice.paidCents <= 0) return false;
-  return invoice.dueOn < todayIsoDate;
+  return now.getTime() >= overdueFrom(invoice.dueOn).getTime();
 }

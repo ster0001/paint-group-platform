@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { overdueFrom } from "@/lib/invoicing/ledger";
 import { cardFor, type BoardCard } from "./board";
 import { isWon } from "./stage";
 import { loadCustomerInputs, type CustomerInput } from "./factsInput";
@@ -140,10 +141,11 @@ export function computeFactsRow(i: CustomerInput, now: Date = new Date(), t: Crm
     if (k === "exterior" || k === "both") jobTypes.add("exterior");
   }
   const inv = i.invoice ?? null;
-  const today = now.toISOString().slice(0, 10);
+  // Overdue is the ledger's instant (midday the day after the due date), not a
+  // UTC day compare — `toISOString().slice(0, 10)` is yesterday before 10am.
   const invoiceState: FactsRow["invoice_state"] = !inv || inv.status === "draft" || inv.status === "void" || inv.status === "written_off" ? "none"
     : inv.status === "paid" ? "paid"
-    : inv.dueOn && inv.dueOn < today ? "overdue"
+    : inv.dueOn && now.getTime() >= overdueFrom(inv.dueOn).getTime() ? "overdue"
     : "open";
 
   return {

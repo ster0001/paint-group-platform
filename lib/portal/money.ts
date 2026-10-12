@@ -118,6 +118,8 @@ export function buildMoneyView(
   invoices: readonly MoneyInvoice[],
   payments: readonly MoneyPayment[],
   todayYmd: string,
+  /** The caller's clock — "overdue" is midday the day after the due date. */
+  now: Date,
 ): MoneyJob[] {
   const dPayments = toDerivePayments(payments);
   const jobs: MoneyJob[] = [];
@@ -136,7 +138,7 @@ export function buildMoneyView(
         const d = toDerive(inv);
         const paid = invoicePaidCents(d, dPayments);
         const balance = inv.total_inc_cents - paid;
-        const overdue = invoiceIsOverdue(d, dPayments, todayYmd);
+        const overdue = invoiceIsOverdue(d, dPayments, now);
         if (overdue) anyOverdue = true;
 
         let chip: MoneyInvoiceRow["chip"];

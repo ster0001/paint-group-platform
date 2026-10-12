@@ -335,7 +335,7 @@ async function loadActivitySlice(supabase: SupabaseClient, range: Range, roles: 
 
 async function loadInvoicingSlice(supabase: SupabaseClient, range: Range, now: Date, failures: LoadFailure[]): Promise<InvoicingSlice> {
   const today = melbourneDay(now);
-  const empty: InvoicingSlice = { invoices: [], payments: [], contractorInvoices: [], invoiceInfo: {}, paymentsInWindow: [], ageingEdges: [7, 30], today };
+  const empty: InvoicingSlice = { invoices: [], payments: [], contractorInvoices: [], invoiceInfo: {}, paymentsInWindow: [], ageingEdges: [7, 30], today, now };
   const dash = await loadInvoicingDashboard(supabase);
   if (dash.loadError) { failure(failures, "invoices", dash.loadError); return empty; }
   if (dash.payablesError) failure(failures, "contractor invoices", dash.payablesError);
@@ -367,6 +367,7 @@ async function loadInvoicingSlice(supabase: SupabaseClient, range: Range, now: D
     })),
     ageingEdges: [edge("dashboard_ageing_edge_days_1", 7), edge("dashboard_ageing_edge_days_2", 30)],
     today,
+    now,
     materialsToMatch: dash.materialsToMatch,
   };
 }
