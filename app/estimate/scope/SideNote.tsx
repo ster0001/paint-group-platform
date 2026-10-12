@@ -3,7 +3,7 @@
 import PhotoDrop from "./PhotoDrop";
 
 import { useRef, useState } from "react";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { browserClient } from "@/lib/supabase/lazyClient";
 
 /**
  * Tom, 8 Sep 2026: "a box at the bottom of each view in the exterior wizard…
@@ -44,7 +44,7 @@ export default function SideNote({ estimateId, sideKey, sideLabel, note, photoCo
    * many actually landed — a failed upload says so rather than vanishing. */
   async function uploadPhotos(): Promise<number> {
     if (files.length === 0) return 0;
-    const supabase = createBrowserClient();
+    const supabase = await browserClient();
     const prep = await fetch("/api/extract/upload-url", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

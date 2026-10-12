@@ -3,7 +3,7 @@
 import { useState } from "react";
 import RoomCard from "@/app/components/scope/RoomCard";
 import PlanViewer from "./PlanViewer";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { browserClient } from "@/lib/supabase/lazyClient";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import Wordmark from "./Wordmark";
@@ -109,7 +109,7 @@ export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl, co
     // email they gave, so the estimate is theirs to come back to.
     setBusy(true);
     try {
-      const supabase = createBrowserClient();
+      const supabase = await browserClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user && !user.email) {
         // The email lives in the lead; re-request it here for the account.

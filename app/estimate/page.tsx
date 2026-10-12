@@ -50,12 +50,17 @@ export default async function CustomerWizardPage({
   // by lib/marketing/prefill.ts; nothing is created and nothing fires.
   const intent = parseEstimateIntent({ address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam });
   const supabase = await createClient();
-  // The Settings logo for the header (public-safe display fields only).
-  const company = await getCompanyContact();
-  // C12: the commercial segment rows (anon-readable); the mirror when the
-  // table is not there yet.
-  const segments = await loadSegments(supabase);
-  const { data: { user } } = await supabase.auth.getUser();
+  // Independent reads go out together — every one of them is a round trip to
+  // Supabase, and run one after another they were most of this page's
+  // server response time (Lighthouse, 11 Oct).
+  const [company, segments, { data: { user } }] = await Promise.all([
+    // The Settings logo for the header (public-safe display fields only).
+    getCompanyContact(),
+    // C12: the commercial segment rows (anon-readable); the mirror when the
+    // table is not there yet.
+    loadSegments(supabase),
+    supabase.auth.getUser(),
+  ]);
   let isStaff = false;
   let memberEmail: string | null = null;
   if (user) {
@@ -111,28 +116,45 @@ export default async function CustomerWizardPage({
   // so a dev machine without the service key can still preview the wizard.
   const svc = createServiceClient();
   const ref = svc ?? (isStaff ? supabase : null);
+  // Every read below needs only the client above, so they go out together —
+  // each is a round trip to Supabase, and one after another they were most of
+  // this page's server response time (Lighthouse, 11 Oct).
+  const [refRows, [reviews, homeCopy], estimatorName, gateOrder] = await Promise.all([
+    ref
+      ? Promise.all([
+        ref.from("settings").select("value").eq("key", WIZARD_PUBLIC_KEY).maybeSingle(),
+        ref.from("room_type_scope_rules").select("room_type").eq("version", SCOPE_VERSION),
+        ref.from("rate_items").select("code, category"),
+      ])
+      : null,
+    // UI refresh S3 (⚑ 5): the range screen's trust card says exactly what the homepage says — the
+    // Google rating and count from the same (hour-cached) source, the warranty line from its copy.
+    Promise.all([getGoogleReviews(), getSiteCopy("home")]),
+    // UI refresh S2 (⚑ 23): "Talk it through" names the estimator the wizard
+    // already resolves — Settings → Estimator until an address names a patch.
+    // A failed read names nobody (the card says "one of our estimators") and is reported.
+    ref
+      ? (async () => {
+        const { data: profileRows, error: profileError } = await ref.from("settings").select("key, value").eq("key", "company_profile");
+        if (profileError) { reportError(profileError, { where: "estimate.page.estimatorName" }); return null; }
+        return (await resolveEstimator(ref, profileRows ?? [], null)).name;
+      })()
+      : null,
+    // S6 (R6): the gate order from Booking rules, read here so a session starts under the rule as it stands.
+    svc ? loadBookingRules(svc).catch(() => DEFAULT_BOOKING_RULES).then((r) => r.gateOrder) : DEFAULT_BOOKING_RULES.gateOrder,
+  ]);
   let online: OnlineEstimates = onlineEstimatesFrom(null);
   let roomTypes: string[] = [];
   let substrates: SubstrateGroups = { interior: [], exterior: [] };
-  if (ref) {
-    const [{ data: flagRow }, { data: rules }, { data: rateItems }] = await Promise.all([
-      ref.from("settings").select("value").eq("key", WIZARD_PUBLIC_KEY).maybeSingle(),
-      ref.from("room_type_scope_rules").select("room_type").eq("version", SCOPE_VERSION),
-      ref.from("rate_items").select("code, category"),
-    ]);
+  if (refRows) {
+    const [{ data: flagRow }, { data: rules }, { data: rateItems }] = refRows;
     online = onlineEstimatesFrom(flagRow?.value);
     roomTypes = [...new Set((rules ?? []).map((r) => r.room_type as string))]
       .filter((t) => !["exterior", "unknown", "excluded", "exterior_excluded"].includes(t))
       .sort();
     substrates = substrateOptionsFromRates(rateItems ?? []);
   }
-  // UI refresh S2 (⚑ 23): "Talk it through" names the estimator the wizard
-  // already resolves — Settings → Estimator until an address names a patch.
-  // A failed read names nobody (the card says "one of our estimators") and is reported.
-  // UI refresh S3 (⚑ 5): the range screen's trust card says exactly what the homepage says — the
-  // Google rating and count from the same (hour-cached) source, the warranty line from its copy.
   // Anything unavailable is left OUT, never filled in.
-  const [reviews, homeCopy] = await Promise.all([getGoogleReviews(), getSiteCopy("home")]);
   const trust = {
     rating: reviews && reviews.count > 0 ? reviews.rating : null,
     count: reviews && reviews.count > 0 ? reviews.count : null,
@@ -140,12 +162,6 @@ export default async function CustomerWizardPage({
     warranty: homeCopy.promise?.row_4_title?.trim() || null,
     warrantyNote: homeCopy.promise?.row_4_sub?.trim() || null,
   };
-  let estimatorName: string | null = null;
-  if (ref) {
-    const { data: profileRows, error: profileError } = await ref.from("settings").select("key, value").eq("key", "company_profile");
-    if (profileError) reportError(profileError, { where: "estimate.page.estimatorName" });
-    else estimatorName = (await resolveEstimator(ref, profileRows ?? [], null)).name;
-  }
 
   // Existing customers (signed-in members) keep their builder even while the
   // public gate is shut — B4: the portal wizard IS the public wizard, and a
@@ -274,8 +290,6 @@ export default async function CustomerWizardPage({
   // that was the original customer's (lib/wizard/showcaseSeed) — the
   // estimate id itself never appears on the URL. No linked estimate (or a
   // state that fails validation) → the job type alone seeds the draft.
-  // S6 (R6): the gate order from Booking rules, read here so a session starts under the rule as it stands.
-  const gateOrder = svc ? (await loadBookingRules(svc).catch(() => DEFAULT_BOOKING_RULES)).gateOrder : DEFAULT_BOOKING_RULES.gateOrder;
 
   if (!prefillState && (intent.from || intent.scope)) {
     const showcase = intent.from ? await showcaseJobBySlug(intent.from) : null;

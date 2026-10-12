@@ -124,11 +124,25 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
   const blocks = Array.isArray(state.blocks) ? (state.blocks as Array<Record<string, unknown>>) : [];
   const deferred: WizardDeferred[] = Array.isArray(state.aiDeferred) ? (state.aiDeferred as WizardDeferred[]) : [];
 
-  const [rules, ctx, docs] = await Promise.all([
+  const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+  const accountId = (estimate as { account_id?: string | null }).account_id;
+  // Every read that needs only the estimate goes out at once — each is a
+  // round trip to Supabase, and one after another they were most of the
+  // editor's server response time (Lighthouse, 11 Oct).
+  const [rules, ctx, docs, segments, tradeActor] = await Promise.all([
     loadScopeRules(db),
     loadPricingContext(db),
     // R5: the plan and photos this customer uploaded, signed for the browser.
     estimateDocuments(db, id),
+    // C12: a commercial job's door and widening come from the segment rows.
+    snap.success && snap.data.commercial ? loadSegments(db) : DEFAULT_SEGMENTS,
+    // The same trade relaxation the submit route applied — decided from the
+    // estimate's OWN account (linked at save), so the editor and the submit
+    // can never disagree about the handoff tier.
+    accountId
+      ? db.from("accounts").select("account_type").eq("id", accountId).maybeSingle()
+        .then(({ data: acct }) => (acct as { account_type?: string } | null)?.account_type === "trade")
+      : false,
   ]);
 
   // R5: the confidence score follows the confirm loop, so the loop's state
@@ -137,21 +151,9 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
   const interiorMeta = ((state.interiorLoop as InteriorLoopMeta | undefined) ?? defaultInteriorLoop());
   const loopState = loopConfirmState(blocks, interiorMeta, sidesMeta);
   const payload = editorPayload(blocks, ctx, adjustmentsFrom(state), deferred, loopState);
-  const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
-  // C12: a commercial job's door and widening come from the segment rows.
-  const segments = snap.success && snap.data.commercial ? await loadSegments(db) : DEFAULT_SEGMENTS;
   const answers = snap.success
     ? answersFromState(snap.data, segments)
     : answersFromState({ jobType: "interior", details: { damageTier: 1 }, customer: null });
-  // The same trade relaxation the submit route applied — decided from the
-  // estimate's OWN account (linked at save), so the editor and the submit
-  // can never disagree about the handoff tier.
-  let tradeActor = false;
-  const accountId = (estimate as { account_id?: string | null }).account_id;
-  if (accountId) {
-    const { data: acct } = await db.from("accounts").select("account_type").eq("id", accountId).maybeSingle();
-    tradeActor = (acct as { account_type?: string } | null)?.account_type === "trade";
-  }
   const decision = evaluateGuardrails(
     answers,
     payload.totals.totalCents,
@@ -218,12 +220,15 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
    */
   // C11: ONE resolver for who the estimator is (lib/wizard/estimator.ts);
   // `sendTo` is its name, kept for everything that already reads it.
-  const estimator = await resolveEstimator(db, ctx.settings, snap.success ? (snap.data.customer?.postcode ?? null) : null);
+  // P6: the windows a real estimator can do, minus booked visits — read
+  // alongside the estimator; neither needs the other.
+  const [estimator, { labels: visitSlots }] = await Promise.all([
+    resolveEstimator(db, ctx.settings, snap.success ? (snap.data.customer?.postcode ?? null) : null),
+    wizardVisitSlots(db, editorFlags),
+  ]);
   const sendTo = estimator.name;
   const customerSuburb = snap.success ? (snap.data.customer?.suburb?.trim() || null) : null;
   const initialCondition = conditionBandFromDamageTier(snap.success ? (snap.data.details?.damageTier ?? 1) : 1);
-  // P6: the windows a real estimator can do, minus booked visits.
-  const visitSlots = (await wizardVisitSlots(db, editorFlags)).labels;
   const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
   // ONE ladder (C1): the decision already carries the
   // caps and the accuracy bar from wizard_policy; this only names the tier.

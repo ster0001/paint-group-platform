@@ -1445,6 +1445,9 @@
 .wz .wz-stage > .wz-pane > :nth-child(4) { animation-delay: .12s; }
 .wz .wz-stage > .wz-pane > :nth-child(n+5) { animation-delay: .16s; }
 @keyframes wzrise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+/* …except on the screen the page lands on (WizardApp's .wz-landing): the entrance is for moving
+   between steps, and on arrival it only held the first paint of the page's largest text back. */
+.wz .wz-landing .wz-stage > .wz-pane > :not(.wz-nav--col):not(.wz-why) { animation: none; }
 
 /* focus you can see, on every control */
 .wz .wz-stage :focus-visible, .wz .wz-head :focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; border-radius: 10px; }
