@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { notifyEmployeeVariationApproved, notifyVariationAddedToJob, notifyVariationReleased } from "@/lib/contractor/notify";
 import { sendVariationApprovedConfirmation } from "@/lib/workorder/variationApprovedEmail";
+import { staffVariationApprovedByCustomer } from "@/lib/staff/notify";
 
 /**
  * The customer's answer to a priced variation. Token-only, exactly like the
@@ -70,6 +71,8 @@ export async function signVariationAction(raw: unknown): Promise<RespondResult> 
           // S7: employed painters on the job hear it in their own words (hours, no price).
           await notifyEmployeeVariationApproved(service, v.id);
         }
+        // Tom, 12 Oct 2026: the office hears the customer signed (Staff logins → Change approved).
+        await staffVariationApprovedByCustomer(service, token);
       });
     }
     return { ok: true, state: "approved", confirmationEmailed: confirmation?.outcome === "sent" };

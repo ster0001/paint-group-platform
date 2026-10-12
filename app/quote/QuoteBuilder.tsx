@@ -1005,6 +1005,25 @@ export default function QuoteBuilder({
     return diffRevision(revisionBaseline as RevisionState, revisionCurrentState, pricingCtx);
   }, [revision, revisionBaseline, revisionCurrentState, pricingCtx]);
 
+  // Tom, 12 Oct 2026: before a revision save moves the contractor's hours,
+  // say so — and what it does to their price. The figures are the engine's
+  // (totals), measured against the scope as it was last saved.
+  const savedContractorRef = useRef<{ hours: number; offer: number } | null>(null);
+  if (savedContractorRef.current === null) savedContractorRef.current = { hours: totals.contractorHours, offer: totals.contractorOffer };
+  async function saveRevisionChecked(): Promise<{ id: string | null; token: string | null } | null> {
+    const before = savedContractorRef.current;
+    if (revision && before && Math.abs(before.hours - totals.contractorHours) >= 0.01) {
+      const ok = window.confirm(
+        `Contractor hours have changed: ${before.hours.toFixed(1)} h → ${totals.contractorHours.toFixed(1)} h.\n\n` +
+        `Saving updates the contractor's price: ${fmt(before.offer)} → ${fmt(totals.contractorOffer)}.\n\n` +
+        "If a painter already has this job, the new hours go to them to approve. " +
+        "A change that also moves the customer's price goes to the customer to sign first.\n\nSave now?",
+      );
+      if (!ok) return null;
+    }
+    return save();
+  }
+
   // Undo ONE change (Tom, 12 Oct 2026): the panel row's section goes back to
   // the accepted scope, every other change stays, and the working scope is
   // saved straight after so the row is gone for good, not just on screen.
@@ -1145,11 +1164,19 @@ export default function QuoteBuilder({
         // Tom, 24 Sep: the painter's price follows the working scope's contractor rate until the job is sent out.
         const payNote = !result.ok ? "" : result.pay === "ok:synced" ? " · painter's price updated" : result.pay === "ok:live" ? " · painter already has this job, their price unchanged" : "";
         const colourNote = !result.ok || !result.colours?.startsWith("ok:synced") ? "" : " · colours updated on the job for the customer and the painter";
-        setSaveMsg(result.ok ? `Saved ✓ (working scope)${payNote}${colourNote}` : result.message);
+        const h = result.ok ? result.hoursOnly : undefined;
+        const hoursNote = !h ? ""
+          : (h.withPainter ? ` · new hours sent to the painter to approve` : "")
+            + (h.inSheet ? ` · new hours on the job sheet` : "")
+            + (h.failed ? ` · ${h.failed} hours change${h.failed === 1 ? "" : "s"} couldn't be sent — try Save again` : "");
+        setSaveMsg(result.ok ? `Saved ✓ (working scope)${payNote}${colourNote}${hoursNote}` : result.message);
         // The working scope is now what the screen shows — the leave guard
         // and the "unsaved" banner read this. Without it every link click
         // after a revision save was held forever (29 Sep).
-        if (result.ok) savedStateRef.current = builderFingerprint;
+        if (result.ok) {
+          savedStateRef.current = builderFingerprint;
+          savedContractorRef.current = { hours: totals.contractorHours, offer: totals.contractorOffer };
+        }
       } finally {
         setSaving(false);
       }
@@ -2276,7 +2303,7 @@ export default function QuoteBuilder({
                 />
               )}
               <button
-                onClick={save}
+                onClick={() => { void (revision ? saveRevisionChecked() : save()); }}
                 disabled={saving}
                 className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accentink hover:bg-paint disabled:opacity-50"
                 data-testid="builder-save"
@@ -2524,7 +2551,7 @@ export default function QuoteBuilder({
             estimateId={quoteId}
             diff={revisionDiff}
             existing={revisionVariations}
-            saveFirst={save}
+            saveFirst={saveRevisionChecked}
             onViewInvoice={() => setViewMode("customer")}
             workOrderId={workOrder?.id ?? null}
             photoCounts={variationPhotoCounts}

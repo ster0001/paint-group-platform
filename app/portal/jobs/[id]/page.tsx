@@ -7,7 +7,7 @@ import { getContractorJob } from "@/lib/contractor/jobs";
 import { getEmployeeJob } from "@/lib/contractor/employeeJobs";
 import AssignmentCard from "./AssignmentCard";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
-import { scopeChangesFrom } from "@/lib/workorder/scopeChanges";
+import { notInSheet, scopeChangesFrom } from "@/lib/workorder/scopeChanges";
 import RescheduleRequest from "./RescheduleRequest";
 import OfferBar from "./OfferBar";
 import StartJob from "./StartJob";
@@ -215,7 +215,7 @@ export default async function PortalJobPage({
 
   const { data: variationRows } = employee ? { data: null } : await supabase
     .from("wo_variations")
-    .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, needs_manual_deduction, deduction_cents, deduction_note, contractor_acknowledged_at, customer_responded_at, created_at, contractor_declined_at, contractor_decline_note, office_rejected_at, office_reject_note")
+    .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, needs_manual_deduction, deduction_cents, deduction_note, contractor_acknowledged_at, customer_responded_at, created_at, contractor_declined_at, contractor_decline_note, office_rejected_at, office_reject_note, in_sheet_at, hours_only")
     .eq("work_order_id", id)
     .order("created_at", { ascending: false });
 
@@ -254,9 +254,12 @@ export default async function PortalJobPage({
     customer_responded_at: string | null; created_at: string;
     contractor_declined_at?: string | null; contractor_decline_note?: string | null;
     office_rejected_at?: string | null; office_reject_note?: string | null;
+    in_sheet_at?: string | null; hours_only?: boolean | null;
   };
   const vRows = (variationRows as VRow[] | null) ?? [];
-  const variations: VariationView[] = vRows.map((v) => ({
+  // Changes folded into the sheet before this painter had the job are the
+  // sheet (20270253): no card for them. Their money still counts (payVars).
+  const variations: VariationView[] = vRows.filter(notInSheet).map((v) => ({
     id: v.id, category: v.category, comment: v.comment, status: v.status,
     contractorDeltaCents: v.contractor_delta_cents,
     estHours: v.est_hours === null ? null : Number(v.est_hours),
@@ -270,6 +273,7 @@ export default async function PortalJobPage({
     declineNote: v.contractor_decline_note ?? "",
     officeRejected: v.office_rejected_at != null,
     officeRejectNote: v.office_reject_note ?? "",
+    hoursOnly: Boolean(v.hours_only),
   }));
 
   // "Create invoice" from the job itself (Tom, 25 Aug): the same claim card

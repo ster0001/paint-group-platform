@@ -75,6 +75,9 @@ export type MessagingSettings = {
   /** Tom, 7 Oct 2026: PC Command alerts. */
   officeVariationDeclinedSubject: string;
   officeVariationDeclinedBody: string;
+  /** Tom, 12 Oct 2026: the customer approved a change (the signing link). */
+  officeVariationApprovedSubject: string;
+  officeVariationApprovedBody: string;
   /** Office (Tom, 9 Oct 2026): a painter wrote in a project's Messages box — optional, per Staff logins. */
   officePainterMessageSubject: string;
   officePainterMessageBody: string;
@@ -285,6 +288,8 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeInvoicePaidBody: "{{who}} has paid {{amount}} on invoice {{invoice_number}} for {{job}} ({{method}}).",
   officeVariationRaisedSubject: "Variation raised — {{job}}",
   officeVariationRaisedBody: "{{painter}} has raised a variation on {{wo_ref}} ({{job}}): {{category}}{{hours_line}}.\n\n“{{comment}}”\n\nIt is waiting to be priced.",
+  officeVariationApprovedSubject: "Customer approved a change — {{job}}",
+  officeVariationApprovedBody: "{{who}} has signed and approved {{amount}} inc GST of changes on {{wo_ref}} ({{job}}):\n\n{{comment}}",
   officeVariationDeclinedSubject: "Painter declined an approved change — {{job}}",
   officeVariationDeclinedBody: "{{painter}} has declined the change the client approved on {{wo_ref}} ({{job}}){{hours_line}}.\n\nThey wrote: “{{comment}}”\n\nIt is back with you in PC Command — revise it with the client, or set the painter's amount.",
   officePainterMessageSubject: "{{painter}} replied on {{wo_ref}} — {{job}}",

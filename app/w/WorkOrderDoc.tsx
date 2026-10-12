@@ -423,7 +423,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
               <div className="l">
                 Contractor payment for this job
                 <small>
-                  {payInclChanges != null && payInclChanges !== (doc.contractorPaymentCents || 0)
+                  {payInclChanges != null && payInclChanges !== (doc.contractorPaymentCents || 0) && scopeChanges.length > 0
                     ? "Fixed price incl. approved changes · paid on completion of the scope above"
                     : "Fixed price · paid on completion of the scope above"}
                 </small>
