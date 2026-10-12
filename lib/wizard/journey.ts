@@ -247,7 +247,12 @@ export type EstimatePillState =
   | "accepted" | "brief" | "question" | "sent_remote" | "sent_visit"
   | "viewed_no_reply" | "abandoned" | "wizard" | "none";
 
-export type EstimatePill = { state: EstimatePillState; label: string; tone: Tone; sub: string | null };
+/**
+ * `flag` is a second fact the row carries beside the pill (Tom, 12 Oct: the
+ * pill says how many times the customer opened it; "Needs a visit" moved to a
+ * chip under the title so it doesn't hide the view count).
+ */
+export type EstimatePill = { state: EstimatePillState; label: string; tone: Tone; sub: string | null; flag?: string };
 
 const dayMonth = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", timeZone: "Australia/Melbourne" });
 
@@ -279,6 +284,12 @@ function sentLine(i: EstimatePillInput, since: string): string {
   return parts.join(" · ");
 }
 
+/** "Viewed 3×" once the customer has opened it, "Sent · not opened yet" before. */
+function viewsLabel(i: EstimatePillInput): string {
+  if (!i.viewedAt && i.views.count === 0) return "Sent · not opened yet";
+  return `Viewed ${Math.max(1, i.views.count)}×`;
+}
+
 export function estimatePill(i: EstimatePillInput): EstimatePill {
   if (i.status === "accepted") {
     const when = i.acceptedAt ? ` ${dayMonth(i.acceptedAt)}` : "";
@@ -301,7 +312,7 @@ export function estimatePill(i: EstimatePillInput): EstimatePill {
   }
   if (r?.status === "requested") {
     return r.kind === "visit"
-      ? { state: "sent_visit", label: "Sent · needs a visit", tone: "amber-outline", sub: sentLine(i, r.requestedAt) }
+      ? { state: "sent_visit", label: viewsLabel(i), tone: "amber-outline", sub: [sentLine(i, r.requestedAt), i.viewedAt ? `last opened ${agoShort(i.views.lastAt ?? i.viewedAt, i.now)}` : null].filter(Boolean).join(" · "), flag: "Needs a visit" }
       : { state: "sent_remote", label: "Sent · confirm remotely", tone: "emerald", sub: sentLine(i, r.requestedAt) };
   }
   if (i.status === "sent" && i.viewedAt) {

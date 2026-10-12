@@ -7,6 +7,7 @@ import { releaseDueHolds } from "@/lib/automations/dispatch";
 import { runMoneySignoffSweep } from "@/lib/automations/sweeps/moneySignoff";
 import { runJobReminderSweep } from "@/lib/automations/sweeps/jobReminders";
 import { runDefectTapeSweep } from "@/lib/automations/sweeps/defectTape";
+import { sendFollowupDigest, sendPrestartReminders } from "@/lib/automations/sweeps/officeDigests";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -40,7 +41,17 @@ export async function GET(req: Request) {
     // `?only=reminders` (the e2e, a hand run) skips the campaign engine.
     const params = new URL(req.url).searchParams;
     const only = params.get("only");
-    const outcomes = only === "reminders" || only === "standards" || only === "moments" || only === "status" || only === "defect" ? [] : await runSweep(db, now);
+    const outcomes = only === "reminders" || only === "standards" || only === "moments" || only === "status" || only === "defect" || only === "office" ? [] : await runSweep(db, now);
+    // Tom, 12 Oct: "Today's follow ups" email (Mon–Fri from 8am) and the 14:00
+    // pre-start texts for PC Command. Each is once a day; outside its window it
+    // answers not_now. `?only=office&force=1` is the hand run (ignores the hour); add `&dry=1`
+    // to see the lists without sending anything.
+    const force = params.get("force") === "1";
+    const dry = only === "office" && params.get("dry") === "1";   // preview: the lists, nothing sent or claimed
+    const office = only == null || only === "office"
+      ? { followups: await sendFollowupDigest(db, now, { force, dry }), prestart: await sendPrestartReminders(db, now, { force, dry }) }
+      : null;
+    if (only === "office") return NextResponse.json({ ok: true, office });
     // Session 3: money and sign-off reminder ladders, every half hour.
     // `?force=1` (the e2e, a deliberate hand run) ignores the offer reminder's
     // 22:00–04:59 Melbourne night window — the same word the wo-sweep uses.
@@ -72,6 +83,7 @@ export async function GET(req: Request) {
       outcomes,
       released,
       reminders,
+      office,
       jobReminders,
       defectTape,
       standards,

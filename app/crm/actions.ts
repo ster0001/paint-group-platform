@@ -129,6 +129,7 @@ export async function dismissWorkItem(
   forgetBadge();   // P7: the tab badge must not keep counting a dismissed item
   revalidatePath("/crm/today");
   revalidatePath("/crm/customers");
+  revalidatePath("/home");   // Tom, 12 Oct: the Home strip shows the same items
   return { ok: true, message: days == null ? "Gone — and it's on the record why." : `Back in ${days} day${days === 1 ? "" : "s"}.` };
 }
 
@@ -144,5 +145,6 @@ export async function setFollowup(accountId: string, days: number, note: string)
   if (accountId) revalidatePath(`/crm/customers/${accountId}`);
   revalidatePath("/crm/today");
   revalidatePath("/crm/customers");
+  revalidatePath("/home");
   return { ok: true, message: days === 0 ? "Reminder set for today." : `Reminder set for ${days} day${days === 1 ? "" : "s"} away.` };
 }

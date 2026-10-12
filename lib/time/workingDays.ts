@@ -49,3 +49,22 @@ export function nextYearHolidaysMissing(holidays: readonly string[], now: Date):
   const p = melbourneParts(now);
   return p.m >= 11 && holidaysInYear(holidays, p.y + 1).length === 0;
 }
+
+/** The Melbourne calendar date (YYYY-MM-DD) `n` days after `at`'s day. */
+export function melbourneDatePlus(at: Date, n: number): string {
+  return ymdOf(dayAfter(at, n));
+}
+
+/**
+ * The `n`th working day strictly after `from`'s Melbourne day, as YYYY-MM-DD
+ * (n = 1: the next working day — Monday, from a Friday). Tom, 12 Oct: the
+ * pre-start reminders count business days, Monday to Friday.
+ */
+export function nthWorkingDayAfter(from: Date, n: number, holidays: ReadonlySet<string>): string {
+  let seen = 0;
+  for (let k = 1; k < 90; k++) {
+    const d = dayAfter(from, k);
+    if (isWorkingDay(d.weekday, ymdOf(d), holidays) && ++seen === n) return ymdOf(d);
+  }
+  throw new Error("no working day in the next 90 days");
+}

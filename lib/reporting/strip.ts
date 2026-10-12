@@ -23,6 +23,14 @@ export type StripCard = {
   action: { label: string; href: string };
   /** Which roles the card is for; the owner sees all. */
   roles: DashboardRole[];
+  /**
+   * How the card is closed off from Home (Tom, 12 Oct: "I can't update or
+   * delete them"). Each source keeps its own dismissal — the CRM work queue's
+   * `crm_dismiss_work_item`, the PC console's `wo_dismiss_card` — so a card
+   * closed here is closed on Today / PC Command too. Trend cards have none:
+   * they clear when the number does.
+   */
+  dismiss?: { source: "wq"; itemKey: string; accountId: string | null } | { source: "pc"; cardKey: string; workOrderId: string };
 };
 
 const SEV_LABEL: Record<StripSeverity, string> = { critical: "Critical", amber: "Amber", info: "Info" };
@@ -35,6 +43,9 @@ function fromWorkItem(item: WorkItem): StripCard | null {
     : group === "messages" ? ["owner", "admin", "pc", "sales", "finance"]
     : [];
   if (roles.length === 0) return null;   // approvals stay on Today; the strip is the brief's three sources
+  // A future-dated item (a reminder set for Friday) is not "today" — /crm/today
+  // leaves it out of its count too, and on Home it held a slot that never cleared.
+  if (item.bucket === "waiting") return null;
   const severity: StripSeverity = item.bucket === "overdue" ? "critical" : item.bucket === "today" ? "amber" : "info";
   const what = group === "money" ? "money" : group === "followups" ? "sales" : "customer";
   return {
@@ -45,6 +56,7 @@ function fromWorkItem(item: WorkItem): StripCard | null {
     detail: item.detail,
     action: { label: item.action?.label ?? "Open", href: item.action?.href ?? "/crm" },
     roles,
+    dismiss: { source: "wq", itemKey: item.key, accountId: item.accountId ?? null },
   };
 }
 
@@ -58,6 +70,7 @@ function fromConsoleCard(card: QueueCard): StripCard {
     detail: [card.ref, card.detail].filter(Boolean).join(" · "),
     action: { label: card.action.label, href: card.action.href ?? `/pc/wo/${card.workOrderId}` },
     roles: ["owner", "admin", "pc"],
+    dismiss: { source: "pc", cardKey: card.key, workOrderId: card.workOrderId },
   };
 }
 
@@ -98,12 +111,26 @@ export function buildStrip(
   roles: ReadonlyArray<DashboardRole>,
   limit = 12,
 ): StripCard[] {
+  return pickStrip(input, roles, limit).cards;
+}
+
+/**
+ * The strip plus how many cards the login has in all. Tom, 12 Oct: the
+ * heading said "12 things" every day because 12 was the cap, not the count —
+ * so the heading shows the real total and the page says how many it left off.
+ */
+export function pickStrip(
+  input: { workItems: WorkItem[]; consoleCards: QueueCard[]; extra?: StripCard[] },
+  roles: ReadonlyArray<DashboardRole>,
+  limit = 12,
+): { cards: StripCard[]; total: number } {
   const forMe = (c: StripCard) => c.roles.some((r) => roles.includes(r));
   const bySeverity = (a: StripCard, b: StripCard) => RANK[a.severity] - RANK[b.severity] || a.title.localeCompare(b.title);
   const extra = (input.extra ?? []).filter(forMe).sort(bySeverity);
   const rest: StripCard[] = [];
   for (const i of input.workItems) { const c = fromWorkItem(i); if (c) rest.push(c); }
   for (const c of input.consoleCards) rest.push(fromConsoleCard(c));
-  const mine = rest.filter(forMe).sort(bySeverity).slice(0, Math.max(0, limit - extra.length));
-  return [...extra, ...mine].sort(bySeverity);
+  const all = rest.filter(forMe).sort(bySeverity);
+  const mine = all.slice(0, Math.max(0, limit - extra.length));
+  return { cards: [...extra, ...mine].sort(bySeverity), total: extra.length + all.length };
 }

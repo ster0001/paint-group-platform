@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorkItem } from "@/lib/crm/work-queue";
 import type { QueueCard } from "@/lib/workorder/console";
-import { buildStrip, type StripCard } from "./strip";
+import { buildStrip, pickStrip, type StripCard } from "./strip";
 
 const item = (kind: WorkItem["kind"], bucket: WorkItem["bucket"], title: string): WorkItem => ({
   key: `k:${kind}:${title}`, kind, accountId: "a1", subjectRef: { type: "account", id: "a1" }, title, detail: "d", since: "2026-09-19T00:00:00Z",
@@ -62,5 +62,25 @@ describe("session 5 — trend cards are never crowded out", () => {
     expect(strip.filter((c) => c.severity === "critical")).toHaveLength(11);
     // Not for a finance login: the trend card is owner/admin.
     expect(buildStrip({ workItems: items, consoleCards: [], extra }, ["finance"]).some((c) => c.key.startsWith("anomaly:"))).toBe(false);
+  });
+});
+
+describe("pickStrip — Tom, 12 Oct: the strip changes and can be closed off", () => {
+  it("a future-dated item is not 'today' and holds no slot", () => {
+    const strip = buildStrip({ workItems: [item("followup_due", "waiting", "Ring on Friday")], consoleCards: [] }, ["owner"]);
+    expect(strip).toEqual([]);
+  });
+  it("the total is the real count, not the cap", () => {
+    const many = Array.from({ length: 20 }, (_, n) => item("invoice_action", "overdue", `Invoice ${n}`));
+    const { cards, total } = pickStrip({ workItems: many, consoleCards: [] }, ["owner"]);
+    expect(cards).toHaveLength(12);
+    expect(total).toBe(20);
+  });
+  it("every work-queue and job card says how to close it off; its own source's dismissal", () => {
+    const strip = buildStrip(input, ["owner"]);
+    const wq = strip.find((c) => c.title === "$4,200 deposit unpaid");
+    expect(wq?.dismiss).toEqual({ source: "wq", itemKey: "k:invoice_action:$4,200 deposit unpaid", accountId: "a1" });
+    const pc = strip.find((c) => c.title === "Photos thin");
+    expect(pc?.dismiss).toEqual({ source: "pc", cardKey: "c:Photos thin", workOrderId: "w1" });
   });
 });

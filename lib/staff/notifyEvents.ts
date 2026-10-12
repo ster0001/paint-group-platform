@@ -41,6 +41,8 @@ export const STAFF_EVENTS = [
    * check-in as a calendar invite (.ics), moved and cancelled with it. A
    * calendar entry is an email thing — there is no text version.
    */
+  /** Tom, 12 Oct 2026 (PC Command): 14:00 on a business day — jobs starting within 2 business days, then the next business day, whose pre-start checklist isn't filled out. One text each, with the number of jobs. */
+  { key: "office_prestart_due",        label: "Pre-start checklist not done", short: "Pre-start" },
   { key: "office_qa_check_invite",     label: "Quality check calendar invite", short: "QA invite", emailOnly: true },
 ] as const;
 
