@@ -192,6 +192,14 @@ test.describe("employed painters — the whole loop, then Session 7", () => {
 
     const { data: v } = await db!.from("wo_variations").select("status").eq("id", variationId).single();
     expect((v as { status: string }).status).toBe("contractor_accepted"); // the trigger, no accept step
+    // The approved change is on the tick list (20270193, Tom 23 Sep: "make the variations
+    // tick items") — one row in the painter's words under "Variations" — and the job
+    // cannot leave in_progress until it is ticked like any other surface.
+    const { data: vrow } = await db!.from("wo_surfaces").select("id, heading, state")
+      .eq("work_order_id", fixture!.workOrderId).eq("added_by_variation", variationId).single();
+    expect(vrow).toMatchObject({ heading: "Variations", state: "todo" });
+    await photoFor("before", "Variations"); await photoFor("completion", "Variations");
+    expect(await rpcAs(lead, "wo_tick_surface", { p_surface_id: (vrow as { id: string }).id, p_to: "done" })).toBe("ok:done");
     // Both employees on the job get the employee wording — recorded once each, whether or not a phone exists.
     await expect.poll(async () => {
       const { count } = await db!.from("wo_events").select("id", { count: "exact", head: true })

@@ -98,8 +98,9 @@ test.describe("employed painter — variations", () => {
     await page.getByTestId("variation-comment").fill("Bottom boards on the left are soft right through — E2E employee.");
     await page.getByTestId("variation-hours").fill("3");
     await expect(page.getByTestId("send-variation")).toBeDisabled();
-    await page.locator('input[type="file"]').last().setInputFiles({ name: "rot.jpg", mimeType: "image/jpeg", buffer: JPEG });
-    await expect(page.getByTestId("variation-photo")).toContainText("1 photo added", { timeout: 20_000 });
+    // The variation card's own input: the job page carries several uploaders (photos, call backs, messages).
+    await page.getByTestId("variation-file").setInputFiles({ name: "rot.jpg", mimeType: "image/jpeg", buffer: JPEG });
+    await expect(page.getByTestId("variation-photo")).toContainText("1 added", { timeout: 20_000 });
     await page.getByTestId("send-variation").click();
     await expect(page.getByTestId("variation-message")).toContainText("Sent to the office");
 

@@ -186,6 +186,7 @@ export default function Variations({
           <input
             ref={fileInput} type="file" hidden
             accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm"
+            data-testid="variation-file"
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadPhoto(f); }}
           />
           <button type="button" className="var-photo" onClick={() => fileInput.current?.click()}

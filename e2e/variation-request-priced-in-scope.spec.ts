@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { contractorIdForEmail, rpcAs, serviceClient } from "./fixtures/woLoop";
+import { contractorIdForEmail, rpcAs, rpcAsJson, serviceClient } from "./fixtures/woLoop";
 import { credentials, drawSignature, missingCreds, signIn, test } from "./helpers";
 import { priceEstimateTotals, type PricingContext, type BlockInput } from "../lib/pricing/estimate";
 import type { RateItem, Product } from "../lib/pricing/types";
@@ -105,6 +105,10 @@ test.describe("a painter's request, priced in the working scope", () => {
       p_rows: [{ heading: "Lounge", label: "Walls", surfaceKey: "1:11", sort: 1 }],
     });
     expect(seeded).toMatch(/^ok:/);
+    // The office has opened Revise scope once (the builder's revision page calls this):
+    // the working scope exists from the accepted state, so a save has a row to land on.
+    const opened = await rpcAsJson<{ created?: boolean; error?: string }>(staff!, "wo_open_working_scope", { p_estimate_id: estimateId });
+    expect(opened.error).toBeUndefined();
 
     // Their request, in their words.
     const { data: raised, error: rErr } = await sb.from("wo_variations").insert({
