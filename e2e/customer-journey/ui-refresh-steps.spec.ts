@@ -262,6 +262,40 @@ test.describe("UI refresh · on a real phone (iPhone 13 emulation) no screen is 
     if (await gate.count()) await fits("gate");
     await ctx.close();
   });
+
+  test("Booked: a long work email wraps inside the \"What happens next\" card on a 390px phone", async ({ browser }) => {
+    // Found in the S0–S9 baseline (63-brief-booked, 390px): the email is one unbreakable word and
+    // the card's `30px 1fr` grid could not shrink below it, so the text ran out of the card.
+    test.setTimeout(240_000);
+    const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+    const page = await ctx.newPage();
+    const email = `ui.cover.booked.facilitiesmanagement.longname.${Date.now()}@example.com`;
+    await toSegment(page);
+    await page.getByTestId("ql-segment-strata").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='com_brief']")).toBeVisible({ timeout: 20_000 });
+    const date = page.locator("[data-quick-step='com_brief'] input[type='date']");
+    if (await date.count()) {
+      await date.fill(new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(Date.now() + 30 * 86_400_000)));
+    }
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='com_book']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("book-email").fill(email);
+    await page.getByTestId("book-name").fill("Booked Phone Check");
+    await page.getByTestId("book-phone").fill("0400 000 333");
+    await quickNext(page);
+    await expect(page.getByTestId("brief-done")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("brief-done-email")).toContainText(email);
+    const m = await page.locator(".wz-booked .wz-next").evaluate((card) => {
+      const c = card.getBoundingClientRect();
+      const e = card.querySelector("[data-testid='brief-done-email']")!.getBoundingClientRect();
+      return { cardRight: c.right, emailRight: e.right, sw: document.documentElement.scrollWidth, vw: window.innerWidth };
+    });
+    expect(m.emailRight, "the email stays inside the card").toBeLessThanOrEqual(m.cardRight);
+    expect(m.sw, "no sideways scroll on the Booked screen").toBeLessThanOrEqual(390);
+    expect(m.vw, "the browser zoomed out").toBeLessThanOrEqual(390);
+    await ctx.close();
+  });
 });
 
 test.describe("UI refresh S3 · the range screen, every path", () => {
