@@ -63,6 +63,7 @@ import InvoiceSheet, { type SheetLine } from "@/app/i/[token]/InvoiceSheet";
 import "@/app/i/[token]/invoice.css";
 import { saveWorkingScopeAction } from "./revisionActions";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
+import { revertChange } from "@/lib/revision/revert";
 
 type WorkOrderRow = {
   id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
@@ -985,17 +986,61 @@ export default function QuoteBuilder({
     };
   }, [blocks, pricingCtx, adjustments]);
 
+  // What the working scope IS right now: the loaded scope with the live fields
+  // over it — the same shape save() writes. 28 Logan St, 12 Oct 2026: this
+  // was built from a hand-picked list that left out preparationHours, so an
+  // untouched job with Preparation hours read "Pricing adjustments changed ·
+  // 4 hr" against its own accepted scope.
+  const revisionCurrentState = useMemo(
+    () => ({ ...(loaded ?? {}), blocks, ...adjustments }) as RevisionState,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loaded is the mount-time scope
+    [blocks, adjustments],
+  );
+
   // Revision preview: the live diff of what's on screen vs the accepted
   // baseline, priced by the same engine. Display only — the server action
   // recomputes from the SAVED scope before any variation is written.
   const revisionDiff = useMemo(() => {
     if (!revision || !revisionBaseline) return null;
-    const currentState = {
-      blocks, modSel, materials, discountPct, discountMode, discountFixedCents,
-      hourlyRateOverride, contractorRateOverride, preparationOverrideCents,
-    } as RevisionState;
-    return diffRevision(revisionBaseline as RevisionState, currentState, pricingCtx);
-  }, [revision, revisionBaseline, blocks, modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, pricingCtx]);
+    return diffRevision(revisionBaseline as RevisionState, revisionCurrentState, pricingCtx);
+  }, [revision, revisionBaseline, revisionCurrentState, pricingCtx]);
+
+  // Undo ONE change (Tom, 12 Oct 2026): the panel row's section goes back to
+  // the accepted scope, every other change stays, and the working scope is
+  // saved straight after so the row is gone for good, not just on screen.
+  const [revertSaveTick, setRevertSaveTick] = useState(0);
+  function revertRevisionChange(blockRef: string) {
+    if (!revisionBaseline) return;
+    const next = revertChange(revisionBaseline as RevisionState, revisionCurrentState, blockRef);
+    if (blockRef === "adjustments") {
+      setModSel((next.modSel as Record<string, string> | undefined) ?? {});
+      setMaterials((next.materials as Record<string, string> | undefined) ?? {});
+      setDiscountPct((next.discountPct as number | undefined) ?? 0);
+      setDiscountMode((next.discountMode as "pct" | "fixed" | undefined) ?? "pct");
+      setDiscountFixedCents((next.discountFixedCents as number | undefined) ?? 0);
+      setHourlyRateOverride((next.hourlyRateOverride as number | null | undefined) ?? null);
+      setContractorRateOverride((next.contractorRateOverride as number | null | undefined) ?? null);
+      setPreparationOverrideCents((next.preparationOverrideCents as number | null | undefined) ?? null);
+      setPreparationHours((next.preparationHours as number | null | undefined) ?? null);
+    } else {
+      setBlocks((next.blocks as Block[] | undefined) ?? []);
+      goView(null);
+    }
+    setRevertSaveTick((t) => t + 1);
+  }
+  // The save runs on the render AFTER the revert, so it reads the reverted state.
+  useEffect(() => {
+    if (revertSaveTick > 0) void save();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per revert, never on save's identity
+  }, [revertSaveTick]);
+  // "Edit" on a row: open that area / line, or the Job settings card.
+  function editRevisionChange(blockRef: string) {
+    const m = /^block:(-?\d+(?:\.\d+)?)$/.exec(blockRef);
+    const b = m ? blocks.find((x) => x.id === Number(m[1])) : undefined;
+    if (b) { goView({ type: b.kind === "area" ? "area" : "line", id: b.id }); return; }
+    goView(null);
+    requestAnimationFrame(() => document.querySelector('[data-testid="job-settings"]')?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 
   // How many photos each variation already carries — the revision panel's
   // send buttons are gated on this (a change goes out WITH a photo).
@@ -2484,6 +2529,8 @@ export default function QuoteBuilder({
             workOrderId={workOrder?.id ?? null}
             photoCounts={variationPhotoCounts}
             request={revisionRequest}
+            onRevert={revertRevisionChange}
+            onEdit={editRevisionChange}
           />
         </div>
       )}
@@ -2516,7 +2563,7 @@ export default function QuoteBuilder({
                 </section>
               )}
               {!customerView && (
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="rounded-xl border border-gray-200 bg-white p-4" data-testid="job-settings">
                   <h2 className="text-sm font-semibold">Job settings <span className="font-normal text-gray-400">· staff only</span></h2>
                   <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {["Condition", "Access", "Level of Finish", "Job Size", "Staging"].map((group) => (
