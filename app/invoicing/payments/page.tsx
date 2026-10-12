@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { LANES, type Lane } from "@/lib/workorder/stages";
-import { TABLE_FILTERS, headlineParts, jobMoneyPage, matchRows, type TableFilter } from "@/lib/invoicing/jobMoney";
+import { TABLE_FILTERS, headlineParts, jobMoneyPage, matchCiRows, matchRows, type TableFilter } from "@/lib/invoicing/jobMoney";
+import { ContractorsView } from "./ContractorsView";
 import { melbourneToday } from "@/lib/invoicing/derive";
 import { paymentsSettings } from "@/lib/invoicing/settings";
 import { reportError } from "@/lib/monitoring/report";
@@ -35,7 +36,7 @@ const TABS = ["cust", "con", "mat", "act"] as const;
 const VIEWS = ["chase", "board", "table"] as const;
 type Tab = (typeof TABS)[number];
 type View = (typeof VIEWS)[number];
-type Params = { tab?: string; view?: string; stage?: string; q?: string; paid?: string; f?: string };
+type Params = { tab?: string; view?: string; stage?: string; q?: string; paid?: string; f?: string; cby?: string };
 
 const BASE = "/invoicing/payments";
 const pick = <T extends string>(v: string | undefined, allowed: readonly T[], fallback: T): T =>
@@ -49,9 +50,11 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const q = (sp.q ?? "").slice(0, 120);
   const showPaid = sp.paid === "1";
   const filter: TableFilter = pick(sp.f, TABLE_FILTERS, "all");
+  const cby = pick(sp.cby, ["inv", "con"] as const, "inv");
 
   const current: Record<string, string | null> = {
     tab: tab === "cust" ? null : tab, view: view === "chase" ? null : view, stage, q: q || null, paid: showPaid ? "1" : null, f: filter === "all" ? null : filter,
+    cby: cby === "inv" ? null : cby,
   };
   const href = (over: Record<string, string | null>) => {
     const p = new URLSearchParams();
@@ -135,7 +138,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                 </Link>
               ))}
             </div>
-            <Suspense fallback={null}><SearchBox initial={q} /></Suspense>
+            {tab === "cust" ? <Suspense fallback={null}><SearchBox initial={q} /></Suspense> : null}
             {view !== "chase" ? <Suspense fallback={null}><ShowPaid on={showPaid} /></Suspense> : null}
           </div>
           <div>
@@ -145,7 +148,16 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           </div>
         </section>
 
-        <section hidden={tab !== "con"}><div className="empty">Contractor invoices move here in Step 5. Until then they stay on the current Payables tab.</div></section>
+        <section hidden={tab !== "con"} data-testid="pm-contractors">
+          <div className="tools">
+            <div className="views">
+              <Link className={cby === "inv" ? "on" : undefined} href={href({ cby: null })}>By invoice</Link>
+              <Link className={cby === "con" ? "on" : undefined} href={href({ cby: "con" })}>By contractor</Link>
+            </div>
+            {tab === "con" ? <Suspense fallback={null}><SearchBox initial={q} label="Search contractor or address" /></Suspense> : null}
+          </div>
+          <ContractorsView rows={matchCiRows(page.contractors, q)} by={cby} />
+        </section>
         <section hidden={tab !== "mat"}><div className="empty">Supplier invoices and receipts move here in Step 6. Until then they stay on the current Payables tab.</div></section>
         <section hidden={tab !== "act"}><div className="empty">Activity moves here in Step 8, with repeated &ldquo;Invoice viewed by customer&rdquo; lines folded into one.</div></section>
       </main>

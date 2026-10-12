@@ -122,3 +122,27 @@ Brief: `docs/briefs/claude-code-brief-payments-merge.md`. Branch `feat/payments-
   - Typecheck clean. Lint within the ceiling. Help index current.
   - e2e on C1: `payments-message` 3/3, `payments-actions` 8/8, `payments-page` 4/4.
   - Regression 20/20: estimate chat, customer asks, settings automations, dock specs.
+
+## Step 5 — the Contractors block (13 Oct 2026)
+- Migration `20270258000000_payments_contractor_actions.sql`, additive:
+  - nullable `contractor_invoices.remittance_sent_at`;
+  - `contractor_invoice_unapprove` and `contractor_invoice_unpay` (staff, 10 minutes, an event each);
+  - `contractor_invoice_claim_remittance` (service);
+  - a `create or replace` of `contractor_invoice_guard`: the 20261119 body, plus the two step-backs approved→submitted and paid→approved, admitted ONLY while `app.ci_undo` is set transaction-locally by the Undo functions (mirrored as `CI_UNDO_TRANSITIONS`, contract-tested).
+
+  Applied on C1, read-back 7/7. **LIVE on production** (ledger 12 Oct 22:17 UTC; production read-back 7/7 matched).
+- Rules as built:
+  - Undo of Paid puts the carried expenses back to approved and keeps the remittance number for the re-pay. It is refused for a bonus invoice (painter_bonuses has one writer) and once the remittance has been claimed.
+  - The pay-by date stays the existing rule (sign-off + terms, Green fast terms). Approve does not move it, as the brief says. The mockup's "due seven days after approval" note is not built.
+  - The remittance waits for the Undo window and is claimed before the PDF and email (`sendClaimedRemittance`). The old Payables "Mark paid" path uses the same claim, so `remittance_sent_at` is stamped everywhere.
+- Code:
+  - `lib/invoicing/jobMoney.ts`: `contractorRows`, `contractorGroups`, `matchCiRows`, `totalCiCents`. The customer-paid line is the job panel's own row.
+  - Loader: the Payables tab's `loadContractorInvoices` is now exported and shared (CI_SELECT gains `contractor_id, work_order_id`).
+  - Page: the Contractors tab (`ContractorsView.tsx`), By invoice / By contractor (`cby`), search.
+  - Actions: `approveCiQuickAction`, `payCiQuickAction`, `unapproveCiAction`, `unpayCiAction`.
+  - Query links to the painter's message thread on the work order.
+- Gate:
+  - Unit 3,555 passing. Typecheck clean. Lint within the ceiling. Help index current.
+  - e2e `payments-contractors` 4/4: sections, the customer line, Approve and Paid with Undo, the remittance after the window, Approve all = one event per invoice, the To approve total = the old tile, the contractor sees only their own invoices.
+  - Regression 47/48: contractor-invoicing, contractor-expenses, painter-status(-screens), status-offers-payment-bonus, payments-actions/page/message.
+- The one red, unrelated: `status-offers-payment-bonus` "a Red painter gets no offer…" expects `error:no_reason` from `painter_clear_red` and gets `error:not_owner`. The C1 staff login isn't the owner; nothing in this build touches that function or staff roles.

@@ -8,11 +8,12 @@
  */
 import { describe, expect, it } from "vitest";
 import { melbourneInstant } from "@/lib/time/businessHours";
-import type { DeriveContractorInvoice, DerivePayment } from "./derive";
+import type { DerivePayment } from "./derive";
 import type { WoStage } from "@/lib/workorder/stages";
 import {
   compareRows, depositPreview, headlineParts, parseDollarsToCents, suggestedDue, headlineSentences, matchRows, tableFilter, totalCollectableCents, totalNowCents, isLeftoverDraft, jobMoneyPage, jobMoneyRow, slotOf,
-  type JobMoneyInput, type JobMoneyInvoice, type JobMoneyJob,
+  contractorGroups, matchCiRows, totalCiCents,
+  type JobMoneyCi, type JobMoneyInput, type JobMoneyInvoice, type JobMoneyJob,
 } from "./jobMoney";
 
 /** Mon 12 Oct 2026, 9:20 pm Melbourne — when the mockup's figures were read. */
@@ -82,10 +83,11 @@ const payments: DerivePayment[] = [
   paid(I.robinDep.id, 250_000, "2026-10-10"),
   { invoiceId: I.heron.id, amountCents: 583_780, status: "failed", paidOn: "2026-10-11" },
 ];
-const contractorInvoices: DeriveContractorInvoice[] = [
-  { status: "approved", totalIncCents: 100_000, dueOn: "2026-10-01" },
-  { status: "submitted", totalIncCents: 1_722_671, dueOn: null },
-  { status: "paid", totalIncCents: 500_000, dueOn: "2026-09-01" },
+const contractorInvoices: JobMoneyCi[] = [
+  { id: "ci-a", number: "CI-0007", status: "approved", totalIncCents: 100_000, dueOn: "2026-10-01", contractor: "Fictional Painting Pty Ltd", estimateId: "brolga", autoDraftSource: "signoff" },
+  { id: "ci-s", number: "CI-0016", status: "submitted", totalIncCents: 1_722_671, dueOn: null, contractor: "Another Painting Co", estimateId: "egret", autoDraftSource: "claim", claimPct: 50 },
+  { id: "ci-p", number: "CI-0005", status: "paid", totalIncCents: 500_000, dueOn: "2026-09-01", contractor: "Fictional Painting Pty Ltd", estimateId: "gannet" },
+  { id: "ci-d", number: null, status: "draft", totalIncCents: 171_428, dueOn: "2026-10-20", contractor: "Fictional Painting Pty Ltd", estimateId: null, address: "Somewhere off the board", autoDraftSource: "bonus" },
 ];
 const input: JobMoneyInput = {
   jobs, invoices: Object.values(I), payments, contractorInvoices,
@@ -350,5 +352,38 @@ describe("Step 4 — last messaged (§4.4)", () => {
     expect(jobMoneyRow(j, [], [], NOW).lastMessagedDays).toBe(2);
     expect(jobMoneyRow({ ...j, lastMessagedAt: "2026-10-12T01:00:00Z" }, [], [], NOW).lastMessagedDays).toBe(0);
     expect(row("kite").lastMessagedDays).toBeNull();
+  });
+});
+
+describe("Step 5 — the Contractors block (§4.5)", () => {
+  const ci = (id: string) => page.contractors.find((c) => c.id === id)!;
+  it("sections in order: past the pay-by date, to approve, to pay, with the contractor, paid", () => {
+    expect(page.contractors.map((c) => [c.id, c.section])).toEqual([
+      ["ci-a", "past_pay_by"], ["ci-s", "to_approve"], ["ci-d", "with_contractor"], ["ci-p", "paid"],
+    ]);
+    expect(ci("ci-a").overdueDays).toBe(11);
+  });
+  it("the customer-paid line is the job panel's own figures", () => {
+    expect(ci("ci-a").customerPaid).toEqual({ paidCents: row("brolga").paidCents, contractCents: row("brolga").contractCents });
+    expect(ci("ci-s").customerPaid).toEqual({ paidCents: 0, contractCents: 1_312_100 });       // paid nothing yet
+    expect(ci("ci-p").customerPaid).toEqual({ paidCents: 100_000, contractCents: 100_000 });   // paid in full
+    expect(ci("ci-d").customerPaid).toBeNull();                                                 // not on the board
+  });
+  it("claim notes, bonus flags, and the to-approve total equals the old Payables tile", () => {
+    expect(ci("ci-s").claimNote).toBe("claim 50%");
+    expect(ci("ci-d").bonus).toBe(true);
+    const toApprove = page.contractors.filter((c) => c.status === "submitted");
+    expect(totalCiCents(toApprove)).toBe(page.blocks.contractors.toApproveCents);
+  });
+  it("by contractor: open invoices grouped, with the ids Approve all and ✓ Paid act on", () => {
+    const g = contractorGroups(page.contractors);
+    expect(g.map((x) => x.contractor)).toEqual(["Fictional Painting Pty Ltd", "Another Painting Co"]);
+    expect(g[0]).toMatchObject({ openCents: 100_000 + 171_428, toPayIds: ["ci-a"], toPayCents: 100_000, toApproveIds: [], anyPastPayBy: true });
+    expect(g[1].toApproveIds).toEqual(["ci-s"]);
+  });
+  it("search: contractor, address, number", () => {
+    expect(matchCiRows(page.contractors, "another").map((c) => c.id)).toEqual(["ci-s"]);
+    expect(matchCiRows(page.contractors, "CI-0005").map((c) => c.id)).toEqual(["ci-p"]);
+    expect(matchCiRows(page.contractors, "brolga").map((c) => c.id)).toEqual(["ci-a"]);
   });
 });

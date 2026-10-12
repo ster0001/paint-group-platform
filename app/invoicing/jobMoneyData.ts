@@ -7,7 +7,7 @@ import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
 import type { WoStage } from "@/lib/workorder/stages";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { reportError } from "@/lib/monitoring/report";
-import { INVOICE_SELECT, type InvoiceRow } from "./data";
+import { INVOICE_SELECT, loadContractorInvoices, type ContractorInvoiceRow, type InvoiceRow } from "./data";
 
 /**
  * The rows behind the Payments page (payments-merge brief §4.1). Read-only,
@@ -27,7 +27,6 @@ type WorkOrderRow = {
 };
 type PaymentRow = { invoice_id: string; amount_cents: number; status: string; paid_on: string | null };
 type VariationRow = { work_order_id: string; status: string; price_cents: number | null; credit: boolean | null };
-type CiRow = { status: string; total_inc_cents: number; due_on: string | null };
 type IntakeRow = { total: string | null };
 type JobCostRow = { status: string; amount_ex_cents: number; gst_cents: number };
 type ViewRow = { invoice_id: string };
@@ -45,7 +44,8 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
       fetchAllRows<InvoiceRow>((f, t) => supabase.from("invoices").select(INVOICE_SELECT).order("created_at").order("id").range(f, t)),
       fetchAllRows<PaymentRow>((f, t) => supabase.from("payments").select("invoice_id, amount_cents, status, paid_on").order("id").range(f, t)),
       fetchAllRows<VariationRow>((f, t) => supabase.from("wo_variations").select("work_order_id, status, price_cents, credit").order("id").range(f, t)),
-      fetchAllRows<CiRow>((f, t) => supabase.from("contractor_invoices").select("status, total_inc_cents, due_on").neq("status", "paid").order("id").range(f, t)),
+      // The Payables tab's own read (every unpaid one, the newest settled) — one read for both pages.
+      loadContractorInvoices(supabase).then((r) => { if (r.error) throw new Error(r.error.message); return (r.data ?? []) as ContractorInvoiceRow[]; }),
       fetchAllRows<IntakeRow>((f, t) => supabase.from("cost_intake").select("total:extracted->>total_cents").eq("status", "pending").order("id").range(f, t)),
       // Employee labour is a wage, not a payable (fix/payables-no-employee-labour) — never in the Materials block.
       fetchAllRows<JobCostRow>((f, t) => supabase.from("job_costs").select("status, amount_ex_cents, gst_cents")
@@ -95,7 +95,13 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
       failure: null,
       input: {
         jobs, invoices: jobInvoices, payments: derivePayments,
-        contractorInvoices: cis.map((c) => ({ status: c.status, totalIncCents: c.total_inc_cents, dueOn: c.due_on })),
+        contractorInvoices: cis.map((c) => ({
+          id: c.id, number: c.number, status: c.status, totalIncCents: c.total_inc_cents, dueOn: c.due_on,
+          autoDraftSource: c.auto_draft_source, claimPct: c.claim_pct, rcti: c.rcti, submittedAt: c.submitted_at, termsKind: c.terms_kind ?? null,
+          contractor: c.contractors?.company_name ?? "Contractor", contractorId: c.contractor_id ?? null,
+          workOrderId: c.work_order_id ?? null, woRef: c.work_orders?.wo_ref ?? null, estimateId: c.work_orders?.estimate_id ?? null,
+          address: c.work_orders?.job_address ?? null, woStage: (c.work_orders?.stage ?? null) as WoStage | null, hasPdf: !!c.invoice_pdf_path,
+        })),
         materials: {
           intakePending: intake.map((d) => ({ totalCents: Number(d.total ?? 0) || 0 })),
           jobCosts: jobCosts.map((c) => ({ status: c.status, amountExCents: c.amount_ex_cents, gstCents: c.gst_cents })),

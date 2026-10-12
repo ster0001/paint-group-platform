@@ -7,7 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
  * Search and "Show paid jobs" (§4.2) — both live in the URL so a filtered view
  * can be shared. The only client code on the page; it holds no money.
  */
-export function SearchBox({ initial }: { initial: string }) {
+export function SearchBox({ initial, label = "Search address or customer" }: { initial: string; label?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -26,7 +26,7 @@ export function SearchBox({ initial }: { initial: string }) {
     return () => clearTimeout(t);
   }, [q, pathname, router]);
   return (
-    <input className="search" type="search" placeholder="Search address or customer" aria-label="Search address or customer"
+    <input className="search" type="search" placeholder={label} aria-label={label}
       value={q} onChange={(e) => setQ(e.target.value)} />
   );
 }

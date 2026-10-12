@@ -549,11 +549,99 @@ export async function markContractorInvoicePaidAction(raw: unknown): Promise<Inv
   after(async () => {
     const service = createServiceClient();
     if (!service) return;
-    const path = await ensureRemittancePdf(ciId);
-    const url = path ? await signedDocUrl(path, 60 * 60 * 24 * 7) : null;
-    await sendRemittanceEmail(service, ciId, url);
+    await sendClaimedRemittance(service, ciId);
   });
   return result;
+}
+
+/**
+ * The remittance goes exactly once, and only while the invoice is still paid:
+ * `contractor_invoice_claim_remittance` stamps it first (an Undo is refused
+ * from then on), then the PDF and the email (payments-merge Step 5).
+ */
+async function sendClaimedRemittance(service: NonNullable<ReturnType<typeof createServiceClient>>, ciId: string): Promise<void> {
+  const { data, error } = await service.rpc("contractor_invoice_claim_remittance", { p_id: ciId });
+  if (error) { reportError(error, { where: "sendClaimedRemittance", extra: { ciId } }); return; }
+  if (data !== "ok:claimed") return;
+  const path = await ensureRemittancePdf(ciId);
+  const url = path ? await signedDocUrl(path, 60 * 60 * 24 * 7) : null;
+  await sendRemittanceEmail(service, ciId, url);
+}
+
+// ---- Payments merge Step 5: the Contractors block (brief §4.5) ------------------
+// One press, with Undo; "Approve all" / one "✓ Paid" for a contractor run the
+// same RPC once per invoice, so each writes its own event. Records only — no
+// money moves through the platform (existing ruling).
+
+export type CiBatchResult = { ok: boolean; message: string; done: string[]; undoSeconds?: number };
+const ciIds = z.object({ ids: z.array(uuid).min(1).max(50) });
+
+async function eachCi(fn: string, ids: string[]): Promise<{ done: string[]; failed: string[] }> {
+  const supabase = await createClient();
+  const done: string[] = [], failed: string[] = [];
+  for (const id of ids) {
+    const { data, error } = await supabase.rpc(fn, { p_id: id });
+    if (error) { reportError(error, { where: `eachCi.${fn}`, extra: { id } }); failed.push(id); continue; }
+    if (String(data ?? "").startsWith("ok:")) done.push(id); else failed.push(id);
+  }
+  revalidatePath("/invoicing/payments");
+  revalidatePath("/invoicing");
+  revalidatePath("/portal/money");
+  return { done, failed };
+}
+
+const summary = (verb: string, done: number, failed: number) =>
+  failed ? `${verb} ${done} of ${done + failed} — ${failed} couldn't be changed (refresh to see why).` : `${verb} ${done === 1 ? "" : `${done} `}`.trimEnd();
+
+/** Approve, one press (or all of a contractor's). The pay-by date stays the existing rule. */
+export async function approveCiQuickAction(raw: unknown): Promise<CiBatchResult> {
+  const p = ciIds.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  const settings = await loadPaymentsSettings();
+  const { done, failed } = await eachCi("contractor_invoice_approve", p.data.ids);
+  return { ok: done.length > 0, message: done.length ? summary("Approved", done.length, failed.length) : "Couldn't approve that — refresh and try again.", done, undoSeconds: settings.undoSeconds };
+}
+
+/** ✓ Paid, one press (or everything approved for a contractor). The remittance waits for the Undo window. */
+export async function payCiQuickAction(raw: unknown): Promise<CiBatchResult> {
+  const p = ciIds.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  const settings = await loadPaymentsSettings();
+  const supabase = await createClient();
+  const done: string[] = [], failed: string[] = [];
+  for (const id of p.data.ids) {
+    const { data, error } = await supabase.rpc("contractor_invoice_mark_paid", { p_id: id, p_reference: "", p_paid_on: null });
+    if (error) { reportError(error, { where: "payCiQuickAction", extra: { id } }); failed.push(id); continue; }
+    if (String(data ?? "").startsWith("ok:")) done.push(id); else failed.push(id);
+  }
+  revalidatePath("/invoicing/payments");
+  revalidatePath("/invoicing");
+  revalidatePath("/portal/money");
+  if (done.length) {
+    after(async () => {
+      await new Promise((r) => setTimeout(r, settings.undoSeconds * 1000 + 1500));
+      const service = createServiceClient();
+      if (!service) return;
+      for (const id of done) await sendClaimedRemittance(service, id);
+    });
+  }
+  return { ok: done.length > 0, message: done.length ? summary("Marked paid", done.length, failed.length) : "Couldn't record that — refresh and try again.", done, undoSeconds: settings.undoSeconds };
+}
+
+/** Undo an Approve (within 10 minutes). */
+export async function unapproveCiAction(raw: unknown): Promise<CiBatchResult> {
+  const p = ciIds.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  const { done, failed } = await eachCi("contractor_invoice_unapprove", p.data.ids);
+  return { ok: failed.length === 0, message: failed.length ? `Undid ${done.length}; ${failed.length} couldn't be undone.` : "Undone.", done };
+}
+
+/** Undo a Paid (within 10 minutes, before the remittance has gone; never a bonus). */
+export async function unpayCiAction(raw: unknown): Promise<CiBatchResult> {
+  const p = ciIds.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  const { done, failed } = await eachCi("contractor_invoice_unpay", p.data.ids);
+  return { ok: failed.length === 0, message: failed.length ? `Undid ${done.length}; ${failed.length} couldn't be undone — the remittance may have gone.` : "Undone.", done };
 }
 
 // ---- Step 6a: cost capture (docs/briefs/claude-code-brief-cost-capture.md) --

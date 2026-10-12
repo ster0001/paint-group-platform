@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { centsAsInput, depositPreview, parseDollarsToCents } from "@/lib/invoicing/jobMoney";
 import {
-  createDepositAction, invoiceInFullAction, paymentMessageDraftAction, quickPayAction, recordPaymentAction,
-  sendWithDueAction, setDepositAction, undoPaymentAction,
+  approveCiQuickAction, createDepositAction, invoiceInFullAction, payCiQuickAction, paymentMessageDraftAction, quickPayAction, recordPaymentAction,
+  sendWithDueAction, setDepositAction, unapproveCiAction, undoPaymentAction, unpayCiAction,
 } from "../actions";
 import { openEstimateChat } from "@/app/components/staffDockBus";
 import { fmt2 } from "../format";
@@ -46,7 +46,11 @@ export type ActionSpec = {
 
 export type PaymentsUiSettings = { depositOptionsPct: number[]; notifyPaymentDefault: boolean; today: string };
 
-type Toast = { msg: string; undo?: { paymentId: string; spec: ActionSpec; invoiceId: string }; until: number } | null;
+/** What a toast's Undo (and, for a customer payment, Change) does. */
+type UndoSpec =
+  | { kind: "payment"; paymentId: string; spec: ActionSpec; invoiceId: string }
+  | { kind: "ci"; ids: string[]; was: "approve" | "pay" };
+type Toast = { msg: string; undo?: UndoSpec; until: number } | null;
 type Sheet = { kind: "pay"; spec: ActionSpec; invoiceId: string } | { kind: "send"; spec: ActionSpec } | null;
 
 type Ui = {
@@ -60,6 +64,9 @@ type Ui = {
   toggleAdjust: (estimateId: string) => void;
   setDeposit: (spec: ActionSpec, pick: { pct: number } | { cents: number }) => void;
   message: (spec: ActionSpec) => void;
+  /** Contractors (Step 5): one press, one or many invoices, with Undo. `say` is the toast line. */
+  approveCi: (ids: string[], say: string) => void;
+  payCi: (ids: string[], say: string) => void;
 };
 
 const Ctx = createContext<Ui | null>(null);
@@ -102,7 +109,7 @@ export function PaymentsUiProvider({ settings, children }: { settings: PaymentsU
         if (!r.ok || !r.id) { done(r); return; }
         router.refresh();
         const secs = r.undoSeconds ?? 8;
-        show({ msg: `Recorded ${fmt2(balanceCents)} from ${spec.first}, bank transfer, today.`, undo: { paymentId: r.id, spec, invoiceId }, until: Date.now() + secs * 1000 });
+        show({ msg: `Recorded ${fmt2(balanceCents)} from ${spec.first}, bank transfer, today.`, undo: { kind: "payment", paymentId: r.id, spec, invoiceId }, until: Date.now() + secs * 1000 });
       });
     },
     create: (spec) => start(async () => {
@@ -120,6 +127,18 @@ export function PaymentsUiProvider({ settings, children }: { settings: PaymentsU
       })));
     },
     // Message (§4.4): the server writes the draft and the pay link; the dock shows it; a person sends it.
+    approveCi: (ids, line) => start(async () => {
+      const r = await approveCiQuickAction({ ids });
+      if (!r.ok) { say(r.message); return; }
+      router.refresh();
+      show({ msg: r.done.length === ids.length ? line : r.message, undo: { kind: "ci", ids: r.done, was: "approve" }, until: Date.now() + (r.undoSeconds ?? 8) * 1000 });
+    }),
+    payCi: (ids, line) => start(async () => {
+      const r = await payCiQuickAction({ ids });
+      if (!r.ok) { say(r.message); return; }
+      router.refresh();
+      show({ msg: r.done.length === ids.length ? line : r.message, undo: { kind: "ci", ids: r.done, was: "pay" }, until: Date.now() + (r.undoSeconds ?? 8) * 1000 });
+    }),
     message: (spec) => start(async () => {
       const d = await paymentMessageDraftAction(spec.messageInvoiceId ? { estimateId: spec.estimateId, invoiceId: spec.messageInvoiceId } : { estimateId: spec.estimateId });
       if (!d.ok) { say(d.message); return; }
@@ -132,6 +151,12 @@ export function PaymentsUiProvider({ settings, children }: { settings: PaymentsU
     if (!u) return;
     setToast(null);
     start(async () => {
+      if (u.kind === "ci") {
+        const r = u.was === "approve" ? await unapproveCiAction({ ids: u.ids }) : await unpayCiAction({ ids: u.ids });
+        router.refresh();
+        say(r.ok ? "Undone." : r.message);
+        return;
+      }
       const r = await undoPaymentAction({ paymentId: u.paymentId, estimateId: u.spec.estimateId });
       if (!r.ok) { say(r.message ?? "That couldn't be undone."); return; }
       router.refresh();
@@ -147,7 +172,8 @@ export function PaymentsUiProvider({ settings, children }: { settings: PaymentsU
       {sheet?.kind === "send" ? <SendSheet spec={sheet.spec} onClose={() => setSheet(null)} onDone={done} /> : null}
       <div className={`toast${toast ? " on" : ""}`} role="status" data-testid="pm-toast">
         {toast ? <span>{toast.msg}</span> : null}
-        {toast?.undo ? <><button type="button" onClick={() => undo(false)} disabled={busy}>Undo</button><button type="button" onClick={() => undo(true)} disabled={busy}>Change</button></> : null}
+        {toast?.undo ? <button type="button" onClick={() => undo(false)} disabled={busy}>Undo</button> : null}
+        {toast?.undo?.kind === "payment" ? <button type="button" onClick={() => undo(true)} disabled={busy}>Change</button> : null}
       </div>
     </Ctx.Provider>
   );
@@ -329,4 +355,23 @@ function SendSheet({ spec, onClose, onDone }: { spec: ActionSpec; onClose: () =>
       </div>
     </div>
   );
+}
+
+// ---- Contractors (Step 5) -----------------------------------------------------------
+
+/** Approve / ✓ Paid on one contractor invoice row; the words are decided on the server. */
+export function CiButtons({ id, status, approveLine, payLine, payLabel }: { id: string; status: string; approveLine: string; payLine: string; payLabel: string }) {
+  const ui = useUi();
+  if (status === "submitted") return <button type="button" className="b pri" disabled={ui.busy} onClick={() => ui.approveCi([id], approveLine)}>Approve</button>;
+  if (status === "approved") return <button type="button" className="b pri" disabled={ui.busy} onClick={() => ui.payCi([id], payLine)}>{payLabel}</button>;
+  return null;
+}
+
+/** "By contractor": Approve all N, and one ✓ Paid for everything approved. */
+export function CiGroupButtons({ approveIds, payIds, approveLine, payLine, payLabel }: { approveIds: string[]; payIds: string[]; approveLine: string; payLine: string; payLabel: string }) {
+  const ui = useUi();
+  return <>
+    {approveIds.length > 1 ? <button type="button" className="b" disabled={ui.busy} onClick={() => ui.approveCi(approveIds, approveLine)}>Approve all {approveIds.length}</button> : null}
+    {payIds.length ? <button type="button" className="b pri" disabled={ui.busy} onClick={() => ui.payCi(payIds, payLine)}>{payLabel}</button> : null}
+  </>;
 }

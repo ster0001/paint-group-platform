@@ -110,6 +110,8 @@ export type ContractorInvoiceRow = {
   invoice_pdf_path: string | null;
   contractors: { company_name: string | null } | null;
   work_orders: { wo_ref: string; estimate_id: string; stage: string; job_address: string | null } | null;
+  contractor_id?: string | null;
+  work_order_id?: string | null;
 };
 
 // ---- Step 6a: cost capture rows -------------------------------------------
@@ -307,8 +309,9 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
   };
 }
 
-const CI_SELECT = "id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, auto_draft_source, claim_pct, invoice_pdf_path, terms_kind, terms_hold_reason, contractors(company_name), work_orders(wo_ref, estimate_id, stage, job_address:wo_snapshot->>jobAddress)";
-async function loadContractorInvoices(supabase: SupabaseClient): Promise<{ data: unknown[] | null; error: { message: string } | null }> {
+const CI_SELECT = "id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, auto_draft_source, claim_pct, invoice_pdf_path, terms_kind, terms_hold_reason, contractor_id, work_order_id, contractors(company_name), work_orders(wo_ref, estimate_id, stage, job_address:wo_snapshot->>jobAddress)";
+/** Every unpaid contractor invoice, and the newest settled ones — the Payables tab's read and the Payments page's (Step 5). */
+export async function loadContractorInvoices(supabase: SupabaseClient): Promise<{ data: unknown[] | null; error: { message: string } | null }> {
   try {
     const unpaid = await fetchAllRows<unknown>((from, to) => supabase.from("contractor_invoices").select(CI_SELECT).neq("status", "paid").order("created_at", { ascending: false }).order("id").range(from, to));
     const paid = await supabase.from("contractor_invoices").select(CI_SELECT).eq("status", "paid").order("created_at", { ascending: false }).limit(CI_SETTLED_KEEP);

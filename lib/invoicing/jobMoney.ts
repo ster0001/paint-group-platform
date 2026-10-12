@@ -61,11 +61,30 @@ export type MaterialsInput = {
   jobCosts: readonly { status: string; amountExCents: number; gstCents: number }[];
 };
 
+/** A contractor invoice as the Contractors block needs it (Step 5) — a DeriveContractorInvoice and its context. */
+export type JobMoneyCi = DeriveContractorInvoice & {
+  id?: string;
+  number?: string | null;
+  autoDraftSource?: string | null;
+  claimPct?: number | null;
+  rcti?: boolean;
+  submittedAt?: string | null;
+  termsKind?: string | null;
+  contractor?: string;
+  contractorId?: string | null;
+  workOrderId?: string | null;
+  woRef?: string | null;
+  estimateId?: string | null;
+  address?: string | null;
+  woStage?: WoStage | null;
+  hasPdf?: boolean;
+};
+
 export type JobMoneyInput = {
   jobs: readonly JobMoneyJob[];
   invoices: readonly JobMoneyInvoice[];
   payments: readonly DerivePayment[];
-  contractorInvoices: readonly DeriveContractorInvoice[];
+  contractorInvoices: readonly JobMoneyCi[];
   materials: MaterialsInput;
   now: Date;
   /** Settings → paymentTermsDays (default 7): the Send confirm's default due date. */
@@ -428,6 +447,8 @@ export type HeadlineFigures = {
 export type JobMoneyPage = {
   /** Every job, worst first (§4.1 ordering) — paid-in-full rows included, flagged by section. */
   rows: JobMoneyRow[];
+  /** Step 5: every contractor invoice, in section order. */
+  contractors: ContractorRow[];
   blocks: { customers: CustomersBlock; contractors: ContractorsBlock; materials: MaterialsBlock; activity: ActivityBlock };
   strip: StageCell[];
   headline: HeadlineFigures;
@@ -501,6 +522,7 @@ export function jobMoneyPage(input: JobMoneyInput): JobMoneyPage {
 
   return {
     rows,
+    contractors: contractorRows(input.contractorInvoices, rows, now),
     blocks: { customers, contractors, materials, activity: { receivedFortnightCents: tiles.collectedFortnightCents } },
     strip, headline,
     hiddenDraftCount: hiddenIds.size,
@@ -607,3 +629,105 @@ export function depositPreview(contractCents: number, pick: { pct: number } | { 
 
 /** Cents as an amount box shows them: 786540 → "7865.40" (the inverse of parseDollarsToCents). */
 export const centsAsInput = (cents: number): string => (cents / 100).toFixed(2);
+
+// ---------------------------------------------------------------------------
+// Step 5 — the Contractors block (§4.5). Records only: nothing here moves money.
+// ---------------------------------------------------------------------------
+
+/** Past the pay-by date · To approve · Approved, to pay · With the contractor · Paid (§4.5 order). */
+export type CiSection = "past_pay_by" | "to_approve" | "to_pay" | "with_contractor" | "paid";
+export const CI_SECTIONS: readonly CiSection[] = ["past_pay_by", "to_approve", "to_pay", "with_contractor", "paid"];
+
+export type ContractorRow = {
+  id: string;
+  number: string | null;
+  /** "claim 50%" on a progress claim; null otherwise. */
+  claimNote: string | null;
+  status: string;
+  section: CiSection;
+  totalIncCents: number;
+  dueOn: string | null;
+  /** Days past the pay-by date (contractorInvoiceTone — the existing 7-day rule). */
+  overdueDays: number;
+  contractor: string;
+  contractorId: string | null;
+  workOrderId: string | null;
+  woRef: string | null;
+  estimateId: string | null;
+  address: string;
+  /** The job's /pc/flow lane, when the job is on the board. */
+  lane: Lane | null;
+  /** What the customer has paid on the job — the same row the job panel shows (§4.5). Null when the job isn't on the board. */
+  customerPaid: { paidCents: number; contractCents: number } | null;
+  /** A bonus invoice can't be undone here (painter_bonuses has one writer). */
+  bonus: boolean;
+  rcti: boolean;
+  hasPdf: boolean;
+};
+
+export function contractorRows(cis: readonly JobMoneyCi[], jobRows: readonly JobMoneyRow[], now: Date): ContractorRow[] {
+  const today = melbourneToday(now);
+  const byEstimate = new Map(jobRows.map((r) => [r.estimateId, r]));
+  const rows = cis.filter((c) => c.id).map((c): ContractorRow => {
+    const tone = contractorInvoiceTone({ status: c.status, dueOn: c.dueOn }, today);
+    const job = c.estimateId ? byEstimate.get(c.estimateId) ?? null : null;
+    const section: CiSection =
+      c.status === "paid" ? "paid"
+      : tone.overdueDays > 0 ? "past_pay_by"
+      : c.status === "submitted" ? "to_approve"
+      : c.status === "approved" ? "to_pay"
+      : "with_contractor";
+    return {
+      id: c.id!, number: c.number ?? null,
+      claimNote: c.autoDraftSource === "claim" ? `claim${c.claimPct ? ` ${Number(c.claimPct)}%` : ""}` : null,
+      status: c.status, section, totalIncCents: c.totalIncCents, dueOn: c.dueOn, overdueDays: tone.overdueDays,
+      contractor: c.contractor || "Contractor", contractorId: c.contractorId ?? null,
+      workOrderId: c.workOrderId ?? null, woRef: c.woRef ?? null, estimateId: c.estimateId ?? null,
+      address: job?.address ?? c.address ?? c.woRef ?? "",
+      lane: job?.lane ?? (c.woStage ? laneFor(c.woStage, null, today) : null),
+      customerPaid: job ? { paidCents: job.paidCents, contractCents: job.contractCents } : null,
+      bonus: c.autoDraftSource === "bonus", rcti: !!c.rcti, hasPdf: !!c.hasPdf,
+    };
+  });
+  const order = (r: ContractorRow) => CI_SECTIONS.indexOf(r.section);
+  return rows.sort((a, b) =>
+    order(a) - order(b)
+    || (a.section === "past_pay_by" ? b.overdueDays - a.overdueDays : 0)
+    || (a.dueOn ?? "9999").localeCompare(b.dueOn ?? "9999")
+    || a.contractor.localeCompare(b.contractor));
+}
+
+/** A section's total. */
+export const totalCiCents = (rows: readonly ContractorRow[]): number => rows.reduce((s, r) => s + r.totalIncCents, 0);
+
+/** "By contractor" (§4.5): open invoices grouped, with what Approve all / ✓ Paid act on. */
+export type ContractorGroup = {
+  contractor: string;
+  rows: ContractorRow[];
+  openCents: number;
+  toApproveIds: string[];
+  toPayIds: string[];
+  toPayCents: number;
+  anyPastPayBy: boolean;
+};
+export function contractorGroups(rows: readonly ContractorRow[]): ContractorGroup[] {
+  const open = rows.filter((r) => r.section !== "paid");
+  const names = [...new Set(open.map((r) => r.contractor))];
+  return names.map((contractor) => {
+    const mine = open.filter((r) => r.contractor === contractor);
+    const toPay = mine.filter((r) => r.status === "approved");
+    return {
+      contractor, rows: mine, openCents: totalCiCents(mine),
+      toApproveIds: mine.filter((r) => r.status === "submitted").map((r) => r.id),
+      toPayIds: toPay.map((r) => r.id), toPayCents: totalCiCents(toPay),
+      anyPastPayBy: mine.some((r) => r.section === "past_pay_by"),
+    };
+  });
+}
+
+/** Contractors-block search: contractor, address, invoice number, work-order ref. */
+export function matchCiRows(rows: readonly ContractorRow[], q: string): ContractorRow[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return [...rows];
+  return rows.filter((r) => [r.contractor, r.address, r.number ?? "", r.woRef ?? ""].join(" ").toLowerCase().includes(needle));
+}
