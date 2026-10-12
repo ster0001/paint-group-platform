@@ -337,30 +337,32 @@ test.describe("the revision builder — diff → signed variations", () => {
     await expect(page.getByTestId("variation-outcome")).toContainText("Approved");
   });
 
-  test("the painter's token read lists both changes — scope and hours, never a price", async () => {
-    // This fixture accepts without a builder woDoc, so there is no frozen
-    // sheet to render at /w; the RENDERED section is proved on the loop
-    // fixture in wo-variations.spec.ts. Here: the token read the sheet
-    // uses, as the anonymous caller the painter's link is.
-    // The read serves ISSUED jobs only (a sheet nobody has been sent is not a
-    // sheet); this fixture accepted with no woDoc, so issue it here.
+  test("nobody had the job: the signed changes ARE the sheet — the painter's token read lists none", async () => {
+    // 20270253 (Tom, 12 Oct 2026): a change signed before anyone has the job
+    // is folded into the job sheet — the builder drafted with its woDoc, so
+    // the painter is later sent ONE scope with no variations beside it. The
+    // rows stay (the ledger and the offer's money read them), marked in_sheet.
+    // The read serves ISSUED jobs only, so issue it here.
     const issued = await db!.from("work_orders").update({ issued_at: new Date().toISOString() }).eq("id", workOrderId);
     expect(issued.error).toBeNull();
+
+    const { data: v } = await db!.from("wo_variations").select("in_sheet_at")
+      .eq("work_order_id", workOrderId).not("revision_block_ref", "is", null);
+    const folded = v as { in_sheet_at: string | null }[];
+    expect(folded).toHaveLength(2);
+    for (const r of folded) expect(r.in_sheet_at).not.toBeNull();
+
+    const { data: wo } = await db!.from("work_orders").select("wo_snapshot").eq("id", workOrderId).single();
+    const titles = ((wo as { wo_snapshot: { areas?: { title: string }[] } }).wo_snapshot.areas ?? []).map((a) => a.title);
+    expect(titles).toContain("Garage");
+    expect(titles).not.toContain("Pergola");
 
     const anon = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { auth: { persistSession: false } });
     const { data, error } = await anon.rpc("get_work_order_scope_changes_by_token", { p_token: woShareToken });
     expect(error).toBeNull();
-    const rows = data as Record<string, unknown>[];
-    expect(rows).toHaveLength(2);
-    expect(rows.map((r) => r.credit).sort()).toEqual([false, true]);
-    for (const r of rows) {
-      expect(r.status).toBe("contractor_accepted");
-      expect(Object.keys(r)).not.toContain("price_cents");
-      expect(Object.keys(r)).not.toContain("contractor_delta_cents");
-      expect(Object.keys(r)).not.toContain("priced_lines");
-    }
+    expect(data).toEqual([]);
     // A stranger's token reads nothing, not an error.
     const stranger = await anon.rpc("get_work_order_scope_changes_by_token", { p_token: "not-a-token-" + Date.now() });
     expect(stranger.error).toBeNull();

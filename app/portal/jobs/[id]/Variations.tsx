@@ -29,6 +29,8 @@ export type VariationView = {
   /** Tom, 8 Oct 2026: the office turned the request down, with this reply. */
   officeRejected?: boolean;
   officeRejectNote?: string;
+  /** 20270253: an hours-only change from Revise scope — the customer had nothing to sign. */
+  hoursOnly?: boolean;
 };
 
 /**
@@ -274,7 +276,7 @@ export default function Variations({
               letters, Decline in small ones with a box for what should change). */}
           {!v.credit && v.status === "customer_approved" && v.released && (
             <div className="var-approved" data-testid={`approved-by-client-${v.id}`}>
-              <p className="var-approved-head">Variation approved by the client</p>
+              <p className="var-approved-head">{v.hoursOnly ? "Change to your hours" : "Variation approved by the client"}</p>
               <p className="var-approved-figures">
                 <b data-testid={`approved-amount-${v.id}`}>{v.contractorDeltaCents ? money(v.contractorDeltaCents) : "No pay change"}</b>
                 <span data-testid={`approved-hours-${v.id}`}>{v.estHours != null ? `${v.estHours} hr${v.estHours === 1 ? "" : "s"} estimated` : "hours to be confirmed"}</span>

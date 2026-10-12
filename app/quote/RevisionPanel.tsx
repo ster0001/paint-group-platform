@@ -63,7 +63,7 @@ export default function RevisionPanel({
   request?: RevisionRequest | null;
   diff: RevisionDiff;
   existing: ExistingRevisionVariation[];
-  /** The builder's own save() — the server drafts from the SAVED scope. */
+  /** The builder's own save() — the server drafts from the SAVED scope. Null = the person cancelled. */
   saveFirst: () => Promise<unknown>;
   /** Flip to the customer tab — what the final invoice will read. */
   onViewInvoice?: () => void;
@@ -149,7 +149,7 @@ export default function RevisionPanel({
     setBusy(true);
     setMessage(null);
     try {
-      await saveFirst();
+      if ((await saveFirst()) === null) return;
       const result = await draftRevisionVariationsAction({
         estimateId,
         sourceVariationId: request && request.status === "raised" ? request.id : undefined,
@@ -157,8 +157,15 @@ export default function RevisionPanel({
       if (!result.ok) { setMessage(result.message); return; }
       setDrafted(result.drafted);
       const live = result.drafted.filter((d) => d.state === "drafted").length;
+      const painter = result.drafted.filter((d) => d.state === "with_painter").length;
+      const sheet = result.drafted.filter((d) => d.state === "in_sheet").length;
+      const extra = [
+        painter ? `${painter} hours-only change${painter === 1 ? "" : "s"} sent to the painter to approve` : "",
+        sheet ? `${sheet} hours-only change${sheet === 1 ? "" : "s"} put on the job sheet` : "",
+      ].filter(Boolean).join(" · ");
       setMessage(live
-        ? `${live} change${live === 1 ? "" : "s"} drafted as one offer — send the signing link below.`
+        ? `${live} change${live === 1 ? "" : "s"} drafted as one offer — send the signing link below.${extra ? ` ${extra}.` : ""}`
+        : extra ? `${extra[0].toUpperCase()}${extra.slice(1)} — nothing for the customer to sign.`
         : "Nothing to draft — the working scope matches what's already signed.");
     } finally {
       setBusy(false);

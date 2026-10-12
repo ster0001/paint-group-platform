@@ -9,7 +9,7 @@ import PrepChecklist, { type PrepItem } from "@/app/portal/jobs/[id]/PrepCheckli
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 import { reportError } from "@/lib/monitoring/report";
-import { scopeChangesFrom } from "@/lib/workorder/scopeChanges";
+import { notInSheet, scopeChangesFrom } from "@/lib/workorder/scopeChanges";
 import { contractorAdjustedCents, type PayVariation } from "@/lib/workorder/contractorPay";
 import "@/app/portal/portal.css";
 
@@ -62,7 +62,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_photos").select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
       supabase.from("wo_variations")
-        .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, customer_responded_at, created_at, deduction_cents, needs_manual_deduction")
+        .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, customer_responded_at, created_at, deduction_cents, needs_manual_deduction, in_sheet_at")
         .eq("work_order_id", id).order("created_at", { ascending: false }),
       supabase.from("wo_checklist_items")
         .select("id, label, detail, required, done_at, kind, item_key, answer, answer_note")
@@ -90,10 +90,10 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
     id: string; category: string; comment: string; status: VariationView["status"];
     contractor_delta_cents: number | null; est_hours: string | null; released_at: string | null;
     credit: boolean; customer_responded_at: string | null; created_at: string;
-    deduction_cents: number | null; needs_manual_deduction: boolean;
+    deduction_cents: number | null; needs_manual_deduction: boolean; in_sheet_at?: string | null;
   };
   const vRows = (variationRows as VRow[] | null) ?? [];
-  const variations: VariationView[] = vRows.map((v) => ({
+  const variations: VariationView[] = vRows.filter(notInSheet).map((v) => ({
     id: v.id, category: v.category, comment: v.comment, status: v.status,
     contractorDeltaCents: v.contractor_delta_cents,
     estHours: v.est_hours === null ? null : Number(v.est_hours),

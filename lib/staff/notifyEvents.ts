@@ -30,6 +30,8 @@ export const STAFF_EVENTS = [
   { key: "office_estimate_expired",    label: "Estimate expired",         short: "Expired" },
   /** Tom, 7 Oct 2026 (PC Command): the painter declined a change the client approved; a painter's ticks drafted a customer update; a customer is due an update. */
   { key: "office_variation_declined",  label: "Painter declined a change", short: "Change declined" },
+  /** Tom, 12 Oct 2026: the customer signed a change from Revise scope. */
+  { key: "office_variation_approved",  label: "Customer approved a change", short: "Change approved" },
   { key: "office_update_drafted",      label: "Customer update drafted",  short: "Update ready" },
   { key: "office_update_due",          label: "Customer update due",      short: "Update due" },
   /** Painter status Step 7 (brief §9 message 9): for the owner — a bonus review is due; a painter dropped to Red. */
