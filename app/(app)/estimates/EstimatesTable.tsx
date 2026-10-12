@@ -230,6 +230,12 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                       {[e.customer, e.address && e.address !== e.title ? e.address : null].filter(Boolean).join(" · ")}
                     </div>
                   )}
+                  {/* Tom, 12 Oct: "needs a visit" lives here so the pill can show the view count. */}
+                  {e.pill.flag && (
+                    <span className="mr-2 mt-1 inline-block rounded-full border border-amber-400 px-2 py-0.5 text-[11px] font-semibold text-amber-800" data-testid={`estimate-flag-${e.id}`}>
+                      {e.pill.flag}
+                    </span>
+                  )}
                   {/* C7b (brief 2.4): the pack, only where there is one — the same test
                       the quote shell uses for the Pack tab, decided on the server. */}
                   {e.hasWizard && (

@@ -14,7 +14,8 @@ import { activityRows, familiesFor } from "@/lib/reporting/metrics/activity";
 import TargetCard from "./TargetCard";
 import FunnelCard from "./FunnelCard";
 import ActivityFeed from "./ActivityFeed";
-import { anomalyCards, buildStrip, type StripCard } from "@/lib/reporting/strip";
+import { anomalyCards, pickStrip, type StripCard } from "@/lib/reporting/strip";
+import StripDismiss from "./StripDismiss";
 import type { DashboardRole } from "@/lib/reporting/roles";
 import type { DashboardLoad } from "@/lib/reporting/load";
 import { requestNow } from "@/lib/time/requestClock";
@@ -203,10 +204,15 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
  */
 async function NeedsDoing({ queue, consoleCards, extra, roles }: { queue: DashboardLoad["queue"]; consoleCards: DashboardLoad["strip"]["consoleCards"]; extra: StripCard[]; roles: DashboardRole[] }) {
   const q = queue ? await queue : { items: [], failure: null, ms: 0 };
-  const cards = buildStrip({ workItems: q.items, consoleCards, extra }, roles);
+  const { cards, total } = pickStrip({ workItems: q.items, consoleCards, extra }, roles);
   return (
     <div className="todo" data-testid="needs-doing" data-queue-ms={q.ms}>
-      <h2><b data-testid="needs-doing-count">{cards.length} thing{cards.length === 1 ? "" : "s"}</b> need you today</h2>
+      <h2><b data-testid="needs-doing-count">{total} thing{total === 1 ? "" : "s"}</b> need you today</h2>
+      {total > cards.length && (
+        <p className="quiet" data-testid="needs-doing-more">
+          The {cards.length} most urgent are below · the rest are on <Link href="/crm/today">CRM Today</Link> and <Link href="/pc">PC Command</Link>.
+        </p>
+      )}
       {q.failure && <p className="quiet" data-testid="needs-doing-failure">The CRM work queue could not be read ({q.failure.message}) — these are the job cards only.</p>}
       {cards.length === 0 ? (
         <p className="quiet">Nothing is waiting on you right now.</p>
@@ -217,7 +223,10 @@ async function NeedsDoing({ queue, consoleCards, extra, roles }: { queue: Dashbo
               <div className={`sev ${c.severity === "critical" ? "c" : c.severity === "amber" ? "a" : "i"}`}>{c.label}</div>
               <div className="t">{c.title}</div>
               <div className="s">{c.detail}</div>
-              <Link className="act" href={c.action.href}>{c.action.label}</Link>
+              <div className="acts">
+                <Link className="act" href={c.action.href}>{c.action.label}</Link>
+                {c.dismiss && <StripDismiss dismiss={c.dismiss} />}
+              </div>
             </div>
           ))}
         </div>
