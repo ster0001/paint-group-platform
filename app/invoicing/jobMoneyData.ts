@@ -30,10 +30,11 @@ type VariationRow = { work_order_id: string; status: string; price_cents: number
 type CiRow = { status: string; total_inc_cents: number; due_on: string | null };
 type IntakeRow = { total: string | null };
 type JobCostRow = { status: string; amount_ex_cents: number; gst_cents: number };
+type ViewRow = { invoice_id: string };
 
 export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Promise<{ input: JobMoneyInput | null; failure: ReadFailure | null }> {
   try {
-    const [estimates, workOrders, invoices, payments, variations, cis, intake, jobCosts] = await Promise.all([
+    const [estimates, workOrders, invoices, payments, variations, cis, intake, jobCosts, views] = await Promise.all([
       fetchAllRows<EstimateRow>((f, t) => supabase.from("estimates")
         .select("id, title, accepted_name, accepted_total_cents, total_cents, job_address:sent_snapshot->>jobAddress")
         .eq("status", "accepted").order("id").range(f, t)),
@@ -48,7 +49,11 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
       // Employee labour is a wage, not a payable (fix/payables-no-employee-labour) — never in the Materials block.
       fetchAllRows<JobCostRow>((f, t) => supabase.from("job_costs").select("status, amount_ex_cents, gst_cents")
         .neq("category", "labour").in("status", ["recorded", "approved"]).order("id").range(f, t)),
+      // "Invoice opened N times" on the row — customer opens only (staff previews never write one).
+      fetchAllRows<ViewRow>((f, t) => supabase.from("invoice_events").select("invoice_id").eq("type", "viewed").order("id").range(f, t)),
     ]);
+    const viewsByInvoice = new Map<string, number>();
+    for (const v of views) viewsByInvoice.set(v.invoice_id, (viewsByInvoice.get(v.invoice_id) ?? 0) + 1);
 
     const woByEstimate = new Map(workOrders.map((w) => [w.estimate_id, w]));
     const variationsByWo = new Map<string, LedgerVariation[]>();
@@ -76,7 +81,7 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
     const jobInvoices: JobMoneyInvoice[] = invoices.map((r) => ({
       id: r.id, estimateId: r.estimate_id, kind: r.kind, status: r.status as InvoiceStatus,
       totalIncCents: r.total_inc_cents, dueOn: r.due_on, issuedOn: r.issued_on,
-      number: r.number, createdAt: r.created_at,
+      number: r.number, createdAt: r.created_at, views: viewsByInvoice.get(r.id) ?? 0,
     }));
     const derivePayments: DerivePayment[] = payments.map((p) => ({ invoiceId: p.invoice_id, amountCents: p.amount_cents, status: p.status, paidOn: p.paid_on }));
 

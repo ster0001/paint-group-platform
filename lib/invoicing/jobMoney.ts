@@ -45,7 +45,11 @@ export type JobMoneyJob = {
 };
 
 /** An invoice as the row needs it: the derive shape plus its number and when it was drafted. */
-export type JobMoneyInvoice = DeriveInvoice & { number: string | null; createdAt: string };
+export type JobMoneyInvoice = DeriveInvoice & {
+  number: string | null; createdAt: string;
+  /** Times the customer opened it (invoice_events `viewed`); 0 when unknown. */
+  views?: number;
+};
 
 /** Supplier documents and other trades' costs, for the Materials block only. */
 export type MaterialsInput = {
@@ -91,6 +95,27 @@ export type Slot = {
   /** Earliest due date among the slot's unpaid invoices. */
   dueOn: string | null;
   invoiceIds: string[];
+  /** The slot's worst unpaid invoice — what its pill and table cell describe. Null when nothing is owing on an invoice. */
+  lead: SlotLead | null;
+};
+
+/** One unpaid invoice as a pill, a cell or the amount block shows it. Figures only; the words are the screen's. */
+export type SlotLead = {
+  invoiceId: string;
+  number: string | null;
+  kind: JobMoneyInvoice["kind"];
+  state: SlotState;
+  /** Sent to the customer (issued or later), as opposed to a draft. */
+  sent: boolean;
+  balanceCents: number;
+  dueOn: string | null;
+  /** Melbourne days past the due date, when overdue. */
+  overdueDays: number | null;
+  /** Melbourne days until the due date (0 = today, negative = past but not yet overdue). */
+  dueInDays: number | null;
+  /** The invoice as a whole-number share of the contract — "Deposit 50%". */
+  pctOfContract: number | null;
+  views: number;
 };
 
 /** The To-chase sections, in page order; `paid_in_full` leaves the active views (R9). */
@@ -99,6 +124,8 @@ export const SECTIONS: readonly Section[] = ["overdue", "deposit_not_in", "close
 
 export type NextAction = {
   slot: SlotKey;
+  /** The invoice behind it, as its pill shows it; null for noinv/uninv. */
+  lead: SlotLead | null;
   state: SlotState;
   /** The invoice to act on; null for noinv/uninv (there is none yet). */
   invoiceId: string | null;
@@ -134,6 +161,8 @@ export type JobMoneyRow = {
   overdueCount: number;
   health: SlotState;
   section: Section;
+  /** A deposit not in on a job starting within a week or already under way — the orange row pulses (⚑P1). */
+  pulse: boolean;
   /** Leftover drafts hidden by rule (§6.1 $0 drafts, §6.2 deposit drafts beside a final). Never deleted. */
   hiddenDraftIds: string[];
 };
@@ -204,6 +233,20 @@ export function jobMoneyRow(
     return inv.status === "draft" ? "draft" : "sent";
   };
 
+  const leadOf = (inv: JobMoneyInvoice, slot: SlotKey): SlotLead => {
+    const state = stateOf(inv, slot);
+    return {
+      invoiceId: inv.id, number: inv.number, kind: inv.kind, state,
+      sent: inv.status !== "draft",
+      balanceCents: invoiceBalanceCents(inv, payments),
+      dueOn: inv.dueOn,
+      overdueDays: state === "over" && inv.dueOn ? daysBetween(inv.dueOn, today) : null,
+      dueInDays: inv.dueOn ? daysBetween(today, inv.dueOn) : null,
+      pctOfContract: contractCents > 0 ? Math.round((inv.totalIncCents / contractCents) * 100) : null,
+      views: inv.views ?? 0,
+    };
+  };
+
   const bySlot: Record<SlotKey, JobMoneyInvoice[]> = { deposit: [], progress: [], final: [] };
   for (const inv of visible) bySlot[slotOf(inv, visible)].push(inv);
 
@@ -212,7 +255,9 @@ export function jobMoneyRow(
     if (invs.length > 0) {
       const unpaid = invs.filter((i) => invoiceBalanceCents(i, payments) > 0);
       const dues = unpaid.map((i) => i.dueOn).filter((d): d is string => !!d).sort();
+      const first = [...unpaid].sort((a, b) => STATE_RANK[stateOf(a, key)] - STATE_RANK[stateOf(b, key)] || (a.dueOn ?? "9").localeCompare(b.dueOn ?? "9"))[0];
       return {
+        lead: first ? leadOf(first, key) : null,
         key, state: worst(invs.map((i) => stateOf(i, key))),
         amountCents: invs.reduce((s, i) => s + i.totalIncCents, 0),
         balanceCents: unpaid.reduce((s, i) => s + invoiceBalanceCents(i, payments), 0),
@@ -220,7 +265,7 @@ export function jobMoneyRow(
         invoiceIds: invs.map((i) => i.id),
       };
     }
-    const empty = (state: SlotState, amountCents: number | null): Slot => ({ key, state, amountCents, balanceCents: 0, dueOn: null, invoiceIds: [] });
+    const empty = (state: SlotState, amountCents: number | null): Slot => ({ key, state, amountCents, balanceCents: 0, dueOn: null, invoiceIds: [], lead: null });
     if (key === "deposit") {
       if (visible.length > 0 || lane === "closed") return empty("none", null);
       return NEED_LANES.has(lane) ? empty("noinv", null) : empty("later", null);
@@ -246,7 +291,7 @@ export function jobMoneyRow(
       .filter((i) => invoiceBalanceCents(i, payments) > 0)
       .sort((a, b) => STATE_RANK[stateOf(a, pick)] - STATE_RANK[stateOf(b, pick)] || (a.dueOn ?? "9").localeCompare(b.dueOn ?? "9") || draftedKey(a).localeCompare(draftedKey(b)))[0];
     next = {
-      slot: pick, state: slot.state,
+      slot: pick, state: slot.state, lead: inv ? leadOf(inv, pick) : null,
       invoiceId: inv?.id ?? null, invoiceNumber: inv?.number ?? null,
       amountCents: inv ? invoiceBalanceCents(inv, payments) : slot.state === "uninv" ? uninvoicedCents : null,
       dueOn: inv?.dueOn ?? null,
@@ -275,6 +320,7 @@ export function jobMoneyRow(
     overdueCents: overdueInvs.reduce((s, i) => s + invoiceBalanceCents(i, payments), 0),
     overdueCount: overdueInvs.length,
     health, section,
+    pulse: (health === "need" || health === "noinv") && (underWay || lane === "pre_start"),
     hiddenDraftIds: hidden.map((i) => i.id),
   };
 }
@@ -333,7 +379,18 @@ export type MaterialsBlock = {
 
 export type ActivityBlock = { receivedFortnightCents: number };
 
-export type StageCell = { lane: Lane; jobs: number; collectableCents: number; overdueCents: number };
+/** A lane's colour, worst first: bad (overdue) · warn (deposit not in) · wait (sent) · "" (drafts) · ok · empty. */
+export type LaneTone = "bad" | "warn" | "wait" | "" | "ok";
+export type StageCell = { lane: Lane; jobs: number; collectableCents: number; overdueCents: number; tone: LaneTone };
+
+export function laneTone(rows: readonly JobMoneyRow[]): LaneTone {
+  const hs = new Set(rows.map((r) => r.health));
+  if (hs.has("over")) return "bad";
+  if (hs.has("need") || hs.has("noinv")) return "warn";
+  if (hs.has("sent")) return "wait";
+  if (hs.has("draft") || hs.has("uninv")) return "";
+  return rows.length ? "ok" : "";
+}
 
 export type HeadlineFigures = {
   noDepositJobs: number;
@@ -404,6 +461,7 @@ export function jobMoneyPage(input: JobMoneyInput): JobMoneyPage {
       lane, jobs: inLane.length,
       collectableCents: sum(inLane.map((r) => r.collectableCents)),
       overdueCents: sum(inLane.map((r) => r.overdueCents)),
+      tone: laneTone(inLane),
     };
   });
 
@@ -449,4 +507,53 @@ export function headlineSentences(h: HeadlineFigures, fmt: (cents: number) => st
     out.push(`${h.contractorPastPayBy} contractor ${h.contractorPastPayBy === 1 ? "invoice is" : "invoices are"} past the pay-by date.`);
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Page helpers — the views filter and total rows here, never in a component
+// ---------------------------------------------------------------------------
+
+/** Search (address, customer, contractor, work-order ref — R §4.2) and the stage-strip filter. */
+export function matchRows(rows: readonly JobMoneyRow[], f: { q?: string; lane?: Lane | null }): JobMoneyRow[] {
+  const q = (f.q ?? "").trim().toLowerCase();
+  return rows.filter((r) =>
+    (!f.lane || r.lane === f.lane) &&
+    (!q || [r.address, r.customer ?? "", r.contractor ?? "", r.woRef ?? ""].join(" ").toLowerCase().includes(q)));
+}
+
+/** All jobs view filters (§4.2): All · Overdue · Deposit not in · Final unpaid · Paid in full. */
+export type TableFilter = "all" | "over" | "dep" | "fin" | "paid";
+export const TABLE_FILTERS: readonly TableFilter[] = ["all", "over", "dep", "fin", "paid"];
+export function tableFilter(f: TableFilter, showPaid: boolean): (r: JobMoneyRow) => boolean {
+  switch (f) {
+    case "over": return (r) => r.health === "over";
+    case "dep": return (r) => ["need", "noinv", "over"].includes(r.slots.deposit.state) && r.section !== "paid_in_full";
+    case "fin": return (r) => ["draft", "sent", "over", "uninv"].includes(r.slots.final.state);
+    case "paid": return (r) => r.section === "paid_in_full";
+    default: return (r) => showPaid || r.section !== "paid_in_full";
+  }
+}
+
+/** A section's figure: what can be collected on each row's next action (the amount blocks, added up). */
+export const totalNowCents = (rows: readonly JobMoneyRow[]): number => rows.reduce((s, r) => s + (r.next?.amountCents ?? 0), 0);
+/** A lane's or group's figure: everything collectable on its rows. */
+export const totalCollectableCents = (rows: readonly JobMoneyRow[]): number => rows.reduce((s, r) => s + r.collectableCents, 0);
+export const totalOverdueCents = (rows: readonly JobMoneyRow[]): number => rows.reduce((s, r) => s + r.overdueCents, 0);
+
+/** The headline as styled parts: `o` = the orange count, `r` = a red sentence. `headlineSentences` is the same words, plain. */
+export type HeadlinePart = { text: string; tone: "" | "o" | "r" };
+export function headlineParts(h: HeadlineFigures, fmt: (cents: number) => string): HeadlinePart[] {
+  const sentences = headlineSentences(h, fmt);
+  const parts: HeadlinePart[] = [];
+  sentences.forEach((text, i) => {
+    const sep = i === 0 ? "" : " ";
+    if (i === 0 && h.noDepositJobs > 0) {
+      const lead = `${h.noDepositJobs} ${h.noDepositJobs === 1 ? "job" : "jobs"}`;
+      parts.push({ text: lead, tone: "o" }, { text: text.slice(lead.length), tone: "" });
+      return;
+    }
+    const red = /overdue, |past the pay-by date/.test(text);
+    parts.push({ text: sep + text, tone: red ? "r" : "" });
+  });
+  return parts;
 }

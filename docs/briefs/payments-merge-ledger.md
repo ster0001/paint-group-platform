@@ -40,3 +40,32 @@ Brief: `docs/briefs/claude-code-brief-payments-merge.md`. Branch `feat/payments-
 - Reconciled on the test project: all 795 jobs' contract, paid and balance equal `public.invoice_ledger` (0 mismatches). The strip sums to the rows, and the Customers block equals the C1 baseline ($66,110.00 on 45 invoices).
 - Not run: the JSON route in a browser (the test stack's :3101 was held by another session); it is a thin wrapper over the loader, which the reconciliation exercised.
 - No migration. Production figures untouched: Step 1 only reads.
+
+## Step 2 — page shell and the Customers block (13 Oct 2026)
+- Page: `/invoicing/payments` (`app/invoicing/payments/`), staff-only behind the invoicing layout. It becomes `/invoicing` at Step 8, the one switch-over.
+  - Components: `page.tsx`, `Views.tsx` (To chase · By job stage · All jobs), `JobPieces.tsx` (card, rail, pills, actions, lights), `labels.ts` (words only), `Tools.tsx` (search and Show paid, the only client code).
+  - Selection lives in the URL: `tab`, `view`, `stage`, `q`, `paid`, `f`.
+  - Actions render but are inert until Step 3 (`data-step` marks the step that wires each one).
+- CSS: `payments.css` is the mockup's `<style>`, ported 1:1 by `scripts/design/scope-mockup-css.py` (scoped `.pm`, light theme via the shell's `data-theme`). Regenerate it rather than hand-editing.
+  - The old `invoicing.css` used the same short class names (`.r`, `.d`, `.lane`, `.sheet`…), so its page rules are now guarded with `:not(:has(.pm))`. The shell (header, logo, theme button, tokens) is not guarded.
+  - The guard adds equal specificity to every old rule, so the current pages render as before.
+  - Step 8 deletes the old rules and the guard.
+- `lib/invoicing/jobMoney.ts` grew what the page reads:
+  - each slot's `lead` (state, days overdue/due, % of contract, views)
+  - `next.lead`, `pulse`, `laneTone` / `StageCell.tone`
+  - `matchRows`, `tableFilter`, `totalNowCents` / `totalCollectableCents` / `totalOverdueCents`, `headlineParts`
+
+  The loader reads customer view counts (`invoice_events` `viewed`).
+- Gate:
+  - 34 job-money unit tests and the no-cents-arithmetic audit (now covering the page directory). Full unit suite 3,538 passing.
+  - Typecheck clean. Lint within the CI ceiling. Help index current.
+  - e2e `e2e/payments-page.spec.ts` 4/4 on C1: anonymous refused (page and JSON); overdue first, the deposit-not-in card orange and pulsing; paid only under Show paid / Paid in full; search, board and table; the stage link; no sideways scroll at 390 px in all three views.
+  - Regression: `invoicing`, `contractor-invoicing`, `cost-intake`, `invoicing-read-failure` and `dashboard-invoicing` all pass, 38/38 on the CSS-guarded old page.
+- Visual check on C1 at 1440 and 390 px against the mockup: headline, blocks, strip, cards, board and table match.
+  - The shell header stays 1080 px wide over the 1280 px page (Step 8 widens it).
+  - The Customer chats dock can open over the page, as on every staff page.
+- Fixed in passing: `e2e/dashboard-invoicing.spec.ts` built its due dates from the UTC day, so it failed every morning before 10–11am Melbourne (17 days overdue against an expected 16). It now uses `melbourneDatePlus`. The spec is on `main` too, so main's copy stays wrong until this branch merges at Step 8.
+- Not done here, by design:
+  - Help file: the page is not live until Step 8, which writes the help from the real screens.
+  - The headline follows the brief (a zero clause is dropped) rather than the mockup's "Every booked job has its deposit in."
+  - Show paid jobs appears on By job stage and All jobs, not on To chase, which never lists paid jobs.

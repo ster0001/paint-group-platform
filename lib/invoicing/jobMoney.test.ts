@@ -11,7 +11,7 @@ import { melbourneInstant } from "@/lib/time/businessHours";
 import type { DeriveContractorInvoice, DerivePayment } from "./derive";
 import type { WoStage } from "@/lib/workorder/stages";
 import {
-  compareRows, headlineSentences, isLeftoverDraft, jobMoneyPage, jobMoneyRow, slotOf,
+  compareRows, headlineParts, headlineSentences, matchRows, tableFilter, totalCollectableCents, totalNowCents, isLeftoverDraft, jobMoneyPage, jobMoneyRow, slotOf,
   type JobMoneyInput, type JobMoneyInvoice, type JobMoneyJob,
 } from "./jobMoney";
 
@@ -234,8 +234,8 @@ describe("the four blocks and the stage strip come from the same rows", () => {
   });
   it("the strip: seven lanes in Project Progress order; paid-in-full jobs leave it", () => {
     expect(page.strip.map((c) => c.lane)).toEqual(["offered", "booking_confirmed", "pre_start", "in_progress", "qa", "walkthrough", "closed"]);
-    expect(page.strip.find((c) => c.lane === "in_progress")).toEqual({ lane: "in_progress", jobs: 4, collectableCents: 786_540 + 53_268 + 200_000, overdueCents: 200_000 });
-    expect(page.strip.find((c) => c.lane === "closed")).toEqual({ lane: "closed", jobs: 3, collectableCents: 1_312_100 + 450_493 + 1_405_112, overdueCents: 0 });
+    expect(page.strip.find((c) => c.lane === "in_progress")).toEqual({ lane: "in_progress", jobs: 4, collectableCents: 786_540 + 53_268 + 200_000, overdueCents: 200_000, tone: "bad" });
+    expect(page.strip.find((c) => c.lane === "closed")).toEqual({ lane: "closed", jobs: 3, collectableCents: 1_312_100 + 450_493 + 1_405_112, overdueCents: 0, tone: "wait" });
     expect(page.strip.find((c) => c.lane === "booking_confirmed")).toMatchObject({ jobs: 1, collectableCents: 0 });
   });
 });
@@ -266,5 +266,48 @@ describe("overdue is the shared midday-after rule (Tom, 12 Oct 2026)", () => {
   it("due Sunday: not overdue at 11:59 on Monday, overdue from 12:00", () => {
     expect(jobMoneyRow(j, [dep, claim], pays, melbourneInstant(2026, 10, 12, 11, 59)).slots.progress.state).toBe("sent");
     expect(jobMoneyRow(j, [dep, claim], pays, melbourneInstant(2026, 10, 12, 12)).slots.progress.state).toBe("over");
+  });
+});
+
+describe("Step 2 — what the page reads off a row", () => {
+  it("each slot's lead invoice: state, days, share of the contract, views", () => {
+    expect(row("kestrel").slots.deposit.lead).toMatchObject({ kind: "deposit", state: "need", sent: true, balanceCents: 60_005, dueInDays: 3, overdueDays: null, pctOfContract: 50 });
+    expect(row("avocet").slots.progress.lead).toMatchObject({ state: "over", overdueDays: 3, dueInDays: -3 });
+    expect(row("kite").slots.deposit.lead).toMatchObject({ sent: false, pctOfContract: 50 });
+    expect(row("stint").slots.deposit.lead).toBeNull();
+    expect(row("ironbark").next?.lead).toMatchObject({ dueInDays: 0, state: "need" });   // "due today"
+  });
+  it("the orange pulse: deposit not in AND starting within a week or under way (⚑P1)", () => {
+    expect(["kite", "saltbush", "kookaburra", "kestrel", "ironbark"].every((id) => row(id).pulse)).toBe(true);
+    expect(row("stint").pulse).toBe(false);          // orange, but 18 days out
+    expect(row("brolga").pulse).toBe(false);
+  });
+  it("search matches address, customer, contractor and work-order ref; the strip filters by lane", () => {
+    expect(matchRows(page.rows, { q: "kite st" }).map((r) => r.estimateId)).toEqual(["kite"]);
+    expect(matchRows(page.rows, { q: "WO-heron" }).map((r) => r.estimateId)).toEqual(["heron"]);
+    expect(matchRows(page.rows, { q: "customer gannet" }).map((r) => r.estimateId)).toEqual(["gannet"]);
+    expect(matchRows(page.rows, { lane: "qa" }).map((r) => r.estimateId)).toEqual(["kookaburra"]);
+  });
+  it("All jobs filters; a paid-in-full job shows only under Show paid or Paid in full (R9)", () => {
+    const ids = (f: Parameters<typeof tableFilter>[0], paid = false) => page.rows.filter(tableFilter(f, paid)).map((r) => r.estimateId);
+    expect(ids("all")).not.toContain("gannet");
+    expect(ids("all", true)).toContain("gannet");
+    expect(ids("paid")).toEqual(["gannet"]);
+    expect(ids("over")).toEqual(["avocet"]);
+    expect(ids("dep").sort()).toEqual(["ironbark", "kestrel", "kite", "kookaburra", "saltbush", "stint"]);
+    expect(ids("fin").sort()).toEqual(["brolga", "egret", "wren"]);
+  });
+  it("section and lane totals are lib sums", () => {
+    const dep = page.rows.filter((r) => r.section === "deposit_not_in");
+    expect(totalNowCents(dep)).toBe(786_540 + 53_268 + 537_252 + 60_005 + 416_588);
+    expect(totalCollectableCents(page.rows.filter((r) => r.lane === "closed"))).toBe(1_312_100 + 450_493 + 1_405_112);
+  });
+  it("headline parts: the count orange, overdue sentences red, same words as the sentence", () => {
+    const parts = headlineParts(page.headline, fmt);
+    expect(parts.map((p) => p.text).join("")).toBe(headlineSentences(page.headline, fmt).join(" "));
+    expect(parts[0]).toEqual({ text: "6 jobs", tone: "o" });
+    expect(parts.filter((p) => p.tone === "r").map((p) => p.text.trim())).toEqual([
+      "1 customer invoice is overdue, $2,000.00.", "1 contractor invoice is past the pay-by date.",
+    ]);
   });
 });

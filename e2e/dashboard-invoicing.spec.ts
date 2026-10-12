@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { melbourneDatePlus } from "../lib/time/workingDays";
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, test } from "./helpers";
@@ -23,7 +24,9 @@ test.describe("dashboard · session 4 · invoicing", () => {
   const password = "painttest123";
   const finEmail = `pg.e2e.fin.${run}@example.com`;
   let finId = ""; let estimateId = ""; let invoiceId = ""; let materialId = "";
-  const daysFrom = (n: number) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  // Melbourne calendar days, like the app: a UTC day here read one day short
+  // before 10–11am Melbourne, so this spec failed every morning (13 Oct 2026).
+  const daysFrom = (n: number) => melbourneDatePlus(new Date(), n);
 
   test.beforeAll(async () => {
     const made = await db!.auth.admin.createUser({ email: finEmail, password, email_confirm: true });
