@@ -59,6 +59,8 @@ const WORDING: Record<string, string> = {
   bad_state: "This cost isn't in the right state for that.",
   already_matched: "That cost is already matched to a job.",
   bad_paid_with: "Pick how it was paid.",
+  call_back_hold: "Reminders are paused because a call back is open — they resume when it is closed.",
+  reason_too_long: "Keep the reason under 300 characters.",
 };
 
 function revalidateAll(estimateId?: string, invoiceId?: string) {
@@ -628,18 +630,16 @@ export async function decidePreapprovalAction(raw: unknown): Promise<InvoicingRe
 /**
  * Session 3 (16 Sep 2026): pause / resume the unpaid-invoice reminders on one
  * invoice. A reason pauses (a dispute, a payment plan); an empty reason
- * resumes. Staff only — the RLS on invoices decides.
+ * resumes. Through `invoice_set_chase_hold` (20270255): UPDATE on invoices is
+ * revoked from the staff session, so the old direct update never worked.
  */
 export async function pauseRemindersAction(raw: unknown): Promise<InvoicingResult> {
-  const p = z.object({ invoiceId: z.string().uuid(), estimateId: z.string().uuid(), reason: z.string().max(300) }).safeParse(raw);
+  const p = z.object({ invoiceId: uuid, estimateId: uuid, reason: z.string().max(300) }).safeParse(raw);
   if (!p.success) return { ok: false, message: "Check the reason and try again." };
-  const supabase = await createClient();
   const reason = p.data.reason.trim();
-  const { error } = await supabase.from("invoices").update({ chase_hold_reason: reason || null }).eq("id", p.data.invoiceId);
-  if (error) return { ok: false, message: "Couldn't change that just now." };
-  revalidatePath(`/invoicing/job/${p.data.estimateId}`);
-  revalidatePath("/invoicing");
-  return { ok: true, message: reason ? "Reminders paused for this invoice." : "Reminders resumed." };
+  return call("invoice_set_chase_hold", { p_invoice_id: p.data.invoiceId, p_reason: reason },
+    { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId },
+    reason ? "Reminders paused for this invoice." : "Reminders resumed.");
 }
 
 // ---- Painter status Step 7 (R11, ⚑23): the hold on a Green painter's fast payment ----

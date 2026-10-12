@@ -38,6 +38,8 @@ import { siteUrl } from "@/lib/invoicing/pdf";
 import { melbourneDateKey } from "../controls";
 import { melbourneInstant, melbourneParts } from "@/lib/time/businessHours";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { isOverdue } from "@/lib/invoicing/ledger";
+import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
 
 const OPEN = ["issued", "sent", "viewed", "partially_paid"];
 const money = (c: number) => `$${(c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -66,11 +68,15 @@ export function invoiceRungs(days: [number, number, number, number]): Rung[] {
   return days.map((d, i) => ({ id: `rung${i + 1}`, afterHours: d * 24 }));
 }
 
-/** Whether an invoice is chaseable at all: open, owing, not on hold, past due. */
+/**
+ * Whether an invoice is chaseable at all: not on hold, and OVERDUE by the one
+ * rule every screen uses (lib/invoicing/ledger.ts `isOverdue` — midday on the
+ * day after the due date). Until 12 Oct 2026 this kept its own copy that
+ * flipped at midday ON the due date, a day before the red badge did.
+ */
 export function invoiceChaseable(inv: Pick<InvoiceRow, "status" | "due_on" | "total_inc_cents" | "paid_cents" | "chase_hold_reason">, now: Date): boolean {
-  if (!OPEN.includes(inv.status) || !inv.due_on || inv.chase_hold_reason) return false;
-  if (inv.total_inc_cents - inv.paid_cents <= 0) return false;
-  return dayInstant(inv.due_on).getTime() < now.getTime();
+  if (inv.chase_hold_reason) return false;
+  return isOverdue({ status: inv.status as InvoiceStatus, dueOn: inv.due_on, totalIncCents: inv.total_inc_cents, paidCents: inv.paid_cents }, now);
 }
 
 /** Deposit rungs: an instant each, or null when the input is missing. */

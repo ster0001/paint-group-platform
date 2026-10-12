@@ -48,6 +48,8 @@ export function buildTradeMoney(input: {
   invoices: MoneyInvoice[];
   payments: MoneyPayment[];
   todayYmd: string;
+  /** The caller's clock — "overdue" is an instant (midday the day after the due date), not a day. */
+  now: Date;
 }): TradeMoneyView {
   const dPayments: DerivePayment[] = input.payments.map((p) => ({
     invoiceId: p.invoice_id, amountCents: p.amount_cents, status: p.status, paidOn: p.paid_on,
@@ -73,7 +75,7 @@ export function buildTradeMoney(input: {
       totalIncCents: inv.total_inc_cents, dueOn: inv.due_on, issuedOn: inv.issued_on,
     };
     const balanceCents = invoiceBalanceCents(d, dPayments);
-    const overdue = invoiceIsOverdue(d, dPayments, input.todayYmd);
+    const overdue = invoiceIsOverdue(d, dPayments, input.now);
     const row: TradeMoneyRow = {
       invoiceId: inv.id, number: inv.number, kind: inv.kind, status: inv.status,
       issuedOn: inv.issued_on, dueOn: inv.due_on,

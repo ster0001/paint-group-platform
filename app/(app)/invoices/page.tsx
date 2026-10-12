@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { melbourneDate } from "@/lib/workorder/console";
 import { invoiceBalanceCents, invoiceIsOverdue } from "@/lib/invoicing/derive";
 import { kindLabelWithContext } from "@/app/invoicing/format";
 import { loadDashboard, toDerive, toDerivePayments } from "@/app/invoicing/data";
@@ -48,7 +47,7 @@ export default async function InvoicesPage({
   const filter: Filter = (FILTERS as readonly string[]).includes(f ?? "") ? (f as Filter) : "active";
 
   const supabase = await createClient();
-  const today = melbourneDate(new Date());
+  const now = new Date();
   const { invoices, payments, loadError } = await loadDashboard(supabase);
   const derive = toDerive(invoices);
   const dPays = toDerivePayments(payments);
@@ -68,7 +67,7 @@ export default async function InvoicesPage({
   const byJob = new Map<string, JobRow>();
   for (const r of invoices) {
     const d = derive.find((x) => x.id === r.id)!;
-    const overdue = invoiceIsOverdue(d, dPays, today);
+    const overdue = invoiceIsOverdue(d, dPays, now);
     const balance = invoiceBalanceCents(d, dPays);
     const open = !["paid", "void", "written_off"].includes(r.status);
     const contractCents = Number(r.estimates?.accepted_total_cents ?? 0);

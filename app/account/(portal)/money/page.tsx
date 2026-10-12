@@ -30,7 +30,7 @@ export default async function MoneyPage() {
 
   const { estimates, invoices, payments } = await getPortalMoney(ctx.accounts.map((a) => a.id));
   const today = melbourneTodayYmd();
-  const jobs = buildMoneyView(estimates, invoices, payments, today);
+  const jobs = buildMoneyView(estimates, invoices, payments, today, new Date());
   const phone = ctx.companyPhone;
 
   // 3a-7: the trade header — this month's total across every property, with

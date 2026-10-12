@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { melbourneInstant } from "@/lib/time/businessHours";
 import { buildMoneyView, fmtDay, type MoneyEstimate, type MoneyInvoice, type MoneyPayment } from "./money";
 
 const TODAY = "2026-08-27";
+/** 1pm Melbourne on TODAY — past the midday overdue line, so day-level expectations hold. */
+const NOW = melbourneInstant(2026, 8, 27, 13);
 
 const est = (over: Partial<MoneyEstimate> = {}): MoneyEstimate => ({
   id: "e1", title: "12 Acacia Street", status: "accepted", accepted_total_cents: 845_000, ...over,
@@ -27,13 +30,13 @@ describe("buildMoneyView — the customer's money, read-only and honest", () => 
         inv({ id: "i4", status: "written_off" }),
       ],
       [],
-      TODAY,
+      TODAY, NOW,
     );
     expect(job.rows.map((r) => r.id)).toEqual(["i1"]);
   });
 
   it("the project total is the accepted contract with its GST itemised", () => {
-    const [job] = buildMoneyView([est()], [inv()], [], TODAY);
+    const [job] = buildMoneyView([est()], [inv()], [], TODAY, NOW);
     expect(job.projectTotalIncCents).toBe(845_000);
     expect(job.projectGstCents).toBe(76_818); // 845000 / 11, the inc-anchored rule
   });
@@ -47,7 +50,7 @@ describe("buildMoneyView — the customer's money, read-only and honest", () => 
         inv({ id: "i3", due_on: "2026-08-20", number: "INV-2043" }), // past due → Overdue
       ],
       [pay({ invoice_id: "i2" })],
-      TODAY,
+      TODAY, NOW,
     );
     const chips = Object.fromEntries(jobs[0].rows.map((r) => [r.number, r.chip]));
     expect(chips["INV-2041"]).toEqual({ cls: "amber", label: "Due 29 Aug" });
@@ -61,26 +64,26 @@ describe("buildMoneyView — the customer's money, read-only and honest", () => 
       [est()],
       [inv({ status: "partially_paid" })],
       [pay({ amount_cents: 100_000 })],
-      TODAY,
+      TODAY, NOW,
     );
     expect(job.rows[0].chip.label).toBe("Partly paid");
     expect(job.rows[0].balanceCents).toBe(153_500);
   });
 
   it("the not-yet-invoiced remainder reads as balance on completion", () => {
-    const [job] = buildMoneyView([est()], [inv()], [], TODAY);
+    const [job] = buildMoneyView([est()], [inv()], [], TODAY, NOW);
     expect(job.remainderCents).toBe(845_000 - 253_500);
   });
 
   it("receipts ride their invoice with number and date", () => {
-    const [job] = buildMoneyView([est()], [inv({ status: "paid" })], [pay()], TODAY);
+    const [job] = buildMoneyView([est()], [inv({ status: "paid" })], [pay()], TODAY, NOW);
     expect(job.rows[0].receipts).toEqual([
       { paymentId: "p1", number: "RCT-0001", paidOn: "2026-08-13", amountCents: 253_500 },
     ]);
   });
 
   it("a job with no accepted contract and no visible invoices does not appear", () => {
-    expect(buildMoneyView([est({ status: "draft", accepted_total_cents: null })], [], [], TODAY)).toEqual([]);
+    expect(buildMoneyView([est({ status: "draft", accepted_total_cents: null })], [], [], TODAY, NOW)).toEqual([]);
   });
 
   it("failed or pending payments never count as receipts or paid amounts", () => {
@@ -88,7 +91,7 @@ describe("buildMoneyView — the customer's money, read-only and honest", () => 
       [est()],
       [inv()],
       [pay({ status: "failed" }), pay({ id: "p2", status: "pending", receipt_number: "RCT-0002" })],
-      TODAY,
+      TODAY, NOW,
     );
     expect(job.rows[0].receipts).toEqual([]);
     expect(job.rows[0].balanceCents).toBe(253_500);

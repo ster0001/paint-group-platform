@@ -55,13 +55,14 @@ const mi: MetricInput = {
     ],
     ageingEdges: [7, 30],
     today,
+    now,
   },
 };
 const range = { from: "2026-09-01", to: today };
 const finance = ["finance"] as const;
 
 describe("Invoicing tiles equal /invoicing (acceptance 2)", () => {
-  const tiles = dashboardTiles(invoices, payments, today);
+  const tiles = dashboardTiles(invoices, payments, now);
   const pay = payablesTiles(cis, today);
   it("outstanding: the same cents, count and rows as the dashboard tile", () => {
     const r = runMetric(outstanding, mi, range, finance);

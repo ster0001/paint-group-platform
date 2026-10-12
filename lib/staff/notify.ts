@@ -277,7 +277,7 @@ export async function staffContractorInvoice(service: SupabaseClient, invoiceId:
       key: "office_contractor_invoice", entityId: ci.id,
       subject: `Contractor invoice in — ${painter} · ${money(ci.total_inc_cents)}`,
       message: `${painter} has submitted invoice ${ci.number ?? ""} for ${money(ci.total_inc_cents)} on ${ci.work_orders.wo_ref} (${job}). It is waiting for approval in Payments.`,
-      link: `${siteUrl()}/invoicing/ci/${ci.id}`,
+      link: `${siteUrl()}/invoicing?tab=pay`,
       templates: { subject: "officeContractorInvoiceSubject", body: "officeContractorInvoiceBody" },
       vars: { painter, amount: money(ci.total_inc_cents), invoice_number: ci.number ?? "", wo_ref: ci.work_orders.wo_ref, job },
     });

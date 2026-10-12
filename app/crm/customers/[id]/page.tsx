@@ -147,7 +147,8 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
     : { data: [] as Array<{ invoice_id: string; amount_cents: number; status: string; paid_on: string | null }> };
   const payments: DerivePayment[] = ((payRows ?? []) as Array<{ invoice_id: string; amount_cents: number; status: string; paid_on: string | null }>)
     .map((p) => ({ invoiceId: p.invoice_id, amountCents: p.amount_cents, status: p.status, paidOn: p.paid_on }));
-  const todayIso = melbourneDate(new Date());
+  const now = new Date();
+  const todayIso = melbourneDate(now);
   const toDerive = (i: InvoiceRow): DeriveInvoice => ({
     id: i.id, estimateId: i.estimate_id ?? "", kind: (i.kind ?? "standalone") as DeriveInvoice["kind"], status: i.status as DeriveInvoice["status"],
     totalIncCents: i.total_inc_cents ?? 0, dueOn: i.due_on, issuedOn: i.issued_on,
@@ -156,7 +157,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
     const d = toDerive(i);
     const open = (OPEN_STATUSES as readonly string[]).includes(i.status);
     const balance = open ? invoiceBalanceCents(d, payments) : 0;
-    const overdue = open && invoiceIsOverdue(d, payments, todayIso);
+    const overdue = open && invoiceIsOverdue(d, payments, now);
     const daysLate = overdue && i.due_on ? Math.max(0, Math.round((Date.parse(todayIso + "T00:00:00Z") - Date.parse(i.due_on + "T00:00:00Z")) / 86_400_000)) : 0;
     return { overdue, depositUnpaid: i.kind === "deposit" && open && balance > 0, balanceCents: balance, daysLate };
   };

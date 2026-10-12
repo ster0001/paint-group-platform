@@ -30,7 +30,7 @@ export function openRows(input: MetricInput): OpenInvoiceRow[] {
     if (!OPEN_STATUSES.includes(inv.status)) continue;
     const balance = invoiceBalanceCents(inv, s.payments);
     if (balance <= 0) continue;
-    const overdue = invoiceIsOverdue(inv, s.payments, s.today);
+    const overdue = invoiceIsOverdue(inv, s.payments, s.now);
     const info = s.invoiceInfo[inv.id] ?? { number: "", customer: "", address: "", start_date: null };
     out.push({ number: info.number, customer: info.customer, address: info.address, kind: inv.kind, status: inv.status, issued_on: inv.issuedOn ?? "", due_on: inv.dueOn ?? "",
       total_cents: inv.totalIncCents, balance_cents: balance, days_overdue: overdue && inv.dueOn ? daysBetween(inv.dueOn, s.today) : 0, overdue });
@@ -69,7 +69,7 @@ const ciRows = (input: MetricInput, statuses: string[]): CiRow[] =>
 export const contractorsToPay: MetricDef<CiRow> = {
   key: "inv.contractors_to_pay_cents", kind: "now", section: "invoicing", title: "Contractor invoices to pay",
   definition: "Approved contractor invoices not yet paid — the /invoicing Payables \"approved\" total. The line under it is what is still to approve (submitted, undecided).",
-  unit: "cents", gst: "inc", roles: ROLES, aggregate: { sum: "total_cents" }, columns: CI_COLUMNS, href: "/invoicing#payables",
+  unit: "cents", gst: "inc", roles: ROLES, aggregate: { sum: "total_cents" }, columns: CI_COLUMNS, href: "/invoicing?tab=pay",
   select: (input) => ciRows(input, ["approved"]),
   note: (rows, _v, input) => { const t = payablesTiles(slice(input)?.contractorInvoices ?? [], slice(input)?.today ?? ""); return `${t.toApproveCount} to approve · ${aud(t.toApproveCents)}${rows.length ? ` · ${t.toPayWeekCount} due this week` : ""}`; },
 };

@@ -29,27 +29,29 @@ export default async function JobMoneyPage({
   searchParams,
 }: {
   params: Promise<{ estimateId: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; tab?: string }>;
 }) {
   const { estimateId } = await params;
+  const { tab } = await searchParams;
   // Tom, 1 Oct: opened from Invoicing, the crumb goes back to Invoicing (with its
   // filters), not to PC Command. Validated — `from` comes off the URL.
   const backTo = parseBackTo((await searchParams).from);
   const supabase = await createClient();
-  const today = melbourneDate(new Date());
+  const now = new Date();
+  const today = melbourneDate(now);
   const job = await loadJobMoney(supabase, estimateId);
   if (!job.estimate || !job.ledger) notFound();
 
   const derive = toDerive(job.invoices);
   const pays = toDerivePayments(job.payments);
-  const stages = paymentStages(derive, pays, Number(job.ledger.balance_cents), today);
+  const stages = paymentStages(derive, pays, Number(job.ledger.balance_cents), now);
 
   const cards: InvoiceCardProp[] = job.invoices
     .slice()
     .reverse()
     .map((r) => {
       const d = derive.find((x) => x.id === r.id)!;
-      const age = ageInfo(d, pays, today);
+      const age = ageInfo(d, pays, now);
       const paid = invoicePaidCents(d, pays);
       const overdue = age !== null && "overdueDays" in age;
       const pay = job.payments.find((p) => p.invoice_id === r.id && p.status === "succeeded");
@@ -97,6 +99,8 @@ export default async function JobMoneyPage({
       case "viewed": return { tone: "cyan", title: "Invoice viewed by customer", meta: at };
       case "voided": return { tone: "clay", title: `Invoice voided${m.number ? ` — ${m.number}` : ""}`, meta: `${m.reason ?? ""} · ${at}` };
       case "amended": return { tone: "amber", title: "Draft amended", meta: at };
+      case "reminders_paused": return { tone: "amber", title: "Reminders paused", meta: `${m.reason ?? ""} · ${at}` };
+      case "reminders_resumed": return { tone: "cyan", title: "Reminders resumed", meta: at };
       default: return { tone: "", title: e.type.replaceAll("_", " "), meta: at };
     }
   });
@@ -142,6 +146,7 @@ export default async function JobMoneyPage({
   return (
     <MoneyView
       estimateId={estimateId}
+      initialTab={tab === "invoices" || tab === "costs" ? tab : "payments"}
       backTo={backTo}
       woId={job.wo?.id ?? null}
       woRef={job.wo?.wo_ref ?? null}

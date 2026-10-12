@@ -1,4 +1,5 @@
 import { test, expect } from "vitest";
+import { melbourneInstant } from "@/lib/time/businessHours";
 import {
   buildTradePortfolio,
   defaultReferenceLabels,
@@ -7,6 +8,8 @@ import {
 } from "./tradePortfolio";
 
 const TODAY = "2026-08-31";
+/** 1pm Melbourne on TODAY — past the midday overdue line, so day-level expectations hold. */
+const NOW = melbourneInstant(2026, 8, 31, 13);
 
 const base = () => ({
   properties: [{ id: "p1", address: "14 Beaumont St", suburb: "Elwood" }],
@@ -18,7 +21,7 @@ const base = () => ({
   invoices: [],
   payments: [],
   variations: [],
-  todayYmd: TODAY,
+  todayYmd: TODAY, now: NOW,
 });
 
 const est = (over: Record<string, unknown>) => ({

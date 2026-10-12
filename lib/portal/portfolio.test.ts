@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { melbourneInstant } from "@/lib/time/businessHours";
 import { buildPortfolio, type PortfolioVariation } from "./portfolio";
 import type { PortalEstimate, PortalWorkOrder } from "./home";
 import type { MoneyInvoice } from "./money";
 
 const TODAY = "2026-08-27";
+/** 1pm Melbourne on TODAY — past the midday overdue line, so day-level expectations hold. */
+const NOW = melbourneInstant(2026, 8, 27, 13);
 
 const est = (over: Partial<PortalEstimate>): PortalEstimate => ({
   id: over.id ?? "e1", title: "8/22 Clarke St, Northcote", status: "accepted", source: null,
@@ -32,7 +35,7 @@ describe("buildPortfolio — the trade workspace aggregates, never invents", () 
       ],
       payments: [],
       variations: [vn({})],
-      todayYmd: TODAY,
+      todayYmd: TODAY, now: NOW,
     });
     expect(tiles.underway).toBe(1);
     expect(tiles.drafts).toBe(1);
@@ -44,7 +47,7 @@ describe("buildPortfolio — the trade workspace aggregates, never invents", () 
     const { attention } = buildPortfolio({
       estimates: [est({})], workOrders: [], invoices: [], payments: [],
       variations: [vn({}), vn({ id: "v2", customer_responded_at: "2026-08-20T00:00:00Z" })],
-      todayYmd: TODAY,
+      todayYmd: TODAY, now: NOW,
     });
     expect(attention).toHaveLength(1);
     expect(attention[0].cta).toEqual({ label: "Review & approve", href: "/v/vt1" });
@@ -55,7 +58,7 @@ describe("buildPortfolio — the trade workspace aggregates, never invents", () 
     const { attention } = buildPortfolio({
       estimates: [est({}), est({ id: "e2", status: "sent", share_token: "tok2", total_cents: 412_000, title: "3/117 High St" })],
       workOrders: [wo({ stage: "walkthrough" })],
-      invoices: [], payments: [], variations: [], todayYmd: TODAY,
+      invoices: [], payments: [], variations: [], todayYmd: TODAY, now: NOW,
     });
     expect(attention.map((a) => a.key)).toEqual(["walkthrough:e1", "estimate:e2"]);
     expect(attention[1].meta).toContain("$4,120.00");
@@ -66,7 +69,7 @@ describe("buildPortfolio — the trade workspace aggregates, never invents", () 
       estimates: [est({})], workOrders: [],
       invoices: [inv({ due_on: "2026-08-20" })],
       payments: [{ id: "p1", invoice_id: "i1", amount_cents: 40_000, status: "succeeded", paid_on: "2026-08-21", receipt_number: null }],
-      variations: [], todayYmd: TODAY,
+      variations: [], todayYmd: TODAY, now: NOW,
     });
     expect(attention).toHaveLength(1);
     expect(attention[0].amountCents).toBe(60_000);
@@ -77,7 +80,7 @@ describe("buildPortfolio — the trade workspace aggregates, never invents", () 
     const { underway } = buildPortfolio({
       estimates: [est({}), est({ id: "e2", title: "45 Union Rd", status: "accepted" })],
       workOrders: [wo({}), wo({ estimate_id: "e2", stage: "walkthrough" })],
-      invoices: [], payments: [], variations: [], todayYmd: TODAY,
+      invoices: [], payments: [], variations: [], todayYmd: TODAY, now: NOW,
     });
     expect(underway[0].chip.label).toBe("Day 2 of 4");
     expect(underway[0].progressPct).toBe(50);

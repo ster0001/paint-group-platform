@@ -4,7 +4,7 @@ import { loadStandardsRules, loadStandardsStatuses } from "@/lib/standards/statu
 import { inSlices as sliceRead } from "@/lib/supabase/inSlices";
 import { isQuiet } from "./states";
 import { loadCrmThresholds, type CrmThresholds } from "./thresholds";
-import { invoiceIsOverdue, invoiceBalanceCents, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
+import { invoiceIsOverdue, invoiceBalanceCents, melbourneToday, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
 import { OPEN_STATUSES } from "@/lib/invoicing/stateMachine";
 import { bucketPill, journeyLine, journeyWho, pageLabel, type WizardBucket } from "@/lib/wizard/journey";
 import {
@@ -14,7 +14,7 @@ import {
 import { sortQueue } from "@/lib/wizard/confirmation";
 import { DEFAULT_TURNAROUND_SETTING, isOverdue, turnaroundFromSettings, type TurnaroundSetting } from "@/lib/wizard/confirmation-actions";
 import { addBusinessHours, melbourneInstant, melbourneParts, nextBusinessMorning } from "@/lib/time/businessHours";
-import { nextYearHolidaysMissing } from "@/lib/time/workingDays";
+import { melbourneDatePlus, nextYearHolidaysMissing } from "@/lib/time/workingDays";
 import { mergeBookingRules } from "@/lib/visits/schedule";
 import { customerCheckins, dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
 import { melbourneDayStartUtc } from "@/lib/workorder/console";
@@ -778,14 +778,13 @@ export type QueueInvoiceRow = DeriveInvoice & {
  * to-do half lives only here.
  */
 export function buildInvoiceItems(invoices: QueueInvoiceRow[], payments: DerivePayment[], now: Date): WorkItem[] {
-  const todayIso = now.toISOString().slice(0, 10);
   const items: WorkItem[] = [];
   for (const inv of invoices) {
     const balance = invoiceBalanceCents(inv, payments);
     if (balance <= 0) continue;
     const who = inv.customerName || inv.jobAddress || "a job";
     const money = "$" + Math.round(balance / 100).toLocaleString("en-AU");
-    const overdue = invoiceIsOverdue(inv, payments, todayIso);
+    const overdue = invoiceIsOverdue(inv, payments, now);
     const href = inv.accountId ? `/crm/customers/${inv.accountId}` : `/invoicing/job/${inv.estimateId}`;
 
     if (inv.kind === "deposit") {
@@ -796,7 +795,7 @@ export function buildInvoiceItems(invoices: QueueInvoiceRow[], payments: DeriveP
         subjectRef: { type: "invoice", id: inv.id },
         title: `${who} — deposit unpaid`,
         detail: `${money} outstanding. The job shouldn't start without it.`,
-        since: inv.issuedOn ?? todayIso,
+        since: inv.issuedOn ?? melbourneToday(now),
         dueAt: inv.dueOn,
         action: { label: "Chase", href },
       }, { valueCents: balance, promisedToCustomer: false }, now));
@@ -808,7 +807,7 @@ export function buildInvoiceItems(invoices: QueueInvoiceRow[], payments: DeriveP
         subjectRef: { type: "invoice", id: inv.id },
         title: `${who} — invoice overdue`,
         detail: `${money} past its due date.`,
-        since: inv.dueOn ?? todayIso,
+        since: inv.dueOn ?? melbourneToday(now),
         dueAt: inv.dueOn,
         action: { label: "Chase", href },
       }, { valueCents: balance, promisedToCustomer: false }, now));
@@ -1879,8 +1878,8 @@ async function readJobCheckinRows(supabase: SupabaseClient, now: Date): Promise<
   const res = await supabase.from("work_orders")
     .select("id, wo_ref, stage, start_date, end_date, wo_snapshot, estimates(account_id, accepted_name, title), contractors(company_name, works_saturday, works_sunday, profiles(name))")
     .not("start_date", "is", null).not("end_date", "is", null).neq("stage", "offered")
-    .gte("end_date", new Date(now.getTime() - 14 * 86_400_000).toISOString().slice(0, 10))
-    .lte("start_date", now.toISOString().slice(0, 10))
+    .gte("end_date", melbourneDatePlus(now, -14))
+    .lte("start_date", melbourneDatePlus(now, 0))
     .order("start_date", { ascending: true }).limit(300);
   if (res.error) return { rows: [], error: res.error.message };
   return { rows: (res.data ?? []) as unknown as JobCheckinRow[], error: null };
@@ -2160,7 +2159,7 @@ export function buildPainterStatusItems(
       title: `Payment hold: ${h.name}${h.wo_ref ? ` · ${h.wo_ref}` : ""}`,
       detail: `${h.terms_hold_reason || "No reason recorded"}. Their Green fast payment is back on the default terms${h.due_on ? ` (due ${h.due_on})` : ""} — release it or keep it.`,
       since, dueAt: new Date(new Date(since).getTime() + 2 * 86_400_000).toISOString(),
-      action: { label: "Release or keep", href: "/invoicing?tab=payables" },
+      action: { label: "Release or keep", href: "/invoicing?tab=pay" },
     }, { valueCents: null, promisedToCustomer: false }, now));
   }
   return items;
@@ -2596,7 +2595,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .eq("type", "assignment_cant_make_it").gte("created_at", since30d)
       .order("created_at", { ascending: true }).limit(200),
     supabase.from("wo_assignments").select("id, contractor_id, start_date, end_date, status, work_order_id, accepted_at, work_orders(wo_ref, wo_snapshot)")
-      .neq("status", "released").gte("end_date", new Date(now.getTime() - 7 * 86_400_000).toISOString().slice(0, 10)).limit(500),
+      .neq("status", "released").gte("end_date", melbourneDatePlus(now, -7)).limit(500),
     supabase.from("wo_events").select("created_at, meta")
       .eq("type", "assignment_dates_changed").gte("created_at", since30d).limit(500),
   ]);
@@ -2607,7 +2606,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // cannot read it gets nothing. (Clocked days no longer wait on anyone — 7 Oct 2026.)
   const leaveRes = await supabase.from("contractor_unavailability").select("id, contractor_id, kind, start_date, end_date, reason, created_at")
       .in("kind", ["leave", "rdo"]).is("approved_at", null).is("declined_at", null)
-      .gte("end_date", now.toISOString().slice(0, 10)).order("start_date", { ascending: true }).limit(200);
+      .gte("end_date", melbourneDatePlus(now, 0)).order("start_date", { ascending: true }).limit(200);
   const leaveRows = (leaveRes.error ? [] : (leaveRes.data ?? [])) as LeaveRequestRow[];
   // Tom, 1 Oct: open holds starting within the week, and whether their job
   // has since been booked (which resolves them). Staff-only table; a table

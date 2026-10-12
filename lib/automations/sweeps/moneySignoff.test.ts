@@ -8,8 +8,10 @@ const base = { status: "issued", due_on: "2026-10-02", total_inc_cents: 120_000,
 
 test("an invoice is chaseable only when open, owing, past due and not on hold", () => {
   const before = melbourneInstant(2026, 10, 2, 9);
-  const after = melbourneInstant(2026, 10, 3, 9);
+  const morningAfter = melbourneInstant(2026, 10, 3, 11);
+  const after = melbourneInstant(2026, 10, 3, 12);
   assert.equal(invoiceChaseable(base, before), false, "due today — not yet");
+  assert.equal(invoiceChaseable(base, morningAfter), false, "Tom, 12 Oct: not overdue until midday the day after");
   assert.equal(invoiceChaseable(base, after), true);
   assert.equal(invoiceChaseable({ ...base, status: "paid" }, after), false);
   assert.equal(invoiceChaseable({ ...base, status: "draft" }, after), false);
