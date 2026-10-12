@@ -56,6 +56,7 @@ export function signedVariationState(v: ExistingRevisionVariation): string {
  */
 export default function RevisionPanel({
   estimateId, diff, existing, saveFirst, onViewInvoice, workOrderId = null, photoCounts = {}, request = null,
+  onRevert, onEdit,
 }: {
   estimateId: string;
   /** The painter's request being priced — the first addition drafted becomes that row. */
@@ -70,6 +71,10 @@ export default function RevisionPanel({
   workOrderId?: string | null;
   /** variationId → how many wo_photos already sit on it (server-loaded). */
   photoCounts?: Record<string, number>;
+  /** Put this one change's section back to the accepted scope (and save). */
+  onRevert?: (blockRef: string) => void;
+  /** Open this change's area / line, or the Job settings card. */
+  onEdit?: (blockRef: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -207,13 +212,44 @@ export default function RevisionPanel({
       ) : (
         <ul className="mt-3 space-y-1.5" data-testid="revision-changes">
           {diff.changes.map((c) => (
-            <li key={c.blockRef} className="flex items-baseline gap-2 text-xs">
+            <li key={c.blockRef} className="flex flex-wrap items-baseline gap-2 text-xs" data-testid={`revision-change-${c.blockRef.replace(/[^a-z0-9]/gi, "-")}`}>
               <span className={`font-mono ${c.credit ? "text-rose-400" : "text-emerald-400"}`}>
                 {signed(c.deltaIncCents)}
               </span>
               <span className="font-medium">{c.title}</span>
               {c.detail && <span className="text-gray-500">· {c.detail}</span>}
               {c.hours > 0 && <span className="text-gray-500">· {c.hours} hr</span>}
+              {/* Each change on its own (Tom, 12 Oct 2026): revise it in place,
+                  or undo it — that section goes back to the accepted estimate
+                  and every other change stays. */}
+              {(onEdit || onRevert) && (
+                <span className="ml-auto inline-flex shrink-0 gap-1.5">
+                  {onEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(c.blockRef)}
+                      disabled={busy}
+                      className="rounded border border-white/15 px-2 py-0.5 text-[11px] text-gray-300 hover:bg-white/5 disabled:opacity-50"
+                      data-testid={`revision-edit-${c.blockRef.replace(/[^a-z0-9]/gi, "-")}`}
+                    >
+                      Revise
+                    </button>
+                  )}
+                  {onRevert && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Undo "${c.title}"? That section goes back to how it was on the accepted estimate. Other changes stay.`)) onRevert(c.blockRef);
+                      }}
+                      disabled={busy}
+                      className="rounded border border-rose-400/40 px-2 py-0.5 text-[11px] text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+                      data-testid={`revision-undo-${c.blockRef.replace(/[^a-z0-9]/gi, "-")}`}
+                    >
+                      Undo change
+                    </button>
+                  )}
+                </span>
+              )}
             </li>
           ))}
         </ul>
