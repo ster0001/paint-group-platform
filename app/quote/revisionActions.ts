@@ -12,6 +12,10 @@ import { isMissingRpc } from "@/lib/supabase/missingRpc";
 import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { buildInvoiceEmailHtml } from "@/lib/invoicing/sendInvoice";
+import { after } from "next/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { notifyVariationReleased } from "@/lib/contractor/notify";
+import { hoursOnlyChange, revisionCredit } from "@/lib/revision/hoursOnly";
 
 /**
  * The revision builder's server side (addendum A2).
@@ -35,7 +39,11 @@ const uuid = z.string().uuid();
  * `pay`: what wo_sync_contractor_pay answered — "ok:synced" (the painter's figure moved), "ok:live" (a painter has it; untouched), "ok:unchanged", or why it was skipped.
  * `colours`: what wo_sync_scope_colours answered — "ok:synced:N" (N colour rows moved onto the job), "ok:unchanged", or why it was skipped.
  */
-export type SaveScopeResult = { ok: true; pay?: string; colours?: string } | { ok: false; message: string };
+export type SaveScopeResult =
+  | { ok: true; pay?: string; colours?: string;
+      /** Tom, 12 Oct 2026: hours-only changes that went straight to the painter (or into the unsent job sheet) on this save. */
+      hoursOnly?: { withPainter: number; inSheet: number; failed: number } }
+  | { ok: false; message: string };
 
 const saveInput = z.object({
   estimateId: uuid,
@@ -138,10 +146,21 @@ export async function saveWorkingScopeAction(raw: unknown): Promise<SaveScopeRes
       syncContractorPay(supabase, parsed.data.estimateId),
       syncScopeColours(supabase, parsed.data.estimateId),
     ]);
+    // Tom, 12 Oct 2026: a change to the contractor's hours that leaves the
+    // customer's price alone needs no customer signature — it goes to the
+    // painter to approve (or into the job sheet when nobody has the job yet)
+    // the moment the scope is saved.
+    const hours = await draftRevision(supabase, parsed.data.estimateId, null, "hours_only");
+    const done = hours.ok ? hours.drafted : [];
+    const hoursOnly = {
+      withPainter: done.filter((d) => d.state === "with_painter").length,
+      inSheet: done.filter((d) => d.state === "in_sheet").length,
+      failed: done.filter((d) => d.state === "error").length,
+    };
     revalidatePath("/quote");
     revalidatePath("/pc/schedule");
-    if (colours.startsWith("ok:synced")) { revalidatePath("/portal/jobs"); revalidatePath("/account"); }
-    return { ok: true, pay: synced, colours };
+    if (colours.startsWith("ok:synced") || hoursOnly.withPainter + hoursOnly.inSheet > 0) { revalidatePath("/portal/jobs"); revalidatePath("/account"); }
+    return { ok: true, pay: synced, colours, hoursOnly };
   }
   if (s === "error:not_found") return { ok: false, message: "Open the revision again — the working scope isn't there yet." };
   if (s === "error:not_staff") return { ok: false, message: "Staff only." };
@@ -157,7 +176,8 @@ export type DraftedVariation = {
   token: string | null;
   /** The wo_variations row id — what a photo attaches to. */
   variationId: string | null;
-  state: "drafted" | "updated" | "cancelled" | "no_change" | "error";
+  /** with_painter / in_sheet: an hours-only change (no customer price) that skipped the customer (20270253). */
+  state: "drafted" | "updated" | "cancelled" | "no_change" | "with_painter" | "in_sheet" | "error";
   message?: string;
 };
 
@@ -174,13 +194,22 @@ export type DraftResult =
 export async function draftRevisionVariationsAction(raw: unknown): Promise<DraftResult> {
   const parsed = z.object({ estimateId: uuid, sourceVariationId: uuid.optional() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-  const estimateId = parsed.data.estimateId;
+  const supabase = await createClient();
   // Tom, 7 Oct 2026: the painter's request the builder was opened from. The
   // RPC writes the first addition INTO that row (once — it ignores the id
   // for credits and once the request is no longer 'raised').
-  const sourceVariationId = parsed.data.sourceVariationId ?? null;
+  return draftRevision(supabase, parsed.data.estimateId, parsed.data.sourceVariationId ?? null, "all");
+}
 
-  const supabase = await createClient();
+/**
+ * The drafting itself. `hours_only` (every working-scope save, Tom 12 Oct
+ * 2026) touches ONLY the changes that move the contractor's hours without
+ * moving the customer's price, and retires nothing — the customer's offer is
+ * the "Save & draft" button's business.
+ */
+async function draftRevision(
+  supabase: Db, estimateId: string, sourceVariationId: string | null, mode: "all" | "hours_only",
+): Promise<DraftResult> {
 
   // The request keeps the category the painter chose (Bogging, Stain blocking…)
   // when the office prices it — the RPC writes whatever category it is handed
@@ -200,6 +229,11 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
       .select("id, rate_card_id, status").eq("id", estimateId).maybeSingle(),
   ]);
   if (!scope) return { ok: false, message: "No working scope — open the revision first." };
+  // Tom, 12 Oct 2026: the job sheet the builder computed for this scope rides
+  // every draft, so the moment the change is approved with nobody on the job
+  // the painter's sheet can BECOME it (wo_fold_scope_into_sheet, 20270253).
+  const workingSheet = (scope.working_state as { woDoc?: unknown } | null)?.woDoc;
+  const sheet = workingSheet && typeof workingSheet === "object" && !Array.isArray(workingSheet) ? workingSheet : null;
   if (!estimate || estimate.status !== "accepted") {
     return { ok: false, message: "Revisions only exist on accepted estimates." };
   }
@@ -251,9 +285,12 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
     seenRefs.add(change.blockRef);
     const signedInc = signedDeltaFor(change.blockRef);
     const draftDelta = change.deltaIncCents - signedInc;
-    const draftHours = Math.max(0, Math.round(Math.abs(change.hoursDelta - signedHoursFor(change.blockRef)) * 100) / 100);
-    const credit = draftDelta < 0;
+    const hoursSigned = Math.round((change.hoursDelta - signedHoursFor(change.blockRef)) * 100) / 100;
+    const draftHours = Math.abs(hoursSigned);
+    // Fewer hours at the same customer price is still a credit to the painter.
+    const credit = revisionCredit(draftDelta, hoursSigned);
     const priceIncCents = Math.abs(draftDelta);
+    if (mode === "hours_only" && !hoursOnlyChange(priceIncCents, draftHours)) continue;
 
     const beyondSigned = signedInc !== 0;
     const comment = beyondSigned
@@ -281,6 +318,7 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
         // The tick rows this addition brings (20270193): applied to
         // wo_surfaces by the database the moment the customer signs.
         surfaces: credit ? [] : change.addedSurfaces,
+        ...(sheet ? { sheet } : {}),
       },
       p_priced_lines: pricedLines,
       p_hours: draftHours,
@@ -308,6 +346,7 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
 
   // Standing drafts whose block no longer differs: retire them.
   for (const v of existing) {
+    if (mode === "hours_only") break;
     if (v.status !== "priced" || seenRefs.has(v.revision_block_ref)) continue;
     const { data } = await supabase.rpc("wo_draft_revision_variation", {
       p_estimate_id: estimateId,
@@ -345,6 +384,31 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
     for (const d of drafted) {
       if (d.token) d.variationId = byRef.get(d.blockRef) ?? null;
     }
+  }
+
+  // Hours-only changes leave the customer's offer: approved without a
+  // signature and sent to the painter, or folded into the unsent job sheet.
+  const released: string[] = [];
+  for (const d of drafted) {
+    if (d.state !== "drafted" || !d.variationId || !hoursOnlyChange(d.priceIncCents, d.hours)) continue;
+    const { data, error } = await supabase.rpc("wo_apply_hours_only_change", { p_variation_id: d.variationId });
+    const s = String(data ?? "");
+    if (error || !s.startsWith("ok:")) {
+      if (error && !isMissingRpc(error.message, "wo_apply_hours_only_change")) {
+        reportError(error, { where: "revision.hoursOnly.rpc", extra: { estimateId, variationId: d.variationId } });
+      }
+      // Before 20270253 is live the row stays a draft — as it always was.
+      if (error && isMissingRpc(error.message, "wo_apply_hours_only_change")) continue;
+      d.state = "error"; d.message = error?.message ?? s;
+      continue;
+    }
+    d.token = null;
+    d.state = s === "ok:with_painter" ? "with_painter" : "in_sheet";
+    if (s === "ok:with_painter" && !d.credit) released.push(d.variationId);
+  }
+  if (released.length) {
+    const service = createServiceClient();
+    if (service) after(async () => { for (const id of released) await notifyVariationReleased(service, id); });
   }
 
   revalidatePath("/quote");

@@ -34,14 +34,21 @@ export type ScopeChangeRow = {
   customer_responded_at?: string | null;
   approved_at?: string | null;
   created_at?: string | null;
+  /** 20270253: folded into the job sheet before anyone had the job — part of the sheet, not a change beside it. */
+  in_sheet_at?: string | null;
 };
+
+/** Tom, 12 Oct 2026: a change made before the painter got the job IS the job sheet — never listed as a variation. */
+export function notInSheet<T extends { in_sheet_at?: string | null }>(r: T): boolean {
+  return !r.in_sheet_at;
+}
 
 /** The two statuses that mean "the customer said yes". */
 export const APPROVED_STATUSES: ReadonlySet<string> = new Set(["customer_approved", "contractor_accepted"]);
 
 export function scopeChangesFrom(rows: readonly ScopeChangeRow[]): ScopeChange[] {
   return rows
-    .filter((r) => APPROVED_STATUSES.has(r.status))
+    .filter((r) => APPROVED_STATUSES.has(r.status) && notInSheet(r))
     .map((r) => ({
       id: r.id,
       category: r.category,

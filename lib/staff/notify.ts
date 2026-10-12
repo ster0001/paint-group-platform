@@ -322,6 +322,48 @@ export async function staffVariationDeclinedByPainter(service: SupabaseClient, v
 }
 
 /**
+ * Tom, 12 Oct 2026: "send an email to info@ when a variation is approved by
+ * the customer". One alert per signing: the offer's rows share one token, so
+ * the guard is keyed on the first row signed and the message lists them all.
+ */
+export async function staffVariationApprovedByCustomer(service: SupabaseClient, token: string): Promise<StaffAlertOutcome> {
+  try {
+    const { data, error } = await service
+      .from("wo_variations")
+      .select("id, comment, price_cents, credit, signed_name, status, work_orders(id, wo_ref, estimate_id, estimates(title, sent_snapshot))")
+      .eq("customer_token", token)
+      .in("status", ["customer_approved", "contractor_accepted"])
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as {
+      id: string; comment: string | null; price_cents: number | null; credit: boolean; signed_name: string | null;
+      work_orders: WoJoin | null;
+    }[];
+    const wo = rows[0]?.work_orders;
+    if (!wo) return "error";
+    const job = jobTitle(wo.estimates, wo.wo_ref);
+    const who = (rows.find((r) => r.signed_name)?.signed_name ?? "The customer").trim();
+    const net = rows.reduce((s, r) => s + (r.credit ? -(r.price_cents ?? 0) : (r.price_cents ?? 0)), 0);
+    const amount = (net < 0 ? "−" : "") + money(Math.abs(net));
+    const comment = rows
+      .map((r) => `• ${r.credit ? "−" : "+"}${money(r.price_cents)} — ${(r.comment ?? "").trim() || (r.credit ? "Credit" : "Addition")}`)
+      .join("\n");
+    return notifyStaff(service, {
+      key: "office_variation_approved", entityId: rows[0].id,
+      subject: `Customer approved a change — ${job}`,
+      message: `${who} has signed and approved ${amount} inc GST of changes on ${wo.wo_ref} (${job}):\n\n${comment}`,
+      link: `${siteUrl()}/pc/wo/${wo.id}`,
+      templates: { subject: "officeVariationApprovedSubject", body: "officeVariationApprovedBody" },
+      vars: { who, job, wo_ref: wo.wo_ref, amount, comment },
+      estimateId: wo.estimate_id,
+    });
+  } catch (e) {
+    reportError(e, { where: "staffVariationApprovedByCustomer", extra: { token: token.slice(0, 6) } });
+    return "error";
+  }
+}
+
+/**
  * Tom, 9 Oct 2026: a painter wrote in a project's Messages box. The PC work
  * item ("<painter> replied on <job>") is the record and clears when someone
  * reads the thread; this is the OPTIONAL email/text, for whoever ticks

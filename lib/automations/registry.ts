@@ -647,6 +647,16 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Once per variation.",
   },
   {
+    key: "office_variation_approved", name: "Customer approved a change", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultChannel: "email", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "Tom, 12 Oct 2026: the customer signs the changes from Revise scope on their signing link. Goes to every staff login with Change approved ticked under Staff logins.",
+    templates: [
+      { field: "officeVariationApprovedSubject", label: "Email subject", kind: "subject", placeholders: ["{{who}}", "{{job}}", "{{wo_ref}}", "{{amount}}", "{{comment}}", "{{link}}"] },
+      { field: "officeVariationApprovedBody", label: "Message", kind: "body", placeholders: ["{{who}}", "{{job}}", "{{wo_ref}}", "{{amount}}", "{{comment}}", "{{link}}"] },
+    ],
+    guard: "Once per signing — one alert for the whole offer, however many changes are in it.",
+  },
+  {
     key: "office_update_drafted", name: "Customer update drafted from the painter's ticks", audience: "office", channels: ["email", "sms"], kind: "automatic",
     defaultChannel: "both", sendKind: "office_alert", quietExempt: false, capExempt: true,
     trigger: "Tom, 7 Oct 2026: a painter ticks work off (or the evening sweep catches it) and a customer update is drafted for the day — someone in the office confirms and sends it.",
