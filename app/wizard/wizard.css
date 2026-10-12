@@ -2120,7 +2120,8 @@
 .wz .wz-next { margin: 28px 0 18px; padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; }
 .wz .wz-next h2 { margin: 0 0 12px; font-size: 17px; font-weight: 600; color: var(--heading); }
 .wz .wz-next ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
-.wz .wz-next li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; }
+/* minmax(0, 1fr): a bare 1fr cannot shrink below an unbreakable word, so a long email ran out of the card on a phone */
+.wz .wz-next li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; overflow-wrap: anywhere; }
 .wz .wz-next li i { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-family: var(--wz-mono); font-size: 13px; font-weight: 600; border: 1.5px solid var(--line-strong); color: var(--muted); }
 .wz .wz-next li.d i { background: var(--cyan); border-color: var(--cyan); color: #fff; font-family: var(--wz-sans); }
 .wz .wz-next li.c i { border-color: var(--cyan); color: var(--cyan); }
@@ -2225,7 +2226,7 @@
 
 /* Sent to your estimator — the Booked layout */
 .wz .wz-sent .wz-next .wz-steps-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
-.wz .wz-sent .wz-next .wz-steps-list li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; }
+.wz .wz-sent .wz-next .wz-steps-list li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; overflow-wrap: anywhere; }
 .wz .wz-sent .wz-next .wz-step-n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-family: var(--wz-mono); font-size: 13px; font-weight: 600; border: 1.5px solid var(--cyan); color: var(--cyan); background: none; }
 .wz .wz-sent .wz-next .wz-steps-list li b { display: block; font-size: 16px; color: var(--heading); }
 .wz .wz-sent .wz-next .wz-steps-list li span > span { display: block; margin-top: 2px; font-size: 15px; line-height: 1.4; color: var(--muted); }
