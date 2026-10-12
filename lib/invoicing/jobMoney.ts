@@ -66,6 +66,8 @@ export type JobMoneyInput = {
   contractorInvoices: readonly DeriveContractorInvoice[];
   materials: MaterialsInput;
   now: Date;
+  /** Settings → paymentTermsDays (default 7): the Send confirm's default due date. */
+  paymentTermsDays?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -116,6 +118,9 @@ export type SlotLead = {
   /** The invoice as a whole-number share of the contract — "Deposit 50%". */
   pctOfContract: number | null;
   views: number;
+  /** Drafts only: the due date the Send confirm offers — the payment terms from today, or the day
+   *  before the start when the job starts sooner (§4.3). Null once sent (R13: locked). */
+  suggestedDueOn: string | null;
 };
 
 /** The To-chase sections, in page order; `paid_in_full` leaves the active views (R9). */
@@ -174,6 +179,18 @@ const UNDER_WAY: ReadonlySet<Lane> = new Set(["in_progress", "qa", "walkthrough"
 const worst = (states: readonly SlotState[]): SlotState =>
   states.reduce<SlotState>((w, s) => (STATE_RANK[s] < STATE_RANK[w] ? s : w), "none");
 
+/** The Send confirm's default due date (§4.3): terms from today, or the day before a sooner start. */
+export function suggestedDue(today: string, startDate: string | null, termsDays: number): string {
+  const plus = (ymd: string, n: number) => {
+    const [y, m, d] = ymd.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);   // pure calendar arithmetic on a Melbourne day
+  };
+  const byTerms = plus(today, termsDays);
+  if (!startDate || startDate <= today) return byTerms;
+  const dayBefore = plus(startDate, -1);
+  return dayBefore < byTerms ? (dayBefore < today ? today : dayBefore) : byTerms;
+}
+
 /** Drafted order: issued date, else the day it was drafted, then the timestamp. */
 const draftedKey = (i: JobMoneyInvoice) => `${i.issuedOn ?? i.createdAt.slice(0, 10)}|${i.createdAt}`;
 
@@ -214,6 +231,7 @@ export function jobMoneyRow(
   jobInvoices: readonly JobMoneyInvoice[],
   payments: readonly DerivePayment[],
   now: Date,
+  paymentTermsDays = 7,
 ): JobMoneyRow {
   const today = melbourneToday(now);
   const lane: Lane = job.woStage ? laneFor(job.woStage, job.startDate, today) : "offered";
@@ -244,6 +262,7 @@ export function jobMoneyRow(
       dueInDays: inv.dueOn ? daysBetween(today, inv.dueOn) : null,
       pctOfContract: contractCents > 0 ? Math.round((inv.totalIncCents / contractCents) * 100) : null,
       views: inv.views ?? 0,
+      suggestedDueOn: inv.status === "draft" ? suggestedDue(today, job.startDate, paymentTermsDays) : null,
     };
   };
 
@@ -419,7 +438,7 @@ export function jobMoneyPage(input: JobMoneyInput): JobMoneyPage {
     const list = byJob.get(inv.estimateId);
     if (list) list.push(inv); else byJob.set(inv.estimateId, [inv]);
   }
-  const rows = input.jobs.map((j) => jobMoneyRow(j, byJob.get(j.estimateId) ?? [], payments, now)).sort(compareRows);
+  const rows = input.jobs.map((j) => jobMoneyRow(j, byJob.get(j.estimateId) ?? [], payments, now, input.paymentTermsDays)).sort(compareRows);
   const active = rows.filter((r) => r.section !== "paid_in_full");
 
   const tiles = dashboardTiles(input.invoices, payments, now);
@@ -557,3 +576,29 @@ export function headlineParts(h: HeadlineFigures, fmt: (cents: number) => string
   });
   return parts;
 }
+
+// ---------------------------------------------------------------------------
+// Step 3 — what the action sheets preview. Previews only: the server computes
+// and bounds every figure it stores (invoice_set_deposit, invoice_record_payment).
+// ---------------------------------------------------------------------------
+
+/** "$1,234.56" / "1234.5" / "1,234" → cents; null when it isn't a positive amount. */
+export function parseDollarsToCents(text: string): number | null {
+  const clean = text.replace(/[$,\s]/g, "");
+  if (!/^\d+(\.\d{0,2})?$/.test(clean)) return null;
+  const cents = Math.round(Number(clean) * 100);
+  return cents > 0 ? cents : null;
+}
+
+/** The deposit adjuster's line: the deposit, its share of the contract, what is left for later. */
+export function depositPreview(contractCents: number, pick: { pct: number } | { cents: number }): { depositCents: number; pctOfContract: number; leavesCents: number } {
+  const depositCents = "pct" in pick ? Math.round((contractCents * pick.pct) / 100) : Math.min(pick.cents, contractCents);
+  return {
+    depositCents,
+    pctOfContract: contractCents > 0 ? Math.round((depositCents * 1000) / contractCents) / 10 : 0,
+    leavesCents: contractCents - depositCents,
+  };
+}
+
+/** Cents as an amount box shows them: 786540 → "7865.40" (the inverse of parseDollarsToCents). */
+export const centsAsInput = (cents: number): string => (cents / 100).toFixed(2);

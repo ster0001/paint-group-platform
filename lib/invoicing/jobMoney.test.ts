@@ -11,7 +11,7 @@ import { melbourneInstant } from "@/lib/time/businessHours";
 import type { DeriveContractorInvoice, DerivePayment } from "./derive";
 import type { WoStage } from "@/lib/workorder/stages";
 import {
-  compareRows, headlineParts, headlineSentences, matchRows, tableFilter, totalCollectableCents, totalNowCents, isLeftoverDraft, jobMoneyPage, jobMoneyRow, slotOf,
+  compareRows, depositPreview, headlineParts, parseDollarsToCents, suggestedDue, headlineSentences, matchRows, tableFilter, totalCollectableCents, totalNowCents, isLeftoverDraft, jobMoneyPage, jobMoneyRow, slotOf,
   type JobMoneyInput, type JobMoneyInvoice, type JobMoneyJob,
 } from "./jobMoney";
 
@@ -309,5 +309,37 @@ describe("Step 2 — what the page reads off a row", () => {
     expect(parts.filter((p) => p.tone === "r").map((p) => p.text.trim())).toEqual([
       "1 customer invoice is overdue, $2,000.00.", "1 contractor invoice is past the pay-by date.",
     ]);
+  });
+});
+
+describe("Step 3 — the Send confirm's default due date (§4.3)", () => {
+  it("7 days from today, or the day before a sooner start", () => {
+    expect(suggestedDue("2026-10-12", null, 7)).toBe("2026-10-19");
+    expect(suggestedDue("2026-10-12", "2026-10-30", 7)).toBe("2026-10-19");   // start is later: terms win
+    expect(suggestedDue("2026-10-12", "2026-10-15", 7)).toBe("2026-10-14");   // starts sooner: the day before
+    expect(suggestedDue("2026-10-12", "2026-10-13", 7)).toBe("2026-10-12");   // starts tomorrow: due today
+    expect(suggestedDue("2026-10-12", "2026-10-01", 7)).toBe("2026-10-19");   // already under way: terms
+    expect(suggestedDue("2026-12-28", null, 7)).toBe("2027-01-04");           // across the year
+  });
+  it("drafts carry it; sent invoices don't (R13: the due date locks at send)", () => {
+    expect(row("kite").slots.deposit.lead?.suggestedDueOn).toBe("2026-10-19");
+    expect(row("kestrel").slots.deposit.lead?.suggestedDueOn).toBeNull();
+  });
+});
+
+describe("Step 3 — sheet previews (the server still decides)", () => {
+  it("parses what an office types", () => {
+    expect(parseDollarsToCents("$7,865.40")).toBe(786_540);
+    expect(parseDollarsToCents("1234.5")).toBe(123_450);
+    expect(parseDollarsToCents("1,234")).toBe(123_400);
+    expect(parseDollarsToCents("0")).toBeNull();
+    expect(parseDollarsToCents("12.345")).toBeNull();
+    expect(parseDollarsToCents("abc")).toBeNull();
+  });
+  it("deposit preview: 30% of the contract, and what is left — same rounding as invoice_set_deposit", () => {
+    expect(depositPreview(1_573_079, { pct: 30 })).toEqual({ depositCents: 471_924, pctOfContract: 30, leavesCents: 1_101_155 });
+    expect(depositPreview(1_573_079, { pct: 50 }).depositCents).toBe(786_540);   // the live 50% draft
+    expect(depositPreview(100_000, { cents: 33_333 })).toEqual({ depositCents: 33_333, pctOfContract: 33.3, leavesCents: 66_667 });
+    expect(depositPreview(100_000, { cents: 500_000 }).depositCents).toBe(100_000);
   });
 });

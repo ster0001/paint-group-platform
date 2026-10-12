@@ -69,3 +69,34 @@ Brief: `docs/briefs/claude-code-brief-payments-merge.md`. Branch `feat/payments-
   - Help file: the page is not live until Step 8, which writes the help from the real screens.
   - The headline follows the brief (a zero clause is dropped) rather than the mockup's "Every booked job has its deposit in."
   - Show paid jobs appears on By job stage and All jobs, not on To chase, which never lists paid jobs.
+
+## Step 3 — quick actions (13 Oct 2026)
+- ⚑P2 ruled by Tom (13 Oct): **the receipt goes when the 8-second Undo window closes.**
+- Migration `20270256000000_payments_quick_actions.sql` is additive: payment status `reversed`; nullable `payments.reversed_at/by/reversal_reason/receipt_sent_at/invoice_status_before`; seven Undo step-back rows in `invoice_transitions` (mirrored in `stateMachine.ts`, contract-tested); new definer RPCs; `create or replace invoice_issue` (keeps a draft's due date when it is today or later). Applied on C1, read-back 12/12. **LIVE on production** (ledger 12 Oct 20:39 UTC; production read-back 12/12 matched). Production check, read-only: 0 of 48 drafts carry a due date, so the `invoice_issue` change does not touch the current page.
+  - New RPCs: `invoice_record_full_payment`, `invoice_payment_undo`, `payment_claim_receipt` (service), `invoice_set_deposit`, `invoice_set_draft_due`, `invoice_change_amount`.
+  - Grant: `invoice_draft_deposit` regains authenticated (its staff guard is from 20270255).
+- How the rules came out:
+  - One press: the amount is the balance, computed in SQL under the row lock, so a second press answers `already_paid`.
+  - Undo:
+    - The payment row is kept as `reversed` and the invoice steps back, to its pre-payment status where recorded, else derived from events.
+    - A `payment_reversed` event is written.
+    - Refused after 10 minutes, or once the receipt is claimed.
+  - Receipt: `after()` waits for the window plus 1.5 s, then `payment_claim_receipt` stamps it and the email goes. A claim and an Undo can never both happen.
+  - Cash against a draft issues it without sending. The "Send notification of payment" switch (⚑P4, default on) off sends no receipt.
+  - Send confirm: due date defaults to 7 days from today, or the day before a sooner start. It warns when the date falls on or after the start, and locks once sent.
+  - Deposit adjust: 10/20/30/50% (`settings.invoicing.depositOptionsPct`, ⚑P5) or a dollar amount; the server computes the cents.
+  - Change amount: void and reissue in one transaction. The UI arrives with the job panel (Step 7, as the brief places it); the action `changeDepositAction` exists now.
+  - Create deposit / create final on noinv and uninv rows.
+- Settings values, read with fallbacks in `lib/invoicing/settings.ts` `paymentsSettings`: `depositOptionsPct`, `undoSeconds` (8), `notifyPaymentDefault` (true), `paymentTermsDays`. No Settings UI yet: listed for the final PR.
+- Code:
+  - `app/invoicing/actions.ts`: `quickPayAction`, `undoPaymentAction`, `sendWithDueAction`, `setDepositAction`, `changeDepositAction`, `createDepositAction`; `recordPaymentAction` gains `notify`; receipts go through `sendClaimedReceipt`.
+  - `app/invoicing/payments/ActionsClient.tsx`: provider, sheets, toast, row buttons, deposit adjuster. It renders inside `.pm` so the scoped styles reach it.
+  - `lib/invoicing/jobMoney.ts`: `suggestedDue`, `parseDollarsToCents`, `depositPreview`, `centsAsInput`.
+- Gate:
+  - Unit 3,543 passing. Typecheck clean. Lint within the CI ceiling.
+  - e2e `payments-actions` 8/8 + `payments-page` 4/4 on C1.
+  - Regression 22/22: `invoicing`, `invoicing-read-failure`, `ledger-parity`, `invoice-final-variation-once`, `dashboard-invoicing`, `portal-money`.
+- Fixed while testing:
+  - The page fixture had set `work_orders.status` to a stage name. That enum differs, so the update failed silently and Step 2's stage-filter check passed for the wrong reason. Shared fixture now: `e2e/fixtures/paymentsJobs.ts`.
+  - The fixture's dates are now Melbourne days.
+- Noted, not changed: a CRM "invoice paid" event emitted at the payment stays in the customer's CRM history after an Undo. The CRM facts recompute from the invoice status, so the customer's state is right.

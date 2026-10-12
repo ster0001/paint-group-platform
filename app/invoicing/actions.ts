@@ -11,6 +11,8 @@ import { staffInvoicePaid } from "@/lib/staff/notify";
 import { COST_DOCS_BUCKET, isOwnReceiptPath } from "@/lib/costs/store";
 import { sniffKind } from "@/lib/extract/normalise";
 import { notifyExpenseDecided } from "@/lib/contractor/notify";
+import { reportError } from "@/lib/monitoring/report";
+import { paymentsSettings } from "@/lib/invoicing/settings";
 
 /**
  * Invoicing actions — thin, zod-validated translations over the Step 1/2
@@ -59,12 +61,25 @@ const WORDING: Record<string, string> = {
   bad_state: "This cost isn't in the right state for that.",
   already_matched: "That cost is already matched to a job.",
   bad_paid_with: "Pick how it was paid.",
+  // Payments merge Step 3 — the quick actions
+  already_paid: "That invoice is already paid — nothing was recorded twice.",
+  not_reversible: "That payment can't be undone any more.",
+  stripe_refund_only: "A card payment is reversed by a refund in Stripe, not here.",
+  receipt_sent: "The receipt has already gone to the customer, so this can't be undone here — record a correction instead.",
+  undo_expired: "It's too late to undo that payment here.",
+  due_in_past: "Pick a due date from today on.",
+  deposit_only: "Only a deposit can be changed this way.",
+  not_changeable: "Only a sent, unpaid deposit can be changed.",
+  has_payments: "Money has already been paid on it — it can't be changed now.",
+  same_amount: "That's the amount it already is.",
+  bad_mode: "Pick a percentage or an amount.",
   call_back_hold: "Reminders are paused because a call back is open — they resume when it is closed.",
   reason_too_long: "Keep the reason under 300 characters.",
 };
 
 function revalidateAll(estimateId?: string, invoiceId?: string) {
   revalidatePath("/invoicing");
+  revalidatePath("/invoicing/payments");
   if (estimateId) revalidatePath(`/invoicing/job/${estimateId}`);
   if (invoiceId) revalidatePath(`/invoicing/inv/${invoiceId}`);
 }
@@ -144,6 +159,8 @@ export async function recordPaymentAction(raw: unknown): Promise<InvoicingResult
       // Tom, 1 Oct: the day the money actually arrived, not the day it was
       // typed in. A bare yyyy-mm-dd Melbourne calendar day; absent = today.
       receivedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      // ⚑P4 "Send notification of payment": off records the money and emails no one.
+      notify: z.boolean().default(true),
     })
     .safeParse(raw);
   if (!p.success) return { ok: false, message: "Check the amount and date and try again." };
@@ -157,9 +174,10 @@ export async function recordPaymentAction(raw: unknown): Promise<InvoicingResult
       p_received_on: p.data.receivedOn ?? null,
     },
     { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId },
-    "Payment recorded — receipt on its way.",
+    p.data.notify ? "Payment recorded — receipt on its way." : "Payment recorded. Nothing was sent to the customer.",
   );
   if (result.ok) {
+    const notify = p.data.notify;
     // Receipt PDF + email ride behind the response (§6.7) — recording a
     // payment on the phone must not wait for Chromium.
     const invoiceId = p.data.invoiceId;
@@ -172,11 +190,124 @@ export async function recordPaymentAction(raw: unknown): Promise<InvoicingResult
       const paymentId = (data as { id: string } | null)?.id;
       if (!paymentId) return;
       await ensureReceiptPdf(paymentId);
-      await sendReceiptEmail(service, paymentId);
+      if (notify) await sendClaimedReceipt(service, paymentId);
       await staffInvoicePaid(service, paymentId); // Tom, 10 Sep: staff alert
     });
   }
   return result;
+}
+
+/**
+ * Send a payment's receipt exactly once, and only while the payment stands:
+ * `payment_claim_receipt` stamps it first (Undo is refused from then on), so a
+ * receipt and an Undo can never both happen.
+ */
+async function sendClaimedReceipt(service: NonNullable<ReturnType<typeof createServiceClient>>, paymentId: string): Promise<void> {
+  const { data, error } = await service.rpc("payment_claim_receipt", { p_payment_id: paymentId });
+  if (error) { reportError(error, { where: "sendClaimedReceipt", extra: { paymentId } }); return; }
+  if (data !== "ok:claimed") return;   // undone in the window, or already sent
+  await sendReceiptEmail(service, paymentId);
+}
+
+// ---- Payments merge Step 3: the quick actions (brief §4.3) ----------------------
+
+/** The Undo window and the other ⚑ defaults, from Settings → Invoicing. */
+async function loadPaymentsSettings() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("settings").select("key, value").eq("key", "invoicing");
+  if (error) reportError(error, { where: "loadPaymentsSettings", bestEffort: true });
+  return paymentsSettings((data ?? []) as { key: string; value: unknown }[]);
+}
+
+/**
+ * "✓ Paid $X" — one press: the full balance, bank transfer, today. The amount
+ * is the server's (invoice_record_full_payment), so a second press records
+ * nothing. The receipt waits for the Undo window to close (⚑P2, Tom 13 Oct).
+ */
+export async function quickPayAction(raw: unknown): Promise<InvoicingResult & { undoSeconds?: number }> {
+  const p = invoiceRef.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+  const settings = await loadPaymentsSettings();
+  const result = await call(
+    "invoice_record_full_payment",
+    { p_invoice_id: p.data.invoiceId, p_method: "bank_transfer" },
+    { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId },
+    "Paid in full by bank transfer.",
+  );
+  if (!result.ok || !result.id) return result;
+  const paymentId = result.id;
+  after(async () => {
+    await new Promise((r) => setTimeout(r, settings.undoSeconds * 1000 + 1500));
+    const service = createServiceClient();
+    if (!service) return;
+    const { data, error } = await service.from("payments").select("status").eq("id", paymentId).maybeSingle();
+    if (error) { reportError(error, { where: "quickPayAction.after", extra: { paymentId } }); return; }
+    if ((data as { status: string } | null)?.status !== "succeeded") return;   // undone in the window
+    await ensureReceiptPdf(paymentId);
+    await sendClaimedReceipt(service, paymentId);
+    await staffInvoicePaid(service, paymentId);
+  });
+  return { ...result, undoSeconds: settings.undoSeconds };
+}
+
+/** Undo — the payment row is kept as `reversed`, the invoice steps back, an event is written. */
+export async function undoPaymentAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({ paymentId: uuid, estimateId: uuid }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+  return call("invoice_payment_undo", { p_payment_id: p.data.paymentId, p_reason: "undo" },
+    { estimateId: p.data.estimateId }, "Undone — that payment no longer counts.");
+}
+
+/** Send a draft with the due date chosen in the confirm (R13: editable until now, locked after). */
+export async function sendWithDueAction(raw: unknown): Promise<InvoicingResult> {
+  const p = invoiceRef.extend({ dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).merge(sendOptions.partial()).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Pick a due date and try again." };
+  const ref = { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId };
+  const due = await call("invoice_set_draft_due", { p_invoice_id: p.data.invoiceId, p_due_on: p.data.dueOn }, ref);
+  if (!due.ok) return due;
+  const issued = await call("invoice_issue", { p_invoice_id: p.data.invoiceId }, ref);
+  if (!issued.ok) return issued;
+  return finishSend(p.data.invoiceId, p.data.estimateId, "Sent", p.data.message ?? "", p.data.via ?? "email");
+}
+
+const depositInput = invoiceRef.extend({
+  mode: z.enum(["percent", "fixed"]),
+  // A percent, or the operator's dollar figure in whole cents — intent; the server computes and bounds.
+  value: z.number().positive().max(100_000_000),
+});
+
+/** Deposit adjust on a draft — 10 / 20 / 30 / 50 % or an amount; the server computes the cents. */
+export async function setDepositAction(raw: unknown): Promise<InvoicingResult> {
+  const p = depositInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Check the amount and try again." };
+  return call("invoice_set_deposit", { p_invoice_id: p.data.invoiceId, p_mode: p.data.mode, p_value: p.data.value },
+    { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId }, "Deposit changed.");
+}
+
+/** Change a SENT, unpaid deposit: void + reissue in one transaction, then send the corrected one (⚑P6). */
+export async function changeDepositAction(raw: unknown): Promise<InvoicingResult> {
+  const p = depositInput.extend({ reason: z.string().max(300).default("") }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Check the amount and try again." };
+  const changed = await call("invoice_change_amount",
+    { p_invoice_id: p.data.invoiceId, p_mode: p.data.mode, p_value: p.data.value, p_reason: p.data.reason },
+    { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId });
+  if (!changed.ok || !changed.id) return changed;
+  return finishSend(changed.id, p.data.estimateId, "The old invoice is cancelled and the corrected one is issued", "", "email");
+}
+
+/** "Create deposit invoice" on a booked job with none — the same draft an online acceptance makes. */
+export async function createDepositAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({ estimateId: uuid }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("invoice_draft_deposit", { p_estimate_id: p.data.estimateId, p_auto: "payments" });
+  if (error) { reportError(error, { where: "createDepositAction", extra: { estimateId: p.data.estimateId } }); return { ok: false, message: "Couldn't draft the deposit just now." }; }
+  const r = String(data ?? "");
+  revalidateAll(p.data.estimateId);
+  if (r === "drafted") return { ok: true, message: "Deposit invoice drafted." };
+  if (r === "exists") return { ok: true, message: "This job already has a deposit invoice." };
+  const reason = r.replace("error:", "");
+  return { ok: false, message: WORDING[reason] ?? `Couldn't do that (${reason || "unknown"}).` };
 }
 
 /**

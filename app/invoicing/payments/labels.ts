@@ -8,6 +8,7 @@ import type { Lane } from "@/lib/workorder/stages";
 import type { JobMoneyRow, Slot, SlotKey, SlotLead, SlotState } from "@/lib/invoicing/jobMoney";
 import type { InvoiceKind } from "@/lib/invoicing/derive";
 import { fmt2 } from "../format";
+import type { ActionSpec, PayTarget } from "./ActionsClient";
 
 export const money = fmt2;
 
@@ -113,4 +114,32 @@ export function railLabel(r: JobMoneyRow): string {
     later: "later", uninv: "not invoiced", none: "none",
   };
   return `Job stage ${STAGE_NAME[r.lane]}. Deposit ${say[r.slots.deposit.state]}. Final ${say[r.slots.final.state]}.`;
+}
+
+/** What a row's buttons act on (Step 3) — chosen here, on the server, from the row alone. */
+export function actionSpec(r: JobMoneyRow, jobHref: string): ActionSpec {
+  const order: SlotKey[] = ["deposit", "progress", "final"];
+  const leads = order.map((k) => ({ k, lead: r.slots[k].lead })).filter((x): x is { k: SlotKey; lead: SlotLead } => x.lead !== null);
+  const payable: PayTarget[] = leads.map(({ lead }) => ({
+    invoiceId: lead.invoiceId, balanceCents: lead.balanceCents, draft: !lead.sent,
+    label: `${KIND_NAME[lead.kind]} invoice, ${money(lead.balanceCents)} owing${lead.sent ? "" : " (not sent)"}`,
+  }));
+  const dep = r.slots.deposit.lead;
+  const n = r.next;
+  const primary: ActionSpec["primary"] =
+    !n ? { kind: "open" }
+    : n.state === "noinv" ? { kind: "create_deposit" }
+    : n.state === "uninv" ? { kind: "create_final", uninvoicedCents: r.uninvoicedCents }
+    : !n.lead ? { kind: "open" }
+    : n.lead.sent ? { kind: "pay", invoiceId: n.lead.invoiceId, balanceCents: n.lead.balanceCents }
+    : { kind: "send", invoiceId: n.lead.invoiceId, kindName: KIND_NAME[n.lead.kind], balanceCents: n.lead.balanceCents,
+        suggestedDueOn: n.lead.suggestedDueOn, isDeposit: n.slot === "deposit" };
+  const customer = r.customer || "Customer on the work order";
+  return {
+    estimateId: r.estimateId, address: r.address, customer,
+    first: (r.customer ?? "").trim().split(/\s+/)[0] || "the customer",
+    jobHref, contractCents: r.contractCents, startDate: r.startDate, startText: startText(r),
+    primary, payable,
+    depositDraft: dep && dep.kind === "deposit" && !dep.sent ? { invoiceId: dep.invoiceId, totalCents: dep.balanceCents } : null,
+  };
 }

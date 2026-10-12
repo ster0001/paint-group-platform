@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, test } from "./helpers";
-import { contractorIdForEmail, createLoopFixture, destroyLoopFixture, serviceClient, type LoopFixture } from "./fixtures/woLoop";
+import { serviceClient } from "./fixtures/woLoop";
+import { cleanupPaymentsJobs, isoDay, makePaymentsJob, type FixtureInvoice, type PaymentsJob } from "./fixtures/paymentsJobs";
 
 /**
  * Payments merge, Step 2 — the page shell and the Customers block
@@ -22,38 +23,13 @@ const db: SupabaseClient | null = serviceClient();
 const stamp = `PM${Date.now().toString(36).slice(-6).toUpperCase()}`;
 const PAGE = "/invoicing/payments";
 
-type Made = { f: LoopFixture; invoiceIds: string[] };
-const made: Made[] = [];
-const iso = (offsetDays: number) => new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+const made: PaymentsJob[] = [];
+const iso = isoDay;
 
-async function job(label: string, contractCents: number, stage: string, invoices: Array<{ kind: string; status: string; total: number; due: string | null; paid?: boolean }>): Promise<Made> {
-  const cid = await contractorIdForEmail(db!, contractor!.email);
-  const f = await createLoopFixture(db!, cid!, [{ heading: "Front", labels: ["Walls"] }]);
-  await db!.from("estimates").update({
-    accepted_name: `${label} Customer`, accepted_total_cents: contractCents, total_cents: contractCents,
-    sent_snapshot: { jobAddress: `${stamp} ${label} St, Testville` },
-  }).eq("id", f.estimateId);
-  await db!.from("work_orders").update({ stage, status: stage }).eq("id", f.workOrderId);
-  const invoiceIds: string[] = [];
-  for (const [n, i] of invoices.entries()) {
-    const issued = i.status !== "draft";
-    const { data, error } = await db!.from("invoices").insert({
-      estimate_id: f.estimateId, work_order_id: f.workOrderId, kind: i.kind, status: i.status,
-      number: issued ? `INV-${stamp}${n}${label.slice(0, 2)}` : null,
-      subtotal_ex_cents: Math.round(i.total / 1.1), gst_cents: i.total - Math.round(i.total / 1.1), total_inc_cents: i.total, amount_cents: i.total,
-      issued_on: issued ? iso(-20) : null, due_on: i.due,
-      token: `e2e-pm-${stamp}-${label}-${n}-${Math.random().toString(36).slice(2, 10)}`,
-    }).select("id").single();
-    if (error) throw error;
-    invoiceIds.push(data!.id as string);
-    if (i.paid) {
-      const { error: pe } = await db!.from("payments").insert({ invoice_id: data!.id, amount_cents: i.total, method: "bank_transfer", status: "succeeded", paid_on: iso(-10) });
-      if (pe) throw pe;
-    }
-  }
-  const m = { f, invoiceIds };
-  made.push(m);
-  return m;
+async function job(label: string, contractCents: number, stage: string, invoices: FixtureInvoice[]): Promise<PaymentsJob> {
+  const j = await makePaymentsJob(db!, contractor!.email, stamp, label, { contractCents, stage, invoices });
+  made.push(j);
+  return j;
 }
 
 test.describe("Payments page — staff only", () => {
@@ -87,12 +63,7 @@ test.describe("Payments page — the Customers block", () => {
 
   test.afterAll(async () => {
     if (!db || process.env.E2E_KEEP) return;
-    for (const m of made) {
-      await db.from("payments").delete().in("invoice_id", m.invoiceIds);
-      await db.from("invoice_events").delete().in("invoice_id", m.invoiceIds);
-      await db.from("invoices").delete().in("id", m.invoiceIds);
-      await destroyLoopFixture(db, m.f);
-    }
+    await cleanupPaymentsJobs(db, made);
   });
 
   test("headline, four blocks, seven stages; overdue first; paid only under Show paid", async ({ page }) => {

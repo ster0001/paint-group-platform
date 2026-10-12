@@ -3,6 +3,10 @@ import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { LANES, type Lane } from "@/lib/workorder/stages";
 import { TABLE_FILTERS, headlineParts, jobMoneyPage, matchRows, type TableFilter } from "@/lib/invoicing/jobMoney";
+import { melbourneToday } from "@/lib/invoicing/derive";
+import { paymentsSettings } from "@/lib/invoicing/settings";
+import { reportError } from "@/lib/monitoring/report";
+import { PaymentsUiProvider } from "./ActionsClient";
 import ReadFailureNotice from "../ReadFailureNotice";
 import { loadJobMoneyInput } from "../jobMoneyData";
 import { BoardView, ChaseView, TableView } from "./Views";
@@ -11,6 +15,8 @@ import { STAGE_NAME, longToday, money, plural } from "./labels";
 import "./payments.css";
 
 export const dynamic = "force-dynamic";
+/** One-press "✓ Paid" sends its receipt after the Undo window (⚑P2), behind the response. */
+export const maxDuration = 60;
 
 /**
  * Payments — one page for customers, contractors and materials (payments-merge
@@ -56,12 +62,17 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
   const now = new Date();
   const supabase = await createClient();
-  const { input, failure } = await loadJobMoneyInput(supabase, now);
+  const [{ input, failure }, settingsRes] = await Promise.all([
+    loadJobMoneyInput(supabase, now),
+    supabase.from("settings").select("key, value").eq("key", "invoicing"),
+  ]);
+  if (settingsRes.error) reportError(settingsRes.error, { where: "PaymentsPage.settings", bestEffort: true });
+  const settings = paymentsSettings((settingsRes.data ?? []) as { key: string; value: unknown }[]);
   if (!input) {
     const reason = failure ?? { headline: "The payments could not be loaded — this is not an empty ledger.", detail: "Reload the page; if it keeps happening, the error has been reported." };
     return <div className="pm"><main className="pm-wrap"><ReadFailureNotice failure={reason} /></main></div>;
   }
-  const page = jobMoneyPage(input);
+  const page = jobMoneyPage({ ...input, paymentTermsDays: settings.paymentTermsDays });
   const { customers, contractors, materials, activity } = page.blocks;
   const rows = matchRows(page.rows, { q, lane: stage });
   const notPaid = rows.filter((r) => r.section !== "paid_in_full");
@@ -80,6 +91,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="pm">
+    {/* Inside .pm: the sheets and the toast the provider renders take the page's scoped styles. */}
+    <PaymentsUiProvider settings={{ depositOptionsPct: settings.depositOptionsPct, notifyPaymentDefault: settings.notifyPaymentDefault, today: melbourneToday(now) }}>
       <main className="pm-wrap">
         <section className="lead">
           <h1 data-testid="pm-headline">
@@ -136,6 +149,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         <section hidden={tab !== "mat"}><div className="empty">Supplier invoices and receipts move here in Step 6. Until then they stay on the current Payables tab.</div></section>
         <section hidden={tab !== "act"}><div className="empty">Activity moves here in Step 8, with repeated &ldquo;Invoice viewed by customer&rdquo; lines folded into one.</div></section>
       </main>
+    </PaymentsUiProvider>
     </div>
   );
 }
