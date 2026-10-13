@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setMaterial } from "../../actions";
 import ColourPicker from "@/app/components/ColourPicker";
+import { cansLabel, litresLabel, orderLitres } from "@/lib/workorder/snapshot";
 
 /**
  * Materials on the PC job page (Tom, 4 Sep 2026).
@@ -13,6 +14,8 @@ import ColourPicker from "@/app/components/ColourPicker";
  *     in it. Name, swatch, TBC/confirmed and order litres are editable here
  *     (the name picked from our saved colour list or typed — 8 Oct 2026);
  *     a save rewrites the frozen job sheet so the painter sees it too.
+ *     Beside each row: the estimate's own litres and cost (13 Oct 2026),
+ *     and the order in cans, rounded DOWN from the estimate.
  *  2. The materials budget — the estimate's engine materials cost against
  *     every supplier invoice matched to this job, updating as new ones are
  *     matched on the Payables tab.
@@ -33,6 +36,10 @@ export type MaterialRowProp = {
   matchCode: string;
   matchRequired: boolean;
   substrates: { area: string; label: string; coats: number }[];
+  /** The estimate's litres for this row (wastage included, unrounded); null when unknown. */
+  estimateLitres: number | null;
+  /** What those litres cost us, ex GST, on the estimate's card; null when it can't be priced. */
+  estimateCostCents: number | null;
 };
 
 export type MaterialInvoiceProp = {
@@ -52,6 +59,7 @@ export type MaterialsBudgetProp = {
   invoices: MaterialInvoiceProp[];
 };
 
+const moneyCents = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 type Draft = { colourName: string; colourHex: string; colourStatus: "tbc" | "confirmed"; litres: string };
@@ -179,8 +187,22 @@ export default function MaterialsCard({
               <span className={`pill ${r.colourStatus === "confirmed" ? "p-em" : "p-amber"}`} data-testid={`material-status-${r.rowKey}`}>
                 {r.colourStatus === "confirmed" ? "Confirmed" : "TBC"}
               </span>
-              <span className="ct">{r.litres != null ? `${r.litres} L` : r.coverageMissing ? "litres unknown" : "— L"}</span>
+              <span className="ct" data-testid={`material-order-${r.rowKey}`}>
+                {r.litres != null ? `Order ${r.litres} L` : r.coverageMissing ? "litres unknown" : "— L"}
+              </span>
             </div>
+            {(r.estimateLitres != null || (r.litres != null && r.litres > 0)) && (
+              <p className="note" style={{ margin: 0 }} data-testid={`material-estimate-${r.rowKey}`}>
+                {r.estimateLitres != null && <>Estimate <b>{litresLabel(r.estimateLitres)}</b></>}
+                {r.estimateCostCents != null && <> · cost <b>{moneyCents(r.estimateCostCents)}</b> ex GST</>}
+                {r.litres != null && r.litres > 0 && <>{r.estimateLitres != null ? " · " : ""}cans {cansLabel(r.litres)}</>}
+                {r.estimateLitres != null && r.litres != null && r.litres > Math.max(1, r.estimateLitres) && (
+                  <span style={{ color: "var(--amber)" }} data-testid={`material-over-${r.rowKey}`}>
+                    {" "}· job sheet orders more than the estimate (conservative: {orderLitres(r.estimateLitres)} L)
+                  </span>
+                )}
+              </p>
+            )}
             {r.matchRequired && (
               <p className="note" style={{ margin: 0 }}>
                 Colour match {r.matchCode ? <>code <b>{r.matchCode}</b></> : "— code still needed (see Colour matches)"}
@@ -234,6 +256,12 @@ export default function MaterialsCard({
                       data-testid={`material-litres-${r.rowKey}`}
                       onChange={(e) => patch(r, { litres: e.target.value })} />
                   </label>
+                  {r.estimateLitres != null && (
+                    <button type="button" className="btn dim" data-testid={`material-conservative-${r.rowKey}`}
+                      onClick={() => patch(r, { litres: String(orderLitres(r.estimateLitres ?? 0)) })}>
+                      Use estimate, rounded down ({orderLitres(r.estimateLitres)} L)
+                    </button>
+                  )}
                   <label className="fld" style={{ cursor: "pointer" }}>
                     <input type="checkbox" checked={d.colourStatus === "confirmed"}
                       data-testid={`material-confirmed-${r.rowKey}`}

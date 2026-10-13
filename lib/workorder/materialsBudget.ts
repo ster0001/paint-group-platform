@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { priceEstimateTotals, type BlockInput, type PricingContext } from "@/lib/pricing/estimate";
+import { materialsBreakdown, priceEstimateTotals, type BlockInput, type PricingContext } from "@/lib/pricing/estimate";
 import { adjustmentsFrom } from "@/lib/pricing/context";
+import { materialColourKey, materialRowKey } from "./materials";
+import type { WorkOrderDoc } from "./snapshot";
 
 /**
  * Materials budget vs actual on the PC job page (Tom, 4 Sep 2026):
@@ -40,6 +42,49 @@ export function materialsBudgetCents(
   if (!Array.isArray(blocks) || blocks.length === 0) return null;
   if (ctx.rateItems.length === 0) return null; // no card → no honest figure
   return priceEstimateTotals(blocks, ctx, adjustmentsFrom(state ?? {})).materialsCostCents;
+}
+
+/**
+ * The estimate's litres and cost for each material row on the job sheet (Tom,
+ * 13 Oct 2026: "show the estimate amount and cost in the materials section").
+ * Each surface on the frozen sheet is looked up by its key in the engine's
+ * per-surface figures and summed into its product × colour row; a line
+ * item's linked paint joins the row with the same product × colour. Priced on
+ * the estimate's own card, like the budget. Null when there is nothing honest
+ * to price from.
+ */
+export type MaterialRowEstimate = { litres: number; costCents: number };
+
+export function materialRowEstimates(
+  doc: Pick<WorkOrderDoc, "areas" | "materials"> | null | undefined,
+  state: Record<string, unknown> | null | undefined,
+  ctx: PricingContext,
+): Map<string, MaterialRowEstimate> | null {
+  const blocks = (state?.blocks as BlockInput[] | undefined) ?? null;
+  if (!doc || !Array.isArray(blocks) || blocks.length === 0 || ctx.rateItems.length === 0) return null;
+  const est = materialsBreakdown(blocks, ctx, adjustmentsFrom(state ?? {}));
+  const rows = new Set((doc.materials ?? []).map(materialRowKey));
+  const out = new Map<string, MaterialRowEstimate>();
+  const add = (key: string, litres: number, costCents: number) => {
+    if (!rows.has(key) || !(litres > 0)) return;
+    const g = out.get(key) ?? { litres: 0, costCents: 0 };
+    g.litres += litres;
+    g.costCents += costCents;
+    out.set(key, g);
+  };
+  for (const a of doc.areas ?? []) {
+    for (const s of a.surfaces ?? []) {
+      if (!s.product) continue;
+      const hit = est.surfaces.get(s.key);
+      if (hit) add(s.colourKey ?? s.product, hit.litres, hit.costCents);
+    }
+  }
+  for (const l of est.lines) {
+    if (l.isOption) continue; // a ticked option line is merged by the database, not traceable here
+    add(materialColourKey(l.productName, l.colourName), l.litres, l.costCents);
+  }
+  for (const g of out.values()) g.litres = Math.round(g.litres * 100) / 100;
+  return out;
 }
 
 export function materialsBudget(budgetCents: number | null, invoices: readonly { amount_cents: number }[]): MaterialsBudget {

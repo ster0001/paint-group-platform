@@ -37,6 +37,12 @@ Above the materials, **Further instructions for the crew** is the office's note 
 
 On a job that came in from PaintScout these are often the only photos there are, so check them before you start. They can be added after the job is booked, so look again on the morning. They are separate from the photos you take, which stay under **Site photos**.
 
+
+### How much paint to buy
+Each paint in **Materials & colours** shows three figures. The big one is the **order** in litres. Under it are the **cans** that make it up, from the 15, 10, 4, 2 and 1 L sizes the trade counter sells, for example **10 L + 2 L + 1 L**. Under that is the **Estimate**, the litres the estimate allowed to one decimal place, wastage included. The order is the estimate **rounded down** to whole litres, so it is never more than the estimate. A paint the job needs any of is at least one 1 L can. If you run short on site, tell the office.
+
+Each area of the scope ends with **Materials for this area · estimate**: the paint that room or elevation needs, by product and colour, in litres. Use it to check an area or to buy for one area on its own. Job sheets issued before 13 Oct 2026 don't show the area lists, and their order figures may still be rounded up.
+
 ### Photos and notes from site
 6. **Got a question, or found something?** is the card under the steps, for questions only: a photo of an item you are unsure about and a short note for the office. Before / progress photos go in Step 1 and after photos in Step 3, not here.
 

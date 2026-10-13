@@ -58,6 +58,14 @@
 .wo .cchip.tbc { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
 .wo .cchip.confirmed { color: var(--emerald); border-color: color-mix(in srgb, var(--emerald) 45%, var(--line)); }
 .wo .mat-litres { font-family: var(--mono); font-size: 16px; font-weight: 600; text-align: right; white-space: nowrap; }
+.wo .mat-cans { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: right; white-space: nowrap; margin-top: 2px; }
+.wo .mat-est { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: right; white-space: nowrap; margin-top: 1px; }
+.wo .area-mats { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.wo .area-mats-h { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.wo .area-mat { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 2px 0; }
+.wo .area-mat .swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(255,255,255,.2); flex-shrink: 0; display: inline-block; }
+.wo .area-mat-name { flex: 1; min-width: 0; color: var(--text); }
+.wo .area-mat-l { font-family: var(--mono); font-weight: 600; white-space: nowrap; }
 .wo .mat-warn { font-family: var(--mono); font-size: 9px; color: var(--amber); text-align: right; margin-top: 2px; max-width: 120px; }
 
 /* scope */
@@ -123,6 +131,8 @@
   .wo .mat-tin { background: #f2f2f2 !important; }
   .wo .mat-tin img, .wo .area-photo img { filter: grayscale(1); }
   .wo h1, .wo .wo-ref, .wo .mat-name, .wo .surf-name, .wo .area-title, .wo .pay .v { color: #111 !important; }
+  .wo .area-mat-name, .wo .area-mat-l { color: #111 !important; }
+  .wo .mat-cans, .wo .mat-est, .wo .area-mats-h { color: #444 !important; }
   .wo h2, .wo .muted, .wo .wo-addr, .wo .surf-prep, .wo .mat-colour, .wo .surf-meta, .wo .excl li { color: #444 !important; }
   .wo .chip, .wo .cchip, .wo .pill { color: #333 !important; border-color: #999 !important; }
   .wo .surf-hours .hval, .wo .surf-hours input { color: #111 !important; }
@@ -214,6 +224,8 @@
 .pt[data-theme="light"] .wo .pill.done { border-color: rgba(31, 122, 74, 0.45); }
 /* The colour swatch outlines itself against the sheet, not against black. */
 .wo[data-theme="light"] .mat-colour .swatch,
+.wo[data-theme="light"] .area-mat .swatch,
+.pt[data-theme="light"] .wo .area-mat .swatch,
 .pt[data-theme="light"] .wo .mat-colour .swatch { border-color: rgba(18, 22, 26, 0.2); }
 
 /* From the office (Tom, 23 Sep 2026) — the photos we attached for the painter.
