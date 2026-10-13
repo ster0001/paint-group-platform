@@ -129,4 +129,77 @@ test.describe("Payments → the job panel — as staff", () => {
     await expect(panel(page)).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   });
+
+  // Step 8a: a non-materials cost (rubbish, scaffold…) is approved and paid from the panel — the old Payables tab goes.
+  test("a rubbish docket on the job: Approve, then ✓ Paid with Undo, from Money out", async ({ page }) => {
+    const j = await makePaymentsJob(db!, contractor!.email, stamp, "Costrow", { contractCents: 550_000, stage: "in_progress", startDate: isoDay(-2), invoices: [] });
+    made.push(j);
+    const { data, error } = await db!.from("job_costs").insert({ work_order_id: j.f.workOrderId, category: "rubbish", status: "recorded", amount_ex_cents: 20_000, gst_cents: 2_000, description: `${stamp} skip bin` }).select("id").single();
+    if (error) throw error;
+    const id = (data as { id: string }).id;
+    const status = async () => ((await db!.from("job_costs").select("status").eq("id", id).single()).data as { status: string }).status;
+
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`/invoicing/job/${j.f.estimateId}?jt=out`);
+    const row = panel(page).getByTestId(`job-cost-item-${id}`);
+    await expect(row).toContainText("To approve", { timeout: 30_000 });
+    await row.getByRole("button", { name: "Approve" }).click();
+    await expect.poll(status, { timeout: 20_000 }).toBe("approved");
+    await expect(row.getByRole("button", { name: "✓ Paid" })).toBeVisible({ timeout: 20_000 });
+    await row.getByRole("button", { name: "✓ Paid" }).click();
+    await expect.poll(status, { timeout: 20_000 }).toBe("paid");
+    await page.getByTestId("pm-toast").getByRole("button", { name: "Undo" }).click();
+    await expect.poll(status, { timeout: 20_000 }).toBe("approved");
+  });
+
+  // §6.3 (4/20 Cockatoo St): a final drafted while the deposit was still a draft charged the whole contract.
+  test("a draft final follows the deposit: paying the draft deposit re-works it, and a stale one offers Redraft", async ({ page }) => {
+    const finalOf = async (estimateId: string) => {
+      const { data, error } = await db!.from("invoices").select("id, total_inc_cents").eq("estimate_id", estimateId).eq("kind", "final").eq("status", "draft").single();
+      if (error) throw error;
+      return data as { id: string; total_inc_cents: number };
+    };
+    // 1 · The trigger: final drafted while the $5,500 deposit is a draft → $11,000; the deposit is paid → $5,500.
+    const j = await makePaymentsJob(db!, contractor!.email, stamp, "Redraft", {
+      contractCents: 1_100_000, stage: "closed", startDate: isoDay(-20),
+      invoices: [{ kind: "deposit", status: "draft", total: 550_000, due: null }],
+    });
+    made.push(j);
+    const drafted = await db!.rpc("invoice_draft_final", { p_estimate_id: j.f.estimateId });
+    expect(String(drafted.data ?? drafted.error?.message)).toMatch(/^ok:/);
+    expect((await finalOf(j.f.estimateId)).total_inc_cents).toBe(1_100_000);
+
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`/invoicing/job/${j.f.estimateId}`);
+    const deposit = panel(page).locator('.inv[data-kind="deposit"]');
+    await deposit.getByRole("button", { name: "Already paid" }).click();
+    const sheet = page.getByRole("dialog", { name: "Record a payment" });
+    await sheet.getByLabel("Amount received").fill("5500.00");
+    await sheet.getByRole("button", { name: "Record payment" }).click();
+    await expect.poll(async () => (await finalOf(j.f.estimateId)).total_inc_cents, { timeout: 20_000 }).toBe(550_000);
+    await page.reload();
+    await expect(panel(page).locator('.inv[data-kind="final"]')).toContainText(money(550_000));
+    await expect(panel(page).getByTestId("stale-final")).toHaveCount(0);
+
+    // 2 · A draft made before the trigger existed: the deposit was issued after it, nothing re-worked it.
+    const k = await makePaymentsJob(db!, contractor!.email, stamp, "Stale", {
+      contractCents: 1_100_000, stage: "closed", startDate: isoDay(-20),
+      invoices: [
+        { kind: "deposit", status: "sent", total: 550_000, due: isoDay(-10), paid: true },
+        { kind: "final", status: "draft", total: 1_100_000, due: null },
+      ],
+    });
+    made.push(k);
+    const stale = await finalOf(k.f.estimateId);
+    const { error: evErr } = await db!.from("invoice_events").insert({
+      invoice_id: stale.id, type: "drafted", actor_kind: "system", meta: { auto: "final", total_inc_cents: 1_100_000, previously_invoiced_cents: 0 },
+    });
+    if (evErr) throw evErr;
+    await page.goto(`/invoicing/job/${k.f.estimateId}`);
+    const note = panel(page).getByTestId("stale-final");
+    await expect(note).toBeVisible({ timeout: 20_000 });
+    await note.getByRole("button", { name: "Redraft" }).click();
+    await expect.poll(async () => (await finalOf(k.f.estimateId)).total_inc_cents, { timeout: 20_000 }).toBe(550_000);
+    await expect(panel(page).getByTestId("stale-final")).toHaveCount(0, { timeout: 20_000 });
+  });
 });

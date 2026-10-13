@@ -69,6 +69,24 @@ out += '''
 /* Step 7: the job panel as a whole page (/invoicing/job/[id]) — the drawer's width, centred. */
 .pm .pm-jobpage{max-width:660px;margin:0 auto;padding-bottom:110px}
 .pm .pm-jobpage .dh{position:static}
+/* Step 8a: the aged-receivables bar under the Customers views (Tom, 13 Oct: kept from the old page). */
+.pm .aged{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.pm .aged h3{font-size:13px;font-weight:600;color:var(--text2)}
+.pm .aged .bar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-top:10px;background:var(--line)}
+.pm .aged .bar i{height:100%}
+.pm .aged .keys{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px}
+.pm .aged .keys div{font-size:12px;color:var(--mute)}
+.pm .aged .keys b{display:block;font-family:var(--mono);font-size:13px;color:var(--text);font-weight:600;letter-spacing:-.04em}
+@media (max-width:560px){.pm .aged .keys{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* Step 8a: Activity (§6.7) — one line per event, views folded. */
+.pm .feed{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:14px}
+.pm .feed .fl{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:start;padding:11px 14px;border-top:1px solid var(--line)}
+.pm .feed .fl:first-child{border-top:0}
+.pm .feed .dot{width:8px;height:8px;border-radius:50%;margin-top:6px;background:var(--mute)}
+.pm .feed .dot.pay{background:var(--green)}.pm .feed .dot.send{background:var(--pri)}.pm .feed .dot.draft{background:var(--orange)}.pm .feed .dot.stop{background:var(--red)}
+.pm .feed b{font-weight:600;font-size:14px}
+.pm .feed small{display:block;font-size:12.5px;color:var(--text2);margin-top:2px;overflow-wrap:anywhere}
+.pm .feed .fd{font-size:12px;color:var(--mute);white-space:nowrap}
 /* Step 7: Add cost's category chips — the methods buttons, wrapping. */
 .pm .chipset{display:flex;flex-wrap:wrap;gap:6px}
 .pm .chipset button{height:36px;padding:0 12px;border:1px solid var(--line2);border-radius:18px;font-size:13px;color:var(--text2)}

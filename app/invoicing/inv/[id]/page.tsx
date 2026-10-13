@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { loadInvoiceDoc } from "../../data";
 import { shortDay } from "../../format";
+import { previouslyInvoicedCents } from "@/lib/invoicing/ledger";
 import InvoiceDoc, { type DocLine, type DocPayment } from "./InvoiceDoc";
 import ReadFailureNotice from "../../ReadFailureNotice";
 import Link from "next/link";
@@ -102,7 +103,7 @@ export default async function InvoiceDocPage({
         gstCents: invoice.gst_cents,
         totalIncCents: invoice.total_inc_cents,
         adjustedCents: Number(job.ledger.adjusted_contract_cents),
-        previouslyInvoicedCents: Number(job.ledger.invoiced_cents),
+        previouslyInvoicedCents: previouslyInvoicedCents(Number(job.ledger.invoiced_cents), { totalIncCents: invoice.total_inc_cents, status: invoice.status }),
         driftCents: doc.driftCents,
         decisionDriftCents,
       }}

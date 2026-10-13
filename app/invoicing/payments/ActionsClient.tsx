@@ -548,3 +548,11 @@ function DocSheet({ row, onClose }: { row: MatSpec; onClose: () => void }) {
     </div>
   );
 }
+
+/** A job cost on the panel (Step 8a): Approve, then ✓ Paid with Undo — the Materials block's own actions, by id. */
+export function CostButtons({ id, status, label }: { id: string; status: string; label: string }) {
+  const ui = useUi();
+  if (status === "recorded") return <button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.approveMat([id], `${label} approved.`)}>Approve</button>;
+  if (status === "approved") return <button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.paySupplier([id], `${label} marked paid.`)}>✓ Paid</button>;
+  return null;
+}

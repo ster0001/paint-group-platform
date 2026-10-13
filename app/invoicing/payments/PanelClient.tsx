@@ -7,6 +7,7 @@ import { centsAsInput, depositPreview, parseDollarsToCents } from "@/lib/invoici
 import { requestPreviewCents } from "@/lib/invoicing/derive";
 import {
   changeDepositAction, deleteDraftAction, invoiceInFullAction, pauseRemindersAction, requestPaymentAction, setDraftDueAction, voidInvoiceAction,
+  redraftFinalAction,
 } from "../actions";
 import AddCostSheet from "../job/[estimateId]/AddCostSheet";
 import { DepositAdjust, usePaymentsUi, type ActionSpec } from "./ActionsClient";
@@ -168,4 +169,18 @@ export function AddCostButton({ estimateId, woId, startOpen = false }: { estimat
 export function OpenChatButton({ spec }: { spec: ActionSpec }) {
   const ui = usePaymentsUi();
   return <button type="button" className="b sm" disabled={ui.busy} onClick={() => ui.message(spec)}>Open chat</button>;
+}
+
+/** §6.3: work a stale draft final out again from what is left to invoice. */
+export function RedraftFinal({ estimateId }: { estimateId: string }) {
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  const [err, setErr] = useState("");
+  return <>
+    <button type="button" className="b sm pri" disabled={busy} onClick={() => start(async () => {
+      const r = await redraftFinalAction({ estimateId });
+      if (!r.ok) setErr(r.message ?? "That didn't work."); else router.refresh();
+    })}>Redraft</button>
+    {err ? <span className="err"> {err}</span> : null}
+  </>;
 }

@@ -109,9 +109,35 @@ test.describe("Payments page — the Customers block", () => {
   test("search is a query param and narrows every view", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(PAGE);
-    await page.getByLabel("Search address or customer").fill(`${stamp} Deposit`);
+    await page.getByLabel("Search address, customer or invoice number").fill(`${stamp} Deposit`);
     await expect(page).toHaveURL(new RegExp(`q=${stamp}`), { timeout: 15_000 });
     await expect(page.locator(".pm .job")).toHaveCount(1);
+  });
+
+  // Step 8a (Tom, 13 Oct): search by invoice number; the aged-receivables bar; Activity folds repeated views (§6.7).
+  test("an invoice number finds its job; the aged bar; Activity folds the views into one line", async ({ page }) => {
+    const overdue = made.find((m) => m.label === "Overdue")!;
+    const { data: prog, error } = await db!.from("invoices").select("id, number").eq("estimate_id", overdue.f.estimateId).eq("kind", "progress").single();
+    if (error) throw error;
+    const p = prog as { id: string; number: string };
+    for (let i = 0; i < 3; i++) {
+      const { error: e } = await db!.from("invoice_events").insert({ invoice_id: p.id, type: "viewed", actor_kind: "customer", meta: {} });
+      if (e) throw e;
+    }
+
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`${PAGE}?q=${encodeURIComponent(p.number)}`);
+    await expect(page.locator(".pm .job")).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.locator(".pm .job")).toContainText(`${stamp} Overdue St`);
+
+    const aged = page.getByTestId("aged-buckets");
+    await expect(aged.locator(".keys > div")).toHaveCount(5);
+    await expect(aged).toContainText("1–7 days");
+
+    await page.goto(`${PAGE}?tab=act`);
+    const viewed = page.getByTestId("pm-activity").locator(".fl[data-type=viewed]", { hasText: p.number });
+    await expect(viewed).toHaveCount(1, { timeout: 30_000 });
+    await expect(viewed).toContainText("Invoice viewed by customer, 3 times");
   });
 
   test("no sideways scroll on a phone", async ({ page }) => {
@@ -123,5 +149,8 @@ test.describe("Payments page — the Customers block", () => {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, `${v} scrolls sideways`).toBeLessThanOrEqual(0);
     }
+    await page.goto(`${PAGE}?tab=act`);
+    await expect(page.getByTestId("pm-activity")).toBeVisible({ timeout: 30_000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), "Activity scrolls sideways").toBeLessThanOrEqual(0);
   });
 });

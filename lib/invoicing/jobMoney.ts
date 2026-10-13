@@ -20,7 +20,7 @@
 
 import { adjustedContractCents, type LedgerVariation } from "./ledger";
 import {
-  dashboardTiles, daysBetween, invoiceBalanceCents, invoiceIsOverdue, invoicePaidCents, melbourneToday,
+  agedBucketsCents, dashboardTiles, daysBetween, invoiceBalanceCents, invoiceIsOverdue, invoicePaidCents, melbourneToday,
   type DeriveContractorInvoice, type DeriveInvoice, type DerivePayment,
 } from "./derive";
 import { contractorInvoiceTone } from "./contractorInvoiceTone";
@@ -166,6 +166,8 @@ export type JobMoneyRow = {
   customer: string | null;
   woRef: string | null;
   contractor: string | null;
+  /** Every numbered invoice on the job (INV-0049…), for search — Tom, 13 Oct. */
+  invoiceNumbers: string[];
   lane: Lane;
   startDate: string | null;
   /** Melbourne days from today to the start (negative = start date passed). */
@@ -364,6 +366,7 @@ export function jobMoneyRow(
     pulse: (health === "need" || health === "noinv") && (underWay || lane === "pre_start"),
     lastMessagedDays: job.lastMessagedAt ? Math.max(0, daysBetween(melbourneToday(new Date(job.lastMessagedAt)), today)) : null,
     hiddenDraftIds: hidden.map((i) => i.id),
+    invoiceNumbers: jobInvoices.map((i) => i.number).filter((n): n is string => !!n),
   };
 }
 
@@ -400,6 +403,9 @@ export type CustomersBlock = {
   /** Σ visible drafts (leftovers excluded). */
   notSentCents: number;
   notSentCount: number;
+  /** Aged receivables (Tom, 13 Oct: kept from the old page) — current · 1–7 · 8–14 · 15–30 · 30+ days overdue,
+   *  the old dashboard's own function; `pct` is each bucket's share of the bar. */
+  aged: { cents: number; pct: number }[];
 };
 
 export type ContractorsBlock = {
@@ -476,6 +482,7 @@ export function jobMoneyPage(input: JobMoneyInput): JobMoneyPage {
     outstandingCents: tiles.outstandingCents, outstandingCount: tiles.outstandingCount,
     overdueCents: tiles.overdueCents, overdueCount: tiles.overdueCount,
     notSentCents: visibleDrafts.reduce((s, i) => s + i.totalIncCents, 0), notSentCount: visibleDrafts.length,
+    aged: agedBar(agedBucketsCents(input.invoices, payments, now)),
   };
 
   let toApproveCents = 0, toApproveCount = 0, approvedToPayCents = 0, approvedToPayCount = 0, pastPayByCents = 0, pastPayByCount = 0;
@@ -562,7 +569,7 @@ export function matchRows(rows: readonly JobMoneyRow[], f: { q?: string; lane?: 
   const q = (f.q ?? "").trim().toLowerCase();
   return rows.filter((r) =>
     (!f.lane || r.lane === f.lane) &&
-    (!q || [r.address, r.customer ?? "", r.contractor ?? "", r.woRef ?? ""].join(" ").toLowerCase().includes(q)));
+    (!q || [r.address, r.customer ?? "", r.contractor ?? "", r.woRef ?? "", ...r.invoiceNumbers].join(" ").toLowerCase().includes(q)));
 }
 
 /** All jobs view filters (§4.2): All · Overdue · Deposit not in · Final unpaid · Paid in full. */
@@ -733,3 +740,9 @@ export function matchCiRows(rows: readonly ContractorRow[], q: string): Contract
 /** An invoice as a whole-number share of the job ("Deposit invoice (50%)"); null with no contract. */
 export const pctOfContract = (invoiceCents: number, contractCents: number): number | null =>
   contractCents > 0 ? Math.round((invoiceCents * 100) / contractCents) : null;
+
+/** The aged-receivables bar's segments: each bucket and its share of the whole, one decimal. */
+export function agedBar(buckets: readonly number[]): { cents: number; pct: number }[] {
+  const total = buckets.reduce((s, b) => s + b, 0);
+  return buckets.map((cents) => ({ cents, pct: total > 0 ? Math.round((cents * 1000) / total) / 10 : 0 }));
+}

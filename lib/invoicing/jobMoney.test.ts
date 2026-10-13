@@ -11,6 +11,7 @@ import { melbourneInstant } from "@/lib/time/businessHours";
 import type { DerivePayment } from "./derive";
 import type { WoStage } from "@/lib/workorder/stages";
 import {
+  agedBar,
   pctOfContract,
   compareRows, depositPreview, headlineParts, parseDollarsToCents, suggestedDue, headlineSentences, matchRows, tableFilter, totalCollectableCents, totalNowCents, isLeftoverDraft, jobMoneyPage, jobMoneyRow, slotOf,
   contractorGroups, matchCiRows, totalCiCents,
@@ -226,7 +227,7 @@ describe("sections and ordering", () => {
 
 describe("the four blocks and the stage strip come from the same rows", () => {
   it("Customers owe us: outstanding on issued invoices, the drafts not sent yet", () => {
-    expect(page.blocks.customers).toEqual({
+    expect(page.blocks.customers).toMatchObject({
       outstandingCents: 60_005 + 416_588 + 583_780 + 450_493 + 200_000, outstandingCount: 5,
       overdueCents: 200_000, overdueCount: 1,
       notSentCents: 786_540 + 53_268 + 537_252 + 1_405_112 + 150_000, notSentCount: 5,
@@ -300,6 +301,12 @@ describe("Step 2 — what the page reads off a row", () => {
     expect(matchRows(page.rows, { q: "WO-heron" }).map((r) => r.estimateId)).toEqual(["heron"]);
     expect(matchRows(page.rows, { q: "customer gannet" }).map((r) => r.estimateId)).toEqual(["gannet"]);
     expect(matchRows(page.rows, { lane: "qa" }).map((r) => r.estimateId)).toEqual(["kookaburra"]);
+  });
+  it("search also finds a job by any of its invoice numbers, paid or not (Tom, 13 Oct)", () => {
+    const withNumber = page.rows.find((r) => r.invoiceNumbers.length > 0)!;
+    const n = withNumber.invoiceNumbers[withNumber.invoiceNumbers.length - 1];
+    expect(matchRows(page.rows, { q: n.toLowerCase() }).map((r) => r.estimateId)).toEqual([withNumber.estimateId]);
+    expect(page.rows.every((r) => r.invoiceNumbers.every((x) => /^INV-\d{4}$/.test(x)))).toBe(true);   // drafts carry none
   });
   it("All jobs filters; a paid-in-full job shows only under Show paid or Paid in full (R9)", () => {
     const ids = (f: Parameters<typeof tableFilter>[0], paid = false) => page.rows.filter(tableFilter(f, paid)).map((r) => r.estimateId);
@@ -404,5 +411,16 @@ describe("the job panel's invoice share (Step 7)", () => {
     expect(pctOfContract(550_000, 1_100_000)).toBe(50);
     expect(pctOfContract(330_000, 1_100_000)).toBe(30);
     expect(pctOfContract(100, 0)).toBeNull();
+  });
+});
+
+describe("aged receivables bar (Tom, 13 Oct)", () => {
+  it("each bucket with its share of the bar; empty when nothing is owed", () => {
+    expect(agedBar([75_000, 25_000, 0, 0, 0])).toEqual([{ cents: 75_000, pct: 75 }, { cents: 25_000, pct: 25 }, { cents: 0, pct: 0 }, { cents: 0, pct: 0 }, { cents: 0, pct: 0 }]);
+    expect(agedBar([0, 0, 0, 0, 0]).every((b) => b.pct === 0)).toBe(true);
+  });
+  it("the page's buckets add up to the Outstanding figure", () => {
+    const p = page;
+    expect(p.blocks.customers.aged.reduce((s, b) => s + b.cents, 0)).toBe(p.blocks.customers.outstandingCents);
   });
 });

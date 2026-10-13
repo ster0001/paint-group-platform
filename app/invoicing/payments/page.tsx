@@ -16,6 +16,8 @@ import { SearchBox, ShowPaid } from "./Tools";
 import { STAGE_NAME, longToday, money, pickerJobs, plural } from "./labels";
 import { JobPanel } from "./JobPanel";
 import { loadJobPanel } from "./panelData";
+import { ActivityFeed } from "./ActivityView";
+import { activityFeed, type ActivityLine } from "@/lib/invoicing/activity";
 import "./payments.css";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +46,8 @@ type Params = { tab?: string; view?: string; stage?: string; q?: string; paid?: 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const BASE = "/invoicing/payments";
+const AGED_LABEL = ["Not overdue", "1–7 days", "8–14 days", "15–30 days", "Over 30 days"];
+const AGED_COLOUR = ["var(--pri)", "var(--orange)", "var(--orange)", "var(--red)", "var(--red)"];
 const pick = <T extends string>(v: string | undefined, allowed: readonly T[], fallback: T): T =>
   (allowed as readonly string[]).includes(v ?? "") ? (v as T) : fallback;
 
@@ -88,6 +92,19 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const notPaid = rows.filter((r) => r.section !== "paid_in_full");
   // Every other link on the page drops job= — leaving the panel is any click outside it.
   const panel = jobId ? await loadJobPanel(supabase, page, jobId, now) : null;
+  // Activity (§6.7): the newest invoice events, read only when the tab is open.
+  let feed: ActivityLine[] = [];
+  let activityProblem: string | null = null;
+  if (tab === "act") {
+    const { data, error } = await supabase.from("invoice_events").select("id, invoice_id, type, meta, created_at")
+      .order("created_at", { ascending: false }).limit(150);
+    if (error) { reportError(error, { where: "PaymentsPage.activity" }); activityProblem = "The activity could not be loaded — this is not an empty history. Reload the page."; }
+    else feed = activityFeed(
+      (data ?? []).map((e) => ({ id: e.id as string, invoiceId: e.invoice_id as string, type: e.type as string, meta: (e.meta ?? {}) as Record<string, unknown>, createdAt: e.created_at as string })),
+      input.invoices.map((i) => ({ id: i.id, number: i.number, kind: i.kind, estimateId: i.estimateId })),
+    );
+  }
+  const addressOf = new Map(page.rows.map((r) => [r.estimateId, r.address]));
 
   const ledger: Array<{ key: Tab; d: string; t: string; v: string | null; s: string; od: string | null }> = [
     { key: "cust", d: "Money in", t: "Customers owe us", v: money(customers.outstandingCents),
@@ -156,6 +173,11 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             {view === "board" ? <BoardView rows={showPaid ? rows : notPaid} /> : null}
             {view === "table" ? <TableView rows={rows} filter={filter} showPaid={showPaid} href={href} /> : null}
           </div>
+          <div className="aged" data-testid="aged-buckets">
+            <h3>Aged receivables, sent invoices by days overdue</h3>
+            <div className="bar">{customers.aged.map((b, i) => (b.pct ? <i key={i} style={{ width: `${b.pct}%`, background: AGED_COLOUR[i] }} /> : null))}</div>
+            <div className="keys">{customers.aged.map((b, i) => <div key={i}><b>{money(b.cents)}</b>{AGED_LABEL[i]}</div>)}</div>
+          </div>
         </section>
 
         <section hidden={tab !== "con"} data-testid="pm-contractors">
@@ -169,7 +191,9 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           <ContractorsView rows={matchCiRows(page.contractors, q)} by={cby} />
         </section>
         <section hidden={tab !== "mat"} data-testid="pm-materials"><MaterialsView m={page.materials} /></section>
-        <section hidden={tab !== "act"}><div className="empty">Activity moves here in Step 8, with repeated &ldquo;Invoice viewed by customer&rdquo; lines folded into one.</div></section>
+        <section hidden={tab !== "act"} data-testid="pm-activity">
+          {activityProblem ? <div className="note">{activityProblem}</div> : <ActivityFeed lines={feed} addressOf={addressOf} />}
+        </section>
       </main>
       {panel ? <>
         <Link className="scrim on" href={href({})} aria-label="Close the job" scroll={false} />

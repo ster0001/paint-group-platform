@@ -72,7 +72,7 @@ test.describe("on-device sign-off returns to the job, shown complete", () => {
   test("the closed job sits in the board's Closed lane, and staff can reopen it for sign-off", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/flow");
-    await expect(page.getByTestId("lane-closed")).toContainText(/final invoice sent/i, { timeout: 15_000 });
+    await expect(page.getByTestId("lane-closed")).toContainText(/signed off/i, { timeout: 15_000 });
     await expect(page.getByTestId("lane-closed").getByTestId(`job-${f!.workOrderId}`)).toBeVisible();
 
     // Reopen: staff only, closed only, back to Walkthrough unsigned.

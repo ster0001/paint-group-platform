@@ -3,8 +3,8 @@ import { LANES } from "@/lib/workorder/stages";
 import { suggestedDue } from "@/lib/invoicing/jobMoney";
 import type { ProfitLine } from "@/lib/invoicing/jobProfit";
 import { Pills, Rail } from "./JobPieces";
-import { CiButtons, MatButtons, RowActions, type ActionSpec, type MatSpec } from "./ActionsClient";
-import { AddCostButton, InvoiceCardActions, MoneyInLinks, OpenChatButton, type CardSpec } from "./PanelClient";
+import { CiButtons, CostButtons, MatButtons, RowActions, type ActionSpec, type MatSpec } from "./ActionsClient";
+import { AddCostButton, InvoiceCardActions, MoneyInLinks, OpenChatButton, RedraftFinal, type CardSpec } from "./PanelClient";
 import { KIND_NAME, STAGE_NAME, actionSpec, money, plural, shortDate, startText } from "./labels";
 import type { PanelData, PanelInvoice } from "./panelData";
 
@@ -24,6 +24,7 @@ const CI_TAG: Record<string, React.ReactNode> = {
   draft: <span className="tag">With contractor</span>, paid: <span className="tag paid">Paid</span>,
 };
 const MAT_TAG: Record<string, string> = { rec: "To approve", appr: "To pay", paid: "Paid" };
+const COST_TAG: Record<string, string> = { recorded: "To approve", approved: "To pay", paid: "Paid" };
 
 function Tag({ i }: { i: PanelInvoice }) {
   if (i.cashNotSent) return <span className="tag cash">Paid in cash, not sent</span>;
@@ -46,7 +47,12 @@ function cardSpec(base: ActionSpec, d: PanelData, i: PanelInvoice, today: string
   return {
     invoiceId: i.id, estimateId: d.row.estimateId, status: i.status, state: i.state, isDeposit: i.isDeposit, kindIsDeposit: i.kind === "deposit",
     balanceCents: i.balanceCents, dueOn: i.dueOn, chaseHold: i.chaseHold,
-    spec: { ...base, primary, depositDraft: i.kind === "deposit" && i.status === "draft" ? { invoiceId: i.id, totalCents: i.totalCents } : base.depositDraft },
+    // The card's own invoice is always the one its sheet pays — even a draft the row hides by rule (§6.2),
+    // which is not among the row's payable leads (it paid the final instead, 13 Oct).
+    spec: { ...base, primary, payable: [
+      { invoiceId: i.id, balanceCents: i.balanceCents, draft: i.status === "draft", label: `${kindName} invoice, ${money(i.balanceCents)} owing${i.status === "draft" ? " (not sent)" : ""}` },
+      ...base.payable.filter((t) => t.invoiceId !== i.id),
+    ], depositDraft: i.kind === "deposit" && i.status === "draft" ? { invoiceId: i.id, totalCents: i.totalCents } : base.depositDraft },
   };
 }
 
@@ -68,6 +74,7 @@ function InvoiceCard({ d, i, base, today, termsDays }: { d: PanelData; i: PanelI
         </div>
       </div>
       {meta ? <div className="meta">{meta}</div> : null}
+      {i.staleFinal ? <div className="cashnote" data-testid="stale-final">This draft was worked out before an earlier invoice on the job was issued, so it charges too much. <RedraftFinal estimateId={d.row.estimateId} /></div> : null}
       {i.cashNotSent ? <div className="cashnote">Paid in cash, so this invoice was not sent to the customer. It stays here as our record of the sale.</div> : null}
       {i.payments.map((p) => (
         <div className="pay" key={p.id} style={p.status === "succeeded" ? undefined : { color: "var(--mute)", textDecoration: "line-through" }}>
@@ -92,7 +99,7 @@ function ProfitSum({ line }: { line: ProfitLine }) {
 function CostRows({ d }: { d: PanelData }) {
   const listed = new Set(d.supplierInvoices.map((m) => m.id));
   const rows = d.profit.lines.filter((l) => l.key !== "contractor")
-    .flatMap((l) => l.sources.filter((s) => !(l.key === "materials" && listed.has(s.id))).map((s) => ({ ...s, line: l.label })));
+    .flatMap((l) => l.sources.filter((s) => !(l.key === "materials" && listed.has(s.id))).map((s) => ({ ...s, line: l.label, payable: l.key !== "own_painters" })));
   if (!rows.length) return null;
   return (
     <div className="cost" data-testid="pm-costs">
@@ -100,7 +107,9 @@ function CostRows({ d }: { d: PanelData }) {
       {rows.map((r) => (
         <div className="li" key={r.id} data-testid={`job-cost-item-${r.id}`}>
           <span>{r.label}<small>{r.line}</small></span>
-          <span className="r"><span className="mono">{money(r.cents)}</span></span>
+          <span className="r">{r.jobCostStatus ? <span className={`tag ${r.jobCostStatus === "paid" ? "paid" : ""}`}>{COST_TAG[r.jobCostStatus] ?? r.jobCostStatus}</span> : null}<span className="mono">{money(r.cents)}</span>
+            {/* Employee labour is paid through payroll — nothing to approve or mark paid here (Tom, 9 Oct). */}
+            {r.payable && r.jobCostStatus ? <CostButtons id={r.id} status={r.jobCostStatus} label={`${r.label} ${money(r.cents)}`} /> : null}</span>
         </div>
       ))}
     </div>

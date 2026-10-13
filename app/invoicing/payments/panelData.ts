@@ -3,6 +3,7 @@ import { pctOfContract, type JobMoneyPage, type JobMoneyRow, type ContractorRow 
 import type { MatRow } from "@/lib/invoicing/materials";
 import { invoiceBalanceCents, invoiceIsOverdue, invoicePaidCents, melbourneToday, daysBetween } from "@/lib/invoicing/derive";
 import { jobProfit, type JobProfit } from "@/lib/invoicing/jobProfit";
+import { finalDraftIsStale } from "@/lib/invoicing/ledger";
 import { contractorVariationsCents } from "@/lib/workorder/contractorPay";
 import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
 import { reportError } from "@/lib/monitoring/report";
@@ -37,6 +38,8 @@ export type PanelInvoice = {
   cashNotSent: boolean;
   /** The deposit slot of the job — the adjuster / Change amount act on it. */
   isDeposit: boolean;
+  /** A draft final worked out before an earlier invoice was issued (§6.3) — Redraft. */
+  staleFinal: boolean;
   payments: PanelPayment[];
 };
 
@@ -70,6 +73,14 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
   for (const e of job.events) if (e.type === "viewed") viewsById.set(e.invoice_id, (viewsById.get(e.invoice_id) ?? 0) + 1);
   const sentIds = new Set(job.events.filter((e) => e.type === "sent").map((e) => e.invoice_id));
   const depositIds = new Set(row.slots.deposit.invoiceIds);
+  const invoicedNow = Number(job.ledger?.invoiced_cents ?? 0);
+  // Newest first (loadJobMoney): the first `drafted` event per invoice is its latest drafting.
+  const invoicedAtDraft = new Map<string, number | null>();
+  for (const e of job.events) {
+    if (e.type !== "drafted" || invoicedAtDraft.has(e.invoice_id)) continue;
+    const v = (e.meta as { previously_invoiced_cents?: unknown }).previously_invoiced_cents;
+    invoicedAtDraft.set(e.invoice_id, typeof v === "number" ? v : null);
+  }
 
   const invoices: PanelInvoice[] = job.invoices.map((inv) => {
     const d = toDerive([inv])[0];
@@ -91,6 +102,7 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
       views: viewsById.get(inv.id) ?? 0, voidedReason: inv.voided_reason || null, chaseHold: inv.chase_hold_reason ?? null,
       cashNotSent: inv.status === "paid" && !sentIds.has(inv.id) && pays.some((p) => p.method === "cash" && p.status === "succeeded"),
       isDeposit,
+      staleFinal: inv.kind === "final" && inv.status === "draft" && finalDraftIsStale(invoicedNow, invoicedAtDraft.get(inv.id) ?? null),
       payments: pays.map((p) => ({ id: p.id, method: p.method ?? "other", paidOn: p.paid_on, amountCents: p.amount_cents, status: p.status })),
     };
   });

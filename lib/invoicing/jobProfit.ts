@@ -36,7 +36,9 @@ export type ProfitInput = {
   started: boolean;
 };
 
-export type ProfitLine = { key: "contractor" | "own_painters" | "materials" | "other" | "expenses"; label: string; cents: number; sources: { id: string; label: string; cents: number }[] };
+/** `jobCostStatus` is set on rows that are job costs (job_costs) — the panel's Approve / ✓ Paid act on those. */
+export type ProfitSource = { id: string; label: string; cents: number; jobCostStatus?: string };
+export type ProfitLine = { key: "contractor" | "own_painters" | "materials" | "other" | "expenses"; label: string; cents: number; sources: ProfitSource[] };
 
 export type JobProfit = {
   valueExCents: number;
@@ -70,12 +72,12 @@ export function jobProfit(input: ProfitInput): JobProfit {
       { id: "offer", label: "Offer on the work order", cents: input.offerCents },
       ...(input.contractorVariationCents ? [{ id: "variations", label: "Accepted variations", cents: input.contractorVariationCents }] : []),
     ]),
-    line("own_painters", "Own painters", labour.map((c) => ({ id: c.id, label: c.label, cents: c.amountExCents }))),
+    line("own_painters", "Own painters", labour.map((c) => ({ id: c.id, label: c.label, cents: c.amountExCents, jobCostStatus: c.status }))),
     line("materials", "Materials", [
-      ...materials.map((c) => ({ id: c.id, label: c.label, cents: c.amountExCents })),
+      ...materials.map((c) => ({ id: c.id, label: c.label, cents: c.amountExCents, jobCostStatus: c.status })),
       ...matCosts.map((m) => ({ id: m.id, label: m.label, cents: m.amountIncCents - gstFromIncCents(m.amountIncCents, rate) })),
     ]),
-    line("other", "Other trades and costs", other.map((c) => ({ id: c.id, label: c.label, cents: c.amountExCents }))),
+    line("other", "Other trades and costs", other.map((c) => ({ id: c.id, label: c.label, cents: c.amountExCents, jobCostStatus: c.status }))),
     line("expenses", "Contractor expenses", expenses.map((e) => ({ id: e.id, label: e.label, cents: e.amountExCents }))),
   ];
   const totalCostsCents = lines.reduce((s, l) => s + l.cents, 0);

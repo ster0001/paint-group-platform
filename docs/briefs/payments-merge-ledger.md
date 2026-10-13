@@ -206,3 +206,21 @@ Brief: `docs/briefs/claude-code-brief-payments-merge.md`. Branch `feat/payments-
   - `invoicing` 13/13 (the re-run owed from Step 6, now on the panel). payments-page / actions / message / contractors / materials 22/22. cost-intake + revision-builder green; payments-prework 4/4.
 - Red, unrelated: `employee-timesheet` "the payroll CSV…" expects the header without `bonus_cents`. The CSV gained it with the bonus build (8–9 Oct). Nothing here touches payroll. 4 later tests in that serial file did not run.
 - ⚑ for Step 8: non-materials job costs (scaffold, rubbish…) are approved and paid only on the old Payables tab. The panel lists them but has no Approve / Paid for them. Payables is deleted in Step 8, so they need a home first.
+
+## Step 8 — split in four (Tom, 13 Oct)
+The inventory before deleting found the old Payables tab is the only screen for: expense claims, ask-first pre-approvals, employee reimbursements, Green fast-terms hold/release, approving a draft RCTI, the paid reference/date, non-materials costs (approve/pay, intake category, unread documents with typed amounts) and materials with no job. "Remove what is replaced" (brief rule 9) means they move first.
+- Tom ruled: **port them into Payments**, then delete. Of the old customer filters, bring back **invoice-number search** and the **aged-receivables bar**; the rest stay replaced by the three views (⚑P17).
+- 8a: §6.3/6.4/6.5/6.7 + cost rows + search + aged bar. 8b: Contractors (hold/release, RCTI, reference/date) + Expenses. 8c: Costs (any category, typed amounts, no-job materials). 8d: switch-over, delete, links, full loop, help, CLAUDE.md.
+
+## Step 8a (13 Oct 2026)
+- Migration `20270260000000_payments_final_redraft.sql`, additive. Applied on C1, read-back 5/5 (the first read-back caught `anon` holding EXECUTE through PUBLIC; the file now revokes it).
+  - Trigger `invoices_redraft_final`: an invoice other than the final leaving draft (or voided after issue) re-drafts a standing DRAFT final through `invoice_draft_final`. A sent final is never touched.
+  - `invoice_redraft_final(estimate)`, staff only: the panel's Redraft.
+- §6.3 (4/20 Cockatoo St) closed: the final was drafted while the deposit was a draft (drafts aren't invoiced), the deposit was then paid, nothing re-worked the final. Now the trigger does; drafts already stale show "…charges too much. Redraft" on the card (`finalDraftIsStale`: the invoiced total moved since the `drafted` event recorded it — an intentional edit is not staleness).
+- §6.4 (INV-0049) closed: the staff invoice page took "Less previously invoiced" straight from the ledger, which includes the invoice itself once issued. `previouslyInvoicedCents` backs it out — the rule `invoice_by_token` already used for the customer's copy. Also fixes "Remaining payable after this deposit".
+- §6.5 closed by name: lane 07 is "Closed — signed off" (it is reached at sign-off; the final's state shows on the pills). PC Command, help and `wo-sign-return` follow.
+- §6.7 closed: the Activity tab is built (`lib/invoicing/activity.ts`), views of one invoice fold into one line with a count and a date range.
+- Found and fixed on the way: a card's "Already paid" on a deposit draft the row hides by rule (§6.2) paid the FINAL — the card's own invoice is now always the sheet's first target.
+- Money out: cost rows (scaffold, rubbish, other trades, materials not listed as supplier invoices) get Approve, then ✓ Paid with Undo. Labour has none (payroll, Tom 9 Oct).
+- Search matches every invoice number on the job; the aged-receivables bar (old buckets: not overdue · 1–7 · 8–14 · 15–30 · 30+) sits under the Customers views, from the old `agedBucketsCents`.
+- Gate: unit (invoicing) 257 passing; typecheck clean; lint 3 warnings. e2e `payments-page` 5/5, `payments-panel` 3/3.

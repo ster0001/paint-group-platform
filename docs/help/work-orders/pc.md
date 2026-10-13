@@ -9,7 +9,7 @@ verified_at_commit: 780c451640
 ---
 
 ## What this is for
-The PC console (**Projects** in the sidebar) reads every open work order and tells you what needs a person. Jobs move through seven lanes: **01 Offer → 02 Booking confirmed → 03 Pre-start → 04 In progress → 05 Quality check → 06 Walkthrough → 07 Closed — final invoice sent**. Nothing moves by typing a status: each move has a gate, and the console shows you the gate that is holding a job. The one exception is the calendar: a booked job sits in **Booking confirmed** until its start date is within the next seven days, then shows in **Pre-start** on its own. Your work is the pre-start list, pricing variations, approving the customer updates drafted from the painter's ticks, quality checks, and the sign-off.
+The PC console (**Projects** in the sidebar) reads every open work order and tells you what needs a person. Jobs move through seven lanes: **01 Offer → 02 Booking confirmed → 03 Pre-start → 04 In progress → 05 Quality check → 06 Walkthrough → 07 Closed — signed off**. Nothing moves by typing a status: each move has a gate, and the console shows you the gate that is holding a job. The one exception is the calendar: a booked job sits in **Booking confirmed** until its start date is within the next seven days, then shows in **Pre-start** on its own. Your work is the pre-start list, pricing variations, approving the customer updates drafted from the painter's ticks, quality checks, and the sign-off.
 
 ## Before you start
 - A job appears in the console once its estimate is accepted and the work order issued. Booking it is done on the **Schedule** tab (see the scheduling guide).
@@ -163,7 +163,7 @@ An untouched job reads **The working scope matches the accepted estimate**. Befo
 19. A flagged area returns the job to **04 In progress** with the area on the painter's list. A customer who taps **Happy with this** on that area straight after withdraws the flag: the untouched rectify row is removed and the job goes back to **06 Walkthrough** on its own (the event log reads *flag withdrawn*). Once the painter has put it right and ticked it, their **Fixed — send the report** press completes the job straight to **07 Closed**: the sign-off records **Flagged areas put right** (kind *rectified*), the customer is emailed the completion report with a **What you flagged, and what we did** section, and the warranty and invoice drafts fire as they would on a signature. The walkthrough does not run again.
 
 ### Closed
-20. Signing closes the job: **07 Closed — final invoice sent**, the **Next step** card reads "This job is finished and signed off", and the header gains **Final invoice (draft)**. The final invoice, warranty and completion report are created in that one step. **Something found after sign-off — reopen** takes the job back to Walkthrough for the customer to sign again; it asks for a reason.
+20. Signing closes the job: **07 Closed — signed off**, the **Next step** card reads "This job is finished and signed off", and the header gains **Final invoice (draft)**. The final invoice, warranty and completion report are created in that one step. **Something found after sign-off — reopen** takes the job back to Walkthrough for the customer to sign again; it asks for a reason.
     ![](media/pc-17.png)
     ![](media/pc-18.png)
 
@@ -177,7 +177,7 @@ An untouched job reads **The working scope matches the accepted estimate**. Befo
 - **Clay (red)** — overdue or breached: **CRITICAL** tile, **Offer unanswered past SLA**, **Nothing ticked in N days**, an overdue decision.
 - **Cyan** — live or informational: the current stage on the rail, **Customer update due**, drafted updates.
 - **Emerald (green)** — done: completed stages on the rail, a passed check, **SIGNED OFF THIS WEEK**.
-- Lane names: **01 Offer, 02 Booking confirmed, 03 Pre-start, 04 In progress, 05 Quality check, 06 Walkthrough, 07 Closed — final invoice sent**. There is no separate completion-prep lane; the painter's finishing-up list is part of In progress.
+- Lane names: **01 Offer, 02 Booking confirmed, 03 Pre-start, 04 In progress, 05 Quality check, 06 Walkthrough, 07 Closed — signed off**. There is no separate completion-prep lane; the painter's finishing-up list is part of In progress.
 - **Orange** (Pre-start lane) — the job starts within three days, or its start date has passed and it has not started.
 - **Booking confirmed** and **Pre-start** are the same job stage split by date. A job whose painter has accepted (or been assigned) waits in **Booking confirmed** while its start date is more than seven days away, or has no start date yet. Once the start is within seven days — or has passed without the job starting — the card moves to **Pre-start** by itself; nothing is pressed. The stage rail on the job lights the same lane, and the **Next step** card is headed **02 Booking confirmed** or **03 Pre-start** to match. The pre-start list can be worked in either lane.
 - Variation rail: **RAISED → PRICED → CUSTOMER → CONTRACTOR → WORK**.

@@ -83,6 +83,8 @@ const WORDING: Record<string, string> = {
   not_deleted: "That one isn't deleted.",
   call_back_hold: "Reminders are paused because a call back is open — they resume when it is closed.",
   reason_too_long: "Keep the reason under 300 characters.",
+  // Step 8
+  no_draft_final: "There is no draft final on this job to work out again.",
 };
 
 function revalidateAll(estimateId?: string, invoiceId?: string) {
@@ -1082,4 +1084,16 @@ export async function setDraftDueAction(raw: unknown): Promise<InvoicingResult> 
   if (!p.success) return { ok: false, message: "Pick a date." };
   return call("invoice_set_draft_due", { p_invoice_id: p.data.invoiceId, p_due_on: p.data.dueOn },
     { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId }, "Due date changed.");
+}
+
+/**
+ * Redraft a draft final that was worked out before an earlier invoice on the
+ * job was issued (§6.3). `invoice_redraft_final` (20270260) is staff-only and
+ * refuses when there is no draft final; the figures are the function's.
+ */
+export async function redraftFinalAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({ estimateId: uuid }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+  return call("invoice_redraft_final", { p_estimate_id: p.data.estimateId }, { estimateId: p.data.estimateId },
+    "Final invoice drafted again from what is left to invoice.");
 }

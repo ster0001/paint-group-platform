@@ -7,7 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
  * Search and "Show paid jobs" (§4.2) — both live in the URL so a filtered view
  * can be shared. The only client code on the page; it holds no money.
  */
-export function SearchBox({ initial, label = "Search address or customer" }: { initial: string; label?: string }) {
+export function SearchBox({ initial, label = "Search address, customer or invoice number" }: { initial: string; label?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();

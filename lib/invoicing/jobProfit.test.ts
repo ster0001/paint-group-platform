@@ -49,6 +49,9 @@ describe("money out and profit (§4.7, R19)", () => {
   it("every line traces to the rows it adds up", () => {
     for (const l of p.lines) expect(l.sources.reduce((s, x) => s + x.cents, 0)).toBe(l.cents);
     expect(line("materials").sources.map((s) => s.id)).toEqual(["mat1", "old1", "mc1"]);
+    // Job costs carry their status for the panel's Approve / ✓ Paid; material_costs and the offer don't.
+    expect(line("other").sources[0].jobCostStatus).toBe("paid");
+    expect(line("materials").sources.find((s) => s.id === "mc1")!.jobCostStatus).toBeUndefined();
   });
   it("the bar: costs then profit, as shares of the job value", () => {
     expect(p.bar.map((b) => b.key)).toEqual(["contractor", "own_painters", "materials", "other", "expenses", "profit"]);
