@@ -92,6 +92,11 @@ out += '''
 .pm .prow .p4{flex-wrap:wrap}
 .pm .prow .p4 .cust-amt{display:flex;align-items:center;gap:6px;height:38px;padding:0 10px;border:1px solid var(--line2);border-radius:8px;background:var(--card)}
 .pm .prow .p4 .cust-amt input{width:92px;border:0;background:none;color:var(--text);font-family:var(--mono);font-size:13px;outline:none}
+/* Step 8d: the read-failure notice (ReadFailureNotice) — a failure, never routine. */
+.pm .banner{display:flex;gap:10px;align-items:flex-start;margin:14px 0;border:1px solid var(--red);background:var(--red-bg);border-radius:12px;padding:12px 14px}
+.pm .banner .i{color:var(--red-t);font-size:14px;line-height:1.3}
+.pm .banner p{font-size:13.5px;color:var(--text2);line-height:1.45}
+.pm .banner b{color:var(--text);font-weight:600}
 /* Step 7: Add cost's category chips — the methods buttons, wrapping. */
 .pm .chipset{display:flex;flex-wrap:wrap;gap:6px}
 .pm .chipset button{height:36px;padding:0 12px;border:1px solid var(--line2);border-radius:18px;font-size:13px;color:var(--text2)}

@@ -291,9 +291,9 @@ export const AUTOMATIONS: Automation[] = [
   // ---- customers · money -------------------------------------------------
   {
     key: "invoice_issued", name: "Invoice issued", audience: "customer", channels: ["email", "sms"], kind: "manual",
-    trigger: "You issue and send an invoice (deposit, progress, final, variation) from Invoicing.",
+    trigger: "You send an invoice (deposit, progress, final, variation) from Payments.",
     wording: "Fixed wording plus your personal message; bank details from Invoicing settings.",
-    href: "/invoices",
+    href: "/invoicing",
   },
   {
     key: "payment_receipt", name: "Payment receipt", audience: "customer", channels: ["email"], kind: "automatic",
@@ -314,7 +314,7 @@ export const AUTOMATIONS: Automation[] = [
       { field: "paymentMsgReceived", label: "Payment received", kind: "body", placeholders: P.paymentMessage },
     ],
     guard: "Each message is posted to the customer's chat and logged against the invoice.",
-    href: "/invoicing/payments",
+    href: "/invoicing",
   },
   {
     key: "portal_magic_link", name: "Sign-in link", audience: "customer", channels: ["email"], kind: "manual",

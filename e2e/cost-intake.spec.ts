@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext } from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { createHmac } from "node:crypto";
 import { credentials, missingCreds, signIn, test } from "./helpers";
 import {
@@ -8,6 +8,9 @@ import {
   serviceClient,
   type LoopFixture,
 } from "./fixtures/woLoop";
+
+// Payments merge 8d: the intake queue is Payments → Materials → To check.
+const intakeRowOn = (page: Page, id: string) => page.locator(`.pm [data-testid=pm-materials] .prow[data-mat="intake:${id}"]`);
 
 /**
  * Step 6a — cost capture: the intake pipeline, end to end (C1 stack).
@@ -165,23 +168,24 @@ test.describe("cost capture 6a — the intake pipeline", () => {
     expect(before.data ?? []).toHaveLength(0);
 
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/invoicing?tab=pay");
-    const card = page.getByTestId(`intake-${firstIntakeId}`);
-    await expect(card).toBeVisible();
-    await expect(card.getByText("SR-2291")).toBeVisible();
+    // Payments merge 8d: the queue is Payments → Materials → To check.
+    await page.goto("/invoicing?tab=mat");
+    const card = intakeRowOn(page, firstIntakeId);
+    await expect(card).toContainText("SR-2291", { timeout: 30_000 });
+    // Kept from the old card (Tom, 13 Oct): the GST read, and how sure the reader was of the PG reference.
+    await expect(card).toContainText("GST $131.82");
+    await expect(card).toContainText("Job found from the order reference");
 
-    await card.getByTestId(`confirm-${firstIntakeId}`).click();
-    const panel = page.getByTestId(`panel-${firstIntakeId}`);
-    await expect(panel).toBeVisible();
+    await card.getByRole("button", { name: "Record as a cost…" }).click();
+    const sheet = page.getByRole("dialog", { name: "Record as a cost" });
     // The proposed job arrives pre-picked; amounts prefilled from the reading.
-    await expect(panel.getByTestId(`total-${firstIntakeId}`)).toHaveValue("1450.00");
-    // The proposed job arrives pre-picked in the matched-job box (Tom, 4 Sep);
-    // the expense type is a dropdown.
-    await expect(panel.getByTestId(`job-search-${firstIntakeId}-chosen`)).toBeVisible();
-    await panel.getByTestId(`category-${firstIntakeId}`).selectOption("scaffold");
-    await panel.getByTestId(`save-${firstIntakeId}`).click();
+    await expect(sheet.getByRole("button", { name: "Change" })).toBeVisible();
+    await expect(sheet.getByLabel("Total inc GST ($)")).toHaveValue("1450.00");
+    await expect(sheet.getByLabel("GST ($)", { exact: true })).toHaveValue("131.82");
+    await sheet.getByRole("button", { name: "Scaffold" }).click();
+    await sheet.getByRole("button", { name: "Record $1,450.00" }).click();
 
-    await expect(page.getByTestId("costs-message")).toContainText("recorded", { ignoreCase: true });
+    await expect(page.getByTestId("pm-toast")).toContainText("recorded on", { ignoreCase: true });
 
     const { data: cost } = await db!
       .from("job_costs")
@@ -228,13 +232,11 @@ test.describe("cost capture 6a — the intake pipeline", () => {
 
     // Still exactly one cost row; the card dismisses without writing anything.
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/invoicing?tab=pay");
-    const card = page.getByTestId(`intake-${row.id}`);
-    await expect(card).toContainText("Possible duplicate");
-    await card.getByTestId(`reject-${row.id}`).click();
-    // The card leaves when the action's re-render lands; on C1's 20k-job
-    // volume data /invoicing?tab=pay takes ~10 s to render (the RPC itself
-    // answers in under 200 ms), so this waits for the page, not the action.
+    await page.goto("/invoicing?tab=mat");
+    const card = intakeRowOn(page, row.id);
+    await expect(card).toContainText("Possible duplicate", { timeout: 30_000 });
+    await card.getByRole("button", { name: "Dismiss" }).click();
+    // The row leaves when the action's re-render lands (C1's volume data is slow to render).
     await expect(card).toBeHidden({ timeout: 30_000 });
 
     const { data: costRows } = await db!.from("job_costs").select("id").eq("work_order_id", fixture!.workOrderId);
@@ -263,15 +265,18 @@ test.describe("cost capture 6a — the intake pipeline", () => {
     expect(row.extracted.total_cents ?? null).toBeNull();
 
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/invoicing?tab=pay");
-    await expect(page.getByTestId(`intake-failed-${row.id}`)).toContainText("Couldn't read");
+    await page.goto("/invoicing?tab=mat");
+    const unread = intakeRowOn(page, row.id);
+    await expect(unread).toContainText("Not read", { timeout: 30_000 });
+    // Typed amounts are the way on (8c) — nothing guessed.
+    await expect(unread.getByRole("button", { name: "Record as a cost…" })).toBeVisible();
 
     // No $0 anywhere: the only cost row is still the confirmed one.
     const { data: costRows } = await db!.from("job_costs").select("amount_ex_cents").eq("work_order_id", fixture!.workOrderId);
     expect(costRows ?? []).toHaveLength(1);
 
-    // Tidy the card away so later assertions see a stable queue.
-    await page.getByTestId(`reject-${row.id}`).click();
+    // Tidy the row away so later assertions see a stable queue.
+    await unread.getByRole("button", { name: "Delete" }).click();
   });
 
   test("the airtable door: writes through the pipeline, auto-matches on the PG ref, replays as a no-op", async ({ request }) => {
@@ -371,20 +376,17 @@ test.describe("cost capture 6a — the intake pipeline", () => {
     expect(cost.doc_path).toContain("receipts/");
     expect(cost.amount_ex_cents + cost.gst_cents).toBe(22000);
 
-    // recorded → approved → paid on the Payables tab.
-    await page.goto("/invoicing?tab=pay");
-    // Each step shows after the Payables re-render (~10 s on C1's volume data).
-    await page.getByTestId(`approve-cost-${cost.id}`).click();
-    await expect(page.getByTestId(`pay-cost-${cost.id}`)).toBeVisible({ timeout: 30_000 });
-    page.once("dialog", (d) => d.accept("2026-08-25"));
-    await page.getByTestId(`pay-cost-${cost.id}`).click();
-    await expect(page.getByTestId(`pay-cost-${cost.id}`)).toBeHidden({ timeout: 30_000 });
+    // recorded → approved → paid on the job panel's Money out (8a; the Payables tab is gone).
+    await page.goto(`/invoicing/job/${fixture!.estimateId}?jt=out`);
+    const costRow = page.getByTestId(`job-cost-item-${cost.id}`);
+    await costRow.getByRole("button", { name: "Approve" }).click();
+    await expect(costRow.getByRole("button", { name: "✓ Paid" })).toBeVisible({ timeout: 30_000 });
+    await costRow.getByRole("button", { name: "✓ Paid" }).click();
+    await expect.poll(async () => ((await db!.from("job_costs").select("status").eq("id", cost.id).single()).data as { status: string }).status, { timeout: 30_000 }).toBe("paid");
 
     const { data: after } = await db!.from("job_costs").select("status, paid_at").eq("id", cost.id).single();
     expect((after as { status: string }).status).toBe("paid");
     expect((after as { paid_at: string | null }).paid_at).not.toBeNull();
 
-    // The accuracy readout counts this run's decisions.
-    await expect(page.getByTestId("accuracy-readout")).toContainText("decided");
   });
 });

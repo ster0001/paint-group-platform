@@ -62,7 +62,7 @@ test.describe("dashboard · session 4 · invoicing", () => {
     if (finId) await db.auth.admin.deleteUser(finId);
   });
 
-  test("a finance login: Invoicing tiles equal /invoicing at the same instant; every count equals its rows", async ({ page }) => {
+  test("a finance login: Invoicing tiles equal Payments at the same instant; every count equals its rows", async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page, { email: finEmail, password }, /\/(home|estimates|pc|crm|contacts|invoic|settings|proving|contractors)/);
     await page.goto("/home");
@@ -82,24 +82,24 @@ test.describe("dashboard · session 4 · invoicing", () => {
     expect(await matchDrill.locator("tbody tr").count()).toBe(homeToMatch);
     await page.getByTestId("tile-inv.materials_to_match").click();
 
-    // The same instant, the /invoicing dashboard's own tiles (its money format drops cents too).
+    // The same instant, Payments' own figures (Step 8d: the old tiles are gone). The cards show
+    // cents, the home tiles whole dollars — so to the dollar.
     await page.goto("/invoicing");
-    await expect(page.getByTestId("tile-outstanding")).toBeVisible({ timeout: 30_000 });
-    expect(digits(await page.getByTestId("tile-outstanding").textContent())).toBe(homeOutstanding);
-    expect(digits(await page.getByTestId("tile-overdue").textContent())).toBe(homeOverdue);
-    // Approved-to-pay: /invoicing's Payables shows "to pay this week"; Home shows all approved — compare the shared to-approve line instead.
-    const toApproveInvoicing = digits(await page.getByTestId("tile-to-approve").textContent());
-    // …and the Payables "Materials to match" tile is the same count, and its card lists the same row.
-    await page.goto("/invoicing?tab=pay");
-    await expect(page.getByTestId("tile-materials-to-match")).toBeVisible({ timeout: 30_000 });
-    expect(digits(await page.getByTestId("tile-materials-to-match").textContent())).toBe(homeToMatch);
-    await page.getByTestId("tile-materials-to-match-link").click();
-    await expect(page.getByTestId("unmatched-materials")).toContainText(`E2E Supplies ${run}`);
+    const ledger = page.getByTestId("pm-ledger");
+    await expect(ledger).toBeVisible({ timeout: 30_000 });
+    const customers = ledger.locator(".led").nth(0);
+    expect(Math.abs(digits(await customers.locator(".v").textContent()) / 100 - homeOutstanding)).toBeLessThanOrEqual(1);
+    expect(Math.abs(digits(await customers.locator(".od").textContent()) / 100 - homeOverdue)).toBeLessThanOrEqual(1);
+    const toApproveInvoicing = Number(/(\d+) to approve/.exec((await ledger.locator(".led").nth(1).textContent()) ?? "")?.[1] ?? NaN);
+    // …and Materials counts the same no-job invoices as the home tile, and "No job yet" lists the fixture's.
+    expect(Number(/(\d+) with no job/.exec((await ledger.locator(".led").nth(2).textContent()) ?? "")?.[1] ?? 0)).toBe(homeToMatch);
+    await page.goto("/invoicing?tab=mat#no-job");
+    await expect(page.getByTestId("pm-no-job")).toContainText(new RegExp(`E2E Supplies ${run}`, "i"), { timeout: 30_000 });
     await page.goto("/home");
     await expect(page.getByTestId("home")).toBeVisible({ timeout: 30_000 });
     expect(digits(await page.getByTestId("tile-value-inv.contractors_to_pay_cents").textContent())).toBe(homeToPay);
     const toApproveNote = (await page.getByTestId("tile-note-inv.contractors_to_pay_cents").textContent()) ?? "";
-    expect(digits(toApproveNote.split("·")[1] ?? "0")).toBe(toApproveInvoicing);
+    expect(digits(toApproveNote.split("·")[0] ?? "")).toBe(toApproveInvoicing);   // "N to approve · $X…"
 
     // The fixture's overdue invoice is in Overdue with its days, and in the 8–30 bucket note.
     await page.getByTestId("tile-inv.overdue_cents").click();

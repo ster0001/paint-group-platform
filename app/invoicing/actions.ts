@@ -90,7 +90,6 @@ const WORDING: Record<string, string> = {
 
 function revalidateAll(estimateId?: string, invoiceId?: string) {
   revalidatePath("/invoicing");
-  revalidatePath("/invoicing/payments");
   if (estimateId) revalidatePath(`/invoicing/job/${estimateId}`);
   if (invoiceId) revalidatePath(`/invoicing/inv/${invoiceId}`);
 }
@@ -513,52 +512,8 @@ export async function recordDriftAsVariationAction(raw: unknown): Promise<Invoic
 
 // ---- Step 5: contractor invoices (Payables) -------------------------------
 
-export async function approveContractorInvoiceAction(raw: unknown): Promise<InvoicingResult> {
-  const p = z.object({ contractorInvoiceId: uuid }).safeParse(raw);
-  if (!p.success) return { ok: false, message: "Something went wrong." };
-  const result = await call(
-    "contractor_invoice_approve",
-    { p_id: p.data.contractorInvoiceId },
-    {},
-    "Approved — it's in the To-pay pile.",
-  );
-  if (result.ok) revalidatePath("/portal/money");
-  return result;
-}
 
-const markCiPaidInput = z.object({
-  contractorInvoiceId: uuid,
-  reference: z.string().trim().max(200).default(""),
-  paidOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-});
 
-export async function markContractorInvoicePaidAction(raw: unknown): Promise<InvoicingResult> {
-  const p = markCiPaidInput.safeParse(raw);
-  if (!p.success) return { ok: false, message: "Check the reference and try again." };
-
-  const result = await call(
-    "contractor_invoice_mark_paid",
-    {
-      p_id: p.data.contractorInvoiceId,
-      p_reference: p.data.reference,
-      p_paid_on: p.data.paidOn ?? null,
-    },
-    {},
-    "Paid recorded — remittance advice on its way to the contractor.",
-  );
-  if (!result.ok) return result;
-
-  revalidatePath("/portal/money");
-  // The remittance PDF + email ride behind the response (⚑16 log-driver when
-  // email isn't configured) — recording the payment never waits on Chromium.
-  const ciId = p.data.contractorInvoiceId;
-  after(async () => {
-    const service = createServiceClient();
-    if (!service) return;
-    await sendClaimedRemittance(service, ciId);
-  });
-  return result;
-}
 
 /**
  * The remittance goes exactly once, and only while the invoice is still paid:
@@ -591,7 +546,6 @@ async function eachCi(fn: string, ids: string[]): Promise<{ done: string[]; fail
     if (error) { reportError(error, { where: `eachCi.${fn}`, extra: { id } }); failed.push(id); continue; }
     if (String(data ?? "").startsWith("ok:")) done.push(id); else { failed.push(id); reason ??= String(data ?? "").replace("error:", ""); }
   }
-  revalidatePath("/invoicing/payments");
   revalidatePath("/invoicing");
   revalidatePath("/portal/money");
   return { done, failed, reason };
@@ -627,7 +581,6 @@ export async function payCiQuickAction(raw: unknown): Promise<CiBatchResult> {
     if (error) { reportError(error, { where: "payCiQuickAction", extra: { id } }); failed.push(id); continue; }
     if (String(data ?? "").startsWith("ok:")) done.push(id); else failed.push(id);
   }
-  revalidatePath("/invoicing/payments");
   revalidatePath("/invoicing");
   revalidatePath("/portal/money");
   if (done.length) {
@@ -670,55 +623,9 @@ const JOB_COST_CATEGORIES = [
   "materials",
 ] as const;
 
-const confirmIntakeInput = z.object({
-  intakeId: uuid,
-  destination: z.enum(["job_cost", "material_cost"]),
-  woId: uuid.nullish(),
-  estimateId: uuid.nullish(), // revalidation only
-  vendorId: uuid.nullish(),
-  vendorName: z.string().trim().max(200).default(""),
-  category: z.enum(JOB_COST_CATEGORIES).default("other"),
-  description: z.string().trim().max(400).default(""),
-  amountExCents: z.number().int().min(0).max(100_000_000),
-  gstCents: z.number().int().min(0).max(100_000_000),
-  invoiceNo: z.string().trim().max(60).default(""),
-  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
-  estimateLineRef: z.string().trim().max(200).default(""),
-  paidWith: z.enum(["company_card", "personal", "account"]).default("account"),
-});
 
-export async function confirmIntakeAction(raw: unknown): Promise<InvoicingResult> {
-  const p = confirmIntakeInput.safeParse(raw);
-  if (!p.success) return { ok: false, message: "Check the cost details and try again." };
-  return call(
-    "cost_intake_confirm",
-    {
-      p_id: p.data.intakeId,
-      p_destination: p.data.destination,
-      p_wo: p.data.woId ?? null,
-      p_vendor: p.data.vendorId ?? null,
-      p_vendor_name: p.data.vendorName,
-      p_category: p.data.category,
-      p_description: p.data.description,
-      p_amount_ex_cents: p.data.amountExCents,
-      p_gst_cents: p.data.gstCents,
-      p_invoice_no: p.data.invoiceNo,
-      p_invoice_date: p.data.invoiceDate ?? null,
-      p_estimate_line_ref: p.data.estimateLineRef,
-      p_paid_with: p.data.paidWith,
-    },
-    { estimateId: p.data.estimateId ?? undefined },
-    "Cost recorded with the document attached.",
-  );
-}
 
-const intakeIdInput = z.object({ intakeId: uuid });
 
-export async function rejectIntakeAction(raw: unknown): Promise<InvoicingResult> {
-  const p = intakeIdInput.safeParse(raw);
-  if (!p.success) return { ok: false, message: "Couldn't find that document." };
-  return call("cost_intake_reject", { p_id: p.data.intakeId }, {}, "Dismissed — no cost was written.");
-}
 
 const recordJobCostInput = z.object({
   estimateId: uuid,
@@ -778,35 +685,9 @@ export async function recordJobCostAction(raw: unknown): Promise<InvoicingResult
   );
 }
 
-const jobCostIdInput = z.object({ jobCostId: uuid, estimateId: uuid.nullish() });
 
-export async function approveJobCostAction(raw: unknown): Promise<InvoicingResult> {
-  const p = jobCostIdInput.safeParse(raw);
-  if (!p.success) return { ok: false, message: "Couldn't find that cost." };
-  return call(
-    "job_cost_approve",
-    { p_id: p.data.jobCostId },
-    { estimateId: p.data.estimateId ?? undefined },
-    "Approved — it joins the to-pay list.",
-  );
-}
 
-const markJobCostPaidInput = z.object({
-  jobCostId: uuid,
-  estimateId: uuid.nullish(),
-  paidOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-});
 
-export async function markJobCostPaidAction(raw: unknown): Promise<InvoicingResult> {
-  const p = markJobCostPaidInput.safeParse(raw);
-  if (!p.success) return { ok: false, message: "Check the date and try again." };
-  return call(
-    "job_cost_mark_paid",
-    { p_id: p.data.jobCostId, p_paid_on: p.data.paidOn ?? null },
-    { estimateId: p.data.estimateId ?? undefined },
-    "Paid recorded.",
-  );
-}
 
 const assignMaterialInput = z.object({ materialCostId: uuid, woId: uuid });
 
@@ -1004,7 +885,6 @@ async function eachRpc(calls: Array<{ fn: string; args: Record<string, unknown> 
     const r = String(data ?? "");
     if (r.startsWith("ok:")) done += 1; else { failed += 1; firstError ??= WORDING[r.replace("error:", "")] ?? r; }
   }
-  revalidatePath("/invoicing/payments");
   revalidatePath("/invoicing");
   return { done, failed, firstError };
 }

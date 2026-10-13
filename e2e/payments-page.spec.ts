@@ -21,7 +21,7 @@ const staff = credentials("STAFF");
 const contractor = credentials("CONTRACTOR");
 const db: SupabaseClient | null = serviceClient();
 const stamp = `PM${Date.now().toString(36).slice(-6).toUpperCase()}`;
-const PAGE = "/invoicing/payments";
+const PAGE = "/invoicing";
 
 const made: PaymentsJob[] = [];
 const iso = isoDay;

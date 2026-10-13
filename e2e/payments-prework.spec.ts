@@ -14,8 +14,9 @@ import { accessTokenFor, contractorIdForEmail, createLoopFixture, destroyLoopFix
  *  2. Pause / Resume reminders works. It used to update `invoices` straight
  *     from the staff session, which has no UPDATE on invoices, so every press
  *     failed. Driven through the real buttons.
- *  3. The deep links land where they say: `?tab=` on the job view, the
- *     Payables tab, and the old contractor-invoice email link (it 404'd).
+ *  3. The deep links land where they say: `?tab=` on the job view, the old
+ *     Payables tab (now Contractors), the old contractor-invoice email link
+ *     (it 404'd), and the addresses retired at the switch-over (Step 8d).
  */
 const staff = credentials("STAFF");
 const contractor = credentials("CONTRACTOR");
@@ -120,11 +121,25 @@ test.describe("Pause / Resume reminders and the money deep links", () => {
     await page.goto(`/invoicing/job/${f!.estimateId}?tab=costs`);
     await expect(page.getByRole("link", { name: "Money out and profit", exact: true })).toHaveClass(/\bon\b/, { timeout: 30_000 });
 
+    // Step 8d, the switch-over. The old Payables tab (?tab=pay, in every email and CRM item sent before) is Contractors.
+    const contractorsCard = page.getByTestId("pm-ledger").getByRole("link", { name: /Contractors/ });
     await page.goto("/invoicing?tab=pay");
-    await expect(page.getByRole("button", { name: "Payables", exact: true })).toHaveClass(/\bon\b/, { timeout: 30_000 });
+    await expect(contractorsCard).toHaveAttribute("aria-current", "page", { timeout: 30_000 });
 
     // Every "contractor invoice in" email before 12 Oct linked /invoicing/ci/<id>, which never existed.
     await page.goto(`/invoicing/ci/${NOBODY}`);
-    await expect(page).toHaveURL(/\/invoicing\?tab=pay$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/invoicing\?tab=con$/, { timeout: 30_000 });
+
+    // The old addresses: /invoicing/payments (Steps 2–8c) and /invoices (the per-job list) — query kept.
+    await page.goto("/invoicing/payments?tab=mat&q=nothing-matches");
+    await expect(page).toHaveURL(/\/invoicing\?tab=mat&q=nothing-matches$/, { timeout: 30_000 });
+    await page.goto("/invoices?q=Kite");
+    await expect(page).toHaveURL(/\/invoicing\?view=table&q=Kite$/, { timeout: 30_000 });
+    // The old Overdue filter is All jobs → Overdue.
+    await page.goto("/invoicing?f=overdue");
+    await expect(page.getByRole("link", { name: "All jobs" })).toHaveClass(/\bon\b/, { timeout: 30_000 });
+    // The home tile's "Materials to match" lands on the list it counts.
+    await page.goto("/invoicing?tab=mat#no-job");
+    await expect(page.getByTestId("pm-ledger").getByRole("link", { name: /Materials/ })).toHaveAttribute("aria-current", "page");
   });
 });

@@ -20,7 +20,7 @@ const staff = credentials("STAFF");
 const contractor = credentials("CONTRACTOR");
 const db: SupabaseClient | null = serviceClient();
 const stamp = `PM6${Date.now().toString(36).slice(-5).toUpperCase()}`;
-const PAGE = "/invoicing/payments?tab=mat";
+const PAGE = "/invoicing?tab=mat";
 const BUCKET = "cost-docs";
 const DOC = `bills/e2e/${stamp}.pdf`;
 const DOMAIN = `${stamp.toLowerCase()}.invalid`;

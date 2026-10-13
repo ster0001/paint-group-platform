@@ -20,8 +20,8 @@ export const STAFF_AREAS = [
   { key: "estimates",   label: "Estimates",   href: "/estimates",   prefixes: ["/estimates", "/quote"] },
   { key: "proving",     label: "Proving",     href: "/proving",     prefixes: ["/proving"] },
   { key: "projects",    label: "Projects",    href: "/pc",          prefixes: ["/pc"] },
-  { key: "invoicing",   label: "Invoicing",   href: "/invoices",    prefixes: ["/invoices"] },
-  { key: "payments",    label: "Payments",    href: "/invoicing",   prefixes: ["/invoicing"] },
+  // Payments merge Step 8d: one money area; /invoices only redirects here.
+  { key: "payments",    label: "Payments",    href: "/invoicing",   prefixes: ["/invoicing", "/invoices"] },
   { key: "contacts",    label: "Contacts",    href: "/contacts",    prefixes: ["/contacts"] },
   { key: "crm",         label: "CRM",         href: "/crm",         prefixes: ["/crm"] },
   { key: "contractors", label: "Contractors", href: "/contractors", prefixes: ["/contractors"] },

@@ -256,3 +256,31 @@ The inventory before deleting found the old Payables tab is the only screen for:
   - e2e `payments-materials` 3/3: an unread docket recorded as rubbish, $220 typed, GST prefilled to $20, stored as $200 + $20 with the document; a no-job material assigned to its job.
   - Regression 19/19: cost-intake, dashboard-invoicing, payments-panel, payments-page.
 - Tom, 13 Oct: keep the GST and the confidence % from the old intake card; the accuracy readout goes. To check rows now show "GST $x" with the invoice number, and "Job found from the order reference, read with N% confidence" when the job came from the reference (the old card's own rule). e2e checks the GST; unit tests both.
+
+## Step 8d — the switch-over (13 Oct 2026)
+- No migration.
+- Routes:
+  - `/invoicing` IS the Payments page (`app/invoicing/page.tsx`; components stay in `app/invoicing/payments/`).
+  - `/invoicing/payments` redirects (query kept); `/invoices` redirects to All jobs (search kept, ⚑P16).
+  - Old links still land: `?tab=pay` → Contractors, `?tab=rec` → Customers, `?f=overdue` / `?f=paid` → All jobs' filters; `/invoicing/ci/<id>` → Contractors; `/invoicing/job/<id>?tab=costs` → Money out.
+  - Sidebar: one money entry, **Payments**. Staff areas: `invoicing` merged into `payments` (prefixes `/invoicing`, `/invoices`).
+- Links repointed: CRM "Release or keep" and the contractor-invoice email → Contractors; PC Command's ask-first "Decide" → Contractors → Ask first; Home's "Materials to match" → Materials → No job yet; reporting metrics; the automations page; PC Command's **Payments →** (was "Money view →") and the Materials card pass `from` so the panel's back link returns to the work order; the invoice page's crumb reads Payments (§6.11).
+- Deleted (replaced, Tom 13 Oct):
+  - `app/invoicing/Dashboard.tsx`, `PayablesCosts.tsx`, `JobSearch.tsx`, `job/[estimateId]/MoneyView.tsx`, the old `app/invoicing/page.tsx`, `app/(app)/invoices/SearchBox.tsx` and the `/invoices` list.
+  - Server actions with no caller left: `approveContractorInvoiceAction`, `markContractorInvoicePaidAction`, `confirmIntakeAction`, `rejectIntakeAction`, `approveJobCostAction`, `markJobCostPaidAction` (+ their input schemas).
+  - Loaders/helpers: `loadCostCapture`, `ageInfo`, `paymentStages`, `stageDots` (+ stage types), `accuracyReadout`, `queueRows`, and their tests.
+  - `e2e/_invoicing-look`, `_look-invoicing`, `_look-materials` (screenshot helpers of the deleted screens).
+  - `invoicing.css`: 147 rules only the old screens used; the rest re-scoped from `.invx:not(:has(.pm))` to `.invx .invdoc` (the invoice page), so the guard is gone. The read-failure notice gained its own `.pm .banner` rules.
+  - Not deleted: `SendInvoiceSheet.tsx` (the invoice page uses it). `issueInvoiceAction` and `addLineAction` were already unused before this branch — left, listed for a separate clean-up.
+- Found on the way: the job pickers (Pick a job, Record as a cost, Assign) left out paid-in-full jobs, so a supplier invoice arriving after a job was paid could not be filed to it, and a found job lost its preselection. They now offer every job with a work order, open ones first.
+- Specs moved to the new screens (same journeys): invoicing, invoicing-read-failure, dashboard-invoicing (home tiles = the Payments cards, to the dollar), contractor-invoicing, payments-contractors (To approve = the rows), payments-prework (every old link lands), cost-intake, employee-timesheet, employee-money-tab (+ `ok:lead_set`, stale since 8 Oct), tom-batch-17sep (search), tom-batch-29sep (the views that replaced the filter rows), revision-builder, reach-and-chat, wo-sign-return, both help-capture specs.
+- New: `e2e/payments-full-loop.spec.ts` — accept (customer session) → deposit to 30% → send → Message → ✓ Paid → Undo → ✓ Paid → under way → supplier invoice confirmed → contractor submits (their session) → approved and paid → final sent → cash, notification off → off the active views → profit $5,500 (55%) → the customer's link shows paid. 1/1.
+- Help: `invoicing/staff.md` rewritten for the Payments page from the running screens; `self-invoicing/staff.md` for Contractors (screenshots and GIF re-captured); passing mentions fixed in contractors, dashboard, help-centre, timesheets, work-orders. CLAUDE.md: /invoicing is the one money screen, the job panel the one job money view, `jobProfit.ts` the one profit. ARCHITECTURE.md: Steps 2–8.
+- Gate:
+  - Unit 3,582 passing. Typecheck clean. Lint 3 warnings (ceiling 4). Help index current. Grep audits clean: no link reaches the old tabs, nothing imports a deleted file, the money guard passes.
+  - e2e on C1: payments-* 8 specs, invoicing 13/13, the moved specs above. Red, not this branch: `employee-timesheet` payroll CSV header (`bonus_cents`) — Tom's separate task.
+- §6 closed or reported:
+  - Closed: 3, 4, 5, 7 (8a); 8, 9, 10 (Step 6); 11 (naming: Payments / job panel).
+  - 1 and 2: hidden by rule since Step 1. **Not built:** stopping new $0 drafts, and clearing the deposit draft when a final is drafted. Needs a change to the drafting functions; for Tom to approve, with the list of existing rows to delete (§3A.3).
+  - 6: data, not code (⚑P15: deposits taken outside the platform on imported jobs).
+- §3A.4: to run on production after the deploy (the baseline is production, 12 Oct, kept outside the repo).

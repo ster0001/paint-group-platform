@@ -106,21 +106,23 @@ test("self-invoicing — contractor claims, submits; office approves and pays", 
   await expect(c.getByTestId("ci-status")).toContainText("With the office", { timeout: 15_000 });
   await shot(c, F, "contractor", "08");
 
-  // --- the office: Payables → approve → mark paid -------------------------------
+  // --- the office: Payments → Contractors → approve → paid with the reference (Payments merge 8d) ----
   const sCtx = await browser.newContext({ viewport: DESK, deviceScaleFactor: 2 });
   const s = await sCtx.newPage();
   await signIn(s, staff!, /\/(home|estimates)/);
-  await s.goto("/invoicing?tab=pay");
-  await expect(s.getByTestId(`payable-${claimId}`)).toBeVisible();
-  await expect(s.getByTestId(`payable-${finalId}`)).toBeVisible();
+  await s.goto("/invoicing?tab=con");
+  const claimRow = s.locator(`.pm .prow[data-ci="${claimId}"]`);
+  await expect(claimRow).toBeVisible({ timeout: 30_000 });
+  await expect(s.locator(`.pm .prow[data-ci="${finalId}"]`)).toBeVisible();
   await shot(s, F, "staff", "01", { fullPage: false });
-  await s.getByTestId(`approve-ci-${claimId}`).click();
-  await expect(s.getByTestId(`pay-ci-${claimId}`)).toBeVisible({ timeout: 15_000 });
+  await claimRow.getByRole("button", { name: "Approve" }).click();
+  await expect(claimRow.getByRole("button", { name: "Paid, with reference…" })).toBeVisible({ timeout: 15_000 });
   await shot(s, F, "staff", "02", { fullPage: false });
-  const answers = ["EFT-HELP-0001", new Date().toISOString().slice(0, 10)];
-  s.on("dialog", (d) => d.accept(answers.shift() ?? ""));
-  await s.getByTestId(`pay-ci-${claimId}`).click();
-  await expect(s.getByTestId(`payable-${claimId}`)).toContainText("Paid", { timeout: 15_000 });
+  await claimRow.getByRole("button", { name: "Paid, with reference…" }).click();
+  const paySheet = s.getByRole("dialog", { name: "Record the payment" });
+  await paySheet.getByLabel("Bank reference").fill("EFT-HELP-0001");
+  await paySheet.getByRole("button", { name: "Mark paid" }).click();
+  await expect.poll(async () => ((await db!.from("contractor_invoices").select("status").eq("id", claimId).single()).data as { status: string }).status, { timeout: 15_000 }).toBe("paid");
   await shot(s, F, "staff", "03", { fullPage: false });
 
   // --- back in the portal: paid, remittance attached ------------------------------

@@ -19,7 +19,7 @@ const staff = credentials("STAFF");
 const contractor = credentials("CONTRACTOR");
 const db: SupabaseClient | null = serviceClient();
 const stamp = `PC5${Date.now().toString(36).slice(-5).toUpperCase()}`;
-const PAGE = "/invoicing/payments?tab=con";
+const PAGE = "/invoicing?tab=con";
 const made: PaymentsJob[] = [];
 let seq = 0;
 
@@ -122,17 +122,22 @@ test.describe("Payments → Contractors — as staff", () => {
     }
   });
 
-  test("the To approve total equals the old Payables tile", async ({ page }) => {
+  // Step 8d: the old Payables tile is gone; the section and the card are checked against the rows themselves
+  // (submitted, or a draft RCTI — ciAwaitsApproval, the one rule the home dashboard also reads).
+  test("the To approve section and card equal the invoices waiting for approval", async ({ page }) => {
+    const { data, error } = await db!.from("contractor_invoices").select("status, rcti, total_inc_cents").in("status", ["submitted", "draft"]);
+    if (error) throw error;
+    const waiting = (data as { status: string; rcti: boolean | null; total_inc_cents: number }[]).filter((c) => c.status === "submitted" || !!c.rcti);
+    const cents = waiting.reduce((s, c) => s + c.total_inc_cents, 0);
+
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/invoicing?tab=pay");
-    const tile = (await page.getByTestId("tile-to-approve").textContent()) ?? "";
     await page.goto(PAGE);
     await expect(page.getByTestId("pm-headline")).toBeVisible({ timeout: 30_000 });
     const sec = page.locator(".pm [data-testid=pm-contractors] .sec", { has: page.locator("h2", { hasText: "To approve" }) });
-    // No section at all means nothing is waiting for approval: $0, the same as the tile.
-    const total = (await sec.count()) ? ((await sec.locator(".tot").textContent()) ?? "") : "$0";
-    const dollars = (s: string) => Math.round(Number((s.match(/\$[\d,]+(\.\d+)?/)?.[0] ?? "$0").replace(/[$,]/g, "")));
-    expect(dollars(total)).toBe(dollars(tile));
+    // No section at all means nothing is waiting for approval.
+    const total = (await sec.count()) ? ((await sec.locator(".tot").textContent()) ?? "") : "$0.00";
+    expect(Number((total.match(/\$[\d,]+\.\d{2}/)?.[0] ?? "$0").replace(/[$,.]/g, ""))).toBe(cents);
+    await expect(page.getByTestId("pm-ledger").locator(".led").nth(1)).toContainText(`${waiting.length} to approve`);
   });
 
   test("a contractor still sees only their own invoices", async () => {

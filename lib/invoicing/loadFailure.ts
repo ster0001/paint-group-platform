@@ -66,7 +66,7 @@ export function firstFailure(...failures: (ReadFailure | null)[]): ReadFailure |
 /**
  * A COSTS / PAYABLES read failed.
  *
- * These reads are tolerant by design — `loadCostCapture` has always substituted
+ * These reads are tolerant by design — `loadExpenseQueues` / `loadJobCosts` substitute
  * an empty list per table so one missing thing can't blank the whole tab, and
  * that part is right. What was wrong is that it did so SILENTLY, and the lie a
  * missing money-OUT list tells is a quiet understatement: a job looks cheaper

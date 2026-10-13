@@ -28,14 +28,14 @@ export default async function InvoiceDocPage({
   // does not exist. It does exist; it could not be read. Say that instead.
   if (failure) {
     return (
-      <div className="wrap">
+      <div className="invdoc"><div className="wrap">
         <header>
           <div className="crumb"><Link href="/invoicing"><span className="chev">‹</span> Payments</Link></div>
           <h1>Invoice</h1>
           <div className="sub">This invoice could not be opened</div>
         </header>
         <ReadFailureNotice failure={failure} />
-      </div>
+      </div></div>
     );
   }
   if (!doc || !doc.job.ledger) notFound();
@@ -89,8 +89,9 @@ export default async function InvoiceDocPage({
     .map((i) => `${i.number} ${i.kind}`)
     .join(", ");
 
+  // .invdoc scopes invoicing.css's document rules (Step 8d: the old :not(:has(.pm)) guard is gone).
   return (
-    <InvoiceDoc
+    <div className="invdoc"><InvoiceDoc
       invoiceId={id}
       estimateId={invoice.estimate_id}
       kind={invoice.kind}
@@ -120,6 +121,6 @@ export default async function InvoiceDocPage({
       lines={lines}
       payments={payments}
       prevNumbers={prevNumbers}
-    />
+    /></div>
   );
 }

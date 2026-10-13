@@ -19,7 +19,7 @@ const SLOTS: readonly SlotKey[] = ["deposit", "progress", "final"];
 const GATE_LEFT: Record<SlotKey, string> = { deposit: "42.86%", progress: "57.14%", final: "100%" };
 
 /** The job's own page — what a link outside the Payments page opens (the page opens the panel; OpenJobLink). */
-export const jobHref = (r: JobMoneyRow) => `/invoicing/job/${r.estimateId}?from=${encodeURIComponent("/invoicing/payments")}`;
+export const jobHref = (r: JobMoneyRow) => `/invoicing/job/${r.estimateId}?from=${encodeURIComponent("/invoicing")}`;
 
 export function Rail({ row }: { row: JobMoneyRow }) {
   const at = LANES.indexOf(row.lane);

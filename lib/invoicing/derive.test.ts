@@ -7,13 +7,10 @@ import { describe, expect, it } from "vitest";
 import { melbourneInstant } from "@/lib/time/businessHours";
 import {
   agedBucketsCents,
-  ageInfo,
   dashboardTiles,
   daysBetween,
   invoiceBalanceCents,
-  paymentStages,
   requestPreviewCents,
-  stageDots,
   type DeriveInvoice,
   type DerivePayment,
 } from "./derive";
@@ -48,11 +45,6 @@ describe("balances and ages", () => {
     expect(daysBetween(TODAY, "2026-08-28")).toBe(4);
   });
 
-  it("ageInfo: 6 days overdue / due in 4 days / nothing for drafts", () => {
-    expect(ageInfo(inv({ id: "a", dueOn: "2026-08-18" }), [], NOW)).toEqual({ overdueDays: 6 });
-    expect(ageInfo(inv({ id: "b", dueOn: "2026-08-28" }), [], NOW)).toEqual({ dueInDays: 4 });
-    expect(ageInfo(inv({ id: "c", status: "draft", dueOn: "2026-08-18" }), [], NOW)).toBeNull();
-  });
 });
 
 describe("the mockup dashboard, in cents", () => {
@@ -92,41 +84,6 @@ describe("the mockup dashboard, in cents", () => {
   it("a paid invoice contributes nothing anywhere", () => {
     const t = dashboardTiles([inv({ id: "malvern", status: "paid" })], pays, NOW);
     expect(t.outstandingCents).toBe(0);
-  });
-});
-
-describe("the §7.1 stage rail", () => {
-  const deposit = inv({ id: "d", kind: "deposit", status: "paid", totalIncCents: 197_800 });
-  const progress = inv({ id: "p", kind: "progress", status: "sent", totalIncCents: 593_500, dueOn: "2026-08-26" });
-  const pays: DerivePayment[] = [
-    { invoiceId: "d", amountCents: 197_800, status: "succeeded", paidOn: "2026-08-08" },
-  ];
-
-  it("the mockup: deposit paid · progress awaiting · final upcoming · not paid in full", () => {
-    const s = paymentStages([deposit, progress], pays, 1_780_470, NOW);
-    expect(s.map((x) => x.state)).toEqual(["paid", "awaiting", "upcoming", "upcoming"]);
-    expect(s[0].amountCents).toBe(197_800);
-    expect(s[1].amountCents).toBe(593_500);
-  });
-
-  it("balance at zero lights Paid in full; a void invoice never counts", () => {
-    const paidFinal = inv({ id: "f", kind: "final", status: "paid", totalIncCents: 100 });
-    const voided = inv({ id: "v", kind: "progress", status: "void" });
-    const s = paymentStages([deposit, paidFinal, voided], pays, 0, NOW);
-    expect(s[3].state).toBe("paid");
-    expect(s[1].state).toBe("upcoming"); // the void progress claim is invisible
-  });
-
-  it("an unissued draft deposit reads amber (draft), and dots mirror it", () => {
-    const draft = inv({ id: "pine", kind: "deposit", status: "draft", totalIncCents: 212_000 });
-    const s = paymentStages([draft], [], 212_000, NOW);
-    expect(s[0].state).toBe("draft");
-    expect(stageDots([draft], [], NOW)).toEqual(["open", "none", "none"]);
-  });
-
-  it("an overdue stage reads clay", () => {
-    const late = inv({ id: "late", kind: "deposit", totalIncCents: 197_800, dueOn: "2026-08-22" });
-    expect(paymentStages([late], [], 197_800, NOW)[0].state).toBe("overdue");
   });
 });
 

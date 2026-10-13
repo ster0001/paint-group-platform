@@ -12,7 +12,7 @@ import type { PanelData, PanelInvoice } from "./panelData";
  * The job panel (payments-merge brief §4.7, Step 7), built to the mockup's
  * drawer (renderJob / invHTML / costsHTML). Two tabs only (R18): Money in —
  * every invoice with its payments under it — and Money out and profit (R19).
- * The same component is the side panel on /invoicing/payments (?job=) and the
+ * The same component is the side panel on /invoicing (?job=) and the
  * whole of /invoicing/job/[id].
  */
 

@@ -116,23 +116,6 @@ export type ContractorInvoiceRow = {
 
 // ---- Step 6a: cost capture rows -------------------------------------------
 
-export type IntakeDbRow = {
-  id: string;
-  source: string;
-  raw_doc_path: string | null;
-  from_email: string;
-  subject: string;
-  extracted: Record<string, unknown>;
-  extract_status: string;
-  proposed_vendor_id: string | null;
-  proposed_wo_id: string | null;
-  match_reason: string;
-  status: string;
-  duplicate_of: string | null;
-  confirmed_wo_id: string | null;
-  confirmed_at: string | null;
-  created_at: string;
-};
 
 export type JobCostRow = {
   id: string;
@@ -170,13 +153,6 @@ export type MaterialCostRow = {
   overhead?: boolean | null;
 };
 
-export type JobPickRow = {
-  id: string; // work order id
-  estimate_id: string;
-  job_no: number | null;
-  stage: string;
-  job_address: string | null;
-};
 
 /**
  * The 6a rows, fetched tolerantly: until migration 20261122 runs these tables
@@ -251,52 +227,8 @@ export async function loadExpenseQueues(supabase: SupabaseClient) {
   };
 }
 
-export async function loadCostCapture(supabase: SupabaseClient) {
-  const queues = await loadExpenseQueues(supabase);
-  // The unmatched material invoices moved to `loadDashboard` (20 Sep): the
-  // home dashboard's "Materials to match" tile reads that loader, and the
-  // Payables tile + card must count the SAME rows — one read, two readers.
-  const [intake, jobCosts, jobs] = await Promise.all([
-    supabase.from("cost_intake")
-      .select("id, source, raw_doc_path, from_email, subject, extracted, extract_status, proposed_vendor_id, proposed_wo_id, match_reason, status, duplicate_of, confirmed_wo_id, confirmed_at, created_at")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabase.from("job_costs")
-      .select("id, work_order_id, category, description, amount_ex_cents, gst_cents, doc_path, estimate_line_ref, status, paid_with, reimburse_to, invoice_no, invoice_date, intake_id, created_at, vendors(name), work_orders(estimate_id, wo_ref, job_no, job_address:wo_snapshot->>jobAddress)")
-      // Tom, 9 Oct: an employee's labour line (posted by timesheet approval)
-      // is paid through payroll — it stays on the job's Costs tab, never in
-      // the Payables queue with an Approve / Mark paid.
-      .neq("category", "labour")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    // The job picker behind the "matched job" search box (Tom, 4 Sep): every
-    // open job, plus jobs closed in the last 60 days — supplier invoices
-    // routinely arrive after the painter has finished.
-    supabase.from("work_orders")
-      .select("id, estimate_id, job_no, stage, job_address:wo_snapshot->>jobAddress")
-      .or(`stage.neq.closed,stage_entered_at.gte.${new Date(Date.now() - 60 * 86_400_000).toISOString()}`)
-      .order("created_at", { ascending: false })
-      .limit(500),
-  ]);
-  return {
-    // Still tolerant per table — one missing list must not blank the tab — but
-    // no longer silent about it: a money-OUT list that quietly comes back empty
-    // understates what the business owes.
-    expenses: queues.expenses,
-    preapprovals: queues.preapprovals,
-    reimbursements: queues.reimbursements,
-    intake: (intake.error ? [] : intake.data ?? []) as unknown as IntakeDbRow[],
-    jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as JobCostRow[],
-    jobs: (jobs.error ? [] : jobs.data ?? []) as unknown as JobPickRow[],
-    loadError: queues.loadError ?? costsFailure([
-      { label: "the supplier-invoice intake queue", error: intake.error },
-      { label: "job costs", error: jobCosts.error },
-      { label: "the job picker", error: jobs.error },
-    ]),
-  };
-}
 
-/** One job's costs (§7.1 Costs tab) — tolerant like loadCostCapture. */
+/** One job's costs (the job panel's Money out) — tolerant like loadExpenseQueues. */
 export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
   const [jobCosts, materials, expenses] = await Promise.all([
     supabase.from("job_costs")

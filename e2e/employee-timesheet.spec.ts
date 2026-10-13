@@ -205,10 +205,12 @@ test.describe("employed painter — timesheets and job cost", () => {
     await expect(page.getByTestId(`job-cost-item-${labourCostId}`)).toContainText(`Labour — ${PAINTER_NAME}`);
     await expect(page.getByTestId(`job-cost-item-${labourCostId}`)).toContainText("$399.00");
 
-    // …but never on Payables: employee labour is paid through payroll, nothing to approve or mark paid (Tom, 9 Oct).
-    await page.goto("/invoicing?tab=pay");
-    await expect(page.getByTestId("payable-rows")).toBeAttached();
-    await expect(page.getByTestId(`job-cost-${labourCostId}`)).toHaveCount(0);
+    // …but with nothing to approve or mark paid: employee labour is paid through payroll (Tom, 9 Oct).
+    await expect(page.getByTestId(`job-cost-item-${labourCostId}`).getByRole("button")).toHaveCount(0);
+    // …and never in the Materials block's queues (labour isn't read there).
+    await page.goto("/invoicing?tab=mat");
+    await expect(page.getByTestId("pm-materials")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(`.pm [data-mat="cost:${labourCostId}"]`)).toHaveCount(0);
 
     // The PC job page: labour shown (both days), GP down by exactly the lines.
     const LABOUR = 39_900 + 7_875;

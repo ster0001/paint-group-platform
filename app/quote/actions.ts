@@ -251,7 +251,7 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
     if (logErr || String(logged ?? "").startsWith("error:")) {
       reportError(logErr ?? new Error(String(logged)), { where: "quote.replyToEstimateChat.logMessage", extra: { invoiceId } });
     }
-    revalidatePath("/invoicing/payments");
+    revalidatePath("/invoicing");
   }
   return { ok: true, state: "sent", delivery: r.delivery };
 }

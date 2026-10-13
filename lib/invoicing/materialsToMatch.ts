@@ -35,5 +35,5 @@ export function materialsToMatch<T extends Pick<MaterialToMatch, "work_order_id"
   return rows.filter(needsMatching).sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
-/** Where both tiles send a click: the Payables tab, at the card that lists them. */
-export const MATERIALS_TO_MATCH_HREF = "/invoicing?tab=pay#materials-to-match";
+/** Where the home tile sends a click: Payments → Materials, at the "No job yet" list (8c). */
+export const MATERIALS_TO_MATCH_HREF = "/invoicing?tab=mat#no-job";

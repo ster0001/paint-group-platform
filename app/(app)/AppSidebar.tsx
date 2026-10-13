@@ -18,10 +18,8 @@ const ALL_NAV = [
   // explicitly; the scheduling timeline is its first tab rather than a separate
   // entry here.
   { href: "/pc", label: "Projects", icon: "◉", area: "projects" },
-  // Two money tabs (Tom, 24 Aug): Invoicing = the per-job invoice list that
-  // opens the revision builder; Payments = the ledger dashboard
-  // (receivables / payables / activity, the old "Invoicing").
-  { href: "/invoices", label: "Invoicing", icon: "🧾", area: "invoicing" },
+  // One money tab since the Payments merge (Step 8d): customers, contractors,
+  // materials and activity on one page; the old /invoices list redirects to it.
   { href: "/invoicing", label: "Payments", icon: "💳", area: "payments" },
   { href: "/contacts", label: "Contacts", icon: "👤", area: "contacts" },
   // The CRM lives outside this shell (its own dark chrome, like /pc), so it

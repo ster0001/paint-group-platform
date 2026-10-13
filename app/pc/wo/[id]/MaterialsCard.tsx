@@ -15,7 +15,7 @@ import ColourPicker from "@/app/components/ColourPicker";
  *     a save rewrites the frozen job sheet so the painter sees it too.
  *  2. The materials budget — the estimate's engine materials cost against
  *     every supplier invoice matched to this job, updating as new ones are
- *     matched on the Payables tab.
+ *     matched under Payments → Materials → No job yet.
  */
 
 export type MaterialRowProp = {

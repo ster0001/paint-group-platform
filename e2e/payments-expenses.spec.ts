@@ -17,7 +17,7 @@ const staff = credentials("STAFF");
 const contractor = credentials("CONTRACTOR");
 const db: SupabaseClient | null = serviceClient();
 const stamp = `PX8${Date.now().toString(36).slice(-5).toUpperCase()}`;
-const PAGE = `/invoicing/payments?tab=con&q=${stamp}`;
+const PAGE = `/invoicing?tab=con&q=${stamp}`;
 const made: PaymentsJob[] = [];
 const ciIds: string[] = [];
 const expenseIds: string[] = [];
@@ -121,7 +121,7 @@ test.describe("Payments → Contractors 8b — as staff", () => {
     expect(paid.paid_at?.slice(0, 10)).toBe(paidOn);
 
     // Expense claims and ask-first, on the same tab.
-    await page.goto(`/invoicing/payments?tab=con`);
+    await page.goto(`/invoicing?tab=con`);
     const claimRow = page.getByTestId("expense-claims").locator(`[data-expense="${claim!.id}"]`);
     await expect(claimRow).toContainText("$123.45", { timeout: 30_000 });
     await claimRow.getByRole("button", { name: "Approve" }).click();

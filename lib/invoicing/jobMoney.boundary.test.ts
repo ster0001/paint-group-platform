@@ -14,7 +14,8 @@ const ROOT = join(__dirname, "..", "..");
 const PAGE_FILES = [
   "app/invoicing/jobMoneyData.ts",
   "app/api/invoicing/job-money",
-  "app/invoicing/payments", // Step 2: the page itself
+  "app/invoicing/payments", // Step 2: the page's components
+  "app/invoicing/page.tsx", // Step 8d: the page itself, now /invoicing
 ];
 
 function walk(p: string, out: string[] = []): string[] {

@@ -20,7 +20,7 @@ const staff = credentials("STAFF");
 const contractor = credentials("CONTRACTOR");
 const db: SupabaseClient | null = serviceClient();
 const stamp = `PM4${Date.now().toString(36).slice(-5).toUpperCase()}`;
-const PAGE = "/invoicing/payments";
+const PAGE = "/invoicing";
 const made: PaymentsJob[] = [];
 
 const card = (page: Page, j: PaymentsJob) => page.locator(".pm .job", { hasText: j.address });

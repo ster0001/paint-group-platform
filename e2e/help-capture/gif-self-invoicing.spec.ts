@@ -114,20 +114,23 @@ test("self-invoicing · staff walkthrough", async ({ browser }) => {
   await signIn(s, staff!, /\/(home|estimates)/);
   const rec = startRecording(s);
 
-  await s.goto("/invoicing?tab=pay");
-  await expect(s.getByTestId(`payable-${claimId}`)).toBeVisible({ timeout: 60_000 });
-  await caption(s, "1 · Payments → Payables. To approve: what contractors have submitted.", { top: 96 });
-  await s.getByTestId(`payable-${claimId}`).evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await s.goto("/invoicing?tab=con");
+  const claimRow = s.locator(`.pm .prow[data-ci="${claimId}"]`);
+  await expect(claimRow).toBeVisible({ timeout: 60_000 });
+  await caption(s, "1 · Payments → Contractors. To approve: what contractors have submitted.", { top: 96 });
+  await claimRow.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await s.waitForTimeout(2000);
-  await caption(s, "2 · Read the PDF, then Approve.", { top: 96 });
-  await s.getByTestId(`approve-ci-${claimId}`).click();
-  await expect(s.getByTestId(`pay-ci-${claimId}`)).toBeVisible({ timeout: 90_000 }); // Payables renders slowly on the volume-data stack
+  await caption(s, "2 · Check the invoice, then Approve.", { top: 96 });
+  await claimRow.getByRole("button", { name: "Approve" }).click();
+  await expect(claimRow.getByRole("button", { name: "Paid, with reference…" })).toBeVisible({ timeout: 90_000 });
   await s.waitForTimeout(1500);
-  await caption(s, "3 · Pay by bank transfer, then Mark paid: the bank reference and the payment date.", { top: 96 });
-  const answers = ["EFT-HELP-0002", iso(new Date())];
-  s.on("dialog", (d) => d.accept(answers.shift() ?? ""));
-  await s.getByTestId(`pay-ci-${claimId}`).click();
-  await expect(s.getByTestId(`payable-${claimId}`)).toContainText("Paid", { timeout: 90_000 });
+  await caption(s, "3 · Pay by bank transfer, then Paid, with reference: the bank reference and the payment date.", { top: 96 });
+  await claimRow.getByRole("button", { name: "Paid, with reference…" }).click();
+  const paySheet = s.getByRole("dialog", { name: "Record the payment" });
+  await paySheet.getByLabel("Bank reference").fill("EFT-HELP-0002");
+  await paySheet.getByLabel("Date paid").fill(iso(new Date()));
+  await paySheet.getByRole("button", { name: "Mark paid" }).click();
+  await expect.poll(async () => ((await db!.from("contractor_invoices").select("status").eq("id", claimId).single()).data as { status: string }).status, { timeout: 90_000 }).toBe("paid");
   await caption(s, "4 · Paid. The remittance advice goes to the contractor's portal.", { top: 96 });
   await s.waitForTimeout(2400);
 

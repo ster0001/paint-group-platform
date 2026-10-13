@@ -118,14 +118,17 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     return sheet;
   }
 
-  test("the deposit draft appears on the dashboard without a page-specific write", async ({ page }) => {
+  // Payments merge 8d: the list is Payments → All jobs, one row per job.
+  const jobsRow = (page: Page) => page.locator(".pm .tr:not(.head):not(.grp)", { hasText: ADDRESS });
+  const allJobs = `/invoicing?view=table&q=${encodeURIComponent(ADDRESS)}`;
+
+  test("the deposit draft appears on Payments without a page-specific write", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/invoicing?f=draft");
-    const row = page.locator(".r", { hasText: ADDRESS });
-    await expect(row).toBeVisible();
-    await expect(row).toContainText("Draft (unnumbered)");
+    await page.goto(allJobs);
+    const row = jobsRow(page);
+    await expect(row).toBeVisible({ timeout: 30_000 });
     await expect(row).toContainText("Deposit");
-    await expect(row).toContainText("$1,850");
+    await expect(row).toContainText("$1,850.00");
   });
 
   test("and on the job money view — rail, strip and draft card from data alone", async ({ page }) => {
@@ -139,20 +142,23 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     await expect(page.getByTestId("money-strip")).toContainText("Still owing$18,500.00");
   });
 
-  // Tom, 1 Oct: a job opened from Invoicing goes BACK to Invoicing — with the
-  // filter it was opened under — not to PC Command. Opened any other way, the
-  // crumb still reads PC Command.
-  test("the money view's crumb returns to where it was opened from", async ({ page }) => {
+  // Tom, 1 Oct: a job opened from Payments goes BACK to Payments — with the
+  // view and search it was opened under. From PC Command it goes back to the job.
+  test("the job panel's back link returns to where it was opened from", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/invoicing?f=draft");
-    const row = page.locator(".r", { hasText: ADDRESS });
-    await row.getByRole("link", { name: ADDRESS }).click();
-    await expect(page.getByRole("heading", { name: ADDRESS })).toBeVisible();
-    const back = page.getByTestId("money-back");
-    await expect(back).toHaveText(/Invoicing/);
-    await expect(back).toHaveAttribute("href", "/invoicing?f=draft");
+    await page.goto(allJobs);
+    await jobsRow(page).getByRole("link", { name: ADDRESS }).click();
+    await expect(page).toHaveURL(/[?&]job=/, { timeout: 30_000 });
+    const back = page.getByTestId("pm-panel").getByTestId("money-back");
+    await expect(back).toHaveText(/Payments/);
     await back.click();
-    await expect(page).toHaveURL(/\/invoicing\?f=draft$/);
+    // Closed: the same view and search, no job (wait for the navigation, not the old URL).
+    await expect(page).toHaveURL((u) => u.pathname === "/invoicing" && !u.searchParams.has("job") && u.searchParams.get("view") === "table" && !!u.searchParams.get("q"), { timeout: 15_000 });
+
+    // From PC Command (?from=/pc/wo/<id>): back to the job.
+    const { data: wo } = await db!.from("work_orders").select("id").eq("estimate_id", estimateId!).single();
+    await page.goto(`/invoicing/job/${estimateId}?from=${encodeURIComponent(`/pc/wo/${(wo as { id: string }).id}`)}`);
+    await expect(page.getByTestId("money-back")).toHaveText(/the job/i, { timeout: 30_000 });
 
     // Opened bare, the panel goes back to Payments; the work order is its own link.
     await openMoneyView(page);
@@ -235,12 +241,9 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
       .select("receipt_number, status, method, paid_on").eq("invoice_id", depositInvoiceId!).single();
     expect((pay as { paid_on: string }).paid_on).toBe(paidOn);
 
-    // And the dashboard row reads Paid with its stage dot filled.
-    await page.goto("/invoicing?f=paid");
-    const row = page.locator(".r", { hasText: ADDRESS });
-    await expect(row).toBeVisible();
-    await expect(row).toContainText("Paid in full");
-    await expect(row.locator(".d.paid")).toHaveCount(1);
+    // And the job's row on Payments reads the deposit paid; the aged bar is there.
+    await page.goto(allJobs);
+    await expect(jobsRow(page)).toContainText("✓ Paid", { timeout: 30_000 });
     await expect(page.getByTestId("aged-buckets")).toBeVisible();
   });
 

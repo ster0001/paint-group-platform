@@ -70,7 +70,7 @@ test.describe("Payments → the job panel — as staff", () => {
     const gp = 1_000_000 - (400_000 + 50_000 + 52_008 + 120_000);
 
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`/invoicing/payments?view=table&q=${stamp}`);
+    await page.goto(`/invoicing?view=table&q=${stamp}`);
     const tableRow = page.locator(".pm .tr", { hasText: j.address.split(",")[0] });
     await expect(tableRow).toBeVisible({ timeout: 30_000 });
     await tableRow.getByRole("link", { name: j.address }).click();
@@ -113,7 +113,7 @@ test.describe("Payments → the job panel — as staff", () => {
     await expect(panel(page).locator(".cost", { hasText: "Contractor invoices" })).toContainText(`CI-${stamp}`);
 
     // The contractor invoice is the one the Contractors block shows.
-    await page.goto(`/invoicing/payments?tab=con&q=${stamp}`);
+    await page.goto(`/invoicing?tab=con&q=${stamp}`);
     await expect(page.locator(".pm .prow", { hasText: `CI-${stamp}` })).toContainText(money(200_000), { timeout: 30_000 });
 
     // The job's own page is the same panel — same profit, no old placeholder.

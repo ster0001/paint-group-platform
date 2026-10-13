@@ -200,7 +200,7 @@ export function PaymentsUiProvider({ settings, jobs = [], children }: { settings
     }),
   }), [settings, busy, adjust, done, router, say, show, start]);
 
-  const goSnap = (job: PickJob) => { setSheet(null); router.push(`/invoicing/job/${job.estimateId}?addcost=1&from=${encodeURIComponent("/invoicing/payments?tab=mat")}`); };
+  const goSnap = (job: PickJob) => { setSheet(null); router.push(`/invoicing/job/${job.estimateId}?addcost=1&from=${encodeURIComponent("/invoicing?tab=mat")}`); };
 
   const undo = (change: boolean) => {
     const u = toast?.undo;
@@ -256,7 +256,7 @@ export function PaymentsUiProvider({ settings, jobs = [], children }: { settings
 // ---- the row's buttons -------------------------------------------------------------
 
 /**
- * A job's address or "Open job" (Step 7): on the Payments page it opens the
+ * A job's address or "Open job" (Step 7): on the Payments page (/invoicing) it opens the
  * job panel over the current view (?job=, keeping the tab, filters and
  * search); anywhere else it goes to the job's own page.
  */
@@ -264,7 +264,7 @@ export function OpenJobLink({ estimateId, className, children }: { estimateId: s
   const path = usePathname();
   const sp = useSearchParams();
   let href = `/invoicing/job/${estimateId}`;
-  if (path === "/invoicing/payments") {
+  if (path === "/invoicing") {
     const q = new URLSearchParams(sp.toString());
     q.set("job", estimateId);
     q.delete("jt");

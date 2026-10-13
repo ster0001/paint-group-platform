@@ -2159,7 +2159,7 @@ export function buildPainterStatusItems(
       title: `Payment hold: ${h.name}${h.wo_ref ? ` · ${h.wo_ref}` : ""}`,
       detail: `${h.terms_hold_reason || "No reason recorded"}. Their Green fast payment is back on the default terms${h.due_on ? ` (due ${h.due_on})` : ""} — release it or keep it.`,
       since, dueAt: new Date(new Date(since).getTime() + 2 * 86_400_000).toISOString(),
-      action: { label: "Release or keep", href: "/invoicing?tab=pay" },
+      action: { label: "Release or keep", href: "/invoicing?tab=con" },
     }, { valueCents: null, promisedToCustomer: false }, now));
   }
   return items;
