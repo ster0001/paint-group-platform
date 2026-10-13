@@ -1,7 +1,7 @@
 import { test, expect, devices } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { driveNoPlanWizard, MONEY_RANGE } from "./drive";
-import { magicLinkFor, destroyAccountChain } from "../fixtures/portal";
+import { magicLinkFor, destroyAccountChain, openMagicLink } from "../fixtures/portal";
 
 /**
  * Phase 1 of the 6 Sep estimator plan — save-and-return, as an anonymous
@@ -106,7 +106,7 @@ test.describe("save-and-return", () => {
     // A fresh browser (no anonymous session) with the emailed link.
     const other = await browser.newContext({ ...devices["iPhone 13"] });
     const p2 = await other.newPage();
-    await p2.goto(await magicLinkFor(db!, returnEmail));
+    await openMagicLink(p2, await magicLinkFor(db!, returnEmail));
     await p2.goto("/account");
     const keep = p2.getByRole("link", { name: "Keep shaping my estimate" });
     await expect(keep).toBeVisible({ timeout: 20_000 });

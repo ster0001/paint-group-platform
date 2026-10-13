@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { driveNoPlanWizard, fillContactStep, MONEY_RANGE, openQuickLook, openExteriorPages, fillQuickAddress, quickNext } from "./drive";
 import { credentials, signIn, test } from "../helpers";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "../fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, openMagicLink } from "../fixtures/portal";
 
 /**
  * Tom's five, 7 Sep 2026 (evening), as an anonymous customer:
@@ -365,7 +365,7 @@ test.describe("Tom's 7 Sep batch", () => {
      */
     const member = await browser.newContext({ ...devices["iPhone 13"] });
     const p1 = await member.newPage();
-    await p1.goto(await magicLinkFor(db!, dropEmail));
+    await openMagicLink(p1, await magicLinkFor(db!, dropEmail));
     await openQuickLook(p1);
     await fillQuickAddress(p1);
     await quickNext(p1);
@@ -385,7 +385,7 @@ test.describe("Tom's 7 Sep batch", () => {
     // Another day, another device: the sign-in link → the account page.
     const other = await browser.newContext({ ...devices["iPhone 13"] });
     const p2 = await other.newPage();
-    await p2.goto(await magicLinkFor(db!, dropEmail));
+    await openMagicLink(p2, await magicLinkFor(db!, dropEmail));
     await p2.goto("/account");
     const card = p2.getByTestId("portal-unsubmitted-estimate");
     await expect(card).toBeVisible({ timeout: 30_000 });

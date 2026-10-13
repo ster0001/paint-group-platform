@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "./fixtures/woLoop";
-import { deleteUserByEmail, destroyAccountChain } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, openMagicLink } from "./fixtures/portal";
 
 /** Screenshot rig for the 3a-2 shell — not part of any gate. Run with:
  *  npx playwright test _look-portal  (needs SUPABASE_SERVICE_ROLE_KEY) */
@@ -57,7 +57,7 @@ test.describe("portal look", () => {
 
     await sb.auth.admin.createUser({ email });
     const link = await sb.auth.admin.generateLink({ type: "magiclink", email });
-    await page.goto(`/account/auth?token_hash=${encodeURIComponent(link.data!.properties!.hashed_token)}`);
+    await openMagicLink(page, `/account/auth?token_hash=${encodeURIComponent(link.data!.properties!.hashed_token)}`);
     await page.waitForURL(/\/account$/);
     await page.screenshot({ path: `${SHOTS}/phone-home.png`, fullPage: true });
 

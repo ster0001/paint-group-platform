@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient, createLoopFixture, destroyLoopFixture, type LoopFixture } from "./fixtures/woLoop";
-import { deleteUserByEmail, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, magicLinkFor, openMagicLink } from "./fixtures/portal";
 import { TINY_SIGNATURE_PNG } from "./helpers";
 
 /**
@@ -160,7 +160,7 @@ test.describe("portal timeline (3a-4)", () => {
 
   test("the timeline renders the job day by day — and only what the customer may see", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto("/account/project");
 
     // Header + rollups in customer words.

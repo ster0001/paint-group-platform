@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient, createLoopFixture, destroyLoopFixture, type LoopFixture } from "./fixtures/woLoop";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor, expectWizardOn } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, expectWizardOn, openMagicLink } from "./fixtures/portal";
 import { defaultCustomer, defaultWizardState, wizardStateSchema } from "../lib/wizard/state";
 
 /**
@@ -115,7 +115,7 @@ test.describe("portal commercial (3a-7)", () => {
 
   test("the portfolio Home: tiles, one-action attention queue, jobs underway", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
 
     await expect(page.locator("h1")).toHaveText("Your properties, at a glance");
     await expect(page.getByText("Trade account")).toBeVisible();
@@ -147,7 +147,7 @@ test.describe("portal commercial (3a-7)", () => {
 
   test("Properties: registers on file and the one-tap rebook link", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto("/account/properties");
 
     await expect(page.locator("h1")).toHaveText("Properties");
@@ -161,7 +161,7 @@ test.describe("portal commercial (3a-7)", () => {
 
   test("one-tap rebook seeds the wizard with the prior answers", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto(`/estimate?property=${westgarthId}&rebook=${rebookEstimateId}`);
     await expectWizardOn(page);
 
@@ -175,7 +175,7 @@ test.describe("portal commercial (3a-7)", () => {
 
   test("consolidated Money: the month's total and the statement", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto("/account/money");
 
     await expect(page.getByText("Invoiced this month")).toBeVisible();

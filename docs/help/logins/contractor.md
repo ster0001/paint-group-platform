@@ -3,7 +3,7 @@ feature: logins
 role: contractor
 title: Locked out? Get back into your portal
 summary: What to do when you cannot sign in — ask the office for a reset link or a new password, what the emailed link does, and how to choose your new password.
-sources: app/reset-password/page.tsx, app/reset-password/ResetPasswordForm.tsx, app/account/auth/route.ts
+sources: app/reset-password/page.tsx, app/reset-password/ResetPasswordForm.tsx, app/account/auth/page.tsx, app/account/auth/actions.ts
 ---
 
 ## What this is for
@@ -14,7 +14,7 @@ You cannot get into your portal: the password is not working or you have forgott
 
 ## Steps
 1. Ask the office for a **reset link** or a **new password**.
-2. If they email you a link, open it on your phone. It signs you in and shows **Choose a new password**.
+2. If they email you a link, open it on your phone. It shows **Choose your password** — press **Continue** and it signs you in and shows **Choose a new password**.
    - Type the password you want, at least 8 characters, then type it again.
    - Press **Save password**. Your portal opens.
 3. If they set a password for you instead, they will read it out. Sign in at the usual sign-in page with your email and that password. You can ask for a reset link afterwards to change it to one of your own.

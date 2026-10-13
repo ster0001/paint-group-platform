@@ -15,8 +15,10 @@ import { emailLogoUrl } from "@/lib/messaging/logo";
  *      email OUR OWN link — /account/auth?token_hash=… — through Resend via
  *      lib/messaging. No dependency on Supabase's SMTP or redirect allowlist,
  *      and the email is in our template and tone.
- *   2. /account/auth verifies the token against the caller's session client
- *      (verifyOtp) — clicking the link is what proves possession of the inbox.
+ *   2. /account/auth shows one button; the TAP (a POST, redeemLinkAction)
+ *      verifies the token against the caller's session client (verifyOtp) —
+ *      that is what proves possession of the inbox. Opening the link spends
+ *      nothing, so a mail scanner fetching it first cannot (13 Oct 2026).
  *   3. ensureMembership() — only THEN does the login join the account chain
  *      (the 3a-1 ruling: an unverified email typed into a form never grants
  *      access; a verified click does).

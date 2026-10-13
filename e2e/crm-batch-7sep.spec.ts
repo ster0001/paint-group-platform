@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
 import { gotoTodayWith, test } from "./helpers";
-import { deleteUserByEmail, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, magicLinkFor, openMagicLink } from "./fixtures/portal";
 
 /**
  * Tom's 7 Sep CRM batch, driven on the real screens (C1):
@@ -96,7 +96,7 @@ test.describe("CRM batch — 7 Sep", () => {
 
   test("the portal: Notifications & alerts saves per type per channel; marketing moves the permission", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, EMAIL));
+    await openMagicLink(page, await magicLinkFor(sb, EMAIL));
     await page.waitForURL(/\/account/);
     // The verified login becomes the account's member (ensureMembership) — the profile links through.
     await page.goto("/account/profile");

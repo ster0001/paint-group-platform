@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { serviceClient } from "./fixtures/woLoop";
-import { deleteUserByEmail, magicLinkFor, expectWizardOn } from "./fixtures/portal";
+import { deleteUserByEmail, magicLinkFor, expectWizardOn, openMagicLink } from "./fixtures/portal";
 import { driveNoPlanWizard } from "./customer-journey/drive";
 
 /**
@@ -71,7 +71,7 @@ test.describe("volume gate (3a-8)", () => {
     test.skip(!seeded, "run scripts/portal/seed-volume.mjs against C1 first");
     test.setTimeout(300_000);
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, hotEmail));
+    await openMagicLink(page, await magicLinkFor(sb, hotEmail));
     await expect(page.locator("h1")).not.toBeEmpty();
 
     const home: number[] = [];
@@ -112,7 +112,7 @@ test.describe("volume gate (3a-8)", () => {
     test.skip(!seeded, "run scripts/portal/seed-volume.mjs against C1 first");
     test.setTimeout(240_000);
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, hotEmail));
+    await openMagicLink(page, await magicLinkFor(sb, hotEmail));
     await page.goto("/estimate");
     await expectWizardOn(page);
     await expect(page.getByRole("button", { name: /There isn't a floorplan to hand/ }), "wizard reference data must be seeded in the test project").toHaveCount(1);

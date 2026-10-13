@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
+import { openMagicLink } from "./fixtures/portal";
 import { specFromState, flagsWithSpec } from "../lib/wizard/saved-specs";
 import { defaultWizardState } from "../lib/wizard/state";
 
@@ -104,7 +105,7 @@ test.describe("trade saved specs", () => {
 
     try {
       const link = await sb.auth.admin.generateLink({ type: "magiclink", email: member.email });
-      await page.goto(`/account/auth?token_hash=${encodeURIComponent(link.data!.properties!.hashed_token)}`);
+      await openMagicLink(page, `/account/auth?token_hash=${encodeURIComponent(link.data!.properties!.hashed_token)}`);
       await page.waitForURL(/\/account$/, { timeout: 30_000 });
       await page.goto("/account/new-estimate");
 
@@ -131,7 +132,7 @@ test.describe("trade saved specs", () => {
     const link = await db!.auth.admin.generateLink({ type: "magiclink", email: member.email });
     const hash = link.data?.properties?.hashed_token;
     expect(hash, "magic link").toBeTruthy();
-    await page.goto(`/account/auth?token_hash=${encodeURIComponent(hash!)}`);
+    await openMagicLink(page, `/account/auth?token_hash=${encodeURIComponent(hash!)}`);
     await page.waitForURL(/\/account$/, { timeout: 30_000 });
 
     // The spec is offered where a trade account starts a job.

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, openMagicLink } from "./fixtures/portal";
 import { buildTreeFromState } from "../lib/wizard/build-tree";
 import { toWizardState } from "../lib/agent/scope-doc";
 import { priceEstimateTotals, type PricingContext } from "../lib/pricing/estimate";
@@ -71,7 +71,7 @@ test.describe("assistant — support mode", () => {
     await setEntry("caulking-gaps", { topic: "Workmanship & method", question: "How do you handle gaps and caulking?", answer_md: "Not written yet.", audience: "both", status: "draft", needs_content: true });
 
     // ---- the customer signs in and asks ----
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto(`/account/messages/${estimateId}`);
     await page.getByTestId("ask-assistant").click();
     await expect(page.getByTestId("sp-msg-assistant").first()).toBeVisible({ timeout: 30_000 });

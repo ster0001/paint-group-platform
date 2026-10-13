@@ -2,7 +2,7 @@ import { expect, type Browser } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { credentials, signIn, gotoTodayWith, test } from "./helpers";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, openMagicLink } from "./fixtures/portal";
 
 /**
  * S7 — live handoff, two browsers (C1 stack, AGENT_MODEL_STUB=1):
@@ -22,7 +22,7 @@ const CLOSED = { timezone: "Australia/Melbourne", days: { mon: ["08:00", "08:01"
 async function customerContext(browser: Browser, sb: SupabaseClient, email: string) {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto(await magicLinkFor(sb, email));
+  await openMagicLink(page, await magicLinkFor(sb, email));
   return { context, page };
 }
 

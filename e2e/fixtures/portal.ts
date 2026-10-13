@@ -32,6 +32,15 @@ export async function magicLinkFor(sb: SupabaseClient, email: string): Promise<s
   return `/account/auth?token_hash=${encodeURIComponent(link.data.properties.hashed_token)}`;
 }
 
+/** Open an emailed sign-in link the way a person does: land on the page,
+ * then tap. Opening /account/auth spends nothing — the tap redeems it (so a
+ * mail scanner's fetch cannot, 13 Oct 2026). */
+export async function openMagicLink(page: Page, link: string) {
+  await page.goto(link);
+  await page.locator("form button[type=submit]").click();
+  await page.waitForURL((u) => !u.pathname.startsWith("/account/auth"));
+}
+
 export async function deleteUserByEmail(sb: SupabaseClient, email: string) {
   const userId = await authUserIdByEmail(sb, email);
   if (!userId) return;

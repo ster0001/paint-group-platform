@@ -6,7 +6,7 @@ import {
   accessTokenFor, completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   photosIn, rpcAs, rpcAsJson, serviceClient, type LoopFixture,
 } from "./fixtures/woLoop";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, openMagicLink } from "./fixtures/portal";
 
 /**
  * Tom, 9 Oct 2026 (migration 20270248):
@@ -164,7 +164,7 @@ test.describe("site check-ins: Felipe's own visits — notes, photos, never a ho
 
   test("customer: a passed mid-job check is not a milestone; the passed final check is", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto("/account/project");
     await expect(page.getByText(`${run} Sitecheck Street`)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Quality check passed")).toHaveCount(0);
@@ -364,7 +364,7 @@ test.describe("site check-ins: Felipe's own visits — notes, photos, never a ho
 
     const customer = await browser.newContext();
     const cp = await customer.newPage();
-    await cp.goto(await magicLinkFor(db!, email));
+    await openMagicLink(cp, await magicLinkFor(db!, email));
     await cp.goto("/account/project");
     await expect(cp.getByText(`${run} Sitecheck Street`)).toBeVisible({ timeout: 20_000 });
     const customerHtml = await cp.content();

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor, expectWizardOn } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, expectWizardOn, openMagicLink } from "./fixtures/portal";
 
 /**
  * 3a-6 · The embedded builder + multi-property, as the signed-in customer.
@@ -74,7 +74,7 @@ test.describe("portal builder (3a-6)", () => {
   test("a returning customer prices a second job without re-entering known facts", async ({ page }) => {
     test.setTimeout(240_000);
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
 
     // Home offers the builder, aimed at their property.
     const cta = page.getByRole("link", { name: "Get a new estimate" });
@@ -133,7 +133,7 @@ test.describe("portal builder (3a-6)", () => {
 
   test("add an address: one screen, kept alongside, switcher appears, dedupe holds", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto("/account/addresses/new");
 
     await page.locator("#aa-street").fill("4 Elm Grove");

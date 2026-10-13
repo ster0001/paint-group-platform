@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient, createLoopFixture, destroyLoopFixture, type LoopFixture } from "./fixtures/woLoop";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor, expectWizardOn } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, expectWizardOn, openMagicLink } from "./fixtures/portal";
 import { driveNoPlanWizard } from "./customer-journey/drive";
 
 /**
@@ -52,7 +52,7 @@ test.describe("portal full loop (3a-8)", () => {
     expect(await page.locator("input[type=password]").count()).toBe(0);
 
     // The save created the account; the magic link is the front door.
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await expect(page.locator("h1")).toHaveText(/Your estimate is saved/);
 
     // 2 · Accept + book (the flows proven in their own phases, via fixtures):
@@ -156,7 +156,7 @@ test.describe("portal full loop (3a-8)", () => {
     const sb = db!;
     // Flip the SAME account to trade — one schema, feature gates only (§3).
     await sb.from("accounts").update({ account_type: "trade" }).eq("email", email);
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
 
     for (const viewport of [PHONE, DESKTOP]) {
       await page.setViewportSize(viewport);
