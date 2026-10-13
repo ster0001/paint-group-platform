@@ -982,8 +982,10 @@ export async function setDraftDueAction(raw: unknown): Promise<InvoicingResult> 
 export async function redraftFinalAction(raw: unknown): Promise<InvoicingResult> {
   const p = z.object({ estimateId: uuid }).safeParse(raw);
   if (!p.success) return { ok: false, message: "Something went wrong." };
-  return call("invoice_redraft_final", { p_estimate_id: p.data.estimateId }, { estimateId: p.data.estimateId },
+  const r = await call("invoice_redraft_final", { p_estimate_id: p.data.estimateId }, { estimateId: p.data.estimateId },
     "Final invoice drafted again from what is left to invoice.");
+  // 20270261: with nothing left to invoice the draft final is removed, not redrafted at $0 (§6.1).
+  return r.ok && !r.id ? { ...r, message: "Nothing is left to invoice on this job, so the draft final has been removed." } : r;
 }
 
 /**
