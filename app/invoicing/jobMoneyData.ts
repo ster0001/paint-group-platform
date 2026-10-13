@@ -27,14 +27,23 @@ type WorkOrderRow = {
 };
 type PaymentRow = { invoice_id: string; amount_cents: number; status: string; paid_on: string | null };
 type VariationRow = { work_order_id: string; status: string; price_cents: number | null; credit: boolean | null };
-type IntakeRow = { total: string | null };
-type JobCostRow = { status: string; amount_ex_cents: number; gst_cents: number };
+type IntakeDb = {
+  id: string; status: string; confirmed_at: string | null; resulting_id: string | null; created_at: string; raw_doc_path: string | null;
+  from_email: string; extract_status: string; proposed_wo_id: string | null; proposed_vendor_id: string | null; duplicate_of: string | null;
+  extracted: { supplier?: string; invoice_no?: string; invoice_date?: string; total_cents?: number | string; order_ref?: string; address_text?: string } | null;
+};
+type JobCostDb = {
+  id: string; work_order_id: string; vendor_id: string | null; category: string; status: string; amount_ex_cents: number; gst_cents: number;
+  doc_path: string | null; invoice_no: string; invoice_date: string | null; intake_id: string | null; paid_at: string | null; created_at: string;
+};
+type VendorDb = { id: string; name: string; sender_domains: string[] | null; default_category: string };
+type MaterialCostDb = { id: string; work_order_id: string | null; supplier: string; amount_cents: number; intake_id: string | null; overhead: boolean | null };
 type ViewRow = { invoice_id: string };
 type ChatRow = { estimate_id: string; created_at: string };
 
 export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Promise<{ input: JobMoneyInput | null; failure: ReadFailure | null }> {
   try {
-    const [estimates, workOrders, invoices, payments, variations, cis, intake, jobCosts, views, chats] = await Promise.all([
+    const [estimates, workOrders, invoices, payments, variations, cis, intake, jobCosts, views, chats, vendors, materialCosts] = await Promise.all([
       fetchAllRows<EstimateRow>((f, t) => supabase.from("estimates")
         .select("id, title, accepted_name, accepted_total_cents, total_cents, job_address:sent_snapshot->>jobAddress")
         .eq("status", "accepted").order("id").range(f, t)),
@@ -46,14 +55,21 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
       fetchAllRows<VariationRow>((f, t) => supabase.from("wo_variations").select("work_order_id, status, price_cents, credit").order("id").range(f, t)),
       // The Payables tab's own read (every unpaid one, the newest settled) — one read for both pages.
       loadContractorInvoices(supabase).then((r) => { if (r.error) throw new Error(r.error.message); return (r.data ?? []) as ContractorInvoiceRow[]; }),
-      fetchAllRows<IntakeRow>((f, t) => supabase.from("cost_intake").select("total:extracted->>total_cents").eq("status", "pending").order("id").range(f, t)),
+      // Step 6 — the Materials block: every document a person hasn't settled (and the set-aside ones, for Restore).
+      fetchAllRows<IntakeDb>((f, t) => supabase.from("cost_intake")
+        .select("id, status, confirmed_at, resulting_id, created_at, raw_doc_path, from_email, extract_status, proposed_wo_id, proposed_vendor_id, duplicate_of, extracted")
+        .in("status", ["pending", "duplicate", "rejected"]).order("created_at", { ascending: false }).order("id").range(f, t)),
       // Employee labour is a wage, not a payable (fix/payables-no-employee-labour) — never in the Materials block.
-      fetchAllRows<JobCostRow>((f, t) => supabase.from("job_costs").select("status, amount_ex_cents, gst_cents")
-        .neq("category", "labour").in("status", ["recorded", "approved"]).order("id").range(f, t)),
+      fetchAllRows<JobCostDb>((f, t) => supabase.from("job_costs")
+        .select("id, work_order_id, vendor_id, category, status, amount_ex_cents, gst_cents, doc_path, invoice_no, invoice_date, intake_id, paid_at, created_at")
+        .neq("category", "labour").order("created_at", { ascending: false }).order("id").range(f, t)),
       // "Invoice opened N times" on the row — customer opens only (staff previews never write one).
       fetchAllRows<ViewRow>((f, t) => supabase.from("invoice_events").select("invoice_id").eq("type", "viewed").order("id").range(f, t)),
       // "Last messaged" (§4.4): staff lines on each job's chat — the thread Payments → Message posts to.
       fetchAllRows<ChatRow>((f, t) => supabase.from("estimate_messages").select("estimate_id, created_at").eq("direction", "staff").order("id").range(f, t)),
+      // Vendor memory (one supplier, one name) and who sells materials.
+      fetchAllRows<VendorDb>((f, t) => supabase.from("vendors").select("id, name, sender_domains, default_category").order("id").range(f, t)),
+      fetchAllRows<MaterialCostDb>((f, t) => supabase.from("material_costs").select("id, work_order_id, supplier, amount_cents, intake_id, overhead").order("id").range(f, t)),
     ]);
     const lastMessaged = new Map<string, string>();
     for (const m of chats) if ((lastMessaged.get(m.estimate_id) ?? "") < m.created_at) lastMessaged.set(m.estimate_id, m.created_at);
@@ -81,6 +97,7 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
         acceptedTotalCents: e.accepted_total_cents ?? e.total_cents ?? 0,
         variations: wo ? variationsByWo.get(wo.id) ?? [] : [],
         lastMessagedAt: lastMessaged.get(e.id) ?? null,
+        workOrderId: wo?.id ?? null,
       };
     });
 
@@ -103,8 +120,23 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
           address: c.work_orders?.job_address ?? null, woStage: (c.work_orders?.stage ?? null) as WoStage | null, hasPdf: !!c.invoice_pdf_path,
         })),
         materials: {
-          intakePending: intake.map((d) => ({ totalCents: Number(d.total ?? 0) || 0 })),
-          jobCosts: jobCosts.map((c) => ({ status: c.status, amountExCents: c.amount_ex_cents, gstCents: c.gst_cents })),
+          vendors: vendors.map((v) => ({ id: v.id, name: v.name, senderDomains: v.sender_domains ?? [], defaultCategory: v.default_category })),
+          intake: intake.map((r) => {
+            const total = r.extracted?.total_cents;
+            return {
+              id: r.id, status: r.status, confirmedAt: r.confirmed_at, resultingId: r.resulting_id, createdAt: r.created_at, docPath: r.raw_doc_path,
+              fromEmail: r.from_email, extractStatus: r.extract_status, supplier: r.extracted?.supplier ?? null, invoiceNo: r.extracted?.invoice_no || null,
+              invoiceDate: r.extracted?.invoice_date || null, totalCents: total === undefined || total === null || total === "" ? null : Number(total),
+              orderRef: r.extracted?.order_ref || null, addressText: r.extracted?.address_text || null,
+              proposedWoId: r.proposed_wo_id, proposedVendorId: r.proposed_vendor_id, duplicateOf: r.duplicate_of,
+            };
+          }),
+          costs: jobCosts.map((c) => ({
+            id: c.id, workOrderId: c.work_order_id, vendorId: c.vendor_id, category: c.category, status: c.status,
+            amountExCents: c.amount_ex_cents, gstCents: c.gst_cents, docPath: c.doc_path, invoiceNo: c.invoice_no,
+            invoiceDate: c.invoice_date, intakeId: c.intake_id, paidAt: c.paid_at, createdAt: c.created_at,
+          })),
+          materialCosts: materialCosts.map((m) => ({ id: m.id, workOrderId: m.work_order_id, supplier: m.supplier, amountCents: m.amount_cents, intakeId: m.intake_id, overhead: m.overhead })),
         },
         now,
       },

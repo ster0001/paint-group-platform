@@ -78,6 +78,9 @@ const WORDING: Record<string, string> = {
   has_payments: "Money has already been paid on it — it can't be changed now.",
   same_amount: "That's the amount it already is.",
   bad_mode: "Pick a percentage or an amount.",
+  // Step 6 — the Materials block
+  unread_amount: "The amount couldn't be read from this document — open it and record it by hand.",
+  not_deleted: "That one isn't deleted.",
   call_back_hold: "Reminders are paused because a call back is open — they resume when it is closed.",
   reason_too_long: "Keep the reason under 300 characters.",
 };
@@ -970,4 +973,100 @@ export async function paymentMessageDraftAction(raw: unknown): Promise<PaymentMe
     phone: e.contact?.phone ?? null, accountId: e.account_id,
     presets, selected: overdue ? "overdue" : keys[0],
   };
+}
+
+// ---- Payments merge Step 6: the Materials block (brief §4.6) -------------------
+// Confirm = checked and approved in one press (⚑P9 default, Settings
+// `confirmApproves`). Delete is the existing reject (or a cost's 'void'),
+// reversible with Restore; nothing is hard-deleted and the document is kept.
+// Paid per supplier with Undo (⚑P10). Records only — no money moves.
+
+const matRef = z.object({ kind: z.enum(["intake", "cost"]), id: uuid });
+
+async function eachRpc(calls: Array<{ fn: string; args: Record<string, unknown> }>): Promise<{ done: number; failed: number; firstError: string | null }> {
+  const supabase = await createClient();
+  let done = 0, failed = 0, firstError: string | null = null;
+  for (const c of calls) {
+    const { data, error } = await supabase.rpc(c.fn, c.args);
+    if (error) { reportError(error, { where: `materials.${c.fn}` }); failed += 1; firstError ??= error.message; continue; }
+    const r = String(data ?? "");
+    if (r.startsWith("ok:")) done += 1; else { failed += 1; firstError ??= WORDING[r.replace("error:", "")] ?? r; }
+  }
+  revalidatePath("/invoicing/payments");
+  revalidatePath("/invoicing");
+  return { done, failed, firstError };
+}
+const batchResult = (r: { done: number; failed: number; firstError: string | null }, ok: string): CiBatchResult =>
+  r.done && !r.failed ? { ok: true, message: ok, done: [] }
+  : r.done ? { ok: true, message: `${ok} ${r.failed} couldn't be done: ${r.firstError ?? "refresh and try again"}.`, done: [] }
+  : { ok: false, message: r.firstError ?? "That didn't work — refresh and try again.", done: [] };
+
+/** Confirm one or many documents onto their jobs (or the job picked) — and approve them (⚑P9). */
+export async function confirmMaterialsAction(raw: unknown): Promise<CiBatchResult> {
+  const p = z.object({ ids: z.array(uuid).min(1).max(50), workOrderId: uuid.optional() }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  const supabase = await createClient();
+  const { data: rows, error } = await supabase.from("settings").select("key, value").eq("key", "invoicing");
+  if (error) reportError(error, { where: "confirmMaterialsAction.settings", bestEffort: true });
+  const v = ((rows ?? [])[0] as { value?: { confirmApproves?: unknown } } | undefined)?.value;
+  const approve = typeof v?.confirmApproves === "boolean" ? v.confirmApproves : true;
+  const r = await eachRpc(p.data.ids.map((id) => ({ fn: "cost_intake_confirm_materials", args: { p_id: id, p_wo: p.data.workOrderId ?? null, p_approve: approve } })));
+  return batchResult(r, approve ? "Confirmed and approved." : "Confirmed — waiting for approval.");
+}
+
+/** Not for a job — overhead, by choice; it leaves the to-match queue (§6.8). */
+export async function notForJobAction(raw: unknown): Promise<CiBatchResult> {
+  const p = z.object({ id: uuid }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  return batchResult(await eachRpc([{ fn: "cost_intake_not_for_job", args: { p_id: p.data.id } }]), "Marked as not for a job.");
+}
+
+/** Delete (reversible): a document → reject; a cost waiting for approval → void. The document stays. */
+export async function deleteMaterialAction(raw: unknown): Promise<CiBatchResult> {
+  const p = matRef.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  return batchResult(await eachRpc([{ fn: p.data.kind === "intake" ? "cost_intake_reject" : "job_cost_void", args: { p_id: p.data.id } }]), "Deleted. It no longer counts anywhere.");
+}
+
+export async function restoreMaterialAction(raw: unknown): Promise<CiBatchResult> {
+  const p = matRef.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  return batchResult(await eachRpc([{ fn: p.data.kind === "intake" ? "cost_intake_restore" : "job_cost_restore", args: { p_id: p.data.id } }]), "Restored.");
+}
+
+export async function approveMaterialsAction(raw: unknown): Promise<CiBatchResult> {
+  const p = z.object({ ids: z.array(uuid).min(1).max(100) }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  return batchResult(await eachRpc(p.data.ids.map((id) => ({ fn: "job_cost_approve", args: { p_id: id } }))), "Approved.");
+}
+
+/** ✓ Paid for a supplier — every approved invoice in one press (⚑P10), with Undo. */
+export async function paySupplierAction(raw: unknown): Promise<CiBatchResult> {
+  const p = z.object({ ids: z.array(uuid).min(1).max(100) }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  const settings = await loadPaymentsSettings();
+  const r = await eachRpc(p.data.ids.map((id) => ({ fn: "job_cost_mark_paid", args: { p_id: id, p_paid_on: null } })));
+  return { ...batchResult(r, "Marked paid."), done: r.failed ? [] : p.data.ids, undoSeconds: settings.undoSeconds };
+}
+
+export async function unpaySupplierAction(raw: unknown): Promise<CiBatchResult> {
+  const p = z.object({ ids: z.array(uuid).min(1).max(100) }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
+  return batchResult(await eachRpc(p.data.ids.map((id) => ({ fn: "job_cost_unpay", args: { p_id: id } }))), "Undone.");
+}
+
+/** View: a short-lived link to the ORIGINAL document, looked up by row — never a path from the browser. */
+export async function materialDocAction(raw: unknown): Promise<{ ok: true; url: string | null; isImage: boolean } | { ok: false; message: string }> {
+  const p = matRef.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+  const supabase = await createClient();
+  const { data, error } = p.data.kind === "intake"
+    ? await supabase.from("cost_intake").select("path:raw_doc_path").eq("id", p.data.id).maybeSingle()
+    : await supabase.from("job_costs").select("path:doc_path").eq("id", p.data.id).maybeSingle();
+  if (error) { reportError(error, { where: "materialDocAction" }); return { ok: false, message: "Couldn't open the document just now." }; }
+  const path = (data as { path: string | null } | null)?.path ?? null;
+  if (!path) return { ok: true, url: null, isImage: false };
+  const { data: signed, error: signErr } = await supabase.storage.from(COST_DOCS_BUCKET).createSignedUrl(path, 600);
+  if (signErr) { reportError(signErr, { where: "materialDocAction.sign", extra: { path } }); return { ok: false, message: "Couldn't open the document just now." }; }
+  return { ok: true, url: signed?.signedUrl ?? null, isImage: /\.(jpe?g|png|webp|heic|gif)$/i.test(path) };
 }

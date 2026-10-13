@@ -25,6 +25,7 @@ import {
 } from "./derive";
 import { contractorInvoiceTone } from "./contractorInvoiceTone";
 import { LANES, laneFor, type Lane, type WoStage } from "@/lib/workorder/stages";
+import { materialsView, type JobRef, type MaterialsInput as MaterialsRowsInput, type MaterialsView } from "./materials";
 
 // ---------------------------------------------------------------------------
 // Inputs
@@ -44,6 +45,8 @@ export type JobMoneyJob = {
   variations: readonly LedgerVariation[];
   /** The newest staff message on the job's chat (estimate_messages), an ISO timestamp — "last messaged N days ago". */
   lastMessagedAt?: string | null;
+  /** The job's work order, when it has one — costs and supplier documents hang off it. */
+  workOrderId?: string | null;
 };
 
 /** An invoice as the row needs it: the derive shape plus its number and when it was drafted. */
@@ -53,13 +56,8 @@ export type JobMoneyInvoice = DeriveInvoice & {
   views?: number;
 };
 
-/** Supplier documents and other trades' costs, for the Materials block only. */
-export type MaterialsInput = {
-  /** cost_intake rows still waiting for a person (status pending), with the extracted total. */
-  intakePending: readonly { totalCents: number }[];
-  /** job_costs rows (labour excluded by the caller — employee labour is not a payable). */
-  jobCosts: readonly { status: string; amountExCents: number; gstCents: number }[];
-};
+/** Supplier documents (Step 6): the intake queue, job costs, material costs and vendor memory — lib/invoicing/materials.ts. */
+export type MaterialsInput = Omit<MaterialsRowsInput, "jobs">;
 
 /** A contractor invoice as the Contractors block needs it (Step 5) — a DeriveContractorInvoice and its context. */
 export type JobMoneyCi = DeriveContractorInvoice & {
@@ -163,6 +161,7 @@ export type NextAction = {
 
 export type JobMoneyRow = {
   estimateId: string;
+  workOrderId: string | null;
   address: string;
   customer: string | null;
   woRef: string | null;
@@ -353,7 +352,7 @@ export function jobMoneyRow(
     : "nothing";
 
   return {
-    estimateId: job.estimateId, address: job.address, customer: job.customer, woRef: job.woRef, contractor: job.contractor,
+    estimateId: job.estimateId, workOrderId: job.workOrderId ?? null, address: job.address, customer: job.customer, woRef: job.woRef, contractor: job.contractor,
     lane, startDate: job.startDate,
     startsInDays: job.startDate ? daysBetween(today, job.startDate) : null,
     underWay,
@@ -449,6 +448,8 @@ export type JobMoneyPage = {
   rows: JobMoneyRow[];
   /** Step 5: every contractor invoice, in section order. */
   contractors: ContractorRow[];
+  /** Step 6: the Materials block's lists. */
+  materials: MaterialsView;
   blocks: { customers: CustomersBlock; contractors: ContractorsBlock; materials: MaterialsBlock; activity: ActivityBlock };
   strip: StageCell[];
   headline: HeadlineFigures;
@@ -489,16 +490,12 @@ export function jobMoneyPage(input: JobMoneyInput): JobMoneyPage {
   };
 
   const sum = (xs: readonly number[]) => xs.reduce((s, x) => s + x, 0);
-  const costs = input.materials.jobCosts.map((c) => ({ status: c.status, amountIncCents: c.amountExCents + c.gstCents }));
-  const recorded = costs.filter((c) => c.status === "recorded");
-  const approved = costs.filter((c) => c.status === "approved");
-  const materials: MaterialsBlock = {
-    toCheckCents: sum(input.materials.intakePending.map((d) => d.totalCents)), toCheckCount: input.materials.intakePending.length,
-    toApproveCents: sum(recorded.map((c) => c.amountIncCents)), toApproveCount: recorded.length,
-    toPayCents: sum(approved.map((c) => c.amountIncCents)), toPayCount: approved.length,
-    openCents: 0,
-  };
-  materials.openCents = materials.toCheckCents + materials.toApproveCents + materials.toPayCents;
+  // Step 6: the Materials block is the materials view's own totals (§6.8: it counts the intake queue).
+  const jobRefs = new Map<string, JobRef>(rows.filter((r) => r.workOrderId).map((r) => [r.workOrderId!, {
+    workOrderId: r.workOrderId!, estimateId: r.estimateId, address: r.address, customer: r.customer, lane: r.lane,
+  }]));
+  const materialsRows = materialsView({ ...input.materials, jobs: jobRefs });
+  const materials: MaterialsBlock = materialsRows.block;
 
   const strip: StageCell[] = LANES.map((lane) => {
     const inLane = active.filter((r) => r.lane === lane);
@@ -523,6 +520,7 @@ export function jobMoneyPage(input: JobMoneyInput): JobMoneyPage {
   return {
     rows,
     contractors: contractorRows(input.contractorInvoices, rows, now),
+    materials: materialsRows,
     blocks: { customers, contractors, materials, activity: { receivedFortnightCents: tiles.collectedFortnightCents } },
     strip, headline,
     hiddenDraftCount: hiddenIds.size,

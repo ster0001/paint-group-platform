@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LANES, type Lane } from "@/lib/workorder/stages";
 import { TABLE_FILTERS, headlineParts, jobMoneyPage, matchCiRows, matchRows, type TableFilter } from "@/lib/invoicing/jobMoney";
 import { ContractorsView } from "./ContractorsView";
+import { MaterialsView } from "./MaterialsView";
 import { melbourneToday } from "@/lib/invoicing/derive";
 import { paymentsSettings } from "@/lib/invoicing/settings";
 import { reportError } from "@/lib/monitoring/report";
@@ -95,7 +96,10 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="pm">
     {/* Inside .pm: the sheets and the toast the provider renders take the page's scoped styles. */}
-    <PaymentsUiProvider settings={{ depositOptionsPct: settings.depositOptionsPct, notifyPaymentDefault: settings.notifyPaymentDefault, today: melbourneToday(now) }}>
+    <PaymentsUiProvider settings={{ depositOptionsPct: settings.depositOptionsPct, notifyPaymentDefault: settings.notifyPaymentDefault, today: melbourneToday(now) }}
+      jobs={page.rows.filter((r) => r.workOrderId && r.section !== "paid_in_full").map((r) => ({
+        estimateId: r.estimateId, workOrderId: r.workOrderId!, address: r.address, customer: r.customer, laneName: STAGE_NAME[r.lane],
+      }))}>
       <main className="pm-wrap">
         <section className="lead">
           <h1 data-testid="pm-headline">
@@ -158,7 +162,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           </div>
           <ContractorsView rows={matchCiRows(page.contractors, q)} by={cby} />
         </section>
-        <section hidden={tab !== "mat"}><div className="empty">Supplier invoices and receipts move here in Step 6. Until then they stay on the current Payables tab.</div></section>
+        <section hidden={tab !== "mat"} data-testid="pm-materials"><MaterialsView m={page.materials} /></section>
         <section hidden={tab !== "act"}><div className="empty">Activity moves here in Step 8, with repeated &ldquo;Invoice viewed by customer&rdquo; lines folded into one.</div></section>
       </main>
     </PaymentsUiProvider>

@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { centsAsInput, depositPreview, parseDollarsToCents } from "@/lib/invoicing/jobMoney";
 import {
-  approveCiQuickAction, createDepositAction, invoiceInFullAction, payCiQuickAction, paymentMessageDraftAction, quickPayAction, recordPaymentAction,
-  sendWithDueAction, setDepositAction, unapproveCiAction, undoPaymentAction, unpayCiAction,
+  approveCiQuickAction, approveMaterialsAction, confirmMaterialsAction, createDepositAction, deleteMaterialAction, invoiceInFullAction,
+  materialDocAction, notForJobAction, payCiQuickAction, paySupplierAction, paymentMessageDraftAction, quickPayAction, recordPaymentAction,
+  restoreMaterialAction, sendWithDueAction, setDepositAction, unapproveCiAction, undoPaymentAction, unpayCiAction, unpaySupplierAction,
 } from "../actions";
 import { openEstimateChat } from "@/app/components/staffDockBus";
 import { fmt2 } from "../format";
@@ -46,12 +47,27 @@ export type ActionSpec = {
 
 export type PaymentsUiSettings = { depositOptionsPct: number[]; notifyPaymentDefault: boolean; today: string };
 
+/** A job the picker offers (Other job, Pick a job, Snap a receipt). */
+export type PickJob = { estimateId: string; workOrderId: string; address: string; customer: string | null; laneName: string };
+
+/** A Materials row as its buttons, View and the picker need it — figures decided on the server. */
+export type MatSpec = {
+  kind: "intake" | "cost"; id: string; state: "check" | "dup" | "rec" | "appr" | "paid" | "del";
+  supplier: string; invoiceNo: string | null; invoiceDate: string | null; reference: string | null;
+  jobAddress: string | null; amountLabel: string; unread: boolean; hasDoc: boolean;
+};
+
 /** What a toast's Undo (and, for a customer payment, Change) does. */
 type UndoSpec =
   | { kind: "payment"; paymentId: string; spec: ActionSpec; invoiceId: string }
-  | { kind: "ci"; ids: string[]; was: "approve" | "pay" };
+  | { kind: "ci"; ids: string[]; was: "approve" | "pay" }
+  | { kind: "mat_pay"; ids: string[] }
+  | { kind: "mat_delete"; row: MatSpec };
 type Toast = { msg: string; undo?: UndoSpec; until: number } | null;
-type Sheet = { kind: "pay"; spec: ActionSpec; invoiceId: string } | { kind: "send"; spec: ActionSpec } | null;
+type Sheet =
+  | { kind: "pay"; spec: ActionSpec; invoiceId: string } | { kind: "send"; spec: ActionSpec }
+  | { kind: "pick"; row: MatSpec | null } | { kind: "doc"; row: MatSpec }
+  | null;
 
 type Ui = {
   settings: PaymentsUiSettings;
@@ -67,6 +83,15 @@ type Ui = {
   /** Contractors (Step 5): one press, one or many invoices, with Undo. `say` is the toast line. */
   approveCi: (ids: string[], say: string) => void;
   payCi: (ids: string[], say: string) => void;
+  /** Materials (Step 6). */
+  confirmMat: (ids: string[], line: string, workOrderId?: string) => void;
+  notForJob: (row: MatSpec) => void;
+  deleteMat: (row: MatSpec) => void;
+  restoreMat: (row: MatSpec) => void;
+  approveMat: (ids: string[], line: string) => void;
+  paySupplier: (ids: string[], line: string) => void;
+  pick: (row: MatSpec | null) => void;
+  view: (row: MatSpec) => void;
 };
 
 const Ctx = createContext<Ui | null>(null);
@@ -76,7 +101,7 @@ const useUi = () => {
   return ui;
 };
 
-export function PaymentsUiProvider({ settings, children }: { settings: PaymentsUiSettings; children: React.ReactNode }) {
+export function PaymentsUiProvider({ settings, jobs = [], children }: { settings: PaymentsUiSettings; jobs?: PickJob[]; children: React.ReactNode }) {
   const router = useRouter();
   const [busy, start] = useTransition();
   const [toast, setToast] = useState<Toast>(null);
@@ -139,6 +164,25 @@ export function PaymentsUiProvider({ settings, children }: { settings: PaymentsU
       router.refresh();
       show({ msg: r.done.length === ids.length ? line : r.message, undo: { kind: "ci", ids: r.done, was: "pay" }, until: Date.now() + (r.undoSeconds ?? 8) * 1000 });
     }),
+    confirmMat: (ids, line, workOrderId) => start(async () => { setSheet(null); done(await confirmMaterialsAction(workOrderId ? { ids, workOrderId } : { ids }), line); }),
+    notForJob: (row) => start(async () => { setSheet(null); done(await notForJobAction({ id: row.id }), `${row.supplier} ${row.amountLabel} marked as not for a job.`); }),
+    deleteMat: (row) => start(async () => {
+      setSheet(null);
+      const r = await deleteMaterialAction({ kind: row.kind, id: row.id });
+      if (!r.ok) { say(r.message); return; }
+      router.refresh();
+      show({ msg: `${row.supplier} ${row.amountLabel} deleted. It no longer counts anywhere.`, undo: { kind: "mat_delete", row }, until: Date.now() + 8000 });
+    }),
+    restoreMat: (row) => start(async () => done(await restoreMaterialAction({ kind: row.kind, id: row.id }), `${row.supplier} ${row.amountLabel} restored.`)),
+    approveMat: (ids, line) => start(async () => { setSheet(null); done(await approveMaterialsAction({ ids }), line); }),
+    paySupplier: (ids, line) => start(async () => {
+      const r = await paySupplierAction({ ids });
+      if (!r.ok) { say(r.message); return; }
+      router.refresh();
+      show({ msg: line, undo: { kind: "mat_pay", ids }, until: Date.now() + (r.undoSeconds ?? 8) * 1000 });
+    }),
+    pick: (row) => setSheet({ kind: "pick", row }),
+    view: (row) => setSheet({ kind: "doc", row }),
     message: (spec) => start(async () => {
       const d = await paymentMessageDraftAction(spec.messageInvoiceId ? { estimateId: spec.estimateId, invoiceId: spec.messageInvoiceId } : { estimateId: spec.estimateId });
       if (!d.ok) { say(d.message); return; }
@@ -146,11 +190,25 @@ export function PaymentsUiProvider({ settings, children }: { settings: PaymentsU
     }),
   }), [settings, busy, adjust, done, router, say, show, start]);
 
+  const goSnap = (job: PickJob) => { setSheet(null); router.push(`/invoicing/job/${job.estimateId}?addcost=1&from=${encodeURIComponent("/invoicing/payments?tab=mat")}`); };
+
   const undo = (change: boolean) => {
     const u = toast?.undo;
     if (!u) return;
     setToast(null);
     start(async () => {
+      if (u.kind === "mat_pay") {
+        const r = await unpaySupplierAction({ ids: u.ids });
+        router.refresh();
+        say(r.ok ? "Undone." : r.message);
+        return;
+      }
+      if (u.kind === "mat_delete") {
+        const r = await restoreMaterialAction({ kind: u.row.kind, id: u.row.id });
+        router.refresh();
+        say(r.ok ? "Restored." : r.message);
+        return;
+      }
       if (u.kind === "ci") {
         const r = u.was === "approve" ? await unapproveCiAction({ ids: u.ids }) : await unpayCiAction({ ids: u.ids });
         router.refresh();
@@ -170,6 +228,8 @@ export function PaymentsUiProvider({ settings, children }: { settings: PaymentsU
       {children}
       {sheet?.kind === "pay" ? <PaySheet spec={sheet.spec} invoiceId={sheet.invoiceId} onClose={() => setSheet(null)} onDone={done} /> : null}
       {sheet?.kind === "send" ? <SendSheet spec={sheet.spec} onClose={() => setSheet(null)} onDone={done} /> : null}
+      {sheet?.kind === "pick" ? <PickSheet row={sheet.row} jobs={jobs} onClose={() => setSheet(null)} onPick={(job) => sheet.row ? ui.confirmMat([sheet.row.id], `${sheet.row.supplier} ${sheet.row.amountLabel} confirmed to ${job.address.split(",")[0]}.`, job.workOrderId) : goSnap(job)} /> : null}
+      {sheet?.kind === "doc" ? <DocSheet row={sheet.row} onClose={() => setSheet(null)} /> : null}
       <div className={`toast${toast ? " on" : ""}`} role="status" data-testid="pm-toast">
         {toast ? <span>{toast.msg}</span> : null}
         {toast?.undo ? <button type="button" onClick={() => undo(false)} disabled={busy}>Undo</button> : null}
@@ -374,4 +434,97 @@ export function CiGroupButtons({ approveIds, payIds, approveLine, payLine, payLa
     {approveIds.length > 1 ? <button type="button" className="b" disabled={ui.busy} onClick={() => ui.approveCi(approveIds, approveLine)}>Approve all {approveIds.length}</button> : null}
     {payIds.length ? <button type="button" className="b pri" disabled={ui.busy} onClick={() => ui.payCi(payIds, payLine)}>{payLabel}</button> : null}
   </>;
+}
+
+// ---- Materials (Step 6) ----------------------------------------------------------------
+
+/** A Materials row's buttons (§4.6), by its state. */
+export function MatButtons({ row, inSheet = false }: { row: MatSpec; inSheet?: boolean }) {
+  const ui = useUi();
+  const del = <button type="button" className="b sm del" disabled={ui.busy} onClick={() => ui.deleteMat(row)}>Delete</button>;
+  const view = !inSheet && row.hasDoc ? <button type="button" className="b sm" onClick={() => ui.view(row)}>View</button> : null;
+  if (row.state === "dup") return <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.deleteMat(row)}>Dismiss</button>{view}</>;
+  if (row.state === "del") return <><button type="button" className="b sm" disabled={ui.busy} onClick={() => ui.restoreMat(row)}>Restore</button>{view}</>;
+  if (row.state === "check") {
+    return row.jobAddress && !row.unread
+      ? <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.confirmMat([row.id], `${row.supplier} ${row.amountLabel} confirmed to ${row.jobAddress!.split(",")[0]}.`)}>Confirm</button>
+          <button type="button" className="b sm" onClick={() => ui.pick(row)}>Other job</button>{del}{view}</>
+      : <><button type="button" className="b sm pri" disabled={ui.busy || row.unread} onClick={() => ui.pick(row)}>Pick a job</button>
+          <button type="button" className="b sm" disabled={ui.busy || row.unread} onClick={() => ui.notForJob(row)}>Not for a job</button>{del}{view}</>;
+  }
+  if (row.state === "rec") return <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.approveMat([row.id], `${row.supplier} ${row.amountLabel} approved.`)}>Approve</button>{del}{view}</>;
+  return view;
+}
+
+export function MatBulkButton({ ids, label, line, kind }: { ids: string[]; label: string; line: string; kind: "confirm" | "approve" }) {
+  const ui = useUi();
+  return <button type="button" className="b sm" disabled={ui.busy} onClick={() => (kind === "confirm" ? ui.confirmMat(ids, line) : ui.approveMat(ids, line))}>{label}</button>;
+}
+
+export function SupplierPaidButton({ ids, label, line }: { ids: string[]; label: string; line: string }) {
+  const ui = useUi();
+  return <button type="button" className="b pri" disabled={ui.busy} onClick={() => ui.paySupplier(ids, line)}>{label}</button>;
+}
+
+export function SnapReceiptButton() {
+  const ui = useUi();
+  return <button type="button" className="b sm" style={{ marginLeft: "auto" }} onClick={() => ui.pick(null)}>Snap a receipt</button>;
+}
+
+function PickSheet({ row, jobs, onClose, onPick }: { row: MatSpec | null; jobs: PickJob[]; onClose: () => void; onPick: (j: PickJob) => void }) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const list = jobs.filter((j) => !needle || `${j.address} ${j.customer ?? ""}`.toLowerCase().includes(needle)).slice(0, 40);
+  return (
+    <div className="sheet-wrap on" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="sheet" role="dialog" aria-labelledby="pickT">
+        <h3 id="pickT">{row ? "Which job is this for?" : "Snap a receipt for which job?"}</h3>
+        <div className="who">{row ? `${row.supplier} ${row.invoiceNo ?? ""} · ${row.amountLabel}${row.reference ? ` · supplier wrote “${row.reference}”` : ""}` : "Opens the job with Add cost ready for the photo."}</div>
+        <div className="field"><input type="search" placeholder="Search address or customer" aria-label="Search jobs" value={q} onChange={(e) => setQ(e.target.value)} autoFocus /></div>
+        <div className="pick">
+          {list.length ? list.map((j) => (
+            <button key={j.workOrderId} type="button" onClick={() => onPick(j)}>{j.address}<small>{j.laneName}{j.customer ? ` · ${j.customer}` : ""}</small></button>
+          )) : <div className="empty">No job matches.</div>}
+        </div>
+        <button type="button" className="cancel" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function DocSheet({ row, onClose }: { row: MatSpec; onClose: () => void }) {
+  const [doc, setDoc] = useState<{ url: string | null; isImage: boolean } | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let live = true;
+    void materialDocAction({ kind: row.kind, id: row.id }).then((r) => { if (!live) return; if (r.ok) setDoc({ url: r.url, isImage: r.isImage }); else setErr(r.message); });
+    return () => { live = false; };
+  }, [row.kind, row.id]);
+  return (
+    <div className="sheet-wrap on" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="sheet" role="dialog" aria-label="Captured document" style={{ maxWidth: 500 }}>
+        <h3>{row.supplier} {row.invoiceNo ?? ""}</h3>
+        <div className="who">{row.invoiceDate ? `Dated ${row.invoiceDate}` : "Captured document"}</div>
+        <div className="paper" data-testid="pm-doc">
+          {err ? <p>{err}</p>
+            : !doc ? <p>Opening the document…</p>
+            : !doc.url ? <p>No document is attached to this row.</p>
+            // A short-lived signed link to a private document: nothing for next/image to optimise.
+            // eslint-disable-next-line @next/next/no-img-element
+            : doc.isImage ? <img src={doc.url} alt={`${row.supplier} document`} style={{ width: "100%", borderRadius: 8 }} />
+            : <iframe src={doc.url} title={`${row.supplier} document`} style={{ width: "100%", height: 380, border: 0, borderRadius: 8, background: "#fff" }} />}
+          {doc?.url ? <p><a href={doc.url} target="_blank" rel="noreferrer">Open the original in a new tab</a></p> : null}
+        </div>
+        <div className="read">
+          <b>What was read from it</b>
+          <span>Supplier: {row.supplier}</span>
+          <span>Total: {row.amountLabel} including GST{row.unread ? " — not read, check the document" : ""}</span>
+          <span>Reference: {row.reference ? `“${row.reference}”` : "none on the document"}</span>
+          <span>Job: {row.jobAddress ?? "no job found"}</span>
+        </div>
+        <div className="docacts"><MatButtons row={row} inSheet /></div>
+        <button type="button" className="cancel" onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
 }

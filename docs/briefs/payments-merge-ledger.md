@@ -146,3 +146,34 @@ Brief: `docs/briefs/claude-code-brief-payments-merge.md`. Branch `feat/payments-
   - e2e `payments-contractors` 4/4: sections, the customer line, Approve and Paid with Undo, the remittance after the window, Approve all = one event per invoice, the To approve total = the old tile, the contractor sees only their own invoices.
   - Regression 47/48: contractor-invoicing, contractor-expenses, painter-status(-screens), status-offers-payment-bonus, payments-actions/page/message.
 - The one red, unrelated: `status-offers-payment-bonus` "a Red painter gets no offer…" expects `error:no_reason` from `painter_clear_red` and gets `error:not_owner`. The C1 staff login isn't the owner; nothing in this build touches that function or staff roles.
+
+## Step 6 — the Materials block (13 Oct 2026)
+- Production shape (read-only, 13 Oct):
+  - Six vendor rows for three suppliers (Dulux ×2, Haymes ×3, Viponds).
+  - Ten supplier invoices filed as job costs `other`, all recorded: §6.9.
+  - Twelve `material_costs`, all on jobs.
+  - Fifteen documents pending plus one duplicate, with the old tile saying 0: §6.8.
+- Migration `20270259000000_payments_materials.sql`, additive. Applied on C1, read-back 10/10. **LIVE on production** (production read-back 10/10 matched, 13 Oct).
+  - Enums: `job_cost_category` += `materials`; `job_cost_status` += `void`.
+  - Nullable `material_costs.overhead`.
+  - New functions: `cost_intake_confirm_materials` (figures from the EXTRACTED fields, then approve: ⚑P9 default, Settings `confirmApproves`), `cost_intake_not_for_job`, `cost_intake_restore`, `job_cost_void` / `job_cost_restore`, `job_cost_unpay` (10 minutes).
+- `lib/invoicing/materials.ts` (pure):
+  - One supplier, one name (§6.10): vendors joined by shared sender domain, by the same clean name, or by one clean name inside another; the display name is the shortest clean one. No vendor row is renamed.
+  - Supplier invoices are materials (§6.9): category `materials`, or `other` from a vendor that vendor memory knows sells materials. The ten `other` rows are NOT re-categorised (that would be a bulk update, §3A.3); they count as materials by rule.
+  - The block counts the queue (§6.8): To check = pending + undismissed duplicates. Duplicates are shown but never counted.
+  - Lists: To check, On a job to approve, Approved to pay (grouped by supplier), Paid, Deleted.
+- Rules as built:
+  - Delete is the existing `cost_intake_reject` (a document) or `void` (a cost waiting for approval). Restore puts it back. The document is always kept.
+  - Dismiss on a duplicate is the same reject.
+  - Not for a job writes a `material_costs` row with `overhead = true`. `materialsToMatch` (the old tile and the home dashboard) now skips overhead.
+- Page: `MaterialsView.tsx`.
+  - Supplier totals line; Confirm / Other job / Pick a job / Not for a job / Delete / View; "Confirm the N with a job found"; "Approve all N"; ✓ Paid per supplier with Undo; Deleted with Restore.
+  - View opens the original document (signed link, looked up by row id) beside what was read.
+  - Snap a receipt picks a job, then opens it with Add cost ready (`/invoicing/job/[id]?addcost=1`): the existing capture.
+- Gate:
+  - Unit 3,563 passing. Typecheck clean. Lint within the ceiling. Help index current.
+  - e2e `payments-materials` 2/2.
+  - Regression 42/43: cost-intake, dashboard-invoicing, invoicing, payments-page / actions / message / contractors.
+  - The one red was `invoicing.spec` "Settings → Invoicing card payments": the TEST passed, its afterAll timed out on a test-project network drop (ETIMEDOUT). That same drop crashed the run's teardown before the e2e lock was released.
+  - The re-run was REFUSED by the lock: holder "an e2e run, started locally at 22:35Z" = this session's crashed run, a dead pooler connection that clears when the server notices. No retry loop, per the rule.
+- Not done: Undo on Confirm/Approve. The brief asks for Undo only on Paid. Delete has Undo via Restore.

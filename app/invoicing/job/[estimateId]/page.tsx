@@ -29,10 +29,10 @@ export default async function JobMoneyPage({
   searchParams,
 }: {
   params: Promise<{ estimateId: string }>;
-  searchParams: Promise<{ from?: string; tab?: string }>;
+  searchParams: Promise<{ from?: string; tab?: string; addcost?: string }>;
 }) {
   const { estimateId } = await params;
-  const { tab } = await searchParams;
+  const { tab, addcost } = await searchParams;
   // Tom, 1 Oct: opened from Invoicing, the crumb goes back to Invoicing (with its
   // filters), not to PC Command. Validated — `from` comes off the URL.
   const backTo = parseBackTo((await searchParams).from);
@@ -147,7 +147,8 @@ export default async function JobMoneyPage({
   return (
     <MoneyView
       estimateId={estimateId}
-      initialTab={tab === "invoices" || tab === "costs" ? tab : "payments"}
+      initialTab={addcost === "1" ? "costs" : tab === "invoices" || tab === "costs" ? tab : "payments"}
+      initialAddCost={addcost === "1"}
       backTo={backTo}
       woId={job.wo?.id ?? null}
       woRef={job.wo?.wo_ref ?? null}

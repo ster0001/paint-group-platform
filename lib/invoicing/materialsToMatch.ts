@@ -22,14 +22,16 @@ export type MaterialToMatch = {
   order_ref: string;
   address_text: string;
   created_at: string;
+  /** Payments merge Step 6 (20270259): a person said "not for a job" — overhead, nothing to match. */
+  overhead?: boolean | null;
 };
 
-export function needsMatching(row: Pick<MaterialToMatch, "work_order_id">): boolean {
-  return row.work_order_id == null;
+export function needsMatching(row: Pick<MaterialToMatch, "work_order_id" | "overhead">): boolean {
+  return row.work_order_id == null && row.overhead !== true;
 }
 
 /** The rows that still need a job, newest received first. */
-export function materialsToMatch<T extends Pick<MaterialToMatch, "work_order_id" | "created_at">>(rows: readonly T[]): T[] {
+export function materialsToMatch<T extends Pick<MaterialToMatch, "work_order_id" | "created_at" | "overhead">>(rows: readonly T[]): T[] {
   return rows.filter(needsMatching).sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 

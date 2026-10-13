@@ -372,6 +372,8 @@ export async function loadDashboard(supabase: SupabaseClient) {
     supabase.from("material_costs")
       .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at")
       .is("work_order_id", null)
+      // Step 6: "not for a job" is overhead by a person's choice — not waiting to be matched.
+      .or("overhead.is.null,overhead.eq.false")
       .order("created_at", { ascending: false })
       .limit(100),
   ]);

@@ -91,7 +91,17 @@ const contractorInvoices: JobMoneyCi[] = [
 ];
 const input: JobMoneyInput = {
   jobs, invoices: Object.values(I), payments, contractorInvoices,
-  materials: { intakePending: [{ totalCents: 1_534_218 }], jobCosts: [{ status: "recorded", amountExCents: 261_672, gstCents: 26_167 }, { status: "paid", amountExCents: 4_545, gstCents: 455 }] },
+  materials: {
+    vendors: [{ id: "v1", name: "Dulux", senderDomains: ["dulux.com.au"], defaultCategory: "materials" }],
+    intake: [{ id: "i1", status: "pending", confirmedAt: null, resultingId: null, createdAt: "2026-10-09T00:00:00Z", docPath: "bills/i1.pdf", fromEmail: "x@dulux.com.au",
+      extractStatus: "extracted", supplier: "Dulux", invoiceNo: "0911", invoiceDate: "2026-10-09", totalCents: 1_534_218, orderRef: null, addressText: null,
+      proposedWoId: null, proposedVendorId: "v1", duplicateOf: null }],
+    costs: [
+      { id: "c1", workOrderId: "wo-x", vendorId: "v1", category: "materials", status: "recorded", amountExCents: 261_672, gstCents: 26_167, docPath: "d", invoiceNo: "1", invoiceDate: null, intakeId: null, paidAt: null, createdAt: "2026-10-09T00:00:00Z" },
+      { id: "c2", workOrderId: "wo-x", vendorId: "v1", category: "materials", status: "paid", amountExCents: 4_545, gstCents: 455, docPath: "d", invoiceNo: "2", invoiceDate: null, intakeId: null, paidAt: "2026-10-09T00:00:00Z", createdAt: "2026-10-09T00:00:00Z" },
+    ],
+    materialCosts: [],
+  },
   now: NOW,
 };
 const page = jobMoneyPage(input);
