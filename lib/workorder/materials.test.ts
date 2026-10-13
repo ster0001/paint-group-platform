@@ -12,7 +12,7 @@ const row = (over: Partial<MaterialSurfaceRow>): MaterialSurfaceRow => ({
 });
 
 const opts = {
-  roundUpLitres: (n: number) => Math.ceil(n),
+  orderLitres: (n: number) => Math.ceil(n),
   statusFor: () => "tbc" as const,
 };
 
