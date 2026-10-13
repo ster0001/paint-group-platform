@@ -25,7 +25,8 @@ function walk(p: string, out: string[] = []): string[] {
 }
 
 /** A cents-named value on either side of + − × ÷. Comments are stripped first. */
-const CENTS_MATH = /\b\w*[cC]ents\w*\b\s*[-+*/]\s*[\w(]|[\w)]\s*[-+*/]\s*\b\w*[cC]ents\w*\b/;
+// The right-hand side may be a property (`s + r.amountCents` slipped past the first version, 8c).
+const CENTS_MATH = /\b\w*[cC]ents\w*\b\s*[-+*/]\s*[\w(]|[\w)]\s*[-+*/]\s*(?:[\w$]+\??\.)*\w*[cC]ents\w*\b/;
 const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
 describe("the Payments page computes no money of its own", () => {

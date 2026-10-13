@@ -241,3 +241,18 @@ The inventory before deleting found the old Payables tab is the only screen for:
   - Regression 38/39: payments-contractors, contractor-invoicing, dashboard-invoicing, cost-intake, contractor-expenses, employee-money-tab.
 - The one red, unrelated: `employee-money-tab` "changing the lead…" expects `ok:lead` from the lead function, which answers `ok:lead_set` since 20270230 (8 Oct). Stale assertion; nothing here touches it.
 - Not covered by e2e here: Paid back (needs an employed-painter fixture). `employee-money-tab` covers it on the old tab and is repointed in 8d.
+
+## Step 8c — Materials: any category, typed amounts, no job yet (13 Oct 2026)
+- No migration. The writes are the old Payables tab's own functions (`cost_intake_confirm`, `material_cost_assign`).
+- "Record as a cost…" on every To check row (the primary button when the reading failed): the old confirm panel as a sheet.
+  - Category chips (materials, scaffold, render, carpentry, rubbish, equipment, permit, traffic, other).
+  - The job (the one found is preselected) and the total inc GST + GST, typed when needed; GST prefills to a tenth (`gstFromIncCents`).
+  - `confirmCostAction`: zod-validated cents, refuses GST ≥ total, derives ex GST on the server, files a job cost with the document attached.
+  - An unread document is no longer stuck at Delete / View.
+- "No job yet" (`materialsView.noJob`, the home tile's own `needsMatching` predicate): materials recorded with no job and not overhead, with Assign to a job. Counted on the Materials card ("N with no job"), not in what's owed — they are recorded costs.
+- The page's money guard (`jobMoney.boundary.test.ts`) missed `s + r.amountCents` (a property on the right of the operator). Widened; the only hit was this step's own total, now `block.noJobCents` in the lib.
+- Gate:
+  - Unit 3,548 (lib) passing. Typecheck clean. Lint within the ceiling.
+  - e2e `payments-materials` 3/3: an unread docket recorded as rubbish, $220 typed, GST prefilled to $20, stored as $200 + $20 with the document; a no-job material assigned to its job.
+  - Regression 19/19: cost-intake, dashboard-invoicing, payments-panel, payments-page.
+- Tom, 13 Oct: keep the GST and the confidence % from the old intake card; the accuracy readout goes. To check rows now show "GST $x" with the invoice number, and "Job found from the order reference, read with N% confidence" when the job came from the reference (the old card's own rule). e2e checks the GST; unit tests both.

@@ -120,7 +120,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       s: `${contractors.toApproveCount} to approve · ${money(contractors.approvedToPayCents)} approved to pay${exp.toDecideCount ? ` · ${plural(exp.toDecideCount, "expense")} to decide` : ""}${exp.owedBackCount ? ` · ${money(exp.owedBackCents)} owed back` : ""}`,
       od: contractors.pastPayByCents ? `${money(contractors.pastPayByCents)} overdue` : null },
     { key: "mat", d: "Money out", t: "Materials", v: money(materials.openCents),
-      s: `${materials.toCheckCount} to check · ${materials.toApproveCount} to approve · ${money(materials.toPayCents)} to pay`, od: null },
+      s: `${materials.toCheckCount} to check · ${materials.toApproveCount} to approve · ${money(materials.toPayCents)} to pay${materials.noJobCount ? ` · ${materials.noJobCount} with no job` : ""}`, od: null },
     { key: "act", d: "", t: "Activity", v: null, s: `${money(activity.receivedFortnightCents)} received from customers in the last 14 days`, od: null },
   ];
 

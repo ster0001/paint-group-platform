@@ -27,16 +27,17 @@ const DOMAIN = `${stamp.toLowerCase()}.invalid`;
 const made: PaymentsJob[] = [];
 const intakeIds: string[] = [];
 let vendorId = "";
+const noJobIds: string[] = [];
 
 // The smallest PDF a browser will open.
 const PDF = "%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF";
 
-async function doc(label: string, opts: { totalCents: number; woId?: string | null; status?: "pending" | "duplicate"; duplicateOf?: string }) {
+async function doc(label: string, opts: { totalCents: number; woId?: string | null; status?: "pending" | "duplicate"; duplicateOf?: string; unread?: boolean }) {
   const { data, error } = await db!.from("cost_intake").insert({
     source: "email", message_id: `e2e-${stamp}-${label}`, raw_doc_path: DOC, from_email: `invoices@${DOMAIN}`, subject: `Invoice ${label}`,
-    extract_status: "extracted", match_reason: opts.woId ? "address" : "none", status: opts.status ?? "pending",
+    extract_status: opts.unread ? "failed" : "extracted", match_reason: opts.woId ? "address" : "none", status: opts.status ?? "pending",
     proposed_wo_id: opts.woId ?? null, proposed_vendor_id: vendorId, duplicate_of: opts.duplicateOf ?? null,
-    extracted: { supplier: `${stamp} Paints Pty Ltd`, invoice_no: `${stamp}-${label}`, invoice_date: isoDay(-1), total_cents: opts.totalCents, order_ref: `${label} ref` },
+    extracted: { supplier: `${stamp} Paints Pty Ltd`, invoice_no: `${stamp}-${label}`, invoice_date: isoDay(-1), total_cents: opts.totalCents, gst_cents: Math.round(opts.totalCents / 11), order_ref: `${label} ref` },
   }).select("id").single();
   if (error) throw error;
   intakeIds.push(data!.id as string);
@@ -79,6 +80,7 @@ test.describe("Payments → Materials — as staff", () => {
   test.afterAll(async () => {
     if (!db || process.env.E2E_KEEP) return;
     await db.from("material_costs").delete().in("intake_id", intakeIds);
+    if (noJobIds.length) await db.from("material_costs").delete().in("id", noJobIds);
     await db.from("job_costs").delete().in("intake_id", intakeIds);
     await db.from("cost_intake").delete().in("id", intakeIds);
     await cleanupPaymentsJobs(db, made);
@@ -99,6 +101,7 @@ test.describe("Payments → Materials — as staff", () => {
     await page.goto(PAGE);
     const block = page.locator(".pm [data-testid=pm-materials]");
     await expect(row(page, "FOUND")).toContainText("Matjob St", { timeout: 30_000 });
+    await expect(row(page, "FOUND")).toContainText("GST $47.28");   // kept from the old intake card (Tom, 13 Oct)
     await expect(page.getByTestId("pm-suppliers")).toContainText(new RegExp(`${stamp}\\$703\\.45`, "i"));   // one clean name; the duplicate isn't counted
 
     // The block's count is the intake queue (non-duplicate, waiting).
@@ -153,4 +156,40 @@ test.describe("Payments → Materials — as staff", () => {
     await page.getByTestId("pm-toast").getByRole("button", { name: "Undo" }).click();
     await expect.poll(async () => [(await costOf(found))?.status, (await costOf(nojob))?.status], { timeout: 20_000 }).toEqual(["approved", "approved"]);
   });
+
+  // 8c — what only the old Payables tab did: any category, typed amounts, materials with no job.
+  test("Record as a cost: an unread docket filed as rubbish with typed amounts; a no-job material assigned to its job", async ({ page }) => {
+    const j = await makePaymentsJob(db!, contractor!.email, stamp, "Costjob", { contractCents: 300_000, stage: "in_progress", startDate: isoDay(-3), invoices: [] });
+    made.push(j);
+    const unread = await doc("UNREAD", { totalCents: 0, unread: true });
+    const { data: mc, error } = await db!.from("material_costs").insert({ supplier: `${stamp} Paints`, amount_cents: 14_347, order_ref: `${stamp}-NOJOB`, source: "airtable" }).select("id").single();
+    if (error) throw error;
+    noJobIds.push(mc!.id as string);
+
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(PAGE);
+    await row(page, "UNREAD").getByRole("button", { name: "Record as a cost…" }).click();
+    const sheet = page.getByRole("dialog", { name: "Record as a cost" });
+    await sheet.getByRole("button", { name: "Rubbish" }).click();
+    await sheet.getByLabel("Job").fill(`${stamp} Costjob`);
+    await sheet.getByRole("button", { name: new RegExp(`${stamp} Costjob St`) }).click();
+    await sheet.getByLabel("Total inc GST ($)").fill("220");
+    await expect(sheet.getByLabel("GST ($)", { exact: true })).toHaveValue("20.00");
+    await sheet.getByRole("button", { name: "Record $220.00" }).click();
+    await expect.poll(async () => await costOf(unread), { timeout: 20_000 }).toMatchObject({ category: "rubbish", work_order_id: j.f.workOrderId, status: "recorded" });
+    const { data: amounts } = await db!.from("job_costs").select("amount_ex_cents, gst_cents, doc_path").eq("intake_id", unread).single();
+    expect(amounts).toEqual({ amount_ex_cents: 20_000, gst_cents: 2_000, doc_path: DOC });   // the document rode along
+
+    // No job yet → Assign to a job.
+    await page.reload();
+    const noJob = page.getByTestId("pm-no-job").locator(`[data-material="${mc!.id}"]`);
+    await expect(noJob).toContainText("$143.47", { timeout: 30_000 });
+    await noJob.getByRole("button", { name: "Assign to a job" }).click();
+    const picker = page.getByRole("dialog", { name: "Which job is this for?" });
+    await picker.getByLabel("Search jobs").fill(`${stamp} Costjob`);
+    await picker.getByRole("button", { name: new RegExp(`${stamp} Costjob St`) }).click();
+    await expect.poll(async () => ((await db!.from("material_costs").select("work_order_id").eq("id", mc!.id).single()).data as { work_order_id: string | null }).work_order_id, { timeout: 20_000 })
+      .toBe(j.f.workOrderId);
+  });
 });
+

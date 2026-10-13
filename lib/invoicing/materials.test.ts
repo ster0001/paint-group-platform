@@ -102,3 +102,31 @@ describe("the block (§4.6, §6.8)", () => {
     expect(v.toApprove.map((r) => r.id)).toEqual(["cx"]);
   });
 });
+
+describe("No job yet (8c): the old \"Materials without a job\", the home tile's own rule", () => {
+  it("lists materials with no job and not overhead, newest first; overhead and matched rows stay off", () => {
+    const v = materialsView({ vendors, intake: [], costs: [], jobs, materialCosts: [
+      { id: "n1", workOrderId: null, supplier: "HENRY HAYMES PTY LTD", amountCents: 14_347, intakeId: null, overhead: null, orderRef: "PG-0123", createdAt: "2026-10-01T00:00:00Z" },
+      { id: "n2", workOrderId: null, supplier: "Dulux", amountCents: 2_990, intakeId: null, overhead: null, addressText: "12 Kite St", createdAt: "2026-10-05T00:00:00Z" },
+      { id: "o1", workOrderId: null, supplier: "Dulux", amountCents: 9_999, intakeId: null, overhead: true, createdAt: "2026-10-06T00:00:00Z" },
+      { id: "m1", workOrderId: "wo-1", supplier: "Dulux", amountCents: 5_000, intakeId: null, overhead: null, createdAt: "2026-10-07T00:00:00Z" },
+    ] });
+    expect(v.noJob.map((r) => r.id)).toEqual(["n2", "n1"]);
+    expect(v.noJob[1]).toMatchObject({ reference: "PG-0123", amountCents: 14_347 });
+    expect(v.block.noJobCount).toBe(2);
+    expect(v.block.noJobCents).toBe(14_347 + 2_990);
+    expect(v.block.openCents).toBe(v.block.toCheckCents + v.block.toApproveCents + v.block.toPayCents);   // recorded costs, nothing to pay
+  });
+});
+
+describe("To check keeps the GST read and the order-reference confidence (Tom, 13 Oct)", () => {
+  it("confidence only when the job came from the order reference; GST as read", () => {
+    const v = materialsView({ vendors, costs: [], materialCosts: [], jobs, intake: [
+      intake("r1", { gstCents: 455, matchReason: "order_ref", refConfidence: 0.924 }),
+      intake("r2", { gstCents: null, matchReason: "address", refConfidence: 0.99 }),
+    ] });
+    const r = (id: string) => v.toCheck.find((x) => x.id === id)!;
+    expect(r("r1")).toMatchObject({ gstCents: 455, confidencePct: 92 });
+    expect(r("r2")).toMatchObject({ gstCents: null, confidencePct: null });
+  });
+});

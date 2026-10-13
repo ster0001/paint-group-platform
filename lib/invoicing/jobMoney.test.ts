@@ -238,7 +238,7 @@ describe("the four blocks and the stage strip come from the same rows", () => {
       toApproveCents: 1_722_671, toApproveCount: 1, approvedToPayCents: 100_000, approvedToPayCount: 1,
       pastPayByCents: 100_000, pastPayByCount: 1, owingCents: 1_822_671,
     });
-    expect(page.blocks.materials).toEqual({
+    expect(page.blocks.materials).toMatchObject({
       toCheckCents: 1_534_218, toCheckCount: 1, toApproveCents: 287_839, toApproveCount: 1,
       toPayCents: 0, toPayCount: 0, openCents: 1_822_057,
     });

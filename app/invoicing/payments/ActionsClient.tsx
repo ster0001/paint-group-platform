@@ -4,10 +4,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { centsAsInput, depositPreview, parseDollarsToCents } from "@/lib/invoicing/jobMoney";
+import { gstFromIncCents } from "@/lib/invoicing/gst";
 import {
   approveCiQuickAction, approveMaterialsAction, confirmMaterialsAction, createDepositAction, deleteMaterialAction, invoiceInFullAction,
   materialDocAction, notForJobAction, payCiQuickAction, paySupplierAction, paymentMessageDraftAction, quickPayAction, recordPaymentAction,
-  restoreMaterialAction, sendWithDueAction, holdFastTermsAction, releaseFastTermsAction, decideExpenseAction, decidePreapprovalAction, markReimbursedAction, setDepositAction, unapproveCiAction, undoPaymentAction, unpayCiAction, unpaySupplierAction,
+  restoreMaterialAction, sendWithDueAction, confirmCostAction, assignMaterialCostAction, holdFastTermsAction, releaseFastTermsAction, decideExpenseAction, decidePreapprovalAction, markReimbursedAction, setDepositAction, unapproveCiAction, undoPaymentAction, unpayCiAction, unpaySupplierAction,
 } from "../actions";
 import { openEstimateChat } from "@/app/components/staffDockBus";
 import { fmt2 } from "../format";
@@ -55,6 +56,8 @@ export type MatSpec = {
   kind: "intake" | "cost"; id: string; state: "check" | "dup" | "rec" | "appr" | "paid" | "del";
   supplier: string; invoiceNo: string | null; invoiceDate: string | null; reference: string | null;
   jobAddress: string | null; amountLabel: string; unread: boolean; hasDoc: boolean;
+  /** 8c: the reading and the job found, to prefill "Record as a cost…". */
+  amountCents?: number; invoiceDateIso?: string | null; workOrderId?: string | null;
 };
 
 /** What a toast's Undo (and, for a customer payment, Change) does. */
@@ -66,7 +69,8 @@ type UndoSpec =
 type Toast = { msg: string; undo?: UndoSpec; until: number } | null;
 type Sheet =
   | { kind: "pay"; spec: ActionSpec; invoiceId: string } | { kind: "send"; spec: ActionSpec }
-  | { kind: "pick"; row: MatSpec | null } | { kind: "doc"; row: MatSpec }
+  | { kind: "pick"; row: MatSpec | null } | { kind: "doc"; row: MatSpec } | { kind: "cost"; row: MatSpec }
+  | { kind: "assign"; row: { id: string; supplier: string; amountLabel: string; reference: string | null } }
   | null;
 
 type Ui = {
@@ -91,6 +95,8 @@ type Ui = {
   approveMat: (ids: string[], line: string) => void;
   paySupplier: (ids: string[], line: string) => void;
   pick: (row: MatSpec | null) => void;
+  record: (row: MatSpec) => void;
+  assign: (row: { id: string; supplier: string; amountLabel: string; reference: string | null }) => void;
   view: (row: MatSpec) => void;
 };
 
@@ -184,6 +190,8 @@ export function PaymentsUiProvider({ settings, jobs = [], children }: { settings
       show({ msg: line, undo: { kind: "mat_pay", ids }, until: Date.now() + (r.undoSeconds ?? 8) * 1000 });
     }),
     pick: (row) => setSheet({ kind: "pick", row }),
+    record: (row) => setSheet({ kind: "cost", row }),
+    assign: (row) => setSheet({ kind: "assign", row }),
     view: (row) => setSheet({ kind: "doc", row }),
     message: (spec) => start(async () => {
       const d = await paymentMessageDraftAction(spec.messageInvoiceId ? { estimateId: spec.estimateId, invoiceId: spec.messageInvoiceId } : { estimateId: spec.estimateId });
@@ -232,6 +240,10 @@ export function PaymentsUiProvider({ settings, jobs = [], children }: { settings
       {sheet?.kind === "send" ? <SendSheet spec={sheet.spec} onClose={() => setSheet(null)} onDone={done} /> : null}
       {sheet?.kind === "pick" ? <PickSheet row={sheet.row} jobs={jobs} onClose={() => setSheet(null)} onPick={(job) => sheet.row ? ui.confirmMat([sheet.row.id], `${sheet.row.supplier} ${sheet.row.amountLabel} confirmed to ${job.address.split(",")[0]}.`, job.workOrderId) : goSnap(job)} /> : null}
       {sheet?.kind === "doc" ? <DocSheet row={sheet.row} onClose={() => setSheet(null)} /> : null}
+      {sheet?.kind === "assign" ? <PickSheet row={null} heading={{ title: "Which job is this for?", who: `${sheet.row.supplier} · ${sheet.row.amountLabel}${sheet.row.reference ? ` · supplier wrote “${sheet.row.reference}”` : ""}` }}
+        jobs={jobs} onClose={() => setSheet(null)}
+        onPick={(job) => start(async () => { const row = sheet.row; setSheet(null); done(await assignMaterialCostAction({ materialCostId: row.id, woId: job.workOrderId }), `${row.supplier} ${row.amountLabel} is now on ${job.address.split(",")[0]}.`); })} /> : null}
+      {sheet?.kind === "cost" ? <CostSheet row={sheet.row} jobs={jobs} onClose={() => setSheet(null)} onDone={(r) => { if (r.ok) setSheet(null); done(r, r.message ?? ""); }} /> : null}
       <div className={`toast${toast ? " on" : ""}`} role="status" data-testid="pm-toast">
         {toast ? <span>{toast.msg}</span> : null}
         {toast?.undo ? <button type="button" onClick={() => undo(false)} disabled={busy}>Undo</button> : null}
@@ -492,11 +504,14 @@ export function MatButtons({ row, inSheet = false }: { row: MatSpec; inSheet?: b
   if (row.state === "dup") return <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.deleteMat(row)}>Dismiss</button>{view}</>;
   if (row.state === "del") return <><button type="button" className="b sm" disabled={ui.busy} onClick={() => ui.restoreMat(row)}>Restore</button>{view}</>;
   if (row.state === "check") {
+    // 8c: any category, the figures typed when the reading failed — the old Payables confirm panel.
+    const record = <button type="button" className={`b sm${row.unread ? " pri" : ""}`} disabled={ui.busy} onClick={() => ui.record(row)}>Record as a cost…</button>;
     return row.jobAddress && !row.unread
       ? <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.confirmMat([row.id], `${row.supplier} ${row.amountLabel} confirmed to ${row.jobAddress!.split(",")[0]}.`)}>Confirm</button>
-          <button type="button" className="b sm" onClick={() => ui.pick(row)}>Other job</button>{del}{view}</>
-      : <><button type="button" className="b sm pri" disabled={ui.busy || row.unread} onClick={() => ui.pick(row)}>Pick a job</button>
-          <button type="button" className="b sm" disabled={ui.busy || row.unread} onClick={() => ui.notForJob(row)}>Not for a job</button>{del}{view}</>;
+          <button type="button" className="b sm" onClick={() => ui.pick(row)}>Other job</button>{record}{del}{view}</>
+      : row.unread ? <>{record}{del}{view}</>
+      : <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.pick(row)}>Pick a job</button>
+          <button type="button" className="b sm" disabled={ui.busy} onClick={() => ui.notForJob(row)}>Not for a job</button>{record}{del}{view}</>;
   }
   if (row.state === "rec") return <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.approveMat([row.id], `${row.supplier} ${row.amountLabel} approved.`)}>Approve</button>{del}{view}</>;
   return view;
@@ -517,15 +532,15 @@ export function SnapReceiptButton() {
   return <button type="button" className="b sm" style={{ marginLeft: "auto" }} onClick={() => ui.pick(null)}>Snap a receipt</button>;
 }
 
-function PickSheet({ row, jobs, onClose, onPick }: { row: MatSpec | null; jobs: PickJob[]; onClose: () => void; onPick: (j: PickJob) => void }) {
+function PickSheet({ row, jobs, onClose, onPick, heading }: { row: MatSpec | null; jobs: PickJob[]; onClose: () => void; onPick: (j: PickJob) => void; heading?: { title: string; who: string } }) {
   const [q, setQ] = useState("");
   const needle = q.trim().toLowerCase();
   const list = jobs.filter((j) => !needle || `${j.address} ${j.customer ?? ""}`.toLowerCase().includes(needle)).slice(0, 40);
   return (
     <div className="sheet-wrap on" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="sheet" role="dialog" aria-labelledby="pickT">
-        <h3 id="pickT">{row ? "Which job is this for?" : "Snap a receipt for which job?"}</h3>
-        <div className="who">{row ? `${row.supplier} ${row.invoiceNo ?? ""} · ${row.amountLabel}${row.reference ? ` · supplier wrote “${row.reference}”` : ""}` : "Opens the job with Add cost ready for the photo."}</div>
+        <h3 id="pickT">{heading ? heading.title : row ? "Which job is this for?" : "Snap a receipt for which job?"}</h3>
+        <div className="who">{heading ? heading.who : row ? `${row.supplier} ${row.invoiceNo ?? ""} · ${row.amountLabel}${row.reference ? ` · supplier wrote “${row.reference}”` : ""}` : "Opens the job with Add cost ready for the photo."}</div>
         <div className="field"><input type="search" placeholder="Search address or customer" aria-label="Search jobs" value={q} onChange={(e) => setQ(e.target.value)} autoFocus /></div>
         <div className="pick">
           {list.length ? list.map((j) => (
@@ -621,4 +636,71 @@ export function ExpenseButtons({ kind, id, estimateCents }: { kind: "claim" | "a
     </> : <button type="button" className="b pri" disabled={busy} onClick={() => setCapping(true)}>Approve…</button>}
     <button type="button" className="b" disabled={busy} onClick={() => run(() => decidePreapprovalAction({ preapprovalId: id, approve: false }))}>Decline</button>
     {msg ? <span className="err"> {msg}</span> : null}</>;
+}
+
+// ---- 8c: any document as a cost ------------------------------------------------------
+
+const COST_CATEGORIES: { key: string; label: string }[] = [
+  { key: "materials", label: "Materials" }, { key: "scaffold", label: "Scaffold" }, { key: "render", label: "Render" },
+  { key: "carpentry", label: "Carpentry" }, { key: "rubbish", label: "Rubbish" }, { key: "equipment_hire", label: "Equipment" },
+  { key: "permit", label: "Permit" }, { key: "traffic_mgmt", label: "Traffic" }, { key: "other", label: "Other" },
+];
+
+/**
+ * "Record as a cost…" (8c): the old Payables confirm panel — the job, what kind
+ * of cost, and the total and GST, typed when the reading failed. GST defaults to
+ * the total's tenth (lib/invoicing/gst); the server re-checks both.
+ */
+function CostSheet({ row, jobs, onClose, onDone }: { row: MatSpec; jobs: PickJob[]; onClose: () => void; onDone: (r: { ok: boolean; message?: string }) => void }) {
+  const ui = useUi();
+  const [q, setQ] = useState("");
+  const [job, setJob] = useState<PickJob | null>(jobs.find((j) => j.workOrderId === row.workOrderId) ?? null);
+  const [category, setCategory] = useState("other");
+  const [total, setTotal] = useState(row.amountCents ? centsAsInput(row.amountCents) : "");
+  const totalCents = parseDollarsToCents(total);
+  const [gst, setGst] = useState(row.amountCents ? centsAsInput(gstFromIncCents(row.amountCents, 10)) : "");
+  const gstCents = gst.trim() === "" ? 0 : parseDollarsToCents(gst);
+  const [err, setErr] = useState("");
+  const needle = q.trim().toLowerCase();
+  const list = jobs.filter((j) => !needle || `${j.address} ${j.customer ?? ""}`.toLowerCase().includes(needle)).slice(0, 20);
+  const ok = !!job && !!totalCents && gstCents !== null && gstCents < totalCents;
+  const save = () => {
+    if (!job || !totalCents || gstCents === null) return;
+    void (async () => {
+      const r = await confirmCostAction({ intakeId: row.id, woId: job.workOrderId, estimateId: job.estimateId, category, vendorName: row.supplier,
+        totalIncCents: totalCents, gstCents, invoiceNo: row.invoiceNo ?? "", invoiceDate: row.invoiceDateIso ?? null });
+      if (!r.ok) { setErr(r.message ?? "That didn't save."); return; }
+      onDone({ ok: true, message: `${row.supplier} ${fmt2(totalCents)} recorded on ${job.address.split(",")[0]}.` });
+    })();
+  };
+  return (
+    <div className="sheet-wrap on" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="sheet" role="dialog" aria-labelledby="costT">
+        <h3 id="costT">Record as a cost</h3>
+        <div className="who">{row.supplier}{row.invoiceNo ? ` ${row.invoiceNo}` : ""}{row.unread ? " · the amount couldn't be read, type it from the document" : ""}</div>
+        <div className="field"><label>What kind of cost?</label>
+          <div className="chipset">{COST_CATEGORIES.map((c) => <button key={c.key} type="button" className={category === c.key ? "on" : undefined} aria-pressed={category === c.key} onClick={() => setCategory(c.key)}>{c.label}</button>)}</div>
+        </div>
+        <div className="field"><label htmlFor="costJob">Job</label>
+          {job ? <div className="adj"><p style={{ margin: 0 }}><b>{job.address}</b> <button type="button" className="b sm" onClick={() => setJob(null)}>Change</button></p></div>
+            : <><input id="costJob" type="search" placeholder="Search address or customer" value={q} onChange={(e) => setQ(e.target.value)} />
+              <div className="pick">{list.map((j) => <button key={j.workOrderId} type="button" onClick={() => setJob(j)}>{j.address}<small>{j.laneName}{j.customer ? ` · ${j.customer}` : ""}</small></button>)}</div></>}
+        </div>
+        <div className="two">
+          <div className="field"><label htmlFor="costTotal">Total inc GST ($)</label><input id="costTotal" className="money" inputMode="decimal" value={total}
+            onChange={(e) => { setTotal(e.target.value); const c = parseDollarsToCents(e.target.value); if (c) setGst(centsAsInput(gstFromIncCents(c, 10))); }} /></div>
+          <div className="field"><label htmlFor="costGst">GST ($)</label><input id="costGst" className="money" inputMode="decimal" value={gst} onChange={(e) => setGst(e.target.value)} /></div>
+        </div>
+        <div className="err">{err}</div>
+        <button type="button" className="b pri wide" disabled={ui.busy || !ok} onClick={save}>{totalCents ? `Record ${fmt2(totalCents)}` : "Record"}</button>
+        <button type="button" className="cancel" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+/** 8c: a materials invoice with no job — Assign to a job (`material_cost_assign`). */
+export function AssignButton({ row }: { row: { id: string; supplier: string; amountLabel: string; reference: string | null } }) {
+  const ui = useUi();
+  return <button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.assign(row)}>Assign to a job</button>;
 }

@@ -424,6 +424,9 @@ export type MaterialsBlock = {
   toPayCents: number; toPayCount: number;
   /** The block's figure: everything not yet paid. */
   openCents: number;
+  /** 8c: materials with no job yet (recorded costs — counted, not owed). */
+  noJobCount: number;
+  noJobCents: number;
 };
 
 export type ActivityBlock = { receivedFortnightCents: number };

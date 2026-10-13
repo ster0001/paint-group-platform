@@ -18,6 +18,7 @@
  *      every document still waiting for a person — so the count can never say
  *      0 while documents wait.
  */
+import { materialsToMatch } from "./materialsToMatch";
 
 export type VendorRow = { id: string; name: string; senderDomains: readonly string[]; defaultCategory: string };
 
@@ -39,6 +40,11 @@ export type IntakeRow = {
   proposedWoId: string | null;
   proposedVendorId: string | null;
   duplicateOf: string | null;
+  /** Tom, 13 Oct: kept from the old intake card — the GST read, and how sure the reader was of the order reference. */
+  gstCents?: number | null;
+  matchReason?: string | null;
+  /** 0–1, the reader's confidence in the order reference it read. */
+  refConfidence?: number | null;
 };
 
 export type CostRow = {
@@ -58,7 +64,14 @@ export type CostRow = {
 };
 
 /** material_costs — Airtable and older confirms; no approve/pay flow. Used to know who sells materials, and for overhead. */
-export type MaterialCostRow = { id: string; workOrderId: string | null; supplier: string; amountCents: number; intakeId: string | null; overhead: boolean | null };
+export type MaterialCostRow = {
+  id: string; workOrderId: string | null; supplier: string; amountCents: number; intakeId: string | null; overhead: boolean | null;
+  /** 8c: shown on the "No job yet" list. */
+  invoiceDate?: string | null; orderRef?: string | null; addressText?: string | null; createdAt?: string;
+};
+
+/** 8c: a materials invoice (usually from the Airtable sync) with no job and not marked overhead — the old "Materials without a job". */
+export type NoJobRow = { id: string; supplier: string; amountCents: number; invoiceDate: string | null; reference: string | null };
 
 export type JobRef = { workOrderId: string; estimateId: string; address: string; customer: string | null; lane: string };
 
@@ -160,6 +173,10 @@ export type MatRow = {
   docPath: string | null;
   /** The extraction failed — the amount is unread, so it can't be confirmed in one press. */
   unread: boolean;
+  /** The GST read from the document (intake only). */
+  gstCents: number | null;
+  /** The job came from the order reference: how sure the reader was of it, whole %. */
+  confidencePct: number | null;
 };
 
 export type SupplierGroupRow = { supplier: string; rows: MatRow[]; totalCents: number; jobs: string[] };
@@ -174,7 +191,9 @@ export type MaterialsView = {
   supplierTotals: { supplier: string; openCents: number }[];
   /** Every job cost this rule counts as materials (not voided) — the job panel's Materials line uses the same set. */
   costIds: string[];
-  block: { toCheckCents: number; toCheckCount: number; toApproveCents: number; toApproveCount: number; toPayCents: number; toPayCount: number; openCents: number };
+  /** 8c: materials with no job yet (`needsMatching`, the home tile's own predicate), newest first. Recorded costs — nothing to pay, a job to find. */
+  noJob: NoJobRow[];
+  block: { toCheckCents: number; toCheckCount: number; toApproveCents: number; toApproveCount: number; toPayCents: number; toPayCount: number; openCents: number; noJobCount: number; noJobCents: number };
 };
 
 export type MaterialsInput = {
@@ -199,6 +218,8 @@ export function materialsView(input: MaterialsInput): MaterialsView {
     supplier: dir.intakeName(r), invoiceNo: r.invoiceNo, invoiceDate: r.invoiceDate,
     reference: r.orderRef || r.addressText || null, job: jobOf(r.proposedWoId), overhead: false,
     amountCents: state === "dup" ? 0 : r.totalCents ?? 0, docPath: r.docPath, unread: r.extractStatus === "failed" || r.totalCents === null,
+    gstCents: r.gstCents ?? null,
+    confidencePct: r.matchReason === "order_ref" && typeof r.refConfidence === "number" ? Math.round(r.refConfidence * 100) : null,
   });
   const costRow = (c: CostRow, state: MatState): MatRow => {
     const intake = c.intakeId ? input.intake.find((i) => i.id === c.intakeId) ?? null : null;
@@ -209,6 +230,7 @@ export function materialsView(input: MaterialsInput): MaterialsView {
       reference: intake ? intake.orderRef || intake.addressText || null : null,
       job: jobOf(c.workOrderId), overhead: false,
       amountCents: c.amountExCents + c.gstCents, docPath: c.docPath, unread: false,
+      gstCents: c.gstCents, confidencePct: null,
     };
   };
 
@@ -242,10 +264,14 @@ export function materialsView(input: MaterialsInput): MaterialsView {
     toCheckCents: sum(checking), toCheckCount: checking.length,
     toApproveCents: sum(toApprove), toApproveCount: toApprove.length,
     toPayCents: sum(approved), toPayCount: approved.length,
-    openCents: 0,
+    openCents: 0, noJobCount: 0, noJobCents: 0,
   };
   block.openCents = block.toCheckCents + block.toApproveCents + block.toPayCents;
-  return { toCheck, toApprove, toPay, paid, deleted, supplierTotals, block, costIds: materials.filter((c) => c.status !== "void").map((c) => c.id) };
+  const noJob: NoJobRow[] = materialsToMatch(input.materialCosts.map((m) => ({ ...m, work_order_id: m.workOrderId, created_at: m.createdAt ?? "" })))
+    .map((m) => ({ id: m.id, supplier: cleanSupplierName(m.supplier) || "Supplier", amountCents: m.amountCents, invoiceDate: m.invoiceDate ?? null, reference: m.orderRef || m.addressText || null }));
+  block.noJobCount = noJob.length;
+  block.noJobCents = noJob.reduce((s, r) => s + r.amountCents, 0);
+  return { toCheck, toApprove, toPay, paid, deleted, supplierTotals, block, noJob, costIds: materials.filter((c) => c.status !== "void").map((c) => c.id) };
 }
 
 /** The amount on a list of rows — section headers. */

@@ -1,5 +1,5 @@
 import { totalMatCents, type MaterialsView as MaterialsRows, type MatRow } from "@/lib/invoicing/materials";
-import { MatBulkButton, MatButtons, OpenJobLink, SnapReceiptButton, SupplierPaidButton, type MatSpec } from "./ActionsClient";
+import { AssignButton, MatBulkButton, MatButtons, OpenJobLink, SnapReceiptButton, SupplierPaidButton, type MatSpec } from "./ActionsClient";
 import { money, plural, shortDate } from "./labels";
 
 /**
@@ -12,6 +12,7 @@ const spec = (r: MatRow): MatSpec => ({
   kind: r.kind, id: r.id, state: r.state, supplier: r.supplier, invoiceNo: r.invoiceNo,
   invoiceDate: r.invoiceDate ? shortDate(r.invoiceDate) : null, reference: r.reference,
   jobAddress: r.job?.address ?? null, amountLabel: money(r.amountCents), unread: r.unread, hasDoc: !!r.docPath,
+  amountCents: r.amountCents, invoiceDateIso: r.invoiceDate, workOrderId: r.job?.workOrderId ?? null,
 });
 const LABEL: Record<MatRow["state"], string> = { check: "to check", dup: "", rec: "to approve", appr: "approved, to pay", paid: "paid", del: "deleted" };
 
@@ -35,8 +36,8 @@ function Row({ r }: { r: MatRow }) {
     : <span className={`owe ${r.state === "check" ? (r.job ? "sent" : "uninv") : r.state === "rec" ? "draft" : "need"}`}>{r.unread ? "Not read" : money(r.amountCents)}</span>;
   return (
     <div className={`prow mat${r.state === "del" ? " gone" : ""}`} data-mat={r.key}>
-      <div className="p1"><b>{r.supplier}</b><small>{r.invoiceNo || "No invoice number"}{r.invoiceDate ? ` · ${shortDate(r.invoiceDate)}` : ""}</small></div>
-      <div className="p2">{where}{ref}</div>
+      <div className="p1"><b>{r.supplier}</b><small>{r.invoiceNo || "No invoice number"}{r.invoiceDate ? ` · ${shortDate(r.invoiceDate)}` : ""}{r.gstCents !== null && !r.unread ? ` · GST ${money(r.gstCents)}` : ""}</small></div>
+      <div className="p2">{where}{ref}{r.confidencePct !== null && r.state === "check" ? <small>Job found from the order reference, read with {r.confidencePct}% confidence</small> : null}</div>
       <div className="p3">{owe}<small>{LABEL[r.state]}</small></div>
       <div className="p4"><MatButtons row={spec(r)} /></div>
     </div>
@@ -87,6 +88,21 @@ export function MaterialsView({ m }: { m: MaterialsRows }) {
               <div className="p3"><span className="owe need">{money(g.totalCents)}</span><small>to pay</small></div>
               <div className="p4"><SupplierPaidButton ids={g.rows.map((r) => r.id)} label={`✓ Paid ${money(g.totalCents)}`}
                 line={`${g.supplier} marked paid, ${money(g.totalCents)} across ${plural(g.rows.length, "invoice")}.`} /></div>
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      {m.noJob.length ? (
+        <section className="sec" id="no-job" data-testid="pm-no-job">
+          <div className="sec-h"><h2>No job yet</h2><span className="tot"><small>{plural(m.noJob.length, "invoice")}</small>{money(m.block.noJobCents)}</span></div>
+          <p className="sec-note">Materials already recorded (mostly from the Airtable sync) that aren&apos;t on a job, so no job&apos;s profit counts them. Assign each to its job.</p>
+          {m.noJob.map((r) => (
+            <div className="prow" key={r.id} data-material={r.id}>
+              <div className="p1"><b>{r.supplier}</b><small>{r.invoiceDate ? shortDate(r.invoiceDate) : "No date"}</small></div>
+              <div className="p2">{r.reference ? <small>Supplier wrote <q>{r.reference}</q></small> : <small>No reference on the invoice</small>}</div>
+              <div className="p3"><span className="paidamt">{money(r.amountCents)}</span></div>
+              <div className="p4"><AssignButton row={{ id: r.id, supplier: r.supplier, amountLabel: money(r.amountCents), reference: r.reference }} /></div>
             </div>
           ))}
         </section>

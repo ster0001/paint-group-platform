@@ -1105,3 +1105,37 @@ export async function redraftFinalAction(raw: unknown): Promise<InvoicingResult>
   return call("invoice_redraft_final", { p_estimate_id: p.data.estimateId }, { estimateId: p.data.estimateId },
     "Final invoice drafted again from what is left to invoice.");
 }
+
+/**
+ * Payments merge 8c — "Record as a cost…" from the Materials block's To check:
+ * any category (scaffold, rubbish… not only materials), the job picked, and the
+ * figures typed when the reading failed or was wrong — what the old Payables
+ * confirm panel did. The server derives ex GST and refuses GST ≥ total; the
+ * write is `cost_intake_confirm` (job cost, the document attached).
+ */
+const confirmCostInput = z.object({
+  intakeId: uuid,
+  woId: uuid,
+  estimateId: uuid.nullish(),
+  category: z.enum(JOB_COST_CATEGORIES),
+  vendorName: z.string().trim().max(200).default(""),
+  totalIncCents: z.number().int().positive().max(100_000_000),
+  gstCents: z.number().int().min(0).max(100_000_000),
+  invoiceNo: z.string().trim().max(60).default(""),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+});
+export async function confirmCostAction(raw: unknown): Promise<InvoicingResult> {
+  const p = confirmCostInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Pick the job and check the amounts." };
+  if (p.data.gstCents >= p.data.totalIncCents) return { ok: false, message: "The GST has to be less than the total." };
+  return call(
+    "cost_intake_confirm",
+    {
+      p_id: p.data.intakeId, p_destination: "job_cost", p_wo: p.data.woId, p_vendor: null, p_vendor_name: p.data.vendorName,
+      p_category: p.data.category, p_description: "", p_amount_ex_cents: p.data.totalIncCents - p.data.gstCents, p_gst_cents: p.data.gstCents,
+      p_invoice_no: p.data.invoiceNo, p_invoice_date: p.data.invoiceDate ?? null, p_estimate_line_ref: "", p_paid_with: "account",
+    },
+    { estimateId: p.data.estimateId ?? undefined },
+    "Recorded on the job with the document attached.",
+  );
+}
