@@ -1,7 +1,8 @@
 "use client";
 
 import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
-import { WO_STATUS_LABEL } from "@/lib/workorder/snapshot";
+import { WO_STATUS_LABEL, cansLabel, litresLabel } from "@/lib/workorder/snapshot";
+import { areaMaterials, rowEstimatedLitres } from "@/lib/workorder/materials";
 import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
 import { STAGE_LANES, stageTitle, type WoStage } from "@/lib/workorder/stages";
 import { SURFACE_STATE_LABEL, type SurfaceState } from "@/lib/workorder/surfaces";
@@ -243,10 +244,24 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                     </div>
                   )}
                 </div>
-                <div>
-                  <div className="mat-litres">{m.litres != null ? `${m.litres} L` : "— L"}</div>
-                  {m.coverageMissing && <div className="mat-warn print-hide">set coverage in Settings</div>}
-                </div>
+                {/* Order (rounded DOWN, in the cans the trade counter sells) over
+                    the estimate's own litres (Tom, 13 Oct 2026). */}
+                {(() => {
+                  const est = rowEstimatedLitres(doc, m);
+                  const key = m.colourKey ?? m.product;
+                  return (
+                    <div>
+                      <div className="mat-litres" data-testid={`mat-order-${key}`}>{m.litres != null ? `${m.litres} L` : "— L"}</div>
+                      {m.litres != null && m.litres > 0 && (
+                        <div className="mat-cans" data-testid={`mat-cans-${key}`}>{cansLabel(m.litres)}</div>
+                      )}
+                      {est != null && (
+                        <div className="mat-est" data-testid={`mat-estimate-${key}`}>Estimate {litresLabel(est)}</div>
+                      )}
+                      {m.coverageMissing && <div className="mat-warn print-hide">set coverage in Settings</div>}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </section>
@@ -340,6 +355,27 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                     </div>
                   </div>
                 ))}
+                {/* This area's paint (Tom, 13 Oct 2026): the estimate litres
+                    per product × colour, so a room can be bought or checked on
+                    its own. Absent on sheets frozen before surfaces carried litres. */}
+                {(() => {
+                  const mats = areaMaterials(a);
+                  if (mats.length === 0) return null;
+                  return (
+                    <div className="area-mats" data-testid={`area-materials-${a.id}`}>
+                      <div className="area-mats-h">Materials for this area · estimate</div>
+                      {mats.map((m) => (
+                        <div className="area-mat" key={m.colourKey}>
+                          {m.colourHex && <span className="swatch" style={{ background: m.colourHex }} />}
+                          <span className="area-mat-name">
+                            {m.product}{m.finish ? ` · ${m.finish}` : ""}{m.colourName ? ` · ${m.colourName}` : ""}
+                          </span>
+                          <span className="area-mat-l">{litresLabel(m.litres)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 <AreaPhotoStrip area={a.title} photos={a.photos.slice(0, 8)} />
               </div>
             ))}

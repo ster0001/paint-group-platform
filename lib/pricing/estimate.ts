@@ -29,6 +29,8 @@ import type { Product, RateItem } from "./types.ts";
 export type WindowSize = "small" | "medium" | "large";
 
 export type SurfaceInput = {
+  /** The builder's surface id (see AreaInput.id). */
+  id?: string | number;
   code: string;
   coats: number;
   count: number;
@@ -82,6 +84,8 @@ export type SurfaceInput = {
 };
 
 export type AreaInput = {
+  /** The builder's block id — keys the work order's surfaces (`${area}:${surface}`). */
+  id?: string | number;
   kind: "area";
   type: "Interior" | "Exterior";
   areaType: "room" | "surface";
@@ -102,6 +106,8 @@ export type AreaInput = {
 export type LineMaterialInput = {
   productName: string;
   litres: number;
+  /** The colour picked on the line (the work order keys paint by product × colour). */
+  colourName?: string;
   /** $ per litre typed over the catalogue price; null = catalogue. */
   unitPriceOverride?: number | null;
 };
@@ -633,6 +639,50 @@ export function priceEstimateTotals(
     thirdPartyPriceCents: thirdPartyPrice,
     thirdPartyCostCents: thirdPartyCost,
   };
+}
+
+/**
+ * The estimate's paint, piece by piece (Tom, 13 Oct 2026: "show the estimate
+ * amount and cost in the materials section"). The SAME step-10 figures
+ * priceEstimateTotals sums into materialsCostCents — litres after wastage and
+ * their cost — but kept per surface (keyed `${areaId}:${surfaceId}`, the work
+ * order's surface key) and per line material, so the PC job page can put an
+ * estimate and a cost beside each product × colour on the job sheet.
+ *
+ * Options are INCLUDED: a ticked option is merged into the work order, and a
+ * surface that is not on the job sheet is simply never looked up.
+ */
+export type MaterialsBreakdown = {
+  surfaces: Map<string, { litres: number; costCents: number }>;
+  lines: { productName: string; colourName: string; litres: number; costCents: number; isOption: boolean }[];
+};
+
+export function materialsBreakdown(blocks: BlockInput[], ctx: PricingContext, adj: Adjustments): MaterialsBreakdown {
+  const rates = resolveRates(ctx, adj);
+  const items = itemIndex(ctx.rateItems);
+  const productsByName = productIndex(ctx.products);
+  const jobMod = jobModifier(ctx.modifiers, adj.modSel);
+  const surfaces = new Map<string, { litres: number; costCents: number }>();
+  const lines: MaterialsBreakdown["lines"] = [];
+  for (const b of blocks) {
+    if (b.kind === "area") {
+      if (b.id == null) continue;
+      for (const s of b.surfaces) {
+        if (s.id == null) continue;
+        const c = priceSurface(b, s, ctx, adj, rates, items, productsByName, jobMod);
+        surfaces.set(`${b.id}:${s.id}`, { litres: c.volume > 0 ? c.volume : 0, costCents: c.matCostCents });
+      }
+      continue;
+    }
+    if (b.subcontractorExpense) continue; // a pass-through, never our paint
+    for (const m of b.materials ?? []) {
+      const litres = Number.isFinite(m.litres) && m.litres > 0 ? m.litres : 0;
+      if (!litres || !m.productName) continue;
+      const { costCents } = lineMaterialsCents([m], productsByName, rates.markup);
+      lines.push({ productName: m.productName, colourName: m.colourName ?? "", litres, costCents, isOption: Boolean(b.isOption) });
+    }
+  }
+  return { surfaces, lines };
 }
 
 /**

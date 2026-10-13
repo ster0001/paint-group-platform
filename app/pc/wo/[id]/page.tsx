@@ -13,6 +13,7 @@ import PriceVariation from "./PriceVariation";
 import UpdateComposer from "./UpdateComposer";
 import Checklist, { type ChecklistItem } from "./Checklist";
 import PrestartListBox from "./PrestartListBox";
+import PrestartPaintEstimate from "./PrestartPaintEstimate";
 import { loadPrestartList } from "@/lib/workorder/pcNotes";
 import WalkthroughCard from "./WalkthroughCard";
 import ReviewCard, { type ReviewState } from "./ReviewCard";
@@ -38,8 +39,8 @@ import ClientUpdates, { type ClientTimelineEntry } from "./ClientUpdates";
 import ReferencePhotosCard from "./ReferencePhotosCard";
 import SiteVisitsCard from "./SiteVisitsCard";
 import { loadSiteVisits } from "@/lib/workorder/siteVisits";
-import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
-import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
+import { materialRowKey, rowEstimatedLitres, substratesFor } from "@/lib/workorder/materials";
+import { loadEstimatePricing, materialRowEstimates, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
 import { loadStandards } from "@/lib/standards/load";
 import { loadCallbacksForJob } from "@/lib/callbacks/load";
 import { CALLBACK_SOURCES, type CallbackSource } from "@/lib/callbacks/model";
@@ -351,8 +352,13 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     pricing ? materialsBudgetCents(pricing.state, pricing.ctx) : null,
     materialInvoices,
   );
+  // Tom, 13 Oct 2026: the estimate's litres and cost beside every paint —
+  // from the estimate itself (engine, its own card), falling back to the
+  // litres the job sheet froze when the estimate cannot be priced.
+  const rowEstimates = pricing ? materialRowEstimates(snapshotDoc, pricing.state, pricing.ctx) : null;
   const materialRows: MaterialRowProp[] = (snapshotDoc?.materials ?? []).map((m) => {
     const rowKey = materialRowKey(m);
+    const est = rowEstimates?.get(rowKey) ?? null;
     const live = row.colours?.[rowKey] ?? row.colours?.[m.product];
     return {
       rowKey,
@@ -367,6 +373,8 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
       matchRequired: Boolean(m.colourMatch?.required),
       finish: m.finish,
       substrates: snapshotDoc ? substratesFor(snapshotDoc, rowKey) : [],
+      estimateLitres: est?.litres ?? (snapshotDoc ? rowEstimatedLitres(snapshotDoc, m) : null),
+      estimateCostCents: est?.costCents ?? null,
     };
   });
 
@@ -419,8 +427,14 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     const pre = forPhase("pre_start");
     const materialsItem = pre.find((c) => /^materials/i.test(c.label));
     const equipmentItem = pre.find((c) => /^equipment/i.test(c.label));
-    if (materialsItem) prestartExtras[materialsItem.id] =
-      <PrestartListBox workOrderId={id} kind="materials" initial={prestart.list.materials} />;
+    // Tom, 13 Oct 2026: the paint estimate labelled in the pre-start's
+    // materials item — the same rows as the Materials card.
+    if (materialsItem) prestartExtras[materialsItem.id] = (
+      <>
+        <PrestartPaintEstimate rows={materialRows} />
+        <PrestartListBox workOrderId={id} kind="materials" initial={prestart.list.materials} />
+      </>
+    );
     if (equipmentItem) prestartExtras[equipmentItem.id] =
       <PrestartListBox workOrderId={id} kind="equipment" initial={prestart.list.equipment} />;
   }

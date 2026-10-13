@@ -15,7 +15,11 @@ export type WOMaterial = {
    * frozen before the product×colour split (read those by bare product). */
   colourKey?: string;
   photoUrl: string;
-  litres: number | null; // purchasable litres; null when coverage unknown
+  litres: number | null; // order litres (orderLitres, rounded DOWN since 13 Oct 2026); null when coverage unknown
+  /** The estimate's own litres for this row, wastage included, unrounded
+   * (Tom, 13 Oct 2026: "a more accurate figure in litres"). Absent on
+   * documents frozen before then. */
+  estimatedLitres?: number;
   coverageMissing: boolean; // true → show staff warning, never a fabricated figure
   colourName: string;
   colourHex: string; // "" when none — for the swatch
@@ -50,6 +54,10 @@ export type WOSurface = {
   colourName?: string;
   colourHex?: string;
   colourKey?: string;
+  /** The estimate's litres for this surface (wastage included, unrounded) —
+   * feeds the per-area materials breakdown (Tom, 13 Oct 2026). Absent on
+   * older documents and on surfaces with no product. */
+  litres?: number;
   prep: string; // plain-English prep note
   hours: number | null; // hours allowance
   /**
@@ -139,13 +147,53 @@ export type WorkOrderDoc = {
   appliedOptions?: string[];
 };
 
-// Purchasable tin sizes (litres). Round total required litres UP to what the
-// painter can actually buy at the trade counter.
-const TIN_SIZES = [1, 2, 4, 10, 15, 20];
-export function roundUpLitres(litres: number): number {
+/**
+ * What the painter orders (Tom, 13 Oct 2026: "Materials should be marked
+ * conservatively and rounded down rather than up … can sizes 1, 2, 4, 10 or
+ * 15"). The estimate's litres already carry the product's wastage, so the
+ * order is those litres rounded DOWN to whole litres — never up to the next
+ * tin, which is how 4.1 L became a 10 L can and 15.5 L a 20 L drum and the
+ * job sheet stopped adding up to the estimate. A row that needs any paint at
+ * all orders at least one 1 L can.
+ */
+export const CAN_SIZES = [15, 10, 4, 2, 1] as const;
+
+export function orderLitres(litres: number): number {
   if (!(litres > 0)) return 0;
-  for (const s of TIN_SIZES) if (litres <= s) return s;
-  return Math.ceil(litres / 20) * 20; // larger jobs: whole 20 L drums
+  return Math.max(1, Math.floor(litres + 1e-9));
+}
+
+/**
+ * The fewest cans that add up to exactly `litres` (whole litres — pass an
+ * orderLitres figure), largest first: 13 L → 10 + 2 + 1, 20 L → 10 + 10 (not
+ * 15 + 4 + 1). A non-whole figure (a litre count the office typed) is rounded
+ * down first, the same conservative rule.
+ */
+export function cansFor(litres: number): { size: number; count: number }[] {
+  const n = litres > 0 ? Math.floor(litres + 1e-9) : 0;
+  if (n === 0) return [];
+  // fewest[i] = fewest cans summing to i; pick[i] = the largest can that gets there
+  const fewest = new Array<number>(n + 1).fill(Infinity);
+  const pick = new Array<number>(n + 1).fill(0);
+  fewest[0] = 0;
+  for (let i = 1; i <= n; i++) {
+    for (const c of CAN_SIZES) {
+      if (c <= i && fewest[i - c] + 1 < fewest[i]) { fewest[i] = fewest[i - c] + 1; pick[i] = c; }
+    }
+  }
+  const counts = new Map<number, number>();
+  for (let i = n; i > 0; i -= pick[i]) counts.set(pick[i], (counts.get(pick[i]) ?? 0) + 1);
+  return CAN_SIZES.filter((c) => counts.has(c)).map((c) => ({ size: c, count: counts.get(c)! }));
+}
+
+/** "2 × 10 L + 1 L" — the can line under an order figure. */
+export function cansLabel(litres: number): string {
+  return cansFor(litres).map((c) => (c.count > 1 ? `${c.count} × ${c.size} L` : `${c.size} L`)).join(" + ");
+}
+
+/** Estimate litres for the eye: one decimal, "0.4 L" not "0.37500001 L". */
+export function litresLabel(litres: number): string {
+  return `${(Math.round(litres * 10) / 10).toLocaleString("en-AU", { maximumFractionDigits: 1 })} L`;
 }
 
 export const WO_STATUS_LABEL: Record<string, string> = {
