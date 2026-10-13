@@ -8,6 +8,7 @@ import { getEmployeeJob } from "@/lib/contractor/employeeJobs";
 import AssignmentCard from "./AssignmentCard";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
 import { notInSheet, scopeChangesFrom } from "@/lib/workorder/scopeChanges";
+import PayChangeCard, { type PayChangeView } from "./PayChangeCard";
 import RescheduleRequest from "./RescheduleRequest";
 import OfferBar from "./OfferBar";
 import StartJob from "./StartJob";
@@ -142,7 +143,7 @@ export default async function PortalJobPage({
     // refused for them (20270153), and would carry the price anyway.
     assignment
       ? Promise.resolve({ data: { stage: assignment.stage, walkthrough_required: assignment.walkthroughRequired, colours: assignment.colours, wo_ref: job.woRef, contractor_payment_cents: null } })
-      : supabase.from("work_orders").select("stage, walkthrough_required, colours, wo_ref, contractor_payment_cents").eq("id", id).maybeSingle(),
+      : supabase.from("work_orders").select("stage, walkthrough_required, colours, wo_ref, contractor_payment_cents, pay_change_rate_cents, pay_change_from_rate_cents, pay_change_from_cents, pay_change_to_cents").eq("id", id).maybeSingle(),
     supabase.from("wo_walkthroughs")
       .select("kind, scheduled_date, status").eq("work_order_id", id)
       .eq("status", "booked"),
@@ -278,7 +279,17 @@ export default async function PortalJobPage({
 
   // "Create invoice" from the job itself (Tom, 25 Aug): the same claim card
   // the Money tab carries, scoped to THIS job's remaining money.
-  const woMoney = woRow as { wo_ref?: string; contractor_payment_cents?: number | null } | null;
+  const woMoney = woRow as {
+    wo_ref?: string; contractor_payment_cents?: number | null;
+    pay_change_rate_cents?: number | null; pay_change_from_rate_cents?: number | null;
+    pay_change_from_cents?: number | null; pay_change_to_cents?: number | null;
+  } | null;
+  const payChange: PayChangeView | null = woMoney?.pay_change_rate_cents && woMoney.pay_change_from_rate_cents
+    ? {
+        fromRateCents: woMoney.pay_change_from_rate_cents, toRateCents: woMoney.pay_change_rate_cents,
+        fromCents: woMoney.pay_change_from_cents ?? 0, toCents: woMoney.pay_change_to_cents ?? 0,
+      }
+    : null;
   const payVars: PayVariation[] = ((variationRows as {
     status: string; credit: boolean; contractor_delta_cents: number | null;
     deduction_cents: number | null; needs_manual_deduction: boolean;
@@ -744,6 +755,13 @@ export default async function PortalJobPage({
       {job.committed && capabilities.hasCrewCount && (
         <div style={{ padding: "0 16px" }}>
           <CrewShare workOrderId={id} />
+        </div>
+      )}
+
+      {/* Tom, 13 Oct 2026: a new hourly rate on this job, waiting on the contractor (20270254). */}
+      {job.committed && !employee && payChange && (
+        <div style={{ padding: "0 16px" }}>
+          <PayChangeCard workOrderId={id} change={payChange} />
         </div>
       )}
 
