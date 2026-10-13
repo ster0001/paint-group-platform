@@ -14,30 +14,78 @@ import { SOURCE_LABEL, type IntakeSource } from "@/lib/costs/intake";
 import { COST_DOCS_BUCKET } from "@/lib/costs/store";
 import { fmt2, kindLabelWithContext, shortDay, STATUS_LABEL } from "../../format";
 import { parseBackTo } from "@/lib/navigation/backTo";
+import { jobMoneyPage } from "@/lib/invoicing/jobMoney";
+import { paymentsSettings } from "@/lib/invoicing/settings";
+import { melbourneToday } from "@/lib/invoicing/derive";
+import { reportError } from "@/lib/monitoring/report";
+import { loadJobMoneyInput } from "../../jobMoneyData";
+import { JobPanel } from "../../payments/JobPanel";
+import { loadJobPanel } from "../../payments/panelData";
+import { PaymentsUiProvider } from "../../payments/ActionsClient";
+import { pickerJobs } from "../../payments/labels";
+import "../../payments/payments.css";
 import MoneyView, {
   type InvoiceCardProp, type FeedProp, type JobCostItemProp, type MaterialItemProp,
 } from "./MoneyView";
 
 export const dynamic = "force-dynamic";
+/** One-press "✓ Paid" sends its receipt after the Undo window (⚑P2), behind the response. */
+export const maxDuration = 60;
+
+type Search = { from?: string; tab?: string; addcost?: string; jt?: string };
 
 /**
- * §7.1 — one job's money view: the ledger, three tabs, two primary actions.
- * Reachable from the PC work-order view's money strip and from the dashboard.
+ * One job's money (payments-merge brief §4.7, Step 7): the job panel from
+ * /invoicing/payments, full page — the same component, the same figures as
+ * the job's row. Reached from PC Command's money strip, the dashboard, and
+ * any link outside the Payments page.
  */
-export default async function JobMoneyPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ estimateId: string }>;
-  searchParams: Promise<{ from?: string; tab?: string; addcost?: string }>;
-}) {
+export default async function JobMoneyPage({ params, searchParams }: { params: Promise<{ estimateId: string }>; searchParams: Promise<Search> }) {
   const { estimateId } = await params;
-  const { tab, addcost } = await searchParams;
+  const sp = await searchParams;
   // Tom, 1 Oct: opened from Invoicing, the crumb goes back to Invoicing (with its
   // filters), not to PC Command. Validated — `from` comes off the URL.
-  const backTo = parseBackTo((await searchParams).from);
+  const backTo = parseBackTo(sp.from);
   const supabase = await createClient();
   const now = new Date();
+  const [{ input }, settingsRes] = await Promise.all([
+    loadJobMoneyInput(supabase, now),
+    supabase.from("settings").select("key, value").eq("key", "invoicing"),
+  ]);
+  if (settingsRes.error) reportError(settingsRes.error, { where: "JobMoneyPage.settings", bestEffort: true });
+  const settings = paymentsSettings((settingsRes.data ?? []) as { key: string; value: unknown }[]);
+  const page = input ? jobMoneyPage({ ...input, paymentTermsDays: settings.paymentTermsDays }) : null;
+  const panel = page ? await loadJobPanel(supabase, page, estimateId, now) : null;
+  // A job outside the payments model (no accepted estimate on the board) keeps
+  // the old view until the switch-over (Step 8).
+  if (!page || !panel) return legacyJobMoney(estimateId, sp, backTo, supabase, now);
+
+  const addCost = sp.addcost === "1";
+  // ?tab=costs is what links written before the panel say (PC Command, emails).
+  const tab = addCost || sp.jt === "out" || sp.tab === "costs" ? "out" : "in";
+  const self = (t: "in" | "out") => {
+    const q = new URLSearchParams();
+    if (sp.from && backTo) q.set("from", sp.from);
+    if (t === "out") q.set("jt", "out");
+    const s = q.toString();
+    return `/invoicing/job/${estimateId}${s ? `?${s}` : ""}`;
+  };
+  return (
+    <div className="pm">
+      <PaymentsUiProvider settings={{ depositOptionsPct: settings.depositOptionsPct, notifyPaymentDefault: settings.notifyPaymentDefault, today: melbourneToday(now) }}
+        jobs={pickerJobs(page.rows)}>
+        <main className="pm-jobpage" data-testid="pm-panel">
+          <JobPanel d={panel} tab={tab} tabHref={self} closeHref={backTo?.href ?? "/invoicing/payments"}
+            closeLabel={backTo ? backTo.label.replace(/^Back to /, "").replace(/^./, (c) => c.toUpperCase()) : "Payments"}
+            today={melbourneToday(now)} termsDays={settings.paymentTermsDays} startAddCost={addCost} />
+        </main>
+      </PaymentsUiProvider>
+    </div>
+  );
+}
+
+/** The pre-Step-7 job view; deleted with the old Invoicing tabs at Step 8. */
+async function legacyJobMoney(estimateId: string, { tab, addcost }: Search, backTo: ReturnType<typeof parseBackTo>, supabase: Awaited<ReturnType<typeof createClient>>, now: Date) {
   const today = melbourneDate(now);
   const job = await loadJobMoney(supabase, estimateId);
   if (!job.estimate || !job.ledger) notFound();

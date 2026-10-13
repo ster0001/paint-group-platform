@@ -196,11 +196,10 @@ test.describe("cost capture 6a — the intake pipeline", () => {
     expect(c.category).toBe("scaffold");
     expect(c.intake_id).toBe(firstIntakeId);
 
-    // The job money view's Costs tab shows it with its source chip.
-    await page.goto(`/invoicing/job/${fixture!.estimateId}`);
-    await page.getByRole("button", { name: "Costs" }).click();
-    await expect(page.getByTestId("trades-group")).toContainText("SR-2291");
-    await expect(page.getByTestId("trades-group")).toContainText("not in estimate");
+    // The job panel's Money out lists it under the line it adds to (Payments merge Step 7).
+    await page.goto(`/invoicing/job/${fixture!.estimateId}?jt=out`);
+    await expect(page.getByTestId("pm-costs")).toContainText("SR-2291");
+    await expect(page.getByTestId("pm-costs")).toContainText("Other trades and costs");
   });
 
   test("the same email replayed is a no-op — one intake row, one cost row", async ({ request }) => {
@@ -347,8 +346,7 @@ test.describe("cost capture 6a — the intake pipeline", () => {
     gate();
     test.skip(!staff, missingCreds("STAFF"));
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`/invoicing/job/${fixture!.estimateId}`);
-    await page.getByRole("button", { name: "Costs" }).click();
+    await page.goto(`/invoicing/job/${fixture!.estimateId}?jt=out`);
     await page.getByTestId("add-cost-button").click();
 
     await page.getByTestId("add-cost-vendor").fill("Bins R Us");
@@ -363,7 +361,7 @@ test.describe("cost capture 6a — the intake pipeline", () => {
       name: "docket.pdf", mimeType: "application/pdf", buffer: TINY_PDF,
     });
     await page.getByTestId("add-cost-save").click();
-    await expect(page.getByTestId("trades-group")).toContainText("Bins R Us", { timeout: 15_000 });
+    await expect(page.getByTestId("pm-costs")).toContainText("Bins R Us", { timeout: 15_000 });
 
     const { data } = await db!.from("job_costs")
       .select("id, status, doc_path, amount_ex_cents, gst_cents")

@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { LANES } from "@/lib/workorder/stages";
 import type { JobMoneyRow, SlotKey } from "@/lib/invoicing/jobMoney";
 import {
   SLOT_LETTER, SLOT_NAME, STAGE_NAME, actionSpec, lastMessagedText, money, oweOf, pillOf, plural, railLabel, startText, stillToInvoicePill,
   type PillView,
 } from "./labels";
-import { AdjustButton, DepositAdjust, RowActions } from "./ActionsClient";
+import { AdjustButton, DepositAdjust, OpenJobLink, RowActions } from "./ActionsClient";
 
 /**
  * The job row (§4.2), the same pieces in every view: rail, pills, amount
@@ -19,6 +18,7 @@ const SLOTS: readonly SlotKey[] = ["deposit", "progress", "final"];
 /** Gate positions on the rail: deposit at the Pre-start/In-progress seam, progress mid-job, final at the end. */
 const GATE_LEFT: Record<SlotKey, string> = { deposit: "42.86%", progress: "57.14%", final: "100%" };
 
+/** The job's own page — what a link outside the Payments page opens (the page opens the panel; OpenJobLink). */
 export const jobHref = (r: JobMoneyRow) => `/invoicing/job/${r.estimateId}?from=${encodeURIComponent("/invoicing/payments")}`;
 
 export function Rail({ row }: { row: JobMoneyRow }) {
@@ -78,7 +78,7 @@ export function JobCard({ row }: { row: JobMoneyRow }) {
       <div>
         <div className="who">
           <div>
-            <div className="addr"><Link href={jobHref(row)}>{row.address}</Link></div>
+            <div className="addr"><OpenJobLink estimateId={row.estimateId}>{row.address}</OpenJobLink></div>
             <div className="cust">{row.customer || "Customer on the work order"}{row.contractor ? ` · ${row.contractor}` : ""}</div>
           </div>
           <div className="amt">{owe.amount ? <span className={`owe ${owe.state}`}>{owe.amount}</span> : null}<small>{owe.label}</small></div>

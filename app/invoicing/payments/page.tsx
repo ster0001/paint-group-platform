@@ -13,7 +13,9 @@ import ReadFailureNotice from "../ReadFailureNotice";
 import { loadJobMoneyInput } from "../jobMoneyData";
 import { BoardView, ChaseView, TableView } from "./Views";
 import { SearchBox, ShowPaid } from "./Tools";
-import { STAGE_NAME, longToday, money, plural } from "./labels";
+import { STAGE_NAME, longToday, money, pickerJobs, plural } from "./labels";
+import { JobPanel } from "./JobPanel";
+import { loadJobPanel } from "./panelData";
 import "./payments.css";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +31,7 @@ export const maxDuration = 60;
  * Selection lives in the URL so any view can be shared:
  *   tab=cust|con|mat|act · view=chase|board|table · stage=<lane> · q=<search>
  *   paid=1 (Show paid jobs) · f=all|over|dep|fin|paid (All jobs filter)
+ *   job=<estimate id> opens the job panel over the view · jt=in|out its tab (Step 7)
  *
  * Lives at /invoicing/payments on feat/payments-merge; Step 8 makes it
  * /invoicing (Tom, 13 Oct: one switch-over).
@@ -37,7 +40,8 @@ const TABS = ["cust", "con", "mat", "act"] as const;
 const VIEWS = ["chase", "board", "table"] as const;
 type Tab = (typeof TABS)[number];
 type View = (typeof VIEWS)[number];
-type Params = { tab?: string; view?: string; stage?: string; q?: string; paid?: string; f?: string; cby?: string };
+type Params = { tab?: string; view?: string; stage?: string; q?: string; paid?: string; f?: string; cby?: string; job?: string; jt?: string };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const BASE = "/invoicing/payments";
 const pick = <T extends string>(v: string | undefined, allowed: readonly T[], fallback: T): T =>
@@ -52,6 +56,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const showPaid = sp.paid === "1";
   const filter: TableFilter = pick(sp.f, TABLE_FILTERS, "all");
   const cby = pick(sp.cby, ["inv", "con"] as const, "inv");
+  const jobId = UUID.test(sp.job ?? "") ? sp.job! : null;
+  const jt = pick(sp.jt, ["in", "out"] as const, "in");
 
   const current: Record<string, string | null> = {
     tab: tab === "cust" ? null : tab, view: view === "chase" ? null : view, stage, q: q || null, paid: showPaid ? "1" : null, f: filter === "all" ? null : filter,
@@ -80,6 +86,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const { customers, contractors, materials, activity } = page.blocks;
   const rows = matchRows(page.rows, { q, lane: stage });
   const notPaid = rows.filter((r) => r.section !== "paid_in_full");
+  // Every other link on the page drops job= — leaving the panel is any click outside it.
+  const panel = jobId ? await loadJobPanel(supabase, page, jobId, now) : null;
 
   const ledger: Array<{ key: Tab; d: string; t: string; v: string | null; s: string; od: string | null }> = [
     { key: "cust", d: "Money in", t: "Customers owe us", v: money(customers.outstandingCents),
@@ -97,9 +105,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     <div className="pm">
     {/* Inside .pm: the sheets and the toast the provider renders take the page's scoped styles. */}
     <PaymentsUiProvider settings={{ depositOptionsPct: settings.depositOptionsPct, notifyPaymentDefault: settings.notifyPaymentDefault, today: melbourneToday(now) }}
-      jobs={page.rows.filter((r) => r.workOrderId && r.section !== "paid_in_full").map((r) => ({
-        estimateId: r.estimateId, workOrderId: r.workOrderId!, address: r.address, customer: r.customer, laneName: STAGE_NAME[r.lane],
-      }))}>
+      jobs={pickerJobs(page.rows)}>
       <main className="pm-wrap">
         <section className="lead">
           <h1 data-testid="pm-headline">
@@ -165,6 +171,13 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         <section hidden={tab !== "mat"} data-testid="pm-materials"><MaterialsView m={page.materials} /></section>
         <section hidden={tab !== "act"}><div className="empty">Activity moves here in Step 8, with repeated &ldquo;Invoice viewed by customer&rdquo; lines folded into one.</div></section>
       </main>
+      {panel ? <>
+        <Link className="scrim on" href={href({})} aria-label="Close the job" scroll={false} />
+        <aside className="drawer on" role="dialog" aria-modal="true" aria-label={panel.row.address} data-testid="pm-panel">
+          <JobPanel d={panel} tab={jt} tabHref={(t) => href({ job: panel.row.estimateId, jt: t === "in" ? null : t })} closeHref={href({})}
+            closeLabel="Payments" today={melbourneToday(now)} termsDays={settings.paymentTermsDays} />
+        </aside>
+      </> : null}
     </PaymentsUiProvider>
     </div>
   );

@@ -11,6 +11,7 @@ import { melbourneInstant } from "@/lib/time/businessHours";
 import type { DerivePayment } from "./derive";
 import type { WoStage } from "@/lib/workorder/stages";
 import {
+  pctOfContract,
   compareRows, depositPreview, headlineParts, parseDollarsToCents, suggestedDue, headlineSentences, matchRows, tableFilter, totalCollectableCents, totalNowCents, isLeftoverDraft, jobMoneyPage, jobMoneyRow, slotOf,
   contractorGroups, matchCiRows, totalCiCents,
   type JobMoneyCi, type JobMoneyInput, type JobMoneyInvoice, type JobMoneyJob,
@@ -395,5 +396,13 @@ describe("Step 5 — the Contractors block (§4.5)", () => {
     expect(matchCiRows(page.contractors, "another").map((c) => c.id)).toEqual(["ci-s"]);
     expect(matchCiRows(page.contractors, "CI-0005").map((c) => c.id)).toEqual(["ci-p"]);
     expect(matchCiRows(page.contractors, "brolga").map((c) => c.id)).toEqual(["ci-a"]);
+  });
+});
+
+describe("the job panel's invoice share (Step 7)", () => {
+  it("whole percent of the contract, none without one", () => {
+    expect(pctOfContract(550_000, 1_100_000)).toBe(50);
+    expect(pctOfContract(330_000, 1_100_000)).toBe(30);
+    expect(pctOfContract(100, 0)).toBeNull();
   });
 });

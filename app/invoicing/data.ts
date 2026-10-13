@@ -166,6 +166,8 @@ export type MaterialCostRow = {
   source: string;
   intake_id: string | null;
   created_at: string;
+  /** Payments merge Step 6 (20270259): "not for a job" by a person's choice. */
+  overhead?: boolean | null;
 };
 
 export type JobPickRow = {
@@ -285,7 +287,7 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
       .eq("work_order_id", woId)
       .order("created_at", { ascending: true }),
     supabase.from("material_costs")
-      .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at")
+      .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at, overhead")
       .eq("work_order_id", woId)
       .order("created_at", { ascending: true }),
     supabase.from("contractor_expenses")

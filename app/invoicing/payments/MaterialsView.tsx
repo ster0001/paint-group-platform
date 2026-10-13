@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { totalMatCents, type MaterialsView as MaterialsRows, type MatRow } from "@/lib/invoicing/materials";
-import { MatBulkButton, MatButtons, SnapReceiptButton, SupplierPaidButton, type MatSpec } from "./ActionsClient";
+import { MatBulkButton, MatButtons, OpenJobLink, SnapReceiptButton, SupplierPaidButton, type MatSpec } from "./ActionsClient";
 import { money, plural, shortDate } from "./labels";
 
 /**
@@ -28,7 +27,7 @@ function Row({ r }: { r: MatRow }) {
     );
   }
   const where = r.overhead ? "Not for a job (overhead)"
-    : r.job ? <Link className="jl" href={`/invoicing/job/${r.job.estimateId}?from=${encodeURIComponent("/invoicing/payments?tab=mat")}`}>{r.job.address}</Link>
+    : r.job ? <OpenJobLink className="jl" estimateId={r.job.estimateId}>{r.job.address}</OpenJobLink>
     : <span className="hot">No job found</span>;
   const ref = r.reference ? <small>Supplier wrote <q>{r.reference}</q></small> : r.kind === "intake" && r.state === "check" ? <small>No reference on the invoice</small> : null;
   const owe = r.state === "paid" || r.state === "del"

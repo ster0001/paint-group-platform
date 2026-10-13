@@ -729,3 +729,7 @@ export function matchCiRows(rows: readonly ContractorRow[], q: string): Contract
   if (!needle) return [...rows];
   return rows.filter((r) => [r.contractor, r.address, r.number ?? "", r.woRef ?? ""].join(" ").toLowerCase().includes(needle));
 }
+
+/** An invoice as a whole-number share of the job ("Deposit invoice (50%)"); null with no contract. */
+export const pctOfContract = (invoiceCents: number, contractCents: number): number | null =>
+  contractCents > 0 ? Math.round((invoiceCents * 100) / contractCents) : null;

@@ -4,7 +4,8 @@ import {
   TABLE_FILTERS, laneTone, tableFilter, totalCollectableCents, totalNowCents, totalOverdueCents,
   type JobMoneyRow, type Section, type SlotKey, type TableFilter,
 } from "@/lib/invoicing/jobMoney";
-import { Actions, JobCard, Lights, Rail, jobHref } from "./JobPieces";
+import { Actions, JobCard, Lights, Rail } from "./JobPieces";
+import { OpenJobLink } from "./ActionsClient";
 import { KIND_NAME, SLOT_NAME, STAGE_NAME, dueText, money, oweOf, plural, whatText } from "./labels";
 
 /**
@@ -70,12 +71,12 @@ export function BoardView({ rows }: { rows: JobMoneyRow[] }) {
                 const owe = oweOf(r);
                 const what = whatText(r);
                 return (
-                  <Link key={r.estimateId} className={`mini h-${r.health}`} href={jobHref(r)}>
+                  <OpenJobLink key={r.estimateId} className={`mini h-${r.health}`} estimateId={r.estimateId}>
                     <div className="a">{r.address.split(",")[0]}</div>
                     <div className="c">{r.customer || r.woRef}</div>
                     <div className="l"><Lights row={r} /><span className="o">{owe.amount ? <span className={`owe sm ${owe.state}`}>{owe.amount}</span> : r.section === "paid_in_full" ? <span className="okc">✓</span> : null}</span></div>
                     <div className={`w ${r.health === "need" || r.health === "noinv" ? "need" : r.health === "over" ? "over" : ""}`}>{what}</div>
-                  </Link>
+                  </OpenJobLink>
                 );
               })}
             </section>
@@ -106,7 +107,7 @@ function Row({ row }: { row: JobMoneyRow }) {
   const paid = row.section === "paid_in_full";
   return (
     <div className={`tr${row.health === "over" ? " isover" : ""}`} data-estimate={row.estimateId}>
-      <div className="td jb"><div className="a"><Link href={jobHref(row)}>{row.address}</Link></div><div className="c">{row.customer || row.woRef}</div></div>
+      <div className="td jb"><div className="a"><OpenJobLink estimateId={row.estimateId}>{row.address}</OpenJobLink></div><div className="c">{row.customer || row.woRef}</div></div>
       <div className="td st"><b>{STAGE_NAME[row.lane]}</b><Rail row={row} /></div>
       <div className="td"><Cell row={row} k="deposit" /></div>
       <div className="td"><Cell row={row} k="progress" /></div>

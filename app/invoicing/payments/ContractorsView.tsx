@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   contractorGroups, totalCiCents, type CiSection, type ContractorRow,
 } from "@/lib/invoicing/jobMoney";
-import { CiButtons, CiGroupButtons } from "./ActionsClient";
+import { CiButtons, CiGroupButtons, OpenJobLink } from "./ActionsClient";
 import { STAGE_NAME, money, plural, shortDate } from "./labels";
 
 /**
@@ -12,7 +12,6 @@ import { STAGE_NAME, money, plural, shortDate } from "./labels";
  * moves money. Query opens the painter's message thread on the work order.
  */
 
-const jobPanelHref = (r: ContractorRow) => (r.estimateId ? `/invoicing/job/${r.estimateId}?from=${encodeURIComponent("/invoicing/payments?tab=con")}` : null);
 const queryHref = (r: ContractorRow) => (r.workOrderId ? `/pc/wo/${r.workOrderId}${r.contractorId ? `?painter=${r.contractorId}` : ""}#messages` : null);
 
 function CustomerLine({ r }: { r: ContractorRow }) {
@@ -36,14 +35,13 @@ function Owe({ r }: { r: ContractorRow }) {
 }
 
 function Row({ r }: { r: ContractorRow }) {
-  const panel = jobPanelHref(r);
   const query = queryHref(r);
   const pdf = r.hasPdf ? `/invoicing/ci/${r.id}/pdf` : null;
   const no = r.number ?? "this invoice";
   return (
     <div className={`prow${r.section === "past_pay_by" ? " over" : ""}`} data-ci={r.id}>
       <div className="p1"><b>{r.contractor}</b><small>{r.number ?? "Draft, no number yet"}{r.claimNote ? ` · ${r.claimNote}` : r.status === "draft" ? " · drafted at sign-off" : ""}</small></div>
-      <div className="p2">{panel ? <Link className="jl" href={panel}>{r.address}</Link> : r.address}<CustomerLine r={r} /></div>
+      <div className="p2">{r.estimateId ? <OpenJobLink className="jl" estimateId={r.estimateId}>{r.address}</OpenJobLink> : r.address}<CustomerLine r={r} /></div>
       <div className="p3"><Owe r={r} /></div>
       <div className="p4">
         <CiButtons id={r.id} status={r.status}

@@ -56,7 +56,7 @@ def walk(text):
 out = walk(css)
 out = re.sub(r'animation:\s*glow\b', 'animation:pm-glow', out)
 out = out.replace('.pm .wrap{', '.pm .pm-wrap{')
-for cls in ('.views', '.fchips', '.quiet', '.strip-h'):
+for cls in ('.views', '.fchips', '.quiet', '.strip-h', '.tabs'):
     out = out.replace(f'.pm {cls} button', f'.pm {cls} :is(button,a)')
 out += '''
 /* ---- port additions (not in the mockup) ---- */
@@ -65,7 +65,14 @@ out += '''
 /* Views, stages, blocks and filters are links (shareable query params, R §4.2), styled as the mockup's buttons. */
 .pm a{color:inherit;text-decoration:none}
 .pm a.led,.pm a.stg{cursor:pointer}
-.pm .views a,.pm .fchips a{display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.pm .views a,.pm .fchips a,.pm .tabs a{display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+/* Step 7: the job panel as a whole page (/invoicing/job/[id]) — the drawer's width, centred. */
+.pm .pm-jobpage{max-width:660px;margin:0 auto;padding-bottom:110px}
+.pm .pm-jobpage .dh{position:static}
+/* Step 7: Add cost's category chips — the methods buttons, wrapping. */
+.pm .chipset{display:flex;flex-wrap:wrap;gap:6px}
+.pm .chipset button{height:36px;padding:0 12px;border:1px solid var(--line2);border-radius:18px;font-size:13px;color:var(--text2)}
+.pm .chipset button.on{border-color:var(--pri);color:var(--cyan-t);background:var(--cyan-bg)}
 .pm .job .addr a:hover,.pm .tr .a a:hover{text-decoration:underline}'''
 header = '''/* Payments — the merged page (payments-merge brief §4.2, Step 2).
    Ported 1:1 from design/reference/payments-merged-v3-mockup.html, scoped to

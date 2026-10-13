@@ -172,6 +172,8 @@ export type MaterialsView = {
   deleted: MatRow[];
   /** "open with each supplier": to check + to approve + to pay. */
   supplierTotals: { supplier: string; openCents: number }[];
+  /** Every job cost this rule counts as materials (not voided) — the job panel's Materials line uses the same set. */
+  costIds: string[];
   block: { toCheckCents: number; toCheckCount: number; toApproveCents: number; toApproveCount: number; toPayCents: number; toPayCount: number; openCents: number };
 };
 
@@ -243,7 +245,7 @@ export function materialsView(input: MaterialsInput): MaterialsView {
     openCents: 0,
   };
   block.openCents = block.toCheckCents + block.toApproveCents + block.toPayCents;
-  return { toCheck, toApprove, toPay, paid, deleted, supplierTotals, block };
+  return { toCheck, toApprove, toPay, paid, deleted, supplierTotals, block, costIds: materials.filter((c) => c.status !== "void").map((c) => c.id) };
 }
 
 /** The amount on a list of rows — section headers. */

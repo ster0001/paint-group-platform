@@ -177,3 +177,32 @@ Brief: `docs/briefs/claude-code-brief-payments-merge.md`. Branch `feat/payments-
   - The one red was `invoicing.spec` "Settings → Invoicing card payments": the TEST passed, its afterAll timed out on a test-project network drop (ETIMEDOUT). That same drop crashed the run's teardown before the e2e lock was released.
   - The re-run was REFUSED by the lock: holder "an e2e run, started locally at 22:35Z" = this session's crashed run, a dead pooler connection that clears when the server notices. No retry loop, per the rule.
 - Not done: Undo on Confirm/Approve. The brief asks for Undo only on Paid. Delete has Undo via Restore.
+
+## Step 7 — the job panel (13 Oct 2026)
+- No migration.
+- `lib/invoicing/jobProfit.ts` (pure): Money out and profit (R19).
+  - Gross profit = job value ex GST − contractor (offer + accepted variations, ex GST) − own painters (labour, approved or paid) − materials (the Materials rule's job costs + `material_costs` not overhead, ex GST) − other trades and costs − approved expenses.
+  - Every line carries the rows it adds up (`sources`). A voided cost counts nowhere.
+  - A started job with no materials says the profit reads too high.
+  - `pctOfContract` joins `jobMoney.ts` (the boundary test caught it in the page files).
+- `app/invoicing/payments/panelData.ts` reads the SAME page model as the row (`jobMoneyPage`), so the panel and the row cannot disagree. It adds every invoice with its payments (`loadJobMoney`) and the job's costs (`loadJobCosts`).
+- `JobPanel.tsx` (server) + `PanelClient.tsx` (client), built to the mockup's drawer.
+  - Stage box, Job total / Paid / Still owing, two tabs (`jt=in|out`).
+  - Money in: the row's actions; Request a payment / Invoice in full / Revise scope; one card per invoice with its payments. Draft: due date (`setDraftDueAction` → `invoice_set_draft_due`), Check, Delete draft, Already paid, Send. Sent: Change amount (deposit), Pause/Resume reminders, Void, Open, Cash or part, ✓ Paid. Messages line opens the chat.
+  - Money out: the profit box, split bar and sum; contractor invoices with Approve / ✓ Paid; supplier invoices with View; the cost rows behind the lines; Add a cost (restyled sheet, gains a Materials category).
+- Where it opens:
+  - `/invoicing/payments?job=<id>` opens it over the view as a drawer (scrim closes it). Every address on the page goes there through `OpenJobLink`, keeping the tab, filters and search.
+  - `/invoicing/job/[id]` is the same component, full page. `from` sets the back link; `addcost=1` opens Add cost; old `?tab=costs` links open Money out.
+  - The old MoneyView renders only for a job outside the payments model, until Step 8 deletes it.
+  - The "Est-vs-actual bars arrive with 6b" text is gone.
+- Behaviour change: opened bare, the back link says Payments (it said PC Command). The work order is its own button beside it.
+- Specs moved onto the panel (same journeys, the panel's buttons): `invoicing`, `cost-intake`, `employee-timesheet`, `payments-prework`. `revision-builder` is unchanged (the Revise scope link keeps its test id).
+- Stale assertions fixed on the way:
+  - `payments-prework`: `invoice_draft_deposit` refuses non-staff with `error:not_staff` since Step 3 (20270256 re-granted it for Create deposit).
+  - `employee-timesheet`: asserted two labour lines, then one.
+- Gate:
+  - Unit 3,569 passing. Typecheck clean. Lint 3 warnings (ceiling 4). Help index current.
+  - e2e `payments-panel` 1/1: row → panel with the same figures; a draft's due date; profit to the cent ($3,779.92, 37.8%) with a voided cost ignored; the contractor invoice = the Contractors block; the full page = the same panel; no sideways scroll at 390 px.
+  - `invoicing` 13/13 (the re-run owed from Step 6, now on the panel). payments-page / actions / message / contractors / materials 22/22. cost-intake + revision-builder green; payments-prework 4/4.
+- Red, unrelated: `employee-timesheet` "the payroll CSV…" expects the header without `bonus_cents`. The CSV gained it with the bonus build (8–9 Oct). Nothing here touches payroll. 4 later tests in that serial file did not run.
+- ⚑ for Step 8: non-materials job costs (scaffold, rubbish…) are approved and paid only on the old Payables tab. The panel lists them but has no Approve / Paid for them. Payables is deleted in Step 8, so they need a home first.

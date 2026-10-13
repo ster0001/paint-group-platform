@@ -656,6 +656,8 @@ export async function unpayCiAction(raw: unknown): Promise<CiBatchResult> {
 const JOB_COST_CATEGORIES = [
   "scaffold", "render", "carpentry", "rubbish",
   "equipment_hire", "permit", "traffic_mgmt", "other",
+  // Payments merge Step 6 (20270259): supplier receipts are materials, not "other" (§6.9).
+  "materials",
 ] as const;
 
 const confirmIntakeInput = z.object({
@@ -1069,4 +1071,15 @@ export async function materialDocAction(raw: unknown): Promise<{ ok: true; url: 
   const { data: signed, error: signErr } = await supabase.storage.from(COST_DOCS_BUCKET).createSignedUrl(path, 600);
   if (signErr) { reportError(signErr, { where: "materialDocAction.sign", extra: { path } }); return { ok: false, message: "Couldn't open the document just now." }; }
   return { ok: true, url: signed?.signedUrl ?? null, isImage: /\.(jpe?g|png|webp|heic|gif)$/i.test(path) };
+}
+
+
+// ---- Payments merge Step 7: the job panel (brief §4.7) --------------------------
+
+/** The due date on a draft — editable until it is sent, locked after (R13). */
+export async function setDraftDueAction(raw: unknown): Promise<InvoicingResult> {
+  const p = invoiceRef.extend({ dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Pick a date." };
+  return call("invoice_set_draft_due", { p_invoice_id: p.data.invoiceId, p_due_on: p.data.dueOn },
+    { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId }, "Due date changed.");
 }

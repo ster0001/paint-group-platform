@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { centsAsInput, depositPreview, parseDollarsToCents } from "@/lib/invoicing/jobMoney";
 import {
   approveCiQuickAction, approveMaterialsAction, confirmMaterialsAction, createDepositAction, deleteMaterialAction, invoiceInFullAction,
@@ -95,6 +95,8 @@ type Ui = {
 };
 
 const Ctx = createContext<Ui | null>(null);
+/** For the job panel's own client parts (PanelClient.tsx). */
+export const usePaymentsUi = () => useUi();
 const useUi = () => {
   const ui = useContext(Ctx);
   if (!ui) throw new Error("Payments actions used outside PaymentsUiProvider");
@@ -241,12 +243,30 @@ export function PaymentsUiProvider({ settings, jobs = [], children }: { settings
 
 // ---- the row's buttons -------------------------------------------------------------
 
+/**
+ * A job's address or "Open job" (Step 7): on the Payments page it opens the
+ * job panel over the current view (?job=, keeping the tab, filters and
+ * search); anywhere else it goes to the job's own page.
+ */
+export function OpenJobLink({ estimateId, className, children }: { estimateId: string; className?: string; children: React.ReactNode }) {
+  const path = usePathname();
+  const sp = useSearchParams();
+  let href = `/invoicing/job/${estimateId}`;
+  if (path === "/invoicing/payments") {
+    const q = new URLSearchParams(sp.toString());
+    q.set("job", estimateId);
+    q.delete("jt");
+    href = `${path}?${q.toString()}`;
+  }
+  return <Link className={className} href={href} scroll={false}>{children}</Link>;
+}
+
 export function RowActions({ spec, small = false }: { spec: ActionSpec; small?: boolean }) {
   const ui = useUi();
   const cls = small ? "b sm" : "b";
   const message = <button type="button" className={cls} disabled={ui.busy} onClick={() => ui.message(spec)}>Message</button>;
   const p = spec.primary;
-  if (p.kind === "open") return small ? null : <><Link className={cls} href={spec.jobHref}>Open job</Link>{message}</>;
+  if (p.kind === "open") return small ? null : <><OpenJobLink className={cls} estimateId={spec.estimateId}>Open job</OpenJobLink>{message}</>;
   if (p.kind === "create_deposit" || p.kind === "create_final") {
     if (small) return null;
     return <><button type="button" className={`${cls} pri`} disabled={ui.busy} onClick={() => ui.create(spec)}>

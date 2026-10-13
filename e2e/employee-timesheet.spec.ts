@@ -195,14 +195,13 @@ test.describe("employed painter — timesheets and job cost", () => {
     expect(rows[0].description).toContain(`Labour — ${PAINTER_NAME}`);
     const { data: pinned } = await db!.from("timesheet_entries").select("job_cost_id, status").eq("id", recordedId).single();
     expect((pinned as { job_cost_id: string }).job_cost_id).toBe(labourCostId);
-    // Approving again posts nothing more.
+    // Approving again posts nothing more — still the same two lines (this day + test 1's clocked 1.5 h).
     expect(await rpcAs(staff!, "timesheet_approve", { p_entry_id: recordedId })).toBe(`ok:${labourCostId}`);
     const { count } = await db!.from("job_costs").select("id", { count: "exact", head: true }).eq("work_order_id", fixture!.workOrderId).eq("category", "labour");
-    expect(count).toBe(1);
+    expect(count).toBe(all.length);
 
     // The job money view shows the line.
-    await page.goto(`/invoicing/job/${fixture!.estimateId}`);
-    await page.getByRole("button", { name: "Costs" }).click();
+    await page.goto(`/invoicing/job/${fixture!.estimateId}?jt=out`);
     await expect(page.getByTestId(`job-cost-item-${labourCostId}`)).toContainText(`Labour — ${PAINTER_NAME}`);
     await expect(page.getByTestId(`job-cost-item-${labourCostId}`)).toContainText("$399.00");
 

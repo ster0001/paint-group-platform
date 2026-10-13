@@ -150,3 +150,9 @@ export function actionSpec(r: JobMoneyRow, jobHref: string): ActionSpec {
     messageInvoiceId: n?.lead?.invoiceId ?? leads[0]?.lead.invoiceId ?? null,
   };
 }
+
+/** The jobs the provider's pickers offer (Pick a job, Snap a receipt): open jobs with a work order. */
+export const pickerJobs = (rows: readonly JobMoneyRow[]) =>
+  rows.filter((r) => r.workOrderId && r.section !== "paid_in_full").map((r) => ({
+    estimateId: r.estimateId, workOrderId: r.workOrderId!, address: r.address, customer: r.customer, laneName: STAGE_NAME[r.lane],
+  }));
