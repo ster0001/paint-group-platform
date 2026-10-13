@@ -284,3 +284,12 @@ The inventory before deleting found the old Payables tab is the only screen for:
   - 1 and 2: hidden by rule since Step 1. **Not built:** stopping new $0 drafts, and clearing the deposit draft when a final is drafted. Needs a change to the drafting functions; for Tom to approve, with the list of existing rows to delete (§3A.3).
   - 6: data, not code (⚑P15: deposits taken outside the platform on imported jobs).
 - §3A.4: to run on production after the deploy (the baseline is production, 12 Oct, kept outside the repo).
+
+## §6.1 and §6.2 — leftover drafts (separate PR `fix/leftover-drafts`, stacked on the merge; 13 Oct 2026)
+- Tom, 13 Oct: do 6.1 and 6.2 as a separate PR.
+- Read on production (read-only): the three $0 drafts are all finals from `invoice_draft_final` with nothing left to invoice; six jobs carry an unsent deposit draft beside a final. Nothing else drafts $0, so `accept_estimate` and `invoice_draft_deposit` are untouched.
+- Migration `20270261000000_leftover_drafts.sql` (20270216's body + two marked additions): nothing left → no final, `ok:nothing_left`, unsent deposit draft removed; a final drafted → the unsent deposit draft removed. Only drafts. C1 read-back 4/4.
+- Both removals only at the FIRST drafting (sign-off): a redraft (Redraft, or 20270260's trigger) never removes a deposit draft — Tom kept the existing ones, and three of them sit beside a draft final.
+- Redraft with nothing left now removes the stale final and says so.
+- Existing rows: `scripts/diag/leftover-drafts.mjs --prod` lists them (9 on 13 Oct). Tom (13 Oct) approved deleting 3 — 13 Leamington Cres (its $0 final and the deposit draft on the other Leamington job) and 25 Bunney Rd's $0 final; the other 6 stay (hidden by rule).
+
