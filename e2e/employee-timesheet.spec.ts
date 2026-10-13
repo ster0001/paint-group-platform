@@ -195,10 +195,10 @@ test.describe("employed painter — timesheets and job cost", () => {
     expect(rows[0].description).toContain(`Labour — ${PAINTER_NAME}`);
     const { data: pinned } = await db!.from("timesheet_entries").select("job_cost_id, status").eq("id", recordedId).single();
     expect((pinned as { job_cost_id: string }).job_cost_id).toBe(labourCostId);
-    // Approving again posts nothing more.
+    // Approving again posts nothing more — still the two lines (test 1's clocked day + this one).
     expect(await rpcAs(staff!, "timesheet_approve", { p_entry_id: recordedId })).toBe(`ok:${labourCostId}`);
     const { count } = await db!.from("job_costs").select("id", { count: "exact", head: true }).eq("work_order_id", fixture!.workOrderId).eq("category", "labour");
-    expect(count).toBe(1);
+    expect(count).toBe(2);
 
     // The job money view shows the line.
     await page.goto(`/invoicing/job/${fixture!.estimateId}`);
@@ -223,20 +223,26 @@ test.describe("employed painter — timesheets and job cost", () => {
     await expect(page.getByTestId(`ava-actual-${fixture!.workOrderId}`)).toHaveText("9.1 h");
   });
 
-  test("the payroll CSV matches approved entries exactly — hours only, no rate; and it is staff-only", async ({ page, request }) => {
+  test("the payroll CSV matches approved entries exactly — hours only on a timesheet row, no rate; and it is staff-only", async ({ page, request }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     const res = await page.request.get(`/pc/timesheets/export?from=${today}&to=${today}`);
     expect(res.status()).toBe(200);
     expect(res.headers()["content-type"]).toContain("text/csv");
     const csv = await res.text();
     const lines = csv.trim().split("\n");
-    expect(lines[0]).toBe("painter,job,date,start,finish,break_minutes,hours,source,approved_at");
-    const mine = lines.filter((l) => l.startsWith(`${PAINTER_NAME},`));
-    // The approved 7.6 h day, and NOT the 1.5 h day still waiting on approval.
-    expect(mine.length).toBe(1);
+    // The one money column is an employed lead's approved bonus, filled on `bonus` rows only (⚑11, Tom 8 Oct).
+    expect(lines[0]).toBe("painter,job,date,start,finish,break_minutes,hours,source,approved_at,bonus_cents");
+    const timesheetRows = lines.slice(1).filter((l) => !l.includes(",bonus,"));
+    const mine = timesheetRows.filter((l) => l.startsWith(`${PAINTER_NAME},`));
+    // Both approved days: the office's 7.6 h and the clocked 1.5 h from test 1 (a finished day approves itself, 7 Oct 2026).
+    expect(mine.length).toBe(2);
     const { data: wo } = await db!.from("work_orders").select("wo_ref").eq("id", fixture!.workOrderId).single();
-    expect(mine[0]).toContain(`,${(wo as { wo_ref: string }).wo_ref},${today},07:00,15:06,30,7.60,pc,`);
-    expect(csv).not.toMatch(/cents|rate|\$|52\.50|399/i);
+    const woRef = (wo as { wo_ref: string }).wo_ref;
+    expect(mine.filter((l) => l.includes(`,${woRef},${today},07:00,15:06,30,7.60,pc,`)).length).toBe(1);
+    expect(mine.filter((l) => l.includes(`,${woRef},${today},`) && l.includes(",30,1.50,painter,")).length).toBe(1);
+    // A timesheet row carries no money: the bonus cell is empty, and no rate or pay appears anywhere on it.
+    for (const row of timesheetRows) expect(row.endsWith(","), row).toBe(true);
+    expect(timesheetRows.join("\n")).not.toMatch(/cents|rate|\$|52\.50|399/i);
 
     // Not staff: the route does not exist.
     const anon = await request.get(`/pc/timesheets/export?from=${today}&to=${today}`);
@@ -255,7 +261,8 @@ test.describe("employed painter — timesheets and job cost", () => {
       .eq("contractor_id", norateCid).eq("work_date", today);
     const auto = (rows as { id: string; source: string; status: string; started_at: string; finished_at: string; break_minutes: number }[]).filter((r) => r.source === "auto");
     expect(auto.length).toBe(1);
-    expect(auto[0].status, "a filled day approves itself (7 Oct 2026)").toBe("approved");
+    // This painter has no cost rate, so the filled day waits like any other no-rate day (see the no-rate test below).
+    expect(auto[0].status, "a filled day approves itself only where a rate covers it (7 Oct 2026)").toBe("submitted");
     expect(auto[0].break_minutes).toBe(30);
     expect(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(auto[0].started_at))).toBe("07:30");
     // The lead already has entries today → nothing added for them; a second run adds nothing for anyone.
@@ -302,7 +309,8 @@ test.describe("employed painter — timesheets and job cost", () => {
     // Rejecting works without a rate and carries the reason to the painter.
     expect(await rpcAs(staff!, "timesheet_reject", { p_entry_id: id, p_reason: "Wrong job" })).toBe("ok:rejected");
     const { count } = await db!.from("job_costs").select("id", { count: "exact", head: true }).eq("work_order_id", fixture!.workOrderId).eq("category", "labour");
-    expect(count, "a rejected day posts nothing").toBe(2);
+    // Three lines: test 1's clocked day, test 2's office day, test 5's extra hours — the rejected day adds none.
+    expect(count, "a rejected day posts nothing").toBe(3);
     // A contractor never has a cost rate.
     expect(await rpcAs(staff!, "set_employee_cost_rate", { p_contractor_id: crypto.randomUUID(), p_cents_per_hour: 5000 })).toBe("error:not_found");
   });
