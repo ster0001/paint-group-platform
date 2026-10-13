@@ -359,7 +359,7 @@ async function loadInvoicingSlice(supabase: SupabaseClient, range: Range, now: D
   return {
     invoices: toDerive(rows),
     payments: toDerivePayments(dash.payments),
-    contractorInvoices: dash.contractorInvoices.map((c) => ({ id: c.id, number: c.number, status: c.status, totalIncCents: c.total_inc_cents, dueOn: c.due_on, contractor: c.contractors?.company_name ?? "", wo_ref: c.work_orders?.wo_ref ?? "", submitted_at: c.submitted_at })),
+    contractorInvoices: dash.contractorInvoices.map((c) => ({ id: c.id, number: c.number, status: c.status, rcti: c.rcti ?? null, totalIncCents: c.total_inc_cents, dueOn: c.due_on, contractor: c.contractors?.company_name ?? "", wo_ref: c.work_orders?.wo_ref ?? "", submitted_at: c.submitted_at })),
     invoiceInfo,
     paymentsInWindow: pays.data.filter((p) => p.paid_on).map((p) => ({
       paid_on: p.paid_on as string, amount_cents: p.amount_cents, method: p.method ?? "other", invoice_id: p.invoice_id,

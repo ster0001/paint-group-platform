@@ -20,7 +20,7 @@
 
 import { adjustedContractCents, type LedgerVariation } from "./ledger";
 import {
-  agedBucketsCents, dashboardTiles, daysBetween, invoiceBalanceCents, invoiceIsOverdue, invoicePaidCents, melbourneToday,
+  agedBucketsCents, ciAwaitsApproval, dashboardTiles, daysBetween, invoiceBalanceCents, invoiceIsOverdue, invoicePaidCents, melbourneToday,
   type DeriveContractorInvoice, type DeriveInvoice, type DerivePayment,
 } from "./derive";
 import { contractorInvoiceTone } from "./contractorInvoiceTone";
@@ -68,6 +68,7 @@ export type JobMoneyCi = DeriveContractorInvoice & {
   rcti?: boolean;
   submittedAt?: string | null;
   termsKind?: string | null;
+  termsHoldReason?: string | null;
   contractor?: string;
   contractorId?: string | null;
   workOrderId?: string | null;
@@ -487,7 +488,7 @@ export function jobMoneyPage(input: JobMoneyInput): JobMoneyPage {
 
   let toApproveCents = 0, toApproveCount = 0, approvedToPayCents = 0, approvedToPayCount = 0, pastPayByCents = 0, pastPayByCount = 0;
   for (const ci of input.contractorInvoices) {
-    if (ci.status === "submitted") { toApproveCents += ci.totalIncCents; toApproveCount += 1; }
+    if (ciAwaitsApproval(ci)) { toApproveCents += ci.totalIncCents; toApproveCount += 1; }
     if (ci.status === "approved") { approvedToPayCents += ci.totalIncCents; approvedToPayCount += 1; }
     if (contractorInvoiceTone(ci, today).overdueDays > 0) { pastPayByCents += ci.totalIncCents; pastPayByCount += 1; }
   }
@@ -668,7 +669,11 @@ export type ContractorRow = {
   bonus: boolean;
   rcti: boolean;
   hasPdf: boolean;
+  /** Painter status Step 7 (R11): a Green painter's 3-business-day terms, or the office's hold on them. */
+  terms: "default" | "green_fast" | "held";
+  holdReason: string | null;
 };
+
 
 export function contractorRows(cis: readonly JobMoneyCi[], jobRows: readonly JobMoneyRow[], now: Date): ContractorRow[] {
   const today = melbourneToday(now);
@@ -679,7 +684,7 @@ export function contractorRows(cis: readonly JobMoneyCi[], jobRows: readonly Job
     const section: CiSection =
       c.status === "paid" ? "paid"
       : tone.overdueDays > 0 ? "past_pay_by"
-      : c.status === "submitted" ? "to_approve"
+      : ciAwaitsApproval(c) ? "to_approve"
       : c.status === "approved" ? "to_pay"
       : "with_contractor";
     return {
@@ -692,6 +697,8 @@ export function contractorRows(cis: readonly JobMoneyCi[], jobRows: readonly Job
       lane: job?.lane ?? (c.woStage ? laneFor(c.woStage, null, today) : null),
       customerPaid: job ? { paidCents: job.paidCents, contractCents: job.contractCents } : null,
       bonus: c.autoDraftSource === "bonus", rcti: !!c.rcti, hasPdf: !!c.hasPdf,
+      terms: c.termsKind === "green_fast" || c.termsKind === "held" ? c.termsKind : "default",
+      holdReason: c.termsKind === "held" ? c.termsHoldReason?.trim() || null : null,
     };
   });
   const order = (r: ContractorRow) => CI_SECTIONS.indexOf(r.section);
@@ -723,7 +730,7 @@ export function contractorGroups(rows: readonly ContractorRow[]): ContractorGrou
     const toPay = mine.filter((r) => r.status === "approved");
     return {
       contractor, rows: mine, openCents: totalCiCents(mine),
-      toApproveIds: mine.filter((r) => r.status === "submitted").map((r) => r.id),
+      toApproveIds: mine.filter(ciAwaitsApproval).map((r) => r.id),
       toPayIds: toPay.map((r) => r.id), toPayCents: totalCiCents(toPay),
       anyPastPayBy: mine.some((r) => r.section === "past_pay_by"),
     };
@@ -746,3 +753,5 @@ export function agedBar(buckets: readonly number[]): { cents: number; pct: numbe
   const total = buckets.reduce((s, b) => s + b, 0);
   return buckets.map((cents) => ({ cents, pct: total > 0 ? Math.round((cents * 1000) / total) / 10 : 0 }));
 }
+
+export { ciAwaitsApproval };

@@ -114,7 +114,7 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
         jobs, invoices: jobInvoices, payments: derivePayments,
         contractorInvoices: cis.map((c) => ({
           id: c.id, number: c.number, status: c.status, totalIncCents: c.total_inc_cents, dueOn: c.due_on,
-          autoDraftSource: c.auto_draft_source, claimPct: c.claim_pct, rcti: c.rcti, submittedAt: c.submitted_at, termsKind: c.terms_kind ?? null,
+          autoDraftSource: c.auto_draft_source, claimPct: c.claim_pct, rcti: c.rcti, submittedAt: c.submitted_at, termsKind: c.terms_kind ?? null, termsHoldReason: c.terms_hold_reason ?? null,
           contractor: c.contractors?.company_name ?? "Contractor", contractorId: c.contractor_id ?? null,
           workOrderId: c.work_order_id ?? null, woRef: c.work_orders?.wo_ref ?? null, estimateId: c.work_orders?.estimate_id ?? null,
           address: c.work_orders?.job_address ?? null, woStage: (c.work_orders?.stage ?? null) as WoStage | null, hasPdf: !!c.invoice_pdf_path,

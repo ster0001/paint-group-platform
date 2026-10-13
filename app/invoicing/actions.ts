@@ -85,6 +85,7 @@ const WORDING: Record<string, string> = {
   reason_too_long: "Keep the reason under 300 characters.",
   // Step 8
   no_draft_final: "There is no draft final on this job to work out again.",
+  nothing_remaining: "Nothing is left to invoice for the contractor on this job — earlier invoices already cover the agreed pay.",
 };
 
 function revalidateAll(estimateId?: string, invoiceId?: string) {
@@ -581,18 +582,19 @@ async function sendClaimedRemittance(service: NonNullable<ReturnType<typeof crea
 export type CiBatchResult = { ok: boolean; message: string; done: string[]; undoSeconds?: number };
 const ciIds = z.object({ ids: z.array(uuid).min(1).max(50) });
 
-async function eachCi(fn: string, ids: string[]): Promise<{ done: string[]; failed: string[] }> {
+async function eachCi(fn: string, ids: string[]): Promise<{ done: string[]; failed: string[]; reason?: string }> {
   const supabase = await createClient();
   const done: string[] = [], failed: string[] = [];
+  let reason: string | undefined;
   for (const id of ids) {
     const { data, error } = await supabase.rpc(fn, { p_id: id });
     if (error) { reportError(error, { where: `eachCi.${fn}`, extra: { id } }); failed.push(id); continue; }
-    if (String(data ?? "").startsWith("ok:")) done.push(id); else failed.push(id);
+    if (String(data ?? "").startsWith("ok:")) done.push(id); else { failed.push(id); reason ??= String(data ?? "").replace("error:", ""); }
   }
   revalidatePath("/invoicing/payments");
   revalidatePath("/invoicing");
   revalidatePath("/portal/money");
-  return { done, failed };
+  return { done, failed, reason };
 }
 
 const summary = (verb: string, done: number, failed: number) =>
@@ -603,19 +605,25 @@ export async function approveCiQuickAction(raw: unknown): Promise<CiBatchResult>
   const p = ciIds.safeParse(raw);
   if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
   const settings = await loadPaymentsSettings();
-  const { done, failed } = await eachCi("contractor_invoice_approve", p.data.ids);
-  return { ok: done.length > 0, message: done.length ? summary("Approved", done.length, failed.length) : "Couldn't approve that — refresh and try again.", done, undoSeconds: settings.undoSeconds };
+  const { done, failed, reason } = await eachCi("contractor_invoice_approve", p.data.ids);
+  // The function's own reason when it refused (8b: a draft RCTI with nothing left to invoice said only "couldn't").
+  return { ok: done.length > 0, message: done.length ? summary("Approved", done.length, failed.length) : (reason && WORDING[reason]) || "Couldn't approve that — refresh and try again.", done, undoSeconds: settings.undoSeconds };
 }
 
 /** ✓ Paid, one press (or everything approved for a contractor). The remittance waits for the Undo window. */
+/** 8b: one invoice may carry the bank reference and the day it was paid (the old Payables prompt). */
+const payCiInput = ciIds.extend({
+  reference: z.string().trim().max(120).optional(),
+  paidOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
 export async function payCiQuickAction(raw: unknown): Promise<CiBatchResult> {
-  const p = ciIds.safeParse(raw);
+  const p = payCiInput.safeParse(raw);
   if (!p.success) return { ok: false, message: "Something went wrong.", done: [] };
   const settings = await loadPaymentsSettings();
   const supabase = await createClient();
   const done: string[] = [], failed: string[] = [];
   for (const id of p.data.ids) {
-    const { data, error } = await supabase.rpc("contractor_invoice_mark_paid", { p_id: id, p_reference: "", p_paid_on: null });
+    const { data, error } = await supabase.rpc("contractor_invoice_mark_paid", { p_id: id, p_reference: p.data.reference ?? "", p_paid_on: p.data.paidOn ?? null });
     if (error) { reportError(error, { where: "payCiQuickAction", extra: { id } }); failed.push(id); continue; }
     if (String(data ?? "").startsWith("ok:")) done.push(id); else failed.push(id);
   }

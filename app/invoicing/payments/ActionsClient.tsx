@@ -7,7 +7,7 @@ import { centsAsInput, depositPreview, parseDollarsToCents } from "@/lib/invoici
 import {
   approveCiQuickAction, approveMaterialsAction, confirmMaterialsAction, createDepositAction, deleteMaterialAction, invoiceInFullAction,
   materialDocAction, notForJobAction, payCiQuickAction, paySupplierAction, paymentMessageDraftAction, quickPayAction, recordPaymentAction,
-  restoreMaterialAction, sendWithDueAction, setDepositAction, unapproveCiAction, undoPaymentAction, unpayCiAction, unpaySupplierAction,
+  restoreMaterialAction, sendWithDueAction, holdFastTermsAction, releaseFastTermsAction, decideExpenseAction, decidePreapprovalAction, markReimbursedAction, setDepositAction, unapproveCiAction, undoPaymentAction, unpayCiAction, unpaySupplierAction,
 } from "../actions";
 import { openEstimateChat } from "@/app/components/staffDockBus";
 import { fmt2 } from "../format";
@@ -82,7 +82,7 @@ type Ui = {
   message: (spec: ActionSpec) => void;
   /** Contractors (Step 5): one press, one or many invoices, with Undo. `say` is the toast line. */
   approveCi: (ids: string[], say: string) => void;
-  payCi: (ids: string[], say: string) => void;
+  payCi: (ids: string[], say: string, details?: { reference: string; paidOn: string }) => void;
   /** Materials (Step 6). */
   confirmMat: (ids: string[], line: string, workOrderId?: string) => void;
   notForJob: (row: MatSpec) => void;
@@ -160,8 +160,8 @@ export function PaymentsUiProvider({ settings, jobs = [], children }: { settings
       router.refresh();
       show({ msg: r.done.length === ids.length ? line : r.message, undo: { kind: "ci", ids: r.done, was: "approve" }, until: Date.now() + (r.undoSeconds ?? 8) * 1000 });
     }),
-    payCi: (ids, line) => start(async () => {
-      const r = await payCiQuickAction({ ids });
+    payCi: (ids, line, details) => start(async () => {
+      const r = await payCiQuickAction(details ? { ids, ...details } : { ids });
       if (!r.ok) { say(r.message); return; }
       router.refresh();
       show({ msg: r.done.length === ids.length ? line : r.message, undo: { kind: "ci", ids: r.done, was: "pay" }, until: Date.now() + (r.undoSeconds ?? 8) * 1000 });
@@ -439,12 +439,38 @@ function SendSheet({ spec, onClose, onDone }: { spec: ActionSpec; onClose: () =>
 
 // ---- Contractors (Step 5) -----------------------------------------------------------
 
-/** Approve / ✓ Paid on one contractor invoice row; the words are decided on the server. */
-export function CiButtons({ id, status, approveLine, payLine, payLabel }: { id: string; status: string; approveLine: string; payLine: string; payLabel: string }) {
+/** Approve / ✓ Paid on one contractor invoice row; the words are decided on the server. A draft RCTI is the office's to approve (8b). */
+export function CiButtons({ id, status, rcti = false, approveLine, payLine, payLabel, withDetails = false }: {
+  id: string; status: string; rcti?: boolean; approveLine: string; payLine: string; payLabel: string; withDetails?: boolean;
+}) {
   const ui = useUi();
-  if (status === "submitted") return <button type="button" className="b pri" disabled={ui.busy} onClick={() => ui.approveCi([id], approveLine)}>Approve</button>;
-  if (status === "approved") return <button type="button" className="b pri" disabled={ui.busy} onClick={() => ui.payCi([id], payLine)}>{payLabel}</button>;
+  const [details, setDetails] = useState(false);
+  if (status === "submitted" || (status === "draft" && rcti)) return <button type="button" className="b pri" disabled={ui.busy} onClick={() => ui.approveCi([id], approveLine)}>Approve</button>;
+  if (status === "approved") return <>
+    <button type="button" className="b pri" disabled={ui.busy} onClick={() => ui.payCi([id], payLine)}>{payLabel}</button>
+    {withDetails ? <button type="button" className="b" disabled={ui.busy} onClick={() => setDetails(true)}>Paid, with reference…</button> : null}
+    {details ? <PaidDetailsSheet onClose={() => setDetails(false)} onSave={(d) => { setDetails(false); ui.payCi([id], payLine, d); }} /> : null}
+  </>;
   return null;
+}
+
+/** The bank reference and the day it was paid (default today, never in the future) — the old Payables prompt, kept (8b). */
+function PaidDetailsSheet({ onClose, onSave }: { onClose: () => void; onSave: (d: { reference: string; paidOn: string }) => void }) {
+  const ui = useUi();
+  const [reference, setReference] = useState("");
+  const [paidOn, setPaidOn] = useState(ui.settings.today);
+  return (
+    <div className="sheet-wrap on" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="sheet" role="dialog" aria-labelledby="ciPaidT">
+        <h3 id="ciPaidT">Record the payment</h3>
+        <div className="field"><label htmlFor="ciRef">Bank reference</label><input id="ciRef" value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} /></div>
+        <div className="field"><label htmlFor="ciPaidOn">Date paid</label><input id="ciPaidOn" type="date" value={paidOn} max={ui.settings.today} onChange={(e) => setPaidOn(e.target.value)} /></div>
+        <div className="hint">The remittance goes to the contractor once the Undo has closed.</div>
+        <button type="button" className="b pri wide" disabled={ui.busy || !paidOn} onClick={() => onSave({ reference: reference.trim(), paidOn })}>Mark paid</button>
+        <button type="button" className="cancel" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
 }
 
 /** "By contractor": Approve all N, and one ✓ Paid for everything approved. */
@@ -555,4 +581,44 @@ export function CostButtons({ id, status, label }: { id: string; status: string;
   if (status === "recorded") return <button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.approveMat([id], `${label} approved.`)}>Approve</button>;
   if (status === "approved") return <button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.paySupplier([id], `${label} marked paid.`)}>✓ Paid</button>;
   return null;
+}
+
+// ---- 8b: Green fast terms, and the expense queues -------------------------------------
+
+/** Hold a Green painter's fast payment (back on default terms, never later) or release the hold. */
+export function TermsButtons({ id, terms }: { id: string; terms: "default" | "green_fast" | "held" }) {
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  const [err, setErr] = useState("");
+  const run = (fn: () => Promise<{ ok: boolean; message?: string }>) => start(async () => { const r = await fn(); if (!r.ok) setErr(r.message ?? "That didn't work."); else { setErr(""); router.refresh(); } });
+  if (terms === "green_fast") return <>
+    <button type="button" className="b" disabled={busy} onClick={() => {
+      const reason = window.prompt("Why hold the fast payment? (the customer raised something…)");
+      if (reason && reason.trim().length >= 3) run(() => holdFastTermsAction({ contractorInvoiceId: id, reason: reason.trim() }));
+    }}>Hold fast payment</button>{err ? <span className="err"> {err}</span> : null}</>;
+  if (terms === "held") return <><button type="button" className="b" disabled={busy} onClick={() => run(() => releaseFastTermsAction({ contractorInvoiceId: id }))}>Release</button>{err ? <span className="err"> {err}</span> : null}</>;
+  return null;
+}
+
+/** One expense line's decision: a claim (Approve / Reject), an ask-first request (Approve up to a cap / Decline), or money owed back (Paid back). */
+export function ExpenseButtons({ kind, id, estimateCents }: { kind: "claim" | "ask" | "payback"; id: string; estimateCents: number }) {
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  const [msg, setMsg] = useState("");
+  const [capping, setCapping] = useState(false);
+  const [cap, setCap] = useState(centsAsInput(estimateCents));
+  const run = (fn: () => Promise<{ ok: boolean; message?: string }>) => start(async () => { const r = await fn(); setMsg(r.message ?? ""); if (r.ok) router.refresh(); });
+  if (kind === "payback") return <><button type="button" className="b pri" disabled={busy} onClick={() => run(() => markReimbursedAction({ expenseId: id }))}>Paid back</button>{msg ? <span className="err"> {msg}</span> : null}</>;
+  if (kind === "claim") return <>
+    <button type="button" className="b pri" disabled={busy} onClick={() => run(() => decideExpenseAction({ expenseId: id, approve: true }))}>Approve</button>
+    <button type="button" className="b" disabled={busy} onClick={() => run(() => decideExpenseAction({ expenseId: id, approve: false }))}>Reject</button>
+    {msg ? <span className="err"> {msg}</span> : null}</>;
+  const capCents = parseDollarsToCents(cap);
+  return <>
+    {capping ? <>
+      <label className="cust-amt"><span className="mono">$</span><input inputMode="decimal" aria-label="Approve up to" value={cap} onChange={(e) => setCap(e.target.value)} /></label>
+      <button type="button" className="b pri" disabled={busy || !capCents} onClick={() => run(() => decidePreapprovalAction({ preapprovalId: id, approve: true, capCents: capCents ?? undefined }))}>Approve up to {capCents ? fmt2(capCents) : "…"}</button>
+    </> : <button type="button" className="b pri" disabled={busy} onClick={() => setCapping(true)}>Approve…</button>}
+    <button type="button" className="b" disabled={busy} onClick={() => run(() => decidePreapprovalAction({ preapprovalId: id, approve: false }))}>Decline</button>
+    {msg ? <span className="err"> {msg}</span> : null}</>;
 }

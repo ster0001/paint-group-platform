@@ -215,7 +215,12 @@ export type ReimbursementRow = {
   work_orders: { estimate_id: string; job_no: number | null; job_address: string | null } | null;
 };
 
-export async function loadCostCapture(supabase: SupabaseClient) {
+/**
+ * The three expense queues (claims to decide, ask-first requests, money owed
+ * back to employees) — one read for the old Payables tab and the Payments
+ * Contractors tab (8b) alike.
+ */
+export async function loadExpenseQueues(supabase: SupabaseClient) {
   const [expenses, preapprovals, reimbursements] = await Promise.all([
     supabase.from("contractor_expenses")
       .select("id, work_order_id, category, amount_cents, gst_cents, receipt_path, note, status, over_threshold_unapproved, created_at, paid_with, contractors(company_name, profiles(name)), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
@@ -234,6 +239,20 @@ export async function loadCostCapture(supabase: SupabaseClient) {
       .eq("contractors.employment_type", "employee")
       .order("decided_at", { ascending: true }).limit(100),
   ]);
+  return {
+    expenses: (expenses.error ? [] : expenses.data ?? []) as unknown as ContractorExpenseRow[],
+    preapprovals: (preapprovals.error ? [] : preapprovals.data ?? []) as unknown as PreapprovalRow[],
+    reimbursements: (reimbursements.error ? [] : reimbursements.data ?? []) as unknown as ReimbursementRow[],
+    loadError: costsFailure([
+      { label: "contractor expense claims", error: expenses.error },
+      { label: "expense pre-approvals", error: preapprovals.error },
+      { label: "employee reimbursements", error: reimbursements.error },
+    ]),
+  };
+}
+
+export async function loadCostCapture(supabase: SupabaseClient) {
+  const queues = await loadExpenseQueues(supabase);
   // The unmatched material invoices moved to `loadDashboard` (20 Sep): the
   // home dashboard's "Materials to match" tile reads that loader, and the
   // Payables tile + card must count the SAME rows — one read, two readers.
@@ -263,15 +282,13 @@ export async function loadCostCapture(supabase: SupabaseClient) {
     // Still tolerant per table — one missing list must not blank the tab — but
     // no longer silent about it: a money-OUT list that quietly comes back empty
     // understates what the business owes.
-    expenses: (expenses.error ? [] : expenses.data ?? []) as unknown as ContractorExpenseRow[],
-    preapprovals: (preapprovals.error ? [] : preapprovals.data ?? []) as unknown as PreapprovalRow[],
-    reimbursements: (reimbursements.error ? [] : reimbursements.data ?? []) as unknown as ReimbursementRow[],
+    expenses: queues.expenses,
+    preapprovals: queues.preapprovals,
+    reimbursements: queues.reimbursements,
     intake: (intake.error ? [] : intake.data ?? []) as unknown as IntakeDbRow[],
     jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as JobCostRow[],
     jobs: (jobs.error ? [] : jobs.data ?? []) as unknown as JobPickRow[],
-    loadError: costsFailure([
-      { label: "contractor expense claims", error: expenses.error },
-      { label: "expense pre-approvals", error: preapprovals.error },
+    loadError: queues.loadError ?? costsFailure([
       { label: "the supplier-invoice intake queue", error: intake.error },
       { label: "job costs", error: jobCosts.error },
       { label: "the job picker", error: jobs.error },

@@ -224,3 +224,20 @@ The inventory before deleting found the old Payables tab is the only screen for:
 - Money out: cost rows (scaffold, rubbish, other trades, materials not listed as supplier invoices) get Approve, then ✓ Paid with Undo. Labour has none (payroll, Tom 9 Oct).
 - Search matches every invoice number on the job; the aged-receivables bar (old buckets: not overdue · 1–7 · 8–14 · 15–30 · 30+) sits under the Customers views, from the old `agedBucketsCents`.
 - Gate: unit (invoicing) 257 passing; typecheck clean; lint 3 warnings. e2e `payments-page` 5/5, `payments-panel` 3/3.
+
+## Step 8b — Contractors: terms, RCTI, paid reference, Expenses (13 Oct 2026)
+- No migration. Every action is an existing staff RPC the old Payables tab called.
+- Contractor invoices:
+  - `ciAwaitsApproval` (derive.ts), one rule for the Contractors block, the old Payables tile and the home dashboard: submitted, or a draft RCTI (recipient-created, so it waits on the office). The old tile counted only submitted while its own list approved draft RCTIs. `lib/reporting/load.ts` now passes `rcti`.
+  - Draft RCTIs sit under To approve ("drafted for them, figures set when you approve"), with Approve.
+  - Chips: RCTI · Bonus · Green · 3 business days · Held — reason. Hold fast payment (reason) and Release (`holdFastTermsAction` / `releaseFastTermsAction`).
+  - "Paid, with reference…" beside one-press ✓ Paid: bank reference + date paid (default today, never later). Same path as ✓ Paid (`payCiQuickAction` gains optional `reference` / `paidOn`), so Undo and the remittance-after-Undo hold.
+  - A refused approve now says why (`eachCi` returns the function's reason; `nothing_remaining` worded).
+- Expenses on the Contractors tab (`ExpensesView.tsx`, `lib/invoicing/expenses.ts`, `expensesData.ts`): claims (Approve / Reject + receipt), ask-first (Approve up to a typed cap / Decline), owed back to employees (Paid back). The Contractors card adds "N expenses to decide · $X owed back".
+  - `loadExpenseQueues` (data.ts) is the one read for the old tab and the new page, and now reports a failed reimbursements read (the old loader dropped it).
+- Gate:
+  - Unit 3,547 (lib) passing. Typecheck clean. Lint 3 warnings.
+  - e2e `payments-expenses` 2/2: RCTI approve, Hold + Release, Paid with reference (bank_reference and paid date stored), claim approve, ask-first approve with a $650 cap; an anonymous session is refused.
+  - Regression 38/39: payments-contractors, contractor-invoicing, dashboard-invoicing, cost-intake, contractor-expenses, employee-money-tab.
+- The one red, unrelated: `employee-money-tab` "changing the lead…" expects `ok:lead` from the lead function, which answers `ok:lead_set` since 20270230 (8 Oct). Stale assertion; nothing here touches it.
+- Not covered by e2e here: Paid back (needs an employed-painter fixture). `employee-money-tab` covers it on the old tab and is repointed in 8d.

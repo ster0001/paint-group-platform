@@ -262,7 +262,16 @@ export type DeriveContractorInvoice = {
   status: string; // ci_status
   totalIncCents: number;
   dueOn: string | null; // yyyy-mm-dd
+  /** Recipient-created: a draft RCTI waits on the office, not the contractor. */
+  rcti?: boolean | null;
 };
+
+/**
+ * Waiting for the office to approve: submitted by the contractor, or an RCTI
+ * the platform drafted for them (recipient-created — nothing to wait for from
+ * the contractor). The old Payables tab approved both (Dashboard.tsx:447).
+ */
+export const ciAwaitsApproval = (c: { status: string; rcti?: boolean | null }) => c.status === "submitted" || (c.status === "draft" && !!c.rcti);
 
 export type PayablesTiles = {
   toApproveCents: number;
@@ -278,7 +287,8 @@ export function payablesTiles(
   cis: readonly DeriveContractorInvoice[],
   todayIso: string,
 ): PayablesTiles {
-  const submitted = cis.filter((c) => c.status === "submitted");
+  // Payments merge 8b: the same rule as the Contractors block (a draft RCTI is the office's to approve).
+  const submitted = cis.filter(ciAwaitsApproval);
   const approved = cis.filter((c) => c.status === "approved");
   const dueSoon = approved.filter(
     (c) => c.dueOn == null || daysBetween(todayIso, c.dueOn) <= 7,

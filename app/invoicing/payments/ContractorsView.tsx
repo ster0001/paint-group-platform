@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   contractorGroups, totalCiCents, type CiSection, type ContractorRow,
 } from "@/lib/invoicing/jobMoney";
-import { CiButtons, CiGroupButtons, OpenJobLink } from "./ActionsClient";
+import { CiButtons, CiGroupButtons, OpenJobLink, TermsButtons } from "./ActionsClient";
 import { STAGE_NAME, money, plural, shortDate } from "./labels";
 
 /**
@@ -27,11 +27,22 @@ function CustomerLine({ r }: { r: ContractorRow }) {
 function Owe({ r }: { r: ContractorRow }) {
   if (r.status === "paid") return <><span className="paidamt">{money(r.totalIncCents)}</span><small>paid</small></>;
   const over = r.section === "past_pay_by";
-  const cls = over ? "over" : r.status === "approved" ? "need" : r.status === "submitted" ? "sent" : "draft";
+  const cls = over ? "over" : r.status === "approved" ? "need" : r.section === "to_approve" ? "sent" : "draft";
   const line = over ? `${plural(r.overdueDays, "day")} past pay-by`
     : r.status === "approved" ? (r.dueOn ? `pay by ${shortDate(r.dueOn)}` : "pay when ready")
-    : r.status === "submitted" ? "waiting for your approval" : "with the contractor";
+    : r.section === "to_approve" ? "waiting for your approval" : "with the contractor";
   return <><span className={`owe ${cls}`}>{money(r.totalIncCents)}</span><small>{line}</small></>;
+}
+
+/** RCTI · Green fast terms · Held (with the reason) · Bonus — the old Payables chips (8b). */
+function Chips({ r }: { r: ContractorRow }) {
+  const chips: { cls: string; text: string }[] = [];
+  if (r.rcti) chips.push({ cls: "", text: "RCTI" });
+  if (r.bonus) chips.push({ cls: "paid", text: "Bonus" });
+  else if (r.terms === "green_fast") chips.push({ cls: "paid", text: "Green · 3 business days" });
+  else if (r.terms === "held") chips.push({ cls: "need", text: `Held — ${r.holdReason ?? "no reason given"}` });
+  if (!chips.length) return null;
+  return <span className="chips">{chips.map((c) => <span key={c.text} className={`tag ${c.cls}`}>{c.text}</span>)}</span>;
 }
 
 function Row({ r }: { r: ContractorRow }) {
@@ -40,14 +51,16 @@ function Row({ r }: { r: ContractorRow }) {
   const no = r.number ?? "this invoice";
   return (
     <div className={`prow${r.section === "past_pay_by" ? " over" : ""}`} data-ci={r.id}>
-      <div className="p1"><b>{r.contractor}</b><small>{r.number ?? "Draft, no number yet"}{r.claimNote ? ` · ${r.claimNote}` : r.status === "draft" ? " · drafted at sign-off" : ""}</small></div>
+      <div className="p1"><b>{r.contractor}</b><small>{r.number ?? "Draft, no number yet"}{r.claimNote ? ` · ${r.claimNote}` : r.status === "draft" ? (r.rcti ? " · drafted for them, figures set when you approve" : " · drafted at sign-off") : ""}</small>
+        <Chips r={r} /></div>
       <div className="p2">{r.estimateId ? <OpenJobLink className="jl" estimateId={r.estimateId}>{r.address}</OpenJobLink> : r.address}<CustomerLine r={r} /></div>
       <div className="p3"><Owe r={r} /></div>
       <div className="p4">
-        <CiButtons id={r.id} status={r.status}
+        <CiButtons id={r.id} status={r.status} rcti={r.rcti} withDetails
           approveLine={`Approved ${no}, ${money(r.totalIncCents)} to ${r.contractor}.${r.dueOn ? ` Pay by ${shortDate(r.dueOn)}.` : ""}`}
           payLine={`Marked ${no} paid, ${money(r.totalIncCents)} to ${r.contractor}. The remittance goes when Undo closes.`}
           payLabel={`✓ Paid ${money(r.totalIncCents)}`} />
+        {r.status !== "paid" ? <TermsButtons id={r.id} terms={r.terms} /> : null}
         {r.status === "submitted" && query ? <Link className="b" href={query}>Query</Link> : null}
         {pdf && r.status !== "submitted" ? <a className="b" href={pdf} target="_blank" rel="noreferrer">{r.status === "paid" ? "Invoice PDF" : "PDF"}</a> : null}
       </div>
@@ -59,7 +72,7 @@ const TITLE: Record<CiSection, { title: string; note?: string; cls?: string; col
   past_pay_by: { title: "Past the pay-by date", note: "Approved and still unpaid past the agreed terms. Always first.", cls: "red" },
   to_approve: { title: "To approve", note: "Submitted by the contractor. The line under each job shows whether the customer has paid you yet." },
   to_pay: { title: "Approved, to pay", note: "Pay by bank, then press Paid. The remittance goes to the contractor once the Undo has closed." },
-  with_contractor: { title: "With the contractor", note: "Drafted at sign-off, waiting for the contractor to submit." },
+  with_contractor: { title: "With the contractor", note: "Drafted at sign-off, waiting for the contractor to submit. An RCTI is drafted for them, so it waits under To approve instead." },
   paid: { title: "Paid", collapsed: true },
 };
 

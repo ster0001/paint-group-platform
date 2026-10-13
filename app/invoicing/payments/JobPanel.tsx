@@ -185,7 +185,7 @@ export function JobPanel({ d, tab, tabHref, closeHref, closeLabel, today, termsD
                   <div className="li" key={c.id}>
                     <span>{c.contractor}<small>{c.number ?? "Draft"}{c.claimNote ? ` · ${c.claimNote}` : ""}</small></span>
                     <span className="r">{CI_TAG[c.status]}<span className="mono">{money(c.totalIncCents)}</span>
-                      <CiButtons id={c.id} status={c.status}
+                      <CiButtons id={c.id} status={c.status} rcti={c.rcti}
                         approveLine={`Approved ${c.number ?? "the invoice"}, ${money(c.totalIncCents)} to ${c.contractor}.`}
                         payLine={`Marked ${c.number ?? "the invoice"} paid, ${money(c.totalIncCents)} to ${c.contractor}. The remittance goes when Undo closes.`}
                         payLabel="✓ Paid" /></span>

@@ -17,6 +17,9 @@ import { STAGE_NAME, longToday, money, pickerJobs, plural } from "./labels";
 import { JobPanel } from "./JobPanel";
 import { loadJobPanel } from "./panelData";
 import { ActivityFeed } from "./ActivityView";
+import { ExpensesView } from "./ExpensesView";
+import { loadExpenses } from "./expensesData";
+import { expenseTotals } from "@/lib/invoicing/expenses";
 import { activityFeed, type ActivityLine } from "@/lib/invoicing/activity";
 import "./payments.css";
 
@@ -76,10 +79,13 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
   const now = new Date();
   const supabase = await createClient();
-  const [{ input, failure }, settingsRes] = await Promise.all([
+  const [{ input, failure }, settingsRes, expenses] = await Promise.all([
     loadJobMoneyInput(supabase, now),
     supabase.from("settings").select("key, value").eq("key", "invoicing"),
+    // 8b: the expense queues — the Contractors card counts them; receipts are signed only when the tab is open.
+    loadExpenses(supabase, tab === "con"),
   ]);
+  const exp = expenseTotals(expenses.queues);
   if (settingsRes.error) reportError(settingsRes.error, { where: "PaymentsPage.settings", bestEffort: true });
   const settings = paymentsSettings((settingsRes.data ?? []) as { key: string; value: unknown }[]);
   if (!input) {
@@ -111,7 +117,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       s: `${plural(customers.outstandingCount, "sent invoice")} · ${money(customers.notSentCents)} not sent yet`,
       od: customers.overdueCents ? `${money(customers.overdueCents)} overdue` : null },
     { key: "con", d: "Money out", t: "Contractors", v: money(contractors.owingCents),
-      s: `${contractors.toApproveCount} to approve · ${money(contractors.approvedToPayCents)} approved to pay`,
+      s: `${contractors.toApproveCount} to approve · ${money(contractors.approvedToPayCents)} approved to pay${exp.toDecideCount ? ` · ${plural(exp.toDecideCount, "expense")} to decide` : ""}${exp.owedBackCount ? ` · ${money(exp.owedBackCents)} owed back` : ""}`,
       od: contractors.pastPayByCents ? `${money(contractors.pastPayByCents)} overdue` : null },
     { key: "mat", d: "Money out", t: "Materials", v: money(materials.openCents),
       s: `${materials.toCheckCount} to check · ${materials.toApproveCount} to approve · ${money(materials.toPayCents)} to pay`, od: null },
@@ -189,6 +195,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             {tab === "con" ? <Suspense fallback={null}><SearchBox initial={q} label="Search contractor or address" /></Suspense> : null}
           </div>
           <ContractorsView rows={matchCiRows(page.contractors, q)} by={cby} />
+          {expenses.failure ? <ReadFailureNotice failure={expenses.failure} /> : <ExpensesView q={expenses.queues} />}
         </section>
         <section hidden={tab !== "mat"} data-testid="pm-materials"><MaterialsView m={page.materials} /></section>
         <section hidden={tab !== "act"} data-testid="pm-activity">

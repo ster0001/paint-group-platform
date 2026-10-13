@@ -39,3 +39,12 @@ test("empty in, zeros out", () => {
     approvedCents: 0, approvedCount: 0,
   });
 });
+
+test("a draft RCTI waits on the office, so it counts as To approve; a contractor's own draft does not (8b)", () => {
+  const t = payablesTiles([
+    ci({ status: "draft", rcti: true, totalIncCents: 171_428 }),
+    ci({ status: "draft", rcti: false, totalIncCents: 999_999 }),
+  ], "2026-08-24");
+  assert.equal(t.toApproveCents, 171_428);
+  assert.equal(t.toApproveCount, 1);
+});
