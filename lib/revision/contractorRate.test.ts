@@ -32,6 +32,12 @@ describe("revisionContractorPay — the working scope's rate reaches the painter
   });
 
   it("an accepted scope with no blocks is a zero base, never a crash", () => {
-    expect(revisionContractorPay({}, { contractorRateOverride: 50 }, ctx)).toEqual({ rateCents: 5000, baseCents: 0 });
+    expect(revisionContractorPay({}, { contractorRateOverride: 50 }, ctx)).toMatchObject({ rateCents: 5000, baseCents: 0, baseHours: 0 });
+  });
+
+  it("names the rate the ACCEPTED scope was priced at, for a job that has not stamped an agreed rate (13 Oct 2026)", () => {
+    const r = revisionContractorPay({ contractorRateOverride: 60 }, { contractorRateOverride: 75 }, ctx);
+    expect(r.acceptedRateCents).toBe(6000);
+    expect(r.rateCents).toBe(7500);
   });
 });

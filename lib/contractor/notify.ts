@@ -253,6 +253,49 @@ export async function notifyVariationReleased(
 }
 
 /**
+ * Tom, 13 Oct 2026: the office changed the contractor's hourly RATE on a job
+ * the painter already has — it waits on their Accept (work_orders.pay_change_*,
+ * 20270254). The same automation and wording as a variation waiting on them;
+ * once per change sent.
+ */
+export async function notifyPayChangeSent(service: SupabaseClient, estimateId: string): Promise<PainterNotifyOutcome> {
+  try {
+    const { data, error } = await service
+      .from("work_orders").select("id, wo_ref, contractor_id, pay_change_sent_at")
+      .eq("estimate_id", estimateId).maybeSingle();
+    if (error) throw error;
+    const wo = data as { id: string; wo_ref: string; contractor_id: string | null; pay_change_sent_at: string | null } | null;
+    if (!wo?.contractor_id || !wo.pay_change_sent_at) return { outcome: "not_applicable" };
+    if (!(await once(service, wo.id, "pay_change_notified", { sent_at: wo.pay_change_sent_at }))) return { outcome: "already" };
+    const { messaging, company } = await loadMessaging(service);
+    if (!automationOn(messaging, "contractor_variation_released")) return { outcome: "skipped", reason: "The automation is switched off." };
+
+    const c = await contactFor(service, wo.contractor_id);
+    const link = `${siteUrl()}/portal/jobs/${wo.id}`;
+    const companyName = company.name || "Paint Group";
+    const vars = { first_name: c.firstName, company_name: companyName, wo_ref: wo.wo_ref, action: "approve", link };
+    const d = await sendAutomation(service, {
+      key: "contractor_variation_released",
+      to: { phone: c.phone, email: c.email && !isTestEmail(c.email) ? c.email : null },
+      sms: { body: renderTemplate(messaging.variationReleasedSms, vars) },
+      email: {
+        subject: renderTemplate(messaging.variationReleasedEmailSubject, vars),
+        html: buildEstimateEmailHtml({
+          companyName, logoUrl: emailLogoUrl(company),
+          intro: renderTemplate(messaging.variationReleasedEmailIntro, vars),
+          link, buttonLabel: "Open the job",
+        }),
+      },
+      ctx: { workOrderId: wo.id, kind: "pay_change" }, contractorId: wo.contractor_id,
+    });
+    return await recordOutcome(service, wo.id, "pay_change_notified", { sent_at: wo.pay_change_sent_at }, d);
+  } catch (e) {
+    reportError(e, { where: "notify.payChangeSent", extra: { estimateId } });
+    return { outcome: "skipped", reason: "Something went wrong sending it — the error monitor has it." };
+  }
+}
+
+/**
  * "The customer approved a change — it's on your job" (Tom, 24 Sep 2026).
  * A change from the REVISION working scope lands contractor_accepted at the
  * customer's signature whether or not a painter is on the job (20270195);
