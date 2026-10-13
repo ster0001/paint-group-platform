@@ -13,7 +13,7 @@
  * bare product name, which is exactly what the key degenerates to when the
  * estimate has no colour yet — so old data reads through the same lookup.
  */
-import type { WOColourStatus, WOMaterial, WorkOrderDoc } from "./snapshot";
+import type { WOArea, WOColourStatus, WOMaterial, WorkOrderDoc } from "./snapshot";
 
 /** The identity of a material row: product alone until a colour is named. */
 export function materialColourKey(product: string, colourName: string): string {
@@ -44,10 +44,13 @@ export type MaterialSurfaceRow = {
   match: { code: string; brand: string; canSize: string } | null;
 };
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export function aggregateMaterials(
   rows: readonly MaterialSurfaceRow[],
   opts: {
-    roundUpLitres: (litres: number) => number;
+    /** Estimate litres → order litres (snapshot.orderLitres: rounded DOWN). */
+    orderLitres: (litres: number) => number;
     /** WO-side confirmation status for a row (work_orders.colours). */
     statusFor: (colourKey: string, product: string) => WOColourStatus;
   },
@@ -73,7 +76,8 @@ export function aggregateMaterials(
       finish: row.finish || undefined,
       colourKey: key,
       photoUrl: photo,
-      litres: missing ? null : opts.roundUpLitres(vol),
+      litres: missing ? null : opts.orderLitres(vol),
+      ...(missing ? {} : { estimatedLitres: round2(vol) }),
       coverageMissing: missing,
       colourName: row.colourName,
       colourHex: row.colourHex,
@@ -83,6 +87,50 @@ export function aggregateMaterials(
         : null,
     };
   });
+}
+
+/**
+ * One area's paint (Tom, 13 Oct 2026: "under each section in the work order,
+ * add the materials estimate breakdown for each section"): the area's
+ * surfaces grouped by product × colour, their estimate litres summed. Empty
+ * on documents frozen before surfaces carried litres — never a guess.
+ */
+export type AreaMaterial = {
+  colourKey: string; product: string; finish?: string;
+  colourName: string; colourHex: string; litres: number;
+};
+
+export function areaMaterials(area: Pick<WOArea, "surfaces">): AreaMaterial[] {
+  const out = new Map<string, AreaMaterial>();
+  for (const s of area.surfaces ?? []) {
+    if (!s.product || !(typeof s.litres === "number" && s.litres > 0)) continue;
+    const key = s.colourKey ?? s.product;
+    const g = out.get(key);
+    if (g) { g.litres = round2(g.litres + s.litres); continue; }
+    out.set(key, {
+      colourKey: key, product: s.product, finish: s.finish,
+      colourName: s.colourName ?? "", colourHex: s.colourHex ?? "", litres: round2(s.litres),
+    });
+  }
+  return [...out.values()];
+}
+
+/**
+ * A material row's estimate litres: the frozen row figure, or — when a ticked
+ * option has since been merged in (wo_apply_selected_options sums only the
+ * order litres) — the surfaces' own litres, whichever is larger. Null on
+ * documents frozen before estimates were carried.
+ */
+export function rowEstimatedLitres(doc: Pick<WorkOrderDoc, "areas">, m: WOMaterial): number | null {
+  const key = materialRowKey(m);
+  let fromSurfaces = 0;
+  for (const a of doc.areas ?? []) {
+    for (const s of a.surfaces ?? []) {
+      if (s.product && (s.colourKey ?? s.product) === key && typeof s.litres === "number" && s.litres > 0) fromSurfaces += s.litres;
+    }
+  }
+  const best = Math.max(m.estimatedLitres ?? 0, fromSurfaces);
+  return best > 0 ? round2(best) : null;
 }
 
 // ---------------------------------------------------------------------------
