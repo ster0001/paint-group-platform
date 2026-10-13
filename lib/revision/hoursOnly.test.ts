@@ -1,13 +1,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { hoursOnlyChange, revisionCredit } from "./hoursOnly";
+import { revisionCredit } from "./hoursOnly";
 import { notInSheet, scopeChangesFrom } from "../workorder/scopeChanges";
-
-test("an hours-only change has hours and no customer price", () => {
-  assert.equal(hoursOnlyChange(0, 4), true);
-  assert.equal(hoursOnlyChange(0, 0), false);
-  assert.equal(hoursOnlyChange(45320, 4), false);
-});
 
 test("fewer contractor hours at the same customer price is a credit to the painter", () => {
   assert.equal(revisionCredit(0, -4), true);

@@ -14,8 +14,8 @@ import { normalisePhoneAU } from "@/lib/messaging/config";
 import { buildInvoiceEmailHtml } from "@/lib/invoicing/sendInvoice";
 import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { notifyVariationReleased } from "@/lib/contractor/notify";
-import { hoursOnlyChange, revisionCredit } from "@/lib/revision/hoursOnly";
+import { notifyPayChangeSent } from "@/lib/contractor/notify";
+import { revisionCredit } from "@/lib/revision/hoursOnly";
 
 /**
  * The revision builder's server side (addendum A2).
@@ -39,11 +39,7 @@ const uuid = z.string().uuid();
  * `pay`: what wo_sync_contractor_pay answered — "ok:synced" (the painter's figure moved), "ok:live" (a painter has it; untouched), "ok:unchanged", or why it was skipped.
  * `colours`: what wo_sync_scope_colours answered — "ok:synced:N" (N colour rows moved onto the job), "ok:unchanged", or why it was skipped.
  */
-export type SaveScopeResult =
-  | { ok: true; pay?: string; colours?: string;
-      /** Tom, 12 Oct 2026: hours-only changes that went straight to the painter (or into the unsent job sheet) on this save. */
-      hoursOnly?: { withPainter: number; inSheet: number; failed: number } }
-  | { ok: false; message: string };
+export type SaveScopeResult = { ok: true; pay?: string; colours?: string } | { ok: false; message: string };
 
 const saveInput = z.object({
   estimateId: uuid,
@@ -100,14 +96,24 @@ async function syncContractorPay(supabase: Db, estimateId: string): Promise<stri
   if (!scope || !estimate) return "skipped:no_scope";
   const { ctx } = await estimatePricingContext(supabase, estimate.rate_card_id as string | null);
   if (ctx.rateItems.length === 0) return "skipped:no_rate_items";
-  const { rateCents, baseCents } = revisionContractorPay(
+  const { rateCents, baseCents, acceptedRateCents, baseHours } = revisionContractorPay(
     (scope.accepted_state ?? {}) as RevisionState,
     (scope.working_state ?? {}) as RevisionState,
     ctx,
   );
-  const { data, error } = await supabase.rpc("wo_sync_contractor_pay", { p_estimate_id: estimateId, p_base_cents: baseCents, p_rate_cents: rateCents });
+  const { data, error } = await supabase.rpc("wo_sync_contractor_pay", {
+    p_estimate_id: estimateId, p_base_cents: baseCents, p_rate_cents: rateCents,
+    p_accepted_rate_cents: acceptedRateCents, p_base_hours: Math.round(baseHours * 100) / 100,
+  });
   if (error) { reportError(error, { where: "revision.syncPay.rpc", extra: { estimateId } }); return "error:rpc"; }
-  return String(data ?? "");
+  const s = String(data ?? "");
+  // Tom, 13 Oct 2026: a new rate on a job a painter has goes to THEM — the
+  // customer is never asked about the contractor's rate.
+  if (s === "ok:pay_change_sent") {
+    const service = createServiceClient();
+    if (service) after(async () => { await notifyPayChangeSent(service, estimateId); });
+  }
+  return s;
 }
 
 /**
@@ -146,21 +152,12 @@ export async function saveWorkingScopeAction(raw: unknown): Promise<SaveScopeRes
       syncContractorPay(supabase, parsed.data.estimateId),
       syncScopeColours(supabase, parsed.data.estimateId),
     ]);
-    // Tom, 12 Oct 2026: a change to the contractor's hours that leaves the
-    // customer's price alone needs no customer signature — it goes to the
-    // painter to approve (or into the job sheet when nobody has the job yet)
-    // the moment the scope is saved.
-    const hours = await draftRevision(supabase, parsed.data.estimateId, null, "hours_only");
-    const done = hours.ok ? hours.drafted : [];
-    const hoursOnly = {
-      withPainter: done.filter((d) => d.state === "with_painter").length,
-      inSheet: done.filter((d) => d.state === "in_sheet").length,
-      failed: done.filter((d) => d.state === "error").length,
-    };
+    // Tom, 13 Oct 2026: an HOURS change goes to the customer first (Save &
+    // draft), never straight to the painter — 20270253's shortcut is gone.
     revalidatePath("/quote");
     revalidatePath("/pc/schedule");
-    if (colours.startsWith("ok:synced") || hoursOnly.withPainter + hoursOnly.inSheet > 0) { revalidatePath("/portal/jobs"); revalidatePath("/account"); }
-    return { ok: true, pay: synced, colours, hoursOnly };
+    if (colours.startsWith("ok:synced") || synced.startsWith("ok:pay_change")) { revalidatePath("/portal/jobs"); revalidatePath("/account"); }
+    return { ok: true, pay: synced, colours };
   }
   if (s === "error:not_found") return { ok: false, message: "Open the revision again — the working scope isn't there yet." };
   if (s === "error:not_staff") return { ok: false, message: "Staff only." };
@@ -176,8 +173,7 @@ export type DraftedVariation = {
   token: string | null;
   /** The wo_variations row id — what a photo attaches to. */
   variationId: string | null;
-  /** with_painter / in_sheet: an hours-only change (no customer price) that skipped the customer (20270253). */
-  state: "drafted" | "updated" | "cancelled" | "no_change" | "with_painter" | "in_sheet" | "error";
+  state: "drafted" | "updated" | "cancelled" | "no_change" | "error";
   message?: string;
 };
 
@@ -198,17 +194,12 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
   // Tom, 7 Oct 2026: the painter's request the builder was opened from. The
   // RPC writes the first addition INTO that row (once — it ignores the id
   // for credits and once the request is no longer 'raised').
-  return draftRevision(supabase, parsed.data.estimateId, parsed.data.sourceVariationId ?? null, "all");
+  return draftRevision(supabase, parsed.data.estimateId, parsed.data.sourceVariationId ?? null);
 }
 
-/**
- * The drafting itself. `hours_only` (every working-scope save, Tom 12 Oct
- * 2026) touches ONLY the changes that move the contractor's hours without
- * moving the customer's price, and retires nothing — the customer's offer is
- * the "Save & draft" button's business.
- */
+/** The drafting itself — every change, priced, for the customer to sign. */
 async function draftRevision(
-  supabase: Db, estimateId: string, sourceVariationId: string | null, mode: "all" | "hours_only",
+  supabase: Db, estimateId: string, sourceVariationId: string | null,
 ): Promise<DraftResult> {
 
   // The request keeps the category the painter chose (Bogging, Stain blocking…)
@@ -290,7 +281,6 @@ async function draftRevision(
     // Fewer hours at the same customer price is still a credit to the painter.
     const credit = revisionCredit(draftDelta, hoursSigned);
     const priceIncCents = Math.abs(draftDelta);
-    if (mode === "hours_only" && !hoursOnlyChange(priceIncCents, draftHours)) continue;
 
     const beyondSigned = signedInc !== 0;
     const comment = beyondSigned
@@ -346,7 +336,6 @@ async function draftRevision(
 
   // Standing drafts whose block no longer differs: retire them.
   for (const v of existing) {
-    if (mode === "hours_only") break;
     if (v.status !== "priced" || seenRefs.has(v.revision_block_ref)) continue;
     const { data } = await supabase.rpc("wo_draft_revision_variation", {
       p_estimate_id: estimateId,
@@ -386,30 +375,6 @@ async function draftRevision(
     }
   }
 
-  // Hours-only changes leave the customer's offer: approved without a
-  // signature and sent to the painter, or folded into the unsent job sheet.
-  const released: string[] = [];
-  for (const d of drafted) {
-    if (d.state !== "drafted" || !d.variationId || !hoursOnlyChange(d.priceIncCents, d.hours)) continue;
-    const { data, error } = await supabase.rpc("wo_apply_hours_only_change", { p_variation_id: d.variationId });
-    const s = String(data ?? "");
-    if (error || !s.startsWith("ok:")) {
-      if (error && !isMissingRpc(error.message, "wo_apply_hours_only_change")) {
-        reportError(error, { where: "revision.hoursOnly.rpc", extra: { estimateId, variationId: d.variationId } });
-      }
-      // Before 20270253 is live the row stays a draft — as it always was.
-      if (error && isMissingRpc(error.message, "wo_apply_hours_only_change")) continue;
-      d.state = "error"; d.message = error?.message ?? s;
-      continue;
-    }
-    d.token = null;
-    d.state = s === "ok:with_painter" ? "with_painter" : "in_sheet";
-    if (s === "ok:with_painter" && !d.credit) released.push(d.variationId);
-  }
-  if (released.length) {
-    const service = createServiceClient();
-    if (service) after(async () => { for (const id of released) await notifyVariationReleased(service, id); });
-  }
 
   revalidatePath("/quote");
   revalidatePath("/pc");

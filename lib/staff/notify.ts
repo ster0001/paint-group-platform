@@ -321,6 +321,40 @@ export async function staffVariationDeclinedByPainter(service: SupabaseClient, v
   }
 }
 
+/** Tom, 13 Oct 2026: the painter declined a new hourly rate on their job — back with the office. Once per decline. */
+export async function staffPayChangeDeclined(service: SupabaseClient, workOrderId: string, note: string): Promise<StaffAlertOutcome> {
+  try {
+    const { data, error } = await service
+      .from("wo_events").select("id, meta")
+      .eq("work_order_id", workOrderId).eq("type", "pay_change_declined")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    const ev = data as { id: string; meta: { from_rate_cents?: number; to_rate_cents?: number } | null } | null;
+    const { data: woData, error: woErr } = await service
+      .from("work_orders").select("id, wo_ref, estimate_id, estimates(title, sent_snapshot), contractors(company_name, profiles(name))")
+      .eq("id", workOrderId).maybeSingle();
+    if (woErr) throw woErr;
+    const wo = woData as (WoJoin & { contractors: { company_name: string | null; profiles: { name: string | null } | null } | null }) | null;
+    if (!ev || !wo) return "error";
+    const painter = (wo.contractors?.profiles?.name || wo.contractors?.company_name || "The painter").trim();
+    const job = jobTitle(wo.estimates, wo.wo_ref);
+    const rate = (c?: number) => (c ? `${money(c).replace(/\.00$/, "")}/h` : "?");
+    const hours_line = ` (new rate ${rate(ev.meta?.from_rate_cents)} → ${rate(ev.meta?.to_rate_cents)})`;
+    const comment = note.trim() || "(no note)";
+    return notifyStaff(service, {
+      key: "office_variation_declined", entityId: `pay:${ev.id}`,
+      subject: `Painter declined the new rate — ${job}`,
+      message: `${painter} has declined the new hourly rate on ${wo.wo_ref} (${job})${hours_line}.\n\nThey wrote: “${comment}”\n\nTheir pay stays at the agreed rate. Revise it in Revise scope if needed.`,
+      link: `${siteUrl()}/pc/wo/${wo.id}`,
+      vars: { painter, job, wo_ref: wo.wo_ref, hours_line, comment },
+      estimateId: wo.estimate_id,
+    });
+  } catch (e) {
+    reportError(e, { where: "staffPayChangeDeclined", extra: { workOrderId } });
+    return "error";
+  }
+}
+
 /**
  * Tom, 12 Oct 2026: "send an email to info@ when a variation is approved by
  * the customer". One alert per signing: the offer's rows share one token, so

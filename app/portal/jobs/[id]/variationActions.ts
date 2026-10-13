@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { staffVariationDeclinedByPainter, staffVariationRaised } from "@/lib/staff/notify";
+import { staffPayChangeDeclined, staffVariationDeclinedByPainter, staffVariationRaised } from "@/lib/staff/notify";
 import { VARIATION_CATEGORIES } from "@/lib/workorder/variations";
 import { reportError } from "@/lib/monitoring/report";
 
@@ -71,6 +71,43 @@ export async function declineVariationAction(raw: unknown): Promise<AcceptResult
     return { ok: true };
   }
   const reason = s.replace("error:", "").replace(/^already_/, "");
+  return { ok: false, message: WORDING[reason] ?? "Couldn't send that." };
+}
+
+/**
+ * Tom, 13 Oct 2026: the painter answers a change to their hourly rate on a
+ * job they have (20270254). A decline needs a note and goes back to the
+ * office as an alert (Settings → Staff logins → Change declined).
+ */
+export async function answerPayChangeAction(raw: unknown): Promise<AcceptResult> {
+  const parsed = z.object({
+    workOrderId: z.string().uuid(),
+    accept: z.boolean(),
+    note: z.string().trim().max(1000).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Couldn't send that." };
+  if (!parsed.data.accept && parsed.data.note.length < 3) return { ok: false, message: WORDING.note_required };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_contractor_answer_pay_change", {
+    p_work_order_id: parsed.data.workOrderId, p_accept: parsed.data.accept, p_note: parsed.data.note,
+  });
+  if (error) {
+    reportError(error, { where: "portal.answerPayChange", extra: { workOrderId: parsed.data.workOrderId } });
+    return { ok: false, message: "Couldn't send that just now — check your signal and try again." };
+  }
+  const s = String(data ?? "");
+  if (s === "ok:accepted" || s === "ok:declined") {
+    revalidatePath("/portal/jobs");
+    revalidatePath("/pc");
+    if (s === "ok:declined") {
+      const service = createServiceClient();
+      if (service) { const { workOrderId, note } = parsed.data; after(() => staffPayChangeDeclined(service, workOrderId, note).then(() => undefined)); }
+    }
+    return { ok: true };
+  }
+  if (s === "error:nothing_pending") return { ok: false, message: "The office has withdrawn that change — refresh the page." };
+  const reason = s.replace("error:", "");
   return { ok: false, message: WORDING[reason] ?? "Couldn't send that." };
 }
 

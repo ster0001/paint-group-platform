@@ -19,14 +19,21 @@ export function revisionContractorPay(
   accepted: RevisionState,
   working: RevisionState,
   ctx: PricingContext,
-): { rateCents: number; baseCents: number } {
+): { rateCents: number; baseCents: number; acceptedRateCents: number; baseHours: number } {
+  const rateOf = (adj: ReturnType<typeof adjustmentsFrom>) => {
+    const rates = resolveRates(ctx, adj);
+    return rates.contractorRateOverride != null
+      ? Math.round(rates.contractorRateOverride * 100)
+      : rates.contractorHourlyCents;
+  };
   const workingAdj = adjustmentsFrom(working);
-  const rates = resolveRates(ctx, workingAdj);
-  const rateCents = rates.contractorRateOverride != null
-    ? Math.round(rates.contractorRateOverride * 100)
-    : rates.contractorHourlyCents;
-  const baseAdj = { ...adjustmentsFrom(accepted), contractorRateOverride: workingAdj.contractorRateOverride };
+  const acceptedAdj = adjustmentsFrom(accepted);
+  const rateCents = rateOf(workingAdj);
+  const baseAdj = { ...acceptedAdj, contractorRateOverride: workingAdj.contractorRateOverride };
   const blocks = (Array.isArray(accepted.blocks) ? accepted.blocks : []) as BlockInput[];
-  const baseCents = priceEstimateTotals(blocks, ctx, baseAdj).contractorOfferCents;
-  return { rateCents, baseCents };
+  const base = priceEstimateTotals(blocks, ctx, baseAdj);
+  // Tom, 13 Oct 2026: with a painter on the job a new rate is a pay change
+  // for them to accept — the database needs the rate the job was agreed at
+  // (when it has not stamped one) and the base hours the difference applies to.
+  return { rateCents, baseCents: base.contractorOfferCents, acceptedRateCents: rateOf(acceptedAdj), baseHours: base.contractorHours };
 }

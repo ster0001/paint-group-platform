@@ -122,8 +122,9 @@ test.describe("the revision's contractor rate is the painter's rate", () => {
     await rate.scrollIntoViewIfNeeded();
     await rate.fill("75");
     await rate.blur();
+    page.once("dialog", (d) => void d.accept()); // 13 Oct 2026: a rate change asks first
     await page.getByTestId("builder-save").click();
-    await expect(page.getByText(/Saved ✓ \(working scope\) · painter's price updated/)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/Saved ✓ \(working scope\) · contractor's price updated/)).toBeVisible({ timeout: 20_000 });
 
     const { data: scope } = await db!.from("wo_working_scopes").select("accepted_state, working_state").eq("estimate_id", estimateId).single();
     const s = scope as { accepted_state: Record<string, unknown>; working_state: Record<string, unknown> };
@@ -160,7 +161,7 @@ test.describe("the revision's contractor rate is the painter's rate", () => {
     expect(vars[0].contractor_delta_cents).toBe(Math.round(Number(vars[0].est_hours) * 7500));
   });
 
-  test("once a painter has the job, a later rate change leaves their figure alone", async ({ page }) => {
+  test("once a painter has the job, a later rate change waits on THEIR accept — their figure does not move yet (13 Oct 2026)", async ({ page }) => {
     const painterId = await contractorIdForEmail(db!, contractor!.email);
     expect(painterId).toBeTruthy();
     const { error } = await db!.from("work_orders").update({ contractor_id: painterId }).eq("id", workOrderId);
@@ -175,8 +176,11 @@ test.describe("the revision's contractor rate is the painter's rate", () => {
     await rate.scrollIntoViewIfNeeded();
     await rate.fill("90");
     await rate.blur();
+    page.once("dialog", (d) => void d.accept());
     await page.getByTestId("builder-save").click();
-    await expect(page.getByText(/painter already has this job, their price unchanged/)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/new rate sent to the contractor to accept/)).toBeVisible({ timeout: 20_000 });
+    const pending = (await db!.from("work_orders").select("pay_change_rate_cents").eq("id", workOrderId).single()).data as { pay_change_rate_cents: number | null };
+    expect(pending.pay_change_rate_cents).toBe(9000);
 
     const after = (await db!.from("work_orders").select("contractor_payment_cents").eq("id", workOrderId).single()).data as { contractor_payment_cents: number };
     expect(after.contractor_payment_cents).toBe(before.contractor_payment_cents);

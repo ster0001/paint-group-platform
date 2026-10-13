@@ -64,6 +64,7 @@ import "@/app/i/[token]/invoice.css";
 import { saveWorkingScopeAction } from "./revisionActions";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
 import { revertChange } from "@/lib/revision/revert";
+import { PAY_NOTE, revisionSaveWarnings } from "@/lib/revision/saveWarnings";
 
 type WorkOrderRow = {
   id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
@@ -1005,21 +1006,18 @@ export default function QuoteBuilder({
     return diffRevision(revisionBaseline as RevisionState, revisionCurrentState, pricingCtx);
   }, [revision, revisionBaseline, revisionCurrentState, pricingCtx]);
 
-  // Tom, 12 Oct 2026: before a revision save moves the contractor's hours,
-  // say so — and what it does to their price. The figures are the engine's
-  // (totals), measured against the scope as it was last saved.
-  const savedContractorRef = useRef<{ hours: number; offer: number } | null>(null);
-  if (savedContractorRef.current === null) savedContractorRef.current = { hours: totals.contractorHours, offer: totals.contractorOffer };
+  // Tom, 12–13 Oct 2026: before a revision save moves the contractor's hours
+  // or their hourly RATE, say so — and where it goes. A rate change never goes
+  // to the customer; an hours change always does (Save & draft), then to the
+  // painter. Figures are the engine's, against the scope as last saved.
+  const contractorRateCents = rates.contractorRateOverride != null ? Math.round(rates.contractorRateOverride * 100) : rates.contractorHourlyCents;
+  const savedContractorRef = useRef<{ hours: number; offer: number; rate: number } | null>(null);
+  if (savedContractorRef.current === null) savedContractorRef.current = { hours: totals.contractorHours, offer: totals.contractorOffer, rate: contractorRateCents };
   async function saveRevisionChecked(): Promise<{ id: string | null; token: string | null } | null> {
     const before = savedContractorRef.current;
-    if (revision && before && Math.abs(before.hours - totals.contractorHours) >= 0.01) {
-      const ok = window.confirm(
-        `Contractor hours have changed: ${before.hours.toFixed(1)} h → ${totals.contractorHours.toFixed(1)} h.\n\n` +
-        `Saving updates the contractor's price: ${fmt(before.offer)} → ${fmt(totals.contractorOffer)}.\n\n` +
-        "If a painter already has this job, the new hours go to them to approve. " +
-        "A change that also moves the customer's price goes to the customer to sign first.\n\nSave now?",
-      );
-      if (!ok) return null;
+    if (revision && before) {
+      const notes = revisionSaveWarnings(before, { hours: totals.contractorHours, offer: totals.contractorOffer, rate: contractorRateCents });
+      if (notes.length && !window.confirm(`${notes.join("\n\n")}\n\nSave now?`)) return null;
     }
     return save();
   }
@@ -1162,20 +1160,15 @@ export default function QuoteBuilder({
           state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc() },
         });
         // Tom, 24 Sep: the painter's price follows the working scope's contractor rate until the job is sent out.
-        const payNote = !result.ok ? "" : result.pay === "ok:synced" ? " · painter's price updated" : result.pay === "ok:live" ? " · painter already has this job, their price unchanged" : "";
+        const payNote = !result.ok ? "" : PAY_NOTE[result.pay ?? ""] ?? "";
         const colourNote = !result.ok || !result.colours?.startsWith("ok:synced") ? "" : " · colours updated on the job for the customer and the painter";
-        const h = result.ok ? result.hoursOnly : undefined;
-        const hoursNote = !h ? ""
-          : (h.withPainter ? ` · new hours sent to the painter to approve` : "")
-            + (h.inSheet ? ` · new hours on the job sheet` : "")
-            + (h.failed ? ` · ${h.failed} hours change${h.failed === 1 ? "" : "s"} couldn't be sent — try Save again` : "");
-        setSaveMsg(result.ok ? `Saved ✓ (working scope)${payNote}${colourNote}${hoursNote}` : result.message);
+        setSaveMsg(result.ok ? `Saved ✓ (working scope)${payNote}${colourNote}` : result.message);
         // The working scope is now what the screen shows — the leave guard
         // and the "unsaved" banner read this. Without it every link click
         // after a revision save was held forever (29 Sep).
         if (result.ok) {
           savedStateRef.current = builderFingerprint;
-          savedContractorRef.current = { hours: totals.contractorHours, offer: totals.contractorOffer };
+          savedContractorRef.current = { hours: totals.contractorHours, offer: totals.contractorOffer, rate: contractorRateCents };
         }
       } finally {
         setSaving(false);
