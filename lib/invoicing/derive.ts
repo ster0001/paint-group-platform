@@ -73,20 +73,6 @@ export function invoiceIsOverdue(
   );
 }
 
-/** "6 days overdue" / "due in 4 days" — the number half; copy lives in the UI. */
-export function ageInfo(
-  invoice: DeriveInvoice,
-  payments: readonly DerivePayment[],
-  now: Date,
-): { overdueDays: number } | { dueInDays: number } | null {
-  if (!invoice.dueOn || !OPEN_STATUSES.includes(invoice.status)) return null;
-  const todayIso = melbourneToday(now);
-  if (invoiceIsOverdue(invoice, payments, now)) {
-    return { overdueDays: daysBetween(invoice.dueOn, todayIso) };
-  }
-  return { dueInDays: daysBetween(todayIso, invoice.dueOn) };
-}
-
 // ---------------------------------------------------------------------------
 // Dashboard pulse tiles (§7.2)
 // ---------------------------------------------------------------------------
@@ -176,72 +162,6 @@ export function agedBucketsCents(
 }
 
 // ---------------------------------------------------------------------------
-// Payment stage rail (§7.1) + the per-row stage dots (§7.2)
-// ---------------------------------------------------------------------------
-
-export type StageState = "paid" | "awaiting" | "draft" | "overdue" | "upcoming";
-
-export type PaymentStage = {
-  key: "deposit" | "progress" | "final" | "paid_in_full";
-  state: StageState;
-  amountCents: number | null;
-};
-
-function groupState(
-  group: readonly DeriveInvoice[],
-  payments: readonly DerivePayment[],
-  now: Date,
-): { state: StageState; amountCents: number | null } {
-  const live = group.filter((i) => i.status !== "void" && i.status !== "written_off");
-  if (live.length === 0) return { state: "upcoming", amountCents: null };
-  const total = live.reduce((a, i) => a + i.totalIncCents, 0);
-  if (live.some((i) => invoiceIsOverdue(i, payments, now))) {
-    return { state: "overdue", amountCents: total };
-  }
-  if (live.some((i) => OPEN_STATUSES.includes(i.status))) {
-    return { state: "awaiting", amountCents: total };
-  }
-  if (live.every((i) => i.status === "paid")) return { state: "paid", amountCents: total };
-  return { state: "draft", amountCents: total };
-}
-
-export function paymentStages(
-  invoices: readonly DeriveInvoice[],
-  payments: readonly DerivePayment[],
-  balanceCents: number,
-  now: Date,
-): PaymentStage[] {
-  const of = (kinds: InvoiceKind[]) => invoices.filter((i) => kinds.includes(i.kind));
-  const deposit = groupState(of(["deposit"]), payments, now);
-  const progress = groupState(of(["progress", "variation", "standalone"]), payments, now);
-  const final = groupState(of(["final"]), payments, now);
-  const anythingLive = invoices.some((i) => i.status !== "void");
-  const paidInFull = balanceCents <= 0 && anythingLive;
-  return [
-    { key: "deposit", ...deposit },
-    { key: "progress", ...progress },
-    { key: "final", ...final },
-    {
-      key: "paid_in_full",
-      state: paidInFull ? "paid" : "upcoming",
-      amountCents: null,
-    },
-  ];
-}
-
-/** The dashboard row's three dots: deposit / progress / final. */
-export function stageDots(
-  invoices: readonly DeriveInvoice[],
-  payments: readonly DerivePayment[],
-  now: Date,
-): ("paid" | "open" | "none")[] {
-  const stages = paymentStages(invoices, payments, 1, now).slice(0, 3);
-  return stages.map((s) =>
-    s.state === "paid" ? "paid" : s.state === "upcoming" ? "none" : "open",
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Request-payment preview (§7.1 sheet) — mirror of the SQL in
 // invoice_request_payment: round(adjusted × pct / 100). The DRAFT itself is
 // still computed by the server; this exists so the sheet can show the figure
@@ -262,7 +182,16 @@ export type DeriveContractorInvoice = {
   status: string; // ci_status
   totalIncCents: number;
   dueOn: string | null; // yyyy-mm-dd
+  /** Recipient-created: a draft RCTI waits on the office, not the contractor. */
+  rcti?: boolean | null;
 };
+
+/**
+ * Waiting for the office to approve: submitted by the contractor, or an RCTI
+ * the platform drafted for them (recipient-created — nothing to wait for from
+ * the contractor). The old Payables tab approved both (Dashboard.tsx:447).
+ */
+export const ciAwaitsApproval = (c: { status: string; rcti?: boolean | null }) => c.status === "submitted" || (c.status === "draft" && !!c.rcti);
 
 export type PayablesTiles = {
   toApproveCents: number;
@@ -278,7 +207,8 @@ export function payablesTiles(
   cis: readonly DeriveContractorInvoice[],
   todayIso: string,
 ): PayablesTiles {
-  const submitted = cis.filter((c) => c.status === "submitted");
+  // Payments merge 8b: the same rule as the Contractors block (a draft RCTI is the office's to approve).
+  const submitted = cis.filter(ciAwaitsApproval);
   const approved = cis.filter((c) => c.status === "approved");
   const dueSoon = approved.filter(
     (c) => c.dueOn == null || daysBetween(todayIso, c.dueOn) <= 7,

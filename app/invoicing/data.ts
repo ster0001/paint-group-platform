@@ -110,27 +110,12 @@ export type ContractorInvoiceRow = {
   invoice_pdf_path: string | null;
   contractors: { company_name: string | null } | null;
   work_orders: { wo_ref: string; estimate_id: string; stage: string; job_address: string | null } | null;
+  contractor_id?: string | null;
+  work_order_id?: string | null;
 };
 
 // ---- Step 6a: cost capture rows -------------------------------------------
 
-export type IntakeDbRow = {
-  id: string;
-  source: string;
-  raw_doc_path: string | null;
-  from_email: string;
-  subject: string;
-  extracted: Record<string, unknown>;
-  extract_status: string;
-  proposed_vendor_id: string | null;
-  proposed_wo_id: string | null;
-  match_reason: string;
-  status: string;
-  duplicate_of: string | null;
-  confirmed_wo_id: string | null;
-  confirmed_at: string | null;
-  created_at: string;
-};
 
 export type JobCostRow = {
   id: string;
@@ -164,15 +149,10 @@ export type MaterialCostRow = {
   source: string;
   intake_id: string | null;
   created_at: string;
+  /** Payments merge Step 6 (20270259): "not for a job" by a person's choice. */
+  overhead?: boolean | null;
 };
 
-export type JobPickRow = {
-  id: string; // work order id
-  estimate_id: string;
-  job_no: number | null;
-  stage: string;
-  job_address: string | null;
-};
 
 /**
  * The 6a rows, fetched tolerantly: until migration 20261122 runs these tables
@@ -211,7 +191,12 @@ export type ReimbursementRow = {
   work_orders: { estimate_id: string; job_no: number | null; job_address: string | null } | null;
 };
 
-export async function loadCostCapture(supabase: SupabaseClient) {
+/**
+ * The three expense queues (claims to decide, ask-first requests, money owed
+ * back to employees) — one read for the old Payables tab and the Payments
+ * Contractors tab (8b) alike.
+ */
+export async function loadExpenseQueues(supabase: SupabaseClient) {
   const [expenses, preapprovals, reimbursements] = await Promise.all([
     supabase.from("contractor_expenses")
       .select("id, work_order_id, category, amount_cents, gst_cents, receipt_path, note, status, over_threshold_unapproved, created_at, paid_with, contractors(company_name, profiles(name)), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
@@ -230,52 +215,20 @@ export async function loadCostCapture(supabase: SupabaseClient) {
       .eq("contractors.employment_type", "employee")
       .order("decided_at", { ascending: true }).limit(100),
   ]);
-  // The unmatched material invoices moved to `loadDashboard` (20 Sep): the
-  // home dashboard's "Materials to match" tile reads that loader, and the
-  // Payables tile + card must count the SAME rows — one read, two readers.
-  const [intake, jobCosts, jobs] = await Promise.all([
-    supabase.from("cost_intake")
-      .select("id, source, raw_doc_path, from_email, subject, extracted, extract_status, proposed_vendor_id, proposed_wo_id, match_reason, status, duplicate_of, confirmed_wo_id, confirmed_at, created_at")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabase.from("job_costs")
-      .select("id, work_order_id, category, description, amount_ex_cents, gst_cents, doc_path, estimate_line_ref, status, paid_with, reimburse_to, invoice_no, invoice_date, intake_id, created_at, vendors(name), work_orders(estimate_id, wo_ref, job_no, job_address:wo_snapshot->>jobAddress)")
-      // Tom, 9 Oct: an employee's labour line (posted by timesheet approval)
-      // is paid through payroll — it stays on the job's Costs tab, never in
-      // the Payables queue with an Approve / Mark paid.
-      .neq("category", "labour")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    // The job picker behind the "matched job" search box (Tom, 4 Sep): every
-    // open job, plus jobs closed in the last 60 days — supplier invoices
-    // routinely arrive after the painter has finished.
-    supabase.from("work_orders")
-      .select("id, estimate_id, job_no, stage, job_address:wo_snapshot->>jobAddress")
-      .or(`stage.neq.closed,stage_entered_at.gte.${new Date(Date.now() - 60 * 86_400_000).toISOString()}`)
-      .order("created_at", { ascending: false })
-      .limit(500),
-  ]);
   return {
-    // Still tolerant per table — one missing list must not blank the tab — but
-    // no longer silent about it: a money-OUT list that quietly comes back empty
-    // understates what the business owes.
     expenses: (expenses.error ? [] : expenses.data ?? []) as unknown as ContractorExpenseRow[],
     preapprovals: (preapprovals.error ? [] : preapprovals.data ?? []) as unknown as PreapprovalRow[],
     reimbursements: (reimbursements.error ? [] : reimbursements.data ?? []) as unknown as ReimbursementRow[],
-    intake: (intake.error ? [] : intake.data ?? []) as unknown as IntakeDbRow[],
-    jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as JobCostRow[],
-    jobs: (jobs.error ? [] : jobs.data ?? []) as unknown as JobPickRow[],
     loadError: costsFailure([
       { label: "contractor expense claims", error: expenses.error },
       { label: "expense pre-approvals", error: preapprovals.error },
-      { label: "the supplier-invoice intake queue", error: intake.error },
-      { label: "job costs", error: jobCosts.error },
-      { label: "the job picker", error: jobs.error },
+      { label: "employee reimbursements", error: reimbursements.error },
     ]),
   };
 }
 
-/** One job's costs (§7.1 Costs tab) — tolerant like loadCostCapture. */
+
+/** One job's costs (the job panel's Money out) — tolerant like loadExpenseQueues. */
 export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
   const [jobCosts, materials, expenses] = await Promise.all([
     supabase.from("job_costs")
@@ -283,7 +236,7 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
       .eq("work_order_id", woId)
       .order("created_at", { ascending: true }),
     supabase.from("material_costs")
-      .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at")
+      .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at, overhead")
       .eq("work_order_id", woId)
       .order("created_at", { ascending: true }),
     supabase.from("contractor_expenses")
@@ -307,8 +260,9 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
   };
 }
 
-const CI_SELECT = "id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, auto_draft_source, claim_pct, invoice_pdf_path, terms_kind, terms_hold_reason, contractors(company_name), work_orders(wo_ref, estimate_id, stage, job_address:wo_snapshot->>jobAddress)";
-async function loadContractorInvoices(supabase: SupabaseClient): Promise<{ data: unknown[] | null; error: { message: string } | null }> {
+const CI_SELECT = "id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, auto_draft_source, claim_pct, invoice_pdf_path, terms_kind, terms_hold_reason, contractor_id, work_order_id, contractors(company_name), work_orders(wo_ref, estimate_id, stage, job_address:wo_snapshot->>jobAddress)";
+/** Every unpaid contractor invoice, and the newest settled ones — the Payables tab's read and the Payments page's (Step 5). */
+export async function loadContractorInvoices(supabase: SupabaseClient): Promise<{ data: unknown[] | null; error: { message: string } | null }> {
   try {
     const unpaid = await fetchAllRows<unknown>((from, to) => supabase.from("contractor_invoices").select(CI_SELECT).neq("status", "paid").order("created_at", { ascending: false }).order("id").range(from, to));
     const paid = await supabase.from("contractor_invoices").select(CI_SELECT).eq("status", "paid").order("created_at", { ascending: false }).limit(CI_SETTLED_KEEP);
@@ -369,6 +323,8 @@ export async function loadDashboard(supabase: SupabaseClient) {
     supabase.from("material_costs")
       .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at")
       .is("work_order_id", null)
+      // Step 6: "not for a job" is overhead by a person's choice — not waiting to be matched.
+      .or("overhead.is.null,overhead.eq.false")
       .order("created_at", { ascending: false })
       .limit(100),
   ]);

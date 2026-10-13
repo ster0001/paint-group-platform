@@ -597,9 +597,10 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
             data-testid="revision-builder-link">
             Revise scope →
           </a>
-          <a className="btn" href={`/invoicing/job/${estimateId}`}
+          {/* §6.11: the job's money is the job panel on Payments; back returns here. */}
+          <a className="btn" href={`/invoicing/job/${estimateId}?from=${encodeURIComponent(`/pc/wo/${row.id}`)}`}
             data-testid="money-view-link">
-            Money view →
+            Payments →
           </a>
           {finalInvoice && (
             <a className="btn" href={`/invoicing/inv/${finalInvoice.id}`}
@@ -794,7 +795,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               })),
             }}
             canEdit={row.stage !== "closed"}
-            moneyHref={`/invoicing/job/${estimateId}?tab=costs`}
+            moneyHref={`/invoicing/job/${estimateId}?jt=out&from=${encodeURIComponent(`/pc/wo/${row.id}`)}`}
           />
 
           {crew.length > 0 && (

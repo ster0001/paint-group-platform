@@ -7,6 +7,8 @@
 import { describe, expect, it } from "vitest";
 import { melbourneInstant } from "@/lib/time/businessHours";
 import {
+  finalDraftIsStale,
+  previouslyInvoicedCents,
   adjustedContractCents,
   invoicedCents,
   isOverdue,
@@ -142,5 +144,30 @@ describe("overdue is derived, never stored", () => {
   });
   it("no due date, no overdue", () => {
     expect(isOverdue({ ...base, dueOn: null }, at(24, 13))).toBe(false);
+  });
+});
+
+describe("less previously invoiced (§6.4, INV-0049)", () => {
+  it("an issued final backs itself out of the ledger total", () => {
+    // $9,009.86 deposit + $X final: the ledger counts both once the final is issued.
+    expect(previouslyInvoicedCents(900_986 + 1_351_479, { totalIncCents: 1_351_479, status: "issued" })).toBe(900_986);
+  });
+  it("a draft is not in the ledger total yet, so nothing comes off", () => {
+    expect(previouslyInvoicedCents(900_986, { totalIncCents: 1_351_479, status: "draft" })).toBe(900_986);
+  });
+  it("never below zero", () => {
+    expect(previouslyInvoicedCents(0, { totalIncCents: 500, status: "issued" })).toBe(0);
+  });
+});
+
+describe("a draft final drafted before the deposit was issued (§6.3, Cockatoo St)", () => {
+  it("stale when the invoiced total moved since it was drafted", () => {
+    expect(finalDraftIsStale(211_169, 0)).toBe(true);
+  });
+  it("not stale when nothing before it moved, whatever its own lines say", () => {
+    expect(finalDraftIsStale(211_169, 211_169)).toBe(false);
+  });
+  it("no drafted event, no claim", () => {
+    expect(finalDraftIsStale(211_169, null)).toBe(false);
   });
 });

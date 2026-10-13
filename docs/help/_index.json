@@ -342,18 +342,18 @@
       "path": "docs/help/invoicing/customer.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "1eea2f4e0b",
       "sources": []
     },
     {
       "feature": "invoicing",
       "role": "staff",
-      "title": "Record a customer payment, including one that arrives before you send the invoice",
-      "summary": "How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, including the date it arrived, what happens when the invoice is still a draft, what the customer sees when they press Pay, the one Settings button that adds or removes card payments, the moment an invoice turns overdue, pausing and resuming the payment reminders, the Payables tiles including Materials to match, and what each contractor invoice colour means.",
+      "title": "Payments — collect from customers, pay contractors and suppliers, and see each job's profit",
+      "summary": "The one Payments page (Payments in the sidebar): the headline and four blocks, chasing customers by job, one-press Paid with Undo, cash, sending with a due date, the deposit size, messages, the job panel with Money in and Money out and profit, contractor invoices (approve, pay with a reference, Green fast terms and holds, RCTIs, expenses and ask-first requests), supplier invoices (confirm, record as any cost, no job yet), Activity, card payments, what the customer sees when they press Pay, and when an invoice turns overdue.",
       "path": "docs/help/invoicing/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "1eea2f4e0b",
       "sources": []
     },
     {
@@ -651,7 +651,7 @@
         "media/contractor-09.png",
         "media/contractor-10.png"
       ],
-      "verified_at_commit": "d96f549a5a",
+      "verified_at_commit": "1eea2f4e0b",
       "sources": [
         "app/portal/money",
         "app/portal/profile",
@@ -666,7 +666,7 @@
       "path": "docs/help/self-invoicing/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "d96f549a5a",
+      "verified_at_commit": "1eea2f4e0b",
       "sources": [
         "app/portal/money/page.tsx",
         "app/portal/money/Expenses.tsx",
@@ -676,8 +676,8 @@
     {
       "feature": "self-invoicing",
       "role": "staff",
-      "title": "Approve and pay contractor invoices from the Payables tab",
-      "summary": "What the office sees when a contractor submits an invoice or progress claim, how the figures are drafted and reconciled to the job, and how approve, mark paid and the remittance work.",
+      "title": "Approve and pay contractor invoices on Payments → Contractors",
+      "summary": "What the office sees when a contractor submits an invoice or progress claim, how the figures are drafted and reconciled to the job, and how Approve, Paid (with the bank reference and date) and the remittance work on Payments → Contractors.",
       "path": "docs/help/self-invoicing/staff.md",
       "walkthrough": "media/staff-walkthrough.gif",
       "media": [
@@ -685,7 +685,7 @@
         "media/staff-02.png",
         "media/staff-03.png"
       ],
-      "verified_at_commit": "d96f549a5a",
+      "verified_at_commit": "1eea2f4e0b",
       "sources": [
         "app/invoicing",
         "lib/invoicing"

@@ -92,7 +92,7 @@ describe("Invoicing tiles equal /invoicing (acceptance 2)", () => {
     expect(r.value).toBe(2);
     expect(r.unit).toBe("count");
     expect(r.rows.map((x) => [x.supplier, x.days_waiting, x.reference])).toEqual([["Materials", 1, "7 Ocean St"], ["Haymes Moorabbin", 10, "PG-0007"]]);
-    expect(r.rows.every((x) => x.link === "/invoicing?tab=pay#materials-to-match")).toBe(true);
+    expect(r.rows.every((x) => x.link === "/invoicing?tab=mat#no-job")).toBe(true);
     expect(r.note).toBe("$600 unallocated · oldest waiting 10 days");
     expect(runMetric(materialsToMatchTile, { ...mi, invoicing: { ...mi.invoicing!, materialsToMatch: [] } }, range, finance)).toMatchObject({ value: 0, note: "every supplier invoice is on a job" });
     // The slice field is optional: a loader that has not filled it reads as nothing to match, never as a crash.

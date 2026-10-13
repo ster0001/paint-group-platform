@@ -84,6 +84,7 @@ export type Automation = {
 };
 
 const P = {
+  paymentMessage: ["{{first_name}}", "{{amount}}", "{{address}}", "{{due_date}}", "{{start_date}}", "{{pay_link}}"],
   estimate: ["{{first_name}}", "{{name}}", "{{company_name}}", "{{estimate_title}}", "{{total}}", "{{estimator_name}}", "{{link}}"],
   preStart: ["{{first_name}}", "{{company_name}}", "{{start_date}}", "{{address}}", "{{estimate_title}}"],
   appt: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{start_date}}", "{{painter_name}}", "{{walkthrough_line}}"],
@@ -290,9 +291,9 @@ export const AUTOMATIONS: Automation[] = [
   // ---- customers · money -------------------------------------------------
   {
     key: "invoice_issued", name: "Invoice issued", audience: "customer", channels: ["email", "sms"], kind: "manual",
-    trigger: "You issue and send an invoice (deposit, progress, final, variation) from Invoicing.",
+    trigger: "You send an invoice (deposit, progress, final, variation) from Payments.",
     wording: "Fixed wording plus your personal message; bank details from Invoicing settings.",
-    href: "/invoices",
+    href: "/invoicing",
   },
   {
     key: "payment_receipt", name: "Payment receipt", audience: "customer", channels: ["email"], kind: "automatic",
@@ -302,6 +303,18 @@ export const AUTOMATIONS: Automation[] = [
       { field: "receiptSubject", label: "Email subject", kind: "subject", placeholders: P.receipt },
       { field: "receiptBody", label: "Email body", kind: "body", placeholders: P.receipt },
     ],
+  },
+  {
+    key: "payment_message", name: "Payment messages from Payments", audience: "customer", channels: ["email", "sms"], kind: "manual",
+    trigger: "You press Message on a job in Payments. The matching message below is written into that customer's chat for you to edit, and goes only when you press Send — as a chat reply: an email with the whole message and a text with a link to the chat. The pay link is filled in for you.",
+    templates: [
+      { field: "paymentMsgDeposit", label: "Deposit reminder", kind: "body", placeholders: P.paymentMessage },
+      { field: "paymentMsgReminder", label: "Friendly reminder (progress or final)", kind: "body", placeholders: P.paymentMessage },
+      { field: "paymentMsgOverdue", label: "Overdue", kind: "body", placeholders: P.paymentMessage },
+      { field: "paymentMsgReceived", label: "Payment received", kind: "body", placeholders: P.paymentMessage },
+    ],
+    guard: "Each message is posted to the customer's chat and logged against the invoice.",
+    href: "/invoicing",
   },
   {
     key: "portal_magic_link", name: "Sign-in link", audience: "customer", channels: ["email"], kind: "manual",

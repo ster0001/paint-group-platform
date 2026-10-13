@@ -23,8 +23,7 @@ const LABELS: [string, string][] = [
   ["/pc", "Back to the dashboard"],
   ["/estimates", "Back to estimates"],
   ["/contacts", "Back to contacts"],
-  ["/invoices", "Back to invoicing"],
-  ["/invoicing", "Back to invoicing"],
+  ["/invoicing", "Back to Payments"],
 ];
 
 export function parseBackTo(from: string | undefined): BackTo | null {

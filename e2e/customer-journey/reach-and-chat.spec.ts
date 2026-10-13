@@ -180,7 +180,7 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     // Minimise: the pill, still there on another staff screen.
     await staffPage.getByTestId("dock-minimise").click();
     await expect(staffPage.getByTestId("dock-pill")).toBeVisible();
-    await staffPage.goto("/invoices");
+    await staffPage.goto("/contacts");   // another staff screen in the same shell (/invoices only redirects since the Payments merge)
     await expect(staffPage.getByTestId("staff-dock")).toBeVisible({ timeout: 40_000 });
 
     // The customer answers; the dock flags it as unseen.

@@ -17,6 +17,8 @@ import { fmt2 } from "../../format";
  */
 
 const CATEGORIES: { key: string; label: string }[] = [
+  // Payments merge Step 6: a paint-shop receipt is materials (§6.9) — first, the common case.
+  { key: "materials", label: "Materials" },
   { key: "scaffold", label: "Scaffold" },
   { key: "render", label: "Render" },
   { key: "carpentry", label: "Carpentry" },
@@ -102,58 +104,57 @@ export default function AddCostSheet({
     });
   }
 
+  // Payments merge Step 7: the job panel's sheet, in the Payments page's own
+  // styles (payments.css — sheet-wrap / sheet / field / methods / b / cancel).
+  if (!open) return null;
   return (
-    <>
-      <div className="scrim" onClick={onClose} style={open ? { opacity: 1, pointerEvents: "auto" } : undefined} />
-      <div className="sheet" role="dialog" aria-label="Add a cost" style={open ? { transform: "none" } : undefined}>
-        {open && (
-          <>
-            <h3>Add a cost</h3>
-            <div className="hint">A vendor invoice or receipt for this job. The document is the record — it files with the cost.</div>
-            {message && <div className="hint" role="status" data-testid="add-cost-message" style={{ marginTop: 8, color: "var(--amber)" }}>{message}</div>}
+    <div className="sheet-wrap on" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="sheet" role="dialog" aria-label="Add a cost">
+        <h3>Add a cost</h3>
+        <div className="who">A supplier invoice or receipt for this job. The document is the record — it files with the cost.</div>
+        {message && <div className="err" role="status" data-testid="add-cost-message">{message}</div>}
 
-            <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic"
-              onChange={onPickFile} data-testid="add-cost-file" style={{ marginTop: 10 }} />
-            {fileName && <div className="hint mono" style={{ fontSize: 10 }}>{fileName} ✓</div>}
-
-            <input type="text" placeholder="Vendor (e.g. SkyReach Hire)" value={vendorName}
-              onChange={(e) => setVendorName(e.target.value)} data-testid="add-cost-vendor" />
-            <div className="chips wrap">
-              {CATEGORIES.map((c) => (
-                <button key={c.key} className={`pchip ${category === c.key ? "on" : ""}`} onClick={() => setCategory(c.key)}>
-                  {c.label}
-                </button>
-              ))}
-            </div>
-            <input type="text" placeholder="What was it? (description)" value={description}
-              onChange={(e) => setDescription(e.target.value)} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <input type="number" inputMode="decimal" min={0.01} step="0.01" placeholder="Total inc GST ($)"
-                value={totalDollars} data-testid="add-cost-total"
-                onChange={(e) => {
-                  setTotalDollars(e.target.value);
-                  const t = Number(e.target.value);
-                  if (t > 0 && !gstDollars) setGstDollars((Math.round((t * 100) / 11) / 100).toFixed(2));
-                }} />
-              <input type="number" inputMode="decimal" min={0} step="0.01" placeholder="GST ($)"
-                value={gstDollars} onChange={(e) => setGstDollars(e.target.value)} />
-            </div>
-            <input type="text" placeholder="Their invoice number (optional — catches duplicates)"
-              value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
-            <div className="chips">
-              {([["account", "On account"], ["company_card", "Company card"], ["personal", "My own money"]] as const).map(([k, label]) => (
-                <button key={k} className={`pchip ${paidWith === k ? "on" : ""}`} onClick={() => setPaidWith(k)}>{label}</button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button className="btn ghost" onClick={onClose}>Cancel</button>
-              <button className="btn primary" disabled={busy} onClick={save} data-testid="add-cost-save">
-                {busy ? "Saving…" : `Record${Number(totalDollars) > 0 ? ` ${fmt2(Math.round(Number(totalDollars) * 100))}` : " cost"}`}
-              </button>
-            </div>
-          </>
-        )}
+        <div className="field"><label htmlFor="acFile">Photo or PDF of it</label>
+          <input id="acFile" ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic"
+            onChange={onPickFile} data-testid="add-cost-file" />
+          {fileName && <div className="hint mono">{fileName} ✓</div>}
+        </div>
+        <div className="field"><label htmlFor="acVendor">Who it is from</label>
+          <input id="acVendor" type="text" placeholder="e.g. Dulux, SkyReach Hire" value={vendorName}
+            onChange={(e) => setVendorName(e.target.value)} data-testid="add-cost-vendor" /></div>
+        <div className="field"><label>What kind of cost</label>
+          <div className="chipset">
+            {CATEGORIES.map((c) => (
+              <button key={c.key} type="button" className={category === c.key ? "on" : undefined} onClick={() => setCategory(c.key)}>{c.label}</button>
+            ))}
+          </div></div>
+        <div className="field"><label htmlFor="acDesc">What was it?</label>
+          <input id="acDesc" type="text" placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+        <div className="two">
+          <div className="field"><label htmlFor="acTotal">Total inc GST ($)</label>
+            <input id="acTotal" className="money" type="number" inputMode="decimal" min={0.01} step="0.01"
+              value={totalDollars} data-testid="add-cost-total"
+              onChange={(e) => {
+                setTotalDollars(e.target.value);
+                const t = Number(e.target.value);
+                if (t > 0 && !gstDollars) setGstDollars((Math.round((t * 100) / 11) / 100).toFixed(2));
+              }} /></div>
+          <div className="field"><label htmlFor="acGst">GST ($)</label>
+            <input id="acGst" className="money" type="number" inputMode="decimal" min={0} step="0.01" value={gstDollars} onChange={(e) => setGstDollars(e.target.value)} /></div>
+        </div>
+        <div className="field"><label htmlFor="acNo">Their invoice number</label>
+          <input id="acNo" type="text" placeholder="Optional — catches duplicates" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} /></div>
+        <div className="field"><label>How was it paid?</label>
+          <div className="methods">
+            {([["account", "On account"], ["company_card", "Company card"], ["personal", "My own money"]] as const).map(([k, label]) => (
+              <button key={k} type="button" className={paidWith === k ? "on" : undefined} onClick={() => setPaidWith(k)}>{label}</button>
+            ))}
+          </div></div>
+        <button type="button" className="b pri wide" disabled={busy} onClick={save} data-testid="add-cost-save">
+          {busy ? "Saving…" : `Record${Number(totalDollars) > 0 ? ` ${fmt2(Math.round(Number(totalDollars) * 100))}` : " cost"}`}
+        </button>
+        <button type="button" className="cancel" onClick={onClose}>Cancel</button>
       </div>
-    </>
+    </div>
   );
 }

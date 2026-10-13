@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { CI_STATUSES, ciCanTransition, ciCanDelete, ciDocumentHeading } from "./ciStateMachine";
+import { CI_STATUSES, CI_UNDO_TRANSITIONS, ciCanTransition, ciCanDelete, ciDocumentHeading } from "./ciStateMachine";
 
 const MIG = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20261119000000_contractor_invoicing.sql"),
@@ -30,6 +30,20 @@ describe("the mirror cannot drift from the SQL guard", () => {
   it("submitted invoices are immutable and only drafts delete, in SQL", () => {
     expect(MIG).toContain("a submitted contractor invoice is immutable");
     expect(MIG).toContain("only draft contractor invoices can be deleted");
+  });
+});
+
+describe("Undo step-backs (20270258) — only from the Undo functions", () => {
+  const UNDO = readFileSync(resolve(process.cwd(), "supabase/migrations/20270258000000_payments_contractor_actions.sql"), "utf8");
+  it("the guard admits them only under app.ci_undo, and keeps the freeze", () => {
+    expect(UNDO).toContain("(old.status = 'approved'  and new.status = 'submitted' and coalesce(current_setting('app.ci_undo', true), '') = 'on')");
+    expect(UNDO).toContain("(old.status = 'paid'      and new.status = 'approved'  and coalesce(current_setting('app.ci_undo', true), '') = 'on')");
+    expect(UNDO).toContain("a submitted contractor invoice is immutable");
+    expect(CI_UNDO_TRANSITIONS).toEqual([["approved", "submitted"], ["paid", "approved"]]);
+  });
+  it("the ordinary mirror still never goes backwards", () => {
+    expect(ciCanTransition("approved", "submitted")).toBe(false);
+    expect(ciCanTransition("paid", "approved")).toBe(false);
   });
 });
 

@@ -18,7 +18,7 @@ import { cansLabel, litresLabel, orderLitres } from "@/lib/workorder/snapshot";
  *     and the order in cans, rounded DOWN from the estimate.
  *  2. The materials budget — the estimate's engine materials cost against
  *     every supplier invoice matched to this job, updating as new ones are
- *     matched on the Payables tab.
+ *     matched under Payments → Materials → No job yet.
  */
 
 export type MaterialRowProp = {

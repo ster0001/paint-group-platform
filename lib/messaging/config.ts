@@ -187,6 +187,16 @@ export type MessagingSettings = {
   /** Customer: a payment receipt. */
   receiptSubject: string;
   receiptBody: string;
+  /**
+   * Payments merge Step 4 (brief §4.4, ⚑P8): the four payment messages staff
+   * send from Payments → Message. They pre-fill the customer's chat; a person
+   * edits and presses Send — nothing sends by itself. English tone, not
+   * Australian (Tom, 12 Oct). Seeded from the brief's Appendix A.
+   */
+  paymentMsgDeposit: string;
+  paymentMsgReminder: string;
+  paymentMsgOverdue: string;
+  paymentMsgReceived: string;
   /** Painter: remittance advice when their invoice is paid. */
   remittanceSubject: string;
   remittanceBody: string;
@@ -444,6 +454,17 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   chatReplySubject: "New message about your estimate",
   chatReplySms: "{{company_name}}: you have a new message about your estimate. Open the chat: {{link}}",
   receiptSubject: "Receipt {{receipt_number}} — {{company_name}}",
+  paymentMsgDeposit:
+    "Hello {{first_name}}, a quick reminder that the deposit of {{amount}} for {{address}} is due on {{due_date}}, ahead of our start on {{start_date}}. " +
+    "You can pay using the link below, or by bank transfer using the details on the invoice.\n\n{{pay_link}}\n\nMany thanks,\nPaint Group",
+  paymentMsgReminder:
+    "Hello {{first_name}}, thank you again for having us at {{address}}. A quick reminder that your invoice of {{amount}} is due on {{due_date}}. " +
+    "You can pay using the link below, or by bank transfer using the details on the invoice.\n\n{{pay_link}}\n\nMany thanks,\nPaint Group",
+  paymentMsgOverdue:
+    "Hello {{first_name}}, I hope you are well. Our records show the invoice of {{amount}} for {{address}} fell due on {{due_date}} and is still outstanding. " +
+    "Could you let us know when we might expect payment? You can pay using the link below, or by bank transfer using the details on the invoice.\n\n{{pay_link}}\n\nMany thanks,\nPaint Group",
+  paymentMsgReceived:
+    "Hello {{first_name}}, thank you, we have received your payment for {{address}}. A receipt is on its way by email.\n\nMany thanks,\nPaint Group",
   receiptBody:
     "Hello {{first_name}},\n\n" +
     "We have received your payment of {{amount}} against invoice {{invoice_number}}. " +
@@ -617,6 +638,8 @@ export type TemplateVars = {
   agency_line?: string;
   // Session 3: money and sign-off reminders.
   due_date?: string;
+  /** Payments → Message (Step 4): the invoice's pay link, inserted by the server. */
+  pay_link?: string;
   days_overdue?: string;
   deposit_line?: string;
   reminder?: string;

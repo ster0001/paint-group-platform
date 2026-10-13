@@ -1,401 +1,225 @@
+import Link from "next/link";
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { firstFailure } from "@/lib/invoicing/loadFailure";
-import { melbourneDate } from "@/lib/workorder/console";
-import {
-  agedBucketsCents,
-  ageInfo,
-  dashboardTiles,
-  daysBetween,
-  invoiceBalanceCents,
-  payablesTiles,
-  stageDots,
-  type DeriveInvoice,
-} from "@/lib/invoicing/derive";
-import { contractorInvoiceTone } from "@/lib/invoicing/contractorInvoiceTone";
-import { OPEN_STATUSES } from "@/lib/invoicing/stateMachine";
-import { materialsToMatch } from "@/lib/invoicing/materialsToMatch";
-import { loadCostCapture, loadDashboard, toDerive, toDerivePayments, type EventRow, type InvoiceRow } from "./data";
-import { STAGE_LANES, visibleStage, type WoStage } from "@/lib/workorder/stages";
-import { accuracyReadout, jobCode, queueRows, SOURCE_LABEL, type ExtractedBill, type IntakeRow, type IntakeSource } from "@/lib/costs/intake";
-import { COST_DOCS_BUCKET } from "@/lib/costs/store";
-import { fmt2, KIND_LABEL, kindLabelWithContext, shortDay } from "./format";
-import Dashboard, { type ActivityProp, type PayableRowProp, type RowProp } from "./Dashboard";
-import type { CostPayableRowProp, ExpenseClaimProp, IntakeCardProp, JobPickProp, PreapprovalProp, ReimbursementProp, UnmatchedMaterialProp } from "./PayablesCosts";
+import { LANES, type Lane } from "@/lib/workorder/stages";
+import { TABLE_FILTERS, headlineParts, jobMoneyPage, matchCiRows, matchRows, type TableFilter } from "@/lib/invoicing/jobMoney";
+import { ContractorsView } from "./payments/ContractorsView";
+import { MaterialsView } from "./payments/MaterialsView";
+import { melbourneToday } from "@/lib/invoicing/derive";
+import { paymentsSettings } from "@/lib/invoicing/settings";
+import { reportError } from "@/lib/monitoring/report";
+import { PaymentsUiProvider } from "./payments/ActionsClient";
+import ReadFailureNotice from "./ReadFailureNotice";
+import { loadJobMoneyInput } from "./jobMoneyData";
+import { BoardView, ChaseView, TableView } from "./payments/Views";
+import { SearchBox, ShowPaid } from "./payments/Tools";
+import { STAGE_NAME, longToday, money, pickerJobs, plural } from "./payments/labels";
+import { JobPanel } from "./payments/JobPanel";
+import { loadJobPanel } from "./payments/panelData";
+import { ActivityFeed } from "./payments/ActivityView";
+import { ExpensesView } from "./payments/ExpensesView";
+import { loadExpenses } from "./payments/expensesData";
+import { expenseTotals } from "@/lib/invoicing/expenses";
+import { activityFeed, type ActivityLine } from "@/lib/invoicing/activity";
+import "./payments/payments.css";
 
 export const dynamic = "force-dynamic";
+/** One-press "✓ Paid" sends its receipt after the Undo window (⚑P2), behind the response. */
+export const maxDuration = 60;
 
 /**
- * §7.2 — the business-wide invoicing dashboard. Where PC Command answers
- * "what needs me today", this answers "where is every dollar, and what stage
- * is it at". Every figure below comes from lib/invoicing over raw rows —
- * the client component only renders.
+ * Payments — one page for customers, contractors and materials (payments-merge
+ * brief §4.2, Step 2), built to design/reference/payments-merged-v3-mockup.html.
+ * Every figure is `jobMoneyPage` (lib/invoicing/jobMoney.ts); this file chooses
+ * what to show and formats it. Staff only — the invoicing layout gates it.
+ *
+ * Selection lives in the URL so any view can be shared:
+ *   tab=cust|con|mat|act · view=chase|board|table · stage=<lane> · q=<search>
+ *   paid=1 (Show paid jobs) · f=all|over|dep|fin|paid (All jobs filter)
+ *   job=<estimate id> opens the job panel over the view · jt=in|out its tab (Step 7)
+ *
+ * The switch-over (Step 8d): this IS /invoicing. /invoicing/payments and
+ * /invoices redirect here; links written before it (`tab=pay`) still land.
  */
+const TABS = ["cust", "con", "mat", "act"] as const;
+const VIEWS = ["chase", "board", "table"] as const;
+type Tab = (typeof TABS)[number];
+type View = (typeof VIEWS)[number];
+type Params = { tab?: string; view?: string; stage?: string; q?: string; paid?: string; f?: string; cby?: string; job?: string; jt?: string };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const METHOD_LABEL: Record<string, string> = {
-  stripe_card: "card via Stripe",
-  bank_transfer: "bank transfer",
-  cash: "cash",
-  other: "payment",
-};
+const BASE = "/invoicing";
+const AGED_LABEL = ["Not overdue", "1–7 days", "8–14 days", "15–30 days", "Over 30 days"];
+const AGED_COLOUR = ["var(--pri)", "var(--orange)", "var(--orange)", "var(--red)", "var(--red)"];
+const pick = <T extends string>(v: string | undefined, allowed: readonly T[], fallback: T): T =>
+  (allowed as readonly string[]).includes(v ?? "") ? (v as T) : fallback;
 
-/**
- * "Due today" / "Due in 3 days" / "Due yesterday". An invoice is not overdue
- * until midday the day after its due date (ledger.ts `isOverdue`), so the
- * morning after it reads "Due yesterday", never "Due in -1 days".
- */
-function dueWhen(days: number): string {
-  if (days === 0) return "Due today";
-  if (days === -1) return "Due yesterday";
-  return `Due in ${days} day${days === 1 ? "" : "s"}`;
-}
-
-function eventLine(e: EventRow, byId: Map<string, InvoiceRow>): ActivityProp {
-  const inv = byId.get(e.invoice_id);
-  const job = inv?.estimates?.job_address || inv?.estimates?.title || "—";
-  const num = inv?.number ?? (inv ? `${KIND_LABEL[inv.kind]} draft` : "");
-  const meta = (v: string) => [job, num, v].filter(Boolean).join(" · ");
-  const at = shortDay(e.created_at);
-  const m = e.meta as { method?: string; amount_cents?: number; auto?: string; deposit_pct?: number; total_inc_cents?: number; reason?: string };
-  switch (e.type) {
-    case "payment_received":
-      return { tone: "emerald", title: `Payment received — ${METHOD_LABEL[m.method ?? ""] ?? "payment"}`,
-               meta: meta(`${fmt2(m.amount_cents ?? 0)} · ${at}`) };
-    case "drafted":
-      if (m.auto === "acceptance")
-        return { tone: "amber", title: "Deposit auto-drafted on acceptance",
-                 meta: meta(`${m.deposit_pct ?? ""}% · ${fmt2(m.total_inc_cents ?? 0)} · ${at}`) };
-      if (m.auto === "final")
-        return { tone: "amber", title: "Final invoice auto-drafted at sign-off",
-                 meta: meta(`${fmt2(m.total_inc_cents ?? 0)} · ${at}`) };
-      return { tone: "amber", title: "Payment request drafted", meta: meta(`${fmt2(m.total_inc_cents ?? 0)} · ${at}`) };
-    case "issued":
-      return { tone: "cyan", title: "Invoice issued", meta: meta(at) };
-    case "sent":
-      return { tone: "cyan", title: "Invoice sent", meta: meta(at) };
-    case "viewed":
-      return { tone: "cyan", title: "Invoice viewed by customer", meta: meta(at) };
-    case "voided":
-      return { tone: "clay", title: "Invoice voided", meta: meta(`${m.reason ?? ""} · ${at}`) };
-    case "written_off":
-      return { tone: "clay", title: "Invoice written off", meta: meta(at) };
-    case "reminders_paused":
-      return { tone: "amber", title: "Reminders paused", meta: meta(`${m.reason ?? ""} · ${at}`) };
-    case "reminders_resumed":
-      return { tone: "cyan", title: "Reminders resumed", meta: meta(at) };
-    case "extension":
-      return { tone: "amber", title: "Payment terms extended", meta: meta(at) };
-    case "amended":
-      return { tone: "amber", title: "Draft amended", meta: meta(at) };
-    default:
-      return { tone: "", title: e.type.replaceAll("_", " "), meta: meta(at) };
-  }
-}
-
-export default async function InvoicingDashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ f?: string; tab?: string; k?: string; d?: string }>;
-}) {
-  const { f, tab, k, d: dueParam } = await searchParams;
-  const supabase = await createClient();
-  const now = new Date();
-  const today = melbourneDate(now);
-  const [{ invoices, loadError, payablesError, payments, events, contractorInvoices, materialsToMatch: materialRows }, capture] = await Promise.all([
-    loadDashboard(supabase),
-    loadCostCapture(supabase),
-  ]);
-
-  const derive = toDerive(invoices);
-  const dPays = toDerivePayments(payments);
-  const byEstimate = new Map<string, DeriveInvoice[]>();
-  for (const d of derive) {
-    (byEstimate.get(d.estimateId) ?? byEstimate.set(d.estimateId, []).get(d.estimateId)!).push(d);
-  }
-  const byId = new Map(invoices.map((r) => [r.id, r]));
-
-  const rows: RowProp[] = invoices.map((r) => {
-    const d = derive.find((x) => x.id === r.id)!;
-    const balance = invoiceBalanceCents(d, dPays);
-    const age = ageInfo(d, dPays, now);
-    const job = r.estimates?.job_address || r.estimates?.title || "Untitled job";
-    const dots = stageDots(byEstimate.get(r.estimate_id) ?? [], dPays, now);
-
-    let filter: RowProp["filter"] = "other";
-    let ageLabel = "";
-    let ageTone: RowProp["ageTone"] = "";
-    if (r.status === "draft") {
-      filter = "draft"; ageTone = "amber";
-      ageLabel = "Awaiting review — amend or issue";
-    } else if (r.status === "paid") {
-      filter = "paid"; ageTone = "emerald";
-      ageLabel = "Paid in full";
-    } else if (age && "overdueDays" in age) {
-      filter = "overdue"; ageTone = "clay";
-      ageLabel = `${age.overdueDays} day${age.overdueDays === 1 ? "" : "s"} overdue`;
-    } else if (r.status === "partially_paid") {
-      filter = "partial"; ageTone = "cyan";
-      ageLabel = age && "dueInDays" in age ? `Part paid · ${dueWhen(age.dueInDays).toLowerCase()}` : "Part paid";
-    } else if (age && "dueInDays" in age) {
-      filter = "awaiting";
-      ageTone = r.status === "viewed" ? "cyan" : "amber";
-      const hint = r.status === "viewed" ? "viewed" : r.status === "sent" ? "sent, not yet viewed" : "issued, not yet sent";
-      ageLabel = `${dueWhen(age.dueInDays)} · ${hint}`;
-    } else if (r.status === "void") {
-      ageLabel = `Void — ${r.voided_reason}`;
-    } else {
-      ageLabel = r.status.replaceAll("_", " ");
-    }
-
-    const refBits = [
-      r.number ?? "Draft (unnumbered)",
-      // "$788.61 · Deposit" read as a mis-priced job (Tom, 25 Aug) — a
-      // deposit row now names its fraction and the contract it's against.
-      kindLabelWithContext(r.kind, r.total_inc_cents, r.estimates?.accepted_total_cents),
-      r.status === "paid" ? fmt2(r.total_inc_cents) : `balance ${fmt2(balance)}`,
-    ];
-    // Chase-order sort key: overdue oldest first, then due soonest, then
-    // drafts, then the rest, paid last.
-    const overdueDays = age && "overdueDays" in age ? age.overdueDays : 0;
-    const dueIn = age && "dueInDays" in age ? age.dueInDays : 9_999;
-    const sortKey =
-      filter === "overdue" ? 0 - overdueDays / 10_000
-      : filter === "awaiting" || filter === "partial" ? 1 + dueIn / 10_000
-      : filter === "draft" ? 2
-      : filter === "paid" ? 3
-      : 4;
-
-    return {
-      invoiceId: r.id, estimateId: r.estimate_id, job,
-      customer: r.estimates?.accepted_name ?? "",
-      ref: refBits.join(" · "),
-      filter, ageLabel, ageTone,
-      kind: r.kind,
-      outstanding: OPEN_STATUSES.includes(r.status) && balance > 0,
-      dueIn: age ? ("overdueDays" in age ? -age.overdueDays : age.dueInDays) : null,
-      amtCents: filter === "paid" ? 0 : balance > 0 ? balance : r.total_inc_cents,
-      dots, overdue: filter === "overdue", draft: filter === "draft",
-      sortKey,
-    };
-  }).sort((a, b) => a.sortKey - b.sortKey);
-
-  const tiles = dashboardTiles(derive, dPays, now);
-  const buckets = agedBucketsCents(derive, dPays, now);
-  const activity = events.map((e) => eventLine(e, byId));
-
-  // Step 5 — the Payables tab: submitted first (they need a decision), then
-  // approved by due date, drafts (visible, RCTI approvable), paid last.
-  const payables = payablesTiles(
-    contractorInvoices.map((c) => ({
-      status: c.status, totalIncCents: c.total_inc_cents, dueOn: c.due_on,
-    })),
-    today,
-  );
-  const CI_SORT: Record<string, number> = { submitted: 0, approved: 1, draft: 2, paid: 3 };
-  const payableRows: PayableRowProp[] = contractorInvoices
-    .map((c) => {
-      const due = c.due_on ? daysBetween(today, c.due_on) : null;
-      const dueLabel =
-        c.status === "paid" ? "Paid"
-        : c.status === "draft" ? (c.rcti ? "Drafted at sign-off — RCTI, approve to issue" : "With the contractor — drafted at sign-off")
-        : c.status === "submitted" ? "Submitted — approve or query"
-        : due == null ? "Approved — pay when ready"
-        : due < 0 ? `Approved · ${-due} day${due === -1 ? "" : "s"} past terms`
-        : due === 0 ? "Approved · due today"
-        : `Approved · due in ${due} day${due === 1 ? "" : "s"}`;
-      const stage = c.work_orders?.stage as WoStage | undefined;
-      // Tom, 20 Sep: colour by what is outstanding for payment — one decision, server-side.
-      const tone = contractorInvoiceTone({ status: c.status, dueOn: c.due_on }, today);
-      // Painter status Step 7 (R11, ⚑23): a Green painter's fast terms, or the PC's hold on them.
-      const termsLabel = c.auto_draft_source === "bonus" ? "Bonus"
-        : c.terms_kind === "green_fast" ? "Green · 3 business days"
-        : c.terms_kind === "held" ? `Held — ${c.terms_hold_reason || "no reason"}` : null;
-      return {
-        ciId: c.id,
-        estimateId: c.work_orders?.estimate_id ?? null,
-        company: c.contractors?.company_name ?? "Contractor",
-        termsLabel,
-        termsKind: c.terms_kind ?? "default",
-        tone: tone.tone,
-        toneClass: tone.className,
-        overdueLabel: tone.overdueLabel,
-        ref: [
-          c.number ?? "Draft (unnumbered)",
-          c.auto_draft_source === "claim" ? `claim${c.claim_pct ? ` ${Number(c.claim_pct)}%` : ""}` : null,
-          c.work_orders?.wo_ref, c.work_orders?.job_address,
-        ].filter(Boolean).join(" · "),
-        status: c.status as PayableRowProp["status"],
-        amtCents: c.total_inc_cents,
-        dueLabel,
-        rcti: c.rcti,
-        stageLabel: stage ? STAGE_LANES[visibleStage(stage)].title : "",
-        hasPdf: Boolean(c.invoice_pdf_path),
-      };
-    })
-    .sort((a, b) => (CI_SORT[a.status] ?? 9) - (CI_SORT[b.status] ?? 9));
-
-  // ---- Step 6a: the cost-capture section of the Payables tab ----
-  const jobsForPick: JobPickProp[] = capture.jobs.map((j) => ({
-    woId: j.id,
-    estimateId: j.estimate_id,
-    label: [jobCode(j.job_no), j.job_address ?? "Unnamed job"].filter(Boolean).join(" · "),
-  }));
-  const jobLabelByWo = new Map(jobsForPick.map((j) => [j.woId, j.label]));
-
-  const queue = queueRows(
-    capture.intake.map((r) => ({ ...r, status: r.status as IntakeRow["status"] })),
-  );
-  const docPaths = [
-    ...queue.map((q) => q.raw_doc_path),
-    ...capture.jobCosts.map((c) => c.doc_path),
-    ...capture.expenses.map((e) => e.receipt_path),
-  ].filter((p): p is string => Boolean(p));
-  const docUrlByPath = new Map<string, string>();
-  if (docPaths.length) {
-    const { data: signed } = await supabase.storage
-      .from(COST_DOCS_BUCKET)
-      .createSignedUrls([...new Set(docPaths)], 600);
-    for (const s of signed ?? []) {
-      if (s.signedUrl && s.path) docUrlByPath.set(s.path, s.signedUrl);
-    }
-  }
-
-  const MATCH_WHY: Record<string, string> = {
-    order_ref: "matched on order reference",
-    address: "address found in the document",
-    vendor_memory: "known vendor — job unmatched",
-    none: "",
+export default async function PaymentsPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const raw = await searchParams;
+  // Links written before the switch-over (emails, CRM items, bookmarks): the old
+  // Payables tab is Contractors; the old Overdue / Paid filters are All jobs'.
+  const legacyF = raw.f === "overdue" ? "over" : raw.f;
+  const sp: Params = {
+    ...raw,
+    tab: raw.tab === "pay" ? "con" : raw.tab === "rec" ? undefined : raw.tab,
+    f: legacyF,
+    // The old page's Overdue and Paid filters had no view; they are All jobs filters here.
+    view: raw.view ?? (raw.f === "overdue" || raw.f === "paid" ? "table" : undefined),
   };
-  const cards: IntakeCardProp[] = queue.map((q) => {
-    const e = (q.extracted ?? {}) as ExtractedBill;
-    const failed = q.extract_status === "failed";
-    const isPdf = Boolean(q.raw_doc_path?.toLowerCase().endsWith(".pdf"));
-    const conf =
-      q.match_reason === "order_ref" && typeof e.confidence?.order_ref === "number"
-        ? Math.round(e.confidence.order_ref * 100)
-        : null;
-    return {
-      intakeId: q.id,
-      title: `${e.supplier || q.from_email || "Document"} — ${q.source === "photo" ? "receipt" : "invoice"}`,
-      sourceChip: `${SOURCE_LABEL[q.source as IntakeSource] ?? q.source}${isPdf ? " · PDF" : ""}`,
-      kv: [
-        { k: "Invoice no.", v: e.invoice_no || "—" },
-        { k: "Date", v: e.invoice_date ? shortDay(e.invoice_date) : "—" },
-        { k: "Total inc GST", v: e.total_cents ? fmt2(e.total_cents) : "—" },
-        { k: "GST", v: e.gst_cents ? fmt2(e.gst_cents) : "—" },
-        // Tom's ruling 25 Aug: the supplier's reference IS the job address —
-        // show it so the proposed match can be sanity-checked at a glance.
-        { k: "Reference", v: e.order_ref || "—" },
-      ],
-      failed,
-      duplicate: q.status === "duplicate",
-      duplicateNote:
-        "Looks like a document already recorded (same vendor + invoice number, or same total, date and sender). No cost was written.",
-      matchLabel: q.proposed_wo_id ? jobLabelByWo.get(q.proposed_wo_id) ?? null : null,
-      matchWhy: MATCH_WHY[q.match_reason] || null,
-      confidencePct: conf,
-      proposedWoId: q.proposed_wo_id,
-      vendorId: q.proposed_vendor_id,
-      vendorName: e.supplier ?? "",
-      totalCents: e.total_cents ?? 0,
-      gstCents: e.gst_cents ?? 0,
-      invoiceNo: e.invoice_no ?? "",
-      invoiceDate: e.invoice_date ?? null,
-      docUrl: q.raw_doc_path ? docUrlByPath.get(q.raw_doc_path) ?? null : null,
-    };
-  });
+  const tab: Tab = pick(sp.tab, TABS, "cust");
+  const view: View = pick(sp.view, VIEWS, "chase");
+  const stage: Lane | null = (LANES as readonly string[]).includes(sp.stage ?? "") ? (sp.stage as Lane) : null;
+  const q = (sp.q ?? "").slice(0, 120);
+  const showPaid = sp.paid === "1";
+  const filter: TableFilter = pick(sp.f, TABLE_FILTERS, "all");
+  const cby = pick(sp.cby, ["inv", "con"] as const, "inv");
+  const jobId = UUID.test(sp.job ?? "") ? sp.job! : null;
+  const jt = pick(sp.jt, ["in", "out"] as const, "in");
 
-  // The same rows and the same predicate as the home dashboard's
-  // "Materials to match" tile (lib/reporting/metrics/invoicing.ts).
-  const toMatch = materialsToMatch(materialRows);
-  const unmatched: UnmatchedMaterialProp[] = toMatch.map((m) => ({
-    id: m.id,
-    label: [m.supplier || "Materials", fmt2(m.amount_cents), m.invoice_date ? shortDay(m.invoice_date) : null]
-      .filter(Boolean).join(" · "),
-    hint: [m.order_ref, m.address_text].filter(Boolean).join(" · ") || "no reference on the record",
-  }));
+  const current: Record<string, string | null> = {
+    tab: tab === "cust" ? null : tab, view: view === "chase" ? null : view, stage, q: q || null, paid: showPaid ? "1" : null, f: filter === "all" ? null : filter,
+    cby: cby === "inv" ? null : cby,
+  };
+  const href = (over: Record<string, string | null>) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries({ ...current, ...over })) if (v) p.set(k, v);
+    const s = p.toString();
+    return s ? `${BASE}?${s}` : BASE;
+  };
 
-  const costRows: CostPayableRowProp[] = capture.jobCosts
-    .filter((c) => c.status !== "paid")
-    .map((c) => ({
-      id: c.id,
-      estimateId: c.work_orders?.estimate_id ?? null,
-      vendor: c.vendors?.name || c.description || "Cost",
-      ref: [
-        c.invoice_no || null,
-        c.category.replaceAll("_", " "),
-        jobCode(c.work_orders?.job_no ?? null) || null,
-        c.work_orders?.job_address ?? null,
-      ].filter(Boolean).join(" · "),
-      status: c.status as CostPayableRowProp["status"],
-      amtCents: c.amount_ex_cents + c.gst_cents,
-      docUrl: c.doc_path ? docUrlByPath.get(c.doc_path) ?? null : null,
-    }));
+  const now = new Date();
+  const supabase = await createClient();
+  const [{ input, failure }, settingsRes, expenses] = await Promise.all([
+    loadJobMoneyInput(supabase, now),
+    supabase.from("settings").select("key, value").eq("key", "invoicing"),
+    // 8b: the expense queues — the Contractors card counts them; receipts are signed only when the tab is open.
+    loadExpenses(supabase, tab === "con"),
+  ]);
+  const exp = expenseTotals(expenses.queues);
+  if (settingsRes.error) reportError(settingsRes.error, { where: "PaymentsPage.settings", bestEffort: true });
+  const settings = paymentsSettings((settingsRes.data ?? []) as { key: string; value: unknown }[]);
+  if (!input) {
+    const reason = failure ?? { headline: "The payments could not be loaded — this is not an empty ledger.", detail: "Reload the page; if it keeps happening, the error has been reported." };
+    return <div className="pm"><main className="pm-wrap"><ReadFailureNotice failure={reason} /></main></div>;
+  }
+  const page = jobMoneyPage({ ...input, paymentTermsDays: settings.paymentTermsDays });
+  const { customers, contractors, materials, activity } = page.blocks;
+  const rows = matchRows(page.rows, { q, lane: stage });
+  const notPaid = rows.filter((r) => r.section !== "paid_in_full");
+  // Every other link on the page drops job= — leaving the panel is any click outside it.
+  const panel = jobId ? await loadJobPanel(supabase, page, jobId, now) : null;
+  // Activity (§6.7): the newest invoice events, read only when the tab is open.
+  let feed: ActivityLine[] = [];
+  let activityProblem: string | null = null;
+  if (tab === "act") {
+    const { data, error } = await supabase.from("invoice_events").select("id, invoice_id, type, meta, created_at")
+      .order("created_at", { ascending: false }).limit(150);
+    if (error) { reportError(error, { where: "PaymentsPage.activity" }); activityProblem = "The activity could not be loaded — this is not an empty history. Reload the page."; }
+    else feed = activityFeed(
+      (data ?? []).map((e) => ({ id: e.id as string, invoiceId: e.invoice_id as string, type: e.type as string, meta: (e.meta ?? {}) as Record<string, unknown>, createdAt: e.created_at as string })),
+      input.invoices.map((i) => ({ id: i.id, number: i.number, kind: i.kind, estimateId: i.estimateId })),
+    );
+  }
+  const addressOf = new Map(page.rows.map((r) => [r.estimateId, r.address]));
 
-  const expenseClaims: ExpenseClaimProp[] = capture.expenses.map((e) => ({
-    id: e.id,
-    contractor: e.contractors?.company_name || "Contractor",
-    ref: [
-      e.category.replaceAll("_", " "),
-      jobCode(e.work_orders?.job_no ?? null) || null,
-      e.work_orders?.job_address ?? null,
-    ].filter(Boolean).join(" · "),
-    amtCents: e.amount_cents,
-    overThreshold: e.over_threshold_unapproved,
-    note: e.note,
-    receiptUrl: docUrlByPath.get(e.receipt_path) ?? null,
-  }));
-  const reimbursements: ReimbursementProp[] = capture.reimbursements.map((r) => ({
-    id: r.id,
-    painter: r.contractors?.profiles?.name || r.contractors?.company_name || "An employee",
-    ref: [
-      r.category.replaceAll("_", " "),
-      jobCode(r.work_orders?.job_no ?? null) || null,
-      r.work_orders?.job_address ?? null,
-    ].filter(Boolean).join(" · "),
-    amtCents: r.amount_cents,
-    note: r.note,
-    approvedOn: r.decided_at,
-  }));
-  const preapprovalCards: PreapprovalProp[] = capture.preapprovals.map((p) => ({
-    id: p.id,
-    contractor: p.contractors?.company_name || "Contractor",
-    ref: [
-      jobCode(p.work_orders?.job_no ?? null) || null,
-      p.work_orders?.job_address ?? null,
-    ].filter(Boolean).join(" · "),
-    description: p.description,
-    estCents: p.est_cents,
-  }));
-
-  const accuracy = accuracyReadout(
-    capture.intake.map((r) => ({
-      status: r.status as IntakeRow["status"],
-      match_reason: r.match_reason as IntakeRow["match_reason"],
-      proposed_wo_id: r.proposed_wo_id,
-      confirmed_wo_id: r.confirmed_wo_id,
-      confirmed_at: r.confirmed_at,
-    })),
-    today,
-  );
+  const ledger: Array<{ key: Tab; d: string; t: string; v: string | null; s: string; od: string | null }> = [
+    { key: "cust", d: "Money in", t: "Customers owe us", v: money(customers.outstandingCents),
+      s: `${plural(customers.outstandingCount, "sent invoice")} · ${money(customers.notSentCents)} not sent yet`,
+      od: customers.overdueCents ? `${money(customers.overdueCents)} overdue` : null },
+    { key: "con", d: "Money out", t: "Contractors", v: money(contractors.owingCents),
+      s: `${contractors.toApproveCount} to approve · ${money(contractors.approvedToPayCents)} approved to pay${exp.toDecideCount ? ` · ${plural(exp.toDecideCount, "expense")} to decide` : ""}${exp.owedBackCount ? ` · ${money(exp.owedBackCents)} owed back` : ""}`,
+      od: contractors.pastPayByCents ? `${money(contractors.pastPayByCents)} overdue` : null },
+    { key: "mat", d: "Money out", t: "Materials", v: money(materials.openCents),
+      s: `${materials.toCheckCount} to check · ${materials.toApproveCount} to approve · ${money(materials.toPayCents)} to pay${materials.noJobCount ? ` · ${materials.noJobCount} with no job` : ""}`, od: null },
+    { key: "act", d: "", t: "Activity", v: null, s: `${money(activity.receivedFortnightCents)} received from customers in the last 14 days`, od: null },
+  ];
 
   return (
-    <Dashboard
-      tiles={tiles}
-      buckets={buckets}
-      rows={rows}
-      loadError={loadError}
-      // Payables draws on two loaders — the contractor invoices and the cost
-      // capture — so either one failing makes that tab incomplete.
-      costsError={firstFailure(payablesError, capture.loadError)}
-      activity={activity}
-      initialFilter={f ?? "all"}
-      initialTab={tab ?? "recv"}
-      initialKind={k ?? "all"}
-      initialDue={dueParam ?? "any"}
-      payables={payables}
-      materialsToMatchCount={toMatch.length}
-      payableRows={payableRows}
-      costs={{ cards, jobs: jobsForPick, unmatched, costRows, accuracy, expenseClaims, preapprovals: preapprovalCards, reimbursements }}
-    />
+    <div className="pm">
+    {/* Inside .pm: the sheets and the toast the provider renders take the page's scoped styles. */}
+    <PaymentsUiProvider settings={{ depositOptionsPct: settings.depositOptionsPct, notifyPaymentDefault: settings.notifyPaymentDefault, today: melbourneToday(now) }}
+      jobs={pickerJobs(page.rows)}>
+      <main className="pm-wrap">
+        <section className="lead">
+          <h1 data-testid="pm-headline">
+            {headlineParts(page.headline, money).map((p, i) => p.tone ? <span key={i} className={p.tone}>{p.text}</span> : <span key={i}>{p.text}</span>)}
+          </h1>
+          <p>This line is written from the figures below each time the page loads. Showing {longToday(now)}.</p>
+        </section>
+
+        <nav className="ledger" aria-label="Where the money is" data-testid="pm-ledger">
+          {ledger.map((l) => (
+            <Link key={l.key} className={`led${tab === l.key ? " on" : ""}`} aria-current={tab === l.key ? "page" : undefined}
+              href={href({ tab: l.key === "cust" ? null : l.key })}>
+              <span className="d">{l.d || " "}</span><span className="t">{l.t}</span>
+              {l.v ? <span className="v">{l.v}</span> : null}<span className="s">{l.s}</span>
+              {l.od ? <span className="od">{l.od}</span> : null}
+            </Link>
+          ))}
+        </nav>
+
+        <section hidden={tab !== "cust"}>
+          <div className="strip-h">
+            <h2>Money to collect from customers, by job stage</h2>
+            {stage ? <Link href={href({ stage: null })}>Show all stages</Link> : null}
+          </div>
+          <div className="strip" data-testid="pm-strip">
+            {page.strip.map((c) => (
+              <Link key={c.lane} className={`stg ${c.tone}${stage === c.lane ? " on" : ""}`} aria-current={stage === c.lane ? "true" : undefined}
+                href={href({ stage: stage === c.lane ? null : c.lane })}>
+                <span className="bar" /><span className="n">{STAGE_NAME[c.lane]}</span><span className="c">{plural(c.jobs, "job")}</span>
+                <span className={`v${c.collectableCents ? "" : " zero"}`}>{money(c.collectableCents)}</span>
+                {c.overdueCents ? <span className="x">{money(c.overdueCents)} overdue</span> : null}
+              </Link>
+            ))}
+          </div>
+          <div className="tools">
+            <div className="views">
+              {VIEWS.map((v) => (
+                <Link key={v} className={view === v ? "on" : undefined} href={href({ view: v === "chase" ? null : v })}>
+                  {v === "chase" ? "To chase" : v === "board" ? "By job stage" : "All jobs"}
+                </Link>
+              ))}
+            </div>
+            {tab === "cust" ? <Suspense fallback={null}><SearchBox initial={q} /></Suspense> : null}
+            {view !== "chase" ? <Suspense fallback={null}><ShowPaid on={showPaid} /></Suspense> : null}
+          </div>
+          <div>
+            {view === "chase" ? <ChaseView rows={notPaid} hiddenDrafts={page.hiddenDraftCount} expandOffer={!!(q || stage)} href={href} /> : null}
+            {view === "board" ? <BoardView rows={showPaid ? rows : notPaid} /> : null}
+            {view === "table" ? <TableView rows={rows} filter={filter} showPaid={showPaid} href={href} /> : null}
+          </div>
+          <div className="aged" data-testid="aged-buckets">
+            <h3>Aged receivables, sent invoices by days overdue</h3>
+            <div className="bar">{customers.aged.map((b, i) => (b.pct ? <i key={i} style={{ width: `${b.pct}%`, background: AGED_COLOUR[i] }} /> : null))}</div>
+            <div className="keys">{customers.aged.map((b, i) => <div key={i}><b>{money(b.cents)}</b>{AGED_LABEL[i]}</div>)}</div>
+          </div>
+        </section>
+
+        <section hidden={tab !== "con"} data-testid="pm-contractors">
+          <div className="tools">
+            <div className="views">
+              <Link className={cby === "inv" ? "on" : undefined} href={href({ cby: null })}>By invoice</Link>
+              <Link className={cby === "con" ? "on" : undefined} href={href({ cby: "con" })}>By contractor</Link>
+            </div>
+            {tab === "con" ? <Suspense fallback={null}><SearchBox initial={q} label="Search contractor or address" /></Suspense> : null}
+          </div>
+          <ContractorsView rows={matchCiRows(page.contractors, q)} by={cby} />
+          {expenses.failure ? <ReadFailureNotice failure={expenses.failure} /> : <ExpensesView q={expenses.queues} />}
+        </section>
+        <section hidden={tab !== "mat"} data-testid="pm-materials"><MaterialsView m={page.materials} /></section>
+        <section hidden={tab !== "act"} data-testid="pm-activity">
+          {activityProblem ? <div className="note">{activityProblem}</div> : <ActivityFeed lines={feed} addressOf={addressOf} />}
+        </section>
+      </main>
+      {panel ? <>
+        <Link className="scrim on" href={href({})} aria-label="Close the job" scroll={false} />
+        <aside className="drawer on" role="dialog" aria-modal="true" aria-label={panel.row.address} data-testid="pm-panel">
+          <JobPanel d={panel} tab={jt} tabHref={(t) => href({ job: panel.row.estimateId, jt: t === "in" ? null : t })} closeHref={href({})}
+            closeLabel="Payments" today={melbourneToday(now)} termsDays={settings.paymentTermsDays} />
+        </aside>
+      </> : null}
+    </PaymentsUiProvider>
+    </div>
   );
 }

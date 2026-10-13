@@ -43,5 +43,5 @@ The office route only serves office and project-coordinator guides. To read the 
 
 ## Related
 - [Offer a job to a painter and manage the booking on the scheduling board](../scheduling/staff.md)
-- [Approve and pay contractor invoices from the Payables tab](../self-invoicing/staff.md)
+- [Approve and pay contractor invoices on Payments → Contractors](../self-invoicing/staff.md)
 - [Run jobs through the six stages from the PC console](../work-orders/pc.md)

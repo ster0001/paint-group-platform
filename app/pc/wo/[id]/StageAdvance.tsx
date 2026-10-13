@@ -99,7 +99,7 @@ export default function StageAdvance({
   if (stage === "closed") {
     return (
       <div className="card" data-testid="stage-advance">
-        <h3>Next step <em>07 Closed — final invoice sent</em></h3>
+        <h3>Next step <em>07 Closed — signed off</em></h3>
         <p className="note">This job is finished and signed off.</p>
         {message && <p className="note" style={{ color: "var(--amber)" }} data-testid="stage-message">{message}</p>}
         {reopening ? (
