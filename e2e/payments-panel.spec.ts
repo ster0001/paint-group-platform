@@ -159,14 +159,17 @@ test.describe("Payments → the job panel — as staff", () => {
       if (error) throw error;
       return data as { id: string; total_inc_cents: number };
     };
-    // 1 · The trigger: final drafted while the $5,500 deposit is a draft → $11,000; the deposit is paid → $5,500.
+    // 1 · The trigger. Since 20270261 a final drafted at sign-off removes an unsent deposit draft, so the case
+    // left is a draft final ALREADY standing beside a deposit draft (Tom kept those, 13 Oct): $11,000 final,
+    // $5,500 deposit draft; the deposit is paid → the final is redrafted to $5,500 and the deposit stays.
     const j = await makePaymentsJob(db!, contractor!.email, stamp, "Redraft", {
       contractCents: 1_100_000, stage: "closed", startDate: isoDay(-20),
-      invoices: [{ kind: "deposit", status: "draft", total: 550_000, due: null }],
+      invoices: [
+        { kind: "deposit", status: "draft", total: 550_000, due: null },
+        { kind: "final", status: "draft", total: 1_100_000, due: null },
+      ],
     });
     made.push(j);
-    const drafted = await db!.rpc("invoice_draft_final", { p_estimate_id: j.f.estimateId });
-    expect(String(drafted.data ?? drafted.error?.message)).toMatch(/^ok:/);
     expect((await finalOf(j.f.estimateId)).total_inc_cents).toBe(1_100_000);
 
     await signIn(page, staff!, /\/(home|estimates)/);
