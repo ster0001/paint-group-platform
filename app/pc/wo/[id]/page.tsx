@@ -9,6 +9,9 @@ import { staffSignsOff as staffSignsOffFor, supersededQaIds } from "@/lib/workor
 import PhotosOptionalToggle from "./PhotosOptionalToggle";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
+import { contractorAdjustedCents, contractorVariationsCents } from "@/lib/workorder/contractorPay";
+import { adjustedContractCents } from "@/lib/invoicing/ledger";
+import { jobProfit } from "@/lib/invoicing/jobProfit";
 import PriceVariation from "./PriceVariation";
 import UpdateComposer from "./UpdateComposer";
 import Checklist, { type ChecklistItem } from "./Checklist";
@@ -497,9 +500,20 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   const contract = row.estimates?.total_cents ?? 0;
-  const contractorPay = row.contractor_payment_cents ?? 0;
-  // Signed credits subtract — same signature rule as the ledger (a signed
-  // customer approval already counts; the contractor step is pay-side only).
+  // Tom, 14 Oct 2026 (73 Kerferd): the strip read the BASE offer only, so a
+  // variation approved for the contractor alone (no customer price) showed
+  // nowhere and the GP read high. The contractor figure is now the one pay
+  // rule the painter's portal uses (lib/workorder/contractorPay): offer plus
+  // every accepted variation's delta.
+  const contractorBase = row.contractor_payment_cents ?? 0;
+  const payVariations = variations.map((v) => ({
+    status: v.status, credit: v.credit, contractor_delta_cents: v.contractor_delta_cents,
+    deduction_cents: v.deduction_cents, needs_manual_deduction: v.needs_manual_deduction,
+  }));
+  const contractorVarCents = contractorVariationsCents(payVariations);
+  const contractorPay = contractorAdjustedCents(contractorBase, payVariations);
+  // The customer's side: signed credits subtract — same signature rule as the
+  // ledger (a signed customer approval already counts).
   const approvedVariations = variations
     .filter((v) => v.status === "contractor_accepted" || v.status === "customer_approved")
     .reduce((sum, v) => sum + (v.credit ? -(v.price_cents ?? 0) : (v.price_cents ?? 0)), 0);
@@ -508,12 +522,25 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   // Employed painters (S6): approved labour lines are this job's labour cost —
   // the offer is nil on an employee job, so without them GP reads 100%.
   const { data: labourRows, error: labourError } = await supabase
-    .from("job_costs").select("amount_ex_cents, gst_cents")
+    .from("job_costs").select("id, category, status, amount_ex_cents, gst_cents")
     .eq("work_order_id", id).eq("category", "labour").in("status", ["approved", "paid"]);
   if (labourError) reportError(labourError, { where: "pc.wo.labourCost", bestEffort: true });
-  const labourCents = ((labourRows ?? []) as { amount_ex_cents: number; gst_cents: number }[])
-    .reduce((sum, c) => sum + c.amount_ex_cents + c.gst_cents, 0);
-  const gp = contract > 0 ? Math.round(((contract - contractorPay - labourCents) / contract) * 1000) / 10 : 0;
+  const labour = (labourRows ?? []) as { id: string; category: string; status: string; amount_ex_cents: number; gst_cents: number }[];
+  const labourCents = labour.reduce((sum, c) => sum + c.amount_ex_cents + c.gst_cents, 0);
+  // Est. GP: the one profit rule (lib/invoicing/jobProfit) on the contract
+  // with its approved variations, the contractor's adjusted pay and any
+  // employee labour — before materials, as this strip always was.
+  const profit = jobProfit({
+    contractIncCents: adjustedContractCents(contract, variations.map((v) => ({ status: v.status, priceCents: v.price_cents, credit: v.credit }))),
+    offerCents: contractorBase,
+    contractorVariationCents: contractorVarCents,
+    costs: labour.map((c) => ({ id: c.id, category: c.category, status: c.status, amountExCents: c.amount_ex_cents, label: "Labour" })),
+    materialsCostIds: new Set<string>(),
+    materialCosts: [],
+    expenses: [],
+    started: false,
+  });
+  const gp = profit.marginPct ?? 0;
 
   // Dashboard 0c: the job's review row (one per job), for the card below.
   const reviewRes = await supabase.from("review_requests")
@@ -580,7 +607,13 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
                     : "—"}
             </b>
           </span>
-          <span className="mi"><span>Contractor</span><b>{money(contractorPay)}</b></span>
+          <span className="mi"><span>Contractor</span><b data-testid="money-contractor">{money(contractorPay)}</b>
+            {contractorVarCents !== 0 && (
+              <em className="note" style={{ margin: 0, fontStyle: "normal" }} data-testid="money-contractor-variations">
+                {money(contractorBase)} {contractorVarCents > 0 ? "+" : "−"} {money(Math.abs(contractorVarCents))} variations
+              </em>
+            )}
+          </span>
           {labourCents > 0 && (
             <span className="mi"><span>Labour (employees)</span><b data-testid="money-labour">{money(labourCents)}</b></span>
           )}
