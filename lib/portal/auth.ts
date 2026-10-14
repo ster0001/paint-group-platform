@@ -20,7 +20,7 @@ import type { SupabaseClient as SessionClient, User } from "@supabase/supabase-j
  *      verifies the token against the caller's session client (verifyOtp) —
  *      that is what proves possession of the inbox. Opening the link spends
  *      nothing, so a mail scanner fetching it first cannot (13 Oct 2026).
- *      The same email carries a 6-digit code (14 Oct 2026): typing it on the
+ *      The same email carries a numeric code (14 Oct 2026): typing it on the
  *      "Check your email" page (verifyCodeAction) is the same proof, and a
  *      scanner cannot type. One token backs both — whichever is used first
  *      spends it.
@@ -124,7 +124,7 @@ export async function sendMagicLink(opts: {
 }
 
 /** Mint the token and return OUR verification URL (not Supabase's) plus the
- * 6-digit code that spends the same token. Creates the auth user on first
+ * numeric code that spends the same token. Creates the auth user on first
  * sign-in — the account itself already exists from the estimate save, or is
  * created at verification time. */
 async function mintMagicLink(

@@ -98,7 +98,7 @@ test.describe("portal auth + shell (3a-2)", () => {
     await expect(page.locator("h1")).toHaveText(/Welcome — let's get you a price/);
   });
 
-  // 14 Oct 2026: the email also carries a 6-digit code. Typing it on the
+  // 14 Oct 2026: the email also carries a numeric code. Typing it on the
   // "Check your email" page is the same proof of the inbox — and a scanner
   // cannot type. A wrong code stays on that page with a plain line.
   test("typing the emailed code signs in; a wrong code is a plain line, never a dead end", async ({ page }) => {
@@ -114,7 +114,7 @@ test.describe("portal auth + shell (3a-2)", () => {
     await expect(page.getByLabel("Sign-in code")).toBeVisible();
 
     const code = await magicCodeFor(sb, codeEmail);
-    expect(code).toMatch(/^\d{6}$/);
+    expect(code).toMatch(/^\d{6,10}$/); // OTP length is a project setting (6 or 8)
     await page.getByLabel("Sign-in code").fill(code);
     await page.getByRole("button", { name: /Sign in with the code/ }).click();
     await expect(page).toHaveURL(/\/account$/);

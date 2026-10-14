@@ -33,11 +33,13 @@ export async function requestLinkAction(formData: FormData): Promise<void> {
 
 const codeSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
-  code: z.string().transform((v) => v.replace(/\D/g, "")).pipe(z.string().length(6)),
+  // Supabase's "Email OTP length" is a project setting (6 on some projects,
+  // 8 on others) — accept any plausible length and let verifyOtp judge.
+  code: z.string().transform((v) => v.replace(/\D/g, "")).pipe(z.string().regex(/^\d{6,10}$/)),
   next: z.string().max(300).optional(),
 });
 
-/** The 6-digit code from the sign-in email, typed on the "Check your email"
+/** The code from the sign-in email, typed on the "Check your email"
  * page (14 Oct 2026). It spends the same single-use token the link does —
  * the proof of the inbox is identical — but a mail scanner cannot type it.
  * A wrong or stale code lands back on the same page with a plain line. */

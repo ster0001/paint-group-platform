@@ -459,7 +459,7 @@
       "feature": "logins",
       "role": "customer",
       "title": "Sign in to your account with an emailed link or code",
-      "summary": "How to get into your Paint Group account without a password — ask for a sign-in link, open it and press Open my account, or type the 6-digit code from the same email — and what to do if a link says it has expired.",
+      "summary": "How to get into your Paint Group account without a password — ask for a sign-in link, open it and press Open my account, or type the code from the same email — and what to do if a link says it has expired.",
       "path": "docs/help/logins/customer.md",
       "walkthrough": null,
       "media": [],

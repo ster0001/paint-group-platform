@@ -50,7 +50,7 @@ export default async function AccountLoginPage({
               </p>
               <div className="hr" />
               <p className="sub">
-                Or type the 6-digit code from that email here. Handy if the link says it has already been used.
+                Or type the code shown in that email here. Handy if the link says it has already been used.
               </p>
               {error === "code" && (
                 <p className="sub" style={{ color: "var(--amber, #e0a83c)", marginTop: 8 }}>
@@ -69,8 +69,8 @@ export default async function AccountLoginPage({
                   required
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  pattern="[0-9 ]{6,7}"
-                  maxLength={7}
+                  pattern="[0-9 ]{6,12}"
+                  maxLength={12}
                   placeholder="123456"
                   style={{ letterSpacing: 4, fontSize: 20 }}
                 />
