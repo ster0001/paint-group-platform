@@ -27,7 +27,11 @@ export async function loadDemoFacts(service: SupabaseClient, job: DemoJob): Prom
     service.from("contractor_unavailability").select("id").eq("contractor_id", job.contractor_id).eq("source", "contractor").gte("created_at", job.created_at).limit(1),
     service.from("contractor_gcal_connections").select("contractor_id").eq("contractor_id", job.contractor_id).maybeSingle(),
   ]);
-  for (const [label, r] of [["offer", offer], ["photos", photos], ["surfaces", surfaces], ["moments", moments], ["messages", msgs], ["events", events], ["variations", variations], ["signoff", signoff], ["invoices", invoices], ["expenses", expenses], ["blocks", blocks], ["gcal", gcal]] as const) {
+  const [materials, noWork] = await Promise.all([
+    service.from("wo_material_requests").select("id").eq("work_order_id", job.id).in("status", ["ordered", "declined"]).limit(1),
+    service.from("wo_day_flags").select("id").eq("work_order_id", job.id).in("flag", ["no_work", "no_work_requested"]).limit(1),
+  ]);
+  for (const [label, r] of [["offer", offer], ["photos", photos], ["surfaces", surfaces], ["moments", moments], ["messages", msgs], ["events", events], ["variations", variations], ["signoff", signoff], ["invoices", invoices], ["expenses", expenses], ["blocks", blocks], ["gcal", gcal], ["materials", materials], ["noWork", noWork]] as const) {
     if (r.error) reportError(r.error, { where: `demo.facts.${label}`, bestEffort: true, extra: { workOrderId: job.id } });
   }
   const momentRows = (moments.data ?? []) as { answered_at: string | null }[];
@@ -44,6 +48,8 @@ export async function loadDemoFacts(service: SupabaseClient, job: DemoJob): Prom
     expenseSubmitted: (expenses.data?.length ?? 0) > 0,
     dayBlocked: (blocks.data?.length ?? 0) > 0,
     gcalLinked: Boolean(gcal.data),
+    materialsAnswered: (materials.data?.length ?? 0) > 0,
+    noWorkMarked: (noWork.data?.length ?? 0) > 0,
   };
 }
 

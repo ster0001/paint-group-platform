@@ -513,6 +513,15 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Once per share; re-sharing the same job sends again, which is the point when a worker lost the first text.",
   },
   {
+    key: "contractor_certificate_reminder", name: "Certificates — reminder after I will add this later", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "certificate_reminder", capExempt: true,
+    trigger: "A painter tapped I will add this later on their certificates (induction Step 3b, ruling I5) and still has no verified public liability certificate. Days 2, 4 and 6 after that tap at 9 am (Settings -> certificate_rules), in the half-hour campaign sweep.",
+    templates: [
+      { field: "certificateReminderSms", label: "Text message", kind: "sms", placeholders: P.standards },
+    ],
+    guard: "Each day once per painter (automation_claims); stops the moment a certificate is verified (offerable).",
+  },
+  {
     key: "contractor_standards_invite", name: "Finish standards — please read and confirm", audience: "painter", channels: ["sms", "email"], kind: "manual",
     defaultChannel: "both", sendKind: "standards_invite", capExempt: true,
     trigger: "The office presses Send standards invite on a painter (Contractors page) — once, when the standards launch or a painter is added later. New painters are invited the moment they join, without a message: the sign-off is on their first screen.",

@@ -113,6 +113,21 @@ export async function removeWorkerAction(raw: unknown): Promise<Result> {
   return { ok: true, message: "Removed. Their login no longer opens any of your jobs." };
 }
 
+/**
+ * "I will add this later" for the certificates (induction Step 3b, ruling I5):
+ * the painter's own row, one RPC, one contractor_events row; the reminder
+ * ladder (certificate_rules) starts from now.
+ */
+export async function deferCertificatesAction(): Promise<Result> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("contractor_defer_certificates");
+  if (error) { reportError(error, { where: "certificates.defer" }); return { ok: false, message: "Couldn't save that — it has been reported." }; }
+  const r = String(data ?? "");
+  if (!r.startsWith("ok:")) return { ok: false, message: plain(r) };
+  revalidatePath("/portal"); revalidatePath("/portal/profile");
+  return { ok: true, message: "Noted — we will remind you. Job offers start once your certificate is in." };
+}
+
 export async function shareJobAction(raw: unknown): Promise<Result> {
   const parsed = z.object({ workOrderId: z.string().uuid(), contractorUserId: z.string().uuid(), on: z.boolean() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Couldn't read that." };
