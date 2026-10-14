@@ -8,6 +8,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { staffPayChangeDeclined, staffVariationDeclinedByPainter, staffVariationRaised } from "@/lib/staff/notify";
 import { VARIATION_CATEGORIES } from "@/lib/workorder/variations";
 import { reportError } from "@/lib/monitoring/report";
+import { demoVariationRaised } from "@/lib/demo/robots";
 
 /**
  * The contractor's side: raising a variation, and one-tapping the adjusted
@@ -133,8 +134,11 @@ export async function raiseVariationAction(raw: unknown): Promise<RaiseResult> {
   if (s.startsWith("ok:")) {
     const id = s.slice(3);
     revalidatePath("/portal/jobs");
+    // 12 Demo Street: the office is a robot — it prices and the customer approves
+    // a few seconds later (induction Step 2). A real job alerts the office.
+    const demo = await demoVariationRaised(v.workOrderId, id);
     // Tom, 10 Sep: staff alert — behind the response, never a gate on it.
-    after(async () => { const svc = createServiceClient(); if (svc) await staffVariationRaised(svc, id); });
+    if (!demo) after(async () => { const svc = createServiceClient(); if (svc) await staffVariationRaised(svc, id); });
     return { ok: true, id };
   }
   const reason = s.replace("error:", "");

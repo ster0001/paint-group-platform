@@ -67,8 +67,9 @@ export default function WalkthroughBar({ workOrderId, phase, prepLeft, flaggedAr
       if (phase === "walkthrough") { await openWalkthrough(); return; }
       if (phase === "rectified") {
         const r = await completeAfterRectification({ workOrderId });
+        // The practice job says something else here (the customer walks again — induction Step 2).
         setMessage(r.ok
-          ? "Done — the job is complete. The customer has their completion report, with the areas they flagged and what was put right."
+          ? (r.message ?? "Done — the job is complete. The customer has their completion report, with the areas they flagged and what was put right.")
           : r.message);
         if (r.ok) router.refresh();
         return;
