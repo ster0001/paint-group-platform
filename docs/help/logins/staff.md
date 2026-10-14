@@ -3,7 +3,7 @@ feature: logins
 role: staff
 title: Change a password or send a reset link, for staff and for painters
 summary: Where the master user sets a staff login's password by hand or emails a reset link, where any staff member does the same for a painter from the painter's page, what the reset link does when it is clicked, and why a removed staff login can be created again with the same address.
-sources: app/(app)/settings/StaffAccountsManager.tsx, app/(app)/settings/staffActions.ts, app/(app)/contractors/[id]/ContractorLogin.tsx, app/(app)/contractors/actions.ts, lib/auth/adminPassword.ts, app/reset-password/page.tsx, app/account/auth/route.ts
+sources: app/(app)/settings/StaffAccountsManager.tsx, app/(app)/settings/staffActions.ts, app/(app)/contractors/[id]/ContractorLogin.tsx, app/(app)/contractors/actions.ts, lib/auth/adminPassword.ts, app/reset-password/page.tsx, app/account/auth/page.tsx, app/account/auth/actions.ts
 ---
 
 ## What this is for
@@ -30,7 +30,7 @@ Somebody is locked out. A staff member has forgotten their password, or a painte
 6. **Email a reset link** sends them the same 60-minute link.
 
 ### What they see when they click the link
-7. The link signs them in and opens **Choose a new password**. They type it twice and press **Save password**. Staff land on Home, painters on their portal. Next time they sign in at `/login` they use the new password.
+7. The link opens a page with one button, **Continue**. Pressing it signs them in and opens **Choose a new password**. (Opening the link alone does nothing — so an email scanner checking the link cannot use it up first.) They type it twice and press **Save password**. Staff land on Home, painters on their portal. Next time they sign in at `/login` they use the new password.
 
 ### Creating a staff login again after removing it
 8. **Remove login** normally deletes the login outright. When that person created estimates or other records, the platform cannot delete them without losing those records, so instead it locks the login out and takes away their staff access. Their email address stays on the system.

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient, createLoopFixture, destroyLoopFixture, type LoopFixture } from "./fixtures/woLoop";
-import { deleteUserByEmail, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, magicLinkFor, openMagicLink } from "./fixtures/portal";
 import { TINY_SIGNATURE_PNG } from "./helpers";
 
 /**
@@ -124,7 +124,7 @@ test.describe("portal aftercare (3a-5)", () => {
   test("the colour register: confirmed colours with swatch and code, TBC honest", async ({ page }) => {
     test.skip(!migrationReady, "run migration 20261129000000_portal_documents.sql first");
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto("/account/colours");
 
     await expect(page.getByText("Natural White")).toBeVisible();
@@ -140,7 +140,7 @@ test.describe("portal aftercare (3a-5)", () => {
   test("warranty card, credentials and the DRAFT watermark", async ({ page, request }) => {
     test.skip(!migrationReady, "run migration 20261129000000_portal_documents.sql first");
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto("/account/documents");
 
     await expect(page.getByText("Two-year workmanship warranty")).toBeVisible();
@@ -170,7 +170,7 @@ test.describe("portal aftercare (3a-5)", () => {
   test("report an issue: photo-first, lands in the PC queue's table", async ({ page }) => {
     test.skip(!migrationReady, "run migration 20261129000000_portal_documents.sql first");
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto("/account/documents");
 
     await page.locator("textarea[name=note]").fill("Paint bubbling near the laundry window — e2e");

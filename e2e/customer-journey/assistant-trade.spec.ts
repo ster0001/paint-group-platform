@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "../fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, openMagicLink } from "../fixtures/portal";
 import { openQuickLook, fillQuickAddress } from "./drive";
 
 /**
@@ -42,7 +42,7 @@ test.describe("Addendum A2 — describe the job", () => {
       const sb = db!;
       const email = type === "trade" ? emails.trade : emails.res;
       await member(sb, email, type);
-      await page.goto(await magicLinkFor(sb, email));
+      await openMagicLink(page, await magicLinkFor(sb, email));
       /**
        * v2 phase 2: the quick look's first screen leads with the ADDRESS, and
        * the suburb/postcode pair only appears once something has been typed

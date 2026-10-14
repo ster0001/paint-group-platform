@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, openMagicLink } from "./fixtures/portal";
 
 /**
  * 3a-3 · Money in the portal, as the signed-in customer.
@@ -77,7 +77,7 @@ test.describe("portal money (3a-3)", () => {
 
   test("invoices and receipts render honestly — and drafts never do", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, email));
+    await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto("/account/money");
 
     // The project header: accepted contract inc GST, GST itemised.
@@ -111,14 +111,14 @@ test.describe("portal money (3a-3)", () => {
     expect(anon.status()).toBe(404);
 
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, emptyEmail)); // a different customer
+    await openMagicLink(page, await magicLinkFor(sb, emptyEmail)); // a different customer
     const stranger = await page.request.get(`/account/receipt/${paymentId}`, { maxRedirects: 0 });
     expect(stranger.status()).toBe(404);
   });
 
   test("no money yet reads as an honest empty state", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, emptyEmail));
+    await openMagicLink(page, await magicLinkFor(sb, emptyEmail));
     await page.goto("/account/money");
     await expect(page.getByText(/Nothing to pay, and nothing owing/)).toBeVisible();
   });
