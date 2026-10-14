@@ -396,6 +396,44 @@
       "sources": []
     },
     {
+      "feature": "induction",
+      "role": "contractor",
+      "title": "Your induction — choose your language and read each module in it",
+      "summary": "Pick the language you read best on the first screen of the induction (English, Dari, Farsi, Arabic, Spanish, Portuguese or Italian, as Paint Group switches them on). Everything you read and tick to confirm — the thirteen modules and the six finish standards sections — is then in that language. The app, the slides and the practice job stay in English. You can change your language any time from Home or your profile.",
+      "path": "docs/help/induction/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/induction/page.tsx",
+        "app/portal/induction/language/page.tsx",
+        "app/portal/induction/[module]/page.tsx",
+        "app/portal/induction/LanguagePicker.tsx",
+        "app/join/[token]/JoinForm.tsx",
+        "lib/induction/read.ts",
+        "lib/standards/localize.ts",
+        "supabase/migrations/20270267000000_induction_content.sql"
+      ]
+    },
+    {
+      "feature": "induction",
+      "role": "pc",
+      "title": "Induction languages — switch a language on, see what each painter reads in",
+      "summary": "Painters read and tick the induction and the six finish standards sections in the language they choose. Settings → Communications → Induction languages is where a language is switched on once its wording has been tested; off means it is not offered. The contractor's record shows which language they chose. The wording lives in translation files loaded by the seed script, never typed into Settings.",
+      "path": "docs/help/induction/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/(app)/settings/InductionLanguagesSettings.tsx",
+        "app/(app)/settings/inductionActions.ts",
+        "app/(app)/contractors/[id]/page.tsx",
+        "scripts/seed-induction.ts",
+        "docs/induction/translations/",
+        "supabase/migrations/20270267000000_induction_content.sql"
+      ]
+    },
+    {
       "feature": "invoicing",
       "role": "customer",
       "title": "Pay an invoice — press Pay for the amount, our bank details and the reference to use",

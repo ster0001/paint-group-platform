@@ -23,11 +23,14 @@ export default function JoinForm({
   email,
   name,
   company,
+  languages,
 }: {
   token: string;
   email: string;
   name: string;
   company: string;
+  /** The induction languages on offer (Step 4, ruling I8): English always, the rest when live. */
+  languages: { code: string; name: string; nativeName: string }[];
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -35,6 +38,7 @@ export default function JoinForm({
   const [confirm, setConfirm] = useState("");
   const [fullName, setFullName] = useState(name);
   const [mobile, setMobile] = useState("");
+  const [language, setLanguage] = useState("en");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -91,6 +95,10 @@ export default function JoinForm({
         const { error: phoneErr } = await supabase.from("contractors").update({ phone: mobile.trim() }).eq("profile_id", who.user.id);
         if (phoneErr) console.error("join: mobile not saved", phoneErr.message);
       }
+      // Their language (Module 1, step 1). Best-effort for the same reason: the
+      // account exists; Home asks again if this did not land.
+      const { error: langErr } = await supabase.rpc("induction_set_language", { p_code: language });
+      if (langErr) console.error("join: language not saved", langErr.message);
 
       // refresh() first so the server re-reads the profile — the role only became
       // 'contractor' a moment ago, and the portal gate reads it server-side.
@@ -135,6 +143,14 @@ export default function JoinForm({
           {err && <div className="err">{err}</div>}
 
           <div className="card">
+            <label className="fl" htmlFor="language">Your language</label>
+            <select id="language" value={language} onChange={(e) => setLanguage(e.target.value)} data-testid="join-language">
+              {languages.map((l) => <option key={l.code} value={l.code}>{l.nativeName}{l.name !== l.nativeName ? ` — ${l.name}` : ""}</option>)}
+            </select>
+            <p className="hint" style={{ marginTop: 4 }}>
+              What you read and tick in the induction, and the finish standards, are in this language. The app stays in English, with short words and pictures.
+            </p>
+
             <label className="fl" htmlFor="fullName">Your name</label>
             <input
               id="fullName"

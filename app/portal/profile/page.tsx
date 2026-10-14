@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import ProfileForm from "./ProfileForm";
 import { loadMyStandards } from "@/lib/standards/status";
 import { painterStatusLine } from "@/lib/standards/acks";
+import { myLanguage } from "@/lib/induction/language";
+import { languageOf } from "@/lib/induction/languages";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,9 @@ export default async function ProfilePage() {
   const phone = await contractorPhone(db, contractor.id);
   // Finish standards (Step 2, ruling S7): the confirmed date and version on the profile.
   const { my } = await loadMyStandards(db, contractor.id);
+  // Induction language (Step 4): shown with a way to change it; the record keeps the language they confirmed in.
+  const languageCode = await myLanguage();
+  const language = languageCode ? { code: languageCode, name: languageOf(languageCode).name, nativeName: languageOf(languageCode).nativeName } : null;
   const standards = my && my.status !== "not_required"
     ? { confirmed: my.status === "confirmed", line: painterStatusLine(my.status, my) }
     : null;
@@ -48,6 +53,7 @@ export default async function ProfilePage() {
       phone={phone.available ? { value: phone.phone ?? "" } : null}
       capabilities={capabilities}
       standards={standards}
+      language={language}
     />
   );
 }
