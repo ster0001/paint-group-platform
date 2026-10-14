@@ -495,6 +495,24 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Only the button sends it, never the reminder sweep (the practice job is outside every sweep). The wording starts with DEMO: so nobody mistakes it for a real reminder.",
   },
   {
+    key: "contractor_worker_invite", name: "Worker login — the link by text", audience: "painter", channels: ["sms"], kind: "manual",
+    defaultChannel: "sms", sendKind: "worker_invite", capExempt: true,
+    trigger: "A contractor adds a worker (name and mobile) under Your crew, or presses Send the link again. The worker has no email address: their login is a one-time link to their phone, the same passwordless link customers get by email (induction Step 3a, ruling 14). {{first_name}} is the contractor.",
+    templates: [
+      { field: "workerInviteSms", label: "The login text", kind: "sms", placeholders: P.standards },
+    ],
+    guard: "Only the contractor (or staff on their record) sends it, for a worker who is not removed. Three per hour per login, like every magic link.",
+  },
+  {
+    key: "contractor_worker_job_shared", name: "Worker — a job was shared with you", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: false, defaultMode: "auto", sendKind: "worker_job_shared", capExempt: true,
+    trigger: "A contractor shares a job with a worker (the toggle on the job page). The worker gets the job link; unsharing sends nothing. {{first_name}} is the contractor.",
+    templates: [
+      { field: "workerJobSharedSms", label: "The text", kind: "sms", placeholders: P.jobUpdate },
+    ],
+    guard: "Once per share; re-sharing the same job sends again, which is the point when a worker lost the first text.",
+  },
+  {
     key: "contractor_standards_invite", name: "Finish standards — please read and confirm", audience: "painter", channels: ["sms", "email"], kind: "manual",
     defaultChannel: "both", sendKind: "standards_invite", capExempt: true,
     trigger: "The office presses Send standards invite on a painter (Contractors page) — once, when the standards launch or a painter is added later. New painters are invited the moment they join, without a message: the sign-off is on their first screen.",

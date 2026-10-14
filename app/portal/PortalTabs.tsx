@@ -24,7 +24,8 @@ const TABS: Tab[] = [
   // (ruling 4, Session 5). Same route, the page branches on capability.
   { href: "/portal/money", label: "INVOICING", icon: "$", needs: "canSelfInvoice" },
   { href: "/portal/money", label: "EXPENSES", icon: "🧾", needs: "canClaimExpenses", unless: "canSelfInvoice" },
-  { href: "/portal/calendar", label: "CALENDAR", icon: "▦" },
+  // A worker has no calendar: their days are their contractor's (Step 3a).
+  { href: "/portal/calendar", label: "CALENDAR", icon: "▦", needs: "hasCalendar" },
   // Help centre (brief Phase C): the painter's own manuals, in the portal.
   { href: "/portal/help", label: "HELP", icon: "?" },
 ];

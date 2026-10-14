@@ -8,16 +8,22 @@ import {
  * employed-painters build tests against this table; a change here is a
  * change to the brief, not a refactor.
  */
-const MATRIX: Record<"contractor" | "employee", PainterCapabilities> = {
+const MATRIX: Record<"contractor" | "employee" | "worker", PainterCapabilities> = {
   contractor: {
     acceptsOffers: true, acknowledgesAssignments: false, seesMoney: true, seesTimeBudget: true,
     canSelfInvoice: true, canClaimExpenses: true, requiresInsurance: true, hasCrewCount: true,
-    multiAssignable: false, clocksOn: false,
+    multiAssignable: false, clocksOn: false, hasCalendar: true, isWorker: false,
   },
   employee: {
     acceptsOffers: false, acknowledgesAssignments: true, seesMoney: false, seesTimeBudget: true,
     canSelfInvoice: false, canClaimExpenses: true, requiresInsurance: false, hasCrewCount: false,
-    multiAssignable: true, clocksOn: true,
+    multiAssignable: true, clocksOn: true, hasCalendar: true, isWorker: false,
+  },
+  // Induction Step 3a, ruling 13: shared jobs, photos, ticks — and nothing else.
+  worker: {
+    acceptsOffers: false, acknowledgesAssignments: false, seesMoney: false, seesTimeBudget: false,
+    canSelfInvoice: false, canClaimExpenses: false, requiresInsurance: false, hasCrewCount: false,
+    multiAssignable: false, clocksOn: false, hasCalendar: false, isWorker: true,
   },
 };
 
@@ -27,6 +33,12 @@ describe("painterCapabilities — the one capability function", () => {
     expect(painterCapabilities("employee")).toEqual(MATRIX.employee);
     expect(painterCapabilities({ employment_type: "employee" })).toEqual(MATRIX.employee);
     expect(painterCapabilities({ employment_type: "contractor" })).toEqual(MATRIX.contractor);
+  });
+
+  it("a worker has every money, offer, claim and calendar flag off, and only isWorker on", () => {
+    expect(painterCapabilities("worker")).toEqual(MATRIX.worker);
+    const on = Object.entries(painterCapabilities("worker")).filter(([, v]) => v).map(([k]) => k);
+    expect(on).toEqual(["isWorker"]);
   });
 
   it("an employee never sees money, never self-invoices, never receives offers", () => {

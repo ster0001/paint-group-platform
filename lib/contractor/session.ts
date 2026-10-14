@@ -4,16 +4,29 @@ import { createClient } from "@/lib/supabase/server";
 import { CONTRACTOR_COLUMNS, type ContractorRow } from "./model";
 import { employmentTypeFor } from "./employment";
 import { painterCapabilities, type EmploymentType, type PainterCapabilities } from "@/lib/painters/capabilities";
+import { reportError } from "@/lib/monitoring/report";
 
 // Server-only. Types and pure helpers live in ./model so Client Components can
 // share them without pulling `next/headers` into the browser bundle.
+
+/** A worker login (induction Step 3a): the contractor_users row, with the contractor it sits under. */
+export type WorkerRow = {
+  id: string;
+  contractor_id: string;
+  name: string;
+  mobile: string;
+  inducted_at: string | null;
+  contractor_name: string;
+};
 
 export type ContractorSession = {
   userId: string;
   email: string;
   name: string;
-  /** null when the profile is a contractor but staff haven't created their contractors row yet. */
+  /** null when the profile is a contractor but staff haven't created their contractors row yet — or when it is a worker. */
   contractor: ContractorRow | null;
+  /** Set when this login is a WORKER under a contractor (20270264). `capabilities.isWorker` is the flag to branch on. */
+  worker: WorkerRow | null;
   /** contractor | employee (migration 20270153). Read once per request; never branched on directly. */
   employmentType: EmploymentType;
   /** The ONE capability function's answer for this painter (brief §3.1). Branch on THIS. */
@@ -68,6 +81,17 @@ const loadSession = cache(async (): Promise<Loaded> => {
     .maybeSingle();
   const row = (contractor as ContractorRow | null) ?? null;
 
+  // A worker (induction Step 3a, 20270264): role contractor, no contractors
+  // row, a contractor_users row under someone. The money-free RPC answers
+  // whether this login is one; a refused read reads as "not a worker".
+  let worker: WorkerRow | null = null;
+  if (!row) {
+    const { data: w, error: wErr } = await supabase.rpc("worker_me");
+    if (wErr) reportError(wErr, { where: "portal.session.worker", bestEffort: true });
+    const me = ((w as WorkerRow[] | null) ?? [])[0];
+    if (me) worker = me;
+  }
+
   // Employed painters (20270153): a separate best-effort read, the
   // works_saturday rule — it degrades to "contractor" until the migration
   // runs, so the column can never 42703 the whole portal.
@@ -78,10 +102,11 @@ const loadSession = cache(async (): Promise<Loaded> => {
     session: {
       userId: user.id,
       email: user.email ?? "",
-      name: profile?.name || user.email || "",
+      name: profile?.name || worker?.name || user.email || "",
       contractor: row,
+      worker,
       employmentType,
-      capabilities: painterCapabilities(employmentType),
+      capabilities: painterCapabilities(worker ? "worker" : employmentType),
     },
   };
 });

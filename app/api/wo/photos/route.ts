@@ -85,9 +85,13 @@ export async function POST(request: Request) {
   const { data: onJob, error: onJobError } = await supabase
     .rpc("wo_is_my_job_as_contractor", { p_wo_id: parsed.data.workOrderId });
   if (onJobError) reportError(onJobError, { where: "wo.photos.ownership", extra: { workOrderId: parsed.data.workOrderId } });
-  const { data: staffRow } = onJob === true ? { data: null } : await supabase
+  // A worker on a shared job (20270264) uploads too; the bucket policy agrees.
+  const { data: workerOnJob, error: workerErr } = onJob === true ? { data: false, error: null } : await supabase
+    .rpc("wo_worker_on_job", { p_work_order_id: parsed.data.workOrderId });
+  if (workerErr) reportError(workerErr, { where: "wo.photos.worker", bestEffort: true, extra: { workOrderId: parsed.data.workOrderId } });
+  const { data: staffRow } = onJob === true || workerOnJob === true ? { data: null } : await supabase
     .from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (onJob !== true && (staffRow as { role?: string } | null)?.role !== "staff") return fail(404, "That job isn't yours.");
+  if (onJob !== true && workerOnJob !== true && (staffRow as { role?: string } | null)?.role !== "staff") return fail(404, "That job isn't yours.");
 
   const path = photoPath(parsed.data.workOrderId, videoExtensionFor(parsed.data.contentType));
   const { data, error } = await supabase.storage.from("wo-photos").createSignedUploadUrl(path);
