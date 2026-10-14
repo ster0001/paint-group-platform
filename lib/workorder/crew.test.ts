@@ -26,7 +26,11 @@ const full: WorkOrderDoc = {
   materials: [{ product: "Weathershield", photoUrl: "", litres: 10, coverageMissing: false, colourName: "Vivid White", colourHex: "#fff", colourStatus: "confirmed" }],
   areas: [{
     id: "front", title: "Front", finishCode: "PG-3", finishOverridden: false, photos: [],
-    surfaces: [{ key: "front:0", label: "Walls", coats: 2, product: "Weathershield", prep: "Light sand", hours: 6, status: "not_started" }],
+    surfaces: [
+      { key: "front:0", label: "Walls", coats: 2, product: "Weathershield", prep: "Light sand", hours: 6, status: "not_started" },
+      // A count is scope, not money — the crew must see it is four doors.
+      { key: "front:1", label: "Doors", count: 4, coats: 2, product: "Aquanamel", prep: "", hours: 3, status: "not_started" },
+    ],
   }],
   exclusions: ["Garage floor"],
   company: { name: "Paint Group", phone: "03 8840 9414", logoUrl: "" },
@@ -46,6 +50,8 @@ describe("what the crew may see", () => {
 
   it("keeps the scope intact — the crew has to paint the thing", () => {
     expect(crew.areas[0].surfaces[0]).toEqual(full.areas[0].surfaces[0]);
+    expect(crew.areas[0].surfaces[1]).toEqual(full.areas[0].surfaces[1]);
+    expect(crew.areas[0].surfaces[1].count).toBe(4);
     expect(crew.materials).toEqual(full.materials);
     expect(crew.jobAddress).toBe(full.jobAddress);
     expect(crew.accessNotes).toBe(full.accessNotes);

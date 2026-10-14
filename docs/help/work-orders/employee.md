@@ -8,7 +8,7 @@ verified_at_commit: 780c451640
 ---
 
 ## What this is for
-Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is where the work is recorded. You tick each surface as you prep and finish it, photograph before and after, raise anything you find that is outside the job sheet, answer the finishing-up questions, and at the end hand the phone to the customer to sign. The office and the customer see progress from what you tick. Everything here is identical to a contractor's job, except that nothing on an employee's job sheet carries a price.
+Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is where the work is recorded. Anything counted per item (doors, windows, posts) says how many on the job sheet and its tick row, as **Doors × 4** (jobs issued since 14 Oct 2026). You tick each surface as you prep and finish it, photograph before and after, raise anything you find that is outside the job sheet, answer the finishing-up questions, and at the end hand the phone to the customer to sign. The office and the customer see progress from what you tick. Everything here is identical to a contractor's job, except that nothing on an employee's job sheet carries a price.
 
 ## Before you start
 - The job is on your **Jobs** tab with your days and a time budget — see [Your assigned jobs](../scheduling/employee.md). Tap **Accept** first so the office knows you have seen it.

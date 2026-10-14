@@ -44,6 +44,15 @@ export type WOSurface = {
    * 8 Oct 2026 — those resolve by label (lib/standards/model.ts).
    */
   code?: string;
+  /**
+   * How many of the thing there are (doors, windows, posts — anything the
+   * rate card prices per item). The same count the customer's estimate shows
+   * (Tom, 18 Sep); on the painter's sheet it is shown from ONE up, because
+   * "Doors" with no number is the ambiguity Tom asked to remove (14 Oct
+   * 2026). Absent for measured surfaces (walls, ceilings) and on documents
+   * frozen before 14 Oct 2026.
+   */
+  count?: number;
   coats: number;
   product: string;
   /** Sheen / finish this surface is painted in (absent on older documents). */

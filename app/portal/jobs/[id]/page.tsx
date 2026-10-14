@@ -26,7 +26,7 @@ import WalkthroughBar from "./WalkthroughBar";
 import CrewShare from "./CrewShare";
 import SitePhotos from "./SitePhotos";
 import BatchUploader from "@/app/components/wo/BatchUploader";
-import { jobNeedsAfterPhotos, jobNeedsBeforePhotos } from "@/lib/workorder/surfaces";
+import { jobNeedsAfterPhotos, jobNeedsBeforePhotos, surfaceCountsByKey } from "@/lib/workorder/surfaces";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import { qaAllClear, staffSignsOff as staffSignsOffFor } from "@/lib/workorder/qa";
 import { painterSeesQaDate } from "@/lib/workorder/qaSchedule";
@@ -319,9 +319,15 @@ export default async function PortalJobPage({
     deductionPending: payVars.some((v) => v.credit && v.needs_manual_deduction && v.deduction_cents == null),
   };
 
+  // "Doors × 4" on the tick list: the count rides the frozen document, keyed
+  // like the row, so the label itself stays the bare substrate.
+  const countByKey = surfaceCountsByKey(job.doc);
   const surfaces: SurfaceRow[] = ((surfaceRows as
-    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean; photos_optional?: boolean | null }[] | null) ?? [])
-    .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope, photosOptional: Boolean(r.photos_optional) }));
+    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean; photos_optional?: boolean | null; surface_key?: string | null }[] | null) ?? [])
+    .map((r) => ({
+      id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope, photosOptional: Boolean(r.photos_optional),
+      ...(r.surface_key && countByKey[r.surface_key] != null ? { count: countByKey[r.surface_key] } : {}),
+    }));
 
   const headingMeta: Record<string, string> = {};
   for (const r of (surfaceRows as { heading: string; heading_meta: string }[] | null) ?? []) {
