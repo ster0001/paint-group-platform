@@ -96,7 +96,7 @@ test.describe("induction language — choose, read in it, fall back to English",
     await expect(page.locator("[data-testid^='induction-module-m']")).toHaveCount(13);
     const m03 = page.getByTestId("induction-module-m03");
     await expect(m03.locator("[lang='es']")).toContainText("En casa del cliente");
-    await expect(page.getByText("Your induction")).toBeVisible();
+    await expect(page.getByTestId("induction").locator("h1")).toHaveText("Your induction");
 
     // Module 3: the ten site rules, in Spanish, on an element that says so.
     await m03.click();
