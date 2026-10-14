@@ -106,13 +106,35 @@ test.describe("daily updates and the silent site", () => {
     updateId = u.id;
 
     expect(u.status).toBe("drafted");
-    expect(u.draft_text).toContain("Melissa");
+    // Tom, 14 Oct 2026: the name, never the time of day — the customer reads
+    // it whenever the office sends it, not when the painter ticked.
+    expect(u.draft_text.startsWith("Hi Melissa — ")).toBe(true);
+    expect(u.draft_text).not.toMatch(/good (morning|afternoon|evening)/i);
     expect(u.draft_text).toContain("the front of the house");
     expect(u.draft_text).toContain("Windows × 3");
     // It says only what happened: nothing about the surfaces nobody touched.
     expect(u.draft_text).not.toContain("Back");
     // And it is traceable to the events it came from.
     expect(u.source_tick_ids.length).toBe(front.length);
+  });
+
+  test("the Updates page says when the painter last ticked this job", async ({ page }) => {
+    // Tom, 14 Oct 2026: the office needs to know how fresh the draft is before sending it.
+    const front = fixture!.surfaces.filter((s) => s.heading === "Front");
+    const { data: last } = await db!.from("wo_events").select("created_at")
+      .eq("work_order_id", fixture!.workOrderId).eq("type", "surface_tick")
+      .order("created_at", { ascending: false }).limit(1).single();
+    const expected = new Intl.DateTimeFormat("en-AU", {
+      timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short",
+      hour: "numeric", minute: "2-digit", hour12: true,
+    }).format(new Date((last as { created_at: string }).created_at)).replace(/\s?(am|pm)$/i, (m) => m.toLowerCase());
+
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto("/pc/updates");
+    const line = page.getByTestId(`ticked-${updateId}`);
+    await expect(line).toContainText("Painter’s last update to this job");
+    await expect(line).toContainText(expected);
+    expect(front.length).toBeGreaterThan(0);
   });
 
   test("nothing can be sent that a person has not approved", async () => {
