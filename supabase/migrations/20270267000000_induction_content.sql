@@ -167,7 +167,7 @@ $$;
 revoke all on function public.induction_my_language() from public, anon;
 grant execute on function public.induction_my_language() to authenticated;
 
--- Staff switch a language on once Tom's team has tested it (⚑3). English cannot be switched off.
+-- Staff switch a language on once the Paint Group team has tested it (⚑3). English cannot be switched off.
 create or replace function public.induction_language_set_live(p_code text, p_live boolean)
 returns text language plpgsql security definer set search_path = public as $$
 begin
