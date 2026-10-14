@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyContact } from "@/lib/portal/data";
-import { requestLinkAction } from "./actions";
+import { requestLinkAction, verifyCodeAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +48,36 @@ export default async function AccountLoginPage({
                 We&rsquo;ve sent a sign-in link to <b style={{ color: "var(--text)" }}>{sent}</b>.
                 Tap the button in that email and you&rsquo;ll land straight in your account — nothing else to do.
               </p>
+              <div className="hr" />
+              <p className="sub">
+                Or type the 6-digit code from that email here. Handy if the link says it has already been used.
+              </p>
+              {error === "code" && (
+                <p className="sub" style={{ color: "var(--amber, #e0a83c)", marginTop: 8 }}>
+                  That code didn&rsquo;t match or has run out. Check the newest email, or ask for another link below.
+                </p>
+              )}
+              <form action={verifyCodeAction} style={{ marginTop: 10 }}>
+                <input type="hidden" name="email" value={sent} />
+                {next ? <input type="hidden" name="next" value={next} /> : null}
+                <label htmlFor="acct-code">Sign-in code</label>
+                <input
+                  id="acct-code"
+                  className="field"
+                  type="text"
+                  name="code"
+                  required
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9 ]{6,7}"
+                  maxLength={7}
+                  placeholder="123456"
+                  style={{ letterSpacing: 4, fontSize: 20 }}
+                />
+                <div style={{ marginTop: 10 }}>
+                  <button className="btn btn-cyan" type="submit">Sign in with the code</button>
+                </div>
+              </form>
               <div className="hr" />
               <p className="sub">
                 No email after a couple of minutes? Check your junk folder, or ask for another link below.

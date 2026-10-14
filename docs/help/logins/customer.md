@@ -1,8 +1,8 @@
 ---
 feature: logins
 role: customer
-title: Sign in to your account with an emailed link
-summary: How to get into your Paint Group account without a password — ask for a sign-in link, open it, press Open my account — and what to do if a link says it has expired.
+title: Sign in to your account with an emailed link or code
+summary: How to get into your Paint Group account without a password — ask for a sign-in link, open it and press Open my account, or type the 6-digit code from the same email — and what to do if a link says it has expired.
 sources: app/account/login/page.tsx, app/account/login/actions.ts, app/account/auth/page.tsx, app/account/auth/actions.ts, lib/portal/auth.ts
 ---
 
@@ -18,8 +18,12 @@ Your Paint Group account has no password. Each time you want to get in, we email
 3. Open the email **Sign in to your Paint Group account** and press **Open my account**.
 4. A page opens that says **Open your account**. Press **Open my account** on that page. Your account opens.
 
+### Or type the code instead
+The same email shows a **6-digit code** under the button. On the **Check your email** page, type it into **Sign-in code** and press **Sign in with the code**. Your account opens. The code and the link are the same key — use one or the other.
+
 ## If something goes wrong
 - **"That sign-in link has expired or was already used."** Each link works once and lasts an hour. Type your email on that page and we send a fresh one. Use the newest email — asking for a new link stops the older ones working.
+- **"That code didn't match or has run out."** Codes last an hour and work once, like the link. Check you are reading the newest email, or press **Send me another link** and use the code from that one.
 - **No email after a couple of minutes.** Check your junk folder, or press **Send me another link**.
 - **"We've sent a few links already."** Wait a minute for your inbox to catch up before asking again.
 - **Still stuck?** Ring the office on the number shown on the page.

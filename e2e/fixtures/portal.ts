@@ -32,6 +32,21 @@ export async function magicLinkFor(sb: SupabaseClient, email: string): Promise<s
   return `/account/auth?token_hash=${encodeURIComponent(link.data.properties.hashed_token)}`;
 }
 
+/** The 6-digit code that rides in the same email as the link (14 Oct 2026).
+ * Spends the same token the link does. */
+export async function magicCodeFor(sb: SupabaseClient, email: string): Promise<string> {
+  let link = await sb.auth.admin.generateLink({ type: "magiclink", email });
+  if (link.error) {
+    const created = await sb.auth.admin.createUser({ email });
+    if (created.error && !/already/i.test(created.error.message)) throw new Error(created.error.message);
+    link = await sb.auth.admin.generateLink({ type: "magiclink", email });
+  }
+  if (link.error || !link.data?.properties?.email_otp) {
+    throw new Error(`generateLink: ${link.error?.message ?? "no code"}`);
+  }
+  return link.data.properties.email_otp;
+}
+
 /** Open an emailed sign-in link the way a person does: land on the page,
  * then tap. Opening /account/auth spends nothing — the tap redeems it (so a
  * mail scanner's fetch cannot, 13 Oct 2026). */
