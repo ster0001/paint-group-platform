@@ -3,12 +3,22 @@
 import { useState, useTransition } from "react";
 import { approveAndSendUpdate, approveUpdate, dismissUpdate } from "../actions";
 
+/** "Tue 14 Oct, 3:42 pm" in Melbourne time — never the UTC date (CLAUDE.md → Dates). */
+function whenMelbourne(iso: string): string {
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short",
+    hour: "numeric", minute: "2-digit", hour12: true,
+  }).format(new Date(iso)).replace(/\s?(am|pm)$/i, (m) => m.toLowerCase());
+}
+
 /** One drafted update: read it, change it if it doesn't sound like us, send it — or delete it. */
 export default function UpdateCard({
-  id, status, forDate, text, photoCount, woRef, jobTitle, jobStage = null,
+  id, status, forDate, text, photoCount, woRef, jobTitle, jobStage = null, lastTickAt = null,
 }: {
   id: string; status: string; forDate: string; text: string;
   photoCount: number; woRef: string; jobTitle: string;
+  /** When the painter last ticked an area this draft was written from (ISO) — Tom, 14 Oct 2026. */
+  lastTickAt?: string | null;
   /** The job's stage now — a draft on a closed job is too late to send (Tom, 29 Sep). */
   jobStage?: string | null;
 }) {
@@ -45,6 +55,11 @@ export default function UpdateCard({
         {jobTitle || woRef}
         <em>{woRef} · {forDate}{jobStage === "closed" ? " · job completed" : ""}</em>
       </h3>
+      <p className="note" data-testid={`ticked-${id}`}>
+        {lastTickAt
+          ? <>Painter&rsquo;s last update to this job: <b>{whenMelbourne(lastTickAt)}</b></>
+          : <>No tick on record for this draft &mdash; it was written by hand or its ticks are gone.</>}
+      </p>
       {jobStage === "closed" && state !== "sent" && state !== "deleted" && (
         <p className="note" style={{ color: "var(--amber)" }} data-testid={`too-late-${id}`}>
           This job has already completed — too late to send this one. Delete it.

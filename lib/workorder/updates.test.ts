@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaPhrase, composeUpdate, greeting, groupTicks, listPhrase, type TickEvent } from "./updates";
+import { areaPhrase, composeUpdate, greeting, groupTicks, listPhrase, opensWithGreeting, type TickEvent } from "./updates";
 
 const tick = (heading: string, label: string, to: string, from = "todo"): TickEvent =>
   ({ heading, label, from, to });
@@ -42,7 +42,7 @@ describe("a real day's work", () => {
   it("reads like a person wrote it", () => {
     const text = composeUpdate({ customerFirstName: "Melissa", ticks, photoCount: 6, now: afternoon })!;
     expect(text).toBe(
-      "Good afternoon Melissa — today we completed the front of the house: " +
+      "Hi Melissa — today we completed the front of the house: " +
       "Walls — weatherboard and render, Windows × 3 and Entry door, and we have prepped " +
       "the left-hand side (Walls — weatherboard) and will be back on that tomorrow. " +
       "Photos attached (6).",
@@ -67,18 +67,28 @@ describe("a real day's work", () => {
     expect(groups[0].prepped).toEqual([]);
   });
 
-  it("greets by the hour", () => {
-    expect(greeting(morning, "Melissa")).toBe("Good morning Melissa");
-    expect(greeting(afternoon, "Melissa")).toBe("Good afternoon Melissa");
-    expect(greeting(evening, "Melissa")).toBe("Good evening Melissa");
+  it("greets by name, never by the time of day (Tom, 14 Oct 2026)", () => {
+    for (const when of [morning, afternoon, evening]) {
+      expect(greeting(when, "Melissa")).toBe("Hi Melissa");
+    }
+    const text = composeUpdate({ customerFirstName: "Melissa", ticks, photoCount: 0, now: evening })!;
+    expect(text).not.toMatch(/good (morning|afternoon|evening)/i);
   });
 
-  it("copes with no name rather than writing 'Good afternoon ,'", () => {
-    expect(greeting(afternoon, "")).toBe("Good afternoon");
+  it("copes with no name rather than writing 'Hi ,'", () => {
+    expect(greeting(afternoon, "")).toBe("Hi there");
     const text = composeUpdate({
       customerFirstName: "", ticks: [tick("Front", "Walls", "done")], photoCount: 0, now: afternoon,
     })!;
-    expect(text.startsWith("Good afternoon — today we completed")).toBe(true);
+    expect(text.startsWith("Hi there — today we completed")).toBe(true);
+  });
+
+  it("tells delivery whether the draft already says hello", () => {
+    expect(opensWithGreeting("Hi Melissa — today we completed the front.")).toBe(true);
+    expect(opensWithGreeting("Hello Melissa, the front is done.")).toBe(true);
+    expect(opensWithGreeting("Good afternoon Melissa — the front is finished.")).toBe(true);
+    expect(opensWithGreeting("The front is finished and looks terrific.")).toBe(false);
+    expect(opensWithGreeting("Hiding the old colour took two coats.")).toBe(false);
   });
 });
 
