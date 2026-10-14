@@ -16,6 +16,7 @@ import { sendVisitReminders } from "@/lib/visits/notify";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { staffCustomerUpdateDrafted } from "@/lib/staff/notify";
 import { sendCustomerUpdateDueAlerts } from "@/lib/automations/sweeps/customerUpdateDue";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * The daily sweep: draft today's customer updates, flag the silent sites, and
@@ -84,9 +85,9 @@ async function sweep(opts: { force?: boolean } = {}) {
   const since = melbourneDayStartUtc(now);
 
   // Every tick logged today, across every job.
-  const { data: ticks, error: tickError } = await db
+  const { data: ticks, error: tickError } = await realOnly(db
     .from("wo_events")
-    .select("id, work_order_id, meta")
+    .select("id, work_order_id, meta"))
     .eq("type", "surface_tick")
     .gte("created_at", since);
   if (tickError) return { ok: false as const, error: tickError.message };
@@ -173,8 +174,8 @@ async function sweep(opts: { force?: boolean } = {}) {
   // jobs nobody opened. Idempotent per job.
   // Contractor-less jobs are skipped up front: wo_schedule_qa answers ok:0
   // for them anyway, so calling it is a round trip for nothing.
-  const qaJobs = (await fetchAllRows<{ id: string }>((from, to) => db.from("work_orders")
-    .select("id").in("stage", ["pre_start", "in_progress"])
+  const qaJobs = (await fetchAllRows<{ id: string }>((from, to) => realOnly(db.from("work_orders")
+    .select("id")).in("stage", ["pre_start", "in_progress"])
     .not("contractor_id", "is", null)
     .order("stage_entered_at", { ascending: false, nullsFirst: false }).order("id")
     .range(from, to))).map((r) => r.id);
@@ -190,8 +191,8 @@ async function sweep(opts: { force?: boolean } = {}) {
   let preStartSent = 0;
   try { preStartSent = await sendPreStartChecklists(db, now); } catch (e) { reportError(e, { where: "wo-sweep.preStart" }); }
 
-  const passedJobs = (await fetchAllRows<{ id: string }>((from, to) => db.from("work_orders")
-    .select("id").eq("stage", "qa")
+  const passedJobs = (await fetchAllRows<{ id: string }>((from, to) => realOnly(db.from("work_orders")
+    .select("id")).eq("stage", "qa")
     .order("stage_entered_at", { ascending: false, nullsFirst: false }).order("id")
     .range(from, to))).map((r) => r.id);
   const qaRouteDeferred = Math.max(0, passedJobs.length - RPC_CAP);
@@ -246,9 +247,9 @@ async function sweep(opts: { force?: boolean } = {}) {
   let apptConfirmed = 0;
   try {
     const threeDaysAgo = new Date(now.getTime() - 3 * 86_400_000).toISOString();
-    const { data: recent } = await db
+    const { data: recent } = await realOnly(db
       .from("booking_offers")
-      .select("work_order_id")
+      .select("work_order_id"))
       .eq("state", "accepted")
       .gte("accepted_at", threeDaysAgo)
       .limit(200);
@@ -264,13 +265,13 @@ async function sweep(opts: { force?: boolean } = {}) {
   // still to come re-reconciles, so a move whose invite was lost (a closed
   // tab, a Resend outage) reaches the calendar by the next morning.
   let qaInviteJobs = 0;
-  const { data: dueChecks, error: dueError } = await db
-    .from("wo_qa_checks").select("work_order_id")
+  const { data: dueChecks, error: dueError } = await realOnly(db
+    .from("wo_qa_checks").select("work_order_id"))
     .is("result", null).gte("scheduled_for", today)
     .order("scheduled_for").limit(RPC_CAP);
   // Site check-ins (20270248) go in the same calendar.
-  const { data: dueVisits, error: dueVisitsError } = await db
-    .from("wo_site_visits").select("work_order_id")
+  const { data: dueVisits, error: dueVisitsError } = await realOnly(db
+    .from("wo_site_visits").select("work_order_id"))
     .is("visited_at", null).gte("scheduled_for", today)
     .order("scheduled_for").limit(RPC_CAP);
   if (dueVisitsError) reportError(dueVisitsError, { where: "wo-sweep.siteVisitInvites" });

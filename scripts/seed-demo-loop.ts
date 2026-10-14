@@ -46,7 +46,8 @@ async function idFor(db: SupabaseClient, email: string, table: "contractors" | "
 }
 
 async function destroy(db: SupabaseClient) {
-  const { data } = await db.from("work_orders").select("estimate_id").like("wo_ref", "WO-DEMO%");
+  // Never the induction's 12 Demo Street (migration 20270262) — that is a contractor's own practice job.
+  const { data } = await db.from("work_orders").select("estimate_id").like("wo_ref", "WO-DEMO%").eq("is_demo", false);
   const ids = ((data ?? []) as { estimate_id: string }[]).map((r) => r.estimate_id);
   if (ids.length === 0) { console.log("nothing to remove"); return; }
   await db.from("estimates").delete().in("id", ids);

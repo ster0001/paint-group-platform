@@ -17,6 +17,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { renderEmail, renderPlainText, type Brand, type Template } from "./blocks";
 import { trackLinks } from "./links";
+import { realOnly } from "@/lib/demo/scope";
 
 export const MARKETING_FROM = "hello@mail.paintgroup.com.au";
 export const MARKETING_REPLY_TO = "info@paintgroup.com.au";
@@ -189,8 +190,8 @@ export async function resolveRecipientLinks(
   baseUrl?: string,
 ): Promise<{ estimateUrl: string | null; accountUrl: string }> {
   const base = (baseUrl || process.env.NEXT_PUBLIC_SITE_URL || "https://paintgroup.com.au").replace(/\/$/, "");
-  const { data } = await db.from("estimates")
-    .select("share_token, sent_at")
+  const { data } = await realOnly(db.from("estimates")
+    .select("share_token, sent_at"))
     .eq("account_id", accountId)
     .not("sent_at", "is", null)
     .order("sent_at", { ascending: false })

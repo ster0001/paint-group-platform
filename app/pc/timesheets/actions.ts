@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { notifyLeaveDecided } from "@/lib/contractor/notify";
 import type { PcResult } from "../actions";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * Employed painters — Session 6: the office's side of a timesheet. Thin
@@ -134,7 +135,7 @@ export async function decideLeaveAction(raw: unknown): Promise<PcResult> {
 /** S7b: approve every standard (auto) day still waiting (one a rate did not cover when it was filled). */
 export async function approveStandardDaysAction(): Promise<PcResult & { approved?: number; left?: number }> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("timesheet_entries").select("id").eq("status", "submitted").eq("source", "auto").order("work_date", { ascending: true }).limit(500);
+  const { data, error } = await realOnly(supabase.from("timesheet_entries").select("id")).eq("status", "submitted").eq("source", "auto").order("work_date", { ascending: true }).limit(500);
   if (error) return { ok: false, message: error.message };
   let approved = 0; let left = 0;
   for (const row of (data ?? []) as { id: string }[]) {

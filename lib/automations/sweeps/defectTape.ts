@@ -34,6 +34,7 @@ import { reportError } from "@/lib/monitoring/report";
 import { customerDefectTapeRungs, jobDays, type DefectTapeRung } from "@/lib/workorder/jobRhythm";
 import { melbourneDayAndTime } from "@/lib/workorder/reminderMoments";
 import { dayInstant, suburbFromAddress } from "./moneySignoff";
+import { realOnly } from "@/lib/demo/scope";
 
 export const DEFECT_TAPE_KEY = "customer_defect_tape";
 const OPEN_STAGES = ["pre_start", "in_progress", "completion_prep"];
@@ -103,7 +104,7 @@ export async function runDefectTapeSweep(db: SupabaseClient, now = new Date()): 
     const today = melbourneDateKey(now);
     const select = "id, wo_ref, stage, start_date, end_date, estimate_id, wo_snapshot, contractors(works_saturday, works_sunday), " +
       "estimates(account_id, accepted_name, contact_email:sent_snapshot->>contactEmail, contact_phone:builder_state->contact->>phone, contact_first:builder_state->contact->>first_name, job_address:sent_snapshot->>jobAddress)";
-    const { data, error } = await db.from("work_orders").select(select)
+    const { data, error } = await realOnly(db.from("work_orders").select(select))
       .in("stage", OPEN_STAGES).lte("start_date", today).gte("end_date", today)
       .order("start_date", { ascending: true }).limit(300);
     if (error) throw error;

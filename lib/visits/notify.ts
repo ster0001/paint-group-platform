@@ -23,6 +23,7 @@ import { toE164Au } from "@/lib/campaigns/sms";
 import { reportError } from "@/lib/monitoring/report";
 import { VISIT_KINDS, type VisitRow } from "./types";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { realOnly } from "@/lib/demo/scope";
 
 const two = (n: number) => String(n).padStart(2, "0");
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -108,7 +109,7 @@ export async function sendVisitConfirmation(db: SupabaseClient, visitId: string)
   const body = renderTemplate(messaging.visitConfirmBody, vars);
   const { date, time, minutes } = visitDateTime(visit.starts_at, visit.ends_at);
   // SEQUENCE climbs with every confirmation so a moved visit EDITS the calendar entry.
-  const { count } = await db.from("crm_events").select("id", { count: "exact", head: true }).eq("type", "visit_booked").contains("payload", { visitId });
+  const { count } = await realOnly(db.from("crm_events").select("id", { count: "exact", head: true })).eq("type", "visit_booked").contains("payload", { visitId });
   const kind = VISIT_KINDS.find((k) => k.key === visit.kind)?.label ?? "Visit";
   const ics = buildIcs({
     uid: `visit-${visit.id}@paintgroup`, sequence: Math.max(0, (count ?? 1) - 1), method: "REQUEST",

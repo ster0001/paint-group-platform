@@ -8,6 +8,7 @@ import type { WoStage } from "@/lib/workorder/stages";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { reportError } from "@/lib/monitoring/report";
 import { INVOICE_SELECT, loadContractorInvoices, type ContractorInvoiceRow, type InvoiceRow } from "./data";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * The rows behind the Payments page (payments-merge brief §4.1). Read-only,
@@ -45,15 +46,15 @@ type ChatRow = { estimate_id: string; created_at: string };
 export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Promise<{ input: JobMoneyInput | null; failure: ReadFailure | null }> {
   try {
     const [estimates, workOrders, invoices, payments, variations, cis, intake, jobCosts, views, chats, vendors, materialCosts] = await Promise.all([
-      fetchAllRows<EstimateRow>((f, t) => supabase.from("estimates")
-        .select("id, title, accepted_name, accepted_total_cents, total_cents, job_address:sent_snapshot->>jobAddress")
+      fetchAllRows<EstimateRow>((f, t) => realOnly(supabase.from("estimates")
+        .select("id, title, accepted_name, accepted_total_cents, total_cents, job_address:sent_snapshot->>jobAddress"))
         .eq("status", "accepted").order("id").range(f, t)),
-      fetchAllRows<WorkOrderRow>((f, t) => supabase.from("work_orders")
-        .select("id, estimate_id, wo_ref, stage, start_date, contractors(company_name, profiles(name))")
+      fetchAllRows<WorkOrderRow>((f, t) => realOnly(supabase.from("work_orders")
+        .select("id, estimate_id, wo_ref, stage, start_date, contractors(company_name, profiles(name))"))
         .order("id").range(f, t)),
-      fetchAllRows<InvoiceRow>((f, t) => supabase.from("invoices").select(INVOICE_SELECT).order("created_at").order("id").range(f, t)),
+      fetchAllRows<InvoiceRow>((f, t) => realOnly(supabase.from("invoices").select(INVOICE_SELECT)).order("created_at").order("id").range(f, t)),
       fetchAllRows<PaymentRow>((f, t) => supabase.from("payments").select("invoice_id, amount_cents, status, paid_on").order("id").range(f, t)),
-      fetchAllRows<VariationRow>((f, t) => supabase.from("wo_variations").select("work_order_id, status, price_cents, credit").order("id").range(f, t)),
+      fetchAllRows<VariationRow>((f, t) => realOnly(supabase.from("wo_variations").select("work_order_id, status, price_cents, credit")).order("id").range(f, t)),
       // The Payables tab's own read (every unpaid one, the newest settled) — one read for both pages.
       loadContractorInvoices(supabase).then((r) => { if (r.error) throw new Error(r.error.message); return (r.data ?? []) as ContractorInvoiceRow[]; }),
       // Step 6 — the Materials block: every document a person hasn't settled (and the set-aside ones, for Restore).
@@ -61,8 +62,8 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
         .select("id, status, confirmed_at, resulting_id, created_at, raw_doc_path, from_email, extract_status, proposed_wo_id, proposed_vendor_id, duplicate_of, extracted, match_reason")
         .in("status", ["pending", "duplicate", "rejected"]).order("created_at", { ascending: false }).order("id").range(f, t)),
       // Employee labour is a wage, not a payable (fix/payables-no-employee-labour) — never in the Materials block.
-      fetchAllRows<JobCostDb>((f, t) => supabase.from("job_costs")
-        .select("id, work_order_id, vendor_id, category, status, amount_ex_cents, gst_cents, doc_path, invoice_no, invoice_date, intake_id, paid_at, created_at")
+      fetchAllRows<JobCostDb>((f, t) => realOnly(supabase.from("job_costs")
+        .select("id, work_order_id, vendor_id, category, status, amount_ex_cents, gst_cents, doc_path, invoice_no, invoice_date, intake_id, paid_at, created_at"))
         .neq("category", "labour").order("created_at", { ascending: false }).order("id").range(f, t)),
       // "Invoice opened N times" on the row — customer opens only (staff previews never write one).
       fetchAllRows<ViewRow>((f, t) => supabase.from("invoice_events").select("invoice_id").eq("type", "viewed").order("id").range(f, t)),
@@ -70,7 +71,7 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
       fetchAllRows<ChatRow>((f, t) => supabase.from("estimate_messages").select("estimate_id, created_at").eq("direction", "staff").order("id").range(f, t)),
       // Vendor memory (one supplier, one name) and who sells materials.
       fetchAllRows<VendorDb>((f, t) => supabase.from("vendors").select("id, name, sender_domains, default_category").order("id").range(f, t)),
-      fetchAllRows<MaterialCostDb>((f, t) => supabase.from("material_costs").select("id, work_order_id, supplier, amount_cents, intake_id, overhead, invoice_date, order_ref, address_text, created_at").order("id").range(f, t)),
+      fetchAllRows<MaterialCostDb>((f, t) => realOnly(supabase.from("material_costs").select("id, work_order_id, supplier, amount_cents, intake_id, overhead, invoice_date, order_ref, address_text, created_at")).order("id").range(f, t)),
     ]);
     const lastMessaged = new Map<string, string>();
     for (const m of chats) if ((lastMessaged.get(m.estimate_id) ?? "") < m.created_at) lastMessaged.set(m.estimate_id, m.created_at);

@@ -69,7 +69,11 @@ export default async function PortalHome() {
   const { status: myStatus } = await loadMyStatus(supabaseForStandards, contractor.id);
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
-  const jobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
+  const allJobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
+  // 12 Demo Street is a card of its own on the front page (Module 1: "it is
+  // waiting there"); everything else on this screen reads real jobs only.
+  const demoJob = allJobs.find((j) => j.isDemo) ?? null;
+  const jobs = allJobs.filter((j) => !j.isDemo);
   // Session 6: the employee's day — Start / Finish, hours only. Nothing for a
   // contractor, whose days are the offer they accepted.
   const timesheet = capabilities.clocksOn ? await loadMyTimesheet() : null;
@@ -359,6 +363,16 @@ export default async function PortalHome() {
       )}
 
       {/* Real jobs once any have been issued; otherwise say so plainly. */}
+      {demoJob && (
+        <Link href={`/portal/jobs/${demoJob.id}`} className="card amberish" data-testid="home-demo-card" style={{ display: "block" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="chip amb">Demo</span>
+            <b>12 Demo Street</b>
+          </span>
+          <span className="hint" style={{ display: "block", padding: 0, marginTop: 4 }}>Your practice job for the induction. Nothing in it is real.</span>
+        </Link>
+      )}
+
       <div className="card">
         <h3>Your work</h3>
         {jobs.length === 0 ? (

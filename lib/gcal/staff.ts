@@ -25,6 +25,7 @@ import { buildPrimaryVisitEvent, buildTravelEvent, slotEndOf } from "./visitEven
 import { loadBookingRules } from "@/lib/visits/scheduleDb";
 import { reportError } from "@/lib/monitoring/report";
 import { VISIT_KINDS, type VisitRow } from "@/lib/visits/types";
+import { realOnly } from "@/lib/demo/scope";
 
 export const STAFF_CALENDAR_NAME = "Paint Group Visits";
 
@@ -174,8 +175,9 @@ export async function reconcileStaffCalendar(staffId: string): Promise<StaffSync
     if (conn.push_jobs) {
       const { buildEventInput } = await import("./sync");
       const today = new Date().toISOString().slice(0, 10);
-      const { data: jobs } = await admin.from("work_orders")
-        .select("id, wo_ref, status, start_date, end_date, issued_at, viewed_at, contractor_payment_cents, wo_snapshot")
+      // Ruling 8 (14 Oct): the practice job never reaches Google Calendar.
+      const { data: jobs } = await realOnly(admin.from("work_orders")
+        .select("id, wo_ref, status, start_date, end_date, issued_at, viewed_at, contractor_payment_cents, wo_snapshot"))
         .not("issued_at", "is", null).not("start_date", "is", null).gte("start_date", today).neq("stage", "closed").limit(500);
       for (const row of jobs ?? []) {
         const ev = buildEventInput(row as never, siteUrl);

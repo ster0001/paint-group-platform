@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { reportError } from "@/lib/monitoring/report";
 import { OPEN_STATUSES, type Callback, type CallbackReason, type CallbackSource, type CallbackStatus } from "./model";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * Reads of wo_callbacks under the caller's own session (RLS: staff all, the
@@ -44,14 +45,14 @@ export async function loadCallbacksForJob(supabase: SupabaseClient, workOrderId:
 
 /** Every OPEN call back (the Flow column, the queue). */
 export async function loadOpenCallbacks(supabase: SupabaseClient): Promise<CallbacksLoad> {
-  const { data, error } = await supabase.from("wo_callbacks").select(COLS).in("status", [...OPEN_STATUSES]).order("created_at", { ascending: true }).limit(500);
+  const { data, error } = await realOnly(supabase.from("wo_callbacks").select(COLS)).in("status", [...OPEN_STATUSES]).order("created_at", { ascending: true }).limit(500);
   if (error) return failed("callbacks.open", error);
   return { callbacks: ((data ?? []) as unknown as Row[]).map(toCallback), error: null };
 }
 
 /** The painter's own: about them, or booked for them to fix. */
 export async function loadMyCallbacks(supabase: SupabaseClient, contractorId: string, onlyOpen = true): Promise<CallbacksLoad> {
-  let q = supabase.from("wo_callbacks").select(COLS)
+  let q = realOnly(supabase.from("wo_callbacks").select(COLS))
     .or(`painter_id.eq.${contractorId},fixed_by_painter_id.eq.${contractorId}`)
     .order("created_at", { ascending: false }).limit(50);
   if (onlyOpen) q = q.in("status", [...OPEN_STATUSES]);
