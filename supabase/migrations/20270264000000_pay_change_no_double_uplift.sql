@@ -1,10 +1,10 @@
 -- A rate change sent to the painter counts each hour ONCE (Tom, 14 Oct 2026).
 --
 -- 73 Kerferd Street (PS-3613): the office set the contractor rate to $67 in
--- Revise scope (from the card's $60) and drafted two changes the customer
+-- Revise scope (from the card $60) and drafted two changes the customer
 -- signed — 6 h and 3 h, ALREADY priced at $67 ($402, $201). wo_sync_contractor_pay
 -- (20270254) added the $7 uplift to the base hours AND to those 9 hours, so the
--- "Change to your rate" figure would read $63 high ($6,894 for $6,831). Its
+-- Change to your rate figure would read $63 high ($6,894 for $6,831). Its
 -- filter matched rows at hours × coalesce(their own rate, agreed) — true for a
 -- row at the new rate too. Now only rows still priced at the AGREED rate count.
 -- The accept step (wo_contractor_answer_pay_change) moves the base by base
