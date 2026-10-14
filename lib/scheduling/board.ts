@@ -7,6 +7,7 @@ import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { estimatedHours } from "@/lib/workorder/hours";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { HOLD_FALLBACK_TITLE, openHolds, type AppointmentRow, type HoldRow } from "./holds";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * fetchAllRows, in this module's error idiom: the board SURFACES query
@@ -234,9 +235,9 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       // only when their own dates touch the window — finished work is history
       // the visible columns may still show, not board state. Paged, because
       // this was the query that silently lost jobs past PostgREST's row cap.
-      paged<WRow>((f, t) => supabase
+      paged<WRow>((f, t) => realOnly(supabase
         .from("work_orders")
-        .select("id, estimate_id, wo_ref, stage, status, contractor_id, start_date, contractor_payment_cents, wo_snapshot, issued_at, created_at, estimates ( title, accepted_at )")
+        .select("id, estimate_id, wo_ref, stage, status, contractor_id, start_date, contractor_payment_cents, wo_snapshot, issued_at, created_at, estimates ( title, accepted_at )"))
         .or(`stage.neq.closed,and(start_date.lte.${addDays(to, 30)},end_date.gte.${addDays(from, -30)})`)
         .order("id").range(f, t)),
       // Windowed rather than "every offer ever made" (audit S6). The window is
@@ -244,9 +245,9 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       // supplies the tray's "last declined because…" note, and a proposal
       // awaiting staff must appear in the approvals queue even when its dates
       // sit outside the columns on screen.
-      paged<BookingOffer>((f, t) => supabase
+      paged<BookingOffer>((f, t) => realOnly(supabase
         .from("booking_offers")
-        .select(OFFER_COLUMNS)
+        .select(OFFER_COLUMNS))
         .or(`state.in.(offered,proposed),and(start_date.lte.${addDays(to, 30)},start_date.gte.${addDays(from, -180)})`)
         .order("id").range(f, t)),
       supabase
@@ -270,18 +271,18 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .order("created_at", { ascending: false }).order("id")
         .range(f, t)),
       // §4b: booked walkthroughs pin onto the assigned contractor's lane.
-      supabase
+      realOnly(supabase
         .from("wo_walkthroughs")
-        .select("id, work_order_id, kind, scheduled_date, scheduled_time")
+        .select("id, work_order_id, kind, scheduled_date, scheduled_time"))
         .eq("status", "booked")
         .gte("scheduled_date", from)
         .lte("scheduled_date", to),
       // Employed painters (S2): every live assignment on an open job, not just
       // the window — "1 of 3" needs the whole crew, and the tray needs to know
       // a job is taken. Small table; the job's own dates already bound it.
-      paged<ARow>((f, t) => supabase
+      paged<ARow>((f, t) => realOnly(supabase
         .from("wo_assignments")
-        .select("id, work_order_id, contractor_id, start_date, end_date, is_lead, status, accepted_at")
+        .select("id, work_order_id, contractor_id, start_date, end_date, is_lead, status, accepted_at"))
         .neq("status", "released")
         .lte("start_date", addDays(to, 60))
         .gte("end_date", addDays(from, -60))
@@ -292,14 +293,14 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       // The job rides along: a visit can be on ANY project (Tom, 4 Oct — a
       // touch-up on a finished job), so it cannot rely on the board's own
       // work-order read, which leaves closed jobs out.
-      supabase
+      realOnly(supabase
         .from("wo_appointments")
-        .select("id, work_order_id, contractor_id, start_date, end_date, note, work_orders ( id, estimate_id, wo_ref, stage, status, wo_snapshot, issued_at, estimates ( title ) )")
+        .select("id, work_order_id, contractor_id, start_date, end_date, note, work_orders ( id, estimate_id, wo_ref, stage, status, wo_snapshot, issued_at, estimates ( title ) )"))
         .lte("start_date", to)
         .gte("end_date", from),
-      supabase
+      realOnly(supabase
         .from("schedule_holds")
-        .select("id, contractor_id, start_date, end_date, work_order_id, note, created_at, released_at")
+        .select("id, contractor_id, start_date, end_date, work_order_id, note, created_at, released_at"))
         .is("released_at", null)
         .lte("start_date", to)
         .gte("end_date", from),

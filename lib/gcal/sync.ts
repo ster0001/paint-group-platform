@@ -37,6 +37,7 @@ import {
   patchEvent,
 } from "./client";
 import { reportError } from "@/lib/monitoring/report";
+import { realOnly } from "@/lib/demo/scope";
 
 export const GCAL_CALENDAR_NAME = "Paint Group Jobs";
 
@@ -207,9 +208,10 @@ export async function reconcileContractorCalendar(contractorId: string): Promise
 
     let committed = new Set<string>();
     if (rows.length > 0) {
-      const { data: offerData, error: offerError } = await admin
+      // Ruling 8 (14 Oct): the practice job never reaches Google Calendar.
+      const { data: offerData, error: offerError } = await realOnly(admin
         .from("booking_offers")
-        .select("work_order_id, state")
+        .select("work_order_id, state"))
         .in(
           "work_order_id",
           rows.map((r) => r.id),

@@ -20,6 +20,7 @@ import { invoiceBalanceCents, invoiceIsOverdue, type DeriveInvoice, type DeriveP
 import { OPEN_STATUSES } from "@/lib/invoicing/stateMachine";
 import { CONSENT_HOW_LABEL, CONSENT_LABEL, parseConsents, type ConsentKind } from "@/lib/accounts/consent";
 import { CHANNEL_LABEL, NOTIFY_TYPES, parseNotifyPrefs, switchedOff } from "@/lib/notifications/prefs";
+import { realOnly } from "@/lib/demo/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -107,7 +108,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
     supabase.from("crm_account_facts").select("stage, because, opened_count, last_opened_at, quote_at, last_contact_at, last_contact_channel, won_cents, open_value_cents, estimates_count, stale").eq("account_id", id).maybeSingle(),
     supabase.from("profiles").select("id, name").eq("role", "staff").order("name", { ascending: true }).limit(50),
     supabase.rpc("crm_duplicate_candidates", { p_limit: 5, p_account: id }),
-    supabase.from("messages").select("id, channel, direction, subject, body, provider, status, status_at, read_at, occurred_at, to_address, from_address, meta")
+    realOnly(supabase.from("messages").select("id, channel, direction, subject, body, provider, status, status_at, read_at, occurred_at, to_address, from_address, meta"))
       .eq("account_id", id).order("occurred_at", { ascending: false }).limit(100),
     supabase.from("crm_tags").select("key, label").order("sort_order").order("label"),
   ]);
@@ -131,7 +132,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
   const estIds = est.map((e) => e.id);
   const [{ data: wos }, { data: invoices }, historyRes] = await Promise.all([
     estIds.length ? supabase.from("work_orders").select("id, estimate_id, wo_ref, stage, start_date, end_date").in("estimate_id", estIds).order("start_date", { ascending: false, nullsFirst: false }).limit(50) : Promise.resolve({ data: [] }),
-    supabase.from("invoices").select("id, estimate_id, number, status, total_inc_cents, due_on, issued_on, kind").or(`account_id.eq.${id}${estIds.length ? `,estimate_id.in.(${estIds.join(",")})` : ""}`).order("created_at", { ascending: false }).limit(50),
+    realOnly(supabase.from("invoices").select("id, estimate_id, number, status, total_inc_cents, due_on, issued_on, kind")).or(`account_id.eq.${id}${estIds.length ? `,estimate_id.in.(${estIds.join(",")})` : ""}`).order("created_at", { ascending: false }).limit(50),
     supabase.from("crm_jobs").select("id, estimate_id, project_name, job_type, status, quote_url, work_order_url, start_date, end_date, invoice_total_cents, estimated_hours, actual_hours, contractor_offer_cents, workers, notes")
       .eq("account_id", id).order("start_date", { ascending: false, nullsFirst: false }).limit(50),
   ]);

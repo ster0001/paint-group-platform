@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { melbourneDate, type ConsoleInput } from "./console";
 import { fetchAllRows as fetchAll } from "@/lib/supabase/fetchAllRows";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * One load for the whole console.
@@ -35,24 +36,24 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   const [woRows, offers, variations, updates, signoffs, flags, closed, tickRows, contractors, settings, coloursTickedRows, collections,
          qaOpen, walkBooked, qaPassed, sentUpdateRows] =
     await Promise.all([
-      fetchAll<WoRow>((from, to) => supabase.from("work_orders")
-        .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, end_date, walkthrough_required, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
+      fetchAll<WoRow>((from, to) => realOnly(supabase.from("work_orders")
+        .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, end_date, walkthrough_required, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)"))
         // Open jobs, plus anything closed in the last 30 days — so a signed job
         // lands in the board's Closed lane rather than vanishing (Tom, 23 Aug).
         // The queue and tiles filter closed out where they should.
         .or(`stage.neq.closed,stage_entered_at.gte.${new Date(now.getTime() - 30 * 86_400_000).toISOString()}`)
         .order("id").range(from, to)),
-      supabase.from("booking_offers")
-        .select("id, work_order_id, state, expires_at, proposed_start_date, approval_due_at, contractors(company_name)")
+      realOnly(supabase.from("booking_offers")
+        .select("id, work_order_id, state, expires_at, proposed_start_date, approval_due_at, contractors(company_name)"))
         // 'expired' and 'declined' too: the sweep flips a breached offer to
         // expired within minutes, and a job nobody is coming to is precisely
         // what the console has to surface.
         .in("state", ["offered", "proposed", "expired", "declined"]),
-      supabase.from("wo_variations")
-        .select("id, work_order_id, status, created_at, priced_lines, contractor_rate_cents, credit, needs_manual_deduction, deduction_cents, category, comment, price_cents, raised_kind, contractor_declined_at, contractor_decline_note")
+      realOnly(supabase.from("wo_variations")
+        .select("id, work_order_id, status, created_at, priced_lines, contractor_rate_cents, credit, needs_manual_deduction, deduction_cents, category, comment, price_cents, raised_kind, contractor_declined_at, contractor_decline_note"))
         // Tom, 7 Oct 2026: a change the painter declined after the client approved it is back with the office.
         .or("status.in.(raised,priced,customer_approved),and(status.eq.declined,contractor_declined_at.not.is.null)"),
-      supabase.from("wo_updates").select("id, work_order_id, status, created_at").eq("status", "drafted"),
+      realOnly(supabase.from("wo_updates").select("id, work_order_id, status, created_at")).eq("status", "drafted"),
       // Unsigned only. buildQueue skips a signed row on the first line of its
       // loop, so this changes nothing on screen — but signed jobs accumulate
       // for ever, and the console was reading every one of them on every load.
@@ -76,27 +77,27 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       // The colours box is a person's tick now (Tom, 23 Aug) — the console's
       // "Colours TBC" reads THAT, not the phantom per-product status. Ticked
       // boxes accumulate for ever, so this pages.
-      fetchAll<{ work_order_id: string }>((from, to) => supabase.from("wo_checklist_items")
-        .select("work_order_id")
+      fetchAll<{ work_order_id: string }>((from, to) => realOnly(supabase.from("wo_checklist_items")
+        .select("work_order_id"))
         .eq("phase", "pre_start").eq("label", "Colour schedule finalised").not("done_at", "is", null)
         .order("id").range(from, to)),
       // Rubbish / equipment yeses nobody has organised yet (Tom, 23 Aug).
-      supabase.from("wo_checklist_items")
-        .select("id, work_order_id, item_key, answer_note, done_at, work_orders(wo_ref, contractor_id, wo_snapshot)")
+      realOnly(supabase.from("wo_checklist_items")
+        .select("id, work_order_id, item_key, answer_note, done_at, work_orders(wo_ref, contractor_id, wo_snapshot)"))
         .eq("phase", "completion_prep").in("item_key", ["rubbish", "equipment"])
         .eq("answer", "yes").is("handled_at", null),
       // Tom, 23 Aug: quality checks to do, walkthroughs not booked, updates due.
-      supabase.from("wo_qa_checks").select("work_order_id, kind, scheduled_for, created_at").is("result", null),
-      supabase.from("wo_walkthroughs").select("work_order_id").eq("kind", "final").eq("status", "booked"),
+      realOnly(supabase.from("wo_qa_checks").select("work_order_id, kind, scheduled_for, created_at")).is("result", null),
+      realOnly(supabase.from("wo_walkthroughs").select("work_order_id")).eq("kind", "final").eq("status", "booked"),
       // Tom, 24 Sep: a passed check makes the job the office's to sign off —
       // open jobs only; closed ones accumulate for ever.
-      supabase.from("wo_qa_checks").select("work_order_id, work_orders!inner(stage)")
+      realOnly(supabase.from("wo_qa_checks").select("work_order_id, work_orders!inner(stage)"))
         .eq("result", "pass").neq("work_orders.stage", "closed"),
       // Sent updates accumulate for ever, and a truncated set here would
       // false-flag "update due" on jobs whose last update fell off the page.
       fetchAll<{ work_order_id: string; approved_at: string | null; sent_at: string | null; created_at: string }>(
-        (from, to) => supabase.from("wo_updates")
-          .select("work_order_id, approved_at, sent_at, created_at").in("status", ["approved", "sent"])
+        (from, to) => realOnly(supabase.from("wo_updates")
+          .select("work_order_id, approved_at, sent_at, created_at")).in("status", ["approved", "sent"])
           .order("id").range(from, to)),
     ]);
 
@@ -162,9 +163,9 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   const loop = (settings.data as { value?: Record<string, unknown> } | null)?.value ?? {};
 
   // 6c ask-first requests (tolerant — table lands with migration 20261127).
-  const { data: askRows } = await supabase
+  const { data: askRows } = await realOnly(supabase
     .from("expense_preapprovals")
-    .select("id, work_order_id, description, est_cents, created_at, contractors(company_name)")
+    .select("id, work_order_id, description, est_cents, created_at, contractors(company_name)"))
     .eq("status", "requested");
   const expenseAsks = ((askRows ?? []) as unknown as {
     id: string; work_order_id: string; description: string; est_cents: number;
@@ -197,7 +198,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   // Cards a person closed off (Tom, 25 Aug) — permanent per key, so the set
   // only ever grows; paged so an old dismissal can't fall off and resurface.
   const dismissedRows = await fetchAll<{ meta: { key?: string } | null }>((from, to) =>
-    supabase.from("wo_events").select("meta").eq("type", "card_dismissed").order("id").range(from, to));
+    realOnly(supabase.from("wo_events").select("meta")).eq("type", "card_dismissed").order("id").range(from, to));
   const dismissedKeys = dismissedRows
     .map((r) => r.meta?.key)
     .filter((k): k is string => Boolean(k));

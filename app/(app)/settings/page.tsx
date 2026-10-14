@@ -64,6 +64,7 @@ import { WEBSITE_CONTENT_KEY, parseWebsiteContent } from "@/lib/marketing/siteCo
 import { listShowcaseJobsForStaff } from "@/lib/showcase/staff";
 import DashboardSettings, { type HistoryRow, type SpendRow, type TargetRow, type ThresholdRow } from "./DashboardSettings";
 import { numericSettingValue, settingNotes, settingUnit } from "@/lib/settings/numeric";
+import { realOnly } from "@/lib/demo/scope";
 
 const AUTOMATION_COUNT = AUTOMATIONS.length;
 
@@ -88,7 +89,7 @@ export default async function SettingsPage() {
     // the ones that actually have one rather than every estimate ever written
     // (audit S6). Capped too — the count is advisory, and the cap is stated in
     // the UI rather than silently truncating.
-    supabase.from("estimates").select("presentation_id").not("presentation_id", "is", null).limit(2000),
+    realOnly(supabase.from("estimates").select("presentation_id")).not("presentation_id", "is", null).limit(2000),
   ]);
 
   // Step 3 scope tables - fetched separately and tolerantly: each degrades to

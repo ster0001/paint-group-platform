@@ -4,6 +4,7 @@ import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
 import { loadFailure, paymentsFailure, costsFailure, firstFailure } from "@/lib/invoicing/loadFailure";
 import { inSlices } from "@/lib/supabase/inSlices";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * Server-side row fetching + mapping for the §7 screens. Read-only: every
@@ -198,19 +199,19 @@ export type ReimbursementRow = {
  */
 export async function loadExpenseQueues(supabase: SupabaseClient) {
   const [expenses, preapprovals, reimbursements] = await Promise.all([
-    supabase.from("contractor_expenses")
-      .select("id, work_order_id, category, amount_cents, gst_cents, receipt_path, note, status, over_threshold_unapproved, created_at, paid_with, contractors(company_name, profiles(name)), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
+    realOnly(supabase.from("contractor_expenses")
+      .select("id, work_order_id, category, amount_cents, gst_cents, receipt_path, note, status, over_threshold_unapproved, created_at, paid_with, contractors(company_name, profiles(name)), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)"))
       .eq("status", "submitted")
       .order("created_at", { ascending: true }),
-    supabase.from("expense_preapprovals")
-      .select("id, work_order_id, description, est_cents, status, created_at, contractors(company_name), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
+    realOnly(supabase.from("expense_preapprovals")
+      .select("id, work_order_id, description, est_cents, status, created_at, contractors(company_name), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)"))
       .eq("status", "requested")
       .order("created_at", { ascending: true }),
     // Employed painters (S5, ruling 13): approved, paid from their own
     // pocket, not yet paid back. A contractor's claims ride their invoice and
     // never appear here — this is the employee's reimbursement queue.
-    supabase.from("contractor_expenses")
-      .select("id, work_order_id, category, amount_cents, note, decided_at, contractors!inner(company_name, employment_type, profiles(name)), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
+    realOnly(supabase.from("contractor_expenses")
+      .select("id, work_order_id, category, amount_cents, note, decided_at, contractors!inner(company_name, employment_type, profiles(name)), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)"))
       .eq("status", "approved").eq("paid_with", "personal").is("reimbursed_at", null)
       .eq("contractors.employment_type", "employee")
       .order("decided_at", { ascending: true }).limit(100),
@@ -264,8 +265,8 @@ const CI_SELECT = "id, number, status, total_inc_cents, due_on, submitted_at, ap
 /** Every unpaid contractor invoice, and the newest settled ones — the Payables tab's read and the Payments page's (Step 5). */
 export async function loadContractorInvoices(supabase: SupabaseClient): Promise<{ data: unknown[] | null; error: { message: string } | null }> {
   try {
-    const unpaid = await fetchAllRows<unknown>((from, to) => supabase.from("contractor_invoices").select(CI_SELECT).neq("status", "paid").order("created_at", { ascending: false }).order("id").range(from, to));
-    const paid = await supabase.from("contractor_invoices").select(CI_SELECT).eq("status", "paid").order("created_at", { ascending: false }).limit(CI_SETTLED_KEEP);
+    const unpaid = await fetchAllRows<unknown>((from, to) => realOnly(supabase.from("contractor_invoices").select(CI_SELECT)).neq("status", "paid").order("created_at", { ascending: false }).order("id").range(from, to));
+    const paid = await realOnly(supabase.from("contractor_invoices").select(CI_SELECT)).eq("status", "paid").order("created_at", { ascending: false }).limit(CI_SETTLED_KEEP);
     if (paid.error) return { data: null, error: paid.error };
     return { data: [...unpaid, ...(paid.data ?? [])], error: null };
   } catch (e: unknown) { return { data: null, error: { message: e instanceof Error ? e.message : String(e) } }; }
@@ -291,10 +292,10 @@ export async function loadDashboard(supabase: SupabaseClient) {
   const invoiceSelect = `${INVOICE_SELECT}, estimates(title, accepted_name, accepted_total_cents, job_address:sent_snapshot->>jobAddress)`;
   let live: InvoiceRow[] = []; let invoicesError: { message: string } | null = null;
   try {
-    live = await fetchAllRows<InvoiceRow>((from, to) => supabase.from("invoices").select(invoiceSelect)
+    live = await fetchAllRows<InvoiceRow>((from, to) => realOnly(supabase.from("invoices").select(invoiceSelect))
       .not("status", "in", "(paid,void,written_off)").order("created_at", { ascending: false }).order("id").range(from, to));
   } catch (e: unknown) { invoicesError = { message: e instanceof Error ? e.message : String(e) }; }
-  const settled = invoicesError ? { data: null, error: null } : await supabase.from("invoices").select(invoiceSelect)
+  const settled = invoicesError ? { data: null, error: null } : await realOnly(supabase.from("invoices").select(invoiceSelect))
     .in("status", ["paid", "void", "written_off"]).order("created_at", { ascending: false }).limit(SETTLED_KEEP);
   if (settled.error) invoicesError = settled.error;
   const rows = [...live, ...((settled.data ?? []) as unknown as InvoiceRow[])].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
@@ -320,8 +321,8 @@ export async function loadDashboard(supabase: SupabaseClient) {
     // Supplier (materials) invoices with no job yet — the "Materials to match"
     // tile on Payables AND on the home dashboard (lib/invoicing/materialsToMatch
     // holds the predicate; the filter here is the same one, at the database).
-    supabase.from("material_costs")
-      .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at")
+    realOnly(supabase.from("material_costs")
+      .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at"))
       .is("work_order_id", null)
       // Step 6: "not for a job" is overhead by a person's choice — not waiting to be matched.
       .or("overhead.is.null,overhead.eq.false")

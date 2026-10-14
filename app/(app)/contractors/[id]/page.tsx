@@ -14,6 +14,7 @@ import ContractorStatusPanel, { type BonusRow, type StatusRow } from "./Contract
 import { staffVisibility } from "@/lib/staff/gate";
 import ContractorBank from "./ContractorBank";
 import ContractorStandards from "./ContractorStandards";
+import DemoControls from "@/app/components/demo/DemoControls";
 import { loadStandardsStatuses } from "@/lib/standards/status";
 import { staffStatusLine } from "@/lib/standards/acks";
 
@@ -74,7 +75,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
   const [docsRes, jobsRes, assignRes, invoicesRes, offersRes] = await Promise.all([
     supabase.from("contractor_documents").select(DOC_COLUMNS).eq("contractor_id", id),
     supabase.from("work_orders")
-      .select("id, wo_ref, stage, status, start_date, end_date, contractor_payment_cents, wo_snapshot, created_at")
+      .select("id, wo_ref, stage, status, start_date, end_date, contractor_payment_cents, wo_snapshot, created_at, is_demo")
       .eq("contractor_id", id).order("created_at", { ascending: false }).limit(200),
     supabase.from("wo_assignments")
       .select("work_order_id, start_date, end_date, is_lead, status, work_orders(id, wo_ref, stage, status, start_date, end_date, wo_snapshot, created_at)")
@@ -82,7 +83,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
     supabase.from("contractor_invoices")
       .select("id, number, status, total_inc_cents, created_at").eq("contractor_id", id)
       .order("created_at", { ascending: false }).limit(50),
-    supabase.from("booking_offers").select("id, state").eq("contractor_id", id),
+    supabase.from("booking_offers").select("id, state").eq("contractor_id", id).eq("is_demo", false),
   ]);
   for (const [label, r] of [["documents", docsRes], ["jobs", jobsRes], ["assignments", assignRes], ["invoices", invoicesRes], ["offers", offersRes]] as const) {
     if (r.error) { reportError(r.error, { where: `contractorDetail.${label}` }); failures.push(label); }
@@ -91,13 +92,16 @@ export default async function ContractorDetailPage({ params }: { params: Promise
   type WoRow = {
     id: string; wo_ref: string; stage: string; status: string; start_date: string | null; end_date: string | null;
     contractor_payment_cents?: number | null; wo_snapshot: { jobTitle?: string; jobAddress?: string } | null; created_at: string;
+    is_demo?: boolean | null;
   };
+  // 12 Demo Street is on the record as a control, never in the job list (migration 20270262).
+  const hasDemo = ((jobsRes.data ?? []) as WoRow[]).some((r) => r.is_demo === true);
   type AssignRow = { work_order_id: string; start_date: string; end_date: string; is_lead: boolean; status: string; work_orders: WoRow | null };
 
   const owned = (jobsRes.error ? [] : (jobsRes.data ?? [])) as unknown as WoRow[];
   const assigned = (assignRes.error ? [] : (assignRes.data ?? [])) as unknown as AssignRow[];
   const jobById = new Map<string, WoRow & { isLead?: boolean }>();
-  for (const w of owned) jobById.set(w.id, { ...w, isLead: true });
+  for (const w of owned) if (!w.is_demo) jobById.set(w.id, { ...w, isLead: true });
   for (const a of assigned) {
     if (!a.work_orders) continue;
     const existing = jobById.get(a.work_order_id);
@@ -190,6 +194,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
             <Field label="Bank" value={<ContractorBank id={c.id} bsb={c.bank_bsb ?? null} last4={c.bank_account_last4 ?? null} />} />
             <Field label="RCTI agreement" value={c.rcti_agreement_signed_at ? `signed ${formatDMY(c.rcti_agreement_signed_at.slice(0, 10))}` : "not signed"} />
             <Field label="Finish standards" value={<ContractorStandards id={c.id} status={standardsStatus} line={standardsLine} />} />
+            {employmentType !== "employee" && <Field label="Demo property" value={<DemoControls mode="staff" contractorId={c.id} hasDemo={hasDemo} />} />}
           </div>
         </section>
 

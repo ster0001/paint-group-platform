@@ -49,6 +49,7 @@ import UpdateMoments from "./UpdateMoments";
 import type { MomentRow } from "@/lib/workorder/reminderMoments";
 import MessageThread from "@/app/components/wo/MessageThread";
 import { loadThread } from "@/lib/workorder/messagesLoad";
+import DemoControls from "@/app/components/demo/DemoControls";
 
 export const dynamic = "force-dynamic";
 
@@ -478,6 +479,7 @@ export default async function PortalJobPage({
           className="backlink" data-testid="job-back">
           ← {from === "requests" ? "Offers" : from === "calendar" ? "Calendar" : "Jobs"}
         </Link>
+        {job.isDemo && <DemoControls mode="portal" />}
         {liveOffer && (
           <OfferBar offerId={liveOffer.id} workOrderId={id} expiresAt={liveOffer.expires_at}
             priceCents={liveOffer.payment_cents ?? null} />
