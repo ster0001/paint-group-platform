@@ -181,7 +181,32 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   if (opts.stopAtReveal) return;
 
   await page.getByTestId("door-tighten").click();
+  await passDetailsSheetIfShown(page, { name: opts.contactName, email: opts.email, mobile: opts.mobile });
   await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 60_000 });
+}
+
+/**
+ * S6 (R7): under "range first" the gate never ran, so the first door the
+ * customer picks asks for the details — name, email, mobile — in the
+ * TalkSheet ("A few details first") before going further. The keep door
+ * files an EMAIL only, which is not "contact known" (that needs all three),
+ * so Tighten my price still opens the sheet after a keep (15 Oct 2026: the
+ * portal-shell spec sat 60 s on the Reveal page with the sheet open — C1's
+ * booking rules had been left on range_first by an earlier gate run). Under
+ * "details first" the gate already holds the three and the sheet never
+ * appears. Waits for whichever comes — the sheet or the scope editor's range
+ * — and fills the sheet when it is there.
+ */
+export async function passDetailsSheetIfShown(page: Page, who: { name?: string; email?: string; mobile?: string } = {}): Promise<boolean> {
+  const sheet = page.getByTestId("talk-sheet");
+  const editor = page.locator(".sc-r").first();
+  await expect(sheet.or(editor)).toBeVisible({ timeout: 60_000 });
+  if (!(await sheet.count())) return false;
+  await page.getByTestId("talk-name").fill(who.name ?? "Drive Tester");
+  await page.getByTestId("talk-email").fill(who.email ?? `drive.${Date.now()}@example.com`);
+  await page.getByTestId("talk-mobile").fill(who.mobile ?? uniquePhone());
+  await page.getByTestId("talk-go").click();
+  return true;
 }
 
 /** Open /estimate and wait for the quick look's first screen. */
