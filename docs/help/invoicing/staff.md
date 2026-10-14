@@ -1,97 +1,120 @@
 ---
 feature: invoicing
 role: staff
-title: Record a customer payment, including one that arrives before you send the invoice
-summary: How to record a bank transfer, cash or other payment against a customer invoice from the job's money view or the invoice page, including the date it arrived, what happens when the invoice is still a draft, what the customer sees when they press Pay, the one Settings button that adds or removes card payments, the moment an invoice turns overdue, pausing and resuming the payment reminders, the Payables tiles including Materials to match, and what each contractor invoice colour means.
+title: Payments — collect from customers, pay contractors and suppliers, and see each job's profit
+summary: The one Payments page (Payments in the sidebar): the headline and four blocks, chasing customers by job, one-press Paid with Undo, cash, sending with a due date, the deposit size, messages, the job panel with Money in and Money out and profit, contractor invoices (approve, pay with a reference, Green fast terms and holds, RCTIs, expenses and ask-first requests), supplier invoices (confirm, record as any cost, no job yet), Activity, card payments, what the customer sees when they press Pay, and when an invoice turns overdue.
+verified_at_commit: 1eea2f4e0b
 ---
 
 ## What this is for
-The office uses this whenever money arrives outside the card link: a bank transfer, cash, or a payment made some other way. It works on any customer invoice, including one you have not sent yet. A customer who pays the deposit straight off the estimate does not need to be sent the invoice first.
+**Payments** is where the office sees and moves all of the money on every job: what customers owe us, what we owe contractors, and supplier invoices for materials and other costs. Everything is on one page, and each job opens in a panel with its invoices and its profit. The old Invoicing list (`/invoices`) and the Receivables and Payables tabs are gone; old links to them land here.
 
 ## Before you start
-- The job has an invoice for the money you are recording. Every accepted job has a deposit draft; progress claims are drafted with **Request payment**.
-- You know the amount received and, ideally, the bank reference.
+- You are signed in as staff with **Payments** ticked under Settings → Staff logins.
+- Every accepted job is here. Its deposit is drafted at 50% when the customer accepts; you can change that before it is sent.
 
-## Finding a job
-Both invoice screens have a search box. On **Invoicing** it sits at the top beside the filter tabs: type part of the customer's name or the property address and press **Search** (or Enter) — the list keeps your filter tab and shows only the matching jobs, with the customer's name under each address. **Clear** takes the search off. On **Payments → Receivables** the box is above the filter chips and narrows the rows as you type.
+## The page at a glance
+- **The headline** says in words what needs doing today: jobs with no deposit in, invoices overdue, contractor invoices past their pay-by date. It is written from the figures below each time the page loads.
+- **Four cards** — press one to switch to it:
+  - **Customers owe us**: the total on sent invoices, how much is not sent yet, and anything overdue.
+  - **Contractors**: what we owe contractors, how many invoices wait for approval, approved to pay, and any expenses to decide or money owed back to employees.
+  - **Materials**: supplier invoices to check, to approve and to pay, and how many have no job yet.
+  - **Activity**: what customers paid in the last 14 days, and the event list.
+- Everything you pick is in the address (`?tab=con`, `?view=table&q=Kite`), so a view can be bookmarked or sent to someone.
 
-## Steps
-1. Open the job from **Invoicing** and choose the **Invoices** tab, or open the invoice itself.
-2. On the invoice's card press **Record payment**. A draft shows the button beside **Issue & send**.
-3. Pick the method (**Bank**, **Cash** or **Other**), check the amount, add the reference if you have one.
-4. Check the **Payment date**. It starts as today; change it to the day the money actually landed if you are recording it later. The date goes on the receipt and the payment row, and it cannot be in the future.
-5. Press **Record**.
+## Customers
+1. Use the **stage strip** to see money by job stage (Offered through Closed). Press a stage to show only those jobs; press it again to show them all.
+2. Choose a view:
+   - **To chase** (the default): overdue first, then deposits not in, then what is due. Jobs with nothing to collect are counted underneath.
+   - **By job stage**: a board, one column per stage.
+   - **All jobs**: a table with Deposit, Progress and Final for every job, and the filters **All · Overdue · Deposit not in · Final unpaid · Paid in full**. Paid jobs only show under **Show paid jobs** or **Paid in full**.
+3. Search by address, customer name or **invoice number** (INV-0049 finds its job).
+4. Under the list, **Aged receivables** splits the money on sent invoices by days overdue: not overdue, 1–7, 8–14, 15–30, over 30.
 
-The job's payments page shows every figure — the stage rail, Contract, Variations, Invoiced, Paid and Balance — to the cent, so a payment that leaves a few cents owing is visible as such.
+### The buttons on a job
+- **✓ Paid $amount** records a bank transfer for the full amount, dated today, in one press. A bar appears at the bottom with **Undo** for a few seconds. The receipt emails once the Undo has gone.
+- **Cash or part** opens the payment sheet: Bank, Cash or Other, the amount, and the date it arrived (never in the future).
+  - **Cash** against an invoice you have not sent: the invoice is not sent to the customer; the payment is still recorded against the job.
+  - **Send notification of payment**: on means the customer gets an email confirming the cash; off means nothing is sent.
+- **Send** (a draft) asks for the due date first. A deposit due on or after the start date is flagged. The due date can be changed any time before sending.
+- **Adjust** (a deposit) offers 10%, 20%, 30%, 50% or a dollar amount, and shows what that leaves for later.
+- **Message** opens the customer's chat in the bottom-left corner with a message already written for you: a deposit reminder, a friendly reminder, an overdue note or a thank-you, with the pay link. Edit it if you like. Nothing goes until you press **Send**: the customer gets the whole message by email and a text with a link to the chat. The job then says "messaged today".
 
-### Getting back
-Open a job from **Payments** (any tab or filter) or from the **Invoicing** list and the link at the top left of the job's payments page goes **back to the page you came from, with the same filter**. Opened any other way it reads **PC Command**, with the work order's reference when the job has one, and goes to that work order.
+## The job panel
+Press a job's address to open its panel over the list (full screen on a phone). Press outside it, or **‹ Payments**, to close it. The same panel is the job's own page, `/invoicing/job/…`, which is what PC Command's **Payments →** opens; from there the back link returns to the work order.
 
-If the invoice was still a draft, it is issued at that moment: it gets its number, its totals are fixed and it can no longer be edited. Nothing is emailed except the receipt. You can still send the invoice later from the invoice page if the customer wants a copy.
+At the top: the stage, the payment rail, and **Job total · Paid · Still owing** — the same figures as the job's row.
+
+### Money in
+Every invoice is a card with its payments listed under it.
+- **A draft**: change its **Due date**, **Check invoice**, **Delete draft**, **Already paid**, or **Send**. A deposit draft has the size buttons on the card.
+- **A sent invoice**: **Change amount** (a deposit), **Pause reminders** / **Resume reminders**, **Void**, **Open invoice**, **Cash or part**, **✓ Paid**.
+- **This draft was worked out before an earlier invoice was issued… Redraft**: a final drafted while the deposit was still a draft charges the whole contract. Press **Redraft** and it is worked out again from what is left to invoice. New finals now redraft themselves when an earlier invoice is issued.
+- **No $0 finals, no leftover deposits.** When a job is signed off with nothing left to invoice, no final is drafted. When a final is first drafted at sign-off, a deposit that was never sent is removed: the final already asks for that money. Redrafting a final never removes a deposit.
+- Above the cards: **Request a payment** (a share of the job or a fixed amount, drafted for you to check), **Invoice in full**, and **Revise scope**.
+
+### Money out and profit
+- **Gross profit** is the job value excluding GST, less every cost recorded: the contractor's offer plus accepted variations, own painters' labour, materials, other trades and costs, and approved contractor expenses. Hover over a line to see the rows it adds up. "So far, job still open" until the job is closed.
+- A job under way with no materials recorded shows a note: the profit reads too high until the supplier invoices are matched.
+- **Contractor invoices on this job** have **Approve** and **✓ Paid**.
+- **Supplier invoices on this job** have **View**.
+- **Costs recorded on this job**: scaffold, rubbish and other trades have **Approve**, then **✓ Paid** (with Undo). Employee **Labour** lines have no buttons: employees are paid through payroll.
+- **Add a cost** records a cost with its document.
+
+## Contractors
+Sections, worst first: **Past the pay-by date**, **To approve**, **Approved, to pay**, **With the contractor**, **Paid**. Each row says what the customer has paid on that job.
+1. **Approve** — one press, with Undo. An **RCTI** (an invoice drafted for the contractor under their agreement) waits under To approve and is approved the same way; its figures are set when you approve it.
+2. Pay by bank, then either **✓ Paid** (one press, today) or **Paid, with reference…** to record the bank reference and the date it went. The remittance goes to the contractor once the Undo has closed.
+3. **Query** opens the painter's messages on the work order.
+4. **By contractor** groups the rows, with **Approve all** and one **✓ Paid** for everything approved.
+
+### Green fast terms and the hold
+A contractor on **Green** when the job is signed off is paid **3 business days** after the signed day; the row shows **Green · 3 business days**. If the customer raises something, press **Hold fast payment** and say why: the invoice goes back to the normal due date, the row reads **Held — reason**, and PC Command and the CRM show a **Payment hold** until you press **Release**. A **Bonus** row is a painter's approved bonus they have claimed.
+
+### Expenses
+Under the invoices:
+- **Expense claims to decide**: **Approve** (it rides the contractor's next invoice) or **Reject** (they see why in their app). **Receipt** opens the photo.
+- **Ask first: over-threshold purchases**: **Approve…**, type the most they may spend, and confirm; or **Decline**.
+- **Owed back to employees**: claims an employed painter paid from their own pocket. Pay them through payroll or a transfer, then press **Paid back**.
+
+## Materials
+- **To check**: invoices that arrived at bills@ or were snapped as receipts. Each shows the supplier, invoice number, date and GST read from the document, what the supplier wrote as the reference, and the job found. When the job came from the order reference the row says how sure the reader was.
+  - **Confirm** files it on the job found, as materials, approved.
+  - **Other job** / **Pick a job** chooses the job yourself. **Not for a job** files it as overhead.
+  - **Record as a cost…** is for anything that is not materials (scaffold, rubbish, carpentry…), or for a document the reader could not read: choose the kind of cost and the job, and type or correct the total and GST.
+  - **Delete** keeps the document and counts it nowhere; **Restore** puts it back. A possible duplicate has **Dismiss**.
+- **On a job, to approve** and **Approved, to pay**, grouped by supplier with one **✓ Paid** per supplier (with Undo).
+- **No job yet**: materials recorded (mostly from the Airtable sync) that sit on no job, so no job's profit counts them. Press **Assign to a job**. Home's **Materials to match** tile counts these and opens this list.
+- **Snap a receipt** picks a job and opens Add a cost for the photo.
+
+## Activity
+The newest invoice events: drafted, sent, viewed, paid, undone, voided, reminders paused and resumed, messages sent. Every "viewed by customer" for one invoice is a single line with how many times and over which days.
 
 ## Card payments — the one button in Settings
 Open **Settings → Money → Invoicing** and find **Card payments (Stripe)**. The line under the heading says whether card payments are **on** or **off**, and the button beside it does the one thing:
 - **Add card payments** turns them on. The customer's Pay box gains an **Or pay online by card** option with the surcharge disclosed, and card payments record themselves when Stripe confirms them.
-- **Remove card payments** turns them off. The Pay box shows bank transfer only, and a customer who still has an old card link sees "Card payments aren't offered just now — the bank transfer details are on your invoice."
-
-The change saves the moment the button is pressed; there is no separate save. If the line says card payments are on but an amber note says no Stripe key is configured on the server, customers still see bank transfer only until the key is added to the deployment. A card payment already in progress when you turn them off still records.
+- **Remove card payments** turns them off. The Pay box shows bank transfer only.
 
 ## What the customer sees when they press Pay
-On the invoice page a customer presses **Pay $amount** and a box opens with the amount due for that document (**Deposit due**, **Payment due** or **Final balance due**), our account name, bank, BSB and account number, and the invoice number as the **Reference** with a **Copy** button beside it. That is what you tell a customer who rings asking how to pay: press Pay, the details are in the box. The printed invoice and the PDF keep the bank details on the page instead, since there is nothing to press on paper.
-
-## Views and filters on Payments
-The Payments page (**Payments** in the sidebar) opens on every receivable. Above the rows sit four lines of chips:
-- **Views** — one press sets everything below it. **Final payments outstanding** is the one for "who still owes us their last payment": every final-milestone invoice that is issued and not yet paid in full. **Deposits outstanding** and **Progress payments outstanding** are the same for the other milestones; **Overdue 30+ days** is the chase list.
-- **Status** — All, **Outstanding** (any invoice with money still to come), Overdue, Awaiting, Partially paid, Draft, Paid.
-- **Milestone** — Any, Deposit, Progress, Final, Variation, Standalone.
-- **Due** — Any time, due within 7 or 30 days, overdue 7+ or 30+ days.
-
-The number on every chip is what pressing it will show with the other two rows as they are. Under the chips a line says how many invoices are showing and their balances added up — on the final-payments view, that figure is the money still to collect on finals. The URL carries the choice (`?f=outstanding&k=final`), so a view can be bookmarked or sent to someone. **Clear filters** takes you back to All.
+On the invoice page a customer presses **Pay $amount** and a box opens with the amount due for that document, our account name, bank, BSB and account number, and the invoice number as the **Reference** with a **Copy** button. The printed invoice and the PDF keep the bank details on the page instead.
 
 ## What a deposit invoice shows
-A deposit invoice lists every line item from the accepted estimate under **Contract works — from your accepted estimate**, then the deposit itself under **This invoice**. The scope lines are there so the customer can see what the job covers. They are not added into the deposit's total, and you cannot edit them on the invoice: the deposit's figure is changed with **Amend the amount**, and the scope itself is changed by revising the estimate.
+A deposit invoice lists every line item from the accepted estimate under **Contract works — from your accepted estimate**, then the deposit itself under **This invoice**. The scope lines are for information; they are not added into the deposit's total.
 
 ## What the colours and labels mean
-- **Draft (unnumbered)** — not yet issued. Recording a payment issues it.
-- **Awaiting** — issued or sent, balance still owing.
-- **Paid in full** — the balance is zero. A partial payment shows the remaining balance on the card.
-- **Due yesterday** — the due date was yesterday and it is not yet midday. The invoice is not overdue yet.
-- **Overdue** — money is still owing at **midday the day after the due date**. An invoice due Tuesday turns overdue at 12:00 on Wednesday. The first payment reminder goes at the same moment. Recording the payment clears it.
-
-## Pausing the payment reminders
-On the job's **Invoices** tab, an unpaid invoice that has been issued has **Pause reminders**. Press it, type why (a dispute or a payment plan, for example) and press OK. No reminder goes to the customer while it is paused, and the button changes to **Resume reminders**. Hover over it to see the reason. Press **Resume reminders** to start the reminders again. Both steps show in the activity feed.
-
-While a call back is open on the job, its reminders are paused automatically and the button cannot resume them. They start again when the call back is closed.
-
-## The Payables tiles
-Open **Invoicing → Payables**. Three tiles sit at the top:
-- **To approve** — contractor invoices submitted and waiting on a decision, with their total.
-- **To pay this week** — approved contractor invoices due within seven days (or with no due date), with their total.
-- **Materials to match** — the number of supplier invoices that have arrived but sit on no job yet. It is a count, not a dollar figure. Press the tile to jump to the **Materials without a job** card, where each one has **Assign to job**: pick the job and the invoice moves onto that job's Costs tab and drops off the count. The same count sits on **Home** under Invoicing as **Materials to match**; press it there for the list (supplier, amount, date received, reference).
-
-## Contractor invoice colours
-Every contractor invoice row on Payables, and the **Contractor** chip on a job's Costs tab, is coloured by what the office still owes on it:
-- **Amber** — submitted, waiting on you to approve or query.
-- **Red-brown (clay)** — approved and not yet paid: outstanding for payment.
-- **Stronger red-brown with "overdue N d"** — approved, unpaid, and past its due date; the number is the days past terms.
+- **Orange** — a deposit not in. A job starting within a week, or already under way, glows.
+- **Red** — overdue: money still owing at **midday the day after the due date**. An invoice due Tuesday turns overdue at 12:00 on Wednesday, the moment the first reminder goes.
+- **Cyan** — sent, not yet due.
 - **Green** — paid.
-- **Grey** — a draft the painter has not submitted yet. Nothing is owed on it.
-Press **Mark paid** on a clay row to turn it green.
-
-## Employee labour is not on Payables
-An employed painter's hours post to their job as a **Labour** line on the job's Costs tab, so the job's GP is right. Those lines never appear on Payables and have no **Approve** or **Mark paid**: employees are paid through payroll (the timesheet CSV), not from this list.
-
-## Fast payment for Green painters, and the hold
-A contractor on **Green** when the job is signed off has their sign-off invoice due **3 business days** after the signed day (Monday to Friday, less the public holidays under Booking rules); the row shows **Green · 3 business days**. Everyone else keeps the normal terms. If the customer raises something after sign-off, press **Hold fast payment** on the row and say why: the invoice goes back to the normal due date — never later than it — the chip reads **Held — reason**, and PC Command shows a **Payment hold** card until you press **Release**, which puts the fast date back. A row marked **Bonus** is a painter's approved bonus they have claimed; approve and pay it like any other invoice.
-
-## Leaving an invoice mid-edit
-If a line's editor is open and you click to another page, the line is saved first and the page you clicked then opens. A line that cannot be saved (no description, or an amount that is not a number) keeps you on the invoice.
+- **Grey** — a draft, not sent yet.
+- **Paid in cash, not sent** — the cash cleared an invoice the customer never received; it stays as our record of the sale.
 
 ## If something goes wrong
-- **"This invoice isn't open for payment."** The invoice is void or written off. Draft a new one with **Request payment**.
+- **A red box saying the payments could not be loaded.** Something failed to read; the page is not empty. Reload; if it stays, the error has already been reported.
+- **"Nothing is left to invoice for the contractor on this job."** Earlier contractor invoices already cover the agreed pay. Check the offer and variations on the work order.
 - **"Check the amount and try again."** The amount is more than the balance plus 5 per cent, or zero. Check what was received.
-- **The draft had no amount.** A draft with nothing on it cannot be issued, so it cannot be paid. Set the amount first.
-- Anything else: the payment either recorded or it did not. Reload the invoice and check the Payments card before entering it again.
+- **Pressed ✓ Paid by mistake.** Press **Undo** on the bar at the bottom straight away — it stays for a few seconds, and the receipt or remittance only goes once it has gone. After that, ask the owner to reverse the payment.
 
 ## Related
-- Contractor invoices and Payables: self-invoicing/staff.md
+- Contractor invoices from the contractor's side: self-invoicing/staff.md
+- The work order's money and the job sheet: work-orders/pc.md

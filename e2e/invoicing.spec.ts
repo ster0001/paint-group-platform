@@ -104,48 +104,66 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     await db.from("estimates").delete().eq("id", estimateId);
   });
 
+  // Payments merge Step 7: /invoicing/job/[id] is the job panel — Money in
+  // lists every invoice as a card (data-kind), its buttons on the card.
   async function openMoneyView(page: Page) {
     await page.goto(`/invoicing/job/${estimateId}`);
     await expect(page.getByRole("heading", { name: ADDRESS })).toBeVisible();
   }
+  const invoiceCard = (page: Page, kind: string) => page.getByTestId("pm-panel").locator(`.inv[data-kind="${kind}"]`).first();
+  async function requestPayment(page: Page, pct: number) {
+    await page.getByRole("button", { name: "Request a payment" }).click();
+    const sheet = page.getByRole("dialog", { name: "Request a payment" });
+    await sheet.getByRole("button", { name: `${pct}%`, exact: true }).click();
+    return sheet;
+  }
 
-  test("the deposit draft appears on the dashboard without a page-specific write", async ({ page }) => {
+  // Payments merge 8d: the list is Payments → All jobs, one row per job.
+  const jobsRow = (page: Page) => page.locator(".pm .tr:not(.head):not(.grp)", { hasText: ADDRESS });
+  const allJobs = `/invoicing?view=table&q=${encodeURIComponent(ADDRESS)}`;
+
+  test("the deposit draft appears on Payments without a page-specific write", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/invoicing?f=draft");
-    const row = page.locator(".r", { hasText: ADDRESS });
-    await expect(row).toBeVisible();
-    await expect(row).toContainText("Draft (unnumbered)");
+    await page.goto(allJobs);
+    const row = jobsRow(page);
+    await expect(row).toBeVisible({ timeout: 30_000 });
     await expect(row).toContainText("Deposit");
-    await expect(row).toContainText("$1,850");
+    await expect(row).toContainText("$1,850.00");
   });
 
   test("and on the job money view — rail, strip and draft card from data alone", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
-    await expect(page.getByTestId("deposit-draft-card")).toBeVisible();
-    await expect(page.getByTestId("stage-rail").locator(".stage").first()).toHaveClass(/draft/);
+    const card = invoiceCard(page, "deposit");
+    await expect(card).toContainText("Not sent yet");
+    await expect(card).toContainText("$1,850.00");
     // Tom, 1 Oct: every figure on the job's payments page carries its cents.
-    await expect(page.getByTestId("strip-balance")).toHaveText("$18,500.00");
-    await expect(page.getByTestId("money-strip")).toContainText("$18,500.00");
+    await expect(page.getByTestId("money-strip")).toContainText("Job total$18,500.00");
+    await expect(page.getByTestId("money-strip")).toContainText("Still owing$18,500.00");
   });
 
-  // Tom, 1 Oct: a job opened from Invoicing goes BACK to Invoicing — with the
-  // filter it was opened under — not to PC Command. Opened any other way, the
-  // crumb still reads PC Command.
-  test("the money view's crumb returns to where it was opened from", async ({ page }) => {
+  // Tom, 1 Oct: a job opened from Payments goes BACK to Payments — with the
+  // view and search it was opened under. From PC Command it goes back to the job.
+  test("the job panel's back link returns to where it was opened from", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/invoicing?f=draft");
-    const row = page.locator(".r", { hasText: ADDRESS });
-    await row.getByRole("link", { name: ADDRESS }).click();
-    await expect(page.getByRole("heading", { name: ADDRESS })).toBeVisible();
-    const back = page.getByTestId("money-back");
-    await expect(back).toHaveText(/Invoicing/);
-    await expect(back).toHaveAttribute("href", "/invoicing?f=draft");
+    await page.goto(allJobs);
+    await jobsRow(page).getByRole("link", { name: ADDRESS }).click();
+    await expect(page).toHaveURL(/[?&]job=/, { timeout: 30_000 });
+    const back = page.getByTestId("pm-panel").getByTestId("money-back");
+    await expect(back).toHaveText(/Payments/);
     await back.click();
-    await expect(page).toHaveURL(/\/invoicing\?f=draft$/);
+    // Closed: the same view and search, no job (wait for the navigation, not the old URL).
+    await expect(page).toHaveURL((u) => u.pathname === "/invoicing" && !u.searchParams.has("job") && u.searchParams.get("view") === "table" && !!u.searchParams.get("q"), { timeout: 15_000 });
 
+    // From PC Command (?from=/pc/wo/<id>): back to the job.
+    const { data: wo } = await db!.from("work_orders").select("id").eq("estimate_id", estimateId!).single();
+    await page.goto(`/invoicing/job/${estimateId}?from=${encodeURIComponent(`/pc/wo/${(wo as { id: string }).id}`)}`);
+    await expect(page.getByTestId("money-back")).toHaveText(/the job/i, { timeout: 30_000 });
+
+    // Opened bare, the panel goes back to Payments; the work order is its own link.
     await openMoneyView(page);
-    await expect(page.getByTestId("money-back")).toHaveText(/PC Command/);
+    await expect(page.getByTestId("money-back")).toHaveText(/Payments/);
+    await expect(page.getByRole("link", { name: /^Work order / })).toHaveAttribute("href", /^\/pc\/wo\//);
   });
 
   // Tom, 17 Sep 2026: the deposit invoice lists every line item of the
@@ -176,17 +194,16 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   test("issue allocates the number, and the database refuses edits after it", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
-    await page.getByTestId("deposit-draft-card").getByRole("button", { name: "Issue & send" }).click();
-    // The send sheet (8790fd8, 25 Aug): note + channel, then the real send —
-    // the sheet's own confirm carries the same label, hence .last().
-    await page.getByRole("button", { name: "Issue & send" }).last().click();
-    // Issue now also renders the PDF (a Chromium print of the token page) and
+    await invoiceCard(page, "deposit").getByRole("button", { name: "Send", exact: true }).click();
+    // The send sheet (Step 3): the due date, then the real send.
+    await page.getByRole("dialog", { name: /^Send deposit invoice/ }).getByRole("button", { name: /^Send \$1,850\.00 invoice to/ }).click();
+    // Issue also renders the PDF (a Chromium print of the token page) and
     // attempts the email — give the whole pipeline room on a cold dev server.
-    await expect(page.getByTestId("deposit-draft-card")).toHaveCount(0, { timeout: 90_000 });
+    await expect(invoiceCard(page, "deposit")).not.toContainText("Not sent yet", { timeout: 90_000 });
 
     const { data: issued } = await db!.from("invoices")
       .select("number, status, due_on").eq("id", depositInvoiceId!).single();
-    expect((issued as { status: string }).status).toBe("issued");
+    expect((issued as { status: string }).status).toMatch(/^(issued|sent)$/);
     expect((issued as { number: string }).number).toMatch(/^INV-\d{4}$/);
     expect((issued as { due_on: string }).due_on).toBeTruthy();
 
@@ -200,47 +217,43 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   test("a recorded bank payment pays the deposit and every surface follows", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
-    await page.getByRole("button", { name: "Invoices" }).click();
-    const card = page.getByTestId("invoice-card-deposit");
-    await card.getByRole("button", { name: "Record payment" }).click();
-    await page.getByTestId("record-amount").fill("1850.00");
+    const card = invoiceCard(page, "deposit");
+    await card.getByRole("button", { name: "Cash or part" }).click();
+    const sheet = page.getByRole("dialog", { name: "Record a payment" });
+    await sheet.getByLabel("Amount received").fill("1850.00");
     // Tom, 1 Oct: the date the money arrived is typed in, defaulting to today
     // (Melbourne). Three days back here, so the saved row proves it was read.
     const paidOn = addDays(melbourneDate(new Date()), -3);
-    await expect(page.getByTestId("record-date")).toHaveValue(melbourneDate(new Date()));
-    await page.getByTestId("record-date").fill(paidOn);
-    await page.getByRole("button", { name: /^Record \$/ }).click();
+    await expect(sheet.getByLabel("Date received")).toHaveValue(melbourneDate(new Date()));
+    await sheet.getByLabel("Date received").fill(paidOn);
+    await sheet.getByRole("button", { name: "Record payment" }).click();
 
-    // The rail flips to paid, the strip's Paid and Balance move — from data.
-    await expect(page.getByTestId("stage-rail").locator(".stage").first()).toHaveClass(/paid/, { timeout: 15_000 });
-    await expect(page.getByTestId("strip-balance")).toHaveText("$16,650.00");
+    // The card reads Paid, the strip's Paid and Still owing move — from data.
+    await expect(card.locator(".tag")).toHaveText("Paid", { timeout: 15_000 });
+    await expect(page.getByTestId("money-strip")).toContainText("Still owing$16,650.00");
 
     // Receipt allocated, payment row real, dated the day it was received.
+    await expect.poll(async () => {
+      const { data } = await db!.from("payments").select("receipt_number").eq("invoice_id", depositInvoiceId!).eq("status", "succeeded").single();
+      return (data as { receipt_number: string | null } | null)?.receipt_number ?? "";
+    }, { timeout: 30_000 }).toMatch(/^RCT-\d{4}$/);
     const { data: pay } = await db!.from("payments")
       .select("receipt_number, status, method, paid_on").eq("invoice_id", depositInvoiceId!).single();
-    expect((pay as { receipt_number: string }).receipt_number).toMatch(/^RCT-\d{4}$/);
     expect((pay as { paid_on: string }).paid_on).toBe(paidOn);
 
-    // And the dashboard row reads Paid with its stage dot filled.
-    await page.goto("/invoicing?f=paid");
-    const row = page.locator(".r", { hasText: ADDRESS });
-    await expect(row).toBeVisible();
-    await expect(row).toContainText("Paid in full");
-    await expect(row.locator(".d.paid")).toHaveCount(1);
+    // And the job's row on Payments reads the deposit paid; the aged bar is there.
+    await page.goto(allJobs);
+    await expect(jobsRow(page)).toContainText("✓ Paid", { timeout: 30_000 });
     await expect(page.getByTestId("aged-buckets")).toBeVisible();
   });
 
   test("request payment drafts a 25% progress claim, computed server-side", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
-    await page.getByRole("button", { name: "Request payment" }).click();
-    await page.locator(".pchip", { hasText: "25%" }).click();
-    await expect(page.getByTestId("request-preview")).toHaveText("$4,625.00");
-    await page.getByRole("button", { name: "Draft invoice" }).click();
-
-    await expect(page.getByText("Draft created.")).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("button", { name: "Invoices" }).click();
-    await expect(page.getByTestId("invoice-card-progress")).toBeVisible({ timeout: 15_000 });
+    const sheet = await requestPayment(page, 25);
+    await expect(sheet.getByTestId("request-preview")).toHaveText("$4,625.00");
+    await sheet.getByRole("button", { name: "Draft the invoice" }).click();
+    await expect(invoiceCard(page, "progress")).toContainText("Not sent yet", { timeout: 15_000 });
     const { data: prog } = await db!.from("invoices")
       .select("kind, status, total_inc_cents").eq("estimate_id", estimateId!)
       .eq("kind", "progress").single();
@@ -271,13 +284,9 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     await expect(page.getByTestId("doc-total")).toHaveText("$5,000.00", { timeout: 15_000 });
 
     await openMoneyView(page);
-    page.once("dialog", (d) => d.accept()); // confirm invoice-in-full
     await page.getByRole("button", { name: "Invoice in full" }).click();
-    // The draft lands in the Invoices tab — switch to it before looking.
-    await expect(page.getByText("Final invoice drafted from the ledger.")).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("navigation").getByRole("button", { name: "Invoices" }).click();
-    await expect(page.getByTestId("invoice-card-final")).toBeVisible({ timeout: 15_000 });
-    await page.getByTestId("invoice-card-final").getByRole("link", { name: "Open" }).click();
+    await expect(invoiceCard(page, "final")).toBeVisible({ timeout: 15_000 });
+    await invoiceCard(page, "final").getByRole("link", { name: "Check invoice" }).click();
     await expect(page.getByTestId("recon-line")).toContainText("Reconciles to the job ledger");
 
     // Move a line $100 off the ledger — the banner must appear.
@@ -404,20 +413,20 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   test("a payment recorded on a DRAFT issues it silently — number allocated, nothing sent", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
-    await page.getByRole("button", { name: "Invoices" }).click();
-    const card = page.getByTestId("invoice-card-progress");
-    await expect(card).toContainText("Draft");
+    const card = invoiceCard(page, "progress");
+    await expect(card).toContainText("Not sent yet");
     // Pay whatever the draft says today — the reconciliation test above may
     // have amended it — so this is a payment in full, not a part payment.
     const { data: before } = await db!.from("invoices")
       .select("total_inc_cents").eq("estimate_id", estimateId!).eq("kind", "progress").single();
     const owed = (before as { total_inc_cents: number }).total_inc_cents;
-    await card.getByRole("button", { name: "Record payment" }).click();
-    await page.getByTestId("record-amount").fill((owed / 100).toFixed(2));
-    await page.getByRole("button", { name: /^Record \$/ }).click();
-    // The card's chip says "Paid"; the balance line is the proof it is in full.
-    await expect(card.locator(".chip")).toHaveText("Paid", { timeout: 15_000 });
-    await expect(card).toContainText("Balance$0.00");
+    await card.getByRole("button", { name: "Already paid" }).click();
+    const sheet = page.getByRole("dialog", { name: "Record a payment" });
+    await sheet.getByLabel("Amount received").fill((owed / 100).toFixed(2));
+    await sheet.getByRole("button", { name: "Record payment" }).click();
+    // Paid in full: the card's tag says so and nothing is left to pay on it.
+    await expect(card.locator(".tag")).toHaveText("Paid", { timeout: 15_000 });
+    await expect(card).not.toContainText("still to pay");
 
     const { data: prog, error } = await db!.from("invoices")
       .select("id, number, status, issued_on").eq("estimate_id", estimateId!)
@@ -451,10 +460,10 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     // SECOND one as staff and issue it: an OPEN invoice with a balance.
     await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
-    await page.getByRole("button", { name: "Request payment" }).click();
-    await page.locator(".pchip", { hasText: "25%" }).click();
-    await page.getByRole("button", { name: "Draft invoice" }).click();
-    await expect(page.getByText("Draft created.")).toBeVisible({ timeout: 15_000 });
+    const sheet = await requestPayment(page, 25);
+    await sheet.getByRole("button", { name: "Draft the invoice" }).click();
+    await expect.poll(async () => (await db!.from("invoices").select("id", { count: "exact", head: true })
+      .eq("estimate_id", estimateId!).eq("kind", "progress").eq("status", "draft")).count, { timeout: 15_000 }).toBe(1);
     const { data: prog, error: progErr } = await db!.from("invoices")
       .select("id, token, number").eq("estimate_id", estimateId!).eq("kind", "progress")
       .eq("status", "draft").single();

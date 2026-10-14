@@ -124,7 +124,30 @@ export type SurfaceRow = {
    * finished shot, and does not count towards its heading's photo gates.
    */
   photosOptional?: boolean;
+  /**
+   * How many of the item the row stands for (doors, windows — per-item
+   * substrates), read off the frozen document by `surface_key`; absent for
+   * measured surfaces and on jobs issued before 14 Oct 2026. Display only —
+   * the row's label stays the bare substrate so nothing that matches labels
+   * (standards, variation tick rows, the heal) sees a number in it.
+   */
+  count?: number;
 };
+
+/**
+ * The per-item counts on a frozen document, keyed the way `wo_surfaces.surface_key`
+ * is — so a tick row can say "Doors × 4" without the number living in its
+ * label. Only a real, positive count is listed.
+ */
+export function surfaceCountsByKey(doc: Pick<WorkOrderDoc, "areas"> | null | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const area of doc?.areas ?? []) {
+    for (const s of area.surfaces) {
+      if (typeof s.count === "number" && Number.isFinite(s.count) && s.count >= 1) out[s.key] = Math.round(s.count);
+    }
+  }
+  return out;
+}
 
 export type Progress = { done: number; total: number; pct: number };
 

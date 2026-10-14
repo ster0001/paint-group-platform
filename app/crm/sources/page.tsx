@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sourceReport, type SourceKey } from "@/lib/crm/attribution";
 import { isWon } from "@/lib/crm/stage";
 import SubNav from "../SubNav";
+import { realOnly } from "@/lib/demo/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +21,14 @@ export default async function SourcesPage() {
 
   const [{ data: accounts }, { data: firstTouches }, { data: won }] = await Promise.all([
     supabase.from("accounts").select("id").limit(2000),
-    supabase.from("crm_events")
-      .select("account_id, payload, occurred_at")
+    realOnly(supabase.from("crm_events")
+      .select("account_id, payload, occurred_at"))
       .eq("type", "first_touch_recorded")
       .not("account_id", "is", null)
       .limit(2000),
     // Won = the STATUS, not the timestamp: see isWon() for why.
-    supabase.from("estimates")
-      .select("account_id, status, accepted_total_cents, total_cents, accepted_at")
+    realOnly(supabase.from("estimates")
+      .select("account_id, status, accepted_total_cents, total_cents, accepted_at"))
       .not("account_id", "is", null)
       .or("status.eq.accepted,accepted_at.not.is.null")
       .limit(2000),

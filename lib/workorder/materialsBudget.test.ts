@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { invoicedExGst, materialsBudget, materialsBudgetCents } from "./materialsBudget";
+import { invoicedExGst, materialRowEstimates, materialsBudget, materialsBudgetCents } from "./materialsBudget";
 import type { PricingContext } from "@/lib/pricing/estimate";
 import type { Product, RateItem } from "@/lib/pricing/types";
 
@@ -48,4 +48,35 @@ test("invoiced total backs GST out; the bar caps at 100 and 'over' is honest", (
   expect(over).toMatchObject({ invoicedExCents: 10000, pct: 100, over: true });
   const none = materialsBudget(null, [{ amount_cents: 1100 }]);
   expect(none).toMatchObject({ budgetCents: null, pct: null, over: false, invoicedExCents: 1000 });
+});
+
+// Tom, 13 Oct 2026: the estimate's litres and cost beside each job-sheet row.
+test("row estimates sum each sheet surface's engine litres and cost into its product × colour row", () => {
+  const withIds = {
+    ...state,
+    blocks: [
+      { ...state.blocks[0], id: "a1", surfaces: [{ ...state.blocks[0].surfaces[0], id: "s1" }, { ...state.blocks[0].surfaces[0], id: "s2", qtyOverride: 14 }] },
+      { kind: "line", type: "Interior", mode: "custom", hours: 0, rate: 0, qty: 0, unitPrice: 0, custom: 0, cost: 0, woHours: 0,
+        materials: [{ productName: "Std Wall", litres: 1.5, colourName: "Domino" }] },
+    ],
+  };
+  const doc = {
+    materials: [
+      { product: "Std Wall", colourKey: "Std Wall||Lexicon", photoUrl: "", litres: 6, coverageMissing: false, colourName: "Lexicon", colourHex: "", colourStatus: "tbc" as const },
+      { product: "Std Wall", colourKey: "Std Wall||Domino", photoUrl: "", litres: 1, coverageMissing: false, colourName: "Domino", colourHex: "", colourStatus: "tbc" as const },
+    ],
+    areas: [{
+      id: "a1", title: "Lounge", photos: [], finishCode: null, finishOverridden: false,
+      surfaces: [
+        { key: "a1:s1", label: "Walls", coats: 2, product: "Std Wall", colourKey: "Std Wall||Lexicon", prep: "", hours: 1, status: "not_started" as const },
+        { key: "a1:s2", label: "Feature", coats: 2, product: "Std Wall", colourKey: "Std Wall||Lexicon", prep: "", hours: 1, status: "not_started" as const },
+      ],
+    }],
+  };
+  const est = materialRowEstimates(doc, withIds, ctx)!;
+  // 28 m² + 14 m² × 2 coats ÷ 14 = 6 L × $20 = $120
+  expect(est.get("Std Wall||Lexicon")).toEqual({ litres: 6, costCents: 12000 });
+  // the line's 1.5 L of Domino × $20 = $30
+  expect(est.get("Std Wall||Domino")).toEqual({ litres: 1.5, costCents: 3000 });
+  expect(materialRowEstimates(doc, withIds, { ...ctx, rateItems: [] })).toBeNull();
 });

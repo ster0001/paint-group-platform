@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Payments, merged (mockup v3)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Martian+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#090d10; --card:#10161a; --inset:#0b1013; --line:#212b31; --line2:#2f3b43;
+  --text:#f1f5f7; --text2:#aab6bd; --mute:#74828a; --seg:#56646c;
+  --pri:#3dd6e8; --pri-ink:#04262c;
+  --orange:#ff9a2e; --orange-ink:#221000; --orange-bg:rgba(255,154,46,.14); --orange-t:#ffb866;
+  --green:#35b37e; --green-bg:rgba(53,179,126,.14); --green-t:#63d6a4;
+  --cyan-bg:rgba(61,214,232,.14); --cyan-t:#72e1ee;
+  --red:#f0513a; --red-bg:rgba(240,81,58,.16); --red-t:#ff9482;
+  --grey-bg:rgba(160,176,186,.13);
+  --cash-bg:rgba(214,190,90,.13); --cash-t:#e2cc74; --cash-line:rgba(214,190,90,.35);
+  --pad:16px;
+  --mono:"Martian Mono",ui-monospace,Menlo,monospace;
+  --sans:"Geist","Switzer",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+[data-theme="light"]{
+  --bg:#f3f1ec; --card:#fffefb; --inset:#f6f3ec; --line:#e1dbcf; --line2:#cfc8b9;
+  --text:#12161c; --text2:#444c57; --mute:#79818c; --seg:#9aa2ab;
+  --pri:#0e7f8f; --pri-ink:#ffffff;
+  --orange:#e97a0c; --orange-ink:#ffffff; --orange-bg:#fcebd7; --orange-t:#964c06;
+  --green:#1f8a5b; --green-bg:#dcf1e6; --green-t:#176a45;
+  --cyan-bg:#d9f0f2; --cyan-t:#066573;
+  --red:#cf3a22; --red-bg:#f9ddd6; --red-t:#a52c18;
+  --grey-bg:#e9e6df;
+  --cash-bg:#f5efcf; --cash-t:#5f500a; --cash-line:#dccf8c;
+  color-scheme:light;
+}
+@media(min-width:900px){:root{--pad:28px}}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;text-align:inherit}
+:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.04em}
+.wrap{max-width:1280px;margin:0 auto;padding:0 var(--pad) 120px}
+[hidden]{display:none!important}
+
+.mockbar{border-bottom:1px dashed var(--line2);font-size:12.5px;color:var(--text2);padding:8px var(--pad);display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap;justify-content:center}
+.mockbar .pv{display:flex;gap:4px}
+.mockbar button{height:28px;padding:0 10px;border-radius:14px;border:1px solid var(--line2);font-size:12px}
+.mockbar button.on{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}
+
+.top{display:flex;align-items:center;gap:14px;max-width:1280px;margin:0 auto;padding:14px var(--pad) 0}
+.brand{font-weight:700;letter-spacing:.16em;font-size:13px}
+.brand b{color:var(--pri);font-weight:700}
+.top .pg{color:var(--text2);font-size:14px}
+.theme{margin-left:auto;height:32px;padding:0 12px;border:1px solid var(--line2);border-radius:16px;font-size:12px;color:var(--text2)}
+
+.lead{padding:20px 0 0}
+.lead h1{font-size:clamp(23px,3.2vw,36px);line-height:1.1;font-weight:600;letter-spacing:-.025em;max-width:30ch}
+.lead h1 .r{color:var(--red-t)} .lead h1 .o{color:var(--orange-t)}
+.lead p{color:var(--mute);margin-top:10px;font-size:13px}
+
+/* ---------- ledger: the three places money sits ---------- */
+.ledger{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,.55fr);gap:8px;margin-top:20px}
+.led{display:flex;flex-direction:column;justify-content:flex-start;padding:12px 14px 13px;border:1px solid var(--line);border-radius:12px;background:var(--card);min-width:0;position:relative}
+.led .d{font-size:11.5px;color:var(--mute);display:block}
+.led .t{font-size:14.5px;font-weight:600;display:block;margin-top:1px}
+.led .v{font-family:var(--mono);font-size:21px;font-weight:700;letter-spacing:-.06em;display:block;margin-top:8px}
+.led .s{font-size:12.5px;color:var(--text2);display:block;margin-top:4px}
+.led .od{align-self:flex-start;margin-top:7px;padding:2px 8px;border-radius:6px;background:var(--red);color:#fff;font-size:12px;font-weight:700}
+.led.on{border-color:var(--pri);box-shadow:inset 0 3px 0 var(--pri)}
+@media(max-width:820px){.ledger{grid-template-columns:1fr 1fr}.led .v{font-size:17px}.led{padding:10px 12px}}
+
+/* ---------- stage strip ---------- */
+.strip-h{display:flex;justify-content:space-between;align-items:baseline;margin:24px 0 8px}
+.strip-h h2{font-size:13px;font-weight:600;color:var(--text2)}
+.strip-h button{font-size:13px;color:var(--cyan-t)}
+.strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.stg{padding:0 0 10px;border-radius:4px;min-width:0}
+.stg .bar{display:block;height:6px;border-radius:3px;background:var(--seg);margin-bottom:9px}
+.stg.warn .bar{background:var(--orange)} .stg.bad .bar{background:var(--red)} .stg.ok .bar{background:var(--green)} .stg.wait .bar{background:var(--pri)}
+.stg .n{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stg .c{display:block;font-size:12px;color:var(--mute);margin-top:1px}
+.stg .v{display:block;font-family:var(--mono);font-size:14.5px;font-weight:700;letter-spacing:-.06em;margin-top:6px}
+.stg .v.zero{color:var(--mute);font-weight:400}
+.stg .x{display:block;font-size:11.5px;font-weight:700;color:var(--red-t);margin-top:2px}
+.stg.on{background:var(--card);box-shadow:0 0 0 1px var(--pri);padding:0 8px 10px;margin:0 -1px}
+.stg.on .bar{margin:0 -8px 9px;border-radius:3px 3px 0 0}
+@media(max-width:820px){
+  .strip{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 calc(var(--pad)*-1);padding:2px var(--pad) 4px;gap:4px;scrollbar-width:none}
+  .strip::-webkit-scrollbar{display:none}
+  .stg{flex:0 0 124px;scroll-snap-align:start}
+}
+
+.tools{display:flex;gap:10px;align-items:center;margin:20px 0 6px;flex-wrap:wrap}
+.views{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px}
+.views button{height:38px;padding:0 14px;border-radius:7px;font-size:13.5px;font-weight:500;color:var(--text2);white-space:nowrap;text-align:center}
+.views button.on{background:var(--pri);color:var(--pri-ink);font-weight:600}
+.search{flex:1;min-width:200px;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:0 12px;font-size:16px}
+.chk{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--text2);height:44px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--pri)}
+@media(max-width:560px){.views{width:100%}.views button{flex:1;padding:0 6px}}
+
+.sec{margin-top:24px}
+.sec-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.sec-h h2{font-size:15.5px;font-weight:600}
+.sec-h .tot{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:-.05em;display:flex;align-items:center;gap:6px 0;flex-wrap:wrap;justify-content:flex-end}
+.sec-h .tot .b{font-family:var(--sans);letter-spacing:0;font-weight:600}
+.sec-h .tot small{font-family:var(--sans);font-weight:400;color:var(--mute);font-size:12.5px;letter-spacing:0;margin-right:8px}
+.sec.red .sec-h h2{color:var(--red-t)} .sec.red .sec-h{border-bottom:2px solid var(--red);padding-bottom:8px}
+.sec.org .sec-h h2{color:var(--orange-t)}
+.sec-note{font-size:13px;color:var(--mute);margin:-6px 0 10px;max-width:80ch}
+details.sec>summary{list-style:none;cursor:pointer}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary h2::before{content:"+ ";color:var(--mute)}
+details.sec[open]>summary h2::before{content:"– "}
+.quiet{margin-top:22px;font-size:13.5px;color:var(--mute)}
+.quiet button{color:var(--cyan-t)}
+.empty{padding:40px 0;text-align:center;color:var(--mute)}
+
+/* ---------- amounts owing: the loudest thing on the page ---------- */
+.owe{display:inline-block;font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;font-size:16px;letter-spacing:-.06em;padding:4px 9px;border-radius:7px;white-space:nowrap;line-height:1.25}
+.owe.over{background:var(--red);color:#fff}
+.owe.need{background:var(--orange);color:var(--orange-ink)}
+.owe.sent{background:var(--cyan-bg);color:var(--text);box-shadow:inset 3px 0 0 var(--pri)}
+.owe.draft{background:var(--grey-bg);color:var(--text);box-shadow:inset 3px 0 0 var(--mute)}
+.owe.uninv{background:transparent;color:var(--orange-t);box-shadow:inset 0 0 0 1.5px var(--orange)}
+.owe.sm{font-size:13.5px;padding:3px 7px}
+
+/* ---------- job card ---------- */
+.job{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr) 396px;gap:12px 28px;align-items:center;padding:13px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bottom:8px;cursor:pointer}
+.job .who{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;min-width:0}
+.addr{font-weight:600;font-size:15.5px;letter-spacing:-.01em}
+.cust{font-size:12.5px;color:var(--mute);margin-top:1px}
+.ctx{font-size:12.5px;color:var(--text2);margin-top:7px}
+.ctx b{font-weight:600}
+.hot{color:var(--orange-t)} .late{color:var(--red-t)} .okc{color:var(--green-t)}
+.amt{text-align:right;white-space:nowrap;flex:none}
+.amt small{display:block;font-size:12px;color:var(--text2);margin-top:4px}
+.track{min-width:0}
+.trk-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12.5px;margin-bottom:6px}
+.trk-h b{font-weight:600}
+.trk-h span{color:var(--mute);white-space:nowrap}
+.act{display:flex;gap:6px;justify-content:flex-end;flex-wrap:nowrap}
+@media(max-width:980px){
+  .job{grid-template-columns:minmax(0,1fr);gap:12px}
+  .act{justify-content:stretch;flex-wrap:wrap}.act .b{flex:1}.act .b.pri{flex:1 0 100%}
+}
+.job.need{border-color:var(--orange);box-shadow:0 0 0 1px var(--orange)}
+.job.need.pulse{animation:glow 2.4s ease-in-out infinite}
+@keyframes glow{0%,100%{box-shadow:0 0 0 1px var(--orange),0 0 0 0 rgba(255,154,46,0)}50%{box-shadow:0 0 0 1px var(--orange),0 0 26px 3px rgba(255,154,46,.55)}}
+@media (prefers-reduced-motion:reduce){.job.need.pulse{animation:none;box-shadow:0 0 0 2px var(--orange)}}
+.job.over{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+
+/* rail */
+.rail{position:relative;height:18px;margin:0 9px}
+.segs{position:absolute;left:-9px;right:-9px;top:6px;height:6px;display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.segs i{border-radius:3px;background:var(--line2)}
+.segs i.done{background:var(--seg)} .segs i.cur{background:var(--text)}
+.gate{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 3px var(--card);background:var(--card);border:2px solid var(--mute)}
+.gate.paid{background:var(--green);border-color:var(--green)}
+.gate.sent{background:var(--pri);border-color:var(--pri)}
+.gate.over{background:var(--red);border-color:var(--red)}
+.gate.need{background:var(--orange);border-color:var(--orange)}
+.gate.uninv,.gate.noinv{border-color:var(--orange)}
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 9px;border-radius:7px;background:var(--inset);border:1px solid var(--line);color:var(--text2);white-space:nowrap}
+.pill i{width:8px;height:8px;border-radius:50%;border:2px solid var(--mute);flex:none}
+.pill b{font-family:var(--mono);font-weight:700;color:var(--text);letter-spacing:-.05em}
+.pill.paid i{background:var(--green);border-color:var(--green)} .pill.paid{color:var(--green-t);border-color:transparent;background:transparent;padding-left:2px}
+.pill.sent i{background:var(--pri);border-color:var(--pri)} .pill.sent{border-color:var(--pri)}
+.pill.over i{background:var(--red);border-color:var(--red)} .pill.over{color:#fff;background:var(--red);border-color:var(--red)} .pill.over b{color:#fff} .pill.over i{background:#fff;border-color:#fff}
+.pill.need i{background:var(--orange);border-color:var(--orange)} .pill.need{color:var(--orange-t);border-color:var(--orange);background:var(--orange-bg)}
+.pill.later{border-style:dashed}
+.pill.uninv,.pill.noinv{border-style:dashed;border-color:var(--orange);color:var(--orange-t)} .pill.uninv i,.pill.noinv i{border-color:var(--orange)}
+.pill .edit{color:var(--cyan-t);font-weight:600;margin-left:2px;text-decoration:underline;text-underline-offset:2px}
+
+.adj{margin-top:8px;padding:10px;border:1px solid var(--line2);border-radius:10px;background:var(--inset);cursor:default}
+.adj .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.adj .pc{height:38px;min-width:52px;padding:0 10px;border:1px solid var(--line2);border-radius:8px;font-family:var(--mono);font-size:12.5px;background:var(--card);text-align:center}
+.adj .pc.on{background:var(--pri);color:var(--pri-ink);border-color:var(--pri);font-weight:600}
+.adj .cust-amt{display:flex;align-items:center;gap:6px;height:38px;padding:0 10px;border:1px solid var(--line2);border-radius:8px;background:var(--card)}
+.adj .cust-amt input{width:92px;border:0;background:none;font-family:var(--mono);font-size:13px;outline:none}
+.adj p{font-size:12.5px;color:var(--text2);margin-top:8px}
+.adj p b{font-family:var(--mono);font-weight:600;color:var(--text);letter-spacing:-.04em}
+.adj p.warn{color:var(--orange-t)}
+
+.b{height:40px;padding:0 13px;border-radius:9px;font-weight:500;font-size:13.5px;white-space:nowrap;border:1px solid var(--line2);background:transparent;color:var(--text);text-align:center}
+.b.pri{background:var(--pri);color:var(--pri-ink);border-color:var(--pri);font-weight:600}
+.b.sm{height:34px;padding:0 10px;font-size:12.5px}
+.b:disabled{opacity:.4;cursor:default}
+
+/* ---------- board ---------- */
+.board{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;overflow-x:auto;margin:14px calc(var(--pad)*-1) 0;padding:2px var(--pad) 12px;scroll-snap-type:x proximity;align-items:start}
+@media(max-width:1180px){.board{grid-template-columns:repeat(7,224px)}}
+.lane{min-width:0;scroll-snap-align:start}
+.lane-h{padding-bottom:10px;border-bottom:2px solid var(--seg);margin-bottom:10px}
+.lane.warn .lane-h{border-color:var(--orange)} .lane.bad .lane-h{border-color:var(--red)} .lane.ok .lane-h{border-color:var(--green)} .lane.wait .lane-h{border-color:var(--pri)}
+.lane-h h3{font-size:13.5px;font-weight:600;display:flex;justify-content:space-between;gap:6px}
+.lane-h h3 span{color:var(--mute);font-weight:400}
+.lane-h .v{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:-.06em;margin-top:4px}
+.lane-h .s{font-size:12px;color:var(--mute);margin-top:2px}
+.lane-h .x{font-size:12px;font-weight:700;color:var(--red-t);margin-top:2px}
+.mini{display:block;width:100%;padding:9px 9px 9px 11px;border:1px solid var(--line);border-left:4px solid var(--seg);border-radius:9px;background:var(--card);margin-bottom:7px}
+.mini.h-need{border-left-color:var(--orange)} .mini.h-over{border-color:var(--red);border-left-color:var(--red)} .mini.h-sent{border-left-color:var(--pri)} .mini.h-paid,.mini.h-ok{border-left-color:var(--green)} .mini.h-uninv{border-left-color:var(--orange)}
+.mini .a{font-weight:600;font-size:13px;line-height:1.25;overflow-wrap:anywhere}
+.mini .c{font-size:12px;color:var(--mute)}
+.mini .l{display:flex;gap:4px;margin-top:8px;align-items:center;flex-wrap:wrap}
+.mini .o{margin-left:auto}
+.mini .w{font-size:12px;margin-top:6px;color:var(--text2)}
+.mini .w.need{color:var(--orange-t)} .mini .w.over{color:var(--red-t);font-weight:600}
+.lt{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:1.5px solid var(--line2);color:var(--mute)}
+.lt.paid{background:var(--green);border-color:var(--green);color:#04170f}
+.lt.sent{background:var(--pri);border-color:var(--pri);color:var(--pri-ink)}
+.lt.over{background:var(--red);border-color:var(--red);color:#fff}
+.lt.need{background:var(--orange);border-color:var(--orange);color:var(--orange-ink)}
+.lt.later,.lt.none{border-style:dashed}
+.lt.uninv,.lt.noinv{border-color:var(--orange);color:var(--orange-t);border-style:dashed}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text2);margin-top:14px;align-items:center}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+
+/* ---------- tables ---------- */
+.tbl{margin-top:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}
+.tr{display:grid;grid-template-columns:minmax(0,1.45fr) 150px repeat(3,minmax(0,1fr)) 118px 168px;gap:0 16px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);cursor:pointer}
+.tr.head{cursor:default;border-top:0;background:var(--inset);font-size:12px;color:var(--mute);padding-top:9px;padding-bottom:9px}
+.tr.grp{cursor:default;background:var(--inset);font-size:13px;font-weight:600;padding-top:8px;padding-bottom:8px;display:flex;justify-content:space-between}
+.tr.grp span{font-weight:400;color:var(--mute)} .tr.grp span b{font-family:var(--mono);font-weight:700;color:var(--text);letter-spacing:-.05em}
+.tr.grp.red{background:var(--red);color:#fff} .tr.grp.red span,.tr.grp.red span b{color:#fff}
+.tr.isover{background:var(--red-bg)}
+.td{min-width:0;font-size:13px}
+.td .a{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.td .c{font-size:12px;color:var(--mute)}
+.td .lbl{display:none}
+.td.st b{font-size:12.5px;font-weight:600;display:block;margin-bottom:5px}
+.cell{display:block}
+.cell small{display:block;font-size:12px;color:var(--text2);margin-top:3px}
+.cell.paid{color:var(--green-t);opacity:.75;font-size:12.5px}
+.cell.later{color:var(--mute);font-family:var(--mono);font-size:12.5px;letter-spacing:-.05em} .cell.later small{font-family:var(--sans);letter-spacing:0;color:var(--mute)}
+.cell.none{color:var(--mute)}
+.td.ow{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:-.06em;text-align:right}
+.td.ow.zero{color:var(--green-t);font-weight:500;font-size:12.5px;font-family:var(--sans);letter-spacing:0;opacity:.75}
+.td.ac{display:flex;gap:6px;justify-content:flex-end}
+@media(max-width:1000px){
+  .tr.head{display:none}
+  .tr{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 10px;padding:13px 14px}
+  .td.jb{grid-column:1/3}.td.ow{grid-column:3;grid-row:1}
+  .td.st{grid-column:1/-1}.td.st b{display:inline;margin-right:8px}
+  .td .lbl{display:block;font-size:11px;color:var(--mute);margin-bottom:3px}
+  .td.ac{grid-column:1/-1;justify-content:flex-start}
+  .td .a{white-space:normal}
+  .owe.sm{font-size:12.5px;padding:3px 6px}
+}
+.fchips{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.fchips button{height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--line2);font-size:13px;color:var(--text2)}
+.fchips button.on{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}
+.fchips button span{font-family:var(--mono);font-size:11px;opacity:.7;margin-left:4px}
+
+/* ---------- money out rows ---------- */
+.prow{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.3fr) 150px 250px;gap:8px 20px;align-items:center;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bottom:8px}
+.prow .p1 b{font-weight:600;font-size:15px;display:block}
+.prow .p1 small,.prow .p2 small{font-size:12.5px;color:var(--mute);display:block}
+.prow .p2{font-size:13.5px;min-width:0}
+.prow .p2 .jl{font-weight:500;color:var(--text);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.prow .p2 q{quotes:"“" "”";color:var(--text)}
+.prow .p3{text-align:right}
+.prow .p3 small{display:block;font-size:12px;color:var(--text2);margin-top:4px}
+.prow .p4{display:flex;gap:6px;justify-content:flex-end}
+.prow.over{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+.prow.grp{background:var(--inset);border-color:var(--line2)}
+.prow.mat{grid-template-columns:minmax(0,.85fr) minmax(0,1.1fr) 130px 400px}
+.prow.mat .p4{flex-wrap:wrap}
+.prow.gone{opacity:.7}
+.b.del{color:var(--red-t)}
+@media(max-width:980px){.prow,.prow.mat{grid-template-columns:minmax(0,1fr) auto}.prow .p2{grid-column:1/-1;grid-row:2}.prow .p3{grid-column:2;grid-row:1}.prow .p4{grid-column:1/-1;justify-content:stretch}.prow .p4 .b{flex:1}}
+.suprow{display:flex;gap:10px 22px;flex-wrap:wrap;font-size:13.5px;color:var(--text2);margin-top:18px}
+.suprow b{font-family:var(--mono);font-weight:700;color:var(--text);letter-spacing:-.05em;margin-left:6px}
+
+/* ---------- drawer ---------- */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(620px,100%);background:var(--bg);border-left:1px solid var(--line);z-index:21;overflow-y:auto;transform:translateX(102%);transition:transform .22s ease;padding:0 0 110px}
+.drawer.on{transform:none}
+@media (prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
+.dh{position:sticky;top:0;background:var(--bg);z-index:2;padding:12px 18px;border-bottom:1px solid var(--line)}
+.dh .x{display:flex;justify-content:space-between;align-items:center}
+.dh .back{color:var(--cyan-t);font-size:14px;height:36px}
+.dh h2{font-size:21px;font-weight:600;letter-spacing:-.015em;margin-top:2px}
+.dh .cust{font-size:13px;color:var(--text2)}
+.db{padding:0 18px}
+.stagebox{margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.stagebox .names{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:6px;font-size:10.5px;color:var(--mute);line-height:1.2}
+.stagebox .names span.cur{color:var(--text);font-weight:600}
+@media(max-width:560px){.stagebox .names span:not(.cur){visibility:hidden}.stagebox .names span.cur{white-space:nowrap}}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:10px}
+.three div{background:var(--card);padding:10px 12px;min-width:0}
+.three small{display:block;font-size:12px;color:var(--mute)}
+.three b{display:block;font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:-.06em;margin-top:3px}
+.tabs{display:flex;gap:4px;margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px}
+.tabs button{flex:1;height:38px;border-radius:7px;font-weight:500;font-size:14px;color:var(--text2);text-align:center}
+.tabs button.on{background:var(--pri);color:var(--pri-ink);font-weight:600}
+.big-act{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.big-act .b{height:48px;font-size:14.5px}
+.big-act .b.pri{flex:1}
+.links{display:flex;gap:18px;margin-top:8px;font-size:13px;flex-wrap:wrap}
+.links button{color:var(--cyan-t);min-height:32px}
+.inv{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow:hidden}
+.inv .h{padding:12px 14px;display:flex;justify-content:space-between;gap:10px}
+.inv .k{font-weight:600}
+.inv .no{font-size:12px;color:var(--mute);margin-top:2px}
+.inv .meta{padding:0 14px 10px;font-size:13px;color:var(--text2)}
+.inv .inset{padding:0 14px 12px}
+.pay{border-top:1px dashed var(--line2);padding:9px 14px;display:flex;justify-content:space-between;font-size:13px;background:var(--inset)}
+.pay .tick{display:inline-flex;width:18px;height:18px;border-radius:50%;background:var(--green);color:#04170f;font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:8px}
+.due{border-top:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--inset)}
+.due label{font-size:13px;font-weight:500}
+.due small{display:block;font-size:12px;color:var(--mute);font-weight:400}
+.due input,.field input,.field select{height:44px;border:1px solid var(--line2);border-radius:9px;padding:0 10px;background:var(--card);font-size:15px}
+.inv .acts{display:flex;gap:6px;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+.inv .acts .b{flex:1}
+.paidamt{font-family:var(--mono);font-size:14px;letter-spacing:-.05em;color:var(--green-t)}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;font-size:11.5px;font-weight:600;white-space:nowrap;background:var(--grey-bg);color:var(--text2)}
+.tag.paid{background:var(--green-bg);color:var(--green-t)} .tag.sent{background:var(--cyan-bg);color:var(--cyan-t)} .tag.over{background:var(--red);color:#fff} .tag.need{background:var(--orange);color:var(--orange-ink)} .tag.cash{background:var(--cash-bg);color:var(--cash-t)}
+.cashnote{margin:0 14px 12px;padding:8px 10px;border-radius:8px;background:var(--cash-bg);color:var(--cash-t);font-size:12.5px}
+.msgs{margin-top:10px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:12px 14px}
+.msgs h3{font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.msgs p{font-size:13px;color:var(--text2);margin-top:8px}
+
+.gp{margin-top:14px;background:var(--card);border:1px solid var(--green);border-radius:12px;padding:16px}
+.gp small{font-size:12.5px;color:var(--text2)}
+.gp .big{font-family:var(--mono);font-size:28px;font-weight:700;letter-spacing:-.06em}
+.gp .pct{font-family:var(--mono);font-size:14px;color:var(--green-t);margin-left:10px}
+.split{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-top:12px;gap:2px}
+.split i{display:block}
+.key{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text2);margin-top:8px}
+.key span{display:inline-flex;gap:5px;align-items:center}
+.key i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.cost{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow:hidden}
+.cost .h{display:flex;justify-content:space-between;padding:12px 14px;font-weight:600}
+.cost .li{display:flex;justify-content:space-between;gap:10px;padding:8px 14px;border-top:1px dashed var(--line2);font-size:13px;align-items:center}
+.cost .li small{display:block;color:var(--mute);font-size:12px}
+.cost .li .r{display:flex;gap:8px;align-items:center;white-space:nowrap}
+.sum{margin-top:14px;border-top:2px solid var(--text)}
+.sum div{display:flex;justify-content:space-between;padding:9px 2px;border-bottom:1px solid var(--line);font-size:14px}
+.sum div.t{font-weight:700;border-bottom:0}
+.note{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--orange-bg);color:var(--orange-t);font-size:13px;border:1px solid var(--orange)}
+.fine{font-size:12.5px;color:var(--mute);margin-top:12px}
+
+/* ---------- sheets ---------- */
+.sheet-wrap{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;display:none;align-items:flex-end;justify-content:center}
+.sheet-wrap.on{display:flex}
+@media(min-width:700px){.sheet-wrap{align-items:center}}
+.sheet{background:var(--card);border:1px solid var(--line2);width:100%;max-width:460px;border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+@media(min-width:700px){.sheet{border-radius:16px}}
+.sheet h3{font-size:18px;font-weight:600}
+.sheet .who{font-size:13px;color:var(--mute);margin-top:2px}
+.field{margin-top:14px;min-width:0}
+.field>label{display:block;font-size:13px;font-weight:500;margin-bottom:6px}
+.field input,.field select{width:100%}
+.field input.money{font-family:var(--mono);font-size:16px;font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.methods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.methods button{height:46px;border:1px solid var(--line2);border-radius:9px;font-weight:500;font-size:14px;text-align:center}
+.methods button.on{background:var(--pri);color:var(--pri-ink);border-color:var(--pri);font-weight:600}
+.cashbox{margin-top:14px;border:1px solid var(--cash-line);background:var(--cash-bg);border-radius:12px;padding:12px;display:none}
+.cashbox.on{display:block}
+.cashbox p{font-size:13px;color:var(--cash-t)}
+.tog{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--cash-line)}
+.tog span{font-size:14px;font-weight:500}
+.tog small{display:block;font-size:12.5px;color:var(--cash-t);font-weight:400}
+.switch{width:52px;height:32px;border-radius:16px;background:var(--mute);position:relative;flex:none;transition:background .15s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:transform .15s}
+.switch[aria-checked="true"]{background:var(--green)}
+.switch[aria-checked="true"]::after{transform:translateX(20px)}
+.hint{margin-top:12px;font-size:13px;color:var(--mute)}
+.hint.warn{color:var(--orange-t)}
+.err{color:var(--red-t);font-size:13px;margin-top:8px;min-height:18px}
+.sheet .b.wide{width:100%;height:48px;font-size:15px;margin-top:6px}
+.sheet .cancel{width:100%;height:44px;color:var(--text2);margin-top:2px;font-size:14px;text-align:center}
+.pick{margin-top:10px;max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.pick button{display:block;width:100%;padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px}
+.pick button small{display:block;color:var(--mute);font-size:12px}
+
+.paper{background:#fbfaf5;color:#1c1c1c;border-radius:6px;padding:18px 18px 12px;margin-top:14px;font-size:13px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.paper .ph{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #1c1c1c;padding-bottom:8px;margin-bottom:8px}
+.paper .ph b{font-size:17px}.paper .ph span{font-size:11px;letter-spacing:.08em}
+.paper div.pr,.paper div.pl,.paper div.pt{display:flex;justify-content:space-between;gap:12px;padding:4px 0}
+.paper div.pl{border-top:1px solid #cfcabd;margin-top:8px;padding-top:10px}
+.paper div.pt{border-top:2px solid #1c1c1c;margin-top:6px;padding-top:8px;font-weight:700;font-size:15px}
+.paper p{font-size:11.5px;color:#77736a;margin-top:12px;text-align:center}
+.read{margin-top:12px;border:1px solid var(--line2);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--text2)}
+.read b{display:block;color:var(--text);font-weight:600;margin-bottom:4px}
+.read span{display:block}
+.docacts{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.docacts .b{flex:1}
+/* ---------- chat ---------- */
+.chat{position:fixed;left:14px;bottom:14px;width:400px;max-width:calc(100% - 28px);max-height:min(640px,calc(100vh - 28px));background:var(--card);border:1px solid var(--line2);border-radius:14px;z-index:40;display:none;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.chat.on{display:flex}
+@media(max-width:560px){.chat{left:0;right:0;bottom:0;width:100%;max-width:100%;border-radius:16px 16px 0 0;max-height:88vh}}
+.chat .ch{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.chat .ch b{font-size:14.5px;font-weight:600;display:block}
+.chat .ch small{font-size:12px;color:var(--mute)}
+.chat .cq{display:flex;gap:6px;padding:10px 14px 0;flex-wrap:wrap}
+.chat .thread{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-height:70px}
+.bub{max-width:86%;padding:9px 12px;border-radius:12px;font-size:13.5px;white-space:pre-line;background:var(--inset);border:1px solid var(--line)}
+.bub small{display:block;font-size:11px;opacity:.7;margin-bottom:2px}
+.bub.me{align-self:flex-end;background:var(--pri);color:var(--pri-ink);border-color:var(--pri)}
+.chat .tpl{display:flex;gap:6px;padding:0 14px 8px;overflow-x:auto;scrollbar-width:none}
+.chat .tpl button{flex:none;height:30px;padding:0 10px;border-radius:15px;border:1px solid var(--line2);font-size:12.5px;color:var(--text2)}
+.chat .tpl button.on{border-color:var(--pri);color:var(--cyan-t)}
+.chat .compose{border-top:1px solid var(--line);padding:10px 14px 12px}
+.chat textarea{width:100%;height:132px;resize:none;border:1px solid var(--line2);border-radius:10px;background:var(--inset);padding:10px;font-size:14px;line-height:1.4}
+.chat .send{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px}
+.chat .send small{font-size:12px;color:var(--mute)}
+
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(30px);background:var(--text);color:var(--bg);padding:10px 10px 10px 16px;border-radius:12px;font-size:13.5px;font-weight:500;max-width:580px;width:calc(100% - 28px);opacity:0;pointer-events:none;transition:.22s;z-index:50;display:flex;align-items:center;gap:10px}
+.toast.on{opacity:1;transform:translateX(-50%);pointer-events:auto}
+.toast span{flex:1}
+.toast button{height:36px;padding:0 12px;border-radius:8px;font-weight:600;font-size:13px;color:var(--bg);border:1px solid currentColor;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="mockbar"><span>Mockup built on your live figures, read Mon 12 Oct at 9:20 pm. Nothing here sends or saves.</span>
+  <span class="pv">See a later date: <button data-a="pv" data-s="0" class="on">Today</button><button data-a="pv" data-s="3">In 3 days</button><button data-a="pv" data-s="10">In 10 days</button></span></div>
+<header class="top">
+  <div class="brand">PAINT<b>GROUP</b></div><span class="pg">Payments</span>
+  <button class="theme" data-a="theme">Light</button>
+</header>
+<main class="wrap">
+  <section class="lead"><h1 id="lead"></h1><p id="leadsub"></p></section>
+  <nav class="ledger" id="ledger" aria-label="Where the money is"></nav>
+
+  <section id="pg-cust">
+    <div class="strip-h"><h2>Money to collect from customers, by job stage</h2><button id="clearStage" data-a="stage" data-s="" hidden>Show all stages</button></div>
+    <div class="strip" id="strip"></div>
+    <div class="tools">
+      <div class="views" id="views">
+        <button data-a="view" data-s="chase">To chase</button>
+        <button data-a="view" data-s="board">By job stage</button>
+        <button data-a="view" data-s="table">All jobs</button>
+      </div>
+      <input class="search" id="q" type="search" placeholder="Search address or customer" aria-label="Search address or customer">
+      <label class="chk" id="paidChk"><input type="checkbox" id="showPaid"> Show paid jobs</label>
+    </div>
+    <div id="view"></div>
+  </section>
+
+  <section id="pg-con" hidden>
+    <div class="tools">
+      <div class="views" id="conBy"><button data-a="conby" data-s="inv">By invoice</button><button data-a="conby" data-s="con">By contractor</button></div>
+      <input class="search" id="qc" type="search" placeholder="Search contractor or address" aria-label="Search contractor or address">
+    </div>
+    <div id="conView"></div>
+  </section>
+
+  <section id="pg-mat" hidden><div id="matView"></div></section>
+  <section id="pg-act" hidden><div class="empty">Activity stays as it is today, with one change:<br>repeated “Invoice viewed by customer” lines fold into one line with a count.</div></section>
+</main>
+
+<div class="scrim" id="scrim" data-a="close"></div>
+<aside class="drawer" id="drawer" aria-label="Job"></aside>
+
+<div class="sheet-wrap" id="payWrap"><div class="sheet" role="dialog" aria-labelledby="payT">
+  <h3 id="payT">Record a payment</h3><div class="who" id="payWho"></div>
+  <div class="field"><label for="pFor">Payment for</label><select id="pFor"></select></div>
+  <div class="two">
+    <div class="field"><label for="pAmt">Amount received</label><input id="pAmt" class="money" inputmode="decimal"></div>
+    <div class="field"><label for="pDate">Date received</label><input id="pDate" type="date"></div>
+  </div>
+  <div class="field"><label>How was it paid?</label>
+    <div class="methods" id="methods"><button data-m="bank">Bank</button><button data-m="cash">Cash</button><button data-m="other">Other</button></div></div>
+  <div class="cashbox" id="cashbox"><p id="cashMsg"></p>
+    <div class="tog"><span>Send notification of payment<small>Emails the customer to confirm we received their cash</small></span>
+      <button class="switch" id="notify" role="switch" aria-checked="true" aria-label="Send notification of payment"></button></div></div>
+  <div class="hint" id="payHint"></div>
+  <div class="err" id="pErr"></div>
+  <button class="b pri wide" id="pSave">Record payment</button>
+  <button class="cancel" data-a="closeSheets">Cancel</button>
+</div></div>
+
+<div class="sheet-wrap" id="sendWrap"><div class="sheet" role="dialog" aria-labelledby="sendT">
+  <h3 id="sendT"></h3><div class="who" id="sendWho"></div>
+  <div id="sendAdj"></div>
+  <div class="field"><label for="sDue">Due date</label><input id="sDue" type="date"></div>
+  <div class="hint" id="sendHint"></div>
+  <div class="err"></div>
+  <button class="b pri wide" id="sSend"></button>
+  <button class="cancel" data-a="closeSheets">Cancel</button>
+</div></div>
+
+<div class="sheet-wrap" id="pickWrap"><div class="sheet" role="dialog" aria-labelledby="pickT">
+  <h3 id="pickT">Which job is this for?</h3><div class="who" id="pickWho"></div>
+  <div class="field"><input id="pickQ" type="search" placeholder="Search address or customer" aria-label="Search jobs"></div>
+  <div class="pick" id="pickList"></div>
+  <button class="cancel" data-a="closeSheets">Cancel</button>
+</div></div>
+
+<div class="sheet-wrap" id="docWrap"><div class="sheet" role="dialog" aria-label="Captured document" style="max-width:500px">
+  <div id="docBody"></div>
+  <button class="cancel" data-a="closeSheets">Close</button>
+</div></div>
+
+<div class="chat" id="chat" role="dialog" aria-label="Customer chat"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* Live figures read on Mon 12 Oct 2026, about 9:20 pm. ANONYMISED for the public repo: customer names and street names are fictional; amounts, stages, suburbs, work-order refs and businesses are as read. The original lives outside git (see docs/briefs/claude-code-brief-payments-merge.md).
+   One line per job: stage|work order|address|customer|contract|variations|paid|invoice views|starts in (days)|contractor|invoices
+   Each invoice: kind,number,amount,state (p paid, s sent, d draft),due in days,viewed */
+const RAW=`0|WO-JJA6DHXW|88 Honeyeater Road, Surrey Hills|Sam Hartwell|7677.47|0|0|0|||D,0,3838.74,d,,0
+0|WO-VQXEW40T|3/2 Galah Street, Bentleigh East|Robin Tate|3483.55|0|0|0|||D,0,1741.78,d,,0
+0|WO-R5CQMAAA|46 Karri Street, Glen Iris|Cameron Oakes|11770.08|0|0|0|||D,0,5885.04,d,,0
+0|PS-1460|26A Waratah Street, Surrey Hills|Ocean Elwood|7197.08|0|0|0|||D,0,3598.54,d,,0
+0|PS-2847|2/3 Osprey Street, Ascot Vale|Corin Hartwell|8396.85|0|0|0|||D,0,4198.43,d,,0
+0|WO-PIVDSALO|28 Robin Street, Ironbark|Ellis Vance|9632|682.05|0|0|||D,0,4816,d,,0
+0|WO-YOEVFDOB|43 Pardalote Street, Alphington|Gray Lowell|14261.7|0|0|0|||D,0,7130.85,d,,0
+0|PS-3102|247-249 Harrier Rd, Preston|Finley Lowell|11675.6|0|0|2|||P,56,5837.8,s,7,1
+0|WO-JZJ2R3LB|46 Karri Street, Glen Iris|Cameron Oakes|2993.43|0|0|0|||D,0,1496.72,d,,0
+0|WO-RG0NOQ51|9 Heron, Belgrave|Sage Elwood|17414.72|0|0|0|||D,0,8707.36,d,,0
+0|PS-3083|9/552 Quail Street (Colour Match)||12087|0|0|0|||
+0|PS-2736|3A Tuart Ave Water Damage, Toorak|Emerson Elwood|653.95|0|0|0|||D,0,326.98,d,,0
+0|WO-6GYUFMMW|27 Ibis Street, Coburg|Jamie Cole|8200.93|0|0|0|||D,0,4100.47,d,,0
+0|PS-2930|5 Jarrah Road Interior, Glen Iris|Jordan Oakes|21882.94|0|0|0|||D,0,10941.47,d,,0
+0|PS-3631|288 Myrtle Road, Sandringham|Jules Kerr|18712.1|0|0|0|||D,0,9356.05,d,,0
+0|WO-MYGHLKUR|18 Coolabah Parade, Ringwood North|Remy Vance|3024.85|0|0|0|||D,0,1512.43,d,,0
+0|PS-2909|3/25 Rosella Grove, Ivanhoe|Hollis Tate|7074.21|0|0|0|||D,0,3537.11,d,,0
+0|PS-3115|15 Swift Cres||27489|0|0|0|||
+0|PS-2232|58 View Street, Mont Albert|Blake Hartwell|19430.85|0|0|0|||D,0,9715.43,d,,0
+1|PS-3639|77 Stint Road||17519|0|0|0||DJ Decor Pty Ltd|
+1|PS-3681|2803/ 70 Plover St, Docklands|Elliot Vance|6106.84|0|0|0||Yapaintingservices|D,0,3053.42,d,,0
+1|PS-2826|283 Magpie Street, Carlton North|Ari Kerr|8181.91|0|0|0||DJ Decor Pty Ltd|D,0,4090.96,d,,0
+1|PS-3628|34 Swallow Circuit, Coburg North|Reese Elwood|8943.83|0|0|0||DJ Decor Pty Ltd|D,0,4471.92,d,,0
+1|WO-RATF9ESZ|27 Acacia Avenue, Malvern East|Kendall Tate|1377.48|0|0|0|||D,0,688.74,d,,0
+1|WO-VRHJNQLA|2 Finch Avenue, Oakleigh|Harper Hartwell|28735.26|0|0|0|||D,0,14367.63,d,,0
+1|PS-3657|89 Dotterel Rd, Prahran|Milan Oakes|6008.48|0|0|0||SKP Painting pty_ltd|D,0,3004.24,d,,0
+1|PS-2630|28 Bottlebrush St Exterior, Murrumbeena|Marlowe Kerr|32293.51|0|0|0||DJ Decor Pty Ltd|D,0,16146.76,d,,0
+1|PS-3108|65 Marri Street, Seddon|Val Tate|10087.21|0|0|0|||D,0,5043.61,d,,0
+1|WO-MDX5SZKZ|5/79 Silvereye Street, Southbank|Devon Oakes|8041.52|0|0|0||Lolite Painting|D,0,4020.76,d,,0
+1|PS-3598|9 Bluegum Street exterior, Caulfield North|Peyton Oakes|10179.21|0|0|0||MZ Painting Pty Ltd|D,0,5089.61,d,,0
+2|WO-D1RAG281|8 Martin Court, Wonga Park|Drew Ashford|1200.1|0|0|2|1||D,52,600.05,s,3,1
+2|PS-3043|20 Bellbird Street, Preston|Noel Ashford|8331.76|0|0|0|1|DJ Decor Pty Ltd|D,46,4165.88,s,0,0
+2|WO-AIQNGBHV|48A Currawong Street, Caulfield South|Lennon Hartwell|6449.75|0|3224.88|1|2|SKP Painting pty_ltd|D,47,3224.88,p,,0
+2|WO-JQQIESIE|70 Ironbark Road, Toorak|Indy Cole|3288.95|0|1644.48|8|2||D,51,1644.48,p,,0
+2|WO-QCSDF8IX|3/11 Sheoak Street, Cheltenham|Robin Cole|12042.1|0|6021.05|0|3|Young Gun Painting pty ltd|D,50,6021.05,p,,0
+2|PS-3672|23 Whipbird St, Parkdale|Tatum Lowell|16500|0|0|6|3|MZ Painting Pty Ltd|D,44,8250,s,0,1
+2|PS-3141|120A Banksia Street, Doncaster|Rowan Oakes|3837.32|0|0|0||Lilly Pilly Impression Painting Group|D,57,1918.66,s,7,0
+2|PS-3153|9 Bluegum Street, Caulfield North|Peyton Oakes|21235.75|1848.26|0|5||MZ Painting Pty Ltd|P,58,11542.01,s,7,1
+3|PS-3156|12A Saltbush Court Beaumaris Victoria 3193 Australia AU|Hayden Tate|9850.01|452.65|4925.01|7||MZ Painting Pty Ltd|D,36,4925.01,p,,0
+3|PS-3149|7 Casuarina Avenue, Mount Dandenong|Parker Lowell|20705.07|1888.7|10352.54|4|||D,34,10352.54,p,,0
+3|PS-3003|12 Lilly Pilly Ave stage 2, Aspendale|Lane Cole|8427.61|0|4213.81|8|||D,38,4213.81,p,,0
+3|PS-3613|73 Thornbill Street, Malvern East|Avery Kerr|10364.05|0|5182.03|9||MZ Painting Pty Ltd|P,45,5182.03,p,,0
+3|PS-3087|7 Bowerbird Street, Ashburton|Frankie Elwood|19940.14|0|9970.07|5||DJ Decor Pty Ltd|D,35,9970.07,p,,0
+3|PS-2650|17 Kite Street, Forest Hill|Morgan Elwood|15730.79|0|0|0||DJ Decor Pty Ltd|D,0,7865.4,d,,0
+3|WO-1YW2QZFX|31 Fantail Street, Fitzroy North|Wren Cole|3295.72|0|1647.86|4||DJ Decor Pty Ltd|D,41,1647.86,p,,0
+3|PS-3157|12A Saltbush Ct Interior, Beaumaris|Hayden Tate|1065.35|0|0|0||MZ Painting Pty Ltd|D,0,532.68,d,,0
+4|WO-L468B6P8|704/243-253 Kestrel Road, Richmond|Taylor Vance|6285.58|0|3142.79|2||Young Gun Painting pty ltd|D,48,3142.79,p,,0
+4|WO-TAW5DMWS|8/20 Cockatoo Street, Northcote|Riley Tate|4986.96|0|2493.48|0||Young Gun Painting pty ltd|D,53,2493.48,p,,0
+4|PS-3136|91 Kookaburra Street, Richmond|Perry Lowell|10745.04|0|0|0|||D,0,5372.52,d,,0
+5|WO-YZL1X9OY|13 Wren Crescent, Caulfield East|Tom Roman|15685.02|550|16235.02|2|||F,29,8392.51,p,,0;D,25,7842.51,p,,0
+5|WO-CVPK8PE5|1/41 Kurrajong Street, Oakleigh South|Tom Roman|7886.11|250|7892.16|9||Kovac Painting Pty Ltd|F,33,6.05,p,,0;F,24,5914.58,p,,0;P,23,1971.53,p,,0
+6|PS-3677|1 Egret St||13121|0|0|0||SKP Painting pty_ltd|
+6|WO-TUOSDOPV|29A Mudlark Street, Brighton|Emerson Elwood|419.63|0|419.63|10||DJ Decor Pty Ltd|D,0,209.82,d,,0;F,40,419.63,p,,0
+6|PS-3605|1105/243 Melaleuca Street, Melbourne|Alex Ashford|3065.89|0|0|0||DJ Decor Pty Ltd|F,0,3065.89,d,,0;D,0,1532.95,d,,0
+6|PS-3623|2 Correa Crescent stage 3, Blackburn|Skyler Kerr|2032.8|0|0|0|||D,0,1016.4,d,,0
+6|WO-Y5AHG3VA|87/80 Lyrebird Crescent, Abbotsford|Casey Lowell|1634.5|875.52|2103.41|5|||D,0,1259.5,d,,0;F,43,2103.41,p,,0
+6|PS-3649|Avocet Plaza, Paperbark Road, Avocet|Shay Cole|3654.75|0|0|0|||F,0,3654.75,d,,0;D,0,1827.38,d,,0
+6|WO-KQZA9QTV|4/20 Cockatoo Street, Northcote|Riley Tate|4223.37|0|2111.69|0||Young Gun Painting pty ltd|F,0,4223.37,d,,0;D,55,2111.69,p,,0
+6|WO-RNC6HYK9|3/20 Cockatoo Street, Northcote|Riley Tate|4187.23|0|2093.62|0||Young Gun Painting pty ltd|F,0,2093.61,d,,0;P,0,2093.62,d,,0;D,54,2093.62,p,,0
+6|PS-3688|5305/568 Boronia Street, Melbourne|Kit Ashford|3723.63|877.23|4600.86|6||Yapaintingservices|F,0,0,d,,0;F,42,4600.86,p,,0
+6|WO-WNWJXGTV|25 Lorikeet Road, Oakleigh South|Tom Roman|5021.64|190|5211.64|0||Kovac Painting Pty Ltd|F,0,0,d,,0;F,32,5211.64,p,,0
+6|PS-3650|31 Kestrel St E, Benalla|Finley Lowell|2152.35|0|0|0|||F,0,2152.35,d,,0;D,0,1076.18,d,,0
+6|WO-6AFZ11SR|13 Wren Crescent, Caulfield East|Tom Roman|13160.44|0|13160.44|0||Kovac Painting Pty Ltd|F,0,0,d,,0;F,31,6580.22,p,,0;D,30,6580.22,p,,0
+6|PS-3620|71 Falcon Crescent Stage 2, Caulfield North|Quinn Ashford|1701.18|0|850.59|2|||D,39,850.59,p,,0
+6|WO-LN1GGKXO|13 Wren Crescent, Caulfield East|Tom Roman|13788.24|262.88|0|0||TRJ PAINTERS|F,0,14051.12,d,,0;D,0,6894.12,d,,0
+6|PS-1429|40 Brolga Boulevard, St.Kilda|Bailey Ashford|9009.86|0|4504.93|7|||F,49,4504.93,s,1,0;D,37,4504.93,p,,0
+6|PS-3666|74 Grevillea Street, Brighton|Dakota Vance|3618.31|0|0|0||DJ Decor Pty Ltd|F,0,3618.31,d,,0
+-1||2 Wattle Rise, Paull, Hull, East Riding of Yorkshire, HU128QF|Oakley Hartwell|3338.83|0|0|0|||D,0,1669.42,d,,0
+-1|WO-GBKAAPEK|25/25-27 Lorikeet Road, Oakleigh South|Tom Roman|15157.73|165.25|14992.48|0|||F,27,7413.61,p,,0;D,26,7578.87,p,,0
+-1|WO-2T625S4K|2 Wattle Rise, Paull, Hull, East Riding of Yorkshire, HU128QF|Tom Roman|10487.31|1653.98|12141.29|2|||F,28,1453.97,p,,0;P,22,5443.66,p,,0;D,21,5243.66,p,,0`;
+/* Costs per work order: contractor offer|contractor variations|materials|count|own painters|other (supplier invoices filed as "other")|expense reimbursements */
+const COSTS=`PS-3672|9231|0|0.00|0|0.00|0.00|0.00
+PS-3043|3225|0|0.00|0|0.00|0.00|0.00
+WO-D1RAG281|562.5|0|0.00|0|0.00|63.60|0.00
+PS-1429|4455|0|0.00|0|1185.00|0.00|44.92
+PS-3102|5085|0|0.00|0|0.00|0.00|0.00
+PS-3153|11100|480|0.00|0|0.00|0.00|0.00
+PS-3141|1836|0|0.00|0|0.00|0.00|0.00
+WO-PIVDSALO|4206.31|315|0.00|0|0.00|0.00|0.00
+WO-LN1GGKXO|6458.37|114|0.00|0|4500.00|0.00|0.00
+WO-VQXEW40T|1812.15|0|0.00|0|0.00|0.00|0.00
+WO-MYGHLKUR|1592.37|0|0.00|0|0.00|0.00|0.00
+WO-RNC6HYK9|2131.64|0|0.00|0|0.00|1212.51|0.00
+WO-VRHJNQLA|12872.68|0|0.00|0|0.00|0.00|0.00
+WO-YOEVFDOB|6967.7|0|0.00|0|0.00|0.00|0.00
+WO-RG0NOQ51|7427.83|0|0.00|0|0.00|0.00|0.00
+WO-WNWJXGTV|1438.44|120|0.00|0|0.00|0.00|0.00
+WO-MDX5SZKZ|4028.54|0|0.00|0|0.00|0.00|0.00
+WO-KQZA9QTV|2147.91|0|0.00|0|0.00|178.45|0.00
+WO-JJA6DHXW|3479.07|0|0.00|0|0.00|0.00|0.00
+PS-3688|1785|542.4|0.00|0|0.00|0.00|60.00
+PS-3666|1740|0|0.00|0|0.00|0.00|0.00
+WO-JZJ2R3LB|1727.28|0|0.00|0|0.00|0.00|0.00
+WO-R5CQMAAA|6425.3|0|0.00|0|0.00|0.00|0.00
+WO-TUOSDOPV|187.78|0|0.00|0|0.00|0.00|0.00
+WO-6GYUFMMW|4485.94|0|0.00|0|0.00|0.00|0.00
+WO-6AFZ11SR|6698.34|0|24.99|1|0.00|0.00|0.00
+PS-3605|1512|0|0.00|0|0.00|0.00|52.00
+PS-3649|1239|0|376.91|2|630.00|0.00|0.00
+PS-3650|750|0|0.00|0|967.26|0.00|0.00
+WO-Y5AHG3VA|807.77|419.4|183.59|2|630.00|12.97|0.00
+PS-3657|2895|0|0.00|0|0.00|0.00|0.00
+PS-3681|3015|0|0.00|0|0.00|0.00|0.00
+PS-3631|9105|0|0.00|0|0.00|0.00|0.00
+PS-3628|4215|0|0.00|0|0.00|0.00|0.00
+PS-3623|1050|0|0.00|0|315.00|0.00|0.00
+PS-3136|5910|0|737.60|1|0.00|0.00|0.00
+PS-3157|510|0|0.00|0|0.00|0.00|0.00
+PS-3108|5070|0|0.00|0|0.00|0.00|0.00
+PS-3598|4755|0|0.00|0|0.00|0.00|0.00
+PS-2930|12390|0|0.00|0|0.00|0.00|0.00
+PS-2909|3493.2|0|0.00|0|0.00|0.00|0.00
+PS-2847|4170|0|582.63|2|0.00|0.00|0.00
+PS-2650|7935|0|0.00|0|0.00|0.00|0.00
+PS-2826|3870|0|0.00|0|0.00|0.00|0.00
+PS-2736|315|0|0.00|0|0.00|0.00|0.00
+PS-2232|10755|0|0.00|0|0.00|0.00|0.00
+PS-1460|3480|0|0.00|0|0.00|0.00|0.00
+WO-RATF9ESZ|733.18|0|0.00|0|0.00|0.00|0.00
+PS-3613|5040|0|0.00|0|0.00|0.00|0.00
+WO-JQQIESIE|1834.8|0|0.00|0|0.00|0.00|0.00
+WO-AIQNGBHV|3298.7|0|0.00|0|0.00|0.00|0.00
+WO-1YW2QZFX|1577.29|0|377.89|1|0.00|0.00|0.00
+WO-QCSDF8IX|4534.74|0|0.00|0|0.00|0.00|0.00
+WO-CVPK8PE5|3796.51|330|0.00|0|0.00|0.00|0.00
+PS-3156|4882.5|245|0.00|0|0.00|0.00|0.00
+PS-3149|9810|1164|0.00|0|0.00|0.00|0.00
+PS-3087|8235|0|0.00|0|0.00|0.00|0.00
+PS-3620|825|0|245.11|2|630.00|0.00|0.00
+PS-3003|4396.8|0|0.00|0|555.00|0.00|0.00
+WO-YZL1X9OY|8347.04|300|0.00|0|0.00|0.00|0.00
+WO-GBKAAPEK|8493.06|0|0.00|0|0.00|0.00|0.00
+WO-TAW5DMWS|2505.5|0|170.74|1|0.00|0.00|0.00
+WO-L468B6P8|3183.87|0|0.00|0|0.00|0.00|0.00
+WO-2T625S4K|4461.2|745.2|0.00|0|0.00|0.00|0.00
+PS-2630|15031.25|0|0.00|0|0.00|0.00|0.00`;
+/* Contractor invoices from the live Payables tab: contractor, number, note, work order, address, amount, state */
+const CONRAW=[
+ ['SKP Painting pty_ltd','CI-0016','','PS-3677','1 Egret St, Preston',7177.50,'sub'],
+ ['Young Gun Painting pty ltd','CI-0014','claim','WO-TAW5DMWS','8/20 Cockatoo Street, Northcote',2756.05,'sub'],
+ ['Young Gun Painting pty ltd','CI-0013','claim','WO-RNC6HYK9','3/20 Cockatoo Street, Northcote',2344.80,'sub'],
+ ['Young Gun Painting pty ltd','CI-0012','claim','WO-KQZA9QTV','4/20 Cockatoo Street, Northcote',2362.70,'sub'],
+ ['Kovac Painting Pty Ltd','CI-0001','claim 50%','WO-2T625S4K','2 Wattle Rise, Paull, Hull',2585.66,'sub'],
+ ['Kovac Painting Pty Ltd','','drafted at sign-off','WO-WNWJXGTV','25 Lorikeet Road, Oakleigh South',1714.28,'draft'],
+ ['Kovac Painting Pty Ltd','','drafted at sign-off','WO-CVPK8PE5','1/41 Kurrajong Street, Oakleigh South',363.00,'draft'],
+ ['MZ Painting Pty Ltd','CI-0017','claim','PS-3613','73 Thornbill Street, Malvern East',3095.40,'paid'],
+ ['DJ Decor Pty Ltd','CI-0015','claim 30%','PS-3043','20 Bellbird Street, Preston',1064.25,'paid'],
+ ['MZ Painting Pty Ltd','CI-0011','claim','PS-3156','12A Saltbush Court, Beaumaris',1760.00,'paid'],
+ ['Yapaintingservices','CI-0010','claim 100%','PS-3688','5305/568 Boronia Street, Melbourne',2560.14,'paid'],
+ ['DJ Decor Pty Ltd','CI-0009','claim','WO-TUOSDOPV','29A Mudlark Street, Brighton',206.56,'paid'],
+ ['DJ Decor Pty Ltd','CI-0008','claim','PS-3666','74 Grevillea Street, Brighton',1914.00,'paid'],
+ ['DJ Decor Pty Ltd','CI-0007','claim 25%','PS-3087','7 Bowerbird Street, Ashburton',2264.63,'paid'],
+ ['MZ Painting Pty Ltd','CI-0006','claim 25%','PS-3149','7 Casuarina Avenue, Mount Dandenong',2697.75,'paid'],
+ ['DJ Decor Pty Ltd','CI-0005','','PS-3605','1105/243 Melaleuca Street, Melbourne',1663.20,'paid']
+];
+/* Supplier invoices waiting to be checked (intake queue): supplier, number, date, amount, what the supplier wrote as reference, suggested work order, suggested address */
+const MINRAW=[
+ ['Haymes','10225045','23 Sep',44.03,'',null,null],
+ ['PPG','','1 Oct',4953.95,'','PS-3108','65 Marri Street, Seddon'],
+ ['Dulux','','',0,'','DUP',null],
+ ['Dulux','0911310611','24 Sep',17.01,'as',null,null],
+ ['Dulux','0911253984','21 Sep',186.67,'ISA',null,null],
+ ['Haymes','CU366650','7 Oct',7741.01,'3ENLVNP',null,null],
+ ['Dulux','0911589480','9 Oct',24.66,'8 Martin ct Wonga','WO-D1RAG281','8 Martin Court, Wonga Park'],
+ ['Dulux','0911590967','9 Oct',520.08,'12 lilly pilly ave','PS-3003','12 Lilly Pilly Ave stage 2, Aspendale'],
+ ['Dulux','0911590968','9 Oct',595.95,'Saltmarsh st',null,null],
+ ['Dulux','0911590964','9 Oct',29.90,'12 lilly pilly ave','PS-3003','12 Lilly Pilly Ave stage 2, Aspendale'],
+ ['Dulux','0911601322','11 Oct',143.47,'mark paid',null,null],
+ ['Haymes','21766650','12 Oct',93.77,'33 FANTAIL ST',null,null],
+ ['Dulux','0911610232','12 Oct',83.67,'277 Dotterel',null,null],
+ ['Dulux','0911611272','12 Oct',148.50,'Supplier Trade Fee 2',null,null],
+ ['Dulux','0911612281','12 Oct',352.87,'thornbill','PS-3613','73 Thornbill Street, Malvern East'],
+ ['Dulux','0911614099','12 Oct',406.64,'mr',null,null]
+];
+/* Supplier invoices already on a job, waiting for approval: supplier, number, work order, address, amount */
+const MRECRAW=[
+ ['Haymes','0911413026','WO-KQZA9QTV','4/20 Cockatoo Street, Northcote',178.45],
+ ['Dulux','0911328744','WO-RNC6HYK9','3/20 Cockatoo Street, Northcote',1212.51],
+ ['Dulux','0911489631','PS-3677','1 Egret St, Preston',7.63],
+ ['Dulux','0911566919','PS-3677','1 Egret St, Preston',240.36],
+ ['Dulux','0911567638','WO-D1RAG281','8 Martin Court, Wonga Park',63.60],
+ ['Dulux','0911487912','PS-3677','1 Egret St, Preston',12.03],
+ ['Dulux','0911328845','PS-3677','1 Egret St, Preston',862.68],
+ ['Dulux','0911482089','PS-3677','1 Egret St, Preston',198.65],
+ ['Dulux','0911377089','PS-3677','1 Egret St, Preston',89.51],
+ ['Haymes','21751447','WO-Y5AHG3VA','87/80 Lyrebird Crescent, Abbotsford',12.97]
+];
+const LIVE_COLLECTED_14D=62804;
+
+/* =================== helpers =================== */
+const BASE='2026-10-12'; let offset=0;
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const money=n=>n.toLocaleString('en-AU',{style:'currency',currency:'AUD'});
+const D=s=>new Date(s+'T00:00:00Z');
+const DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAYL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'], MONL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const fd=s=>{if(!s) return '';const d=D(s);return DAY[d.getUTCDay()]+' '+d.getUTCDate()+' '+MON[d.getUTCMonth()]};
+const fdl=s=>{const d=D(s);return DAYL[d.getUTCDay()]+' '+d.getUTCDate()+' '+MONL[d.getUTCMonth()]};
+const days=(a,b)=>Math.round((D(a)-D(b))/864e5);
+const addDays=(s,n)=>{const d=D(s);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
+const today=()=>addDays(BASE,offset);
+const sum=a=>a.reduce((t,x)=>t+x,0), r2=n=>Math.round(n*100)/100, pl=(n,w,p)=>n+' '+(n===1?w:(p||w+'s'));
+
+/* =================== model =================== */
+const STAGES=[['offer','Offer'],['booking','Booking confirmed'],['prestart','Pre-start'],['progress','In progress'],['qa','Quality check'],['walk','Walkthrough'],['closed','Closed']];
+const KN={D:'Deposit',P:'Progress',F:'Final'}, METHOD={bank:'bank transfer',cash:'cash',other:'other'};
+const SLOTS=['dep','mid','fin'], SLOTNAME={dep:'Deposit',mid:'Progress',fin:'Final'}, RANK={over:0,need:1,sent:2,draft:3,paid:4};
+const costMap={}; COSTS.trim().split('\n').forEach(l=>{const a=l.split('|');costMap[a[0]]={offer:+a[1],cvar:+a[2],mat:r2(+a[3]+ +a[6]),lab:+a[5],reimb:+a[7]}});
+let staleDrafts=0, seq=59;
+const jobs=RAW.trim().split('\n').map(l=>l.split('|')).filter(a=>+a[0]>=0).map((a,n)=>{
+  const j={id:'j'+n,si:+a[0],st:STAGES[+a[0]][0],wo:a[1],addr:a[2],cust:a[3],first:(a[3]||'').split(' ')[0],contract:+a[4],vars:+a[5],views:+a[7],startIn:a[8]===''?null:+a[8],con:a[9],cost:costMap[a[1]]||null,msg:false,thread:[]};
+  j.invoices=(a[10]?a[10].split(';'):[]).map((s,k)=>{const x=s.split(',');
+    return {id:'i'+k,kind:KN[x[0]],no:+x[1]?'INV-'+String(x[1]).padStart(4,'0'):null,amount:+x[2],state:{p:'paid',s:'sent',d:'draft'}[x[3]],due:x[4]===''?null:addDays(BASE,+x[4]),payments:x[3]==='p'?[{amt:+x[2],method:'bank',date:null}]:[]}});
+  /* tidy leftovers the live list still shows: $0 drafts, deposit drafts on jobs that already have a final, drafts for more than the job still owes */
+  const before=j.invoices.length; let L=j.invoices.filter(i=>i.amount>0);
+  if(L.some(i=>i.kind==='Final')) L=L.filter(i=>!(i.state==='draft'&&i.kind!=='Final'));
+  let room=r2(j.contract+j.vars-sum(L.filter(i=>i.state!=='draft').map(i=>i.amount)));
+  L=L.filter(i=>{ if(i.state!=='draft') return true; if(room<=0.5) return false; if(i.amount>room) i.amount=r2(room); room=r2(room-i.amount); return true});
+  staleDrafts+=before-L.length; j.invoices=L;
+  /* first payment sits in the deposit slot even when the live invoice is labelled Progress */
+  const hasD=L.some(i=>i.kind==='Deposit'), ps=L.filter(i=>i.kind==='Progress'), depP=!hasD&&ps.length?ps[ps.length-1]:null;
+  L.forEach(i=>i.slot=(i.kind==='Deposit'||i===depP)?'dep':i.kind==='Final'?'fin':'mid');
+  L.sort((x,y)=>SLOTS.indexOf(x.slot)-SLOTS.indexOf(y.slot));
+  return j});
+const CON=CONRAW.map((c,n)=>({id:'c'+n,con:c[0],no:c[1],note:c[2],wo:c[3],addr:c[4],amt:c[5],st:c[6],due:null}));
+const MAT=[...MINRAW.map((m,n)=>({id:'m'+n,sup:m[0],no:m[1],date:m[2],amt:m[3],ref:m[4],wo:m[5]==='DUP'?null:m[5],addr:m[6],st:m[5]==='DUP'?'dup':'check',intake:true})),
+           ...MRECRAW.map((m,n)=>({id:'r'+n,sup:m[0],no:m[1],date:'',amt:m[4],ref:'',wo:m[2],addr:m[3],st:'rec',intake:false}))];
+let collected=LIVE_COLLECTED_14D;
+
+const job=id=>jobs.find(j=>j.id===id), sName=j=>STAGES[j.si][1];
+const total=j=>r2(j.contract+j.vars);
+const invPaid=i=>r2(sum(i.payments.map(p=>p.amt))), invOwing=i=>r2(i.amount-invPaid(i));
+const paid=j=>r2(sum(j.invoices.map(invPaid))), balance=j=>r2(total(j)-paid(j));
+const isPaid=j=>balance(j)<=0.5;
+const unpaid=j=>j.invoices.filter(i=>invOwing(i)>0);
+const uninv=j=>Math.max(0,r2(balance(j)-sum(unpaid(j).map(invOwing))));
+const overDays=i=>days(today(),i.due);
+const isOver=i=>i.state==='sent'&&invOwing(i)>0&&i.due&&overDays(i)>0;
+const invById=(j,id)=>j.invoices.find(i=>i.id===id);
+const started=j=>j.si>=3&&j.si<=5, booked=j=>j.si===1||j.si===2;
+const startDays=j=>j.startIn===null?null:j.startIn-offset;
+function invState(j,i){ if(invOwing(i)<=0) return 'paid'; if(isOver(i)) return 'over'; if(i.slot==='dep'&&j.si>=1&&j.si<=5) return 'need'; return i.state==='sent'?'sent':'draft'}
+const byRank=j=>(a,b)=>RANK[invState(j,a)]-RANK[invState(j,b)]||((a.due||'9')<(b.due||'9')?-1:1);
+const nextInv=j=>unpaid(j).sort(byRank(j))[0]||null;
+/* state of one payment stage on a job */
+function gate(j,s){
+  const l=j.invoices.filter(i=>i.slot===s), u=l.filter(i=>invOwing(i)>0);
+  if(u.length) return invState(j,u.sort(byRank(j))[0]);
+  if(s==='fin'&&uninv(j)>0.5&&(l.length||j.invoices.length||j.si===6)) return j.si===6?'uninv':'later';
+  if(s==='dep'&&!j.invoices.length&&j.si>=1&&j.si<=5) return 'noinv';
+  if(s==='fin'&&!j.invoices.length&&j.si<6) return 'later';
+  return l.length?'paid':'none';
+}
+function health(j){ if(isPaid(j)) return 'paid'; const n=nextInv(j); if(n) return invState(j,n);
+  if(gate(j,'dep')==='noinv') return 'need'; if(j.si===6) return 'uninv'; return 'ok'}
+function group(j){ if(isPaid(j)) return 'paid'; const h=health(j);
+  if(h==='over') return 'over'; if(h==='need') return 'deposit'; if(j.si===6) return 'final';
+  const n=nextInv(j); if(n&&n.state==='sent') return 'await'; if(j.si===0) return 'offer'; return n?'await':'quiet'}
+/* what a card or a total counts as collectable now */
+const nowAmt=j=>{const n=nextInv(j); return n?invOwing(n):health(j)==='uninv'?uninv(j):0};
+const collectNow=j=>j.si===6?balance(j):r2(sum(unpaid(j).map(invOwing)));
+const startTxt=j=>{ if(started(j)) return 'Job already under way'; const d=startDays(j);
+  if(j.si===2) return d===null?'Starts within a week':d<=0?'Due to start now':d===1?'Starts tomorrow':`Starts in ${d} days`;
+  if(j.si===1) return 'Start is more than a week out'; return ''};
+
+/* =================== shared pieces =================== */
+function railHTML(j){
+  const g=s=>gate(j,s), say=s=>({paid:'paid',over:'overdue',need:'needed now',sent:'sent',draft:'not sent',later:'later',none:'none',uninv:'not invoiced',noinv:'no invoice'})[g(s)];
+  const mid=j.invoices.some(i=>i.slot==='mid')?`<i class="gate ${g('mid')}" style="left:57.14%"></i>`:'';
+  return `<div class="rail" role="img" aria-label="Job stage ${sName(j)}. Deposit ${say('dep')}. Final ${say('fin')}.">
+    <div class="segs">${STAGES.map((_,k)=>`<i class="${k<j.si?'done':k===j.si?'cur':''}"></i>`).join('')}</div>
+    <i class="gate ${g('dep')}" style="left:42.86%"></i>${mid}<i class="gate ${g('fin')}" style="left:100%"></i></div>`;
+}
+function pillHTML(j,s,canEdit){
+  const st=gate(j,s), u=j.invoices.filter(i=>i.slot===s&&invOwing(i)>0).sort(byRank(j)), i=u[0];
+  if(st==='none') return '';
+  if(st==='paid') return `<span class="pill paid"><i></i>${SLOTNAME[s]} paid</span>`;
+  if(st==='later') return `<span class="pill later"><i></i>Final <b>${money(uninv(j))}</b> at sign-off</span>`;
+  if(st==='uninv') return `<span class="pill uninv"><i></i>Not invoiced <b>${money(uninv(j))}</b></span>`;
+  if(st==='noinv') return `<span class="pill noinv"><i></i>No deposit invoice raised</span>`;
+  const pct=s==='dep'?` ${Math.round(i.amount/total(j)*100)}%`:'';
+  const t=st==='over'?`${i.kind} <b>${money(invOwing(i))}</b> ${pl(overDays(i),'day')} overdue`
+    :i.state==='sent'?`${i.kind}${pct} <b>${money(invOwing(i))}</b> ${overDays(i)===0?'due today':'due '+fd(i.due)}`:`${i.kind}${pct} <b>${money(invOwing(i))}</b> not sent`;
+  const edit=canEdit&&i.kind==='Deposit'&&i.state==='draft'?` <button class="edit" data-a="adj" data-job="${j.id}">change</button>`:'';
+  const extra=s==='fin'&&uninv(j)>0.5?'':'' ;
+  return `<span class="pill ${st}"><i></i><span>${t}</span>${edit}</span>${extra}`;
+}
+const pillsHTML=(j,e)=>`<div class="pills">${SLOTS.map(s=>pillHTML(j,s,e)).join('')}${gate(j,'fin')==='paid'&&uninv(j)>0.5?`<span class="pill ${j.si===6?'uninv':'later'}"><i></i>${j.si===6?'Not invoiced':'Still to invoice'} <b>${money(uninv(j))}</b></span>`:''}</div>`;
+const adjOpen=new Set();
+const depInv=j=>j.invoices.find(i=>i.slot==='dep'&&i.kind==='Deposit'&&invOwing(i)>0);
+function adjHTML(j){
+  const i=depInv(j), t=total(j), pct=i.amount/t*100, reissue=i.state==='sent';
+  return `<div class="adj" data-a="noop"><div class="row">
+      ${[10,20,30,50].map(p=>`<button class="pc${Math.abs(pct-p)<.01?' on':''}" data-a="pct" data-job="${j.id}" data-s="${p}">${p}%</button>`).join('')}
+      <label class="cust-amt"><span class="mono">$</span><input inputmode="decimal" data-dep="${j.id}" value="${i.amount.toFixed(2)}" aria-label="Deposit amount"></label>
+    </div>
+    <p>Deposit <b>${money(i.amount)}</b> (${Math.round(pct*10)/10}% of ${money(t)}). Leaves <b>${money(r2(t-i.amount))}</b> for later.</p>
+    ${reissue?`<p class="warn">This one is already sent. Changing it cancels ${i.no} and sends ${j.first||'the customer'} a corrected invoice.</p>`:''}</div>`;
+}
+function ctxHTML(j){
+  const n=nextInv(j), h=health(j), bits=[];
+  if(h==='need'||(n&&n.slot==='dep'&&h==='over')){const d=startDays(j);bits.push(`<b class="${started(j)||(j.si===2&&d!==null&&d<=3)?'hot':''}">${startTxt(j)}</b>`)}
+  if(n&&n.state==='sent') bits.push(j.views?`Invoice opened ${pl(j.views,'time')}`:'Invoice not opened yet');
+  if(j.msg) bits.push('messaged just now');
+  if(j.si===0&&n&&n.state==='draft') bits.push('Not booked in yet');
+  return bits.length?`<div class="ctx">${bits.join(' · ')}</div>`:'';
+}
+function actHTML(j,cls=''){
+  const n=nextInv(j), h=health(j), msg=`<button class="b ${cls}" data-a="msg" data-job="${j.id}"${n?` data-inv="${n.id}"`:''}>Message</button>`;
+  if(!n){ if(h==='need') return `<button class="b pri ${cls}" data-a="stub" data-s="Drafts a deposit invoice for this job.">Create deposit invoice</button>${msg}`;
+    if(h==='uninv') return `<button class="b pri ${cls}" data-a="stub" data-s="Drafts a final invoice for the ${money(uninv(j))} not yet invoiced.">Create final invoice ${money(uninv(j))}</button>${msg}`;
+    return `<button class="b ${cls}" data-a="open" data-job="${j.id}">Open job</button>`}
+  const a=`data-job="${j.id}" data-inv="${n.id}"`;
+  return n.state==='sent'
+   ? `<button class="b pri ${cls}" data-a="quickpay" ${a}>✓ Paid ${money(invOwing(n))}</button><button class="b ${cls}" data-a="pay" ${a}>Cash or part</button>${msg}`
+   : `<button class="b pri ${cls}" data-a="send" ${a}>Send ${n.kind.toLowerCase()} ${money(invOwing(n))}</button><button class="b ${cls}" data-a="pay" ${a}>Already paid</button>${msg}`;
+}
+function oweOf(j){ const n=nextInv(j), h=health(j);
+  if(n){const s=invState(j,n); return [money(invOwing(n)),s,s==='over'?`${pl(overDays(n),'day')} overdue`:n.state==='sent'?(overDays(n)===0?'due today':'due '+fd(n.due)):`${n.kind.toLowerCase()} not sent`]}
+  if(h==='need') return ['No invoice','uninv','deposit not raised'];
+  if(h==='uninv') return [money(uninv(j)),'uninv','not invoiced'];
+  return ['','','']}
+function cardHTML(j){
+  const h=health(j), [amt,st,lbl]=oweOf(j), d=startDays(j), pulse=h==='need'&&(started(j)||j.si===2);
+  return `<article class="job ${h==='need'?'need':h==='over'?'over':''}${pulse?' pulse':''}" data-a="open" data-job="${j.id}" tabindex="0">
+    <div><div class="who"><div><div class="addr">${j.addr}</div><div class="cust">${j.cust||'Customer on the work order'}${j.con?' · '+j.con:''}</div></div>
+      <div class="amt">${amt?`<span class="owe ${st}">${amt}</span>`:''}<small>${lbl}</small></div></div>${ctxHTML(j)}</div>
+    <div class="track"><div class="trk-h"><b>${sName(j)}</b><span>${money(paid(j))} paid of ${money(total(j))}</span></div>
+      ${railHTML(j)}${pillsHTML(j,true)}${adjOpen.has(j.id)&&depInv(j)&&depInv(j).state==='draft'?adjHTML(j):''}</div>
+    <div class="act">${actHTML(j)}</div></article>`;
+}
+
+/* =================== page: headline and ledger =================== */
+let tab='cust', view='chase', stageF='', query='', showPaid=false, tblF='all', conBy='inv', qc='';
+const conOver=c=>c.st==='appr'&&c.due&&days(today(),c.due)>0;
+const hit=(s,q)=>!q||s.toLowerCase().includes(q);
+const match=j=>hit(j.addr+' '+j.cust+' '+j.con+' '+j.wo,query)&&(!stageF||j.st===stageF);
+function laneTone(list){const hs=list.map(health);return hs.includes('over')?'bad':hs.includes('need')?'warn':hs.includes('sent')?'wait':hs.includes('draft')||hs.includes('uninv')?'':list.length?'ok':''}
+function renderLead(){
+  const dep=jobs.filter(j=>group(j)==='deposit'||(group(j)==='over'&&nextInv(j).slot==='dep'&&j.si>=1&&j.si<=5));
+  const soon=dep.filter(j=>j.si===2&&startDays(j)!==null&&startDays(j)<=3), under=dep.filter(started);
+  const allInv=jobs.flatMap(j=>j.invoices), sent=allInv.filter(i=>i.state==='sent'&&invOwing(i)>0), over=sent.filter(isOver), cOver=CON.filter(conOver);
+  let h=dep.length?`<span class="o">${pl(dep.length,'job')}</span> ${dep.length===1?'has':'have'} no deposit in.`:'Every booked job has its deposit in.';
+  if(soon.length||under.length) h+=' '+[soon.length?`${soon.length} start${soon.length===1?'s':''} within three days`:'',under.length?`${under.length} ${under.length===1?'is':'are'} already under way`:''].filter(Boolean).join(' and ')+'.';
+  h+=over.length?` <span class="r">${pl(over.length,'customer invoice')} ${over.length===1?'is':'are'} overdue, ${money(sum(over.map(invOwing)))}.</span>`:' Nothing is overdue.';
+  if(cOver.length) h+=` <span class="r">${pl(cOver.length,'contractor invoice')} ${cOver.length===1?'is':'are'} past the pay-by date.</span>`;
+  $('#lead').innerHTML=h;
+  $('#leadsub').textContent=`This line is written from the figures below each time the page loads. ${offset?'Showing '+fdl(today())+' as a preview.':'Showing '+fdl(today())+'.'}`;
+  /* ledger */
+  const drafts=allInv.filter(i=>i.state==='draft'&&invOwing(i)>0), sub=CON.filter(c=>c.st==='sub'), appr=CON.filter(c=>c.st==='appr');
+  const chk=MAT.filter(m=>m.st==='check'), rec=MAT.filter(m=>m.st==='rec'), mpay=MAT.filter(m=>m.st==='appr');
+  const L=[['cust','Money in','Customers owe us',money(sum(sent.map(invOwing))),`${pl(sent.length,'sent invoice')} · ${money(sum(drafts.map(invOwing)))} not sent yet`,over.length?`${money(sum(over.map(invOwing)))} overdue`:''],
+    ['con','Money out','Contractors',money(sum(sub.map(c=>c.amt))+sum(appr.map(c=>c.amt))),`${sub.length} to approve · ${money(sum(appr.map(c=>c.amt)))} approved to pay`,cOver.length?`${money(sum(cOver.map(c=>c.amt)))} overdue`:''],
+    ['mat','Money out','Materials',money(sum(chk.map(m=>m.amt))+sum(rec.map(m=>m.amt))+sum(mpay.map(m=>m.amt))),`${chk.length} to check · ${rec.length} to approve · ${money(sum(mpay.map(m=>m.amt)))} to pay`,''],
+    ['act','','Activity','',`${money(collected)} received from customers in the last 14 days`,'']];
+  $('#ledger').innerHTML=L.map(([k,d,t,v,s,od])=>`<button class="led${tab===k?' on':''}" data-a="tab" data-s="${k}" aria-pressed="${tab===k}"><span class="d">${d||'&nbsp;'}</span><span class="t">${t}</span>${v?`<span class="v">${v}</span>`:''}<span class="s">${s}</span>${od?`<span class="od">${od}</span>`:''}</button>`).join('');
+}
+
+/* =================== customers =================== */
+function renderStrip(){
+  $('#strip').innerHTML=STAGES.map(([k,n])=>{const l=jobs.filter(j=>j.st===k&&!isPaid(j)), v=sum(l.map(collectNow)), od=sum(l.flatMap(j=>j.invoices).filter(isOver).map(invOwing));
+    return `<button class="stg ${laneTone(l)}${stageF===k?' on':''}" data-a="stage" data-s="${stageF===k?'':k}" aria-pressed="${stageF===k}">
+      <span class="bar"></span><span class="n">${n}</span><span class="c">${pl(l.length,'job')}</span><span class="v${v?'':' zero'}">${money(v)}</span>${od?`<span class="x">${money(od)} overdue</span>`:''}</button>`}).join('');
+  $('#clearStage').hidden=!stageF;
+}
+function secHTML(title,note,list,o={}){
+  if(!list.length) return '';
+  const head=`<div class="sec-h"><h2>${title}</h2><span class="tot"><small>${pl(list.length,'job')}</small>${money(sum(list.map(nowAmt)))}</span></div>`;
+  const body=(note?`<p class="sec-note">${note}</p>`:'')+list.map(cardHTML).join('');
+  return o.collapsed?`<details class="sec"><summary>${head}</summary>${body}</details>`:`<section class="sec ${o.cls||''}">${head}${body}</section>`;
+}
+function chaseHTML(){
+  const all=jobs.filter(match), by=g=>all.filter(j=>group(j)===g);
+  const dk=j=>started(j)?-1:j.si===2?(startDays(j)===null?6:startDays(j)):30;
+  const fr=j=>{const n=nextInv(j);return !n?2:n.state==='sent'?0:1};
+  let h=secHTML('Overdue','Past the due date. Always first on this page.',by('over').sort((a,b)=>overDays(nextInv(b))-overDays(nextInv(a))),{cls:'red'})
+   +secHTML('Deposit not in','Booked or already started with nothing paid. Jobs already under way first, then soonest start. Starting within a week pulses.',by('deposit').sort((a,b)=>dk(a)-dk(b)),{cls:'org'})
+   +secHTML('Closed jobs with money still to come','',by('final').sort((a,b)=>fr(a)-fr(b)))
+   +secHTML('Other invoices waiting to be paid','',by('await'))
+   +secHTML('Accepted, not booked in yet','Nothing to chase until the job has a date. Deposit drafts are ready.',by('offer'),{collapsed:!(query||stageF)});
+  const q=by('quiet').length;
+  if(!h) h='<div class="empty">Nothing to chase here.</div>';
+  if(q) h+=`<p class="quiet">${pl(q,'job')} ${q>1?'have':'has'} nothing to collect right now. <button data-a="view" data-s="table">See all jobs</button></p>`;
+  if(staleDrafts) h+=`<p class="quiet">${staleDrafts} leftover draft invoices from the live list are not shown here: $0.00 drafts, and deposit drafts on jobs that already have a final invoice.</p>`;
+  return h;
+}
+const HR={over:0,need:1,sent:2,draft:3,uninv:4,ok:5,paid:6};
+const LT={dep:'D',mid:'P',fin:'F'};
+const lightsHTML=j=>SLOTS.map(s=>{const g=gate(j,s);return g==='none'&&s==='mid'?'':`<span class="lt ${g}" title="${SLOTNAME[s]}">${LT[s]}</span>`}).join('');
+function whatHTML(j){const h=health(j),[amt,st,lbl]=oweOf(j);
+  if(h==='paid') return '<div class="w">Paid in full</div>'; if(h==='ok') return '<div class="w">Nothing due yet</div>';
+  return `<div class="w ${h==='need'?'need':h==='over'?'over':''}">${lbl.charAt(0).toUpperCase()+lbl.slice(1)}${h==='need'?', '+startTxt(j).toLowerCase():''}</div>`}
+function boardHTML(){
+  const all=jobs.filter(j=>hit(j.addr+' '+j.cust,query)&&(showPaid||!isPaid(j)));
+  return `<div class="legend"><span><span class="lt paid">D</span> paid</span><span><span class="lt sent">D</span> sent, waiting</span><span><span class="lt need">D</span> deposit not in</span><span><span class="lt over">F</span> overdue</span><span><span class="lt">F</span> not sent</span><span><span class="lt later">F</span> later</span><span>D deposit · P progress · F final</span></div>
+  <div class="board">${STAGES.map(([k,n])=>{const l=all.filter(j=>j.st===k).sort((a,b)=>HR[health(a)]-HR[health(b)]), open=l.filter(j=>!isPaid(j));
+    const dp=l.filter(j=>gate(j,'dep')==='paid').length, od=sum(l.flatMap(j=>j.invoices).filter(isOver).map(invOwing));
+    return `<section class="lane ${laneTone(open)}"><div class="lane-h"><h3>${n}<span>${l.length}</span></h3><div class="v">${money(sum(open.map(collectNow)))}</div>${od?`<div class="x">${money(od)} overdue</div>`:''}<div class="s">${l.length?`Deposits in: ${dp} of ${l.length}`:'No jobs'}</div></div>
+      ${l.map(j=>{const [amt,st]=oweOf(j);return `<button class="mini h-${health(j)}" data-a="open" data-job="${j.id}"><div class="a">${j.addr.split(',')[0]}</div><div class="c">${j.cust||j.wo}</div>
+        <div class="l">${lightsHTML(j)}<span class="o">${amt?`<span class="owe sm ${st}">${amt}</span>`:isPaid(j)?'<span class="okc">✓</span>':''}</span></div>${whatHTML(j)}</button>`}).join('')}</section>`}).join('')}</div>`;
+}
+function cellHTML(j,s){
+  const g=gate(j,s), L=`<span class="lbl">${SLOTNAME[s]}</span>`, i=j.invoices.filter(x=>x.slot===s&&invOwing(x)>0).sort(byRank(j))[0];
+  if(g==='none') return `${L}<span class="cell none">–</span>`;
+  if(g==='paid') return `${L}<span class="cell paid">✓ Paid</span>`;
+  if(g==='later') return `${L}<span class="cell later">${money(uninv(j))}<small>at sign-off</small></span>`;
+  if(g==='uninv') return `${L}<span class="cell"><span class="owe sm uninv">${money(uninv(j))}</span><small>not invoiced</small></span>`;
+  if(g==='noinv') return `${L}<span class="cell"><span class="owe sm uninv">No invoice</span><small>job is booked</small></span>`;
+  const sub=g==='over'?`${pl(overDays(i),'day')} overdue`:i.state==='sent'?(overDays(i)===0?'due today':'due '+fd(i.due)):'not sent';
+  return `${L}<span class="cell"><span class="owe sm ${g}">${money(invOwing(i))}</span><small>${sub}${i.kind!==SLOTNAME[s]?', '+i.kind.toLowerCase()+' invoice':''}</small></span>`;
+}
+function rowHTML(j){
+  const nx=nextInv(j), a=nx?`data-job="${j.id}" data-inv="${nx.id}"`:`data-job="${j.id}"`;
+  const act=!nx?'':nx.state==='sent'?`<button class="b sm pri" data-a="quickpay" ${a}>✓ Paid</button><button class="b sm" data-a="msg" ${a}>Message</button>`
+    :`<button class="b sm pri" data-a="send" ${a}>Send</button><button class="b sm" data-a="msg" ${a}>Message</button>`;
+  return `<div class="tr${health(j)==='over'?' isover':''}" data-a="open" data-job="${j.id}" tabindex="0">
+    <div class="td jb"><div class="a">${j.addr}</div><div class="c">${j.cust||j.wo}</div></div>
+    <div class="td st"><b>${sName(j)}</b>${railHTML(j)}</div>
+    <div class="td">${cellHTML(j,'dep')}</div><div class="td">${cellHTML(j,'mid')}</div><div class="td">${cellHTML(j,'fin')}</div>
+    <div class="td ow${isPaid(j)?' zero':''}">${isPaid(j)?'✓ Paid in full':money(balance(j))}</div>
+    <div class="td ac">${act}</div></div>`;
+}
+function tableHTML(){
+  const base=jobs.filter(match);
+  const F={all:j=>showPaid||!isPaid(j),dep:j=>['need','noinv'].includes(gate(j,'dep'))||(gate(j,'dep')==='over'),fin:j=>['draft','sent','over','uninv'].includes(gate(j,'fin')),over:j=>health(j)==='over',paid:j=>isPaid(j)};
+  const n=k=>base.filter(F[k]).length, list=base.filter(F[tblF]);
+  const chips=[['all','All'],['over','Overdue'],['dep','Deposit not in'],['fin','Final unpaid'],['paid','Paid in full']];
+  const od=list.filter(j=>health(j)==='over').sort((a,b)=>overDays(nextInv(b))-overDays(nextInv(a)));
+  let rows=od.length?`<div class="tr grp red">Overdue<span>${pl(od.length,'job')}, <b>${money(sum(od.flatMap(j=>j.invoices).filter(isOver).map(invOwing)))}</b></span></div>`+od.map(rowHTML).join(''):'';
+  STAGES.forEach(([k,name])=>{const l=list.filter(j=>j.st===k&&health(j)!=='over').sort((a,b)=>HR[health(a)]-HR[health(b)]); if(!l.length) return;
+    rows+=`<div class="tr grp">${name}<span>${pl(l.length,'job')}, <b>${money(sum(l.map(collectNow)))}</b> to collect</span></div>`+l.map(rowHTML).join('')});
+  return `<div class="fchips">${chips.map(([k,l])=>`<button class="${tblF===k?'on':''}" data-a="tblf" data-s="${k}">${l}<span>${n(k)}</span></button>`).join('')}</div>
+   <div class="tbl"><div class="tr head"><div>Job</div><div>Job stage</div><div>Deposit</div><div>Progress</div><div>Final</div><div style="text-align:right">Still owing</div><div></div></div>
+   ${rows||'<div class="empty">No jobs match.</div>'}</div>`;
+}
+
+/* =================== contractors =================== */
+function custLine(c){const j=jobs.find(x=>x.wo===c.wo); if(!j) return '<small>Job is not on the Project Progress board</small>';
+  const t=isPaid(j)?'<span class="okc">Customer has paid in full</span>':paid(j)===0?'<span class="hot">Customer has paid nothing yet</span>':`Customer has paid ${money(paid(j))} of ${money(total(j))}`;
+  return `<small>${sName(j)} · ${t}</small>`}
+function conRow(c){
+  const j=jobs.find(x=>x.wo===c.wo), od=conOver(c);
+  const owe=c.st==='paid'?`<span class="paidamt">${money(c.amt)}</span><small>paid</small>`
+    :`<span class="owe ${od?'over':c.st==='appr'?'need':c.st==='sub'?'sent':'draft'}">${money(c.amt)}</span><small>${od?pl(days(today(),c.due),'day')+' past pay-by':c.st==='appr'?'pay by '+fd(c.due):c.st==='sub'?'waiting for your approval':'with the contractor'}</small>`;
+  const act=c.st==='sub'?`<button class="b pri" data-a="capprove" data-id="${c.id}">Approve</button><button class="b" data-a="stub" data-s="Opens a message to ${c.con} about ${c.no}.">Query</button>`
+    :c.st==='appr'?`<button class="b pri" data-a="cpaid" data-id="${c.id}">✓ Paid ${money(c.amt)}</button><button class="b" data-a="stub" data-s="Opens the contractor invoice PDF.">PDF</button>`
+    :c.st==='paid'?`<button class="b" data-a="stub" data-s="Opens the contractor invoice PDF.">Invoice PDF</button>`:'';
+  return `<div class="prow${od?' over':''}"><div class="p1"><b>${c.con}</b><small>${c.no||'Draft, no number yet'}${c.note?' · '+c.note:''}</small></div>
+    <div class="p2">${j?`<button class="jl" data-a="open" data-job="${j.id}">${c.addr}</button>`:c.addr}${custLine(c)}</div>
+    <div class="p3">${owe}</div><div class="p4">${act}</div></div>`;
+}
+function conSec(title,note,list,o={}){ if(!list.length) return '';
+  const head=`<div class="sec-h"><h2>${title}</h2><span class="tot"><small>${pl(list.length,'invoice')}</small>${money(sum(list.map(c=>c.amt)))}</span></div>`;
+  const body=(note?`<p class="sec-note">${note}</p>`:'')+list.map(conRow).join('');
+  return o.collapsed?`<details class="sec"><summary>${head}</summary>${body}</details>`:`<section class="sec ${o.cls||''}">${head}${body}</section>`}
+function conHTML(){
+  const all=CON.filter(c=>hit(c.con+' '+c.addr+' '+c.no,qc)), by=s=>all.filter(c=>c.st===s);
+  if(conBy==='con'){
+    const open=all.filter(c=>c.st!=='paid'), names=[...new Set(open.map(c=>c.con))];
+    return (names.map(n=>{const l=open.filter(c=>c.con===n), sub=l.filter(c=>c.st==='sub'), ap=l.filter(c=>c.st==='appr');
+      return `<section class="sec"><div class="prow grp"><div class="p1"><b>${n}</b><small>${pl(l.length,'open invoice')}</small></div><div class="p2"><small>${sub.length} to approve · ${ap.length} approved to pay</small></div>
+        <div class="p3"><span class="owe ${ap.some(conOver)?'over':'draft'}">${money(sum(l.map(c=>c.amt)))}</span></div>
+        <div class="p4">${sub.length>1?`<button class="b" data-a="capproveall" data-s="${n}">Approve all ${sub.length}</button>`:''}${ap.length?`<button class="b pri" data-a="cpaidall" data-s="${n}">✓ Paid ${money(sum(ap.map(c=>c.amt)))}</button>`:''}</div></div>${l.map(conRow).join('')}</section>`}).join('')||'<div class="empty">No open contractor invoices.</div>')
+      +conSec('Paid','',by('paid'),{collapsed:true});
+  }
+  const od=by('appr').filter(conOver), ap=by('appr').filter(c=>!conOver(c)).sort((a,b)=>a.due<b.due?-1:1);
+  return conSec('Past the pay-by date','Approved more than seven days ago and still unpaid. Always first.',od,{cls:'red'})
+    +conSec('To approve','Submitted by the contractor. The line under each job shows whether the customer has paid you yet.',by('sub'))
+    +conSec('Approved, to pay','Pay by bank, then press Paid. Due seven days after approval.',ap)
+    +conSec('With the contractor','Drafted at sign-off, waiting for the contractor to submit.',by('draft'))
+    +conSec('Paid','',by('paid'),{collapsed:true})||'<div class="empty">Nothing matches.</div>';
+}
+
+/* =================== materials =================== */
+function matActs(m){
+  const a=`data-id="${m.id}"`, X=`<button class="b sm del" data-a="mdel" ${a}>Delete</button>`;
+  if(m.st==='dup') return `<button class="b sm pri" data-a="mgone" ${a}>Dismiss</button>`;
+  if(m.st==='del') return `<button class="b sm" data-a="mrestore" ${a}>Restore</button>`;
+  if(m.st==='check') return (m.wo?`<button class="b sm pri" data-a="mconfirm" ${a}>Confirm</button><button class="b sm" data-a="mpick" ${a}>Other job</button>`
+    :`<button class="b sm pri" data-a="mpick" ${a}>Pick a job</button><button class="b sm" data-a="mover" ${a}>Not for a job</button>`)+X;
+  if(m.st==='rec') return `<button class="b sm pri" data-a="mapprove" ${a}>Approve</button>`+X;
+  return '';
+}
+function matRow(m){
+  const j=m.wo?jobs.find(x=>x.wo===m.wo):null, V=`<button class="b sm" data-a="mview" data-id="${m.id}">View</button>`;
+  if(m.st==='dup') return `<div class="prow mat"><div class="p1"><b>${m.sup}</b><small>Possible duplicate</small></div><div class="p2">Looks like an invoice already recorded. No cost was written.</div><div class="p3"></div>
+    <div class="p4">${V}${matActs(m)}</div></div>`;
+  const where=m.overhead?'Not for a job (overhead)':m.addr?(j?`<button class="jl" data-a="open" data-job="${j.id}">${m.addr}</button>`:m.addr):'<span class="hot">No job found</span>';
+  const ref=m.ref?`<small>Supplier wrote <q>${m.ref}</q></small>`:m.intake&&m.st==='check'?'<small>No reference on the invoice</small>':'';
+  const lbl={check:'to check',rec:'to approve',appr:'approved, to pay',paid:'paid',del:'deleted'}[m.st];
+  const owe=m.st==='paid'||m.st==='del'?`<span class="paidamt"${m.st==='del'?' style="color:var(--mute);text-decoration:line-through"':''}>${money(m.amt)}</span>`
+    :`<span class="owe ${m.st==='check'?(m.wo?'sent':'uninv'):m.st==='rec'?'draft':'need'}">${money(m.amt)}</span>`;
+  return `<div class="prow mat${m.st==='del'?' gone':''}"><div class="p1"><b>${m.sup}</b><small>${m.no||'No invoice number'}${m.date?' · '+m.date:''}</small></div>
+    <div class="p2">${where}${ref}</div><div class="p3">${owe}<small>${lbl}</small></div><div class="p4">${matActs(m)}${V}</div></div>`;
+}
+function matHTML(){
+  const by=s=>MAT.filter(m=>m.st===s), chk=[...by('check'),...by('dup')], matched=by('check').filter(m=>m.wo), rec=by('rec'), ap=by('appr'), pd=by('paid'), del=by('del');
+  const closed=['paid','gone','dup','del'], sups=[...new Set(MAT.filter(m=>!closed.includes(m.st)).map(m=>m.sup))];
+  const head=(t,l,btn)=>`<div class="sec-h"><h2>${t}</h2><span class="tot">${btn||''}<small style="margin-left:10px">${pl(l.filter(m=>m.st!=='dup').length,'invoice')}</small>${money(sum(l.map(m=>m.amt)))}</span></div>`;
+  let h=`<div class="suprow">${sups.map(s=>`<span>${s}<b>${money(sum(MAT.filter(m=>m.sup===s&&!closed.includes(m.st)).map(m=>m.amt)))}</b></span>`).join('')}<span style="color:var(--mute)">open with each supplier</span><button class="b sm" style="margin-left:auto" data-a="stub" data-s="Opens the camera to snap a receipt, the same capture as Add cost today.">Snap a receipt</button></div>`;
+  if(chk.length) h+=`<section class="sec">${head('To check',chk,matched.length>1?`<button class="b sm" data-a="mconfirmall">Confirm the ${matched.length} with a job found</button>`:'')}
+    <p class="sec-note">Arrived at bills@ or snapped as a receipt. Where the address was found the job is suggested, so one press confirms it. The rest need a job picked, marked as not for a job, or deleted if they are not relevant. View opens the original document.</p>
+    ${[...chk].sort((a,b)=>(b.wo?1:0)-(a.wo?1:0)).map(matRow).join('')}</section>`;
+  if(rec.length) h+=`<section class="sec">${head('On a job, to approve',rec,rec.length>1?`<button class="b sm" data-a="mapproveall">Approve all ${rec.length}</button>`:'')}${rec.map(matRow).join('')}</section>`;
+  if(ap.length){ const ss=[...new Set(ap.map(m=>m.sup))];
+    h+=`<section class="sec">${head('Approved, to pay',ap)}<p class="sec-note">Grouped by supplier so one bank payment clears one line.</p>
+     ${ss.map(s=>{const l=ap.filter(m=>m.sup===s);return `<div class="prow grp"><div class="p1"><b>${s}</b><small>${pl(l.length,'invoice')}</small></div><div class="p2"><small>${[...new Set(l.map(m=>m.overhead?'Overhead':(m.addr||'').split(',')[0]))].slice(0,4).join(' · ')}</small></div>
+       <div class="p3"><span class="owe need">${money(sum(l.map(m=>m.amt)))}</span><small>to pay</small></div><div class="p4"><button class="b pri" data-a="mpaid" data-s="${s}">✓ Paid ${money(sum(l.map(m=>m.amt)))}</button></div></div>`}).join('')}</section>`}
+  if(pd.length) h+=`<details class="sec"><summary>${head('Paid',pd)}</summary>${pd.map(matRow).join('')}</details>`;
+  if(del.length) h+=`<details class="sec"><summary>${head('Deleted',del)}</summary><p class="sec-note">Not counted anywhere. The original document is kept, so anything deleted by mistake can be restored.</p>${del.map(matRow).join('')}</details>`;
+  if(!chk.length&&!rec.length&&!ap.length) h+='<div class="empty">Every supplier invoice is checked, approved and paid.</div>';
+  return h;
+}
+
+function render(){
+  renderLead();
+  ['cust','con','mat','act'].forEach(k=>$('#pg-'+k).hidden=tab!==k);
+  if(tab==='cust'){ renderStrip();
+    $$('#views button').forEach(b=>b.classList.toggle('on',b.dataset.s===view)); $('#paidChk').hidden=view==='chase';
+    $('#view').innerHTML=view==='chase'?chaseHTML():view==='board'?boardHTML():tableHTML() }
+  if(tab==='con'){ $$('#conBy button').forEach(b=>b.classList.toggle('on',b.dataset.s===conBy)); $('#conView').innerHTML=conHTML() }
+  if(tab==='mat') $('#matView').innerHTML=matHTML();
+  if(cur) renderJob();
+}
+
+/* =================== job drawer =================== */
+let cur=null, jobTab='inv', drawerAdj=false;
+function invTag(j,i){ if(i.state==='cash') return '<span class="tag cash">Paid in cash, not sent</span>';
+  return ({paid:'<span class="tag paid">Paid</span>',over:`<span class="tag over">${pl(overDays(i),'day')} overdue</span>`,need:`<span class="tag need">${i.state==='sent'?'Sent, deposit not in':'Not sent, deposit not in'}</span>`,sent:'<span class="tag sent">Sent</span>',draft:'<span class="tag">Draft</span>'})[invState(j,i)]}
+function invHTML(j,i){
+  const owing=invOwing(i), part=invPaid(i)>0&&owing>0, a=`data-job="${j.id}" data-inv="${i.id}"`, dep=i===depInv(j), st=invState(j,i);
+  let meta='', acts='', extra='';
+  if(i.state==='draft'){
+    meta='Not sent yet.'+(part?` ${money(owing)} still to pay.`:'');
+    extra=(dep?`<div class="inset">${adjHTML(j)}</div>`:'')+`<div class="due"><label for="due-${i.id}">Due date<small>Change it any time before sending</small></label><input type="date" id="due-${i.id}" data-due="${i.id}" value="${i.due||addDays(today(),7)}" min="${today()}"></div>`;
+    acts=`<button class="b" data-a="stub" data-s="Opens the invoice document to check the lines.">Check invoice</button><button class="b" data-a="pay" ${a}>Already paid</button><button class="b pri" data-a="send" ${a}>Send</button>`;
+  }else if(i.state==='sent'&&owing>0){
+    meta=`Due ${fd(i.due)}. ${j.views?`Opened ${pl(j.views,'time')}.`:'Not opened yet.'}${part?` ${money(owing)} still to pay.`:''}`;
+    extra=dep&&drawerAdj?`<div class="inset">${adjHTML(j)}</div>`:'';
+    acts=`${dep?`<button class="b" data-a="dadj">Change amount</button>`:''}<button class="b" data-a="pay" ${a}>Cash or part</button><button class="b pri" data-a="quickpay" ${a}>✓ Paid ${money(owing)}</button>`;
+  }else acts=`<button class="b" data-a="stub" data-s="Opens the invoice document.">Open invoice</button><button class="b" data-a="stub" data-s="Opens the receipt.">Receipt</button>`;
+  return `<div class="inv"><div class="h"><div><div class="k">${i.kind} invoice${i.slot==='dep'?` (${Math.round(i.amount/total(j)*100)}%)`:''}</div><div class="no">${i.no||'Number given when sent'}</div></div>
+      <div style="text-align:right">${owing>0?`<span class="owe ${st}">${money(owing)}</span>`:`<span class="paidamt">${money(i.amount)}</span>`}<div style="margin-top:6px">${invTag(j,i)}</div></div></div>
+    ${meta?`<div class="meta">${meta}</div>`:''}
+    ${i.state==='cash'?'<div class="cashnote">Paid in cash, so this invoice was not sent to the customer. It stays here as our record of the sale.</div>':''}
+    ${i.payments.map(p=>`<div class="pay"><span><span class="tick">✓</span>Paid by ${METHOD[p.method]}${p.date?', '+fd(p.date):''}</span><span class="mono">${money(p.amt)}</span></div>`).join('')}
+    ${extra}<div class="acts">${acts}</div></div>`;
+}
+const CTAG={sub:'<span class="tag sent">To approve</span>',appr:'<span class="tag need">To pay</span>',draft:'<span class="tag">With contractor</span>',paid:'<span class="tag paid">Paid</span>'};
+function costsHTML(j){
+  const c=j.cost, cons=CON.filter(x=>x.wo===j.wo), mats=MAT.filter(m=>m.wo===j.wo&&!['check','gone','dup','del'].includes(m.st));
+  const conList=cons.length?`<div class="cost"><div class="h"><span>Contractor invoices on this job</span><span class="mono">${money(sum(cons.map(x=>x.amt)))}</span></div>
+     ${cons.map(x=>`<div class="li"><span>${x.con}<small>${x.no||'Draft'}${x.note?' · '+x.note:''}</small></span><span class="r">${CTAG[x.st]}<span class="mono">${money(x.amt)}</span>${x.st==='sub'?`<button class="b sm pri" data-a="capprove" data-id="${x.id}">Approve</button>`:x.st==='appr'?`<button class="b sm pri" data-a="cpaid" data-id="${x.id}">✓ Paid</button>`:''}</span></div>`).join('')}</div>`:'';
+  const matList=mats.length?`<div class="cost"><div class="h"><span>Supplier invoices on this job</span><span class="mono">${money(sum(mats.map(x=>x.amt)))}</span></div>
+     ${mats.map(x=>`<div class="li"><span>${x.sup}<small>${x.no}</small></span><span class="r"><span class="tag ${x.st==='paid'?'paid':''}">${{rec:'To approve',appr:'To pay',paid:'Paid'}[x.st]}</span><span class="mono">${money(x.amt)}</span><button class="b sm" data-a="mview" data-id="${x.id}">View</button></span></div>`).join('')}</div>`:'';
+  if(!c) return `<div class="note">No costs are recorded against this job in the platform yet.</div>${conList}${matList}`;
+  const rev=r2(total(j)/1.1), tc=r2(c.offer+c.cvar), tl=c.lab, tm=r2(c.mat+sum(mats.filter(m=>m.intake).map(m=>m.amt))), tr=c.reimb;
+  const costs=r2(tc+tl+tm+tr), gp=r2(rev-costs), pct=(gp/rev*100).toFixed(1), w=v=>`style="width:${Math.max(0,v/rev*100)}%;background:`;
+  const line=(l,v,show)=>v||show?`<div><span>${l}</span><span class="mono">− ${money(v)}</span></div>`:'';
+  return `<div class="gp"><small>Gross profit ${j.si===6?'from the costs recorded':'so far, job still open'}</small>
+     <div><span class="big">${money(gp)}</span><span class="pct">${pct}%</span></div>
+     <div class="split"><i ${w(tc)}#8f7ae0"></i><i ${w(tl)}#d9a13a"></i><i ${w(tm)}var(--pri)"></i><i ${w(tr)}var(--seg)"></i><i ${w(gp)}var(--green)"></i></div>
+     <div class="key">${tc?'<span><i style="background:#8f7ae0"></i>Contractor</span>':''}${tl?'<span><i style="background:#d9a13a"></i>Own painters</span>':''}<span><i style="background:var(--pri)"></i>Materials</span>${tr?'<span><i style="background:var(--seg)"></i>Expenses</span>':''}<span><i style="background:var(--green)"></i>Profit</span></div></div>
+   ${tm===0&&j.si>=3?'<div class="note">No materials are recorded against this job yet, so this profit is too high until the supplier invoices are matched.</div>':''}
+   <div class="sum"><div><span>Job value, excluding GST</span><span class="mono">${money(rev)}</span></div>
+     ${line('Contractor: offer'+(c.cvar?' plus variations':''),tc)}${line('Own painters',tl)}${line('Materials',tm,true)}${line('Contractor expenses',tr)}
+     <div><span>Total costs</span><span class="mono">− ${money(costs)}</span></div><div class="t"><span>Gross profit</span><span class="mono">${money(gp)} (${pct}%)</span></div></div>
+   ${conList}${matList}
+   <div style="margin-top:12px"><button class="b" data-a="stub" data-s="Opens Add cost, as it works today.">Add a cost</button></div>
+   <p class="fine">Figures are the costs recorded in the platform today. Job value including GST is ${money(total(j))}.</p>`;
+}
+function renderJob(){
+  const j=cur, b=balance(j), last=j.thread[j.thread.length-1];
+  const body=jobTab==='costs'?costsHTML(j):`
+    <div class="big-act">${actHTML(j)}</div>
+    <div class="links"><button data-a="stub" data-s="Opens Request payment: a share of the job or a fixed amount.">Request a payment</button><button data-a="stub" data-s="Drafts one invoice for everything still owing.">Invoice in full</button><button data-a="stub" data-s="Opens Revise scope in the builder.">Revise scope</button></div>
+    ${j.invoices.length?j.invoices.map(i=>invHTML(j,i)).join(''):'<div class="note">No invoice has been raised for this job in the platform.</div>'}
+    <div class="msgs"><h3>Messages with ${j.first||'the customer'}<button class="b sm" data-a="msg" data-job="${j.id}">Open chat</button></h3>
+      <p>${last?`You: “${last.t.split('\n')[0].slice(0,110)}${last.t.length>110?'…':''}”`:'Opens this customer’s thread in Customer chats.'}</p></div>`;
+  $('#drawer').innerHTML=`<div class="dh"><div class="x"><button class="back" data-a="close">‹ Back to payments</button><button class="b sm" data-a="stub" data-s="Opens work order ${j.wo} in Project Progress.">Work order ${j.wo}</button></div>
+      <h2>${j.addr}</h2><div class="cust">${j.cust||'Customer on the work order'}${j.con?' · '+j.con:''}${j.vars?` · includes ${money(j.vars)} of variations`:''}</div></div>
+    <div class="db">
+      <div class="stagebox"><div class="trk-h"><b>${sName(j)}${booked(j)?', '+startTxt(j).toLowerCase():''}</b><span>${isPaid(j)?'Paid in full':''}</span></div>
+        ${railHTML(j)}<div class="names">${STAGES.map(([k,n])=>`<span class="${k===j.st?'cur':''}">${n}</span>`).join('')}</div>${pillsHTML(j)}</div>
+      <div class="three"><div><small>Job total</small><b>${money(total(j))}</b></div><div><small>Paid</small><b style="color:var(--green-t)">${money(paid(j))}</b></div><div><small>Still owing</small><b style="color:${b>0.5?'var(--orange-t)':'var(--green-t)'}">${money(Math.max(0,b))}</b></div></div>
+      <div class="tabs"><button class="${jobTab==='inv'?'on':''}" data-a="jtab" data-s="inv">Money in</button><button class="${jobTab==='costs'?'on':''}" data-a="jtab" data-s="costs">Money out and profit</button></div>
+      ${body}</div>`;
+}
+function openJob(id){cur=job(id);jobTab='inv';drawerAdj=false;renderJob();$('#drawer').classList.add('on');$('#scrim').classList.add('on');$('#drawer').scrollTop=0}
+function closeJob(){cur=null;$('#drawer').classList.remove('on');$('#scrim').classList.remove('on')}
+
+/* =================== actions =================== */
+let undo=null;
+function toast(msg,btns=[]){const e=$('#toast');e.innerHTML=`<span>${msg}</span>`+btns.map(([l,a])=>`<button data-a="${a}">${l}</button>`).join('');e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>{e.classList.remove('on');undo=null},btns.length?8000:4200)}
+const nextNo=()=>'INV-'+String(seq++).padStart(4,'0');
+function applyPayment(j,i,amt,method,date){
+  const prev=i.state; i.payments.push({amt,method,date}); collected+=amt;
+  if(invOwing(i)<=0){ if(!i.no) i.no=nextNo(); i.state=(method==='cash'&&prev==='draft')?'cash':'paid' }
+  return prev;
+}
+function quickPay(j,i){
+  const amt=invOwing(i), hadNo=i.no, prev=applyPayment(j,i,amt,'bank',today());
+  undo=()=>{i.payments.pop();i.state=prev;i.no=hadNo;collected-=amt}; undo.ctx=[j,i];
+  render(); toast(`Recorded ${money(amt)} from ${j.first||'the customer'}, bank transfer, today.${isPaid(j)?' Job is paid in full.':''}`,[['Undo','undo'],['Change','change']]);
+}
+function setDeposit(j,amount){
+  const i=depInv(j); if(!i) return; amount=r2(Math.min(Math.max(amount,0),total(j))); if(!(amount>0)) return;
+  const was=i.no; i.amount=amount;
+  if(i.state==='sent'){i.no=nextNo();i.due=addDays(today(),7);toast(`${was} cancelled. ${i.no} for ${money(amount)} sent to ${j.first}.`)}
+  render(); if(sendCtx) fillSend();
+}
+let payCtx=null, method='bank';
+function openPay(j,invId){
+  payCtx=j; const open=unpaid(j); if(!open.length) return;
+  $('#payWho').textContent=`${j.addr} · ${j.cust}`;
+  $('#pFor').innerHTML=open.map(i=>`<option value="${i.id}">${i.kind} invoice, ${money(invOwing(i))} owing${i.state==='draft'?' (not sent)':''}</option>`).join('');
+  $('#pFor').value=invId||open[0].id; $('#pDate').value=today(); $('#pDate').max=today(); $('#pErr').textContent='';
+  $('#notify').setAttribute('aria-checked','true'); setMethod('bank'); fillAmt(); $('#toast').classList.remove('on'); $('#payWrap').classList.add('on');
+}
+const selInv=()=>invById(payCtx,$('#pFor').value);
+function fillAmt(){$('#pAmt').value=invOwing(selInv()).toFixed(2);payNote()}
+function setMethod(m){method=m;$$('#methods button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));$('#cashbox').classList.toggle('on',m==='cash');payNote()}
+function payNote(){const i=selInv(); if(!i) return; const f=payCtx.first||'the customer';
+  $('#payHint').hidden=method==='cash';
+  $('#payHint').textContent=i.state==='draft'?'The invoice is marked paid without being sent. A receipt is emailed to the customer.':'A receipt is emailed to the customer.';
+  $('#cashMsg').innerHTML=i.state==='draft'?`<b>Cash.</b> The ${i.kind.toLowerCase()} invoice will <b>not be sent</b> to ${f}. The payment is still recorded against the job.`
+    :`<b>Cash.</b> This invoice has already gone to ${f}. Nothing else is sent unless the switch below is on.`}
+function savePay(){
+  const j=payCtx, i=selInv(), amt=r2(parseFloat($('#pAmt').value)), f=j.first||'the customer';
+  if(!(amt>0)){$('#pErr').textContent='Enter the amount received.';return}
+  if(amt>invOwing(i)){$('#pErr').textContent=`That is more than the ${money(invOwing(i))} owing on this invoice.`;return}
+  const wasDraft=i.state==='draft'; applyPayment(j,i,amt,method,$('#pDate').value);
+  const notify=$('#notify').getAttribute('aria-checked')==='true';
+  let m=`Recorded ${money(amt)} from ${f}, ${METHOD[method]}.`;
+  if(method==='cash') m+=(wasDraft&&invOwing(i)<=0?` ${i.kind} invoice not sent.`:'')+(notify?` Confirmation emailed to ${f}.`:' No email sent.');
+  if(invOwing(i)>0) m+=` ${money(invOwing(i))} still owing.`; if(isPaid(j)) m+=' Job is paid in full.';
+  $('#payWrap').classList.remove('on'); render(); toast(m);
+}
+let sendCtx=null;
+function openSend(j,invId){sendCtx=[j,invById(j,invId)]; const i=sendCtx[1];
+  if(!i.due){const d=startDays(j); i.due=(i.slot==='dep'&&d!==null&&d>0&&d<=7)?addDays(today(),Math.max(0,d-1)):addDays(today(),7)}
+  fillSend();$('#toast').classList.remove('on');$('#sendWrap').classList.add('on')}
+function fillSend(){
+  const [j,i]=sendCtx, f=j.first||'the customer';
+  $('#sendT').textContent=`Send ${i.kind.toLowerCase()} invoice`; $('#sendWho').textContent=`${j.addr} · to ${j.cust}`;
+  $('#sendAdj').innerHTML=i===depInv(j)?adjHTML(j):`<div class="adj"><p style="margin:0">${i.kind} invoice <b>${money(i.amount)}</b></p></div>`;
+  $('#sDue').value=i.due; $('#sDue').min=today(); $('#sSend').textContent=`Send ${money(i.amount)} invoice to ${f}`; sendNote();
+}
+function sendNote(){const [j,i]=sendCtx, d=startDays(j), late=i.slot==='dep'&&d!==null&&days($('#sDue').value,today())>=d;
+  $('#sendHint').className='hint'+(late?' warn':'');
+  $('#sendHint').textContent=late?`${startTxt(j)}, so this due date falls on or after the start.`:`Emails the invoice and pay link to ${j.first||'the customer'}. The due date locks once sent.`}
+function doSend(){const [j,i]=sendCtx; i.due=$('#sDue').value||i.due; i.state='sent'; i.no=nextNo();
+  $('#sendWrap').classList.remove('on'); sendCtx=null; adjOpen.delete(j.id); render(); toast(`${i.no} sent to ${j.first||'the customer'}: ${money(i.amount)}, due ${fd(i.due)}.`)}
+/* chat */
+let chatCtx=null, tplKey='';
+function templates(j,i){
+  const hello=j.first?`Hello ${j.first},`:'Hello,', a=j.addr.split(',')[0];
+  const how=`You can pay using the link below, or by bank transfer using the details on the invoice.\n\npaintgroup.com.au/pay/${i&&i.no?i.no:'…'}\n\nMany thanks,\nPaint Group`, t={};
+  if(i&&invOwing(i)>0){ const amt=money(invOwing(i)), what=i.slot==='dep'?'deposit':i.kind==='Final'?'final invoice':'progress payment', d=startDays(j);
+    const when=i.due?(overDays(i)===0?'today':'on '+fdl(i.due)):'shortly';
+    if(i.slot==='dep') t['Deposit reminder']=`${hello} a quick reminder that the deposit of ${amt} for ${a} is due ${when}${j.si===2&&d!==null&&d>0?`, ahead of our start ${d===1?'tomorrow':'in '+d+' days'}`:''}. ${how}`;
+    else t['Friendly reminder']=`${hello} thank you again for having us at ${a}. A quick reminder that your ${what} of ${amt} is due ${when}. ${how}`;
+    t['Overdue']=`${hello} I hope you are well. Our records show the ${what} of ${amt} for ${a} ${i.due?'fell due on '+fdl(i.due):'is'} and is still outstanding. Could you let us know when we might expect payment? ${how}`;
+  }
+  t['Payment received']=`${hello} thank you, we have received your payment for ${a}. A receipt is on its way by email.\n\nMany thanks,\nPaint Group`;
+  return t;
+}
+function openChat(j,invId){
+  const i=invId?invById(j,invId):nextInv(j); chatCtx=[j,i]; const t=templates(j,i);
+  tplKey=i&&isOver(i)?'Overdue':Object.keys(t)[0]; renderChat(t[tplKey]); $('#chat').classList.add('on');
+}
+function renderChat(text){
+  const [j,i]=chatCtx, t=templates(j,i), f=j.first||'customer';
+  $('#chat').innerHTML=`<div class="ch"><div><b>${j.cust||'Customer'}</b><small>${j.addr}</small></div><button class="b sm" data-a="chatclose" aria-label="Close chat">Close</button></div>
+    <div class="cq"><button class="b sm" data-a="stub" data-s="Calls ${f} from your phone.">Call ${f}</button><button class="b sm" data-a="open" data-job="${j.id}">Open job</button><button class="b sm" data-a="stub" data-s="Pay link copied.">Copy pay link</button></div>
+    <div class="thread">${j.thread.length?j.thread.map(m=>`<div class="bub me"><small>You, just now</small>${m.t}</div>`).join(''):'<div style="color:var(--mute);font-size:13px">This customer’s existing Customer chats thread shows here.</div>'}</div>
+    <div class="tpl">${Object.keys(t).map(k=>`<button class="${k===tplKey?'on':''}" data-a="tpl" data-s="${k}">${k}</button>`).join('')}</div>
+    <div class="compose"><textarea id="chatText" aria-label="Message">${text}</textarea>
+      <div class="send"><small>Written for you. Edit it, then send.</small><button class="b pri" data-a="chatsend">Send to ${f}</button></div></div>`;
+  const th=$('#chat .thread'); th.scrollTop=th.scrollHeight;
+}
+function chatSend(){const [j]=chatCtx, v=$('#chatText').value.trim(); if(!v) return;
+  j.thread.push({t:v}); j.msg=true; renderChat(''); render(); toast(`Message sent to ${j.first||'the customer'}.`)}
+/* money out */
+const con=id=>CON.find(c=>c.id===id), mat=id=>MAT.find(m=>m.id===id);
+function setCon(list,st,msg){const prev=list.map(c=>[c,c.st,c.due]); list.forEach(c=>{c.st=st; if(st==='appr') c.due=addDays(today(),7)});
+  undo=()=>prev.forEach(([c,s,d])=>{c.st=s;c.due=d}); render(); toast(msg,[['Undo','undo']])}
+function setMat(list,fn,msg){$('#docWrap').classList.remove('on');const prev=list.map(m=>({m,st:m.st,wo:m.wo,addr:m.addr,overhead:m.overhead})); list.forEach(fn);
+  undo=()=>prev.forEach(p=>Object.assign(p.m,{st:p.st,wo:p.wo,addr:p.addr,overhead:p.overhead})); render(); toast(msg,[['Undo','undo']])}
+function openDoc(m){
+  const gst=r2(m.amt/11), j=m.wo?jobs.find(x=>x.wo===m.wo):null;
+  const paper=m.st==='dup'?`<div class="paper"><div class="ph"><b>${m.sup}</b><span>TAX INVOICE</span></div><p>Same supplier and invoice number as a document already recorded.</p></div>`
+   :`<div class="paper"><div class="ph"><b>${m.sup}</b><span>TAX INVOICE</span></div>
+     <div class="pr"><span>Invoice number</span><span>${m.no||'not shown'}</span></div><div class="pr"><span>Date</span><span>${m.date||'not read'}</span></div><div class="pr"><span>Customer reference</span><span>${m.ref||'none'}</span></div>
+     <div class="pl"><span>Paint and sundries</span><span>${money(r2(m.amt-gst))}</span></div><div class="pr"><span>GST</span><span>${money(gst)}</span></div><div class="pt"><span>Total</span><span>${money(m.amt)}</span></div>
+     <p>Stand-in for the mockup. The build shows the real PDF or receipt photo here.</p></div>`;
+  $('#docBody').innerHTML=`<h3>${m.sup} ${m.no||''}</h3><div class="who">Captured from bills@${m.date?' · dated '+m.date:''}</div>${paper}
+    <div class="read"><b>What was read from it</b><span>Supplier: ${m.sup}</span><span>Total: ${money(m.amt)} including GST</span><span>Reference: ${m.ref?'“'+m.ref+'”':'none on the document'}</span>
+      <span>Job: ${m.overhead?'not for a job':m.addr?m.addr:'<span class="hot">no job found</span>'}</span></div>
+    <div class="docacts">${matActs(m)}</div>`;
+  $('#toast').classList.remove('on'); $('#docWrap').classList.add('on');
+}
+let pickCtx=null;
+function openPick(m){pickCtx=m; $('#pickWho').textContent=`${m.sup} ${m.no||''} · ${money(m.amt)}${m.ref?' · supplier wrote “'+m.ref+'”':''}`; $('#pickQ').value=''; fillPick(); $('#toast').classList.remove('on'); $('#pickWrap').classList.add('on')}
+function fillPick(){const q=$('#pickQ').value.trim().toLowerCase();
+  $('#pickList').innerHTML=jobs.filter(j=>j.si>=1&&hit(j.addr+' '+j.cust,q)).slice(0,40).map(j=>`<button data-a="pickjob" data-job="${j.id}">${j.addr}<small>${sName(j)}${j.cust?' · '+j.cust:''}</small></button>`).join('')||'<div class="empty">No job matches.</div>'}
+
+/* =================== events =================== */
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-a]'); if(!el) return;
+  const a=el.dataset.a, j=el.dataset.job?job(el.dataset.job):null, i=j&&el.dataset.inv?invById(j,el.dataset.inv):null, s=el.dataset.s, id=el.dataset.id;
+  if(a==='noop') return;
+  if(a==='open'){ if(e.target.closest('input,textarea,select,label')) return; $('#chat').classList.remove('on'); openJob(j.id); return }
+  if(a==='close'){closeJob();return}
+  if(a==='tab'){tab=s;render();window.scrollTo({top:0});return}
+  if(a==='view'){view=s;render();return}
+  if(a==='stage'){stageF=s;render();return}
+  if(a==='tblf'){tblF=s;render();return}
+  if(a==='conby'){conBy=s;render();return}
+  if(a==='jtab'){jobTab=s;renderJob();return}
+  if(a==='pv'){offset=+s;$$('.mockbar [data-a=pv]').forEach(b=>b.classList.toggle('on',b===el));render();return}
+  if(a==='quickpay'){quickPay(j,i);return}
+  if(a==='pay'){openPay(j,i&&i.id);return}
+  if(a==='send'){openSend(j,i.id);return}
+  if(a==='msg'){openChat(j,i&&i.id);return}
+  if(a==='adj'){adjOpen.has(j.id)?adjOpen.delete(j.id):adjOpen.add(j.id);render();return}
+  if(a==='dadj'){drawerAdj=!drawerAdj;renderJob();return}
+  if(a==='pct'){setDeposit(j,r2(total(j)*(+s)/100));return}
+  if(a==='capprove'){const c=con(id);setCon([c],'appr',`Approved ${c.no}, ${money(c.amt)} to ${c.con}. Pay by ${fd(addDays(today(),7))}.`);return}
+  if(a==='cpaid'){const c=con(id);setCon([c],'paid',`Marked ${c.no} paid, ${money(c.amt)} to ${c.con}. Remittance emailed.`);return}
+  if(a==='capproveall'){const l=CON.filter(c=>c.con===s&&c.st==='sub');setCon(l,'appr',`Approved ${l.length} invoices for ${s}, ${money(sum(l.map(c=>c.amt)))}.`);return}
+  if(a==='cpaidall'){const l=CON.filter(c=>c.con===s&&c.st==='appr');setCon(l,'paid',`Marked ${pl(l.length,'invoice')} paid for ${s}, ${money(sum(l.map(c=>c.amt)))}.`);return}
+  if(a==='mconfirm'){const m=mat(id);setMat([m],x=>x.st='appr',`${m.sup} ${money(m.amt)} confirmed to ${m.addr.split(',')[0]}.`);return}
+  if(a==='mconfirmall'){const l=MAT.filter(m=>m.st==='check'&&m.wo);setMat(l,x=>x.st='appr',`${l.length} invoices confirmed to their jobs, ${money(sum(l.map(m=>m.amt)))}.`);return}
+  if(a==='mover'){const m=mat(id);setMat([m],x=>{x.st='appr';x.overhead=true},`${m.sup} ${money(m.amt)} recorded as not for a job.`);return}
+  if(a==='mgone'){const m=mat(id);setMat([m],x=>x.st='gone','Duplicate dismissed.');return}
+  if(a==='mapprove'){const m=mat(id);setMat([m],x=>x.st='appr',`${m.sup} ${money(m.amt)} approved.`);return}
+  if(a==='mapproveall'){const l=MAT.filter(m=>m.st==='rec');setMat(l,x=>x.st='appr',`${l.length} invoices approved, ${money(sum(l.map(m=>m.amt)))}.`);return}
+  if(a==='mpaid'){const l=MAT.filter(m=>m.st==='appr'&&m.sup===s);setMat(l,x=>x.st='paid',`${s} marked paid, ${money(sum(l.map(m=>m.amt)))} across ${pl(l.length,'invoice')}.`);return}
+  if(a==='mview'){openDoc(mat(id));return}
+  if(a==='mdel'){const m=mat(id);m.was=m.st;setMat([m],x=>x.st='del',`${m.sup} ${money(m.amt)} deleted. It no longer counts anywhere.`);return}
+  if(a==='mrestore'){const m=mat(id);setMat([m],x=>x.st=x.was||'check',`${m.sup} ${money(m.amt)} restored.`);return}
+  if(a==='mpick'){$('#docWrap').classList.remove('on');openPick(mat(id));return}
+  if(a==='pickjob'){const m=pickCtx;$('#pickWrap').classList.remove('on');setMat([m],x=>{x.st='appr';x.wo=j.wo;x.addr=j.addr},`${m.sup} ${money(m.amt)} confirmed to ${j.addr.split(',')[0]}.`);return}
+  if(a==='undo'&&undo){undo();undo=null;render();toast('Undone.');return}
+  if(a==='change'&&undo){const [uj,ui]=undo.ctx;undo();undo=null;render();openPay(uj,ui.id);return}
+  if(a==='closeSheets'){$$('.sheet-wrap').forEach(x=>x.classList.remove('on'));sendCtx=null;return}
+  if(a==='chatclose'){$('#chat').classList.remove('on');return}
+  if(a==='tpl'){tplKey=s;renderChat(templates(...chatCtx)[s]);return}
+  if(a==='chatsend'){chatSend();return}
+  if(a==='stub'){toast(s);return}
+  if(a==='theme'){const r=document.documentElement,l=r.dataset.theme==='light';r.dataset.theme=l?'dark':'light';el.textContent=l?'Light':'Dark';return}
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.target.matches('.job,.tr[data-a]')) openJob(e.target.dataset.job);
+  if(e.key==='Escape'){ if($('.sheet-wrap.on')) $$('.sheet-wrap').forEach(x=>x.classList.remove('on')); else if($('#chat.on')) $('#chat').classList.remove('on'); else closeJob() }});
+document.addEventListener('change',e=>{const t=e.target;
+  if(t.dataset.dep){setDeposit(job(t.dataset.dep),parseFloat(t.value));return}
+  if(t.dataset.due&&cur){const i=invById(cur,t.dataset.due); if(t.value){i.due=t.value;render();toast(`Due date changed to ${fd(i.due)}.`)}return}
+  if(t.id==='showPaid'){showPaid=t.checked;render();return}
+  if(t.id==='pFor'){fillAmt();return}
+  if(t.id==='sDue'){sendNote();return}
+});
+$('#q').addEventListener('input',e=>{query=e.target.value.trim().toLowerCase();render()});
+$('#qc').addEventListener('input',e=>{qc=e.target.value.trim().toLowerCase();render()});
+$('#pickQ').addEventListener('input',fillPick);
+$('#methods').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setMethod(b.dataset.m)});
+$('#notify').addEventListener('click',e=>{const s=e.currentTarget;s.setAttribute('aria-checked',s.getAttribute('aria-checked')==='true'?'false':'true')});
+$('#pSave').addEventListener('click',savePay);
+$('#sSend').addEventListener('click',doSend);
+$$('.sheet-wrap').forEach(w=>w.addEventListener('click',e=>{if(e.target===w){w.classList.remove('on');sendCtx=null}}));
+render();
+</script>
+</body>
+</html>

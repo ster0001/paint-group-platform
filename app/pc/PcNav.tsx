@@ -20,6 +20,8 @@ const TABS = [
   { href: "/pc/timesheets", label: "Timesheets" },
   // Painter status (Step 8): the Contractors section — lights, call backs, rewards, who has signed.
   { href: "/pc/contractors", label: "Contractors" },
+  // Induction (Step 2): the facilitator's grid of practice jobs — who has done which step.
+  { href: "/pc/demo", label: "Induction" },
   // Invoicing left PC Command (Tom, 24 Aug) — it lives in the sidebar as its
   // own tab; job pages still deep-link to their own money view.
 ];

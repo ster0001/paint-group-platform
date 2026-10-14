@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { STAGE_LANES, type WoStage } from "@/lib/workorder/stages";
 import { formatEstimateNumber, parseEstimateNumber } from "@/lib/estimate/number";
 import type { PcSearchHit } from "../../PcSearch";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * Tom, 1 Oct 2026: "a search bar in the PC command on all pages to search for
@@ -46,12 +47,12 @@ export async function GET(request: Request) {
   const like = `%${needle}%`;
   const n = parseEstimateNumber(q);
   const [byWo, byEstimate] = await Promise.all([
-    supabase.from("work_orders")
-      .select(`${WO_FIELDS}, estimates(${EST_FIELDS})`)
+    realOnly(supabase.from("work_orders")
+      .select(`${WO_FIELDS}, estimates(${EST_FIELDS})`))
       .or(`wo_ref.ilike.${like},wo_snapshot->>jobTitle.ilike.${like},wo_snapshot->>jobAddress.ilike.${like}`)
       .limit(LIMIT),
     (() => {
-      const base = supabase.from("estimates").select(`id, ${EST_FIELDS}, work_orders!inner(${WO_FIELDS})`);
+      const base = realOnly(supabase.from("estimates").select(`id, ${EST_FIELDS}, work_orders!inner(${WO_FIELDS})`));
       return n != null
         ? base.eq("number", n).limit(LIMIT)
         : base.or(`title.ilike.${like},builder_state->contact->>first_name.ilike.${like},builder_state->contact->>last_name.ilike.${like},builder_state->jobAddress->>address.ilike.${like},builder_state->jobAddress->>city.ilike.${like}`).limit(LIMIT);

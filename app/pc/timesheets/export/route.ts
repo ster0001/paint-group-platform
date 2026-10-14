@@ -5,6 +5,7 @@ import { requireStaff } from "@/lib/supabase/guards";
 import { reportError } from "@/lib/monitoring/report";
 import { payrollCsv, type PayrollBonusRow, type PayrollRow } from "@/lib/timesheets/hours";
 import { melbourneInstant } from "@/lib/time/businessHours";
+import { realOnly } from "@/lib/demo/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +34,9 @@ export async function GET(req: Request): Promise<NextResponse> {
   if (!parsed.success) return new NextResponse("from and to (YYYY-MM-DD) are required", { status: 400 });
   const { from, to } = parsed.data;
 
-  const { data, error } = await supabase
+  const { data, error } = await realOnly(supabase
     .from("timesheet_entries")
-    .select("work_date, started_at, finished_at, break_minutes, source, approved_at, contractors(profiles(name)), work_orders(wo_ref)")
+    .select("work_date, started_at, finished_at, break_minutes, source, approved_at, contractors(profiles(name)), work_orders(wo_ref)"))
     .eq("status", "approved").gte("work_date", from).lte("work_date", to)
     .order("work_date", { ascending: true }).order("started_at", { ascending: true });
   if (error) {

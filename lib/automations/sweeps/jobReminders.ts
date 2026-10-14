@@ -43,6 +43,7 @@ import {
   decideSend, headsUpDue, mergeJobUpdateRules, planMoments, reconcilePlan, type JobUpdateRules, type MomentKind, type MomentRow,
 } from "@/lib/workorder/reminderMoments";
 import { suburbFromAddress } from "./moneySignoff";
+import { realOnly } from "@/lib/demo/scope";
 
 export const JOB_UPDATE_KEY = "contractor_job_update_reminder";
 export const HEADS_UP_KEY = "contractor_job_update_morning";
@@ -182,8 +183,8 @@ export async function runJobReminderSweep(db: SupabaseClient, now = new Date()):
 
     const today = melbourneDateKey(now);
     const since = melbourneDateKey(new Date(now.getTime() - 3 * 86_400_000));
-    const { data, error } = await db.from("work_orders")
-      .select("id, wo_ref, stage, start_date, end_date, contractor_id, wo_snapshot, contractors(works_saturday, works_sunday)")
+    const { data, error } = await realOnly(db.from("work_orders")
+      .select("id, wo_ref, stage, start_date, end_date, contractor_id, wo_snapshot, contractors(works_saturday, works_sunday)"))
       .in("stage", OPEN_STAGES).not("start_date", "is", null).not("end_date", "is", null)
       .lte("start_date", today).gte("end_date", since)
       .order("start_date", { ascending: true }).limit(300);

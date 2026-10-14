@@ -34,7 +34,7 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
 
   const { data } = await supabase
     .from("contractor_invoices")
-    .select("id, number, status, offer_cents, variation_delta_cents, deduction_lines, claimed_ex_cents, subtotal_ex_cents, gst_cents, total_inc_cents, due_on, submitted_at, approved_at, paid_at, bank_reference, remittance_number, remittance_pdf_path, gst_registered_at_submit, entity_snapshot, rcti, work_order_id, auto_draft_source, claim_pct, previously_invoiced_cents, invoice_pdf_path, work_orders(wo_ref, contractor_payment_cents, wo_snapshot)")
+    .select("id, number, status, offer_cents, variation_delta_cents, deduction_lines, claimed_ex_cents, subtotal_ex_cents, gst_cents, total_inc_cents, due_on, submitted_at, approved_at, paid_at, bank_reference, remittance_number, remittance_pdf_path, gst_registered_at_submit, entity_snapshot, rcti, work_order_id, auto_draft_source, claim_pct, previously_invoiced_cents, invoice_pdf_path, is_demo, work_orders(wo_ref, contractor_payment_cents, wo_snapshot)")
     .eq("id", id).maybeSingle();
   const ci = data as {
     id: string; number: string | null; status: string;
@@ -110,7 +110,9 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
   const total = draft ? subtotal + gst : ci.total_inc_cents;
   const heading = ciDocumentHeading(gstRegistered);
 
-  const missing = missingProfileFields(contractor);
+  // The practice invoice (12 Demo Street) submits before the profile is complete —
+  // ruling 5, 14 Oct; contractor_invoice_submit skips the same checks for it.
+  const missing = (ci as { is_demo?: boolean }).is_demo ? [] : missingProfileFields(contractor);
   const blocked = !draft ? null
     : missing.length
       ? `Submitting is held until your company profile has ${missing.join(", ")} — finish it under Profile.`

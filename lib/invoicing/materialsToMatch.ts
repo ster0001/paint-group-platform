@@ -22,16 +22,18 @@ export type MaterialToMatch = {
   order_ref: string;
   address_text: string;
   created_at: string;
+  /** Payments merge Step 6 (20270259): a person said "not for a job" — overhead, nothing to match. */
+  overhead?: boolean | null;
 };
 
-export function needsMatching(row: Pick<MaterialToMatch, "work_order_id">): boolean {
-  return row.work_order_id == null;
+export function needsMatching(row: Pick<MaterialToMatch, "work_order_id" | "overhead">): boolean {
+  return row.work_order_id == null && row.overhead !== true;
 }
 
 /** The rows that still need a job, newest received first. */
-export function materialsToMatch<T extends Pick<MaterialToMatch, "work_order_id" | "created_at">>(rows: readonly T[]): T[] {
+export function materialsToMatch<T extends Pick<MaterialToMatch, "work_order_id" | "created_at" | "overhead">>(rows: readonly T[]): T[] {
   return rows.filter(needsMatching).sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
-/** Where both tiles send a click: the Payables tab, at the card that lists them. */
-export const MATERIALS_TO_MATCH_HREF = "/invoicing?tab=pay#materials-to-match";
+/** Where the home tile sends a click: Payments → Materials, at the "No job yet" list (8c). */
+export const MATERIALS_TO_MATCH_HREF = "/invoicing?tab=mat#no-job";

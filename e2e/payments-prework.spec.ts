@@ -14,8 +14,9 @@ import { accessTokenFor, contractorIdForEmail, createLoopFixture, destroyLoopFix
  *  2. Pause / Resume reminders works. It used to update `invoices` straight
  *     from the staff session, which has no UPDATE on invoices, so every press
  *     failed. Driven through the real buttons.
- *  3. The deep links land where they say: `?tab=` on the job view, the
- *     Payables tab, and the old contractor-invoice email link (it 404'd).
+ *  3. The deep links land where they say: `?tab=` on the job view, the old
+ *     Payables tab (now Contractors), the old contractor-invoice email link
+ *     (it 404'd), and the addresses retired at the switch-over (Step 8d).
  */
 const staff = credentials("STAFF");
 const contractor = credentials("CONTRACTOR");
@@ -24,6 +25,8 @@ const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const NOBODY = "00000000-0000-4000-8000-000000000000";
 
+// invoice_draft_deposit is staff-callable again since Payments Step 3 (20270256,
+// Create deposit): a non-staff caller is refused by its guard, error:not_staff.
 const LOCKED: Array<[string, Record<string, unknown>]> = [
   ["invoice_draft_deposit", { p_estimate_id: NOBODY, p_auto: "import" }],
   ["contractor_invoice_attach_pdf", { p_id: NOBODY, p_path: "x.pdf" }],
@@ -37,7 +40,7 @@ test.describe("definer functions the office owns", () => {
     expect(signInError, "anonymous sign-in").toBeNull();
     for (const [fn, args] of LOCKED) {
       const { data, error } = await visitor.rpc(fn, args);
-      expect(error?.code, `${fn} answered ${JSON.stringify(data)} to an anonymous visitor`).toBe("42501");
+      expect(error?.code === "42501" || data === "error:not_staff", `${fn} answered ${JSON.stringify(data ?? error)} to an anonymous visitor`).toBe(true);
     }
   });
 
@@ -51,7 +54,7 @@ test.describe("definer functions the office owns", () => {
         body: JSON.stringify(args),
       });
       const body = (await res.json()) as { code?: string } | string;
-      expect(typeof body === "object" ? body.code : body, `${fn} for a contractor`).toBe("42501");
+      expect(["42501", "error:not_staff"], `${fn} for a contractor`).toContain(typeof body === "object" ? body.code : body);
     }
   });
 });
@@ -87,11 +90,11 @@ test.describe("Pause / Resume reminders and the money deep links", () => {
     await destroyLoopFixture(db, f);
   });
 
-  test("staff pause with a reason and resume, from the job's Invoices tab", async ({ page }) => {
+  test("staff pause with a reason and resume, from the invoice's card on the job panel", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
 
-    // ?tab=invoices opens straight on Invoices (it used to ignore ?tab and open on Payments).
-    await page.goto(`/invoicing/job/${f!.estimateId}?tab=invoices`);
+    // Payments merge Step 7: Money in lists every invoice with its buttons.
+    await page.goto(`/invoicing/job/${f!.estimateId}`);
     const pause = page.getByTestId("pause-reminders");
     await expect(pause).toBeVisible({ timeout: 30_000 });
 
@@ -114,14 +117,29 @@ test.describe("Pause / Resume reminders and the money deep links", () => {
   test("the links into Payments land on the right tab", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
 
+    // A link written before the panel (?tab=costs) opens Money out and profit.
     await page.goto(`/invoicing/job/${f!.estimateId}?tab=costs`);
-    await expect(page.getByRole("button", { name: "Costs", exact: true })).toHaveClass(/\bon\b/, { timeout: 30_000 });
+    await expect(page.getByRole("link", { name: "Money out and profit", exact: true })).toHaveClass(/\bon\b/, { timeout: 30_000 });
 
+    // Step 8d, the switch-over. The old Payables tab (?tab=pay, in every email and CRM item sent before) is Contractors.
+    const contractorsCard = page.getByTestId("pm-ledger").getByRole("link", { name: /Contractors/ });
     await page.goto("/invoicing?tab=pay");
-    await expect(page.getByRole("button", { name: "Payables", exact: true })).toHaveClass(/\bon\b/, { timeout: 30_000 });
+    await expect(contractorsCard).toHaveAttribute("aria-current", "page", { timeout: 30_000 });
 
     // Every "contractor invoice in" email before 12 Oct linked /invoicing/ci/<id>, which never existed.
     await page.goto(`/invoicing/ci/${NOBODY}`);
-    await expect(page).toHaveURL(/\/invoicing\?tab=pay$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/invoicing\?tab=con$/, { timeout: 30_000 });
+
+    // The old addresses: /invoicing/payments (Steps 2–8c) and /invoices (the per-job list) — query kept.
+    await page.goto("/invoicing/payments?tab=mat&q=nothing-matches");
+    await expect(page).toHaveURL(/\/invoicing\?tab=mat&q=nothing-matches$/, { timeout: 30_000 });
+    await page.goto("/invoices?q=Kite");
+    await expect(page).toHaveURL(/\/invoicing\?view=table&q=Kite$/, { timeout: 30_000 });
+    // The old Overdue filter is All jobs → Overdue.
+    await page.goto("/invoicing?f=overdue");
+    await expect(page.getByRole("link", { name: "All jobs" })).toHaveClass(/\bon\b/, { timeout: 30_000 });
+    // The home tile's "Materials to match" lands on the list it counts.
+    await page.goto("/invoicing?tab=mat#no-job");
+    await expect(page.getByTestId("pm-ledger").getByRole("link", { name: /Materials/ })).toHaveAttribute("aria-current", "page");
   });
 });

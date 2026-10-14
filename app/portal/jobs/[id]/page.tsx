@@ -8,6 +8,7 @@ import { getEmployeeJob } from "@/lib/contractor/employeeJobs";
 import AssignmentCard from "./AssignmentCard";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
 import { notInSheet, scopeChangesFrom } from "@/lib/workorder/scopeChanges";
+import PayChangeCard, { type PayChangeView } from "./PayChangeCard";
 import RescheduleRequest from "./RescheduleRequest";
 import OfferBar from "./OfferBar";
 import StartJob from "./StartJob";
@@ -25,7 +26,7 @@ import WalkthroughBar from "./WalkthroughBar";
 import CrewShare from "./CrewShare";
 import SitePhotos from "./SitePhotos";
 import BatchUploader from "@/app/components/wo/BatchUploader";
-import { jobNeedsAfterPhotos, jobNeedsBeforePhotos } from "@/lib/workorder/surfaces";
+import { jobNeedsAfterPhotos, jobNeedsBeforePhotos, surfaceCountsByKey } from "@/lib/workorder/surfaces";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import { qaAllClear, staffSignsOff as staffSignsOffFor } from "@/lib/workorder/qa";
 import { painterSeesQaDate } from "@/lib/workorder/qaSchedule";
@@ -48,6 +49,9 @@ import UpdateMoments from "./UpdateMoments";
 import type { MomentRow } from "@/lib/workorder/reminderMoments";
 import MessageThread from "@/app/components/wo/MessageThread";
 import { loadThread } from "@/lib/workorder/messagesLoad";
+import DemoControls from "@/app/components/demo/DemoControls";
+import { loadDemoChecklist } from "@/lib/demo/checklistLoad";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
 
@@ -142,7 +146,7 @@ export default async function PortalJobPage({
     // refused for them (20270153), and would carry the price anyway.
     assignment
       ? Promise.resolve({ data: { stage: assignment.stage, walkthrough_required: assignment.walkthroughRequired, colours: assignment.colours, wo_ref: job.woRef, contractor_payment_cents: null } })
-      : supabase.from("work_orders").select("stage, walkthrough_required, colours, wo_ref, contractor_payment_cents").eq("id", id).maybeSingle(),
+      : supabase.from("work_orders").select("stage, walkthrough_required, colours, wo_ref, contractor_payment_cents, pay_change_rate_cents, pay_change_from_rate_cents, pay_change_from_cents, pay_change_to_cents").eq("id", id).maybeSingle(),
     supabase.from("wo_walkthroughs")
       .select("kind, scheduled_date, status").eq("work_order_id", id)
       .eq("status", "booked"),
@@ -278,7 +282,17 @@ export default async function PortalJobPage({
 
   // "Create invoice" from the job itself (Tom, 25 Aug): the same claim card
   // the Money tab carries, scoped to THIS job's remaining money.
-  const woMoney = woRow as { wo_ref?: string; contractor_payment_cents?: number | null } | null;
+  const woMoney = woRow as {
+    wo_ref?: string; contractor_payment_cents?: number | null;
+    pay_change_rate_cents?: number | null; pay_change_from_rate_cents?: number | null;
+    pay_change_from_cents?: number | null; pay_change_to_cents?: number | null;
+  } | null;
+  const payChange: PayChangeView | null = woMoney?.pay_change_rate_cents && woMoney.pay_change_from_rate_cents
+    ? {
+        fromRateCents: woMoney.pay_change_from_rate_cents, toRateCents: woMoney.pay_change_rate_cents,
+        fromCents: woMoney.pay_change_from_cents ?? 0, toCents: woMoney.pay_change_to_cents ?? 0,
+      }
+    : null;
   const payVars: PayVariation[] = ((variationRows as {
     status: string; credit: boolean; contractor_delta_cents: number | null;
     deduction_cents: number | null; needs_manual_deduction: boolean;
@@ -293,9 +307,15 @@ export default async function PortalJobPage({
     deductionPending: payVars.some((v) => v.credit && v.needs_manual_deduction && v.deduction_cents == null),
   };
 
+  // "Doors × 4" on the tick list: the count rides the frozen document, keyed
+  // like the row, so the label itself stays the bare substrate.
+  const countByKey = surfaceCountsByKey(job.doc);
   const surfaces: SurfaceRow[] = ((surfaceRows as
-    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean; photos_optional?: boolean | null }[] | null) ?? [])
-    .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope, photosOptional: Boolean(r.photos_optional) }));
+    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean; photos_optional?: boolean | null; surface_key?: string | null }[] | null) ?? [])
+    .map((r) => ({
+      id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope, photosOptional: Boolean(r.photos_optional),
+      ...(r.surface_key && countByKey[r.surface_key] != null ? { count: countByKey[r.surface_key] } : {}),
+    }));
 
   const headingMeta: Record<string, string> = {};
   for (const r of (surfaceRows as { heading: string; heading_meta: string }[] | null) ?? []) {
@@ -455,6 +475,9 @@ export default async function PortalJobPage({
   // Messages with the office about THIS job (Tom, 9 Oct 2026) — their own
   // thread only, through their session (RLS). No office-side delivery notes.
   const messages = await loadThread(supabase, id, contractor.id, "painter");
+  // The practice job's checklist (induction Step 2) — derived from its own rows.
+  const demoService = job.isDemo ? createServiceClient() : null;
+  const demoSteps = demoService ? await loadDemoChecklist(demoService, id) : null;
 
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
@@ -467,6 +490,7 @@ export default async function PortalJobPage({
           className="backlink" data-testid="job-back">
           ← {from === "requests" ? "Offers" : from === "calendar" ? "Calendar" : "Jobs"}
         </Link>
+        {job.isDemo && <DemoControls mode="portal" steps={demoSteps} />}
         {liveOffer && (
           <OfferBar offerId={liveOffer.id} workOrderId={id} expiresAt={liveOffer.expires_at}
             priceCents={liveOffer.payment_cents ?? null} />
@@ -744,6 +768,13 @@ export default async function PortalJobPage({
       {job.committed && capabilities.hasCrewCount && (
         <div style={{ padding: "0 16px" }}>
           <CrewShare workOrderId={id} />
+        </div>
+      )}
+
+      {/* Tom, 13 Oct 2026: a new hourly rate on this job, waiting on the contractor (20270254). */}
+      {job.committed && !employee && payChange && (
+        <div style={{ padding: "0 16px" }}>
+          <PayChangeCard workOrderId={id} change={payChange} />
         </div>
       )}
 

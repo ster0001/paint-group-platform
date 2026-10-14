@@ -31,8 +31,14 @@ const crewSurface = (s: WOSurface): WOSurface => ({
   key: s.key,
   label: s.label,
   ...(s.code ? { code: s.code } : {}),
+  // A count is scope, not money: the crew needs to know it is four doors.
+  ...(typeof s.count === "number" ? { count: s.count } : {}),
   coats: s.coats,
   product: s.product,
+  // Paint is scope, not money: the per-area materials breakdown (13 Oct 2026)
+  // groups a surface's litres by its product × colour.
+  ...(s.colourKey ? { colourKey: s.colourKey, colourName: s.colourName ?? "", colourHex: s.colourHex ?? "" } : {}),
+  ...(typeof s.litres === "number" ? { litres: s.litres } : {}),
   prep: s.prep,
   hours: s.hours,
   status: s.status,
@@ -52,6 +58,7 @@ const crewMaterial = (m: WOMaterial): WOMaterial => ({
   product: m.product,
   photoUrl: m.photoUrl,
   litres: m.litres,
+  ...(typeof m.estimatedLitres === "number" ? { estimatedLitres: m.estimatedLitres } : {}),
   coverageMissing: m.coverageMissing,
   colourName: m.colourName,
   colourHex: m.colourHex,

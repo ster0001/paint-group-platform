@@ -10,6 +10,7 @@ import { sniffKind } from "@/lib/extract/normalise";
 import { stagedHeadBytes } from "@/lib/workorder/stagedBytes";
 import { notifyPainterMessage } from "@/lib/contractor/notify";
 import { staffPainterMessage } from "@/lib/staff/notify";
+import { demoPainterMessage } from "@/lib/demo/robots";
 import {
   MESSAGE_BUCKET, MESSAGE_MAX_CHARS, MESSAGE_MAX_PHOTOS, MESSAGE_PHOTO_MAX_BYTES, MESSAGE_PHOTO_TYPES,
   photoObjectPath, photoPathOk, postErrorWords, type NotifyRecord,
@@ -117,6 +118,9 @@ export async function postMessageAction(raw: unknown): Promise<PostMessageResult
     }
     return { ok: true, messageId, notify: await notifyPainterMessage(service, messageId), batched: false };
   }
+  // 12 Demo Street (induction Step 2): the Project Coordinator is a robot and
+  // replies on the thread a few seconds later; the real office is not alerted.
+  if (await demoPainterMessage(workOrderId, contractorId)) return { ok: true, messageId, notify: null, batched: false };
   // The painter doesn't wait on the office's alert; the PC card is the record.
   if (r.notify && service) after(() => staffPainterMessage(service, messageId).then(() => undefined));
   return { ok: true, messageId, notify: null, batched: !r.notify };

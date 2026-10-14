@@ -287,11 +287,11 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
       key: `expense-ask:${a.id}`,
       severity: "warning",
       title: `${a.contractorName} wants to buy — about $${Math.round(a.estCents / 100)}`,
-      detail: `${a.description}. Approve with a cap or decline on the Payables tab.`,
+      detail: `${a.description}. Approve with a cap or decline under Payments → Contractors → Ask first.`,
       ref: w ? label(w.id) : a.workOrderId,
       workOrderId: a.workOrderId,
       ageHours: Math.max(0, hoursBetween(a.createdAt, now)),
-      action: { label: "Decide", kind: "price", href: "/invoicing?tab=pay" },
+      action: { label: "Decide", kind: "price", href: "/invoicing?tab=con#expenses" },
     });
   }
 

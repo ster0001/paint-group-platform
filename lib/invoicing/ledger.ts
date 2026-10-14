@@ -147,3 +147,25 @@ export function isOverdue(
   if (invoice.totalIncCents - invoice.paidCents <= 0) return false;
   return now.getTime() >= overdueFrom(invoice.dueOn).getTime();
 }
+
+/**
+ * "Less previously invoiced" on one invoice's document (Payments merge §6.4).
+ * The ledger's invoiced total counts an invoice once it is issued, so an
+ * issued invoice backs itself out — the same rule `invoice_by_token` uses for
+ * the customer's copy. INV-0049 showed the whole contract here because the
+ * staff page used the ledger total as it stood.
+ */
+export function previouslyInvoicedCents(ledgerInvoicedCents: number, invoice: { totalIncCents: number; status: string }): number {
+  const counted = invoice.status !== "draft" && invoice.status !== "void";   // invoicedCents' own rule
+  return Math.max(0, counted ? ledgerInvoicedCents - invoice.totalIncCents : ledgerInvoicedCents);
+}
+
+/**
+ * A draft final is stale when what was invoiced before it has changed since it
+ * was drafted (§6.3, 4/20 Cockatoo St): its `drafted` event records the ledger's
+ * invoiced total at that moment. A deliberate edit to the draft's lines is not
+ * staleness — only the invoices before it moving. Unknown (no event) is not stale.
+ */
+export function finalDraftIsStale(invoicedNowCents: number, invoicedAtDraftCents: number | null): boolean {
+  return invoicedAtDraftCents !== null && invoicedAtDraftCents !== invoicedNowCents;
+}

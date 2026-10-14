@@ -84,6 +84,7 @@ export type Automation = {
 };
 
 const P = {
+  paymentMessage: ["{{first_name}}", "{{amount}}", "{{address}}", "{{due_date}}", "{{start_date}}", "{{pay_link}}"],
   estimate: ["{{first_name}}", "{{name}}", "{{company_name}}", "{{estimate_title}}", "{{total}}", "{{estimator_name}}", "{{link}}"],
   preStart: ["{{first_name}}", "{{company_name}}", "{{start_date}}", "{{address}}", "{{estimate_title}}"],
   appt: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{start_date}}", "{{painter_name}}", "{{walkthrough_line}}"],
@@ -290,9 +291,9 @@ export const AUTOMATIONS: Automation[] = [
   // ---- customers · money -------------------------------------------------
   {
     key: "invoice_issued", name: "Invoice issued", audience: "customer", channels: ["email", "sms"], kind: "manual",
-    trigger: "You issue and send an invoice (deposit, progress, final, variation) from Invoicing.",
+    trigger: "You send an invoice (deposit, progress, final, variation) from Payments.",
     wording: "Fixed wording plus your personal message; bank details from Invoicing settings.",
-    href: "/invoices",
+    href: "/invoicing",
   },
   {
     key: "payment_receipt", name: "Payment receipt", audience: "customer", channels: ["email"], kind: "automatic",
@@ -302,6 +303,18 @@ export const AUTOMATIONS: Automation[] = [
       { field: "receiptSubject", label: "Email subject", kind: "subject", placeholders: P.receipt },
       { field: "receiptBody", label: "Email body", kind: "body", placeholders: P.receipt },
     ],
+  },
+  {
+    key: "payment_message", name: "Payment messages from Payments", audience: "customer", channels: ["email", "sms"], kind: "manual",
+    trigger: "You press Message on a job in Payments. The matching message below is written into that customer's chat for you to edit, and goes only when you press Send — as a chat reply: an email with the whole message and a text with a link to the chat. The pay link is filled in for you.",
+    templates: [
+      { field: "paymentMsgDeposit", label: "Deposit reminder", kind: "body", placeholders: P.paymentMessage },
+      { field: "paymentMsgReminder", label: "Friendly reminder (progress or final)", kind: "body", placeholders: P.paymentMessage },
+      { field: "paymentMsgOverdue", label: "Overdue", kind: "body", placeholders: P.paymentMessage },
+      { field: "paymentMsgReceived", label: "Payment received", kind: "body", placeholders: P.paymentMessage },
+    ],
+    guard: "Each message is posted to the customer's chat and logged against the invoice.",
+    href: "/invoicing",
   },
   {
     key: "portal_magic_link", name: "Sign-in link", audience: "customer", channels: ["email"], kind: "manual",
@@ -472,6 +485,15 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Once per bonus — the decision itself is once.",
   },
   // ---- Finish standards (brief: standards / status / call backs, Step 2) -----
+  {
+    key: "contractor_demo_prompt", name: "Induction — the DEMO reminder text", audience: "painter", channels: ["sms"], kind: "manual",
+    defaultChannel: "sms", sendKind: "job_update_reminder", quietExempt: true, capExempt: true,
+    trigger: "The facilitator presses Send demo prompt on a painter's practice job (12 Demo Street) during Module 6 of the induction — the one real text of the day (ruling I12). It plants a reminder moment on the practice job; the painter taps the link and adds a photo, and the moment reads as answered on their screen.",
+    templates: [
+      { field: "contractorDemoPromptSms", label: "The DEMO text", kind: "sms", placeholders: P.jobUpdate },
+    ],
+    guard: "Only the button sends it, never the reminder sweep (the practice job is outside every sweep). The wording starts with DEMO: so nobody mistakes it for a real reminder.",
+  },
   {
     key: "contractor_standards_invite", name: "Finish standards — please read and confirm", audience: "painter", channels: ["sms", "email"], kind: "manual",
     defaultChannel: "both", sendKind: "standards_invite", capExempt: true,

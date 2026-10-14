@@ -8,6 +8,7 @@ import { emailConfigured, sendEmail } from "@/lib/messaging/send";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { notifyStaff, type StaffAlertOutcome } from "@/lib/staff/notify";
 import { reportError } from "@/lib/monitoring/report";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * Tom, 12 Oct 2026 — three office reminders on the half-hourly sweep.
@@ -174,8 +175,8 @@ export async function sendFollowupDigest(db: SupabaseClient, now: Date, opts: Sw
     const sorted = [...dates].sort();
     const from = melbourneDayStartUtc(new Date(`${sorted[0]}T12:00:00Z`));
     const to = melbourneDayStartUtc(new Date(`${melbourneDatePlus(new Date(`${sorted[sorted.length - 1]}T12:00:00Z`), 1)}T12:00:00Z`));
-    const { data, error } = await db.from("estimates")
-      .select("id, title, sent_at, snap_name:sent_snapshot->>contactName, snap_address:sent_snapshot->>jobAddress, contact:builder_state->contact, job_address:builder_state->jobAddress, accounts(name, phone)")
+    const { data, error } = await realOnly(db.from("estimates")
+      .select("id, title, sent_at, snap_name:sent_snapshot->>contactName, snap_address:sent_snapshot->>jobAddress, contact:builder_state->contact, job_address:builder_state->jobAddress, accounts(name, phone)"))
       .eq("status", "sent").gte("sent_at", from).lt("sent_at", to)
       .order("sent_at", { ascending: true }).limit(200);
     if (error) throw error;
@@ -224,7 +225,7 @@ export async function sendPrestartReminders(db: SupabaseClient, now: Date, opts:
 
     const after = windows[0].after;
     const through = windows[windows.length - 1].through;
-    const jobs = await db.from("work_orders").select("id, wo_ref, start_date")
+    const jobs = await realOnly(db.from("work_orders").select("id, wo_ref, start_date"))
       .in("stage", ["offered", "pre_start"]).gt("start_date", after).lte("start_date", through).limit(500);
     if (jobs.error) throw jobs.error;
     const list = (jobs.data ?? []) as { id: string; wo_ref: string | null; start_date: string }[];

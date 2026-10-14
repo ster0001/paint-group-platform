@@ -30,6 +30,7 @@ import type { MessageContext } from "@/lib/messaging/record";
 import { reportError } from "@/lib/monitoring/report";
 import { createServiceClient } from "@/lib/supabase/service";
 import { stillNeeded } from "./stillNeeded";
+import { realOnly } from "@/lib/demo/scope";
 
 export type AutomationSend = {
   key: string;
@@ -82,8 +83,8 @@ export type HoldRow = {
 async function sentTodayFor(db: SupabaseClient, accountId: string | null | undefined, now: Date): Promise<number | null> {
   if (!accountId) return null;
   try {
-    const { data } = await db.from("messages")
-      .select("meta")
+    const { data } = await realOnly(db.from("messages")
+      .select("meta"))
       .eq("account_id", accountId).eq("direction", "out").eq("status", "sent")
       .gte("occurred_at", melbourneDayStart(now).toISOString())
       .not("meta->>automation", "is", null)

@@ -89,7 +89,7 @@ export default async function MyStatusPage() {
 
       <div className="card" data-testid="tips">
         <div className="eyebrow">What to do next</div>
-        <ol className="clean">{tipsFor(status.colour, weakest, lead).map((t) => <li key={t}>{t}</li>)}</ol>
+        <ol className="clean">{tipsFor(status.colour, weakest).map((t) => <li key={t}>{t}</li>)}</ol>
       </div>
 
       <details className="card">

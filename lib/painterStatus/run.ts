@@ -7,6 +7,7 @@ import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { evaluatePainter, mergeStatusRules, type Colour, type JobFacts, type PainterFacts, type StatusRules } from "./evaluate";
 import { notifyStatusChanged } from "./notify";
 import { staffBonusReview, staffPainterRed } from "@/lib/staff/notify";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * Facts in, rows out (brief Step 5). SERVER ONLY — the service client or a
@@ -167,7 +168,7 @@ export async function runPainterStatusSweep(db: SupabaseClient, opts: { since?: 
   const rules = await loadStatusRules(db);
   let ids: string[];
   if (opts.since) {
-    const { data, error } = await db.from("wo_events").select("work_order_id").gte("created_at", opts.since.toISOString()).limit(2000);
+    const { data, error } = await realOnly(db.from("wo_events").select("work_order_id")).gte("created_at", opts.since.toISOString()).limit(2000);
     if (error) { reportError(error, { where: "painterStatus.sweep.events" }); return { ran: 0, failed: 1, outcomes: [{ painterId: "-", ok: false, error: error.message }] }; }
     const woIds = [...new Set(((data ?? []) as { work_order_id: string }[]).map((e) => e.work_order_id))];
     if (woIds.length === 0) return { ran: 0, failed: 0, outcomes: [] };

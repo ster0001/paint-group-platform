@@ -27,6 +27,7 @@ import { loadDashboard as loadInvoicingDashboard, toDerive, toDerivePayments, ty
 import { effectiveRoles, isDashboardRole, type DashboardRole, type DashboardSection } from "./roles";
 import { loadReportingExclusions, without, type ReportingExclusions } from "./exclusions";
 import { loadContractorsView } from "@/lib/painterStatus/contractorsLoad";
+import { realOnly } from "@/lib/demo/scope";
 
 export async function loadRoles(supabase: SupabaseClient): Promise<DashboardRole[]> {
   const { data, error } = await supabase.rpc("dashboard_roles");
@@ -88,7 +89,7 @@ export async function loadEstimates(supabase: SupabaseClient, range: Range): Pro
   for (const col of ["sent_at", "accepted_at"] as const) {
     try {
       const rows = await fetchAllRows<EstimateRow>((from, to) =>
-        supabase.from("estimates").select(ESTIMATE_SELECT).gte(col, fromIso).lte(col, toIso).order(col, { ascending: false }).range(from, to));
+        realOnly(supabase.from("estimates").select(ESTIMATE_SELECT)).gte(col, fromIso).lte(col, toIso).order(col, { ascending: false }).range(from, to));
       for (const r of rows) byId.set(r.id, r);
     } catch (e) { failure(failures, `estimates by ${col}`, e); }
   }
@@ -124,8 +125,8 @@ async function loadAwaitingReply(supabase: SupabaseClient, failures: LoadFailure
 /** Signed-off jobs in the window, with the engine's estimate and every recorded cost — one read for the PC materials card AND the P&L. */
 async function loadClosedJobs(supabase: SupabaseClient, range: Range, failures: LoadFailure[]): Promise<ClosedJobRow[]> {
   const { fromIso, toIso } = windowOf(range);
-  const wos = await pageAll<WoRefRow>((from, to) => supabase.from("work_orders")
-    .select("id, wo_ref, estimate_id, stage, stage_entered_at, title:wo_snapshot->>jobTitle")
+  const wos = await pageAll<WoRefRow>((from, to) => realOnly(supabase.from("work_orders")
+    .select("id, wo_ref, estimate_id, stage, stage_entered_at, title:wo_snapshot->>jobTitle"))
     .eq("stage", "closed").gte("stage_entered_at", fromIso).lte("stage_entered_at", toIso).order("stage_entered_at", { ascending: false }).order("id").range(from, to));
   if (wos.error) { failure(failures, "signed-off jobs", wos.error); return []; }
   const jobs = (wos.data ?? []) as WoRefRow[];
@@ -199,15 +200,15 @@ async function loadContractorSlice(supabase: SupabaseClient, range: Range, failu
   const empty: ContractorSlice = { contractors: [], done: [], qaChecks: [], offers: [], variations: [], pendingExpenses: [], silentDays: 3, dayHours: 8 };
   const [contractors, doneEvents, qa, offers, variations, expenses, settings] = await Promise.all([
     supabase.from("contractors").select("id, company_name, works_saturday, works_sunday, profiles(name)").eq("active", true),
-    supabase.from("wo_events").select("work_order_id, created_at, work_orders(id, wo_ref, contractor_id, title:wo_snapshot->>jobTitle)")
+    realOnly(supabase.from("wo_events").select("work_order_id, created_at, work_orders(id, wo_ref, contractor_id, title:wo_snapshot->>jobTitle)"))
       .eq("type", "all_surfaces_done").gte("created_at", fromIso).lte("created_at", toIso).limit(1000),
-    supabase.from("wo_qa_checks").select("work_order_id, attempt_no, result, checked_at, work_orders(wo_ref, contractor_id)")
+    realOnly(supabase.from("wo_qa_checks").select("work_order_id, attempt_no, result, checked_at, work_orders(wo_ref, contractor_id)"))
       .not("result", "is", null).gte("checked_at", fromIso).lte("checked_at", toIso).limit(1000),
-    supabase.from("booking_offers").select("work_order_id, contractor_id, offered_at, accepted_at, work_orders(wo_ref)")
+    realOnly(supabase.from("booking_offers").select("work_order_id, contractor_id, offered_at, accepted_at, work_orders(wo_ref)"))
       .eq("state", "accepted").gte("accepted_at", fromIso).lte("accepted_at", toIso).limit(1000),
-    supabase.from("wo_variations").select("work_order_id, created_at, status, work_orders(wo_ref, contractor_id)")
+    realOnly(supabase.from("wo_variations").select("work_order_id, created_at, status, work_orders(wo_ref, contractor_id)"))
       .gte("created_at", fromIso).lte("created_at", toIso).limit(1000),
-    supabase.from("contractor_expenses").select("id, work_order_id, contractor_id, amount_cents, created_at, category, work_orders(wo_ref)")
+    realOnly(supabase.from("contractor_expenses").select("id, work_order_id, contractor_id, amount_cents, created_at, category, work_orders(wo_ref)"))
       .eq("status", "submitted").limit(500),
     supabase.from("settings").select("key, value").in("key", ["dashboard_silent_contractor_days", "worked_day_hours"]),
   ]);
@@ -278,7 +279,7 @@ async function loadSalesSlice(supabase: SupabaseClient, range: Range, viewer: Vi
     // Targets are owner/admin only (RLS) — a sales login reads an empty list, and the card is not rendered for them.
     supabase.from("sales_targets").select("month, target_cents").is("category_label", null).is("salesperson_id", null).gte("month", historyFrom.slice(0, 10)),
     fetchAllRows<HistoryRow>((from, to) =>
-      supabase.from("estimates").select("id, accepted_at, accepted_total_cents, total_cents").eq("status", "accepted").gte("accepted_at", historyFrom).order("accepted_at").range(from, to)).then((rows) => ({ data: rows, error: null as null | { message: string } })).catch((e: unknown) => ({ data: [] as HistoryRow[], error: { message: e instanceof Error ? e.message : String(e) } })),
+      realOnly(supabase.from("estimates").select("id, accepted_at, accepted_total_cents, total_cents")).eq("status", "accepted").gte("accepted_at", historyFrom).order("accepted_at").range(from, to)).then((rows) => ({ data: rows, error: null as null | { message: string } })).catch((e: unknown) => ({ data: [] as HistoryRow[], error: { message: e instanceof Error ? e.message : String(e) } })),
     // 20270186: the months recorded from PaintScout — small, every staff login may read them.
     supabase.from("sales_history_months").select("month, sales_cents, accepted, source").order("month"),
   ]);
@@ -321,7 +322,7 @@ async function loadActivitySlice(supabase: SupabaseClient, range: Range, roles: 
   const { fromIso, toIso } = windowOf(range);
   type EvRow = { id: string; type: string; payload: Record<string, unknown> | null; occurred_at: string; source: string; account_id: string | null; accounts: { name: string | null } | null };
   // A feed, not a figure: the newest 5,000 events of the window are enough for the timeline, and the slice says when there were more.
-  const ev = await pageAll<EvRow>((from, to) => supabase.from("crm_events").select("id, type, payload, occurred_at, source, account_id, accounts(name)")
+  const ev = await pageAll<EvRow>((from, to) => realOnly(supabase.from("crm_events").select("id, type, payload, occurred_at, source, account_id, accounts(name)"))
     .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).order("id").range(from, to), 5);
   if (ev.error) { failure(failures, "activity", ev.error); return { events: [], roles, family: viewer.family ?? null, q: viewer.q ?? null }; }
   return {
@@ -359,7 +360,7 @@ async function loadInvoicingSlice(supabase: SupabaseClient, range: Range, now: D
   return {
     invoices: toDerive(rows),
     payments: toDerivePayments(dash.payments),
-    contractorInvoices: dash.contractorInvoices.map((c) => ({ id: c.id, number: c.number, status: c.status, totalIncCents: c.total_inc_cents, dueOn: c.due_on, contractor: c.contractors?.company_name ?? "", wo_ref: c.work_orders?.wo_ref ?? "", submitted_at: c.submitted_at })),
+    contractorInvoices: dash.contractorInvoices.map((c) => ({ id: c.id, number: c.number, status: c.status, rcti: c.rcti ?? null, totalIncCents: c.total_inc_cents, dueOn: c.due_on, contractor: c.contractors?.company_name ?? "", wo_ref: c.work_orders?.wo_ref ?? "", submitted_at: c.submitted_at })),
     invoiceInfo,
     paymentsInWindow: pays.data.filter((p) => p.paid_on).map((p) => ({
       paid_on: p.paid_on as string, amount_cents: p.amount_cents, method: p.method ?? "other", invoice_id: p.invoice_id,
@@ -389,12 +390,12 @@ async function loadPlSlice(supabase: SupabaseClient, range: Range, closedJobs: C
   const val = (key: string) => numericSettingValue(((settings.data ?? []) as { key: string; value: unknown }[]).find((s) => s.key === key)?.value);
   // Repeat customers: an account accepted in the window whose EARLIEST acceptance anywhere is before
   // the one in the window — an earlier acceptance inside the comparison period counts too (20 Sep audit).
-  const accepted = await pageAll<{ account_id: string; accepted_at: string }>((from, to) => supabase.from("estimates").select("account_id, accepted_at").eq("status", "accepted").gte("accepted_at", fromIso).lte("accepted_at", toIso).not("account_id", "is", null).order("accepted_at").order("id").range(from, to));
+  const accepted = await pageAll<{ account_id: string; accepted_at: string }>((from, to) => realOnly(supabase.from("estimates").select("account_id, accepted_at")).eq("status", "accepted").gte("accepted_at", fromIso).lte("accepted_at", toIso).not("account_id", "is", null).order("accepted_at").order("id").range(from, to));
   if (accepted.error) failure(failures, "accepted estimates", accepted.error);
   const latestInWindow = new Map<string, string>();
   for (const e of accepted.data) if (!latestInWindow.has(e.account_id) || e.accepted_at > latestInWindow.get(e.account_id)!) latestInWindow.set(e.account_id, e.accepted_at);
   const accountIds = [...latestInWindow.keys()];
-  const earliest = accountIds.length ? await inSlices(accountIds, (s) => supabase.from("estimates").select("account_id, accepted_at").eq("status", "accepted").in("account_id", s).order("accepted_at")) : { rows: [], error: null };
+  const earliest = accountIds.length ? await inSlices(accountIds, (s) => realOnly(supabase.from("estimates").select("account_id, accepted_at")).eq("status", "accepted").in("account_id", s).order("accepted_at")) : { rows: [], error: null };
   if (earliest.error) failure(failures, "earlier acceptances", earliest.error);
   const firstEver = new Map<string, string>();
   for (const e of (earliest.rows ?? []) as { account_id: string; accepted_at: string }[]) if (!firstEver.has(e.account_id) || e.accepted_at < firstEver.get(e.account_id)!) firstEver.set(e.account_id, e.accepted_at);

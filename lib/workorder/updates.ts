@@ -30,11 +30,20 @@ export type DraftInput = {
   now: Date;
 };
 
-/** Morning before 12, afternoon to 6, evening after. */
-export function greeting(now: Date, firstName: string): string {
-  const hour = now.getHours();
-  const part = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  return firstName ? `${part} ${firstName}` : part;
+/**
+ * "Hi Melissa". The name only — never "Good morning"/"Good evening" (Tom, 14
+ * Oct 2026): the draft is composed at the moment of the tick but READ by the
+ * customer whenever the office sends it, so a time-of-day greeting was wrong
+ * as often as it was right. The email and text carry the greeting from here,
+ * not their own (see sendUpdate.ts, `opensWithGreeting`).
+ */
+export function greeting(_now: Date, firstName: string): string {
+  return firstName ? `Hi ${firstName}` : "Hi there";
+}
+
+/** True when a draft already greets the customer, so delivery must not add a second "Hello". */
+export function opensWithGreeting(text: string): boolean {
+  return /^\s*(hi|hello|hey|dear|good (morning|afternoon|evening))\b/i.test(text);
 }
 
 /** "the walls, the windows and the entry door" */

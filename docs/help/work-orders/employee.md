@@ -8,7 +8,7 @@ verified_at_commit: 780c451640
 ---
 
 ## What this is for
-Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is where the work is recorded. You tick each surface as you prep and finish it, photograph before and after, raise anything you find that is outside the job sheet, answer the finishing-up questions, and at the end hand the phone to the customer to sign. The office and the customer see progress from what you tick. Everything here is identical to a contractor's job, except that nothing on an employee's job sheet carries a price.
+Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is where the work is recorded. Anything counted per item (doors, windows, posts) says how many on the job sheet and its tick row, as **Doors × 4** (jobs issued since 14 Oct 2026). You tick each surface as you prep and finish it, photograph before and after, raise anything you find that is outside the job sheet, answer the finishing-up questions, and at the end hand the phone to the customer to sign. The office and the customer see progress from what you tick. Everything here is identical to a contractor's job, except that nothing on an employee's job sheet carries a price.
 
 ## Before you start
 - The job is on your **Jobs** tab with your days and a time budget — see [Your assigned jobs](../scheduling/employee.md). Tap **Accept** first so the office knows you have seen it.
@@ -36,6 +36,12 @@ Near the top of the job sheet, above the scope, a **From the office** section ho
 Above the materials, **Further instructions for the crew** is the office's note for this job — access, where to start, anything to watch for. The office can update it after the job has gone out, and the job sheet always shows the latest version, so look again before you start.
 
 On a job that came in from PaintScout these are often the only photos there are, so check them before you start. They can be added after the job is booked, so look again on the morning. They are separate from the photos you take, which stay under **Site photos**.
+
+
+### How much paint to buy
+Each paint in **Materials & colours** shows three figures. The big one is the **order** in litres. Under it are the **cans** that make it up, from the 15, 10, 4, 2 and 1 L sizes the trade counter sells, for example **10 L + 2 L + 1 L**. Under that is the **Estimate**, the litres the estimate allowed to one decimal place, wastage included. The order is the estimate **rounded down** to whole litres, so it is never more than the estimate. A paint the job needs any of is at least one 1 L can. If you run short on site, tell the office.
+
+Each area of the scope ends with **Materials for this area · estimate**: the paint that room or elevation needs, by product and colour, in litres. Use it to check an area or to buy for one area on its own. Job sheets issued before 13 Oct 2026 don't show the area lists, and their order figures may still be rounded up.
 
 ### Photos and notes from site
 6. **Got a question, or found something?** is the card under the steps, for questions only: a photo of an item you are unsure about and a short note for the office. Before / progress photos go in Step 1 and after photos in Step 3, not here.

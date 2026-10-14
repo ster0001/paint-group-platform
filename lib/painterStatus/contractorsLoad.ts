@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { reportError } from "@/lib/monitoring/report";
 import { loadStandardsStatuses } from "@/lib/standards/status";
 import { buildContractorsView, type ContractorsInputs, type ContractorsView } from "./contractorsView";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * The inputs of the Contractors view, in one round of reads, for a staff
@@ -17,10 +18,10 @@ export async function loadContractorsView(db: SupabaseClient, now = new Date()):
     db.from("painter_status").select("painter_id, colour, line, streak, best_streak, bonus_counter, measures, offers_cleared_at, computed_at"),
     db.from("contractor_events").select("contractor_id, created_at, detail").eq("type", "status_changed").gte("created_at", since).order("created_at", { ascending: false }).limit(1000),
     db.from("painter_bonuses").select("id, painter_id, status, amount_cents, decided_at, triggered_at"),
-    db.from("wo_callbacks").select("id, painter_id, work_order_id, status, work_orders(wo_ref)").in("status", ["open", "booked", "fixed"]),
+    realOnly(db.from("wo_callbacks").select("id, painter_id, work_order_id, status, work_orders(wo_ref)")).in("status", ["open", "booked", "fixed"]),
     loadStandardsStatuses(db),
-    db.from("painter_job_results").select("painter_id, work_order_id, result, reasons, hours, signed_on, work_orders(wo_ref, wo_snapshot)").neq("result", "pending").order("signed_on", { ascending: false }).limit(2000),
-    db.from("work_orders").select("id, wo_ref, stage, contractor_id, wo_snapshot").not("contractor_id", "is", null).in("stage", ["pre_start", "in_progress", "qa", "walkthrough", "completion_prep", "closed"]).order("created_at", { ascending: false }).limit(600),
+    realOnly(db.from("painter_job_results").select("painter_id, work_order_id, result, reasons, hours, signed_on, work_orders(wo_ref, wo_snapshot)")).neq("result", "pending").order("signed_on", { ascending: false }).limit(2000),
+    realOnly(db.from("work_orders").select("id, wo_ref, stage, contractor_id, wo_snapshot")).not("contractor_id", "is", null).in("stage", ["pre_start", "in_progress", "qa", "walkthrough", "completion_prep", "closed"]).order("created_at", { ascending: false }).limit(600),
   ]);
   const failures: string[] = [];
   for (const [label, r] of [["painters", painters], ["painter status", statuses], ["status history", changes], ["call backs", callbacks], ["job results", results], ["jobs", jobs]] as const) {

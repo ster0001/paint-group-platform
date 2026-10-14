@@ -32,6 +32,8 @@ export default function FinishDate({
   const planned = finalDate ?? endDate;
   const [editing, setEditing] = useState(false);
   const [date, setDate] = useState(planned ?? "");
+  // Ruling 4 (14 Oct): a reason goes with the new date — logged with it, shown to the office.
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -41,9 +43,9 @@ export default function FinishDate({
   async function save() {
     if (!date) { setMessage("Pick a date first."); return; }
     setBusy(true); setMessage(null);
-    const r = await setFinishDate({ workOrderId, date });
+    const r = await setFinishDate({ workOrderId, date, reason });
     setBusy(false);
-    if (r.ok) { setEditing(false); setMessage("Date moved — the office and the calendar have it."); router.refresh(); }
+    if (r.ok) { setEditing(false); setReason(""); setMessage("Date moved — the office and the calendar have it."); router.refresh(); }
     else setMessage(r.message);
   }
 
@@ -84,6 +86,9 @@ export default function FinishDate({
           <input ref={ref} type="date" value={date} min={startDate ?? undefined}
             onChange={(e) => setDate(e.target.value)} data-testid="finish-date-input"
             style={{ fontSize: 14, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--graphite)", color: "var(--text)" }} />
+          <input type="text" value={reason} maxLength={300} placeholder="Why? e.g. Extra prep in the hallway"
+            onChange={(e) => setReason(e.target.value)} data-testid="finish-date-reason"
+            style={{ flex: "1 1 100%", fontSize: 14, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--graphite)", color: "var(--text)" }} />
           <button type="button" className="btn narrow cy" disabled={busy} onClick={() => void save()} data-testid="finish-date-save">
             {busy ? "Saving…" : "Save date"}
           </button>

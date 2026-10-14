@@ -7,6 +7,7 @@ import { isEmploymentType } from "@/lib/painters/capabilities";
 import ContractorsManager, { type BankAlert, type ContractorSummary, type InviteRow } from "./ContractorsManager";
 import { loadStandardsStatuses } from "@/lib/standards/status";
 import { staffStatusLine } from "@/lib/standards/acks";
+import { realOnly } from "@/lib/demo/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export default async function ContractorsPage() {
       .order("created_at", { ascending: false }),
     // Only the states this page counts — it was reading every offer ever made
     // to work out two numbers per contractor (audit S6).
-    supabase.from("booking_offers").select("contractor_id, state").in("state", ["offered", "proposed", "accepted"]),
+    realOnly(supabase.from("booking_offers").select("contractor_id, state")).in("state", ["offered", "proposed", "accepted"]),
     // Bank changes staff haven't looked at yet. Degrades to null (no banner)
     // until migration 20260906000000 adds acknowledged_at.
     supabase

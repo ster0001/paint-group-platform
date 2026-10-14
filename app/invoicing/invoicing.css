@@ -1,3 +1,7 @@
+/* Payments merge Step 8d: the old dashboard and job-view rules are gone with their pages.
+   What remains is the shell (.invx: tokens, header, logo, theme button) and the invoice
+   document's rules, scoped to .invdoc (app/invoicing/inv/[id]). The Payments page and the
+   job panel are styled by app/invoicing/payments/payments.css alone. */
 /* Invoicing — the three §7 mockups' chrome, 1:1, one scope.
    Sources: design/reference/invoice-view-mockup.html (§7.1),
    invoicing-dashboard-mockup.html (§7.2), invoice-document-mockup.html (§7.3).
@@ -15,12 +19,12 @@
   background:var(--ink); color:var(--text); font-family:var(--sans);
   -webkit-font-smoothing:antialiased; min-height:100vh;
 }
-.invx *{box-sizing:border-box;margin:0;padding:0}
-.invx .wrap{max-width:1080px;margin:0 auto;padding:0 20px 104px}
+.invx .invdoc *{box-sizing:border-box;margin:0;padding:0}
+.invx .invdoc .wrap{max-width:1080px;margin:0 auto;padding:0 20px 104px}
 /* Desktop-first (Tom, 24 Aug): the Payments screens breathe at full width;
    phones still get the single column via the same fluid rules. */
-@media (max-width:720px){.invx .wrap{padding:0 0 104px}}
-.invx .mono{font-family:var(--mono)}
+@media (max-width:720px){.invx .invdoc .wrap{padding:0 0 104px}}
+.invx .invdoc .mono{font-family:var(--mono)}
 /* Tom, 8 Sep: the logo top-left is the way home; the theme button beside it. */
 .invx .invtop{max-width:1080px;margin:0 auto;padding:14px 36px 0;display:flex;align-items:center;gap:12px}
 @media (max-width:720px){.invx .invtop{padding:12px 16px 0}}
@@ -31,311 +35,132 @@
 .invx[data-theme="light"] .homelogo-dark{display:none}
 .invx[data-theme="light"] .homelogo-light{display:block}
 .invx .hometext{font-size:15px;font-weight:600;letter-spacing:-.02em;white-space:nowrap}
-.invx .homedot{color:var(--cyan)}
 .invx .homesuffix{font-size:15px;font-weight:500;color:var(--muted);white-space:nowrap}
 .invx .homesuffix::before{content:"· "}
 .invx .themebtn{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 10px;background:none;cursor:pointer}
 .invx .themebtn:hover{border-color:var(--cyan);color:var(--cyan)}
-.invx a{color:inherit;text-decoration:none}
+.invx .invdoc a{color:inherit;text-decoration:none}
 
 /* ---------- header ---------- */
-.invx header{padding:18px 16px 0}
-.invx .crumb{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;font-weight:500}
-.invx .crumb .chev{color:var(--cyan)}
-.invx h1{font-size:21px;font-weight:700;letter-spacing:-.02em;margin-top:8px}
-.invx .sub{color:var(--muted);font-size:13px;margin-top:2px;font-weight:500}
+.invx .invdoc header{padding:18px 16px 0}
+.invx .invdoc .crumb{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;font-weight:500}
+.invx .invdoc .crumb .chev{color:var(--cyan)}
+.invx .invdoc h1{font-size:21px;font-weight:700;letter-spacing:-.02em;margin-top:8px}
+.invx .invdoc .sub{color:var(--muted);font-size:13px;margin-top:2px;font-weight:500}
 
 /* ---------- chips ---------- */
-.invx .chip{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+.invx .invdoc .chip{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
   padding:4px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);vertical-align:2px}
-.invx .chip.paid{color:var(--emerald);border-color:rgba(47,164,107,.4)}
-.invx .chip.awaiting,.invx .chip.draft{color:var(--amber);border-color:rgba(224,168,60,.4)}
-.invx .chip.sent,.invx .chip.viewed{color:var(--cyan);border-color:rgba(59,216,233,.4)}
-.invx .chip.overdue{color:var(--clay);border-color:rgba(179,87,74,.45)}
-
-/* ---------- §7.1 payment progress bar ---------- */
-.invx .stages{display:flex;gap:6px;margin:16px 16px 0}
-.invx .stage{flex:1;border-radius:8px;padding:8px 9px;border:1px solid var(--line);background:var(--graphite)}
-.invx .stage .bar{height:4px;border-radius:2px;background:var(--line);margin-bottom:7px}
-.invx .stage .lab{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.invx .stage .val{font-family:var(--mono);font-size:11px;margin-top:3px;color:var(--text)}
-.invx .stage.paid .bar{background:var(--emerald)}
-.invx .stage.paid .lab{color:var(--emerald)}
-.invx .stage.awaiting{border-color:rgba(59,216,233,.35)}
-.invx .stage.awaiting .bar{background:var(--cyan)}
-.invx .stage.awaiting .lab{color:var(--cyan)}
-.invx .stage.draft{border-color:rgba(224,168,60,.35)}
-.invx .stage.draft .bar{background:var(--amber)}
-.invx .stage.draft .lab{color:var(--amber)}
-.invx .stage.overdue{border-color:rgba(179,87,74,.45)}
-.invx .stage.overdue .bar{background:var(--clay)}
-.invx .stage.overdue .lab{color:var(--clay)}
-.invx .stage.upcoming .bar{background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 10px)}
-.invx .stage.upcoming .val{color:var(--muted)}
-
-/* ---------- §7.1 money strip ---------- */
-.invx .strip{display:grid;grid-template-columns:repeat(5,1fr);margin:14px 16px 0;border:1px solid var(--line);border-radius:12px;background:var(--graphite);overflow:hidden}
-.invx .cell{padding:10px 6px 11px;text-align:center;border-left:1px solid var(--line)}
-.invx .cell:first-child{border-left:0}
-.invx .cell .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-.invx .cell .v{font-family:var(--mono);font-size:12.5px;font-weight:600;margin-top:5px}
-.invx .cell.bal{background:var(--raised)}
-.invx .cell.bal .v{color:var(--cyan)}
-.invx .cell .v.plus{color:var(--emerald)}
-
-/* ---------- tabs ---------- */
-.invx nav.tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;margin-top:18px;padding:10px 16px;background:linear-gradient(var(--ink) 75%,transparent);backdrop-filter:blur(6px)}
-.invx nav.tabs button,.invx nav.tabs a{flex:1;appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--muted);
-  font-family:var(--sans);font-size:13.5px;font-weight:600;padding:9px 0;border-radius:10px;cursor:pointer;text-align:center}
-.invx nav.tabs button.on,.invx nav.tabs a.on{background:var(--cyan);border-color:var(--cyan);color:var(--on-cyan)}
-.invx section.tab{display:none;padding:6px 16px 0}
-.invx section.tab.on{display:block}
+.invx .invdoc .chip.paid{color:var(--emerald);border-color:rgba(47,164,107,.4)}
+.invx .invdoc .chip.draft{color:var(--amber);border-color:rgba(224,168,60,.4)}
+.invx .invdoc .chip.sent,.invx .invdoc .chip.viewed{color:var(--cyan);border-color:rgba(59,216,233,.4)}
+.invx .invdoc .chip.overdue{color:var(--clay);border-color:rgba(179,87,74,.45)}
 
 /* ---------- cards, feed ---------- */
-.invx .card{border:1px solid var(--line);border-radius:14px;background:var(--graphite);padding:14px;margin-top:12px}
-.invx .card.raised{background:var(--raised)}
-.invx .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.invx h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
-.invx .hint{color:var(--muted);font-size:12.5px;line-height:1.45;font-weight:500}
-.invx .feed{margin-top:6px}
-.invx .ev{display:flex;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line)}
-.invx .ev:last-child{border-bottom:0}
-.invx .dot{width:8px;height:8px;border-radius:50%;background:var(--line);margin-top:5px;flex:none}
-.invx .dot.emerald{background:var(--emerald)} .invx .dot.cyan{background:var(--cyan)}
-.invx .dot.amber{background:var(--amber)} .invx .dot.clay{background:var(--clay)}
-.invx .ev .t{font-size:13.5px;font-weight:500}
-.invx .ev .m{color:var(--muted);font-size:11.5px;margin-top:2px;font-family:var(--mono)}
+.invx .invdoc .card{border:1px solid var(--line);border-radius:14px;background:var(--graphite);padding:14px;margin-top:12px}
+.invx .invdoc h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.invx .invdoc .hint{color:var(--muted);font-size:12.5px;line-height:1.45;font-weight:500}
 
 /* ---------- §7.1 invoice cards ---------- */
-.invx .inv .num{font-family:var(--mono);font-size:12px;color:var(--muted)}
-.invx .inv .amt{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:6px}
-.invx .inv .meta{display:flex;gap:14px;margin-top:8px}
-.invx .inv .meta div{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
-.invx .inv .meta b{color:var(--text);font-weight:500;display:block;margin-top:2px}
-.invx .inv .acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
-.invx .mini{appearance:none;border:1px solid var(--line);background:var(--ink);color:var(--text);
-  font-family:var(--sans);font-size:12px;font-weight:600;padding:7px 11px;border-radius:9px;cursor:pointer;text-align:center}
-.invx .mini.cy{border-color:rgba(59,216,233,.4);color:var(--cyan)}
-.invx .mini:disabled{opacity:.45;cursor:default}
 
-/* ---------- §7.1 costs ---------- */
-.invx .grp .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
-.invx .kv{display:flex;justify-content:space-between;margin-top:9px;font-family:var(--mono);font-size:11px;color:var(--muted)}
-.invx .kv b{color:var(--text);font-weight:500}
+.invx .invdoc .mini{appearance:none;border:1px solid var(--line);background:var(--ink);color:var(--text);
+  font-family:var(--sans);font-size:12px;font-weight:600;padding:7px 11px;border-radius:9px;cursor:pointer;text-align:center}
+.invx .invdoc .mini.cy{border-color:rgba(59,216,233,.4);color:var(--cyan)}
+.invx .invdoc .mini:disabled{opacity:.45;cursor:default}
 
 /* ---------- primary action bar + sheet ---------- */
-.invx .actions{position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;display:flex;gap:10px;
+.invx .invdoc .actions{position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;display:flex;gap:10px;
   padding:12px 16px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--ink) 40%);z-index:8}
-.invx .btn{flex:1;appearance:none;border:0;border-radius:12px;padding:14px 0;font-family:var(--sans);font-size:14.5px;font-weight:700;cursor:pointer;text-align:center}
-.invx .btn.primary{background:var(--cyan);color:var(--on-cyan)}
-.invx .btn.ghost{background:var(--raised);color:var(--text);border:1px solid var(--line)}
-.invx .btn:disabled{opacity:.5;cursor:default}
-.invx .scrim{position:fixed;inset:0;background:rgba(4,5,6,.72);opacity:0;pointer-events:none;transition:opacity .18s;z-index:9}
-.invx .sheet{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;background:var(--raised);
+.invx .invdoc .btn{flex:1;appearance:none;border:0;border-radius:12px;padding:14px 0;font-family:var(--sans);font-size:14.5px;font-weight:700;cursor:pointer;text-align:center}
+.invx .invdoc .btn.primary{background:var(--cyan);color:var(--on-cyan)}
+.invx .invdoc .btn.ghost{background:var(--raised);color:var(--text);border:1px solid var(--line)}
+.invx .invdoc .btn:disabled{opacity:.5;cursor:default}
+.invx .invdoc .scrim{position:fixed;inset:0;background:rgba(4,5,6,.72);opacity:0;pointer-events:none;transition:opacity .18s;z-index:9}
+.invx .invdoc .sheet{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;background:var(--raised);
   border:1px solid var(--line);border-bottom:0;border-radius:18px 18px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom));
   transform:translateY(105%);transition:transform .22s cubic-bezier(.3,.9,.3,1);z-index:10}
 .invx.sheet-open .scrim{opacity:1;pointer-events:auto}
 .invx.sheet-open .sheet{transform:none}
-.invx .sheet h3{margin-bottom:4px}
-.invx .chips{display:flex;gap:8px;margin-top:14px}
-.invx .pchip{flex:1;appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--text);
+.invx .invdoc .sheet h3{margin-bottom:4px}
+.invx .invdoc .chips{display:flex;gap:8px;margin-top:14px}
+.invx .invdoc .pchip{flex:1;appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--text);
   font-family:var(--mono);font-size:13px;padding:11px 0;border-radius:10px;cursor:pointer}
-.invx .pchip.on{background:var(--cyan);border-color:var(--cyan);color:var(--on-cyan);font-weight:600}
-.invx .preview{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:12px 14px}
-.invx .preview .k{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.invx .preview .v{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--cyan);margin-top:5px}
-.invx .preview .g{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:4px}
-.invx .sheet .field-date{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;font-size:13px;color:var(--muted)}
-.invx .sheet .field-date input[type="date"]{appearance:none;-webkit-appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;color-scheme:dark}
-.invx[data-theme="light"] .sheet .field-date input[type="date"]{color-scheme:light}
-.invx .sheet input[type="number"],.invx .sheet input[type="text"]{width:100%;margin-top:12px;appearance:none;
+.invx .invdoc .pchip.on{background:var(--cyan);border-color:var(--cyan);color:var(--on-cyan);font-weight:600}
+.invx .invdoc .sheet .field-date{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;font-size:13px;color:var(--muted)}
+.invx .invdoc .sheet .field-date input[type="date"]{appearance:none;-webkit-appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;color-scheme:dark}
+.invx[data-theme="light"]:not(:has(.pm)) .sheet .field-date input[type="date"]{color-scheme:light}
+.invx .invdoc .sheet input[type="number"],.invx .invdoc .sheet input[type="text"]{width:100%;margin-top:12px;appearance:none;
   border:1px solid var(--line);background:var(--graphite);color:var(--text);font-family:var(--mono);
   font-size:14px;padding:11px 12px;border-radius:10px}
-.invx .note{margin:26px 16px 0;color:var(--muted);font-size:11px;font-family:var(--mono);text-align:center;line-height:1.6}
-
-/* ---------- §7.2 pulse tiles ---------- */
-.invx .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 16px 0}
-.invx .tile{border:1px solid var(--line);border-radius:13px;background:var(--graphite);padding:12px 13px;position:relative;overflow:hidden}
-.invx .tile .k{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.invx .tile .v{font-family:var(--mono);font-size:19px;font-weight:600;margin-top:7px}
-.invx .tile .m{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px}
-.invx .tile.overdue{border-color:rgba(179,87,74,.5)}
-.invx .tile.overdue .v{color:var(--clay)}
-.invx .tile.week .v{color:var(--amber)}
-.invx .tile.collected{border-color:rgba(47,164,107,.4)}
-.invx .tile.collected .v{color:var(--emerald)}
-.invx .spark{position:absolute;right:10px;bottom:10px;display:flex;align-items:flex-end;gap:2px;height:20px;opacity:.85}
-.invx .spark i{width:4px;border-radius:2px;background:var(--emerald);min-height:2px}
+.invx .invdoc .note{margin:26px 16px 0;color:var(--muted);font-size:11px;font-family:var(--mono);text-align:center;line-height:1.6}
 
 /* Tom, 17 Sep: the staff chat dock (bottom-left) sat on the fixed action bar of
    an invoice on a phone — lift it above the bar's ~76px on narrow screens. */
 .invx { --dock-lift: 76px; }
 @media (min-width: 768px) { .invx { --dock-lift: 0px; } }
 
-/* ---------- search box (Tom, 17 Sep: by customer name or address) ---------- */
-.invx .search{display:flex;gap:8px;align-items:center;padding:8px 0 2px}
-.invx .search input{flex:1;min-width:0;appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--text);
-  font:inherit;font-size:13px;padding:9px 12px;border-radius:10px;outline:none}
-.invx .search input:focus{border-color:var(--cyan)}
-.invx .search input::placeholder{color:var(--muted)}
-.invx .search button{appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--muted);
-  font-family:var(--mono);font-size:10.5px;padding:8px 11px;border-radius:999px;cursor:pointer}
-.invx .r .job .who{font-weight:400;color:var(--muted)}
-
-/* ---------- §7.2 filter chips + rows ---------- */
-.invx .filters{display:flex;gap:6px;overflow-x:auto;padding:6px 0 2px;scrollbar-width:none}
-.invx .filters::-webkit-scrollbar{display:none}
-.invx .f{appearance:none;flex:none;border:1px solid var(--line);background:var(--graphite);color:var(--muted);
-  font-family:var(--mono);font-size:10.5px;padding:7px 11px;border-radius:999px;cursor:pointer}
-.invx .f b{color:var(--text);font-weight:500;margin-left:4px}
-.invx .f.on{background:var(--raised);border-color:var(--cyan);color:var(--cyan)}
-.invx .f.on b{color:var(--cyan)}
-/* Tom, 29 Sep: labelled filter rows (Views / Status / Milestone / Due) + the sum over what is showing */
-.invx .filters .fl{flex:none;align-self:center;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);min-width:64px}
-.invx .filters.views .f{border-style:dashed}
-.invx .filters.views .f.on{border-style:solid}
-.invx .sumline{display:flex;gap:10px;align-items:center;padding:8px 2px 0;font-family:var(--mono);font-size:11px;color:var(--muted)}
-.invx .sumline b{color:var(--text);font-size:13px;font-weight:600}
-.invx .rows{margin-top:8px}
-.invx .r{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:13px;background:var(--graphite);
-  padding:12px 13px;margin-top:9px;cursor:pointer}
-.invx .r .body{flex:1;min-width:0}
-.invx .r .job{font-size:14.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.invx .r .ref{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:3px}
-.invx .r .age{font-family:var(--mono);font-size:10px;margin-top:5px;color:var(--muted)}
-.invx .r .age.clay{color:var(--clay)} .invx .r .age.amber{color:var(--amber)}
-.invx .r .age.cyan{color:var(--cyan)} .invx .r .age.emerald{color:var(--emerald)}
-.invx .r .right{text-align:right;flex:none}
-.invx .r .amt{font-family:var(--mono);font-size:14px;font-weight:600}
-.invx .dots{display:flex;gap:4px;justify-content:flex-end;margin-top:6px}
-.invx .d{width:7px;height:7px;border-radius:50%;border:1.5px solid var(--line)}
-.invx .d.paid{background:var(--emerald);border-color:var(--emerald)}
-.invx .d.open{border-color:var(--cyan)}
-.invx .r .go{color:var(--muted);flex:none}
-.invx .r.overdue{border-color:rgba(179,87,74,.5)}
-.invx .r.draft{border-style:dashed}
-
-/* ---------- §7.2 aged bar ---------- */
-.invx .agebar{display:flex;height:12px;border-radius:6px;overflow:hidden;margin-top:12px;background:var(--line)}
-.invx .agebar i{height:100%}
-.invx .agekeys{display:grid;grid-template-columns:repeat(5,1fr);margin-top:10px}
-.invx .agekeys div{text-align:center;font-family:var(--mono);font-size:8.5px;color:var(--muted);letter-spacing:.04em}
-.invx .agekeys b{display:block;font-size:10px;color:var(--text);font-weight:500;margin-bottom:3px}
-
 /* ---------- §7.3 the document ---------- */
-.invx .banner{display:flex;gap:10px;align-items:flex-start;margin:14px 16px 0;border:1px solid rgba(224,168,60,.4);
+.invx .invdoc .banner{display:flex;gap:10px;align-items:flex-start;margin:14px 16px 0;border:1px solid rgba(224,168,60,.4);
   border-radius:12px;background:var(--graphite);padding:11px 13px}
-.invx .banner .i{color:var(--amber);font-size:14px;line-height:1.3}
-.invx .banner p{font-size:12.5px;color:var(--muted);line-height:1.45;font-weight:500}
-.invx .banner b{color:var(--text);font-weight:600}
-.invx .banner .bacts{display:flex;gap:8px;margin-top:9px}
+.invx .invdoc .banner .i{color:var(--amber);font-size:14px;line-height:1.3}
+.invx .invdoc .banner p{font-size:12.5px;color:var(--muted);line-height:1.45;font-weight:500}
+.invx .invdoc .banner b{color:var(--text);font-weight:600}
+.invx .invdoc .banner .bacts{display:flex;gap:8px;margin-top:9px}
 /* A failed read, not a warning about the numbers — clay, so it never reads as routine. */
-.invx .banner.bad{border-color:rgba(179,87,74,.55)}
-.invx .banner.bad .i{color:var(--clay)}
-.invx .doc{margin:14px 16px 0;border:1px solid var(--line);border-radius:16px;background:var(--graphite);overflow:hidden}
-.invx .doc-head{padding:16px 15px 14px;border-bottom:1px solid var(--line)}
-.invx .brand{font-weight:700;font-size:16px;letter-spacing:.14em}
-.invx .brand span{color:var(--cyan)}
-.invx .brand-sub{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:3px}
-.invx .entity{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.7;margin-top:10px}
-.invx .doc-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:13px 15px;border-bottom:1px solid var(--line)}
-.invx .doc-meta .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.invx .doc-meta .v{font-size:13px;font-weight:600;margin-top:4px}
-.invx .doc-meta .v.mono{font-family:var(--mono);font-weight:500;font-size:12px}
-.invx .doc-meta .v small{display:block;color:var(--muted);font-weight:500;font-size:11.5px;margin-top:2px}
-.invx .grp-h{display:flex;justify-content:space-between;align-items:baseline;padding:13px 15px 4px}
-.invx .grp-h .t{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--cyan)}
+.invx .invdoc .banner.bad{border-color:rgba(179,87,74,.55)}
+.invx .invdoc .banner.bad .i{color:var(--clay)}
+.invx .invdoc .doc{margin:14px 16px 0;border:1px solid var(--line);border-radius:16px;background:var(--graphite);overflow:hidden}
+.invx .invdoc .doc-head{padding:16px 15px 14px;border-bottom:1px solid var(--line)}
+.invx .invdoc .brand{font-weight:700;font-size:16px;letter-spacing:.14em}
+.invx .invdoc .brand span{color:var(--cyan)}
+.invx .invdoc .brand-sub{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+.invx .invdoc .entity{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.7;margin-top:10px}
+.invx .invdoc .doc-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:13px 15px;border-bottom:1px solid var(--line)}
+.invx .invdoc .doc-meta .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.invx .invdoc .doc-meta .v{font-size:13px;font-weight:600;margin-top:4px}
+.invx .invdoc .doc-meta .v.mono{font-family:var(--mono);font-weight:500;font-size:12px}
+.invx .invdoc .doc-meta .v small{display:block;color:var(--muted);font-weight:500;font-size:11.5px;margin-top:2px}
+.invx .invdoc .grp-h{display:flex;justify-content:space-between;align-items:baseline;padding:13px 15px 4px}
+.invx .invdoc .grp-h .t{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--cyan)}
 /* text | pencil slot | amount — a GRID so every amount ends on the same right
    edge as the totals below, with or without a pencil (Tom, 17 Sep). */
-.invx .line{display:grid;grid-template-columns:1fr auto auto;align-items:start;gap:0 12px;padding:10px 15px;border-bottom:1px solid var(--line)}
-.invx .line:last-of-type{border-bottom:0}
-.invx .line .n{font-size:14px;font-weight:600;letter-spacing:-.01em}
-.invx .line .d2{color:var(--muted);font-size:12px;line-height:1.45;margin-top:3px;font-weight:500}
-.invx .line .a{font-family:var(--mono);font-size:13px;font-weight:600;flex:none;text-align:right;font-variant-numeric:tabular-nums;min-width:96px}
-.invx .line .edit{appearance:none;background:none;color:var(--muted);font-size:11px;flex:none;align-self:center;
+.invx .invdoc .line{display:grid;grid-template-columns:1fr auto auto;align-items:start;gap:0 12px;padding:10px 15px;border-bottom:1px solid var(--line)}
+.invx .invdoc .line:last-of-type{border-bottom:0}
+.invx .invdoc .line .n{font-size:14px;font-weight:600;letter-spacing:-.01em}
+.invx .invdoc .line .d2{color:var(--muted);font-size:12px;line-height:1.45;margin-top:3px;font-weight:500}
+.invx .invdoc .line .a{font-family:var(--mono);font-size:13px;font-weight:600;flex:none;text-align:right;font-variant-numeric:tabular-nums;min-width:96px}
+.invx .invdoc .line .edit{appearance:none;background:none;color:var(--muted);font-size:11px;flex:none;align-self:center;
   border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-family:var(--mono);cursor:pointer}
 /* an informational line on a draft keeps the pencil's width, not its box */
-.invx .line .edit.ghost{visibility:hidden;width:30px;padding:0;border:0}
-.invx .vline .appr{font-family:var(--mono);font-size:9.5px;color:var(--emerald);margin-top:4px}
-.invx .add-line{margin:10px 15px 14px;border:1px dashed var(--line);border-radius:10px;text-align:center;width:calc(100% - 30px);
+.invx .invdoc .line .edit.ghost{visibility:hidden;width:30px;padding:0;border:0}
+.invx .invdoc .vline .appr{font-family:var(--mono);font-size:9.5px;color:var(--emerald);margin-top:4px}
+.invx .invdoc .add-line{margin:10px 15px 14px;border:1px dashed var(--line);border-radius:10px;text-align:center;width:calc(100% - 30px);
   padding:10px;color:var(--cyan);font-size:13px;font-weight:600;cursor:pointer;background:none;appearance:none}
-.invx .totals{background:var(--raised);border-top:1px solid var(--line);padding:13px 15px}
-.invx .trow{display:flex;justify-content:space-between;padding:4px 0;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
-.invx .trow b{color:var(--text);font-weight:500}
-.invx .trow.big{padding-top:9px;margin-top:6px;border-top:1px solid var(--line)}
-.invx .trow.big span{font-family:var(--sans);font-size:14px;font-weight:700;color:var(--text)}
-.invx .trow.big b{font-size:16px;font-weight:600;color:var(--cyan)}
-.invx .recon{display:flex;gap:8px;align-items:center;margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--emerald)}
-.invx .recon.amber{color:var(--amber)}
-.invx .pay{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
-.invx .pay:last-of-type{border-bottom:0}
-.invx .pay .m{font-size:13.5px;font-weight:600}
-.invx .pay .s{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px}
-.invx .pay .amt{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--emerald);flex:none}
-.invx .payacts{display:flex;gap:8px;margin-top:12px}
-.invx .payacts .mini{flex:1}
-.invx .secacts{display:flex;gap:8px;margin:14px 16px 0}
-.invx .secacts .mini{flex:1}
+.invx .invdoc .totals{background:var(--raised);border-top:1px solid var(--line);padding:13px 15px}
+.invx .invdoc .trow{display:flex;justify-content:space-between;padding:4px 0;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.invx .invdoc .trow b{color:var(--text);font-weight:500}
+.invx .invdoc .trow.big{padding-top:9px;margin-top:6px;border-top:1px solid var(--line)}
+.invx .invdoc .trow.big span{font-family:var(--sans);font-size:14px;font-weight:700;color:var(--text)}
+.invx .invdoc .trow.big b{font-size:16px;font-weight:600;color:var(--cyan)}
+.invx .invdoc .recon{display:flex;gap:8px;align-items:center;margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--emerald)}
+.invx .invdoc .recon.amber{color:var(--amber)}
+.invx .invdoc .pay{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.invx .invdoc .pay:last-of-type{border-bottom:0}
+.invx .invdoc .pay .m{font-size:13.5px;font-weight:600}
+.invx .invdoc .pay .s{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px}
+.invx .invdoc .pay .amt{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--emerald);flex:none}
+.invx .invdoc .payacts{display:flex;gap:8px;margin-top:12px}
+.invx .invdoc .payacts .mini{flex:1}
+.invx .invdoc .secacts{display:flex;gap:8px;margin:14px 16px 0}
+.invx .invdoc .secacts .mini{flex:1}
 
-@media (prefers-reduced-motion:reduce){.invx .sheet,.invx .scrim{transition:none}}
-
-/* ---- Step 5: Payables ---- */
-.invx .ptiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
-@media (max-width: 520px) { .invx .ptiles { grid-template-columns: repeat(2, 1fr); } }
-.invx .chip.submitted { color: var(--amber, #e0a83c); border-color: rgba(224, 168, 60, 0.5); }
-.invx .chip.approved { color: var(--cyan, #3bd8e9); border-color: rgba(59, 216, 233, 0.5); }
-/* Materials to match — a count tile that is also the jump to its card. */
-.invx a.tile.match{display:block;color:inherit;text-decoration:none}
-.invx .tile.match.pending{border-color:rgba(224,168,60,.45)}
-.invx .tile.match.pending .v{color:var(--amber)}
-
-/* ---- Contractor invoice tones (lib/invoicing/contractorInvoiceTone, 20 Sep) ----
-   amber = waiting on the office · clay = approved, OUTSTANDING FOR PAYMENT ·
-   clay-strong = past terms · emerald = paid · grey = nothing owed yet. The
-   class is decided on the server; nothing here reads a status. */
-.invx .r.ci-amber{border-color:rgba(224,168,60,.45);background:var(--amber-soft)}
-.invx .r.ci-clay{border-color:rgba(179,87,74,.6);background:var(--clay-soft)}
-.invx .r.ci-clay-strong{border-color:var(--clay-strong);background:rgba(179,87,74,.24);box-shadow:inset 3px 0 0 var(--clay-strong)}
-.invx .r.ci-emerald{border-color:rgba(47,164,107,.4);background:var(--emerald-soft)}
-.invx .r.ci-grey{opacity:.8}
-.invx .r .age.ci-amber{color:var(--amber)}
-.invx .r .age.ci-clay{color:var(--clay)}
-.invx .r .age.ci-clay-strong{color:var(--clay-strong);font-weight:600}
-.invx .r .age.ci-emerald{color:var(--emerald)}
-.invx .r .age.ci-grey{color:var(--muted)}
-.invx .chip.ci-amber{color:var(--amber);border-color:rgba(224,168,60,.5);background:var(--amber-soft)}
-.invx .chip.ci-clay{color:var(--clay);border-color:rgba(179,87,74,.55);background:var(--clay-soft)}
-.invx .chip.ci-clay-strong{color:#fff;background:var(--clay-strong);border-color:var(--clay-strong)}
-.invx .chip.ci-emerald{color:var(--emerald);border-color:rgba(47,164,107,.45);background:var(--emerald-soft)}
-.invx .chip.ci-grey{color:var(--muted);border-color:var(--line)}
+@media (prefers-reduced-motion:reduce){.invx .invdoc .sheet,.invx .invdoc .scrim{transition:none}}
 
 /* ---- Step 6a: the intake queue (cost-capture mockup) ---- */
-.invx .ikv{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:10px}
-.invx .ikv .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.invx .ikv .v{font-family:var(--mono);font-size:12px;margin-top:3px}
-.invx .chips.wrap{flex-wrap:wrap}
-.invx .chips.wrap .pchip{flex:0 0 auto}
-.invx label.hint input{margin-top:4px}
 
-/* ---- Payables: the "matched job" search box + category dropdown (4 Sep) ---- */
-.invx .jsearch{position:relative;margin-top:2px}
-.invx .jsearch input[type="search"]{width:100%;appearance:none;-webkit-appearance:none;border:1px solid var(--line);
-  background:var(--graphite);color:var(--text);font-family:var(--mono);font-size:13px;padding:11px 12px;border-radius:10px}
-.invx .jsearch input[type="search"]:focus{outline:none;border-color:var(--cyan)}
-.invx .jlist{list-style:none;margin:4px 0 0;padding:4px;position:absolute;left:0;right:0;z-index:5;max-height:260px;overflow:auto;
-  background:var(--raised,var(--graphite));border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.45)}
-.invx .jlist li{padding:9px 10px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--text)}
-.invx .jlist li.on{background:var(--cyan);color:var(--on-cyan)}
-.invx .jlist li.jnone{color:var(--muted);border-top:1px solid var(--line);border-radius:0;margin-top:4px;padding-top:10px}
-.invx .jlist li.jempty{color:var(--muted);cursor:default;font-size:12px}
-.invx .jsel{display:flex;align-items:center;gap:10px;border:1px solid rgba(59,216,233,.4);background:rgba(59,216,233,.06);
-  border-radius:10px;padding:9px 12px}
-.invx .jsel-label{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text)}
-.invx select.sel{width:100%;appearance:none;-webkit-appearance:none;border:1px solid var(--line);background:var(--graphite);
-  color:var(--text);font-family:var(--mono);font-size:13px;padding:11px 36px 11px 12px;border-radius:10px;cursor:pointer;
-  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
-  background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
-.invx select.sel:focus{outline:none;border-color:var(--cyan)}
+.invx .invdoc .chips.wrap{flex-wrap:wrap}
+.invx .invdoc .chips.wrap .pchip{flex:0 0 auto}
+.invx .invdoc label.hint input{margin-top:4px}
 
 /* ---- light mode (Tom, 8 Sep): the CRM's light palette, same token names ---- */
 .invx[data-theme="light"]{
@@ -344,4 +169,4 @@
   --cyan:#0E8C9C; --on-cyan:#FFFFFF; --paint:#1A9DAE;
   --amber:#9A6A12; --emerald:#1F7A4A; --clay:#A3463A; --on-amber:#FFFFFF;
 }
-.invx[data-theme="light"] .scrim{background:rgba(20,30,40,.35)}
+.invx[data-theme="light"]:not(:has(.pm)) .scrim{background:rgba(20,30,40,.35)}

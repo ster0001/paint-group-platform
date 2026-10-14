@@ -16,6 +16,7 @@ import WaitingTable from "./WaitingTable";
 import { getWorkQueue } from "@/app/crm/queue";
 import { estimatesPageItems } from "@/lib/crm/work-queue";
 import { journeyFromRow, WIZARD_BUCKETS, WIZARD_SESSION_COLUMNS, type WizardBucket, type WizardJourney } from "@/lib/wizard/journey";
+import { realOnly } from "@/lib/demo/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -160,9 +161,9 @@ export default async function EstimatesPage({
    * `LIST_SELECT`'s embeds on existing foreign keys — one round trip, and no
    * stored status string anywhere.
    */
-  let query = supabase
+  let query = realOnly(supabase
     .from("estimates")
-    .select(LIST_SELECT)
+    .select(LIST_SELECT))
     .order("created_at", { ascending: false });
   if (fq.status) query = query.eq("status", fq.status);
   if (fq.viewed === true) query = query.not("viewed_at", "is", null);

@@ -20,9 +20,9 @@ const staff = credentials("STAFF");
 test.describe("Invoicing never shows an empty ledger over a failed read", () => {
   test.skip(!staff, missingCreds("STAFF"));
 
-  test("the dashboard lists invoices, with no load-failure banner", async ({ page }) => {
+  test("Payments lists the jobs, with no load-failure banner", async ({ page }) => {
     await signIn(page, staff!, /\/home|\/estimates|\/pc|\/dashboard/);
-    await page.goto("/invoicing");
+    await page.goto("/invoicing?view=table");
 
     // The banner is the tell: if the invoice read failed, it says so here
     // rather than letting the empty state speak for a full ledger.
@@ -30,24 +30,24 @@ test.describe("Invoicing never shows an empty ledger over a failed read", () => 
 
     // And the ledger is actually populated — an empty list would mean the
     // read silently returned nothing, which is the bug.
-    const rows = page.getByTestId("receivable-rows").locator(".r");
+    const rows = page.locator(".pm .tr:not(.head):not(.grp)");
     await expect(rows.first()).toBeVisible({ timeout: 20_000 });
     expect(await rows.count()).toBeGreaterThan(0);
 
-    // Outstanding is read off the same rows — $0 alongside rows would mean
-    // the tiles and the list disagree.
-    await expect(page.getByTestId("tile-outstanding")).toBeVisible();
+    // The Customers card is read off the same rows — $0.00 alongside rows would mean they disagree.
+    await expect(page.getByTestId("pm-ledger")).not.toContainText("Customers owe us$0.00");
   });
 
-  test("a job's money view lists its invoices, with no load-failure banner", async ({ page }) => {
+  test("a job's panel lists its invoices, with no load-failure banner", async ({ page }) => {
     await signIn(page, staff!, /\/home|\/estimates|\/pc|\/dashboard/);
-    await page.goto("/invoicing");
-    const firstJob = page.getByTestId("receivable-rows").locator(".r .job a").first();
+    await page.goto("/invoicing?view=table");
+    const firstJob = page.locator(".pm .tr:not(.head):not(.grp) .a a").first();
     await expect(firstJob).toBeVisible({ timeout: 20_000 });
     await firstJob.click();
 
-    await expect(page).toHaveURL(/\/invoicing\/job\//);
+    await expect(page).toHaveURL(/[?&]job=/);
+    await expect(page.getByTestId("pm-panel")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("invoices-load-error")).toHaveCount(0);
-    await expect(page.getByTestId("stage-rail")).toBeVisible();
+    await expect(page.getByTestId("money-strip")).toBeVisible();
   });
 });

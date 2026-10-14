@@ -103,37 +103,22 @@ test.describe("Tom's 17 Sep batch", () => {
   const rowValue = (page: Page, label: string) =>
     page.locator("dl div", { has: page.locator("dt", { hasText: new RegExp(`^${label}$`) }) }).first().locator("dd");
 
-  test("1 · Invoicing finds a job by the customer's name or the address, on both invoice screens", async ({ page }) => {
+  // Payments merge 8d: one money page — its search finds the job by name, address or invoice number;
+  // the old /invoices list redirects to All jobs with the search kept.
+  test("1 · Payments finds a job by the customer's name or the address", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
-    // The Invoicing list (?q=).
-    await page.goto(`/invoices?f=all&q=searchable${run}`);
-    await expect(page.getByTestId("invoices-search-input")).toHaveValue(`searchable${run}`);
-    await expect(page.getByTestId(`job-${invoiceEstimateId}`)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId(`customer-${invoiceEstimateId}`)).toContainText(CUSTOMER_NAME);
-    await page.goto(`/invoices?f=all&q=probe%20lane%20${run}`);
-    await expect(page.getByTestId(`job-${invoiceEstimateId}`)).toBeVisible({ timeout: 30_000 });
-    // The tab links keep the needle; a no-match says so; Clear takes it off.
-    await page.getByRole("link", { name: "awaiting" }).click();
-    await expect(page).toHaveURL(/f=awaiting/);
-    await expect(page).toHaveURL(new RegExp(`q=probe`));
-    await page.goto("/invoices?f=all&q=zzz-no-such-customer");
-    await expect(page.getByTestId("invoices-search-empty")).toBeVisible();
-    await page.getByTestId("invoices-search-clear").click();
-    await expect(page).toHaveURL(/\/invoices\?f=all$/);
-
-    // The Payments dashboard (client-side, live).
-    await page.goto("/invoicing");
-    const rows = page.getByTestId("receivable-rows").locator(".r");
-    await expect(rows.first()).toBeVisible({ timeout: 30_000 });
-    await page.getByTestId("payments-search-input").fill(`searchable${run}`);
-    await expect(rows).toHaveCount(1);
+    const rows = page.locator(".pm .tr:not(.head):not(.grp)");
+    await page.goto(`/invoices?q=searchable${run}`);
+    await expect(page).toHaveURL(new RegExp(`/invoicing\\?view=table&q=searchable${run}$`), { timeout: 30_000 });
+    await expect(rows).toHaveCount(1, { timeout: 30_000 });
     await expect(rows.first()).toContainText(ADDRESS);
     await expect(rows.first()).toContainText(CUSTOMER_NAME);
-    await page.getByTestId("payments-search-input").fill("zzz-no-such-customer");
-    await expect(rows).toHaveCount(0);
-    await expect(page.getByTestId("receivable-rows")).toContainText("No invoice matches");
-    await page.getByTestId("payments-search-clear").click();
-    await expect(rows.first()).toBeVisible();
+    await page.goto(`/invoicing?view=table&q=${encodeURIComponent(`probe lane ${run}`)}`);
+    await expect(rows.first()).toContainText(ADDRESS, { timeout: 30_000 });
+    // The search box carries the needle, and a no-match says so.
+    await expect(page.getByLabel("Search address, customer or invoice number")).toHaveValue(`probe lane ${run}`);
+    await page.goto("/invoicing?view=table&q=zzz-no-such-customer");
+    await expect(page.getByText("No jobs match.")).toBeVisible({ timeout: 30_000 });
   });
 
   test("2 · 3 · 4 · 6 · the builder: admin notes, the wording, contractor time on the work order, and a single wall", async ({ page }) => {
