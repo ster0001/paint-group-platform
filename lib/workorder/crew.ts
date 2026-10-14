@@ -31,6 +31,8 @@ const crewSurface = (s: WOSurface): WOSurface => ({
   key: s.key,
   label: s.label,
   ...(s.code ? { code: s.code } : {}),
+  // A count is scope, not money: the crew needs to know it is four doors.
+  ...(typeof s.count === "number" ? { count: s.count } : {}),
   coats: s.coats,
   product: s.product,
   // Paint is scope, not money: the per-area materials breakdown (13 Oct 2026)

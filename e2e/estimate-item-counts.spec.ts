@@ -43,6 +43,7 @@ const SNAPSHOT_BASE = {
 };
 
 type Snap = { areas: Array<{ surfaces: Array<{ label: string; count?: number }> }> };
+type State = { woDoc?: Snap };
 
 test.describe("item counts on the customer's estimate", () => {
   test.skip(!db || !staff, missingCreds("STAFF"));
@@ -83,6 +84,12 @@ test.describe("item counts on the customer's estimate", () => {
       const snap = data?.sent_snapshot as Snap | null;
       return snap?.areas[0]?.surfaces.map((s) => [s.label, s.count ?? null]) ?? null;
     }, { timeout: 20_000 }).toEqual([["Walls", null], ["Doors", 4], ["Front door", 1]]);
+
+    // Tom, 14 Oct 2026: the same count is frozen into the work-order document
+    // the painter's sheet and tick list read (every count, including one).
+    const { data: st } = await db!.from("estimates").select("builder_state").eq("id", estimateId).single();
+    const woDoc = (st?.builder_state as State | null)?.woDoc;
+    expect(woDoc?.areas[0]?.surfaces.map((s) => [s.label, s.count ?? null])).toEqual([["Walls", null], ["Doors", 4], ["Front door", 1]]);
 
     await db!.from("estimates").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", estimateId);
 

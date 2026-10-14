@@ -1746,8 +1746,12 @@ export default function QuoteBuilder({
         // it carries no condition slice — the figure is the estimator's own.
         const conditionHours = s.paintingHrOverride == null ? conditionExtraHours(calc.paintingHr, conditionMult) : 0;
         conditionHoursTotal += conditionHours;
+        // The same count the customer's page shows (per-item substrates only),
+        // so the painter's sheet can say "Doors × 4" (Tom, 14 Oct 2026).
+        const count = countFor(b, s);
         surfaces.push({
           key, label: s.clientLabel || s.code, code: s.code, coats: s.coats, product: pname,
+          ...(count != null ? { count } : {}),
           finish: pname ? sheenFor(b.type, s) : undefined,
           colourName: col.name, colourHex: col.hex,
           colourKey: pname ? materialColourKey(pname, col.name) : undefined,
