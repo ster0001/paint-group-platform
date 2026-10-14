@@ -6,7 +6,7 @@ import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { serviceClient } from "./fixtures/woLoop";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, openMagicLink } from "./fixtures/portal";
 import { credentials, missingCreds, signIn, test } from "./helpers";
 import { buildWorkQueue } from "../lib/crm/work-queue";
 
@@ -321,13 +321,13 @@ test.describe("Airtable → CRM import", () => {
 
   test("acceptance 8 · the customer, after a magic link, sees the history in the portal", async ({ page }) => {
     const sb = db!;
-    await page.goto(await magicLinkFor(sb, JUSTIN));
+    await openMagicLink(page, await magicLinkFor(sb, JUSTIN));
     await page.waitForURL(/\/account/);
     await expect(page.getByText("My estimates")).toBeVisible();
     await expect(page.getByTestId("portal-history").first()).toContainText("From our records");
     await expect(page.locator(".job", { hasText: "56 Main Street" }).first()).toBeVisible();
 
-    await page.goto(await magicLinkFor(sb, MELISSA));
+    await openMagicLink(page, await magicLinkFor(sb, MELISSA));
     await page.waitForURL(/\/account/);
     await page.locator(".job", { hasText: "2 Example Crescent stage 3" }).first().click();
     await expect(page).toHaveURL(new RegExp(`/e/${bookedShareToken}`));

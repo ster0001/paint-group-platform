@@ -451,7 +451,25 @@
       "sources": [
         "app/reset-password/page.tsx",
         "app/reset-password/ResetPasswordForm.tsx",
-        "app/account/auth/route.ts"
+        "app/account/auth/page.tsx",
+        "app/account/auth/actions.ts"
+      ]
+    },
+    {
+      "feature": "logins",
+      "role": "customer",
+      "title": "Sign in to your account with an emailed link",
+      "summary": "How to get into your Paint Group account without a password — ask for a sign-in link, open it, press Open my account — and what to do if a link says it has expired.",
+      "path": "docs/help/logins/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/account/login/page.tsx",
+        "app/account/login/actions.ts",
+        "app/account/auth/page.tsx",
+        "app/account/auth/actions.ts",
+        "lib/portal/auth.ts"
       ]
     },
     {
@@ -470,7 +488,8 @@
         "app/(app)/contractors/actions.ts",
         "lib/auth/adminPassword.ts",
         "app/reset-password/page.tsx",
-        "app/account/auth/route.ts"
+        "app/account/auth/page.tsx",
+        "app/account/auth/actions.ts"
       ]
     },
     {

@@ -20,7 +20,7 @@ import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { credentials, signIn, test } from "./helpers";
 import { serviceClient } from "./fixtures/woLoop";
-import { assertNoPasswordField, deleteUserByEmail, magicLinkFor } from "./fixtures/portal";
+import { assertNoPasswordField, deleteUserByEmail, magicLinkFor, openMagicLink } from "./fixtures/portal";
 import { defaultWizardState } from "../lib/wizard/state";
 
 const db: SupabaseClient | null = serviceClient();
@@ -117,7 +117,7 @@ test.describe("C15 walk A — the agent", () => {
   async function memberPage(browser: Browser, viewport: { width: number; height: number }) {
     const ctx = await browser.newContext({ viewport });
     const page = await ctx.newPage();
-    await page.goto(await magicLinkFor(db!, member));
+    await openMagicLink(page, await magicLinkFor(db!, member));
     await expect(page).toHaveURL(/\/account/, { timeout: 20_000 });
     await assertNoPasswordField(page);
     return { ctx, page };

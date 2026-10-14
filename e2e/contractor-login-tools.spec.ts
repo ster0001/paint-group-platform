@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, test } from "./helpers";
 import { serviceClient } from "./fixtures/woLoop";
+import { openMagicLink } from "./fixtures/portal";
 
 /**
  * Tom, 24 Sep 2026 — "allow to manually update passwords and send reset links
@@ -82,7 +83,7 @@ test.describe("a painter's login: password by hand, reset link", () => {
     expect(minted.error).toBeNull();
     const ctx3 = await browser.newContext();
     const p3 = await ctx3.newPage();
-    await p3.goto(`/account/auth?token_hash=${minted.data.properties!.hashed_token}&next=/reset-password`);
+    await openMagicLink(p3, `/account/auth?token_hash=${minted.data.properties!.hashed_token}&next=/reset-password`);
     await expect(p3).toHaveURL(/\/reset-password/, { timeout: 20_000 });
     await expect(p3.getByText(EMAIL)).toBeVisible();
     const password2 = `Painter-${run}-two!`;

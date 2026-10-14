@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { authUserIdByEmail, credentials, missingCreds, signIn, test, userIdFor } from "./helpers";
 import { serviceClient } from "./fixtures/woLoop";
+import { openMagicLink } from "./fixtures/portal";
 
 /**
  * Tom, 5 Sep 2026 — Settings → Company → Staff logins. The master user
@@ -116,7 +117,7 @@ test.describe("Settings → Staff logins", () => {
     expect(minted.error).toBeNull();
     const ctx5 = await browser.newContext();
     const p5 = await ctx5.newPage();
-    await p5.goto(`/account/auth?token_hash=${minted.data.properties!.hashed_token}&next=/reset-password`);
+    await openMagicLink(p5, `/account/auth?token_hash=${minted.data.properties!.hashed_token}&next=/reset-password`);
     await expect(p5).toHaveURL(/\/reset-password/, { timeout: 20_000 });
     const password3 = "painttest789";
     await p5.getByTestId("reset-pw").fill(password3);
