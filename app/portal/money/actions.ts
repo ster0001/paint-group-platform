@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ensureContractorInvoicePdf } from "@/lib/invoicing/pdf";
 import { staffContractorInvoice } from "@/lib/staff/notify";
+import { demoInvoiceSubmitted } from "@/lib/demo/robots";
 
 /**
  * The contractor's one tap (Step 5). Everything money-shaped happens in
@@ -35,9 +36,13 @@ export async function submitContractorInvoiceAction(raw: unknown): Promise<Submi
   const s = String(data ?? "");
   if (s === "ok:submitted") {
     revalidatePath("/portal/money");
+    // 12 Demo Street (induction Step 2): the robot office approves it a few
+    // seconds later; the real office is not alerted. The PDF renders either way.
+    const demo = await demoInvoiceSubmitted(parsed.data.id);
     // Their invoice document renders behind the response — heal-on-view backs it up.
     after(async () => {
       await ensureContractorInvoicePdf(parsed.data.id);
+      if (demo) return;
       const svc = createServiceClient(); if (svc) await staffContractorInvoice(svc, parsed.data.id); // Tom, 10 Sep: staff alert
     });
     return { ok: true };

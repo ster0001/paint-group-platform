@@ -486,6 +486,15 @@ export const AUTOMATIONS: Automation[] = [
   },
   // ---- Finish standards (brief: standards / status / call backs, Step 2) -----
   {
+    key: "contractor_demo_prompt", name: "Induction — the DEMO reminder text", audience: "painter", channels: ["sms"], kind: "manual",
+    defaultChannel: "sms", sendKind: "job_update_reminder", quietExempt: true, capExempt: true,
+    trigger: "The facilitator presses Send demo prompt on a painter's practice job (12 Demo Street) during Module 6 of the induction — the one real text of the day (ruling I12). It plants a reminder moment on the practice job; the painter taps the link and adds a photo, and the moment reads as answered on their screen.",
+    templates: [
+      { field: "contractorDemoPromptSms", label: "The DEMO text", kind: "sms", placeholders: P.jobUpdate },
+    ],
+    guard: "Only the button sends it, never the reminder sweep (the practice job is outside every sweep). The wording starts with DEMO: so nobody mistakes it for a real reminder.",
+  },
+  {
     key: "contractor_standards_invite", name: "Finish standards — please read and confirm", audience: "painter", channels: ["sms", "email"], kind: "manual",
     defaultChannel: "both", sendKind: "standards_invite", capExempt: true,
     trigger: "The office presses Send standards invite on a painter (Contractors page) — once, when the standards launch or a painter is added later. New painters are invited the moment they join, without a message: the sign-off is on their first screen.",

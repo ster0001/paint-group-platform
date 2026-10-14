@@ -179,9 +179,13 @@
         "app/portal/page.tsx",
         "app/portal/requests/OfferCard.tsx",
         "app/portal/jobs/[id]/page.tsx",
+        "app/portal/jobs/[id]/FinishDate.tsx",
         "app/components/demo/DemoControls.tsx",
         "app/components/demo/demoActions.ts",
-        "supabase/migrations/20270262000000_demo_property.sql"
+        "lib/demo/robots.ts",
+        "lib/demo/checklist.ts",
+        "supabase/migrations/20270262000000_demo_property.sql",
+        "supabase/migrations/20270263000000_demo_robots.sql"
       ]
     },
     {
@@ -195,10 +199,15 @@
       "verified_at_commit": null,
       "sources": [
         "app/pc/wo/[id]/page.tsx",
+        "app/pc/demo/page.tsx",
         "app/components/demo/DemoControls.tsx",
         "lib/demo/scope.ts",
         "lib/demo/boundary.test.ts",
-        "supabase/migrations/20270262000000_demo_property.sql"
+        "lib/demo/robots.ts",
+        "lib/demo/prompt.ts",
+        "lib/demo/checklist.ts",
+        "supabase/migrations/20270262000000_demo_property.sql",
+        "supabase/migrations/20270263000000_demo_robots.sql"
       ]
     },
     {

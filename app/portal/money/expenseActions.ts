@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { demoExpenseSubmitted } from "@/lib/demo/robots";
 
 /**
  * Contractor expense actions (6c) — thin zod → RPC translations. The RPCs
@@ -68,6 +69,8 @@ export async function submitExpenseAction(raw: unknown): Promise<ExpenseResult> 
     const reason = s.replace("error:", "");
     return { ok: false, message: WORDING[reason] ?? `Couldn't send that (${reason.replace(/_/g, " ")}).` };
   }
+  // 12 Demo Street (induction Step 2): the robot office approves it a few seconds later.
+  await demoExpenseSubmitted(p.data.workOrderId, s.slice(3));
   if (p.data.paidWith) {
     // A second, tiny write straight after the claim. If it fails the claim
     // stands as "personal", which lands on the office's reimbursement list

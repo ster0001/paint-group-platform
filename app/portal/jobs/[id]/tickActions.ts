@@ -11,6 +11,8 @@ import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { sendSignedReportEmail } from "@/lib/workorder/signEmail";
 import { reportIfError } from "@/lib/monitoring/report";
 import { onChecklistAnswered } from "@/lib/colourRecords/transitions";
+import { getContractorSession } from "@/lib/contractor/session";
+import { demoFinishDateChanged, demoFixed, demoWalkthroughStarted } from "@/lib/demo/robots";
 
 export type PrepResult = { ok: true } | { ok: false; message: string };
 
@@ -144,13 +146,17 @@ export async function startWalkthroughMode(raw: unknown): Promise<WalkthroughMod
   if (error) return { ok: false, message: "Walkthrough Mode isn't switched on yet — ask the office." };
 
   const s = String(data ?? "");
-  if (s.startsWith("ok:")) return { ok: true, url: `/s/${s.slice(3)}` };
+  if (s.startsWith("ok:")) {
+    // 12 Demo Street (induction Step 2): the demo customer flags the hallway a few seconds in.
+    await demoWalkthroughStarted(parsed.data.workOrderId);
+    return { ok: true, url: `/s/${s.slice(3)}` };
+  }
   if (s === "error:not_at_walkthrough") return { ok: false, message: "The job isn't at the walkthrough stage yet." };
   if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
   return { ok: false, message: "Couldn't start the walkthrough just now." };
 }
 
-export type RectifiedResult = { ok: true } | { ok: false; message: string };
+export type RectifiedResult = { ok: true; message?: string } | { ok: false; message: string };
 
 /**
  * Tom (17 Sep): the areas the customer flagged are put right → the job
@@ -162,6 +168,14 @@ export type RectifiedResult = { ok: true } | { ok: false; message: string };
 export async function completeAfterRectification(raw: unknown): Promise<RectifiedResult> {
   const parsed = z.object({ workOrderId: z.string().uuid() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
+
+  // 12 Demo Street (ruling 6, 14 Oct): the practice job does not close here —
+  // the demo customer walks again, and the painter signs it off on their phone.
+  const demo = await demoFixed(parsed.data.workOrderId);
+  if (demo.demo) {
+    if (demo.ok) { revalidatePath("/portal/jobs"); return { ok: true, message: demo.message }; }
+    return { ok: false, message: demo.message };
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("wo_complete_after_rectification", {
@@ -272,17 +286,22 @@ export async function contractorFinish(raw: unknown): Promise<FinishResult> {
  * end moves on the calendar and the final walkthrough is re-booked to that day.
  */
 export async function setFinishDate(raw: unknown): Promise<PrepResult> {
-  const parsed = z.object({ workOrderId: z.string().uuid(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).safeParse(raw);
+  // Ruling 4 (14 Oct): the painter gives a reason; it is logged, nothing waits on the office.
+  const parsed = z.object({ workOrderId: z.string().uuid(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), reason: z.string().trim().max(300).default("") }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("wo_contractor_set_finish_date", {
-    p_work_order_id: parsed.data.workOrderId, p_date: parsed.data.date,
+    p_work_order_id: parsed.data.workOrderId, p_date: parsed.data.date, p_reason: parsed.data.reason,
   });
   if (error) return { ok: false, message: "Couldn't move the date — check your signal and try again." };
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
     revalidatePath("/portal/jobs");
     revalidatePath("/portal/calendar");
+    // 12 Demo Street (induction Step 2): the robot office notes it; no calendar
+    // push (ruling 8) and no walkthrough invites leave the practice job.
+    const { contractor } = await getContractorSession();
+    if (contractor && (await demoFinishDateChanged(parsed.data.workOrderId, contractor.id))) return { ok: true };
     // The booking's end date moved — reflect it in their Google Calendar,
     // and re-issue the final-walkthrough invites (the SQL re-books the final
     // to the new day; the invites follow with a climbing sequence).

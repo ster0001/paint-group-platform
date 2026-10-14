@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { resetDemoAction, seedDemoAction } from "./demoActions";
+import { resetDemoAction, seedDemoAction, sendDemoPromptAction } from "./demoActions";
+import type { DemoChecklistRow } from "@/lib/demo/checklist";
 
 /**
  * 12 Demo Street — the one component for the practice job's banner and its
@@ -18,16 +19,30 @@ import { resetDemoAction, seedDemoAction } from "./demoActions";
  * from the Jobs tab, the painter is taken to the job.
  */
 export default function DemoControls({
-  mode, contractorId = null, hasDemo = true,
+  mode, contractorId = null, hasDemo = true, workOrderId = null, steps = null,
 }: {
   mode: "portal" | "pc" | "staff" | "start";
   /** Staff name the contractor; a contractor acts on their own (null). */
   contractorId?: string | null;
   hasDemo?: boolean;
+  /** The practice job (pc mode): the facilitator's Send demo prompt needs it. */
+  workOrderId?: string | null;
+  /** The demo checklist (Step 2) — derived from the job's rows, shown under the banner. */
+  steps?: DemoChecklistRow[] | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  async function prompt() {
+    if (!workOrderId) return;
+    if (!window.confirm("Send the DEMO text to this painter's phone now? It is the one real text of the induction.")) return;
+    setBusy(true); setMessage(null);
+    const r = await sendDemoPromptAction({ workOrderId });
+    setBusy(false);
+    setMessage(r.ok ? `DEMO text ${r.outcome}.` : r.message);
+    router.refresh();
+  }
 
   const btn = mode === "staff"
     ? "rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
@@ -83,16 +98,34 @@ export default function DemoControls({
           <span className="chip amb">Demo</span>
           <b>Practice job — nothing here is real</b>
         </span>
-        <button type="button" className={btn} disabled={busy} onClick={() => run("reset")} data-testid="demo-reset">
-          {busy ? "Resetting…" : "Reset demo"}
-        </button>
+        <span style={{ display: "flex", gap: 8 }}>
+          {mode === "pc" && workOrderId && (
+            <button type="button" className={btn} disabled={busy} onClick={() => void prompt()} data-testid="demo-prompt">
+              {busy ? "Working…" : "Send demo prompt"}
+            </button>
+          )}
+          <button type="button" className={btn} disabled={busy} onClick={() => run("reset")} data-testid="demo-reset">
+            {busy ? "Resetting…" : "Reset demo"}
+          </button>
+        </span>
       </div>
       <p className="hint" style={{ padding: 0, marginTop: 6 }}>
         {mode === "pc"
-          ? "The painter's induction demo. It is left out of every count, queue and payment. Reset puts it back to the start for them."
+          ? "The painter's induction demo. It is left out of every count, queue and payment. Reset puts it back to the start for them; Send demo prompt is Module 6's one real text."
           : "Make your mistakes here, not on a customer's job. Reset puts it back to the start."}
       </p>
       {message && <p className="tick-msg" role="status" data-testid="demo-message">{message}</p>}
+      {steps && steps.length > 0 && (
+        <ul className="clean" data-testid="demo-checklist" style={{ marginTop: 8, display: "grid", gap: 4, paddingLeft: 0, listStyle: "none" }}>
+          {steps.map((s) => (
+            <li key={s.key} data-testid={`demo-step-${s.key}`} data-done={s.done}
+              style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 12.5, color: s.done ? "var(--text)" : "var(--muted)" }}>
+              <span aria-hidden style={{ color: s.done ? "var(--emerald)" : "var(--muted)", fontFamily: "var(--mono)" }}>{s.done ? "✓" : "·"}</span>
+              <span>{s.label}<span style={{ color: "var(--muted)" }}> — {s.detail}</span></span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
