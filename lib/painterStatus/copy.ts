@@ -9,6 +9,9 @@ import type { Colour, Band, Measures } from "./evaluate";
 
 export const COLOUR_NAME: Record<Colour, string> = { new: "New", green: "Green", yellow: "Yellow", orange: "Orange", red: "Red" };
 
+/** What Red means, in the painter's words — ruling R12 / I16 (Tom, 11 Oct 2026). One line, the same for a lead painter (Tom, 14 Oct). */
+export const RED_LINE = "No more job offers. We meet with you to go through the level of finish expected on your current job.";
+
 /** Lamp order in the housing, top to bottom. New lights none and rings the housing blue. */
 export const LAMPS: readonly Exclude<Colour, "new">[] = ["red", "orange", "yellow", "green"];
 
@@ -33,7 +36,7 @@ export function weakestMeasure(m: Partial<Measures> | null | undefined): Measure
 export function homeSubline(colour: Colour, streak: number, greenRun: number, lead: boolean): string {
   if (colour === "green") return lead ? "Bonus eligible" : "Priority jobs · Paid in 3 business days · Bonus eligible";
   if (colour === "new") return `Clean job ${Math.min(streak, greenRun)} of ${greenRun}`;
-  if (colour === "red") return lead ? "Talk with us before you lead another job" : "No new job offers until you talk with us";
+  if (colour === "red") return RED_LINE;
   const left = greenRun - Math.min(streak, greenRun);
   return `${left} more clean ${left === 1 ? "job" : "jobs"} in a row to Green`;
 }
@@ -65,14 +68,14 @@ export function perksFor(colour: Colour, lead: boolean): Perk[] {
     ];
   }
   return [
-    { state: "warn", text: lead ? "Talk with us before you lead another job" : "No new job offers until you have talked with us" },
+    { state: "warn", text: RED_LINE },
     { state: "on", text: "Jobs you have started continue as normal" },
     ...off,
   ];
 }
 
 /** "What to do next" — three tips keyed by colour and the weakest measure. */
-export function tipsFor(colour: Colour, weakest: Measure | null, lead: boolean): string[] {
+export function tipsFor(colour: Colour, weakest: Measure | null): string[] {
   if (colour === "new") return [
     "Add your before photos on day 1, when the 7:30 am text arrives.",
     "Update the app the same day you get a reminder text.",
@@ -99,7 +102,7 @@ export function tipsFor(colour: Colour, weakest: Measure | null, lead: boolean):
   };
   const lead1 = weakest ? byMeasure[weakest] : ["Keep every reminder answered, every check passed first time, and no call backs."];
   if (colour === "red") return [
-    lead ? "Talk with us before you lead another job." : "New job offers are on hold until you have talked with us.",
+    RED_LINE,
     "Jobs you have already started continue as normal.",
     "We will agree a plan with you to get back to Yellow, then Green.",
   ];
@@ -113,7 +116,7 @@ export function colourKey(lead: boolean): { colour: Colour; rule: string; gets: 
     { colour: "green", rule: "Your last 4 jobs were all clean.", gets: lead ? "Bonus eligible." : "Priority on new jobs. Paid within 3 business days of sign-off. Bonus eligible." },
     { colour: "yellow", rule: "8 in 10 or better on checks and reminders, and no more than 1 call back in your last 10 jobs.", gets: lead ? "Jobs as normal." : "Normal job offers and normal payment." },
     { colour: "orange", rule: "Between 5 and 8 in 10 on checks or reminders, or 2 to 3 call backs.", gets: lead ? "A quality check on every job you lead. A call from Paint Group." : "Offers come after Green and Yellow. A quality check on every job. A call from Paint Group." },
-    { colour: "red", rule: "Under 5 in 10 on checks or reminders, or 4 or more call backs.", gets: lead ? "Talk with us before you lead another job." : "No new job offers until you have talked with us." },
+    { colour: "red", rule: "Under 5 in 10 on checks or reminders, or 4 or more call backs.", gets: RED_LINE },
     { colour: "new", rule: "Your first 4 jobs.", gets: lead ? "Jobs as normal. A quality check on your first jobs." : "Normal job offers and normal payment. A quality check on your first jobs." },
   ];
 }

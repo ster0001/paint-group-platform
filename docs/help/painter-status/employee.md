@@ -14,7 +14,7 @@ You see a status only once you have led a job that has been signed off. A crew m
 
 ## Steps
 1. Open **Home**. The **Your status · jobs you led** card shows the light, the word and the bars to Green. Tap it.
-2. **My status** shows why you are on that colour, your steps to Green or your streak, **What you get** (a bonus review on Green; on Orange a quality check on every job you lead; on Red, talk with Paint Group before you lead another job), the three measures as counts, your last 10 led jobs as dots, three tips and the colour key.
+2. **My status** shows why you are on that colour, your steps to Green or your streak, **What you get** (a bonus review on Green; on Orange a quality check on every job you lead; on Red: "No more job offers. We meet with you to go through the level of finish expected on your current job."), the three measures as counts, your last 10 led jobs as dots, three tips and the colour key.
 3. Tap a dot to see the job and what went wrong.
 
 ## What the colours and labels mean
