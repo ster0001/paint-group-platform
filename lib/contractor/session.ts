@@ -25,7 +25,7 @@ export type ContractorSession = {
   name: string;
   /** null when the profile is a contractor but staff haven't created their contractors row yet — or when it is a worker. */
   contractor: ContractorRow | null;
-  /** Set when this login is a WORKER under a contractor (20270264). `capabilities.isWorker` is the flag to branch on. */
+  /** Set when this login is a WORKER under a contractor (20270265). `capabilities.isWorker` is the flag to branch on. */
   worker: WorkerRow | null;
   /** contractor | employee (migration 20270153). Read once per request; never branched on directly. */
   employmentType: EmploymentType;
@@ -81,7 +81,7 @@ const loadSession = cache(async (): Promise<Loaded> => {
     .maybeSingle();
   const row = (contractor as ContractorRow | null) ?? null;
 
-  // A worker (induction Step 3a, 20270264): role contractor, no contractors
+  // A worker (induction Step 3a, 20270265): role contractor, no contractors
   // row, a contractor_users row under someone. The money-free RPC answers
   // whether this login is one; a refused read reads as "not a worker".
   let worker: WorkerRow | null = null;

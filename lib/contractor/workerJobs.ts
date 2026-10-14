@@ -5,7 +5,7 @@ import type { ContractorJob } from "./jobs";
 
 /**
  * A WORKER's jobs (induction Step 3a, ruling 13): the ones their contractor
- * shared, through the money-free RPC `worker_jobs` (20270264). No row of
+ * shared, through the money-free RPC `worker_jobs` (20270265). No row of
  * work_orders is ever read by a worker session; the document arrives with
  * every money key stripped in SQL (jsonb_strip_money), and nothing here puts
  * one back. The shape is ContractorJob so the job list and the job page keep
@@ -49,7 +49,7 @@ function toWorkerJob(r: WorkerJobRow): WorkerJob {
 async function withProgress(jobs: WorkerJob[]): Promise<WorkerJob[]> {
   if (jobs.length === 0) return jobs;
   const supabase = await createClient();
-  // The shared jobs' tick rows, readable through the visibility view (20270264).
+  // The shared jobs' tick rows, readable through the visibility view (20270265).
   const { data, error } = await supabase.from("wo_surfaces").select("work_order_id, state")
     .in("work_order_id", jobs.map((j) => j.id)).eq("removed_from_scope", false);
   if (error) { reportError(error, { where: "workerJobs.progress", bestEffort: true }); return jobs; }

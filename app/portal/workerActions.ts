@@ -16,7 +16,7 @@ import { getContractorSession } from "@/lib/contractor/session";
 /**
  * A contractor's crew (induction Step 3a, rulings 13–15): add a worker by
  * name and mobile, text them their login, share and unshare jobs, remove
- * them. Every write is a 20270264 RPC; the only thing the server does
+ * them. Every write is a 20270265 RPC; the only thing the server does
  * itself is make the auth user — a worker has no email, so the login is a
  * one-time link texted to their phone, redeemed at /account/auth like a
  * customer's.

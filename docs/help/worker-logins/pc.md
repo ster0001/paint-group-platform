@@ -3,7 +3,7 @@ feature: worker-logins
 role: pc
 title: Worker logins — who is on a contractor's crew and what they can see
 summary: A contractor adds workers under Your crew; each gets a login by text and sees only the jobs shared with them — scope, standards, photos and ticks, never money. The contractor's record shows their crew, the induction state and how many jobs each worker sees. Ticks by a worker count for the contractor's job and carry the worker's name.
-sources: app/(app)/contractors/[id]/page.tsx, lib/contractor/workers.ts, supabase/migrations/20270264000000_worker_logins.sql
+sources: app/(app)/contractors/[id]/page.tsx, lib/contractor/workers.ts, supabase/migrations/20270265000000_worker_logins.sql
 ---
 
 ## What this is for

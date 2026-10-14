@@ -1,4 +1,4 @@
--- 20270264 · Worker logins — Step 3a of the induction brief
+-- 20270265 · Worker logins — Step 3a of the induction brief
 -- (docs/briefs/claude-code-brief-induction-demo-property.md §6, ⚑13–⚑15, §8 Step 3a;
 -- ruling 3 of 14 Oct 2026: a membership table, profiles.role stays contractor).
 --
@@ -198,7 +198,7 @@ begin
   if public.is_staff() then
     v_kind := 'staff';
   elsif public.wo_worker_on_job(v_wo.id) then
-    v_kind := 'worker';                 -- 20270264: a worker on a shared job
+    v_kind := 'worker';                 -- 20270265: a worker on a shared job
   else
     v_cid := public.current_contractor_id();
     -- The lead OR anyone assigned to the job (employed crew, 20270159).
@@ -262,7 +262,7 @@ begin
   if public.is_staff() then
     v_kind := 'staff';
   elsif public.wo_worker_on_job(v_wo.id) then
-    v_kind := 'worker';                 -- 20270264: a worker on a shared job
+    v_kind := 'worker';                 -- 20270265: a worker on a shared job
   else
     v_cid := public.current_contractor_id();
     if v_cid is null or not public.wo_painter_on_job(v_wo.id, v_cid) then return 'error:not_yours'; end if;
@@ -443,4 +443,4 @@ select
   has_function_privilege('anon', 'public.worker_jobs(uuid)', 'execute') as anon_can_list, false as _expect_anon_can_list,
   (select (value->>'inductionGate')::boolean from public.settings where key = 'worker_rules') as induction_gate, false as _expect_induction_gate;
 
-insert into public._prod_migrations(name) values ('20270264000000_worker_logins.sql') on conflict (name) do nothing;
+insert into public._prod_migrations(name) values ('20270265000000_worker_logins.sql') on conflict (name) do nothing;

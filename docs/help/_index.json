@@ -1082,7 +1082,7 @@
         "app/portal/jobs/[id]/WorkerJob.tsx",
         "lib/contractor/workers.ts",
         "lib/contractor/workerJobs.ts",
-        "supabase/migrations/20270264000000_worker_logins.sql"
+        "supabase/migrations/20270265000000_worker_logins.sql"
       ]
     },
     {
@@ -1097,7 +1097,7 @@
       "sources": [
         "app/(app)/contractors/[id]/page.tsx",
         "lib/contractor/workers.ts",
-        "supabase/migrations/20270264000000_worker_logins.sql"
+        "supabase/migrations/20270265000000_worker_logins.sql"
       ]
     }
   ],

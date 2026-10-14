@@ -3,7 +3,7 @@ feature: worker-logins
 role: contractor
 title: Your crew — give each worker their own login, share jobs with them
 summary: Add a worker by name and mobile and they get their own login by text. Share a job with them and they see the scope, the finish standard and the tick list on their own phone, and tick and photograph under their own name. They never see your price, offers, invoices, variations or messages. Remove a worker and their login stops opening your jobs at once.
-sources: app/portal/WorkersCard.tsx, app/portal/workerActions.ts, app/portal/jobs/page.tsx, app/portal/jobs/[id]/page.tsx, app/portal/jobs/[id]/WorkerJob.tsx, lib/contractor/workers.ts, lib/contractor/workerJobs.ts, supabase/migrations/20270264000000_worker_logins.sql
+sources: app/portal/WorkersCard.tsx, app/portal/workerActions.ts, app/portal/jobs/page.tsx, app/portal/jobs/[id]/page.tsx, app/portal/jobs/[id]/WorkerJob.tsx, lib/contractor/workers.ts, lib/contractor/workerJobs.ts, supabase/migrations/20270265000000_worker_logins.sql
 ---
 
 ## What this is for
