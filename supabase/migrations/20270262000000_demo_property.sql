@@ -41,20 +41,38 @@ alter table public.work_orders add column if not exists is_demo boolean not null
 -- The seed and reset look a contractor's demo up by owner; nothing else filters on true.
 create index if not exists work_orders_demo_idx on public.work_orders (contractor_id) where is_demo;
 
-do $$ declare t text; begin
-  foreach t in array array[
-    'booking_offers', 'contractor_expenses', 'contractor_invoices', 'expense_preapprovals',
-    'invoices', 'job_costs', 'material_costs', 'painter_job_results', 'timesheet_entries',
-    'wo_appointments', 'wo_assignments', 'wo_callbacks', 'wo_checklist_items', 'wo_day_flags',
-    'wo_events', 'wo_message_threads', 'wo_photos', 'wo_qa_checks', 'wo_reminder_moments',
-    'wo_signoff', 'wo_site_visits', 'wo_surfaces', 'wo_updates', 'wo_variations',
-    'wo_walkthroughs', 'schedule_holds', 'review_requests', 'warranties', 'messages', 'crm_events'
-  ] loop
-    if to_regclass('public.' || t) is not null then
-      execute format('alter table public.%I add column if not exists is_demo boolean not null default false', t);
-    end if;
-  end loop;
-end $$;
+-- Written out one per table, no DO loop: the Supabase SQL editor's splitter stops
+-- at a multi-line DO block (Tom, 14 Oct: "unterminated dollar-quoted string").
+alter table public.booking_offers add column if not exists is_demo boolean not null default false;
+alter table public.contractor_expenses add column if not exists is_demo boolean not null default false;
+alter table public.contractor_invoices add column if not exists is_demo boolean not null default false;
+alter table public.expense_preapprovals add column if not exists is_demo boolean not null default false;
+alter table public.invoices add column if not exists is_demo boolean not null default false;
+alter table public.job_costs add column if not exists is_demo boolean not null default false;
+alter table public.material_costs add column if not exists is_demo boolean not null default false;
+alter table public.painter_job_results add column if not exists is_demo boolean not null default false;
+alter table public.timesheet_entries add column if not exists is_demo boolean not null default false;
+alter table public.wo_appointments add column if not exists is_demo boolean not null default false;
+alter table public.wo_assignments add column if not exists is_demo boolean not null default false;
+alter table public.wo_callbacks add column if not exists is_demo boolean not null default false;
+alter table public.wo_checklist_items add column if not exists is_demo boolean not null default false;
+alter table public.wo_day_flags add column if not exists is_demo boolean not null default false;
+alter table public.wo_events add column if not exists is_demo boolean not null default false;
+alter table public.wo_message_threads add column if not exists is_demo boolean not null default false;
+alter table public.wo_photos add column if not exists is_demo boolean not null default false;
+alter table public.wo_qa_checks add column if not exists is_demo boolean not null default false;
+alter table public.wo_reminder_moments add column if not exists is_demo boolean not null default false;
+alter table public.wo_signoff add column if not exists is_demo boolean not null default false;
+alter table public.wo_site_visits add column if not exists is_demo boolean not null default false;
+alter table public.wo_surfaces add column if not exists is_demo boolean not null default false;
+alter table public.wo_updates add column if not exists is_demo boolean not null default false;
+alter table public.wo_variations add column if not exists is_demo boolean not null default false;
+alter table public.wo_walkthroughs add column if not exists is_demo boolean not null default false;
+alter table public.schedule_holds add column if not exists is_demo boolean not null default false;
+alter table public.review_requests add column if not exists is_demo boolean not null default false;
+alter table public.warranties add column if not exists is_demo boolean not null default false;
+alter table public.messages add column if not exists is_demo boolean not null default false;
+alter table public.crm_events add column if not exists is_demo boolean not null default false;
 
 -- ---- 2. the copy trigger: a child row carries its parent's flag ----------------------------
 -- TG_ARGV[0] is the FK column. A row with no parent (null FK) keeps whatever it
@@ -94,21 +112,64 @@ begin
   return new;
 end $$;
 
-do $$ declare t text; begin
-  foreach t in array array[
-    'booking_offers', 'contractor_expenses', 'contractor_invoices', 'expense_preapprovals',
-    'job_costs', 'material_costs', 'painter_job_results', 'timesheet_entries',
-    'wo_appointments', 'wo_assignments', 'wo_callbacks', 'wo_checklist_items', 'wo_day_flags',
-    'wo_events', 'wo_message_threads', 'wo_photos', 'wo_qa_checks', 'wo_reminder_moments',
-    'wo_signoff', 'wo_site_visits', 'wo_surfaces', 'wo_updates', 'wo_variations',
-    'wo_walkthroughs', 'schedule_holds', 'review_requests', 'warranties', 'messages', 'crm_events'
-  ] loop
-    if to_regclass('public.' || t) is not null then
-      execute format('drop trigger if exists t_demo_flag on public.%I', t);
-      execute format('create trigger t_demo_flag before insert on public.%I for each row execute function public.demo_flag_copy(%L)', t, 'work_order_id');
-    end if;
-  end loop;
-end $$;
+drop trigger if exists t_demo_flag on public.booking_offers;
+create trigger t_demo_flag before insert on public.booking_offers for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.contractor_expenses;
+create trigger t_demo_flag before insert on public.contractor_expenses for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.contractor_invoices;
+create trigger t_demo_flag before insert on public.contractor_invoices for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.expense_preapprovals;
+create trigger t_demo_flag before insert on public.expense_preapprovals for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.job_costs;
+create trigger t_demo_flag before insert on public.job_costs for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.material_costs;
+create trigger t_demo_flag before insert on public.material_costs for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.painter_job_results;
+create trigger t_demo_flag before insert on public.painter_job_results for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.timesheet_entries;
+create trigger t_demo_flag before insert on public.timesheet_entries for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_appointments;
+create trigger t_demo_flag before insert on public.wo_appointments for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_assignments;
+create trigger t_demo_flag before insert on public.wo_assignments for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_callbacks;
+create trigger t_demo_flag before insert on public.wo_callbacks for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_checklist_items;
+create trigger t_demo_flag before insert on public.wo_checklist_items for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_day_flags;
+create trigger t_demo_flag before insert on public.wo_day_flags for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_events;
+create trigger t_demo_flag before insert on public.wo_events for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_message_threads;
+create trigger t_demo_flag before insert on public.wo_message_threads for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_photos;
+create trigger t_demo_flag before insert on public.wo_photos for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_qa_checks;
+create trigger t_demo_flag before insert on public.wo_qa_checks for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_reminder_moments;
+create trigger t_demo_flag before insert on public.wo_reminder_moments for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_signoff;
+create trigger t_demo_flag before insert on public.wo_signoff for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_site_visits;
+create trigger t_demo_flag before insert on public.wo_site_visits for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_surfaces;
+create trigger t_demo_flag before insert on public.wo_surfaces for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_updates;
+create trigger t_demo_flag before insert on public.wo_updates for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_variations;
+create trigger t_demo_flag before insert on public.wo_variations for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.wo_walkthroughs;
+create trigger t_demo_flag before insert on public.wo_walkthroughs for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.schedule_holds;
+create trigger t_demo_flag before insert on public.schedule_holds for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.review_requests;
+create trigger t_demo_flag before insert on public.review_requests for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.warranties;
+create trigger t_demo_flag before insert on public.warranties for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.messages;
+create trigger t_demo_flag before insert on public.messages for each row execute function public.demo_flag_copy('work_order_id');
+drop trigger if exists t_demo_flag on public.crm_events;
+create trigger t_demo_flag before insert on public.crm_events for each row execute function public.demo_flag_copy('work_order_id');
 drop trigger if exists t_demo_flag on public.invoices;
 create trigger t_demo_flag before insert on public.invoices for each row execute function public.demo_flag_copy_invoice();
 drop trigger if exists t_demo_flag on public.work_orders;
