@@ -235,6 +235,8 @@ export type MessagingSettings = {
   /** Worker logins (induction Step 3a): the login link by text, and a job shared. */
   workerInviteSms: string;
   workerJobSharedSms: string;
+  /** Painter (induction Step 3b, ruling I5): the certificate reminder after I will add this later. */
+  certificateReminderSms: string;
   /** Painter (Step 6, message 6): the colour changed. */
   statusGreenSms: string;
   statusGreenLeadSms: string;
@@ -520,6 +522,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   contractorDemoPromptSms: "DEMO: Please update your job in the app today. {{link}}",
   workerInviteSms: "{{company_name}}: {{first_name}} has added you as a painter on their crew. Tap to open your jobs (no password needed): {{link}}",
   workerJobSharedSms: "{{company_name}}: {{first_name}} shared a job with you — {{wo_ref}} at {{suburb}}. {{link}}",
+  certificateReminderSms: "{{company_name}}: please upload your public liability certificate in the app — job offers start once it is in. {{link}}",
   statusGreenSms: "{{company_name}}: you are on Green. You now get priority on new jobs and faster payment. {{link}}",
   statusGreenLeadSms: "{{company_name}}: you are on Green. Thank you for the clean work. {{link}}",
   statusDroppedSms: "{{company_name}}: your status is now {{colour}}. Open the app to see why and what to do next. {{link}}",

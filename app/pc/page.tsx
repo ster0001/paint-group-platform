@@ -286,6 +286,17 @@ export default async function DashboardPage() {
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`qa-card-open-${item.key}`}>{item.action.label}</Link>
             </div>
+          ) : item.kind === "material_request" || item.kind === "no_work_requested" || item.kind === "insurance_missing" ? (
+            // Induction Step 3b: three painter-raised cards. Each clears when
+            // the office answers on the job (or verifies the certificate).
+            <div className={`al ${item.bucket === "overdue" ? "al-crit" : item.kind === "insurance_missing" ? "al-info" : "al-warn"}`} key={item.key}
+              data-testid={`gap-card-${item.key}`} data-kind={item.kind}>
+              <span className="rail" /><span className="ic">{item.kind === "material_request" ? "🪣" : item.kind === "no_work_requested" ? "🌧" : "🛡"}</span>
+              <div className="bd"><div className="hd"><strong>{item.title}</strong>
+                <span className="ref">{item.kind === "material_request" ? "Materials" : item.kind === "no_work_requested" ? "No work today" : "Insurance"} · {dueWord(item)}</span></div><p>{item.detail}</p></div>
+              <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
+              <Link className="btn primary" href={item.action.href} data-testid={`gap-card-open-${item.key}`}>{item.action.label}</Link>
+            </div>
           ) : item.kind === "painter_message" ? (
             // Tom, 9 Oct 2026: a painter wrote in a job's Messages box. Reading
             // the thread on the job page (or replying) is what clears it.

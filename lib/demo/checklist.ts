@@ -10,11 +10,13 @@
 
 export type DemoStepKey =
   | "accept" | "photo" | "stage" | "prompt" | "question" | "finish_date"
-  | "variation" | "walkthrough" | "invoice" | "expense" | "block_day" | "gcal";
+  | "variation" | "walkthrough" | "invoice" | "expense" | "block_day" | "gcal"
+  | "materials" | "no_work";
 
 export type DemoStep = { key: DemoStepKey; module: number; label: string };
 
 export const DEMO_STEPS: readonly DemoStep[] = [
+  { key: "materials", module: 4, label: "Requested more materials" },
   { key: "prompt", module: 6, label: "Answered the DEMO text with a photo" },
   { key: "question", module: 7, label: "Asked a question" },
   { key: "finish_date", module: 7, label: "Changed the finish date" },
@@ -23,6 +25,7 @@ export const DEMO_STEPS: readonly DemoStep[] = [
   { key: "accept", module: 10, label: "Accepted the offer" },
   { key: "photo", module: 10, label: "Added a before photo" },
   { key: "stage", module: 10, label: "Moved a surface to Prepped and Painted" },
+  { key: "no_work", module: 10, label: "Marked a day as no work" },
   { key: "invoice", module: 11, label: "Submitted the invoice" },
   { key: "expense", module: 11, label: "Claimed an expense" },
   { key: "block_day", module: 12, label: "Blocked out a day" },
@@ -44,6 +47,9 @@ export type DemoFacts = {
   expenseSubmitted: boolean;
   dayBlocked: boolean;
   gcalLinked: boolean;
+  /** Step 3b: a materials request answered; a day marked no work (or asked for). */
+  materialsAnswered: boolean;
+  noWorkMarked: boolean;
 };
 
 export type DemoChecklistRow = DemoStep & { done: boolean; detail: string };
@@ -62,6 +68,8 @@ export function demoChecklist(f: DemoFacts): DemoChecklistRow[] {
     expense: [f.expenseSubmitted, f.expenseSubmitted ? "Claimed" : "Nothing claimed"],
     block_day: [f.dayBlocked, f.dayBlocked ? "A day is blocked" : "No day blocked"],
     gcal: [f.gcalLinked, f.gcalLinked ? "Linked" : "Not linked"],
+    materials: [f.materialsAnswered, f.materialsAnswered ? "Ordered" : "Nothing requested yet"],
+    no_work: [f.noWorkMarked, f.noWorkMarked ? "A day is marked" : "No day marked"],
   };
   return DEMO_STEPS.map((s) => ({ ...s, done: state[s.key][0], detail: state[s.key][1] }));
 }

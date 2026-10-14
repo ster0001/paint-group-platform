@@ -56,6 +56,7 @@ import RejectVariation from "@/app/pc/RejectVariation";
 import MessageThread from "@/app/components/wo/MessageThread";
 import { loadJobPainters, loadThread, pickPainter } from "@/lib/workorder/messagesLoad";
 import DemoControls from "@/app/components/demo/DemoControls";
+import MaterialRequests, { type MaterialRequestRow } from "./MaterialRequests";
 
 export const dynamic = "force-dynamic";
 
@@ -179,15 +180,23 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     for (const ph of signed) { const cid = byId.get(ph.id); if (cid) (callbackPhotos[cid] ??= []).push(ph); }
   }
   // Reminder moments (Step 4) and the days the PC marked No work (R10).
-  const [momentRes, flagRes] = await Promise.all([
+  const [momentRes, flagRes, matReqRes] = await Promise.all([
     supabase.from("wo_reminder_moments").select("id, work_order_id, kind, day, due_at, sends_count, last_sent_at, answered_at, skipped_reason").eq("work_order_id", id).order("due_at"),
-    supabase.from("wo_day_flags").select("day, reason").eq("work_order_id", id).eq("flag", "no_work").order("day"),
+    // Marked days, and the days the painter asked for (Step 3b) — one read, told apart by flag.
+    supabase.from("wo_day_flags").select("id, day, reason, flag").eq("work_order_id", id).in("flag", ["no_work", "no_work_requested"]).order("day"),
+    // The painter's materials requests (Step 3b), newest last; the office replies here.
+    supabase.from("wo_material_requests").select("id, item, quantity, note, status, reply, created_at, replied_at").eq("work_order_id", id).order("created_at"),
   ]);
   if (momentRes.error) reportError(momentRes.error, { where: "pc.wo.moments", bestEffort: true });
   if (flagRes.error) reportError(flagRes.error, { where: "pc.wo.dayFlags", bestEffort: true });
+  if (matReqRes.error) reportError(matReqRes.error, { where: "pc.wo.materialRequests", bestEffort: true });
+  type FlagRow = { id: string; day: string; reason: string; flag: string };
+  const noWorkRequests = ((flagRes.error ? [] : flagRes.data ?? []) as FlagRow[]).filter((f) => f.flag === "no_work_requested").map((f) => ({ id: f.id, day: f.day, reason: f.reason }));
+  const materialRequests: MaterialRequestRow[] = ((matReqRes.error ? [] : matReqRes.data ?? []) as { id: string; item: string; quantity: string; note: string; status: MaterialRequestRow["status"]; reply: string; created_at: string; replied_at: string | null }[])
+    .map((r) => ({ id: r.id, item: r.item, quantity: r.quantity, note: r.note, status: r.status, reply: r.reply, createdAt: r.created_at, repliedAt: r.replied_at }));
   const moments: MomentRow[] = ((momentRes.error ? [] : momentRes.data ?? []) as { id: string; work_order_id: string; kind: MomentRow["kind"]; day: string; due_at: string; sends_count: number; last_sent_at: string | null; answered_at: string | null; skipped_reason: MomentRow["skippedReason"] }[])
     .map((m) => ({ id: m.id, workOrderId: m.work_order_id, kind: m.kind, day: m.day, dueAt: m.due_at, sendsCount: m.sends_count, lastSentAt: m.last_sent_at, answeredAt: m.answered_at, skippedReason: m.skipped_reason }));
-  const noWorkFlags = (flagRes.error ? [] : flagRes.data ?? []) as { day: string; reason: string }[];
+  const noWorkFlags = ((flagRes.error ? [] : flagRes.data ?? []) as FlagRow[]).filter((f) => f.flag === "no_work").map((f) => ({ day: f.day, reason: f.reason }));
   const signoffAreas = ((signoffRow as { areas?: Record<string, { flagged_at?: string; rectified_at?: string; flag_withdrawn_at?: string }> | null } | null)?.areas) ?? {};
   const flaggedAreas = Object.entries(signoffAreas).filter(([, a]) => a?.flagged_at && !a?.rectified_at && !a?.flag_withdrawn_at).map(([h]) => h);
   const openCallbackSource = (CALLBACK_SOURCES as readonly string[]).includes(callbackParam ?? "") ? (callbackParam as CallbackSource) : null;
@@ -823,6 +832,9 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
             />
           )}
 
+          {/* Step 3b: what the painter asked for from the job, and the reply box. */}
+          <MaterialRequests workOrderId={id} rows={materialRequests} />
+
           {/* Materials (Tom, 4 Sep): colours per substrate, adjustable here,
               and the budget against matched supplier invoices. */}
           <MaterialsCard
@@ -976,7 +988,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
           )}
 
           {(row.stage === "pre_start" || row.stage === "in_progress" || row.stage === "completion_prep" || moments.length > 0) && (
-            <NoWorkDay workOrderId={id} moments={moments} flags={noWorkFlags} />
+            <NoWorkDay workOrderId={id} moments={moments} flags={noWorkFlags} requests={noWorkRequests} />
           )}
 
           {callbacksLoad.error ? (
