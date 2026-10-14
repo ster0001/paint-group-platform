@@ -183,6 +183,38 @@ test.describe("12 Demo Street — the robots answer every module", () => {
     expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: walls.id, p_to: "done" })).toMatch(/^ok:/);
   });
 
+  test("M4 and M10: request more materials, and a rained-off day — both answered by the robot office", async ({ page }) => {
+    await signIn(page, contractor!, /\/portal/);
+    await openJob(page);
+    await page.getByTestId("materials-request-open").click();
+    await page.getByTestId("materials-item").fill("Wash&Wear Natural White");
+    await page.getByTestId("materials-quantity").fill("10 L");
+    await page.getByTestId("materials-send").click();
+    await expect(page.getByTestId("materials-request-msg")).toContainText("Sent to the office");
+    const req = await until("materials ordered", async () => {
+      const { data } = await db!.from("wo_material_requests").select("id, status, reply, is_demo").eq("work_order_id", woId).maybeSingle();
+      const row = data as { id: string; status: string; reply: string; is_demo: boolean } | null;
+      return row?.status === "ordered" ? row : null;
+    });
+    expect(req.is_demo).toBe(true);
+    expect(req.reply).toContain("paint shop tomorrow");
+    await robotSaid("At the paint shop tomorrow");
+    await page.reload();
+    await expect(page.getByTestId(`materials-request-${req.id}`)).toHaveAttribute("data-status", "ordered");
+
+    await page.getByTestId("no-work-open").click();
+    await page.getByTestId("no-work-reason-rained-off").click();
+    await page.getByTestId("no-work-send").click();
+    await expect(page.getByTestId("no-work-msg")).toContainText("Sent to the office");
+    await until("no work confirmed", async () => {
+      const { data } = await db!.from("wo_day_flags").select("flag").eq("work_order_id", woId).eq("flag", "no_work").limit(1);
+      return (data?.length ?? 0) > 0;
+    });
+    await robotSaid("no work today");
+    const { data: pending } = await db!.from("wo_day_flags").select("id").eq("work_order_id", woId).eq("flag", "no_work_requested");
+    expect(pending?.length ?? 0, "the request row became the marked day").toBe(0);
+  });
+
   test("M6: staff send the DEMO text; a photo answers it", async ({ page }) => {
     await signIn(page, staff!, /\/home/);
     await page.goto(`/pc/wo/${woId}`);
@@ -333,16 +365,16 @@ test.describe("12 Demo Street — the robots answer every module", () => {
     await page.goto("/pc/demo");
     const row = page.getByTestId(`demo-row-${contractorId}`);
     await expect(row).toBeVisible();
-    for (const key of ["accept", "photo", "stage", "prompt", "question", "finish_date", "variation", "walkthrough", "invoice", "expense", "block_day"]) {
+    for (const key of ["accept", "photo", "stage", "prompt", "question", "finish_date", "variation", "walkthrough", "invoice", "expense", "block_day", "materials", "no_work"]) {
       await expect(page.getByTestId(`demo-step-${contractorId}-${key}`), key).toHaveAttribute("data-done", "true");
     }
     await expect(page.getByTestId(`demo-step-${contractorId}-gcal`)).toHaveAttribute("data-done", "false");
-    await expect(page.getByTestId(`demo-done-${contractorId}`)).toContainText("11");
+    await expect(page.getByTestId(`demo-done-${contractorId}`)).toContainText("13");
 
     await signIn(page, contractor!, /\/portal/);
     await openJob(page);
     const list = page.getByTestId("demo-checklist");
-    await expect(list.locator("[data-done='true']")).toHaveCount(11);
+    await expect(list.locator("[data-done='true']")).toHaveCount(13);
     await expect(list.getByTestId("demo-step-gcal")).toHaveAttribute("data-done", "false");
   });
 });

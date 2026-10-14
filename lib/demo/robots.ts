@@ -203,6 +203,28 @@ export function demoExpenseSubmitted(workOrderId: string, expenseId: string): Pr
   });
 }
 
+// ---- Module 4 and Module 10 (Step 3b): materials, and a rained-off day -------------------------
+
+export function demoMaterialRequested(workOrderId: string, requestId: string): Promise<boolean> {
+  return onDemo("materials", workOrderId, async (ctx) => {
+    const robot = await robotClient(ctx.service, ctx.rules);
+    expectOk("wo_material_request_reply", (await robot.rpc("wo_material_request_reply", {
+      p_id: requestId, p_status: "ordered", p_reply: "Ordered. At the paint shop tomorrow from 7 am.",
+    })).data);
+    const contractorId = await contractorOf(ctx.service, workOrderId);
+    if (contractorId) await say(ctx, robot, workOrderId, contractorId, "Ordered. At the paint shop tomorrow from 7 am — it is on the job under Materials too.");
+  });
+}
+
+export function demoNoWorkRequested(workOrderId: string, flagId: string): Promise<boolean> {
+  return onDemo("noWork", workOrderId, async (ctx) => {
+    const robot = await robotClient(ctx.service, ctx.rules);
+    expectOk("wo_decide_no_work_day", (await robot.rpc("wo_decide_no_work_day", { p_flag_id: flagId, p_confirm: true, p_note: "" })).data);
+    const contractorId = await contractorOf(ctx.service, workOrderId);
+    if (contractorId) await say(ctx, robot, workOrderId, contractorId, "Marked — no work today. No reminder counts for that day.");
+  });
+}
+
 // ---- Modules 7 and 10: a question, and a finish-date change -------------------------------------
 
 export function demoPainterMessage(workOrderId: string, contractorId: string): Promise<boolean> {

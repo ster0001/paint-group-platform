@@ -18,6 +18,7 @@ import { loadMyCallbacks } from "@/lib/callbacks/load";
 import { callbackLine } from "@/lib/callbacks/model";
 import { loadMyStatus } from "@/lib/painterStatus/mine";
 import StatusCard from "./StatusCard";
+import DeferCertificates from "./DeferCertificates";
 import { loadMyThreads } from "@/lib/workorder/messagesLoad";
 import { messageWhen } from "@/lib/workorder/messageModel";
 
@@ -151,7 +152,7 @@ export default async function PortalHome() {
   const missing = missingProfileFields(contractor);
 
   // Everything the contractor has to act on right now, drawn from real state.
-  const actions: { icon: string; text: string; chip?: string }[] = [];
+  const actions: { icon: string; text: string; chip?: string; defer?: boolean }[] = [];
   const awaitingCheck = docs.find((d) => d.kind === "insurance" && d.file_url && !d.verified_at);
   if (docsError) {
     // Say nothing about insurance when we couldn't read the documents at all —
@@ -170,7 +171,8 @@ export default async function PortalHome() {
     actions.push({
       icon: "🛡",
       text: "Upload your public liability certificate — you can't be offered work without it",
-      chip: "Required",
+      chip: contractor.certificates_deferred_at ? "Missing" : "Required",
+      defer: true,   // Step 3b (ruling I5): "I will add this later" sits under it
     });
   } else if (insuranceDays !== null && insuranceDays <= 45) {
     actions.push({
@@ -256,7 +258,7 @@ export default async function PortalHome() {
         <div className="card">
           <h3>Action items</h3>
           {actions.map((a, i) => (
-            <Link key={i} href="/portal/profile" className="act">
+            <Link key={i} href="/portal/profile" className="act" data-testid={a.defer ? "action-insurance" : undefined}>
               <i aria-hidden>{a.icon}</i>
               <span>{a.text}</span>
               {a.chip && (
@@ -266,6 +268,9 @@ export default async function PortalHome() {
               )}
             </Link>
           ))}
+          {actions.some((a) => a.defer) && (
+            <div style={{ padding: "6px 0 0" }}><DeferCertificates deferredAt={contractor.certificates_deferred_at ?? null} /></div>
+          )}
         </div>
       )}
 

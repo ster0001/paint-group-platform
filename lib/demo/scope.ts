@@ -38,4 +38,6 @@ export const DEMO_FLAGGED_TABLES = [
   "wo_walkthroughs", "schedule_holds", "review_requests", "warranties", "messages", "crm_events",
   // 20270265: a share on a demo job (worker logins, Step 3a).
   "wo_worker_shares",
+  // 20270266: a materials request on a demo job (Step 3b).
+  "wo_material_requests",
 ] as const;

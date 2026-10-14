@@ -55,6 +55,8 @@ import WorkersCard from "@/app/portal/WorkersCard";
 import { loadWorkers } from "@/lib/contractor/workers";
 import WorkerJob from "./WorkerJob";
 import { getWorkerJob } from "@/lib/contractor/workerJobs";
+import MaterialsRequest, { type MaterialsRequestRow } from "./MaterialsRequest";
+import NoWorkToday, { type NoWorkFlagRow } from "./NoWorkToday";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
@@ -487,6 +489,17 @@ export default async function PortalJobPage({
   // Messages with the office about THIS job (Tom, 9 Oct 2026) — their own
   // thread only, through their session (RLS). No office-side delivery notes.
   const messages = await loadThread(supabase, id, contractor.id, "painter");
+  // Step 3b: the painter's materials requests and no-work days on this job (RLS: painter on the job).
+  const [matReqRes, dayFlagRes] = await Promise.all([
+    supabase.from("wo_material_requests").select("id, item, quantity, status, reply, created_at").eq("work_order_id", id).order("created_at", { ascending: false }).limit(20),
+    supabase.from("wo_day_flags").select("id, day, flag, reason").eq("work_order_id", id).order("day", { ascending: false }).limit(20),
+  ]);
+  if (matReqRes.error) reportError(matReqRes.error, { where: "portal.job.materialRequests", bestEffort: true, extra: { workOrderId: id } });
+  if (dayFlagRes.error) reportError(dayFlagRes.error, { where: "portal.job.dayFlags", bestEffort: true, extra: { workOrderId: id } });
+  const materialRequests: MaterialsRequestRow[] = ((matReqRes.error ? [] : matReqRes.data ?? []) as { id: string; item: string; quantity: string; status: MaterialsRequestRow["status"]; reply: string; created_at: string }[])
+    .map((r) => ({ id: r.id, item: r.item, quantity: r.quantity, status: r.status, reply: r.reply, createdAt: r.created_at }));
+  const noWorkFlags: NoWorkFlagRow[] = ((dayFlagRes.error ? [] : dayFlagRes.data ?? []) as NoWorkFlagRow[]);
+  const canRaise = job.committed && stage !== undefined && stage !== "offered" && stage !== "closed";
   // The contractor's crew and which of them see this job (Step 3a).
   const { workers: crewWorkers } = capabilities.hasCrewCount ? await loadWorkers(supabase, contractor.id, id) : { workers: [] };
   // The practice job's checklist (induction Step 2) — derived from its own rows.
@@ -622,6 +635,10 @@ export default async function PortalJobPage({
       {/* Step 4: the job's reminder moments and whether each was answered. */}
       {job.committed && moments.length > 0 && stage !== "closed" && (
         <div style={{ padding: "0 16px" }}><UpdateMoments moments={moments} /></div>
+      )}
+      {/* Step 3b: rained off / no work today, from the painter's side. */}
+      {(canRaise || noWorkFlags.length > 0) && (
+        <div style={{ padding: "0 16px" }}><NoWorkToday workOrderId={id} flags={noWorkFlags} canRequest={canRaise} /></div>
       )}
 
       {/* Tom, 30 Sep: the job in four numbered steps, one at a time —
@@ -816,6 +833,10 @@ export default async function PortalJobPage({
       {/* The approved changes on the sheet itself (Tom, 23 Sep) — scope and
           hours for both kinds of painter; the pay line carries the accepted
           variations for a contractor, and an employee's sheet has no pay. */}
+      {/* Step 3b: Request more — item and quantity to the office; the reply lands here. */}
+      {(canRaise || materialRequests.length > 0) && (
+        <div style={{ padding: "0 16px" }}><MaterialsRequest workOrderId={id} rows={materialRequests} canRequest={canRaise} /></div>
+      )}
       <WorkOrderDoc doc={job.doc} booking={woBooking} photos={officePhotos}
         standardsBase="portal" smallJobHours={smallJob}
         variant={assignment ? "employee" : "contractor"}

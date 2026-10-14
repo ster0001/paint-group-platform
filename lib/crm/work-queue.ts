@@ -156,6 +156,12 @@ export const WORK_ITEM_KINDS = [
    * Felipe's own visit, never a check, never a hold. "Mark visited" clears it.
    */
   "site_visit_due",
+  /** Induction Step 3b (14 Oct 2026): a painter asked for more materials from the job. The office reply clears it. */
+  "material_request",
+  /** Induction Step 3b: a painter asked for a day to be marked no work (rained off). Confirm or decline clears it. */
+  "no_work_requested",
+  /** Induction Step 3b (ruling I5): an active contractor with no public liability certificate on file. Verifying one clears it. */
+  "insurance_missing",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -252,7 +258,7 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
  * SCREENS over one queue is not.
  */
 export type WorkItemHome = "crm" | "pc";
-const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "painter_message", "site_visit_due"]);
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "painter_message", "site_visit_due", "material_request", "no_work_requested", "insurance_missing"]);
 export function homeOf(kind: WorkItemKind): WorkItemHome {
   return PC_HOMED.has(kind) ? "pc" : "crm";
 }
@@ -335,6 +341,9 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   painter_message: 26,
   // Felipe's own visit on the day — the day's plan, like a check.
   site_visit_due: 20,
+  material_request: 28,
+  no_work_requested: 30,
+  insurance_missing: 12,
 };
 
 export type PriorityInput = {
@@ -451,6 +460,9 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   qa_check_final_cancelled: "followups",
   painter_message: "messages",
   site_visit_due: "followups",
+  material_request: "approvals",
+  no_work_requested: "approvals",
+  insurance_missing: "followups",
 };
 
 // ---- source: customer check-ins on a running job (Tom, 25 Sep 2026) ----------
@@ -2408,8 +2420,94 @@ async function readSiteVisitRows(supabase: SupabaseClient): Promise<{ rows: Site
   return { rows, error: null };
 }
 
+// ---- Induction Step 3b: three painter-raised cards -----------------------------------------
+export type MaterialRequestQueueRow = { id: string; workOrderId: string; woRef: string; where: string; painter: string; item: string; quantity: string; note: string; at: string };
+export type NoWorkRequestQueueRow = { id: string; workOrderId: string; woRef: string; where: string; painter: string; day: string; reason: string; at: string };
+export type InsuranceMissingQueueRow = { contractorId: string; name: string; deferredAt: string | null; createdAt: string; remindersSent: number };
+
+export function buildMaterialRequestItems(rows: readonly MaterialRequestQueueRow[], now: Date): WorkItem[] {
+  return rows.map((r) => finish({
+    key: itemKey("material_request", "work_order", r.workOrderId, r.id),
+    kind: "material_request", accountId: null, subjectRef: { type: "work_order", id: r.workOrderId },
+    title: `${r.painter} needs more materials on ${r.woRef} — ${r.where}`,
+    detail: `${r.item}${r.quantity ? ` × ${r.quantity}` : ""}${r.note ? ` — ${r.note}` : ""}. Order it and reply on the job; the reply shows on their phone.`,
+    since: r.at, dueAt: new Date(new Date(r.at).getTime() + 4 * 3_600_000).toISOString(),
+    action: { label: "Reply", href: `/pc/wo/${r.workOrderId}#materials` },
+  }, { valueCents: null, promisedToCustomer: false }, now));
+}
+
+export function buildNoWorkRequestItems(rows: readonly NoWorkRequestQueueRow[], now: Date): WorkItem[] {
+  return rows.map((r) => finish({
+    key: itemKey("no_work_requested", "work_order", r.workOrderId, r.id),
+    kind: "no_work_requested", accountId: null, subjectRef: { type: "work_order", id: r.workOrderId },
+    title: `${r.painter}: no work on ${r.day} — ${r.woRef}, ${r.where}`,
+    detail: `${r.reason || "No reason given"}. Confirm and that day is not scored; decline and it stays a work day.`,
+    since: r.at, dueAt: new Date(new Date(r.at).getTime() + 2 * 3_600_000).toISOString(),
+    action: { label: "Confirm or decline", href: `/pc/wo/${r.workOrderId}#reminder-moments` },
+  }, { valueCents: null, promisedToCustomer: false }, now));
+}
+
+export function buildInsuranceMissingItems(rows: readonly InsuranceMissingQueueRow[], now: Date): WorkItem[] {
+  return rows.map((r) => finish({
+    key: itemKey("insurance_missing", "contractor", r.contractorId, r.deferredAt ?? "none"),
+    kind: "insurance_missing", accountId: null, subjectRef: { type: "contractor", id: r.contractorId },
+    title: `${r.name} has no public liability certificate on file`,
+    detail: `${r.deferredAt ? `They chose to add it later on ${r.deferredAt.slice(0, 10)}` : "Nothing uploaded"}${r.remindersSent ? ` · ${r.remindersSent} reminder text${r.remindersSent === 1 ? "" : "s"} sent` : ""}. No job offers until it is verified.`,
+    since: r.deferredAt ?? r.createdAt, dueAt: null,
+    action: { label: "Open painter", href: `/contractors/${r.contractorId}` },
+  }, { valueCents: null, promisedToCustomer: false }, now));
+}
+
+type PainterJoin = { company_name: string | null; profiles: { name: string | null } | null } | null;
+const painterName = (c: PainterJoin) => c?.profiles?.name?.trim() || c?.company_name?.trim() || "A painter";
+type JobJoin = { wo_ref: string; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null } | null;
+const jobWhere = (w: JobJoin) => w?.wo_snapshot?.jobTitle || w?.wo_snapshot?.jobAddress || w?.wo_ref || "the job";
+
+async function readMaterialRequestRows(supabase: SupabaseClient): Promise<{ rows: MaterialRequestQueueRow[]; error: string | null }> {
+  const { data, error } = await realOnly(supabase.from("wo_material_requests")
+    .select("id, work_order_id, item, quantity, note, created_at, work_orders(wo_ref, wo_snapshot), contractors(company_name, profiles(name))"))
+    .eq("status", "requested").order("created_at").limit(200);
+  if (error) return { rows: [], error: error.message };
+  type Row = { id: string; work_order_id: string; item: string; quantity: string; note: string; created_at: string; work_orders: JobJoin; contractors: PainterJoin };
+  return { error: null, rows: ((data ?? []) as unknown as Row[]).map((r) => ({
+    id: r.id, workOrderId: r.work_order_id, woRef: r.work_orders?.wo_ref ?? "", where: jobWhere(r.work_orders),
+    painter: painterName(r.contractors), item: r.item, quantity: r.quantity, note: r.note, at: r.created_at,
+  })) };
+}
+
+async function readNoWorkRequestRows(supabase: SupabaseClient): Promise<{ rows: NoWorkRequestQueueRow[]; error: string | null }> {
+  const { data, error } = await realOnly(supabase.from("wo_day_flags")
+    .select("id, work_order_id, day, reason, created_at, work_orders(wo_ref, wo_snapshot, contractors(company_name, profiles(name)))"))
+    .eq("flag", "no_work_requested").order("created_at").limit(200);
+  if (error) return { rows: [], error: error.message };
+  type Row = { id: string; work_order_id: string; day: string; reason: string; created_at: string; work_orders: (NonNullable<JobJoin> & { contractors: PainterJoin }) | null };
+  return { error: null, rows: ((data ?? []) as unknown as Row[]).map((r) => ({
+    id: r.id, workOrderId: r.work_order_id, woRef: r.work_orders?.wo_ref ?? "", where: jobWhere(r.work_orders),
+    painter: painterName(r.work_orders?.contractors ?? null), day: r.day, reason: r.reason, at: r.created_at,
+  })) };
+}
+
+async function readInsuranceMissingRows(supabase: SupabaseClient): Promise<{ rows: InsuranceMissingQueueRow[]; error: string | null }> {
+  // offerable is exactly "a verified, unexpired insurance certificate" (contractor_recompute_offerable).
+  const { data, error } = await supabase.from("contractors")
+    .select("id, company_name, certificates_deferred_at, created_at, employment_type, profiles(name)")
+    .eq("active", true).eq("offerable", false).eq("employment_type", "contractor").limit(200);
+  if (error) return { rows: [], error: error.message };
+  type Row = { id: string; company_name: string | null; certificates_deferred_at: string | null; created_at: string; profiles: { name: string | null } | null };
+  const rows = (data ?? []) as unknown as Row[];
+  const ids = rows.map((r) => r.id);
+  const { data: ev, error: evErr } = ids.length ? await supabase.from("contractor_events").select("contractor_id").eq("type", "certificate_reminder_sent").in("contractor_id", ids).limit(1000) : { data: [], error: null };
+  if (evErr) return { rows: [], error: evErr.message };
+  const sent = new Map<string, number>();
+  for (const e of (ev ?? []) as { contractor_id: string }[]) sent.set(e.contractor_id, (sent.get(e.contractor_id) ?? 0) + 1);
+  return { error: null, rows: rows.map((r) => ({
+    contractorId: r.id, name: r.profiles?.name?.trim() || r.company_name?.trim() || "A painter",
+    deferredAt: r.certificates_deferred_at, createdAt: r.created_at, remindersSent: sent.get(r.id) ?? 0,
+  })) };
+}
+
 export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
-  const [checkins, standards, callbacks, painters, qaChecks, painterMessages, siteVisits, dismissed] = await Promise.all([
+  const [checkins, standards, callbacks, painters, qaChecks, painterMessages, siteVisits, materials, noWork, insurance, dismissed] = await Promise.all([
     readJobCheckinRows(supabase, now),
     readStandardsRows(supabase),
     readCallbackRows(supabase),
@@ -2417,6 +2515,9 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     readQaCheckRows(supabase),
     readPainterMessageRows(supabase),
     readSiteVisitRows(supabase),
+    readMaterialRequestRows(supabase),
+    readNoWorkRequestRows(supabase),
+    readInsuranceMissingRows(supabase),
     supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
   ]);
   if (checkins.error) return { items: [], failure: `Couldn't read the jobs for check-ins: ${checkins.error}` };
@@ -2429,6 +2530,9 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     ...buildQaCheckItems(qaChecks.rows, now),
     ...buildPainterMessageItems(painterMessages.rows, now),
     ...buildSiteVisitItems(siteVisits.rows, now),
+    ...buildMaterialRequestItems(materials.rows, now),
+    ...buildNoWorkRequestItems(noWork.rows, now),
+    ...buildInsuranceMissingItems(insurance.rows, now),
   ];
   const items = sortItems(applyDismissals(pcItems(built), dismissals, now));
   const failures = [
@@ -2439,6 +2543,9 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     qaChecks.error ? `Couldn't read the quality checks (${qaChecks.error}).` : null,
     painterMessages.error ? `Couldn't read the painters' messages (${painterMessages.error}).` : null,
     siteVisits.error ? `Couldn't read the site check-ins (${siteVisits.error}).` : null,
+    materials.error ? `Couldn't read the materials requests (${materials.error}).` : null,
+    noWork.error ? `Couldn't read the no-work requests (${noWork.error}).` : null,
+    insurance.error ? `Couldn't read who has no insurance on file (${insurance.error}).` : null,
   ].filter(Boolean);
   return { items, failure: failures.length ? failures.join(" ") : null };
 }

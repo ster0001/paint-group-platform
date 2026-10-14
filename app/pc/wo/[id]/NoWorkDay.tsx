@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { clearNoWorkDayAction, setNoWorkDayAction } from "@/app/pc/noWorkActions";
+import { clearNoWorkDayAction, decideNoWorkDayAction, setNoWorkDayAction } from "@/app/pc/noWorkActions";
 import { MOMENT_LABEL, momentState, type MomentRow } from "@/lib/workorder/reminderMoments";
 
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -13,8 +13,10 @@ const dmy = (ymd: string) => { const [y, m, d] = ymd.split("-").map(Number); ret
  * (R10): a rained-off day is marked, today or a past day, with a reason, and
  * its moments leave the count. The same control is on the schedule board.
  */
-export default function NoWorkDay({ workOrderId, moments, flags }: {
+export default function NoWorkDay({ workOrderId, moments, flags, requests = [] }: {
   workOrderId: string; moments: MomentRow[]; flags: { day: string; reason: string }[];
+  /** Induction Step 3b: days the painter asked to have marked no work, waiting on the office. */
+  requests?: { id: string; day: string; reason: string }[];
 }) {
   const router = useRouter();
   const [day, setDay] = useState(today());
@@ -26,7 +28,20 @@ export default function NoWorkDay({ workOrderId, moments, flags }: {
     setMsg(null); const r = await fn(); setMsg({ ok: r.ok, text: r.message }); if (r.ok) router.refresh();
   });
   return (
-    <div className="card" data-testid="reminder-moments">
+    <div className="card" id="reminder-moments" data-testid="reminder-moments">
+      {requests.length > 0 && (
+        <div className="row" style={{ flexDirection: "column", gap: 6 }} data-testid="no-work-requests">
+          {requests.map((q) => (
+            <span key={q.id} className="note" data-testid={`no-work-request-${q.id}`} style={{ color: "var(--amber)" }}>
+              The painter asked for no work on {dmy(q.day)}{q.reason ? ` — ${q.reason}` : ""}{" "}
+              <button type="button" className="btn" style={{ fontSize: 10, padding: "2px 8px" }} disabled={pending} data-testid={`no-work-confirm-${q.id}`}
+                onClick={() => run(() => decideNoWorkDayAction({ workOrderId, flagId: q.id, confirm: true }))}>Confirm</button>{" "}
+              <button type="button" className="btn dim" style={{ fontSize: 10, padding: "2px 8px" }} disabled={pending} data-testid={`no-work-decline-${q.id}`}
+                onClick={() => run(() => decideNoWorkDayAction({ workOrderId, flagId: q.id, confirm: false }))}>Decline</button>
+            </span>
+          ))}
+        </div>
+      )}
       <h3>App updates <em>{moments.length ? `${moments.filter((m) => m.answeredAt).length} of ${moments.filter((m) => !m.skippedReason).length} answered` : "no moments yet"}</em></h3>
       <p className="note">The painter is texted at each moment and up to twice more that day until a tick or a photo lands. A day with no work is skipped and does not count.</p>
       {moments.map((m) => {
