@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import UpdateCard from "./UpdateCard";
 import ClearClosed from "./ClearClosed";
 import { reportError } from "@/lib/monitoring/report";
+import { realOnly } from "@/lib/demo/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +14,9 @@ export const dynamic = "force-dynamic";
 export default async function UpdatesPage() {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const { data, error } = await realOnly(supabase
     .from("wo_updates")
-    .select("id, work_order_id, for_date, draft_text, final_text, status, photo_count, work_orders(wo_ref, wo_snapshot, stage)")
+    .select("id, work_order_id, for_date, draft_text, final_text, status, photo_count, work_orders(wo_ref, wo_snapshot, stage)"))
     // Today's SENT updates stay on the page, greyed, rather than vanishing the
     // moment you press send: a card that disappears reads as "did that work?".
     // (It also made the e2e flaky — the card unmounted before it could confirm.)

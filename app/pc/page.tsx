@@ -16,6 +16,7 @@ import { buildPcWorkItems } from "@/lib/crm/work-queue";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 import RejectVariation from "./RejectVariation";
+import { realOnly } from "@/lib/demo/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -68,9 +69,9 @@ export default async function DashboardPage() {
   // What came back from site, newest first, across every job. Staff RLS scopes
   // the read; the bucket is private, so the URLs are signed here and live an
   // hour. Capped at 24 — this is a glance at the day, not an archive.
-  const { data: recentPhotoRows } = await supabase
+  const { data: recentPhotoRows } = await realOnly(supabase
     .from("wo_photos")
-    .select("id, work_order_id, kind, area, caption, storage_path, created_at, variation_id, work_orders(wo_ref, wo_snapshot)")
+    .select("id, work_order_id, kind, area, caption, storage_path, created_at, variation_id, work_orders(wo_ref, wo_snapshot)"))
     .order("created_at", { ascending: false })
     .limit(24);
 

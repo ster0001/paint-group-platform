@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BoardInput } from "@/lib/crm/board";
 import type { AccountFacts } from "@/lib/crm/stage";
 import { journeyWho } from "@/lib/wizard/journey";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * CRM v2 P1 — the one fact-load behind a customer card, BY ACCOUNT ID.
@@ -90,11 +91,11 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
       supabase.from("accounts")
         .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, owner_id, relationship_state, state_until, state_note, state_set_at, lost_reason, tags, permit_email, permit_sms, permit_phone, company_name")
         .in("id", ids),
-      supabase.from("estimates")
-        .select("id, account_id, status, total_cents, accepted_total_cents, created_at, sent_at, viewed_at, accepted_at, declined_at, declined_reason, title, job_kind, wizard_job_type:builder_state->wizard->state->>jobType")
+      realOnly(supabase.from("estimates")
+        .select("id, account_id, status, total_cents, accepted_total_cents, created_at, sent_at, viewed_at, accepted_at, declined_at, declined_reason, title, job_kind, wizard_job_type:builder_state->wizard->state->>jobType"))
         .in("account_id", ids).order("created_at", { ascending: false }).limit(ids.length * 50),
-      supabase.from("crm_events")
-        .select("account_id, type, occurred_at, payload")
+      realOnly(supabase.from("crm_events")
+        .select("account_id, type, occurred_at, payload"))
         .in("type", [...FACT_EVENT_TYPES])
         .in("account_id", ids)
         .order("occurred_at", { ascending: false }).limit(ids.length * 200),

@@ -8,6 +8,7 @@ import type { VisitRow } from "@/lib/visits/types";
 import DiaryVisits from "./DiaryVisits";
 import GcalCard from "./GcalCard";
 import { addDays, melbourneInstantFromLocal, weekStart } from "./time";
+import { realOnly } from "@/lib/demo/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -48,8 +49,8 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
 
   const { data: { user } } = await supabase.auth.getUser();
   const [{ data: wo, error }, { data: visitRows }, staff, gcal] = await Promise.all([
-    supabase.from("work_orders")
-      .select("id, wo_ref, stage, start_date, end_date, job_address:wo_snapshot->>jobAddress, estimate_id, estimates(account_id, accepted_name, accepted_total_cents)")
+    realOnly(supabase.from("work_orders")
+      .select("id, wo_ref, stage, start_date, end_date, job_address:wo_snapshot->>jobAddress, estimate_id, estimates(account_id, accepted_name, accepted_total_cents)"))
       .neq("stage", "closed").order("start_date", { ascending: true, nullsFirst: false }).limit(100),
     supabase.from("visits").select(VISIT_COLUMNS).gte("starts_at", from.toISOString()).lt("starts_at", to.toISOString())
       .neq("status", "cancelled").order("starts_at").limit(500),

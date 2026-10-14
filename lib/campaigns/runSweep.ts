@@ -21,6 +21,7 @@ import { delayHolds } from "@/lib/crm/states";
 import { judge, type CampaignRules, type CustomerState, type ExitRule } from "./guard";
 import { deliverMessage, finishEnrolment } from "./deliver";
 import { normaliseSteps, planSweep, type Candidate, type CampaignDefinition, type ExistingEnrolment, type PlannedMessage, type TriggerEvent } from "./sweep";
+import { realOnly } from "@/lib/demo/scope";
 
 export type SweepOutcome = {
   campaign: string;
@@ -69,8 +70,8 @@ export async function findCandidates(
 
   if (!def.triggerEvent) return { candidates: [], watermark: null, error: "No trigger event chosen." };
   const since = (campaign.events_since as string | null) ?? (campaign.created_at as string) ?? now.toISOString();
-  const { data: events, error } = await db.from("crm_events")
-    .select("id, account_id, estimate_id, occurred_at")
+  const { data: events, error } = await realOnly(db.from("crm_events")
+    .select("id, account_id, estimate_id, occurred_at"))
     .eq("type", def.triggerEvent).gt("occurred_at", since).not("account_id", "is", null)
     .order("occurred_at", { ascending: true }).limit(2000);
   if (error) return { candidates: [], watermark: null, error: error.message };

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { settingsFromRow } from "@/lib/agent/settings";
 import { costCents, dropOffByGap, handoffRate, type SpendRow } from "@/lib/agent/evals/metrics";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * /admin/agent — spend, handoff rate, drop-off by gap key (S8). Staff shell;
@@ -22,7 +23,7 @@ export default async function AgentAdminPage() {
     supabase.from("agent_messages").select("conversation_id, model_id, tokens_in, tokens_out, created_at").gte("created_at", since30).limit(20000),
     supabase.from("agent_handoffs").select("id, conversation_id, status, requested_at, escalated_at").gte("requested_at", since30).limit(2000),
     supabase.from("agent_tool_calls").select("conversation_id, tool, result, created_at").eq("tool", "next_gap").gte("created_at", since30).order("created_at", { ascending: true }).limit(20000),
-    supabase.from("estimates").select("id, builder_state->prepPack").not("builder_state->prepPack", "is", null).limit(2000),
+    realOnly(supabase.from("estimates").select("id, builder_state->prepPack")).not("builder_state->prepPack", "is", null).limit(2000),
   ]);
   const settings = settingsFromRow(settingsRes.data);
   const conversations = (convs.data ?? []) as Array<{ id: string; mode: string; channel: string; status: string; created_at: string; estimate_id: string | null }>;

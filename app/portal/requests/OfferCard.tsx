@@ -43,6 +43,7 @@ export default function OfferCard({
   workOrderId,
   myBlocks,
   myJobDays,
+  demo = false,
 }: {
   offer: BookingOffer;
   woRef: string;
@@ -50,6 +51,8 @@ export default function OfferCard({
   workOrderId: string;
   myBlocks: PortalBlock[];
   myJobDays: PortalJobDay[];
+  /** The practice offer on 12 Demo Street (induction brief §4.1, Module 2). */
+  demo?: boolean;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -116,8 +119,9 @@ export default function OfferCard({
   return (
     <div className={`card ${live ? "amberish" : ""}`}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--cyan)" }}>
+        <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--cyan)", display: "flex", alignItems: "center", gap: 8 }}>
           OFFER · {woRef}
+          {demo && <span className="chip amb" data-testid="offer-demo-chip">Demo</span>}
         </span>
         {live ? (
           <span className="cd">{formatCountdown(left)}</span>

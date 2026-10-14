@@ -20,6 +20,7 @@ import { customerCheckins, dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
 import { melbourneDayStartUtc } from "@/lib/workorder/console";
 import { openHolds } from "@/lib/scheduling/holds";
 import { qaCheckLabel } from "@/lib/workorder/qaSchedule";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * The work queue (shell brief §3) — the one answer to "what needs a human?".
@@ -1875,8 +1876,8 @@ function connRows(rows: unknown[]): GcalConnectionRow[] {
 
 /** Booked jobs whose last day is within the last fortnight — the rows the check-in planner reads. */
 async function readJobCheckinRows(supabase: SupabaseClient, now: Date): Promise<{ rows: JobCheckinRow[]; error: string | null }> {
-  const res = await supabase.from("work_orders")
-    .select("id, wo_ref, stage, start_date, end_date, wo_snapshot, estimates(account_id, accepted_name, title), contractors(company_name, works_saturday, works_sunday, profiles(name))")
+  const res = await realOnly(supabase.from("work_orders")
+    .select("id, wo_ref, stage, start_date, end_date, wo_snapshot, estimates(account_id, accepted_name, title), contractors(company_name, works_saturday, works_sunday, profiles(name))"))
     .not("start_date", "is", null).not("end_date", "is", null).neq("stage", "offered")
     .gte("end_date", melbourneDatePlus(now, -14))
     .lte("start_date", melbourneDatePlus(now, 0))
@@ -1974,8 +1975,8 @@ async function readDeskCheckSends(supabase: SupabaseClient, rows: DeskCheckRow[]
   const [events, others] = await Promise.all([
     sliceRead<{ estimate_id: string; created_at: string }>(estimateIds, (ids) => supabase.from("estimate_events")
       .select("estimate_id, created_at").eq("type", "sent").gte("created_at", oldest).in("estimate_id", ids)),
-    sliceRead<{ id: string; account_id: string | null; sent_at: string | null }>(accountIds, (ids) => supabase.from("estimates")
-      .select("id, account_id, sent_at").gte("sent_at", oldest).in("account_id", ids)),
+    sliceRead<{ id: string; account_id: string | null; sent_at: string | null }>(accountIds, (ids) => realOnly(supabase.from("estimates")
+      .select("id, account_id, sent_at")).gte("sent_at", oldest).in("account_id", ids)),
   ]);
   const error = events.error ?? others.error;
   // Surfaced through `counts.truncated` by the caller, like every other source here.
@@ -2060,11 +2061,11 @@ export function buildWoCallbackItems(callbacks: readonly CallbackQueueRow[], fla
 
 async function readCallbackRows(supabase: SupabaseClient): Promise<{ callbacks: CallbackQueueRow[]; flagged: FlaggedWalkthroughRow[]; error: string | null }> {
   const [cbRes, flagRes] = await Promise.all([
-    supabase.from("wo_callbacks")
-      .select("id, work_order_id, status, source, description, created_at, fixed_at, wo_appointments(start_date, end_date), work_orders(wo_ref, wo_snapshot, contractors(company_name, profiles(name)))")
+    realOnly(supabase.from("wo_callbacks")
+      .select("id, work_order_id, status, source, description, created_at, fixed_at, wo_appointments(start_date, end_date), work_orders(wo_ref, wo_snapshot, contractors(company_name, profiles(name)))"))
       .in("status", ["open", "booked", "fixed"]).order("created_at").limit(300),
-    supabase.from("wo_signoff")
-      .select("work_order_id, areas, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)))")
+    realOnly(supabase.from("wo_signoff")
+      .select("work_order_id, areas, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)))"))
       .is("signed_at", null).not("evidence_pack_sent_at", "is", null).limit(300),
   ]);
   if (cbRes.error) return { callbacks: [], flagged: [], error: cbRes.error.code === "42P01" ? "call backs are not switched on yet (migration 20270226)" : cbRes.error.message };
@@ -2172,7 +2173,7 @@ async function readPainterStatusRows(supabase: SupabaseClient): Promise<{ status
     supabase.from("painter_status").select("painter_id, colour, offers_cleared_at, computed_at, contractors(company_name, profiles(name))").in("colour", ["orange", "red"]),
     supabase.from("contractor_events").select("id, contractor_id, created_at, detail").eq("type", "status_changed").order("created_at", { ascending: false }).limit(300),
     supabase.from("painter_bonuses").select("id, painter_id, status, triggered_at, handed_over_at, qualifying_changed_at, qualifying_wo_ids, contractors(company_name, profiles(name))").in("status", ["due", "with_owner"]),
-    supabase.from("contractor_invoices").select("id, contractor_id, terms_held_at, terms_hold_reason, due_on, status, work_orders(wo_ref), contractors(company_name, profiles(name))").eq("terms_kind", "held").neq("status", "paid"),
+    realOnly(supabase.from("contractor_invoices").select("id, contractor_id, terms_held_at, terms_hold_reason, due_on, status, work_orders(wo_ref), contractors(company_name, profiles(name))")).eq("terms_kind", "held").neq("status", "paid"),
   ]);
   // The bonus table is owner / admin / PC only; a session outside those roles gets rows it may not read refused — that is not a failure of the queue.
   const errors = [st.error, ch.error, he.error].filter(Boolean).map((e) => e!.message);
@@ -2242,8 +2243,8 @@ export function buildQaCheckItems(rows: readonly QaCheckQueueRow[], now: Date): 
 }
 
 async function readQaCheckRows(supabase: SupabaseClient): Promise<{ rows: QaCheckQueueRow[]; error: string | null }> {
-  const { data, error } = await supabase.from("wo_qa_checks")
-    .select("id, work_order_id, kind, scheduled_for, scheduled_time, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)), wo_walkthroughs(kind, status, scheduled_date, created_at))")
+  const { data, error } = await realOnly(supabase.from("wo_qa_checks")
+    .select("id, work_order_id, kind, scheduled_for, scheduled_time, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)), wo_walkthroughs(kind, status, scheduled_date, created_at))"))
     .is("result", null).not("scheduled_for", "is", null)
     .order("scheduled_for").limit(300);
   if (error) return { rows: [], error: error.message };
@@ -2309,8 +2310,8 @@ export function buildPainterMessageItems(rows: readonly PainterMessageQueueRow[]
 }
 
 async function readPainterMessageRows(supabase: SupabaseClient): Promise<{ rows: PainterMessageQueueRow[]; error: string | null }> {
-  const { data, error } = await supabase.from("wo_message_threads")
-    .select("id, work_order_id, contractor_id, last_painter_message_at, last_staff_message_at, staff_read_at, work_orders(wo_ref, wo_snapshot), contractors(company_name, profiles(name))")
+  const { data, error } = await realOnly(supabase.from("wo_message_threads")
+    .select("id, work_order_id, contractor_id, last_painter_message_at, last_staff_message_at, staff_read_at, work_orders(wo_ref, wo_snapshot), contractors(company_name, profiles(name))"))
     .eq("staff_unread", true).order("last_painter_message_at", { ascending: false }).limit(200);
   if (error) return { rows: [], error: error.message };
   type Row = {
@@ -2384,8 +2385,8 @@ export function buildSiteVisitItems(rows: readonly SiteVisitQueueRow[], now: Dat
 }
 
 async function readSiteVisitRows(supabase: SupabaseClient): Promise<{ rows: SiteVisitQueueRow[]; error: string | null }> {
-  const { data, error } = await supabase.from("wo_site_visits")
-    .select("id, work_order_id, scheduled_for, scheduled_time, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)))")
+  const { data, error } = await realOnly(supabase.from("wo_site_visits")
+    .select("id, work_order_id, scheduled_for, scheduled_time, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)))"))
     .is("visited_at", null).not("scheduled_for", "is", null)
     .order("scheduled_for").limit(300);
   if (error) return { rows: [], error: error.message };
@@ -2457,13 +2458,13 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
       .order("followup_due_at", { ascending: true, nullsFirst: false })
       .limit(CAP.followups),
-    supabase.from("invoices")
-      .select("id, estimate_id, kind, status, total_inc_cents, due_on, issued_on, estimates(account_id, accepted_name, title, job_address:sent_snapshot->>jobAddress)")
+    realOnly(supabase.from("invoices")
+      .select("id, estimate_id, kind, status, total_inc_cents, due_on, issued_on, estimates(account_id, accepted_name, title, job_address:sent_snapshot->>jobAddress)"))
       .in("status", [...OPEN_STATUSES])
       .order("due_on", { ascending: true, nullsFirst: false })
       .limit(CAP.invoices),
-    supabase.from("crm_events")
-      .select("id, account_id, occurred_at, payload")
+    realOnly(supabase.from("crm_events")
+      .select("id, account_id, occurred_at, payload"))
       .eq("type", "callback_requested")
       .gte("occurred_at", since90d)
       .order("occurred_at", { ascending: true })
@@ -2499,15 +2500,15 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .order("last_seen_at", { ascending: false })
       .limit(CAP.wizard),
     // P1: quotes that lapsed in the last 60 days, with the estimate as it is now.
-    supabase.from("crm_events")
-      .select("id, account_id, estimate_id, occurred_at, payload, estimates(status, title, viewed_at)")
+    realOnly(supabase.from("crm_events")
+      .select("id, account_id, estimate_id, occurred_at, payload, estimates(status, title, viewed_at)"))
       .eq("type", "estimate_lapsed")
       .gte("occurred_at", new Date(now.getTime() - 60 * 86_400_000).toISOString())
       .order("occurred_at", { ascending: true })
       .limit(CAP.lapsed),
     // P3: what customers wrote to us in the last 30 days, matched or not.
-    supabase.from("messages")
-      .select("id, account_id, channel, subject, body, from_address, occurred_at, read_at")
+    realOnly(supabase.from("messages")
+      .select("id, account_id, channel, subject, body, from_address, occurred_at, read_at"))
       .eq("direction", "in")
       .gte("occurred_at", since30d)
       .order("occurred_at", { ascending: true })
@@ -2549,8 +2550,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // Tom, 15 Sep: every quote out with a customer, so the ones gone quiet
   // become follow-ups. Sent in the last 90 days — older ones have lapsed
   // (their own item) or are being ignored on purpose.
-  const quoteRes = await supabase.from("estimates")
-    .select("id, title, account_id, status, sent_at, created_at, viewed_at, total_cents, source")
+  const quoteRes = await realOnly(supabase.from("estimates")
+    .select("id, title, account_id, status, sent_at, created_at, viewed_at, total_cents, source"))
     .eq("status", "sent").not("account_id", "is", null)
     .gte("sent_at", since90d)
     .order("sent_at", { ascending: false }).limit(CAP.quotes);
@@ -2560,7 +2561,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // answers every follow-up asked for before it (quiet quote, callback, online
   // estimate). 90 days matches the quote window above; a read that fails
   // suppresses nothing, so a follow-up is shown rather than lost.
-  const acceptRes = await supabase.from("estimates").select("account_id, accepted_at, created_at")
+  const acceptRes = await realOnly(supabase.from("estimates").select("account_id, accepted_at, created_at"))
     .eq("status", "accepted").not("account_id", "is", null)
     .or(`accepted_at.gte.${since90d},and(accepted_at.is.null,created_at.gte.${since90d})`)
     .order("accepted_at", { ascending: false, nullsFirst: false }).limit(1000);
@@ -2582,21 +2583,21 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     .map((a) => [a.id, a.name || a.email || a.phone || "A customer"]));
   const quoteTemps = new Map(((quoteAccounts) as Array<{ id: string; temperature: string | null }>).map((a) => [a.id, a.temperature]));
   // Airtable handover (16 Sep): signed jobs whose feed had no per-area hours.
-  const hoursRes = await supabase.from("estimates")
-    .select("id, title, account_id, accepted_at, created_at, total_cents, external_ref")
+  const hoursRes = await realOnly(supabase.from("estimates")
+    .select("id, title, account_id, accepted_at, created_at, total_cents, external_ref"))
     .eq("source", "paintscout").eq("status", "accepted").contains("external_ref", { hours_pending: true })
     .order("accepted_at", { ascending: true }).limit(200);
   const hoursRows = (hoursRes.error ? [] : (hoursRes.data ?? [])) as unknown as HoursPendingRow[];
   // Employed painters (S3): standing "can't make it" flags. Three bounded
   // reads; a table that predates 20270154 just yields nothing.
   const [flagRes, activeRes, moveRes] = await Promise.all([
-    supabase.from("wo_events")
-      .select("id, work_order_id, created_at, meta, work_orders(wo_ref, wo_snapshot)")
+    realOnly(supabase.from("wo_events")
+      .select("id, work_order_id, created_at, meta, work_orders(wo_ref, wo_snapshot)"))
       .eq("type", "assignment_cant_make_it").gte("created_at", since30d)
       .order("created_at", { ascending: true }).limit(200),
-    supabase.from("wo_assignments").select("id, contractor_id, start_date, end_date, status, work_order_id, accepted_at, work_orders(wo_ref, wo_snapshot)")
+    realOnly(supabase.from("wo_assignments").select("id, contractor_id, start_date, end_date, status, work_order_id, accepted_at, work_orders(wo_ref, wo_snapshot)"))
       .neq("status", "released").gte("end_date", melbourneDatePlus(now, -7)).limit(500),
-    supabase.from("wo_events").select("created_at, meta")
+    realOnly(supabase.from("wo_events").select("created_at, meta"))
       .eq("type", "assignment_dates_changed").gte("created_at", since30d).limit(500),
   ]);
   const flagRows = (flagRes.error ? [] : (flagRes.data ?? [])) as unknown as CantMakeItEventRow[];
@@ -2612,8 +2613,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // has since been booked (which resolves them). Staff-only table; a table
   // that predates 20270209 simply yields nothing.
   const todayMel = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-  const holdRes = await supabase.from("schedule_holds")
-    .select("id, contractor_id, start_date, end_date, work_order_id, note, created_at, released_at, work_orders(wo_ref, wo_snapshot)")
+  const holdRes = await realOnly(supabase.from("schedule_holds")
+    .select("id, contractor_id, start_date, end_date, work_order_id, note, created_at, released_at, work_orders(wo_ref, wo_snapshot)"))
     .is("released_at", null)
     .gte("end_date", todayMel)
     .lte("start_date", new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now.getTime() + HOLD_NUDGE_DAYS * 86_400_000)))
@@ -2641,8 +2642,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const painterNames = new Map((flagPainters as unknown as Array<{ id: string; company_name: string | null; profiles: { name: string | null } | null }>)
     .map((c) => [c.id, c.profiles?.name || c.company_name || "A painter"]));
   // Tom, 7 Sep: open estimates still waiting on the estimator's photo sign-off.
-  const photoRes = await supabase.from("estimates")
-    .select("id, title, account_id, created_at, status, builder_state")
+  const photoRes = await realOnly(supabase.from("estimates")
+    .select("id, title, account_id, created_at, status, builder_state"))
     .eq("status", "draft").contains("builder_state", { aiDeferred: [{ kind: "photo_review" }] })
     .gte("created_at", new Date(now.getTime() - 60 * 86_400_000).toISOString())
     .order("created_at", { ascending: false }).limit(100);
@@ -2705,7 +2706,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     .map((a) => [a.id, a.name || a.email || a.phone || "A customer"]));
   const wzRows = (wizardRows.error ? [] : (wizardRows.data ?? [])) as unknown as WizardQueueRow[];
   const wzAccountIds = [...new Set(wzRows.map((r) => r.account_id).filter((x): x is string => Boolean(x)))];
-  const wzAttempts = await inSlices(wzAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
+  const wzAttempts = await inSlices(wzAccountIds, (ids) => realOnly(supabase.from("crm_events").select("account_id, occurred_at"))
     .in("type", ["call_connected", "call_no_answer", "message_left"]).in("account_id", ids).gte("occurred_at", since30d).limit(ids.length * 5));
   // A change request is answered by a staff reply in that estimate's thread.
   const crRows = ((changeReqs.error ? [] : changeReqs.data) ?? []) as unknown as ChangeRequestRow[];
@@ -2725,8 +2726,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   // Snooze reasons live in the event log, not on the account row.
   const snoozeRows = (snoozeAcc.data ?? []) as SnoozeAccountRow[];
   const snoozedIds = snoozeRows.filter((a) => a.snoozed_until).map((a) => a.id);
-  const reasons = await inSlices(snoozedIds, (ids) => supabase.from("crm_events")
-    .select("account_id, payload, occurred_at").eq("type", "snoozed").in("account_id", ids).order("occurred_at", { ascending: false }).limit(ids.length * 3));
+  const reasons = await inSlices(snoozedIds, (ids) => realOnly(supabase.from("crm_events")
+    .select("account_id, payload, occurred_at")).eq("type", "snoozed").in("account_id", ids).order("occurred_at", { ascending: false }).limit(ids.length * 3));
 
   type InvJoin = {
     id: string; estimate_id: string; kind: string; status: string;

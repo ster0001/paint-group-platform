@@ -14,6 +14,7 @@ import { hasApiKey } from "@/lib/extract/model";
 import { isReadable, mergeExtractions, ruleExtract } from "./rules";
 import { matchJob, type MatchJob, type MatchVendor } from "./match";
 import type { ExtractedBill } from "./intake";
+import { realOnly } from "@/lib/demo/scope";
 
 export type PipelineInput = {
   intakeId: string;
@@ -35,9 +36,9 @@ export async function loadMatchContext(
   service: SupabaseClient,
 ): Promise<{ jobs: MatchJob[]; vendors: MatchVendor[] }> {
   const [wos, vendorRows] = await Promise.all([
-    service
+    realOnly(service
       .from("work_orders")
-      .select("id, job_no, wo_ref, wo_snapshot, estimates(sent_snapshot)")
+      .select("id, job_no, wo_ref, wo_snapshot, estimates(sent_snapshot)"))
       .neq("stage", "closed")
       .order("created_at", { ascending: false })
       .limit(200),

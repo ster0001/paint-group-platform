@@ -52,6 +52,7 @@ import WhatWeExpect from "@/app/components/standards/WhatWeExpect";
 import RejectVariation from "@/app/pc/RejectVariation";
 import MessageThread from "@/app/components/wo/MessageThread";
 import { loadJobPainters, loadThread, pickPainter } from "@/lib/workorder/messagesLoad";
+import DemoControls from "@/app/components/demo/DemoControls";
 
 export const dynamic = "force-dynamic";
 
@@ -64,12 +65,12 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_id, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, crew_notes, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_id, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, crew_notes, estimate_id, wo_snapshot, is_demo, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
   const row = wo as unknown as {
-    id: string; wo_ref: string; stage: WoStage; blocked_reason: string | null;
+    id: string; wo_ref: string; stage: WoStage; blocked_reason: string | null; is_demo: boolean | null; contractor_id: string | null;
     contractor_payment_cents: number | null; start_date: string | null; end_date: string | null;
     qa_required: boolean | null; qa_waived: boolean | null; walkthrough_required: boolean | null;
     colours: Record<string, { status?: string; match?: { code?: string; brand?: string; canSize?: string; by?: string } }> | null;
@@ -533,6 +534,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
 
   return (
     <>
+      {row.is_demo && <DemoControls mode="pc" contractorId={row.contractor_id} />}
       <div className="wohead">
         <div className="wotop">
           <div>

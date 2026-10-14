@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LANES } from "@/lib/crm/stage";
 import type { SearchHit } from "../../Search";
 import { formatEstimateNumber, parseEstimateNumber } from "@/lib/estimate/number";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * P2 — global search. Staff session + RLS; the facts table carries a search
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
     // anything else matches the title as before.
     (() => {
       const n = parseEstimateNumber(q);
-      const base = supabase.from("estimates").select("id, number, title, status, total_cents, account_id");
+      const base = realOnly(supabase.from("estimates").select("id, number, title, status, total_cents, account_id"));
       return n != null ? base.eq("number", n).limit(5) : base.ilike("title", `%${needle}%`).order("created_at", { ascending: false }).limit(5);
     })(),
   ]);

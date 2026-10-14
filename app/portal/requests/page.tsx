@@ -58,7 +58,7 @@ export default async function RequestsPage() {
       <p className="slab">Respond within the countdown — offers expire</p>
 
       {live.map((o) => (
-        <OfferCard key={o.offer.id} offer={o.offer} woRef={o.woRef} doc={o.doc} workOrderId={o.offer.work_order_id} myBlocks={myBlocks} myJobDays={myJobDays} />
+        <OfferCard key={o.offer.id} offer={o.offer} woRef={o.woRef} doc={o.doc} workOrderId={o.offer.work_order_id} myBlocks={myBlocks} myJobDays={myJobDays} demo={o.isDemo} />
       ))}
 
       {live.length === 0 && (
@@ -73,7 +73,7 @@ export default async function RequestsPage() {
         <>
           <p className="slab" style={{ marginTop: 18 }}>Earlier offers</p>
           {settled.map((o) => (
-            <OfferCard key={o.offer.id} offer={o.offer} woRef={o.woRef} doc={o.doc} workOrderId={o.offer.work_order_id} myBlocks={myBlocks} myJobDays={myJobDays} />
+            <OfferCard key={o.offer.id} offer={o.offer} woRef={o.woRef} doc={o.doc} workOrderId={o.offer.work_order_id} myBlocks={myBlocks} myJobDays={myJobDays} demo={o.isDemo} />
           ))}
         </>
       )}

@@ -166,6 +166,58 @@
       ]
     },
     {
+      "feature": "demo-property",
+      "role": "contractor",
+      "title": "12 Demo Street — your practice job",
+      "summary": "A practice job on your own account for the induction. It uses the same screens as a real job, nothing in it is real, and nothing you do in it counts toward your status light or your money. Start it from the Jobs tab, find it under the Demo heading, and reset it any time to go back to the start.",
+      "path": "docs/help/demo-property/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/jobs/page.tsx",
+        "app/portal/page.tsx",
+        "app/portal/requests/OfferCard.tsx",
+        "app/portal/jobs/[id]/page.tsx",
+        "app/components/demo/DemoControls.tsx",
+        "app/components/demo/demoActions.ts",
+        "supabase/migrations/20270262000000_demo_property.sql"
+      ]
+    },
+    {
+      "feature": "demo-property",
+      "role": "pc",
+      "title": "12 Demo Street — a painter's practice job, and why it is in none of your numbers",
+      "summary": "Every contractor can have one practice job for the induction. It is a real work order on their account, rendered by the same screens, but it is left out of PC Command, the schedule, the Contractors strip, Payments, the dashboard, every sweep and Google Calendar. You can open it from its link and reset it for the painter.",
+      "path": "docs/help/demo-property/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/pc/wo/[id]/page.tsx",
+        "app/components/demo/DemoControls.tsx",
+        "lib/demo/scope.ts",
+        "lib/demo/boundary.test.ts",
+        "supabase/migrations/20270262000000_demo_property.sql"
+      ]
+    },
+    {
+      "feature": "demo-property",
+      "role": "staff",
+      "title": "Set up or reset a contractor's practice job from their record",
+      "summary": "On a contractor's record under Contractors there is a Demo property line. Set up demo gives them 12 Demo Street for the induction; Reset demo puts it back to the start. It never appears in their job list, their offers count, or anywhere money or status is counted.",
+      "path": "docs/help/demo-property/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/(app)/contractors/[id]/page.tsx",
+        "app/components/demo/DemoControls.tsx",
+        "app/components/demo/demoActions.ts",
+        "supabase/migrations/20270262000000_demo_property.sql"
+      ]
+    },
+    {
       "feature": "estimate-chat",
       "role": "customer",
       "title": "Chat with us from your estimate — ask anything, and we reply in the same place",

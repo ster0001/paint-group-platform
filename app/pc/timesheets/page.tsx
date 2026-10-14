@@ -5,6 +5,7 @@ import TimesheetRow, { type TimesheetRowProp } from "./TimesheetRow";
 import RecordHours, { type PainterOption } from "./RecordHours";
 import LeaveRow, { type LeaveRowProp } from "./LeaveRow";
 import StandardDay from "./StandardDay";
+import { realOnly } from "@/lib/demo/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export default async function TimesheetsPage() {
   const select = "id, contractor_id, work_order_id, work_date, started_at, finished_at, break_minutes, source, status, approved_at, rejected_reason, note, contractors(profiles(name)), work_orders(wo_ref, wo_snapshot)";
 
   const [pending, decided, employees, assignments, rates, leave, daySetting] = await Promise.all([
-    supabase.from("timesheet_entries").select(select).in("status", ["open", "submitted"]).order("work_date", { ascending: true }).order("started_at", { ascending: true }),
+    realOnly(supabase.from("timesheet_entries").select(select)).in("status", ["open", "submitted"]).order("work_date", { ascending: true }).order("started_at", { ascending: true }),
     supabase.from("timesheet_entries").select(select).in("status", ["approved", "rejected"]).gte("work_date", shiftDays(today, -60)).order("work_date", { ascending: false }).limit(200),
     supabase.from("contractors").select("id, profiles(name)").eq("employment_type", "employee").eq("active", true),
     supabase.from("wo_assignments").select("contractor_id, work_order_id, start_date, end_date, work_orders(wo_ref, wo_snapshot, stage)").neq("status", "released"),
@@ -121,8 +122,8 @@ export default async function TimesheetsPage() {
   const dv = (daySetting.data as { value?: { dayStart?: string; dayFinish?: string; breakMinutes?: number } } | null)?.value ?? {};
   const standard = { dayStart: dv.dayStart ?? "07:30", dayFinish: dv.dayFinish ?? "15:30", breakMinutes: dv.breakMinutes ?? 30 };
   const pendingAuto = pendingRows.filter((r) => r.source === "auto" && r.status === "submitted").length;
-  const { data: recentEntries, error: recentErr } = await supabase.from("timesheet_entries")
-    .select("contractor_id, work_date").gte("work_date", shiftDays(today, -7));
+  const { data: recentEntries, error: recentErr } = await realOnly(supabase.from("timesheet_entries")
+    .select("contractor_id, work_date")).gte("work_date", shiftDays(today, -7));
   if (recentErr) { reportError(recentErr, { where: "pc.timesheets.recent" }); failures.push("recent days"); }
   const logged = new Set(((recentEntries ?? []) as { contractor_id: string; work_date: string }[]).map((e) => `${e.contractor_id}|${e.work_date}`));
   const nameOf = new Map(painters.map((p) => [p.id, p.name]));
