@@ -68,13 +68,15 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_id, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, crew_notes, estimate_id, wo_snapshot, is_demo, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_id, contractor_payment_cents, pay_change_rate_cents, pay_change_from_rate_cents, pay_change_to_cents, pay_change_sent_at, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, crew_notes, estimate_id, wo_snapshot, is_demo, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
   const row = wo as unknown as {
     id: string; wo_ref: string; stage: WoStage; blocked_reason: string | null; is_demo: boolean | null; contractor_id: string | null;
     contractor_payment_cents: number | null; start_date: string | null; end_date: string | null;
+    pay_change_rate_cents: number | null; pay_change_from_rate_cents: number | null;
+    pay_change_to_cents: number | null; pay_change_sent_at: string | null;
     qa_required: boolean | null; qa_waived: boolean | null; walkthrough_required: boolean | null;
     colours: Record<string, { status?: string; match?: { code?: string; brand?: string; canSize?: string; by?: string } }> | null;
     crew_notes: string | null;
@@ -616,6 +618,15 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
             {contractorVarCents !== 0 && (
               <em className="note" style={{ margin: 0, fontStyle: "normal" }} data-testid="money-contractor-variations">
                 {money(contractorBase)} {contractorVarCents > 0 ? "+" : "−"} {money(Math.abs(contractorVarCents))} variations
+              </em>
+            )}
+            {/* Tom, 14 Oct 2026 (73 Kerferd): a new rate sent to the painter
+                leaves the agreed pay above until they accept — say so, or
+                the old figure reads as the rate change having failed. */}
+            {row.pay_change_rate_cents != null && row.pay_change_to_cents != null && (
+              <em className="note" style={{ margin: 0, fontStyle: "normal", color: "var(--amber)" }} data-testid="money-pay-change-pending">
+                {money(row.pay_change_to_cents)} waiting on {painterName || "the painter"} to accept{" "}
+                {row.pay_change_from_rate_cents != null ? `${money(row.pay_change_from_rate_cents)}/h → ` : ""}{money(row.pay_change_rate_cents)}/h
               </em>
             )}
           </span>
