@@ -163,15 +163,13 @@ test.describe("the revision builder — diff → signed variations", () => {
     frozenRow = data as Record<string, unknown>;
   });
 
-  test("every door leads here: invoices tab, money view, locked builder", async ({ page }) => {
+  test("every door leads here: Payments, the job panel, locked builder", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
 
-    // The Invoicing tab (estimates-style list): the job's ADDRESS is the door.
-    await page.goto("/invoices");
-    // Row wording since 8790fd8 (25 Aug): "Draft · Deposit — 10% of $X · $Y · draft".
-    await expect(page.getByTestId(`job-${estimateId}`)).toContainText("Deposit");
-    await expect(page.getByTestId(`job-${estimateId}`)).toContainText("draft");
-    await page.getByTestId(`revise-${estimateId}`).click();
+    // Payments (the old /invoices list's job row, since the merge): the row opens the job panel, whose Revise scope is the door.
+    await page.goto(`/invoicing?view=table&job=${estimateId}`);
+    await expect(page.getByTestId("pm-panel").locator('.inv[data-kind="deposit"]')).toContainText("Not sent yet", { timeout: 30_000 });
+    await page.getByTestId("pm-panel").getByTestId("revision-builder-link").click();
     await expect(page.getByTestId("revision-badge")).toBeVisible();
 
     // From the job's money view…

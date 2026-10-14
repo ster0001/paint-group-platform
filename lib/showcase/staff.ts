@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/supabase/guards";
 import { SHOWCASE_COLUMNS, showcaseJobRowSchema, type ShowcaseJob } from "./schema";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * Staff-side reads for Settings → Showcase (session 3). Under the staff
@@ -34,8 +35,8 @@ export type EstimatePick = { id: string; title: string; status: string; created_
 export async function listEstimatesForLinking(): Promise<EstimatePick[]> {
   const supabase = await createClient();
   if (!(await requireStaff(supabase))) return [];
-  const { data } = await supabase
-    .from("estimates").select("id, title, status, created_at")
+  const { data } = await realOnly(supabase
+    .from("estimates").select("id, title, status, created_at"))
     .order("created_at", { ascending: false }).limit(400);
   return (data ?? []).map((e) => ({
     id: e.id as string, title: ((e.title as string | null) ?? "").trim() || "(untitled)",

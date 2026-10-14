@@ -12,7 +12,7 @@ describe("staff access (Tom, 5 Sep)", () => {
   });
   it("maps a path to its area, longest prefix first, and knows the builder is Estimates", () => {
     expect(areaForPath("/quote?id=abc")).toBe("estimates");
-    expect(areaForPath("/invoices/123")).toBe("invoicing");
+    expect(areaForPath("/invoices/123")).toBe("payments");   // one money area since the Payments merge (8d)
     expect(areaForPath("/invoicing/job/1")).toBe("payments");
     expect(areaForPath("/pc/wo/9")).toBe("projects");
     expect(areaForPath("/settings/showcase")).toBe("settings");

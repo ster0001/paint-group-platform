@@ -471,6 +471,7 @@
 }
 .pt .tickrow:disabled { opacity: .5; }
 .pt .tickrow-label { flex: 1; min-width: 0; }
+.pt .tickrow-count { margin-left: 6px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; font-weight: 600; opacity: .85; white-space: nowrap; }
 .pt .tickrow .sw { display: flex; gap: 2px; flex: 0 0 auto; }
 .pt .tickrow .sw i { width: 20px; height: 12px; border-radius: 3px; background: var(--graphite); border: 1px solid var(--line); display: block; }
 .pt .tickrow .sw i.a { background: rgba(47,164,107,.25); border-color: rgba(47,164,107,.6); }

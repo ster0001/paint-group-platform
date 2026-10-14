@@ -5,6 +5,7 @@ import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { useLiveConversation } from "@/app/estimate/assist/useLiveConversation";
 import { staffEstimateThreadAction, type EstimateChatMessage } from "./estimateChatActions";
 import { replyToEstimateChatAction } from "@/app/quote/actions";
+import { OPEN_ESTIMATE_CHAT, type OpenEstimateChatDetail } from "./staffDockBus";
 import "./staffdock.css";
 
 /**
@@ -81,6 +82,9 @@ export default function StaffChatDock() {
   const volumeRef = useRef(DEFAULT_VOLUME);
   const seenRef = useRef<Record<string, string>>({});
   const firstLoad = useRef(true);
+  // Payments → Message (Step 4): a thread opened from elsewhere, with a draft. The
+  // row is synthesised when the thread isn't in the inbox (no recent customer line).
+  const [compose, setCompose] = useState<(OpenEstimateChatDetail & { nonce: number }) | null>(null);
 
   // Remembered choices, read after mount (deferred a tick — the lint rule
   // keeps state changes out of effect bodies; a server render has no storage).
@@ -128,6 +132,19 @@ export default function StaffChatDock() {
     return () => { clearTimeout(first); clearInterval(timer); void supabase.removeChannel(channel); };
   }, [refresh]);
 
+  useEffect(() => {
+    const onOpen = (ev: Event) => {
+      const d = (ev as CustomEvent<OpenEstimateChatDetail>).detail;
+      if (!d?.estimateId) return;
+      setCompose({ ...d, nonce: Date.now() });
+      setSelected(`est:${d.estimateId}`);
+      setOpen(true);
+      try { window.localStorage.setItem(OPEN_KEY, "1"); } catch { /* fine */ }
+    };
+    window.addEventListener(OPEN_ESTIMATE_CHAT, onOpen);
+    return () => window.removeEventListener(OPEN_ESTIMATE_CHAT, onOpen);
+  }, []);
+
   const markSeen = (r: Row) => {
     if (r.lastRole === "user") { seenRef.current = { ...seenRef.current, [r.conversationId]: r.lastId }; writeSeen(seenRef.current); }
     setUnseen((u) => { const n = new Set(u); n.delete(r.conversationId); return n; });
@@ -141,7 +158,13 @@ export default function StaffChatDock() {
   // Tom, 20 Sep: "always keep the live chat box visible in the bottom
   // corner, regardless of which page you are on" — the pill stays put with
   // nothing open too, so it is always where they left it.
-  const current = selected ? rows.find((r) => r.conversationId === selected) ?? null : null;
+  const composed: Row | null = compose && selected === `est:${compose.estimateId}` ? {
+    kind: "estimate", conversationId: `est:${compose.estimateId}`, handoffId: "", status: "open", reason: "", requestedAt: "",
+    claimedBy: null, mine: true, who: compose.who, phone: compose.phone, accountId: compose.accountId, estimateId: compose.estimateId,
+    lastText: "", lastRole: "staff", lastAt: "", lastId: "", lastCustomerAt: null,
+  } : null;
+  const current = selected ? rows.find((r) => r.conversationId === selected) ?? composed : null;
+  const draft = compose && current && current.conversationId === `est:${compose.estimateId}` ? compose : null;
   const waitingCount = rows.filter((r) => r.status === "requested").length;
 
   return (
@@ -150,7 +173,9 @@ export default function StaffChatDock() {
         <div className="dk-panel" role="dialog" aria-label="Customer chats">
           {current ? (
             current.kind === "estimate"
-              ? <EstimateDockThread row={current} onBack={() => setSelected(null)} onMinimise={() => toggleOpen(false)} onActivity={refresh} />
+              ? <EstimateDockThread key={`${current.conversationId}:${draft?.nonce ?? 0}`} row={current} compose={draft}
+                  onBack={() => { setSelected(null); setCompose(null); }} onMinimise={() => toggleOpen(false)}
+                  onActivity={refresh} onSent={() => setCompose(null)} />
               : <DockThread row={current} onBack={() => setSelected(null)} onMinimise={() => toggleOpen(false)} onActivity={refresh} />
           ) : (
             <>
@@ -259,10 +284,13 @@ function DockThread({ row, onBack, onMinimise, onActivity }: { row: Row; onBack:
  * through the builder's reply action, so the customer gets the same text
  * and email they would from the estimate page.
  */
-function EstimateDockThread({ row, onBack, onMinimise, onActivity }: { row: Row; onBack: () => void; onMinimise: () => void; onActivity: () => void }) {
+function EstimateDockThread({ row, compose = null, onBack, onMinimise, onActivity, onSent }: {
+  row: Row; compose?: OpenEstimateChatDetail | null; onBack: () => void; onMinimise: () => void; onActivity: () => void; onSent?: () => void;
+}) {
   const estimateId = row.estimateId ?? row.conversationId.replace(/^est:/, "");
   const [messages, setMessages] = useState<EstimateChatMessage[]>([]);
-  const [text, setText] = useState("");
+  const [tpl, setTpl] = useState(compose?.selected ?? "");
+  const [text, setText] = useState(compose?.presets.find((p) => p.key === compose.selected)?.text ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -285,11 +313,14 @@ function EstimateDockThread({ row, onBack, onMinimise, onActivity }: { row: Row;
     if (!body) return;
     setBusy(true); setError(null);
     try {
-      const r = await replyToEstimateChatAction({ estimateId, body });
+      const r = await replyToEstimateChatAction(compose?.invoiceId
+        ? { estimateId, body, invoiceId: compose.invoiceId, template: tpl || "custom" }
+        : { estimateId, body });
       if (!r.ok) { setError(r.message); return; }
       setText("");
       await load();
       onActivity();
+      onSent?.();
     } catch { setError("That didn't go through — check the connection."); }
     finally { setBusy(false); }
   }
@@ -317,10 +348,28 @@ function EstimateDockThread({ row, onBack, onMinimise, onActivity }: { row: Row;
         <div ref={endRef} />
       </div>
       {error && <p className="dk-err" role="alert">{error}</p>}
-      <form className="dk-input" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply to the customer…" aria-label="Reply" disabled={busy} data-testid="dock-input" />
-        <button type="submit" disabled={busy || !text.trim()} data-testid="dock-send">Send</button>
-      </form>
+      {compose ? (
+        <>
+          <div className="dk-tpl" data-testid="dock-templates">
+            {compose.presets.map((p) => (
+              <button key={p.key} type="button" className={p.key === tpl ? "on" : undefined} aria-pressed={p.key === tpl}
+                onClick={() => { setTpl(p.key); setText(p.text); }}>{p.label}</button>
+            ))}
+          </div>
+          <form className="dk-input compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} aria-label="Message" disabled={busy} data-testid="dock-input" />
+            <div className="dk-send">
+              <small>Written for you. Edit it, then send.</small>
+              <button type="submit" disabled={busy || !text.trim()} data-testid="dock-send">Send to {row.who.split(" · ")[0].split(" ")[0] || "the customer"}</button>
+            </div>
+          </form>
+        </>
+      ) : (
+        <form className="dk-input" onSubmit={(e) => { e.preventDefault(); void send(); }}>
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply to the customer…" aria-label="Reply" disabled={busy} data-testid="dock-input" />
+          <button type="submit" disabled={busy || !text.trim()} data-testid="dock-send">Send</button>
+        </form>
+      )}
     </>
   );
 }

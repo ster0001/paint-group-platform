@@ -28,6 +28,7 @@ import {
   releaseAssignmentInput,
   setFinishDateInput,
 } from "@/lib/validation/booking";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * Server actions for booking money and state.
@@ -633,12 +634,12 @@ export async function searchProjectsAction(raw: unknown): Promise<{ ok: true; hi
   const like = `*${needle}*`;
   type Row = { id: string; wo_ref: string; stage: string; wo_snapshot: { jobTitle?: string | null; jobAddress?: string | null } | null; estimates: { title: string | null; accepted_name: string | null } | null };
   const [byJob, byCustomer] = await Promise.all([
-    supabase.from("work_orders")
-      .select("id, wo_ref, stage, wo_snapshot, estimates ( title, accepted_name )")
+    realOnly(supabase.from("work_orders")
+      .select("id, wo_ref, stage, wo_snapshot, estimates ( title, accepted_name )"))
       .or(`wo_ref.ilike.${like},wo_snapshot->>jobTitle.ilike.${like},wo_snapshot->>jobAddress.ilike.${like}`)
       .order("created_at", { ascending: false }).limit(12),
-    supabase.from("work_orders")
-      .select("id, wo_ref, stage, wo_snapshot, estimates!inner ( title, accepted_name )")
+    realOnly(supabase.from("work_orders")
+      .select("id, wo_ref, stage, wo_snapshot, estimates!inner ( title, accepted_name )"))
       .or(`title.ilike.${like},accepted_name.ilike.${like}`, { referencedTable: "estimates" })
       .order("created_at", { ascending: false }).limit(12),
   ]);

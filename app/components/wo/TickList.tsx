@@ -140,6 +140,7 @@ export default function TickList({
                   <span className="sw" aria-hidden="true"><i /><i /><i /></span>
                   <span className="tickrow-label" style={{ textDecoration: "line-through" }}>
                     {row.label}
+                    {row.count != null && <span className="tickrow-count">× {row.count}</span>}
                   </span>
                   <span className="chip amb">Removed from scope</span>
                 </div>
@@ -151,7 +152,7 @@ export default function TickList({
                   onClick={() => tap(row)}
                   disabled={busy === row.id}
                   data-testid={`tick-${row.id}`}
-                  aria-label={`${row.label} — ${LABEL[row.state]}. Tap to mark ${LABEL[nextState(row.state)]}`}
+                  aria-label={`${row.label}${row.count != null ? ` × ${row.count}` : ""} — ${LABEL[row.state]}. Tap to mark ${LABEL[nextState(row.state)]}`}
                 >
                   <span className="sw" aria-hidden="true">
                     <i className={row.state !== "todo" ? "a" : ""} />
@@ -160,6 +161,11 @@ export default function TickList({
                   </span>
                   <span className="tickrow-label">
                     {row.label}
+                    {/* "Doors × 4": the count from the job sheet, so the painter
+                        knows how many this row covers (Tom, 14 Oct 2026). */}
+                    {row.count != null && (
+                      <span className="tickrow-count" data-testid={`tick-count-${row.id}`}>× {row.count}</span>
+                    )}
                     {row.rectification ? <span className="chip amb" style={{ marginLeft: 6 }}>Rectify</span> : null}
                     {row.photosOptional ? (
                       <span className="chip" style={{ marginLeft: 6 }} data-testid={`no-photos-${row.id}`}>No photos</span>

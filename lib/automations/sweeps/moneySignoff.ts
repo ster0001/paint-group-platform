@@ -40,6 +40,7 @@ import { melbourneInstant, melbourneParts } from "@/lib/time/businessHours";
 import { emailLogoUrl } from "@/lib/messaging/logo";
 import { isOverdue } from "@/lib/invoicing/ledger";
 import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
+import { realOnly } from "@/lib/demo/scope";
 
 const OPEN = ["issued", "sent", "viewed", "partially_paid"];
 const money = (c: number) => `$${(c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -252,8 +253,8 @@ async function stillOwing(db: SupabaseClient, invoiceId: string): Promise<{ ok: 
 
 async function openInvoices(db: SupabaseClient, kinds?: string[]): Promise<InvoiceRow[]> {
   const since = melbourneDateKey(new Date(Date.now() - CHASE_WINDOW_DAYS * 86_400_000));
-  let q = db.from("invoices")
-    .select("id, number, kind, status, due_on, issued_on, total_inc_cents, token, account_id, estimate_id, chase_hold_reason, estimates(accepted_name, contact_email:sent_snapshot->>contactEmail, contact_phone:builder_state->contact->>phone, contact_first:builder_state->contact->>first_name)")
+  let q = realOnly(db.from("invoices")
+    .select("id, number, kind, status, due_on, issued_on, total_inc_cents, token, account_id, estimate_id, chase_hold_reason, estimates(accepted_name, contact_email:sent_snapshot->>contactEmail, contact_phone:builder_state->contact->>phone, contact_first:builder_state->contact->>first_name)"))
     .in("status", OPEN).gte("due_on", since).order("due_on", { ascending: false }).limit(500);
   if (kinds) q = q.in("kind", kinds);
   const { data, error } = await q;
@@ -367,8 +368,8 @@ async function signoffReminders(db: SupabaseClient, messaging: MessagingSettings
   // Fresh jobs only: a pack sent in the last week. Older unsigned jobs are the
   // office's call, not a burst of reminders the day this ships.
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
-  const { data: fresh } = await db.from("wo_signoff")
-    .select("work_order_id, customer_token, nudges, signed_at, work_orders(stage, estimate_id, wo_snapshot, estimates(account_id, accepted_name, contact_email:sent_snapshot->>contactEmail, contact_phone:builder_state->contact->>phone, contact_first:builder_state->contact->>first_name, job_address:sent_snapshot->>jobAddress))")
+  const { data: fresh } = await realOnly(db.from("wo_signoff")
+    .select("work_order_id, customer_token, nudges, signed_at, work_orders(stage, estimate_id, wo_snapshot, estimates(account_id, accepted_name, contact_email:sent_snapshot->>contactEmail, contact_phone:builder_state->contact->>phone, contact_first:builder_state->contact->>first_name, job_address:sent_snapshot->>jobAddress))"))
     .is("signed_at", null).gte("evidence_pack_sent_at", weekAgo).not("customer_token", "is", null).limit(200);
   type Row = { work_order_id: string; customer_token: string; nudges: Record<string, string> | null; signed_at: string | null;
     work_orders: { stage: string; estimate_id: string; wo_snapshot: { jobAddress?: string } | null; estimates: { account_id: string | null; accepted_name: string | null; contact_email: string | null; contact_phone: string | null; contact_first: string | null; job_address: string | null } | null } | null };
@@ -423,8 +424,8 @@ async function variationReminders(db: SupabaseClient, messaging: MessagingSettin
   if (!a || !automationOn(messaging, a.key)) return;
   const companyName = (await loadMessaging(db)).company.name || "Paint Group";
   const rungs: Rung[] = [{ id: "first", afterHours: timingFor(a, messaging, "first") }, { id: "second", afterHours: timingFor(a, messaging, "second") }];
-  const { data: vs } = await db.from("wo_variations")
-    .select("id, work_order_id, customer_token, status, customer_responded_at, signed_at, work_orders(wo_ref, estimate_id, estimates(account_id, accepted_name, contact_phone:builder_state->contact->>phone, contact_first:builder_state->contact->>first_name, contact_email:sent_snapshot->>contactEmail))")
+  const { data: vs } = await realOnly(db.from("wo_variations")
+    .select("id, work_order_id, customer_token, status, customer_responded_at, signed_at, work_orders(wo_ref, estimate_id, estimates(account_id, accepted_name, contact_phone:builder_state->contact->>phone, contact_first:builder_state->contact->>first_name, contact_email:sent_snapshot->>contactEmail))"))
     .eq("status", "priced").not("customer_token", "is", null).limit(300);
   const rows = (vs ?? []) as unknown as Array<{ id: string; work_order_id: string; customer_token: string; status: string; customer_responded_at: string | null; signed_at: string | null;
     work_orders: { wo_ref: string; estimate_id: string; estimates: { account_id: string | null; accepted_name: string | null; contact_phone: string | null; contact_first: string | null; contact_email: string | null } | null } | null }>;
@@ -472,8 +473,8 @@ async function contractorInvoicePrompts(db: SupabaseClient, messaging: Messaging
   if (!a || !automationOn(messaging, a.key)) return;
   const again = timingFor(a, messaging, "again");
   const rungs: Rung[] = [{ id: "atSignoff", afterHours: 0 }, { id: "again", afterHours: again * 24 }];
-  const { data: drafts } = await db.from("contractor_invoices")
-    .select("id, work_order_id, contractor_id, status, created_at, work_orders(wo_ref)")
+  const { data: drafts } = await realOnly(db.from("contractor_invoices")
+    .select("id, work_order_id, contractor_id, status, created_at, work_orders(wo_ref)"))
     .eq("status", "draft").eq("auto_draft_source", "signoff").gte("created_at", new Date(now.getTime() - 30 * 86_400_000).toISOString()).limit(300);
   const { contactFor } = await import("@/lib/contractor/notify");
   const { company } = await loadMessaging(db);
@@ -517,8 +518,8 @@ async function offerReminders(db: SupabaseClient, messaging: MessagingSettings, 
   const a = automationByKey("contractor_offer_reminder");
   if (!a || !automationOn(messaging, a.key)) return;
   const rungs = offerReminderRungs(timingFor(a, messaging, "first"), timingFor(a, messaging, "second"));
-  const { data, error } = await db.from("booking_offers")
-    .select("id, work_order_id, contractor_id, state, offered_at, expires_at, start_date, work_orders(wo_ref, wo_snapshot)")
+  const { data, error } = await realOnly(db.from("booking_offers")
+    .select("id, work_order_id, contractor_id, state, offered_at, expires_at, start_date, work_orders(wo_ref, wo_snapshot)"))
     .eq("state", "offered").gt("expires_at", now.toISOString())
     .gte("offered_at", new Date(now.getTime() - 14 * 86_400_000).toISOString())
     .order("offered_at", { ascending: true }).limit(300);
@@ -567,8 +568,8 @@ async function signoffOverdueAlerts(db: SupabaseClient, messaging: MessagingSett
   if (!a || !automationOn(messaging, a.key)) return;
   const hours = timingFor(a, messaging, "after");
   const cutoff = new Date(now.getTime() - hours * 3_600_000).toISOString();
-  const { data } = await db.from("wo_signoff")
-    .select("work_order_id, evidence_pack_sent_at, work_orders(wo_ref, stage, wo_snapshot, estimates(title, accepted_name, job_address:sent_snapshot->>jobAddress))")
+  const { data } = await realOnly(db.from("wo_signoff")
+    .select("work_order_id, evidence_pack_sent_at, work_orders(wo_ref, stage, wo_snapshot, estimates(title, accepted_name, job_address:sent_snapshot->>jobAddress))"))
     .is("signed_at", null).lte("evidence_pack_sent_at", cutoff).not("evidence_pack_sent_at", "is", null).limit(200);
   for (const s of (data ?? []) as unknown as Array<{ work_order_id: string; evidence_pack_sent_at: string; work_orders: { wo_ref: string; stage: string; wo_snapshot: { jobAddress?: string } | null; estimates: { title: string | null; accepted_name: string | null; job_address: string | null } | null } | null }>) {
     if (s.work_orders?.stage !== "walkthrough") continue;

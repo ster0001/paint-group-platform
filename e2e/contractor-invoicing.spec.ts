@@ -1,4 +1,4 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   contractorIdForEmail, createLoopFixture, destroyLoopFixture,
@@ -6,6 +6,19 @@ import {
 } from "./fixtures/woLoop";
 import { credentials, missingCreds, signIn, test } from "./helpers";
 import { gstOnExCents } from "../lib/invoicing/gst";
+
+// Payments merge Step 8d: contractor invoices live on Payments → Contractors.
+const ciRowOn = (page: Page, id: string) => page.locator(`.pm .prow[data-ci="${id}"]`);
+const sectionOf = (page: Page, title: string) => page.locator(".pm section.sec", { has: page.getByRole("heading", { name: title, exact: true }) });
+const melbourneToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date());
+async function payWithReference(page: Page, id: string, reference: string, paidOn: string) {
+  await ciRowOn(page, id).getByRole("button", { name: "Paid, with reference…" }).click();
+  const sheet = page.getByRole("dialog", { name: "Record the payment" });
+  await sheet.getByLabel("Bank reference").fill(reference);
+  await sheet.getByLabel("Date paid").fill(paidOn);
+  await sheet.getByRole("button", { name: "Mark paid" }).click();
+}
+
 
 /**
  * Step 5 — contractor invoicing v2, AS THE CONTRACTOR and AS PC (brief §8.5).
@@ -234,32 +247,20 @@ test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
     await expect(page.getByTestId("ci-total")).toContainText("$1,045.00");
   });
 
-  test("PC: Payables tab → approve → mark paid with bank reference + remittance number", async ({ page }) => {
+  test("PC: Payments → Contractors → approve → paid with bank reference + remittance number", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/invoicing?tab=pay");
+    await page.goto("/invoicing?tab=con");
 
-    await expect(page.getByTestId("tile-to-approve")).not.toHaveText("$0");
-    const payRow = page.getByTestId(`payable-${ciId}`);
-    await expect(payRow).toBeVisible();
-    // Tom, 20 Sep — colour by state, decided on the server: submitted = amber.
-    await expect(payRow).toHaveClass(/\bci-amber\b/);
-    await expect(payRow).toHaveAttribute("data-tone", "amber");
+    // Submitted: under To approve (the old amber row).
+    await expect(sectionOf(page, "To approve").locator(`[data-ci="${ciId}"]`)).toBeVisible({ timeout: 30_000 });
+    await ciRowOn(page, ciId).getByRole("button", { name: "Approve" }).click();
+    // Approved and unpaid: under Approved, to pay (the sign-off draft's terms are ahead of today, so not past the pay-by date).
+    await expect(sectionOf(page, "Approved, to pay").locator(`[data-ci="${ciId}"]`)).toBeVisible({ timeout: 20_000 });
+    await expect(sectionOf(page, "Past the pay-by date").locator(`[data-ci="${ciId}"]`)).toHaveCount(0);
 
-    await page.getByTestId(`approve-ci-${ciId}`).click();
-    await expect(page.getByTestId(`pay-ci-${ciId}`)).toBeVisible({ timeout: 15_000 });
-    // Approved and unpaid = OUTSTANDING FOR PAYMENT: clay (the sign-off draft's terms are ahead of today, so not the stronger past-terms clay).
-    await expect(payRow).toHaveClass(/\bci-clay\b/);
-    await expect(payRow).toHaveAttribute("data-tone", "clay");
-    await expect(page.getByTestId(`overdue-ci-${ciId}`)).toHaveCount(0);
-
-    // Two prompts now: the bank reference, then the payment date.
-    const answers = ["EFT-20260824-01", new Date().toISOString().slice(0, 10)];
-    page.on("dialog", (d) => d.accept(answers.shift() ?? ""));
-    await page.getByTestId(`pay-ci-${ciId}`).click();
-    await expect(page.getByTestId(`payable-${ciId}`)).toContainText("Paid", { timeout: 15_000 });
-    // …and paid = emerald: nothing outstanding.
-    await expect(payRow).toHaveClass(/\bci-emerald\b/);
-    await expect(payRow).toHaveAttribute("data-tone", "emerald");
+    // The bank reference and the payment date, in one sheet.
+    await payWithReference(page, ciId, "EFT-20260824-01", melbourneToday());
+    await expect.poll(async () => ((await db!.from("contractor_invoices").select("status").eq("id", ciId).single()).data as { status: string }).status, { timeout: 20_000 }).toBe("paid");
 
     const { data: ci } = await db!.from("contractor_invoices")
       .select("status, bank_reference, remittance_number, paid_at").eq("id", ciId).single();
@@ -293,9 +294,11 @@ test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
     const { data: drafted } = await db!.from("contractor_invoices").select("rcti").eq("id", ciCId).single();
     expect((drafted as { rcti: boolean }).rcti).toBe(true);
 
-    await page.goto("/invoicing?tab=pay");
-    await page.getByTestId(`approve-ci-${ciCId}`).click();
-    await expect(page.getByTestId(`pay-ci-${ciCId}`)).toBeVisible({ timeout: 15_000 });
+    // A draft RCTI waits under To approve (8b) and is approved from there.
+    await page.goto("/invoicing?tab=con");
+    await expect(sectionOf(page, "To approve").locator(`[data-ci="${ciCId}"]`)).toContainText("RCTI", { timeout: 30_000 });
+    await ciRowOn(page, ciCId).getByRole("button", { name: "Approve" }).click();
+    await expect(sectionOf(page, "Approved, to pay").locator(`[data-ci="${ciCId}"]`)).toBeVisible({ timeout: 20_000 });
 
     const { data: ci } = await db!.from("contractor_invoices")
       .select("status, number, submitted_at").eq("id", ciCId).single();
@@ -387,24 +390,22 @@ test.describe("payment claims — invoice at any time (Tom, 24 Aug)", () => {
     });
   });
 
-  test("payables shows the claim with the job's PC stage; paid with a DATE lands in the portal", async ({ page }) => {
+  test("Contractors shows the claim with the job's PC stage; paid with a DATE lands in the portal", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto("/invoicing?tab=pay");
+    await page.goto("/invoicing?tab=con");
 
-    const row = page.getByTestId(`payable-${claimId}`);
-    await expect(row).toBeVisible();
+    const row = ciRowOn(page, claimId);
+    await expect(row).toBeVisible({ timeout: 30_000 });
     await expect(row).toContainText("claim 25%");
-    await expect(row).toContainText("job: In progress"); // the PC stage, on the row
-    await expect(page.getByTestId(`pdf-ci-${claimId}`)).toBeVisible();
+    await expect(row).toContainText("In progress"); // the PC stage, on the row's customer line
 
-    await page.getByTestId(`approve-ci-${claimId}`).click();
-    await expect(page.getByTestId(`pay-ci-${claimId}`)).toBeVisible({ timeout: 15_000 });
+    await row.getByRole("button", { name: "Approve" }).click();
+    await expect(sectionOf(page, "Approved, to pay").locator(`[data-ci="${claimId}"]`)).toBeVisible({ timeout: 20_000 });
+    await expect(row.getByRole("link", { name: "PDF" })).toBeVisible();   // the claim's PDF, once it is approved
 
-    // Two prompts: bank reference, then the payment DATE.
-    const answers = ["EFT-CLAIM-01", "2026-08-20"];
-    page.on("dialog", (d) => d.accept(answers.shift() ?? ""));
-    await page.getByTestId(`pay-ci-${claimId}`).click();
-    await expect(row).toContainText("Paid", { timeout: 15_000 });
+    // The bank reference and a DATE that isn't today.
+    await payWithReference(page, claimId, "EFT-CLAIM-01", "2026-08-20");
+    await expect.poll(async () => ((await db!.from("contractor_invoices").select("status").eq("id", claimId).single()).data as { status: string }).status, { timeout: 20_000 }).toBe("paid");
 
     const { data: ci } = await db!.from("contractor_invoices")
       .select("status, bank_reference, paid_at, remittance_number").eq("id", claimId).single();

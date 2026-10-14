@@ -11,6 +11,7 @@ import {
 import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
 import FinishChip from "@/app/components/FinishChip";
 import Placeholder from "../Placeholder";
+import DemoControls from "@/app/components/demo/DemoControls";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ function JobCard({ job }: { job: ContractorJob }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <span style={{ display: "flex", gap: 6 }}>
           <span className={`chip ${chip.cls}`}>{chip.label}</span>
+          {job.isDemo && <span className="chip amb" data-testid="job-demo-chip">Demo</span>}
           {a && !a.acceptedAt && <span className="chip amb" data-testid="job-tap-accept">Tap Accept</span>}
           {a?.isLead && <span className="chip cyn">Lead</span>}
         </span>
@@ -85,7 +87,18 @@ export default async function JobsPage() {
     ? await listContractorJobs(contractor.id)
     : await listEmployeeJobs();
 
-  if (jobs.length === 0) {
+  // The practice job (induction brief §4): its own heading, and a way to set it
+  // up for a contractor who has none yet (ruling I4 — every contractor can
+  // seed and reset their own). Employees get theirs with the worker induction.
+  const { current, upcoming, previous, demo } = groupJobs(jobs);
+  const demoSection = capabilities.acceptsOffers && (
+    <>
+      <p className="slab" style={{ marginTop: 16 }} data-testid="jobs-demo-heading">Demo</p>
+      {demo.length > 0 ? demo.map((j) => <JobCard key={j.id} job={j} />) : <DemoControls mode="start" />}
+    </>
+  );
+
+  if (jobs.length === 0 && !demoSection) {
     return (
       <Placeholder
         title="Jobs"
@@ -98,12 +111,15 @@ export default async function JobsPage() {
     );
   }
 
-  const { current, upcoming, previous } = groupJobs(jobs);
-
   return (
     <div className="wrap">
       <h1>Jobs</h1>
       <p className="slab">Current · upcoming · previous</p>
+      {jobs.length === demo.length && (
+        <p className="hint" style={{ marginTop: 10 }}>
+          No jobs yet. Every job Paint Group issues to you lands here with its work order.
+        </p>
+      )}
 
       {current.length > 0 && (
         <>
@@ -131,6 +147,8 @@ export default async function JobsPage() {
           ))}
         </>
       )}
+
+      {demoSection}
     </div>
   );
 }

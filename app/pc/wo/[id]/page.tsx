@@ -4,15 +4,19 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/monitoring/report";
 import { LANES, LANE_LABELS, laneFor, stageTitle, type WoStage } from "@/lib/workorder/stages";
-import { jobNeedsAfterPhotos, progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
+import { jobNeedsAfterPhotos, progressByHeading, progressOf, seedRowsFromDoc, surfaceCountsByKey, type SurfaceRow } from "@/lib/workorder/surfaces";
 import { staffSignsOff as staffSignsOffFor, supersededQaIds } from "@/lib/workorder/qa";
 import PhotosOptionalToggle from "./PhotosOptionalToggle";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
+import { contractorAdjustedCents, contractorVariationsCents } from "@/lib/workorder/contractorPay";
+import { adjustedContractCents } from "@/lib/invoicing/ledger";
+import { jobProfit } from "@/lib/invoicing/jobProfit";
 import PriceVariation from "./PriceVariation";
 import UpdateComposer from "./UpdateComposer";
 import Checklist, { type ChecklistItem } from "./Checklist";
 import PrestartListBox from "./PrestartListBox";
+import PrestartPaintEstimate from "./PrestartPaintEstimate";
 import { loadPrestartList } from "@/lib/workorder/pcNotes";
 import WalkthroughCard from "./WalkthroughCard";
 import ReviewCard, { type ReviewState } from "./ReviewCard";
@@ -38,8 +42,8 @@ import ClientUpdates, { type ClientTimelineEntry } from "./ClientUpdates";
 import ReferencePhotosCard from "./ReferencePhotosCard";
 import SiteVisitsCard from "./SiteVisitsCard";
 import { loadSiteVisits } from "@/lib/workorder/siteVisits";
-import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
-import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
+import { materialRowKey, rowEstimatedLitres, substratesFor } from "@/lib/workorder/materials";
+import { loadEstimatePricing, materialRowEstimates, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
 import { loadStandards } from "@/lib/standards/load";
 import { loadCallbacksForJob } from "@/lib/callbacks/load";
 import { CALLBACK_SOURCES, type CallbackSource } from "@/lib/callbacks/model";
@@ -51,6 +55,7 @@ import WhatWeExpect from "@/app/components/standards/WhatWeExpect";
 import RejectVariation from "@/app/pc/RejectVariation";
 import MessageThread from "@/app/components/wo/MessageThread";
 import { loadJobPainters, loadThread, pickPainter } from "@/lib/workorder/messagesLoad";
+import DemoControls from "@/app/components/demo/DemoControls";
 
 export const dynamic = "force-dynamic";
 
@@ -63,12 +68,12 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_id, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, crew_notes, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_id, contractor_payment_cents, start_date, end_date, qa_required, qa_waived, walkthrough_required, colours, crew_notes, estimate_id, wo_snapshot, is_demo, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
   const row = wo as unknown as {
-    id: string; wo_ref: string; stage: WoStage; blocked_reason: string | null;
+    id: string; wo_ref: string; stage: WoStage; blocked_reason: string | null; is_demo: boolean | null; contractor_id: string | null;
     contractor_payment_cents: number | null; start_date: string | null; end_date: string | null;
     qa_required: boolean | null; qa_waived: boolean | null; walkthrough_required: boolean | null;
     colours: Record<string, { status?: string; match?: { code?: string; brand?: string; canSize?: string; by?: string } }> | null;
@@ -204,6 +209,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   let healedSurfaceRows: typeof surfaceRows = null;
   const snapshotDoc = row.wo_snapshot as WorkOrderDoc | null;
   const docKeys = new Set(snapshotDoc?.areas?.length ? seedRowsFromDoc(snapshotDoc).map((r) => r.surfaceKey).filter(Boolean) : []);
+  const countByKey = surfaceCountsByKey(snapshotDoc);
   const hasDocRow = ((surfaceRows ?? []) as Array<{ surface_key?: string | null }>).some((r) => r.surface_key && docKeys.has(r.surface_key));
   if ((row.stage === "pre_start" || row.stage === "in_progress")
       && !hasDocRow && docKeys.size > 0) {
@@ -351,8 +357,13 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     pricing ? materialsBudgetCents(pricing.state, pricing.ctx) : null,
     materialInvoices,
   );
+  // Tom, 13 Oct 2026: the estimate's litres and cost beside every paint —
+  // from the estimate itself (engine, its own card), falling back to the
+  // litres the job sheet froze when the estimate cannot be priced.
+  const rowEstimates = pricing ? materialRowEstimates(snapshotDoc, pricing.state, pricing.ctx) : null;
   const materialRows: MaterialRowProp[] = (snapshotDoc?.materials ?? []).map((m) => {
     const rowKey = materialRowKey(m);
+    const est = rowEstimates?.get(rowKey) ?? null;
     const live = row.colours?.[rowKey] ?? row.colours?.[m.product];
     return {
       rowKey,
@@ -367,6 +378,8 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
       matchRequired: Boolean(m.colourMatch?.required),
       finish: m.finish,
       substrates: snapshotDoc ? substratesFor(snapshotDoc, rowKey) : [],
+      estimateLitres: est?.litres ?? (snapshotDoc ? rowEstimatedLitres(snapshotDoc, m) : null),
+      estimateCostCents: est?.costCents ?? null,
     };
   });
 
@@ -419,8 +432,14 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     const pre = forPhase("pre_start");
     const materialsItem = pre.find((c) => /^materials/i.test(c.label));
     const equipmentItem = pre.find((c) => /^equipment/i.test(c.label));
-    if (materialsItem) prestartExtras[materialsItem.id] =
-      <PrestartListBox workOrderId={id} kind="materials" initial={prestart.list.materials} />;
+    // Tom, 13 Oct 2026: the paint estimate labelled in the pre-start's
+    // materials item — the same rows as the Materials card.
+    if (materialsItem) prestartExtras[materialsItem.id] = (
+      <>
+        <PrestartPaintEstimate rows={materialRows} />
+        <PrestartListBox workOrderId={id} kind="materials" initial={prestart.list.materials} />
+      </>
+    );
     if (equipmentItem) prestartExtras[equipmentItem.id] =
       <PrestartListBox workOrderId={id} kind="equipment" initial={prestart.list.equipment} />;
   }
@@ -432,7 +451,11 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   const surfaces = ((liveSurfaceRows ?? []) as {
     id: string; heading: string; heading_meta: string; label: string; surface_key?: string | null;
     state: SurfaceRow["state"]; rectification: boolean; removed_from_scope?: boolean; photos_optional?: boolean | null;
-  }[]).map((s) => ({ ...s, removed: s.removed_from_scope ?? false, photosOptional: Boolean(s.photos_optional) }));
+  }[]).map((s) => ({
+    ...s, removed: s.removed_from_scope ?? false, photosOptional: Boolean(s.photos_optional),
+    // "Doors × 4" — the count from the frozen document, by key (Tom, 14 Oct 2026).
+    ...(s.surface_key && countByKey[s.surface_key] != null ? { count: countByKey[s.surface_key] } : {}),
+  }));
 
   // Finish standards (Step 1, ruling S12): the PC's tick list and quality
   // check link each surface to THE SAME record the painter reads, at the
@@ -482,9 +505,20 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   const contract = row.estimates?.total_cents ?? 0;
-  const contractorPay = row.contractor_payment_cents ?? 0;
-  // Signed credits subtract — same signature rule as the ledger (a signed
-  // customer approval already counts; the contractor step is pay-side only).
+  // Tom, 14 Oct 2026 (73 Kerferd): the strip read the BASE offer only, so a
+  // variation approved for the contractor alone (no customer price) showed
+  // nowhere and the GP read high. The contractor figure is now the one pay
+  // rule the painter's portal uses (lib/workorder/contractorPay): offer plus
+  // every accepted variation's delta.
+  const contractorBase = row.contractor_payment_cents ?? 0;
+  const payVariations = variations.map((v) => ({
+    status: v.status, credit: v.credit, contractor_delta_cents: v.contractor_delta_cents,
+    deduction_cents: v.deduction_cents, needs_manual_deduction: v.needs_manual_deduction,
+  }));
+  const contractorVarCents = contractorVariationsCents(payVariations);
+  const contractorPay = contractorAdjustedCents(contractorBase, payVariations);
+  // The customer's side: signed credits subtract — same signature rule as the
+  // ledger (a signed customer approval already counts).
   const approvedVariations = variations
     .filter((v) => v.status === "contractor_accepted" || v.status === "customer_approved")
     .reduce((sum, v) => sum + (v.credit ? -(v.price_cents ?? 0) : (v.price_cents ?? 0)), 0);
@@ -493,12 +527,25 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   // Employed painters (S6): approved labour lines are this job's labour cost —
   // the offer is nil on an employee job, so without them GP reads 100%.
   const { data: labourRows, error: labourError } = await supabase
-    .from("job_costs").select("amount_ex_cents, gst_cents")
+    .from("job_costs").select("id, category, status, amount_ex_cents, gst_cents")
     .eq("work_order_id", id).eq("category", "labour").in("status", ["approved", "paid"]);
   if (labourError) reportError(labourError, { where: "pc.wo.labourCost", bestEffort: true });
-  const labourCents = ((labourRows ?? []) as { amount_ex_cents: number; gst_cents: number }[])
-    .reduce((sum, c) => sum + c.amount_ex_cents + c.gst_cents, 0);
-  const gp = contract > 0 ? Math.round(((contract - contractorPay - labourCents) / contract) * 1000) / 10 : 0;
+  const labour = (labourRows ?? []) as { id: string; category: string; status: string; amount_ex_cents: number; gst_cents: number }[];
+  const labourCents = labour.reduce((sum, c) => sum + c.amount_ex_cents + c.gst_cents, 0);
+  // Est. GP: the one profit rule (lib/invoicing/jobProfit) on the contract
+  // with its approved variations, the contractor's adjusted pay and any
+  // employee labour — before materials, as this strip always was.
+  const profit = jobProfit({
+    contractIncCents: adjustedContractCents(contract, variations.map((v) => ({ status: v.status, priceCents: v.price_cents, credit: v.credit }))),
+    offerCents: contractorBase,
+    contractorVariationCents: contractorVarCents,
+    costs: labour.map((c) => ({ id: c.id, category: c.category, status: c.status, amountExCents: c.amount_ex_cents, label: "Labour" })),
+    materialsCostIds: new Set<string>(),
+    materialCosts: [],
+    expenses: [],
+    started: false,
+  });
+  const gp = profit.marginPct ?? 0;
 
   // Dashboard 0c: the job's review row (one per job), for the card below.
   const reviewRes = await supabase.from("review_requests")
@@ -519,6 +566,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
 
   return (
     <>
+      {row.is_demo && <DemoControls mode="pc" contractorId={row.contractor_id} workOrderId={row.id} />}
       <div className="wohead">
         <div className="wotop">
           <div>
@@ -564,7 +612,13 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
                     : "—"}
             </b>
           </span>
-          <span className="mi"><span>Contractor</span><b>{money(contractorPay)}</b></span>
+          <span className="mi"><span>Contractor</span><b data-testid="money-contractor">{money(contractorPay)}</b>
+            {contractorVarCents !== 0 && (
+              <em className="note" style={{ margin: 0, fontStyle: "normal" }} data-testid="money-contractor-variations">
+                {money(contractorBase)} {contractorVarCents > 0 ? "+" : "−"} {money(Math.abs(contractorVarCents))} variations
+              </em>
+            )}
+          </span>
           {labourCents > 0 && (
             <span className="mi"><span>Labour (employees)</span><b data-testid="money-labour">{money(labourCents)}</b></span>
           )}
@@ -583,9 +637,10 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
             data-testid="revision-builder-link">
             Revise scope →
           </a>
-          <a className="btn" href={`/invoicing/job/${estimateId}`}
+          {/* §6.11: the job's money is the job panel on Payments; back returns here. */}
+          <a className="btn" href={`/invoicing/job/${estimateId}?from=${encodeURIComponent(`/pc/wo/${row.id}`)}`}
             data-testid="money-view-link">
-            Money view →
+            Payments →
           </a>
           {finalInvoice && (
             <a className="btn" href={`/invoicing/inv/${finalInvoice.id}`}
@@ -633,7 +688,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
           <TickList
             surfaces={surfaces.map((s) => ({
               id: s.id, heading: s.heading, label: s.label, state: s.state,
-              rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional,
+              rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional, count: s.count,
             }))}
             hasBeforePhoto={hasBeforePhoto}
             headingMeta={Object.fromEntries(
@@ -666,6 +721,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
                       </span>
                       <p style={s.removed ? { textDecoration: "line-through" } : undefined}>
                         {s.label}
+                        {s.count != null && <span className="tickrow-count" data-testid={`tick-count-${s.id}`}>× {s.count}</span>}
                         {s.photosOptional && <span className="pill" style={{ marginLeft: 6 }} data-testid={`no-photos-${s.id}`}>No photos</span>}
                       </p>
                       {/* Tom, 24 Sep: a line that isn't a surface need not be
@@ -780,7 +836,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               })),
             }}
             canEdit={row.stage !== "closed"}
-            moneyHref={`/invoicing/job/${estimateId}?tab=costs`}
+            moneyHref={`/invoicing/job/${estimateId}?jt=out&from=${encodeURIComponent(`/pc/wo/${row.id}`)}`}
           />
 
           {crew.length > 0 && (

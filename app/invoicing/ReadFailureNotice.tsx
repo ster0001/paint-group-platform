@@ -3,7 +3,7 @@ import type { ReadFailure } from "@/lib/invoicing/loadFailure";
 /**
  * The one place the read-failure banner is drawn.
  *
- * Three screens need it now — the dashboard, a job's money view and the invoice
+ * It renders on the Payments page, the job panel and the invoice
  * document — and a money screen that tells you its figures are wrong must say so
  * the same way every time, or the quiet version gets trusted. Presentational
  * only, so it renders in a server page and inside the client shells alike.

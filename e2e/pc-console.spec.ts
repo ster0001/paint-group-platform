@@ -196,7 +196,7 @@ test.describe("PC Command", () => {
     // Tom's ruling (25 Aug): the revision builder is the primary path, and the
     // hours-only quick price sits behind a toggle as the secondary one.
     await expect(page.getByTestId(`price-in-builder-${variationId}`))
-      .toHaveAttribute("href", `/quote?id=${fixture!.estimateId}&mode=revision`);
+      .toHaveAttribute("href", `/quote?id=${fixture!.estimateId}&mode=revision&variation=${variationId}`);
     await page.getByTestId(`quick-price-toggle-${variationId}`).click();
 
     await page.getByTestId(`hours-${variationId}`).fill("3");
@@ -261,6 +261,9 @@ test.describe("PC Command", () => {
     await page.goto("/pc/updates");
 
     await expect(page.getByTestId(`text-${updateId}`)).toContainText("front of the house");
+    // A draft written by hand has no ticks behind it, and the card says so
+    // rather than inventing a time (Tom, 14 Oct 2026).
+    await expect(page.getByTestId(`ticked-${updateId}`)).toContainText("No tick on record");
     await page.getByTestId(`edit-toggle-${updateId}`).click();
     await page.getByTestId(`edit-${updateId}`).fill("Good afternoon Melissa — the front is finished and looks terrific.");
     await page.getByTestId(`send-${updateId}`).click();

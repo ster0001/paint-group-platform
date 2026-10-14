@@ -38,6 +38,7 @@ import { sendVisitConfirmation, visitWhen } from "./notify";
 import { availability, speakWithUsFor, type OfferedDay, type ScheduleBooking, type ScheduleBusy, type ScheduleHold } from "./schedule";
 import { loadBookingRules, loadVisitScheduleData } from "./scheduleDb";
 import { isZoneKey, normalisePostcode, resolveZone } from "./zones";
+import { realOnly } from "@/lib/demo/scope";
 
 export type RequestKind = "time" | "visit" | "call";
 export type TimeOfDay = "morning" | "afternoon" | "either";
@@ -193,7 +194,7 @@ export async function loadAnsweredSummary(svc: SupabaseClient, req: VisitRequest
   let sms = false, email = false, waiting = false;
   if (to.length) {
     const [m, h] = await Promise.all([
-      svc.from("messages").select("channel").eq("direction", "out").eq("meta->>automation", "time_offered").in("to_address", to).gte("occurred_at", since).limit(10),
+      realOnly(svc.from("messages").select("channel")).eq("direction", "out").eq("meta->>automation", "time_offered").in("to_address", to).gte("occurred_at", since).limit(10),
       svc.from("automation_holds").select("id").eq("automation_key", "time_offered").in("status", ["pending", "held"]).gte("created_at", since)
         .or(to.map((t) => (t.includes("@") ? `to_email.eq."${t}"` : `to_phone.eq."${t}"`)).join(",")).limit(1),
     ]);

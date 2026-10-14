@@ -147,16 +147,17 @@ test.describe("employed painter — expenses, settings, the tick box, the lead",
     for (const id of [expenseId, companyCardId]) {
       expect(await rpcAs(staff!, "contractor_expense_decide", { p_id: id, p_approve: true })).toMatch(/^ok:/);
     }
-    // Payables: the personal one is owed back; the company-card one is not.
+    // Payments → Contractors → Owed back to employees (8b): the personal one is owed back; the company-card one is not.
     const office = await page.context().browser()!.newContext();
     const staffPage = await office.newPage();
     await signIn(staffPage, staff!, /\/(home|estimates)/);
-    await staffPage.goto("/invoicing?tab=pay");
-    await expect(staffPage.getByTestId("reimbursements")).toBeVisible({ timeout: 30_000 });
-    await expect(staffPage.getByTestId(`reimbursement-${expenseId}`)).toContainText("$140.00");
-    await expect(staffPage.getByTestId(`reimbursement-${companyCardId}`)).toHaveCount(0);
-    await staffPage.getByTestId(`reimburse-${expenseId}`).click();
-    await expect(staffPage.getByTestId(`reimbursement-${expenseId}`)).toHaveCount(0, { timeout: 15_000 });
+    await staffPage.goto("/invoicing?tab=con");
+    const owed = staffPage.getByTestId("reimbursements");
+    await expect(owed).toBeVisible({ timeout: 30_000 });
+    await expect(owed.locator(`[data-expense="${expenseId}"]`)).toContainText("$140.00");
+    await expect(owed.locator(`[data-expense="${companyCardId}"]`)).toHaveCount(0);
+    await owed.locator(`[data-expense="${expenseId}"]`).getByRole("button", { name: "Paid back" }).click();
+    await expect(staffPage.locator(`[data-expense="${expenseId}"]`)).toHaveCount(0, { timeout: 15_000 });
     await office.close();
 
     const { data: paid } = await db!.from("contractor_expenses").select("status, reimbursed_at, invoice_id").eq("id", expenseId).single();
@@ -236,7 +237,7 @@ test.describe("employed painter — expenses, settings, the tick box, the lead",
       p_lead_contractor_id: employeeCid, p_override_reason: null,
     });
     expect(add).toMatch(/^ok:/);
-    expect(await rpcAs(staff!, "set_lead_painter", { p_work_order_id: fixture!.workOrderId, p_contractor_id: secondCid })).toBe("ok:lead");
+    expect(await rpcAs(staff!, "set_lead_painter", { p_work_order_id: fixture!.workOrderId, p_contractor_id: secondCid })).toBe("ok:lead_set");   // its answer since 20270230 (8 Oct)
     const { data: wo } = await db!.from("work_orders").select("contractor_id, contractors(profiles(name))").eq("id", fixture!.workOrderId).single();
     const name = (wo as unknown as { contractors: { profiles: { name: string } | null } | null }).contractors?.profiles?.name;
     expect(name).toBe("E2E Second Lead");

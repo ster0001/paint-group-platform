@@ -60,6 +60,7 @@ function toEmployeeJob(r: EmployeeJobRow): ContractorJob {
     // Assigned is committed: the office put them on it, there is no offer to
     // protect an address from (the privacy gate is for open offers).
     committed: true,
+    isDemo: false,   // an employee's demo arrives with the worker induction (Step 3a)
     surfacesDone: 0,
     surfacesTotal: doc ? doc.areas.flatMap((a) => a.surfaces).length : 0,
     doc,

@@ -6,6 +6,7 @@ import { priceEstimateTotals, type BlockInput } from "@/lib/pricing/estimate";
 import { provingRow, provingSummary, type ProvingRow, type WizardSnapshot } from "@/lib/wizard/proving";
 import { correctionBreakdown, correctionFrom, type Correction } from "@/lib/wizard/correction";
 import CorrectionTags from "./CorrectionTags";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * /proving — the Step 9 proving-window dashboard (staff).
@@ -36,9 +37,9 @@ export default async function ProvingPage() {
   if (profile?.role !== "staff") redirect("/account");
 
   const [{ data: estimates }, ctx] = await Promise.all([
-    supabase
+    realOnly(supabase
       .from("estimates")
-      .select("id, title, status, source, builder_state, created_at")
+      .select("id, title, status, source, builder_state, created_at"))
       .in("source", ["wizard", "trade_wizard", "customer_intake"])
       .order("created_at", { ascending: false })
       .limit(200),

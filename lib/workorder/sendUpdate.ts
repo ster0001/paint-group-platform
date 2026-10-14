@@ -15,6 +15,7 @@ import { emailConfigured, sendEmail, sendSms, smsConfigured, recipientList } fro
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "@/lib/invoicing/pdf";
+import { opensWithGreeting } from "./updates";
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -60,6 +61,10 @@ export async function deliverCustomerUpdate(
   const text = (update.final_text ?? update.draft_text ?? "").trim();
   const address = wo.estimates.job_address || wo.wo_snapshot?.jobAddress || "your property";
   const firstName = (wo.estimates.accepted_name ?? "").split(" ")[0] || "there";
+  // Tom, 14 Oct 2026: the drafted update opens "Hi Melissa — …" itself, so the
+  // email and the text must not put a second hello in front of it. A hand-
+  // written update from the job page that starts straight in still gets one.
+  const greets = opensWithGreeting(text);
   // The button goes to the customer's DASHBOARD, where the progress timeline
   // lives (Tom, 1 Sep) — not the estimate document, which shows no progress.
   // Jobs with no linked account (pre-portal rows) keep the /e token link so
@@ -106,7 +111,7 @@ export async function deliverCustomerUpdate(
   </td></tr>
   <tr><td style="padding:24px 32px 24px;">
     <h1 style="margin:0 0 14px;font-size:20px;line-height:1.3;color:#111827;">An update on your painting at ${esc(address)}</h1>
-    <p style="margin:0 0 15px;font-size:15px;line-height:1.6;color:#1f2937;">Hello ${esc(firstName)},</p>
+    ${greets ? "" : `<p style="margin:0 0 15px;font-size:15px;line-height:1.6;color:#1f2937;">Hello ${esc(firstName)},</p>`}
     <p style="margin:0 0 15px;font-size:15px;line-height:1.6;color:#1f2937;white-space:pre-line;">${esc(text)}</p>
     ${photosHtml}
     ${link ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 6px;"><tr><td style="border-radius:9px;background:#0e8296;">
@@ -134,7 +139,7 @@ export async function deliverCustomerUpdate(
     else if (!smsConfigured()) out.sms = "not_configured";
     else {
       const body =
-        `Hi ${firstName}, an update on your painting at ${address}: ` +
+        (greets ? "" : `Hi ${firstName}, an update on your painting at ${address}: `) +
         `${text.slice(0, 180)}${text.length > 180 ? "…" : ""}` +
         `${link ? ` See photos and details: ${link}` : ""}`;
       const r = await sendSms({ to: phone, body, ctx: { accountId: wo.estimates.account_id, estimateId: wo.estimate_id, kind: "job_update" } });

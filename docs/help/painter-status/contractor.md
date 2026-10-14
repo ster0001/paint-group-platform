@@ -25,7 +25,7 @@ Paint Group switches status on for painters. Until then there is no card and no 
 - **Green** — your last 4 jobs were all clean. Priority on new jobs, paid within 3 business days of sign-off, bonus eligible.
 - **Yellow** — 8 in 10 or better on checks and reminders, no more than 1 call back. Normal offers and payment; a quality check on 1 job in 3.
 - **Orange** — between 5 and 8 in 10, or 2 to 3 call backs. Offers come after Green and Yellow; a quality check on every job; Paint Group will call you.
-- **Red** — under 5 in 10, or 4 or more call backs. No new offers until you have talked with Paint Group. Jobs you have started continue.
+- **Red** — under 5 in 10, or 4 or more call backs. No more job offers. We meet with you to go through the level of finish expected on your current job. Jobs you have started continue.
 - **New** — your first 4 jobs. Normal offers and payment; a quality check on your first jobs.
 - The lit lamp pulses slowly. If your phone is set to reduce motion, it does not.
 

@@ -19,10 +19,15 @@ const CORE = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20261112000000_invoicing_core.sql"),
   "utf8",
 );
+/** Step 3 of the Payments merge adds the Undo step-backs (additive rows, on conflict do nothing). */
+const UNDO = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20270256000000_payments_quick_actions.sql"),
+  "utf8",
+);
 
 describe("the mirror matches the canonical SQL seed", () => {
   const seedPairs = [
-    ...CORE.matchAll(
+    ...(CORE + UNDO.slice(UNDO.indexOf("insert into public.invoice_transitions"), UNDO.indexOf("on conflict do nothing"))).matchAll(
       /\('(\w+)'::public\.invoice_status,\s*'(\w+)'::public\.invoice_status\)/g,
     ),
   ].map((m) => `${m[1]}->${m[2]}`);
@@ -76,8 +81,13 @@ describe("illegal transitions", () => {
       expect(canTransition(from, "draft")).toBe(false);
     }
   });
-  it("paid is terminal — correction is a credit note, not a void", () => {
-    for (const to of INVOICE_STATUSES) expect(canTransition("paid", to)).toBe(false);
+  it("paid never voids, writes off or returns to draft — correction is a credit note", () => {
+    for (const to of ["void", "written_off", "draft"] as InvoiceStatus[]) expect(canTransition("paid", to)).toBe(false);
+  });
+  it("the only way back from paid is Undo's step-back to an open status (20270256)", () => {
+    const back = INVOICE_STATUSES.filter((to) => canTransition("paid", to));
+    expect(back.sort()).toEqual(["issued", "partially_paid", "sent", "viewed"]);
+    expect(UNDO).toMatch(/create or replace function public\.invoice_payment_undo/);
   });
   it("void and written_off are terminal", () => {
     for (const from of ["void", "written_off"] as InvoiceStatus[]) {

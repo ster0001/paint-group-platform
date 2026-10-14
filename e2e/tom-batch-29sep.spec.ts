@@ -154,24 +154,21 @@ test.describe("Tom's 29 Sep batch", () => {
     await expect(page.getByTestId("line-materials")).not.toContainText("None linked");
   });
 
-  test("1: Payments has views and three filter rows, and a view is a link", async ({ page }) => {
+  // Payments merge 8d: the 29 Sep views and filter rows were replaced by the approved design (⚑P17) —
+  // three views, and the All jobs filters — each still a link that can be shared.
+  test("1: Payments has its three views and the All jobs filters, and a view is a link", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/invoicing");
-    await expect(page.getByTestId("payments-views")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("payments-filters")).toBeVisible();
-    await expect(page.getByTestId("payments-kinds")).toBeVisible();
-    await expect(page.getByTestId("payments-due")).toBeVisible();
-    await page.getByTestId("payments-view-final-outstanding").click();
-    await expect(page).toHaveURL(/f=outstanding/);
-    await expect(page).toHaveURL(/k=final/);
-    await expect(page.getByTestId("payments-filter-outstanding")).toHaveClass(/on/);
-    await expect(page.getByTestId("payments-kind-final")).toHaveClass(/on/);
-    await expect(page.getByTestId("payments-sum-cents")).toBeVisible();
-    // A shared link opens on the same view.
-    await page.goto("/invoicing?f=outstanding&k=final");
-    await expect(page.getByTestId("payments-view-final-outstanding")).toHaveClass(/on/);
-    await page.getByTestId("payments-clear-filters").click();
-    await expect(page).toHaveURL(/\/invoicing$/);
+    const views = page.locator(".pm .views");
+    for (const name of ["To chase", "By job stage", "All jobs"]) await expect(views.getByRole("link", { name })).toBeVisible({ timeout: 30_000 });
+    await views.getByRole("link", { name: "All jobs" }).click();
+    await expect(page).toHaveURL(/view=table/);
+    await page.locator(".pm .fchips").getByRole("link", { name: /Final unpaid/ }).click();
+    await expect(page).toHaveURL(/f=fin/);
+    // A shared link opens on the same view and filter.
+    await page.goto("/invoicing?view=table&f=fin");
+    await expect(page.locator(".pm .fchips").getByRole("link", { name: /Final unpaid/ })).toHaveClass(/\bon\b/, { timeout: 30_000 });
+    await expect(views.getByRole("link", { name: "All jobs" })).toHaveClass(/\bon\b/);
   });
 
   test("14 (48A Jupiter St): an unticked option is on the printed quote, priced, outside the total", async ({ page }) => {

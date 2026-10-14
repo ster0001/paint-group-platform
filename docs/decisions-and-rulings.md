@@ -42,3 +42,10 @@ Locked rulings and engineering principles. Read before revisiting any settled de
 - Painter cards show no ratings and no job counts.
 - Retail includes hospitality; every school exterior is a site visit; hospital jobs route to a brief.
 - Airtable → CRM import: agency customers get one account per agent email with a shared company name; unknown finish level defaults to Level 3; cold quotes older than 90 days import as lapsed; future booked jobs import as accepted estimates plus work orders at exact PaintScout pricing into the Unscheduled folder.
+
+## Payments merge rulings (12 Oct 2026)
+- An invoice is **overdue from midday Melbourne on the day after its due date**. One rule (`lib/invoicing/ledger.ts` `isOverdue`) for every screen, the CRM work queue, the portal and the chase sweep; the first reminder fires at the same instant.
+- No separate money attention module: urgency is the shared overdue rule plus the CRM work queue.
+- Deposit is 50% as standard and adjustable per job. The Vic DBCA deposit-cap check remains an open ⚑.
+- Draft invoices may be edited or deleted before they are sent. Leftover drafts are hidden by rule; deleting existing ones needs a listed approval.
+- Mockups and baselines carrying real customer data stay outside the public repo; an anonymised copy may be used for building.

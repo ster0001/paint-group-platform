@@ -11,6 +11,8 @@ export type OfferWithJob = {
    *  redacted HERE, on the server, until the offer is accepted (Tom, 25 Aug:
    *  the raw snapshot used to reach the browser and only the render hid it). */
   doc: WorkOrderDoc | null;
+  /** The practice offer on 12 Demo Street — tagged, never a real booking. */
+  isDemo: boolean;
 };
 
 /**
@@ -26,11 +28,11 @@ export async function listContractorOffers(contractorId: string): Promise<OfferW
 
   const { data } = await supabase
     .from("booking_offers")
-    .select(`${OFFER_COLUMNS}, work_orders ( wo_ref, wo_snapshot )`)
+    .select(`${OFFER_COLUMNS}, work_orders ( wo_ref, wo_snapshot, is_demo )`)
     .eq("contractor_id", contractorId)
     .order("offered_at", { ascending: false });
 
-  type Joined = BookingOffer & { work_orders: { wo_ref: string; wo_snapshot: unknown } | null };
+  type Joined = BookingOffer & { work_orders: { wo_ref: string; wo_snapshot: unknown; is_demo?: boolean | null } | null };
   return ((data as Joined[] | null) ?? []).map((r) => {
     const { work_orders, ...offer } = r;
     const snap = work_orders?.wo_snapshot as WorkOrderDoc | null;
@@ -48,6 +50,7 @@ export async function listContractorOffers(contractorId: string): Promise<OfferW
       offer: offer as BookingOffer,
       woRef: work_orders?.wo_ref ?? "",
       doc,
+      isDemo: work_orders?.is_demo === true,
     };
   });
 }

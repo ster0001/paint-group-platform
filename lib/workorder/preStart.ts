@@ -4,6 +4,7 @@ import { buildPlainEmailHtml } from "@/lib/messaging/send";
 import { dispatched, outcomeWord, sendAutomation } from "@/lib/automations/dispatch";
 import { melbourneDate } from "./console";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * The pre-start checklist email (Tom, 23 Aug).
@@ -19,7 +20,7 @@ import { emailLogoUrl } from "@/lib/messaging/logo";
 export async function sendPreStartChecklists(db: SupabaseClient, now = new Date()): Promise<number> {
   const [{ data: settingsRows }, { data: ticked }] = await Promise.all([
     db.from("settings").select("key, value").in("key", [MESSAGING_KEY, "company_profile"]),
-    db.from("wo_checklist_items").select("work_order_id")
+    realOnly(db.from("wo_checklist_items").select("work_order_id"))
       .eq("phase", "pre_start").eq("item_key", "pre_start_checklist").not("done_at", "is", null),
   ]);
   const rows = (settingsRows as { key: string; value: unknown }[] | null) ?? [];

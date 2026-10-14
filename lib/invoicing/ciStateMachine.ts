@@ -22,6 +22,17 @@ export const CI_TRANSITIONS: ReadonlyArray<readonly [CiStatus, CiStatus]> = [
   ["draft", "approved"], // RCTI only — the guard checks the row's flag
 ];
 
+/**
+ * Payments merge Step 5 (20270258): Undo of a one-press Approve or Paid. The
+ * guard admits these ONLY while `app.ci_undo` is set — by
+ * contractor_invoice_unapprove / contractor_invoice_unpay, inside their 10-minute
+ * window. No other writer can move a contractor invoice backwards.
+ */
+export const CI_UNDO_TRANSITIONS: ReadonlyArray<readonly [CiStatus, CiStatus]> = [
+  ["approved", "submitted"],
+  ["paid", "approved"],
+];
+
 export function ciCanTransition(from: CiStatus, to: CiStatus, rcti = false): boolean {
   if (from === "draft" && to === "approved") return rcti;
   return CI_TRANSITIONS.some(([f, t]) => f === from && t === to);

@@ -154,7 +154,7 @@ export const LANE_LABELS: Record<Lane, { n: string; title: string }> = {
   in_progress: { n: "04", title: "In progress" },
   qa: { n: "05", title: "Quality check" },
   walkthrough: { n: "06", title: "Walkthrough" },
-  closed: { n: "07", title: "Closed — final invoice sent" },
+  closed: { n: "07", title: "Closed — signed off" },
 };
 
 /**

@@ -122,7 +122,7 @@ test.describe("the painter's traffic light", () => {
       } else {
         await expect(card.locator(".ststeps")).toHaveCount(1);
       }
-      if (colour === "red") await expect(card).toContainText("No new job offers");
+      if (colour === "red") await expect(card).toContainText("No more job offers. We meet with you to go through the level of finish expected on your current job.");
 
       await card.click();
       await expect(page).toHaveURL(/\/portal\/status/);
@@ -156,7 +156,10 @@ test.describe("the painter's traffic light", () => {
       await expect(my).not.toContainText("$");
       await expect(my.getByTestId("tips").locator("li")).toHaveCount(3);
       if (colour === "orange") await expect(my.getByTestId("tips")).toContainText("call you");
-      if (colour === "red") await expect(my.getByTestId("tips")).toContainText("talked with us");
+      if (colour === "red") {
+        await expect(my.getByTestId("tips")).toContainText("level of finish expected on your current job");
+        await expect(my.getByTestId("perks")).toContainText("No more job offers.");
+      }
       // The word is on every screen that shows a lamp (R19).
       await expect(my.getByTestId("traffic-light")).toHaveAttribute("aria-label", `Traffic light showing ${word}`);
     });

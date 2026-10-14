@@ -49,6 +49,8 @@ export type ContractorJob = {
   paymentCents: number | null;
   /** True once the contractor has committed — full address and contact shown. */
   committed: boolean;
+  /** The practice job (induction brief §4): same screens, its own heading, never counted. */
+  isDemo: boolean;
   /** The contractor-safe document frozen at issue. Null if somehow unset. */
   doc: WorkOrderDoc | null;
   /**
@@ -64,7 +66,7 @@ export type ContractorJob = {
 };
 
 const JOB_COLUMNS =
-  "id, wo_ref, status, start_date, end_date, issued_at, viewed_at, contractor_payment_cents, wo_snapshot";
+  "id, wo_ref, status, start_date, end_date, issued_at, viewed_at, contractor_payment_cents, wo_snapshot, is_demo";
 
 export type Row = {
   id: string;
@@ -76,6 +78,8 @@ export type Row = {
   viewed_at: string | null;
   contractor_payment_cents: number | null;
   wo_snapshot: unknown;
+  /** 12 Demo Street (migration 20270262): shown under its own heading, counts for nothing. */
+  is_demo?: boolean | null;
 };
 
 /**
@@ -119,6 +123,7 @@ export function toJob(r: Row, committed: boolean): ContractorJob {
     viewedAt: r.viewed_at,
     paymentCents: r.contractor_payment_cents,
     committed,
+    isDemo: r.is_demo === true,
     // Filled in by the loaders below; the snapshot's own count is the fallback
     // for total so a job renders sensibly even if the tick rows are missing.
     surfacesDone: 0,
@@ -262,10 +267,13 @@ async function withSurfaceProgress(
 
 /** Current work first, then what's coming, then what's done. */
 export function groupJobs(jobs: ContractorJob[]) {
+  // The practice job sits under its own heading whatever its status (brief §4.2).
+  const real = jobs.filter((j) => !j.isDemo);
   return {
-    current: jobs.filter((j) => j.status === "in_progress"),
-    upcoming: jobs.filter((j) => j.status === "issued"),
-    previous: jobs.filter((j) => j.status === "complete"),
+    current: real.filter((j) => j.status === "in_progress"),
+    upcoming: real.filter((j) => j.status === "issued"),
+    previous: real.filter((j) => j.status === "complete"),
+    demo: jobs.filter((j) => j.isDemo),
   };
 }
 

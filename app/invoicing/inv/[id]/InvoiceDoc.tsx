@@ -164,9 +164,10 @@ export default function InvoiceDoc({
     <div className="wrap">
       <header>
         <div className="crumb">
-          <Link href="/invoicing"><span className="chev">‹</span> Invoicing</Link>
+          {/* §6.11: the page is Payments, the job is the job panel. */}
+          <Link href="/invoicing"><span className="chev">‹</span> Payments</Link>
           <span>·</span>
-          <Link href={`/invoicing/job/${estimateId}`}>{meta.address || "Job"} · Money view</Link>
+          <Link href={`/invoicing/job/${estimateId}`}>{meta.address || "The job"}</Link>
         </div>
         <h1>
           {kindLabelWithContext(kind, totals.totalIncCents, totals.adjustedCents)} invoice

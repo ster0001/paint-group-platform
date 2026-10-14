@@ -53,6 +53,17 @@ export const INVOICE_TRANSITIONS: ReadonlyArray<readonly [InvoiceStatus, Invoice
   ["sent", "written_off"],
   ["viewed", "written_off"],
   ["partially_paid", "written_off"],
+  // Payments merge Step 3 (20270256): Undo on a just-recorded payment steps
+  // the invoice back. Only `invoice_payment_undo` makes these moves — inside
+  // its window, before the receipt has gone; the payment row is kept as
+  // `reversed`. Every other correction of a paid invoice is a credit note.
+  ["paid", "issued"],
+  ["paid", "sent"],
+  ["paid", "viewed"],
+  ["paid", "partially_paid"],
+  ["partially_paid", "issued"],
+  ["partially_paid", "sent"],
+  ["partially_paid", "viewed"],
   // Deliberately absent: paid → void (a paid invoice is corrected by credit
   // note, §6.8); anything → draft; draft → anything but issued.
 ];

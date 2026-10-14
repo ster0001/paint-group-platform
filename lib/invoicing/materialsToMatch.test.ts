@@ -14,3 +14,11 @@ describe("materialsToMatch — the one predicate", () => {
     expect(materialsToMatch([])).toEqual([]);
   });
 });
+
+describe("Payments merge Step 6: not for a job is overhead, not unmatched", () => {
+  it("a row a person marked overhead never counts as waiting for a job", () => {
+    expect(needsMatching({ work_order_id: null, overhead: true })).toBe(false);
+    expect(needsMatching({ work_order_id: null, overhead: null })).toBe(true);
+    expect(needsMatching({ work_order_id: null })).toBe(true);
+  });
+});
