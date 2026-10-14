@@ -3,8 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { ensureMembership, safeNextPath } from "@/lib/portal/auth";
-import { reportError } from "@/lib/monitoring/report";
+import { afterVerifiedSignIn, safeNextPath } from "@/lib/portal/auth";
 
 const inputSchema = z.object({
   token_hash: z.string().min(1).max(300),
@@ -31,20 +30,6 @@ export async function redeemLinkAction(formData: FormData): Promise<void> {
   const { data, error } = await supabase.auth.verifyOtp({ type: "email", token_hash: parsed.data.token_hash });
   if (error || !data.user?.email) redirect("/account/login?error=link");
 
-  // Tom, 24 Sep: staff and painters click magic links too now (a password
-  // reset lands here). Joining THEM to a customer account chain would mint a
-  // customer account for an office address — membership is for customers.
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
-  if (profileError) reportError(profileError, { where: "account.auth.role", bestEffort: true });
-  const isCustomer = profile?.role !== "staff" && profile?.role !== "contractor";
-
-  try {
-    if (isCustomer) await ensureMembership(data.user.id, data.user.email);
-  } catch (err) {
-    // Membership is retried on the next visit by the portal gate — a hiccup
-    // here must not cost the customer their sign-in.
-    reportError(err, { where: "account.auth.membership", bestEffort: true });
-  }
-
+  await afterVerifiedSignIn(supabase, data.user);
   redirect(next);
 }
