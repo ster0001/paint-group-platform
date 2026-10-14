@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/monitoring/report";
 import { LANES, LANE_LABELS, laneFor, stageTitle, type WoStage } from "@/lib/workorder/stages";
-import { jobNeedsAfterPhotos, progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
+import { jobNeedsAfterPhotos, progressByHeading, progressOf, seedRowsFromDoc, surfaceCountsByKey, type SurfaceRow } from "@/lib/workorder/surfaces";
 import { staffSignsOff as staffSignsOffFor, supersededQaIds } from "@/lib/workorder/qa";
 import PhotosOptionalToggle from "./PhotosOptionalToggle";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
@@ -209,6 +209,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   let healedSurfaceRows: typeof surfaceRows = null;
   const snapshotDoc = row.wo_snapshot as WorkOrderDoc | null;
   const docKeys = new Set(snapshotDoc?.areas?.length ? seedRowsFromDoc(snapshotDoc).map((r) => r.surfaceKey).filter(Boolean) : []);
+  const countByKey = surfaceCountsByKey(snapshotDoc);
   const hasDocRow = ((surfaceRows ?? []) as Array<{ surface_key?: string | null }>).some((r) => r.surface_key && docKeys.has(r.surface_key));
   if ((row.stage === "pre_start" || row.stage === "in_progress")
       && !hasDocRow && docKeys.size > 0) {
@@ -450,7 +451,11 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   const surfaces = ((liveSurfaceRows ?? []) as {
     id: string; heading: string; heading_meta: string; label: string; surface_key?: string | null;
     state: SurfaceRow["state"]; rectification: boolean; removed_from_scope?: boolean; photos_optional?: boolean | null;
-  }[]).map((s) => ({ ...s, removed: s.removed_from_scope ?? false, photosOptional: Boolean(s.photos_optional) }));
+  }[]).map((s) => ({
+    ...s, removed: s.removed_from_scope ?? false, photosOptional: Boolean(s.photos_optional),
+    // "Doors × 4" — the count from the frozen document, by key (Tom, 14 Oct 2026).
+    ...(s.surface_key && countByKey[s.surface_key] != null ? { count: countByKey[s.surface_key] } : {}),
+  }));
 
   // Finish standards (Step 1, ruling S12): the PC's tick list and quality
   // check link each surface to THE SAME record the painter reads, at the
@@ -683,7 +688,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
           <TickList
             surfaces={surfaces.map((s) => ({
               id: s.id, heading: s.heading, label: s.label, state: s.state,
-              rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional,
+              rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional, count: s.count,
             }))}
             hasBeforePhoto={hasBeforePhoto}
             headingMeta={Object.fromEntries(
@@ -716,6 +721,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
                       </span>
                       <p style={s.removed ? { textDecoration: "line-through" } : undefined}>
                         {s.label}
+                        {s.count != null && <span className="tickrow-count" data-testid={`tick-count-${s.id}`}>× {s.count}</span>}
                         {s.photosOptional && <span className="pill" style={{ marginLeft: 6 }} data-testid={`no-photos-${s.id}`}>No photos</span>}
                       </p>
                       {/* Tom, 24 Sep: a line that isn't a surface need not be

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  surfaceCountsByKey,
   allSurfacesDone, describeArea, gatedRows, jobNeedsAfterPhotos, jobNeedsBeforePhotos, nextState,
   progressByHeading, progressOf, seedRowsFromDoc, statusFromState,
   ticksBySurfaceKey, SURFACE_STATE_LABEL, tickNeedsBeforePhotos, type SurfaceRow,
@@ -24,6 +25,21 @@ const doc = (areas: WOArea[]) => ({ version: 1, areas } as unknown as WorkOrderD
 
 const rows = (spec: [string, string, SurfaceRow["state"]][]): SurfaceRow[] =>
   spec.map(([heading, label, state], i) => ({ id: String(i), heading, label, state }));
+
+describe("counts for the tick list (Tom, 14 Oct 2026: how many doors)", () => {
+  const doc = (surfaces: Array<Record<string, unknown>>): Pick<WorkOrderDoc, "areas"> => ({
+    areas: [{ id: "a0", title: "Lounge", finishCode: "PG-3", finishOverridden: false, photos: [],
+      surfaces: surfaces.map((s, i) => ({ key: `a0:${i}`, label: "x", coats: 2, product: "", prep: "", hours: 1, status: "not_started" as const, ...s })) }],
+  });
+  it("lists a per-item count by the row's surface key, from one up", () => {
+    expect(surfaceCountsByKey(doc([{ label: "Walls" }, { label: "Doors", count: 4 }, { label: "Front door", count: 1 }])))
+      .toEqual({ "a0:1": 4, "a0:2": 1 });
+  });
+  it("ignores what is not a real positive count, and an older document with none", () => {
+    expect(surfaceCountsByKey(doc([{ count: 0 }, { count: -2 }, { count: Number.NaN }, { count: 2.4 }]))).toEqual({ "a0:3": 2 });
+    expect(surfaceCountsByKey(null)).toEqual({});
+  });
+});
 
 describe("seeding the tick list from the document", () => {
   it("makes one row per surface, in document order", () => {

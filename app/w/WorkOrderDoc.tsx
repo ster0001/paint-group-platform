@@ -316,7 +316,15 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                 {a.surfaces.map((s) => (
                   <div className="surf" key={s.key} style={removedKeys.includes(s.key) ? { opacity: 0.55 } : undefined}>
                     <div className="surf-main">
-                      <div className="surf-name" style={removedKeys.includes(s.key) ? { textDecoration: "line-through" } : undefined}>{s.label}</div>
+                      <div className="surf-name" style={removedKeys.includes(s.key) ? { textDecoration: "line-through" } : undefined}>
+                        {s.label}
+                        {/* Per-item substrates carry their count, from ONE up: "Doors"
+                            alone does not say how many (Tom, 14 Oct 2026). Measured
+                            surfaces and sheets frozen before then show nothing. */}
+                        {typeof s.count === "number" && s.count >= 1 && (
+                          <span className="surf-count" data-testid={`surf-count-${s.key}`}>× {s.count}</span>
+                        )}
+                      </div>
                       <div className="surf-meta">{s.coats} {s.coats === 1 ? "coat" : "coats"}{s.product ? ` · ${s.product}` : ""}</div>
                       {s.prep && <div className="surf-prep">{s.prep}</div>}
                     </div>
