@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
+import { isDemoWorkOrder } from "@/lib/demo/robot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
 
   const service = createServiceClient();
   if (!service) return NextResponse.json({ error: "service unavailable" }, { status: 503 });
+
+  // 12 Demo Street (induction Step 2): no customer, no invites — the robot
+  // office acknowledges the accept on the job's thread instead.
+  if (await isDemoWorkOrder(service, workOrderId)) return NextResponse.json({ status: "demo" });
 
   await sendAppointmentConfirmation(service, workOrderId);
   await sendWalkthroughInvites(service, workOrderId);

@@ -566,7 +566,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
 
   return (
     <>
-      {row.is_demo && <DemoControls mode="pc" contractorId={row.contractor_id} />}
+      {row.is_demo && <DemoControls mode="pc" contractorId={row.contractor_id} workOrderId={row.id} />}
       <div className="wohead">
         <div className="wotop">
           <div>

@@ -50,6 +50,8 @@ import type { MomentRow } from "@/lib/workorder/reminderMoments";
 import MessageThread from "@/app/components/wo/MessageThread";
 import { loadThread } from "@/lib/workorder/messagesLoad";
 import DemoControls from "@/app/components/demo/DemoControls";
+import { loadDemoChecklist } from "@/lib/demo/checklistLoad";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
 
@@ -473,6 +475,9 @@ export default async function PortalJobPage({
   // Messages with the office about THIS job (Tom, 9 Oct 2026) — their own
   // thread only, through their session (RLS). No office-side delivery notes.
   const messages = await loadThread(supabase, id, contractor.id, "painter");
+  // The practice job's checklist (induction Step 2) — derived from its own rows.
+  const demoService = job.isDemo ? createServiceClient() : null;
+  const demoSteps = demoService ? await loadDemoChecklist(demoService, id) : null;
 
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
@@ -485,7 +490,7 @@ export default async function PortalJobPage({
           className="backlink" data-testid="job-back">
           ← {from === "requests" ? "Offers" : from === "calendar" ? "Calendar" : "Jobs"}
         </Link>
-        {job.isDemo && <DemoControls mode="portal" />}
+        {job.isDemo && <DemoControls mode="portal" steps={demoSteps} />}
         {liveOffer && (
           <OfferBar offerId={liveOffer.id} workOrderId={id} expiresAt={liveOffer.expires_at}
             priceCents={liveOffer.payment_cents ?? null} />

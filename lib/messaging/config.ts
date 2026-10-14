@@ -230,6 +230,8 @@ export type MessagingSettings = {
   contractorJobUpdateSms3: string;
   /** Painter (Step 6, message 5): the third text when the painter is Green. */
   contractorJobUpdateSms3Green: string;
+  /** Painter (induction Step 2, ⚑4): the ONE real text of the induction, sent by the facilitator's button. */
+  contractorDemoPromptSms: string;
   /** Painter (Step 6, message 6): the colour changed. */
   statusGreenSms: string;
   statusGreenLeadSms: string;
@@ -512,6 +514,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   contractorJobUpdateSms2: "{{company_name}}: please update your job in the app today — {{wo_ref}} at {{suburb}}, {{day_label}}. {{link}}",
   contractorJobUpdateSms3: "{{company_name}}: last reminder today. Please update your job in the app — {{wo_ref}} at {{suburb}}. {{link}}",
   contractorJobUpdateSms3Green: "{{company_name}}: update today to keep your Green — {{wo_ref}} at {{suburb}}. {{link}}",
+  contractorDemoPromptSms: "DEMO: Please update your job in the app today. {{link}}",
   statusGreenSms: "{{company_name}}: you are on Green. You now get priority on new jobs and faster payment. {{link}}",
   statusGreenLeadSms: "{{company_name}}: you are on Green. Thank you for the clean work. {{link}}",
   statusDroppedSms: "{{company_name}}: your status is now {{colour}}. Open the app to see why and what to do next. {{link}}",
