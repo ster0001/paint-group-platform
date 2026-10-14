@@ -314,7 +314,9 @@ test.describe("12 Demo Street — the robots answer every module", () => {
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/money/${invoiceId}`);
     await page.getByTestId("submit-invoice").click();
-    await expect(page.getByTestId("submit-message")).toBeVisible({ timeout: 20_000 });
+    // The page re-renders as the submitted invoice: the variation from Module 8 is on it.
+    await expect(page.locator("body")).toContainText("Submitted", { timeout: 20_000 });
+    await expect(page.locator("body")).toContainText("Approved variations");
     await until("invoice approved", async () => {
       const { data } = await db!.from("contractor_invoices").select("status").eq("id", invoiceId).single();
       return (data as { status: string }).status === "approved";
