@@ -82,8 +82,12 @@ describe("every list read of a demo-flagged table leaves demo rows out", () => {
     expect(offenders).toEqual([]);
   });
 
-  test("the scope's table list matches the migration's", () => {
-    const sql = readFileSync(join(ROOT, "supabase/migrations/20270262000000_demo_property.sql"), "utf8");
-    for (const t of DEMO_FLAGGED_TABLES) expect(sql, `${t} is flagged in SQL`).toMatch(new RegExp(`['"]${t}['"]|public\\.${t}\\b`));
+  test("every table in the scope's list carries the flag in a migration (20270262 or later)", () => {
+    const dir = join(ROOT, "supabase/migrations");
+    const sql = readdirSync(dir).filter((f) => f.endsWith(".sql") && f >= "20270262").sort()
+      .map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
+    for (const t of DEMO_FLAGGED_TABLES) {
+      expect(sql, `${t} gets an is_demo column or trigger in SQL`).toMatch(new RegExp(`(alter table public\\.${t}\\s+add column if not exists is_demo|t_demo_flag before insert on public\\.${t}\\b|create table if not exists public\\.${t}\\s*\\([\\s\\S]*?is_demo)`));
+    }
   });
 });

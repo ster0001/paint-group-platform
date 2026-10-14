@@ -48,3 +48,32 @@ test.describe("PC Command — contractor pay includes accepted variations", () =
     await expect(page.getByTestId("money-variations")).toHaveText("+ $748");
   });
 });
+
+test.describe("PC Command — a rate change waiting on the painter says so", () => {
+  test.skip(!contractor || !staff, missingCreds("STAFF"));
+  test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to build the fixture job");
+  let g: LoopFixture | null = null;
+
+  test.beforeAll(async () => {
+    const cid = (await contractorIdForEmail(db!, contractor!.email))!;
+    g = await createLoopFixture(db!, cid, [{ heading: "Front", labels: ["Fascias"] }]);
+    // 73 Kerferd, 14 Oct 2026: $60 → $67 sent to the painter, not yet answered.
+    const up = await db!.from("work_orders").update({
+      contractor_payment_cents: 504000,
+      pay_change_rate_cents: 6700, pay_change_from_rate_cents: 6000, pay_change_base_hours: 84,
+      pay_change_from_cents: 504000, pay_change_to_cents: 562800, pay_change_sent_at: new Date().toISOString(),
+    }).eq("id", g.workOrderId);
+    if (up.error) throw new Error(`fixture pay change: ${up.error.message}`);
+  });
+
+  test.afterAll(async () => { await destroyLoopFixture(db!, g); });
+
+  test("the agreed pay stands, with the pending figure and rate under it", async ({ page }) => {
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`/pc/wo/${g!.workOrderId}`);
+    await expect(page.getByTestId("money-contractor")).toHaveText("$5,040");
+    const pending = page.getByTestId("money-pay-change-pending");
+    await expect(pending).toContainText("$5,628 waiting on");
+    await expect(pending).toContainText("to accept $60/h → $67/h");
+  });
+});

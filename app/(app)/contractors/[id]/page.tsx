@@ -85,7 +85,13 @@ export default async function ContractorDetailPage({ params }: { params: Promise
       .order("created_at", { ascending: false }).limit(50),
     supabase.from("booking_offers").select("id, state").eq("contractor_id", id).eq("is_demo", false),
   ]);
-  for (const [label, r] of [["documents", docsRes], ["jobs", jobsRes], ["assignments", assignRes], ["invoices", invoicesRes], ["offers", offersRes]] as const) {
+  // Their crew (worker logins, Step 3a): every worker under this contractor, with how many jobs they see.
+  const workersRes = employmentType === "employee" ? { data: [], error: null } : await supabase.from("contractor_users")
+    .select("id, name, mobile, inducted_at, invited_at, last_link_sent_at, removed_at, wo_worker_shares(work_order_id, unshared_at)")
+    .eq("contractor_id", id).eq("role", "worker").order("created_at");
+  type WorkerRow = { id: string; name: string; mobile: string; inducted_at: string | null; invited_at: string; last_link_sent_at: string | null; removed_at: string | null; wo_worker_shares: { work_order_id: string; unshared_at: string | null }[] | null };
+  const workers = ((workersRes.data ?? []) as unknown as WorkerRow[]);
+  for (const [label, r] of [["documents", docsRes], ["jobs", jobsRes], ["assignments", assignRes], ["invoices", invoicesRes], ["offers", offersRes], ["workers", workersRes]] as const) {
     if (r.error) { reportError(r.error, { where: `contractorDetail.${label}` }); failures.push(label); }
   }
 
@@ -228,6 +234,34 @@ export default async function ContractorDetailPage({ params }: { params: Promise
           )}
         </section>
       </div>
+
+      {employmentType !== "employee" && (
+        <section className="mt-4 rounded-lg border border-gray-200 bg-white p-4" data-testid="card-workers">
+          <h2 className="text-sm font-semibold">Their crew — worker logins</h2>
+          <p className="mt-1 text-xs text-gray-500">Workers the contractor added under Your crew. Each has their own login (a texted link) and sees only the jobs shared with them — photos and ticks, never money. The induction state is filled in by the worker induction.</p>
+          {workers.length === 0 ? (
+            <p className="mt-2 text-sm text-gray-500">No workers added.</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-gray-100 text-sm">
+              {workers.map((w) => {
+                const live = (w.wo_worker_shares ?? []).filter((s) => !s.unshared_at).length;
+                return (
+                  <li key={w.id} className="flex items-center justify-between gap-3 py-1.5" data-testid={`staff-worker-${w.id}`}>
+                    <span>
+                      <b>{w.name}</b> <span className="text-gray-500">{w.mobile}</span>
+                      {w.removed_at && <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">removed</span>}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {w.inducted_at ? "Inducted" : <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800" data-testid={`staff-worker-not-inducted-${w.id}`}>Not inducted</span>}
+                      {" · "}{live} job{live === 1 ? "" : "s"} shared
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       <ContractorStatusPanel painterId={id} status={statusRow} bonuses={bonuses} isOwner={isOwner} approvalsOn={approvalsOn} employee={employmentType === "employee"} />
 

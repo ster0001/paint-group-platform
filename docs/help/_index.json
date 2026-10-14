@@ -1083,6 +1083,41 @@
         "app/components/wo",
         "lib/workorder"
       ]
+    },
+    {
+      "feature": "worker-logins",
+      "role": "contractor",
+      "title": "Your crew — give each worker their own login, share jobs with them",
+      "summary": "Add a worker by name and mobile and they get their own login by text. Share a job with them and they see the scope, the finish standard and the tick list on their own phone, and tick and photograph under their own name. They never see your price, offers, invoices, variations or messages. Remove a worker and their login stops opening your jobs at once.",
+      "path": "docs/help/worker-logins/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/WorkersCard.tsx",
+        "app/portal/workerActions.ts",
+        "app/portal/jobs/page.tsx",
+        "app/portal/jobs/[id]/page.tsx",
+        "app/portal/jobs/[id]/WorkerJob.tsx",
+        "lib/contractor/workers.ts",
+        "lib/contractor/workerJobs.ts",
+        "supabase/migrations/20270265000000_worker_logins.sql"
+      ]
+    },
+    {
+      "feature": "worker-logins",
+      "role": "pc",
+      "title": "Worker logins — who is on a contractor's crew and what they can see",
+      "summary": "A contractor adds workers under Your crew; each gets a login by text and sees only the jobs shared with them — scope, standards, photos and ticks, never money. The contractor's record shows their crew, the induction state and how many jobs each worker sees. Ticks by a worker count for the contractor's job and carry the worker's name.",
+      "path": "docs/help/worker-logins/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/(app)/contractors/[id]/page.tsx",
+        "lib/contractor/workers.ts",
+        "supabase/migrations/20270265000000_worker_logins.sql"
+      ]
     }
   ],
   "tours": [
