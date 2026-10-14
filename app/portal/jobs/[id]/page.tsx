@@ -51,6 +51,10 @@ import MessageThread from "@/app/components/wo/MessageThread";
 import { loadThread } from "@/lib/workorder/messagesLoad";
 import DemoControls from "@/app/components/demo/DemoControls";
 import { loadDemoChecklist } from "@/lib/demo/checklistLoad";
+import WorkersCard from "@/app/portal/WorkersCard";
+import { loadWorkers } from "@/lib/contractor/workers";
+import WorkerJob from "./WorkerJob";
+import { getWorkerJob } from "@/lib/contractor/workerJobs";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +72,15 @@ export default async function PortalJobPage({
   // Where they came from, so "back" goes back rather than to a default the
   // painter has to re-navigate out of.
   const { from } = await searchParams;
-  const { contractor, capabilities } = await requireContractor();
+  const { contractor, capabilities, worker } = await requireContractor();
+
+  // A worker (Step 3a, ruling 13): a shared job through the money-free RPC,
+  // and the worker shape of this page — scope, standards, photos, ticks.
+  if (worker && capabilities.isWorker) {
+    const shared = await getWorkerJob(id);
+    if (!shared || !shared.doc) notFound();
+    return <WorkerJob job={shared} from={from} />;
+  }
   if (!contractor) notFound();
 
   // Employed painters (S3): the same page, the other loader. An assigned job
@@ -475,6 +487,8 @@ export default async function PortalJobPage({
   // Messages with the office about THIS job (Tom, 9 Oct 2026) — their own
   // thread only, through their session (RLS). No office-side delivery notes.
   const messages = await loadThread(supabase, id, contractor.id, "painter");
+  // The contractor's crew and which of them see this job (Step 3a).
+  const { workers: crewWorkers } = capabilities.hasCrewCount ? await loadWorkers(supabase, contractor.id, id) : { workers: [] };
   // The practice job's checklist (induction Step 2) — derived from its own rows.
   const demoService = job.isDemo ? createServiceClient() : null;
   const demoSteps = demoService ? await loadDemoChecklist(demoService, id) : null;
@@ -767,6 +781,8 @@ export default async function PortalJobPage({
           colleagues are on the job by assignment already. */}
       {job.committed && capabilities.hasCrewCount && (
         <div style={{ padding: "0 16px" }}>
+          {/* Worker logins (Step 3a): share this job with a worker — they see it on their own phone. */}
+          <WorkersCard mode="job" workers={crewWorkers} workOrderId={id} />
           <CrewShare workOrderId={id} />
         </div>
       )}

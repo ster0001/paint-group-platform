@@ -9,6 +9,10 @@ import {
   type ContractorJob,
 } from "@/lib/contractor/jobs";
 import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
+import { listWorkerJobs } from "@/lib/contractor/workerJobs";
+import { loadWorkers } from "@/lib/contractor/workers";
+import { createClient } from "@/lib/supabase/server";
+import WorkersCard from "@/app/portal/WorkersCard";
 import FinishChip from "@/app/components/FinishChip";
 import Placeholder from "../Placeholder";
 import DemoControls from "@/app/components/demo/DemoControls";
@@ -81,9 +85,11 @@ function JobCard({ job }: { job: ContractorJob }) {
 export default async function JobsPage() {
   const { contractor, capabilities } = await requireContractor();
 
-  // One list, two loaders: a contractor's issued work orders, or an
-  // employee's assignments through the money-free RPC. Same shape either way.
-  const jobs = !contractor ? [] : capabilities.acceptsOffers
+  // One list, three loaders: a contractor's issued work orders, an
+  // employee's assignments, or a worker's shared jobs — the last two through
+  // money-free RPCs. Same shape every way.
+  const jobs = capabilities.isWorker ? (await listWorkerJobs()).jobs
+    : !contractor ? [] : capabilities.acceptsOffers
     ? await listContractorJobs(contractor.id)
     : await listEmployeeJobs();
 
@@ -91,12 +97,27 @@ export default async function JobsPage() {
   // up for a contractor who has none yet (ruling I4 — every contractor can
   // seed and reset their own). Employees get theirs with the worker induction.
   const { current, upcoming, previous, demo } = groupJobs(jobs);
+  // The contractor's crew (Step 3a): add a worker, text their login, remove them. Sharing is per job.
+  const crew = capabilities.hasCrewCount && contractor ? (await loadWorkers(await createClient(), contractor.id)).workers : null;
   const demoSection = capabilities.acceptsOffers && (
     <>
       <p className="slab" style={{ marginTop: 16 }} data-testid="jobs-demo-heading">Demo</p>
       {demo.length > 0 ? demo.map((j) => <JobCard key={j.id} job={j} />) : <DemoControls mode="start" />}
     </>
   );
+
+  if (jobs.length === 0 && capabilities.isWorker) {
+    return (
+      <Placeholder
+        title="Jobs"
+        slab="The jobs your contractor shares with you"
+        icon="▤"
+        heading="Nothing shared yet"
+        body="When your contractor shares a job with you it appears here with the scope, the finish standard and the tick list. You tick your work and add photos under your own name."
+        soon="Waiting on your first job"
+      />
+    );
+  }
 
   if (jobs.length === 0 && !demoSection) {
     return (
@@ -149,6 +170,13 @@ export default async function JobsPage() {
       )}
 
       {demoSection}
+
+      {crew && (
+        <>
+          <p className="slab" style={{ marginTop: 16 }}>Your crew</p>
+          <WorkersCard mode="account" workers={crew} />
+        </>
+      )}
     </div>
   );
 }

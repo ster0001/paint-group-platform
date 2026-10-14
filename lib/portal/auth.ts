@@ -114,6 +114,15 @@ export async function sendMagicLink(opts: {
   return { status: "sent" };
 }
 
+/**
+ * The same minted link, for a sender that is not email: a worker's login goes
+ * to their phone by text (induction Step 3a — a worker has a mobile, not an
+ * address). The auth user already exists; the caller texts the URL.
+ */
+export function mintMagicLinkUrl(svc: SupabaseClient, email: string, next?: string): Promise<string | null> {
+  return mintMagicLink(svc, email, next);
+}
+
 /** Mint the token and return OUR verification URL (not Supabase's). Creates
  * the auth user on first sign-in — the account itself already exists from
  * the estimate save, or is created at verification time. */
