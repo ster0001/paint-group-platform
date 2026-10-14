@@ -5,6 +5,7 @@ import { effectiveState, isLive } from "@/lib/scheduling/offers";
 import OfferCard from "./requests/OfferCard";
 import { listContractorJobs, JOB_STATUS_CHIP, shortDate } from "@/lib/contractor/jobs";
 import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
+import { listWorkerJobs } from "@/lib/contractor/workerJobs";
 import { missingProfileFields, daysUntil, docState, workcoverNeeded, employeeDocReminders } from "@/lib/contractor/model";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 import { createClient } from "@/lib/supabase/server";
@@ -33,7 +34,32 @@ const melbourneDate = () =>
 const firstName = (full: string) => full.trim().split(/\s+/)[0] || "there";
 
 export default async function PortalHome() {
-  const { name, contractor, capabilities, employmentType } = await requireContractor();
+  const { name, contractor, capabilities, employmentType, worker } = await requireContractor();
+
+  // A worker (induction Step 3a): the jobs their contractor shared, and Help. Nothing else lives on this login.
+  if (worker && capabilities.isWorker) {
+    const { jobs: shared, error: sharedError } = await listWorkerJobs();
+    return (
+      <div className="wrap" data-testid="worker-home">
+        <h1>G&rsquo;day, {firstName(worker.name || name)}</h1>
+        <p className="slab">{melbourneDate()} · on {worker.contractor_name}&rsquo;s crew</p>
+        <div className="card">
+          <h3>Your jobs</h3>
+          {sharedError && <p className="hint" style={{ color: "var(--amber)" }}>{sharedError}</p>}
+          {shared.length === 0 ? (
+            <div style={{ fontSize: "12.5px", color: "var(--muted)", marginTop: 6 }}>Nothing shared yet. When {worker.contractor_name} shares a job with you it appears here.</div>
+          ) : shared.map((j) => (
+            <Link key={j.id} href={`/portal/jobs/${j.id}`} className="act" data-testid={`worker-job-${j.id}`}>
+              <i aria-hidden>▤</i>
+              <span>{j.doc?.jobTitle || j.woRef}<br /><span style={{ fontFamily: "var(--mono)", fontSize: 9, letterSpacing: ".06em" }}>{shortDate(j.startDate)}{j.doc?.finishCode ? ` · ${j.doc.finishCode}` : ""}</span></span>
+              <span className="push"><span className="chip gry">{j.surfacesDone} of {j.surfacesTotal}</span></span>
+            </Link>
+          ))}
+        </div>
+        <Link href="/portal/help" className="btn gh">Help and the finish standards</Link>
+      </div>
+    );
+  }
 
   // Staff haven't finished setting this account up.
   if (!contractor) {

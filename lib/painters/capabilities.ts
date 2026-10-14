@@ -53,7 +53,17 @@ export type PainterCapabilities = {
   multiAssignable: boolean;
   /** Start day / Finish day timesheets. Employee only. */
   clocksOn: boolean;
+  /** The Calendar tab: block-out days, Google Calendar. Not a worker. */
+  hasCalendar: boolean;
+  /**
+   * A worker login (induction Step 3a, ruling 3): the jobs their contractor
+   * shares, photos and surface ticks under their own name — nothing else.
+   * The one flag a screen may branch on to show the worker shape.
+   */
+  isWorker: boolean;
 };
+
+export type PainterKind = EmploymentType | "worker";
 
 const CONTRACTOR: PainterCapabilities = Object.freeze({
   acceptsOffers: true,
@@ -66,6 +76,8 @@ const CONTRACTOR: PainterCapabilities = Object.freeze({
   hasCrewCount: true,
   multiAssignable: false,
   clocksOn: false,
+  hasCalendar: true,
+  isWorker: false,
 });
 
 const EMPLOYEE: PainterCapabilities = Object.freeze({
@@ -79,6 +91,24 @@ const EMPLOYEE: PainterCapabilities = Object.freeze({
   hasCrewCount: false,
   multiAssignable: true,
   clocksOn: true,
+  hasCalendar: true,
+  isWorker: false,
+});
+
+/** A worker (ruling 13): shared jobs, photos, ticks. Every money, offer, claim and calendar flag is off. */
+const WORKER: PainterCapabilities = Object.freeze({
+  acceptsOffers: false,
+  acknowledgesAssignments: false,
+  seesMoney: false,
+  seesTimeBudget: false,
+  canSelfInvoice: false,
+  canClaimExpenses: false,
+  requiresInsurance: false,
+  hasCrewCount: false,
+  multiAssignable: false,
+  clocksOn: false,
+  hasCalendar: false,
+  isWorker: true,
 });
 
 /**
@@ -92,9 +122,10 @@ const EMPLOYEE: PainterCapabilities = Object.freeze({
  * unreachable from the database; this is the same rule for the TS side.
  */
 export function painterCapabilities(
-  painter: { employment_type?: unknown } | EmploymentType | null | undefined,
+  painter: { employment_type?: unknown } | PainterKind | null | undefined,
 ): PainterCapabilities {
   const type = typeof painter === "string" ? painter : painter?.employment_type;
+  if (type === "worker") return WORKER;
   return type === "employee" ? EMPLOYEE : CONTRACTOR;
 }
 
