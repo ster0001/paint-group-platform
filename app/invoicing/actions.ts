@@ -85,6 +85,8 @@ const WORDING: Record<string, string> = {
   reason_too_long: "Keep the reason under 300 characters.",
   // Step 8
   no_draft_final: "There is no draft final on this job to work out again.",
+  // Cancel an unpaid deposit and invoice in full (8 Penderel Court, 15 Oct)
+  nothing_to_cancel: "There is no sent, unpaid invoice to cancel on this job — use Invoice in full.",
   nothing_remaining: "Nothing is left to invoice for the contractor on this job — earlier invoices already cover the agreed pay.",
 };
 
@@ -986,6 +988,21 @@ export async function redraftFinalAction(raw: unknown): Promise<InvoicingResult>
     "Final invoice drafted again from what is left to invoice.");
   // 20270261: with nothing left to invoice the draft final is removed, not redrafted at $0 (§6.1).
   return r.ok && !r.id ? { ...r, message: "Nothing is left to invoice on this job, so the draft final has been removed." } : r;
+}
+
+/**
+ * Tom, 15 Oct 2026 (8 Penderel Court): a job finished with its deposit sent but
+ * never paid. The final drafted at sign-off netted that deposit off, so nothing
+ * could raise ONE invoice for the whole job. `invoice_final_in_full` voids every
+ * sent, unpaid deposit or progress claim and drafts a final for the whole
+ * contract in one transaction; the final then goes out through the ordinary Send.
+ * Money already paid on a deposit refuses it — the ordinary final nets that off.
+ */
+export async function finalInFullAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({ estimateId: uuid, reason: z.string().trim().max(300).default("") }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+  return call("invoice_final_in_full", { p_estimate_id: p.data.estimateId, p_reason: p.data.reason }, { estimateId: p.data.estimateId },
+    "The unpaid invoice is cancelled and a final invoice for the whole job is drafted — check it, then Send.");
 }
 
 /**

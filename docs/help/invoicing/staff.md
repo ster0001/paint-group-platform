@@ -48,7 +48,8 @@ At the top: the stage, the payment rail, and **Job total · Paid · Still owing*
 ### Money in
 Every invoice is a card with its payments listed under it.
 - **A draft**: change its **Due date**, **Check invoice**, **Delete draft**, **Already paid**, or **Send**. A deposit draft has the size buttons on the card.
-- **A sent invoice**: **Change amount** (a deposit), **Pause reminders** / **Resume reminders**, **Void**, **Open invoice**, **Cash or part**, **✓ Paid**.
+- **A sent invoice**: **Change amount** (a deposit), **Cancel, invoice in full** (a deposit or progress claim with nothing paid on it), **Pause reminders** / **Resume reminders**, **Void**, **Open invoice**, **Cash or part**, **✓ Paid**.
+- **Cancel, invoice in full**: the job is finished and the deposit was never paid, so you want one invoice for the whole job. Press it on the unpaid deposit and confirm: the deposit (and any unpaid progress claim) is cancelled with its number burnt, and one final invoice for the whole job is drafted beside it. Check the draft and press **Send** as usual. The customer's old link says that invoice has been cancelled. It refuses if any money has already been paid on the deposit; the ordinary final already takes that money off.
 - **This draft was worked out before an earlier invoice was issued… Redraft**: a final drafted while the deposit was still a draft charges the whole contract. Press **Redraft** and it is worked out again from what is left to invoice. New finals now redraft themselves when an earlier invoice is issued.
 - **No $0 finals, no leftover deposits.** When a job is signed off with nothing left to invoice, no final is drafted. When a final is first drafted at sign-off, a deposit that was never sent is removed: the final already asks for that money. Redrafting a final never removes a deposit.
 - Above the cards: **Request a payment** (a share of the job or a fixed amount, drafted for you to check), **Invoice in full**, and **Revise scope**.

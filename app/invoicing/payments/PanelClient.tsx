@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { centsAsInput, depositPreview, parseDollarsToCents } from "@/lib/invoicing/jobMoney";
 import { requestPreviewCents } from "@/lib/invoicing/derive";
 import {
-  changeDepositAction, deleteDraftAction, invoiceInFullAction, pauseRemindersAction, requestPaymentAction, setDraftDueAction, voidInvoiceAction,
+  changeDepositAction, deleteDraftAction, finalInFullAction, invoiceInFullAction, pauseRemindersAction, requestPaymentAction, setDraftDueAction, voidInvoiceAction,
   redraftFinalAction,
 } from "../actions";
 import AddCostSheet from "../job/[estimateId]/AddCostSheet";
@@ -21,6 +21,8 @@ import { fmt2 } from "../format";
 
 export type CardSpec = {
   invoiceId: string; estimateId: string; status: string; state: string; isDeposit: boolean; kindIsDeposit: boolean;
+  /** A deposit or progress claim (not the final) — "Cancel, invoice in full" acts on these. */
+  kindIsClaim: boolean; number: string | null; paidCents: number;
   balanceCents: number; dueOn: string | null; chaseHold: string | null; token?: string;
   /** The row's spec, re-aimed at THIS invoice (send / pay act on it). */
   spec: ActionSpec;
@@ -64,6 +66,14 @@ export function InvoiceCardActions({ c, today }: { c: CardSpec; today: string })
       {err ? <div className="err">{err}</div> : null}
       <div className="acts">
         {c.kindIsDeposit ? <button type="button" className="b" onClick={() => setChanging((v) => !v)}>Change amount</button> : null}
+        {/* Tom, 15 Oct (8 Penderel Court): a claim sent but never paid by the end — cancel it and ask for the whole job on one final. */}
+        {c.kindIsClaim && c.paidCents === 0 ? (
+          <button type="button" className="b" disabled={busy} data-testid="final-in-full"
+            onClick={() => {
+              if (!window.confirm(`Cancel ${c.number ?? "this invoice"} and draft one final invoice for the whole job, ${fmt2(c.spec.contractCents)}? ${c.spec.first} then pays everything on the final. The old number is burnt, not reused.`)) return;
+              run(() => finalInFullAction({ estimateId: c.estimateId }));
+            }}>Cancel, invoice in full</button>
+        ) : null}
         <button type="button" className="b" disabled={busy} title={c.chaseHold ?? undefined} data-testid={c.chaseHold ? "resume-reminders" : "pause-reminders"}
           onClick={() => {
             if (c.chaseHold) { run(() => pauseRemindersAction({ invoiceId: c.invoiceId, estimateId: c.estimateId, reason: "" })); return; }

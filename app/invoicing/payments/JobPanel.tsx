@@ -46,6 +46,7 @@ function cardSpec(base: ActionSpec, d: PanelData, i: PanelInvoice, today: string
     : { kind: "pay", invoiceId: i.id, balanceCents: i.balanceCents };
   return {
     invoiceId: i.id, estimateId: d.row.estimateId, status: i.status, state: i.state, isDeposit: i.isDeposit, kindIsDeposit: i.kind === "deposit",
+    kindIsClaim: i.kind === "deposit" || i.kind === "progress", number: i.number, paidCents: i.paidCents,
     balanceCents: i.balanceCents, dueOn: i.dueOn, chaseHold: i.chaseHold,
     // The card's own invoice is always the one its sheet pays — even a draft the row hides by rule (§6.2),
     // which is not among the row's payable leads (it paid the final instead, 13 Oct).
