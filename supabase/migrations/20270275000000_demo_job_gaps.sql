@@ -201,7 +201,7 @@ select
   (select sum((s->>'hours')::numeric) from jsonb_array_elements(public.demo_property_template()->'areas') a, jsonb_array_elements(a->'surfaces') s) as hours, 40 as _expect_hours,
   (select count(*) from jsonb_array_elements(public.demo_property_template()->'areas') a, jsonb_array_elements(a->'surfaces') s) as surfaces, 27 as _expect_surfaces,
   (select count(*) from jsonb_array_elements(public.demo_property_snapshot('WO-DEMO-TEST')->'areas') a where a ? 'dims') as areas_with_dims, 5 as _expect_areas_with_dims,
-  (select count(*) from jsonb_array_elements(public.demo_property_snapshot('WO-DEMO-TEST')->'areas') a, jsonb_array_elements(a->'surfaces') s where s ? 'count') as counted_surfaces, 7 as _expect_counted_surfaces,
+  (select count(*) from jsonb_array_elements(public.demo_property_snapshot('WO-DEMO-TEST')->'areas') a, jsonb_array_elements(a->'surfaces') s where s ? 'count') as counted_surfaces, 8 as _expect_counted_surfaces,
   (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'wo_photos_demo_select') as demo_photo_policy, 1 as _expect_demo_photo_policy,
   has_function_privilege('authenticated', 'public.demo_property_seed(uuid)', 'execute') as seed_callable, true as _expect_seed_callable,
   has_function_privilege('authenticated', 'public.demo_property_template()', 'execute') as template_callable, false as _expect_template_callable;
