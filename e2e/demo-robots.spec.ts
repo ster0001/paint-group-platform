@@ -9,7 +9,8 @@ import { contractorIdForEmail, rpcAs, serviceClient } from "./fixtures/woLoop";
  * AS THE CONTRACTOR, every module's "On your phone" step on the practice job,
  * with the office and the customer answering as robots through the SAME RPCs
  * a person uses: accept the offer (M10) → the robot office acknowledges on the
- * thread; ask a question (M7) → "your Project Coordinator will call you
+ * thread; ask for a new start date (M10, Tom 15 Oct) → the robot office
+ * approves it; ask a question (M7) → "your Project Coordinator will call you
  * today"; change the finish date with a reason (M7, ruling 4) → logged, noted;
  * the pre-start list, a before photo and the stage ticks (M10) — the
  * before-photo gate still holds; the DEMO text sent by staff (M6, ruling I12)
@@ -130,6 +131,32 @@ test.describe("12 Demo Street — the robots answer every module", () => {
     expect(ev?.length ?? 0, "no customer confirmation leaves the practice job").toBe(0);
   });
 
+  test("M10: ask for a new start date — the robot office approves it (Tom, 15 Oct)", async ({ page }) => {
+    await signIn(page, contractor!, /\/portal/);
+    await openJob(page);
+    const { data: before } = await db!.from("booking_offers").select("id, start_date, end_date").eq("work_order_id", woId).single();
+    const b = before as { id: string; start_date: string; end_date: string };
+    const newStart = dayPlus(b.start_date, 7);   // the Monday after — a free day on the grid
+    await page.getByTestId("reschedule-open").click();
+    if (newStart.slice(0, 7) !== b.start_date.slice(0, 7)) await page.getByTestId("calendar-next").click();
+    await page.getByTestId(`calendar-day-${newStart}`).click();
+    await page.getByTestId("reschedule-note").fill("Finishing the job before this one");
+    await page.getByTestId("reschedule-send").click();
+    // The sheet closes on the RPC answer; the robot (300 ms in this run) can approve before the
+    // page re-renders, so the Waiting card is not asserted — the offer row and the thread are.
+    await expect(page.getByTestId("reschedule-send")).toHaveCount(0);
+    const after = await until("start date approved", async () => {
+      const { data } = await db!.from("booking_offers").select("state, start_date, end_date, proposed_start_date").eq("id", b.id).single();
+      const o = data as { state: string; start_date: string; end_date: string; proposed_start_date: string | null };
+      return o.state === "accepted" && o.start_date === newStart ? o : null;
+    });
+    expect(after.end_date).toBe(dayPlus(b.end_date, 7));
+    await robotSaid("New start date approved");
+    await page.reload();
+    await expect(page.getByTestId("reschedule-pending")).toHaveCount(0);
+    await expect(page.getByTestId("reschedule-open")).toBeVisible();
+  });
+
   test("M7: ask a question — the Project Coordinator (robot) replies in seconds", async ({ page }) => {
     await signIn(page, contractor!, /\/portal/);
     await openJob(page);
@@ -161,17 +188,23 @@ test.describe("12 Demo Street — the robots answer every module", () => {
 
   test("M10: pre-start, a before photo, start the job, move a surface — the gates hold", async ({ page }) => {
     await signIn(page, contractor!, /\/portal/);
-    await openJob(page);   // seeds the pre-start list on view
-    // The pre-start list is real: colours confirmed, every required item answered, exactly like a real job.
-    await db!.from("work_orders").update({ colours: { "Dulux Wash&Wear Low Sheen": { status: "confirmed", name: "Natural White" }, "Dulux Ceiling White": { status: "confirmed", name: "Ceiling White" }, "Dulux Aquanamel Semi Gloss": { status: "confirmed", name: "Vivid White" } } }).eq("id", woId);
-    const { data: items } = await db!.from("wo_checklist_items").select("id, auto_key, required, kind").eq("work_order_id", woId).eq("phase", "pre_start");
-    for (const i of (items ?? []) as { id: string; auto_key: string | null; required: boolean; kind: string | null }[]) {
-      if (i.auto_key || !i.required) continue;
-      const r = i.kind === "yes_no"
-        ? await rpcAs(staff!, "wo_answer_checklist_item", { p_item_id: i.id, p_answer: "yes", p_note: "Nothing extra — practice job" })
-        : await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: i.id, p_done: true });
-      expect(r).toMatch(/^ok:/);
-    }
+    await openJob(page);
+    // Tom, 15 Oct: the office has done its pre-start work at seed — colours confirmed, every
+    // item ticked — so the list never blocks the practice job's Start.
+    const { data: items } = await db!.from("wo_checklist_items").select("id, auto_key, required, done_at").eq("work_order_id", woId).eq("phase", "pre_start");
+    expect((items ?? []).length, "the pre-start list was seeded").toBeGreaterThan(0);
+    expect((items ?? []).filter((i) => (i as { auto_key: string | null; done_at: string | null }).done_at === null && !(i as { auto_key: string | null }).auto_key).length, "no pre-start item left open").toBe(0);
+    expect(String(await rpcAs(staff!, "wo_colours_confirmed", { p_work_order_id: woId }))).toBe("true");
+    // The five office photos, one per room, and the measurements and counts on the sheet.
+    await expect(page.getByTestId("wo-office-photos")).toBeVisible();
+    expect(await page.getByTestId("wo-office-photos").locator("img").count()).toBe(5);
+    const { data: wo } = await db!.from("work_orders").select("wo_snapshot").eq("id", woId).single();
+    const areas = (wo as { wo_snapshot: { areas: { title: string; dims?: { l: number; w: number; h: number }; surfaces: { label: string; count?: number }[] }[] } }).wo_snapshot.areas;
+    expect(areas.map((a) => a.title)).toEqual(["Bedroom 1", "Bedroom 2", "Lounge", "Kitchen", "Hallway"]);
+    expect(areas.every((a) => a.dims && a.dims.l > 0 && a.dims.w > 0 && a.dims.h > 0)).toBe(true);
+    expect(areas.find((a) => a.title === "Hallway")!.surfaces.find((x) => x.label === "Doors")!.count).toBe(3);
+    await expect(page.getByTestId("surf-count-a4:3")).toHaveText("× 3");   // Hallway · Doors
+    await expect(page.locator("body")).toContainText("3.6 × 3.2 × 2.7 m");
     // Start is refused until a before photo exists — the same gate as a real job.
     const { data: surfaces } = await db!.from("wo_surfaces").select("id, heading, label").eq("work_order_id", woId).eq("rectification", false).order("sort");
     const walls = (surfaces as { id: string; heading: string; label: string }[]).find((s) => s.heading === "Bedroom 1" && s.label === "Walls")!;

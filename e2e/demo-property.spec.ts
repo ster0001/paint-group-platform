@@ -113,7 +113,7 @@ test.describe("12 Demo Street — the practice job and its wall", () => {
     expect(row.estimates?.is_demo).toBe(true);
     expect(row.estimates?.customer_id).toBeNull();
     const { data: surfaces } = await db!.from("wo_surfaces").select("is_demo").eq("work_order_id", demoWoId);
-    expect(surfaces?.length).toBe(22);
+    expect(surfaces?.length).toBe(27);
     expect((surfaces ?? []).every((s) => (s as { is_demo: boolean }).is_demo)).toBe(true);
   });
 
@@ -197,7 +197,7 @@ test.describe("12 Demo Street — the practice job and its wall", () => {
     const { data: leftovers } = await db!.from("wo_callbacks").select("id").eq("work_order_id", demoWoId);
     expect(leftovers?.length ?? 0).toBe(0);
     const { data: surfaces } = await db!.from("wo_surfaces").select("state").eq("work_order_id", fresh);
-    expect(surfaces?.length).toBe(22);
+    expect(surfaces?.length).toBe(27);
     expect((surfaces ?? []).every((s) => (s as { state: string }).state === "todo")).toBe(true);
     demoWoId = fresh;
     // One reset event, naming the fresh job (seed and reset share the transaction's now(), so "latest" would be a tie).

@@ -198,11 +198,11 @@ export default function CalendarGrid({
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <button className="btn gh narrow" style={{ marginTop: 0 }} onClick={() => setYm(({ y, m }) => (m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 }))}>
+        <button className="btn gh narrow" style={{ marginTop: 0 }} data-testid="calendar-prev" onClick={() => setYm(({ y, m }) => (m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 }))}>
           ‹
         </button>
         <div style={{ fontWeight: 600, fontSize: 14 }}>{monthName(ym.y, ym.m)}</div>
-        <button className="btn gh narrow" style={{ marginTop: 0 }} onClick={() => setYm(({ y, m }) => (m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 }))}>
+        <button className="btn gh narrow" style={{ marginTop: 0 }} data-testid="calendar-next" onClick={() => setYm(({ y, m }) => (m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 }))}>
           ›
         </button>
       </div>
@@ -238,7 +238,7 @@ export default function CalendarGrid({
                 if (mode === "pick" && !tooEarly) onPickDate?.(date);
               }}
               disabled={busy === date || (mode === "pick" && tooEarly && !job?.id)}
-              data-testid={job?.id ? `calendar-job-${date}` : undefined}
+              data-testid={job?.id ? `calendar-job-${date}` : `calendar-day-${date}`}
               title={
                 tooEarly && !job ? "That date has passed"
                 : job ? `${job.label} — tap to open the job`
