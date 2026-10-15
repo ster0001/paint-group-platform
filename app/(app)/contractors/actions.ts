@@ -238,6 +238,7 @@ export async function revealContractorBankAction(raw: unknown): Promise<RevealBa
 // ---- Finish standards (brief Step 2) -----------------------------------------
 import { loadStandardsStatuses } from "@/lib/standards/status";
 import { sendStandardsInvite, sendStandardsReminder } from "@/lib/standards/notify";
+import { sendInductionInvite } from "@/lib/induction/notify";
 import { notifyBonusApproved } from "@/lib/painterStatus/notify";
 
 export type StandardsActionResult = { ok: true; message: string } | { ok: false; message: string };
@@ -363,4 +364,57 @@ export async function bonusDecideAction(raw: unknown): Promise<StatusActionResul
   }
   revalidatePath(`/contractors/${v.painterId}`); revalidatePath("/pc"); revalidatePath("/portal/money");
   return { ok: true, message: v.approve ? `Approved.${told}` : "Declined and recorded." };
+}
+
+// ---- Induction (Step 5) ----------------------------------------------------------------
+export type InductionActionResult = { ok: true; message: string } | { ok: false; message: string };
+
+/** The office invites an existing painter to the refresher: the grace period starts in the RPC, then the text and email go. */
+export async function inviteInductionAction(raw: unknown): Promise<InductionActionResult> {
+  const parsed = z.object({ id: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Could not read that — try again." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("induction_invite", { p_contractor_id: parsed.data.id });
+  if (error) { reportError(error, { where: "induction.invite" }); return { ok: false, message: "Could not record the invite — it has been reported." }; }
+  const r = String(data ?? "");
+  if (r === "error:already_complete") return { ok: false, message: "They have already completed the induction." };
+  if (!r.startsWith("ok:")) return { ok: false, message: `Could not invite them (${r}).` };
+  const service = createServiceClient();
+  const outcome = service ? await sendInductionInvite(service, parsed.data.id) : "no service client";
+  revalidatePath("/contractors"); revalidatePath(`/contractors/${parsed.data.id}`);
+  return { ok: true, message: outcome === "sent" ? "Invited. The text and email have gone; their grace period has started."
+    : outcome === "held" ? "Invited and their grace period has started. It is after hours, so the message is queued for the morning window."
+    : `Invited and the grace period has started, but the message was not sent (${outcome}) — check their mobile and email.` };
+}
+
+/** The facilitator records one practical-check task for a painter or a worker login (⚑5, ⚑17). */
+export async function recordInductionCheckAction(raw: unknown): Promise<InductionActionResult> {
+  const parsed = z.object({ contractorId: uuid, profileId: uuid, task: z.string().min(1).max(40), result: z.enum(["pass", "not_yet"]), note: z.string().max(400).optional() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Could not read that — try again." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("induction_check_record", { p_profile_id: parsed.data.profileId, p_task_key: parsed.data.task, p_result: parsed.data.result, p_note: parsed.data.note ?? "" });
+  if (error) { reportError(error, { where: "induction.check" }); return { ok: false, message: "Could not record that — it has been reported." }; }
+  const r = String(data ?? "");
+  revalidatePath(`/contractors/${parsed.data.contractorId}`);
+  if (r === "ok:passed") return { ok: true, message: "Practical check passed." };
+  if (r.startsWith("ok:")) return { ok: true, message: parsed.data.result === "pass" ? "Recorded as passed." : "Recorded as not yet — they repeat the module and try again today (⚑5)." };
+  const wording: Record<string, string> = {
+    "error:no_check_for_refresher": "The refresher has no practical check.",
+    "error:bad_task": "That task is not one of the check tasks.",
+    "error:not_a_painter": "That login is not a painter.",
+    "error:no_version": "The induction has not been published yet.",
+  };
+  return { ok: false, message: wording[r] ?? `Could not record that (${r}).` };
+}
+
+/** Full or refresher, by hand, when the rule of thumb is wrong. */
+export async function setInductionKindAction(raw: unknown): Promise<InductionActionResult> {
+  const parsed = z.object({ id: uuid, kind: z.enum(["full", "refresher"]) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Could not read that — try again." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("induction_set_kind", { p_contractor_id: parsed.data.id, p_kind: parsed.data.kind });
+  if (error) { reportError(error, { where: "induction.setKind" }); return { ok: false, message: "Could not change that — it has been reported." }; }
+  const r = String(data ?? "");
+  revalidatePath(`/contractors/${parsed.data.id}`);
+  return r.startsWith("ok:") ? { ok: true, message: parsed.data.kind === "refresher" ? "Now on the refresher." : "Now on the full induction." } : { ok: false, message: `Could not change that (${r}).` };
 }

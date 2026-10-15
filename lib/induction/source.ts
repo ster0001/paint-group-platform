@@ -61,10 +61,15 @@ export function parseInduction(md: string): InductionFile {
   for (let m = heading.exec(md); m; m = heading.exec(md)) {
     starts.push({ no: Number(m[1]), title: m[2].trim(), minutes: Number(m[3]), at: m.index, end: m.index + m[0].length });
   }
-  if (starts.length !== MODULE_COUNT) fail("modules", `expected ${MODULE_COUNT} module headings, found ${starts.length}`);
+  // Modules 1..13 in order, then (Step 5) the refresher Module 0, "What is changing", last.
+  const numbered13 = starts.filter((s) => s.no !== 0);
+  const zero = starts.filter((s) => s.no === 0);
+  if (numbered13.length !== MODULE_COUNT) fail("modules", `expected ${MODULE_COUNT} module headings, found ${numbered13.length}`);
+  if (zero.length > 1) fail("modules", "only one Module 0 (the refresher block) is allowed");
+  if (zero.length === 1 && starts.indexOf(zero[0]) !== starts.length - 1) fail("module 0", "Module 0 comes after Module 13");
 
   const modules: InductionModule[] = starts.map((s, i) => {
-    if (s.no !== i + 1) fail(`module ${s.no}`, `modules must run 1..13 in order (found ${s.no} at position ${i + 1})`);
+    if (s.no !== 0 && s.no !== i + 1) fail(`module ${s.no}`, `modules must run 1..13 in order (found ${s.no} at position ${i + 1})`);
     // The module body runs to the next `## ` heading of any kind.
     const next = md.indexOf("\n## ", s.end);
     const body = md.slice(s.end, next === -1 ? md.length : next);
@@ -136,14 +141,19 @@ export function inductionStrings(file: InductionFile): Record<string, string> {
 }
 
 /** One `induction_blocks` row, before the version and language are known. */
+export type Audience = "contractor" | "worker" | "refresher";
+
 export type BlockRow = {
   module_key: string;
   line_key: string;         // title | s1… | tick | w1…
   kind: "title" | "statement" | "tick" | "worker_extra";
   sort: number;
-  /** Who reads it: contractor, worker, or both (⚑17). */
-  audiences: ("contractor" | "worker")[];
+  /** Who reads it: contractor, worker (⚑17), refresher (ruling I13) — any mix. */
+  audiences: Audience[];
 };
+
+/** The refresher modules (ruling I13): the what-is-changing block, 3, 7, 8, 9 and 6, plus the standards. Module 0 is refresher-only. */
+export const REFRESHER_MODULE_KEYS: readonly string[] = ["m00", "m03", "m05", "m06", "m07", "m08", "m09"];
 
 /** The block rows for a module set, language-free (the text comes from the string map per language). */
 export function blockRows(file: InductionFile): BlockRow[] {
@@ -151,13 +161,15 @@ export function blockRows(file: InductionFile): BlockRow[] {
   for (const m of file.modules) {
     let sort = 0;
     const workerIn = m.workerLines.length > 0 || m.workerExtra.length > 0;
-    rows.push({ module_key: m.key, line_key: "title", kind: "title", sort: sort++, audiences: workerIn ? ["contractor", "worker"] : ["contractor"] });
+    const refresher = REFRESHER_MODULE_KEYS.includes(m.key);
+    const zero = m.key === "m00";
+    const who = (worker: boolean): Audience[] => [...(zero ? [] : ["contractor" as const]), ...(worker ? ["worker" as const] : []), ...(refresher ? ["refresher" as const] : [])];
+    rows.push({ module_key: m.key, line_key: "title", kind: "title", sort: sort++, audiences: who(workerIn) });
     for (const s of m.statements) {
-      const forWorker = m.workerLines.includes(s.line);
-      rows.push({ module_key: m.key, line_key: `s${s.line}`, kind: "statement", sort: sort++, audiences: forWorker ? ["contractor", "worker"] : ["contractor"] });
+      rows.push({ module_key: m.key, line_key: `s${s.line}`, kind: "statement", sort: sort++, audiences: who(m.workerLines.includes(s.line)) });
     }
     for (const w of m.workerExtra) rows.push({ module_key: m.key, line_key: `w${w.line}`, kind: "worker_extra", sort: sort++, audiences: ["worker"] });
-    rows.push({ module_key: m.key, line_key: "tick", kind: "tick", sort: sort++, audiences: workerIn ? ["contractor", "worker"] : ["contractor"] });
+    rows.push({ module_key: m.key, line_key: "tick", kind: "tick", sort: sort++, audiences: who(workerIn) });
   }
   return rows;
 }

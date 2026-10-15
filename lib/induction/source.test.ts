@@ -11,12 +11,12 @@ describe("induction source — the committed export parses into 13 modules", () 
   it("is Version 1, approved 13 Oct 2026, thirteen modules in order", () => {
     expect(file.version).toBe(1);
     expect(file.approvedOn).toBe("2026-10-13");
-    expect(file.modules.map((m) => m.no)).toEqual(Array.from({ length: MODULE_COUNT }, (_, i) => i + 1));
-    expect(file.modules.map((m) => m.key)).toEqual(["m01", "m02", "m03", "m04", "m05", "m06", "m07", "m08", "m09", "m10", "m11", "m12", "m13"]);
+    expect(file.modules.map((m) => m.no)).toEqual([...Array.from({ length: MODULE_COUNT }, (_, i) => i + 1), 0]);
+    expect(file.modules.map((m) => m.key)).toEqual(["m01", "m02", "m03", "m04", "m05", "m06", "m07", "m08", "m09", "m10", "m11", "m12", "m13", "m00"]);
   });
 
   it("carries the Read-and-confirm statements the doc prints (counts per module)", () => {
-    expect(file.modules.map((m) => m.statements.length)).toEqual([5, 4, 10, 6, 6, 6, 6, 6, 5, 6, 4, 3, 5]);
+    expect(file.modules.map((m) => m.statements.length)).toEqual([5, 4, 10, 6, 6, 6, 6, 6, 5, 6, 4, 3, 5, 4]);
     expect(file.modules[2].statements[9].text).toMatch(/^If I cannot come or will be late/);
     expect(file.modules[5].statements[3].text).toContain("Red: no more job offers. We meet to go through the level of finish expected on my current job.");
   });
@@ -50,6 +50,15 @@ describe("induction source — the committed export parses into 13 modules", () 
     expect(by.m12.workerLines).toEqual([]);
     expect(by.m13.workerLines).toEqual([1, 2, 3, 5]);
     expect(by.m13.workerExtra.map((x) => x.text)).toEqual(["I have a white card."]);
+    expect(by.m00.workerLines).toEqual([]);
+  });
+
+  it("the refresher reads Module 0 and modules 3, 5, 6, 7, 8, 9 (ruling I13); Module 0 is refresher-only", () => {
+    const rows = blockRows(file);
+    const refresherModules = [...new Set(rows.filter((r) => r.audiences.includes("refresher")).map((r) => r.module_key))].sort();
+    expect(refresherModules).toEqual(["m00", "m03", "m05", "m06", "m07", "m08", "m09"]);
+    expect(rows.filter((r) => r.module_key === "m00").every((r) => !r.audiences.includes("contractor") && !r.audiences.includes("worker"))).toBe(true);
+    expect(rows.find((r) => r.module_key === "m03" && r.line_key === "s1")!.audiences).toEqual(["contractor", "worker", "refresher"]);
   });
 
   it("the string map has one key per title, statement, tick and worker extra", () => {
@@ -68,9 +77,9 @@ describe("induction source — the committed export parses into 13 modules", () 
     const m11 = rows.filter((r) => r.module_key === "m11");
     expect(m11.every((r) => r.audiences.join() === "contractor")).toBe(true);
     const m07s5 = rows.find((r) => r.module_key === "m07" && r.line_key === "s5")!;
-    expect(m07s5.audiences).toEqual(["contractor", "worker"]);
+    expect(m07s5.audiences).toEqual(["contractor", "worker", "refresher"]);
     const m07s3 = rows.find((r) => r.module_key === "m07" && r.line_key === "s3")!;
-    expect(m07s3.audiences).toEqual(["contractor"]);
+    expect(m07s3.audiences).toEqual(["contractor", "refresher"]);
     expect(rows.find((r) => r.module_key === "m13" && r.line_key === "w1")!.audiences).toEqual(["worker"]);
   });
 

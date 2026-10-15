@@ -8,6 +8,8 @@ import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
 import { listWorkerJobs } from "@/lib/contractor/workerJobs";
 import { myLanguage } from "@/lib/induction/language";
 import { languageOf } from "@/lib/induction/languages";
+import { loadMyInduction } from "@/lib/induction/progress";
+import { painterInductionLine, type InductionStatus } from "@/lib/induction/status";
 import { missingProfileFields, daysUntil, docState, workcoverNeeded, employeeDocReminders } from "@/lib/contractor/model";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 import { createClient } from "@/lib/supabase/server";
@@ -59,7 +61,7 @@ export default async function PortalHome() {
             </Link>
           ))}
         </div>
-        <InductionCard language={await myLanguage()} who="worker" />
+        <InductionCard language={await myLanguage()} who="worker" status={(await loadMyInduction()).status} />
         <Link href="/portal/help" className="btn gh">Help and the finish standards</Link>
       </div>
     );
@@ -377,7 +379,7 @@ export default async function PortalHome() {
       )}
 
       {/* The induction (Step 4): the language chosen, or the ask to choose one. */}
-      <InductionCard language={await myLanguage()} who="contractor" />
+      <InductionCard language={await myLanguage()} who="contractor" status={(await loadMyInduction()).status} />
 
       {/* Finish standards (Step 1): the rule book every job is judged against,
           one tap from Home as the mockup draws it. The confirmed date and
@@ -488,7 +490,7 @@ export default async function PortalHome() {
  * is chosen, then the induction in that language. Workers get the worker
  * version through the same door.
  */
-function InductionCard({ language, who }: { language: string | null; who: "contractor" | "worker" }) {
+function InductionCard({ language, who, status }: { language: string | null; who: "contractor" | "worker"; status: InductionStatus | null }) {
   if (!language) {
     return (
       <Link href="/portal/induction/language?next=/portal/induction" className="card amberish" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-induction-language">
@@ -499,11 +501,18 @@ function InductionCard({ language, who }: { language: string | null; who: "contr
     );
   }
   const l = languageOf(language);
+  const done = status?.complete && (status.kind === "refresher" || status.checkPassed);
+  const attention = status && !status.complete && (status.kind !== "refresher" || status.graceUntil);
   return (
-    <Link href="/portal/induction" className="card" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-induction">
-      <span className="slab" style={{ marginBottom: 4 }}>{who === "worker" ? "Worker induction" : "Induction"}</span>
+    <Link href="/portal/induction" className={`card ${attention ? "amberish" : ""}`} style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-induction" data-complete={status?.complete ?? false}>
+      <span className="slab" style={{ marginBottom: 4 }}>{who === "worker" ? "Worker induction" : status?.kind === "refresher" ? "Induction refresher" : "Induction"}</span>
       <h3>Read and confirm, in <span lang={l.code}>{l.nativeName}</span></h3>
-      <p className="hint" style={{ marginTop: 2 }}>The modules you tick on induction day, in {l.name}. Open ›</p>
+      {status && (
+        <div style={{ marginTop: 6 }}>
+          <span className={`chip ${done ? "grn" : status.complete ? "cy" : "amb"}`} data-testid="home-induction-chip">{status.complete ? "Complete" : `${status.ticked} of ${status.total}`}</span>
+        </div>
+      )}
+      <p className="hint" style={{ marginTop: 2 }}>{status ? painterInductionLine(status) : `The modules you tick on induction day, in ${l.name}.`} Open ›</p>
     </Link>
   );
 }

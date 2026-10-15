@@ -104,6 +104,9 @@ test.describe("worker logins — a small login under a contractor", () => {
   });
 
   test("as the contractor: share one job from its page", async ({ page }) => {
+    // The share gate (⚑15, on since induction Step 5) wants an inducted worker; the
+    // induction itself is e2e/induction.spec.ts. Here the fixture is inducted by hand.
+    await db!.from("contractor_users").update({ inducted_at: new Date().toISOString() }).eq("id", contractorUserId);
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${shared!.workOrderId}`);
     await page.getByTestId(`worker-share-${contractorUserId}`).click();

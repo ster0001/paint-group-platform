@@ -14,6 +14,8 @@ import ContractorStatusPanel, { type BonusRow, type StatusRow } from "./Contract
 import { staffVisibility } from "@/lib/staff/gate";
 import ContractorBank from "./ContractorBank";
 import ContractorStandards from "./ContractorStandards";
+import ContractorInduction from "./ContractorInduction";
+import { loadInductionStatusFor } from "@/lib/induction/progress";
 import DemoControls from "@/app/components/demo/DemoControls";
 import { loadStandardsStatuses } from "@/lib/standards/status";
 import { staffStatusLine } from "@/lib/standards/acks";
@@ -54,6 +56,8 @@ export default async function ContractorDetailPage({ params }: { params: Promise
   if (langRead.error) reportError(langRead.error, { where: "contractorDetail.language", bestEffort: true });
   const langRow = langRead.data as { induction_language: string | null; induction_languages: { name: string; native_name: string } | null } | null;
   const inductionLanguage = langRow?.induction_language ? `${langRow.induction_languages?.name ?? langRow.induction_language}` : null;
+  // Induction (Step 5): the painter's own position, and each worker's, through the one RPC.
+
 
   const c = row as unknown as ContractorRow & {
     requires_qa: boolean | null; qa_mode?: unknown; rcti_agreement_signed_at: string | null;
@@ -67,6 +71,9 @@ export default async function ContractorDetailPage({ params }: { params: Promise
   const qaMode = c.qa_mode === "every_job" || c.qa_mode === "none" || c.qa_mode === "first_jobs"
     ? c.qa_mode : c.requires_qa ? "every_job" : "first_jobs";
   const failures: string[] = [];
+  // Induction (Step 5): the painter's own position, and each worker's below, through the one RPC.
+  const inductionRes = c.profile_id ? await loadInductionStatusFor(supabase, c.profile_id) : { status: null, error: null };
+  if (inductionRes.error) failures.push("the induction status");
 
   // Finish standards (Step 2, ruling S7): confirmed date and version, or where they are.
   const standardsRes = await loadStandardsStatuses(supabase);
@@ -92,10 +99,11 @@ export default async function ContractorDetailPage({ params }: { params: Promise
   ]);
   // Their crew (worker logins, Step 3a): every worker under this contractor, with how many jobs they see.
   const workersRes = employmentType === "employee" ? { data: [], error: null } : await supabase.from("contractor_users")
-    .select("id, name, mobile, inducted_at, invited_at, last_link_sent_at, removed_at, wo_worker_shares(work_order_id, unshared_at)")
+    .select("id, profile_id, name, mobile, inducted_at, invited_at, last_link_sent_at, removed_at, wo_worker_shares(work_order_id, unshared_at)")
     .eq("contractor_id", id).eq("role", "worker").order("created_at");
-  type WorkerRow = { id: string; name: string; mobile: string; inducted_at: string | null; invited_at: string; last_link_sent_at: string | null; removed_at: string | null; wo_worker_shares: { work_order_id: string; unshared_at: string | null }[] | null };
+  type WorkerRow = { id: string; profile_id: string | null; name: string; mobile: string; inducted_at: string | null; invited_at: string; last_link_sent_at: string | null; removed_at: string | null; wo_worker_shares: { work_order_id: string; unshared_at: string | null }[] | null };
   const workers = ((workersRes.data ?? []) as unknown as WorkerRow[]);
+  const workerInduction = new Map(await Promise.all(workers.filter((w) => !w.removed_at && w.profile_id).map(async (w) => [w.id, (await loadInductionStatusFor(supabase, w.profile_id!)).status] as const)));
   for (const [label, r] of [["documents", docsRes], ["jobs", jobsRes], ["assignments", assignRes], ["invoices", invoicesRes], ["offers", offersRes], ["workers", workersRes]] as const) {
     if (r.error) { reportError(r.error, { where: `contractorDetail.${label}` }); failures.push(label); }
   }
@@ -206,6 +214,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
             <Field label="RCTI agreement" value={c.rcti_agreement_signed_at ? `signed ${formatDMY(c.rcti_agreement_signed_at.slice(0, 10))}` : "not signed"} />
             <Field label="Finish standards" value={<ContractorStandards id={c.id} status={standardsStatus} line={standardsLine} />} />
             <Field label="Induction language" value={inductionLanguage ? <span data-testid="contractor-induction-language">{inductionLanguage}</span> : <span className="text-gray-400" data-testid="contractor-induction-language">not chosen yet (reads English)</span>} />
+            {c.profile_id && employmentType !== "employee" && <Field label="Induction" value={<ContractorInduction profileId={c.profile_id} contractorId={c.id} status={inductionRes.status} />} />}
             {employmentType !== "employee" && <Field label="Demo property" value={<DemoControls mode="staff" contractorId={c.id} hasDemo={hasDemo} />} />}
           </div>
         </section>
@@ -257,9 +266,12 @@ export default async function ContractorDetailPage({ params }: { params: Promise
                       <b>{w.name}</b> <span className="text-gray-500">{w.mobile}</span>
                       {w.removed_at && <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">removed</span>}
                     </span>
-                    <span className="text-xs text-gray-500">
-                      {w.inducted_at ? "Inducted" : <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800" data-testid={`staff-worker-not-inducted-${w.id}`}>Not inducted</span>}
-                      {" · "}{live} job{live === 1 ? "" : "s"} shared
+                    <span className="flex flex-col items-end gap-1 text-xs text-gray-500">
+                      <span>
+                        {w.inducted_at ? "Inducted" : <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800" data-testid={`staff-worker-not-inducted-${w.id}`}>Not inducted</span>}
+                        {" · "}{live} job{live === 1 ? "" : "s"} shared
+                      </span>
+                      {!w.removed_at && w.profile_id && <ContractorInduction profileId={w.profile_id} contractorId={c.id} status={workerInduction.get(w.id) ?? null} worker />}
                     </span>
                   </li>
                 );
