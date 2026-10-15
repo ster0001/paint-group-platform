@@ -111,7 +111,8 @@ test.describe("induction language — choose, read in it, fall back to English",
     await expect(lines).toHaveCount(10);
     await expect(page.getByTestId("induction-line-s1")).toContainText("Soy un invitado en la casa del cliente");
     await expect(page.getByTestId("induction-line-s1")).toHaveAttribute("data-translated", "true");
-    await expect(page.getByTestId("induction-tick-statement")).toContainText("Seguiré las reglas del sitio en cada casa.");
+    // The tick statement sits on the tick button until ticked, then on the ticked line (Step 5).
+    await expect(page.locator("[data-testid='induction-tick'], [data-testid='induction-tick-statement']").first()).toContainText("Seguiré las reglas del sitio en cada casa.");
     await expect(page.getByTestId("induction-fallback")).toHaveCount(0);
     await expect(page.getByText("Read and confirm · 15 min")).toBeVisible();
 
