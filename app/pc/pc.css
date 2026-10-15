@@ -131,6 +131,8 @@
 .pc .job .r{font-family:var(--mono);font-size:8px;color:var(--muted);letter-spacing:.04em}
 .pc .job .m{font-family:var(--mono);font-size:11px;color:var(--soft);font-variant-numeric:tabular-nums}
 .pc .job .fl{display:flex;gap:5px;flex-wrap:wrap;margin-top:2px}
+/* The booked start date (Tom, 15 Oct 2026) — reads as a date, not a number. */
+.pc .job .sd{font-family:var(--mono);font-size:10px;color:var(--soft);letter-spacing:.03em}
 .pc .pill{font-family:var(--mono);font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;
   padding:3px 8px;border-radius:100px;border:1px solid var(--line);color:var(--muted)}
 .pc .p-amber{color:var(--amber);border-color:rgba(224,168,60,.4);background:rgba(224,168,60,.07)}
