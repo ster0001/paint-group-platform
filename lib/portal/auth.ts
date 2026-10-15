@@ -5,6 +5,7 @@ import { normaliseEmail } from "@/lib/accounts/identity";
 import { buildEstimateEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
 import { reportError } from "@/lib/monitoring/report";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import type { SupabaseClient as SessionClient, User } from "@supabase/supabase-js";
 
 /**
  * 3a-2 · Magic-link sign-in (⚑3: passwordless by default).
@@ -19,6 +20,10 @@ import { emailLogoUrl } from "@/lib/messaging/logo";
  *      verifies the token against the caller's session client (verifyOtp) —
  *      that is what proves possession of the inbox. Opening the link spends
  *      nothing, so a mail scanner fetching it first cannot (13 Oct 2026).
+ *      The same email carries a numeric code (14 Oct 2026): typing it on the
+ *      "Check your email" page (verifyCodeAction) is the same proof, and a
+ *      scanner cannot type. One token backs both — whichever is used first
+ *      spends it.
  *   3. ensureMembership() — only THEN does the login join the account chain
  *      (the 3a-1 ruling: an unverified email typed into a form never grants
  *      access; a verified click does).
@@ -79,8 +84,9 @@ export async function sendMagicLink(opts: {
   if (!svc) return { status: "unavailable" };
   if (throttled(email)) return { status: "throttled" };
 
-  const link = await mintMagicLink(svc, email, opts.next);
-  if (!link) return { status: "unavailable" };
+  const minted = await mintMagicLink(svc, email, opts.next);
+  if (!minted) return { status: "unavailable" };
+  const { link, code } = minted;
 
   if (!emailConfigured()) return { status: "not_configured" };
 
@@ -91,7 +97,7 @@ export async function sendMagicLink(opts: {
 
   const intro =
     opts.intro ??
-    `Here's your sign-in link. It takes you straight to your ${companyName} account — no password needed.\n\nThe link works for ${LINK_VALID_MINUTES} minutes. If it runs out, just ask for a fresh one.`;
+    `Here's your sign-in link. It takes you straight to your ${companyName} account — no password needed.\n\nThe link and the code below work for ${LINK_VALID_MINUTES} minutes. If they run out, just ask for a fresh one.`;
 
   const sent = await sendEmail({
     to: email,
@@ -106,6 +112,7 @@ export async function sendMagicLink(opts: {
       logoUrl: emailLogoUrl(company),
       companyPhone: company.phone,
       buttonLabel: opts.buttonLabel ?? "Open my account",
+      code,
     }),
   });
   if (sent.status === "not_configured") return { status: "not_configured" };
@@ -121,14 +128,19 @@ export async function sendMagicLink(opts: {
  * to their phone by text (induction Step 3a — a worker has a mobile, not an
  * address). The auth user already exists; the caller texts the URL.
  */
-export function mintMagicLinkUrl(svc: SupabaseClient, email: string, next?: string): Promise<string | null> {
-  return mintMagicLink(svc, email, next);
+export async function mintMagicLinkUrl(svc: SupabaseClient, email: string, next?: string): Promise<string | null> {
+  return (await mintMagicLink(svc, email, next))?.link ?? null;
 }
 
-/** Mint the token and return OUR verification URL (not Supabase's). Creates
- * the auth user on first sign-in — the account itself already exists from
- * the estimate save, or is created at verification time. */
-async function mintMagicLink(svc: SupabaseClient, email: string, next?: string): Promise<string | null> {
+/** Mint the token and return OUR verification URL (not Supabase's) plus the
+ * numeric code that spends the same token. Creates the auth user on first
+ * sign-in — the account itself already exists from the estimate save, or is
+ * created at verification time. */
+async function mintMagicLink(
+  svc: SupabaseClient,
+  email: string,
+  next?: string,
+): Promise<{ link: string; code: string } | null> {
   let linkRes = await svc.auth.admin.generateLink({ type: "magiclink", email });
   if (linkRes.error) {
     // First sign-in: the wizard's anonymous user carries no email, so this
@@ -141,14 +153,35 @@ async function mintMagicLink(svc: SupabaseClient, email: string, next?: string):
     }
     linkRes = await svc.auth.admin.generateLink({ type: "magiclink", email });
   }
-  if (linkRes.error || !linkRes.data?.properties?.hashed_token) {
+  if (linkRes.error || !linkRes.data?.properties?.hashed_token || !linkRes.data.properties.email_otp) {
     reportError(linkRes.error, { where: "portal.magicLink.generate", bestEffort: true });
     return null;
   }
   const params = new URLSearchParams({ token_hash: linkRes.data.properties.hashed_token });
   const safeNext = safeNextPath(next);
   if (safeNext !== "/account") params.set("next", safeNext);
-  return `${siteUrl()}/account/auth?${params.toString()}`;
+  return { link: `${siteUrl()}/account/auth?${params.toString()}`, code: linkRes.data.properties.email_otp };
+}
+
+/**
+ * What happens once verifyOtp has proved the inbox — the same whether the
+ * proof was the link's tap or the typed code. Tom, 24 Sep: staff and painters
+ * verify this way too (a password reset lands here). Joining THEM to a
+ * customer account chain would mint a customer account for an office
+ * address — membership is for customers.
+ */
+export async function afterVerifiedSignIn(supabase: SessionClient, user: User): Promise<void> {
+  if (!user.email) return;
+  const { data: profile, error: profileError } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (profileError) reportError(profileError, { where: "account.auth.role", bestEffort: true });
+  const isCustomer = profile?.role !== "staff" && profile?.role !== "contractor";
+  try {
+    if (isCustomer) await ensureMembership(user.id, user.email);
+  } catch (err) {
+    // Membership is retried on the next visit by the portal gate — a hiccup
+    // here must not cost the customer their sign-in.
+    reportError(err, { where: "account.auth.membership", bestEffort: true });
+  }
 }
 
 /**

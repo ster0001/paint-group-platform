@@ -243,6 +243,9 @@ export function buildEstimateEmailHtml(opts: {
   companyPhone?: string;
   /** Button text — defaults to the original estimate wording. */
   buttonLabel?: string;
+  /** A sign-in code the reader can type instead of using the link (14 Oct
+   * 2026: a mail scanner can open a link, it cannot type a code). */
+  code?: string;
 }): string {
   const introHtml = opts.intro
     .split(/\n{2,}/)
@@ -251,6 +254,14 @@ export function buildEstimateEmailHtml(opts: {
   const logo = opts.logoUrl
     ? `<img src="${esc(opts.logoUrl)}" alt="${esc(opts.companyName)}" height="44" style="height:44px;max-width:220px;object-fit:contain;" />`
     : `<span style="font-size:20px;font-weight:700;color:#111827;">${esc(opts.companyName)}</span>`;
+  const codeHtml = opts.code
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 16px;width:100%;">
+          <tr><td style="border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;padding:14px 18px;">
+            <p style="margin:0 0 6px;font-size:14px;line-height:1.5;color:#1f2937;">Link not working? Type this code on the sign-in page instead:</p>
+            <p data-sign-in-code style="margin:0;font-size:28px;font-weight:700;letter-spacing:6px;color:#111827;">${esc(opts.code)}</p>
+          </td></tr>
+        </table>`
+    : "";
   const signoff = opts.estimatorName
     ? `<p style="margin:24px 0 0;font-size:15px;line-height:1.6;color:#1f2937;">
          ${esc(opts.estimatorName)}${opts.estimatorTitle ? `<br/><span style="color:#6b7280;">${esc(opts.estimatorTitle)}, ${esc(opts.companyName)}</span>` : ""}
@@ -277,6 +288,7 @@ export function buildEstimateEmailHtml(opts: {
           Or copy this link into your browser:<br/>
           <a href="${esc(opts.link)}" style="color:#059669;word-break:break-all;">${esc(opts.link)}</a>
         </p>
+        ${codeHtml}
         ${signoff}
       </td></tr>
       <tr><td style="padding:18px 32px;border-top:1px solid #e5e7eb;">

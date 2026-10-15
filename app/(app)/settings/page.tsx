@@ -13,6 +13,8 @@ import TemplatesManager, { type TemplateMeta } from "./TemplatesManager";
 import InclusionTemplatesManager from "./InclusionTemplatesManager";
 import TermsEditor, { TERMS_KEY } from "./TermsEditor";
 import AutomationsSettings from "./AutomationsSettings";
+import InductionLanguagesSettings from "./InductionLanguagesSettings";
+import type { LanguageRow } from "@/lib/induction/languages";
 import OnlineEstimatesSettings from "./OnlineEstimatesSettings";
 import AccessAllowancesSettings from "./AccessAllowancesSettings";
 import { EXTERIOR_ALLOWANCES_KEY, exteriorAllowancesFrom } from "@/lib/wizard/exterior-allowances";
@@ -142,6 +144,16 @@ export default async function SettingsPage() {
   const rateItems = rateItemsRes.data ?? [];
 
   const allSettings = (settingsRes.data as SettingRow[] | null) ?? [];
+  // Induction languages (Step 4, ⚑3): the live switches and who reads in what.
+  const [langRes, langCountRes] = await Promise.all([
+    supabase.from("induction_languages").select("code, name, native_name, dir, live, sort").order("sort"),
+    supabase.from("contractors").select("induction_language").not("induction_language", "is", null).eq("active", true).limit(2000),
+  ]);
+  if (langRes.error) reportError(langRes.error, { where: "settings.inductionLanguages", bestEffort: true });
+  if (langCountRes.error) reportError(langCountRes.error, { where: "settings.inductionLanguages.counts", bestEffort: true });
+  const inductionLanguages = (langRes.error ? [] : (langRes.data ?? [])) as LanguageRow[];
+  const languageCounts: Record<string, number> = {};
+  for (const r of (langCountRes.error ? [] : (langCountRes.data ?? [])) as { induction_language: string }[]) languageCounts[r.induction_language] = (languageCounts[r.induction_language] ?? 0) + 1;
   const websiteContent = parseWebsiteContent(allSettings.find((r) => r.key === WEBSITE_CONTENT_KEY)?.value);
   const videoJobs = (await listShowcaseJobsForStaff()).filter((j) => j.video_url).map((j) => ({ id: j.id, title: j.title, suburb: j.suburb, published: j.published }));
   // Session 8: the copy for both audiences and the fetched reviews' tags.
@@ -312,6 +324,8 @@ export default async function SettingsPage() {
       folders: [
         { id: "automations", title: "Automations", subtitle: "Every email, text and calendar invite sent to customers, contractors and staff — what fires it, switch it off, change the wording; who on staff gets each alert", count: AUTOMATION_COUNT,
           content: <AutomationsSettings initial={messaging} initialVariationRelease={variationRelease} /> },
+        { id: "induction-languages", title: "Induction languages", subtitle: `What painters read and tick in the induction, and the six standards sections, in their own language — switch a language on once its wording has been tested. ${inductionLanguages.filter((l) => l.live).length} of ${inductionLanguages.length || 7} live`, count: inductionLanguages.filter((l) => l.live).length || undefined,
+          content: <InductionLanguagesSettings initial={inductionLanguages} counts={languageCounts} loadError={langRes.error?.message ?? null} /> },
         { id: "brain", title: "Brain", subtitle: "What the assistant may say about how Paint Group works — approve each entry; unwritten ones are never served", count: brainRows.length,
           content: <BrainManager rows={brainRows} /> },
         { id: "crm", title: "CRM", subtitle: "The numbers behind the chase rules — when an estimate is chased, when a card goes cold, repaint intervals — and the customer tag list", count: crmTags.length,

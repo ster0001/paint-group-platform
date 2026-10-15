@@ -785,3 +785,11 @@
 .pt details.card > summary::-webkit-details-marker { display: none; }
 .pt details.card > summary::after { content: "+"; font-family: var(--mono); color: var(--muted); }
 .pt details.card[open] > summary::after { content: "–"; }
+
+/* Induction (Step 4, ruling I8): translated text carries its own lang/dir; the
+   chrome stays English and left-to-right. Right-to-left runs (Dari, Farsi,
+   Arabic) align to their start edge and keep the list numbers on the right. */
+.pt [dir="rtl"] { text-align: start; unicode-bidi: isolate; }
+.pt ol[dir="rtl"], .pt ul[dir="rtl"] { padding-inline-start: 22px; padding-left: 0; }
+.pt h1[dir="rtl"], .pt .std-note[dir="rtl"] { direction: rtl; }
+.pt .act.on { background: color-mix(in srgb, var(--cyan) 10%, transparent); }

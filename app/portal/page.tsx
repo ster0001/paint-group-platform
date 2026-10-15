@@ -6,6 +6,8 @@ import OfferCard from "./requests/OfferCard";
 import { listContractorJobs, JOB_STATUS_CHIP, shortDate } from "@/lib/contractor/jobs";
 import { listEmployeeJobs } from "@/lib/contractor/employeeJobs";
 import { listWorkerJobs } from "@/lib/contractor/workerJobs";
+import { myLanguage } from "@/lib/induction/language";
+import { languageOf } from "@/lib/induction/languages";
 import { missingProfileFields, daysUntil, docState, workcoverNeeded, employeeDocReminders } from "@/lib/contractor/model";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 import { createClient } from "@/lib/supabase/server";
@@ -57,6 +59,7 @@ export default async function PortalHome() {
             </Link>
           ))}
         </div>
+        <InductionCard language={await myLanguage()} who="worker" />
         <Link href="/portal/help" className="btn gh">Help and the finish standards</Link>
       </div>
     );
@@ -373,6 +376,9 @@ export default async function PortalHome() {
         </div>
       )}
 
+      {/* The induction (Step 4): the language chosen, or the ask to choose one. */}
+      <InductionCard language={await myLanguage()} who="contractor" />
+
       {/* Finish standards (Step 1): the rule book every job is judged against,
           one tap from Home as the mockup draws it. The confirmed date and
           version join this card in Step 2. */}
@@ -474,5 +480,30 @@ export default async function PortalHome() {
       </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Induction (Step 4, ruling I8): one card — "choose your language" until it
+ * is chosen, then the induction in that language. Workers get the worker
+ * version through the same door.
+ */
+function InductionCard({ language, who }: { language: string | null; who: "contractor" | "worker" }) {
+  if (!language) {
+    return (
+      <Link href="/portal/induction/language?next=/portal/induction" className="card amberish" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-induction-language">
+        <span className="chip amb">Induction</span>
+        <h3 style={{ marginTop: 8 }}>Choose your language</h3>
+        <p className="hint" style={{ marginTop: 2 }}>What you read and tick in the induction is in your language. The app stays in English. Choose ›</p>
+      </Link>
+    );
+  }
+  const l = languageOf(language);
+  return (
+    <Link href="/portal/induction" className="card" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-induction">
+      <span className="slab" style={{ marginBottom: 4 }}>{who === "worker" ? "Worker induction" : "Induction"}</span>
+      <h3>Read and confirm, in <span lang={l.code}>{l.nativeName}</span></h3>
+      <p className="hint" style={{ marginTop: 2 }}>The modules you tick on induction day, in {l.name}. Open ›</p>
+    </Link>
   );
 }

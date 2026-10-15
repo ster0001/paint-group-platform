@@ -65,6 +65,7 @@ export default function ProfileForm({
   phone = null,
   capabilities,
   standards = null,
+  language = null,
 }: {
   contractor: ContractorRow;
   docs: ContractorDoc[];
@@ -72,6 +73,8 @@ export default function ProfileForm({
   docsError: string | null;
   /** Finish standards (Step 2): confirmed date and version, or the prompt. Null before the standards exist. */
   standards?: { confirmed: boolean; line: string } | null;
+  /** Induction language (Step 4, ruling I8): the choice, or null when not chosen yet. */
+  language?: { code: string; name: string; nativeName: string } | null;
   name: string;
   email: string;
   /** Weekend availability — null (pre-migration) hides the card. */
@@ -623,6 +626,20 @@ export default function ProfileForm({
           </a>
         </div>
       )}
+
+      {/* ---- induction language (Step 4, ruling I8) --------------------- */}
+      <div className={`card ${language ? "" : "amberish"}`} data-testid="profile-language">
+        <h3>Your language</h3>
+        <p className="hint">What you read and tick in the induction, and the finish standards, are shown in this language. The app itself stays in English.</p>
+        <div style={{ marginTop: 6 }}>
+          {language
+            ? <span className="chip grn" data-testid="profile-language-chip"><span lang={language.code}>{language.nativeName}</span> · {language.name}</span>
+            : <span className="chip amb" data-testid="profile-language-chip">Not chosen yet — reading English</span>}
+        </div>
+        <Link href="/portal/induction/language?next=/portal/profile" className="btn gh" style={{ marginTop: 8 }} data-testid="profile-language-change">
+          {language ? "Change language" : "Choose your language"}
+        </Link>
+      </div>
 
       {/* ---- compliance -------------------------------------------------- */}
       <div className="card" data-testid="compliance-card">
