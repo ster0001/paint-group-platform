@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, test } from "./helpers";
 import { contractorIdForEmail, createLoopFixture, destroyLoopFixture, rpcAs, serviceClient, type LoopFixture } from "./fixtures/woLoop";
+import { openMagicLink } from "./fixtures/portal";
 
 /**
  * The induction sign-off — brief §8 Step 5 (rulings I1, I9, I13, ⚑1, ⚑5, ⚑15, ⚑17).
@@ -156,6 +157,8 @@ test.describe("induction — ticks, the practical check, completion and the gate
     expect(newbieContractorId).toBeTruthy();
     const { data: c } = await db!.from("contractors").select("induction_kind, induction_language").eq("id", newbieContractorId!).single();
     expect(c).toEqual({ induction_kind: "full", induction_language: "es" });
+    // The first-run tour would sit over the buttons: seen, as every other new-painter spec does.
+    await db!.from("contractors").update({ tour_seen_at: new Date().toISOString() }).eq("id", newbieContractorId!);
 
     // Module 5 first: the six standards sections, in Spanish.
     await page.getByTestId("signoff-start").click();
@@ -320,7 +323,9 @@ test.describe("induction — ticks, the practical check, completion and the gate
 
     // The worker's own screens: the list in Spanish, the completion screen says the check is next.
     const link = await db!.auth.admin.generateLink({ type: "magiclink", email: workerEmail });
-    await page.goto(`/account/auth?token_hash=${encodeURIComponent(link.data.properties!.hashed_token)}&next=${encodeURIComponent("/portal/induction")}`);
+    // The link is a page with one button (mail scanners, #261): press it, then the induction.
+    await openMagicLink(page, `/account/auth?token_hash=${encodeURIComponent(link.data.properties!.hashed_token)}&next=${encodeURIComponent("/portal/induction")}`);
+    await page.goto("/portal/induction");
     await expect(page.getByTestId("induction-done")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("induction-gate-line")).toContainText("Once the practical check is passed");
 
