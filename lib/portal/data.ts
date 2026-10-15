@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { reportError } from "@/lib/monitoring/report";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { PortalEstimate, PortalWorkOrder } from "./home";
 
@@ -279,7 +280,7 @@ async function projectForWo(
   const [surfaces, updates, photos, variations, qa, walkthrough, signoff, events, deposit, painter] =
     await Promise.all([
       svc.from("wo_surfaces").select("heading, label, state, sort").eq("work_order_id", wo.id),
-      svc.from("wo_updates").select("for_date, final_text, draft_text, sent_at")
+      svc.from("wo_updates").select("for_date, final_text, draft_text, sent_at, photo_ids")
         .eq("work_order_id", wo.id).eq("status", "sent").not("sent_at", "is", null),
       svc.from("wo_photos").select("id, kind, area, caption, storage_path, created_at")
         .eq("work_order_id", wo.id).in("kind", ["before", "progress", "completion"])
@@ -306,9 +307,25 @@ async function projectForWo(
         : Promise.resolve({ data: null }),
     ]);
 
-  const photoRows = (photos.data ?? []) as Array<{
-    id: string; kind: string; area: string; caption: string; storage_path: string; created_at: string;
+  type PhotoRow = { id: string; kind: string; area: string; caption: string; storage_path: string; created_at: string };
+  const photoRows = (photos.data ?? []) as PhotoRow[];
+  const updateRows = (updates.data ?? []) as Array<{
+    for_date: string; final_text: string | null; draft_text: string; sent_at: string; photo_ids: string[] | null;
   }>;
+
+  // Photos the office attached to an update (20270268) render on that card
+  // whatever their kind or day — so an attached photo older than the gallery
+  // window, or of a kind the gallery never shows, is fetched by id here.
+  // Scoped to this job: an id from another job is simply not found.
+  const have = new Set(photoRows.map((p) => p.id));
+  const attachedIds = [...new Set(updateRows.flatMap((u) => u.photo_ids ?? []))].filter((id) => !have.has(id));
+  if (attachedIds.length > 0) {
+    const { data: extra, error: extraError } = await svc
+      .from("wo_photos").select("id, kind, area, caption, storage_path, created_at")
+      .eq("work_order_id", wo.id).in("id", attachedIds.slice(0, 80));
+    if (extraError) reportError(extraError, { where: "portal.project.attachedPhotos", bestEffort: true });
+    for (const p of (extra ?? []) as PhotoRow[]) photoRows.push(p);
+  }
 
   const underway = (events.data ?? []).find((e) => e.to_stage === "in_progress");
   const ready = (events.data ?? []).find((e) => e.to_stage === "walkthrough");
@@ -334,9 +351,12 @@ async function projectForWo(
     })(),
     timeline: {
       surfaces: (surfaces.data ?? []) as TimelineInput["surfaces"],
-      updates: ((updates.data ?? []) as Array<{ for_date: string; final_text: string | null; draft_text: string; sent_at: string }>)
-        .map((u) => ({ for_date: u.for_date, text: u.final_text?.trim() || u.draft_text, sent_at: u.sent_at })),
+      updates: updateRows
+        .map((u) => ({ for_date: u.for_date, text: u.final_text?.trim() || u.draft_text, sent_at: u.sent_at, photo_ids: u.photo_ids ?? [] })),
+      // The day-grouped gallery keeps its kinds; attached photos reach the
+      // timeline through the update itself (and are skipped by the grouping).
       photos: photoRows
+        .filter((p) => p.kind === "before" || p.kind === "progress" || p.kind === "completion")
         .map((p) => ({ id: p.id, kind: p.kind, area: p.area, caption: p.caption, created_at: p.created_at })),
       variations: (variations.data ?? []) as TimelineInput["variations"],
       underwayAt: (underway?.created_at as string | undefined) ?? null,

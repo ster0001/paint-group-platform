@@ -36,11 +36,14 @@ export async function deliverCustomerUpdate(
 
   const { data: u } = await service
     .from("wo_updates")
-    .select("id, work_order_id, final_text, draft_text, for_date")
+    .select("id, work_order_id, final_text, draft_text, for_date, photo_ids")
     .eq("id", updateId)
     .maybeSingle();
-  const update = u as { id: string; work_order_id: string; final_text: string | null; draft_text: string; for_date: string } | null;
+  const update = u as { id: string; work_order_id: string; final_text: string | null; draft_text: string; for_date: string; photo_ids: string[] | null } | null;
   if (!update) return out;
+  // The ids recorded on the row (20270268) are the truth; the caller's list is
+  // the same ids on the send path, and empty on a resend.
+  const wantedPhotoIds = photoIds.length > 0 ? photoIds : (update.photo_ids ?? []);
 
   const { data: w } = await service
     .from("work_orders")
@@ -75,12 +78,12 @@ export async function deliverCustomerUpdate(
 
   // The chosen photos, scoped to THIS job — an id from another job is ignored.
   let photoUrls: string[] = [];
-  if (photoIds.length > 0) {
+  if (wantedPhotoIds.length > 0) {
     const { data: rows } = await service
       .from("wo_photos")
       .select("id, storage_path")
       .eq("work_order_id", update.work_order_id)
-      .in("id", [...photoIds].slice(0, 8));
+      .in("id", [...wantedPhotoIds].slice(0, 8));
     const paths = ((rows ?? []) as { storage_path: string }[]).map((r) => r.storage_path);
     if (paths.length) {
       const { data: signed } = await service.storage

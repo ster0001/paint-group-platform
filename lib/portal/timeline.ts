@@ -21,7 +21,14 @@ export type TimelineSurface = { heading: string; label: string; state: "todo" | 
 
 export type TimelinePhotoRow = { id: string; kind: string; area: string; caption: string; created_at: string };
 
-export type TimelineUpdate = { for_date: string; text: string; sent_at: string };
+export type TimelineUpdate = {
+  for_date: string;
+  text: string;
+  sent_at: string;
+  /** The photos the office attached when sending (20270268). They render on
+   * this card whatever day they were taken; absent on rows sent before. */
+  photo_ids?: string[];
+};
 
 export type TimelineVariation = {
   id: string;
@@ -126,7 +133,7 @@ export function buildTimeline(input: TimelineInput): TimelineItem[] {
       title: "From your painting team",
       body: u.text,
       chip: null,
-      photoIds: [],
+      photoIds: [...(u.photo_ids ?? [])],
       cta: null,
       amountCents: null,
     });
@@ -250,8 +257,12 @@ export function buildTimeline(input: TimelineInput): TimelineItem[] {
   for (const item of items) {
     byDay.set(item.dayYmd, [...(byDay.get(item.dayYmd) ?? []), item]);
   }
+  // A photo the office attached to an update already sits on that card —
+  // it must not be grouped onto its own day a second time.
+  const attached = new Set(input.updates.flatMap((u) => u.photo_ids ?? []));
   const photoDays = new Map<string, TimelinePhotoRow[]>();
   for (const p of input.photos) {
+    if (attached.has(p.id)) continue;
     const day = melbourneDayOf(p.created_at);
     photoDays.set(day, [...(photoDays.get(day) ?? []), p]);
   }
