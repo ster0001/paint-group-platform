@@ -4,6 +4,7 @@ import { credentials, missingCreds, signIn, test } from "./helpers";
 import { accessTokenFor, createLoopFixture, destroyLoopFixture, rpcAs, serviceClient, type LoopFixture } from "./fixtures/woLoop";
 import { KNOWN_MONEY_KEYS, findMoneyKeys } from "../lib/painters/money";
 import { gstFromIncCents } from "../lib/invoicing/gst";
+import { isWorkingDay } from "../lib/time/workingDays";
 
 /**
  * Employed painters — Session 6: timesheets + job cost (brief §6 Session 6
@@ -16,7 +17,12 @@ import { gstFromIncCents } from "../lib/invoicing/gst";
  *  · The payroll CSV matches approved entries exactly — and carries no rate.
  *  · No pay or rate figure reaches the painter: not the page, not a direct
  *    read of their own rows, not the rate table.
- *  · Approval refuses without a rate covering the day.
+ *  · Approval refuses without a rate covering the day — and the rate landing
+ *    later posts that day itself (20270274).
+ *  · Tom, 15 Oct 2026: a BOOKED day is a work day from the moment it is
+ *    booked — tomorrow shows on the panel and the PC strip at 7.5 h × the
+ *    rate, marked Booked; a painter with no rate is named, never read as $0;
+ *    an employee job has no contractor figure.
  *
  * Every account and row made here is removed at the end.
  */
@@ -43,6 +49,11 @@ const melbourneDay = (d: Date) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 const today = melbourneDay(new Date());
 const tomorrow = (() => { const d = new Date(today + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
+// The PC strip's whole-dollar money, as app/pc/wo/[id]/page.tsx prints it.
+const stripMoney = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
+let holidays = new Set<string>();
+/** Tomorrow is a booked WORK day only when it is Monday–Friday and not a public holiday (bookedLabour.ts). */
+const tomorrowWorking = () => isWorkingDay(new Date(tomorrow + "T12:00:00Z").getUTCDay(), tomorrow, holidays);
 
 async function makePainter(creds: { email: string; password: string }, name: string) {
   const created = await db!.auth.admin.createUser({ email: creds.email, password: creds.password, email_confirm: true, user_metadata: { name } });
@@ -70,6 +81,10 @@ test.describe("employed painter — timesheets and job cost", () => {
   test.beforeAll(async () => {
     const flag = await db!.from("settings").upsert({ key: "employees_enabled", value: { enabled: true } }, { onConflict: "key" });
     if (flag.error) throw new Error(flag.error.message);
+    const rules = await db!.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle();
+    if (rules.error) throw new Error(rules.error.message);
+    const list = (rules.data as { value?: { publicHolidays?: unknown } } | null)?.value?.publicHolidays;
+    holidays = new Set(Array.isArray(list) ? list.filter((h): h is string => typeof h === "string") : []);
     employeeCid = await makePainter(employee, PAINTER_NAME);
     norateCid = await makePainter(norate, "E2E NoRate Employee");
 
@@ -213,10 +228,28 @@ test.describe("employed painter — timesheets and job cost", () => {
     await expect(page.getByTestId("pm-materials")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(`.pm [data-mat="cost:${labourCostId}"]`)).toHaveCount(0);
 
-    // The PC job page: labour shown (both days), GP down by exactly the lines.
-    const LABOUR = 39_900 + 7_875;
+    // Tom, 15 Oct 2026: tomorrow is booked, so it already counts — 7.5 h × $52.50
+    // — marked Booked on the panel; the no-rate painter is named, not read as $0.
+    const BOOKED_TOMORROW = tomorrowWorking() ? 39_375 : 0;
+    await page.goto(`/invoicing/job/${fixture!.estimateId}?jt=out`);
+    await expect(page.getByTestId("pm-labour-note")).toContainText("E2E NoRate Employee", { timeout: 30_000 });
+    if (tomorrowWorking()) {
+      const bookedRow = page.getByTestId(`job-cost-item-booked:${employeeCid}:${tomorrow}`);
+      await expect(bookedRow).toContainText("booked 7.5 h");
+      await expect(bookedRow).toContainText("$393.75");
+      await expect(bookedRow.getByTestId("job-cost-booked")).toHaveText("Booked");
+    }
+    // No contractor line: this is an employee job, the snapshot figure is a budget.
+    await expect(page.getByTestId("pm-profit")).toBeVisible();
+    expect(await page.locator(".pm .sum").innerText()).not.toContain("Contractor: offer");
+
+    // The PC job page: labour shown (both recorded days plus the booked one), GP down by exactly the lines.
+    const LABOUR = 39_900 + 7_875 + BOOKED_TOMORROW;
     await page.goto(`/pc/wo/${fixture!.workOrderId}`);
-    await expect(page.getByTestId("money-labour")).toHaveText(/^\$47[78]$/);
+    await expect(page.getByTestId("money-labour")).toHaveText(stripMoney(LABOUR));
+    await expect(page.getByTestId("money-contractor")).toHaveText("—");
+    await expect(page.getByTestId("money-labour-norate")).toContainText("E2E NoRate Employee");
+    await expect(page.getByTestId("money-labour-booked")).toHaveCount(tomorrowWorking() ? 1 : 0);
     // GP is lib/invoicing/jobProfit's: measured on the job value EX GST (PC page uses it since 14 Oct, #273).
     const valueEx = CONTRACT_CENTS - gstFromIncCents(CONTRACT_CENTS);
     const expectedGp = Math.round(((valueEx - LABOUR) / valueEx) * 1000) / 10;
@@ -246,7 +279,8 @@ test.describe("employed painter — timesheets and job cost", () => {
     expect(mine.filter((l) => l.includes(`,${woRef},${today},`) && l.includes(",30,1.50,painter,")).length).toBe(1);
     // A timesheet row carries no money: the bonus cell is empty, and no rate or pay appears anywhere on it.
     for (const row of timesheetRows) expect(row.endsWith(","), row).toBe(true);
-    expect(timesheetRows.join("\n")).not.toMatch(/cents|rate|\$|52\.50|399/i);
+    // (the random WO ref can itself contain the digits — WO-E2E3992 on 15 Oct — so it is taken out first)
+    expect(timesheetRows.map((l) => l.replaceAll(woRef, "")).join("\n")).not.toMatch(/cents|rate|\$|52\.50|399/i);
 
     // Not staff: the route does not exist.
     const anon = await request.get(`/pc/timesheets/export?from=${today}&to=${today}`);
@@ -317,6 +351,34 @@ test.describe("employed painter — timesheets and job cost", () => {
     expect(count, "a rejected day posts nothing").toBe(3);
     // A contractor never has a cost rate.
     expect(await rpcAs(staff!, "set_employee_cost_rate", { p_contractor_id: crypto.randomUUID(), p_cents_per_hour: 5000 })).toBe("error:not_found");
+
+    // 20270274: another waiting day for the same painter — the rate landing posts it, nobody re-approves by hand.
+    const again = await rpcAs(staff!, "timesheet_record", {
+      p_contractor_id: norateCid, p_work_order_id: fixture!.workOrderId,
+      p_started_at: new Date(Date.now() - 2 * 3_600_000).toISOString(), p_finished_at: new Date().toISOString(), p_break_minutes: 0,
+    });
+    expect(again).toMatch(/^ok:/);
+    const waitingId = again.slice(3);
+    // Every day of theirs that waited (this one, and the standard day test 4 filled) posts as the rate lands.
+    const { count: waitingDays } = await db!.from("timesheet_entries").select("id", { count: "exact", head: true }).eq("contractor_id", norateCid).eq("status", "submitted");
+    expect(waitingDays).toBeGreaterThanOrEqual(1);
+    const rate = await rpcAs(staff!, "set_employee_cost_rate", { p_contractor_id: norateCid, p_cents_per_hour: 4000, p_effective_from: "2026-01-01" });
+    expect(rate, "the answer counts the days it posted").toBe(`ok:2026-01-01:posted:${waitingDays}`);
+    const { count: stillWaiting } = await db!.from("timesheet_entries").select("id", { count: "exact", head: true }).eq("contractor_id", norateCid).eq("status", "submitted");
+    expect(stillWaiting).toBe(0);
+    const { data: posted } = await db!.from("timesheet_entries").select("status, job_cost_id").eq("id", waitingId).single();
+    const postedRow = posted as { status: string; job_cost_id: string | null };
+    expect(postedRow.status).toBe("approved");
+    expect(postedRow.job_cost_id).not.toBeNull();
+    const { data: line } = await db!.from("job_costs").select("amount_ex_cents, status, category").eq("id", postedRow.job_cost_id!).single();
+    expect(line).toMatchObject({ category: "labour", status: "approved", amount_ex_cents: 8_000 }); // 2 h × $40
+    // The rejected day stays rejected — the rate posts only what waited.
+    const { data: still } = await db!.from("timesheet_entries").select("status").eq("id", id).single();
+    expect((still as { status: string }).status).toBe("rejected");
+    // With every painter priced, the panel no longer names anyone.
+    await page.goto(`/invoicing/job/${fixture!.estimateId}?jt=out`);
+    await expect(page.getByTestId("pm-profit")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("pm-labour-note")).toHaveCount(0);
   });
 
   test("the painter sees the approved day as hours and a status — never the amount", async ({ page }) => {

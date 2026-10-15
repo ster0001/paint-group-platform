@@ -7,7 +7,8 @@ import { finalDraftIsStale } from "@/lib/invoicing/ledger";
 import { contractorVariationsCents } from "@/lib/workorder/contractorPay";
 import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
 import { reportError } from "@/lib/monitoring/report";
-import { loadJobCosts, loadJobMoney, toDerive, toDerivePayments, type InvoiceRow } from "../data";
+import { bookedLabour, missingRateNote } from "@/lib/invoicing/bookedLabour";
+import { loadBookedLabour, loadJobCosts, loadJobMoney, toDerive, toDerivePayments, type InvoiceRow } from "../data";
 
 /**
  * The job panel's rows (payments-merge brief §4.7, Step 7). The panel reads
@@ -49,6 +50,8 @@ export type PanelData = {
   contractors: ContractorRow[];
   supplierInvoices: MatRow[];
   profit: JobProfit;
+  /** Booked days no cost rate can price (bookedLabour.ts) — the profit reads too high until it is set. */
+  labourNote: string | null;
   woId: string | null;
   woRef: string | null;
   /** The newest staff line on the job's chat, for the Messages line. */
@@ -61,8 +64,9 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
   if (!row) return null;
   const job = await loadJobMoney(supabase, estimateId);
   const woId = job.wo?.id ?? null;
-  const [costs, chat] = await Promise.all([
+  const [costs, booked, chat] = await Promise.all([
     woId ? loadJobCosts(supabase, woId) : Promise.resolve({ jobCosts: [], materials: [], expenses: [], loadError: null }),
+    woId ? loadBookedLabour(supabase, woId) : Promise.resolve(null),
     supabase.from("estimate_messages").select("body").eq("estimate_id", estimateId).eq("direction", "staff").order("created_at", { ascending: false }).limit(1),
   ]);
   if (chat.error) reportError(chat.error, { where: "loadJobPanel.chat", bestEffort: true });
@@ -108,6 +112,11 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
   });
 
   const materialsCostIds = new Set(page.materials.costIds);
+  // Tom, 15 Oct 2026: every booked day is a work day at hours × the painter's
+  // rate, ahead of the day as well — the rule is bookedLabour.ts; this maps.
+  const labour = booked
+    ? bookedLabour({ ...booked, countedCostIds: new Set(costs.jobCosts.filter((c) => c.category === "labour" && (c.status === "approved" || c.status === "paid")).map((c) => c.id)) })
+    : { projected: [], missingRate: [], workingDays: 0 };
   const profit = jobProfit({
     contractIncCents: row.contractCents,
     offerCents: Number(job.wo?.contractor_payment ?? 0) || 0,
@@ -120,6 +129,8 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
     materialCosts: costs.materials.map((m) => ({ id: m.id, amountIncCents: m.amount_cents, overhead: m.overhead ?? null, label: m.supplier || "Materials" })),
     expenses: costs.expenses.map((e) => ({ id: e.id, amountExCents: e.amount_cents, status: e.status, label: e.category.replaceAll("_", " ") })),
     started: row.underWay || row.lane === "closed",
+    projectedLabour: labour.projected.map((d) => ({ id: d.id, label: d.label, cents: d.cents })),
+    employeeJob: booked?.employeeJob ?? false,
   });
 
   const onJob = (r: MatRow) => r.job?.estimateId === estimateId;
@@ -127,8 +138,8 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
     row, invoices,
     contractors: page.contractors.filter((c) => c.estimateId === estimateId),
     supplierInvoices: [...page.materials.toApprove, ...page.materials.toPay.flatMap((g) => g.rows), ...page.materials.paid].filter(onJob),
-    profit, woId, woRef: job.wo?.wo_ref ?? null,
+    profit, labourNote: missingRateNote(labour.missingRate), woId, woRef: job.wo?.wo_ref ?? null,
     lastMessage: ((chat.data ?? [])[0] as { body: string } | undefined)?.body ?? null,
-    loadProblem: job.loadError?.headline ?? costs.loadError?.headline ?? null,
+    loadProblem: job.loadError?.headline ?? costs.loadError?.headline ?? booked?.loadError?.headline ?? null,
   };
 }
