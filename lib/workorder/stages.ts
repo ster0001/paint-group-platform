@@ -137,6 +137,29 @@ export function startAlert(startDate: string | null, today: string): string | nu
   return `Starts in ${days} days`;
 }
 
+/**
+ * The booked start date on a project-progress card (Tom, 15 Oct 2026: "write
+ * the start date in the boxes so we can see when it is booked in"). The input
+ * is a yyyy-mm-dd calendar date, so it is formatted as one — pinned to UTC so
+ * no zone can shift it a day. The year shows only when it is not this year.
+ * Before the job starts the line reads "Starts …"; once it is under way or
+ * done, "Started …". Null when there is no start date to show.
+ */
+export function startDateLine(startDate: string | null, lane: Lane, today: string): string | null {
+  if (startDate === null) return null;
+  const [y, m, d] = startDate.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const sameYear = today.slice(0, 4) === startDate.slice(0, 4);
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "UTC", weekday: "short", day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }),
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const text = [part("weekday"), part("day"), part("month"), sameYear ? "" : part("year")].filter(Boolean).join(" ");
+  const before = lane === "offered" || lane === "booking_confirmed" || lane === "pre_start";
+  return `${before ? "Starts" : "Started"} ${text}`;
+}
+
 /** Soonest start first; no start date last; ties keep their order. The dates
  *  are yyyy-mm-dd strings, so string order is calendar order. */
 export function bySoonestStart<T extends { startDate: string | null }>(a: T, b: T): number {

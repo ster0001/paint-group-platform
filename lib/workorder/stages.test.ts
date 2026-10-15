@@ -13,6 +13,7 @@ import {
   bySoonestStart,
   laneFor,
   startAlert,
+  startDateLine,
   nextStages,
   stageTitle,
   visibleStage,
@@ -304,6 +305,19 @@ describe("the Pre-start alert and order (Tom, 8 Oct 2026)", () => {
   });
   it("has nothing to say without a start date", () => {
     expect(startAlert(null, today)).toBeNull();
+  });
+  it("writes the booked start date on the card (Tom, 15 Oct 2026)", () => {
+    expect(startDateLine("2026-10-20", "booking_confirmed", today)).toBe("Starts Tue 20 Oct");
+    expect(startDateLine("2026-10-20", "pre_start", today)).toBe("Starts Tue 20 Oct");
+    expect(startDateLine("2026-10-20", "offered", today)).toBe("Starts Tue 20 Oct");
+    expect(startDateLine("2026-10-06", "in_progress", today)).toBe("Started Tue 6 Oct");
+    expect(startDateLine("2026-10-06", "walkthrough", today)).toBe("Started Tue 6 Oct");
+  });
+  it("names the year only when the start is not this year, and never shifts the day", () => {
+    expect(startDateLine("2027-01-04", "booking_confirmed", today)).toBe("Starts Mon 4 Jan 2027");
+    expect(startDateLine("2026-10-01", "pre_start", today)).toBe("Starts Thu 1 Oct");
+    expect(startDateLine(null, "pre_start", today)).toBeNull();
+    expect(startDateLine("not-a-date", "pre_start", today)).toBeNull();
   });
   it("sorts soonest first with no date last", () => {
     const jobs = [

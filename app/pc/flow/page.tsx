@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue } from "@/lib/workorder/console";
-import { LANES, LANE_LABELS, bySoonestStart, laneFor, startAlert, type WoStage } from "@/lib/workorder/stages";
+import { LANES, LANE_LABELS, bySoonestStart, laneFor, startAlert, startDateLine, type WoStage } from "@/lib/workorder/stages";
 import { melbourneDate } from "@/lib/workorder/console";
 import { loadOpenCallbacks } from "@/lib/callbacks/load";
 import { callbackLine } from "@/lib/callbacks/model";
@@ -62,7 +62,7 @@ export default async function FlowPage() {
         <p className="lede">
           Seven lanes, every open job sitting where the model says it sits. A card
           moves only when its gate is true — or, into Pre-start, when its start
-          date is within the week.
+          date is within the week. Each card names the day it is booked to start.
         </p>
       </div>
 
@@ -107,6 +107,8 @@ export default async function FlowPage() {
                   {jobs.map((job) => {
                     const severity = worst.get(job.id);
                     const alert = stage === "pre_start" ? startAlert(job.startDate, today) : null;
+                    // Tom, 15 Oct 2026: the booked start date on every card that has one.
+                    const startLine = startDateLine(job.startDate, stage, today);
                     return (
                       <Link className={`job ${severity === "critical" ? "crit" : severity === "warning" ? "warnb" : ""}${alert ? " soon" : ""}`}
                         href={`/pc/wo/${job.id}`} key={job.id} data-testid={`job-${job.id}`}
@@ -120,6 +122,7 @@ export default async function FlowPage() {
                           {money(job.contractValueCents)}
                           {job.ticksTotal > 0 ? ` · ${job.ticksDone}/${job.ticksTotal} ticks` : ""}
                         </span>
+                        {startLine && <span className="sd" data-testid={`start-${job.id}`}>{startLine}</span>}
                         <div className="fl">
                           {callbackJobIds.includes(job.id) && <span className="pill p-clay" data-testid={`callback-tag-${job.id}`}>Call back</span>}
                           {pausedJobs.has(job.id) && <span className="pill p-amber">Invoice chasing paused</span>}

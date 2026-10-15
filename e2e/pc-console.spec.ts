@@ -141,6 +141,15 @@ test.describe("PC Command", () => {
 
       await expect(page.getByTestId("lane-pre_start").getByTestId(`job-${near!.workOrderId}`)).toBeVisible();
       await expect(page.getByTestId("lane-booking_confirmed").getByTestId(`job-${near!.workOrderId}`)).toHaveCount(0);
+
+      // Tom, 15 Oct 2026: the card says the day it is booked to start, in
+      // both lanes, as "Starts <weekday> <day> <month>".
+      const dayLabel = (ymd: string) => {
+        const [y, m, d] = ymd.split("-").map(Number);
+        return new Intl.DateTimeFormat("en-AU", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(new Date(Date.UTC(y, m - 1, d))).replace(",", "");
+      };
+      await expect(page.getByTestId(`start-${far!.workOrderId}`)).toHaveText(new RegExp(`^Starts ${dayLabel(inDays(20))}`));
+      await expect(page.getByTestId(`start-${near!.workOrderId}`)).toHaveText(new RegExp(`^Starts ${dayLabel(inDays(3))}`));
     });
 
     test("the job's stage rail lights the same lane", async ({ page }) => {
