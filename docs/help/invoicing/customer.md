@@ -3,7 +3,7 @@ feature: invoicing
 role: customer
 title: Pay an invoice — press Pay for the amount, our bank details and the reference to use
 summary: What happens when you press Pay on an invoice from Paint Group: a box with the amount due, the bank transfer details and the invoice number to use as the reference, plus a card option when it is offered.
-verified_at_commit: 1eea2f4e0b
+verified_at_commit: 3a7dfcff9c
 ---
 
 ## What this is for

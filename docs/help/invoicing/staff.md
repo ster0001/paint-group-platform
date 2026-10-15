@@ -3,7 +3,7 @@ feature: invoicing
 role: staff
 title: Payments — collect from customers, pay contractors and suppliers, and see each job's profit
 summary: The one Payments page (Payments in the sidebar): the headline and four blocks, chasing customers by job, one-press Paid with Undo, cash, sending with a due date, the deposit size, messages, the job panel with Money in and Money out and profit, contractor invoices (approve, pay with a reference, Green fast terms and holds, RCTIs, expenses and ask-first requests), supplier invoices (confirm, record as any cost, no job yet), Activity, card payments, what the customer sees when they press Pay, and when an invoice turns overdue.
-verified_at_commit: 1eea2f4e0b
+verified_at_commit: 3a7dfcff9c
 ---
 
 ## What this is for
@@ -83,7 +83,8 @@ Under the invoices:
   - **Confirm** files it on the job found, as materials, approved.
   - **Other job** / **Pick a job** chooses the job yourself. **Not for a job** files it as overhead.
   - **Record as a cost…** is for anything that is not materials (scaffold, rubbish, carpentry…), or for a document the reader could not read: choose the kind of cost and the job, and type or correct the total and GST.
-  - **Delete** keeps the document and counts it nowhere; **Restore** puts it back. A possible duplicate has **Dismiss**.
+  - **Delete** keeps the document and counts it nowhere; **Restore** puts it back.
+  - **Possible duplicate**: the reader saw an invoice that looks already recorded (same supplier and invoice number, or same total and date from the same sender within a week), so it wrote no cost and counts it nowhere. If it really is the same invoice, press **Dismiss**. If it is a second invoice (a different invoice number, say two orders on one day), press **Confirm**, **Other job** or **Pick a job** and it is confirmed to that job like any other document. Two different invoice numbers are no longer flagged against each other.
 - **On a job, to approve** and **Approved, to pay**, grouped by supplier with one **✓ Paid** per supplier (with Undo).
 - **No job yet**: materials recorded (mostly from the Airtable sync) that sit on no job, so no job's profit counts them. Press **Assign to a job**. Home's **Materials to match** tile counts these and opens this list.
 - **Snap a receipt** picks a job and opens Add a cost for the photo.

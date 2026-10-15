@@ -501,17 +501,20 @@ export function MatButtons({ row, inSheet = false }: { row: MatSpec; inSheet?: b
   const ui = useUi();
   const del = <button type="button" className="b sm del" disabled={ui.busy} onClick={() => ui.deleteMat(row)}>Delete</button>;
   const view = !inSheet && row.hasDoc ? <button type="button" className="b sm" onClick={() => ui.view(row)}>View</button> : null;
-  if (row.state === "dup") return <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.deleteMat(row)}>Dismiss</button>{view}</>;
   if (row.state === "del") return <><button type="button" className="b sm" disabled={ui.busy} onClick={() => ui.restoreMat(row)}>Restore</button>{view}</>;
-  if (row.state === "check") {
+  if (row.state === "check" || row.state === "dup") {
+    // A possible duplicate (15 Oct): the same choices as a pending document — confirming it is the person's
+    // decision, which cost_intake_confirm has always allowed — with Dismiss in place of Delete.
+    const dup = row.state === "dup";
+    const gone = dup ? <button type="button" className="b sm del" disabled={ui.busy} onClick={() => ui.deleteMat(row)}>Dismiss</button> : del;
     // 8c: any category, the figures typed when the reading failed — the old Payables confirm panel.
     const record = <button type="button" className={`b sm${row.unread ? " pri" : ""}`} disabled={ui.busy} onClick={() => ui.record(row)}>Record as a cost…</button>;
     return row.jobAddress && !row.unread
-      ? <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.confirmMat([row.id], `${row.supplier} ${row.amountLabel} confirmed to ${row.jobAddress!.split(",")[0]}.`)}>Confirm</button>
-          <button type="button" className="b sm" onClick={() => ui.pick(row)}>Other job</button>{record}{del}{view}</>
-      : row.unread ? <>{record}{del}{view}</>
-      : <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.pick(row)}>Pick a job</button>
-          <button type="button" className="b sm" disabled={ui.busy} onClick={() => ui.notForJob(row)}>Not for a job</button>{record}{del}{view}</>;
+      ? <><button type="button" className={`b sm${dup ? "" : " pri"}`} disabled={ui.busy} onClick={() => ui.confirmMat([row.id], `${row.supplier} ${row.amountLabel} confirmed to ${row.jobAddress!.split(",")[0]}.`)}>Confirm</button>
+          <button type="button" className="b sm" onClick={() => ui.pick(row)}>Other job</button>{record}{gone}{view}</>
+      : row.unread ? <>{record}{gone}{view}</>
+      : <><button type="button" className={`b sm${dup ? "" : " pri"}`} disabled={ui.busy} onClick={() => ui.pick(row)}>Pick a job</button>
+          <button type="button" className="b sm" disabled={ui.busy} onClick={() => ui.notForJob(row)}>Not for a job</button>{record}{gone}{view}</>;
   }
   if (row.state === "rec") return <><button type="button" className="b sm pri" disabled={ui.busy} onClick={() => ui.approveMat([row.id], `${row.supplier} ${row.amountLabel} approved.`)}>Approve</button>{del}{view}</>;
   return view;
