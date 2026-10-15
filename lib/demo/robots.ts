@@ -234,6 +234,25 @@ export function demoPainterMessage(workOrderId: string, contractorId: string): P
   });
 }
 
+/**
+ * Module 10 (Tom, 15 Oct 2026): "when I request to move the date, it needs to
+ * automatically approve". The painter's request_reschedule (or a counter-date
+ * on the offer) leaves the offer `proposed` for the office; here the robot
+ * office is the office, so it approves through resolve_proposed_offer — the
+ * same RPC a PC clicks — and says so on the thread. Nothing else moves.
+ */
+export function demoStartDateProposed(workOrderId: string, contractorId: string, offerId: string): Promise<boolean> {
+  return onDemo("startDateProposed", workOrderId, async (ctx) => {
+    const robot = await robotClient(ctx.service, ctx.rules);
+    const { data: o, error } = await ctx.service.from("booking_offers").select("state").eq("id", offerId).maybeSingle();
+    if (error) throw error;
+    if ((o as { state: string } | null)?.state !== "proposed") return;
+    expectOk("resolve_proposed_offer", (await robot.rpc("resolve_proposed_offer", { p_offer_id: offerId, p_approve: true })).data, (s) => s === "accepted");
+    await say(ctx, robot, workOrderId, contractorId,
+      "New start date approved. The customer has been told and your calendar is updated.");
+  });
+}
+
 export function demoFinishDateChanged(workOrderId: string, contractorId: string): Promise<boolean> {
   return onDemo("finishDate", workOrderId, async (ctx) => {
     const robot = await robotClient(ctx.service, ctx.rules);

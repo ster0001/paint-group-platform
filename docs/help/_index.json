@@ -185,7 +185,9 @@
         "lib/demo/robots.ts",
         "lib/demo/checklist.ts",
         "supabase/migrations/20270262000000_demo_property.sql",
-        "supabase/migrations/20270263000000_demo_robots.sql"
+        "supabase/migrations/20270263000000_demo_robots.sql",
+        "supabase/migrations/20270275000000_demo_job_gaps.sql",
+        "app/portal/jobs/[id]/RescheduleRequest.tsx"
       ]
     },
     {

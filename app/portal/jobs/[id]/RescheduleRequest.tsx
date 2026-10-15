@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import CalendarGrid, { type PortalBlock, type PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
 import { formatDMY } from "@/lib/scheduling/offers";
+import { notifyOfferRespondedAction } from "@/app/portal/offerNotifyAction";
 
 const todayIso = () => {
   const d = new Date();
@@ -43,7 +44,7 @@ export default function RescheduleRequest({
 
   if (pending) {
     return (
-      <div className="card amberish" style={{ margin: "0 16px 12px" }}>
+      <div className="card amberish" style={{ margin: "0 16px 12px" }} data-testid="reschedule-pending">
         <span className="chip amb">Waiting on Paint Group</span>
         <div style={{ marginTop: 8, fontSize: "12.5px", color: "var(--muted)" }}>
           You&rsquo;ve asked to move this job to <b style={{ color: "var(--text)" }}>{formatDMY(proposedDate)}</b>.
@@ -74,6 +75,7 @@ export default function RescheduleRequest({
         setErr(map[res] ?? res.replace("error:", ""));
         return;
       }
+      void notifyOfferRespondedAction({ offerId }); // the office is told; on the practice job the robot office approves
       setOpen(false);
       router.refresh();
     } catch (e) {
@@ -85,7 +87,7 @@ export default function RescheduleRequest({
 
   return (
     <div style={{ margin: "0 16px 12px" }}>
-      <button className="btn gh" onClick={() => setOpen(true)}>
+      <button className="btn gh" onClick={() => setOpen(true)} data-testid="reschedule-open">
         Request a new start date
       </button>
 
@@ -113,9 +115,10 @@ export default function RescheduleRequest({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               style={{ marginTop: 10 }}
+              data-testid="reschedule-note"
             />
             {err && <div className="err">{err}</div>}
-            <button className="btn cy" disabled={busy || !date} onClick={submit}>
+            <button className="btn cy" disabled={busy || !date} onClick={submit} data-testid="reschedule-send">
               {busy ? "Sending…" : "Send request"}
             </button>
             <button className="btn gh" onClick={() => setOpen(false)}>Back</button>

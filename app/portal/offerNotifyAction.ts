@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { staffOfferResponded } from "@/lib/staff/notify";
 import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
-import { demoOfferAccepted } from "@/lib/demo/robots";
+import { demoOfferAccepted, demoStartDateProposed } from "@/lib/demo/robots";
 
 /**
  * Tom, 10 Sep: "job approved / job declined — tell the staff." The painter's
@@ -33,6 +33,8 @@ export async function notifyOfferRespondedAction(raw: unknown): Promise<void> {
   // 12 Demo Street (induction Step 2): the robot office acknowledges the
   // accept on the job's thread; no staff alert, no quality-check invites.
   if (o.state === "accepted" && o.contractor_id && (await demoOfferAccepted(o.work_order_id, o.contractor_id))) return;
+  // Tom, 15 Oct: a new start date asked for on the practice job is approved by the robot office.
+  if (o.state === "proposed" && o.contractor_id && (await demoStartDateProposed(o.work_order_id, o.contractor_id, o.id))) return;
   await staffOfferResponded(svc, o.id);
   // Tom, 8 Oct 2026: a new painter's quality check is booked AT booking —
   // the accept placed it (20270247 trigger); this sends its calendar invite.
