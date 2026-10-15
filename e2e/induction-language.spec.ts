@@ -25,6 +25,7 @@ const db: SupabaseClient | null = serviceClient();
 
 let contractorId = "";
 let languageBefore: string | null = null;
+let kindBefore = "full";
 let italianLiveBefore = false;
 let spanishLiveBefore = false;
 let deletedRow: Record<string, unknown> | null = null;
@@ -38,8 +39,12 @@ test.describe("induction language — choose, read in it, fall back to English",
   test.beforeAll(async () => {
     contractorId = (await contractorIdForEmail(db!, contractor!.email))!;
     expect(contractorId).toBeTruthy();
-    const { data: c } = await db!.from("contractors").select("induction_language").eq("id", contractorId).single();
+    const { data: c } = await db!.from("contractors").select("induction_language, induction_kind").eq("id", contractorId).single();
     languageBefore = (c as { induction_language: string | null }).induction_language;
+    kindBefore = (c as { induction_kind: string }).induction_kind;
+    // The list assertions below count the thirteen modules of the FULL induction; the e2e
+    // painter is on the refresher since 20270270 (seven modules), so switch for the run.
+    await db!.from("contractors").update({ induction_kind: "full" }).eq("id", contractorId);
     const { data: langs, error } = await db!.from("induction_languages").select("code, live").in("code", ["it", "es"]);
     expect(error?.message ?? "").toBe("");
     for (const l of (langs ?? []) as { code: string; live: boolean }[]) { if (l.code === "it") italianLiveBefore = l.live; if (l.code === "es") spanishLiveBefore = l.live; }
@@ -56,7 +61,7 @@ test.describe("induction language — choose, read in it, fall back to English",
     if (deletedRow) await db.from("induction_blocks").insert(deletedRow);
     await db.from("induction_languages").update({ live: italianLiveBefore }).eq("code", "it");
     await db.from("induction_languages").update({ live: spanishLiveBefore }).eq("code", "es");
-    await db.from("contractors").update({ induction_language: languageBefore }).eq("id", contractorId);
+    await db.from("contractors").update({ induction_language: languageBefore, induction_kind: kindBefore }).eq("id", contractorId);
   });
 
   test("Home asks for a language; the picker offers English and the live languages only", async ({ page }) => {

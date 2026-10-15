@@ -76,7 +76,7 @@ async function demoOf(cid: string): Promise<{ id: string; wo_ref: string }> {
 
 async function acceptDemoOffer(p: Painter) {
   const { data: o } = await db!.from("booking_offers").select("id").eq("work_order_id", p.demoWoId).eq("state", "offered").single();
-  expect(await rpcAs(p, "respond_to_offer", { p_offer_id: (o as { id: string }).id, p_action: "accept", p_note: "", p_proposed_start: null, p_decline_reason: "" })).toMatch(/^ok:/);
+  expect(await rpcAs(p, "respond_to_offer", { p_offer_id: (o as { id: string }).id, p_action: "accept", p_note: "", p_proposed_start: null, p_decline_reason: "" })).toBe("accepted");
 }
 
 async function expectNoDemoOn(page: Page, path: string) {
