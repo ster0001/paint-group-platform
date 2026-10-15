@@ -87,9 +87,13 @@ async function tickStandards(page: Page) {
 }
 
 async function putInsuranceOnFile(contractorId: string) {
+  // The documents table refuses a row with no object behind it: upload a stub first (the 20260831 rule).
+  const path = `${contractorId}/induction-e2e-pl.pdf`;
+  const up = await db!.storage.from("contractor-docs").upload(path, Buffer.from("%PDF-1.4\n%e2e induction stub\n"), { contentType: "application/pdf", upsert: true });
+  expect(up.error?.message ?? "").toBe("");
   const expires = new Date(); expires.setFullYear(expires.getFullYear() + 1);
   const { error } = await db!.from("contractor_documents").insert({
-    contractor_id: contractorId, kind: "insurance", name: "induction-e2e-pl.pdf", file_url: `${contractorId}/induction-e2e-pl.pdf`,
+    contractor_id: contractorId, kind: "insurance", name: "induction-e2e-pl.pdf", file_url: path,
     expires_on: expires.toISOString().slice(0, 10), status: "valid", verified_at: new Date().toISOString(), verify_note: "e2e",
   });
   expect(error?.message ?? "").toBe("");
@@ -122,6 +126,7 @@ test.describe("induction — ticks, the practical check, completion and the gate
     await destroyLoopFixture(db, job);
     if (workerUserId) await db.auth.admin.deleteUser(workerUserId);
     if (newbieUserId) {
+      await db.storage.from("contractor-docs").remove([`${newbieContractorId}/induction-e2e-pl.pdf`]);
       await db.from("contractor_documents").delete().eq("contractor_id", newbieContractorId!);
       await db.from("contractors").delete().eq("profile_id", newbieUserId);
       await db.from("profiles").delete().eq("id", newbieUserId);
