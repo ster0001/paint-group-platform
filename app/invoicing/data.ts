@@ -261,6 +261,56 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
   };
 }
 
+/**
+ * What the booked-days rule needs (lib/invoicing/bookedLabour.ts, Tom 15 Oct
+ * 2026): the crew still on the job with their dates and employment type, the
+ * job's timesheet days, the painters' cost rates, the standard day and the
+ * public holidays — and whether this is an employee job at all. Every read
+ * checks its error: a refused read must never show as "no painters booked".
+ */
+export async function loadBookedLabour(supabase: SupabaseClient, woId: string) {
+  const [assignments, entries, day, employeeJob, rules] = await Promise.all([
+    supabase.from("wo_assignments")
+      .select("contractor_id, start_date, end_date, contractors(employment_type, company_name, profiles(name))")
+      .eq("work_order_id", woId).neq("status", "released"),
+    supabase.from("timesheet_entries").select("contractor_id, work_date, status, job_cost_id").eq("work_order_id", woId),
+    supabase.rpc("timesheet_day_setting"),
+    supabase.rpc("wo_is_employee_job", { p_work_order_id: woId }),
+    supabase.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle(),
+  ]);
+  const painters = ((assignments.error ? [] : assignments.data ?? []) as unknown as {
+    contractor_id: string; start_date: string; end_date: string;
+    contractors: { employment_type: string; company_name: string | null; profiles: { name: string | null } | null } | null;
+  }[]).map((a) => ({
+    id: a.contractor_id, startDate: a.start_date, endDate: a.end_date,
+    employee: a.contractors?.employment_type === "employee",
+    name: (a.contractors?.profiles?.name || a.contractors?.company_name || "Painter").trim(),
+  }));
+  const painterIds = painters.filter((p) => p.employee).map((p) => p.id);
+  const rates = painterIds.length
+    ? await supabase.from("employee_cost_rates").select("contractor_id, cents_per_hour, effective_from").in("contractor_id", painterIds)
+    : { data: [], error: null };
+  const dayRow = ((day.error ? [] : (day.data as unknown[] | null) ?? []) as { day_start: string; day_finish: string; break_minutes: number }[])[0];
+  const holidays = (rules.data as { value?: { publicHolidays?: unknown } } | null)?.value?.publicHolidays;
+  return {
+    loadError: costsFailure([
+      { label: "painters booked", error: assignments.error },
+      { label: "timesheet days", error: entries.error },
+      { label: "cost rates", error: rates.error },
+      { label: "the standard day", error: day.error },
+      { label: "the job kind", error: employeeJob.error },
+    ]),
+    employeeJob: !employeeJob.error && employeeJob.data === true,
+    painters,
+    entries: ((entries.error ? [] : entries.data ?? []) as { contractor_id: string; work_date: string; status: string; job_cost_id: string | null }[])
+      .map((e) => ({ painterId: e.contractor_id, workDate: e.work_date, status: e.status, jobCostId: e.job_cost_id })),
+    rates: ((rates.error ? [] : rates.data ?? []) as { contractor_id: string; cents_per_hour: number; effective_from: string }[])
+      .map((r) => ({ painterId: r.contractor_id, centsPerHour: r.cents_per_hour, effectiveFrom: r.effective_from })),
+    day: dayRow ? { dayStart: dayRow.day_start, dayFinish: dayRow.day_finish, breakMinutes: dayRow.break_minutes } : { dayStart: "07:30:00", dayFinish: "15:30:00", breakMinutes: 30 },
+    holidays: new Set(Array.isArray(holidays) ? holidays.filter((h): h is string => typeof h === "string") : []),
+  };
+}
+
 const CI_SELECT = "id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, auto_draft_source, claim_pct, invoice_pdf_path, terms_kind, terms_hold_reason, contractor_id, work_order_id, contractors(company_name), work_orders(wo_ref, estimate_id, stage, job_address:wo_snapshot->>jobAddress)";
 /** Every unpaid contractor invoice, and the newest settled ones — the Payables tab's read and the Payments page's (Step 5). */
 export async function loadContractorInvoices(supabase: SupabaseClient): Promise<{ data: unknown[] | null; error: { message: string } | null }> {

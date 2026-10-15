@@ -109,7 +109,13 @@ export default function ContractorsManager({
     const { data, error } = await supabase.rpc("set_employee_cost_rate", { p_contractor_id: id, p_cents_per_hour: Math.round(dollars * 100) });
     const s = String(data ?? "");
     if (error) setErr(error.message);
-    else if (s.startsWith("ok:")) { setMsg(`Cost rate saved from ${s.slice(3)} — approved timesheets from that day post at this rate.`); setRateDraft((d) => ({ ...d, [id]: "" })); router.refresh(); }
+    else if (s.startsWith("ok:")) {
+      // ok:<from>:posted:<n> since 20270274 — the days that waited for a rate post as it lands.
+      const [from, , posted] = s.slice(3).split(":");
+      const n = Number(posted ?? 0);
+      setMsg(`Cost rate saved from ${from} — days from then on post at this rate${n ? `; ${n} waiting ${n === 1 ? "day" : "days"} posted now` : ""}.`);
+      setRateDraft((d) => ({ ...d, [id]: "" })); router.refresh();
+    }
     else setErr(s === "error:not_an_employee" ? "Only an employee has a cost rate." : s.replace("error:", "").replaceAll("_", " "));
     setBusy(null);
   }

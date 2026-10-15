@@ -6,7 +6,10 @@
  *   job value ex GST   = the job row's contract (inc GST) less its GST (gst.ts)
  *   contractor         = the offer on the work order + accepted variation
  *                        deltas (contractorPay.ts) — EXCLUDING GST (⚑P14)
- *   own painters       = labour job costs, approved or paid
+ *   own painters       = labour job costs, approved or paid, PLUS every booked
+ *                        day no such row covers yet (bookedLabour.ts — Tom,
+ *                        15 Oct 2026: a booked day is a work day, costed at
+ *                        hours × the painter's rate from the moment it is booked)
  *   materials          = materials job costs (lib/invoicing/materials.ts's
  *                        rule) + material_costs on the job (not overhead),
  *                        ex GST
@@ -14,6 +17,12 @@
  *   contractor expenses= approved/paid expense claims, ex GST
  *
  * A voided (deleted) cost counts nowhere.
+ *
+ * An EMPLOYEE job (wo_is_employee_job: a crew assigned, no live offer) has no
+ * contractor: the figure the snapshot carries as contractorPaymentCents is the
+ * estimate's labour budget, not money owed to anyone, and counting it put a
+ * second labour cost on every employee job (15 jobs on 15 Oct 2026). The
+ * contractor line is nil there; the painters' days are the labour.
  */
 import { gstFromIncCents } from "./gst";
 
@@ -32,12 +41,16 @@ export type ProfitInput = {
   materialsCostIds: ReadonlySet<string>;
   materialCosts: readonly ProfitMaterial[];
   expenses: readonly ProfitExpense[];
+  /** Booked days no labour row covers yet (bookedLabour.ts): id `booked:…`, never a job_costs id. */
+  projectedLabour?: readonly ProfitSource[];
+  /** A crew of employees, no contractor offer: the snapshot's figure is a budget, not a cost. */
+  employeeJob?: boolean;
   /** The job has started (In progress or later) — "no materials yet" is then a warning. */
   started: boolean;
 };
 
 /** `jobCostStatus` is set on rows that are job costs (job_costs) — the panel's Approve / ✓ Paid act on those. */
-export type ProfitSource = { id: string; label: string; cents: number; jobCostStatus?: string };
+export type ProfitSource = { id: string; label: string; cents: number; jobCostStatus?: string; /** A booked day, not a recorded row. */ booked?: boolean };
 export type ProfitLine = { key: "contractor" | "own_painters" | "materials" | "other" | "expenses"; label: string; cents: number; sources: ProfitSource[] };
 
 export type JobProfit = {
@@ -67,12 +80,18 @@ export function jobProfit(input: ProfitInput): JobProfit {
 
   const line = (key: ProfitLine["key"], label: string, sources: ProfitLine["sources"]): ProfitLine =>
     ({ key, label, sources, cents: sources.reduce((s, x) => s + x.cents, 0) });
+  const projected = (input.projectedLabour ?? []).map((s) => ({ ...s, booked: true }));
   const lines: ProfitLine[] = [
-    line("contractor", input.contractorVariationCents ? "Contractor: offer plus variations" : "Contractor: offer", [
-      { id: "offer", label: "Offer on the work order", cents: input.offerCents },
-      ...(input.contractorVariationCents ? [{ id: "variations", label: "Accepted variations", cents: input.contractorVariationCents }] : []),
+    input.employeeJob
+      ? line("contractor", "Contractor: none, own painters on this job", [])
+      : line("contractor", input.contractorVariationCents ? "Contractor: offer plus variations" : "Contractor: offer", [
+          { id: "offer", label: "Offer on the work order", cents: input.offerCents },
+          ...(input.contractorVariationCents ? [{ id: "variations", label: "Accepted variations", cents: input.contractorVariationCents }] : []),
+        ]),
+    line("own_painters", projected.length ? "Own painters: recorded and booked days" : "Own painters", [
+      ...labour.map((c) => ({ id: c.id, label: c.label, cents: c.amountExCents, jobCostStatus: c.status })),
+      ...projected,
     ]),
-    line("own_painters", "Own painters", labour.map((c) => ({ id: c.id, label: c.label, cents: c.amountExCents, jobCostStatus: c.status }))),
     line("materials", "Materials", [
       ...materials.map((c) => ({ id: c.id, label: c.label, cents: c.amountExCents, jobCostStatus: c.status })),
       ...matCosts.map((m) => ({ id: m.id, label: m.label, cents: m.amountIncCents - gstFromIncCents(m.amountIncCents, rate) })),
