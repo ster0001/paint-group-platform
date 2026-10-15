@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, test } from "./helpers";
 import { accessTokenFor, createLoopFixture, destroyLoopFixture, rpcAs, serviceClient, type LoopFixture } from "./fixtures/woLoop";
 import { KNOWN_MONEY_KEYS, findMoneyKeys } from "../lib/painters/money";
+import { gstFromIncCents } from "../lib/invoicing/gst";
 
 /**
  * Employed painters — Session 6: timesheets + job cost (brief §6 Session 6
@@ -216,7 +217,9 @@ test.describe("employed painter — timesheets and job cost", () => {
     const LABOUR = 39_900 + 7_875;
     await page.goto(`/pc/wo/${fixture!.workOrderId}`);
     await expect(page.getByTestId("money-labour")).toHaveText(/^\$47[78]$/);
-    const expectedGp = Math.round(((CONTRACT_CENTS - LABOUR) / CONTRACT_CENTS) * 1000) / 10;
+    // GP is lib/invoicing/jobProfit's: measured on the job value EX GST (PC page uses it since 14 Oct, #273).
+    const valueEx = CONTRACT_CENTS - gstFromIncCents(CONTRACT_CENTS);
+    const expectedGp = Math.round(((valueEx - LABOUR) / valueEx) * 1000) / 10;
     await expect(page.getByTestId("money-gp")).toHaveText(`${expectedGp}%`);
 
     // Allocated vs actual lists the job with the approved hours — both days.
