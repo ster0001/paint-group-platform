@@ -185,7 +185,7 @@ test.describe("induction — ticks, the practical check, completion and the gate
     await page.getByTestId("induction-tick").click();
     await page.getByTestId("induction-next").click();
     await expect(page.getByTestId("induction-module")).toHaveAttribute("data-module", "m02", { timeout: 20_000 });
-    await expect(page.getByTestId("induction-phone-steps")).toBeVisible();   // Module 2 has no demo step; Module 10 does — checked below
+    await expect(page.getByTestId("induction-phone-steps")).toHaveCount(0);   // Module 2 has no demo step; Module 10 does — checked below
     s = await statusOf(newbieUserId);
     expect(s.ticked).toBe(2);
 
