@@ -49,6 +49,11 @@ export default async function ContractorDetailPage({ params }: { params: Promise
     .maybeSingle();
   if (rowError) reportError(rowError, { where: "contractorDetail.row" });
   if (!row) notFound();
+  // Induction language (Step 4): its own read, so a missing column never 404s the record.
+  const langRead = await supabase.from("contractors").select("induction_language, induction_languages(name, native_name)").eq("id", id).maybeSingle();
+  if (langRead.error) reportError(langRead.error, { where: "contractorDetail.language", bestEffort: true });
+  const langRow = langRead.data as { induction_language: string | null; induction_languages: { name: string; native_name: string } | null } | null;
+  const inductionLanguage = langRow?.induction_language ? `${langRow.induction_languages?.name ?? langRow.induction_language}` : null;
 
   const c = row as unknown as ContractorRow & {
     requires_qa: boolean | null; qa_mode?: unknown; rcti_agreement_signed_at: string | null;
@@ -200,6 +205,7 @@ export default async function ContractorDetailPage({ params }: { params: Promise
             <Field label="Bank" value={<ContractorBank id={c.id} bsb={c.bank_bsb ?? null} last4={c.bank_account_last4 ?? null} />} />
             <Field label="RCTI agreement" value={c.rcti_agreement_signed_at ? `signed ${formatDMY(c.rcti_agreement_signed_at.slice(0, 10))}` : "not signed"} />
             <Field label="Finish standards" value={<ContractorStandards id={c.id} status={standardsStatus} line={standardsLine} />} />
+            <Field label="Induction language" value={inductionLanguage ? <span data-testid="contractor-induction-language">{inductionLanguage}</span> : <span className="text-gray-400" data-testid="contractor-induction-language">not chosen yet (reads English)</span>} />
             {employmentType !== "employee" && <Field label="Demo property" value={<DemoControls mode="staff" contractorId={c.id} hasDemo={hasDemo} />} />}
           </div>
         </section>

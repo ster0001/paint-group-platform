@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import JoinForm from "./JoinForm";
+import { offeredLanguagesWith } from "@/lib/induction/language";
 import "@/app/portal/portal.css";
 
 export const dynamic = "force-dynamic";
@@ -69,12 +70,15 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
     );
   }
 
+  // Module 1, step 1: choose your language. Only the languages staff have switched on (⚑3); no session needed.
+  const { languages } = await offeredLanguagesWith(supabase);
   return (
     <JoinForm
       token={token}
       email={preview!.email}
       name={preview!.name}
       company={preview!.company_name}
+      languages={languages.map((l) => ({ code: l.code, name: l.name, nativeName: l.nativeName }))}
     />
   );
 }

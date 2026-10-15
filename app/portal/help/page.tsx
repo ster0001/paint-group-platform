@@ -38,6 +38,12 @@ export default async function PortalHelpPage({ searchParams }: { searchParams: P
         <p className="hint" style={{ marginTop: 2 }}>Levels 2, 3 and 4, surface by surface, plus the rules for every job, your time and variations, the defect rule and the final checklist. Open standards ›</p>
       </Link>
 
+      <Link href="/portal/induction" className="card" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="help-induction-pinned">
+        <span className="slab" style={{ marginBottom: 4 }}>Induction</span>
+        <h3>The modules you read and confirm</h3>
+        <p className="hint" style={{ marginTop: 2 }}>Thirteen short modules in your own language, plus the six standards sections. Open the induction ›</p>
+      </Link>
+
       <form method="get" action="/portal/help" className="card" style={{ display: "flex", gap: 8, alignItems: "center" }} role="search">
         <input type="search" name="q" defaultValue={q} placeholder="Search the guides — e.g. before photo" aria-label="Search the guides" data-testid="help-search" style={{ flex: 1, margin: 0 }} />
         <button type="submit" className="btn cy narrow" style={{ marginTop: 0 }}>Search</button>
