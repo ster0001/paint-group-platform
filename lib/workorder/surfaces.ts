@@ -13,7 +13,7 @@
  * A painter should never be asked to mark a scaffold hire as "prepped", and the
  * progress bar must mean work done, not lines billed.
  */
-import type { WorkOrderDoc, WOArea, WOSurfaceStatus } from "./snapshot";
+import type { WorkOrderDoc, WOArea, WOSurface, WOSurfaceStatus } from "./snapshot";
 
 export type SurfaceState = "todo" | "prepped" | "done";
 
@@ -40,7 +40,10 @@ export type SeedRow = {
  */
 export function describeArea(area: WOArea): string {
   const n = area.surfaces.length;
-  const bits: string[] = [`${n} surface${n === 1 ? "" : "s"}`];
+  const bits: string[] = [];
+  const dims = dimsLabel(area.dims);
+  if (dims) bits.push(dims);
+  bits.push(`${n} surface${n === 1 ? "" : "s"}`);
 
   const coats = [...new Set(area.surfaces.map((s) => s.coats))].filter((c) => c > 0);
   if (coats.length === 1) bits.push(`${coats[0]} coat${coats[0] === 1 ? "" : "s"}`);
@@ -48,6 +51,31 @@ export function describeArea(area: WOArea): string {
 
   if (area.finishCode) bits.push(area.finishCode);
   return bits.join(" · ");
+}
+
+/** "4", "2.4" — a metre figure with no trailing zeros, one decimal at most. */
+const metres = (n: number): string => (Math.round(n * 10) / 10).toString();
+
+/**
+ * The area's measurements as the painter reads them: "4 × 3 × 2.4 m" for a
+ * room, "12 × 2.6 m" for one plane (the builder's `surface` area type, width
+ * 0). Empty when nothing was measured — a document frozen before 15 Oct 2026,
+ * or an area priced per item only.
+ */
+export function dimsLabel(dims: WOArea["dims"] | null | undefined): string {
+  if (!dims) return "";
+  const parts = [dims.l, dims.w, dims.h].filter((n) => typeof n === "number" && Number.isFinite(n) && n > 0);
+  if (parts.length === 0) return "";
+  return `${parts.map(metres).join(" × ")} m`;
+}
+
+/**
+ * A measured surface's size: "38.4 m²", "14 lm". Empty for a per-item surface
+ * (its `count` says how many) and for anything without a real quantity.
+ */
+export function measureLabel(s: Pick<WOSurface, "qty" | "unit">): string {
+  if (!s.unit || typeof s.qty !== "number" || !Number.isFinite(s.qty) || s.qty <= 0) return "";
+  return `${Math.round(s.qty * 10) / 10} ${s.unit}`;
 }
 
 /**

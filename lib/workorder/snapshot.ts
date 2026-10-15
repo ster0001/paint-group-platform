@@ -53,6 +53,18 @@ export type WOSurface = {
    * frozen before 14 Oct 2026.
    */
   count?: number;
+  /**
+   * The measured quantity the surface was priced on and its unit — "38.4 m²"
+   * of walls, "14 lm" of skirting — so the painter can see the size of the
+   * work, not just its name (Tom, 15 Oct 2026: "there are also no
+   * measurements on the work orders"). The builder's own quantity (the
+   * estimate's `computeQuantity`: per-surface measurement, else the area's
+   * dimensions, share applied), one decimal. Absent on per-item surfaces (they
+   * carry `count`), on surfaces with no rate item, and on documents frozen
+   * before 15 Oct 2026.
+   */
+  qty?: number;
+  unit?: "m²" | "lm";
   coats: number;
   product: string;
   /** Sheen / finish this surface is painted in (absent on older documents). */
@@ -90,6 +102,13 @@ export type WOArea = {
    * and exterior standards apart where a rate code exists on both sides.
    * Absent on documents frozen before 8 Oct 2026. */
   side?: "interior" | "exterior";
+  /**
+   * The area's dimensions in metres as the estimator measured them — a room's
+   * L × W × H, or a single plane's L × H with `w` 0 — frozen for the painter's
+   * sheet (Tom, 15 Oct 2026). Absent when nothing was measured and on
+   * documents frozen before 15 Oct 2026 unless migration 20270272 filled it.
+   */
+  dims?: { l: number; w: number; h: number };
   surfaces: WOSurface[];
   photos: string[];
   /** Resolved PG level for this area — the job's level unless staff overrode it. */
