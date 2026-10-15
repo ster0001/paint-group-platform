@@ -157,7 +157,10 @@ test.describe("induction — ticks, the practical check, completion and the gate
     await page.locator('input[type="password"]').nth(1).fill(newbie.password);
     await page.getByTestId("join-mobile").fill("0400 123 456");
     await page.getByRole("button", { name: /create my account/i }).click();
-    await expect(page).toHaveURL(/\/portal\/standards\/confirm/, { timeout: 30_000 });
+    // Tom, 16 Oct: Home, with the induction card and no standalone sign-off — Module 5 is the way in.
+    await expect(page).toHaveURL(/\/portal$/, { timeout: 30_000 });
+    await expect(page.getByTestId("home-standards-signoff")).toHaveCount(0);
+    await page.goto("/portal/standards/confirm");
     newbieContractorId = await contractorIdForEmail(db!, newbie.email);
     expect(newbieContractorId).toBeTruthy();
     const { data: c } = await db!.from("contractors").select("induction_kind, induction_language").eq("id", newbieContractorId!).single();
