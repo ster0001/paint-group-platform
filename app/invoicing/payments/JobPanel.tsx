@@ -108,7 +108,9 @@ function CostRows({ d }: { d: PanelData }) {
       {rows.map((r) => (
         <div className="li" key={r.id} data-testid={`job-cost-item-${r.id}`}>
           <span>{r.label}<small>{r.line}</small></span>
-          <span className="r">{r.jobCostStatus ? <span className={`tag ${r.jobCostStatus === "paid" ? "paid" : ""}`}>{COST_TAG[r.jobCostStatus] ?? r.jobCostStatus}</span> : null}<span className="mono">{money(r.cents)}</span>
+          <span className="r">{r.jobCostStatus ? <span className={`tag ${r.jobCostStatus === "paid" ? "paid" : ""}`}>{COST_TAG[r.jobCostStatus] ?? r.jobCostStatus}</span> : null}
+            {/* Tom, 15 Oct 2026: a booked day counts from the day it is booked; the row says it is booked, not yet recorded. */}
+            {r.booked ? <span className="tag" data-testid="job-cost-booked">Booked</span> : null}<span className="mono">{money(r.cents)}</span>
             {/* Employee labour is paid through payroll — nothing to approve or mark paid here (Tom, 9 Oct). */}
             {r.payable && r.jobCostStatus ? <CostButtons id={r.id} status={r.jobCostStatus} label={`${r.label} ${money(r.cents)}`} /> : null}</span>
         </div>
@@ -173,6 +175,7 @@ export function JobPanel({ d, tab, tabHref, closeHref, closeLabel, today, termsD
               <div className="key">{p.bar.map((b) => <span key={b.key}><i style={{ background: BAR[b.key] }} />{KEY_LABEL[b.key]}</span>)}</div>
             </div>
             {p.noMaterialsWarning ? <div className="note">No materials are recorded against this job yet, so this profit is too high until the supplier invoices are matched.</div> : null}
+            {d.labourNote ? <div className="note" data-testid="pm-labour-note">{d.labourNote}</div> : null}
             <div className="sum">
               <div><span>Job value, excluding GST</span><span className="mono">{money(p.valueExCents)}</span></div>
               {p.lines.filter((l) => l.cents || l.key === "materials").map((l) => <ProfitSum key={l.key} line={l} />)}

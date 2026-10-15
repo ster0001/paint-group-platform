@@ -10,6 +10,8 @@ import PhotosOptionalToggle from "./PhotosOptionalToggle";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
 import { contractorAdjustedCents, contractorVariationsCents } from "@/lib/workorder/contractorPay";
+import { bookedLabour, missingRateNote } from "@/lib/invoicing/bookedLabour";
+import { loadBookedLabour } from "@/app/invoicing/data";
 import { adjustedContractCents } from "@/lib/invoicing/ledger";
 import { jobProfit } from "@/lib/invoicing/jobProfit";
 import PriceVariation from "./PriceVariation";
@@ -542,10 +544,17 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     .eq("work_order_id", id).eq("category", "labour").in("status", ["approved", "paid"]);
   if (labourError) reportError(labourError, { where: "pc.wo.labourCost", bestEffort: true });
   const labour = (labourRows ?? []) as { id: string; category: string; status: string; amount_ex_cents: number; gst_cents: number }[];
-  const labourCents = labour.reduce((sum, c) => sum + c.amount_ex_cents + c.gst_cents, 0);
+  // Tom, 15 Oct 2026: every booked day is a work day at hours × the painter's
+  // rate, from the day it is booked (lib/invoicing/bookedLabour) — and an
+  // employee job has no contractor: the snapshot figure is the estimate's
+  // labour budget, which used to count as a second labour cost here.
+  const booked = await loadBookedLabour(supabase, id);
+  if (booked.loadError) reportError(new Error(booked.loadError.headline), { where: "pc.wo.bookedLabour", bestEffort: true });
+  const bookedDays = bookedLabour({ ...booked, countedCostIds: new Set(labour.map((c) => c.id)) });
+  const labourNote = missingRateNote(bookedDays.missingRate);
   // Est. GP: the one profit rule (lib/invoicing/jobProfit) on the contract
-  // with its approved variations, the contractor's adjusted pay and any
-  // employee labour — before materials, as this strip always was.
+  // with its approved variations, the contractor's adjusted pay and the
+  // painters' labour — before materials, as this strip always was.
   const profit = jobProfit({
     contractIncCents: adjustedContractCents(contract, variations.map((v) => ({ status: v.status, priceCents: v.price_cents, credit: v.credit }))),
     offerCents: contractorBase,
@@ -555,8 +564,11 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     materialCosts: [],
     expenses: [],
     started: false,
+    projectedLabour: bookedDays.projected.map((d) => ({ id: d.id, label: d.label, cents: d.cents })),
+    employeeJob: booked.employeeJob,
   });
   const gp = profit.marginPct ?? 0;
+  const labourCents = profit.lines.find((l) => l.key === "own_painters")?.cents ?? 0;
 
   // Dashboard 0c: the job's review row (one per job), for the card below.
   const reviewRes = await supabase.from("review_requests")
@@ -623,7 +635,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
                     : "—"}
             </b>
           </span>
-          <span className="mi"><span>Contractor</span><b data-testid="money-contractor">{money(contractorPay)}</b>
+          <span className="mi"><span>Contractor</span><b data-testid="money-contractor">{booked.employeeJob ? "—" : money(contractorPay)}</b>
             {contractorVarCents !== 0 && (
               <em className="note" style={{ margin: 0, fontStyle: "normal" }} data-testid="money-contractor-variations">
                 {money(contractorBase)} {contractorVarCents > 0 ? "+" : "−"} {money(Math.abs(contractorVarCents))} variations
@@ -639,8 +651,17 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               </em>
             )}
           </span>
-          {labourCents > 0 && (
-            <span className="mi"><span>Labour (employees)</span><b data-testid="money-labour">{money(labourCents)}</b></span>
+          {(labourCents > 0 || labourNote) && (
+            <span className="mi"><span>Labour (employees)</span><b data-testid="money-labour">{money(labourCents)}</b>
+              {bookedDays.projected.length > 0 && (
+                <em className="note" style={{ margin: 0, fontStyle: "normal" }} data-testid="money-labour-booked">
+                  includes {bookedDays.projected.length} booked {bookedDays.projected.length === 1 ? "day" : "days"} not yet recorded
+                </em>
+              )}
+              {labourNote && (
+                <em className="note" style={{ margin: 0, fontStyle: "normal", color: "var(--amber)" }} data-testid="money-labour-norate">{labourNote}</em>
+              )}
+            </span>
           )}
           <span className="mi"><span>Est. GP</span>
             <b style={{ color: "var(--emerald)" }} data-testid="money-gp">{gp}%</b></span>

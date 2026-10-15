@@ -63,3 +63,40 @@ describe("money out and profit (§4.7, R19)", () => {
     expect(jobProfit({ ...base, costs: [], materialCosts: [], started: false }).noMaterialsWarning).toBe(false);
   });
 });
+
+describe("booked days and employee jobs (Tom, 15 Oct 2026 — 12 First Avenue)", () => {
+  const booked = [
+    { id: "booked:adi:2026-10-16", label: "Adi · 16 Oct · booked 7.5 h", cents: 30_000 },
+    { id: "booked:abdul:2026-10-16", label: "Abdul · 16 Oct · booked 7.5 h", cents: 27_750 },
+  ];
+  it("a booked day no row covers is own-painter labour, marked booked, and moves the profit by exactly its cents", () => {
+    const p = jobProfit({ ...base, projectedLabour: booked });
+    const own = p.lines.find((l) => l.key === "own_painters")!;
+    expect(own.cents).toBe(50_000 + 30_000 + 27_750);
+    expect(own.label).toBe("Own painters: recorded and booked days");
+    expect(own.sources.map((s) => [s.id, s.booked ?? false])).toEqual([["lab1", false], ["booked:adi:2026-10-16", true], ["booked:abdul:2026-10-16", true]]);
+    expect(own.sources.filter((s) => s.booked).every((s) => s.jobCostStatus === undefined)).toBe(true);
+    expect(p.grossProfitCents).toBe(jobProfit(base).grossProfitCents - 57_750);
+  });
+  it("an employee job has no contractor line: the snapshot offer is a budget, not a cost", () => {
+    const p = jobProfit({ ...base, employeeJob: true, projectedLabour: booked });
+    const contractor = p.lines.find((l) => l.key === "contractor")!;
+    expect(contractor.cents).toBe(0);
+    expect(contractor.sources).toEqual([]);
+    expect(p.bar.map((b) => b.key)).not.toContain("contractor");
+    expect(p.totalCostsCents).toBe(50_000 + 57_750 + 78_592 + 120_000 + 6_000);
+    expect(p.grossProfitCents).toBe(1_000_000 - p.totalCostsCents);
+  });
+  it("12 First Avenue as the panel saw it on 15 Oct: two painters, six working days each — one with no rate", () => {
+    // Abdul: five recorded days at $277.50 and the sixth booked; Adi: no rate, so nothing until it is set.
+    const recorded = Array.from({ length: 5 }, (_, i) => ({ id: `abdul${i}`, category: "labour", status: "approved", amountExCents: 27_750, label: `Abdul · ${9 + i} Oct` }));
+    const p = jobProfit({
+      contractIncCents: 1_000_000, offerCents: 439_680, contractorVariationCents: 0, employeeJob: true,
+      costs: recorded, materialsCostIds: new Set(), materialCosts: [], expenses: [], started: true,
+      projectedLabour: [{ id: "booked:abdul:2026-10-16", label: "Abdul · 16 Oct · booked 7.5 h", cents: 27_750 }],
+    });
+    expect(p.lines.find((l) => l.key === "contractor")!.cents).toBe(0);
+    expect(p.lines.find((l) => l.key === "own_painters")!.cents).toBe(6 * 27_750);
+    expect(p.totalCostsCents).toBe(166_500);
+  });
+});
