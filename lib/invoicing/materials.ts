@@ -217,7 +217,8 @@ export function materialsView(input: MaterialsInput): MaterialsView {
     key: `intake:${r.id}`, kind: "intake", id: r.id, state,
     supplier: dir.intakeName(r), invoiceNo: r.invoiceNo, invoiceDate: r.invoiceDate,
     reference: r.orderRef || r.addressText || null, job: jobOf(r.proposedWoId), overhead: false,
-    amountCents: state === "dup" ? 0 : r.totalCents ?? 0, docPath: r.docPath, unread: r.extractStatus === "failed" || r.totalCents === null,
+    // A possible duplicate keeps its own figures (so Confirm / Record carry them); every total filters it out by state.
+    amountCents: r.totalCents ?? 0, docPath: r.docPath, unread: r.extractStatus === "failed" || r.totalCents === null,
     gstCents: r.gstCents ?? null,
     confidencePct: r.matchReason === "order_ref" && typeof r.refConfidence === "number" ? Math.round(r.refConfidence * 100) : null,
   });

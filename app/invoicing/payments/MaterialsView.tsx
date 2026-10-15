@@ -14,19 +14,14 @@ const spec = (r: MatRow): MatSpec => ({
   jobAddress: r.job?.address ?? null, amountLabel: money(r.amountCents), unread: r.unread, hasDoc: !!r.docPath,
   amountCents: r.amountCents, invoiceDateIso: r.invoiceDate, workOrderId: r.job?.workOrderId ?? null,
 });
-const LABEL: Record<MatRow["state"], string> = { check: "to check", dup: "", rec: "to approve", appr: "approved, to pay", paid: "paid", del: "deleted" };
+const LABEL: Record<MatRow["state"], string> = { check: "to check", dup: "not counted", rec: "to approve", appr: "approved, to pay", paid: "paid", del: "deleted" };
 
 function Row({ r }: { r: MatRow }) {
-  if (r.state === "dup") {
-    return (
-      <div className="prow mat" data-mat={r.key}>
-        <div className="p1"><b>{r.supplier}</b><small>Possible duplicate</small></div>
-        <div className="p2">Looks like an invoice already recorded. No cost was written.</div>
-        <div className="p3" />
-        <div className="p4"><MatButtons row={spec(r)} /></div>
-      </div>
-    );
-  }
+  // A possible duplicate (15 Oct) is drawn like any waiting document — its number, date, job and amount — so a
+  // second invoice that happens to match an earlier one on total and date can still be confirmed to its job.
+  const dupNote = r.state === "dup"
+    ? <><span className="hot">Possible duplicate</span><small>Looks like an invoice already recorded, so nothing was written. Dismiss if it is the same one; if it is a second invoice, confirm it to its job.</small></>
+    : null;
   const where = r.overhead ? "Not for a job (overhead)"
     : r.job ? <OpenJobLink className="jl" estimateId={r.job.estimateId}>{r.job.address}</OpenJobLink>
     : <span className="hot">No job found</span>;
@@ -34,10 +29,11 @@ function Row({ r }: { r: MatRow }) {
   const owe = r.state === "paid" || r.state === "del"
     ? <span className="paidamt" style={r.state === "del" ? { color: "var(--mute)", textDecoration: "line-through" } : undefined}>{money(r.amountCents)}</span>
     : <span className={`owe ${r.state === "check" ? (r.job ? "sent" : "uninv") : r.state === "rec" ? "draft" : "need"}`}>{r.unread ? "Not read" : money(r.amountCents)}</span>;
+  const foundNote = r.confidencePct !== null && r.state === "check" ? <small>Job found from the order reference, read with {r.confidencePct}% confidence</small> : null;
   return (
     <div className={`prow mat${r.state === "del" ? " gone" : ""}`} data-mat={r.key}>
       <div className="p1"><b>{r.supplier}</b><small>{r.invoiceNo || "No invoice number"}{r.invoiceDate ? ` · ${shortDate(r.invoiceDate)}` : ""}{r.gstCents !== null && !r.unread ? ` · GST ${money(r.gstCents)}` : ""}</small></div>
-      <div className="p2">{where}{ref}{r.confidencePct !== null && r.state === "check" ? <small>Job found from the order reference, read with {r.confidencePct}% confidence</small> : null}</div>
+      <div className="p2">{dupNote}{where}{ref}{foundNote}</div>
       <div className="p3">{owe}<small>{LABEL[r.state]}</small></div>
       <div className="p4"><MatButtons row={spec(r)} /></div>
     </div>
