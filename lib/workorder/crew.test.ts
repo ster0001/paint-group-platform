@@ -26,8 +26,10 @@ const full: WorkOrderDoc = {
   materials: [{ product: "Weathershield", photoUrl: "", litres: 10, coverageMissing: false, colourName: "Vivid White", colourHex: "#fff", colourStatus: "confirmed" }],
   areas: [{
     id: "front", title: "Front", finishCode: "PG-3", finishOverridden: false, photos: [],
+    // Measurements are scope too (15 Oct 2026): the crew sees 12 × 2.6 m and 31.2 m².
+    dims: { l: 12, w: 0, h: 2.6 },
     surfaces: [
-      { key: "front:0", label: "Walls", coats: 2, product: "Weathershield", prep: "Light sand", hours: 6, status: "not_started" },
+      { key: "front:0", label: "Walls", qty: 31.2, unit: "m²", coats: 2, product: "Weathershield", prep: "Light sand", hours: 6, status: "not_started" },
       // A count is scope, not money — the crew must see it is four doors.
       { key: "front:1", label: "Doors", count: 4, coats: 2, product: "Aquanamel", prep: "", hours: 3, status: "not_started" },
     ],
@@ -52,6 +54,9 @@ describe("what the crew may see", () => {
     expect(crew.areas[0].surfaces[0]).toEqual(full.areas[0].surfaces[0]);
     expect(crew.areas[0].surfaces[1]).toEqual(full.areas[0].surfaces[1]);
     expect(crew.areas[0].surfaces[1].count).toBe(4);
+    expect(crew.areas[0].surfaces[0].qty).toBe(31.2);
+    expect(crew.areas[0].surfaces[0].unit).toBe("m²");
+    expect(crew.areas[0].dims).toEqual({ l: 12, w: 0, h: 2.6 });
     expect(crew.materials).toEqual(full.materials);
     expect(crew.jobAddress).toBe(full.jobAddress);
     expect(crew.accessNotes).toBe(full.accessNotes);

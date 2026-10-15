@@ -5,7 +5,7 @@ import { WO_STATUS_LABEL, cansLabel, litresLabel } from "@/lib/workorder/snapsho
 import { areaMaterials, rowEstimatedLitres } from "@/lib/workorder/materials";
 import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
 import { STAGE_LANES, stageTitle, type WoStage } from "@/lib/workorder/stages";
-import { SURFACE_STATE_LABEL, type SurfaceState } from "@/lib/workorder/surfaces";
+import { SURFACE_STATE_LABEL, dimsLabel, measureLabel, type SurfaceState } from "@/lib/workorder/surfaces";
 import type { CrewVariation } from "@/lib/workorder/crew";
 import type { ScopeChange } from "@/lib/workorder/scopeChanges";
 import { WO_PHOTO_KIND_LABEL, groupByKind, officePhotos, type WOPhoto } from "@/lib/workorder/photos";
@@ -292,6 +292,12 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
               <div className="area" key={a.id}>
                 <div className="area-title">
                   <span>{a.title}</span>
+                  {/* The estimator's measurements, so the painter can size the
+                      job from the sheet (Tom, 15 Oct 2026). Nothing on a
+                      document frozen without them. */}
+                  {dimsLabel(a.dims) && (
+                    <span className="area-dims" data-testid={`area-dims-${a.id}`}>{dimsLabel(a.dims)}</span>
+                  )}
                   {/* Only shown where the area differs from the job's level, or
                       when staff are editing and need the control. */}
                   {a.finishOverridden && (
@@ -325,7 +331,10 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                           <span className="surf-count" data-testid={`surf-count-${s.key}`}>× {s.count}</span>
                         )}
                       </div>
-                      <div className="surf-meta">{s.coats} {s.coats === 1 ? "coat" : "coats"}{s.product ? ` · ${s.product}` : ""}</div>
+                      <div className="surf-meta">
+                        {measureLabel(s) && <span data-testid={`surf-measure-${s.key}`}>{measureLabel(s)} · </span>}
+                        {s.coats} {s.coats === 1 ? "coat" : "coats"}{s.product ? ` · ${s.product}` : ""}
+                      </div>
                       {s.prep && <div className="surf-prep">{s.prep}</div>}
                     </div>
                     <div className="surf-right">
@@ -384,7 +393,9 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                     </div>
                   );
                 })()}
-                <AreaPhotoStrip area={a.title} photos={a.photos.slice(0, 8)} />
+                {/* Every photo pinned to the area — the strip was capped at eight
+                    and Tom's painters were missing the rest (15 Oct 2026). */}
+                <AreaPhotoStrip area={a.title} photos={a.photos} />
               </div>
             ))}
           </section>

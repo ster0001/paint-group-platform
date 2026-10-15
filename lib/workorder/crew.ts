@@ -33,6 +33,8 @@ const crewSurface = (s: WOSurface): WOSurface => ({
   ...(s.code ? { code: s.code } : {}),
   // A count is scope, not money: the crew needs to know it is four doors.
   ...(typeof s.count === "number" ? { count: s.count } : {}),
+  // So is a measurement: the crew needs to know it is 38 m² of walls.
+  ...(typeof s.qty === "number" && s.unit ? { qty: s.qty, unit: s.unit } : {}),
   coats: s.coats,
   product: s.product,
   // Paint is scope, not money: the per-area materials breakdown (13 Oct 2026)
@@ -48,6 +50,7 @@ const crewArea = (a: WOArea): WOArea => ({
   id: a.id,
   title: a.title,
   ...(a.side ? { side: a.side } : {}),
+  ...(a.dims ? { dims: { l: a.dims.l, w: a.dims.w, h: a.dims.h } } : {}),
   surfaces: (a.surfaces ?? []).map(crewSurface),
   photos: a.photos ?? [],
   finishCode: a.finishCode,

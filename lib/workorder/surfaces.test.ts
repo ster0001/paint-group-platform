@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   surfaceCountsByKey,
-  allSurfacesDone, describeArea, gatedRows, jobNeedsAfterPhotos, jobNeedsBeforePhotos, nextState,
+  allSurfacesDone, describeArea, dimsLabel, gatedRows, measureLabel, jobNeedsAfterPhotos, jobNeedsBeforePhotos, nextState,
   progressByHeading, progressOf, seedRowsFromDoc, statusFromState,
   ticksBySurfaceKey, SURFACE_STATE_LABEL, tickNeedsBeforePhotos, type SurfaceRow,
 } from "./surfaces";
@@ -38,6 +38,30 @@ describe("counts for the tick list (Tom, 14 Oct 2026: how many doors)", () => {
   it("ignores what is not a real positive count, and an older document with none", () => {
     expect(surfaceCountsByKey(doc([{ count: 0 }, { count: -2 }, { count: Number.NaN }, { count: 2.4 }]))).toEqual({ "a0:3": 2 });
     expect(surfaceCountsByKey(null)).toEqual({});
+  });
+});
+
+describe("measurements on the sheet (Tom, 15 Oct 2026: no measurements on the work orders)", () => {
+  it("says a room's dimensions in metres, trailing zeros dropped", () => {
+    expect(dimsLabel({ l: 4, w: 3, h: 2.4 })).toBe("4 × 3 × 2.4 m");
+    expect(dimsLabel({ l: 4.25, w: 3.5, h: 2.7 })).toBe("4.3 × 3.5 × 2.7 m");
+  });
+  it("says one plane as length × height — width 0 is left out", () => {
+    expect(dimsLabel({ l: 12, w: 0, h: 2.6 })).toBe("12 × 2.6 m");
+  });
+  it("says nothing for an unmeasured area or an older document", () => {
+    expect(dimsLabel({ l: 0, w: 0, h: 0 })).toBe("");
+    expect(dimsLabel(undefined)).toBe("");
+  });
+  it("says a measured surface's size in its unit, and nothing for a counted or unmeasured one", () => {
+    expect(measureLabel({ qty: 38.44, unit: "m²" })).toBe("38.4 m²");
+    expect(measureLabel({ qty: 14, unit: "lm" })).toBe("14 lm");
+    expect(measureLabel({})).toBe("");
+    expect(measureLabel({ qty: 0, unit: "m²" })).toBe("");
+  });
+  it("puts the dimensions first on the elevation line", () => {
+    expect(describeArea({ ...area("Lounge", ["Walls", "Ceiling"]), dims: { l: 4, w: 3, h: 2.4 } }))
+      .toBe("4 × 3 × 2.4 m · 2 surfaces · 2 coats · PG-3");
   });
 });
 

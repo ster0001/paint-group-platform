@@ -1608,6 +1608,15 @@ export default function QuoteBuilder({
    *  quantity override still shows the count of items, not the hours. */
   const countFor = (b: Area, s: Surface): number | null =>
     surfaceCalc(b, s).isItem && Number.isFinite(s.count) && s.count > 0 ? Math.round(s.count) : null;
+  /** The measured quantity for the painter's sheet: the priced quantity and
+   *  the rate item's unit as the painter reads it (m² for the M2 units, lm for
+   *  Lineal Metres). Null for per-item surfaces and anything unmeasured. */
+  const measureFor = (calc: SurfaceCalc): { qty: number; unit: "m²" | "lm" } | null => {
+    if (calc.isItem || !calc.item || !(calc.qty > 0)) return null;
+    const u = calc.item.unit ?? "";
+    const unit = /lineal/i.test(u) ? "lm" : /m2|m²/i.test(u) ? "m²" : null;
+    return unit ? { qty: Math.round(calc.qty * 10) / 10, unit } : null;
+  };
 
   function buildCustomerDoc(token: string): CustomerSnapshot {
     const areas: SnapshotArea[] = [];
@@ -1749,9 +1758,14 @@ export default function QuoteBuilder({
         // The same count the customer's page shows (per-item substrates only),
         // so the painter's sheet can say "Doors × 4" (Tom, 14 Oct 2026).
         const count = countFor(b, s);
+        // A measured surface carries its size — "38.4 m²", "14 lm" — the
+        // same quantity it was priced on (Tom, 15 Oct 2026: "no measurements
+        // on the work orders"). Per-item surfaces carry `count` instead.
+        const measure = measureFor(calc);
         surfaces.push({
           key, label: s.clientLabel || s.code, code: s.code, coats: s.coats, product: pname,
           ...(count != null ? { count } : {}),
+          ...(measure ?? {}),
           finish: pname ? sheenFor(b.type, s) : undefined,
           colourName: col.name, colourHex: col.hex,
           colourKey: pname ? materialColourKey(pname, col.name) : undefined,
@@ -1769,10 +1783,14 @@ export default function QuoteBuilder({
         ...b.surfaces.filter((s) => !s.hidden && pick(b, s)).flatMap((s) => (s.media ?? []).map((m) => m.url)),
       ];
       const areaOverride = woAreaFinish[String(b.id)] || null;
+      // The estimator's own dimensions, metres, for the painter's sheet. A
+      // single plane (areaType "surface") is L × H, so its width is 0.
+      const dimsL = Number(b.L) || 0, dimsW = b.areaType === "surface" ? 0 : Number(b.W) || 0, dimsH = Number(b.H) || 0;
       areasDoc.push({
         id: String(b.id),
         title: b.name || "Area",
         side: b.type === "Exterior" ? "exterior" : "interior",
+        ...(dimsL > 0 || dimsW > 0 || dimsH > 0 ? { dims: { l: dimsL, w: dimsW, h: dimsH } } : {}),
         surfaces,
         photos,
         finishCode: areaOverride ?? jobFinishCode,
