@@ -50,6 +50,8 @@ import type { MomentRow } from "@/lib/workorder/reminderMoments";
 import MessageThread from "@/app/components/wo/MessageThread";
 import { loadThread } from "@/lib/workorder/messagesLoad";
 import DemoControls from "@/app/components/demo/DemoControls";
+import { loadMyInduction } from "@/lib/induction/progress";
+import { nextModule } from "@/lib/induction/status";
 import { loadDemoChecklist } from "@/lib/demo/checklistLoad";
 import WorkersCard from "@/app/portal/WorkersCard";
 import { loadWorkers } from "@/lib/contractor/workers";
@@ -505,6 +507,13 @@ export default async function PortalJobPage({
   // The practice job's checklist (induction Step 2) — derived from its own rows.
   const demoService = job.isDemo ? createServiceClient() : null;
   const demoSteps = demoService ? await loadDemoChecklist(demoService, id) : null;
+  // Back to the induction from the practice job (Tom, 16 Oct): the next module to tick, or the list.
+  let inductionHref: string | null = null;
+  if (job.isDemo) {
+    const { status } = await loadMyInduction();
+    const next = status ? nextModule(status) : null;
+    inductionHref = next ? `/portal/induction/${next}` : "/portal/induction";
+  }
 
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
@@ -517,7 +526,7 @@ export default async function PortalJobPage({
           className="backlink" data-testid="job-back">
           ← {from === "requests" ? "Offers" : from === "calendar" ? "Calendar" : "Jobs"}
         </Link>
-        {job.isDemo && <DemoControls mode="portal" steps={demoSteps} />}
+        {job.isDemo && <DemoControls mode="portal" steps={demoSteps} inductionHref={inductionHref} />}
         {liveOffer && (
           <OfferBar offerId={liveOffer.id} workOrderId={id} expiresAt={liveOffer.expires_at}
             priceCents={liveOffer.payment_cents ?? null} />

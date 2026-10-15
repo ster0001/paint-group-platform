@@ -101,6 +101,10 @@ test.describe("12 Demo Street — the practice job and its wall", () => {
     await expect(page).toHaveURL(/\/portal\/jobs\/[0-9a-f-]{36}/, { timeout: 20_000 });
     demoWoId = page.url().split("/portal/jobs/")[1].split(/[?#]/)[0];
     await expect(page.getByTestId("demo-banner")).toContainText("Practice job");
+    // Tom, 16 Oct: the banner carries the way back to the induction — the next module to tick.
+    const back = page.getByTestId("demo-back-induction");
+    await expect(back).toBeVisible();
+    expect(await back.getAttribute("href")).toMatch(/^\/portal\/induction/);
     // Suburb only until the offer is accepted — the privacy gate applies to the demo like any job.
     await expect(page.getByTestId("job-back")).toBeVisible();
     await expect(page.locator("body")).toContainText("Demoville");
