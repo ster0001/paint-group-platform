@@ -398,8 +398,8 @@
     {
       "feature": "induction",
       "role": "contractor",
-      "title": "Your induction — choose your language and read each module in it",
-      "summary": "Pick the language you read best on the first screen of the induction (English, Dari, Farsi, Arabic, Spanish, Portuguese or Italian, as Paint Group switches them on). Everything you read and tick to confirm — the thirteen modules and the six finish standards sections — is then in that language. The app, the slides and the practice job stay in English. You can change your language any time from Home or your profile.",
+      "title": "Your induction — choose your language, read each module in it, tick it",
+      "summary": "Pick the language you read best on the first screen of the induction (English, Dari, Farsi, Arabic, Spanish, Portuguese or Italian, as Paint Group switches them on). Everything you read and tick to confirm — the thirteen modules and the six finish standards sections — is then in that language; the app, the slides and the practice job stay in English. One tick per module, resumable; the last tick completes the induction and emails you a PDF of everything you ticked. Job offers start when the induction is complete, your facilitator has passed the practical check, and your public liability insurance is on file. Existing contractors do the shorter refresher with no practical check; a worker login does the worker version and can be put on a job once it is complete and checked.",
       "path": "docs/help/induction/contractor.md",
       "walkthrough": null,
       "media": [],
@@ -408,18 +408,23 @@
         "app/portal/induction/page.tsx",
         "app/portal/induction/language/page.tsx",
         "app/portal/induction/[module]/page.tsx",
+        "app/portal/induction/TickStep.tsx",
+        "app/portal/induction/actions.ts",
         "app/portal/induction/LanguagePicker.tsx",
         "app/join/[token]/JoinForm.tsx",
         "lib/induction/read.ts",
+        "lib/induction/status.ts",
+        "lib/induction/notify.ts",
         "lib/standards/localize.ts",
-        "supabase/migrations/20270267000000_induction_content.sql"
+        "supabase/migrations/20270267000000_induction_content.sql",
+        "supabase/migrations/20270270000000_induction_signoff.sql"
       ]
     },
     {
       "feature": "induction",
       "role": "pc",
-      "title": "Induction languages — switch a language on, see what each painter reads in",
-      "summary": "Painters read and tick the induction and the six finish standards sections in the language they choose. Settings → Communications → Induction languages is where a language is switched on once its wording has been tested; off means it is not offered. The contractor's record shows which language they chose. The wording lives in translation files loaded by the seed script, never typed into Settings.",
+      "title": "Induction — languages, who has ticked what, the practical check, the gates",
+      "summary": "Painters read and tick the induction and the six finish standards sections in the language they choose. Settings → Communications → Induction languages switches a language on once its wording has been tested. A contractor's record shows their induction — full or refresher, modules ticked, completion, the practical check you record task by task, and whether offers are allowed. New painters get no job offer until the induction is complete, the five-task check is passed and insurance is verified; existing painters are invited to the refresher with a grace period; a worker login cannot be put on a real job until their worker induction and three-task check are in. The wording lives in translation files loaded by the seed script, never typed into Settings.",
       "path": "docs/help/induction/pc.md",
       "walkthrough": null,
       "media": [],
@@ -428,9 +433,14 @@
         "app/(app)/settings/InductionLanguagesSettings.tsx",
         "app/(app)/settings/inductionActions.ts",
         "app/(app)/contractors/[id]/page.tsx",
+        "app/(app)/contractors/[id]/ContractorInduction.tsx",
+        "app/(app)/contractors/actions.ts",
+        "app/pc/demo/page.tsx",
+        "lib/induction/status.ts",
         "scripts/seed-induction.ts",
         "docs/induction/translations/",
-        "supabase/migrations/20270267000000_induction_content.sql"
+        "supabase/migrations/20270267000000_induction_content.sql",
+        "supabase/migrations/20270270000000_induction_signoff.sql"
       ]
     },
     {

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadDemoGrid } from "@/lib/demo/checklistLoad";
 import { DEMO_STEPS } from "@/lib/demo/checklist";
 import { reportError } from "@/lib/monitoring/report";
+import { loadInductionStatuses } from "@/lib/induction/progress";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,9 @@ export default async function PcDemoPage() {
   if ((me as { role?: string } | null)?.role !== "staff") return <section className="pc-section"><p className="empty">Staff only.</p></section>;
   const service = createServiceClient();
   const { rows, error } = service ? await loadDemoGrid(service) : { rows: [], error: "messaging service unavailable" };
+  // Step 5: the induction ticks beside the demo steps, through the one RPC.
+  const induction = service ? await loadInductionStatuses(service) : { rows: [], error: "messaging service unavailable" };
+  const ticksOf = new Map(induction.rows.map((r) => [r.contractorId, r]));
 
   return (
     <section className="pc-section" data-testid="demo-grid">
@@ -38,6 +42,7 @@ export default async function PcDemoPage() {
               <tr>
                 <th style={{ textAlign: "left" }}>Painter</th>
                 <th>Done</th>
+                <th title="Induction modules ticked">Ticks</th>
                 {DEMO_STEPS.map((s) => <th key={s.key} title={s.label} style={{ fontSize: 10, whiteSpace: "nowrap" }}>M{s.module}<br />{s.key.replace("_", " ")}</th>)}
               </tr>
             </thead>
@@ -49,6 +54,9 @@ export default async function PcDemoPage() {
                     <span className="small" style={{ display: "block", color: "var(--muted)" }}>{r.woRef}</span>
                   </td>
                   <td data-testid={`demo-done-${r.contractorId}`}><b>{r.done}</b> / {r.total}</td>
+                  <td data-testid={`demo-ticks-${r.contractorId}`} style={{ color: ticksOf.get(r.contractorId)?.complete ? "var(--emerald)" : undefined }}>
+                    {ticksOf.has(r.contractorId) ? `${ticksOf.get(r.contractorId)!.ticked} / ${ticksOf.get(r.contractorId)!.total}${ticksOf.get(r.contractorId)!.checkPassed ? " ✓" : ""}` : "·"}
+                  </td>
                   {r.rows.map((s) => (
                     <td key={s.key} data-testid={`demo-step-${r.contractorId}-${s.key}`} data-done={s.done} title={s.detail}
                       style={{ textAlign: "center", color: s.done ? "var(--emerald)" : "var(--muted)" }}>

@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, test } from "./helpers";
 import { contractorIdForEmail, createLoopFixture, destroyLoopFixture, serviceClient, type LoopFixture } from "./fixtures/woLoop";
+import { openMagicLink } from "./fixtures/portal";
 
 /**
  * Worker logins — induction brief §8 Step 3a (rulings 3, 13, 14).
@@ -56,7 +57,8 @@ async function readAs(token: string, table: string, query: string): Promise<unkn
 async function loginWorker(page: Page) {
   const link = await db!.auth.admin.generateLink({ type: "magiclink", email: workerEmail });
   expect(link.error?.message ?? "").toBe("");
-  await page.goto(`/account/auth?token_hash=${encodeURIComponent(link.data.properties!.hashed_token)}&next=${encodeURIComponent("/portal")}`);
+  // The link is a page with one button since #261 (mail scanners): press it.
+  await openMagicLink(page, `/account/auth?token_hash=${encodeURIComponent(link.data.properties!.hashed_token)}&next=${encodeURIComponent("/portal")}`);
   await expect(page).toHaveURL(/\/portal/, { timeout: 20_000 });
 }
 
@@ -104,6 +106,9 @@ test.describe("worker logins — a small login under a contractor", () => {
   });
 
   test("as the contractor: share one job from its page", async ({ page }) => {
+    // The share gate (⚑15, on since induction Step 5) wants an inducted worker; the
+    // induction itself is e2e/induction.spec.ts. Here the fixture is inducted by hand.
+    await db!.from("contractor_users").update({ inducted_at: new Date().toISOString() }).eq("id", contractorUserId);
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${shared!.workOrderId}`);
     await page.getByTestId(`worker-share-${contractorUserId}`).click();

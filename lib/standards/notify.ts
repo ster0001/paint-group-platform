@@ -12,6 +12,8 @@ import { reportError } from "@/lib/monitoring/report";
 import { renderHtmlToPdf } from "@/lib/invoicing/pdf";
 import { readStandards } from "./read";
 import { standardsPdfHtml } from "./pdfHtml";
+import { localizedStandards } from "./localize";
+import { htmlLang, isLanguageCode, languageOf } from "@/lib/induction/languages";
 
 /**
  * The four standards messages (brief §9, 1–4), each an automation in the
@@ -127,12 +129,17 @@ export async function completeStandardsConfirmation(service: SupabaseClient, con
     if (evErr) throw evErr;
     const confirmedAt = (ev as { created_at?: string } | null)?.created_at ?? new Date().toISOString();
     const confirmedOn = new Date(confirmedAt).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Melbourne" });
-    const { data: who, error: whoErr } = await service.from("contractors").select("company_name, profiles(name)").eq("id", contractorId).maybeSingle();
+    const { data: who, error: whoErr } = await service.from("contractors").select("company_name, induction_language, profiles(name)").eq("id", contractorId).maybeSingle();
     if (whoErr) throw whoErr;
-    const w = who as unknown as { company_name: string | null; profiles: { name: string | null } | null } | null;
+    const w = who as unknown as { company_name: string | null; induction_language: string | null; profiles: { name: string | null } | null } | null;
     const painterName = (w?.profiles?.name || w?.company_name || "Painter").trim();
 
-    const pdf = await renderHtmlToPdf(standardsPdfHtml(standards, { painterName, confirmedOn, companyName }));
+    // In the painter's language (induction Step 5): the English model with their strings over it.
+    const language = isLanguageCode(w?.induction_language) ? w!.induction_language : "en";
+    const { data: sv, error: svErr } = await service.from("standards_versions").select("id").eq("version_no", version).maybeSingle();
+    if (svErr) throw svErr;
+    const localized = sv ? (await localizedStandards(service, standards, (sv as { id: string }).id, language)).standards : standards;
+    const pdf = await renderHtmlToPdf(standardsPdfHtml(localized, { painterName, confirmedOn, companyName, lang: htmlLang(language), dir: languageOf(language).dir }));
     const path = `${contractorId}/standards/finish-standards-v${version}.pdf`; // the 20260831 rule: the painter's own folder first
     const up = await service.storage.from("contractor-docs").upload(path, pdf, { contentType: "application/pdf", upsert: true });
     if (up.error) throw new Error(up.error.message);

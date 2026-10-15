@@ -14,11 +14,13 @@ import { DEFAULT_LANGUAGE, languageOf, type Dir, type LanguageCode } from "./lan
  * is no induction" (the dropped-error rule).
  */
 
+export type InductionAudience = "contractor" | "worker" | "refresher";
+
 export type InductionLine = {
   /** title | s1… | tick | w1… */
   lineKey: string;
   kind: "title" | "statement" | "tick" | "worker_extra";
-  audiences: ("contractor" | "worker")[];
+  audiences: InductionAudience[];
   text: string;
   /** False when the English text stands in for a missing translation. */
   translated: boolean;
@@ -81,7 +83,7 @@ export async function readInduction(supabase: SupabaseClient, language: Language
       if (!t) missing.push(`${m.module_key}.${b.line_key}`);
       return {
         lineKey: b.line_key, kind: b.kind,
-        audiences: (b.audiences ?? ["contractor"]).filter((a): a is "contractor" | "worker" => a === "contractor" || a === "worker"),
+        audiences: (b.audiences ?? ["contractor"]).filter((a): a is InductionAudience => a === "contractor" || a === "worker" || a === "refresher"),
         text: (t ?? b).text, translated: Boolean(t),
       };
     };
@@ -114,6 +116,26 @@ export function workerLines(m: InductionModuleView): InductionLine[] {
 /** Is this module in the worker induction at all? */
 export function moduleForWorker(m: InductionModuleView): boolean {
   return workerLines(m).length > 0;
+}
+
+export type InductionKind = "full" | "refresher" | "worker";
+
+/** The lines one KIND of painter reads of a module (Step 5): full = every statement; refresher = the refresher lines; worker = ⚑17. */
+export function linesFor(m: InductionModuleView, kind: InductionKind): InductionLine[] {
+  if (kind === "worker") return workerLines(m);
+  if (kind === "refresher") return m.statements.filter((s) => s.audiences.includes("refresher"));
+  return m.statements.filter((s) => s.audiences.includes("contractor"));
+}
+
+/** Is this module in that kind of induction (mirrors induction_modules_for in 20270270)? */
+export function moduleForKind(m: InductionModuleView, kind: InductionKind): boolean {
+  if (kind === "full") return m.key !== "m00";
+  return linesFor(m, kind).length > 0;
+}
+
+/** The modules of a kind, in reading order. */
+export function modulesFor(induction: Induction, kind: InductionKind): InductionModuleView[] {
+  return induction.modules.filter((m) => moduleForKind(m, kind));
 }
 
 function failed(where: string, error: { message: string; code?: string }): InductionLoad {

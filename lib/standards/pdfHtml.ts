@@ -11,8 +11,10 @@ import { LEVELS } from "./model";
  */
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-export function standardsPdfHtml(standards: Standards, who: { painterName: string; confirmedOn: string; companyName: string }): string {
+export function standardsPdfHtml(standards: Standards, who: { painterName: string; confirmedOn: string; companyName: string; lang?: string; dir?: "ltr" | "rtl" }): string {
   const s = standards;
+  const lang = who.lang ?? "en";
+  const dir = who.dir ?? "ltr";
   const list = (items: string[], ordered = false) => `<${ordered ? "ol" : "ul"}>${items.map((t) => `<li>${esc(t)}</li>`).join("")}</${ordered ? "ol" : "ul"}>`;
   const rows = (items: { label: string; text: string }[]) => `<dl>${items.map((r) => `<dt>${esc(r.label)}</dt><dd>${esc(r.text)}</dd>`).join("")}</dl>`;
   const surface = (sf: Standards["surfaces"][number]) => `
@@ -24,7 +26,7 @@ export function standardsPdfHtml(standards: Standards, who: { painterName: strin
       <tbody>${sf.checks.map((c) => `<tr><th>${esc(c.label)}</th>${LEVELS.map((l) => `<td>${esc(c.text[l])}</td>`).join("")}</tr>`).join("")}</tbody></table>
       ${sf.note ? `<p class="note">${esc(sf.note)}</p>` : ""}
     </section>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(s.version.title)}</title>
+  return `<!doctype html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8"><title>${esc(s.version.title)}</title>
 <style>
   body{font:12px/1.45 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:#111;margin:28px}
   h1{font-size:20px;margin:0 0 4px} h2{font-size:15px;margin:22px 0 8px;border-bottom:1px solid #999;padding-bottom:3px} h3{font-size:13px;margin:14px 0 4px}

@@ -669,6 +669,44 @@ Extra:
 
 Same slides. Slide 4 becomes "Your contractor is responsible for you. You work to the same rules. You need a white card."
 
+## Module 0 · What is changing (10 min)
+
+The refresher only (existing contractors, ruling I13): the one new block before Modules 3, 7, 8, 9 and 6. It sets the scene — the rules are now written down, call backs count, the light decides offers — so that nothing on the day is a surprise.
+
+**Slides**
+
+1. **The rules are now written down.** The finish standards, the site rules and who says what to the customer are in the app, in your language. You read them and tick them once.
+2. **Call backs count.** A return visit on another day to fix workmanship counts for 7 days after sign-off. Fixed and signed the same day is not one.
+3. **The light decides offers.** New, Green, Yellow, Orange, Red. Four clean jobs in a row take you to Green. Red means no more offers until we have met.
+4. **Fair and reasonable.** Small things missed from the scope are part of the job; anything bigger is a variation, logged the moment you see it.
+
+**What to say**
+
+- "Nothing today is new work. It is the way we already work, written down so everyone is judged the same way."
+
+**On your phone**
+
+1. Open the induction and read Module 0 in your language. Tick it.
+
+**Check.** Ask the room: where do you find the finish standards now? (The Standards tab in the app, and on every work order.)
+
+### Read and confirm
+
+1. The finish standards, the site rules and who says what to the customer are written down in the app. I read them and tick them.
+2. A call back is a return visit on another day to fix workmanship. It counts for 7 days after sign-off.
+3. My status light decides how I am offered work. Four clean jobs in a row take me to Green. Red means no more offers until we have met.
+4. Small things missed from the scope are part of the job. Anything bigger is a variation, logged the moment I see it.
+
+### Tick
+
+I know what has changed.
+
+### Worker version
+
+Lines: none
+
+Not in the worker induction.
+
 ## Sign-off, the first three jobs, and the refresher
 
 ### The sign-off

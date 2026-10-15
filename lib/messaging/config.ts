@@ -237,6 +237,15 @@ export type MessagingSettings = {
   workerJobSharedSms: string;
   /** Painter (induction Step 3b, ruling I5): the certificate reminder after I will add this later. */
   certificateReminderSms: string;
+  /** Painter (induction Step 5, 16f): the last module is ticked — the PDF of what they ticked, in their language. */
+  inductionCompleteEmailSubject: string;
+  inductionCompleteEmailIntro: string;
+  /** Painter (16g): the office invites an existing painter to the 60-minute refresher; the grace period starts. */
+  inductionInviteSms: string;
+  inductionInviteEmailSubject: string;
+  inductionInviteEmailIntro: string;
+  /** Worker (16h): the worker induction is complete — they can now be put on a job. */
+  workerInductionCompleteSms: string;
   /** Painter (Step 6, message 6): the colour changed. */
   statusGreenSms: string;
   statusGreenLeadSms: string;
@@ -523,6 +532,18 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   workerInviteSms: "{{company_name}}: {{first_name}} has added you as a painter on their crew. Tap to open your jobs (no password needed): {{link}}",
   workerJobSharedSms: "{{company_name}}: {{first_name}} shared a job with you — {{wo_ref}} at {{suburb}}. {{link}}",
   certificateReminderSms: "{{company_name}}: please upload your public liability certificate in the app — job offers start once it is in. {{link}}",
+  inductionCompleteEmailSubject: "Your {{company_name}} induction is complete — your copy (Version {{version}})",
+  inductionCompleteEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "Thank you for completing the induction. Everything you read and ticked is attached, in your language, and it is saved in your documents in the portal. " +
+    "Job offers start once the practical check is passed and your public liability insurance is on file.",
+  inductionInviteSms: "{{company_name}}: please do the 60-minute induction refresher in the app — the rules are now written down, in your language. {{link}}",
+  inductionInviteEmailSubject: "Please do the {{company_name}} induction refresher",
+  inductionInviteEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "{{company_name}} has written down how we work — the site rules, who says what to the customer, variations, the pre-defect check and the status light. " +
+    "Please read the short refresher modules in the app and tick each one. It takes about an hour, and you will need to have done it to keep getting job offers.",
+  workerInductionCompleteSms: "{{company_name}}: your worker induction is complete. Your contractor can now put you on a job. {{link}}",
   statusGreenSms: "{{company_name}}: you are on Green. You now get priority on new jobs and faster payment. {{link}}",
   statusGreenLeadSms: "{{company_name}}: you are on Green. Thank you for the clean work. {{link}}",
   statusDroppedSms: "{{company_name}}: your status is now {{colour}}. Open the app to see why and what to do next. {{link}}",

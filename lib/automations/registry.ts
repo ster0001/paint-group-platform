@@ -522,6 +522,37 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Each day once per painter (automation_claims); stops the moment a certificate is verified (offerable).",
   },
   {
+    key: "contractor_induction_complete", name: "Induction — complete, your copy", audience: "painter", channels: ["email", "pdf"], kind: "automatic",
+    defaultChannel: "email", sendKind: "induction_complete", capExempt: true,
+    trigger: "The painter ticks the last module of the induction (or the refresher). The PDF of every line they ticked, in their language, is generated from the induction data, saved in their documents and attached (induction Step 5).",
+    templates: [
+      { field: "inductionCompleteEmailSubject", label: "Email subject", kind: "subject", placeholders: P.standards },
+      { field: "inductionCompleteEmailIntro", label: "Email body", kind: "body", placeholders: P.standards },
+    ],
+    guard: "Once per painter per version — the document row is the guard.",
+  },
+  {
+    key: "contractor_induction_invite", name: "Induction refresher — please do it", audience: "painter", channels: ["sms", "email"], kind: "manual",
+    defaultChannel: "both", sendKind: "induction_invite", capExempt: true,
+    trigger: "The office presses Invite to the refresher on an existing painter (Contractors page). The grace period (Settings -> standards_rules.graceDays) starts whether or not the message goes; offers stop when it ends with the refresher unticked.",
+    templates: [
+      { field: "inductionInviteSms", label: "Text message", kind: "sms", placeholders: P.standards },
+      { field: "inductionInviteEmailSubject", label: "Email subject", kind: "subject", placeholders: P.standards },
+      { field: "inductionInviteEmailIntro", label: "Email body", kind: "body", placeholders: P.standards },
+    ],
+    guard: "Sent on the press; the invite itself is recorded by induction_invite.",
+    href: "/contractors",
+  },
+  {
+    key: "contractor_worker_induction_complete", name: "Worker induction — complete", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: false, defaultMode: "auto", sendKind: "induction_complete", capExempt: true,
+    trigger: "A worker login ticks the last module of the worker induction. Their PDF is saved under their contractor's documents; the worker has no email, so one text tells them. {{first_name}} is the worker.",
+    templates: [
+      { field: "workerInductionCompleteSms", label: "The text", kind: "sms", placeholders: P.standards },
+    ],
+    guard: "Once per worker per version — the document row is the guard.",
+  },
+  {
     key: "contractor_standards_invite", name: "Finish standards — please read and confirm", audience: "painter", channels: ["sms", "email"], kind: "manual",
     defaultChannel: "both", sendKind: "standards_invite", capExempt: true,
     trigger: "The office presses Send standards invite on a painter (Contractors page) — once, when the standards launch or a painter is added later. New painters are invited the moment they join, without a message: the sign-off is on their first screen.",
