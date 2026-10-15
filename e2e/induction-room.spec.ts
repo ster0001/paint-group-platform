@@ -177,9 +177,13 @@ test.describe("the full room — three painters, one facilitator, one worker, an
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await page.goto(`/portal/jobs/${p2.demoWoId}`);
     await expect(page.getByTestId("demo-banner")).toBeVisible();
-    await expect(page.locator("body")).toContainText(DEMO_TITLE);
+    // Before the (reset) offer is accepted the page shows the suburb only, so the address is
+    // not the test: the banner, the scope and the chrome are English; only the finish
+    // standards block (§5: translated) may carry Farsi.
+    await expect(page.getByTestId("demo-banner")).toContainText("Practice job");
     await expect(page.getByTestId("demo-banner")).not.toHaveText(/[؀-ۿ]/);
-    await expect(page.locator("h1").first()).not.toHaveText(/[؀-ۿ]/);
+    await expect(page.locator("body")).toContainText("Bedroom 1");
+    await expect(page.locator("body")).toContainText("Scope of works");
     // The grid counts the tick, in any language.
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto("/pc/demo");
