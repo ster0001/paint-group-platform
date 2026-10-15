@@ -37,7 +37,6 @@ let workerUserId = "";
 let workerEmail = "";
 let contractorUserId = "";
 const liveBefore: Record<string, boolean> = {};
-const startedAt = new Date().toISOString();
 
 const WORKER_MODULES = ["m02", "m03", "m04", "m06", "m07", "m08", "m09", "m10", "m13"];
 const SECTIONS = ["levels", "rules", "time", "interior", "exterior", "defect"] as const;
