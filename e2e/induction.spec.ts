@@ -305,7 +305,9 @@ test.describe("induction — ticks, the practical check, completion and the gate
     contractorUserId = (cu as { id: string }).id; workerUserId = (cu as { profile_id: string }).profile_id;
     workerEmail = (await db!.auth.admin.getUserById(workerUserId)).data.user!.email!;
 
-    // The gate is on (⚑15): a real job cannot be shared with an un-inducted worker.
+    // The job is the contractor's again (the offer tests leave it unassigned); the gate is on (⚑15):
+    // a real job cannot be shared with an un-inducted worker.
+    await db!.from("work_orders").update({ contractor_id: e2eContractorId, stage: "in_progress" }).eq("id", job!.workOrderId);
     expect(await rpcAs(contractor!, "worker_share", { p_work_order_id: job!.workOrderId, p_contractor_user_id: contractorUserId, p_on: true })).toBe("error:not_inducted");
 
     // The worker, as their own session: the worker modules and the six standards sections.
