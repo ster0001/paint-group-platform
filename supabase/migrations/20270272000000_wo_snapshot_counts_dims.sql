@@ -1,28 +1,28 @@
 -- =============================================================================
 -- 20270272 — every issued job sheet says how many, and how big
 --
--- Tom, 15 Oct 2026: "In the contractor work order it isn't showing the number
--- room or area breakdown of the doors, windows etc … This needs to be updated
--- for all areas with a number attached for the contractor to see", and "there
--- are also no measurements on the work orders".
+-- Tom, 15 Oct 2026: the contractor work order is not showing the number of
+-- doors, windows etc per room or area, just labelling them Doors; this needs
+-- to be updated for all areas with a number attached for the contractor to
+-- see. And: there are also no measurements on the work orders.
 --
 -- The count (PR #275, 14 Oct) and, from today, the area dimensions are frozen
--- into builder_state->'woDoc' by the builder IN THE BROWSER, on save. The
--- issue RPC copies that document into work_orders.wo_snapshot. So a sheet
--- issued from an estimate last saved before the deploy carries neither, and
--- that is every job currently on site. This migration closes both gaps at the
--- database, where the facts already are (builder_state->'blocks'):
+-- into builder_state woDoc by the builder IN THE BROWSER, on save. The issue
+-- RPC copies that document into work_orders.wo_snapshot. So a sheet issued
+-- from an estimate last saved before the deploy carries neither, and that is
+-- every job currently on site. This migration closes both gaps at the
+-- database, where the facts already are (builder_state blocks):
 --
 --   1. wo_doc_with_surface_counts(estimate_id, doc): a helper that fills, on
---      any surface that lacks one, the per-item `count` (the block surface's
---      count, only where the rate item's unit is 'Hours Per Item' — the same
---      rule as the builder's countFor) and, on any area that lacks them, the
---      `dims` (the block's L / W / H in metres; a single plane has W 0).
+--      any surface that lacks one, the per-item count (the block surface
+--      count, only where the rate item unit is Hours Per Item — the same
+--      rule as the builder function countFor) and, on any area that lacks
+--      them, the dims (the block L / W / H in metres; a single plane has W 0).
 --      It never overwrites a value the builder froze, and never touches a
---      surface it cannot match by key ("<block id>:<surface id>").
---      The measured QUANTITY (m², lm) is NOT filled here: it is pricing's
---      computeQuantity, which lives in lib/pricing and nowhere else. New
---      issues carry it from the builder; older sheets show the dimensions.
+--      surface it cannot match by key (block id, colon, surface id).
+--      The measured QUANTITY (m², lm) is NOT filled here: it is the pricing
+--      module computeQuantity, which lives in lib/pricing and nowhere else.
+--      New issues carry it from the builder; older sheets show the dimensions.
 --   2. issue_work_order passes the document through the helper, so a work
 --      order issued from a stale estimate still gets them.
 --   3. Every existing wo_snapshot is backfilled once, in place.
@@ -45,7 +45,7 @@ begin
   select builder_state -> 'blocks', rate_card_id into v_blocks, v_card
     from public.estimates where id = p_estimate_id;
   if v_blocks is null or jsonb_typeof(v_blocks) <> 'array' then return p_doc; end if;
-  -- The estimate's own card, else the active one — as app/quote/page.tsx loads it.
+  -- The estimate rate card, else the active one — as app/quote/page.tsx loads it.
   if v_card is null then
     select id into v_card from public.rate_cards where is_active order by created_at desc limit 1;
   end if;
@@ -84,7 +84,7 @@ begin
       if v_bs is null or v_count is null or v_count <= 0 or coalesce(v_bs ->> 'code', '') = '' then
         v_surfs := v_surfs || v_s; continue;
       end if;
-      -- The rate item: the area's own side, else the other side (C13), as itemIndex + priceSurface do.
+      -- The rate item: the area side first, else the other side (C13), as itemIndex + priceSurface do.
       v_type := coalesce(v_block ->> 'type', 'Interior');
       v_other := case when v_type = 'Interior' then 'Exterior' else 'Interior' end;
       select unit into v_unit from public.rate_items
@@ -118,7 +118,7 @@ begin
   select builder_state->'woDoc' into v_doc from public.estimates where id = v_wo.estimate_id;
   if v_doc is null then return 'error:nothing_to_issue'; end if;   -- save the estimate first
 
-  -- Counts and dimensions for the painter, from the estimate's own blocks (20270272).
+  -- Counts and dimensions for the painter, from the estimate blocks (20270272).
   v_doc := public.wo_doc_with_surface_counts(v_wo.estimate_id, v_doc);
 
   -- Payment comes out of the stored document, never off the wire.
