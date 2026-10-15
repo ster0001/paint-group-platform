@@ -61,6 +61,23 @@ describe("buildTimeline", () => {
     expect(photoCard.title).toMatch(/Before photos/);
   });
 
+  it("photos the office attached ride the update they were sent with, whatever day they were taken, and never twice", () => {
+    const items = buildTimeline(base({
+      updates: [{ for_date: "2026-08-27", text: "Front done.", sent_at: "2026-08-27T07:00:00Z", photo_ids: ["old", "today"] }],
+      photos: [
+        { id: "old", kind: "progress", area: "Front", caption: "", created_at: "2026-08-25T04:00:00Z" },
+        { id: "today", kind: "progress", area: "Front", caption: "", created_at: "2026-08-27T04:00:00Z" },
+        { id: "other", kind: "progress", area: "Side", caption: "", created_at: "2026-08-27T05:00:00Z" },
+      ],
+    }));
+    const update = items.find((i) => i.key === "update:2026-08-27")!;
+    // The attached pair first, in the order chosen; the unattached same-day photo still joins the day's card.
+    expect(update.photoIds).toEqual(["old", "today", "other"]);
+    // The old photo is NOT also drawn as a photo card on its own day.
+    expect(items.filter((i) => i.key.startsWith("photos:"))).toHaveLength(0);
+    expect(items.flatMap((i) => i.photoIds).filter((id) => id === "old")).toHaveLength(1);
+  });
+
   it("a QA pass is a friendly milestone — and a fail never renders (caller sends pass only)", () => {
     const items = buildTimeline(base({ qaPassedAt: "2026-08-26T02:00:00Z" }));
     expect(items[0].title).toBe("Quality check passed");

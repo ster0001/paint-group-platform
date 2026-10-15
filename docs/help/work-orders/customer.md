@@ -1,0 +1,36 @@
+---
+feature: work-orders
+role: customer
+title: Your project, day by day — following the job and the photos your painting team sends
+summary: Where to see each update from your painting team with the photos the office attached to it, where every area is up to, who is at your home, and what to do if a photo or update is missing.
+sources: app/account/(portal)/JobTimeline.tsx, lib/portal/timeline.ts, lib/portal/data.ts
+---
+
+## What this is for
+Once your job is booked, **Your project, day by day** in your account is the record of the work: each update your painting team sends, the photos that go with it, where every area is up to, and who is on site.
+
+## Before you start
+- Sign in to your account with the emailed link (or the code in the same email).
+- The page fills as the job happens. Before the first day it says **Nothing to show just yet**.
+
+## Steps
+1. Open your account and choose **My project**.
+2. **Where everything is up to** lists each area with **Not started**, **Being prepped**, **First coat** or **Done ✓**, and a **Day 3 of 6** chip while the job runs.
+3. **Who's at your home** names your painter by first name, and **Who is managing and overseeing the job** names your project coordinator with **Message me**.
+4. **Day by day** is the feed, newest first. A card headed **From your painting team** is an update the office checked and sent you (it says **CHECKED AND SENT BY THE OFFICE** underneath). The photos the office attached to that update sit on that card, whatever day they were taken (since 14 Oct 2026). Other site photos from that day sit under the same card; a day with photos but no update gets its own **Photos from the site** or **Before photos — how it started** card.
+5. Tap a photo to see it full size. Tap **Close** to come back.
+
+## What the labels mean
+- **From your painting team** — an update sent to you; the same words came by email and text.
+- **Before photos — how it started** — the record of each area before any paint went on.
+- **Something needs your say-so** — a change to the job waiting for your approval; **Review & approve** opens it.
+- **Quality check passed** — your coordinator checked the work against our standards.
+
+## If something goes wrong
+- **An update's photos are not showing.** Updates sent before 14 Oct 2026 show only the photos taken on the day they were sent. Any photo the office attached since then shows on its update. If one is still missing, reply to the update email or use **Message me**; the office can resend it.
+- **A photo looks like someone else's job.** Tell the office straight away; every photo is tied to your job and we will check it.
+- **No email arrived for an update.** The update is still here on this page; check your junk folder and tell us so we can fix the address.
+
+## Related
+- Signing in: logins/customer.md
+- Invoices and payments: invoicing/customer.md

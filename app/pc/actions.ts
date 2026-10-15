@@ -218,10 +218,13 @@ export async function sendCustomerUpdateAction(raw: unknown): Promise<PcResult> 
     return { ok: false, message: "Couldn't approve the update — is it already sent for today?" };
   }
 
-  const sent = await call("wo_send_update", { p_update_id: updateId },
+  // The chosen photos are RECORDED on the update (20270268) — the portal's
+  // timeline shows the ones the office picked, not whatever was taken that
+  // day — and the same ids ride in the email below.
+  const photoIds = parsed.data.photoIds;
+  const sent = await call("wo_send_update", { p_update_id: updateId, p_photo_ids: photoIds },
     "Update sent — email and text with the photos are on their way.");
   if (sent.ok) {
-    const photoIds = parsed.data.photoIds;
     after(async () => {
       const service = createServiceClient();
       if (service) await deliverCustomerUpdate(service, updateId, photoIds, "both");

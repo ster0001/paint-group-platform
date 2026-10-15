@@ -1107,6 +1107,21 @@
     },
     {
       "feature": "work-orders",
+      "role": "customer",
+      "title": "Your project, day by day — following the job and the photos your painting team sends",
+      "summary": "Where to see each update from your painting team with the photos the office attached to it, where every area is up to, who is at your home, and what to do if a photo or update is missing.",
+      "path": "docs/help/work-orders/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/account/(portal)/JobTimeline.tsx",
+        "lib/portal/timeline.ts",
+        "lib/portal/data.ts"
+      ]
+    },
+    {
+      "feature": "work-orders",
       "role": "employee",
       "title": "Run a job from the first tick to the customer's signature",
       "summary": "How an assigned job works on your phone as an employed painter — the pre-start list, before photos in one batch, ticking surfaces off, after photos of every room or side, the finishing-up list, the quality check and the walkthrough — the same as every painter, with no money on it.",
