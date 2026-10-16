@@ -90,7 +90,14 @@ export default async function PortalHome() {
   // the Home simply shows no standards card.
   const supabaseForStandards = await createClient();
   const { my: myStandards } = await loadMyStandards(supabaseForStandards, contractor.id);
-  if (myStandards?.status === "blocked") redirect("/portal/standards/confirm");
+  // Tom, 16 Oct 2026: while a painter's induction is open (full or refresher, not yet
+  // complete) the induction is the ONE path to the standards — Module 5 reaches the
+  // same six sections, in order, on induction day. The standalone card and the
+  // full-screen takeover return once the induction is complete, which is how a later
+  // standards version is re-confirmed. The offers gate at the RPC is untouched.
+  const { status: myInduction } = await loadMyInduction();
+  const inductionOpen = !!myInduction && !myInduction.complete;
+  if (myStandards?.status === "blocked" && !inductionOpen) redirect("/portal/standards/confirm");
 
   // Call backs (Step 3): open ones about this painter, or booked for them to fix.
   const myCallbacks = await loadMyCallbacks(supabaseForStandards, contractor.id);
@@ -379,12 +386,12 @@ export default async function PortalHome() {
       )}
 
       {/* The induction (Step 4): the language chosen, or the ask to choose one. */}
-      <InductionCard language={await myLanguage()} who="contractor" status={(await loadMyInduction()).status} />
+      <InductionCard language={await myLanguage()} who="contractor" status={myInduction} />
 
       {/* Finish standards (Step 1): the rule book every job is judged against,
           one tap from Home as the mockup draws it. The confirmed date and
           version join this card in Step 2. */}
-      {myStandards && needsSignoff(myStandards.status) ? (
+      {myStandards && needsSignoff(myStandards.status) && !inductionOpen ? (
         <Link href="/portal/standards/confirm" className="card amberish" style={{ display: "block", textDecoration: "none", color: "inherit" }} data-testid="home-standards-signoff">
           <span className="chip amb">Please confirm</span>
           <h3 style={{ marginTop: 8 }}>Read and confirm the finish standards</h3>
