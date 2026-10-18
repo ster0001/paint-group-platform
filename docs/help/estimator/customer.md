@@ -30,7 +30,7 @@ Have the address handy and know roughly what you want painted — inside, outsid
 10. **Talk it through**, **Send us a message** and **Save & book** open as a panel from the right on a laptop, or a sheet from the bottom on a phone. Close it with the × in the corner; nothing you have answered is lost.
 
 ## The estimate page, once it is sent
-- **Photos.** "Your property, as we saw it" shows the first nine photos from your enquiry and our site notes. When there are more, a **More photos (N)** button sits underneath; press it and the rest open below (the button then reads **Fewer photos**).
+- **Photos and videos.** "Your property, as we saw it" shows the first nine photos — and any video you sent us, which plays right there on the page — from your enquiry and our site notes. When there are more, a **More photos (N)** button sits underneath; press it and the rest open below (the button then reads **Fewer photos**).
 - **Counts.** In "Scope of works, item by item", anything we price per item — doors, windows, posts, architraves — shows how many we counted in that room, e.g. **Doors × 4**. A single item shows no number, and walls and ceilings are measured, not counted, so they carry none either. If a count looks wrong, tell your estimator before accepting; the price follows the count.
 
 ## The PDF, and the colour note

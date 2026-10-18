@@ -15,6 +15,7 @@
  * a photo is.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isVideoUrl } from "@/lib/media/video";
 
 export const WO_PHOTO_KINDS = ["reference", "before", "progress", "qa", "completion", "variation", "callback"] as const;
 export type WOPhotoKind = (typeof WO_PHOTO_KINDS)[number];
@@ -57,7 +58,7 @@ export type WOMedia = "image" | "video";
  * extension at all, which is what every row before this date has.
  */
 export function isVideoPath(storagePath: string): boolean {
-  return /\.(mp4|mov|webm|m4v)$/i.test(storagePath);
+  return isVideoUrl(storagePath);
 }
 
 /** The row as a screen wants it: a URL it can put in an `img` — or a `video`. */

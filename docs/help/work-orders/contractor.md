@@ -97,7 +97,7 @@ Near the top of the job sheet, above the scope, a **From the office** section ho
 
 On a job that came to us from PaintScout these are often the only photos of the job, so it is worth a look before you start. They can be added or changed after you accept, so check again on the morning.
 
-They are separate from your own photos: your before, progress and completion shots stay under **Site photos** and are yours. Nothing you upload appears in **From the office**. The same section is on the crew link you hand to your painters, so they see the office's photos without needing your login.
+Further down, each area of the **Scope of works** can carry the estimator's own photos of that room or side, and a video the customer sent us — a tile with a play badge; tap it and it plays full-size. They are separate from your own photos: your before, progress and completion shots stay under **Site photos** and are yours. Nothing you upload appears in **From the office**. The same section is on the crew link you hand to your painters, so they see the office's photos without needing your login.
 
 Above the materials, **Further instructions for the crew** is the office's note for this job — access, where to start, anything to watch for. The office can update it after the job has gone out, and the job sheet always shows the latest version, so look again before you start.
 
