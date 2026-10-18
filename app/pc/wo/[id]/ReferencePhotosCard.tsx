@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { deleteReferencePhoto } from "../../actions";
 import { photoWhen } from "@/lib/workorder/photos";
 import type { WOPhoto } from "@/lib/workorder/photos";
+import { MAX_UPLOAD_BYTES, MAX_VIDEO_UPLOAD_BYTES, declaredUploadType } from "@/lib/extract/normalise";
 
 /**
  * Photos the office attaches for the painter (Tom, 23 Sep 2026):
@@ -20,6 +21,14 @@ import type { WOPhoto } from "@/lib/workorder/photos";
  * It is NOT the painter's record — their before/progress/completion shots are
  * theirs, live under Site photos, and Remove here cannot touch them (the RPC
  * refuses anything that is not a reference photo).
+ *
+ * Videos too (Tom, 19 Oct 2026: "we are getting a lot of videos from clients
+ * which we want to forward on from whatsapp"). The painter's own cards took a
+ * video from 26 Sep; this one did not tell the sign step the file's type, so
+ * a clip got a bare photo name and the ingest refused its bytes. Now the type
+ * travels with the sign request, and a video row plays in place here so the
+ * office can check it is the right clip; the painter's sheet draws its usual
+ * play-badge tile.
  */
 export default function ReferencePhotosCard({
   workOrderId, areas, photos,
@@ -46,7 +55,7 @@ export default function ReferencePhotosCard({
       // ingest — which sniffs the real bytes before any row is written.
       const signRes = await fetch("/api/wo/photos", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workOrderId, size: file.size }),
+        body: JSON.stringify({ workOrderId, size: file.size, contentType: declaredUploadType(file) }),
       });
       const sign = await signRes.json();
       if (!signRes.ok) throw new Error(sign.error ?? "We couldn't start that upload.");
@@ -89,13 +98,15 @@ export default function ReferencePhotosCard({
 
   return (
     <div className="card" style={{ marginTop: 8 }} data-testid="reference-photos-card">
-      <h3>Photos for the painter <em>{photos.length || ""}</em></h3>
+      <h3>Photos and videos for the painter <em>{photos.length || ""}</em></h3>
       <p className="note">
         Anything the painter needs to see: the elevation the scaffold goes on, where
-        the gear lives, the colour to match. These land on their job sheet under
+        the gear lives, the colour to match, the walk-round video a customer sent on
+        WhatsApp. These land on their job sheet under
         <b> From the office</b>, above the scope — and on a handover job they&rsquo;re
         usually the only picture of the job there is. Their own before and after
-        shots are separate and stay theirs.
+        shots are separate and stay theirs. Photos up to {MAX_UPLOAD_BYTES / 1024 / 1024} MB,
+        videos (MP4 or MOV) up to {MAX_VIDEO_UPLOAD_BYTES / 1024 / 1024} MB.
       </p>
 
       <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -113,8 +124,8 @@ export default function ReferencePhotosCard({
           style={{ flex: "1 1 240px" }}
         />
         <input
-          ref={fileInput} type="file" accept="image/*"
-          data-testid="reference-photo-file" aria-label="Choose a photo"
+          ref={fileInput} type="file" accept="image/*,video/*,.mp4,.mov,.m4v,.webm"
+          data-testid="reference-photo-file" aria-label="Choose a photo or video"
           disabled={busy}
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }}
         />
@@ -125,12 +136,22 @@ export default function ReferencePhotosCard({
       {photos.length > 0 && (
         <div className="row" style={{ gap: 10, marginTop: 12, flexWrap: "wrap" }}>
           {photos.map((p) => (
-            <figure key={p.id} data-testid="reference-photo-row" style={{ margin: 0, width: 150 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={p.url} alt={p.caption || p.area || "Job photo"}
-                style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 10 }}
-              />
+            <figure key={p.id} data-testid="reference-photo-row" data-media={p.media} style={{ margin: 0, width: 150 }}>
+              {p.media === "video" ? (
+                // A player, not a poster: the office checks a clip here before the
+                // painter does, so it plays in place.
+                <video
+                  src={p.url} controls playsInline preload="metadata"
+                  aria-label={p.caption || p.area || "Job video"}
+                  style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 10, background: "#000" }}
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={p.url} alt={p.caption || p.area || "Job photo"}
+                  style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 10 }}
+                />
+              )}
               <figcaption className="note" style={{ marginTop: 4 }}>
                 {p.area ? <b>{p.area}</b> : <b>Whole job</b>}
                 {p.caption ? ` · ${p.caption}` : ""}
