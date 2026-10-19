@@ -3,7 +3,7 @@ feature: invoicing
 role: customer
 title: Pay an invoice — press Pay for the amount, our bank details and the reference to use
 summary: What happens when you press Pay on an invoice from Paint Group: a box with the amount due, the bank transfer details and the invoice number to use as the reference, plus a card option when it is offered.
-verified_at_commit: 1eea2f4e0b
+verified_at_commit: 61a5b3a953
 ---
 
 ## What this is for
@@ -11,6 +11,7 @@ Every invoice we send you — the deposit, a payment request during the job or t
 
 ## Before you start
 - Open the invoice from the email we sent, or from **Invoicing** in your account with **View & pay**.
+- The invoice shows its **Issued** date and **Due** date at the top right, under the invoice number. They stay on the invoice after it is paid.
 
 ## Steps
 1. Press **Pay $amount** under the invoice lines. The amount is what is due on this invoice now.
