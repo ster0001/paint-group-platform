@@ -1,6 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { needsSignoff, standardsCardDueAt, type StandardsRules, type StandardsStatus } from "@/lib/standards/acks";
-import { loadStandardsRules, loadStandardsStatuses } from "@/lib/standards/status";
 import { inSlices as sliceRead } from "@/lib/supabase/inSlices";
 import { isQuiet } from "./states";
 import { loadCrmThresholds, type CrmThresholds } from "./thresholds";
@@ -1918,67 +1916,11 @@ async function readJobCheckinRows(supabase: SupabaseClient, now: Date): Promise<
  *
  * A failed read is a line the screen can show, never an empty list.
  */
-/**
- * Standards Step 2 (⚑17, ⚑2): a painter invited pcCardDay days ago (Settings →
- * standards_rules) who has still not confirmed the six sections. One card per
- * painter per required version; it clears itself the moment they confirm.
- * Contractors past their grace have no job offers; an employee is a reminder
- * only — the card says which.
- */
-export type StandardsUnsignedRow = {
-  contractorId: string; name: string; status: StandardsStatus; invitedAt: string | null;
-  graceUntil: string | null; ackedSections: number; requiredVersion: number | null; remindersSent: number;
-};
-
-export function buildStandardsItems(rows: readonly StandardsUnsignedRow[], rules: StandardsRules, now: Date): WorkItem[] {
-  const items: WorkItem[] = [];
-  for (const r of rows) {
-    if (!needsSignoff(r.status) || !r.invitedAt) continue;
-    const due = standardsCardDueAt(new Date(r.invitedAt), rules);
-    if (now.getTime() < due.getTime()) continue;
-    const days = Math.floor((now.getTime() - new Date(r.invitedAt).getTime()) / 86_400_000);
-    const consequence = r.status === "blocked" ? "No job offers until they confirm."
-      : r.status === "grace" ? `Job offers stop ${new Date(r.graceUntil as string).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" })}.`
-      : "Employed painter — a reminder, nothing is blocked.";
-    items.push(finish({
-      key: itemKey("standards_unsigned", "contractor", r.contractorId, `v${r.requiredVersion ?? 0}`),
-      kind: "standards_unsigned",
-      accountId: null,
-      subjectRef: { type: "contractor", id: r.contractorId },
-      title: `${r.name} has not signed the finish standards`,
-      detail: `Invited ${days} day${days === 1 ? "" : "s"} ago · ${r.ackedSections} of 6 sections ticked · ${r.remindersSent} reminder text${r.remindersSent === 1 ? "" : "s"} sent. ${consequence}`,
-      since: r.invitedAt,
-      dueAt: due.toISOString(),
-      action: { label: "Send reminder text", href: `/contractors/${r.contractorId}` },
-    }, { valueCents: null, promisedToCustomer: false }, now));
-  }
-  return items;
-}
-
-async function readStandardsRows(supabase: SupabaseClient): Promise<{ rows: StandardsUnsignedRow[]; rules: StandardsRules; error: string | null }> {
-  const [{ rows: statuses, error }, rules, names, reminders, version] = await Promise.all([
-    loadStandardsStatuses(supabase),
-    loadStandardsRules(supabase),
-    supabase.from("contractors").select("id, company_name, profiles(name)"),
-    supabase.from("contractor_events").select("contractor_id").eq("type", "standards_reminder_sent").limit(2000),
-    supabase.from("standards_versions").select("version_no").not("published_at", "is", null).eq("is_material", true).order("version_no", { ascending: false }).limit(1).maybeSingle(),
-  ]);
-  if (error) return { rows: [], rules, error };
-  if (names.error) return { rows: [], rules, error: names.error.message };
-  const nameOf = new Map(((names.data ?? []) as unknown as { id: string; company_name: string | null; profiles: { name: string | null } | null }[])
-    .map((c) => [c.id, c.profiles?.name || c.company_name || "Painter"]));
-  const sent = new Map<string, number>();
-  for (const e of (reminders.error ? [] : reminders.data ?? []) as { contractor_id: string }[]) sent.set(e.contractor_id, (sent.get(e.contractor_id) ?? 0) + 1);
-  const requiredVersion = (version.data as { version_no?: number } | null)?.version_no ?? null;
-  return {
-    rows: statuses.map((s) => ({
-      contractorId: s.contractorId, name: nameOf.get(s.contractorId) ?? "Painter", status: s.status, invitedAt: s.invitedAt,
-      graceUntil: s.graceUntil, ackedSections: s.ackedSections, requiredVersion, remindersSent: sent.get(s.contractorId) ?? 0,
-    })),
-    rules, error: null,
-  };
-}
-
+// Standards Step 2's "has not signed the finish standards" card was retired
+// from PC Command on 19 Oct 2026 (Tom: "remove the reminders in PC command for
+// painter not signing finish standards"). The reminder TEXTS (the standards
+// sweep) and the Contractors tab's "Not signed" count are untouched; the kind
+// stays declared so old dismissal keys and the CRM tag map still type.
 
 /**
  * The sends that answer an open desk-check ask (Tom, 8 Oct — see
@@ -2256,25 +2198,26 @@ export function buildQaCheckItems(rows: readonly QaCheckQueueRow[], now: Date): 
       const anchor = bookedFinal?.date ?? r.endDate;
       const dueAt = anchor ? melbInstant(anchor, 9).toISOString() : null;
       const since = melbInstant(r.startDate && r.startDate < today ? r.startDate : today, 7).toISOString();
-      const state = !r.date || !at ? "undated" : !bookedFinal ? `final-unbooked:${r.date}` : `booked:${r.date}:${at}:${bookedFinal.date}`;
+      // Colon-free: a dismissal key is four parts, letters, digits, `_` and `-` only in the last.
+      const state = !r.date || !at ? "undated" : !bookedFinal ? `final-unbooked-${r.date}` : `booked-${r.date}-${at.replace(":", "")}-${bookedFinal.date}`;
       const common = { kind: "qa_check_to_book" as const, accountId: null, subjectRef: { type: "work_order" as const, id: r.workOrderId }, since, dueAt };
       if (state === "undated") {
         items.push(finish({
-          ...common, key: itemKey("qa_check_to_book", "work_order", r.workOrderId, `${r.id}:undated`),
+          ...common, key: itemKey("qa_check_to_book", "work_order", r.workOrderId, `${r.id}-undated`),
           title: `Quality check required — no day booked yet — ${r.where}`,
           detail: `${who}. This job needs a quality check before its final walkthrough${anchor ? ` (last day ${anchor})` : ""} and it has no day or time yet. Book it in on the job page.`,
           action: { label: "Book the check", href: `/pc/wo/${r.workOrderId}#qa` },
         }, { valueCents: null, promisedToCustomer: false }, now));
       } else if (!bookedFinal) {
         items.push(finish({
-          ...common, key: itemKey("qa_check_to_book", "work_order", r.workOrderId, `${r.id}:${state}`),
+          ...common, key: itemKey("qa_check_to_book", "work_order", r.workOrderId, `${r.id}-${state}`),
           title: `Quality check pencilled for ${r.date} at ${at}, final walkthrough not booked — ${r.where}`,
           detail: `${who}. The check sits on the working day before the job's last day${r.endDate ? ` (${r.endDate})` : ""}. Book the final walkthrough and the check follows it, or move the check on the job page.`,
           action: { label: "Book it in", href: `/pc/wo/${r.workOrderId}#qa` },
         }, { valueCents: null, promisedToCustomer: false }, now));
       } else {
         items.push(finish({
-          ...common, key: itemKey("qa_check_to_book", "work_order", r.workOrderId, `${r.id}:${state}`),
+          ...common, key: itemKey("qa_check_to_book", "work_order", r.workOrderId, `${r.id}-${state}`),
           title: `Quality check ${r.date} at ${at}, before the final walkthrough on ${bookedFinal.date} — ${r.where}`,
           detail: `${who}. Required on this job. Check Felipe has the slot, or move it on the job page; recording the check clears this.`,
           action: { label: "Open the check", href: `/pc/wo/${r.workOrderId}#qa` },
@@ -2479,7 +2422,6 @@ async function readSiteVisitRows(supabase: SupabaseClient): Promise<{ rows: Site
 // ---- Induction Step 3b: three painter-raised cards -----------------------------------------
 export type MaterialRequestQueueRow = { id: string; workOrderId: string; woRef: string; where: string; painter: string; item: string; quantity: string; note: string; at: string };
 export type NoWorkRequestQueueRow = { id: string; workOrderId: string; woRef: string; where: string; painter: string; day: string; reason: string; at: string };
-export type InsuranceMissingQueueRow = { contractorId: string; name: string; deferredAt: string | null; createdAt: string; remindersSent: number };
 
 export function buildMaterialRequestItems(rows: readonly MaterialRequestQueueRow[], now: Date): WorkItem[] {
   return rows.map((r) => finish({
@@ -2503,21 +2445,11 @@ export function buildNoWorkRequestItems(rows: readonly NoWorkRequestQueueRow[], 
   }, { valueCents: null, promisedToCustomer: false }, now));
 }
 
-export function buildInsuranceMissingItems(rows: readonly InsuranceMissingQueueRow[], now: Date): WorkItem[] {
-  return rows.map((r) => finish({
-    key: itemKey("insurance_missing", "contractor", r.contractorId, r.deferredAt ?? "none"),
-    kind: "insurance_missing", accountId: null, subjectRef: { type: "contractor", id: r.contractorId },
-    title: `${r.name} has no public liability certificate on file`,
-    detail: `${r.deferredAt ? `They chose to add it later on ${r.deferredAt.slice(0, 10)}` : "Nothing uploaded"}${r.remindersSent ? ` · ${r.remindersSent} reminder text${r.remindersSent === 1 ? "" : "s"} sent` : ""}. No job offers until it is verified.`,
-    since: r.deferredAt ?? r.createdAt, dueAt: null,
-    action: { label: "Open painter", href: `/contractors/${r.contractorId}` },
-  }, { valueCents: null, promisedToCustomer: false }, now));
-}
-
 type PainterJoin = { company_name: string | null; profiles: { name: string | null } | null } | null;
 const painterName = (c: PainterJoin) => c?.profiles?.name?.trim() || c?.company_name?.trim() || "A painter";
 type JobJoin = { wo_ref: string; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null } | null;
 const jobWhere = (w: JobJoin) => w?.wo_snapshot?.jobTitle || w?.wo_snapshot?.jobAddress || w?.wo_ref || "the job";
+
 
 async function readMaterialRequestRows(supabase: SupabaseClient): Promise<{ rows: MaterialRequestQueueRow[]; error: string | null }> {
   const { data, error } = await realOnly(supabase.from("wo_material_requests")
@@ -2543,29 +2475,13 @@ async function readNoWorkRequestRows(supabase: SupabaseClient): Promise<{ rows: 
   })) };
 }
 
-async function readInsuranceMissingRows(supabase: SupabaseClient): Promise<{ rows: InsuranceMissingQueueRow[]; error: string | null }> {
-  // offerable is exactly "a verified, unexpired insurance certificate" (contractor_recompute_offerable).
-  const { data, error } = await supabase.from("contractors")
-    .select("id, company_name, certificates_deferred_at, created_at, employment_type, profiles(name)")
-    .eq("active", true).eq("offerable", false).eq("employment_type", "contractor").limit(200);
-  if (error) return { rows: [], error: error.message };
-  type Row = { id: string; company_name: string | null; certificates_deferred_at: string | null; created_at: string; profiles: { name: string | null } | null };
-  const rows = (data ?? []) as unknown as Row[];
-  const ids = rows.map((r) => r.id);
-  const { data: ev, error: evErr } = ids.length ? await supabase.from("contractor_events").select("contractor_id").eq("type", "certificate_reminder_sent").in("contractor_id", ids).limit(1000) : { data: [], error: null };
-  if (evErr) return { rows: [], error: evErr.message };
-  const sent = new Map<string, number>();
-  for (const e of (ev ?? []) as { contractor_id: string }[]) sent.set(e.contractor_id, (sent.get(e.contractor_id) ?? 0) + 1);
-  return { error: null, rows: rows.map((r) => ({
-    contractorId: r.id, name: r.profiles?.name?.trim() || r.company_name?.trim() || "A painter",
-    deferredAt: r.certificates_deferred_at, createdAt: r.created_at, remindersSent: sent.get(r.id) ?? 0,
-  })) };
-}
+// The "no public liability on file" card was retired from PC Command on 19 Oct
+// 2026 (Tom). The certificate reminder texts (certificateReminders sweep) and
+// the Contractors screens still carry it; the kind stays declared for old keys.
 
 export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
-  const [checkins, standards, callbacks, painters, qaChecks, painterMessages, siteVisits, materials, noWork, insurance, dismissed] = await Promise.all([
+  const [checkins, callbacks, painters, qaChecks, painterMessages, siteVisits, materials, noWork, dismissed] = await Promise.all([
     readJobCheckinRows(supabase, now),
-    readStandardsRows(supabase),
     readCallbackRows(supabase),
     readPainterStatusRows(supabase),
     readQaCheckRows(supabase),
@@ -2573,14 +2489,12 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     readSiteVisitRows(supabase),
     readMaterialRequestRows(supabase),
     readNoWorkRequestRows(supabase),
-    readInsuranceMissingRows(supabase),
     supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
   ]);
   if (checkins.error) return { items: [], failure: `Couldn't read the jobs for check-ins: ${checkins.error}` };
   const dismissals = (dismissed.error ? [] : (dismissed.data ?? [])) as Dismissal[];
   const built = [
     ...buildJobCheckinItems(checkins.rows, now),
-    ...buildStandardsItems(standards.rows, standards.rules, now),
     ...buildWoCallbackItems(callbacks.callbacks, callbacks.flagged, now),
     ...buildPainterStatusItems(painters.statuses, painters.changes, painters.bonuses, painters.held, now),
     ...buildQaCheckItems(qaChecks.rows, now),
@@ -2588,12 +2502,10 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     ...buildSiteVisitItems(siteVisits.rows, now),
     ...buildMaterialRequestItems(materials.rows, now),
     ...buildNoWorkRequestItems(noWork.rows, now),
-    ...buildInsuranceMissingItems(insurance.rows, now),
   ];
   const items = sortItems(applyDismissals(pcItems(built), dismissals, now));
   const failures = [
     dismissed.error ? `Dismissals couldn't be read (${dismissed.error.message}) — a call you already made may show again.` : null,
-    standards.error ? `Couldn't read who has signed the standards (${standards.error}).` : null,
     callbacks.error ? `Couldn't read the call backs (${callbacks.error}).` : null,
     painters.error ? `Couldn't read painter status (${painters.error}).` : null,
     qaChecks.error ? `Couldn't read the quality checks (${qaChecks.error}).` : null,
@@ -2601,7 +2513,6 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     siteVisits.error ? `Couldn't read the site check-ins (${siteVisits.error}).` : null,
     materials.error ? `Couldn't read the materials requests (${materials.error}).` : null,
     noWork.error ? `Couldn't read the no-work requests (${noWork.error}).` : null,
-    insurance.error ? `Couldn't read who has no insurance on file (${insurance.error}).` : null,
   ].filter(Boolean);
   return { items, failure: failures.length ? failures.join(" ") : null };
 }

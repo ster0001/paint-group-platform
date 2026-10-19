@@ -204,7 +204,7 @@ test.describe("finish standards — sign-off, offers gate, reminders", () => {
     expect(await statusOf(e2eContractorId)).toBe("confirmed");
   });
 
-  test("PC: the list says who has signed, and a painter past the grace period is a card with one action", async ({ page }) => {
+  test("PC: the Contractors list says who has signed; the queue card is gone", async ({ page }) => {
     test.setTimeout(120_000);
     // The newbie, un-confirmed again and invited 8 days ago past grace: a card.
     await db!.from("standards_acks").delete().eq("contractor_id", newbieContractorId!);
@@ -224,19 +224,10 @@ test.describe("finish standards — sign-off, offers gate, reminders", () => {
     await expect(page.getByTestId("standards-row")).toHaveAttribute("data-status", "blocked");
     await expect(page.getByTestId("standards-line")).toContainText(/grace ended/);
 
+    // Tom, 19 Oct 2026: the "has not signed the finish standards" card is no
+    // longer on PC Command — the Contractors screens above are where it shows.
     await page.goto("/pc");
-    const card = page.locator(`[data-testid^="standards-standards_unsigned:contractor:${newbieContractorId}"]`);
-    await expect(card).toBeVisible();
-    await expect(card).toContainText("has not signed the finish standards");
-    await expect(card).toContainText("No job offers until they confirm");
-    await card.locator('[data-testid^="standards-remind-"]').click();
-    // The test stack has no text sender: the button either reads "Text sent" or
-    // says plainly that it was not — never silence. Either way the attempt is
-    // on the painter's record with the dispatcher's outcome.
-    await expect(card.locator('[data-testid^="standards-reminded-"]').or(card.getByText(/Reminder not sent/))).toBeVisible({ timeout: 30_000 });
-    await expect.poll(async () => {
-      const { data: reminded } = await db!.from("contractor_events").select("detail").eq("contractor_id", newbieContractorId!).eq("type", "standards_reminder_sent");
-      return (reminded ?? []).some((e: { detail: { rung?: string } }) => e.detail?.rung === "office");
-    }, { timeout: 20_000 }).toBe(true);
+    await expect(page.locator("h1")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(`[data-testid^="standards-standards_unsigned:contractor:${newbieContractorId}"]`)).toHaveCount(0);
   });
 });

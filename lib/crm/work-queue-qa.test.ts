@@ -31,7 +31,8 @@ describe("a required quality check, at the top of PC Command until its day", () 
     expect(item.title).toBe("Quality check required — no day booked yet — 12 Test St, Thornbury");
     expect(item.detail).toContain("last day 2026-10-15");
     expect(item.action).toEqual({ label: "Book the check", href: "/pc/wo/wo1#qa" });
-    expect(item.key).toMatch(/:undated$/);
+    expect(item.key).toMatch(/:c1-undated$/);
+    expect(item.key).toMatch(/^[a-z_]+:[a-z_]+:[^:]+:[a-zA-Z0-9_-]+$/);   // dismissable (crm_dismiss_work_item key shape)
     expect(homeOf("qa_check_to_book")).toBe("pc");
     expect(isCustomerVisible("qa_check_to_book")).toBe(false);
   });
@@ -39,13 +40,14 @@ describe("a required quality check, at the top of PC Command until its day", () 
     const [item] = toBook([row({ finals: [] })], before);
     expect(item.title).toBe("Quality check pencilled for 2026-10-14 at 09:00, final walkthrough not booked — 12 Test St, Thornbury");
     expect(item.action.label).toBe("Book it in");
-    expect(item.key).toContain("final-unbooked:2026-10-14");
+    expect(item.key).toContain("c1-final-unbooked-2026-10-14");
   });
   it("booked before a booked final: confirm the slot; the key carries both dates so a move re-fires", () => {
     const [item] = toBook([row()], before);
     expect(item.title).toBe("Quality check 2026-10-14 at 09:00, before the final walkthrough on 2026-10-15 — 12 Test St, Thornbury");
     expect(item.action.label).toBe("Open the check");
-    expect(item.key).toContain("booked:2026-10-14:09:00:2026-10-15");
+    expect(item.key).toContain("c1-booked-2026-10-14-0900-2026-10-15");
+    expect(item.key).toMatch(/^[a-z_]+:[a-z_]+:[^:]+:[a-zA-Z0-9_-]+$/);
     expect(item.dueAt).toBe(melbourneInstant(2026, 10, 15, 9).toISOString());
   });
   it("is gone on the check's day (the qa_check_due card takes over) and once the job is parked at Quality check or closed", () => {
