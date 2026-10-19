@@ -22,6 +22,7 @@ import HoldingCallback from "./HoldingCallback";
 import { serverResumeFrom, type ServerDraftRow } from "@/lib/wizard/resume";
 import { ACCOUNT_DRAFT_MAX_AGE_MS, adoptDraft, findOpenDraft } from "@/lib/wizard/draftOwner";
 import { loadSegments } from "@/lib/wizard/segments";
+import { loadExteriorTypicals } from "@/lib/wizard/exterior-typicals-db";
 
 /**
  * /estimate — Step 8's CUSTOMER wizard.
@@ -119,7 +120,7 @@ export default async function CustomerWizardPage({
   // Every read below needs only the client above, so they go out together —
   // each is a round trip to Supabase, and one after another they were most of
   // this page's server response time (Lighthouse, 11 Oct).
-  const [refRows, [reviews, homeCopy], estimatorName, gateOrder] = await Promise.all([
+  const [refRows, [reviews, homeCopy], estimatorName, gateOrder, exteriorTypicals] = await Promise.all([
     ref
       ? Promise.all([
         ref.from("settings").select("value").eq("key", WIZARD_PUBLIC_KEY).maybeSingle(),
@@ -142,6 +143,8 @@ export default async function CustomerWizardPage({
       : null,
     // S6 (R6): the gate order from Booking rules, read here so a session starts under the rule as it stands.
     svc ? loadBookingRules(svc).catch(() => DEFAULT_BOOKING_RULES).then((r) => r.gateOrder) : DEFAULT_BOOKING_RULES.gateOrder,
+    // Exterior wizard v2 (S2): the shape typicals; a failed read is reported inside and the built-in list carries the house.
+    ref ? loadExteriorTypicals(ref, "estimate.page.exteriorTypicals") : Promise.resolve([]),
   ]);
   let online: OnlineEstimates = onlineEstimatesFrom(null);
   let roomTypes: string[] = [];
@@ -314,6 +317,7 @@ export default async function CustomerWizardPage({
       estimatorName={estimatorName}
       trust={trust}
       gateOrder={gateOrder}
+      exteriorTypicals={exteriorTypicals}
       resume={resume}
       assisted={assisted}
       prefill={memberEmail ? {

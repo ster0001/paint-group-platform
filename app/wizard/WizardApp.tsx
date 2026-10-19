@@ -1,5 +1,6 @@
 "use client";
 
+import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -154,7 +155,9 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first" }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [] }: {
+  /** Exterior wizard v2 (S2): the shape typicals (`exterior_typicals`); empty = the built-in list. */
+  exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   /** UI refresh S2 (⚑ 23): the estimator the wizard resolves (`resolveEstimator`), named in "Talk it through". Null names nobody. */
   estimatorName?: string | null;
   /** UI refresh S3 (⚑ 5): the homepage's trust claims, for the range screen. */
@@ -1603,6 +1606,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       window.scrollTo({ top: 0 });
       return;
     }
+    // Exterior wizard v2 (S2): the home step needs a shape and a rough size.
+    if (quickStep === "home" && !(outside.v2 && outside.v2.sizeBand != null)) {
+      setError(outside.v2 ? "About how big is it? Pick the closest size." : "Tap the closest shape, then a rough size.");
+      return;
+    }
     // C8b: an outside job has to name SOMETHING being painted — nothing is
     // pre-ticked, so an untouched screen is not an answer.
     if (quickStep === "outside" && !paintsSomething(outside)) {
@@ -1939,6 +1947,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 step={quickStep}
                 quick={quick}
                 onQuick={setQuick}
+                exteriorTypicals={exteriorTypicals}
                 planRooms={state.planRooms}
                 planPreviewUrl={state.planPreviewUrl}
                 planPending={state.planRunIds.length > 0 && state.planRooms == null}

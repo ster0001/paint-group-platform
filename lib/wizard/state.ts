@@ -123,7 +123,8 @@ export const exteriorV2SideSchema = z.object({
 });
 export const exteriorV2Schema = z.object({
   propertyType: z.enum(["wb", "cal", "brick", "ds", "th", "unit", "terrace", "modern", "other"]),
-  sizeBand: z.enum(["sm", "md", "lg", "xl", "ns"]),
+  /** Null until the size is picked — the home step cannot continue without one. */
+  sizeBand: z.enum(["sm", "md", "lg", "xl", "ns"]).nullable().default(null),
   /** Shared-wall shapes: which side walls are open (mid = shares as usual, both = stands alone). */
   rowPosition: z.enum(["mid", "left", "right", "both"]).nullable().default(null),
   wall: z.object({

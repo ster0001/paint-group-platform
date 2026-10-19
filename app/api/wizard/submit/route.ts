@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadExteriorTypicals } from "@/lib/wizard/exterior-typicals-db";
 import { parseAddressText } from "@/lib/wizard/addressText";
 import { DEFAULT_BOOKING_RULES, speakWithUsFor } from "@/lib/visits/schedule";
 import { loadBookingRules } from "@/lib/visits/scheduleDb";
@@ -623,12 +624,13 @@ export async function POST(request: Request) {
   }
   // The rate card and Settings are needed by the exterior allowances below as
   // well as by the pricing that follows, so the context loads first.
-  const ctx = await loadPricingContext(db);
+  const [ctx, exteriorTypicals] = await Promise.all([loadPricingContext(db), loadExteriorTypicals(db, "wizard.submit.exteriorTypicals")]);
   applyExteriorAnswers(
     merged, effectiveState, () => nextId++, tickedSurfaces, measuredSides,
     // ⚑ My proposed figures until Tom's own land — Settings → Estimates →
     // Exterior access. Every job that uses one is flagged for correction.
     exteriorAllowancesFrom(settingValue(ctx.settings, EXTERIOR_ALLOWANCES_KEY)),
+    exteriorTypicals,
   );
 
   // Tom, 31 Aug: condition answers PRICE from the first reveal — the same

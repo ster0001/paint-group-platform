@@ -3,6 +3,8 @@
 import { CONDITION_BANDS, SCOPE_PRESETS, type QuickLook, type QuickLookStep } from "@/lib/wizard/quick-look";
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import { railFor, STEP_LABELS } from "./stepRail";
+import { typicalFor } from "@/lib/wizard/exterior-typicals";
+import { SIZE_OPTIONS } from "./ExteriorHome";
 
 /**
  * "Your job so far" (UI refresh S2, brief §7.2) — one row per answered step,
@@ -40,6 +42,12 @@ export default function JobSoFar({ steps, at, quick, outside, address, roomCount
       case "job": return [`${SCOPE_PRESETS.find((o) => o.value === quick.scope)?.label ?? "The job"}${quick.bold ? " · a bold colour" : ""}`, "The job"];
       case "rooms": return [`${roomCount} room${roomCount === 1 ? "" : "s"}`, "The rooms"];
       case "condition": return [`${CONDITION_BANDS.find((o) => o.value === quick.condition)?.label ?? ""} · ${quick.occupied === "yes" ? "lived in" : "empty"}`, "Condition"];
+      case "home": {
+        const v2 = outside.v2 ?? null;
+        if (!v2) return ["Your home", "The shape"];
+        const size = SIZE_OPTIONS.find((o) => o.value === v2.sizeBand)?.label;
+        return [`${typicalFor(v2.propertyType).name}${size ? ` · ${size.toLowerCase()}` : ""}`, "Your home"];
+      }
       case "outside": {
         const n = outside.elements.length + outside.standalone.length;
         return [`${n} thing${n === 1 ? "" : "s"} to paint`, "The outside"];

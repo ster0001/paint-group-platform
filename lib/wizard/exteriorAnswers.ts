@@ -20,7 +20,7 @@ import {
   type ExteriorAllowanceSettings,
 } from "./exterior-allowances";
 import { exteriorSides, type WizardState, type WizardSurfaceKey } from "./state";
-import { exteriorV2Nodes } from "./exterior-model";
+import { exteriorV2Answered, exteriorV2Nodes } from "./exterior-model";
 import type { ExteriorTypicalRow } from "./exterior-typicals";
 import type { DraftArea } from "@/lib/extract/draft";
 
@@ -71,7 +71,10 @@ export function applyExteriorAnswers(
   // through lib/wizard/exterior-model.ts. The v1 scaffold, the whole-job
   // extras placeholders and the freestanding targets below are the older
   // sessions' path and never run beside it.
-  const v2 = state.exterior?.v2 ?? null;
+  // Until the Painting step has run (S3) the house is a shape and a size only:
+  // the v1 scaffold still lays the lines, sized from the drawn house below.
+  const v2 = state.exterior?.v2 && exteriorV2Answered(state.exterior.v2) ? state.exterior.v2 : null;
+  const drawn = state.exterior?.v2 ?? null;
   if (v2 && !hasExteriorNodes) {
     const nodes = exteriorV2Nodes(v2, nextId, exteriorTypicals);
     merged.areas.push(...nodes.areas);
@@ -196,7 +199,8 @@ export function applyExteriorAnswers(
         a.H = m.H; // read off the facade photo
         a.assumedFields = a.assumedFields.filter((f) => f !== "H");
       } else {
-        a.H = sideH;
+        // Exterior wizard v2 (S2): the drawn house's wall height beats the 2.6 / 5.5 constants.
+        a.H = drawn && key && drawn.sides[key]?.h ? drawn.sides[key]!.h : sideH;
         if (!a.assumedFields.includes("H")) a.assumedFields = [...a.assumedFields, "H"];
       }
     }
@@ -205,7 +209,8 @@ export function applyExteriorAnswers(
         a.L = m.L; // the floorplan's own edge for this side
         a.assumedFields = a.assumedFields.filter((f) => f !== "L");
       } else {
-        a.L = Math.round((/front|rear|back/i.test(a.name) ? 12 : 14) * sideF * 100) / 100;
+        // Exterior wizard v2 (S2): the drawn house's typical width for this side beats 12 / 14 × the band.
+        a.L = drawn && key && drawn.sides[key]?.w ? drawn.sides[key]!.w : Math.round((/front|rear|back/i.test(a.name) ? 12 : 14) * sideF * 100) / 100;
         if (!a.assumedFields.includes("L")) a.assumedFields = [...a.assumedFields, "L"];
       }
     }

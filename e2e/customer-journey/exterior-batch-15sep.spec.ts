@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, passHomeStepIfShown } from "./drive";
 
 /**
  * Tom's exterior batch, 15 Sep 2026 — Part 2, on the sides editor:
@@ -27,6 +27,7 @@ async function toEditor(page: Page, storeys: "single" | "double", dropSides: Arr
   await quickNext(page);
   await expect(page.locator("[data-quick-step='place']")).toBeVisible();
   await quickNext(page);
+  await passHomeStepIfShown(page); // S2: the v2 home step, when the flag is on
   await expect(page.locator("[data-quick-step='outside']")).toBeVisible();
   await page.getByTestId("ql-ext-el-body").click();
   await page.getByTestId("ql-ext-el-fascias").click();

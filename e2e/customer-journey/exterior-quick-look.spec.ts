@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, passHomeStepIfShown } from "./drive";
 
 /**
  * C8b — the EXTERIOR quick look rebuilt, elements first (prototype `s-ext-job`
@@ -22,6 +22,7 @@ async function toOutside(page: Page) {
   await expect(page.getByTestId("ql-bedrooms")).toHaveCount(0);
   await expect(page.getByTestId("ql-storeys")).toHaveCount(0);
   await quickNext(page);
+  await passHomeStepIfShown(page); // S2: the v2 home step, when the flag is on
   await expect(page.locator("[data-quick-step='outside']")).toBeVisible();
 }
 

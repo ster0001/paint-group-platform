@@ -2,7 +2,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, passHomeStepIfShown } from "./drive";
 
 /**
  * Wizard UI refresh, S0 — the "before" set.
@@ -214,6 +214,7 @@ test.describe("ui refresh baseline screenshots", () => {
         await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });
         await shot(page, width, "30-ext-place");
         await quickNext(page);
+        await passHomeStepIfShown(page); // S2: the v2 home step, when the flag is on
         await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
         await page.getByTestId("ql-ext-el-body").click();
         await page.getByTestId("ql-ext-mat-weatherboards").click();

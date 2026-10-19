@@ -21,12 +21,15 @@ import { buildDraft, type DraftArea } from "@/lib/extract/draft";
 import type { Alias, ScopeRule } from "@/lib/extract/scope";
 import type { DefectRate } from "@/lib/capture/commit";
 import type { PricingContext } from "@/lib/pricing/estimate";
+import type { ExteriorTypicalRow } from "./exterior-typicals";
 
 export type TreeRefs = {
   rules: ScopeRule[];
   aliases: Alias[];
   defectRates: DefectRate[];
   typicals: TypicalSizeRow[];
+  /** Exterior wizard v2 (S2): the shape typicals; absent or empty = the built-in list. */
+  exteriorTypicals?: ExteriorTypicalRow[];
 };
 
 export type BuiltTree = {
@@ -78,7 +81,7 @@ export function buildTreeFromState(
 
   const answered = applyWizardAnswers(merged, state, () => nextId++);
   const ticked = new Set<WizardSurfaceKey>(state.surfaces);
-  applyExteriorAnswers(answered as MergedBundle, state, () => nextId++, ticked);
+  applyExteriorAnswers(answered as MergedBundle, state, () => nextId++, ticked, {}, undefined, refs.exteriorTypicals ?? []);
   if (answered.areas.length === 0) return { skip: "nothing_to_price" };
 
   const modSel = applyConditionPricing(answered as MergedBundle, state, () => nextId++, ctx);

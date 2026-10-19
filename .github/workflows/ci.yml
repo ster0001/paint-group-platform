@@ -262,6 +262,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: http://localhost:3101
+          # Exterior wizard v2 (brief ⚑ 17): ON on the test project, OFF in production until Tom flips it.
+          NEXT_PUBLIC_EXTERIOR_V2: "1"
         run: npm run build
 
       - name: Customer journey · role RLS · ledger parity
@@ -287,6 +289,8 @@ jobs:
           E2E_CUSTOMER_PASSWORD: ${{ secrets.E2E_CUSTOMER_PASSWORD }}
           E2E_BASE_URL: http://localhost:3101
           NEXT_PUBLIC_SITE_URL: http://localhost:3101
+          # The specs read stepsFor() with the same flag the build baked in.
+          NEXT_PUBLIC_EXTERIOR_V2: "1"
         # CI=1 makes e2e/global-setup.ts turn a missing credential into a failed
         # run instead of a silent skip, and it still refuses production.
         run: |
