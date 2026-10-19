@@ -19,6 +19,9 @@ import TalkCard from "./TalkCard";
 import { Pic } from "./pictures/pictograms";
 import { ExteriorPickTiles } from "./ExteriorTiles";
 import ExteriorHomeStep from "./ExteriorHome";
+import ExteriorPaintStep from "./ExteriorPaint";
+import ExteriorAboutStep from "./ExteriorAbout";
+import { paintedSides, setSidePaint, togglePart } from "@/lib/wizard/exterior-model";
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 
@@ -520,6 +523,14 @@ export default function QuickLook({
       {step === "home" && (
         <ExteriorHomeStep v2={outside.v2 ?? null} rows={exteriorTypicals} onChange={(v2) => onOutside({ v2 })} />
       )}
+      {/* Exterior wizard v2 (S3): "Tap everything we're painting", then "Tell us about what you ticked". */}
+      {step === "paint" && outside.v2 && (
+        <ExteriorPaintStep v2={outside.v2} rows={exteriorTypicals} onChange={(v2) => onOutside({ v2 })} />
+      )}
+      {step === "about" && outside.v2 && (
+        <ExteriorAboutStep v2={outside.v2} rows={exteriorTypicals} colour={outside.colour} access={outside.access}
+          onChange={(v2) => onOutside({ v2 })} onColour={(colour) => onOutside({ colour })} onAccess={(access) => onOutside({ access })} />
+      )}
 
       {/*
         THE EXTERIOR QUICK LOOK — prototype `s-ext-job` v2.6, "What are we
@@ -651,10 +662,13 @@ export default function QuickLook({
         and the sides editor starts every side left at "yes".
       */}
       {step === "sides" && (() => {
-        const chosen = outside.sides ?? ALL_SIDES;
+        // Exterior wizard v2 (S3): with a drawn house, the ticks are the sides' own `paint` flags.
+        const v2 = outside.v2 ?? null;
+        const chosen = v2 ? paintedSides(v2) : outside.sides ?? ALL_SIDES;
         const all = ALL_SIDES.every((k) => chosen.includes(k));
-        const toggle = (k: (typeof ALL_SIDES)[number]) =>
-          onOutside({ sides: chosen.includes(k) ? chosen.filter((x) => x !== k) : [...chosen, k] });
+        const toggle = (k: (typeof ALL_SIDES)[number]) => v2
+          ? onOutside({ v2: setSidePaint(v2, k, !chosen.includes(k)) })
+          : onOutside({ sides: chosen.includes(k) ? chosen.filter((x) => x !== k) : [...chosen, k] });
         return (
           <>
             <p className="wz-kick">Which sides</p>
@@ -662,7 +676,7 @@ export default function QuickLook({
             <p className="wz-sub">Looking at the house from the street. Untick any side we&rsquo;re not painting — you size each one after the range.</p>
             <div className="wz-pick sc-tiles wz-exttiles" data-testid="ql-ext-sides">
               <button type="button" className={`wz-pk ${all ? "on" : ""}`} aria-pressed={all} data-testid="ql-ext-side-all"
-                onClick={() => onOutside({ sides: [...ALL_SIDES] })}>
+                onClick={() => (v2 ? onOutside({ v2: ALL_SIDES.reduce((acc, k) => setSidePaint(acc, k, true), v2) }) : onOutside({ sides: [...ALL_SIDES] }))}>
                 <svg viewBox="0 0 60 64"><rect x="10" y="10" width="40" height="44" fill="#EEF2F5" stroke="#0E9FB4" strokeWidth="4" /></svg>
                 <small>The full exterior</small><em className="wz-pksub">all four sides</em>
               </button>
@@ -739,6 +753,7 @@ export default function QuickLook({
     <aside className="wz-side" data-testid="ql-side" aria-label="Your job">
       <PictureCard step={step} quick={quick} outside={outside} suburb={suburb} rooms={planList} planPreviewUrl={planPreviewUrl} planPending={planPending}
         exteriorTypicals={exteriorTypicals}
+        onExtPart={outside.v2 ? (part) => onOutside({ v2: togglePart(outside.v2!, part) }) : undefined}
         segmentName={commercial?.segment?.name ?? null}
         com={commercial ? { segment: commercial.segment, answers: commercial.answers, segmentKey: commercial.segmentKey } : null} />
       <JobSoFar steps={steps} at={step} quick={quick} outside={outside} address={address} roomCount={roomCount}

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
+import { aboutMissing, exteriorV2Answered, paintedSides } from "@/lib/wizard/exterior-model";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -1609,6 +1610,19 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // Exterior wizard v2 (S2): the home step needs a shape and a rough size.
     if (quickStep === "home" && !(outside.v2 && outside.v2.sizeBand != null)) {
       setError(outside.v2 ? "About how big is it? Pick the closest size." : "Tap the closest shape, then a rough size.");
+      return;
+    }
+    // S3: Painting needs at least one part or extra; About it needs the walls' material (and a ticked pergola's top).
+    if (quickStep === "paint" && !(outside.v2 && exteriorV2Answered(outside.v2))) {
+      setError("Tick at least one thing we're painting — on the house, or around it.");
+      return;
+    }
+    if (quickStep === "about" && outside.v2) {
+      const missing = aboutMissing(outside.v2);
+      if (missing) { setError(missing); return; }
+    }
+    if (quickStep === "sides" && outside.v2 && paintedSides(outside.v2).length === 0) {
+      setError("Tick at least one side we're painting.");
       return;
     }
     // C8b: an outside job has to name SOMETHING being painted — nothing is

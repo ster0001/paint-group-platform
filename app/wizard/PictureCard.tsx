@@ -11,6 +11,9 @@ import OutsideHousePicture from "./pictures/OutsideHousePicture";
 import Elevation from "./pictures/Elevation";
 import { scaledLengths, typicalFor, type ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import { SIZE_OPTIONS } from "./ExteriorHome";
+import { WALL_MATERIAL_LABEL } from "./ExteriorAbout";
+import { EXTRA_LABEL, PART_LABEL } from "@/lib/wizard/exterior-model";
+import type { ExteriorExtra, ExteriorPart } from "@/lib/wizard/state";
 import TopView, { type TopSide } from "./pictures/TopView";
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import AreaPlan, { type AreaBlock } from "./pictures/AreaPlan";
@@ -63,8 +66,10 @@ const CONDITION: Record<string, [string, string]> = {
   needs_work: ["Needs work.", "Flaking, cracked plaster, water marks or damage."],
 };
 
-export default function PictureCard({ step, quick, outside, suburb, rooms, planPreviewUrl, planPending, segmentName, com = null, exteriorTypicals = [] }: {
+export default function PictureCard({ step, quick, outside, suburb, rooms, planPreviewUrl, planPending, segmentName, com = null, exteriorTypicals = [], onExtPart }: {
   step: QuickLookStep;
+  /** Exterior wizard v2 (S3): a tap on a part of the drawn house ticks it. */
+  onExtPart?: (part: ExteriorPart) => void;
   /** Exterior wizard v2 (S2): the shape typicals for the drawn house; empty = the built-in list. */
   exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   quick: QuickLook;
@@ -86,7 +91,7 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
   const ans = com?.answers ?? null;
   const wh = !!seg && isWarehouse(seg);
   const which: "house" | "room" | "plan" | "outside" | "top" | "areas" | "warehouse" | "comroom" | "home" =
-    step === "home" ? "home"
+    step === "home" || ((step === "paint" || step === "about" || (outsideJob && step === "sides")) && outside.v2) ? "home"
     : seg && ans && (step === "com_warehouse" || (step === "com_job" && wh)) ? "warehouse"
       : seg && ans && step === "com_areas" ? "areas"
         : seg && ans && step === "com_job" ? "comroom"
@@ -126,6 +131,20 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
     const t = setTimeout(() => setExtTouched(null), 2100);
     return () => clearTimeout(t);
   }, [extOn]);
+  // Exterior wizard v2 (S3): the part just ticked or unticked on the Painting step — named in the caption, outlined on the house.
+  const v2Parts = useMemo(() => [...(outside.v2?.parts ?? []), ...(outside.v2?.extras ?? [])] as string[], [outside.v2?.parts, outside.v2?.extras]);
+  const v2Prev = useRef<string[]>(v2Parts);
+  const [v2Touched, setV2Touched] = useState<{ key: string; on: boolean } | null>(null);
+  useEffect(() => {
+    const added = v2Parts.find((k) => !v2Prev.current.includes(k));
+    const removed = v2Prev.current.find((k) => !v2Parts.includes(k));
+    v2Prev.current = v2Parts;
+    const key = added ?? removed;
+    if (!key) return;
+    setV2Touched({ key, on: !!added });
+    const t = setTimeout(() => setV2Touched(null), 2100);
+    return () => clearTimeout(t);
+  }, [v2Parts]);
   const chosenSides = outside.sides ?? (["front", "back", "left", "right"] as const);
   const topSides: TopSide[] = (["front", "back", "left", "right"] as const).map((k) => ({
     key: k, label: SIDE_NAME[k], state: chosenSides.includes(k) ? "on" : "off",
@@ -193,8 +212,18 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
       const lengths = scaledLengths(t, v2.sizeBand ?? "ns");
       const sizeLabel = SIZE_OPTIONS.find((o) => o.value === v2.sizeBand)?.label ?? null;
       title = t.name;
-      tag = `${sizeLabel ? `${sizeLabel} · ` : ""}${t.storeys === 2 ? "two storeys" : "single storey"}`;
-      note = (
+      const n = v2.parts.length + v2.extras.length;
+      const matLabel = v2.parts.includes("walls") && v2.wall.down ? WALL_MATERIAL_LABEL[v2.wall.down].toLowerCase() : null;
+      tag = step === "paint" || step === "about" || step === "sides"
+        ? `${n} part${n === 1 ? "" : "s"} ticked${matLabel ? ` · ${matLabel}` : ""}`
+        : `${sizeLabel ? `${sizeLabel} · ` : ""}${t.storeys === 2 ? "two storeys" : "single storey"}`;
+      note = step === "paint"
+        ? (v2Touched
+          ? <span data-testid="ql-ext-caption"><b>{PART_LABEL[v2Touched.key as ExteriorPart] ?? EXTRA_LABEL[v2Touched.key as ExteriorExtra] ?? v2Touched.key}</b> {v2Touched.on ? "is in." : "is left off."}</span>
+          : <span data-testid="ql-ext-caption">{n === 0 ? "Tap a part here or on the list and it lights up." : "Lit parts are being painted; grey ones are not. Tap the picture to change."}</span>)
+        : step === "about" || step === "sides"
+          ? <span data-testid="ql-ext-caption">{matLabel ? <>The walls are <b>{matLabel}</b>{v2.wall.up ? <> downstairs, <b>{WALL_MATERIAL_LABEL[v2.wall.up].toLowerCase()}</b> upstairs</> : null}.</> : "The picture's texture follows what you tell us."} {step === "sides" ? "A side left off is not on the estimate." : ""}</span>
+          : (
         <span data-testid="ql-ext-caption" data-front={lengths.frontM} data-side={lengths.sideM}>
           About <b>{lengths.frontM} m</b> across and <b>{lengths.sideM} m</b> deep, {t.wallHM} m to the {t.roof === "parapet" ? "parapet" : "gutter"}.
           {v2.sizeBand == null ? " Pick a size and it scales." : v2.sizeBand === "ns" ? " Sized from the type — you can check it after your range." : ""}
@@ -239,7 +268,7 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
             storeys={outside.storeys} colour={outside.colour} highlight={extTouched?.on ? extTouched.key : null} />
         )}
         {which === "home" && (outside.v2
-          ? <Elevation v2={outside.v2} side="front" build rows={exteriorTypicals} />
+          ? <Elevation v2={outside.v2} side="front" build rows={exteriorTypicals} highlight={step === "paint" && v2Touched?.on ? v2Touched.key : null} onPart={step === "paint" ? onExtPart : undefined} />
           : <HousePicture kind={quick.propertyKind} storeys={quick.storeys} jobType={quick.jobType} />)}
         {which === "top" && <TopView sides={topSides} />}
         {which === "areas" && <AreaPlan blocks={areaBlocks} />}

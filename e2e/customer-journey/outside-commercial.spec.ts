@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openQuickLook, fillQuickAddress, passHomeStepIfShown } from "./drive";
+import { openQuickLook, fillQuickAddress } from "./drive";
 import { stepCount } from "../../lib/wizard/quick-look";
 
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
@@ -80,8 +80,8 @@ test("home + outside reaches the outside screen, and there are only three", asyn
   await toPlace(page);
   await page.getByTestId("ql-kind-house").click();
   await page.getByTestId("ql-next").click();
-  await passHomeStepIfShown(page); // S2: the v2 home step, when the flag is on
-  await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 30_000 });
+  // Exterior wizard v2: the first outside screen is Your home when the flag is on, the old outside screen when it is off.
+  await expect(page.locator("[data-quick-step='home'], [data-quick-step='outside']").first()).toBeVisible({ timeout: 30_000 });
 });
 
 /**

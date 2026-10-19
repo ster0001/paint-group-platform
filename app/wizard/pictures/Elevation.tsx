@@ -1,5 +1,5 @@
-import type { CSSProperties } from "react";
-import type { ExteriorV2 } from "@/lib/wizard/state";
+import type { CSSProperties, MouseEvent } from "react";
+import { EXTERIOR_PARTS, type ExteriorPart, type ExteriorV2 } from "@/lib/wizard/state";
 import {
   EXTERIOR_SIDE_KEYS, typicalFor, type ExteriorShapeKey, type ExteriorSideKey, type ExteriorTypical, type ExteriorTypicalRow, type WallMaterial,
 } from "@/lib/wizard/exterior-typicals";
@@ -241,14 +241,23 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
 }
 
 /** One elevation of the drawn house, as the picture card draws it. */
-export default function Elevation({ v2, side, build = true, highlight = null, rows = [], style }: {
+export default function Elevation({ v2, side, build = true, highlight = null, rows = [], style, onPart }: {
   v2: ExteriorV2; side: ExteriorSideKey; build?: boolean; highlight?: string | null; rows?: ReadonlyArray<ExteriorTypicalRow>; style?: CSSProperties;
+  /** Acceptance 9: tapping a part on the picture ticks the same chip. */
+  onPart?: (part: ExteriorPart) => void;
 }) {
   const notPainting = v2.sides[side] ? !v2.sides[side]!.paint : false;
+  const onClick = onPart
+    ? (e: MouseEvent<SVGSVGElement>) => {
+      const g = (e.target as Element).closest?.("g.e[data-e]") as HTMLElement | null;
+      const part = g?.dataset.e;
+      if (part && (EXTERIOR_PARTS as readonly string[]).includes(part)) onPart(part as ExteriorPart);
+    }
+    : undefined;
   return (
     <svg
-      className={`wz-elev ${notPainting ? "np" : ""}`} viewBox="0 0 400 240" aria-hidden="true"
-      data-testid="pic-outside" data-side={side} data-shape={v2.propertyType} style={style}
+      className={`wz-elev ${notPainting ? "np" : ""} ${onPart ? "tappable" : ""}`} viewBox="0 0 400 240" aria-hidden="true"
+      data-testid="pic-outside" data-side={side} data-shape={v2.propertyType} style={style} onClick={onClick}
       dangerouslySetInnerHTML={{ __html: elevationMarkup(v2, side, { build, highlight, rows }) }}
     />
   );

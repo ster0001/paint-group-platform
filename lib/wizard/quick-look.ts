@@ -495,7 +495,7 @@ export function assumedList(q: QuickLook): Assumption[] {
  * after the place screen, then the segment's two screens (`s-com-areas`,
  * `s-com-job`) — the areas and job pattern, rendered from the row.
  */
-export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "job", "rooms", "condition", "home", "outside", "sides", "gate"] as const;
+export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "job", "rooms", "condition", "home", "paint", "about", "outside", "sides", "gate"] as const;
 export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
 
 /**
@@ -565,11 +565,11 @@ export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook[
   }
   // Tom, 15 Sep (late): "Which sides?" is its own screen, just before the gate —
   // the outside's version of the rooms-confirm step.
-  // Exterior wizard v2 (S2, behind `exteriorV2`): "What kind of home is it?"
-  // draws the house before the outside questions. S3 and S4 replace `outside`
-  // and `sides` with `paint`, `about` and the per-side confirm; until then the
-  // drawn house sizes the old screens' tree.
-  const outside: QuickLookStep[] = exteriorV2On() ? ["home", "outside", "sides"] : ["outside", "sides"];
+  // Exterior wizard v2 (behind `exteriorV2`): "What kind of home is it?" (S2),
+  // then "Tap everything we're painting" and "Tell us about what you ticked"
+  // (S3) replace the one outside screen; "Which sides?" stays until S4's
+  // per-side confirm replaces it. The old `outside` step is kept for resume.
+  const outside: QuickLookStep[] = exteriorV2On() ? ["home", "paint", "about", "sides"] : ["outside", "sides"];
   if (jobType === "exterior") return withGate(["start", "place", ...outside], gate);
   if (jobType === "both") return withGate(["start", "both", "place", "job", ...rooms, "condition", ...outside], gate);
   return withGate(["start", "place", "job", ...rooms, "condition"], gate);

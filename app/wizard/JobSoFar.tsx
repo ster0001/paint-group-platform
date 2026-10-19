@@ -4,6 +4,8 @@ import { CONDITION_BANDS, SCOPE_PRESETS, type QuickLook, type QuickLookStep } fr
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import { railFor, STEP_LABELS } from "./stepRail";
 import { typicalFor } from "@/lib/wizard/exterior-typicals";
+import { WALL_MATERIAL_LABEL } from "./ExteriorAbout";
+import { EXT_COLOURS } from "@/lib/wizard/exterior-quick-look";
 import { SIZE_OPTIONS } from "./ExteriorHome";
 
 /**
@@ -47,6 +49,16 @@ export default function JobSoFar({ steps, at, quick, outside, address, roomCount
         if (!v2) return ["Your home", "The shape"];
         const size = SIZE_OPTIONS.find((o) => o.value === v2.sizeBand)?.label;
         return [`${typicalFor(v2.propertyType).name}${size ? ` · ${size.toLowerCase()}` : ""}`, "Your home"];
+      }
+      case "paint": {
+        const v2 = outside.v2;
+        const n = (v2?.parts.length ?? 0) + (v2?.extras.length ?? 0);
+        return [`${n} thing${n === 1 ? "" : "s"} to paint`, "Painting"];
+      }
+      case "about": {
+        const v2 = outside.v2;
+        const mat = v2?.wall.down ? WALL_MATERIAL_LABEL[v2.wall.down] : null;
+        return [[mat, EXT_COLOURS.find((o) => o.value === outside.colour)?.label].filter(Boolean).join(" · ") || "About it", "About it"];
       }
       case "outside": {
         const n = outside.elements.length + outside.standalone.length;

@@ -1,6 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, passHomeStepIfShown } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
+
+/**
+ * Exterior wizard v2: this file drives the OLD outside screen (`ql-ext-el-*`),
+ * which the flag replaces with Your home → Painting → About it (S2–S3). S6
+ * rewrites it to v2; until then it runs only where the flag is off.
+ */
+test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1", "exteriorV2 is on — the old outside screen is not on the path; rewritten in S6");
 
 /**
  * Tom's exterior batch, 15 Sep 2026 — Part 2, on the sides editor:
@@ -27,7 +34,6 @@ async function toEditor(page: Page, storeys: "single" | "double", dropSides: Arr
   await quickNext(page);
   await expect(page.locator("[data-quick-step='place']")).toBeVisible();
   await quickNext(page);
-  await passHomeStepIfShown(page); // S2: the v2 home step, when the flag is on
   await expect(page.locator("[data-quick-step='outside']")).toBeVisible();
   await page.getByTestId("ql-ext-el-body").click();
   await page.getByTestId("ql-ext-el-fascias").click();
