@@ -42,7 +42,7 @@ test("the home step is on the rail, between the place and the outside questions"
   const want = stepsFor("exterior", "house", "areas", "range", "whole", keys.includes("gate"));
   expect(keys).toEqual(want);
   expect(want.indexOf("home")).toBe(want.indexOf("place") + 1);
-  expect(want[want.indexOf("home") + 1]).toBe("outside");
+  expect(want[want.indexOf("home") + 1]).toBe("paint"); // S3: Painting follows the home step
   await expect(page.getByRole("heading", { name: "What kind of home is it?" })).toBeVisible();
   // Nothing picked yet: the picture card asks for a shape, and the size question waits for one.
   await expect(caption(page)).toContainText(/draw it here/i);
@@ -61,7 +61,7 @@ test("Continue needs a shape and a size, said in words", async ({ page }) => {
   await expect(page.getByTestId("ql-error")).toContainText(/how big/i);
   await page.getByTestId("ql-ext-size-md").click();
   await quickNext(page);
-  await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 }); // S3
 });
 
 test("every shape draws: the picture carries the shape, its parts in grey, and the typical sizes in the caption", async ({ page }) => {
@@ -158,13 +158,17 @@ test("the rest of the outside path still reaches a range, and the sides editor's
   await page.getByTestId("ql-ext-type-th").click();
   await page.getByTestId("ql-ext-size-sm").click();
   await quickNext(page);
-  await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId("ql-ext-el-body").click();
-  await page.getByTestId("ql-ext-el-fascias").click();
-  await page.getByTestId("ql-ext-mat-render").click();
+  // S3: Painting and About it; S4: each side confirmed.
+  await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("ext-part-walls").click();
+  await page.getByTestId("ext-part-fascias").click();
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='about']")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("ext-mat-render").click();
   await page.getByTestId("ql-ext-colour-new").click();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });

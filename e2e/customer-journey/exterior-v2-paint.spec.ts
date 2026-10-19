@@ -67,13 +67,14 @@ test("a chip lights its part on the picture; a tap on the picture ticks the chip
   await expect(partOn(page, "walls")).toHaveAttribute("data-on", "1");
   await expect(page.getByTestId("ql-ext-caption")).toContainText(/The walls.*is in/);
   await expect(page.getByTestId("ql-picture")).toContainText("1 part ticked");
-  // The picture is a control too: tap the fascias on the house.
-  await partOn(page, "fascias").locator("*").first().click({ force: true });
+  // The picture is a control too: tap the fascias on the house (the event on the part itself — a forced
+  // click at the box's centre can land on whatever shape overlaps it).
+  await partOn(page, "fascias").dispatchEvent("click");
   await expect(page.getByTestId("ext-part-fascias")).toHaveAttribute("aria-pressed", "true");
   await expect(partOn(page, "fascias")).toHaveAttribute("data-on", "1");
   await expect(page.getByTestId("ql-picture")).toContainText("2 parts ticked");
   // And a tap on a lit part unticks it, on the chip too.
-  await partOn(page, "walls").locator("*").first().click({ force: true });
+  await partOn(page, "walls").dispatchEvent("click");
   await expect(page.getByTestId("ext-part-walls")).toHaveAttribute("aria-pressed", "false");
   await expect(partOn(page, "walls")).toHaveAttribute("data-on", "0");
   await expect(page.getByTestId("ql-ext-caption")).toContainText(/The walls.*left off/);

@@ -21,7 +21,9 @@ import { ExteriorPickTiles } from "./ExteriorTiles";
 import ExteriorHomeStep from "./ExteriorHome";
 import ExteriorPaintStep from "./ExteriorPaint";
 import ExteriorAboutStep from "./ExteriorAbout";
-import { paintedSides, setSidePaint, togglePart } from "@/lib/wizard/exterior-model";
+import ExteriorSidesStep from "./ExteriorSides";
+import type { ExteriorSideKey } from "@/lib/wizard/exterior-typicals";
+import { togglePart } from "@/lib/wizard/exterior-model";
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 
@@ -132,6 +134,8 @@ export default function QuickLook({
 }) {
   // Tom, 7 Oct 2026 (item 1): "don't wait" on the floorplan reading panel.
   const [skipPlanWait, setSkipPlanWait] = useState(false);
+  // Exterior wizard v2 (S4): the side the Each-side step and the picture's compass are on.
+  const [sideAt, setSideAt] = useState<ExteriorSideKey>("front");
   /** Tom, 14 Sep (evening): the "anything NOT being painted?" popup, open right after a preset is picked. */
   // Tom, 15 Sep (late): an outside job ends on the sides screen, not the outside screen.
   // S6: with a gate, the question before it says so, and the gate is the last screen.
@@ -661,14 +665,16 @@ export default function QuickLook({
         unticked here is not scaffolded at all (lib/wizard/exteriorAnswers.ts),
         and the sides editor starts every side left at "yes".
       */}
-      {step === "sides" && (() => {
-        // Exterior wizard v2 (S3): with a drawn house, the ticks are the sides' own `paint` flags.
-        const v2 = outside.v2 ?? null;
-        const chosen = v2 ? paintedSides(v2) : outside.sides ?? ALL_SIDES;
+      {/* Exterior wizard v2 (S4): the per-side confirm replaces Which sides? when the house is drawn. */}
+      {step === "sides" && outside.v2 && (
+        <ExteriorSidesStep v2={outside.v2} rows={exteriorTypicals} at={sideAt} onAt={setSideAt} onChange={(v2) => onOutside({ v2 })} />
+      )}
+      {step === "sides" && !outside.v2 && (() => {
+        // The v1 Which-sides screen (no drawn house — the flag off, or an older draft).
+        const chosen = outside.sides ?? ALL_SIDES;
         const all = ALL_SIDES.every((k) => chosen.includes(k));
-        const toggle = (k: (typeof ALL_SIDES)[number]) => v2
-          ? onOutside({ v2: setSidePaint(v2, k, !chosen.includes(k)) })
-          : onOutside({ sides: chosen.includes(k) ? chosen.filter((x) => x !== k) : [...chosen, k] });
+        const toggle = (k: (typeof ALL_SIDES)[number]) =>
+          onOutside({ sides: chosen.includes(k) ? chosen.filter((x) => x !== k) : [...chosen, k] });
         return (
           <>
             <p className="wz-kick">Which sides</p>
@@ -676,7 +682,7 @@ export default function QuickLook({
             <p className="wz-sub">Looking at the house from the street. Untick any side we&rsquo;re not painting — you size each one after the range.</p>
             <div className="wz-pick sc-tiles wz-exttiles" data-testid="ql-ext-sides">
               <button type="button" className={`wz-pk ${all ? "on" : ""}`} aria-pressed={all} data-testid="ql-ext-side-all"
-                onClick={() => (v2 ? onOutside({ v2: ALL_SIDES.reduce((acc, k) => setSidePaint(acc, k, true), v2) }) : onOutside({ sides: [...ALL_SIDES] }))}>
+                onClick={() => onOutside({ sides: [...ALL_SIDES] })}>
                 <svg viewBox="0 0 60 64"><rect x="10" y="10" width="40" height="44" fill="#EEF2F5" stroke="#0E9FB4" strokeWidth="4" /></svg>
                 <small>The full exterior</small><em className="wz-pksub">all four sides</em>
               </button>
@@ -754,6 +760,7 @@ export default function QuickLook({
       <PictureCard step={step} quick={quick} outside={outside} suburb={suburb} rooms={planList} planPreviewUrl={planPreviewUrl} planPending={planPending}
         exteriorTypicals={exteriorTypicals}
         onExtPart={outside.v2 ? (part) => onOutside({ v2: togglePart(outside.v2!, part) }) : undefined}
+        sideAt={sideAt} onSide={setSideAt}
         segmentName={commercial?.segment?.name ?? null}
         com={commercial ? { segment: commercial.segment, answers: commercial.answers, segmentKey: commercial.segmentKey } : null} />
       <JobSoFar steps={steps} at={step} quick={quick} outside={outside} address={address} roomCount={roomCount}

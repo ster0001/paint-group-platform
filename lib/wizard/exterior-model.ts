@@ -228,7 +228,103 @@ export function aboutMissing(v2: ExteriorV2): string | null {
   return null;
 }
 
-/** The worst condition answered across the painted sides; null while any painted side is unanswered. */
+// ---------------------------------------------------------------------------
+// Each side (brief §7.4, S4): the per-side confirm.
+// ---------------------------------------------------------------------------
+
+/** Un-confirm a side (a change after "Looks right" needs another look — acceptance 8a). */
+function unconfirmed(side: ExteriorV2Side): ExteriorV2Side {
+  return { ...side, confirmed: false, checked: false };
+}
+
+/** The whole-house parts that land on this side by default (before the side's own on/off). */
+export function defaultPartsOnSide(v2: ExteriorV2, side: ExteriorSideKey, t: ExteriorTypical): ExteriorPart[] {
+  return v2.parts.filter((p) => defaultSidesForPart(p, t).includes(side));
+}
+
+/** The parts the side's chip list shows: the whole-house ones that land here (on or taken off) plus the ones added here. */
+export function sideListParts(v2: ExteriorV2, side: ExteriorSideKey, t: ExteriorTypical): ExteriorPart[] {
+  const here = defaultPartsOnSide(v2, side, t);
+  const add = v2.sides[side]?.add ?? [];
+  return [...here, ...add.filter((p) => !here.includes(p))];
+}
+
+/** The parts "+ Add something on this side" can offer: not on the list already; the verandah family only once the verandah is on this side. */
+export function sideAddableParts(v2: ExteriorV2, side: ExteriorSideKey, t: ExteriorTypical): ExteriorPart[] {
+  const listed = new Set(sideListParts(v2, side, t));
+  const on = new Set(partsOnSide(v2, side, t));
+  return EXTERIOR_PARTS_ORDER.filter((p) => !listed.has(p) && (!VERANDAH_PARTS.includes(p) || on.has("verandah")));
+}
+const EXTERIOR_PARTS_ORDER: ExteriorPart[] = ["walls", "gable", "fascias", "gutters", "downpipes", "eaves", "windows", "doors", "garage", "shutters", "verandah", "posts", "ceiling", "handrail"];
+
+/**
+ * Tick or untick a part ON ONE SIDE: a whole-house part that lands here is
+ * taken off (or put back) through `off`; anything else is added (or removed)
+ * through `add`. Taking the verandah off a side takes its family with it.
+ */
+export function toggleSidePart(v2: ExteriorV2, side: ExteriorSideKey, part: ExteriorPart, t: ExteriorTypical): ExteriorV2 {
+  const s = v2.sides[side];
+  if (!s) return v2;
+  const here = defaultPartsOnSide(v2, side, t).includes(part);
+  const on = partsOnSide(v2, side, t).includes(part);
+  let off = [...s.off], add = [...s.add];
+  if (on) {
+    if (here) off = [...new Set([...off, part])]; else add = add.filter((p) => p !== part);
+    if (part === "verandah") {
+      for (const f of VERANDAH_PARTS) {
+        if (defaultPartsOnSide(v2, side, t).includes(f)) off = [...new Set([...off, f])];
+        add = add.filter((p) => p !== f);
+      }
+    }
+  } else {
+    if (here) off = off.filter((p) => p !== part); else add = [...new Set([...add, part])];
+    if (VERANDAH_PARTS.includes(part) && !partsOnSide(v2, side, t).includes("verandah")) {
+      if (defaultPartsOnSide(v2, side, t).includes("verandah")) off = off.filter((p) => p !== "verandah"); else add = [...new Set([...add, "verandah" as ExteriorPart])];
+    }
+  }
+  return { ...v2, sides: { ...v2.sides, [side]: unconfirmed({ ...s, off, add }) } };
+}
+
+/** This side's own wall material (null = the house's), downstairs or upstairs. */
+export function setSideMaterial(v2: ExteriorV2, side: ExteriorSideKey, material: WallMaterial | null, storey: "down" | "up" = "down"): ExteriorV2 {
+  const s = v2.sides[side];
+  if (!s) return v2;
+  const next = storey === "up" ? { ...s, materialUp: material } : { ...s, material };
+  return { ...v2, sides: { ...v2.sides, [side]: unconfirmed(next) } };
+}
+
+/** "Looks right — next side." */
+export function confirmSide(v2: ExteriorV2, side: ExteriorSideKey): ExteriorV2 {
+  const s = v2.sides[side];
+  if (!s) return v2;
+  return { ...v2, sides: { ...v2.sides, [side]: { ...s, confirmed: true } } };
+}
+
+/** Every painted side confirmed (and at least one painted) — the Each-side Continue gate (acceptance 8a). */
+export function allSidesConfirmed(v2: ExteriorV2): boolean {
+  const painted = paintedSides(v2);
+  return painted.length > 0 && painted.every((k) => v2.sides[k]?.confirmed);
+}
+
+/** The next painted side after `from` that is not yet confirmed (wrapping), or null when all are. */
+export function nextUnconfirmedSide(v2: ExteriorV2, from: ExteriorSideKey): ExteriorSideKey | null {
+  const order = EXTERIOR_SIDE_KEYS;
+  const i = order.indexOf(from);
+  for (let n = 1; n <= order.length; n++) {
+    const k = order[(i + n) % order.length];
+    if (v2.sides[k]?.paint && !v2.sides[k]?.confirmed) return k;
+  }
+  return null;
+}
+
+/** The material a side's walls take: its own, else the house's, else the shape's usual. */
+export function sideMaterial(v2: ExteriorV2, side: ExteriorSideKey, t: ExteriorTypical, storey: "down" | "up" = "down"): WallMaterial {
+  const s = v2.sides[side];
+  if (storey === "up") return s?.materialUp ?? v2.wall.up ?? sideMaterial(v2, side, t, "down");
+  return s?.material ?? v2.wall.down ?? t.usualWalls;
+}
+
+/** The worst condition answered across the painted sides; null while any painted side is unanswered. *//** The worst condition answered across the painted sides; null while any painted side is unanswered. */
 export function worstCondition(v2: ExteriorV2): "good" | "weathered" | "peeling" | null {
   const rank = { good: 0, weathered: 1, peeling: 2 } as const;
   let worst: keyof typeof rank | null = null;

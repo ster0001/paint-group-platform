@@ -5,6 +5,7 @@ import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import { railFor, STEP_LABELS } from "./stepRail";
 import { typicalFor } from "@/lib/wizard/exterior-typicals";
 import { WALL_MATERIAL_LABEL } from "./ExteriorAbout";
+import { paintedSides } from "@/lib/wizard/exterior-model";
 import { EXT_COLOURS } from "@/lib/wizard/exterior-quick-look";
 import { SIZE_OPTIONS } from "./ExteriorHome";
 
@@ -65,6 +66,11 @@ export default function JobSoFar({ steps, at, quick, outside, address, roomCount
         return [`${n} thing${n === 1 ? "" : "s"} to paint`, "The outside"];
       }
       case "sides": {
+        if (outside.v2) {
+          const painted = paintedSides(outside.v2);
+          const done = painted.filter((k) => outside.v2!.sides[k]?.confirmed).length;
+          return [`${painted.length} of 4 · ${done} confirmed`, "Each side"];
+        }
         const n = (outside.sides ?? ["front", "left", "back", "right"]).length;
         return [n === 4 ? "All four sides" : `${n} side${n === 1 ? "" : "s"}`, "Which sides"];
       }

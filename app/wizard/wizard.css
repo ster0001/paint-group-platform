@@ -2350,3 +2350,34 @@
 .wz .wz-elev .e.hl > * { filter: drop-shadow(0 0 3px rgba(14,159,180,.9)); }
 @media (prefers-reduced-motion: no-preference) { .wz .wz-elev .e > * { transition: fill .25s ease; } }
 .wz .wz-elev.tappable .e[data-e] { cursor: pointer; }
+
+/* Exterior wizard v2 — S4: Each side (brief §7.4) and the range rows (§7.5). */
+.wz .wz-walk-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 6px 0 4px; }
+.wz .wz-walk-steps button { border: 1.5px solid var(--line); background: var(--panel); border-radius: 12px; padding: 9px 6px; min-height: 44px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: var(--wz-sans); color: var(--muted); cursor: pointer; }
+.wz .wz-walk-steps button .n { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+.wz .wz-walk-steps button .l { font-size: 12.5px; font-weight: 600; }
+.wz .wz-walk-steps button[data-state="cur"] { border-color: var(--cyan); color: var(--text); background: rgba(59,216,233,.06); }
+.wz .wz-walk-steps button[data-state="ok"] { border-color: var(--cyan); color: var(--cyan); }
+.wz .wz-walk-steps button[data-state="ok"] .n { background: var(--cyan); border-color: var(--cyan); color: #fff; }
+.wz .wz-walk-steps button[data-state="skip"] { opacity: .6; text-decoration: line-through; }
+.wz .wz-sidehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-top: 18px; }
+.wz .wz-sidehead h2 { font-size: 22px; letter-spacing: -.02em; font-weight: 600; margin: 0; }
+.wz .wz-sidehead p { color: var(--muted); font-size: 14px; margin: 2px 0 0; }
+.wz .wz-notpaint { font-size: 13.5px; color: var(--muted); background: none; border: 1.5px solid var(--line); border-radius: 99px; padding: 8px 12px; white-space: nowrap; flex: none; min-height: 44px; font-family: var(--wz-sans); cursor: pointer; }
+.wz .wz-notpaint.on { border-color: #E4B96B; background: #FFF8EA; color: #8A5B00; }
+.wz .wz-tile.off { opacity: .55; text-decoration: line-through; }
+.wz .wz-tile.plain { border-style: dashed; color: var(--muted); }
+.wz .wz-qtag { float: right; font-family: var(--wz-mono); font-size: 11px; letter-spacing: .06em; color: var(--muted); font-weight: 400; }
+.wz .wz-done-card { margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: rgba(59,216,233,.08); border: 1px solid rgba(59,216,233,.35); display: flex; gap: 12px; align-items: center; font-weight: 600; }
+.wz .wz-done-card .av { width: 34px; height: 34px; border-radius: 50%; background: var(--cyan); color: #fff; display: grid; place-items: center; flex: none; }
+.wz .wz-compass { display: flex; gap: 6px; }
+.wz .wz-compass button { border: 1.5px solid var(--line); background: var(--panel); border-radius: 99px; padding: 3px 10px; font-size: 12.5px; font-weight: 600; color: var(--muted); font-family: var(--wz-sans); cursor: pointer; min-height: 28px; }
+.wz .wz-compass button[data-state="ok"] { border-color: var(--cyan); color: var(--cyan); }
+.wz .wz-compass button[data-state="cur"] { background: var(--heading); border-color: var(--heading); color: #fff; }
+.wz .wz-compass button[data-state="skip"] { text-decoration: line-through; opacity: .6; }
+.wz .wz-ext-rows { margin: 12px 0 4px; border-top: 1px solid var(--line); }
+.wz .wz-ext-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.wz .wz-ext-row b { display: block; font-weight: 600; }
+.wz .wz-ext-row small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.wz .wz-ext-row .wz-tag { font-family: var(--wz-mono); font-size: 10.5px; letter-spacing: .08em; color: var(--cyan); margin-left: 6px; }
+.wz .wz-ext-notin { font-size: 12.5px; color: var(--muted); margin: 8px 0 14px; }
