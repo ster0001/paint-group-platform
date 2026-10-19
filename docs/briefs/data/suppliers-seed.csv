@@ -1,0 +1,69 @@
+brand,branch,kind,address,suburb,postcode,phone,opens_weekday,delivers_to_site,source_url,confidence
+Dulux Trade Centre,West Melbourne,paint,420 King Street,West Melbourne,3003,(03) 9326 8458,,yes,https://www.dulux.com.au/stores/dulux-trade-centre-west-melbourne/,verified
+Dulux Trade Centre,South Melbourne,paint,403 City Road,South Melbourne,3205,(03) 9699 9532,07:00,yes,https://www.dulux.com.au/stores/dulux-trade-centre-south-melbourne/,verified
+Dulux Trade Centre,Preston Mega,paint,148-150 Bell Street,Preston,3072,(03) 9484 5711,06:00,yes,https://www.dulux.com.au/stores/dulux-trade-centre-preston-mega/,verified
+Dulux Trade Centre,Doncaster,paint,1/565 Doncaster Road,Doncaster,3108,(03) 9840 1267,07:00,yes,https://www.dulux.com.au/stores/dulux-trade-centre-doncaster/,verified
+Dulux Trade Centre,Bayswater,paint,671 Mountain Highway,Bayswater,3153,(03) 9729 2455,07:00,yes,https://www.dulux.com.au/stores/dulux-trade-centre-bayswater/,verified (hours from directory)
+Dulux Trade Centre,Springvale,paint,9-11 Springvale Road,Springvale,3171,(03) 9574 1297,,yes,https://www.dulux.com.au/stores/dulux-trade-centre-springvale/,verified
+Dulux Trade Centre,Sunshine,paint,592 Ballarat Road,Sunshine,3020,(03) 9363 3622,,yes,https://www.dulux.com.au/stores/dulux-trade-centre-sunshine/,verified
+Dulux Trade Centre,Hoppers Crossing,paint,228 Old Geelong Road,Hoppers Crossing,3029,(03) 9748 6400,,yes,https://www.dulux.com.au/stores/dulux-trade-centre-hoppers-crossing/,verified
+Dulux Trade Centre,Craigieburn,paint,311-313 Hume Highway,Craigieburn,3064,(03) 9308 2177,,yes,https://www.dulux.com.au/stores/dulux-trade-centre-craigieburn/,verified
+Dulux Trade Centre,Frankston,paint,60-64 Dandenong Road,Frankston,3199,(03) 9783 2803,07:00,yes,https://www.dulux.com.au/stores/dulux-trade-centre-frankston/,verified
+Dulux Trade Centre,Melton,paint,Unit 5a/66-84 High Street,Melton,3337,(03) 9747 9051,07:00,yes,https://www.dulux.com.au/stores/dulux-trade-centre-melton/,verified (phone differs between sources - confirm)
+Dulux Trade Centre,Pakenham,paint,917-919 Princes Highway,Pakenham,3810,(03) 5940 9364,,yes,https://www.dulux.com.au/stores/dulux-trade-centre-pakenham/,verified (edge of range)
+Dulux Acratex,Render & Texture Centre Dandenong South,paint,Cnr Logis Boulevard & Metcalf Drive,Dandenong South,3175,(03) 9794 9700,,,https://www.exsulite.com.au/contact-us/find-a-trade-centre/,verified (render/texture specialist)
+Paint Spot,Carnegie,paint,1066 Dandenong Road,Carnegie,3163,(03) 9563 5666,06:30,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-carnegie/,verified
+Paint Spot,Moorabbin,paint,2 Levanswell Road,Moorabbin,3189,(03) 9555 0555,06:30,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-moorabbin/,verified (Monday hours differ - confirm)
+Paint Spot,Preston,paint,110 Chifley Drive,Preston,3072,(03) 9480 3688,06:30,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-preston/,verified
+Paint Spot,Dandenong,paint,Unit 1/37 Princes Highway,Dandenong South,3175,(03) 9793 4599,06:30,,https://www.dulux.com.au/stores/paint-spot-dandenong/,verified
+Paint Spot,Bundoora,paint,493 Grimshaw Street,Bundoora,3083,(03) 9467 5114,07:00,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-bundoora/,verified
+Paint Spot,Knox,paint,380 Burwood Highway,Wantirna South,3152,(03) 9801 8011,06:30,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-wantirna-south/,verified
+Paint Spot,Footscray,paint,11 Geelong Street,West Footscray,3012,(03) 9689 8500,06:30,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-footscray/,verified
+Paint Spot,Sunshine,paint,142 McIntyre Road,Sunshine North,3020,(03) 9311 9333,07:00,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-sunshine/,verified
+Paint Spot,Hoppers Crossing,paint,108 Old Geelong Road,Hoppers Crossing,3029,(03) 8742 9200,07:00,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-hoppers-crossing/,verified (phone garbled on page - confirm)
+Paint Spot,Niddrie,paint,390 Keilor Road,Niddrie,3042,(03) 9379 1960,,,https://www.dulux.com.au/stores/paint-spot-niddrie/,verified
+Paint Spot,Carrum Downs,paint,2/2 Frankston Gardens Drive,Carrum Downs,3201,(03) 9776 9277,07:00,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-carrum-downs/,verified
+Paint Spot,Sunbury,paint,20 O'Shanassy Street,Sunbury,3429,(03) 9744 2593,07:00,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-sunbury/,verified (edge of range)
+Paint Spot,Mornington,paint,Cnr Nepean Highway & Tyabb Road,Mornington,3931,(03) 5975 9288,06:30,,https://www.porterspaints.com/find-a-store/victoria/paint-spot-mornington/,verified (edge of range)
+Inspirations Paint,Oakleigh,paint,257 Huntingdale Road,Oakleigh,3166,(03) 9568 3022,07:00,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/oakleigh,verified
+Inspirations Paint,Moorabbin,paint,899-901 Nepean Highway,Moorabbin,3189,(03) 9557 9322,07:00,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/moorabbin,verified
+Inspirations Paint,Clifton Hill,paint,366 Queens Parade,Clifton Hill,3068,(03) 9489 6765,07:00,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/clifton-hill,verified
+Inspirations Paint,Camberwell,paint,95 Camberwell Road,Hawthorn East,3123,(03) 9882 2384,07:00,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/camberwell,verified
+Inspirations Paint,Surrey Hills,paint,172 Union Road,Surrey Hills,3127,(03) 9888 5422,07:00,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/surrey-hills,verified
+Inspirations Paint,Nunawading,paint,323 Whitehorse Road,Nunawading,3131,(03) 9878 8211,07:00,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/nunawading,verified
+Inspirations Paint,Narre Warren,paint,36-44 Lauderdale Road,Narre Warren,3805,(03) 9796 6521,06:00,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/narre-warren,verified
+Inspirations Paint,Clyde North,paint,1/51 Rainier Crescent,Clyde North,3978,(03) 9001 0771,06:00,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/clyde-north,verified (edge of range)
+Inspirations Paint,Campbellfield,paint,1577 Hume Highway,Campbellfield,3061,(03) 9359 2811,06:00,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/campbellfield,verified
+Inspirations Paint,Airport West,paint,67L Matthews Avenue,Airport West,3041,(03) 9374 3800,06:30,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/airport-west,verified
+Inspirations Paint,Eltham,paint,15 Bridge Street,Eltham,3095,(03) 9439 6622,,yes (same-day if ordered by 10am),https://www.dulux.com.au/stores/inspirations-paint-eltham/,verified
+Inspirations Paint,Mooroolbark,paint,193 Hull Road,Mooroolbark,3138,(03) 9723 3318,07:00,yes (same-day if ordered by 10am),https://www.inspirationspaint.com.au/store-locations/vic/mooroolbark,verified
+Taubmans,Professional Trade Centre Oakleigh,paint,31 Connell Road,Oakleigh,3166,(03) 9569 7968,,,https://www.bristol.com.au/store-locator/au/victoria/oakleigh-paint-stores/taubmans-professional-trade-centre-oakleigh-65700,directory only - confirm
+Taubmans,Professional Paint Centre Moorabbin,paint,249 Wickham Road,Moorabbin,3189,(03) 9553 6113,,,https://www.taubmans.com.au/locations/taubmans-professional-paint-centre-moorabbin-65699,verified
+Taubmans,Professional Paint Centre Port Melbourne,paint,Unit 2/610 Lorimer Street,Port Melbourne,3207,(03) 9646 7715,,,https://www.bristol.com.au/store-locator/au/victoria/paint-stores-in-port-melbourne/taubmans-professional-trade-centre-port-melbourne-16107,directory only - confirm
+Taubmans,Professional Trade Centre Epping,paint,2/500-510 High Street,Epping,3076,(03) 8401 3676,06:30,,https://www.taubmans.com.au/locations/taubmans-professional-paint-centre-epping-64377,verified
+Taubmans,Professional Trade Centre Somerton,paint,20A Somerton Road,Somerton,3062,(03) 9930 7950,,,https://www.taubmans.com.au/locations/taubmans-professional-trade-centre-somerton-66118,verified
+Taubmans,Professional Trade Centre Derrimut,paint,4/81 Elgar Road,Derrimut,3030,(03) 8361 7376,06:30,,https://www.taubmans.com.au/locations/taubmans-professional-trade-centre-derrimut-16116,verified
+Taubmans,Professional Trade Centre Ferntree Gully,paint,2A/881-887 Burwood Highway,Ferntree Gully,3156,(03) 9758 8773,06:30,,https://www.taubmans.com.au/locations/taubmans-professional-trade-centre-ferntree-gully-16076,verified
+Taubmans,Professional Trade Centre Mitcham,paint,,Mitcham,3132,,,,https://www.bristol.com.au/store-locator/au/victoria/mitcham-paint-stores/taubmans-professional-trade-centre-mitcham-16092,UNVERIFIED - page would not load; Tom to fill in
+Taubmans,Professional Trade Centre Cranbourne,paint,,Cranbourne,3977,(03) 5995 2912,,,https://www.bristol.com.au/store-locator/au/victoria/cranbourne-paint-stores/taubmans-professional-trade-centre-cranbourne-16115,UNVERIFIED - page would not load; Tom to fill in
+Viponds Paints,Tullamarine Factory Store,paint,58 Barrie Road,Tullamarine,3043,(03) 9688 3800,08:00,,https://www.viponds.com.au/pages/contact,verified
+Premier Roof Coatings,Dandenong,paint,35 Union Road,Dandenong South,3175,(03) 9793 8226,,,https://premierroofcoatings.com.au/contact/,verified
+Bunnings Warehouse,Preston,hardware,64-74 Bell Street,Preston,3072,(03) 8613 6300,06:30,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/preston,verified
+Bunnings Warehouse,Collingwood,hardware,179-201 Victoria Parade,Collingwood,3066,(03) 9281 2900,06:30,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/collingwood,verified
+Bunnings Warehouse,Brunswick,hardware,415 Sydney Road,Brunswick,3056,(03) 9288 7900,06:30,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/brunswick,verified
+Bunnings Warehouse,Coburg,hardware,64-96 Gaffney Street,Coburg,3058,(03) 8371 8400,06:30,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/coburg,verified
+Bunnings Warehouse,Thomastown,hardware,11 Dalton Road,Thomastown,3074,(03) 9462 8000,06:30,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/thomastown,verified
+Bunnings Warehouse,Oakleigh South,hardware,1041 Centre Road,Oakleigh South,3167,(03) 9865 2800,06:00,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/oakleigh,verified
+Bunnings Warehouse,Moorabbin,hardware,Cnr Fairchild Street & Warrigal Road,Moorabbin,3189,(03) 8540 9500,06:30,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/moorabbin,verified
+Bunnings Warehouse,Chadstone,hardware,675-685 Warrigal Road,Chadstone,3148,(03) 8567 1600,07:00,yes (PowerPass site delivery - fee),https://trade.bunnings.com.au/stores/vic/chadstone,verified
+Bunnings Warehouse,Notting Hill,hardware,232-255 Ferntree Gully Road,Notting Hill,3168,(03) 9518 4400,06:00,yes (PowerPass site delivery - fee),https://trade.bunnings.com.au/stores/vic/notting-hill,verified
+Bunnings Warehouse,Springvale,hardware,849 Princes Highway,Springvale,3171,(03) 8558 7300,06:00,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/springvale,verified
+Bunnings Warehouse,Keysborough,hardware,Cnr Springvale & Cheltenham Roads,Keysborough,3173,(03) 8796 7100,06:00,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/keysborough,verified
+Bunnings Warehouse,Dandenong,hardware,101 Princes Highway,Dandenong South,3175,(03) 8780 6100,06:00,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/dandenong,verified
+Bunnings Warehouse,Mentone,hardware,23-27 Nepean Highway,Mentone,3194,(03) 9581 7100,06:00,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/mentone,verified
+Bunnings Warehouse,Port Melbourne,hardware,501 Williamstown Road,Port Melbourne,3207,(03) 8646 9800,06:00,yes (PowerPass site delivery - fee),https://www.bunnings.com.au/stores/vic/port-melbourne,verified
+Bunnings Warehouse,Hawthorn,hardware,230 Burwood Road,Hawthorn,3122,(03) 8862 9500,06:00,yes (PowerPass site delivery - fee),https://trade.bunnings.com.au/stores/vic/hawthorn,verified
+Baycity Rentals,Cheltenham,hire,240 Centre Dandenong Road,Cheltenham,3192,(03) 9583 5969,06:30,,https://baycityrentals.com.au/contact-us/,verified (Tom said "Bayside City Rentals" - confirm this is the one)
+Alya Access,Thomastown,hire,80 Lipton Drive,Thomastown,3074,1300 450 329,,yes (transport charged),https://alyaaccess.com.au/contact-us/,verified (Tom said "Alya Hire" - trades as Alya Access)
+Carnegie Smart Hire,Oakleigh South,hire,21-25 Coora Road,Oakleigh South,3167,(03) 8546 5744,07:00,yes (metro delivery),https://www.carnegierental.com.au/where-are-we,verified
+Carnegie Smart Hire,Carnegie,hire,1076 Dandenong Road,Carnegie,3163,(03) 9571 9488,07:00,yes (metro delivery),https://www.carnegierental.com.au/where-are-we,verified

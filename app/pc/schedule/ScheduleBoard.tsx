@@ -2,13 +2,13 @@
 
 import { logCallbackAction } from "@/app/pc/callbackActions";
 import { setNoWorkDayAction } from "@/app/pc/noWorkActions";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { pingGcalSync } from "@/lib/gcal/ping";
 import { pingAppointmentConfirm } from "@/lib/workorder/appointmentPing";
 import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
-import { addDays, addWorkingDays, dayDiff, todayIso, workingDaysBetween, type WorkingWeek } from "@/lib/scheduling/dates";
+import { addWorkingDays, dayDiff, workingDaysBetween, type WorkingWeek } from "@/lib/scheduling/dates";
 import {
   sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote,
   assignJobAction, reassignDatesAction, setLeadPainterAction, releaseAssignmentAction,
@@ -16,39 +16,13 @@ import {
   searchProjectsAction, setFinishDateAction, type ActionResult, type VisitProjectHit,
 } from "./actions";
 import type { Block, BoardWalkthrough, Lane, TrayJob } from "@/lib/scheduling/board";
+import {
+  Board, Tray, SavedViews, Paging, JumpTo, RangePresets, ZoomSlider, Scrim, Toast,
+  useBoardDrag, useBoardZoom, dayLabel, type DropTarget, type SavedView as BoardSavedView,
+} from "@/app/components/board";
 import "./schedule.css";
 
 const money = (c: number | null) => (c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 }));
-
-// Calendar-date arithmetic lives in lib/scheduling/dates.ts — see the note there
-// about the timezone bug these helpers exist to prevent.
-/** Contiguous month runs across the visible days, for the month band. */
-function monthRuns(days: string[]) {
-  const out: { label: string; span: number }[] = [];
-  for (const d of days) {
-    const label = new Date(d + "T00:00:00Z").toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone: "UTC" });
-    const last = out[out.length - 1];
-    if (last && last.label === label) last.span += 1;
-    else out.push({ label, span: 1 });
-  }
-  return out;
-}
-
-/** Render a date cell without letting the timezone move it. */
-/** "Thu 24 Sep" — the day as a person says it, for the drag pop-up (Tom, 24 Sep). */
-const dayLabel = (s: string) => {
-  const d = new Date(s + "T00:00:00Z");
-  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
-};
-
-const dayParts = (s: string) => {
-  const d = new Date(s + "T00:00:00Z");
-  return {
-    num: d.getUTCDate(),
-    dow: d.getUTCDay(),
-    short: d.toLocaleDateString("en-AU", { weekday: "short", timeZone: "UTC" }).toUpperCase(),
-  };
-};
 
 /** "23h 41m" — the board doesn't need second-by-second precision, and not
  *  re-rendering every second keeps dragging smooth. */
@@ -60,9 +34,23 @@ function coarseCountdown(expiresAt: string): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-type SavedView = { id: string; name: string; tiers: string[]; contractorIds: string[]; onlyOfferable: boolean };
+/** The lane filters a saved view captures (persisted in settings.scheduling_views). */
+type ScheduleFilters = { tiers: string[]; contractorIds: string[]; onlyOfferable: boolean };
+type SavedView = BoardSavedView<ScheduleFilters>;
 
-type DropTarget = { contractorId: string; dayIndex: number } | null;
+/** What a drag carries: a tray job, or a block already on the board. */
+type DragPayload = { kind: "tray"; job: TrayJob } | { kind: "block"; block: Block };
+/** What the ghost says about the cell under the pointer. */
+type DropCheck = { blocked: boolean; held: boolean; start: string; end: string };
+
+/**
+ * The scheduling timeline: the board engine (app/components/board — lanes ×
+ * days, drag, zoom, tray, saved views) with everything a BOOKING means laid
+ * over it: working-day snapping, blocked/held spans, the offer / assign /
+ * move sheets, the block detail, the empty-drag block-out / visit / hold
+ * sheet, and every commit action. Nothing here draws a lane or hit-tests a
+ * day — that is the engine's, and it is the only one (CLAUDE.md).
+ */
 
 export default function ScheduleBoard({
   lanes,
@@ -88,147 +76,55 @@ export default function ScheduleBoard({
   const router = useRouter();
   const supabase = createClient();
 
-  const [dayW, setDayW] = useState(64);
-  const [range, setRange] = useState(rangeDays);
-  const [start, setStart] = useState(from);
+  /**
+   * Push the window into the URL so the SERVER refetches for it. Paging or
+   * jumping used to move the columns while the blocks stayed behind, so a job
+   * booked months out was invisible.
+   * /pc/schedule, NOT the old /schedule — that path is now a redirect that
+   * DROPS the query, so jumping or paging blanked the board (Tom, 30 Aug).
+   */
+  const zoom = useBoardZoom({
+    from, rangeDays,
+    onWindowChange: (s, r) => router.replace(`/pc/schedule?from=${s}&days=${r}`, { scroll: false }),
+  });
+  const { days, start, range } = zoom;
   // Tom, 1 Oct: the builder's top-left link says "Back to the schedule" and
   // returns to THIS window of dates. Validated on the way back in by
   // lib/navigation/backTo, so the query here is a plain same-site path.
   const fromHere = `&from=${encodeURIComponent(`/pc/schedule?from=${start}&days=${range}`)}`;
-  const tlRef = useRef<HTMLElement | null>(null);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-
-  /**
-   * The board is a workspace, not a document (Tom, 18 Sep: "keep the month day
-   * and date locked at the top of the screen, so you can still see when
-   * dragging a job").
-   *
-   * The dates live INSIDE the horizontal scroller — they have to, they scroll
-   * sideways with the columns — and a sticky element only ever pins to its own
-   * scrollport, so pinning them to the page does nothing. The timeline has to
-   * be the scroller instead, which means it has to end where the screen ends.
-   *
-   * That height is MEASURED, not guessed: what sits above it — the console's
-   * tab rail, the board's own bar, the legend — changes height when it wraps,
-   * and a guess that is 40px out either hides the bottom lane or leaves the
-   * page scrolling the locked header off the top, which is the whole bug.
-   */
-  useEffect(() => {
-    const root = rootRef.current;
-    const tl = tlRef.current;
-    if (!root || !tl) return;
-    const fit = () => {
-      // Document coordinates: the viewport-relative top moves as the page
-      // scrolls, and sizing off that feeds itself.
-      const top = tl.getBoundingClientRect().top + window.scrollY;
-      root.style.setProperty("--sb-space", `${Math.max(260, window.innerHeight - top - 8)}px`);
-    };
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(root);
-    window.addEventListener("resize", fit);
-    return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
-  }, []);
-
-  /**
-   * Picking 2W/4W/8W should CHANGE THE SIZE of the view, not just stretch the
-   * board off the right-hand edge — so the day width is recomputed to fit the
-   * whole range in the space available. The zoom slider still overrides it.
-   */
-  const fitRange = useCallback((n: number) => {
-    setRange(n);
-    const avail = (tlRef.current?.clientWidth ?? 0) - 32; // padding
-    if (avail > 0) setDayW(Math.max(14, Math.min(140, Math.floor(avail / n))));
-  }, []);
 
   // ---- filters + saved views (requirement 4) --------------------------------
   const [tiers, setTiers] = useState<string[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [onlyOfferable, setOnlyOfferable] = useState(false);
   const [views, setViews] = useState<SavedView[]>(savedViews);
-  const [showFilters, setShowFilters] = useState(false);
 
   const allTiers = useMemo(
     () => [...new Set(lanes.map((l) => l.tier))].sort(),
     [lanes],
   );
 
-  const visibleLanes = useMemo(
-    () =>
-      lanes.filter((l) => {
-        if (picked.length > 0) return picked.includes(l.contractorId);
-        if (tiers.length > 0 && !tiers.includes(l.tier)) return false;
-        // "Ready for work" is about being OFFERABLE, and an employee is never
-        // offered — they are assigned. Filtering on the flag hid every employee
-        // from the board, which is how Saulius went missing (Tom, 18 Sep).
-        if (onlyOfferable && !l.offerable && l.employmentType !== "employee") return false;
-        return true;
-      }),
-    [lanes, picked, tiers, onlyOfferable],
+  const filterLane = useCallback(
+    (l: Lane) => {
+      if (picked.length > 0) return picked.includes(l.contractorId);
+      if (tiers.length > 0 && !tiers.includes(l.tier)) return false;
+      // "Ready for work" is about being OFFERABLE, and an employee is never
+      // offered — they are assigned. Filtering on the flag hid every employee
+      // from the board, which is how Saulius went missing (Tom, 18 Sep).
+      if (onlyOfferable && !l.offerable && l.employmentType !== "employee") return false;
+      return true;
+    },
+    [picked, tiers, onlyOfferable],
   );
+  const visibleLanes = useMemo(() => lanes.filter(filterLane), [lanes, filterLane]);
 
   async function persistViews(next: SavedView[]) {
     setViews(next);
     await supabase.from("settings").upsert({ key: "scheduling_views", value: next }, { onConflict: "key" });
   }
 
-  const days = useMemo(() => Array.from({ length: range }, (_, i) => addDays(start, i)), [start, range]);
-  const today = todayIso();
-
-  /**
-   * Push the window into the URL so the SERVER refetches for it. Paging or
-   * jumping used to move the columns while the blocks stayed behind, so a job
-   * booked months out was invisible.
-   */
-  useEffect(() => {
-    if (start === from && range === rangeDays) return;
-    const t = setTimeout(() => {
-      // /pc/schedule, NOT the old /schedule — that path is now a redirect that
-      // DROPS the query, so jumping or paging blanked the board (Tom, 30 Aug).
-      router.replace(`/pc/schedule?from=${start}&days=${range}`, { scroll: false });
-    }, 250); // debounce: dragging the range buttons shouldn't fire a fetch each time
-    return () => clearTimeout(t);
-  }, [start, range, from, rangeDays, router]);
-
-  // ---- drag (requirement 1) -------------------------------------------------
-  // Everything below writes to the DOM directly. React does not re-render during
-  // a drag: the ghost moves on the compositor via transform, and the drop-target
-  // highlight is a single class toggle. That is what keeps it smooth.
-  const laneRefs = useRef(new Map<string, HTMLDivElement>());
-  const ghostRef = useRef<HTMLDivElement | null>(null);
-  const hotCell = useRef<HTMLElement | null>(null);
-  const rafId = useRef<number | null>(null);
-  const pointer = useRef({ x: 0, y: 0 });
-  const laneRects = useRef<{ id: string; rect: DOMRect; el: HTMLDivElement }[]>([]);
-  const target = useRef<DropTarget>(null);
-  const dragAbort = useRef<AbortController | null>(null);
-
-  const drag = useRef<null | {
-    kind: "tray" | "block";
-    job?: TrayJob;
-    block?: Block;
-    spanDays: number;
-    el: HTMLElement;
-    startX: number;
-    startY: number;
-    moved: boolean;
-    pointerId: number;
-  }>(null);
-
-  const [ghost, setGhost] = useState<null | { title: string; sub: string }>(null);
-  const [ghostBlocked, setGhostBlocked] = useState(false);
-  // Tom, 1 Oct: the days under the pointer are HELD (pink). Not a refusal —
-  // the drop goes ahead and a hold for this same job resolves itself.
-  const [ghostHeld, setGhostHeld] = useState(false);
-  // Tom, 24 Sep: "show the date pop up while dragging so I know the drop is
-  // for the correct date" — the day under the pointer (snapped to the
-  // painter's working week) and the end it implies, drawn on the ghost.
-  const [ghostDates, setGhostDates] = useState<null | { start: string; end: string }>(null);
-
   // Dragging across EMPTY lane space marks a contractor unavailable for that
-  // run of days — far quicker than a form, and it reads the same as the drag
-  // used to place a job.
-  const marquee = useRef<null | { contractorId: string; anchor: number; laneEl: HTMLElement; pointerId: number; moved: boolean }>(null);
+  // run of days — the engine's marquee; what it means is decided here.
   const [pendingBlock, setPendingBlock] = useState<null | { contractorId: string; start: string; end: string }>(null);
   // Tom, 1 Oct: the same drag across empty space can also add a SECOND VISIT
   // to a job this painter already has, or HOLD the days while the client
@@ -263,21 +159,6 @@ export default function ScheduleBoard({
   const [holdWo, setHoldWo] = useState("");
   const [holdNote, setHoldNote] = useState("");
 
-  const cacheLaneRects = useCallback(() => {
-    laneRects.current = [...laneRefs.current.entries()]
-      .filter(([, el]) => el?.isConnected)
-      .map(([id, el]) => ({ id, rect: el.getBoundingClientRect(), el }));
-  }, []);
-
-  const clearHot = () => {
-    if (hotCell.current) {
-      hotCell.current.classList.remove("hot");
-      hotCell.current.parentElement?.classList.remove("blocked");
-      hotCell.current = null;
-    }
-  };
-
-  // Tom, 22 Sep: a span is WORKING days. Weekends are skipped unless this
   // painter has ticked them on their profile; the end date lands accordingly.
   const weekFor = useCallback((contractorId: string): WorkingWeek => {
     const lane = lanes.find((l) => l.contractorId === contractorId);
@@ -307,79 +188,6 @@ export default function ScheduleBoard({
     [blocks, endFor],
   );
 
-  // Only the visual follow lives in rAF. Painting the ghost is the one thing
-  // worth coalescing to a frame; correctness must not depend on a frame ever
-  // firing (it doesn't in a background tab), so the hit-test happens below in
-  // the pointer handler instead.
-  const frame = useCallback(() => {
-    rafId.current = null;
-    if (!drag.current || !ghostRef.current) return;
-    const { x, y } = pointer.current;
-    ghostRef.current.style.transform = `translate3d(${x + 14}px, ${y + 14}px, 0)`;
-  }, []);
-
-  /**
-   * The day under the pointer. Tom, 22 Sep: "the calendar days don't line up
-   * when dragging and dropping" — the lane rects are cached when the drag
-   * starts, so any scroll of the page or the timeline during the drag (and a
-   * zoom that lands between cell widths) put the arithmetic one or more days
-   * off. Ask the browser which day cell is under the pointer instead; the
-   * cached rects remain the fallback when nothing is hit (the ghost, a gap).
-   */
-  const updateTarget = useCallback(
-    (x: number, y: number, spanDays: number) => {
-      let hit = laneRects.current.find((l) => y >= l.rect.top && y <= l.rect.bottom);
-      let idx = hit ? Math.floor((x - hit.rect.left) / dayW) : -1;
-      if (typeof document !== "undefined" && typeof document.elementsFromPoint === "function") {
-        const under = document.elementsFromPoint(x, y).find((el) => el.classList.contains("bgc") && el.parentElement?.classList.contains("lane")) as HTMLElement | undefined;
-        const laneEl = under?.parentElement ?? null;
-        const lane = laneEl ? laneRects.current.find((l) => l.el === laneEl) : undefined;
-        if (under && lane) { hit = lane; idx = Array.prototype.indexOf.call(laneEl!.children, under); }
-      }
-      if (!hit || idx < 0 || idx >= range) {
-        clearHot();
-        target.current = null;
-        setGhostDates((prev) => (prev === null ? prev : null));
-        return;
-      }
-      const cell = hit.el.children[idx] as HTMLElement | undefined;
-      if (cell && cell !== hotCell.current) {
-        clearHot();
-        cell.classList.add("hot");
-        const blocked = spanBlocked(hit.id, days[idx], spanDays);
-        hit.el.classList.toggle("blocked", blocked);
-        setGhostBlocked((prev) => (prev === blocked ? prev : blocked));
-        const held = spanHeld(hit.id, days[idx], spanDays, drag.current?.block?.id);
-        setGhostHeld((prev) => (prev === held ? prev : held));
-        hotCell.current = cell;
-        // The same arithmetic the drop uses, so what the ghost says IS the booking.
-        const start = addWorkingDays(days[idx], 1, weekFor(hit.id));
-        const end = endFor(hit.id, start, spanDays);
-        setGhostDates((prev) => (prev && prev.start === start && prev.end === end ? prev : { start, end }));
-      }
-      target.current = { contractorId: hit.id, dayIndex: idx };
-    },
-    [dayW, range, days, spanBlocked, spanHeld, weekFor, endFor],
-  );
-
-  const onPointerMove = useCallback(
-    (e: PointerEvent) => {
-      const d = drag.current;
-      if (!d || e.pointerId !== d.pointerId) return;
-      pointer.current = { x: e.clientX, y: e.clientY };
-
-      if (!d.moved) {
-        if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 5) return; // let clicks be clicks
-        d.moved = true;
-        d.el.classList.add("dragging");
-        cacheLaneRects();
-      }
-      updateTarget(e.clientX, e.clientY, d.spanDays);
-      if (rafId.current == null) rafId.current = requestAnimationFrame(frame);
-    },
-    [frame, cacheLaneRects, updateTarget],
-  );
-
   // Final walkthrough, CONFIRMED WITH THE CLIENT at booking (Tom, 25 Aug) —
   // date defaults to the last day on site; the time is theirs to agree.
   const [walkDate, setWalkDate] = useState("");
@@ -396,196 +204,60 @@ export default function ScheduleBoard({
     held?: boolean;
   }>(null);
 
-  const onPointerUp = useCallback(
-    (e: PointerEvent) => {
-      const d = drag.current;
-      if (!d || e.pointerId !== d.pointerId) return;
+  // The three callbacks below are plain functions on purpose: the engine keeps
+  // the latest ones in a ref, so they need no memoisation to stay current.
+  /** Working days a drag covers: a tray job's estimate, or a block's own span. */
+  const spanOf = (p: DragPayload) =>
+    p.kind === "tray" ? p.job.estimatedDays : workingDaysBetween(p.block.start, p.block.end, weekFor(p.block.contractorId));
 
-      if (rafId.current != null) {
-        cancelAnimationFrame(rafId.current);
-        rafId.current = null;
-      }
-      d.el.classList.remove("dragging");
+  // Tom, 24 Sep: "show the date pop up while dragging so I know the drop is
+  // for the correct date" — the day under the pointer (snapped to the
+  // painter's working week) and the end it implies, drawn on the ghost. The
+  // same arithmetic the drop uses, so what the ghost says IS the booking.
+  // Tom, 1 Oct: the days under the pointer are HELD (pink). Not a refusal —
+  // the drop goes ahead and a hold for this same job resolves itself.
+  const checkDrop = (p: DragPayload, t: DropTarget): DropCheck => {
+    const spanDays = spanOf(p);
+    const blocked = spanBlocked(t.laneId, t.day, spanDays);
+    const held = spanHeld(t.laneId, t.day, spanDays, p.kind === "block" ? p.block.id : undefined);
+    const s = addWorkingDays(t.day, 1, weekFor(t.laneId));
+    return { blocked, held, start: s, end: endFor(t.laneId, s, spanDays) };
+  };
 
-      const t = target.current;
-      if (d.moved && t) {
-        // Tom, 22 Sep: a drop on a day this painter does not work starts on their next working day.
-        const startDate = addWorkingDays(days[t.dayIndex], 1, weekFor(t.contractorId));
-        setPendingDrop({
-          kind: d.kind,
-          job: d.job,
-          block: d.block,
-          contractorId: t.contractorId,
-          startDate,
-          spanDays: d.spanDays,
-          blocked: spanBlocked(t.contractorId, startDate, d.spanDays),
-          held: spanHeld(t.contractorId, startDate, d.spanDays, d.block?.id),
-        });
-      }
-
-      clearHot();
-      target.current = null;
-      drag.current = null;
-      setGhost(null);
-      setGhostBlocked(false);
-      setGhostHeld(false);
-      setGhostDates(null);
-      // One abort tears down both listeners, so neither handler has to reference
-      // the other to unsubscribe.
-      dragAbort.current?.abort();
-      dragAbort.current = null;
-    },
-    [days, spanBlocked, spanHeld, weekFor],
-  );
-
-  const paintMarquee = useCallback((laneEl: HTMLElement, a: number, b: number) => {
-    const lo = Math.min(a, b), hi = Math.max(a, b);
-    for (let i = 0; i < range; i++) {
-      (laneEl.children[i] as HTMLElement | undefined)?.classList.toggle("marq", i >= lo && i <= hi);
-    }
-  }, [range]);
-
-  const clearMarquee = useCallback((laneEl: HTMLElement) => {
-    for (let i = 0; i < range; i++) (laneEl.children[i] as HTMLElement | undefined)?.classList.remove("marq");
-  }, [range]);
-
-  function beginBlockOut(e: React.PointerEvent, contractorId: string) {
-    // Only on bare background cells — never steal a drag from a job block.
-    const el = e.target as HTMLElement;
-    if (!el.classList.contains("bgc") || e.button !== 0) return;
-    const laneEl = e.currentTarget as HTMLElement;
-    const idx = Array.prototype.indexOf.call(laneEl.children, el);
-    if (idx < 0 || idx >= range) return;
-
-    marquee.current = { contractorId, anchor: idx, laneEl, pointerId: e.pointerId, moved: false };
-    paintMarquee(laneEl, idx, idx);
-
-    const ac = new AbortController();
-    const move = (ev: PointerEvent) => {
-      const m = marquee.current;
-      if (!m || ev.pointerId !== m.pointerId) return;
-      const r = m.laneEl.getBoundingClientRect();
-      const i = Math.max(0, Math.min(range - 1, Math.floor((ev.clientX - r.left) / dayW)));
-      m.moved = true;
-      paintMarquee(m.laneEl, m.anchor, i);
-    };
-    const up = (ev: PointerEvent) => {
-      const m = marquee.current;
-      ac.abort();
-      if (!m || ev.pointerId !== m.pointerId) return;
-      const r = m.laneEl.getBoundingClientRect();
-      const i = Math.max(0, Math.min(range - 1, Math.floor((ev.clientX - r.left) / dayW)));
-      clearMarquee(m.laneEl);
-      marquee.current = null;
-      const lo = Math.min(m.anchor, i), hi = Math.max(m.anchor, i);
-      setPendingBlock({ contractorId: m.contractorId, start: days[lo], end: days[hi] });
-    };
-    window.addEventListener("pointermove", move, { signal: ac.signal });
-    window.addEventListener("pointerup", up, { signal: ac.signal });
-    window.addEventListener("pointercancel", up, { signal: ac.signal });
-  }
-
-  function beginDrag(
-    e: React.PointerEvent,
-    payload: { kind: "tray"; job: TrayJob } | { kind: "block"; block: Block },
-  ) {
-    if (e.button !== 0) return;
-    const el = e.currentTarget as HTMLElement;
-    const spanDays =
-      payload.kind === "tray"
-        ? payload.job.estimatedDays
-        : workingDaysBetween(payload.block.start, payload.block.end, weekFor(payload.block.contractorId));
-
-    drag.current = {
-      kind: payload.kind,
-      job: payload.kind === "tray" ? payload.job : undefined,
-      block: payload.kind === "block" ? payload.block : undefined,
+  const onDrop = (p: DragPayload, t: DropTarget) => {
+    // Tom, 22 Sep: a drop on a day this painter does not work starts on their next working day.
+    const startDate = addWorkingDays(t.day, 1, weekFor(t.laneId));
+    const spanDays = spanOf(p);
+    setPendingDrop({
+      kind: p.kind,
+      job: p.kind === "tray" ? p.job : undefined,
+      block: p.kind === "block" ? p.block : undefined,
+      contractorId: t.laneId,
+      startDate,
       spanDays,
-      el,
-      startX: e.clientX,
-      startY: e.clientY,
-      moved: false,
-      pointerId: e.pointerId,
-    };
-    pointer.current = { x: e.clientX, y: e.clientY };
-    setGhost(
-      payload.kind === "tray"
-        ? { title: payload.job.title, sub: `${payload.job.woRef} · ${spanDays} day${spanDays === 1 ? "" : "s"}` }
-        : {
-            title: payload.block.title,
-            sub: payload.block.holdId ? "move hold" : payload.block.appointmentId ? `${payload.block.woRef} · move visit` : `${payload.block.woRef} · move booking`,
-          },
-    );
-    dragAbort.current?.abort();
-    const ac = new AbortController();
-    dragAbort.current = ac;
-    window.addEventListener("pointermove", onPointerMove, { signal: ac.signal });
-    window.addEventListener("pointerup", onPointerUp, { signal: ac.signal });
-    window.addEventListener("pointercancel", onPointerUp, { signal: ac.signal });
-  }
+      blocked: spanBlocked(t.laneId, startDate, spanDays),
+      held: spanHeld(t.laneId, startDate, spanDays, p.kind === "block" ? p.block.id : undefined),
+    });
+  };
 
-  useEffect(() => {
-    const onScroll = () => {
-      if (drag.current?.moved) cacheLaneRects();
-    };
-    window.addEventListener("scroll", onScroll, true);
-    return () => window.removeEventListener("scroll", onScroll, true);
-  }, [cacheLaneRects]);
-
-  /**
-   * Tom, 1 Oct: open an estimate from the board and come back, and the board
-   * is where you left it — not flicked back to the top-left. The estimate links
-   * are full navigations, so React state is gone when we return; the page
-   * scroll AND the timeline's own scroller (it is the scrollport, see above)
-   * are kept in sessionStorage — per tab, gone when the tab closes — and put
-   * back once on the next mount. Saved on every scroll (rAF-throttled) so a
-   * tap on a link never has to run first.
-   */
-  useEffect(() => {
-    const tl = tlRef.current;
-    if (!tl) return;
-    const KEY = "pc-schedule:scroll";
-    try {
-      const raw = sessionStorage.getItem(KEY);
-      if (raw) {
-        sessionStorage.removeItem(KEY); // restore once; a fresh visit starts at the top
-        const v = JSON.parse(raw) as { y?: number; tlx?: number; tly?: number };
-        if (typeof v.tlx === "number") tl.scrollLeft = v.tlx;
-        if (typeof v.tly === "number") tl.scrollTop = v.tly;
-        if (typeof v.y === "number") window.scrollTo(0, v.y);
-      }
-    } catch { /* storage blocked — the board still works, it just opens at the top */ }
-    const write = () => {
-      try {
-        sessionStorage.setItem(KEY, JSON.stringify({ y: window.scrollY, tlx: tl.scrollLeft, tly: tl.scrollTop }));
-      } catch { /* as above */ }
-    };
-    let raf = 0;
-    const save = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => { raf = 0; write(); });
-    };
-    window.addEventListener("scroll", save, { passive: true });
-    tl.addEventListener("scroll", save, { passive: true });
-    window.addEventListener("pagehide", write); // no frame comes after this one — write now
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", save);
-      tl.removeEventListener("scroll", save);
-      window.removeEventListener("pagehide", write);
-    };
-  }, []);
+  // Pointer capture and edge auto-scroll are OFF: the Schedule board never had
+  // them (Session 0 item 9.9) and Session 2's rule is no behaviour change.
+  // Turning either on is a deliberate decision for Tom's phone check.
+  const drag = useBoardDrag<DragPayload, DropCheck>({
+    days, dayW: zoom.dayW,
+    check: checkDrop,
+    onDrop,
+    onRangeSelect: (contractorId, s, e) => setPendingBlock({ contractorId, start: s, end: e }),
+    capturePointer: false,
+    autoScroll: false,
+    scroller: zoom.scrollerEl,
+  });
 
   // ---- commit ---------------------------------------------------------------
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   // Tom, 18 Sep: find a job in a long tray without scrolling it. Matches the
   // title, the reference and the suburb — the three things staff know a job by.
-  const [traySearch, setTraySearch] = useState("");
-  const trayQuery = traySearch.trim().toLowerCase();
-  const shownTray = trayQuery
-    ? tray.filter((j) => `${j.title} ${j.woRef} ${j.suburb}`.toLowerCase().includes(trayQuery))
-    : tray;
   const lapsedJobs = tray.filter((j) => j.lapsed);
   // The chase log composer. Keyed by work order so two cards can't share a
   // draft, and closed by default — the tray is a drag surface first.
@@ -1013,156 +685,68 @@ export default function ScheduleBoard({
     setBusy(false);
   }
 
+
   // ---- render ---------------------------------------------------------------
-  /**
-   * Lay each lane out in sub-rows.
-   *
-   * A contractor can take several jobs starting the same day — that's allowed on
-   * purpose. Drawn naively they'd sit on top of each other and the office would
-   * see one job where there are three, so overlapping blocks are packed into
-   * stacked rows and the lane grows to fit.
-   */
-  const laneLayout = useMemo(() => {
-    const last = addDays(start, range - 1);
-    const m = new Map<string, { placed: { block: Block; row: number }[]; rows: number; peak: number }>();
+  const header = (
+    <header className="top">
+      <div>
+        <div className="crumb">Scheduling</div>
+        <h1>Timeline</h1>
+      </div>
 
-    for (const l of lanes) {
-      const mine = blocks
-        .filter((b) => b.contractorId === l.contractorId && b.end >= start && b.start <= last)
-        .sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
+      <div className="ctrls">
+        <Paging zoom={zoom} />
+        <JumpTo zoom={zoom} />
+        <RangePresets zoom={zoom} />
+        <ZoomSlider zoom={zoom} />
 
-      // Greedy interval packing: first row whose last block has already finished.
-      const rowEnds: string[] = [];
-      const placed = mine.map((block) => {
-        let row = rowEnds.findIndex((end) => end < block.start);
-        if (row === -1) { row = rowEnds.length; rowEnds.push(block.end); }
-        else rowEnds[row] = block.end;
-        return { block, row };
-      });
+        {/* Requirement 4 — who appears in the board. */}
+        <SavedViews<ScheduleFilters>
+          label={<>Contractors · {visibleLanes.length}/{lanes.length}</>}
+          filtered={visibleLanes.length !== lanes.length}
+          views={views}
+          onPersist={persistViews}
+          current={{ tiers, contractorIds: picked, onlyOfferable }}
+          onApply={(v) => { setTiers(v.tiers); setPicked(v.contractorIds); setOnlyOfferable(v.onlyOfferable); }}
+          onClear={() => { setTiers([]); setPicked([]); setOnlyOfferable(false); }}
+          promptText="Name this view (e.g. Tier 1)"
+        >
+          <div className="lab">Tier</div>
+          {allTiers.map((t) => (
+            <label className="crow2" key={t}>
+              <input type="checkbox" checked={tiers.includes(t)} onChange={(e) => setTiers(e.target.checked ? [...tiers, t] : tiers.filter((x) => x !== t))} />
+              Tier {t}
+            </label>
+          ))}
 
-      // Busiest single day, counting real work only — a blocked-out day isn't a job.
-      let peak = 0;
-      for (let i = 0; i < range; i++) {
-        const day = days[i];
-        const n = mine.filter((b) => b.kind !== "unavailable" && b.kind !== "hold" && b.start <= day && b.end >= day).length;
-        if (n > peak) peak = n;
-      }
-
-      m.set(l.contractorId, { placed, rows: Math.max(1, rowEnds.length), peak });
-    }
-    return m;
-  }, [blocks, lanes, start, range, days]);
-
-  const styleVars = { ["--day-w" as string]: `${dayW}px`, ["--days" as string]: String(range) } as React.CSSProperties;
-
-  return (
-    <div className="sb" style={styleVars} ref={rootRef}>
-      <header className="top">
-        <div>
-          <div className="crumb">Scheduling</div>
-          <h1>Timeline</h1>
-        </div>
-
-        <div className="ctrls">
-          <div className="seg">
-            <button onClick={() => setStart(addDays(start, -range))}>‹ Back</button>
-            <button onClick={() => setStart(todayIso())}>Today</button>
-            <button onClick={() => setStart(addDays(start, range))}>Next ›</button>
-          </div>
-
-          {/* Jump anywhere — Back/Next alone can't reach a job three months out. */}
-          <label className="ctrl-lab" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            Jump to
-            <input type="date" value={start} onChange={(e) => e.target.value && setStart(e.target.value)} />
+          <label className="crow2" style={{ marginTop: 8 }}>
+            <input type="checkbox" checked={onlyOfferable} onChange={(e) => setOnlyOfferable(e.target.checked)} data-testid="filter-offerable" />
+            Ready for work only <span className="lab" style={{ marginLeft: 6 }}>(employees always shown)</span>
           </label>
 
-          <div className="seg">
-            {[14, 28, 56].map((n) => (
-              <button key={n} className={range === n ? "on" : ""} onClick={() => fitRange(n)}>
-                {n / 7}w
-              </button>
-            ))}
-          </div>
+          <div className="lab">Pick individually</div>
+          {lanes.map((l) => (
+            <label className="crow2" key={l.contractorId}>
+              <input type="checkbox" checked={picked.includes(l.contractorId)} onChange={(e) => setPicked(e.target.checked ? [...picked, l.contractorId] : picked.filter((x) => x !== l.contractorId))} />
+              {l.name}
+            </label>
+          ))}
+        </SavedViews>
+      </div>
 
-          {/* Requirement 3 — zoom. Blocks animate because they're positioned
-              off --day-w rather than laid out by the grid. */}
-          <div className="zoom">
-            <span className="ctrl-lab">Zoom</span>
-            <button className="seg" style={{ padding: "4px 8px", background: "none", border: "1px solid var(--line)", color: "var(--muted)", borderRadius: 8, cursor: "pointer" }} onClick={() => setDayW((w) => Math.max(24, w - 12))}>−</button>
-            <input type="range" min={24} max={140} step={4} value={dayW} onChange={(e) => setDayW(Number(e.target.value))} />
-            <button className="seg" style={{ padding: "4px 8px", background: "none", border: "1px solid var(--line)", color: "var(--muted)", borderRadius: 8, cursor: "pointer" }} onClick={() => setDayW((w) => Math.min(140, w + 12))}>+</button>
-          </div>
+      <div className="legend">
+        <span><i style={{ background: "var(--emerald)" }} />Accepted</span>
+        <span><i style={{ border: "1px dashed var(--emerald)", background: "transparent" }} />Assigned · not yet seen</span>
+        <span><i style={{ background: "var(--cyan)" }} />In progress</span>
+        <span><i style={{ background: "repeating-linear-gradient(45deg,var(--amber) 0 3px,transparent 3px 6px)" }} />Offered (24h)</span>
+        <span><i style={{ background: "repeating-linear-gradient(45deg,#8C959D 0 3px,transparent 3px 6px)" }} />Unavailable</span>
+        <span><i style={{ background: "var(--hold)" }} />Held · waiting on the client</span>
+      </div>
+    </header>
+  );
 
-          {/* Requirement 4 — who appears in the board. */}
-          <div className="filters">
-            <button className="seg" style={{ padding: "7px 10px", background: "none", border: "1px solid var(--line)", color: visibleLanes.length === lanes.length ? "var(--muted)" : "var(--cyan)", borderRadius: 8, cursor: "pointer", fontFamily: "var(--mono)", fontSize: 9, letterSpacing: ".06em", textTransform: "uppercase" }} onClick={() => setShowFilters((s) => !s)} data-testid="filters-open">
-              Contractors · {visibleLanes.length}/{lanes.length}
-            </button>
-            {showFilters && (
-              <div className="fpop">
-                <div className="lab">Saved views</div>
-                {views.length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>None yet.</div>}
-                {views.map((v) => (
-                  <div className="viewrow" key={v.id}>
-                    <button className="pick" onClick={() => { setTiers(v.tiers); setPicked(v.contractorIds); setOnlyOfferable(v.onlyOfferable); }}>
-                      {v.name}
-                    </button>
-                    <button className="del" onClick={() => persistViews(views.filter((x) => x.id !== v.id))} aria-label={`Delete ${v.name}`}>✕</button>
-                  </div>
-                ))}
-                <button
-                  className="btn gh"
-                  style={{ marginTop: 8, padding: 8, fontSize: 12 }}
-                  onClick={() => {
-                    const name = window.prompt("Name this view (e.g. Tier 1)");
-                    if (!name?.trim()) return;
-                    persistViews([...views, { id: crypto.randomUUID(), name: name.trim(), tiers, contractorIds: picked, onlyOfferable }]);
-                  }}
-                >
-                  Save current as a view
-                </button>
-
-                <div className="lab">Tier</div>
-                {allTiers.map((t) => (
-                  <label className="crow2" key={t}>
-                    <input type="checkbox" checked={tiers.includes(t)} onChange={(e) => setTiers(e.target.checked ? [...tiers, t] : tiers.filter((x) => x !== t))} />
-                    Tier {t}
-                  </label>
-                ))}
-
-                <label className="crow2" style={{ marginTop: 8 }}>
-                  <input type="checkbox" checked={onlyOfferable} onChange={(e) => setOnlyOfferable(e.target.checked)} data-testid="filter-offerable" />
-                  Ready for work only <span className="lab" style={{ marginLeft: 6 }}>(employees always shown)</span>
-                </label>
-
-                <div className="lab">Pick individually</div>
-                {lanes.map((l) => (
-                  <label className="crow2" key={l.contractorId}>
-                    <input type="checkbox" checked={picked.includes(l.contractorId)} onChange={(e) => setPicked(e.target.checked ? [...picked, l.contractorId] : picked.filter((x) => x !== l.contractorId))} />
-                    {l.name}
-                  </label>
-                ))}
-
-                <button className="btn dim" style={{ padding: 8, fontSize: 12 }} onClick={() => { setTiers([]); setPicked([]); setOnlyOfferable(false); }}>
-                  Clear filters
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="legend">
-          <span><i style={{ background: "var(--emerald)" }} />Accepted</span>
-          <span><i style={{ border: "1px dashed var(--emerald)", background: "transparent" }} />Assigned · not yet seen</span>
-          <span><i style={{ background: "var(--cyan)" }} />In progress</span>
-          <span><i style={{ background: "repeating-linear-gradient(45deg,var(--amber) 0 3px,transparent 3px 6px)" }} />Offered (24h)</span>
-          <span><i style={{ background: "repeating-linear-gradient(45deg,#8C959D 0 3px,transparent 3px 6px)" }} />Unavailable</span>
-          <span><i style={{ background: "var(--hold)" }} />Held · waiting on the client</span>
-        </div>
-      </header>
-
-      <div className="layout">
-        <aside className="tray">
+  const trayPrelude = (
+    <>
           {/* Anything waiting on a staff decision comes FIRST — these have a
               customer on the other end of them. */}
           {approvals.length > 0 && (
@@ -1219,27 +803,25 @@ export default function ScheduleBoard({
             </div>
           )}
 
-          <h2>Unscheduled</h2>
-          <p className="sub">Accepted jobs awaiting dates · longest wait first · drag onto the timeline</p>
-          {tray.length > 0 && (
-            <input
-              type="search"
-              className="traysearch"
-              placeholder="Search job, reference or suburb"
-              aria-label="Search the unscheduled jobs"
-              value={traySearch}
-              onChange={(e) => setTraySearch(e.target.value)}
-              data-testid="tray-search"
-            />
-          )}
-          {tray.length === 0 ? (
-            <div className="empty">Nothing waiting. Issue a work order and it appears here.</div>
-          ) : shownTray.length === 0 ? (
-            <div className="empty" data-testid="tray-no-match">
-              Nothing matches &ldquo;{traySearch.trim()}&rdquo;. {tray.length} job{tray.length === 1 ? "" : "s"} waiting.
-            </div>
-          ) : (
-            shownTray.map((j) =>
+    </>
+  );
+
+  const trayNode = (
+    <Tray<TrayJob>
+      items={tray}
+      itemKey={(j) => j.workOrderId}
+      // Tom, 18 Sep: find a job in a long tray without scrolling it. Matches the
+      // title, the reference and the suburb — the three things staff know a job by.
+      searchText={(j) => `${j.title} ${j.woRef} ${j.suburb}`}
+      searchPlaceholder="Search job, reference or suburb"
+      searchLabel="Search the unscheduled jobs"
+      title="Unscheduled"
+      sub="Accepted jobs awaiting dates · longest wait first · drag onto the timeline"
+      emptyText="Nothing waiting. Issue a work order and it appears here."
+      noMatch={(q, n) => <>Nothing matches &ldquo;{q}&rdquo;. {n} job{n === 1 ? "" : "s"} waiting.</>}
+      prelude={trayPrelude}
+      onDragStart={(e, j) => drag.beginDrag(e, { kind: "tray", job: j })}
+      renderItem={(j, bind) =>
               j.needsIssuing ? (
                 // Accepted but not issued: visible here so it can't be forgotten,
                 // but it can't be dragged until the work order exists to send.
@@ -1268,7 +850,7 @@ export default function ScheduleBoard({
                   className="jcard"
                   data-testid="tray-job"
                   data-wo-ref={j.woRef}
-                  onPointerDown={(e) => beginDrag(e, { kind: "tray", job: j })}
+                  onPointerDown={bind.onPointerDown}
                 >
                   <div className="r1">
                     <span className="ref">{j.woRef}</span>
@@ -1357,62 +939,42 @@ export default function ScheduleBoard({
                     )}
                   </div>
                 </div>
-              ),
-            )
-          )}
-          <p className="hint">
-            Drag a job onto a contractor&rsquo;s row — nothing is sent until you confirm,
-            and the row turns red if they&rsquo;ve blocked those days out. Drag across
-            empty space on a row to block that contractor out. Drag an existing
-            booking to another row to reassign it.
-          </p>
-        </aside>
+              )
+      }
+      hint={
+        <>
+          Drag a job onto a contractor&rsquo;s row — nothing is sent until you confirm,
+          and the row turns red if they&rsquo;ve blocked those days out. Drag across
+          empty space on a row to block that contractor out. Drag an existing
+          booking to another row to reassign it.
+        </>
+      }
+    />
+  );
 
-        <main className="tl" ref={tlRef}>
-          <div className="grid">
-            {/* Tom, 18 Sep: the month, the day and the date stay locked at the
-                top while you scroll down through the contractors, so you can
-                always see which day you are dragging a job onto. One wrapper
-                rather than pinning the two rows separately, so nothing depends
-                on knowing how tall the month bar is. */}
-            <div className="hdr" data-testid="board-header">
-            <div className="mb">
-              <div className="mcell spacer" />
-              {monthRuns(days).map((m, i) => (
-                <div key={i} className="mcell" style={{ gridColumn: `span ${m.span}` }}>
-                  {m.label}
-                </div>
-              ))}
-            </div>
-            <div className="dh">
-              <div className="cell lanehead">Contractor</div>
-              {days.map((d) => {
-                const p = dayParts(d);
-                const we = p.dow === 0 || p.dow === 6;
-                return (
-                  <div key={d} className={`cell ${we ? "we" : ""} ${d === today ? "today" : ""}`}>
-                    {/* Day name AND number, always — a column of bare numbers
-                        gives no sense of where the weekends fall. Zoomed right
-                        out there is only room for the initial. */}
-                    <span className="dw">{dayW >= 34 ? p.short : p.short.slice(0, 1)}</span>
-                    <span className="dn">{p.num}</span>
-                  </div>
-                );
-              })}
-            </div>
-            </div>
-
-            <div>
-              {visibleLanes.map((l) => {
-                const lay = laneLayout.get(l.contractorId) ?? { placed: [], rows: 1, peak: 0 };
-                const over = lay.peak > l.crewSize;
-                return (
-                  <div
-                    className="crow"
-                    key={l.contractorId}
-                    style={{ height: `${Math.max(1, lay.rows) * 52 + 14}px` }}
-                  >
-                    <div className="cinfo">
+  return (
+    <Board<Lane, Block, DragPayload, DropCheck>
+      zoom={zoom}
+      drag={drag}
+      lanes={lanes}
+      laneId={(l) => l.contractorId}
+      filterLane={filterLane}
+      blocks={blocks}
+      blockId={(b) => b.id}
+      blockLane={(b) => b.contractorId}
+      blockStart={(b) => b.start}
+      blockEnd={(b) => b.end}
+      // Busiest single day, counting real work only — a blocked-out day isn't a job.
+      countsTowardLoad={(b) => b.kind !== "unavailable" && b.kind !== "hold"}
+      blockPayload={(b) => ({ kind: "block", block: b })}
+      isMovable={(b) => b.kind === "accepted" || b.kind === "offered" || b.kind === "proposed" || b.kind === "assigned" || b.kind === "hold" || Boolean(b.appointmentId)}
+      storageKey="pc-schedule:scroll"
+      laneHeadTitle="Contractor"
+      laneData={(l) => ({ "data-contractor-id": l.contractorId, "data-contractor-company": l.company ?? undefined })}
+      renderLaneHead={(l, lay) => {
+        const over = lay.peak > l.crewSize;
+        return (
+          <>
                       <div className="nmrow">
                         <div className="nm">{l.name}</div>
                         <div className="bd">
@@ -1438,72 +1000,52 @@ export default function ScheduleBoard({
                           {lay.peak}/{l.crewSize} {over ? "OVER" : "ON"}
                         </span>
                       </div>
-                    </div>
-
-                    <div
-                      className="lane"
-                      data-testid="lane"
-                      data-contractor-id={l.contractorId}
-                      data-contractor-company={l.company}
-                      ref={(el) => { if (el) laneRefs.current.set(l.contractorId, el); }}
-                      onPointerDown={(e) => beginBlockOut(e, l.contractorId)}
-                    >
-                      {days.map((d) => {
-                        const dow = dayParts(d).dow;
-                        // data-label is what the hovered cell's pop-up says while a job is dragged over it (schedule.css .bgc.hot::after).
-                        return <div key={d} data-day={d} data-label={dayLabel(d)} className={`bgc ${dow === 0 || dow === 6 ? "we" : ""}`} />;
-                      })}
-
-                      {/* §4b: walkthrough pins — the sign-off visit, on the
-                          day it is booked. Not draggable (rebooking happens on
-                          the job page, where the Mode B gate lives beside it);
-                          tap-through to the work order. The bottom strip keeps
-                          them clear of the booking blocks. */}
-                      {walkthroughs.filter((w) => w.contractorId === l.contractorId).map((w) => {
-                        const off = dayDiff(start, w.date);
-                        if (off < 0 || off >= range) return null;
-                        return (
-                          <a
-                            key={w.id}
-                            className="wtpin"
-                            href={`/pc/wo/${w.workOrderId}`}
-                            style={{ left: `calc(var(--day-w) * ${off} + 3px)` }}
-                            title={`${w.kind === "final" ? "Final" : "Pre"} walkthrough${w.time ? ` ${w.time}` : ""} · ${w.title} · ${w.woRef}`}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            data-testid={`walkthrough-pin-${w.id}`}
-                          >
-                            {w.kind === "final" ? `WALK${w.time ? ` ${w.time}` : " ✓"}` : "PRE"}
-                          </a>
-                        );
-                      })}
-
-                      {lay.placed.map(({ block: b, row }) => {
-                        const offset = Math.max(0, dayDiff(start, b.start));
-                        const endIdx = Math.min(range - 1, dayDiff(start, b.end));
-                        const span = Math.max(1, endIdx - offset + 1);
-                        const movable = b.kind === "accepted" || b.kind === "offered" || b.kind === "proposed" || b.kind === "assigned" || b.kind === "hold" || Boolean(b.appointmentId);
-                        return (
-                          <div
-                            key={b.id}
-                            className={`blk ${b.kind}${b.assignmentId && !b.acceptedAt ? " hollow" : ""}${b.appointmentId ? " visit" : ""}`}
-                            data-testid={b.assignmentId ? "assignment-block" : b.holdId ? "hold-block" : b.appointmentId ? "visit-block" : undefined}
-                            data-assignment-id={b.assignmentId}
-                            data-hold-id={b.holdId}
-                            data-appointment-id={b.appointmentId}
-                            data-work-order-id={b.workOrderId ?? undefined}
-                            data-start={b.start}
-                            data-end={b.end}
-                            data-lead={b.isLead ? "1" : undefined}
-                            data-accepted={b.acceptedAt ? "1" : undefined}
-                            style={{
-                              left: `calc(var(--day-w) * ${offset} + 3px)`,
-                              width: `calc(var(--day-w) * ${span} - 6px)`,
-                              top: `${7 + row * 52}px`,
-                            }}
-                            onPointerDown={movable ? (e) => beginDrag(e, { kind: "block", block: b }) : undefined}
-                            onClick={() => setDetail(b)}
-                            title={b.title}
-                          >
+          </>
+        );
+      }}
+      renderLaneOverlay={(l) => (
+        <>
+          {/* §4b: walkthrough pins — the sign-off visit, on the
+              day it is booked. Not draggable (rebooking happens on
+              the job page, where the Mode B gate lives beside it);
+              tap-through to the work order. The bottom strip keeps
+              them clear of the booking blocks. */}
+          {walkthroughs.filter((w) => w.contractorId === l.contractorId).map((w) => {
+            const off = dayDiff(start, w.date);
+            if (off < 0 || off >= range) return null;
+            return (
+              <a
+                key={w.id}
+                className="wtpin"
+                href={`/pc/wo/${w.workOrderId}`}
+                style={{ left: `calc(var(--day-w) * ${off} + 3px)` }}
+                title={`${w.kind === "final" ? "Final" : "Pre"} walkthrough${w.time ? ` ${w.time}` : ""} · ${w.title} · ${w.woRef}`}
+                onPointerDown={(e) => e.stopPropagation()}
+                data-testid={`walkthrough-pin-${w.id}`}
+              >
+                {w.kind === "final" ? `WALK${w.time ? ` ${w.time}` : " ✓"}` : "PRE"}
+              </a>
+            );
+          })}
+        </>
+      )}
+      renderBlock={(b, bind) => (
+        <div
+          className={`blk ${b.kind}${b.assignmentId && !b.acceptedAt ? " hollow" : ""}${b.appointmentId ? " visit" : ""}`}
+          data-testid={b.assignmentId ? "assignment-block" : b.holdId ? "hold-block" : b.appointmentId ? "visit-block" : undefined}
+          data-assignment-id={b.assignmentId}
+          data-hold-id={b.holdId}
+          data-appointment-id={b.appointmentId}
+          data-work-order-id={b.workOrderId ?? undefined}
+          data-start={b.start}
+          data-end={b.end}
+          data-lead={b.isLead ? "1" : undefined}
+          data-accepted={b.acceptedAt ? "1" : undefined}
+          style={bind.style}
+          onPointerDown={bind.onPointerDown}
+          onClick={() => setDetail(b)}
+          title={b.title}
+        >
                             <div className="t">{b.isLead && <span className="lead" title="Lead painter">★</span>}{b.title}</div>
                             <div className="m">
                               {b.kind === "unavailable"
@@ -1519,45 +1061,41 @@ export default function ScheduleBoard({
                               {b.assignmentId && !b.acceptedAt && <span className="crew">NOT YET SEEN</span>}
                             </div>
                             {b.expiresAt && <div className="cd">{coarseCountdown(b.expiresAt)}</div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-              {visibleLanes.length === 0 && (
-                <div className="empty" style={{ margin: 20 }}>
-                  {/* An empty board because a query failed looks identical to an
-                      empty board because there's no work — so distinguish them. */}
-                  {errors.length > 0
-                    ? `Couldn't load the board — ${errors.join("; ")}`
-                    : lanes.length === 0
-                      ? "No contractors set up yet."
-                      : "No contractors match this view."}
-                </div>
-              )}
-            </div>
-          </div>
-        </main>
-      </div>
-
-      {/* drag ghost — moved by transform only */}
-      {ghost && (
-        <div ref={ghostRef} className={`ghost ${ghostBlocked ? "blocked" : ghostHeld ? "held" : ""}`}>
-          <div className="g1">{ghost.title}</div>
-          <div className="g2">{ghostBlocked ? "BLOCKED OUT — DROP TO OVERRIDE" : ghostHeld ? "DAYS HELD — DROP TO BOOK OVER THE HOLD" : ghost.sub}</div>
-          {ghostDates && (
-            <div className="g3" data-testid="ghost-dates" data-start={ghostDates.start} data-end={ghostDates.end}>
-              {ghostDates.start === ghostDates.end ? `Starts ${dayLabel(ghostDates.start)}` : `${dayLabel(ghostDates.start)} → ${dayLabel(ghostDates.end)}`}
-            </div>
-          )}
         </div>
       )}
-
+      renderGhost={(p, check, target) => {
+        const title = p.kind === "tray" ? p.job.title : p.block.title;
+        const n = spanOf(p);
+        const sub = p.kind === "tray"
+          ? `${p.job.woRef} · ${n} day${n === 1 ? "" : "s"}`
+          : p.block.holdId ? "move hold" : p.block.appointmentId ? `${p.block.woRef} · move visit` : `${p.block.woRef} · move booking`;
+        return (
+          <>
+            <div className="g1">{title}</div>
+            <div className="g2">{check?.blocked ? "BLOCKED OUT — DROP TO OVERRIDE" : check?.held ? "DAYS HELD — DROP TO BOOK OVER THE HOLD" : sub}</div>
+            {check && target && (
+              <div className="g3" data-testid="ghost-dates" data-start={check.start} data-end={check.end}>
+                {check.start === check.end ? `Starts ${dayLabel(check.start)}` : `${dayLabel(check.start)} → ${dayLabel(check.end)}`}
+              </div>
+            )}
+          </>
+        );
+      }}
+      emptyMessage={
+        // An empty board because a query failed looks identical to an
+        // empty board because there's no work — so distinguish them.
+        errors.length > 0
+          ? `Couldn't load the board — ${errors.join("; ")}`
+          : lanes.length === 0
+            ? "No contractors set up yet."
+            : "No contractors match this view."
+      }
+      header={header}
+      tray={trayNode}
+    >
       {/* confirm a drop */}
-      <div
-        className={`scrim ${pendingDrop || detail || pendingBlock ? "on" : ""}`}
+      <Scrim
+        on={Boolean(pendingDrop || detail || pendingBlock)}
         onClick={() => { setPendingDrop(null); setDetail(null); setPendingBlock(null); setErr(""); setOfferNote(""); }}
       />
 
@@ -2163,8 +1701,8 @@ export default function ScheduleBoard({
       {/* staff blocking days out — requirement 2, office side */}
       <BlockOutBar lanes={lanes} onBlock={blockOut} busy={busy} />
 
-      <div className={`toast ${toast ? "show" : ""}`}><b>{toast}</b></div>
-    </div>
+      <Toast text={toast} />
+    </Board>
   );
 }
 

@@ -1,0 +1,12 @@
+/* Board engine — what the engine ADDED beyond the Schedule board's own
+   schedule.css (which still carries the base `.sb` rules the engine relies
+   on; see the "CSS the engine relies on" list in
+   docs/briefs/movements-session-0-report.md). Scoped under .sb like the rest.
+
+   Sub-slots: a day cell sliced into AM/PM halves or hourly rows. The Schedule
+   board renders none, so nothing here reaches it. */
+.sb .lane .bgc .slot { position: relative; flex: 1 1 0; border-bottom: 1px dashed rgba(36, 43, 50, 0.45); }
+.sb .lane .bgc:has(> .slot) { display: flex; flex-direction: column; }
+.sb .lane .bgc .slot:last-child { border-bottom: none; }
+.sb .lane .bgc .slot.hot { background: rgba(59, 216, 233, 0.1); box-shadow: inset 0 0 0 1px rgba(59, 216, 233, 0.35); }
+.sb .lane.blocked .bgc .slot.hot { background: rgba(179, 87, 74, 0.12); box-shadow: inset 0 0 0 1px rgba(179, 87, 74, 0.4); }
