@@ -62,6 +62,25 @@ export function sniffVideoKind(bytes: Uint8Array): VideoKind | null {
 }
 
 /** The storage-path extension for a declared video type, or null for anything else. */
+/**
+ * The type a browser-side uploader should DECLARE to the sign step. A file
+ * saved out of WhatsApp or AirDropped onto the desktop can reach the browser
+ * with an EMPTY `type` (Tom, 19 Oct 2026, forwarding customers' clips to the
+ * painter); the name's extension is the next best witness. The ingest still
+ * sniffs the staged bytes, so a wrong guess is refused, never filed.
+ */
+export function declaredUploadType(file: { type: string; name: string }): string | undefined {
+  if (file.type) return file.type;
+  const ext = file.name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  switch (ext) {
+    case "mp4": return "video/mp4";
+    case "m4v": return "video/x-m4v";
+    case "mov": return "video/quicktime";
+    case "webm": return "video/webm";
+    default: return undefined;
+  }
+}
+
 export function videoExtensionFor(contentType: string | null | undefined): string | null {
   switch ((contentType ?? "").toLowerCase()) {
     case "video/mp4": return "mp4";

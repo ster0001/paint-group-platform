@@ -30,8 +30,8 @@ Near the top of the job, **What we expect on this job** is one drop-down: tap it
 4. Now tick. The row turns cyan **PREPPED** on the first tap and green **DONE** on the second. Your ticks are recorded under your name, and the office's daily update to the customer is drafted from them.
 5. **Step 3 · Upload the after photos.** When every surface is **DONE** the Step 3 card appears: tap the green **Upload photos** button for photos of all rooms or all sides now the work is finished. The job asks once, not per area, and Step 4 stays locked until they are in.
 
-### Photos from the office
-Near the top of the job sheet, above the scope, a **From the office** section holds photos the office has attached for this job — the elevation the scaffold goes on, where the gear lives, the colour to match. Each says which area it belongs to (or **Whole job**) and what to notice. Tap one to see it full size.
+### Photos and videos from the office
+Near the top of the job sheet, above the scope, a **From the office** section holds photos and videos the office has attached for this job — the elevation the scaffold goes on, where the gear lives, the colour to match, a walk-round video the customer sent. Each says which area it belongs to (or **Whole job**) and what to notice. Tap a photo to see it full size; a video shows a play badge and plays when tapped.
 
 Above the materials, **Further instructions for the crew** is the office's note for this job — access, where to start, anything to watch for. The office can update it after the job has gone out, and the job sheet always shows the latest version, so look again before you start.
 

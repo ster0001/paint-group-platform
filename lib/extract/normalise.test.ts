@@ -125,7 +125,7 @@ test("classification always explains itself", () => {
 });
 
 // ---- Site videos (Tom, 26 Sep 2026) -------------------------------------------
-import { sniffVideoKind, videoExtensionFor, sniffKind as sniffImageKind } from "./normalise";
+import { sniffVideoKind, videoExtensionFor, declaredUploadType, sniffKind as sniffImageKind } from "./normalise";
 
 const box = (brand: string) => new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, ...brand.split("").map((c) => c.charCodeAt(0)), 0, 0, 2, 0, 0x69, 0x73, 0x6f, 0x6d, 0x6d, 0x70, 0x34, 0x32]);
 
@@ -148,4 +148,22 @@ test("the declared type names the object's extension; anything else stays a bare
   expect(videoExtensionFor("video/quicktime")).toBe("mov");
   expect(videoExtensionFor("image/jpeg")).toBe(null);
   expect(videoExtensionFor(undefined)).toBe(null);
+});
+
+test("declaredUploadType: the browser's type wins; a typeless WhatsApp clip is named by its extension", () => {
+  // Tom, 19 Oct 2026: clips forwarded from WhatsApp reach the office card with
+  // an empty type — the sign step must still hear "video" or the ingest refuses
+  // the bytes as not-a-photo.
+  expect(declaredUploadType({ type: "video/mp4", name: "anything.bin" })).toBe("video/mp4");
+  expect(declaredUploadType({ type: "", name: "WhatsApp Video 2026-10-19.mp4" })).toBe("video/mp4");
+  expect(declaredUploadType({ type: "", name: "IMG_0042.MOV" })).toBe("video/quicktime");
+  expect(declaredUploadType({ type: "", name: "clip.webm" })).toBe("video/webm");
+  expect(declaredUploadType({ type: "", name: "clip.m4v" })).toBe("video/x-m4v");
+  // A typeless photo stays undeclared → bare photo path, sniffed as an image.
+  expect(declaredUploadType({ type: "", name: "IMG_0042.jpg" })).toBe(undefined);
+  expect(declaredUploadType({ type: "", name: "noext" })).toBe(undefined);
+  // Every extension it names round-trips into a path extension the readers know.
+  for (const n of ["a.mp4", "a.mov", "a.webm", "a.m4v"]) {
+    expect(videoExtensionFor(declaredUploadType({ type: "", name: n }))).not.toBeNull();
+  }
 });
