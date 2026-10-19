@@ -20,6 +20,7 @@ import { customerCheckins, dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
 import { melbourneDayStartUtc } from "@/lib/workorder/console";
 import { openHolds } from "@/lib/scheduling/holds";
 import { qaCheckLabel } from "@/lib/workorder/qaSchedule";
+import { PRE_START_WINDOW_DAYS } from "@/lib/workorder/stages";
 import { realOnly } from "@/lib/demo/scope";
 
 /**
@@ -149,6 +150,14 @@ export const WORK_ITEM_KINDS = [
   "qa_check_due",
   /** Tom, 8 Oct 2026: a dated quality check whose final walkthrough was cancelled and not rebooked — the check stays put; rebook the final or move it. */
   "qa_check_final_cancelled",
+  /**
+   * Tom, 19 Oct 2026: "if a quality check is required, it needs to be visible
+   * at the top of the page in PC command to book in the quality check before
+   * the final walk through". The main check on an open job, from booking until
+   * its day: undated, dated with no final booked, or booked. Drawn as the
+   * strip at the top of PC Command; recording the check clears it.
+   */
+  "qa_check_to_book",
   /** Tom, 9 Oct 2026: a painter wrote in a project's Messages box and nobody in the office has read it yet. Reading the thread clears it. */
   "painter_message",
   /**
@@ -258,7 +267,7 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
  * SCREENS over one queue is not.
  */
 export type WorkItemHome = "crm" | "pc";
-const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "painter_message", "site_visit_due", "material_request", "no_work_requested", "insurance_missing"]);
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "qa_check_to_book", "painter_message", "site_visit_due", "material_request", "no_work_requested", "insurance_missing"]);
 export function homeOf(kind: WorkItemKind): WorkItemHome {
   return PC_HOMED.has(kind) ? "pc" : "crm";
 }
@@ -337,6 +346,8 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   qa_check_due: 20,
   // Felipe is booked for a check with no final behind it — sort it before the day.
   qa_check_final_cancelled: 18,
+  // A required check with no slot yet — book it before the final, ahead of the day's plan.
+  qa_check_to_book: 24,
   // A painter on site is waiting on an answer — ranks with a customer's unanswered message.
   painter_message: 26,
   // Felipe's own visit on the day — the day's plan, like a check.
@@ -458,6 +469,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   hold_pending: "followups",
   qa_check_due: "followups",
   qa_check_final_cancelled: "followups",
+  qa_check_to_book: "followups",
   painter_message: "messages",
   site_visit_due: "followups",
   material_request: "approvals",
@@ -2201,8 +2213,12 @@ async function readPainterStatusRows(supabase: SupabaseClient): Promise<{ status
 // ---- source: quality checks and job check-ins on their day (Tom, 8 Oct 2026) ---
 
 export type QaCheckQueueRow = {
-  id: string; workOrderId: string; kind: string; date: string; time: string | null;
+  id: string; workOrderId: string; kind: string;
+  /** Null while the check has no day (Tom, 19 Oct 2026: an undated required check is the one to book). */
+  date: string | null; time: string | null;
   stage: string; woRef: string; where: string; painter: string | null;
+  /** The job's booked dates — the last day stands in for an unbooked final. */
+  startDate: string | null; endDate: string | null;
   /** The job's final walkthroughs, newest first. */
   finals: { status: string; date: string }[];
 };
@@ -2221,13 +2237,51 @@ export type QaCheckQueueRow = {
 export function buildQaCheckItems(rows: readonly QaCheckQueueRow[], now: Date): WorkItem[] {
   const items: WorkItem[] = [];
   const today = MELB_DAY_KEY.format(now);
+  const preStartFrom = MELB_DAY_KEY.format(new Date(now.getTime() + PRE_START_WINDOW_DAYS * 86_400_000));
   for (const r of rows) {
     if (r.stage === "closed") continue;
     const label = qaCheckLabel(r.kind);
     const at = r.time ? r.time.slice(0, 5) : null;
     const who = `${r.woRef}${r.painter ? ` · ${r.painter}` : ""}`;
     const [hh, mm] = (at ?? "17:00").split(":").map(Number);
-    if (r.date <= today && r.stage !== "qa") {
+    // Tom, 19 Oct 2026: the main check, from booking until its day, at the top
+    // of PC Command — so the office books it in before the final walkthrough.
+    // On its day it is the qa_check_due card below; a job parked at Quality
+    // check is the console's own card. A booking more than a week out is the
+    // Booking confirmed lane's business, not today's.
+    const bookedFinal = r.finals.find((f) => f.status === "booked") ?? null;
+    const inWindow = r.stage === "in_progress" || r.stage === "completion_prep"
+      || (r.stage === "pre_start" && (!r.startDate || r.startDate <= preStartFrom));
+    if (r.kind === "final" && inWindow && (!r.date || r.date > today)) {
+      const anchor = bookedFinal?.date ?? r.endDate;
+      const dueAt = anchor ? melbInstant(anchor, 9).toISOString() : null;
+      const since = melbInstant(r.startDate && r.startDate < today ? r.startDate : today, 7).toISOString();
+      const state = !r.date || !at ? "undated" : !bookedFinal ? `final-unbooked:${r.date}` : `booked:${r.date}:${at}:${bookedFinal.date}`;
+      const common = { kind: "qa_check_to_book" as const, accountId: null, subjectRef: { type: "work_order" as const, id: r.workOrderId }, since, dueAt };
+      if (state === "undated") {
+        items.push(finish({
+          ...common, key: itemKey("qa_check_to_book", "work_order", r.workOrderId, `${r.id}:undated`),
+          title: `Quality check required — no day booked yet — ${r.where}`,
+          detail: `${who}. This job needs a quality check before its final walkthrough${anchor ? ` (last day ${anchor})` : ""} and it has no day or time yet. Book it in on the job page.`,
+          action: { label: "Book the check", href: `/pc/wo/${r.workOrderId}#qa` },
+        }, { valueCents: null, promisedToCustomer: false }, now));
+      } else if (!bookedFinal) {
+        items.push(finish({
+          ...common, key: itemKey("qa_check_to_book", "work_order", r.workOrderId, `${r.id}:${state}`),
+          title: `Quality check pencilled for ${r.date} at ${at}, final walkthrough not booked — ${r.where}`,
+          detail: `${who}. The check sits on the working day before the job's last day${r.endDate ? ` (${r.endDate})` : ""}. Book the final walkthrough and the check follows it, or move the check on the job page.`,
+          action: { label: "Book it in", href: `/pc/wo/${r.workOrderId}#qa` },
+        }, { valueCents: null, promisedToCustomer: false }, now));
+      } else {
+        items.push(finish({
+          ...common, key: itemKey("qa_check_to_book", "work_order", r.workOrderId, `${r.id}:${state}`),
+          title: `Quality check ${r.date} at ${at}, before the final walkthrough on ${bookedFinal.date} — ${r.where}`,
+          detail: `${who}. Required on this job. Check Felipe has the slot, or move it on the job page; recording the check clears this.`,
+          action: { label: "Open the check", href: `/pc/wo/${r.workOrderId}#qa` },
+        }, { valueCents: null, promisedToCustomer: false }, now));
+      }
+    }
+    if (r.date && r.date <= today && r.stage !== "qa") {
       items.push(finish({
         key: itemKey("qa_check_due", "work_order", r.workOrderId, r.id),
         kind: "qa_check_due", accountId: null, subjectRef: { type: "work_order", id: r.workOrderId },
@@ -2239,7 +2293,7 @@ export function buildQaCheckItems(rows: readonly QaCheckQueueRow[], now: Date): 
       }, { valueCents: null, promisedToCustomer: false }, now));
     }
     const lastFinal = r.finals[0];
-    if (r.kind === "final" && lastFinal && lastFinal.status === "cancelled" && !r.finals.some((f) => f.status === "booked")) {
+    if (r.kind === "final" && r.date && lastFinal && lastFinal.status === "cancelled" && !r.finals.some((f) => f.status === "booked")) {
       items.push(finish({
         key: itemKey("qa_check_final_cancelled", "work_order", r.workOrderId, `${r.id}:${lastFinal.date}`),
         kind: "qa_check_final_cancelled", accountId: null, subjectRef: { type: "work_order", id: r.workOrderId },
@@ -2255,15 +2309,16 @@ export function buildQaCheckItems(rows: readonly QaCheckQueueRow[], now: Date): 
 }
 
 async function readQaCheckRows(supabase: SupabaseClient): Promise<{ rows: QaCheckQueueRow[]; error: string | null }> {
+  // Every open check, dated or not (Tom, 19 Oct 2026: an undated required check is the one to book).
   const { data, error } = await realOnly(supabase.from("wo_qa_checks")
-    .select("id, work_order_id, kind, scheduled_for, scheduled_time, work_orders(wo_ref, stage, wo_snapshot, contractors(company_name, profiles(name)), wo_walkthroughs(kind, status, scheduled_date, created_at))"))
-    .is("result", null).not("scheduled_for", "is", null)
-    .order("scheduled_for").limit(300);
+    .select("id, work_order_id, kind, scheduled_for, scheduled_time, work_orders(wo_ref, stage, start_date, end_date, wo_snapshot, contractors(company_name, profiles(name)), wo_walkthroughs(kind, status, scheduled_date, created_at))"))
+    .is("result", null)
+    .order("scheduled_for", { nullsFirst: true }).limit(300);
   if (error) return { rows: [], error: error.message };
   type Row = {
-    id: string; work_order_id: string; kind: string; scheduled_for: string; scheduled_time: string | null;
+    id: string; work_order_id: string; kind: string; scheduled_for: string | null; scheduled_time: string | null;
     work_orders: {
-      wo_ref: string; stage: string; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null;
+      wo_ref: string; stage: string; start_date: string | null; end_date: string | null; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null;
       contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
       wo_walkthroughs: { kind: string; status: string; scheduled_date: string; created_at: string }[] | null;
     } | null;
@@ -2274,6 +2329,7 @@ async function readQaCheckRows(supabase: SupabaseClient): Promise<{ rows: QaChec
       id: r.id, workOrderId: r.work_order_id, kind: r.kind, date: r.scheduled_for, time: r.scheduled_time,
       stage: w.stage, woRef: w.wo_ref, where: w.wo_snapshot?.jobAddress || w.wo_snapshot?.jobTitle || w.wo_ref,
       painter: w.contractors?.profiles?.name || w.contractors?.company_name || null,
+      startDate: w.start_date, endDate: w.end_date,
       finals: (w.wo_walkthroughs ?? []).filter((f) => f.kind === "final")
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
         .map((f) => ({ status: f.status, date: f.scheduled_date })),

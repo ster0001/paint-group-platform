@@ -36,8 +36,17 @@
  *   1–2 days   a follow-up after the job completes — are they happy?
  *   3–6 days   50% through: a mid-job check-in (high importance)
  *   7+ days    35% and 70% through: two mid-job check-ins (high importance)
+ *
+ * Painter finish reminder (Tom, 19 Oct 2026; automation
+ * contractor_finish_reminder): two BUSINESS days (Mon–Fri, public holidays
+ * skipped — the quality check's unit, not the painter's working week) before
+ * the final walkthrough day, the contractor is texted the date and asked to
+ * move it in the app if the job is running ahead or behind. The walkthrough
+ * day is the booked final, else the job's booked last day — the same date the
+ * painter's Finish & walkthrough card shows.
  */
 import { melbourneInstant } from "@/lib/time/businessHours";
+import { workingDaysBefore } from "./qaSchedule";
 
 export type WorkWeek = { worksSaturday?: boolean; worksSunday?: boolean };
 
@@ -109,6 +118,16 @@ export function customerDefectTapeRungs(days: readonly string[]): DefectTapeRung
     return [{ id: "am", date }, { id: "pm", date }];
   }
   return [{ id: "am", date: days[n - 4] }];
+}
+
+/** The day the painter is reminded of the walkthrough date: two business days before it. */
+export function painterFinishReminderDay(walkthroughDate: string, holidays: ReadonlySet<string>): string {
+  return workingDaysBefore(walkthroughDate, 2, holidays);
+}
+
+/** The walkthrough day the reminder is counted from: the booked final, else the booked last day. */
+export function walkthroughDayOf(job: { endDate: string | null; finals: readonly { status: string; date: string }[] }): string | null {
+  return job.finals.find((f) => f.status === "booked")?.date ?? job.endDate ?? null;
 }
 
 export type CheckinPlan =

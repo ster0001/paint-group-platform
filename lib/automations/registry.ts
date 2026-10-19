@@ -101,6 +101,7 @@ const P = {
   qaFail: ["{{company_name}}", "{{wo_ref}}", "{{link}}"],
   jobUpdate: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{day_label}}", "{{link}}"],
   defectTape: ["{{first_name}}", "{{company_name}}", "{{suburb}}", "{{address}}", "{{finish_date}}"],
+  finishReminder: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{address}}", "{{finish_date}}", "{{link}}"],
   standards: ["{{first_name}}", "{{company_name}}", "{{link}}", "{{version}}"],
   status: ["{{first_name}}", "{{company_name}}", "{{colour}}", "{{link}}"],
   bonus: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{link}}"],
@@ -460,6 +461,18 @@ export const AUTOMATIONS: Automation[] = [
       { field: "contractorJobUpdateMorningEmailIntro", label: "Email body", kind: "body", placeholders: P.jobUpdate },
     ],
     guard: "Once per job per day (automation_claims, rung = moment + day), to every painter on the job. Not sent when that day's update is already in, when the PC marked the day No work, or once the job reaches its quality check, walkthrough or close. Each painter's outcome is recorded on the job (reminder_morning_sent).",
+    note: "7:30 am is before the office's sending hours, so this text is exempt from quiet hours by design.",
+  },
+  {
+    key: "contractor_finish_reminder", name: "Final walkthrough in two business days — running ahead or behind?", audience: "painter", channels: ["sms", "email"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "auto", sendKind: "finish_reminder", quietExempt: true, capExempt: true,
+    trigger: "Tom, 19 Oct: two business days (Mon–Fri, public holidays skipped) before the job's final walkthrough day — the booked final, else the booked last day — the contractor is texted the date and asked to change it in the app if the job is running ahead or behind. Sent from 7:30 am until noon (Settings → finish_reminder_rules from / until); a morning the sweep missed is not sent in the afternoon. The day is read from the job at send time, so a moved finish date moves the text.",
+    templates: [
+      { field: "contractorFinishReminderSms", label: "Text message", kind: "sms", placeholders: P.finishReminder },
+      { field: "contractorFinishReminderEmailSubject", label: "Email subject", kind: "subject", placeholders: P.finishReminder },
+      { field: "contractorFinishReminderEmailIntro", label: "Email body", kind: "body", placeholders: P.finishReminder },
+    ],
+    guard: "Once per job per walkthrough day (automation_claims, rung = the day) — a moved date is a new rung. Only while the job is booked and open (pre-start, in progress, completion prep, quality check); to the contractor on the job, not the crew. The outcome is recorded on the job (finish_reminder_sent).",
     note: "7:30 am is before the office's sending hours, so this text is exempt from quiet hours by design.",
   },
   // ---- Painter status (brief: standards / status / call backs, Step 6) -------
