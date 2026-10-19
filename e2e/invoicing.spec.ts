@@ -356,6 +356,10 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     await expect(page.getByTestId("invoice-number")).toHaveText(deposit.number!);
     await expect(page.getByTestId("total-inc")).toHaveText("$1,850.00");
     await expect(page.getByTestId("gst-amount")).toHaveText("$168.18");
+    // Tom, 20 Oct: invoice date and due date on the document — the deposit is
+    // PAID by now, and the due date stays on the paper after payment.
+    await expect(page.locator(".doctype .dates")).toContainText(/Issued \d{1,2} \w+ \d{4}/);
+    await expect(page.locator(".doctype .dates")).toContainText(/Due \d{1,2} \w+ \d{4}/);
 
     // Exactly ONE invoice's payload: no other invoice's number, and none of
     // the codebase's internal money fields, anywhere in the response.
@@ -427,6 +431,9 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     // Paid in full: the card's tag says so and nothing is left to pay on it.
     await expect(card.locator(".tag")).toHaveText("Paid", { timeout: 15_000 });
     await expect(card).not.toContainText("still to pay");
+    // The card carries the invoice date and the due date (Tom, 20 Oct).
+    await expect(card.getByTestId("invoice-dates")).toContainText(/Invoice date \d{1,2} \w{3}/);
+    await expect(card.getByTestId("invoice-dates")).toContainText(/Due \d{1,2} \w{3}/);
 
     const { data: prog, error } = await db!.from("invoices")
       .select("id, number, status, issued_on").eq("estimate_id", estimateId!)
