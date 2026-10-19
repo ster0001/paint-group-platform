@@ -4,6 +4,30 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 19 Oct 2026 — Movements Session 2: the board engine, lifted out of the Schedule board
+
+**2026-10-19 · `app/components/board/` (`Board.tsx`, `Lane.tsx`, `DayCell.tsx`, `Tray.tsx`, `SavedViews.tsx`, `Controls.tsx`,
+`chrome.tsx`, `useBoardDrag.ts`, `useBoardZoom.ts`, `format.ts`, `types.ts`, `board.css`, `boundary.test.ts`), `app/pc/schedule/ScheduleBoard.tsx`,
+`e2e/board-engine.spec.ts`, `CLAUDE.md`**
+
+The Schedule board's lanes × days machinery — window + zoom + paging, the measured scroller height, the sticky month/day header,
+lane rows with one `.bgc` per day, greedy sub-row packing, the pointer drag (5 px threshold, ghost on rAF, hit-test by
+`document.elementsFromPoint`, `.hot`/`.blocked` class toggles), the marquee across empty lane space, the searchable tray, the
+saved-views popover, scroll persistence and the scrim/sheet/toast chrome — now lives in `app/components/board/` as ONE engine
+(CLAUDE.md "one board engine"). `ScheduleBoard.tsx` (2,230 → ~1,780 lines) is its first consumer: it keeps every booking rule
+(working-day snapping, blocked/held spans, the offer/assign/move sheets, the block detail, the block-out/visit/hold sheet, every
+commit action) and hands the engine props for what differs. The engine resolves the drop target from the cell's `data-lane` /
+`data-day` / `data-slot` attributes (not DOM order — Session 0 item 9.10), so AM/PM halves and hourly rows (`slots` prop,
+`board.css`) can be drop targets for Movements; on the Schedule board (`slots="none"`) the result is identical. Two additions
+exist behind options that default OFF, so the Schedule board's behaviour is unchanged: `capturePointer` and `autoScroll`
+(Session 0 item 9.9). Every test ID and class the Schedule specs rely on is still emitted; `schedule.css` is untouched (the
+engine's base styles still live there — a later session may MOVE them to `board.css`, a pure move verified by the same specs).
+`e2e/board-engine.spec.ts` pins the contract from the user's side (confirm step opens on the ghost's day; a blocked span is
+called out under the pointer and on the sheet; a release off the lanes opens nothing; the same drag at a 412 px touch viewport).
+No migration.
+
+---
+
 ## 7 Oct 2026 — visit booking S6: the gate — details before the range, the switch, the tracking, the report
 
 **2026-10-07 · `supabase/migrations/20270217000000_wizard_gate.sql`, `lib/wizard/quick-look.ts`, `lib/wizard/state.ts`,
