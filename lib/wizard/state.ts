@@ -84,6 +84,78 @@ const customerSchema = z.object({
 /** The SHAPE of a wizard state — every field, no cross-field rules. Seeds
  * (a showcase job's scope, lib/wizard/showcaseSeed) validate against this;
  * a state on its way to submit validates against wizardStateSchema below. */
+/**
+ * Exterior wizard v2 (Oct 2026, brief §6): the DRAWN house — shape, size,
+ * the parts ticked, what they are made of, and a record per side. Optional
+ * on `exterior` so every older session resumes; `applyExteriorQuickLook`
+ * keeps writing the v1 fields beside it, and `lib/wizard/exterior-model.ts`
+ * turns it into the priced tree.
+ */
+export const EXTERIOR_PARTS = ["walls", "gable", "fascias", "gutters", "downpipes", "eaves", "windows", "doors", "garage", "shutters", "verandah", "posts", "ceiling", "handrail"] as const;
+export const EXTERIOR_EXTRAS = ["paling_fence", "picket_fence", "deck", "pergola", "shed", "wall", "side_gate", "meter_box", "security_door"] as const;
+export const exteriorPartSchema = z.enum(EXTERIOR_PARTS);
+export const exteriorExtraSchema = z.enum(EXTERIOR_EXTRAS);
+export const wallMaterialSchema = z.enum(["weatherboards", "render", "brick", "stucco", "cement_sheet", "colorbond", "vertical_timber", "concrete"]);
+export const exteriorV2SideSchema = z.object({
+  paint: z.boolean(),
+  /** Usually a party wall for this shape, after the end-of-row answer. */
+  shared: z.boolean(),
+  w: z.number().min(0.5).max(60),
+  h: z.number().min(1).max(12),
+  adjusted: z.boolean().default(false),
+  /** Whole-house parts removed from this side. */
+  off: z.array(exteriorPartSchema).default([]),
+  /** Parts added to this side only (a side gable, a back porch). */
+  add: z.array(exteriorPartSchema).default([]),
+  /** This side's own downstairs material; null = the house's. */
+  material: wallMaterialSchema.nullable().default(null),
+  /** Double storey: this side's own upstairs material; null = the house's. */
+  materialUp: wallMaterialSchema.nullable().default(null),
+  /** "Looks right — next side" on the Each side step. */
+  confirmed: z.boolean().default(false),
+  windows: z.number().int().min(0).max(60),
+  doors: z.number().int().min(0).max(20),
+  cond: z.enum(["good", "weathered", "peeling"]).nullable().default(null),
+  /** The tighten step's size answer: looks right / adjusted / not sure. */
+  size: z.enum(["yes", "adj", "ns"]).nullable().default(null),
+  /** "Check this side" on the tighten step. */
+  checked: z.boolean().default(false),
+});
+export const exteriorV2Schema = z.object({
+  propertyType: z.enum(["wb", "cal", "brick", "ds", "th", "unit", "terrace", "modern", "other"]),
+  sizeBand: z.enum(["sm", "md", "lg", "xl", "ns"]),
+  /** Shared-wall shapes: which side walls are open (mid = shares as usual, both = stands alone). */
+  rowPosition: z.enum(["mid", "left", "right", "both"]).nullable().default(null),
+  wall: z.object({
+    down: wallMaterialSchema.nullable().default(null),
+    /** Double storey only; null = same as downstairs. */
+    up: wallMaterialSchema.nullable().default(null),
+    brickPainted: z.enum(["yes", "no"]).nullable().default(null),
+    /** Vertical timber is stained (Cutek) unless the customer says it is painted. */
+    timberPainted: z.enum(["yes", "no"]).nullable().default(null),
+  }).default({ down: null, up: null, brickPainted: null, timberPainted: null }),
+  gableFill: z.enum(["stucco", "shingles", "boards", "strap"]).nullable().default(null),
+  windowType: z.enum(["casement", "sash", "colonial", "winder", "alu", "unsure"]).default("unsure"),
+  garageCars: z.union([z.literal(1), z.literal(2)]).nullable().default(null),
+  postKind: z.enum(["posts", "columns", "lace"]).nullable().default(null),
+  /** Ticked on the Painting step. */
+  parts: z.array(exteriorPartSchema).default([]),
+  extras: z.array(exteriorExtraSchema).default([]),
+  /** Metres or m² where asked: fence, deck, pergola_l, pergola_w, wall. */
+  extraSizes: z.record(z.string(), z.number()).default({}),
+  extraWallMaterial: z.enum(["brick", "render"]).nullable().default(null),
+  sides: z.object({
+    front: exteriorV2SideSchema.optional(),
+    right: exteriorV2SideSchema.optional(),
+    back: exteriorV2SideSchema.optional(),
+    left: exteriorV2SideSchema.optional(),
+  }).default({}),
+});
+export type ExteriorV2 = z.infer<typeof exteriorV2Schema>;
+export type ExteriorV2Side = z.infer<typeof exteriorV2SideSchema>;
+export type ExteriorPart = z.infer<typeof exteriorPartSchema>;
+export type ExteriorExtra = z.infer<typeof exteriorExtraSchema>;
+
 export const wizardStateShapeSchema = z.object({
   /** internal = staff from the estimates list · customer = Step 8's public
    * wizard (guardrails + range bands + email gate apply). */
@@ -483,6 +555,8 @@ export const wizardStateShapeSchema = z.object({
      * elevations size from the answers (storeys + typical lengths, tagged
      * assumed) and the confirm loop settles them side by side. */
     noPhotos: z.boolean().default(false),
+    /** Exterior wizard v2: the drawn house (brief §6). Absent on every session saved before it. */
+    v2: exteriorV2Schema.optional(),
     extras: z.object({
       deck: z.boolean().default(false),
       fence: z.boolean().default(false),
