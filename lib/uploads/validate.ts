@@ -80,6 +80,17 @@ function typeOf(file: { name: string; type?: string }): string {
 }
 
 /**
+ * Photo or video? For an uploader that takes both (the estimate's area media,
+ * Tom 19 Oct 2026): a file whose type — declared, or read off its extension
+ * when the browser says nothing, as a clip saved from WhatsApp can — is one of
+ * the video types is "video"; everything else is checked as an image, so an
+ * unknown file is refused with the photo wording rather than waved through.
+ */
+export function mediaKindOf(file: { name: string; type?: string }): "image" | "video" {
+  return UPLOAD_RULES.video.mimes.includes(typeOf(file)) ? "video" : "image";
+}
+
+/**
  * Returns a message to show the user, or null when the file is acceptable.
  *
  * Takes the fields it needs rather than a `File` so it can be unit-tested and

@@ -108,6 +108,10 @@
    they tapped (Tom, 1 Oct). */
 .wo .area-photo img { width: 96px; height: 96px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); display: block; }
 .wo .area-photo:hover img, .wo .area-photo:focus-visible img { border-color: var(--accent, #3bd8e9); }
+/* A video thumbnail is the same tile with a play badge over it (Tom, 19 Oct 2026). */
+.wo .area-photo { position: relative; }
+.wo .area-photo video { width: 96px; height: 96px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); display: block; background: #000; }
+.wo .area-photo .play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 22px; text-shadow: 0 1px 4px rgba(0,0,0,.7); pointer-events: none; }
 
 /* payment */
 .wo .pay { display: flex; align-items: center; justify-content: space-between; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }

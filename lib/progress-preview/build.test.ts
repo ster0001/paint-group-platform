@@ -339,3 +339,18 @@ describe("accessible summary", () => {
     expect(p.summary.endsWith(ILLUSTRATION_LINE.residential)).toBe(true);
   });
 });
+
+describe("a video on the estimate stays off the demo phone (Tom, 19 Oct 2026)", () => {
+  it("places only the photos; the clip is never an <img> bubble", () => {
+    const input = ben();
+    input.areas = [
+      { title: "Lounge", photos: ["https://x.test/estimate-media/p1.jpg", "https://x.test/estimate-media/walk.mp4"] },
+      { title: "Hall", photos: ["https://x.test/estimate-media/tour.mov", "https://x.test/estimate-media/p2.jpg"] },
+    ];
+    const out = buildProgressPreview(input, "residential", PAINTER)!;
+    const urls = out.updates.flatMap((u) => u.photos.map((p) => p.url));
+    expect(urls).toEqual(expect.arrayContaining(["https://x.test/estimate-media/p1.jpg", "https://x.test/estimate-media/p2.jpg"]));
+    expect(urls.some((u) => /\.(mp4|mov)$/.test(u))).toBe(false);
+    expect(out.photosUsed).toBe(2);
+  });
+});

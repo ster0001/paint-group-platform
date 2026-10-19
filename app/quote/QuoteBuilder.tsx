@@ -55,7 +55,8 @@ import type { SurfaceState } from "@/lib/workorder/surfaces";
 import type { WOPhoto } from "@/lib/workorder/photos";
 import type { EstimateDocuments } from "@/lib/wizard/documents";
 import { PHOTO_REVIEW_KIND } from "@/lib/wizard/merge";
-import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
+import { acceptAttr, checkUpload, mediaKindOf } from "@/lib/uploads/validate";
+import { isVideoUrl, videoExtensionForMime } from "@/lib/media/video";
 import { downscale, SCREEN_MAX_EDGE } from "@/lib/uploads/downscale";
 import { reportIfError, errorMessage } from "@/lib/monitoring/report";
 import RevisionPanel, { type ExistingRevisionVariation, type RevisionRequest } from "./RevisionPanel";
@@ -4759,8 +4760,11 @@ function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: 
     const picked = Array.from(files);
     // Check the whole selection first: uploading half a batch and then failing
     // leaves the user guessing which photos made it.
+    // A video is checked by the video rule (200 MB, MP4/MOV/WEBM) and goes up
+    // as it is; a photo is shrunk below (Tom, 19 Oct 2026: customers' WhatsApp
+    // clips belong on the estimate beside the photos).
     for (const f of picked) {
-      const bad = checkUpload(f, "image");
+      const bad = checkUpload(f, mediaKindOf(f));
       if (bad) { setErr(`${f.name}: ${bad}`); return; }
     }
     setBusy({ done: 0, total: picked.length });
@@ -4774,9 +4778,14 @@ function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: 
       // — a 5 MB phone photo becomes ~600 KB with no visible difference. A
       // photo the browser can't decode (HEIC on Chrome) goes up as it is.
       const added = await Promise.all(picked.map(async (f) => {
-        const blob = await downscale(f, SCREEN_MAX_EDGE);
+        const video = mediaKindOf(f) === "video";
+        const blob = video ? null : await downscale(f, SCREEN_MAX_EDGE);
         const body: Blob = blob ?? f;
-        const ext = blob ? "jpg" : (f.name.split(".").pop() || "jpg");
+        // The extension is how every reader tells a video from a photo
+        // (lib/media/video.ts), so a clip MUST carry a video one — from its
+        // type first, its name second (a WhatsApp save can arrive typeless).
+        const nameExt = (f.name.split(".").pop() || "").toLowerCase();
+        const ext = blob ? "jpg" : video ? (videoExtensionForMime(f.type) ?? (nameExt || "mp4")) : (nameExt || "jpg");
         const path = `${crypto.randomUUID()}.${ext}`;
         const { error } = await supabase.storage.from("estimate-media").upload(path, body, {
           contentType: blob ? "image/jpeg" : f.type || undefined, cacheControl: "31536000",
@@ -4803,21 +4812,26 @@ function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: 
     <div>
       <div className="flex flex-wrap gap-2">
         {list.map((m) => (
-          <div key={m.path} className="relative">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={m.url} alt="" className="h-16 w-16 rounded border border-gray-200 object-cover" />
+          <div key={m.path} className="relative" data-testid="estimate-media-item" data-media={isVideoUrl(m.url) ? "video" : "image"}>
+            {isVideoUrl(m.url) ? (
+              // A player, so the estimator can check it is the right clip.
+              <video src={m.url} controls playsInline preload="metadata" className="h-16 w-24 rounded border border-gray-200 bg-black object-cover" aria-label="Video" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={m.url} alt="" className="h-16 w-16 rounded border border-gray-200 object-cover" />
+            )}
             <button
               onClick={() => remove(m)}
               className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] text-gray-500 hover:text-red-600"
-              aria-label="Remove photo"
+              aria-label={isVideoUrl(m.url) ? "Remove video" : "Remove photo"}
             >
               ×
             </button>
           </div>
         ))}
         <label className="flex h-16 w-16 cursor-pointer items-center justify-center rounded border border-dashed border-gray-300 text-center text-[11px] text-gray-400 hover:bg-white">
-          {busy ? (busy.total > 1 ? `${busy.done}/${busy.total}` : "…") : "+ Photo"}
-          <input type="file" accept={acceptAttr("image")} multiple className="hidden" disabled={!!busy} onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
+          {busy ? (busy.total > 1 ? `${busy.done}/${busy.total}` : "…") : "+ Photo / video"}
+          <input type="file" accept={`${acceptAttr("image")},${acceptAttr("video")}`} multiple className="hidden" disabled={!!busy} data-testid="estimate-media-input" onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
         </label>
       </div>
       {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
