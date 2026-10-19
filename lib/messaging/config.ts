@@ -261,6 +261,10 @@ export type MessagingSettings = {
   defectTapeSms2: string;
   defectTapeEmailSubject: string;
   defectTapeEmailIntro: string;
+  /** Painter (Tom, 19 Oct): two business days before the walkthrough — the date, and move it in the app if ahead or behind. */
+  contractorFinishReminderSms: string;
+  contractorFinishReminderEmailSubject: string;
+  contractorFinishReminderEmailIntro: string;
 };
 
 export const DEFAULT_MESSAGING: MessagingSettings = {
@@ -571,6 +575,14 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Your painting at {{address}} is nearly done — the last day is {{finish_date}}.\n\n" +
     "Before the final walkthrough, please walk around and put a small piece of the painter's tape on any spot you'd like touched up. The painter will fix each one before we sign the job off.\n\n" +
     "Thank you,\n{{company_name}}",
+  contractorFinishReminderSms:
+    "{{company_name}}: hi {{first_name}}, the final walkthrough on {{wo_ref}} at {{suburb}} is {{finish_date}} — two business days away. Running ahead or behind? Change the date in the app so the office and the customer know. {{link}}",
+  contractorFinishReminderEmailSubject: "Final walkthrough {{finish_date}} — {{wo_ref}} at {{suburb}}",
+  contractorFinishReminderEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "The final walkthrough on {{wo_ref}} at {{address}} is planned for {{finish_date}}, two business days from now.\n\n" +
+    "If the job is running ahead or behind, open the job in the app and change the finish date — the office and the customer are told, and the walkthrough moves with it.\n\n" +
+    "{{link}}",
 };
 
 /**

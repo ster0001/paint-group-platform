@@ -77,11 +77,20 @@ export function contractorDeltaCents(hours: number, rateCents: number): number {
   return Math.round(hours * rateCents);
 }
 
-/** What blocks the job right now, in the words the console shows. */
-export function blockedReason(open: { status: VariationStatus }[]): string | null {
+/**
+ * What blocks the job right now, in the words the console shows — the TS twin
+ * of the variation arm of `wo_gate_blocked` (migration 20270277).
+ *
+ * Tom, 19 Oct 2026: an undecided variation holds the job only while a surface
+ * in scope is still to tick. With every area ticked off the painter finishes
+ * and starts the walkthrough; the office decides the variation in its own
+ * time. `surfacesLeft` is the count of in-scope surfaces not yet done.
+ */
+export function blockedReason(open: { status: VariationStatus }[], surfacesLeft = 1): string | null {
   if (open.length === 0) return null;
   const waiting = open.filter((v) => isOpen(v.status));
   if (waiting.length === 0) return null;
+  if (surfacesLeft <= 0) return null;
   const n = waiting.length;
   return `${n} variation${n === 1 ? "" : "s"} still waiting on a decision`;
 }

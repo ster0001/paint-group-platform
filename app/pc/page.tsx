@@ -39,6 +39,11 @@ export default async function DashboardPage() {
   // from here, not the CRM. Same evaluator and dismissals as Today — a
   // different screen over the one queue, not a second queue.
   const checkins = await buildPcWorkItems(supabase, input.now);
+  // Tom, 19 Oct 2026: a required quality check is the strip at the TOP of the
+  // page until its day — the same queue, drawn in its own place, so it is not
+  // also a card in Needs you now.
+  const qaToBook = checkins.items.filter((i) => i.kind === "qa_check_to_book");
+  const needsYou = checkins.items.filter((i) => i.kind !== "qa_check_to_book");
   // Tom, 8 Oct 2026: a short note on each reminder, kept against its key.
   const itemNotes = await loadWorkItemNotes(supabase, [
     ...checkins.items.map((i) => i.key), ...queue.map((c) => c.key),
@@ -134,6 +139,28 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {qaToBook.length > 0 && (
+        <div data-testid="qa-to-book" style={{
+          border: "1px solid rgba(59,216,233,.5)", background: "rgba(59,216,233,.07)",
+          borderRadius: 14, padding: "12px 16px", margin: "14px 0", fontSize: 14, display: "grid", gap: 8,
+        }}>
+          <div style={{ fontFamily: "var(--mono, monospace)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--cyan, #3BD8E9)" }}>
+            Quality checks to book in before the final walkthrough · {qaToBook.length}
+          </div>
+          {qaToBook.map((item) => (
+            <div key={item.key} data-testid={`qa-to-book-${item.subjectRef.id}`} data-state={item.action.label === "Book the check" ? "undated" : item.action.label === "Book it in" ? "final-unbooked" : "booked"}
+              style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 240 }}>
+                <strong>{item.title}</strong>
+                <div className="note" style={{ margin: "2px 0 0" }}>{item.detail}</div>
+              </div>
+              <Link className="btn primary" href={item.action.href} data-testid={`qa-to-book-open-${item.subjectRef.id}`}>{item.action.label}</Link>
+              {item.action.label === "Open the check" && <QueueDismiss itemKey={item.key} label="Confirmed" reason="Quality check slot confirmed (PC Command)" />}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="pulse">
         <div className="tile">
           <span className="k">On the books</span>
@@ -213,7 +240,7 @@ export default async function DashboardPage() {
           {checkins.failure && (
             <p className="empty" data-testid="checkins-failure" style={{ color: "var(--amber)" }}>{checkins.failure}</p>
           )}
-          {checkins.items.map((item) => item.kind === "walkthrough_flagged" || item.kind === "callback_unbooked" || item.kind === "callback_visit_soon" || item.kind === "callback_fixed" ? (
+          {needsYou.map((item) => item.kind === "walkthrough_flagged" || item.kind === "callback_unbooked" || item.kind === "callback_visit_soon" || item.kind === "callback_fixed" ? (
             // Call backs Step 3 (brief §8): one card per trigger, one primary action.
             <div className={`al ${item.bucket === "overdue" ? "al-crit" : item.kind === "callback_visit_soon" ? "al-info" : "al-warn"}`} key={item.key}
               data-testid={`callback-card-${item.key}`} data-kind={item.kind}>
@@ -389,7 +416,7 @@ export default async function DashboardPage() {
             </div>
           ))}
 
-          {queue.length === 0 && checkins.items.length === 0 && (
+          {queue.length === 0 && needsYou.length === 0 && (
             <p className="empty" data-testid="queue-empty">
               Nothing needs you. Every job is where it should be.
             </p>
