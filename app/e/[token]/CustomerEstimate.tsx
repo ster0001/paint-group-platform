@@ -13,6 +13,7 @@ import SignaturePad from "@/app/components/SignaturePad";
 import { warrantyAttachmentLine } from "@/lib/warranty/terms";
 import "../customer.css";
 import { clientId } from "@/app/components/clientId";
+import { isVideoUrl } from "@/lib/media/video";
 
 // The public token page keeps this row shape; the builder passes a live snapshot
 // with preview=true (no token, no writes).
@@ -57,6 +58,17 @@ export type CustomerChanges = {
 
 /** Photos on the page before the "More photos" button (Tom, 18 Sep 2026). */
 const PHOTOS_SHOWN = 9;
+
+/** One tile of "Your property, as we saw it": a photo, or a clip the customer
+ *  sent us (Tom, 19 Oct 2026 — WhatsApp videos belong on the estimate too).
+ *  The snapshot carries both as URLs; the extension says which. */
+function MediaTile({ src }: { src: string }) {
+  if (isVideoUrl(src)) {
+    return <video className="ph" src={src} controls playsInline preload="metadata" data-testid="estimate-video" aria-label="Video of the property" />;
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img className="ph" src={src} alt="" loading="lazy" />;
+}
 /** The count chip shows from two up — "Doors × 1" says nothing (Tom, 18 Sep: "hide chip"). */
 const showCount = (count: number | undefined): boolean => count != null && count > 1;
 
@@ -471,12 +483,9 @@ export default function CustomerEstimate({
                 calling an office block somebody's home reads as a mail merge
                 that did not know who it was writing to. */}
             <h2>Your property, as we saw it</h2>
-            <p className="sub">Photos from your enquiry and our site notes. Your estimate is scoped to these exact rooms and surfaces.</p>
+            <p className="sub">Photos{allPhotos.some(isVideoUrl) ? " and videos" : ""} from your enquiry and our site notes. Your estimate is scoped to these exact rooms and surfaces.</p>
             <div className="photos">
-              {allPhotos.slice(0, PHOTOS_SHOWN).map((src, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} className="ph" src={src} alt="" loading="lazy" />
-              ))}
+              {allPhotos.slice(0, PHOTOS_SHOWN).map((src, i) => <MediaTile key={i} src={src} />)}
             </div>
             {/* Tom, 18 Sep: nine on the page; the rest open from a button
                 underneath, so a job with thirty site photos is still one screen. */}
@@ -487,10 +496,7 @@ export default function CustomerEstimate({
                 </button>
                 {showAllPhotos && (
                   <div className="photos" data-testid="more-photos-list">
-                    {allPhotos.slice(PHOTOS_SHOWN).map((src, i) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={PHOTOS_SHOWN + i} className="ph" src={src} alt="" loading="lazy" />
-                    ))}
+                    {allPhotos.slice(PHOTOS_SHOWN).map((src, i) => <MediaTile key={PHOTOS_SHOWN + i} src={src} />)}
                   </div>
                 )}
               </>

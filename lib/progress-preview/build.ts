@@ -11,6 +11,7 @@
  * and never interpreted as markup.
  */
 import { suburbOnly } from "@/lib/scheduling/offers";
+import { imagesOnly } from "@/lib/media/video";
 import {
   COMMERCIAL_DOC_CHIPS, COMMERCIAL_STAGE_RAIL, EXAMPLE_LABEL, ILLUSTRATION_LINE, LEAD_ROLE, LOCK_SCREEN,
   PHOTO_TAG, STATUS_PILL, TEMPLATES, type MessagingSet, type TextTemplate, type UpdateTemplate,
@@ -226,7 +227,9 @@ export function buildProgressPreview(input: ProgressPreviewInput, set: Messaging
   };
 
   // Photos: the estimate's own, in snapshot order, ≤2 per update, never twice.
-  const pool = input.areas.flatMap((a) => a.photos).filter((u, i, arr) => !!u && arr.indexOf(u) === i);
+  // A video on the estimate (Tom, 19 Oct 2026) stays off the demo phone — its
+  // bubbles are <img> tiles, and a clip would draw as a broken picture.
+  const pool = imagesOnly(input.areas.flatMap((a) => a.photos)).filter((u, i, arr) => !!u && arr.indexOf(u) === i);
   let cursor = 0;
   const tag = PHOTO_TAG[set];
 

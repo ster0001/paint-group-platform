@@ -98,6 +98,9 @@
 /* photos */
 .cv .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px; }
 .cv .ph { aspect-ratio: 4/3; border-radius: 10px; border: 1px solid var(--line); object-fit: cover; width: 100%; background: var(--panel); }
+/* A clip from the customer sits in the same grid cell as a photo and plays in place (Tom, 19 Oct 2026). */
+.cv video.ph { background: #000; display: block; }
+@media print { .cv video.ph { display: none; } }
 @media (max-width: 640px) { .cv .photos { grid-template-columns: 1fr 1fr; } }
 .cv .more-photos { display: block; width: 100%; margin-top: 12px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
 .cv .more-photos:hover { border-color: var(--paint); }

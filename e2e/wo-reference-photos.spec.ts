@@ -43,6 +43,11 @@ const PNG = Buffer.from(
   "base64",
 );
 
+// A minimal MP4 — an `ftyp` box with the isom brand, the signature the ingest
+// sniffs for (the same bytes e2e/wo-photos.spec.ts uses). Not playable, but a
+// real object with a video extension, which is all a tile needs.
+const MP4 = Buffer.from([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, 0, 0, 2, 0, 0x69, 0x73, 0x6f, 0x6d, 0x6d, 0x70, 0x34, 0x32, 0, 0, 0, 8, 0x6d, 0x64, 0x61, 0x74]);
+
 /** A photo the PAINTER took — the record my filter must never surface. */
 async function painterPhoto(kind: string, area: string): Promise<void> {
   const path = `wo/${fixture!.workOrderId}/painter-${kind}.png`;
@@ -134,6 +139,46 @@ test.describe("photos the office attaches to a job already out", () => {
     await expect(crew.locator("img")).toHaveCount(1);
     await expect(crew).not.toContainText("painter before shot");
     await expect(crew).not.toContainText("painter qa shot");
+  });
+
+  test("the office attaches a video, and it plays on the painter's sheet", async ({ page }) => {
+    // Tom, 19 Oct 2026: "we are getting a lot of videos from clients which we
+    // want to forward on from whatsapp". The painter could already SEND a video
+    // from their own cards; the office's card took photos only — the sign step
+    // was never told the type, so the object got a bare photo name and the
+    // ingest refused the bytes as "not a photo".
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`/pc/wo/${fixture!.workOrderId}`);
+
+    const card = page.getByTestId("reference-photos-card");
+    await card.getByTestId("reference-photo-area").selectOption("Front");
+    await card.getByTestId("reference-photo-caption").fill("Customer's walk-round of the front");
+    await card.getByTestId("reference-photo-file").setInputFiles({
+      name: "whatsapp-front.mp4", mimeType: "video/mp4", buffer: MP4,
+    });
+    await expect(card.getByTestId("reference-photo-msg")).toContainText(/job sheet/i, { timeout: 30_000 });
+
+    // The office's own card draws it as a video tile, not a broken image.
+    const videoRow = card.locator('[data-testid="reference-photo-row"][data-media="video"]');
+    await expect(videoRow).toHaveCount(1);
+    await expect(videoRow.locator("video")).toHaveCount(1);
+
+    // The painter's sheet, no session: a video tile with the caption, that the
+    // lightbox plays.
+    await page.context().clearCookies();
+    await page.goto(`/w/${shareToken}`);
+    const section = page.getByTestId("wo-office-photos");
+    await expect(section).toBeVisible();
+    await expect(section).toContainText("Customer's walk-round of the front");
+    const tile = section.locator('[data-testid="wo-photo"][data-media="video"]');
+    await expect(tile).toHaveCount(1);
+    await tile.click();
+    await expect(page.getByTestId("lightbox-video")).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // And the crew link carries the same clip.
+    await page.goto(`/crew/${crewToken}`);
+    await expect(page.getByTestId("wo-office-photos").locator('[data-testid="wo-photo"][data-media="video"]')).toHaveCount(1);
   });
 
   test("a painter cannot pass one off as the office's", async () => {
