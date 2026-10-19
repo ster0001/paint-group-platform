@@ -17,7 +17,7 @@ The level on your work order (Level 2, 3 or 4) tells you how much preparation to
 ## Steps
 
 ### Confirming the standards (once)
-1. When Paint Group invites you, you get a text and an email with a link, and **Home** shows **Read and confirm the finish standards**. A new painter sees it as their first screen. Tap **Start**.
+1. While your induction is open, the standards are **Module 5** of it: open the induction from **Home** and the module's six lines take you to the six sections. Once your induction is complete, a new version of the standards shows on **Home** as **Read and confirm the finish standards** (and you get a text and an email with a link). Tap **Start**.
 2. There are six short sections: the three levels and the look test, rules for every job, your time and variations, interior surfaces, exterior surfaces, the defect rule and final checklist. Read each one, tap **I have read and understand this**, then **Next section**. The sixth button reads **Confirm**. Nothing to type.
 3. You can stop and come back: the next time you open the sign-off it starts at the first section you have not ticked.
 4. When all six are confirmed you see **Standards confirmed** with the date and version. A copy is saved in your documents (**Profile → Insurance & licences** or **Your tickets**) and emailed to you as a PDF.

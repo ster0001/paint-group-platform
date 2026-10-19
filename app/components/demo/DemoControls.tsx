@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { resetDemoAction, seedDemoAction, sendDemoPromptAction } from "./demoActions";
 import type { DemoChecklistRow } from "@/lib/demo/checklist";
@@ -19,7 +20,7 @@ import type { DemoChecklistRow } from "@/lib/demo/checklist";
  * from the Jobs tab, the painter is taken to the job.
  */
 export default function DemoControls({
-  mode, contractorId = null, hasDemo = true, workOrderId = null, steps = null,
+  mode, contractorId = null, hasDemo = true, workOrderId = null, steps = null, inductionHref = null,
 }: {
   mode: "portal" | "pc" | "staff" | "start";
   /** Staff name the contractor; a contractor acts on their own (null). */
@@ -29,6 +30,13 @@ export default function DemoControls({
   workOrderId?: string | null;
   /** The demo checklist (Step 2) — derived from the job's rows, shown under the banner. */
   steps?: DemoChecklistRow[] | null;
+  /**
+   * Portal mode only (Tom, 16 Oct 2026): the painter switches to the practice
+   * job to follow a module's "On your phone" steps, then needs an obvious way
+   * back — the induction's next unticked module, or the list once all are.
+   * Never on a real job; never for the office.
+   */
+  inductionHref?: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -115,6 +123,11 @@ export default function DemoControls({
           : "Make your mistakes here, not on a customer's job. Reset puts it back to the start."}
       </p>
       {message && <p className="tick-msg" role="status" data-testid="demo-message">{message}</p>}
+      {mode === "portal" && inductionHref && (
+        <Link href={inductionHref} className="btn cy" style={{ marginTop: 10 }} data-testid="demo-back-induction">
+          ← Back to the induction
+        </Link>
+      )}
       {steps && steps.length > 0 && (
         <ul className="clean" data-testid="demo-checklist" style={{ marginTop: 8, display: "grid", gap: 4, paddingLeft: 0, listStyle: "none" }}>
           {steps.map((s) => (

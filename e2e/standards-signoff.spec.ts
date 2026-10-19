@@ -95,8 +95,13 @@ test.describe("finish standards — sign-off, offers gate, reminders", () => {
     await page.locator('input[type="password"]').nth(1).fill(newbie.password);
     await page.getByTestId("join-mobile").fill("0400 123 456");
     await page.getByRole("button", { name: /create my account/i }).click();
-    // Home redirects to the sign-off: the gate applies from the first second.
-    await expect(page).toHaveURL(/\/portal\/standards\/confirm/, { timeout: 30_000 });
+    // Tom, 16 Oct: a new painter is on the full induction, so Home shows the induction
+    // card and NOT the standalone sign-off — Module 5 is the way in. The gate itself
+    // still applies: the sign-off page is full screen and offers are refused at the RPC.
+    await expect(page).toHaveURL(/\/portal$/, { timeout: 30_000 });
+    await expect(page.getByTestId("home-induction")).toBeVisible();
+    await expect(page.getByTestId("home-standards-signoff")).toHaveCount(0);
+    await page.goto("/portal/standards/confirm");
     await expect(page.getByTestId("signoff-intro")).toBeVisible();
     await expect(page.locator(".pt .tabs")).toHaveCount(0);
 
