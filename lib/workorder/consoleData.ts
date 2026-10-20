@@ -1,3 +1,4 @@
+import { reportError } from "@/lib/monitoring/report";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { melbourneDate, type ConsoleInput } from "./console";
 import { fetchAllRows as fetchAll } from "@/lib/supabase/fetchAllRows";
@@ -202,6 +203,12 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   const dismissedKeys = dismissedRows
     .map((r) => r.meta?.key)
     .filter((k): k is string => Boolean(k));
+  // Tom, 19 Oct 2026: cards put away until a date. Only the ones still inside
+  // their date; a failed read is reported, never an empty set drawn as "no snoozes".
+  const { data: snoozeRows, error: snoozeErr } = await supabase.from("work_item_dismissals").select("item_key")
+    .like("item_key", "pc_card:work_order:%").or(`until.is.null,until.gt.${now.toISOString()}`).limit(1000);
+  if (snoozeErr) reportError(snoozeErr, { where: "pc.console.snoozes", bestEffort: true });
+  const snoozedKeys = ((snoozeRows ?? []) as { item_key: string }[]).map((r) => r.item_key);
 
   const ticksByDay: Record<string, number> = {};
   for (const t of tickRows) {
@@ -214,6 +221,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       now,
       workOrders,
       dismissedKeys,
+      snoozedKeys,
       expenseAsks,
       warrantyIssues,
       offers: ((offers.data ?? []) as unknown as {

@@ -22,7 +22,7 @@ Paint Group's finish standards say, surface by surface, what a painter must do a
 
 ### Who has signed
 1. **Contractors** (sidebar) carries a **Standards:** line on every card and a **Finish standards** row on each painter's page: confirmed with date and version, invited and inside the grace period, blocked (grace ended, no job offers), or not invited. **Send standards invite** / **Invite N to confirm the standards** start the grace period and send the invite; **Send reminder text** sends the reminder now.
-2. In PC Command the queue shows **{painter} has not signed the finish standards** from day 7 after the invite, with **Send reminder text** and **Open painter**. The card clears itself when they confirm.
+2. PC Command no longer shows a **has not signed the finish standards** card (removed 19 Oct 2026). Who has signed is on **Contractors** (the **Standards:** line, and **Not signed** on PC Command → Contractors); the reminder texts on days 2, 4 and 6 still go by themselves, and **Send reminder text** on the painter's page sends one now.
 3. On the schedule board, dropping a job on a blocked painter shows **Standards not signed** and the Send offer button is off; **Hold these dates instead** still works. The RPC refuses too, whichever way an offer is attempted.
 
 ### Browsing the standards

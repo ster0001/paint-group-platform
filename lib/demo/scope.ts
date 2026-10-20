@@ -40,4 +40,6 @@ export const DEMO_FLAGGED_TABLES = [
   "wo_worker_shares",
   // 20270266: a materials request on a demo job (Step 3b).
   "wo_material_requests",
+  // 20270279: Movements — a chip, its gear, a material line and a logistics decision on a demo job.
+  "movements", "movement_items", "wo_material_lines", "wo_logistics_decisions",
 ] as const;

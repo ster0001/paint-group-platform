@@ -1,0 +1,971 @@
+<!doctype html>
+<html lang="en-AU" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PC Command — Movements</title>
+<!-- Design reference v3 for PC Command → Movements (Tom, 19 Oct 2026).
+     Light theme by default (the console's light tokens), toggle top-right.
+     Week: tray + lanes × days. Felipe and Tom in 1-hour slots 07:30–17:30; everyone else AM/PM.
+     Sources: the same materials list in the estimate, the job page and the tray. + Add a chip from scratch.
+     Day: run plans. Map: self-drawn (no network needed) with labelled, colour-per-person pins — Google Maps in the build.
+     Gear: register with icons. Hanken Grotesk stands in for Switzer. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Martian+Mono:wght@300;400;600&display=swap">
+<style>
+:root{
+  --ink:#F1F4F6; --graphite:#FFFFFF; --raised:#FFFFFF; --line:#D9E0E6;
+  --text:#12161A; --soft:#3A434B; --muted:#5C6771; --dim:#D9E0E6;
+  --cyan:#0E8C9C; --paint:#1A9DAE; --amber:#9A6A12; --emerald:#1F7A4A; --clay:#A3463A; --violet:#5B4FD6;
+  --oncyan:#FFFFFF;
+  --cyan-soft:rgba(14,140,156,.10); --amber-soft:rgba(154,106,18,.10); --em-soft:rgba(31,122,74,.10); --clay-soft:rgba(163,70,58,.10); --violet-soft:rgba(91,79,214,.10);
+  --shadow:0 1px 2px rgba(18,22,26,.06), 0 8px 24px rgba(18,22,26,.06);
+  --water:#DCE8F0; --land:#EEF1F3; --road:#E2E7EB;
+  --sans:'Switzer','Hanken Grotesk',ui-sans-serif,-apple-system,'Segoe UI',system-ui,sans-serif;
+  --mono:'Martian Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+:root[data-theme="dark"]{
+  --ink:#0A0B0D; --graphite:#12161A; --raised:#171C21; --line:#242B32;
+  --text:#EDF0F2; --soft:#C6CCD1; --muted:#8C959D; --dim:#3A424A;
+  --cyan:#3BD8E9; --paint:#2FB9CB; --amber:#E0A83C; --emerald:#2FA46B; --clay:#B3574A; --violet:#9B8CFF;
+  --oncyan:#03272D;
+  --cyan-soft:rgba(59,216,233,.08); --amber-soft:rgba(224,168,60,.08); --em-soft:rgba(47,164,107,.08); --clay-soft:rgba(179,87,74,.1); --violet-soft:rgba(155,140,255,.1);
+  --shadow:0 10px 30px rgba(0,0,0,.4);
+  --water:#0F1A22; --land:#12161A; --road:#1C242A;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;background:var(--ink)}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.shell{max-width:1500px;margin:0 auto;padding:16px 16px 120px}
+
+/* top bar + nav (pc.css) */
+.topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:4px 0 14px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.02em}
+.drip{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--cyan),var(--paint) 70%);position:relative;box-shadow:0 0 18px rgba(14,140,156,.22)}
+.drip::after{content:"";position:absolute;left:7px;bottom:-6px;width:5px;height:9px;border-radius:0 0 4px 4px;background:var(--paint)}
+.brand b{color:var(--cyan)}
+.meta{display:flex;flex-direction:column;line-height:1.4}
+.meta .d{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.meta .t{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.who{margin-left:auto;display:flex;align-items:center;gap:10px}
+.who .role{font-family:var(--mono);font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);text-align:right;line-height:1.5}
+.who .role b{display:block;color:var(--cyan);font-weight:400}
+.themebtn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 10px;background:var(--graphite)}
+.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--graphite);border:1px solid var(--line);color:var(--cyan);font-family:var(--mono);font-size:10px}
+.nav{position:sticky;top:8px;z-index:40;display:flex;gap:4px;margin:14px auto 18px;width:fit-content;max-width:100%;background:rgba(255,255,255,.9);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:12px;padding:4px;overflow-x:auto;scrollbar-width:none}
+:root[data-theme="dark"] .nav{background:rgba(18,22,26,.82)}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:10px 16px;border-radius:9px;white-space:nowrap;text-decoration:none}
+.nav a.on{color:var(--oncyan);background:linear-gradient(135deg,var(--cyan),var(--paint));font-weight:600}
+
+h1{font-size:clamp(22px,4vw,30px);font-weight:700;letter-spacing:-.035em;line-height:1.1;margin:0;text-wrap:balance}
+h1 em{font-style:normal;color:var(--amber)} h1 em.ok{color:var(--emerald)}
+.lede{color:var(--muted);margin:6px 0 0;font-size:14px;max-width:70ch}
+.headrow{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;justify-content:space-between}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;gap:2px;background:var(--graphite);border:1px solid var(--line);border-radius:11px;padding:3px}
+.seg button{padding:8px 13px;border-radius:8px;font-weight:600;font-size:13px;color:var(--muted);display:flex;flex-direction:column;align-items:center;line-height:1.2}
+.seg button small{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;font-weight:400}
+.seg button.on{background:var(--ink);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+.seg button.on small{color:var(--cyan)}
+.weeknav{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:11px;background:var(--graphite);padding:4px 6px}
+.weeknav b{font-family:var(--mono);font-size:11.5px;font-weight:600;padding:0 4px}
+.weeknav button{width:30px;height:30px;border-radius:8px;color:var(--soft)}
+.pill{font-family:var(--mono);font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:100px;border:1px solid var(--line);color:var(--muted);white-space:nowrap;display:inline-block}
+.p-amber{color:var(--amber);border-color:rgba(154,106,18,.45);background:var(--amber-soft)}
+.p-em{color:var(--emerald);border-color:rgba(31,122,74,.45);background:var(--em-soft)}
+.p-cy{color:var(--cyan);border-color:rgba(14,140,156,.4);background:var(--cyan-soft)}
+.btn{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:var(--graphite);border:1px solid var(--line);color:var(--text);padding:9px 14px;border-radius:9px;white-space:nowrap;display:inline-block;text-decoration:none}
+.btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn.primary{background:linear-gradient(135deg,var(--cyan),var(--paint));color:var(--oncyan);border-color:transparent;font-weight:600}
+.btn.primary:hover{color:var(--oncyan)}
+.btn.clay{color:var(--clay);border-color:rgba(163,70,58,.5)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.sm{padding:6px 10px;font-size:8.5px}
+
+/* how it works */
+.how{margin-top:14px;border:1px dashed rgba(14,140,156,.45);border-radius:14px;padding:10px 14px;background:var(--cyan-soft)}
+.how summary{cursor:pointer;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan);list-style:none;display:flex;gap:8px;align-items:center}
+.how summary::-webkit-details-marker{display:none}
+.how summary::after{content:"+";margin-left:auto;font-size:14px}
+.how[open] summary::after{content:"–"}
+.how ol{margin:8px 0 0;padding-left:20px;color:var(--soft);font-size:13.5px}
+.how li{margin:3px 0} .how b{color:var(--text)}
+
+/* kind + person labels */
+.kl{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--soft);white-space:nowrap}
+.kl i{width:7px;height:7px;border-radius:50%;background:var(--pc,#888);display:inline-block}
+.kl svg{width:11px;height:11px}
+
+/* ===== WEEK: tray + board ===== */
+.week{display:grid;grid-template-columns:300px 1fr;gap:14px;margin-top:16px;align-items:start}
+.tray{background:var(--graphite);border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:var(--shadow);position:sticky;top:70px;max-height:calc(100vh - 90px);overflow:auto}
+.tray h3{margin:0;font-size:15px;font-weight:700;letter-spacing:-.015em;display:flex;align-items:baseline;gap:8px}
+.tray h3 span{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--amber)}
+.k{font-family:var(--mono);font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.filters{display:flex;gap:4px;flex-wrap:wrap;margin:10px 0 8px}
+.filters button{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);border-radius:999px;padding:5px 9px;color:var(--muted);background:var(--ink)}
+.filters button.on{color:var(--oncyan);background:var(--cyan);border-color:transparent;font-weight:600}
+.tjob{border-top:1px solid var(--line);padding:9px 0 6px}
+.tjob .t{display:flex;justify-content:space-between;gap:6px;font-weight:600;font-size:12.5px;align-items:baseline}
+.tjob .t small{color:var(--muted);font-weight:400;font-size:11px;white-space:nowrap}
+.chip{display:flex;gap:8px;align-items:flex-start;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 9px;margin-top:6px;font-size:12.5px;cursor:grab;position:relative;touch-action:none;user-select:none;-webkit-user-select:none;transition:box-shadow .15s}
+.chip:hover{box-shadow:var(--shadow);border-color:var(--cyan)}
+.chip.todo{border-left:3px solid var(--amber)}
+.chip.blocked{border-left:3px solid var(--clay);cursor:not-allowed;opacity:.85}
+.ic{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:12px;background:var(--graphite);border:1px solid var(--line);color:var(--muted);flex:none;margin-top:1px}
+.ic svg{width:15px;height:15px}
+.ic.paint{color:var(--cyan)}.ic.mat{color:var(--soft)}.ic.gear{color:var(--violet)}.ic.rub{color:var(--amber)}
+.chip .b{flex:1;min-width:0;line-height:1.3}
+.chip .b b{font-weight:600;display:block}
+.chip .b small{display:block;color:var(--muted);font-size:11px;margin-top:1px}
+.chip .b small.warn{color:var(--amber)} .chip .b small.bad{color:var(--clay)}
+.chip .grip{color:var(--dim);font-size:12px;letter-spacing:-2px;flex:none;margin-top:2px}
+.chip.dragging{position:fixed;z-index:200;width:260px;pointer-events:none;box-shadow:0 18px 40px rgba(0,0,0,.25);border-color:var(--cyan);transform:rotate(-1.5deg)}
+.add{border:1px dashed var(--dim);border-radius:10px;padding:9px;text-align:center;color:var(--muted);margin-top:10px;font-size:12.5px;cursor:pointer}
+.add:hover{color:var(--cyan);border-color:var(--cyan)}
+.tray-empty{color:var(--muted);font-size:13px;padding:14px 4px}
+
+.boardwrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--graphite);box-shadow:var(--shadow)}
+.grid{display:grid;grid-template-columns:172px repeat(6,minmax(178px,1fr));min-width:1240px}
+.grid>div{border-bottom:1px solid var(--line);border-right:1px solid var(--line);min-height:52px}
+.grid>div:nth-child(7n){border-right:0}
+.hd{background:var(--ink);padding:9px 10px;font-family:var(--mono);font-weight:600;font-size:11px;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;z-index:3}
+.hd small{font-weight:400;color:var(--muted);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase}
+.lane{padding:10px 10px;background:var(--ink);display:flex;flex-direction:column;gap:3px;position:sticky;left:0;z-index:2}
+.lane b{font-size:13px;letter-spacing:-.01em;display:flex;align-items:center;gap:6px} .lane small{color:var(--muted);font-size:10.5px;line-height:1.3}
+.lane .tag{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan)}
+.lane .tag.staff{color:var(--violet)} .lane .tag.sup{color:var(--amber)}
+.lane .dot{width:9px;height:9px;border-radius:50%;background:var(--pc);display:inline-block}
+.lane .hint{font-family:var(--mono);font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.cell{position:relative;display:flex;flex-direction:column}
+.half{padding:6px 6px 8px;display:flex;flex-direction:column;gap:4px;min-height:46px;position:relative;transition:background .15s;flex:1}
+.half::before{content:attr(data-half);position:absolute;right:6px;bottom:3px;font-family:var(--mono);font-size:7px;letter-spacing:.1em;color:var(--dim);pointer-events:none}
+.half:first-child{border-bottom:1px dashed var(--line)}
+.slot{display:grid;grid-template-columns:34px 1fr;gap:4px;min-height:24px;border-top:1px dashed var(--line);padding:2px 4px 2px 4px;position:relative;transition:background .15s}
+.slot:first-child{border-top:0}
+.slot .tlab{font-family:var(--mono);font-size:7.5px;color:var(--muted);padding-top:4px;letter-spacing:.02em}
+.slot .sc{display:flex;flex-direction:column;gap:3px;min-width:0}
+.hot{background:var(--cyan-soft);box-shadow:inset 0 0 0 2px var(--cyan)}
+.near{background:var(--cyan-soft)}
+.over{background:var(--em-soft)!important;box-shadow:inset 0 0 0 2px var(--emerald)!important}
+.cell.weekend .half,.cell.weekend .slot{background:repeating-linear-gradient(135deg,transparent 0 8px,rgba(0,0,0,.025) 8px 10px)}
+.ctx{border:1px solid var(--line);border-left:3px solid var(--dim);border-radius:7px;padding:4px 7px;font-size:10.5px;color:var(--soft);background:var(--graphite);line-height:1.3}
+.ctx.job{border-left-color:var(--emerald)} .ctx.cal{border-left-color:var(--violet)} .ctx.qa{border-left-color:var(--cyan)} .ctx.leave{border-left-color:var(--dim);color:var(--muted)}
+.ctx small{display:block;color:var(--muted);font-size:9.5px}
+.nearrow{align-self:flex-start;font-family:var(--mono);font-size:8px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--oncyan);background:var(--cyan);border-radius:99px;padding:3px 8px;margin:4px 6px 2px}
+.ghost{border:1px dashed var(--cyan);border-radius:7px;padding:4px 7px;font-size:10.5px;color:var(--cyan);background:var(--cyan-soft);cursor:pointer;line-height:1.3}
+.mv{border:1px solid var(--line);border-radius:8px;padding:5px 7px;font-size:10.5px;background:var(--graphite);display:flex;gap:6px;align-items:flex-start;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;line-height:1.3;position:relative}
+.mv .ic{width:20px;height:20px;border-radius:6px;font-size:11px}
+.mv .ic svg{width:13px;height:13px}
+.mv .bd{flex:1;min-width:0}
+.mv .bd b{font-weight:600;display:block}
+.mv small{display:block;color:var(--muted);font-size:9.5px}
+.mv .st{font-family:var(--mono);font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;margin-top:2px;display:block}
+.mv.planned{border-left:3px solid var(--muted)}
+.mv.needs-order{border-color:rgba(154,106,18,.55);border-left:3px solid var(--amber);background:var(--amber-soft)}
+.mv.needs-order .st{color:var(--amber)}
+.mv.booked{border-left:3px solid var(--cyan)} .mv.booked .st{color:var(--cyan)}
+.mv.done{opacity:.55;border-left:3px solid var(--emerald)} .mv.done .st{color:var(--emerald)}
+.mv .act{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.mv .act button{font-family:var(--mono);font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);border-radius:6px;padding:3px 7px;color:var(--soft);background:var(--ink)}
+.mv .act button.pri{color:var(--oncyan);background:var(--cyan);border-color:transparent;font-weight:600}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:11.5px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* ===== SOURCES ===== */
+.sources{margin-top:16px;display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:1000px){.sources{grid-template-columns:1fr 1fr 1fr}}
+.card{background:var(--graphite);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+.card h3{margin:0;font-size:15px;font-weight:700;letter-spacing:-.015em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card h3 em{font-style:normal;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-left:auto}
+.card .where{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px}
+.fakefield{border:1px solid var(--line);border-radius:10px;background:var(--ink);padding:10px 12px;margin-top:10px}
+.fakefield .lbl{font-size:12px;font-weight:600;display:flex;gap:8px;align-items:baseline}
+.fakefield .lbl small{color:var(--muted);font-weight:400;font-size:11px}
+.lines{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+.ln{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--graphite);padding:7px 9px;font-size:12.5px}
+.ln small{display:block;color:var(--muted);font-size:10.5px}
+.ln button{font-family:var(--mono);font-size:8px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);border-radius:6px;padding:3px 7px;color:var(--muted);background:var(--ink)}
+.ln .src{font-family:var(--mono);font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--cyan)}
+.addln{display:flex;gap:6px;margin-top:8px}
+.addln input{flex:1;min-width:0;background:var(--graphite);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px}
+.paintrow{display:grid;grid-template-columns:1fr auto;gap:8px;padding:6px 0;border-top:1px dashed var(--line);font-size:12.5px}
+.paintrow:first-of-type{border-top:0}
+.paintrow small{display:block;color:var(--muted);font-size:10.5px}
+.paintrow .cans{font-family:var(--mono);font-size:10.5px;color:var(--soft);white-space:nowrap}
+.gate{display:flex;align-items:center;gap:9px;border-top:1px solid var(--line);padding:9px 0;font-size:12.5px}
+.gate .box{width:18px;height:18px;border-radius:5px;border:1px solid var(--line);display:grid;place-items:center;font-size:11px;color:#fff}
+.gate .box.on{background:var(--emerald);border-color:transparent}
+.gate small{color:var(--muted);font-size:11px;display:block}
+.arrowbar{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--muted);font-size:12px;margin-top:12px;flex-wrap:wrap}
+.arrowbar b{color:var(--cyan)}
+.flow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:var(--soft);margin-top:10px}
+.flow .s{border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:var(--ink)}
+.flow .a{color:var(--muted)}
+
+/* ===== DAY ===== */
+.day{margin-top:16px;display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:1000px){.day{grid-template-columns:1fr 1.1fr}}
+.days{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.days button{flex:1 0 auto;min-width:62px;background:var(--graphite);border:1px solid var(--line);border-radius:11px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:1px;color:var(--muted)}
+.days button b{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--soft)}
+.days button small{font-family:var(--mono);font-size:8.5px}
+.days button.on{border-color:var(--cyan);background:var(--cyan-soft)} .days button.on b{color:var(--cyan)}
+.people{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
+.people button{border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--ink);display:inline-flex;align-items:center;gap:6px}
+.people button i{width:8px;height:8px;border-radius:50%;background:var(--pc);display:inline-block}
+.people button.on{background:var(--pc);color:#fff;border-color:transparent;font-weight:600}
+.people button.on i{background:#fff}
+.tl{position:relative;padding-left:58px;margin-top:12px}
+.tl::before{content:"";position:absolute;left:42px;top:6px;bottom:6px;border-left:2px solid var(--dim)}
+.stop{position:relative;margin-bottom:9px}
+.stop .t{position:absolute;left:-58px;top:8px;width:36px;text-align:right;font-family:var(--mono);font-size:9.5px;color:var(--muted)}
+.stop .n{position:absolute;left:-23px;top:8px;width:18px;height:18px;border-radius:50%;background:var(--pc,var(--cyan));color:#fff;font-family:var(--mono);font-weight:700;font-size:9px;display:grid;place-items:center;z-index:1}
+.stop .n.ctx{background:var(--violet);color:#fff} .stop .n.done{background:var(--emerald);color:#fff}
+.stop .bx{border:1px solid var(--line);border-radius:11px;padding:9px 10px;background:var(--ink);display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.stop .bx.ctx{border-style:dashed;background:transparent}
+.stop .bx b{font-size:13px;display:block;font-weight:600}
+.stop .bx small{color:var(--muted);font-size:11px;display:block}
+.stop .bx .km{font-family:var(--mono);font-size:9px;color:var(--muted)}
+.stop .ord{display:flex;gap:3px;flex-direction:column}
+.stop .ord button{width:22px;height:18px;border:1px solid var(--line);border-radius:5px;font-size:10px;color:var(--muted);background:var(--graphite)}
+.tick{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;color:var(--emerald);font-size:15px;background:var(--graphite)}
+.tick.on{background:var(--emerald);color:#fff;border-color:transparent}
+.btnrow{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.btnrow .btn{flex:1;text-align:center;padding:11px}
+.note{font-size:12.5px;color:var(--muted);margin:8px 0 0}
+.list{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--ink)}
+.opt{display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;border-top:1px solid var(--line);padding:10px 12px;font-size:13.5px;color:var(--text)}
+.opt:first-child{border-top:0}
+.opt .rad{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--dim);display:grid;place-items:center}
+.opt.on .rad{border-color:var(--cyan)} .opt.on .rad::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--cyan)}
+.opt.box .rad{border-radius:5px} .opt.box.on .rad::after{border-radius:2px;width:10px;height:10px}
+.opt .sub{display:block;font-size:12px;color:var(--muted)}
+.opt .sub.warn{color:var(--amber)}
+.opt .km{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap}
+.opt:disabled{opacity:.5;cursor:default}
+
+/* ===== MAP ===== */
+.mapwrap{margin-top:16px;display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:1000px){.mapwrap{grid-template-columns:1fr 330px}}
+.mapbox{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--land);box-shadow:var(--shadow);position:relative}
+.mapbox > svg{display:block;width:100%;height:auto}
+.mapbox .sub{font-family:var(--mono);font-size:7px;letter-spacing:.08em;text-transform:uppercase;fill:var(--muted);opacity:.7}
+.mapbox .water{fill:var(--water)}
+.mapbox .road{stroke:var(--road);stroke-width:3;fill:none;stroke-linecap:round}
+.mapbox .lbl{font-family:var(--sans);font-size:8.5px;font-weight:600;fill:var(--text)}
+.mapbox .lbl2{font-family:var(--mono);font-size:6.5px;fill:var(--muted)}
+.mapbox .mvlbl{font-family:var(--mono);font-size:6.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;fill:#fff}
+.mapbox .ring{fill:none;stroke-width:2}
+.maplegend{display:grid;gap:5px;font-size:12px;color:var(--soft)}
+.maplegend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:-1px;border:1px solid rgba(0,0,0,.15)}
+.maplegend .sq{border-radius:3px}
+.route .rrow{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px dashed var(--line);font-size:12.5px;align-items:center}
+.route .rrow span.d{font-family:var(--mono);font-size:9.5px;color:var(--muted);white-space:nowrap}
+.layers{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.layers button{border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-family:var(--mono);font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--ink)}
+.layers button.on{color:var(--oncyan);background:var(--cyan);border-color:transparent;font-weight:600}
+
+/* map icons + order list */
+.mapbox .jlbl{font-family:var(--sans);font-size:8px;font-weight:600;fill:var(--text)}
+.mapbox .jsub{font-family:var(--mono);font-size:6.5px;fill:var(--muted)}
+.orderlist{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.orow{display:grid;grid-template-columns:22px 26px 1fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;background:var(--ink);padding:8px 9px;font-size:12.5px;touch-action:none;user-select:none;-webkit-user-select:none;position:relative}
+.orow .hnd{color:var(--dim);font-size:14px;letter-spacing:-2px;cursor:grab;text-align:center}
+.orow .num{width:24px;height:24px;border-radius:50%;background:var(--pc,var(--cyan));color:#fff;font-family:var(--mono);font-weight:700;font-size:10px;display:grid;place-items:center}
+.orow .num.ctx{background:var(--violet)}
+.orow b{display:block;font-weight:600;font-size:12.5px;line-height:1.25}
+.orow small{display:block;color:var(--muted);font-size:10.5px}
+.orow .km{font-family:var(--mono);font-size:9px;color:var(--muted);white-space:nowrap;text-align:right}
+.orow.fixed{opacity:.75;border-style:dashed}
+.orow.fixed .hnd{visibility:hidden}
+.orow.lift{box-shadow:0 10px 24px rgba(0,0,0,.18);border-color:var(--cyan);z-index:2}
+.orow.before{box-shadow:0 -3px 0 0 var(--cyan)} .orow.after{box-shadow:0 3px 0 0 var(--cyan)}
+
+/* ===== GEAR ===== */
+.gearhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.geargrid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
+@media(min-width:700px){.geargrid{grid-template-columns:1fr 1fr}}
+@media(min-width:1100px){.geargrid{grid-template-columns:1fr 1fr 1fr}}
+.gear{background:var(--graphite);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.gear.flag{border-color:rgba(163,70,58,.55)}
+.gear .top{display:grid;grid-template-columns:56px 1fr;gap:12px;padding:12px;align-items:center;width:100%;text-align:left}
+.gicon{width:56px;height:56px;border-radius:14px;background:var(--ink);border:1px solid var(--line);display:grid;place-items:center;color:var(--violet)}
+.gicon svg{width:34px;height:34px}
+.gear.flag .gicon{color:var(--clay)}
+.gear .nm{min-width:0;display:flex;flex-direction:column;gap:3px}
+.gear .nm b{font-size:14px;font-weight:600;letter-spacing:-.01em;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.gear .nm small{font-size:12px;color:var(--muted)}
+.gear .tag{font-family:var(--mono);font-size:9px;color:var(--cyan);letter-spacing:.04em;background:var(--cyan-soft);border:1px solid rgba(14,140,156,.3);border-radius:6px;padding:2px 6px}
+.loc{font-family:var(--mono);font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:100px;border:1px solid var(--line);white-space:nowrap;display:inline-block}
+.loc.wh{color:var(--emerald);border-color:rgba(31,122,74,.45)} .loc.site{color:var(--cyan);border-color:rgba(14,140,156,.4)} .loc.painter{color:var(--soft)} .loc.repair{color:var(--muted)} .loc.flag{color:var(--clay);border-color:rgba(163,70,58,.5);background:var(--clay-soft)}
+.trail{border-top:1px solid var(--line);padding:10px 12px 12px;display:none}
+.gear.open .trail{display:block}
+.tr{display:grid;grid-template-columns:62px 1fr;gap:10px;padding:5px 0;border-top:1px dashed var(--line);font-size:13px}
+.tr:first-of-type{border-top:0} .tr .d{font-family:var(--mono);font-size:10px;color:var(--muted);padding-top:2px}
+.gearlegend{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.gearlegend span{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 10px 4px 6px;background:var(--graphite)}
+.gearlegend svg{width:16px;height:16px;color:var(--violet)}
+
+/* ===== SHEET ===== */
+.ov{position:fixed;inset:0;background:rgba(18,22,26,.35);backdrop-filter:blur(2px);z-index:80;display:none}
+.ov.on{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:90;background:var(--graphite);border:1px solid var(--line);border-bottom:0;border-radius:18px 18px 0 0;max-height:88vh;overflow:auto;transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.8,.2,1);padding:10px 16px calc(18px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto;box-shadow:0 -10px 40px rgba(0,0,0,.2)}
+.sheet.on{transform:translateY(0)}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--dim);margin:0 auto 12px}
+.sh-x{position:absolute;right:12px;top:10px;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--ink);color:var(--muted);font-size:18px;line-height:1}
+.sh-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding-right:40px}
+.sh-h h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em}
+.ref{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:var(--muted)}
+.sh-sub{font-size:13px;color:var(--muted);margin:2px 0 10px}
+.fld{margin-top:14px}
+.fld .k{margin-bottom:7px;display:flex;gap:8px;align-items:baseline}
+.fld .k em{font-style:normal;color:var(--cyan);margin-left:auto;letter-spacing:.04em;text-transform:none;font-size:9px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chp{background:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 13px;font-size:13px;color:var(--soft)}
+.chp.on{color:var(--oncyan);background:linear-gradient(135deg,var(--cyan),var(--paint));border-color:transparent;font-weight:600}
+.sheet textarea,.sheet input[type=text],.sheet select{width:100%;background:var(--ink);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:inherit;font-size:13.5px;line-height:1.5}
+.orderref{font-family:var(--mono);font-size:12px;color:var(--cyan);background:var(--cyan-soft);border:1px dashed rgba(14,140,156,.45);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.orderref small{color:var(--muted);font-family:var(--sans);font-size:12px}
+.sh-acts{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+.sh-acts .btn{flex:1 1 auto;text-align:center;padding:12px 14px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--graphite);border:1px solid rgba(31,122,74,.5);color:var(--text);padding:10px 16px;border-radius:12px;font-size:13px;z-index:100;opacity:0;transition:all .25s;pointer-events:none;max-width:92vw;text-align:center;box-shadow:var(--shadow)}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.foot{margin-top:40px;border-top:1px solid var(--line);padding-top:16px;font-family:var(--mono);font-size:10.5px;line-height:1.8;color:var(--muted)}
+.hidden{display:none!important}
+
+/* ===== PHONE ===== */
+@media (max-width:900px){
+  .week{grid-template-columns:1fr}
+  .tray{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:70;border-radius:18px 18px 0 0;max-height:62vh;padding-bottom:calc(14px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.18);transform:translateY(calc(100% - 58px));transition:transform .28s}
+  .tray.open{transform:translateY(0)}
+  .tray h3{cursor:pointer;padding-bottom:6px}
+  .tray h3::before{content:"";display:block;position:absolute;left:50%;top:7px;width:40px;height:4px;border-radius:2px;background:var(--dim);transform:translateX(-50%)}
+  .shell{padding-bottom:140px}
+  .grid{grid-template-columns:124px repeat(6,176px)}
+  .lane b{font-size:12px}
+  .headrow{flex-direction:column;align-items:stretch}
+  .seg{width:100%;overflow-x:auto;scrollbar-width:none} .seg button{flex:1 0 auto}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="brand"><span class="drip"></span>Paint Group <b>·</b> PC Command</div>
+    <div class="meta"><span class="d">Melbourne</span><span class="t">Fri 16 Oct · 15:10</span></div>
+    <div class="who"><button class="themebtn" onclick="toggleTheme()" id="themebtn">◐ Dark</button><div class="role">Project coordinator<b>Felipe</b></div><div class="avatar">FS</div></div>
+  </div>
+  <nav class="nav" aria-label="Console views">
+    <a href="#">Schedule</a><a href="#" class="on">Movements</a><a href="#">Dashboard</a><a href="#">Project Progress</a><a href="#">Updates</a><a href="#">Timesheets</a><a href="#">Contractors</a><a href="#">Induction</a>
+  </nav>
+
+  <div class="headrow">
+    <div>
+      <h1 id="headline"></h1>
+      <p class="lede">Drag a chip from the tray onto a person's day. The lane decides who and how; the column — and for Felipe and Tom the hour — decides when. Everyone's week is already drawn in, so you can send things with whoever is going that way.</p>
+    </div>
+    <div class="ctl">
+      <div class="seg" role="tablist">
+        <button class="on" data-view="week"><span>Week</span><small>plan</small></button>
+        <button data-view="sources"><span>Sources</span><small>where chips come from</small></button>
+        <button data-view="day"><span>Day</span><small>run plans</small></button>
+        <button data-view="map"><span>Map</span><small>where</small></button>
+        <button data-view="gear"><span>Gear</span><small>register</small></button>
+      </div>
+      <div class="weeknav"><button aria-label="Previous week">‹</button><b>Week of Mon 19 Oct</b><button aria-label="Next week">›</button></div>
+      <button class="pill p-amber" id="orders-pill" onclick="go('day')"></button>
+    </div>
+  </div>
+
+  <details class="how">
+    <summary>How this tab works · 30 seconds</summary>
+    <ol>
+      <li><b>The tray is everything that has to move</b> next week — paint per brand, materials per line, gear, rubbish — built from the jobs. Amber = not yet planned. Anything can also be added from scratch.</li>
+      <li><b>Drag a chip onto a person's day.</b> Supplier lane = delivered (you place the order). A painter's lane = they pick it up or move it. Felipe's and Tom's lanes are in hours. Tick <b>Ordered</b> and the painter is told.</li>
+      <li><b>Nearby</b> on a day means there are chips close to where that person already is. <b>Day</b> turns a person's drops into a numbered run plan; <b>Map</b> shows every job as an icon — it changes to the movement icon when that job still needs something — and lets you drag the day's stops into order.</li>
+    </ol>
+  </details>
+
+  <!-- ===== WEEK ===== -->
+  <section id="view-week" class="week">
+    <aside class="tray" id="tray">
+      <h3 onclick="document.getElementById('tray').classList.toggle('open')">Tray <span id="tray-count"></span></h3>
+      <span class="k">everything that has to move · built from the jobs</span>
+      <div class="filters" id="tray-filters"></div>
+      <div id="tray-body"></div>
+      <div class="add" onclick="openAddChip()">+ Add a chip — from scratch</div>
+    </aside>
+    <div>
+      <div class="boardwrap"><div class="grid" id="grid"></div></div>
+      <div class="legend">
+        <span><i style="background:var(--emerald)"></i>on a job (schedule)</span>
+        <span><i style="background:var(--violet)"></i>calendar (Google, read-only)</span>
+        <span><i style="background:var(--cyan)"></i>quality check / job check-in</span>
+        <span><i style="border:1px dashed var(--cyan);background:var(--cyan-soft)"></i>"while you're there" suggestion</span>
+        <span><i style="background:var(--amber)"></i>needs an order placed</span>
+        <span><i style="background:var(--muted)"></i>planned</span>
+        <span><i style="background:var(--cyan)"></i>ordered / booked</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SOURCES ===== -->
+  <section id="view-sources" class="hidden">
+    <p class="note" style="margin-top:14px;max-width:80ch">One list, three places. A materials line typed in the estimate, on the job page or straight into the tray is the <b>same row</b> — it shows in all three and becomes a chip the moment it exists. Paint rows come from the Materials card the same way. Try adding a line below.</p>
+    <div class="sources" id="sources"></div>
+    <div class="card" style="margin-top:12px">
+      <h3>How a movement gets created <em>three doors, one record</em></h3>
+      <div class="flow"><span class="s">Estimate · Materials &amp; sundries (internal)</span><span class="a">→ at acceptance →</span><span class="s">Job page · Pre-start · Materials lines</span><span class="a">= same rows =</span><span class="s">Tray chip</span><span class="a">→ drag →</span><span class="s">Movement on someone's day</span><span class="a">→ Ordered ✓ →</span><span class="s">Painter texted</span></div>
+      <div class="flow"><span class="s">Materials card · paint rows</span><span class="a">→ grouped by brand →</span><span class="s">Paint chip per brand</span><span class="a">→ lines edited in the chip edit the card</span></div>
+      <div class="flow"><span class="s">Painter asks for more (portal)</span><span class="a">→ Accept as a line →</span><span class="s">Materials line + chip</span></div>
+      <div class="flow"><span class="s">+ Add a chip here</span><span class="a">→ a materials chip also writes the line back to the job page and the estimate</span></div>
+    </div>
+  </section>
+
+  <!-- ===== DAY ===== -->
+  <section id="view-day" class="day hidden">
+    <div class="card">
+      <h3>Run plans <em id="day-sum"></em></h3>
+      <div class="days" id="days" style="margin-top:10px"></div>
+      <div class="people" id="people"></div>
+      <div class="tl" id="tl"></div>
+      <div class="btnrow" id="day-acts"></div>
+      <p class="note">Arrows reorder; each person gets their own list on their phone with Navigate, Ring and a Problem button.</p>
+    </div>
+    <div class="card">
+      <h3>Orders to place <em>phone · app · online</em></h3>
+      <div id="orders"></div>
+      <p class="note">Ticking <b>Ordered</b> is what alerts the painter — "ready at Dulux Preston Mega from 6am Tue, order PG-0092 under Paint Group" — or tells them a delivery is coming. Client notice is off unless you turn it on for that delivery.</p>
+    </div>
+  </section>
+
+  <!-- ===== MAP ===== -->
+  <section id="view-map" class="mapwrap hidden">
+    <div>
+      <div class="days" id="map-days"></div>
+      <div class="people" id="map-people"></div>
+      <div class="layers" id="map-layers"></div>
+      <div class="mapbox" id="mapbox"></div>
+      <p class="note">Every job is one icon. It turns amber and shows a paint / materials / gear / rubbish icon when that job still needs something planned or ordered — so you can see where action is needed. Numbers are the selected person's order for the day. Google Maps underneath in the build.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card" id="ordercard"></div>
+      <div class="card"><h3>Icons <em>what they mean</em></h3><div class="maplegend" id="legend-what" style="margin-top:8px"></div></div>
+    </div>
+  </section>
+
+  <!-- ===== GEAR ===== -->
+  <section id="view-gear" class="hidden">
+    <div class="gearhead"><div class="filters" id="gear-filters" style="margin:0"></div></div>
+    <div class="gearlegend" id="gear-legend"></div>
+    <div class="geargrid" id="geargrid"></div>
+    <p class="note">Location is never typed — it is the last ticked movement that carried the item. Tap an item for its trail. Retired items keep their history.</p>
+  </section>
+
+  <div class="foot">PC Command → Movements · design reference v3 · 19 Oct 2026<br>Lanes = buckets (supplier · each painter · each staff member). Felipe and Tom in hours. Chips from the Materials card, the estimate's materials field, the gear register, the rubbish answer — or from scratch. Nothing typed twice; location derived from ticks; cards through the one work queue.</div>
+</div>
+
+<div class="ov" id="ov" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= ICONS (inline SVG, stroke = currentColor) ================= */
+const I = {
+  step:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l4 18M9 3L5 21"/><path d="M8.2 8h7.6M7.4 12.5h9.2M6.6 17h10.8"/><path d="M15 3l-1.2 5.4"/></svg>`,
+  ext:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V7M12 21V7"/><path d="M6 10h6M6 14h6M6 18h6"/><path d="M12 15V3M18 15V3"/><path d="M12 6h6M12 9h6M12 12h6"/></svg>`,
+  ext10:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V10M9 22V10"/><path d="M4 13h5M4 16h5M4 19h5"/><path d="M9 16V6M14 16V6"/><path d="M9 9h5M9 12h5"/><path d="M14 10V2M19 10V2"/><path d="M14 5h5M14 8h5"/></svg>`,
+  platform:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7h8l3 14M8 7L5 21"/><path d="M7 7h10v-2H7z"/><path d="M7.3 12h9.4M6.5 16.5h11"/><path d="M9 5V3M15 5V3"/></svg>`,
+  spray:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h11l3-2v6l-3-2H9v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 14l-1 7h4"/><path d="M19 7h2M19 11h2M20 9h3" opacity=".7"/></svg>`,
+  planex:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="16" r="4.5"/><circle cx="7" cy="16" r="1.5"/><path d="M10.5 12.5L21 2"/><path d="M19 3l2 2"/></svg>`,
+  vac:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="9" width="12" height="9" rx="2"/><circle cx="7" cy="20" r="1.5"/><circle cx="13" cy="20" r="1.5"/><path d="M16 12c3 0 4-1 4-4s-2-4-4-4"/><path d="M6 9V7h8v2"/></svg>`,
+  scaffold:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V4M19 20V4"/><path d="M5 8h14M5 14h14"/><path d="M5 8l14 6M19 8L5 14"/><circle cx="5" cy="21" r="1.4"/><circle cx="19" cy="21" r="1.4"/><path d="M4 4h16"/></svg>`,
+  harness:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 0 1 4 4v3l3 7H5l3-7V7a4 4 0 0 1 4-4z"/><path d="M12 10v7M9 14h6"/><path d="M12 17v3"/><circle cx="12" cy="21" r="1.2"/></svg>`,
+  paint:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h14v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/><path d="M5 13h14" opacity=".6"/></svg>`,
+  mat:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/><path d="M12 12v8"/></svg>`,
+  rub:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16l-2 13H6z"/><path d="M9 7V4h6v3"/><path d="M10 11v6M14 11v6"/></svg>`,
+  check:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M8.5 12.5l2.3 2.3L15.5 10"/></svg>`,
+  pin:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2"/></svg>`,
+  cal:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>`,
+};
+const GEAR_CAT = { step:"Step ladder", ext:"Extension ladder 7 m", ext10:"Extension ladder 10 m", platform:"Platform ladder", spray:"Spray gun", planex:"Planex wall sander", vac:"Festool vacuum", scaffold:"Mobile scaffold", harness:"Fall protection" };
+
+/* ================= DATA ================= */
+const DAYS = ["Mon 19","Tue 20","Wed 21","Thu 22","Fri 23","Sat 24"];
+const HOURS = ["07:30","08:30","09:30","10:30","11:30","12:30","13:30","14:30","15:30","16:30"];
+const SUB = {
+  "Oakleigh South":[-37.922,145.097],"Northcote":[-37.770,145.000],"Carnegie":[-37.887,145.057],"Sandringham":[-37.950,145.013],
+  "Preston":[-37.741,145.004],"Caulfield North":[-37.871,145.023],"Fairfield":[-37.778,145.018],"Hampton":[-37.937,145.003],
+  "Brighton":[-37.909,144.994],"Thornbury":[-37.759,145.003],"Moorabbin":[-37.936,145.044],"Thomastown":[-37.681,145.016],"Clifton Hill":[-37.788,144.996],
+  "Richmond":[-37.82,145.0],"St Kilda":[-37.868,144.98],"Box Hill":[-37.819,145.122],"Dandenong":[-37.987,145.215],"Coburg":[-37.742,144.964],"Footscray":[-37.80,144.90],"Melbourne CBD":[-37.814,144.963],"Bentleigh":[-37.918,145.036],"Cheltenham":[-37.967,145.055],
+};
+const km = (a,b)=>{ if(!a||!b) return 99; const R=6371,toR=x=>x*Math.PI/180; const dLat=toR(b[0]-a[0]), dLng=toR(b[1]-a[1]); const h=Math.sin(dLat/2)**2+Math.cos(toR(a[0]))*Math.cos(toR(b[0]))*Math.sin(dLng/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
+const WH = {name:"Warehouse · Oakleigh South", suburb:"Oakleigh South"};
+
+const BRANCHES = [
+  {id:"dlx-preston", kind:"paint", name:"Dulux Trade Centre Preston Mega", short:"Dulux Preston", sub:"148-150 Bell St · opens 6:00 · delivers", suburb:"Preston", delivers:true, ll:[-37.744,145.000]},
+  {id:"ps-preston", kind:"paint", name:"Paint Spot Preston", short:"Paint Spot Preston", sub:"110 Chifley Dr · opens 6:30 · pickup", suburb:"Preston", delivers:false, ll:[-37.749,145.028]},
+  {id:"insp-clifton", kind:"paint", name:"Inspirations Paint Clifton Hill", short:"Inspirations Clifton Hill", sub:"366 Queens Pde · same-day delivery if ordered by 10", suburb:"Clifton Hill", delivers:true, ll:[-37.788,144.996]},
+  {id:"ps-carnegie", kind:"paint", name:"Paint Spot Carnegie", short:"Paint Spot Carnegie", sub:"1066 Dandenong Rd · opens 6:30 · pickup", suburb:"Carnegie", delivers:false, ll:[-37.887,145.06]},
+  {id:"insp-moorabbin", kind:"paint", name:"Inspirations Paint Moorabbin", short:"Inspirations Moorabbin", sub:"899 Nepean Hwy · same-day delivery if ordered by 10", suburb:"Moorabbin", delivers:true, ll:[-37.935,145.04]},
+  {id:"tb-oakleigh", kind:"paint", name:"Taubmans Trade Centre Oakleigh", short:"Taubmans Oakleigh", sub:"31 Connell Rd · pickup", suburb:"Oakleigh South", delivers:false, ll:[-37.90,145.09]},
+  {id:"bun-preston", kind:"hardware", name:"Bunnings Preston", short:"Bunnings Preston", sub:"64-74 Bell St · opens 6:30 · PowerPass delivery", suburb:"Preston", delivers:true, ll:[-37.737,144.984]},
+  {id:"bun-oakleigh", kind:"hardware", name:"Bunnings Oakleigh South", short:"Bunnings Oakleigh Sth", sub:"1041 Centre Rd · opens 6:00", suburb:"Oakleigh South", delivers:true, ll:[-37.92,145.10]},
+  {id:"bun-moorabbin", kind:"hardware", name:"Bunnings Moorabbin", short:"Bunnings Moorabbin", sub:"Fairchild St & Warrigal Rd · opens 6:30", suburb:"Moorabbin", delivers:true, ll:[-37.94,145.07]},
+  {id:"csh-carnegie", kind:"hire", name:"Carnegie Smart Hire · Carnegie", short:"Smart Hire Carnegie", sub:"1076 Dandenong Rd · delivers metro", suburb:"Carnegie", delivers:true, ll:[-37.887,145.061]},
+  {id:"alya", kind:"hire", name:"Alya Access · Thomastown", short:"Alya Access", sub:"80 Lipton Dr · access gear · delivers", suburb:"Thomastown", delivers:true, ll:[-37.681,145.016]},
+];
+const branch = id => BRANCHES.find(b=>b.id===id);
+
+const JOBS = [
+  {ref:"PG-0092", addr:"22 Clarke St", suburb:"Northcote", ll:[-37.766,145.006], painter:"josef", start:0, end:4, stage:"prestart", kind:"Interior · Victorian · 3 bed"},
+  {ref:"PG-0093", addr:"7 Mimosa Rd", suburb:"Carnegie", ll:[-37.891,145.052], painter:"mira", start:1, end:3, stage:"prestart", kind:"Exterior · weatherboard"},
+  {ref:"PG-0094", addr:"Unit 3/15 Bay Rd", suburb:"Sandringham", ll:[-37.953,145.008], painter:"adi", start:2, end:4, stage:"prestart", kind:"Interior · apartment", coloursTbc:true},
+  {ref:"PG-0095", addr:"Chemist Warehouse, 410 High St", suburb:"Preston", ll:[-37.733,145.012], painter:"abdul", start:3, end:5, stage:"prestart", kind:"Commercial · exterior"},
+  {ref:"PG-0090", addr:"88 Station St", suburb:"Fairfield", ll:[-37.781,145.024], painter:"saul", start:-3, end:1, stage:"inprogress", kind:"Interior · running"},
+  {ref:"PG-0084", addr:"31 Kooyong Rd", suburb:"Caulfield North", ll:[-37.868,145.027], painter:null, start:-20, end:-6, stage:"closed", kind:"closed 9 Oct"},
+  {ref:"PG-0081", addr:"19 Beach Rd", suburb:"Hampton", ll:[-37.932,144.996], painter:null, start:-30, end:-12, stage:"closed", kind:"closed 2 Oct"},
+];
+const job = ref => JOBS.find(j=>j.ref===ref);
+
+// Lanes = buckets. slots: "half" (AM/PM) or "hour" (07:30–17:30). colour = who.
+const LANES = [
+  {id:"supplier", kind:"supplier", name:"Supplier delivers", sub:"orders I place · phone, app, online", tag:"Supplier", slots:"half", colour:"#6B7680"},
+  {id:"josef", kind:"painter", name:"Josef Kovac", sub:"contractor · 22 Clarke St Mon–Fri", tag:"Painter", slots:"half", colour:"#C25E1E"},
+  {id:"mira", kind:"painter", name:"Mira Delaney", sub:"contractor · 7 Mimosa Rd Tue–Thu", tag:"Painter", slots:"half", colour:"#B8266B"},
+  {id:"felipe", kind:"staff", name:"Felipe", sub:"van · the run plan", tag:"Staff", slots:"hour", colour:"#0E8C9C"},
+  {id:"tom", kind:"staff", name:"Tom", sub:"calendar + visits", tag:"Staff", slots:"hour", colour:"#5B4FD6"},
+  {id:"saul", kind:"staff", name:"Saul", sub:"employee · 88 Station St Mon–Tue", tag:"Staff · employee", slots:"half", colour:"#1F7A4A"},
+  {id:"adi", kind:"staff", name:"Adi", sub:"employee · Bay Rd Wed–Fri", tag:"Staff · employee", slots:"half", colour:"#B8860B"},
+  {id:"abdul", kind:"staff", name:"Abdul", sub:"employee · High St Thu–Sat", tag:"Staff · employee", slots:"half", colour:"#2F6FBA"},
+];
+const lane = id => LANES.find(l=>l.id===id);
+
+// Read-only context: jobs (schedule), Google Calendar busy, QA checks / job check-ins, leave. t = start hour label.
+const CTX = [
+  {lane:"josef", day:0, half:"ALL", kind:"job", label:"On site · 22 Clarke St", suburb:"Northcote"},
+  {lane:"josef", day:1, half:"ALL", kind:"job", label:"On site", suburb:"Northcote"},{lane:"josef", day:2, half:"ALL", kind:"job", label:"On site", suburb:"Northcote"},{lane:"josef", day:3, half:"ALL", kind:"job", label:"On site", suburb:"Northcote"},{lane:"josef", day:4, half:"ALL", kind:"job", label:"On site · finishes", suburb:"Northcote"},
+  {lane:"mira", day:1, half:"ALL", kind:"job", label:"On site · 7 Mimosa Rd", suburb:"Carnegie"},{lane:"mira", day:2, half:"ALL", kind:"job", label:"On site", suburb:"Carnegie"},{lane:"mira", day:3, half:"ALL", kind:"job", label:"On site · finishes", suburb:"Carnegie"},
+  {lane:"felipe", day:0, half:"AM", kind:"qa", what:"Quality check", label:"Quality check · 88 Station St, Fairfield", sub:"day-one check · from the job", suburb:"Fairfield", t:"09:30", jobRef:"PG-0090"},
+  {lane:"felipe", day:1, half:"AM", kind:"cal", what:"Office", label:"Office · ordering", sub:"Google Calendar", suburb:"Oakleigh South", t:"08:30", dur:2},
+  {lane:"felipe", day:2, half:"PM", kind:"qa", what:"Job check-in", label:"Job check-in · 7 Mimosa Rd, Carnegie", sub:"site visit · from the job", suburb:"Carnegie", t:"13:30", jobRef:"PG-0093"},
+  {lane:"felipe", day:3, half:"AM", kind:"qa", what:"Quality check", label:"Quality check · High St, Preston", sub:"day one", suburb:"Preston", t:"10:30", jobRef:"PG-0095"},
+  {lane:"tom", day:1, half:"PM", kind:"cal", what:"Estimate visit", label:"Estimate visit · Thornbury", sub:"Google Calendar", suburb:"Thornbury", t:"14:30"},
+  {lane:"tom", day:3, half:"AM", kind:"cal", what:"Estimate visit", label:"Estimate visit · Brighton", sub:"Google Calendar", suburb:"Brighton", t:"10:30"},
+  {lane:"tom", day:3, half:"PM", kind:"cal", what:"Estimate visit", label:"Estimate visit · Bentleigh", sub:"Google Calendar", suburb:"Bentleigh", t:"13:30"},
+  {lane:"tom", day:4, half:"PM", kind:"cal", what:"Walkthrough", label:"Walkthrough · 22 Clarke St", sub:"final · sign-off", suburb:"Northcote", t:"15:30", jobRef:"PG-0092"},
+  {lane:"saul", day:0, half:"ALL", kind:"job", label:"On site · 88 Station St, Fairfield", suburb:"Fairfield"},{lane:"saul", day:1, half:"ALL", kind:"job", label:"On site · finishes", suburb:"Fairfield"},
+  {lane:"adi", day:2, half:"ALL", kind:"job", label:"On site · Bay Rd, Sandringham", suburb:"Sandringham"},{lane:"adi", day:3, half:"ALL", kind:"job", label:"On site", suburb:"Sandringham"},{lane:"adi", day:4, half:"ALL", kind:"job", label:"On site · finishes", suburb:"Sandringham"},
+  {lane:"abdul", day:0, half:"ALL", kind:"leave", label:"Leave", suburb:null},{lane:"abdul", day:3, half:"ALL", kind:"job", label:"On site · High St, Preston", suburb:"Preston"},{lane:"abdul", day:4, half:"ALL", kind:"job", label:"On site", suburb:"Preston"},{lane:"abdul", day:5, half:"ALL", kind:"job", label:"On site · finishes", suburb:"Preston"},
+];
+
+// Equipment register — Tom's nine types. Location is DERIVED from the trail + movements.
+const EQUIP = [
+  {tag:"E-001", name:"Step ladder 1.8 m", cat:"step", trail:[["7 Oct","Back to warehouse from 5 Elm Gr, Thornbury"]]},
+  {tag:"E-002", name:"Extension ladder 7 m", cat:"ext", trail:[["7 Oct","Back to warehouse from 5 Elm Gr, Thornbury"]]},
+  {tag:"E-003", name:"Extension ladder 10 m", cat:"ext10", trail:[["30 Sep","Back to warehouse from 410 High St, Preston"]]},
+  {tag:"E-004", name:"Platform ladder", cat:"platform", trail:[["24 Sep","Out to 19 Beach Rd, Hampton · PG-0081"],["2 Oct","PG-0081 closed — item never came back"]], stranded:"PG-0081"},
+  {tag:"E-005", name:"Spray gun — Graco 395 airless", cat:"spray", trail:[["9 Oct","Back to warehouse from 12 Rose St, Brunswick"]]},
+  {tag:"E-006", name:"Spray gun — Wagner airless", cat:"spray", trail:[["29 Sep","Out to 31 Kooyong Rd, Caulfield North · PG-0084"],["9 Oct","PG-0084 closed — item never came back"]], stranded:"PG-0084"},
+  {tag:"E-007", name:"Festool Planex wall sander", cat:"planex", trail:[["2 Oct","Collected from warehouse by Mira Delaney"]], withPainter:"Mira Delaney"},
+  {tag:"E-008", name:"Festool vacuum CT 36", cat:"vac", trail:[["2 Oct","Collected from warehouse by Mira Delaney"]], withPainter:"Mira Delaney"},
+  {tag:"E-009", name:"Mobile scaffold 1.8 m", cat:"scaffold", trail:[["13 Oct","Out to 88 Station St, Fairfield · PG-0090"]], onSite:"PG-0090"},
+  {tag:"E-010", name:"Fall protection kit — harness + lanyard", cat:"harness", trail:[["30 Sep","Back to warehouse from 410 High St, Preston"]]},
+  {tag:"E-011", name:"Extension ladder 7 m", cat:"ext", trail:[["13 Oct","Out to 88 Station St, Fairfield · PG-0090"]], onSite:"PG-0090"},
+];
+const eq = t => EQUIP.find(e=>e.tag===t);
+
+// Material lines — ONE list per job, shown in the estimate, the job page and the tray.
+let MATLINES = [
+  {id:"m1", job:"PG-0092", text:"Filler, caulk ×6, masking tape", source:"estimate"},
+  {id:"m2", job:"PG-0094", text:"Drop sheets ×2, caulk ×3", source:"estimate"},
+  {id:"m3", job:"PG-0095", text:"Barrier mesh, bunting, 2× drop sheets 12 m", source:"pc"},
+  {id:"m4", job:"PG-0093", text:"Sugar soap, 2× sanding sponges", source:"painter_request"},
+];
+// Paint rows (the Materials card), grouped by brand into chips.
+const PAINT = {
+  "PG-0092":[{brand:"Dulux",p:"Wash&Wear Low Sheen",c:"Natural White ½",q:"2×15 L + 1×4 L"},{brand:"Dulux",p:"Aquanamel Semi Gloss",c:"Vivid White",q:"2×4 L"},{brand:"Dulux",p:"Ceiling White",c:"—",q:"1×15 L"},{brand:"Dulux",p:"1Step Prep",c:"—",q:"1×4 L"},{brand:"Taubmans",p:"Endure Low Sheen",c:"Monument (feature wall)",q:"2×4 L"}],
+  "PG-0093":[{brand:"Dulux",p:"Weathershield Low Sheen",c:"Lexicon Quarter",q:"4×15 L"},{brand:"Dulux",p:"Weathershield Gloss",c:"Domino",q:"2×4 L"},{brand:"Dulux",p:"Precision Primer",c:"—",q:"2×15 L"}],
+  "PG-0094":[{brand:"Dulux",p:"Wash&Wear Low Sheen",c:"TBC — consult Mon",q:"2×15 L"},{brand:"Dulux",p:"Aquanamel Semi Gloss",c:"TBC",q:"1×4 L"},{brand:"Dulux",p:"Ceiling White",c:"—",q:"1×10 L"}],
+  "PG-0095":[{brand:"Dulux",p:"AcraTex 955 Elastomeric",c:"Monument",q:"6×15 L"},{brand:"Dulux",p:"Weathershield Gloss",c:"Vivid White",q:"2×4 L"}],
+};
+
+// Chips. A placed chip (lane != null) is a movement. type: paint | mat | gear | rub. state: planned | booked | done.
+let CHIPS = [
+  {id:"c1", job:"PG-0092", type:"paint", brand:"Dulux", suburb:"Northcote", branch:"dlx-preston", lane:"supplier", day:0, half:"AM", state:"booked", t:"AM", alerted:true},
+  {id:"c2", job:"PG-0092", type:"paint", brand:"Taubmans", suburb:"Northcote", branch:"tb-oakleigh", lane:null},
+  {id:"c3", job:"PG-0092", type:"mat", line:"m1", suburb:"Northcote", branch:"bun-preston", lane:"josef", day:0, half:"AM", state:"booked", t:"before 7", alerted:true},
+  {id:"c4", job:"PG-0092", type:"gear", items:["E-002","E-001"], suburb:"Northcote", lane:"felipe", day:0, half:"AM", state:"booked", t:"08:30"},
+  {id:"c5", job:"PG-0092", type:"gear", items:["E-002","E-001"], suburb:"Northcote", lane:"felipe", day:4, half:"PM", state:"planned", t:"15:30", ret:true},
+  {id:"c6", job:"PG-0092", type:"rub", suburb:"Northcote", lane:null},
+  {id:"c7", job:"PG-0093", type:"paint", brand:"Dulux", suburb:"Carnegie", branch:"ps-carnegie", lane:"mira", day:1, half:"AM", state:"booked", t:"6:30", alerted:true},
+  {id:"c8", job:"PG-0093", type:"gear", items:["E-006"], suburb:"Carnegie", lane:null, blockedBy:"c9"},
+  {id:"c9", job:"PG-0084", type:"gear", items:["E-006"], suburb:"Caulfield North", lane:null, ret:true},
+  {id:"c10", job:"PG-0093", type:"rub", method:"skip", suburb:"Carnegie", branch:"csh-carnegie", hire:true, lane:"supplier", day:1, half:"AM", state:"planned", t:"7:00"},
+  {id:"c22", job:"PG-0093", type:"mat", line:"m4", suburb:"Carnegie", branch:"bun-oakleigh", lane:null},
+  {id:"c11", job:"PG-0094", type:"paint", brand:"Dulux", suburb:"Sandringham", branch:"insp-moorabbin", coloursTbc:true, lane:null},
+  {id:"c12", job:"PG-0094", type:"mat", line:"m2", suburb:"Sandringham", branch:"bun-moorabbin", lane:"adi", day:2, half:"AM", state:"planned", t:"before 7:30"},
+  {id:"c13", job:"PG-0095", type:"paint", brand:"Dulux", suburb:"Preston", branch:"dlx-preston", lane:"supplier", day:3, half:"AM", state:"booked", t:"AM", alerted:true},
+  {id:"c14", job:"PG-0095", type:"gear", hire:"Scissor lift 19 ft", suburb:"Preston", branch:"alya", lane:"supplier", day:3, half:"AM", state:"booked", t:"6:30", alerted:true},
+  {id:"c15", job:"PG-0095", type:"gear", items:["E-003","E-010"], suburb:"Preston", lane:"felipe", day:3, half:"AM", state:"booked", t:"08:30"},
+  {id:"c16", job:"PG-0095", type:"mat", line:"m3", suburb:"Preston", branch:"bun-preston", lane:"supplier", day:3, half:"AM", state:"planned", t:"AM"},
+  {id:"c17", job:"PG-0095", type:"gear", items:["E-003","E-010"], suburb:"Preston", lane:null, ret:true},
+  {id:"c18", job:"PG-0095", type:"rub", method:"site", suburb:"Preston", lane:null},
+  {id:"c19", job:"PG-0090", type:"gear", items:["E-011","E-009"], suburb:"Fairfield", lane:"saul", day:1, half:"PM", state:"booked", t:"15:30", ret:true},
+  {id:"c20", job:"PG-0081", type:"gear", items:["E-004"], suburb:"Hampton", lane:null, ret:true},
+  {id:"c21", job:null, type:"mat", text:"Restock — drop sheets ×10, tape box", suburb:"Oakleigh South", branch:"bun-oakleigh", lane:"felipe", day:0, half:"AM", state:"planned", t:"07:30"},
+];
+const chip = id => CHIPS.find(c=>c.id===id);
+const TYPE = {paint:[I.paint,"Paint"], mat:[I.mat,"Materials"], gear:[I.scaffold,"Gear"], rub:[I.rub,"Rubbish"]};
+
+/* ================= DERIVATIONS (lib/movements/evaluate.ts in the build) ================= */
+const NEAR_KM = 7;
+function chipTitle(c){
+  if(c.type==="paint"){ const rows=(PAINT[c.job]||[]).filter(r=>r.brand===c.brand); const cans=rows.reduce((n,r)=>n+(r.q.match(/\d+×/g)||[]).reduce((a,m)=>a+Number(m.replace("×","")),0),0); return `${c.brand} · ${rows.length} line${rows.length===1?"":"s"} · ${cans} cans`; }
+  if(c.type==="mat"){ if(c.line){ const l=MATLINES.find(m=>m.id===c.line); return l?l.text:"(line removed)"; } return c.text; }
+  if(c.type==="gear"){ if(c.hire) return `${c.hire} (hire) → site`; const names=c.items.map(t=>`${t} ${GEAR_CAT[eq(t).cat].replace("Extension ladder","Ext. ladder")}`).join(" + "); return c.ret ? `${names} back → warehouse` : `${names} → site`; }
+  if(c.type==="rub"){ if(c.method==="skip") return `Skip bin 4 m³ · in ${DAYS[job(c.job).start]}, out ${DAYS[job(c.job).end]||"Sat"}`; if(c.method==="disposed") return `Rubbish — ${lane(job(c.job).painter).name.split(" ")[0]} disposes of it`; if(c.method==="warehouse") return `Rubbish → warehouse (${lane(job(c.job).painter).name.split(" ")[0]} drops it)`; if(c.method==="site") return "Rubbish left on site — collect"; return "Rubbish — how?"; }
+}
+function chipSub(c){
+  if(c.type==="paint") return c.coloursTbc ? "colours TBC — can plan, can't order" : "from the Materials card · per brand";
+  if(c.type==="mat"){ const l=c.line?MATLINES.find(m=>m.id===c.line):null; const src=l?({estimate:"from the estimate",pc:"added on the job page",painter_request:"from the painter's request",tray:"added in the tray"})[l.source]:"warehouse"; return `${src}${c.branch?" · "+branch(c.branch).short:""}`; }
+  if(c.type==="gear"){ if(c.hire) return `${branch(c.branch).short} · off-hire ${DAYS[job(c.job).end]||"Sat"}`; if(c.ret && job(c.job).stage==="closed") return "left on a closed job"; if(c.ret) return `auto-created · job ends ${DAYS[job(c.job).end]||"Sat"}`; return c.items.map(t=>eqLocation(eq(t)).label).join(" · "); }
+  if(c.type==="rub"){ if(c.method==="skip") return `${branch(c.branch).short} · 0.3 km`; if(!c.method) return "painter disposed · painter drops at warehouse · left on site"; if(c.method==="site") return "someone collects from site"; return ""; }
+}
+// Label of WHAT a movement is, for cards and the map.
+function kindLabel(c){ const l=c.lane?lane(c.lane):null;
+  if(c.type==="paint") return l&&l.kind==="supplier"?"Paint delivery":"Paint pickup";
+  if(c.type==="mat") return l&&l.kind==="supplier"?"Materials delivery":"Materials pickup";
+  if(c.type==="gear"){ if(c.hire) return "Hire delivery"; return c.ret?"Gear collection":"Gear drop-off"; }
+  if(c.type==="rub"){ if(c.method==="skip") return "Skip in / out"; if(c.method==="disposed") return "Rubbish disposed"; if(c.method==="warehouse") return "Rubbish to warehouse"; return "Rubbish collection"; } }
+const undecided = c => c.type==="rub" && !c.method;
+function inWindow(c, day){ const j=c.job?job(c.job):null; if(!j||j.stage==="closed") return true; if(c.ret) return day>=j.end; return day<=j.start; }
+function chipBlocked(c){ if(!c.blockedBy) return null; const b=chip(c.blockedBy); const e=eq(c.items[0]); const j=job(e.stranded); return b.lane==null ? `${e.tag} is still at ${j.addr} — job closed. Drop "Collect ${e.tag}" on someone first.` : (b.state==="done" ? null : `return booked ${DAYS[b.day]} · available after`); }
+function chipState(c){ if(c.lane==null) return "tray"; if(c.state==="done") return "done"; const l=lane(c.lane); if(c.type==="rub"&&c.method!=="skip") return c.state; if((l.kind==="supplier"||(c.branch&&l.kind!=="supplier"&&!c.ret&&c.type!=="gear")) && c.state!=="booked") return "needs-order"; return c.state; }
+function methodLabel(c){ const l=lane(c.lane); if(!l) return ""; if(c.type==="rub"&&c.method==="disposed") return `${l.name.split(" ")[0]} disposes`; if(c.type==="rub"&&c.method==="warehouse") return `${l.name.split(" ")[0]} drops at the warehouse`; if(l.kind==="supplier") return c.hire||c.method==="skip"?"hire company delivers":"delivered to site"; if(c.branch&&!c.ret) return `${l.name.split(" ")[0]} picks up`; return c.ret?`${l.name.split(" ")[0]} collects`:`${l.name.split(" ")[0]} drops off`; }
+function ctxFor(laneId, day){ return CTX.filter(x=>x.lane===laneId && x.day===day); }
+function nearChips(laneId, day){ if(lane(laneId).kind!=="staff") return []; const cs = ctxFor(laneId,day).filter(x=>x.suburb && x.kind!=="leave"); if(!cs.length) return []; return CHIPS.filter(c=>c.lane==null && !chipBlocked(c) && !undecided(c) && inWindow(c,day) && cs.some(x=>km(SUB[x.suburb],SUB[c.suburb])<=NEAR_KM)).map(c=>{ const from=[...cs].sort((a,b)=>km(SUB[a.suburb],SUB[c.suburb])-km(SUB[b.suburb],SUB[c.suburb]))[0]; return {c, from, d:km(SUB[from.suburb],SUB[c.suburb])}; }).sort((a,b)=>a.d-b.d); }
+function hotCells(c){ const out=[]; LANES.forEach(l=>{ if(l.kind==="supplier") return; for(let d=0;d<6;d++){ if(!inWindow(c,d)) continue; const cs=ctxFor(l.id,d).filter(x=>x.suburb&&x.kind!=="leave"); if(cs.some(x=>km(SUB[x.suburb],SUB[c.suburb])<=NEAR_KM)) out.push(`${l.id}|${d}`); } }); return out; }
+function counts(){ const tray=CHIPS.filter(c=>c.lane==null).length; const orders=CHIPS.filter(c=>chipState(c)==="needs-order").length; const moves=CHIPS.filter(c=>c.lane!=null).length; return {tray,orders,moves}; }
+function eqLocation(e){ const retChip = CHIPS.find(c=>c.ret && c.items && c.items.includes(e.tag)); if(e.stranded){ if(retChip && retChip.state==="done") return {cls:"wh",label:"Warehouse",detail:"Oakleigh South · just back"}; if(retChip && retChip.lane) return {cls:"site",label:"On site · return booked",detail:`${job(e.stranded).addr}, ${job(e.stranded).suburb} · ${lane(retChip.lane).name} ${DAYS[retChip.day]}`}; return {cls:"flag",label:"On site · job closed",detail:`${job(e.stranded).addr}, ${job(e.stranded).suburb} — ${e.stranded} closed`}; } if(e.onSite){ const j=job(e.onSite); return {cls:"site",label:"On site",detail:`${j.addr}, ${j.suburb} · back ${retChip&&retChip.lane?DAYS[retChip.day]:"—"}`}; } if(e.withPainter) return {cls:"painter",label:"With painter",detail:`${e.withPainter} · since 2 Oct`}; if(e.repair) return {cls:"repair",label:"Repair",detail:e.repair}; const out = CHIPS.find(c=>!c.ret && c.items && c.items.includes(e.tag) && c.lane && c.state==="done"); if(out) return {cls:"site",label:"On site",detail:`${job(out.job).addr}, ${job(out.job).suburb} · since ${DAYS[out.day]}`}; return {cls:"wh",label:"Warehouse",detail:"Oakleigh South"}; }
+const hourIndex = t => { if(!t) return null; if(t==="AM") return 0; if(t==="PM") return 6; if(t.startsWith("before")) return 0; const [h,m]=t.split(":").map(Number); const v=h+(m||0)/60; let best=0; HOURS.forEach((H,i)=>{ const [hh,mm]=H.split(":").map(Number); if(hh+mm/60<=v+0.001) best=i; }); return best; };
+const TIME_ORDER=t=>{ if(!t) return 9; if(t==="AM") return 8; if(t==="PM") return 13; if(t.startsWith("before")) return 6.5; const [h,m]=t.split(":").map(Number); return h+(m||0)/60; };
+
+/* ================= HELPERS ================= */
+const $=(s,r=document)=>r.querySelector(s); const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const el=h=>{const t=document.createElement("template");t.innerHTML=h.trim();return t.content.firstChild;};
+let view="week", day=0, person="felipe", trayFilter="all", gearFilter="all", mapDay=0, mapPerson="felipe", mapLayers={shops:false,route:false};
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("on"),2400);}
+function toggleTheme(){const r=document.documentElement; const dark=r.getAttribute("data-theme")==="dark"; r.setAttribute("data-theme",dark?"light":"dark"); $("#themebtn").textContent=dark?"◐ Dark":"◑ Light";}
+const icon = c => c.type==="gear" ? (c.hire ? I.scaffold : I[eq(c.items[0]).cat]) : TYPE[c.type][0];
+
+/* ================= HEADLINE ================= */
+function renderHead(){ const c=counts(); $("#headline").innerHTML = c.tray===0 ? `Week of 19 Oct is planned. <em class="ok">${c.moves} movements, nothing in the tray.</em>` : `Week of 19 Oct — <em>${c.tray} chip${c.tray===1?"":"s"} still in the tray</em>, ${c.moves} movements placed.`; $("#orders-pill").textContent=`Orders to place · ${c.orders}`; $("#tray-count").textContent=`${c.tray} to plan`; }
+
+/* ================= TRAY ================= */
+function renderTray(){
+  const F=[["all","All"],["paint","Paint"],["mat","Materials"],["gear","Gear"],["rub","Rubbish"]];
+  const trayChips=CHIPS.filter(c=>c.lane==null);
+  $("#tray-filters").innerHTML=F.map(([k,l])=>`<button class="${trayFilter===k?'on':''}" onclick="trayFilter='${k}';renderTray()">${l} ${k==="all"?trayChips.length:trayChips.filter(c=>c.type===k).length}</button>`).join("");
+  const body=$("#tray-body"); body.innerHTML="";
+  if(!trayChips.length){ body.innerHTML=`<p class="tray-empty">Everything has a person and a day. Go to Day to build the run plans.</p>`; return; }
+  [...new Set(trayChips.map(c=>c.job))].forEach(ref=>{
+    const cs=trayChips.filter(c=>c.job===ref && (trayFilter==="all"||c.type===trayFilter)); if(!cs.length) return;
+    const j=ref?job(ref):null;
+    const g=el(`<div class="tjob"><div class="t"><span>${j?`${j.addr}, ${j.suburb}`:"Warehouse"}</span><small>${j?(j.painter?lane(j.painter).name.split(" ")[0]+" · ":"")+(j.stage==="closed"?j.kind:`${DAYS[j.start]||"running"}–${DAYS[j.end]||"Sat"}`):"no job"}</small></div></div>`);
+    cs.forEach(c=>{ const blk=chipBlocked(c);
+      const node=el(`<div class="chip ${blk?'blocked':'todo'}" data-chip="${c.id}"><span class="ic ${c.type}">${icon(c)}</span><div class="b"><b>${chipTitle(c)}</b><small class="${blk?'bad':(c.coloursTbc?'warn':'')}">${blk||chipSub(c)||''}</small></div><span class="grip">⋮⋮</span></div>`);
+      if(!blk) attachDrag(node,c); node.addEventListener("click",()=>{ if(!node._dragged) openChip(c); });
+      g.appendChild(node); });
+    body.appendChild(g);
+  });
+}
+
+/* ================= BOARD ================= */
+function renderBoard(){
+  const g=$("#grid"); g.innerHTML="";
+  g.appendChild(el(`<div class="hd"><span>Who moves it</span><small>lanes = buckets</small></div>`));
+  DAYS.forEach(d=>g.appendChild(el(`<div class="hd">${d}</div>`)));
+  LANES.forEach(l=>{
+    g.appendChild(el(`<div class="lane" style="--pc:${l.colour}"><span class="tag ${l.kind==='staff'?'staff':l.kind==='supplier'?'sup':''}">${l.tag}</span><b><span class="dot"></span>${l.name}</b><small>${l.sub}</small>${l.slots==="hour"?'<span class="hint">1-hour slots · 07:30–17:30</span>':''}</div>`));
+    for(let d=0;d<6;d++){
+      const cell=el(`<div class="cell ${d===5?'weekend':''}"></div>`);
+      const cs=ctxFor(l.id,d); const near=nearChips(l.id,d);
+      const ctxNode=(x,l)=>{ const n=el(`<div class="ctx ${x.kind}">${x.label}${x.sub?`<small>${x.sub}${x.t?" · "+x.t:""}</small>`:""}</div>`); return n; };
+      const ghostFor=(x,container)=>{ if(x.kind==="cal"||x.kind==="qa"){ near.filter(n=>n.from===x).slice(0,1).forEach(({c})=>{ const gh=el(`<div class="ghost">While you're there: ${chipTitle(c)} · ${km(SUB[x.suburb],SUB[c.suburb]).toFixed(1)} km — tap to drop</div>`); gh.addEventListener("click",()=>place(c,l.id,d,x.half==="ALL"?"AM":x.half,x.t)); container.appendChild(gh); }); } };
+      if(l.slots==="hour"){
+        HOURS.forEach((H,i)=>{
+          const s=el(`<div class="slot" data-lane="${l.id}" data-day="${d}" data-half="${i<6?'AM':'PM'}" data-time="${H}"><span class="tlab">${H}</span><div class="sc"></div></div>`);
+          const sc=s.querySelector(".sc");
+          cs.filter(x=>hourIndex(x.t)===i).forEach(x=>{ sc.appendChild(ctxNode(x)); ghostFor(x,sc); });
+          CHIPS.filter(c=>c.lane===l.id&&c.day===d&&hourIndex(c.t||(c.half==="PM"?"13:30":"07:30"))===i).forEach(c=>sc.appendChild(mvNode(c)));
+          cell.appendChild(s);
+        });
+      } else {
+        ["AM","PM"].forEach(h=>{
+          const half=el(`<div class="half" data-lane="${l.id}" data-day="${d}" data-half="${h}"></div>`);
+          cs.filter(x=>x.half===h||(x.half==="ALL"&&h==="AM")).forEach(x=>{ half.appendChild(ctxNode(x)); ghostFor(x,half); });
+          CHIPS.filter(c=>c.lane===l.id&&c.day===d&&c.half===h).forEach(c=>half.appendChild(mvNode(c)));
+          cell.appendChild(half);
+        });
+      }
+      if(near.length){ const b=el(`<button class="nearrow" title="chips near where ${l.name} already is">◎ Nearby ${near.length} — see</button>`); b.addEventListener("click",()=>openNearby(l,d,near)); cell.prepend(b); }
+      g.appendChild(cell);
+    }
+  });
+}
+function mvNode(c){
+  const st=chipState(c); const l=lane(c.lane);
+  const stLabel = st==="needs-order" ? (c.hire||c.method==="skip"?"Not booked yet":"Not ordered yet") : st==="booked" ? ((l.kind==="supplier")?(c.hire||c.method==="skip"?"Booked":"Ordered")+(c.alerted?" · painter told":"") : c.branch&&!c.ret ? "Ordered · "+l.name.split(" ")[0]+" alerted" : "Booked") : st==="done" ? "Done" : "Planned";
+  const n=el(`<div class="mv ${st}" data-chip="${c.id}" style="--pc:${l.colour}"><span class="ic ${c.type}">${icon(c)}</span><div class="bd"><span class="kl" style="--pc:${l.colour};margin-bottom:2px"><i></i>${kindLabel(c)}</span><b>${chipTitle(c)}</b><small>${c.branch?branch(c.branch).short+" · ":""}${c.t||""}${c.job?" · "+c.job:""}</small><span class="st">${stLabel}</span><div class="act"></div></div></div>`);
+  const act=n.querySelector(".act");
+  if(st==="needs-order"){ const b=el(`<button class="pri">${c.hire||c.method==="skip"?"Booked":"Ordered"} ✓</button>`); b.addEventListener("click",e=>{e.stopPropagation(); markOrdered(c);}); act.appendChild(b); }
+  if(st!=="done"){ const b=el(`<button>Done</button>`); b.addEventListener("click",e=>{e.stopPropagation(); markDone(c);}); act.appendChild(b); }
+  const x=el(`<button title="back to tray">↩</button>`); x.addEventListener("click",e=>{e.stopPropagation(); unplace(c);}); act.appendChild(x);
+  attachDrag(n,c); n.addEventListener("click",()=>{ if(!n._dragged) openChip(c); });
+  return n;
+}
+function place(c,laneId,d,h,time){ const blk=chipBlocked(c); if(blk){toast("Can't place that yet — "+blk);return;} const l=lane(laneId);
+  if(l.kind==="supplier"&&c.type==="gear"&&!c.hire){toast("Our own gear can't be delivered by a supplier — drop it on a person");return;}
+  if(l.kind==="supplier"&&c.type==="rub"&&c.method!=="skip"){toast("Only a skip goes on the Supplier lane — open the chip and choose Skip, or drop it on a person");return;}
+  if(l.kind==="supplier"&&c.branch&&!branch(c.branch).delivers&&c.type==="paint"){toast(`${branch(c.branch).name} doesn't deliver — pick a delivering branch in the chip, or drop it on a painter`);return;}
+  if(c.type==="rub"&&!c.method&&l.kind!=="supplier"){ c.method = "site"; }
+  const late=!inWindow(c,d); c.lane=laneId;c.day=d;c.half=h; c.t = time || (l.slots==="hour" ? (h==="AM"?"07:30":"13:30") : (c.t||(h==="AM"?"7:00":"13:00"))); if(c.state!=="done") c.state="planned";
+  renderAll(); toast(`${kindLabel(c)} → ${l.name}, ${DAYS[d]} ${time||h}${chipState(c)==="needs-order"?" · tick Ordered when you've placed it":""}`); if(late) setTimeout(()=>toast(c.ret?"That's before the job ends — fine if the painter has finished with it":"That's after the job starts — the painter will be waiting on it"),2500); }
+function unplace(c){ c.lane=null;c.day=null;c.half=null;c.state=undefined;c.alerted=false; if(c.type==="rub"&&c.method!=="skip") c.method=undefined; renderAll(); toast("Back in the tray"); }
+function markOrdered(c){ c.state="booked"; c.alerted=true; const l=lane(c.lane); renderAll(); const j=c.job?job(c.job):null; toast(l.kind!=="supplier"?`${l.name.split(" ")[0]} texted: ready at ${branch(c.branch)?.name||"the yard"} from ${c.t}, order ${c.job} under Paint Group`:`Ordered · ${j&&j.painter?lane(j.painter).name.split(" ")[0]+" told a delivery is coming "+DAYS[c.day]+" "+c.half:"noted"} · client notice off`); }
+function markDone(c){ c.state="done"; renderAll(); if(c.items) toast(`${c.items.join(" + ")} now ${c.ret?"at the warehouse":"on site at "+job(c.job).addr}`); else toast("Done"); }
+
+/* ---- drag (pointer events, works on touch — the Schedule board's approach) ---- */
+let drag=null;
+function attachDrag(node,c){ node.addEventListener("pointerdown",e=>{ if(e.button&&e.button!==0) return; drag={c,node,sx:e.clientX,sy:e.clientY,moved:false,ghost:null,hot:hotCells(c)}; node.setPointerCapture?.(e.pointerId); }); }
+window.addEventListener("pointermove",e=>{ if(!drag) return; const dx=e.clientX-drag.sx, dy=e.clientY-drag.sy; if(!drag.moved){ if(Math.hypot(dx,dy)<6) return; drag.moved=true; drag.node._dragged=true; drag.ghost=drag.node.cloneNode(true); drag.ghost.classList.add("dragging","chip"); drag.ghost.classList.remove("mv"); document.body.appendChild(drag.ghost); drag.hot.forEach(k=>{const [l,d]=k.split("|"); $$(`[data-lane="${l}"][data-day="${d}"]`).forEach(h=>h.classList.add("hot"));}); if(window.innerWidth<=900) $("#tray").classList.remove("open"); }
+  drag.ghost.style.left=(e.clientX-40)+"px"; drag.ghost.style.top=(e.clientY-20)+"px";
+  $$(".over").forEach(h=>h.classList.remove("over")); drag.ghost.style.display="none"; const t=document.elementFromPoint(e.clientX,e.clientY); drag.ghost.style.display=""; const tgt=t&&t.closest(".half,.slot"); if(tgt) tgt.classList.add("over"); e.preventDefault(); },{passive:false});
+window.addEventListener("pointerup",e=>{ if(!drag) return; const d=drag; drag=null; if(!d.moved) return; d.ghost.remove(); $$(".hot,.over").forEach(h=>h.classList.remove("hot","over")); const t=document.elementFromPoint(e.clientX,e.clientY); const tgt=t&&t.closest(".half,.slot"); const tray=t&&t.closest("#tray"); setTimeout(()=>{d.node._dragged=false;},50); if(tgt) place(d.c,tgt.dataset.lane,Number(tgt.dataset.day),tgt.dataset.half,tgt.dataset.time); else if(tray&&d.c.lane) unplace(d.c); });
+window.addEventListener("pointercancel",()=>{ if(drag){ drag.ghost?.remove(); $$(".hot,.over").forEach(h=>h.classList.remove("hot","over")); drag=null; } });
+
+/* ---- sheets ---- */
+function openSheet(html){ $("#sheet").innerHTML=`<div class="grab"></div><button class="sh-x" onclick="closeSheet()" aria-label="Close">×</button>${html}`; $("#ov").classList.add("on"); $("#sheet").classList.add("on"); $("#sheet").scrollTop=0; }
+function closeSheet(){ $("#ov").classList.remove("on"); $("#sheet").classList.remove("on"); }
+function openNearby(l,d,near){ openSheet(`<div class="sh-h"><h3>Near ${l.name} on ${DAYS[d]}</h3></div><p class="sh-sub">${ctxFor(l.id,d).map(x=>x.label).join(" · ")}. These tray chips are within ${NEAR_KM} km of where ${l.name.split(" ")[0]} will already be.</p><div class="list">${near.map(({c,from})=>`<button class="opt" onclick="place(chip('${c.id}'),'${l.id}',${d},'${from.half==="ALL"?"AM":from.half}','${from.t||""}');closeSheet()"><span class="ic ${c.type}">${icon(c)}</span><span>${chipTitle(c)}<span class="sub">${c.job||"warehouse"} · ${c.suburb} · ${km(SUB[from.suburb],SUB[c.suburb]).toFixed(1)} km from ${from.suburb}</span></span><span class="km">drop →</span></button>`).join("")}</div>`); }
+function openChip(c,draft){
+  draft=draft||{branch:c.branch,t:c.t||"07:30",note:c.note||""};
+  const j=c.job?job(c.job):null; const l=c.lane?lane(c.lane):null; const bl = c.type==="paint"?"paint":c.type==="mat"?"hardware":(c.type==="rub"&&c.method==="skip")||c.hire?"hire":null;
+  const branches = bl ? [...BRANCHES.filter(b=>b.kind===bl)].sort((a,b)=>km(SUB[c.suburb],a.ll)-km(SUB[c.suburb],b.ll)) : [];
+  const rows = c.type==="paint" ? (PAINT[c.job]||[]).filter(r=>r.brand===c.brand) : [];
+  const html = `<div class="sh-h"><h3>${TYPE[c.type][1]} · ${chipTitle(c).split(" · ")[0]}</h3><span class="ref">${c.job||"Warehouse"}${j?" · "+j.addr+", "+j.suburb:""}</span></div>
+    <p class="sh-sub">${l?`<span class="kl" style="--pc:${l.colour}"><i></i>${kindLabel(c)}</span> ${methodLabel(c)} · ${DAYS[c.day]} ${c.t||c.half}`:"In the tray — drag it onto a person's day"}${c.coloursTbc?' · <span style="color:var(--amber)">⚑ colours TBC — plan now, order unlocks when the consult is done</span>':""}</p>
+    ${rows.length?`<div class="fld"><div class="k">Lines <em>the Materials card — editing here edits it</em></div><div class="list">${rows.map(r=>`<div class="opt" style="cursor:default;grid-template-columns:1fr auto"><span>${r.p}<span class="sub ${r.c.startsWith('TBC')?'warn':''}">${r.c}</span></span><span class="km">${r.q}</span></div>`).join("")}</div></div>`:""}
+    ${c.type==="mat"&&c.line?`<div class="fld"><div class="k">Line <em>same row on the estimate and the job page</em></div><input type="text" data-f="line" value="${MATLINES.find(m=>m.id===c.line).text}"></div>`:""}
+    ${c.items?`<div class="fld"><div class="k">Items <em>from the register</em></div><div class="list">${c.items.map(t=>`<div class="opt" style="cursor:default"><span class="ic gear">${I[eq(t).cat]}</span><span>${eq(t).name}<span class="sub">${eqLocation(eq(t)).label} · ${eqLocation(eq(t)).detail}</span></span><span class="km">${t}</span></div>`).join("")}</div></div>`:""}
+    ${c.type==="rub"&&!c.method?`<div class="fld"><div class="k">How</div><div class="chips">${[["disposed","Painter disposed"],["warehouse","Painter drops at warehouse"],["site","Left on site"]].map(([v,t])=>`<button class="chp" data-rub="${v}">${t}</button>`).join("")}</div><p class="note">Painter disposed = nothing to move. Drops at warehouse = a drop-off on the painter's last day. Left on site = someone collects, or a skip.</p></div>`:""}
+    ${c.type==="rub"&&c.method==="site"&&c.lane==null?`<div class="fld"><div class="k">Collect how</div><div class="chips"><button class="chp" data-rub="skip">Skip bin instead</button></div><p class="note">Or drop the chip on whoever is collecting.</p></div>`:""}
+    ${branches.length?`<div class="fld"><div class="k">${bl==="hire"?"Hire yard":"Shop"} <em>nearest first</em></div><div class="list">${branches.map(b=>`<button class="opt ${draft.branch===b.id?'on':''}" data-b="${b.id}"><span class="rad"></span><span>${b.name}<span class="sub">${b.sub}</span></span><span class="km">${km(SUB[c.suburb],b.ll).toFixed(1)} km</span></button>`).join("")}</div></div>`:""}
+    ${l?`<div class="fld"><div class="k">Time</div><div class="chips">${(l.slots==="hour"?HOURS:["6:00","6:30","7:00","AM","13:00","PM","15:30"]).map(t=>`<button class="chp ${draft.t===t?'on':''}" data-t="${t}">${t}</button>`).join("")}</div></div>`:""}
+    ${c.job&&(c.type==="paint"||c.type==="mat")?`<div class="fld"><div class="k">Order reference</div><div class="orderref">${c.job}<small>printed on the supplier order — the invoice matches itself to the job</small></div></div>`:""}
+    ${l&&l.kind==="supplier"&&c.type!=="rub"?`<div class="fld"><div class="k">Client notice <em>off by default</em></div><div class="chips"><button class="chp ${c.clientNotice?'':'on'}" data-cn="0">Don't tell the client</button><button class="chp ${c.clientNotice?'on':''}" data-cn="1">Text the client it's coming</button></div></div>`:""}
+    <div class="fld"><div class="k">Note for the shop / painter</div><input type="text" data-f="note" value="${draft.note}" placeholder="e.g. tint to the Lexicon Quarter sample · leave with Josef at the front door"></div>
+    <div class="sh-acts">
+      ${l&&chipState(c)==="needs-order"?`<button class="btn primary" onclick="saveChip('${c.id}');markOrdered(chip('${c.id}'));closeSheet()">${c.hire||c.method==="skip"?"Booked":"Ordered"} ✓</button>`:""}
+      ${c.type==="paint"&&!c.coloursTbc?`<button class="btn" onclick="toast('Order text copied — paste into the email or the Trade app')">Copy order text</button>`:""}
+      ${l?`<button class="btn" onclick="unplace(chip('${c.id}'));closeSheet()">Back to tray</button>`:""}
+      ${c.lane==null&&!c.line&&c.type!=="paint"&&!c.ret?`<button class="btn clay" onclick="CHIPS=CHIPS.filter(x=>x.id!=='${c.id}');closeSheet();renderAll();toast('Chip removed')">Remove</button>`:""}
+      <button class="btn" onclick="saveChip('${c.id}');closeSheet();toast('Saved')">Save</button>
+    </div>`;
+  openSheet(html);
+  $$("[data-b]").forEach(b=>b.addEventListener("click",()=>{draft.branch=b.dataset.b; c.branch=draft.branch; openChip(c,draft);}));
+  $$("[data-t]").forEach(b=>b.addEventListener("click",()=>{draft.t=b.dataset.t; c.t=draft.t; openChip(c,draft);}));
+  $$("[data-cn]").forEach(b=>b.addEventListener("click",()=>{c.clientNotice=b.dataset.cn==="1"; openChip(c,draft); toast(c.clientNotice?"The client will get a text when this is ordered":"Client notice off");}));
+  $$("[data-rub]").forEach(b=>b.addEventListener("click",()=>{ const v=b.dataset.rub; const painter=j?lane(j.painter):null;
+    if(v==="disposed"){ c.method=v; c.lane=painter?painter.id:null; c.day=j.end>5?5:j.end; c.half="PM"; c.t="PM"; c.state="booked"; closeSheet(); renderAll(); toast(`Recorded: ${painter?painter.name.split(" ")[0]:"the painter"} disposes of it — nothing for anyone to move`); return; }
+    if(v==="warehouse"){ c.method=v; c.lane=painter?painter.id:null; c.day=j.end>5?5:j.end; c.half="PM"; c.t="PM"; c.state="booked"; closeSheet(); renderAll(); toast(`${painter?painter.name.split(" ")[0]:"The painter"} drops it at the warehouse on their last day — on their lane`); return; }
+    if(v==="site"){ c.method=v; closeSheet(); renderAll(); toast("Left on site — drop the chip on whoever collects it, or choose a skip in the chip"); return; }
+    if(v==="skip"){ c.method=v; c.branch="csh-carnegie"; c.hire=true; closeSheet(); renderAll(); toast("Now drop the skip on the Supplier lane"); } }));
+}
+function saveChip(id){ const c=chip(id); const ln=$("#sheet [data-f='line']"); if(ln&&c.line){ const m=MATLINES.find(x=>x.id===c.line); m.text=ln.value; } const n=$("#sheet [data-f='note']"); if(n) c.note=n.value; renderAll(); }
+
+/* ---- + Add a chip (from scratch) ---- */
+function openAddChip(){
+  const d={type:"mat", job:"PG-0092", text:"", items:[], from:"branch"};
+  const render=()=>{
+    const j=job(d.job);
+    openSheet(`<div class="sh-h"><h3>Add a chip</h3><span class="ref">anything that has to move</span></div><p class="sh-sub">A materials chip you add here also appears as a line on the job page and in the estimate — one list.</p>
+      <div class="fld"><div class="k">What kind</div><div class="chips">${[["paint","Paint"],["mat","Materials"],["gear","Gear"],["rub","Rubbish"]].map(([v,t])=>`<button class="chp ${d.type===v?'on':''}" data-k="${v}">${t}</button>`).join("")}</div></div>
+      <div class="fld"><div class="k">Job</div><select data-f="job">${JOBS.filter(x=>x.stage!=="closed").map(x=>`<option value="${x.ref}" ${d.job===x.ref?'selected':''}>${x.addr}, ${x.suburb} · ${x.ref}</option>`).join("")}<option value="" ${d.job===""?'selected':''}>Warehouse · no job</option></select></div>
+      ${d.type==="gear"?`<div class="fld"><div class="k">Our equipment <em>where it is now</em></div><div class="list">${EQUIP.map(e=>{const loc=eqLocation(e); const blocked=loc.cls!=="wh"; return `<button class="opt box ${d.items.includes(e.tag)?'on':''}" data-it="${e.tag}" ${blocked?'disabled':''}><span class="rad"></span><span><span style="display:inline-flex;gap:6px;align-items:center"><span class="ic gear" style="width:20px;height:20px">${I[e.cat]}</span>${e.name}</span><span class="sub ${blocked?'warn':''}">${loc.label} · ${loc.detail}</span></span><span class="km">${e.tag}</span></button>`;}).join("")}</div></div>`:
+        `<div class="fld"><div class="k">${d.type==="paint"?"What (brand · lines)":d.type==="rub"?"Note":"What"}</div><input type="text" data-f="text" value="${d.text}" placeholder="${d.type==="mat"?"e.g. 4× drop sheets 12 m, 2 rolls 48 mm tape":d.type==="paint"?"e.g. Haymes · Expressions Low Sheen · 2×10 L":"e.g. 2 bags of offcuts"}"></div>`}
+      <div class="sh-acts"><button class="btn primary" data-go>Add to the tray</button><button class="btn" onclick="closeSheet()">Cancel</button></div>`);
+    $$("[data-k]").forEach(b=>b.addEventListener("click",()=>{d.type=b.dataset.k; render();}));
+    $("#sheet [data-f='job']").addEventListener("change",e=>{d.job=e.target.value;});
+    const tx=$("#sheet [data-f='text']"); if(tx) tx.addEventListener("input",e=>{d.text=e.target.value;});
+    $$("[data-it]").forEach(b=>b.addEventListener("click",()=>{ const t=b.dataset.it; const i=d.items.indexOf(t); if(i>=0) d.items.splice(i,1); else d.items.push(t); render(); }));
+    $("#sheet [data-go]").addEventListener("click",()=>{
+      const j=d.job?job(d.job):null; const id="n"+Date.now(); const suburb=j?j.suburb:"Oakleigh South";
+      if(d.type==="mat"){ if(!d.text.trim()){toast("Type what it is");return;} const lid="ml"+Date.now(); if(j) MATLINES.push({id:lid,job:j.ref,text:d.text.trim(),source:"tray"}); CHIPS.push({id,job:j?j.ref:null,type:"mat",line:j?lid:undefined,text:j?undefined:d.text.trim(),suburb,branch:"bun-preston",lane:null}); }
+      if(d.type==="paint"){ if(!d.text.trim()||!j){toast("Pick a job and type the brand");return;} const brand=d.text.split("·")[0].trim(); (PAINT[j.ref]=PAINT[j.ref]||[]).push({brand,p:d.text.split("·").slice(1).join("·").trim()||"lines to confirm",c:"—",q:"1×10 L"}); CHIPS.push({id,job:j.ref,type:"paint",brand,suburb,branch:"dlx-preston",lane:null}); }
+      if(d.type==="gear"){ if(!d.items.length||!j){toast("Tick at least one item and pick a job");return;} CHIPS.push({id,job:j.ref,type:"gear",items:[...d.items],suburb,lane:null}); }
+      if(d.type==="rub"){ if(!j){toast("Pick a job");return;} if(CHIPS.some(c=>c.job===j.ref&&c.type==="rub")){toast("That job already has a rubbish chip");return;} CHIPS.push({id,job:j.ref,type:"rub",suburb,lane:null}); }
+      closeSheet(); renderAll(); toast(d.type==="mat"&&j?"Added — it's now a line on the job page and the estimate too":"Added to the tray");
+    });
+  };
+  render();
+}
+
+/* ================= SOURCES ================= */
+let srcJob="PG-0092";
+function renderSources(){
+  const j=job(srcJob); const lines=MATLINES.filter(m=>m.job===srcJob); const rows=PAINT[srcJob]||[]; const chips=CHIPS.filter(c=>c.job===srcJob);
+  const jobsel=`<select onchange="srcJob=this.value;renderSources()" style="font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--ink);color:var(--text)">${JOBS.filter(x=>x.stage!=="closed").map(x=>`<option value="${x.ref}" ${x.ref===srcJob?'selected':''}>${x.addr}, ${x.suburb}</option>`).join("")}</select>`;
+  const lineList=(where)=>`<div class="lines">${lines.map(m=>`<div class="ln"><span>${m.text}<small><span class="src">${({estimate:"estimate",pc:"job page",painter_request:"painter's request",tray:"tray"})[m.source]}</span>${(()=>{const c=CHIPS.find(c=>c.line===m.id); return c? (c.lane?` · on ${lane(c.lane).name.split(" ")[0]}'s ${DAYS[c.day]}`:" · in the tray") : "";})()}</small></span><button onclick="removeLine('${m.id}')">remove</button></div>`).join("")||'<p class="note" style="margin:4px 0">No materials lines yet.</p>'}</div>
+    <div class="addln"><input type="text" placeholder="Add a line — e.g. 2× drop sheets 12 m" onkeydown="if(event.key==='Enter'){addLine('${where}',this.value);this.value='';}"><button class="btn sm" onclick="const i=this.previousElementSibling;addLine('${where}',i.value);i.value=''">Add</button></div>`;
+  const paintChips=chips.filter(c=>c.type==="paint"); const gearChips=chips.filter(c=>c.type==="gear");
+  $("#sources").innerHTML=`
+    <div class="card"><div class="where">Estimate builder · internal</div><h3>${j.addr}, ${j.suburb} <em>${jobsel}</em></h3>
+      <div class="fakefield"><div class="lbl">Crew notes <small>internal · existing field</small></div><p class="note" style="margin:4px 0 0">Key under the pot. Dog in the yard — keep the gate shut.</p></div>
+      <div class="fakefield" style="border-color:var(--cyan)"><div class="lbl">Materials &amp; sundries <small>internal · NEW field · never on the customer's document</small></div>${lineList("estimate")}</div>
+      <div class="fakefield"><div class="lbl">Materials card · paint <small>existing · per product</small></div><div style="margin-top:6px">${rows.map(r=>`<div class="paintrow"><span>${r.brand} ${r.p}<small>${r.c}</small></span><span class="cans">${r.q}</span></div>`).join("")}</div></div>
+    </div>
+    <div class="card"><div class="where">PC Command · job page · pre-start</div><h3>Pre-start <em>${j.ref}</em></h3>
+      <div class="gate"><span class="box ${paintChips.length&&paintChips.every(c=>c.state==='booked'||c.state==='done')?'on':''}">✓</span><div>Materials ordered<small>${paintChips.filter(c=>c.state==='booked'||c.state==='done').length} of ${paintChips.length} paint chips ordered · ${lines.length} materials line${lines.length===1?"":"s"}</small></div></div>
+      <div class="fakefield"><div class="lbl">Paint <small>from the Materials card · one chip per brand</small></div><div style="margin-top:6px">${paintChips.map(c=>`<div class="paintrow"><span>${chipTitle(c)}<small>${c.lane?`${kindLabel(c)} · ${lane(c.lane).name.split(" ")[0]} · ${DAYS[c.day]} ${c.t}`:"in the tray"}</small></span><span class="pill ${chipState(c)==='booked'?'p-cy':chipState(c)==='needs-order'?'p-amber':''}">${chipState(c)==="tray"?"to plan":chipState(c)==="needs-order"?"order":chipState(c)}</span></div>`).join("")}</div></div>
+      <div class="fakefield" style="border-color:var(--cyan)"><div class="lbl">Materials lines <small>same list as the estimate</small></div>${lineList("pc")}</div>
+      <div class="gate"><span class="box ${gearChips.length&&gearChips.filter(c=>!c.ret).every(c=>c.state==='booked'||c.state==='done')?'on':''}">✓</span><div>Equipment movements booked<small>${gearChips.filter(c=>!c.ret).length} gear chip${gearChips.filter(c=>!c.ret).length===1?"":"s"} · ${gearChips.filter(c=>!c.ret&&(c.state==='booked'||c.state==='done')).length} booked</small></div></div>
+    </div>
+    <div class="card"><div class="where">Movements · tray</div><h3>Chips for this job <em>live</em></h3>
+      <div style="margin-top:6px">${chips.map(c=>`<div class="chip" style="cursor:default;${c.lane?'opacity:.75':''}"><span class="ic ${c.type}">${icon(c)}</span><div class="b"><b>${chipTitle(c)}</b><small>${c.lane?`${kindLabel(c)} · ${lane(c.lane).name.split(" ")[0]} · ${DAYS[c.day]} ${c.t}`:"in the tray — drag it on the Week board"}</small></div></div>`).join("")}</div>
+      <div class="add" onclick="openAddChip()">+ Add a chip — from scratch</div>
+      <p class="note">Painter asks for more in the portal → <b>Accept as a line</b> lands here too.</p>
+    </div>`;
+}
+function addLine(where,text){ text=(text||"").trim(); if(!text){toast("Type the line first");return;} const id="ml"+Date.now(); MATLINES.push({id,job:srcJob,text,source:where}); CHIPS.push({id:"n"+Date.now(),job:srcJob,type:"mat",line:id,suburb:job(srcJob).suburb,branch:"bun-preston",lane:null}); renderAll(); toast(`Line added ${where==="estimate"?"on the estimate":"on the job page"} — it's a chip in the tray now`); }
+function removeLine(id){ const c=CHIPS.find(c=>c.line===id); if(c&&c.lane){toast("That line is already on someone's day — take it back to the tray first");return;} MATLINES=MATLINES.filter(m=>m.id!==id); CHIPS=CHIPS.filter(c=>c.line!==id); renderAll(); toast("Line removed everywhere"); }
+
+/* ================= DAY ================= */
+function stopsFor(personId, d){ return [...ctxFor(personId,d).filter(x=>x.kind!=="leave").map(x=>({ctx:x,t:x.t||"07:30"})), ...CHIPS.filter(c=>c.lane===personId&&c.day===d).map(c=>({c,t:c.t||(c.half==="AM"?"07:00":"13:00")}))].sort((a,b)=>TIME_ORDER(a.t)-TIME_ORDER(b.t)); }
+function renderDay(){
+  $("#days").innerHTML=DAYS.map((d,i)=>{const n=CHIPS.filter(c=>c.day===i&&c.lane).length;return `<button class="${i===day?'on':''}" onclick="day=${i};renderDay()"><b>${d}</b><small>${n} moves</small></button>`;}).join("");
+  const peopleIds=LANES.filter(l=>CHIPS.some(c=>c.lane===l.id&&c.day===day)||ctxFor(l.id,day).some(x=>x.kind!=="job"&&x.kind!=="leave")).map(l=>l.id);
+  if(!peopleIds.includes(person)) person=peopleIds[0]||"felipe";
+  $("#people").innerHTML=LANES.filter(l=>peopleIds.includes(l.id)).map(l=>`<button class="${person===l.id?'on':''}" style="--pc:${l.colour}" onclick="person='${l.id}';renderDay()"><i></i>${l.name.split(" ")[0]} · ${CHIPS.filter(c=>c.lane===l.id&&c.day===day).length}</button>`).join("");
+  const l=lane(person); const stops=orderedStops(person,day).concat(ctxFor(person,day).filter(x=>x.kind==="job").map(x=>({ctx:x,t:"07:30",fixed:true}))).sort((a,b)=>TIME_ORDER(a.t)-TIME_ORDER(b.t));
+  let prev=SUB["Oakleigh South"]; let total=0; let n=0;
+  const tl=$("#tl"); tl.innerHTML="";
+  stops.forEach((s,i)=>{
+    if(s.ctx){ const d=km(prev,SUB[s.ctx.suburb]); total+=d; prev=SUB[s.ctx.suburb]||prev; tl.appendChild(el(`<div class="stop"><span class="t">${s.t}</span><span class="n ctx">◌</span><div class="bx ctx"><div><b>${s.ctx.label}</b><small>${s.ctx.sub||"from the schedule"} · ${d.toFixed(0)} km</small></div><span class="km">context</span></div></div>`)); return; }
+    const c=s.c; n++; const dest = c.ret ? job(c.job).suburb : c.suburb; const d=km(prev,SUB[dest]); total+=d; prev=SUB[dest]||prev;
+    const where = c.ret ? `${job(c.job).addr}, ${job(c.job).suburb} → warehouse` : (c.branch&&l.kind!=="supplier" ? `${branch(c.branch).short} → ${c.job?job(c.job).addr:"warehouse"}` : c.job?`${job(c.job).addr}, ${job(c.job).suburb}`:"warehouse");
+    const done=c.state==="done";
+    const node=el(`<div class="stop" style="--pc:${l.colour}"><span class="t">${c.t||s.t}</span><span class="n ${done?'done':''}">${done?'✓':n}</span><div class="bx"><div><span class="kl" style="--pc:${l.colour}"><i></i>${kindLabel(c)}</span><b>${chipTitle(c)}</b><small>${where} · ${d.toFixed(0)} km · ${chipState(c)==="needs-order"?'<span style="color:var(--amber)">order not placed</span>':c.state==="booked"?"booked":done?"done":"planned"}</small></div><div style="display:flex;gap:6px;align-items:center"><div class="ord"><button data-mv="up" title="earlier">▲</button><button data-mv="dn" title="later">▼</button></div><button class="tick ${done?'on':''}" title="Done">✓</button></div></div></div>`);
+    node.querySelector(".tick").addEventListener("click",()=>{ if(done){c.state="booked";} else markDone(c); renderDay(); });
+    node.querySelector("[data-mv=up]").addEventListener("click",()=>{ const ids=stops.filter(x=>x.c).map(x=>x.c.id); const idx=ids.indexOf(c.id); if(idx>0){ ids.splice(idx,1); ids.splice(idx-1,0,c.id); reorderMovements(person,day,ids); renderAll(); } });
+    node.querySelector("[data-mv=dn]").addEventListener("click",()=>{ const ids=stops.filter(x=>x.c).map(x=>x.c.id); const idx=ids.indexOf(c.id); if(idx<ids.length-1){ ids.splice(idx,1); ids.splice(idx+1,0,c.id); reorderMovements(person,day,ids); renderAll(); } });
+    tl.appendChild(node);
+  });
+  if(!stops.length) tl.innerHTML=`<p class="note">Nothing on ${l.name}'s ${DAYS[day]}.</p>`;
+  $("#day-sum").textContent=`${l.name} · ${DAYS[day]} · ${n} stop${n===1?"":"s"} · ${total.toFixed(0)} km`;
+  $("#day-acts").innerHTML=`<button class="btn" onclick="mapDay=day;mapPerson=person;go('map')">Map &amp; reorder</button><button class="btn primary" onclick="toast('Run plan sent to ${l.name}\\'s phone — ${n} stops, with Navigate and Ring on each')">Send to ${l.name.split(" ")[0]}'s phone</button>`;
+  const orders=CHIPS.filter(c=>chipState(c)==="needs-order").sort((a,b)=>a.day-b.day);
+  $("#orders").innerHTML = orders.length ? `<div class="list" style="margin-top:10px">${orders.map(c=>`<div class="opt" style="cursor:default"><span class="ic ${c.type}">${icon(c)}</span><span>${chipTitle(c)}<span class="sub">${c.branch?branch(c.branch).name+" · ":""}${methodLabel(c)} · ${DAYS[c.day]} ${c.t||c.half}${c.job?" · order "+c.job:""}${c.coloursTbc?' · <span style="color:var(--amber)">colours TBC</span>':""}</span></span><button class="btn sm primary" ${c.coloursTbc?'disabled':''} onclick="markOrdered(chip('${c.id}'))">${c.hire||c.method==="skip"?"Booked":"Ordered"} ✓</button></div>`).join("")}</div>` : `<p class="note" style="color:var(--emerald)">Nothing to order. Every placed delivery and pickup has been ordered.</p>`;
+}
+
+/* ================= MAP (self-drawn; Google Maps in the build) ================= */
+const BB={lat0:-37.66,lat1:-37.99,lng0:144.90,lng1:145.17}; const MW=520,MH=620;
+const px=([lat,lng])=>[ (lng-BB.lng0)/(BB.lng1-BB.lng0)*MW, (BB.lat0-lat)/(BB.lat0-BB.lat1)*MH ];
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const jobLL = j => j.ll || SUB[j.suburb];
+const HOUSE=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>`;
+const WHICON=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5v11H3z"/><path d="M7 20v-7h10v7"/><path d="M7 16h10"/></svg>`;
+// What a job still needs: chips in the tray (not planned) or placed but not ordered.
+function jobNeeds(j){ return CHIPS.filter(c=>c.job===j.ref && (c.lane==null || chipState(c)==="needs-order") && !(c.type==="rub"&&c.method==="disposed")); }
+const needIcon = c => c.type==="paint"?I.paint : c.type==="mat"?I.mat : c.type==="gear"?(c.hire?I.scaffold:I[eq(c.items[0]).cat]) : I.rub;
+// Stops for a person-day, in run order: fixed context stops by time, movements by seq (then time).
+function orderedStops(personId, d){
+  const ctx=ctxFor(personId,d).filter(x=>x.kind!=="leave"&&x.kind!=="job").map(x=>({ctx:x,t:x.t||"07:30"}));
+  const mv=CHIPS.filter(c=>c.lane===personId&&c.day===d).map(c=>({c,t:c.t||(c.half==="AM"?"07:30":"13:30")}));
+  mv.sort((a,b)=>(a.c.seq??99)-(b.c.seq??99) || TIME_ORDER(a.t)-TIME_ORDER(b.t));
+  // merge: context stays at its time; movements in seq order fill around them
+  const all=[...ctx.map(x=>({...x,fixed:true})),...mv]; all.sort((a,b)=>TIME_ORDER(a.t)-TIME_ORDER(b.t) || ((a.c?.seq??99)-(b.c?.seq??99)));
+  return all;
+}
+function stopPoint(st,l){ if(st.ctx) return st.ctx.jobRef ? jobLL(job(st.ctx.jobRef)) : SUB[st.ctx.suburb]; const c=st.c; const jj=c.job?job(c.job):null; if(c.ret&&jj) return jobLL(jj); if(c.branch&&l.kind!=="supplier"&&!c.ret) return branch(c.branch).ll; return jj?jobLL(jj):SUB[c.suburb]; }
+function reorderMovements(personId, d, newOrderIds){
+  // keep the same set of times, hand them out in the new order so the board and run plan agree
+  const mv=CHIPS.filter(c=>c.lane===personId&&c.day===d); const times=mv.map(c=>c.t||(c.half==="AM"?"07:30":"13:30")).sort((a,b)=>TIME_ORDER(a)-TIME_ORDER(b));
+  newOrderIds.forEach((id,i)=>{ const c=chip(id); c.seq=i+1; c.t=times[i]; c.half=TIME_ORDER(c.t)<12.5?"AM":"PM"; });
+}
+function renderMap(){
+  $("#map-days").innerHTML=DAYS.map((d,i)=>`<button class="${i===mapDay?'on':''}" onclick="mapDay=${i};renderMap()"><b>${d}</b><small>${CHIPS.filter(c=>c.day===i&&c.lane).length} moves</small></button>`).join("");
+  const ppl=LANES.filter(l=>l.kind!=="supplier"&&(CHIPS.some(c=>c.lane===l.id&&c.day===mapDay)||ctxFor(l.id,mapDay).some(x=>x.kind==="cal"||x.kind==="qa")));
+  if(!ppl.some(p=>p.id===mapPerson)) mapPerson=ppl[0]?.id||"felipe";
+  $("#map-people").innerHTML=ppl.map(l=>`<button class="${mapPerson===l.id?'on':''}" style="--pc:${l.colour}" onclick="mapPerson='${l.id}';renderMap()"><i></i>${l.name.split(" ")[0]}'s day</button>`).join("");
+  $("#map-layers").innerHTML=`<button class="${mapLayers.shops?'on':''}" onclick="mapLayers.shops=!mapLayers.shops;renderMap()">Shops</button><button class="${mapLayers.route?'on':''}" onclick="mapLayers.route=!mapLayers.route;renderMap()">Route line</button>`;
+  const l=lane(mapPerson); const stops=orderedStops(mapPerson,mapDay);
+  // which places carry an order number for this person's day
+  const numAt={}; let n=0; stops.forEach(st=>{ const p=stopPoint(st,l); if(!p) return; const key=p.join(","); if(st.ctx){ (numAt[key]=numAt[key]||[]).push({n:"◌",ctx:true,label:st.ctx.what||st.ctx.label.split(" · ")[0]}); } else { n++; (numAt[key]=numAt[key]||[]).push({n,label:kindLabel(st.c)}); } });
+  let s=`<svg viewBox="0 0 ${MW} ${MH}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Map of jobs and movements">`;
+  const bay=[[-37.83,144.86],[-37.845,144.93],[-37.87,144.975],[-37.905,144.99],[-37.94,145.00],[-37.97,145.02],[-38.0,145.06],[-38.0,144.86]].map(px).map(p=>p.join(",")).join(" ");
+  s+=`<polygon class="water" points="${bay}"/>`;
+  [["Melbourne CBD","Northcote"],["Northcote","Preston"],["Preston","Thomastown"],["Melbourne CBD","Richmond"],["Richmond","Box Hill"],["Melbourne CBD","St Kilda"],["St Kilda","Brighton"],["Brighton","Sandringham"],["Sandringham","Cheltenham"],["Richmond","Caulfield North"],["Caulfield North","Carnegie"],["Carnegie","Oakleigh South"],["Oakleigh South","Cheltenham"],["Oakleigh South","Dandenong"],["Carnegie","Bentleigh"],["Bentleigh","Moorabbin"],["Moorabbin","Cheltenham"],["Melbourne CBD","Footscray"],["Melbourne CBD","Coburg"],["Northcote","Fairfield"],["Fairfield","Box Hill"],["Clifton Hill","Northcote"]].forEach(([a,b])=>{ const [x1,y1]=px(SUB[a]),[x2,y2]=px(SUB[b]); s+=`<path class="road" d="M${x1} ${y1}L${x2} ${y2}"/>`; });
+  Object.entries(SUB).forEach(([name,ll])=>{ const [x,y]=px(ll); s+=`<text class="sub" x="${x}" y="${y-12}" text-anchor="middle">${esc(name)}</text>`; });
+  // route line (off by default)
+  if(mapLayers.route){ const pts=[px(SUB["Oakleigh South"])]; stops.forEach(st=>{ const p=stopPoint(st,l); if(p) pts.push(px(p)); }); pts.push(px(SUB["Oakleigh South"])); if(pts.length>2) s+=`<polyline points="${pts.map(p=>p.join(",")).join(" ")}" fill="none" stroke="${l.colour}" stroke-width="1.6" stroke-dasharray="4 5" opacity=".55" stroke-linejoin="round"/>`; }
+  const badge=(x,y,entries,colour)=>{ if(!entries) return ""; let out=""; entries.forEach((e,i)=>{ const bx=x-14-i*2, by=y-14+i*14; out+=`<g transform="translate(${bx},${by})"><circle r="8.5" fill="${e.ctx?'#5B4FD6':colour}" stroke="#fff" stroke-width="1.6"/><text y="3" text-anchor="middle" font-size="8" font-weight="700" fill="#fff" font-family="Martian Mono">${e.n}</text></g>`; }); return out; };
+  const iconBox=(x,y,svg,fill,stroke)=>`<g transform="translate(${x-13},${y-13})"><rect width="26" height="26" rx="7" fill="${fill}" stroke="${stroke||'#fff'}" stroke-width="1.6"/><g transform="translate(5,5) scale(0.667)" color="#fff">${svg.replace('<svg','<svg width="24" height="24"')}</g></g>`;
+  // shops: tiny dots (labels only when the layer is on)
+  BRANCHES.forEach(b=>{ const [x,y]=px(b.ll); const key=b.ll.join(","); const isStop=!!numAt[key]; if(!mapLayers.shops&&!isStop) return; s+=`<circle cx="${x}" cy="${y}" r="${isStop?5:3}" fill="#1A9DAE" opacity="${isStop?1:.45}" stroke="#fff" stroke-width="1"/>`; if(isStop||mapLayers.shops) s+=`<text class="jsub" x="${x+8}" y="${y+3}">${esc(b.short)}</text>`; s+=badge(x,y,numAt[key],l.colour); });
+  // warehouse
+  { const [x,y]=px(SUB["Oakleigh South"]); s+=iconBox(x,y,WHICON,"#12161A"); s+=`<text class="jlbl" x="${x+16}" y="${y+3}">Warehouse</text>`; s+=badge(x,y,numAt[SUB["Oakleigh South"].join(",")],l.colour); }
+  // jobs: one icon; amber + movement icon when something is still needed
+  JOBS.forEach(j=>{ const ll=jobLL(j); const [x,y]=px(ll); const needs=jobNeeds(j); const closed=j.stage==="closed";
+    const fill = needs.length ? "#C9962F" : (closed ? "#9AA3AB" : "#1A9DAE"); const svg = needs.length ? needIcon(needs[0]) : HOUSE;
+    s+=iconBox(x,y,svg,fill);
+    s+=`<text class="jlbl" x="${x+16}" y="${y+1}">${esc(j.addr.replace("Chemist Warehouse, ","").replace("Unit 3/",""))}</text><text class="jsub" x="${x+16}" y="${y+9}">${esc(needs.length?needs.map(c=>kindLabel(c).toLowerCase()).slice(0,2).join(" · ")+(needs.length>2?" +"+(needs.length-2):"") : (closed?"closed":"on track"))}</text>`;
+    s+=badge(x,y,numAt[ll.join(",")],l.colour); });
+  s+=`</svg>`;
+  $("#mapbox").innerHTML=s;
+  // order panel (drag to reorder)
+  let prev=SUB["Oakleigh South"], total=0, k=0;
+  const rows=stops.map(st=>{ const p=stopPoint(st,l)||prev; const d=km(prev,p); prev=p; total+=d; if(st.ctx) return `<div class="orow fixed" data-ctx="1"><span class="hnd">⋮⋮</span><span class="num ctx">◌</span><span><b>${esc(st.ctx.label)}</b><small>${esc(st.ctx.sub||"")} · fixed at ${st.t}</small></span><span class="km">${st.t}<br>${d.toFixed(0)} km</span></div>`; k++; const c=st.c; const where = c.ret ? `${job(c.job).addr} → warehouse` : (c.branch&&l.kind!=="supplier" ? `${branch(c.branch).short} → ${c.job?job(c.job).addr:"warehouse"}` : c.job?`${job(c.job).addr}, ${job(c.job).suburb}`:"warehouse"); return `<div class="orow" data-id="${c.id}" style="--pc:${l.colour}"><span class="hnd" title="drag to reorder">⋮⋮</span><span class="num">${k}</span><span><b>${esc(kindLabel(c))} · ${esc(chipTitle(c))}</b><small>${esc(where)}</small></span><span class="km">${c.t}<br>${d.toFixed(0)} km</span></div>`; }).join("");
+  $("#ordercard").innerHTML=`<h3>${l.name} · ${DAYS[mapDay]}<em>${k} stop${k===1?"":"s"} · ${total.toFixed(0)} km · drag to reorder</em></h3><div class="orderlist" id="orderlist">${rows||'<p class="note">No stops — drop chips on this day in Week.</p>'}</div><div class="btnrow"><button class="btn" onclick="day=mapDay;person=mapPerson;go('day')">Run plan</button><button class="btn primary" onclick="toast('Run plan sent to ${l.name.split(" ")[0]}\\'s phone — ${k} stops, in this order')">Send to ${l.name.split(" ")[0]}'s phone</button></div>`;
+  $("#legend-what").innerHTML=`<span><i class="sq" style="background:#1A9DAE"></i>Job — nothing outstanding</span><span><i class="sq" style="background:#C9962F"></i>Job — needs something (the icon says what)</span><span><i class="sq" style="background:#9AA3AB"></i>Closed job — gear still there</span><span><i class="sq" style="background:#12161A"></i>Warehouse</span><span><i style="background:#1A9DAE;opacity:.5"></i>Shop / hire yard</span><span><i style="background:${l.colour}"></i>Numbered = ${l.name.split(" ")[0]}'s order today</span><span><i style="background:#5B4FD6"></i>◌ Fixed appointment (calendar / check)</span><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${[["Paint",I.paint],["Materials",I.mat],["Gear",I.scaffold],["Rubbish",I.rub]].map(([t,ic])=>`<span class="kl" style="--pc:var(--muted)"><span style="width:12px;height:12px;display:inline-grid;color:var(--soft)">${ic}</span>${t}</span>`).join("")}</div>`;
+  wireOrderDrag();
+}
+// drag-to-reorder in the order list (pointer events; movements only — fixed appointments stay put)
+function wireOrderDrag(){
+  const list=$("#orderlist"); if(!list) return; let od=null;
+  list.querySelectorAll(".orow[data-id]").forEach(row=>{
+    const h=row.querySelector(".hnd");
+    h.addEventListener("pointerdown",e=>{ od={row,id:row.dataset.id,sy:e.clientY,moved:false}; h.setPointerCapture?.(e.pointerId); e.preventDefault(); });
+  });
+  window.addEventListener("pointermove",e=>{ if(!od) return; if(!od.moved&&Math.abs(e.clientY-od.sy)<5) return; od.moved=true; od.row.classList.add("lift"); list.querySelectorAll(".orow").forEach(r=>r.classList.remove("before","after")); const t=document.elementFromPoint(e.clientX,e.clientY); const over=t&&t.closest(".orow[data-id]"); if(over&&over!==od.row){ const r=over.getBoundingClientRect(); over.classList.add(e.clientY<r.top+r.height/2?"before":"after"); } },{passive:false});
+  window.addEventListener("pointerup",e=>{ if(!od) return; const d=od; od=null; d.row.classList.remove("lift"); if(!d.moved) return; const t=document.elementFromPoint(e.clientX,e.clientY); const over=t&&t.closest(".orow[data-id]"); list.querySelectorAll(".orow").forEach(r=>r.classList.remove("before","after")); if(!over||over===d.row) return; const r=over.getBoundingClientRect(); const before=e.clientY<r.top+r.height/2; const ids=[...list.querySelectorAll(".orow[data-id]")].map(x=>x.dataset.id).filter(x=>x!==d.id); const idx=ids.indexOf(over.dataset.id)+(before?0:1); ids.splice(idx,0,d.id); reorderMovements(mapPerson,mapDay,ids); renderAll(); toast("Order updated — numbers on the map and the run plan follow"); });
+}
+
+/* ================= GEAR ================= */
+function renderGear(){
+  const F=[["all","All"],["wh","At warehouse"],["out","Out on site"],["painter","With a painter"],["flag","Flagged"]];
+  $("#gear-filters").innerHTML=F.map(([k,l])=>`<button class="${gearFilter===k?'on':''}" onclick="gearFilter='${k}';renderGear()">${l}</button>`).join("");
+  $("#gear-legend").innerHTML=Object.entries(GEAR_CAT).map(([k,n])=>`<span>${I[k]}${n}</span>`).join("");
+  const grid=$("#geargrid"); grid.innerHTML="";
+  EQUIP.map(e=>({e,loc:eqLocation(e)})).filter(({loc})=>gearFilter==="all"||(gearFilter==="wh"&&loc.cls==="wh")||(gearFilter==="out"&&(loc.cls==="site"||loc.cls==="flag"))||(gearFilter==="painter"&&loc.cls==="painter")||(gearFilter==="flag"&&loc.cls==="flag")).sort((a,b)=>(a.loc.cls==="flag"?0:1)-(b.loc.cls==="flag"?0:1)).forEach(({e,loc})=>{
+    const next=CHIPS.find(c=>c.items&&c.items.includes(e.tag)&&c.lane&&c.state!=="done");
+    const card=el(`<div class="gear ${loc.cls==='flag'?'flag':''}"><button class="top"><span class="gicon">${I[e.cat]}</span><span class="nm"><b>${e.name}<span class="tag">${e.tag}</span></b><small>${loc.detail}${next?` · next: ${DAYS[next.day]} ${next.ret?"back to warehouse":"out with "+lane(next.lane).name.split(" ")[0]}`:""}</small><span><span class="loc ${loc.cls}">${loc.label}</span></span></span></button>
+      <div class="trail"><div class="k" style="margin-bottom:6px">Trail</div>${e.trail.map(([d,w])=>`<div class="tr"><span class="d">${d}</span><span>${w}</span></div>`).join("")}${CHIPS.filter(c=>c.items&&c.items.includes(e.tag)&&c.lane).map(c=>`<div class="tr"><span class="d">${DAYS[c.day]}</span><span>${chipTitle(c)} · ${lane(c.lane).name} · ${c.state==="done"?"done":"planned"}</span></div>`).join("")}<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">${loc.cls==="flag"?`<button class="btn primary" onclick="go('week');toast('Its return chip is in the tray — drop it on whoever is passing')">Find it in the tray</button>`:""}<button class="btn" onclick="toast('Opening ${e.tag} in Settings → Equipment')">Edit item</button></div></div></div>`);
+    card.querySelector(".top").addEventListener("click",()=>card.classList.toggle("open")); grid.appendChild(card);
+  });
+}
+
+/* ================= VIEWS ================= */
+function go(v){ view=v; $("#tray").classList.remove("open"); $$(".seg button").forEach(b=>b.classList.toggle("on",b.dataset.view===v)); ["week","sources","day","map","gear"].forEach(x=>$("#view-"+x).classList.toggle("hidden",x!==v)); renderAll(); window.scrollTo({top:0,behavior:"smooth"}); }
+$$(".seg button").forEach(b=>b.addEventListener("click",()=>go(b.dataset.view)));
+function renderAll(){ renderHead(); renderTray(); renderBoard(); renderSources(); renderDay(); renderGear(); renderMap(); }
+renderAll();
+</script>
+</body>
+</html>

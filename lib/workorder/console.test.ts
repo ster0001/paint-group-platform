@@ -4,6 +4,7 @@ import {
   buildQueue, headline, melbourneDate, melbourneDayStartUtc, pulseTiles, rankQueue, sparkline,
   type ConsoleInput, type QueueCard,
 } from "./console";
+import { pcCardSnoozeKey } from "./console";
 
 const now = new Date("2026-08-21T09:00:00+10:00");
 const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
@@ -495,5 +496,15 @@ describe("variations for approval (Tom, 17 Sep)", () => {
 
   it("is empty when nothing is open", () => {
     expect(variationsForApproval(base())).toEqual([]);
+  });
+});
+
+// Tom, 19 Oct 2026: "close off an alert and have it pop back up at a later date".
+describe("a card put away until a date", () => {
+  it("has a four-part dismissal key with the console key folded into the last part", () => {
+    const k = pcCardSnoozeKey("3f2c1a00-0000-4000-8000-000000000001", "qa-due:3f2c1a00-0000-4000-8000-000000000001");
+    expect(k).toBe("pc_card:work_order:3f2c1a00-0000-4000-8000-000000000001:qa-due-3f2c1a00-0000-4000-8000-000000000001");
+    expect(k).toMatch(/^[a-z_]+:[a-z_]+:[^:]+:[a-zA-Z0-9_-]+$/);
+    expect(pcCardSnoozeKey("w", "collect:a.b/c")).toMatch(/:collect-a-b-c$/);
   });
 });

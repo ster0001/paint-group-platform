@@ -22,6 +22,7 @@ import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/con
 import { deliverSiteVisitNote } from "@/lib/workorder/siteNoteMessage";
 import { SITE_VISIT_NOTE_MAX } from "@/lib/workorder/siteVisits";
 import { melbourneDate } from "@/lib/workorder/console";
+import { melbourneInstant } from "@/lib/time/businessHours";
 import { logCrmEvent } from "@/lib/crm/events";
 import { reportError } from "@/lib/monitoring/report";
 
@@ -1073,6 +1074,33 @@ export async function waiveAfterPhotos(raw: unknown): Promise<PcResult> {
 
 /** Tom (25 Aug): close off an actioned card. Permanent per card key —
  *  the dismissal is itself data (a wo_event), never a UI-only hide. */
+/**
+ * Tom, 19 Oct 2026: "add a reminder date, to be able to close off an alert and
+ * for it to pop back up at a later date". One dated dismissal on the work
+ * item's own key (crm_dismiss_work_item, until 6:00 am Melbourne that day) —
+ * the item is derived from the facts as ever, so when the date comes and the
+ * fact still stands, the card is drawn again. A console card uses its
+ * `pcCardSnoozeKey`. Never past, never today, at most a year out.
+ */
+export async function remindLater(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ itemKey: z.string().min(1).max(300), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Pick a day." };
+  const { itemKey, date } = parsed.data;
+  const today = melbourneDate(new Date());
+  if (date <= today) return { ok: false, message: "Pick a day after today." };
+  const [y, m, d] = date.split("-").map(Number);
+  const until = melbourneInstant(y, m, d, 6, 0);
+  if (until.getTime() - Date.now() > 366 * 86_400_000) return { ok: false, message: "Pick a day within the next year." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("crm_dismiss_work_item", {
+    p_item_key: itemKey, p_reason: `Remind me on ${date} (PC Command)`, p_account_id: null, p_until: until.toISOString(),
+  });
+  if (error) return { ok: false, message: /not a work item key/.test(error.message) ? "This card can't be put away." : error.message };
+  revalidatePath("/pc");
+  revalidatePath("/home");
+  return { ok: true, message: `Back on ${date}.` };
+}
+
 export async function dismissCard(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ workOrderId: uuid, cardKey: z.string().min(1).max(120) }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
