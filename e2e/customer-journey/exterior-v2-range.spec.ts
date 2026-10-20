@@ -16,8 +16,8 @@ import { toSides } from "./exterior-v2-drive";
  *    a message; Tighten opens the sides editor on the drawn house.
  */
 
-const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1";
-test.skip(!FLAG_ON, "exteriorV2 is off in this environment — set NEXT_PUBLIC_EXTERIOR_V2=1 on the test project");
+const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "0"; // on by default since 21 Oct; "0" is the off switch
+test.skip(!FLAG_ON, "exteriorV2 is switched off in this environment (NEXT_PUBLIC_EXTERIOR_V2=0)");
 
 async function confirmAll(page: Page) {
   for (let i = 0; i < 4; i++) {

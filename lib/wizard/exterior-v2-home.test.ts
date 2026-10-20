@@ -21,9 +21,12 @@ import { defaultWizardState } from "./state";
 afterEach(() => vi.unstubAllEnvs());
 
 describe("the flag and the step list", () => {
-  it("is off unless NEXT_PUBLIC_EXTERIOR_V2 is exactly 1, and the exterior and both lists gain the home step before the outside questions", () => {
+  it("is on by default and off only when NEXT_PUBLIC_EXTERIOR_V2 is exactly 0; on, the exterior and both lists gain the home step before the outside questions", () => {
+    vi.stubEnv("NEXT_PUBLIC_EXTERIOR_V2", "0");
     expect(exteriorV2On()).toBe(false);
     expect(stepsFor("exterior")).toEqual(["start", "place", "outside", "sides"]);
+    vi.unstubAllEnvs();
+    expect(exteriorV2On()).toBe(true);
     vi.stubEnv("NEXT_PUBLIC_EXTERIOR_V2", "1");
     expect(exteriorV2On()).toBe(true);
     expect(stepsFor("exterior")).toEqual(["start", "place", "home", "paint", "about", "sides"]);
@@ -33,7 +36,7 @@ describe("the flag and the step list", () => {
     expect(stepsFor("interior")).toEqual(["start", "place", "job", "rooms", "condition"]);
     expect(stepsFor("exterior", "commercial")).not.toContain("home");
     vi.stubEnv("NEXT_PUBLIC_EXTERIOR_V2", "true");
-    expect(exteriorV2On()).toBe(false);
+    expect(exteriorV2On()).toBe(true); // only "0" turns it off
   });
 });
 

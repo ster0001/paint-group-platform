@@ -206,7 +206,7 @@ describe("the screens", () => {
     expect(stepsFor("interior")).toEqual(["start", "place", "job", "rooms", "condition"]);
     // 14 Sep: "Some rooms" keeps its promise with a rooms step after the job.
     expect(stepsFor("interior", "house", "areas", "range", "some_rooms")).toEqual(["start", "place", "job", "rooms", "condition"]);
-    expect(stepsFor("both", "house", "areas", "range", "some_rooms")).toEqual(["start", "both", "place", "job", "rooms", "condition", "outside", "sides"]);
+    expect(stepsFor("both", "house", "areas", "range", "some_rooms")).toEqual(["start", "both", "place", "job", "rooms", "condition", "home", "paint", "about", "sides"]);
     expect(stepCount("interior", "house", "areas", "range", "some_rooms")).toBe("Five");
   });
 
@@ -214,16 +214,16 @@ describe("the screens", () => {
     // No scope preset and no colour question: there are no rooms to apply them
     // to, and asking anyway is the toll §2 is about.
     // 15 Sep (late): "Which sides?" is its own screen after the outside one.
-    expect(stepsFor("exterior")).toEqual(["start", "place", "outside", "sides"]);
+    expect(stepsFor("exterior")).toEqual(["start", "place", "home", "paint", "about", "sides"]); // 21 Oct: the drawn house (v2) is the default outside path
   });
 
   it("walks a both job through the inside and then the outside", () => {
     // C8: the choice screen sits after screen 1; it is not a question, so the
     // screen-1 promise still counts five.
-    expect(stepsFor("both")).toEqual(["start", "both", "place", "job", "rooms", "condition", "outside", "sides"]);
-    expect(stepCount("both")).toBe("Seven");
+    expect(stepsFor("both")).toEqual(["start", "both", "place", "job", "rooms", "condition", "home", "paint", "about", "sides"]);
+    expect(stepCount("both")).toBe("Nine");
     expect(stepCount("interior")).toBe("Five");
-    expect(stepCount("exterior")).toBe("Four");
+    expect(stepCount("exterior")).toBe("Six");
   });
 
   it("offers every choice with a label, and a hint where one is needed", () => {

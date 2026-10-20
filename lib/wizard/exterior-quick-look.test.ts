@@ -43,7 +43,7 @@ describe("no bedrooms, and storeys once", () => {
   });
 
   it("storeys lives on the outside screen only, and lands in the field the allowance reads", () => {
-    expect(stepsFor("exterior")).toEqual(["start", "place", "outside", "sides"]);
+    expect(stepsFor("exterior")).toEqual(["start", "place", "home", "paint", "about", "sides"]); // 21 Oct: v2 default; the v1 outside screen stays only for resume
     const e = applyExteriorQuickLook(q({ elements: ["body"], storeys: "double" }), base()).exterior!;
     expect(e.storeys).toBe("double");
     const out = exteriorAccessAllowances({ storeys: e.storeys, access: e.access, accessEquipment: e.accessEquipment, sidesPainted: 4 });

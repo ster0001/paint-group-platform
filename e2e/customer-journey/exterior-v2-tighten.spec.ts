@@ -20,8 +20,8 @@ import { toSides } from "./exterior-v2-drive";
  *    the condition already answered — nothing re-asked (§7.7).
  */
 
-const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1";
-test.skip(!FLAG_ON, "exteriorV2 is off in this environment — set NEXT_PUBLIC_EXTERIOR_V2=1 on the test project");
+const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "0"; // on by default since 21 Oct; "0" is the off switch
+test.skip(!FLAG_ON, "exteriorV2 is switched off in this environment (NEXT_PUBLIC_EXTERIOR_V2=0)");
 
 async function toWalk(page: Page) {
   await toSides(page, "cal", ["walls", "gable", "fascias", "gutters", "eaves", "windows", "doors"]);

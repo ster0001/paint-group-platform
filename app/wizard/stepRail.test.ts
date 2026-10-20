@@ -69,8 +69,8 @@ describe("the step rail follows stepsFor() on every path", () => {
   it("matches the brief's §7.7 table on the representative paths", () => {
     const labels = (s: ReturnType<typeof stepsFor>) => railFor(s, s[0]).steps.map((k) => STEP_LABELS[k].rail);
     expect(labels(stepsFor("interior", "house", "areas", "range", "whole", true))).toEqual(["Address", "Place", "Job", "Rooms", "Condition", "Details"]);
-    expect(labels(stepsFor("exterior", "house", "areas", "range", "whole", true))).toEqual(["Address", "Place", "Outside", "Sides", "Details"]);
-    expect(labels(stepsFor("both", "house", "areas", "range", "whole", true))).toEqual(["Address", "Place", "Job", "Rooms", "Condition", "Outside", "Sides", "Details"]);
+    expect(labels(stepsFor("exterior", "house", "areas", "range", "whole", true))).toEqual(["Address", "Place", "Your home", "Painting", "About it", "Sides", "Details"]); // 21 Oct: v2 is the default outside path
+    expect(labels(stepsFor("both", "house", "areas", "range", "whole", true))).toEqual(["Address", "Place", "Job", "Rooms", "Condition", "Your home", "Painting", "About it", "Sides", "Details"]);
     expect(labels(stepsFor("interior", "commercial", "areas", "range", "whole", true))).toEqual(["Address", "Place", "Space", "Areas", "Job", "Details"]);
     expect(labels(stepsFor("interior", "commercial", "warehouse", "range", "whole", true))).toEqual(["Address", "Place", "Space", "Building", "Job", "Details"]);
     expect(labels(stepsFor("interior", "commercial", "areas", "brief", "whole", true))).toEqual(["Address", "Place", "Space", "Questions", "Book"]);

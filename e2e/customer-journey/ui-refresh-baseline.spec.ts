@@ -206,7 +206,7 @@ test.describe("ui refresh baseline screenshots", () => {
 
       test("home outside: home, painting, about it, each side, range, the walk, side by side", async ({ browser }) => {
         // Exterior wizard v2 (S6): the drawn house's screens; the old outside screen is off the flagged path.
-        test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "1", "exteriorV2 is off — these shots are the drawn house's screens");
+        test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 === "0", "exteriorV2 is switched off — these shots are the drawn house's screens");
         test.setTimeout(300_000);
         const page = await newPage(browser, width);
         await openQuickLook(page);
