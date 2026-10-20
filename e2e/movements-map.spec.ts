@@ -56,8 +56,10 @@ function targetMonday(): string {
 }
 const MON = targetMonday();
 const WED = addDays(MON, 2);
-// The job's real point (a house in Oakleigh South) and the shop's (Carnegie): two distinct pins.
-const JOB_POINT = { lat: -37.9187, lng: 145.0932 };
+// The job's real point and the shop's (Carnegie): two distinct pins. The job's is put on the
+// bay at Beaumaris, away from every suburb centroid other specs' leftover jobs sit on
+// (Oakleigh South, Melbourne) — an overlapping pin would take the tap.
+const JOB_POINT = { lat: -37.9862, lng: 145.0375 };
 const SHOP_POINT = { lat: -37.8895, lng: 145.0581 };
 
 async function chipsOf(workOrderId: string): Promise<Row[]> {
@@ -171,6 +173,10 @@ test.describe("Movements Map (Session 6)", () => {
     await expect(row(page, paintId)).toContainText(`${BRAND} Carnegie → ${RUN} Map St`);
 
     // Drag the drop-off's handle above the pickup (pointer events: down, move past the threshold, over the top half of row 1, up).
+    // Both rows must be inside the viewport: a pointer-up outside it finds no row under the pointer.
+    await row(page, dropoffId).scrollIntoViewIfNeeded();
+    await expect(row(page, paintId)).toBeInViewport();
+    await expect(row(page, dropoffId)).toBeInViewport();
     const handle = row(page, dropoffId).getByTestId("order-handle");
     const target = await row(page, paintId).boundingBox();
     const from = await handle.boundingBox();

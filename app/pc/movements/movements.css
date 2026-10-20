@@ -371,7 +371,7 @@
 .mvx .mpin.shop.stop i { left: -5px; top: -5px; width: 10px; height: 10px; opacity: 1; }
 .mvx .mpin.shop .jsub { top: -5px; left: 9px; }
 .mvx .mpin.shop:not(.stop) .jsub { opacity: .7; }
-.mvx .mbadge { position: absolute; width: 17px; height: 17px; border-radius: 50%; border: 1.6px solid #fff; color: #fff; font-family: var(--mono); font-weight: 700; font-size: 8.5px; display: grid; place-items: center; box-shadow: 0 1px 2px rgba(0,0,0,.3); z-index: 2; }
+.mvx .mbadge { pointer-events: none; position: absolute; width: 17px; height: 17px; border-radius: 50%; border: 1.6px solid #fff; color: #fff; font-family: var(--mono); font-weight: 700; font-size: 8.5px; display: grid; place-items: center; box-shadow: 0 1px 2px rgba(0,0,0,.3); z-index: 2; }
 .mvx .orderlist { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .mvx .orow { display: grid; grid-template-columns: 22px 26px 1fr auto; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--graphite); padding: 8px 9px; font-size: 12.5px; position: relative; user-select: none; -webkit-user-select: none; }
 .mvx .orow .hnd { color: var(--dim); font-size: 14px; letter-spacing: -2px; cursor: grab; text-align: center; touch-action: none; padding: 4px 0; }
