@@ -28,18 +28,33 @@ export async function loadPrestartList(
   return { list: row ? { materials: row.materials, equipment: row.equipment, updatedAt: row.updated_at } : empty, failure: null };
 }
 
+/**
+ * How many keys go in one PostgREST `in` filter. The dashboard asks for every
+ * card and check-in key at once, and a key is ~45 chars: past a few hundred
+ * the GET URL is longer than the request limit and PostgREST answers 400 (seen
+ * on the test project, 21 Oct 2026 — 134 open jobs, and every note "could not
+ * be read"). Bounded batches, in parallel, instead of one unbounded filter.
+ */
+export const NOTE_KEYS_PER_READ = 100;
+
 /** The office's notes on the given reminder keys, as key → note. */
 export async function loadWorkItemNotes(
   supabase: SupabaseClient, keys: string[],
 ): Promise<{ notes: Map<string, string>; failure: string | null }> {
   const notes = new Map<string, string>();
-  if (keys.length === 0) return { notes, failure: null };
-  const { data, error } = await supabase.from("work_item_notes").select("item_key, note").in("item_key", keys);
-  if (error) {
-    if (missingTable(error)) return { notes, failure: "Notes on reminders need database migration 20270243 run first." };
-    reportError(error, { where: "pc.dashboard.loadNotes" });
-    return { notes, failure: "Your notes on these reminders could not be read just now — they are not lost." };
+  const unique = Array.from(new Set(keys));
+  if (unique.length === 0) return { notes, failure: null };
+  const batches: string[][] = [];
+  for (let i = 0; i < unique.length; i += NOTE_KEYS_PER_READ) batches.push(unique.slice(i, i + NOTE_KEYS_PER_READ));
+  const results = await Promise.all(batches.map((batch) =>
+    supabase.from("work_item_notes").select("item_key, note").in("item_key", batch)));
+  for (const { data, error } of results) {
+    if (error) {
+      if (missingTable(error)) return { notes, failure: "Notes on reminders need database migration 20270243 run first." };
+      reportError(error, { where: "pc.dashboard.loadNotes" });
+      return { notes, failure: "Your notes on these reminders could not be read just now — they are not lost." };
+    }
+    for (const r of (data ?? []) as { item_key: string; note: string }[]) notes.set(r.item_key, r.note);
   }
-  for (const r of (data ?? []) as { item_key: string; note: string }[]) notes.set(r.item_key, r.note);
   return { notes, failure: null };
 }

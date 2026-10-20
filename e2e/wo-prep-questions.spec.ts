@@ -18,8 +18,17 @@ import {
  *   · the painter may send a passed job on themselves;
  *   · the customer reads the painter's note on the sign-off page.
  *
- * Needs migration 20261103 live. The fixture contractor is "new", so checks
- * are scheduled on finish.
+ * Since 24 Sep 2026 (20270197, Tom: "when a job goes to quality check, only
+ * staff need to sign the job off") a job that PASSED a check is the office's to
+ * sign off: at Walkthrough the painter's job page shows the "Quality check
+ * passed" notice (`staff-signoff-notice`), not the walkthrough-start button.
+ *
+ * Needs migration 20261103 live. A check is only scheduled on finish when the
+ * product says one is due — and the shared e2e painter is long past "new" on
+ * the test project (closed jobs accumulate across runs), so every fixture here
+ * carries the office's per-job "check required" flag (20261105), the way the PC
+ * books one in. The assertions are about what a scheduled check does, not
+ * about who gets one.
  */
 const contractor = credentials("CONTRACTOR");
 const staff = credentials("STAFF");
@@ -30,6 +39,8 @@ let uiFixture: LoopFixture | null = null;    // staff passes on screen → walkt
 let painterFixture: LoopFixture | null = null; // the painter sends a passed job on
 
 async function allDone(f: LoopFixture) {
+  const { error } = await db!.from("work_orders").update({ qa_required: true }).eq("id", f.workOrderId);
+  if (error) throw new Error(`qa_required: ${error.message}`);
   await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
   await photosIn(db!, f.workOrderId);
 }
@@ -160,14 +171,15 @@ test.describe("prep questions + pass → walkthrough", () => {
     await expect(page.getByTestId("stage-advance")).toContainText(/Walkthrough/, { timeout: 15_000 });
   });
 
-  test("…and the painter sees the walkthrough step, not the quality-check notice", async ({ page }) => {
+  test("…and the painter sees the office-signs-off notice, not the quality-check notice", async ({ page }) => {
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${uiFixture!.workOrderId}`);
-    await expect(page.getByTestId("walkthrough-start")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("staff-signoff-notice")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("walkthrough-start")).toHaveCount(0);
     await expect(page.getByTestId("qa-notice")).toHaveCount(0);
   });
 
-  test("the pass itself moves the job — the painter sees the walkthrough, never a send button", async ({ page }) => {
+  test("the pass itself moves the job — the painter sees it at Walkthrough, never a send button", async ({ page }) => {
     await completePrep(db!, staff!, painterFixture!.workOrderId);
     expect(await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: painterFixture!.workOrderId }))
       .toBe("ok:completion_prep:qa_pending");
@@ -193,7 +205,8 @@ test.describe("prep questions + pass → walkthrough", () => {
 
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${painterFixture!.workOrderId}`);
-    await expect(page.getByTestId("walkthrough-start")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("staff-signoff-notice")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("walkthrough-start")).toHaveCount(0);
     await expect(page.getByTestId("send-pack")).toHaveCount(0);
     await expect(page.getByTestId("qa-passed")).toHaveCount(0);
   });
@@ -215,7 +228,7 @@ test.describe("prep questions + pass → walkthrough", () => {
 
       await signIn(page, contractor!, /\/portal/);
       await page.goto(`/portal/jobs/${parked.workOrderId}`);
-      await expect(page.getByTestId("walkthrough-start")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId("staff-signoff-notice")).toBeVisible({ timeout: 15_000 });
       const { data: after } = await db!.from("work_orders").select("stage").eq("id", parked.workOrderId).maybeSingle();
       expect((after as { stage: string }).stage).toBe("walkthrough");
     } finally {
