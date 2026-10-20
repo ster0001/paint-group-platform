@@ -1,3 +1,4 @@
+-- @no-transaction
 -- =============================================================================
 --  ███  PRODUCTION (llmrvgde…) AND the C1 TEST project (qarfyjrz…)
 --       Run on BOTH. Check the editor's project name before pasting.

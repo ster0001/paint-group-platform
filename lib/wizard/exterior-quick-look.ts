@@ -1,4 +1,6 @@
-import { defaultExterior, exteriorElements, exteriorSurfaceKeys, type WizardExterior, type WizardState } from "./state";
+import { defaultExterior, exteriorElements, exteriorSurfaceKeys, type ExteriorV2, type WizardExterior, type WizardState } from "./state";
+import { exteriorV2Answered, paintedSides, worstCondition } from "./exterior-model";
+import { typicalFor } from "./exterior-typicals";
 import { isExteriorSubstrateKey } from "@/lib/estimate/substrates";
 import type { Choice } from "./quick-look";
 
@@ -67,6 +69,14 @@ export type ExteriorQuickLook = {
    * never "per pergola". Null until the tile is ticked.
    */
   pergola: { lengthM: number | null; widthM: number | null; confirmed: boolean } | null;
+  /**
+   * Exterior wizard v2 (Oct 2026): the drawn house. When present it is the
+   * source of truth for the elements, materials, counts, sides, storeys and
+   * condition above — `applyExteriorQuickLook` derives them from it so every
+   * v1 reader still agrees — and `colour` and `access` stay the quick look's
+   * own answers. Null on the C8b path and on every older session.
+   */
+  v2?: ExteriorV2 | null;
 };
 
 export type ExteriorSide = "front" | "left" | "back" | "right";
@@ -92,6 +102,7 @@ export const DEFAULT_EXTERIOR_QUICK_LOOK: ExteriorQuickLook = {
   access: ["none"],
   sides: null,
   pergola: null,
+  v2: null,
 };
 
 export const EXT_ELEMENTS: Choice<ExteriorElement>[] = [
@@ -211,7 +222,53 @@ const COLOUR_TIER: Record<ExteriorColour, WizardState["condition"]["tier"]> = {
  * an exterior-only job so the exterior systems derive from it (⚑51) — on a
  * "both" job the interior's own colour answer keeps the field.
  */
-export function applyExteriorQuickLook(q: ExteriorQuickLook, base: WizardState): WizardState {
+/**
+ * Exterior wizard v2: the v1 answers the drawn house implies, so the fields
+ * every older reader prices, words and resumes from stay true. Colour and
+ * access are not in `v2` — the caller keeps its own.
+ */
+export function quickLookFromV2(v2: ExteriorV2, own: Pick<ExteriorQuickLook, "colour" | "access">): ExteriorQuickLook {
+  const t = typicalFor(v2.propertyType);
+  const parts = new Set(v2.parts);
+  const elements: ExteriorElement[] = [];
+  if (parts.has("walls")) elements.push("body");
+  if (parts.has("windows")) elements.push("windows");
+  if (parts.has("doors")) elements.push("doors");
+  if (parts.has("fascias")) elements.push("fascias");
+  if (parts.has("gutters") || parts.has("downpipes")) elements.push("gutters");
+  if (parts.has("eaves")) elements.push("eaves");
+  const standalone: ExteriorStandalone[] = [];
+  if (parts.has("garage")) standalone.push("garage_door");
+  for (const e of v2.extras) {
+    if (e === "paling_fence" || e === "picket_fence" || e === "deck" || e === "shed" || e === "wall" || e === "pergola") standalone.push(e);
+  }
+  const toMaterial = (m: NonNullable<ExteriorV2["wall"]["down"]>): ExteriorMaterial =>
+    m === "colorbond" ? "panelling" : m === "vertical_timber" ? "weatherboards" : m === "concrete" ? "unsure" : m;
+  const materials = parts.has("walls")
+    ? [...new Set([v2.wall.down, v2.wall.up].filter((m): m is NonNullable<typeof m> => m != null).map(toMaterial))]
+    : [];
+  const sides = paintedSides(v2);
+  const sum = (k: "windows" | "doors") => sides.reduce((n, side) => n + (v2.sides[side]?.[k] ?? 0), 0);
+  const l = v2.extraSizes.pergola_l, w = v2.extraSizes.pergola_w;
+  return {
+    elements, standalone, materials,
+    windowType: v2.windowType,
+    windowCount: sum("windows"),
+    doorCount: sum("doors"),
+    colour: own.colour,
+    condition: worstCondition(v2),
+    storeys: t.storeys === 2 ? "double" : "single",
+    access: own.access,
+    sides: sides.length ? sides : null,
+    pergola: v2.extras.includes("pergola") ? { lengthM: l ?? null, widthM: w ?? null, confirmed: l != null && w != null } : null,
+    v2,
+  };
+}
+
+export function applyExteriorQuickLook(input: ExteriorQuickLook, base: WizardState): WizardState {
+  // S2: a house with only the home step answered (no parts yet) rides along
+  // untouched; the v1 fields are derived only once the Painting step has run.
+  const q = input.v2 && exteriorV2Answered(input.v2) ? quickLookFromV2(input.v2, input) : input;
   const ext = base.exterior ?? defaultExterior();
   const on = new Set(q.elements);
   const house = q.elements.length > 0;
@@ -270,12 +327,15 @@ export function applyExteriorQuickLook(q: ExteriorQuickLook, base: WizardState):
       extras: {
         ...ext.extras,
         fence: fenceOn,
+        fenceMetres: q.v2 ? (q.v2.extraSizes.fence ?? null) : ext.extras.fenceMetres,
         pergola: q.standalone.includes("pergola"),
         // Tom, 15 Sep: the tick names the fence — paling, or picket (brushed).
         fenceType: q.standalone.includes("picket_fence") ? "picket_hand" : q.standalone.includes("paling_fence") ? "paling" : ext.extras.fenceType,
         deck: q.standalone.includes("deck"),
       },
       noPhotos: true,
+      // Exterior wizard v2: the drawn house rides beside the v1 fields it was derived into.
+      v2: q.v2 ?? undefined,
   };
 
   /**
@@ -287,9 +347,16 @@ export function applyExteriorQuickLook(q: ExteriorQuickLook, base: WizardState):
    * keeps its interior ticks and swaps in the exterior ones.
    */
   const exteriorKeys = exteriorSurfaceKeys(nextExt);
-  const surfaces = base.jobType === "exterior"
-    ? exteriorKeys
-    : [...new Set([...base.surfaces.filter((k) => !isExteriorSubstrateKey(k)), ...exteriorKeys])];
+  // Exterior wizard v2 (S2): the home step writes the drawn house before a
+  // single part is ticked. An empty tick list would leave `surfaces` empty,
+  // and the resume schema (`surfaces.min(1)`) would then reject the saved
+  // draft — a reload restarted the whole session. Until something is ticked
+  // the list stays as it was; nothing prices from it before the outside screen.
+  const surfaces = exteriorKeys.length === 0
+    ? base.surfaces
+    : base.jobType === "exterior"
+      ? exteriorKeys
+      : [...new Set([...base.surfaces.filter((k) => !isExteriorSubstrateKey(k)), ...exteriorKeys])];
 
   return {
     ...base,
@@ -304,6 +371,10 @@ export function applyExteriorQuickLook(q: ExteriorQuickLook, base: WizardState):
 /** The answers as the screen shows them, read back from a stored state (resume). */
 export function exteriorQuickLookFromState(ext: WizardExterior | null | undefined): ExteriorQuickLook {
   if (!ext) return { ...DEFAULT_EXTERIOR_QUICK_LOOK };
+  if (ext.v2 && exteriorV2Answered(ext.v2)) {
+    const access: ExteriorAccessAnswer[] = [...ext.access, ...((ext.accessEquipment ?? []).length > 0 ? ["lift" as const] : [])];
+    return quickLookFromV2(ext.v2, { colour: ext.colour ?? "new", access: access.length ? access : ["none"] });
+  }
   const el = exteriorElements(ext);
   const house = ext.targets.includes("house");
   const elements: ExteriorElement[] = [];
@@ -343,6 +414,7 @@ export function exteriorQuickLookFromState(ext: WizardExterior | null | undefine
     access: access.length ? access : ["none"],
     sides: ext.sidesAnswered ? (ext.sides && ext.sides.length > 0 ? [...ext.sides] : [...ALL_SIDES]) : null,
     pergola: ext.pergola ?? null,
+    v2: ext.v2 ?? null,
   };
 }
 

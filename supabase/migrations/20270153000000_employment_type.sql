@@ -104,24 +104,31 @@ create policy contractor_invoices_own on public.contractor_invoices
 -- wo_variations: price_cents (customer money), contractor_delta_cents,
 -- priced_lines. Session 4 gives employees a "Variation approved" RPC that
 -- returns scope lines and hours only. Shape from 20261213 kept.
-drop policy if exists wo_variations_read on public.wo_variations;
-create policy wo_variations_read on public.wo_variations
-  for select to authenticated
-  using (
-    wo_variations.work_order_id in (select id from public.wo_visible_jobs)
-    and not (select public.is_employee())
-  );
+-- Convergence (C1 replay, 20 Oct 2026): 20270201 moves wo_visible_jobs into
+-- the private schema and 20270265 rewrites these two policies against it. On a
+-- database that already has that, the public name does not resolve, so the
+-- view is named by whichever schema holds it. Same policies either way.
+do $$
+declare
+  v_view text := coalesce(to_regclass('private.wo_visible_jobs'),
+                          to_regclass('public.wo_visible_jobs'))::text;
+begin
+  execute 'drop policy if exists wo_variations_read on public.wo_variations';
+  execute format('create policy wo_variations_read on public.wo_variations
+    for select to authenticated
+    using (
+      wo_variations.work_order_id in (select id from %s)
+      and not (select public.is_employee())
+    )', v_view);
 
--- wo_events: meta carries price_cents on variation_priced / customer_approved
--- (20261002:143,198) and total_cents on acceptance. The event log is the
--- source of truth the PC reads; the painter's screens read derived state.
-drop policy if exists wo_events_read on public.wo_events;
-create policy wo_events_read on public.wo_events
-  for select to authenticated
-  using (
-    wo_events.work_order_id in (select id from public.wo_visible_jobs)
-    and not (select public.is_employee())
-  );
+  execute 'drop policy if exists wo_events_read on public.wo_events';
+  execute format('create policy wo_events_read on public.wo_events
+    for select to authenticated
+    using (
+      wo_events.work_order_id in (select id from %s)
+      and not (select public.is_employee())
+    )', v_view);
+end $$;
 
 -- ---- 4. The switch -----------------------------------------------------------
 -- employees_enabled gates the office tick box (Session 5) and nothing else:

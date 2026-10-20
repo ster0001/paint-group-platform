@@ -18,6 +18,13 @@ import JobSoFar from "./JobSoFar";
 import TalkCard from "./TalkCard";
 import { Pic } from "./pictures/pictograms";
 import { ExteriorPickTiles } from "./ExteriorTiles";
+import ExteriorHomeStep from "./ExteriorHome";
+import ExteriorPaintStep from "./ExteriorPaint";
+import ExteriorAboutStep from "./ExteriorAbout";
+import ExteriorSidesStep from "./ExteriorSides";
+import type { ExteriorSideKey } from "@/lib/wizard/exterior-typicals";
+import { togglePart } from "@/lib/wizard/exterior-model";
+import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 
 /** C12: what the commercial screens need from WizardApp. */
@@ -69,8 +76,10 @@ export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, whyNot = null, busy, onBack, onNext,
   onBook, onMessage, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null, gate = null,
   planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
-  steps = [], address = "", suburb = null, estimatorName = null, onGo = () => undefined,
+  steps = [], address = "", suburb = null, estimatorName = null, onGo = () => undefined, exteriorTypicals = [],
 }: {
+  /** Exterior wizard v2 (S2): the shape typicals for the home step and the drawn house. */
+  exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   /** UI refresh S2: `stepsFor()` for these answers — "Your job so far" and its Change links read it. */
   steps?: readonly QuickLookStep[];
   /** The address as typed or picked, and its suburb (the house card's tag). */
@@ -125,6 +134,8 @@ export default function QuickLook({
 }) {
   // Tom, 7 Oct 2026 (item 1): "don't wait" on the floorplan reading panel.
   const [skipPlanWait, setSkipPlanWait] = useState(false);
+  // Exterior wizard v2 (S4): the side the Each-side step and the picture's compass are on.
+  const [sideAt, setSideAt] = useState<ExteriorSideKey>("front");
   /** Tom, 14 Sep (evening): the "anything NOT being painted?" popup, open right after a preset is picked. */
   // Tom, 15 Sep (late): an outside job ends on the sides screen, not the outside screen.
   // S6: with a gate, the question before it says so, and the gate is the last screen.
@@ -512,6 +523,19 @@ export default function QuickLook({
         </>
       )}
 
+      {/* Exterior wizard v2 (S2): "What kind of home is it?" — the drawn house, behind `exteriorV2`. */}
+      {step === "home" && (
+        <ExteriorHomeStep v2={outside.v2 ?? null} rows={exteriorTypicals} onChange={(v2) => onOutside({ v2 })} />
+      )}
+      {/* Exterior wizard v2 (S3): "Tap everything we're painting", then "Tell us about what you ticked". */}
+      {step === "paint" && outside.v2 && (
+        <ExteriorPaintStep v2={outside.v2} rows={exteriorTypicals} onChange={(v2) => onOutside({ v2 })} />
+      )}
+      {step === "about" && outside.v2 && (
+        <ExteriorAboutStep v2={outside.v2} rows={exteriorTypicals} colour={outside.colour} access={outside.access}
+          onChange={(v2) => onOutside({ v2 })} onColour={(colour) => onOutside({ colour })} onAccess={(access) => onOutside({ access })} />
+      )}
+
       {/*
         THE EXTERIOR QUICK LOOK — prototype `s-ext-job` v2.6, "What are we
         painting?" (C8b). ELEMENTS FIRST, nothing pre-ticked; materials only
@@ -641,7 +665,12 @@ export default function QuickLook({
         unticked here is not scaffolded at all (lib/wizard/exteriorAnswers.ts),
         and the sides editor starts every side left at "yes".
       */}
-      {step === "sides" && (() => {
+      {/* Exterior wizard v2 (S4): the per-side confirm replaces Which sides? when the house is drawn. */}
+      {step === "sides" && outside.v2 && (
+        <ExteriorSidesStep v2={outside.v2} rows={exteriorTypicals} at={sideAt} onAt={setSideAt} onChange={(v2) => onOutside({ v2 })} />
+      )}
+      {step === "sides" && !outside.v2 && (() => {
+        // The v1 Which-sides screen (no drawn house — the flag off, or an older draft).
         const chosen = outside.sides ?? ALL_SIDES;
         const all = ALL_SIDES.every((k) => chosen.includes(k));
         const toggle = (k: (typeof ALL_SIDES)[number]) =>
@@ -729,6 +758,9 @@ export default function QuickLook({
         phone the picture sits above the question and the talk card at the foot. */}
     <aside className="wz-side" data-testid="ql-side" aria-label="Your job">
       <PictureCard step={step} quick={quick} outside={outside} suburb={suburb} rooms={planList} planPreviewUrl={planPreviewUrl} planPending={planPending}
+        exteriorTypicals={exteriorTypicals}
+        onExtPart={outside.v2 ? (part) => onOutside({ v2: togglePart(outside.v2!, part) }) : undefined}
+        sideAt={sideAt} onSide={setSideAt}
         segmentName={commercial?.segment?.name ?? null}
         com={commercial ? { segment: commercial.segment, answers: commercial.answers, segmentKey: commercial.segmentKey } : null} />
       <JobSoFar steps={steps} at={step} quick={quick} outside={outside} address={address} roomCount={roomCount}

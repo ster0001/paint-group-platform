@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, answerOutsideQuick } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 import { credentials, signIn, test } from "../helpers";
 
@@ -133,10 +133,7 @@ test("'both' meets the choice screen, then shows two ranges", async ({ page }) =
   await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
-  await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId("ql-ext-el-body").click(); // C8b: nothing pre-ticked
-  await quickNext(page);
-  await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 }); // 15 Sep (late): which sides, before the gate
+  await answerOutsideQuick(page); // the outside answers on whichever screens the flag puts there (S3); lands on Which sides
   await quickNext(page);
   await passGateIfShown(page); // S6: the gate, under "details first"
 

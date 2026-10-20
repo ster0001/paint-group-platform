@@ -15,3 +15,13 @@ export const UI_FLAGS = {
 } as const;
 
 export type UiFlag = keyof typeof UI_FLAGS;
+
+/**
+ * Exterior wizard v2 (brief §9 S2, ⚑ 17): the drawn-house outside path.
+ * `NEXT_PUBLIC_EXTERIOR_V2=1` turns it on — set in `.env.test.local` and the
+ * CI e2e job (ON on the test project), unset on Vercel (OFF in production)
+ * until Tom flips it after S6. Read at call time so a test can stub it.
+ */
+export function exteriorV2On(): boolean {
+  return process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1";
+}

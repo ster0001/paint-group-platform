@@ -1,5 +1,10 @@
 "use client";
 
+import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
+import { aboutMissing, allSidesChecked, allSidesConfirmed, exteriorV2Answered, nextUncheckedSide, paintedSides } from "@/lib/wizard/exterior-model";
+import ExteriorWalkStep from "./ExteriorWalk";
+import PictureCard from "./PictureCard";
+import type { ExteriorSideKey } from "@/lib/wizard/exterior-typicals";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -154,7 +159,9 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first" }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [] }: {
+  /** Exterior wizard v2 (S2): the shape typicals (`exterior_typicals`); empty = the built-in list. */
+  exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   /** UI refresh S2 (⚑ 23): the estimator the wizard resolves (`resolveEstimator`), named in "Talk it through". Null names nobody. */
   estimatorName?: string | null;
   /** UI refresh S3 (⚑ 5): the homepage's trust claims, for the range screen. */
@@ -297,6 +304,32 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const setOutside = (patch: Partial<ExteriorQuickLookAnswers>) =>
     setState((s) => applyExteriorQuickLook({ ...outside, ...patch }, s));
 
+  /**
+   * Exterior wizard v2 (S5): "See my range" after the walk. The whole drawn
+   * house goes to the estimate's edit route as ONE action; the server rebuilds
+   * the exterior nodes from it and re-prices, and the range comes back as the
+   * same customer payload the reveal already draws — now reading Detailed.
+   */
+  const walkDone = async () => {
+    if (!reveal || !outside.v2 || walkBusy) return;
+    setWalkBusy(true); setWalkError(null);
+    try {
+      const res = await fetch(`/api/estimates/${reveal.estimateId}/wizard-edit`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ext_walk", v2: outside.v2, view: "customer" }),
+      });
+      const j = (await res.json().catch(() => ({}))) as CustomerPayload & { error?: string };
+      if (!res.ok) { setWalkError(j.error ?? "That didn't save — try again in a moment."); return; }
+      setReveal({ payload: j, estimateId: reveal.estimateId });
+      setWalking(false);
+      window.scrollTo({ top: 0 });
+    } catch {
+      setWalkError("That didn't save — check your connection and try again.");
+    } finally {
+      setWalkBusy(false);
+    }
+  };
+
   const setQuick = (patch: Partial<QuickLookAnswers>) => {
     const next = { ...quick, ...patch };
     setState((s) => ({
@@ -377,6 +410,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [sent, setSent] = useState<{ title: string; line: string } | null>(null);
   /** The revealed range, held on the client so the three doors can act on it. */
   const [reveal, setReveal] = useState<{ payload: CustomerPayload; estimateId: string } | null>(null);
+  // Exterior wizard v2 (S5): the walk around the house after the guide range.
+  const [walking, setWalking] = useState(false);
+  const [walkAt, setWalkAt] = useState<ExteriorSideKey>("front");
+  const [walkBusy, setWalkBusy] = useState(false);
+  const [walkError, setWalkError] = useState<string | null>(null);
 
   // A customer needs an identity before they can upload or submit —
   // an anonymous Supabase session, promoted to an account if they save.
@@ -1603,6 +1641,30 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       window.scrollTo({ top: 0 });
       return;
     }
+    // Exterior wizard v2 (S2): the home step needs a shape and a rough size.
+    if (quickStep === "home" && !(outside.v2 && outside.v2.sizeBand != null)) {
+      setError(outside.v2 ? "About how big is it? Pick the closest size." : "Tap the closest shape, then a rough size.");
+      return;
+    }
+    // S3: Painting needs at least one part or extra; About it needs the walls' material (and a ticked pergola's top).
+    if (quickStep === "paint" && !(outside.v2 && exteriorV2Answered(outside.v2))) {
+      setError("Tick at least one thing we're painting — on the house, or around it.");
+      return;
+    }
+    if (quickStep === "about" && outside.v2) {
+      const missing = aboutMissing(outside.v2);
+      if (missing) { setError(missing); return; }
+    }
+    if (quickStep === "sides" && outside.v2 && paintedSides(outside.v2).length === 0) {
+      setError("Tick at least one side we're painting — tap Not painting again to add one back.");
+      return;
+    }
+    // S4: every painted side needs "Looks right" before the gate (acceptance 8a).
+    if (quickStep === "sides" && outside.v2 && !allSidesConfirmed(outside.v2)) {
+      const left = paintedSides(outside.v2).filter((k) => !outside.v2!.sides[k]?.confirmed).length;
+      setError(`Tap "Looks right — next side" on each side — ${left} to go.`);
+      return;
+    }
     // C8b: an outside job has to name SOMETHING being painted — nothing is
     // pre-ticked, so an untouched screen is not an answer.
     if (quickStep === "outside" && !paintsSomething(outside)) {
@@ -1781,7 +1843,23 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             onDone={(c) => { set({ contact: { name: c.name, email: c.email, phone: c.mobile } }); const then = talk.then; setTalk(null); then?.(); }}
           />
         )}
-        {sent ? (
+        {walking && outside.v2 && !sent ? (
+          <main className="wz-stage" data-testid="ext-walk">
+            <div className="wz-wrap wz-quick wz-pane" data-quick-step="walk">
+              <ExteriorWalkStep
+                v2={outside.v2} rows={exteriorTypicals} at={walkAt} onAt={setWalkAt} busy={walkBusy}
+                onChange={(v2) => setOutside({ v2 })}
+                onBack={() => setWalking(false)}
+                onDone={() => void walkDone()}
+              />
+              {walkError && <div className="wz-err" data-testid="ext-walk-error">{walkError}</div>}
+            </div>
+            <aside className="wz-side" data-testid="ql-side" aria-label="Your home">
+              <PictureCard step="sides" quick={quick} outside={outside} suburb={state.address?.suburb ?? null} rooms={[]} planPreviewUrl={null} planPending={false} segmentName={null}
+                exteriorTypicals={exteriorTypicals} sideAt={walkAt} onSide={setWalkAt} />
+            </aside>
+          </main>
+        ) : sent ? (
           <main className="wz-wrap" data-testid="reveal-sent">
             <p className="wz-kick">Your estimate</p>
             <div className="wz-sent-status" aria-hidden="true">✓</div>
@@ -1804,10 +1882,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           // back — you were at Scope" over a brand-new job.
           onTighten={() => {
             void recordRangeOption(reveal.estimateId, "tighten");
+            // Exterior wizard v2 (S5): on the drawn house, Tighten is the walk around it — here, not the editor.
+            const walk = quick.jobType === "exterior" && !!outside.v2;
+            const go = () => { if (walk) { setWalkAt(nextUncheckedSide(outside.v2!, "left") ?? "front"); setWalking(true); window.scrollTo({ top: 0 }); } else { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); } };
             // R7 (range first): any option asks for the details before going further.
-            if (!contactKnown) { setTalk({ mode: "details", then: () => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); } }); return; }
-            clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`);
+            if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
+            go();
           }}
+          onEditor={() => { void recordRangeOption(reveal.estimateId, "tighten"); clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
+          walkChecked={quick.jobType === "exterior" && !!outside.v2 && allSidesChecked(outside.v2)}
           onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           speakWithUs={Boolean((reveal.payload as { speakWithUs?: boolean }).speakWithUs)}
           onSpeak={() => { void recordRangeOption(reveal.estimateId, "speak"); setTalk({ mode: "call" }); }}
@@ -1939,6 +2022,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 step={quickStep}
                 quick={quick}
                 onQuick={setQuick}
+                exteriorTypicals={exteriorTypicals}
                 planRooms={state.planRooms}
                 planPreviewUrl={state.planPreviewUrl}
                 planPending={state.planRunIds.length > 0 && state.planRooms == null}

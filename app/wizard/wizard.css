@@ -1484,6 +1484,8 @@
   .wz .wz-stage [data-testid="ql-scope"], .wz .wz-stage [data-testid="ql-segment"], .wz .wz-stage [data-testid="wh-surf"] { grid-template-columns: 1fr; }
   .wz .wz-stage .wz-nav--col { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--bar); border-top: 1px solid var(--line); }
   .wz .wz-stage .wz-why + .wz-nav--col { margin-top: 0; }
+  /* Exterior wizard v2 (S6): the walk's pane clears the fixed bar — its Check this side sat under Back to my range on a phone. */
+  .wz .wz-stage > .wz-pane[data-quick-step="walk"] { padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
   .wz .wz-btn.wz-bpaint { flex: 1; min-width: 0; }
   .wz .wz-stage .wz-why { position: fixed; left: 16px; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 41; margin: 0; padding: 8px 12px; background: var(--amber-wash); border: 1px solid var(--amber-line); border-radius: 12px; }
   .wz .wz-chat.header .wz-chat-panel { top: auto; left: 0; right: 0; bottom: 0; width: 100%; height: min(78vh, 560px); border-radius: 18px 18px 0 0; }
@@ -2331,3 +2333,54 @@
 @media (min-width: 901px) {
   .wz .wz-chat.header .wz-chat-panel { top: 64px; height: calc(100vh - 64px); }
 }
+
+/* ---------------------------------------------------------------------------
+   Exterior wizard v2 — S2: "What kind of home is it?" (brief §7.1) and the
+   elevation picture. Shape cards: two per row on a phone, three on a laptop;
+   each ≥ 44px tall with its own silhouette. The size and row pills reuse
+   .wz-tile. The picture is the refresh's 4:3 art box.
+   --------------------------------------------------------------------------- */
+.wz .wz-shapes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+@media (min-width: 901px) { .wz .wz-shapes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.wz .wz-shape { border: 1px solid var(--line); border-radius: 13px; background: var(--panel); padding: 10px 10px 11px; cursor: pointer; text-align: left; font-family: var(--wz-sans); color: var(--text); min-height: 44px; }
+.wz .wz-shape.on { border-color: var(--cyan); background: rgba(59,216,233,.06); box-shadow: 0 0 0 1px var(--cyan) inset; }
+.wz .wz-shape svg { display: block; width: 100%; height: 58px; margin-bottom: 7px; }
+.wz .wz-shape b { display: block; font-size: 14.5px; font-weight: 600; line-height: 1.2; }
+.wz .wz-shape small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); line-height: 1.3; }
+.wz .wz-tile .wz-tilesub { display: block; margin-top: 2px; font-family: var(--wz-mono); font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.wz .wz-elev { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wz .wz-elev .e.hl > * { filter: drop-shadow(0 0 3px rgba(14,159,180,.9)); }
+@media (prefers-reduced-motion: no-preference) { .wz .wz-elev .e > * { transition: fill .25s ease; } }
+.wz .wz-elev.tappable .e[data-e] { cursor: pointer; }
+
+/* Exterior wizard v2 — S4: Each side (brief §7.4) and the range rows (§7.5). */
+.wz .wz-walk-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 6px 0 4px; }
+.wz .wz-walk-steps button { border: 1.5px solid var(--line); background: var(--panel); border-radius: 12px; padding: 9px 6px; min-height: 44px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: var(--wz-sans); color: var(--muted); cursor: pointer; }
+.wz .wz-walk-steps button .n { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+.wz .wz-walk-steps button .l { font-size: 12.5px; font-weight: 600; }
+.wz .wz-walk-steps button[data-state="cur"] { border-color: var(--cyan); color: var(--text); background: rgba(59,216,233,.06); }
+.wz .wz-walk-steps button[data-state="ok"] { border-color: var(--cyan); color: var(--cyan); }
+.wz .wz-walk-steps button[data-state="ok"] .n { background: var(--cyan); border-color: var(--cyan); color: #fff; }
+.wz .wz-walk-steps button[data-state="skip"] { opacity: .6; text-decoration: line-through; }
+.wz .wz-sidehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-top: 18px; }
+.wz .wz-sidehead h2 { font-size: 22px; letter-spacing: -.02em; font-weight: 600; margin: 0; }
+.wz .wz-sidehead p { color: var(--muted); font-size: 14px; margin: 2px 0 0; }
+.wz .wz-notpaint { font-size: 13.5px; color: var(--muted); background: none; border: 1.5px solid var(--line); border-radius: 99px; padding: 8px 12px; white-space: nowrap; flex: none; min-height: 44px; font-family: var(--wz-sans); cursor: pointer; }
+.wz .wz-notpaint.on { border-color: #E4B96B; background: #FFF8EA; color: #8A5B00; }
+.wz .wz-tile.off { opacity: .55; text-decoration: line-through; }
+.wz .wz-tile.plain { border-style: dashed; color: var(--muted); }
+.wz .wz-qtag { float: right; font-family: var(--wz-mono); font-size: 11px; letter-spacing: .06em; color: var(--muted); font-weight: 400; }
+.wz .wz-done-card { margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: rgba(59,216,233,.08); border: 1px solid rgba(59,216,233,.35); display: flex; gap: 12px; align-items: center; font-weight: 600; }
+.wz .wz-done-card .av { width: 34px; height: 34px; border-radius: 50%; background: var(--cyan); color: #fff; display: grid; place-items: center; flex: none; }
+.wz .wz-compass { display: flex; gap: 6px; }
+.wz .wz-compass button { border: 1.5px solid var(--line); background: var(--panel); border-radius: 99px; padding: 3px 10px; font-size: 12.5px; font-weight: 600; color: var(--muted); font-family: var(--wz-sans); cursor: pointer; min-height: 28px; }
+.wz .wz-compass button[data-state="ok"] { border-color: var(--cyan); color: var(--cyan); }
+.wz .wz-compass button[data-state="cur"] { background: var(--heading); border-color: var(--heading); color: #fff; }
+.wz .wz-compass button[data-state="skip"] { text-decoration: line-through; opacity: .6; }
+.wz .wz-ext-rows { margin: 12px 0 4px; border-top: 1px solid var(--line); }
+.wz .wz-ext-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.wz .wz-ext-row b { display: block; font-weight: 600; }
+.wz .wz-ext-row small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.wz .wz-ext-row .wz-tag { font-family: var(--wz-mono); font-size: 10.5px; letter-spacing: .08em; color: var(--cyan); margin-left: 6px; }
+.wz .wz-ext-notin { font-size: 12.5px; color: var(--muted); margin: 8px 0 14px; }
+.wz .wz-rv-pill--det { background: rgba(59,216,233,.12); color: #0A7C8E; border-color: rgba(59,216,233,.45); }

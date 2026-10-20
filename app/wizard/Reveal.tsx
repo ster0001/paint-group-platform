@@ -7,7 +7,9 @@ import { UI_FLAGS } from "@/lib/wizard/ui-flags";
 import { assumedList, restatement, type QuickLook } from "@/lib/wizard/quick-look";
 import { commercialAssumedList, commercialRestatement, openCount, type CommercialAnswers, type Segment } from "@/lib/wizard/segments";
 import { exteriorAssumedList, exteriorRestatement, type ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
+import { DEFAULT_BANDS } from "@/lib/wizard/policy";
 import type { CustomerPayload } from "@/lib/wizard/view";
+import ExteriorRangeRows, { notInThisNumber } from "./ExteriorRangeRows";
 
 /**
  * THE GUIDE RANGE — estimator journey v2 §3, "the screen the redesign exists
@@ -45,8 +47,12 @@ const OPEN_BY_KEY: Record<string, string[]> = { openings: ["doors", "windows"], 
 
 export default function Reveal({
   payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null, outside = null, speakWithUs = false, onSpeak, onMessage, contactKnown = false,
-  firstName = null, trust = null,
+  firstName = null, trust = null, walkChecked = false, onEditor,
 }: {
+  /** Exterior wizard v2 (S5): every painted side checked on the walk — the Tighten door reads "Change a side" and Book a site visit is primary (⚑ 14). */
+  walkChecked?: boolean;
+  /** Exterior wizard v2 (S5): "Change anything else" — the after-range sides editor (§7.7). */
+  onEditor?: () => void;
   /** UI refresh S3: the name from the details step, for "Alex, here's your guide range". */
   firstName?: string | null;
   /** ⚑ 5: the homepage's own claims — the Google rating and count from the same source, and its warranty line. Null pieces are left out, never invented. */
@@ -120,7 +126,10 @@ export default function Reveal({
   // ⚑ 11: the Guide bar follows the live band; Detailed and Confirmed are illustrative, with no numbers.
   const guideBar = Math.max(40, Math.min(96, Math.round(payload.bandPct * 3)));
   const first = firstName?.trim().split(/\s+/)[0] ?? "";
-  const kicker = payload.commercial ? `${payload.commercial.name} · your guide range` : first ? `${first}, here’s your guide range` : "Your guide range";
+  // Exterior wizard v2 (S5, brief §5.3): the tier is an accuracy label — Detailed once the band is inside the mid band.
+  const detailed = exteriorOnly && !!outside?.v2 && payload.bandPct <= DEFAULT_BANDS.midPct;
+  const tierWord = detailed ? "detailed" : "guide";
+  const kicker = payload.commercial ? `${payload.commercial.name} · your guide range` : first ? `${first}, here’s your ${tierWord} range` : `Your ${tierWord} range`;
 
   return (
     <div className="wz-wrap wz-reveal wz-reveal--v2" data-testid="reveal" data-estimate-id={estimateId}>
@@ -128,7 +137,7 @@ export default function Reveal({
         <section className="wz-rv-card" aria-labelledby="reveal-kicker">
           <p className="wz-rv-label">
             <span className="wz-kick" id="reveal-kicker" data-testid="reveal-kicker">{kicker}</span>
-            <span className="wz-rv-pill">Guide · within {payload.bandPct}%</span>
+            <span className={`wz-rv-pill ${detailed ? "wz-rv-pill--det" : ""}`} data-testid="reveal-tier" data-tier={detailed ? "detailed" : "guide"}>{detailed ? "Detailed" : "Guide"} · within <span data-testid="range-width">{payload.bandPct}</span>%</span>
           </p>
           {/* C11 — the roller reveal: the one motion moment on this screen (S3 keeps it rather
               than adding a count-up — the run sheet allows one, not both), and none at all for
@@ -136,7 +145,16 @@ export default function Reveal({
           <div className="wz-range" data-testid="reveal-range">
             <span className="wz-range-roll"><span>{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</span></span>
           </div>
-          <p className="wz-range-note">Includes GST. Excludes access equipment and structural repairs.</p>
+          {/* Exterior wizard v2 (S4): one row per side and one for around the house, then what is not in the number. */}
+          {exteriorOnly && outside?.v2 ? (
+            <>
+              <p className="wz-range-note">Includes GST.</p>
+              <ExteriorRangeRows v2={outside.v2} />
+              <p className="wz-ext-notin" data-testid="ext-not-in">Not in this number: {notInThisNumber(outside.v2)}.</p>
+            </>
+          ) : (
+            <p className="wz-range-note">Includes GST. Excludes access equipment and structural repairs.</p>
+          )}
           {/* C8 (⚑25): a "both" job — inside and outside, each its own range; the figure above is the two together. */}
           {payload.parts && (
             <div className="wz-parts" data-testid="reveal-parts">
@@ -189,21 +207,47 @@ export default function Reveal({
         <div className="wz-rv-doors">
           <h2 className="wz-doors-head">Where would you like to go from here?</h2>
           <div className="wz-doors">
-            <Door
-              testId="door-tighten" icon="◫" title="Tighten my price" onClick={onTighten}
-              body={`Get a more accurate quote now. A few minutes, ${how}.`}
-              hero
-            />
+            {/* Exterior wizard v2 (⚑ 14): once every side is checked the walk door reads "Change a side" and the visit is the primary door. */}
+            {exteriorOnly && outside?.v2 && walkChecked ? (
+              <Door
+                testId="door-tighten" icon="✎" title="Change a side" onClick={onTighten}
+                body="Go back round the house and adjust anything."
+              />
+            ) : (
+              <Door
+                testId="door-tighten" icon="◫" title="Tighten my price" onClick={onTighten}
+                body={exteriorOnly && outside?.v2
+                  ? "Walk around the house side by side — about three minutes — and the range closes to within a few percent."
+                  : `Get a more accurate quote now. A few minutes, ${how}.`}
+                hero
+              />
+            )}
+            {/* Exterior wizard v2 (brief §7.5): Tighten, Book a site visit, Speak with us, Send us a message — in that order. */}
+            {exteriorOnly && outside?.v2 && (
+              <Door
+                testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
+                body="Your estimator measures up and fixes the price with you — about 40 minutes."
+                hero={walkChecked}
+              />
+            )}
+            {exteriorOnly && outside?.v2 && walkChecked && onEditor && (
+              <Door
+                testId="door-editor" icon="☰" title="Change anything else" onClick={onEditor}
+                body="Every side's lines, with what you counted already filled in."
+              />
+            )}
             {speakWithUs && onSpeak && (
               <Door
                 testId="door-speak" icon="☎" title="Speak with us" onClick={onSpeak}
                 body="Request a call to finalise your booking"
               />
             )}
-            <Door
-              testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
-              body="Choose a time for us to see the property"
-            />
+            {!(exteriorOnly && outside?.v2) && (
+              <Door
+                testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
+                body="Choose a time for us to see the property"
+              />
+            )}
             {onMessage && (
               <Door
                 testId="door-message" icon="✉" title="Send us a message" onClick={onMessage}

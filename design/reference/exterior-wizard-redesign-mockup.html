@@ -1,0 +1,1017 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Outside estimator — redesign mockup</title>
+<meta name="description" content="Paint Group · the exterior estimator wizard, redesigned: home type, build your house, walk around, range.">
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ───────── tokens: the UI-refresh light theme ───────── */
+:root{
+  --page:#F2F5F6; --card:#FFFFFF; --soft:#E8EEF1; --line:#D5DDE2; --line2:#B4C0C8;
+  --ink:#0D161C; --text:#16212A; --muted:#54626D;
+  --paint:#3BD8E9; --paint-ink:#03272D; --teal:#0A7C8E; --wash:#DFF6FA; --wash2:#BDEBF3;
+  --amber:#9A5F0A; --amber-wash:#FCF3E0; --amber-line:#E5C078;
+  --green:#1F8A55; --clay:#A8402F;
+  --sans:"Switzer","Geist",-apple-system,"Segoe UI",system-ui,sans-serif;
+  --mono:"Martian Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:16px; --shadow:0 1px 0 rgba(13,22,28,.04), 0 12px 32px -18px rgba(13,22,28,.28);
+  /* the picture */
+  --sky:#F7FAFB; --ground:#C9D6CC; --grey:#DEE4E8; --greyline:#9AA7B1; --roof:#5E6E79; --glass:#CFE3EA;
+  --fresh:#3BD8E9; --fresh2:#9FE8F1;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--sans);font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+h1,h2,h3,p{margin:0}
+:focus-visible{outline:3px solid var(--teal);outline-offset:3px;border-radius:8px}
+.mono{font-family:var(--mono)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ───────── mockup-only bar ───────── */
+.mockbar{background:var(--ink);color:#C9D3D9;font-size:13px;display:flex;align-items:center;gap:6px;padding:7px 14px;overflow-x:auto;white-space:nowrap}
+.mockbar b{color:#fff;font-weight:600;margin-right:4px}
+.mockbar button{background:none;border:1px solid #33424D;color:#DCE4E8;border-radius:99px;padding:5px 12px;font-size:13px}
+.mockbar button.on{background:var(--paint);border-color:var(--paint);color:var(--paint-ink);font-weight:600}
+.mockbar .sp{flex:1}
+
+/* ───────── header ───────── */
+.top{position:sticky;top:0;z-index:30;background:rgba(242,245,246,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;padding:0 20px;height:56px;display:flex;align-items:center;gap:16px;position:relative}
+.logo{font-weight:700;letter-spacing:.02em;font-size:17px;color:var(--ink);text-decoration:none;flex:none}
+.logo span{color:#7B8791;font-weight:600}
+.logo i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--paint);margin-left:3px;transform:translateY(-8px)}
+.rail{flex:1;min-width:0;display:flex;justify-content:center;overflow:hidden}
+.rail ol{max-width:100%}
+.rail ol{display:flex;gap:14px;margin:0;padding:0;list-style:none}
+.rail li{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--muted);white-space:nowrap}
+.rail .n{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;font-size:11.5px;font-family:var(--mono);background:var(--card);flex:none}
+.rail li.done .n{background:var(--teal);border-color:var(--teal);color:#fff}
+.rail li.cur{color:var(--ink);font-weight:600}
+.rail li.cur .l{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:420px){.rail li.cur .l{max-width:96px}}
+.rail li.cur .n{border-color:var(--ink);background:var(--ink);color:#fff}
+.rail li:not(.cur) span.l{display:none}
+@media (min-width:1100px){.rail li span.l{display:inline}}
+@media (max-width:700px){.rail ol{gap:8px}.rail li:not(.cur) .n{width:9px;height:9px;font-size:0;border-width:1.5px}.rail li.done .n{background:var(--teal)}}
+.stripe{position:absolute;left:0;bottom:-1px;height:3px;background:var(--paint);transition:width .5s cubic-bezier(.2,.7,.2,1);border-radius:0 3px 3px 0}
+.tel{font-family:var(--mono);font-size:13.5px;color:var(--ink);text-decoration:none;font-weight:600;display:flex;align-items:center;gap:6px;flex:none;margin-left:auto}
+.tel svg{width:16px;height:16px}
+.tel span{display:none}
+@media (min-width:700px){.tel span{display:inline}}
+.saved{font-size:13px;color:var(--green);display:none;align-items:center;gap:5px;flex:none}
+@media (min-width:900px){.saved{display:flex}}
+@media (min-width:901px){.top-in{height:64px;padding:0 24px}}
+
+/* ───────── stage: questions + the live picture ───────── */
+.stage{max-width:1240px;margin:0 auto;padding:20px 16px 130px;display:grid;grid-template-columns:1fr;gap:18px}
+.pane{min-width:0;max-width:640px}
+.kick{font-size:14px;color:var(--teal);font-weight:600;margin-bottom:6px}
+h1{font-size:clamp(27px,3.4vw,42px);line-height:1.08;letter-spacing:-.03em;font-weight:600;color:var(--ink);text-wrap:balance}
+.sub{color:var(--muted);font-size:16.5px;margin-top:10px;max-width:34em}
+.q{margin-top:26px}
+.q > h2{font-size:18.5px;font-weight:600;letter-spacing:-.01em;color:var(--ink);display:flex;align-items:center;gap:8px}
+.q > .hint{color:var(--muted);font-size:15px;margin-top:3px}
+.q > .body{margin-top:10px}
+.tag{font-size:12.5px;font-weight:500;color:var(--muted);background:var(--soft);border-radius:99px;padding:2px 9px}
+.enter .pane > *{animation:rise .45s both cubic-bezier(.2,.7,.2,1)}
+.enter .pane > *:nth-child(2){animation-delay:.05s}.enter .pane > *:nth-child(3){animation-delay:.1s}.enter .pane > *:nth-child(4){animation-delay:.15s}.enter .pane > *:nth-child(5){animation-delay:.2s}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* picture card */
+.side{position:sticky;top:60px;z-index:5}
+.pic{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);overflow:hidden}
+.pic .ph{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 0;font-size:13.5px;color:var(--muted)}
+.pic .ph b{color:var(--ink);font-weight:600}
+.pic svg{display:block;width:100%;height:auto}
+.pic .pf{padding:8px 14px 12px;font-size:13.5px;color:var(--muted);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pic .pf b{color:var(--ink);font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--fresh);vertical-align:-1px;margin-right:4px}
+.dot.g{background:var(--grey);border:1px solid var(--greyline)}
+.compass{display:flex;gap:6px}
+.compass button{border:1.5px solid var(--line2);background:var(--card);border-radius:99px;padding:3px 10px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.compass button.ok{border-color:var(--teal);color:var(--teal);background:var(--wash)}
+.compass button.cur{background:var(--ink);border-color:var(--ink);color:#fff}
+.compass button.skip{text-decoration:line-through;opacity:.6}
+@media (max-width:900px){
+  .side{top:56px;margin:-4px -4px 0}
+  .pic{border-radius:16px}
+  .pic svg{max-height:34vh}
+  .pane{order:2}
+}
+@media (min-width:901px){
+  .stage{grid-template-columns:minmax(0,1fr) 440px;gap:56px;padding:40px 24px 130px;align-items:start}
+  .side{top:88px}
+  .q{margin-top:34px}
+}
+
+/* ───────── controls ───────── */
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media (min-width:560px){.cards{grid-template-columns:repeat(3,1fr)}}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:10px 10px 12px;text-align:left;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,transform .15s,box-shadow .15s;position:relative;min-width:0}
+.card svg{width:100%;height:auto;display:block}
+.card b{font-size:15px;font-weight:600;color:var(--ink);line-height:1.2}
+.card small{font-size:12.5px;color:var(--muted);line-height:1.3}
+.card:hover{border-color:var(--line2);transform:translateY(-1px)}
+.card.on{border-color:var(--teal);background:var(--wash);box-shadow:0 0 0 2px var(--wash2) inset}
+.card.on::after{content:"";position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:var(--teal);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4L19 7'/%3E%3C/svg%3E");background-size:12px;background-position:center;background-repeat:no-repeat}
+.cards.one{grid-template-columns:1fr}
+.cards.two{grid-template-columns:repeat(2,1fr)}
+.cards.four{grid-template-columns:repeat(2,1fr)}
+@media (min-width:560px){.cards.four{grid-template-columns:repeat(4,1fr)}}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1.5px solid var(--line2);background:var(--card);border-radius:99px;padding:9px 14px 9px 10px;font-size:15px;font-weight:500;color:var(--ink);min-height:44px;transition:all .15s}
+.chip .bx{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;flex:none;background:var(--card)}
+.chip .bx svg{width:11px;height:11px;opacity:0;stroke:#fff}
+.chip.on{border-color:var(--teal);background:var(--wash)}
+.chip.on .bx{background:var(--teal);border-color:var(--teal)}
+.chip.on .bx svg{opacity:1}
+.chip.off{opacity:.55;text-decoration:line-through}
+.chip .ic{width:22px;height:22px;flex:none}
+.chip .mono{font-size:12.5px;color:var(--muted)}
+.chip.plain{border-style:dashed;color:var(--muted);font-weight:500}
+.chip.hl{box-shadow:0 0 0 3px var(--wash2)}
+
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{border:1.5px solid var(--line2);background:var(--card);border-radius:12px;padding:10px 14px;font-size:15px;font-weight:500;min-height:44px;color:var(--ink)}
+.pill.on{border-color:var(--teal);background:var(--wash);font-weight:600}
+.pill.amber.on{border-color:var(--amber-line);background:var(--amber-wash);color:var(--amber)}
+
+.group{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:12px}
+.group > h3{font-size:14px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.group > h3 span{font-weight:500;font-size:13px}
+.follow{margin-top:12px;padding:12px 14px;border-left:3px solid var(--paint);background:var(--card);border-radius:0 12px 12px 0}
+.follow h4{margin:0 0 8px;font-size:15.5px;font-weight:600}
+.follow p{font-size:14px;color:var(--muted);margin:0 0 8px}
+
+.count{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.count:first-of-type{border-top:0}
+.count .t{font-size:15.5px;font-weight:500}
+.count .t small{display:block;color:var(--muted);font-size:13px;font-weight:400}
+.stepper{display:inline-flex;align-items:center;border:1.5px solid var(--line2);border-radius:99px;background:var(--card)}
+.stepper button{width:42px;height:42px;border:0;background:none;font-size:22px;color:var(--ink);border-radius:99px}
+.stepper button:disabled{opacity:.3}
+.stepper span{min-width:34px;text-align:center;font-family:var(--mono);font-size:16px;font-weight:600}
+
+.sizeline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.sizeline .m{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--ink)}
+.adj{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.adj label{font-size:13.5px;color:var(--muted);display:block}
+.adj .stepper{margin-top:4px;width:100%;justify-content:space-between}
+.adj .stepper span{flex:1}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:99px;padding:14px 22px;font-size:16.5px;font-weight:600;border:1.5px solid transparent;min-height:52px}
+.btn.pri{background:var(--paint);color:var(--paint-ink)}
+.btn.pri:hover{background:#2FCBDC}
+.btn.sec{background:var(--card);border-color:var(--line2);color:var(--ink)}
+.btn.sec:hover{border-color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn svg{width:18px;height:18px}
+.link{background:none;border:0;color:var(--teal);font-weight:600;font-size:15px;padding:0;text-decoration:underline;text-underline-offset:3px}
+
+/* sticky footer */
+.foot{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line)}
+.foot-in{max-width:1240px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px}
+.foot .prog{flex:1;min-width:0;font-size:13.5px;color:var(--muted)}
+.foot .prog b{display:block;color:var(--ink);font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foot .prog{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foot .btn{flex:none}
+.foot .back{background:none;border:0;color:var(--muted);font-weight:600;font-size:15px;padding:8px 4px}
+@media (min-width:901px){.foot-in{padding:12px 24px}}
+
+/* walk-around */
+.walk-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
+.walk-steps button{border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:8px 6px;font-size:13px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:4px}
+.walk-steps button .n{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;font-size:11px;font-family:var(--mono)}
+.walk-steps button.ok{border-color:var(--teal);color:var(--teal)}
+.walk-steps button.ok .n{background:var(--teal);border-color:var(--teal);color:#fff}
+.walk-steps button.cur{border-color:var(--ink);color:var(--ink);background:var(--card)}
+.walk-steps button.cur .n{background:var(--ink);border-color:var(--ink);color:#fff}
+.walk-steps button.skip{opacity:.55}
+.walk-steps button.skip span.l{text-decoration:line-through}
+.sidehead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-top:22px}
+.sidehead h2{font-size:24px;letter-spacing:-.02em;font-weight:600;color:var(--ink)}
+.sidehead p{color:var(--muted);font-size:15px;margin-top:2px}
+.notpaint{font-size:14px;color:var(--muted);background:none;border:1.5px solid var(--line2);border-radius:99px;padding:7px 12px;white-space:nowrap;flex:none}
+.notpaint.on{border-color:var(--amber-line);background:var(--amber-wash);color:var(--amber)}
+.done-card{margin-top:14px;padding:14px 16px;border-radius:14px;background:var(--wash);border:1px solid var(--wash2);display:flex;gap:12px;align-items:center;font-weight:600}
+.done-card .av{width:34px;height:34px;border-radius:50%;background:var(--teal);color:#fff;display:grid;place-items:center;flex:none}
+.done-card .av svg{width:16px;height:16px}
+
+/* range */
+.price{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:var(--shadow)}
+.price .lab{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted)}
+.price .num{font-family:var(--mono);font-size:clamp(28px,4vw,40px);font-weight:600;color:var(--ink);margin-top:6px;letter-spacing:-.02em}
+.price .gst{font-size:13.5px;color:var(--muted)}
+.tier{font-size:12.5px;font-weight:600;border-radius:99px;padding:3px 10px;background:var(--amber-wash);color:var(--amber);border:1px solid var(--amber-line)}
+.tier.det{background:var(--wash);color:var(--teal);border-color:var(--wash2)}
+.band{position:relative;height:12px;border-radius:99px;background:var(--soft);margin-top:16px;overflow:hidden}
+.band .was{position:absolute;top:0;bottom:0;border:1.5px dashed var(--line2);border-radius:99px}
+.band .now{position:absolute;top:0;bottom:0;background:var(--paint);border-radius:99px;transition:all .5s cubic-bezier(.2,.7,.2,1)}
+.bandlab{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-top:6px}
+.rows{margin-top:14px;border-top:1px solid var(--line)}
+.row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.row small{display:block;color:var(--muted);font-size:13px}
+.row .mono{font-size:14px;white-space:nowrap}
+.doors{display:grid;gap:10px;margin-top:16px}
+.door{display:flex;align-items:center;gap:14px;background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:14px 16px;text-align:left}
+.door .ic{width:40px;height:40px;border-radius:12px;background:var(--wash);display:grid;place-items:center;color:var(--teal);flex:none}
+.door .ic svg{width:20px;height:20px}
+.door b{display:block;font-size:16px;font-weight:600;color:var(--ink)}
+.door small{color:var(--muted);font-size:13.5px}
+.door.pri{border-color:var(--paint);background:#F3FCFD}
+.est{display:flex;gap:12px;align-items:center;margin-top:18px;padding:14px;border-radius:14px;background:var(--card);border:1px solid var(--line)}
+.est .av{width:44px;height:44px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:600;font-size:15px;flex:none}
+.est p{font-size:14.5px;color:var(--muted)}
+.est b{color:var(--ink)}
+.ptier{font-size:13px;color:var(--muted);margin-top:10px}
+
+/* gate */
+.field{display:block;margin-top:12px}
+.field span{display:block;font-size:14px;color:var(--muted);margin-bottom:4px}
+.field input{width:100%;border:1.5px solid var(--line2);border-radius:12px;padding:12px 14px;font-size:17px;background:var(--card)}
+.field input:focus{border-color:var(--teal);outline:none;box-shadow:0 0 0 3px var(--wash2)}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--muted);margin-top:12px}
+.sofar{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.sofar h3{font-size:14px;color:var(--muted);font-weight:600;margin-bottom:6px}
+.sofar li{font-size:14.5px;padding:3px 0;display:flex;justify-content:space-between;gap:10px}
+.sofar ul{margin:0;padding:0;list-style:none}
+.sofar li .mono{font-size:13px;color:var(--muted)}
+
+.note{margin-top:12px;font-size:14px;color:var(--muted);padding:10px 14px;background:var(--soft);border-radius:12px}
+.note.amber{background:var(--amber-wash);color:var(--amber)}
+.hl-flash{animation:flash .6s}
+@keyframes flash{0%{filter:brightness(1.6)}100%{filter:none}}
+
+/* the picture's tappable parts */
+.elev .e{cursor:pointer}
+.elev .e.hl > *{stroke:#0A7C8E!important;stroke-width:2.5!important;stroke-opacity:1!important}
+.elev .e:hover > *{filter:brightness(.96)}
+.elev.np .e{cursor:default}
+
+.topv{display:block;width:100%;max-width:420px;margin:0 auto;height:auto}
+.topv .tv{cursor:pointer}
+
+</style>
+</head>
+<body>
+<div class="mockbar" aria-label="Mockup controls">
+  <b>Screen</b>
+  <button data-a="jump" data-v="home">Home type</button>
+  <button data-a="jump" data-v="paint">Painting</button>
+  <button data-a="jump" data-v="about">About it</button>
+  <button data-a="jump" data-v="sides">Sides</button>
+  <button data-a="jump" data-v="gate">Details</button>
+  <button data-a="jump" data-v="range">Range</button>
+  <button data-a="jump" data-v="walk">Tighten</button>
+  <span class="sp"></span>
+  <b>Try</b>
+  <button data-a="preset" data-v="cal">Bungalow</button>
+  <button data-a="preset" data-v="th">Townhouse</button>
+  <button data-a="preset" data-v="terrace">Terrace</button>
+  <button data-a="reset">Reset</button>
+</div>
+
+<header class="top">
+  <div class="top-in">
+    <a class="logo" href="#">PAINT<span>GROUP</span><i></i></a>
+    <nav class="rail" aria-label="Progress"><ol id="rail"></ol></nav>
+    <span class="saved" id="saved">✓ Saved</span>
+    <a class="tel" href="tel:1300000000"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.6a2 2 0 0 1-.5 2.1L8.1 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.8.3 1.7.6 2.6.7a2 2 0 0 1 1.9 2z"/></svg><span>1300 00 00 00</span></a>
+    <div class="stripe" id="stripe"></div>
+  </div>
+</header>
+
+<main class="stage" id="stage">
+  <section class="pane" id="pane" aria-live="polite"></section>
+  <aside class="side" id="side">
+    <div class="pic" id="pic"></div>
+  </aside>
+</main>
+
+<footer class="foot" id="foot"><div class="foot-in" id="footin"></div></footer>
+
+<script>
+/* ───────────────────────── data ───────────────────────── */
+/* The home TYPE is the shape of the house (storeys, roof, verandah, shared walls) and its typical sizes.
+   What the walls are made of is asked separately, after "what are we painting", and redraws the picture. */
+const TYPES = {
+  wb:     { n:'Weatherboard home', s:'Single storey, hipped roof, a porch', storeys:1, roof:'hip', verandah:true, walls:'boards', front:11, side:14, h:2.7 },
+  cal:    { n:'Californian bungalow', s:'Gables, deep eaves, front verandah', storeys:1, roof:'gable', gfill:'stucco', verandah:true, posts:'columns', walls:'boards', front:12, side:16, h:3.0, rise:2.4 },
+  brick:  { n:'Brick veneer home', s:'Walls usually left bare', storeys:1, roof:'hip', walls:'brick', bare:true, front:12, side:15, h:2.5 },
+  ds:     { n:'Double-storey home', s:'Two levels', storeys:2, roof:'hip', walls:'brick', up:'render', front:12, side:14, h:5.6 },
+  th:     { n:'Townhouse', s:'Two storeys, shares a wall or two', storeys:2, roof:'hip', walls:'render', front:7, side:14, h:5.6, shared:['left','right'] },
+  unit:   { n:'Unit or villa', s:'Single storey, shares a wall', storeys:1, roof:'hip', walls:'brick', bare:true, front:9, side:12, h:2.5, shared:['left'] },
+  terrace:{ n:'Period terrace', s:'Parapet, iron lace, tall windows', storeys:1, roof:'parapet', verandah:true, posts:'lace', walls:'render', front:6, side:16, h:3.6, rise:0.9, shared:['left','right'] },
+  modern: { n:'Modern home', s:'Flat or skillion roof, mixed cladding', storeys:1, roof:'skillion', walls:'sheet', front:12, side:14, h:3.0, rise:1.1 },
+  other:  { n:'Something else', s:'Or not sure — we draw a plain house', storeys:1, roof:'hip', walls:'boards', front:12, side:14, h:2.7, unsure:true },
+};
+const TYPE_ORDER = ['wb','cal','brick','ds','th','unit','terrace','modern','other'];
+
+const SIZES = [
+  ['sm','Small','Up to 120 m² · 2 bedrooms',100],
+  ['md','Medium','120–200 m² · 3 bedrooms',160],
+  ['lg','Large','200–300 m² · 4 bedrooms',250],
+  ['xl','Very large','Over 300 m²',340],
+  ['ns','Not sure','We size it from the type',160],
+];
+
+/* Wall materials — every one is a rate row on the card (the stain row is Cutek). */
+const MATS = {
+  boards:   { l:'Weatherboards', rate:4.61, code:'Weatherboards' },
+  render:   { l:'Render', rate:5.99, code:'Render' },
+  brick:    { l:'Brick', rate:5.99, code:'Brick' },
+  stucco:   { l:'Stucco', rate:6.91, code:'Stucco' },
+  sheet:    { l:'Cement sheet / panel', rate:5.99, code:'Cement Sheet' },
+  colorbond:{ l:'Colorbond / metal', rate:6.91, code:'Colorbond Cladding' },
+  vtimber:  { l:'Vertical timber (stain)', rate:5.76, code:'Cutek', stain:true },
+  concrete: { l:'Tilt slab / concrete', rate:5.99, code:'Concrete / Tilt Slab' },
+};
+const GABLE_FILL = { stucco:'Stucco', shingles:'Shingles', boards:'Weatherboards', strap:'Strapping over render' };
+const WIN = {
+  casement:{ l:'Casement', h:'Hinged, opens out', hrs:1.88 },
+  sash:    { l:'Sash', h:'Slides up and down', hrs:2.5 },
+  colonial:{ l:'Colonial', h:'Small panes, lots of bars', hrs:3.74 },
+  winder:  { l:'Louvre / winder', h:'Priced as casement', hrs:1.88 },
+  alu:     { l:'Aluminium', h:'Usually not painted', hrs:0 },
+  unsure:  { l:'Not sure', h:'Priced as a plain window', hrs:1.56 },
+};
+
+/* Parts of the house. grp = the group on the Painting screen. dflt = which sides a whole-house tick lands on
+   (any part can be added to any side on the walk-around). needs = only offered once that part is ticked. */
+const PARTS = [
+  { k:'walls',     l:'The walls',             grp:'house' },
+  { k:'gable',     l:'Gable ends',            grp:'house', dflt:'gable' },
+  { k:'fascias',   l:'Fascias',               grp:'roof' },
+  { k:'gutters',   l:'Gutters',               grp:'roof' },
+  { k:'downpipes', l:'Downpipes',             grp:'roof' },
+  { k:'eaves',     l:'Eaves',                 grp:'roof' },
+  { k:'windows',   l:'Windows',               grp:'open' },
+  { k:'doors',     l:'Doors',                 grp:'open' },
+  { k:'garage',    l:'Garage door',           grp:'open', dflt:['front'] },
+  { k:'shutters',  l:'Window shutters',       grp:'open', dflt:['front'] },
+  { k:'verandah',  l:'Verandah or porch',     grp:'ver',  dflt:['front'] },
+  { k:'posts',     l:'Posts / columns',       grp:'ver',  dflt:['front'], needs:'verandah' },
+  { k:'vceiling',  l:'Verandah ceiling',      grp:'ver',  dflt:['front'], needs:'verandah' },
+  { k:'handrail',  l:'Handrail / balustrade', grp:'ver',  dflt:['front'], needs:'verandah' },
+];
+const PART = Object.fromEntries(PARTS.map(p=>[p.k,p]));
+const EXTRAS = [
+  ['paling','Paling fence','lm'], ['picket','Picket fence','lm'], ['deck','Deck','m2'], ['pergola','Pergola','m2'],
+  ['shed','Shed / garage','flat'], ['bwall','Boundary wall','lm'], ['gate','Side gate','flat'], ['meter','Meter box','flat'], ['secdoor','Security door','flat'],
+];
+const SIDE_ORDER = ['front','right','back','left'];
+const SIDE_LABEL = { front:'Front', right:'Right side', back:'Back', left:'Left side' };
+const SIDE_HINT = { front:'The street side', right:'Looking from the street', back:'The back of the house', left:'Looking from the street' };
+
+/* ───────────────────────── state ───────────────────────── */
+let S;
+function freshState(){
+  return {
+    step:'home', type:null, size:null,
+    wall:{ m1:null, m2:null }, brickPainted:'yes',
+    gfill:'stucco', win:'unsure', garageCars:1, postKind:'posts',
+    parts:new Set(), extras:new Set(), extraSize:{ paling:20, picket:15, deck:20, pergola:12, bwall:8 },
+    sides:{}, walkAt:0, addOpen:false, endOf:'mid',   // for shared-wall shapes: mid | left | right | both (which side walls are open)
+    colour:'new', access:new Set(), contact:{name:'',email:'',phone:''}, marketing:false,
+    highlight:null, gated:false,
+  };
+}
+const T = () => TYPES[S.type] || TYPES.other;
+const typicalFront = () => { const t=T(); const sz=SIZES.find(x=>x[0]===S.size); const m2 = sz ? sz[3] : (t.front*t.side); const fp = m2 / t.storeys; const asp = t.side/t.front; return Math.round(Math.sqrt(fp/asp)*2)/2; };
+const typicalSide  = () => { const t=T(); return Math.round(typicalFront()*(t.side/t.front)*2)/2; };
+const gableSides = () => T().roof==='gable' ? ['front','back'] : ['front'];
+/** Which of the shape's usual shared sides are actually open (an end of terrace, an end townhouse). */
+const sharedSides = () => { const t=T(); const sh = t.shared||[]; const open = S.endOf==='both' ? ['left','right'] : S.endOf==='left' ? ['left'] : S.endOf==='right' ? ['right'] : []; return sh.filter(k=>!open.includes(k)); };
+const defaultSides = (k) => { const p = PART[k]; if (!p || !p.dflt) return SIDE_ORDER; return p.dflt==='gable' ? gableSides() : p.dflt; };
+
+function setType(k){
+  S.type = k; const t = TYPES[k];
+  S.wall = { m1: t.walls, m2: t.storeys===2 ? (t.up || null) : null };   // m1 = the walls (downstairs on a double storey); m2 = upstairs, null = same
+  S.gfill = t.gfill || 'stucco';
+  S.postKind = t.posts || 'posts';
+  S.parts = new Set();           // nothing is ticked for the customer (C8b)
+  S.sides = {}; S.endOf = 'mid';
+  seedSides();
+}
+function seedSides(){
+  const t=T(); const f=typicalFront(), s=typicalSide();
+  for (const k of SIDE_ORDER){
+    const w = (k==='front'||k==='back') ? f : s;
+    const shared = sharedSides().includes(k);
+    const prev = S.sides[k];
+    S.sides[k] = { paint: prev ? prev.paint : !shared, shared, w, h: t.h, off: prev ? prev.off : new Set(), add: prev ? prev.add : new Set(), mat: prev ? prev.mat : null, mat2: prev ? prev.mat2 : null, conf: prev ? prev.conf : false,
+      windows: Math.max(t.storeys, Math.round(w/((k==='left'||k==='right')?5:4.5)*t.storeys)), doors: k==='front'||k==='back' ? 1 : 0,
+      cond: prev ? prev.cond : null, size:null, ok:false, adj:false };
+  }
+}
+/** The end-of-row answer changed: re-seed which sides start as shared. */
+function reseedShared(){ for (const k of ['left','right']){ const sd=S.sides[k]; if(!sd) continue; const shared = sharedSides().includes(k); sd.shared = shared; sd.paint = !shared; sd.conf = shared; sd.ok = shared; } }
+function resizeSides(){ const f=typicalFront(), s=typicalSide(); for (const k of SIDE_ORDER){ const sd=S.sides[k]; if(!sd) continue; if(!sd.adj){ sd.w = (k==='front'||k==='back') ? f : s; sd.h = T().h; } } }
+/** Is this part being painted on this side? */
+const partOn = (k, side) => {
+  if (!side) return S.parts.has(k);
+  const sd = S.sides[side]; if (!sd) return S.parts.has(k);
+  if (sd.add.has(k)) return true;
+  return S.parts.has(k) && defaultSides(k).includes(side) && !sd.off.has(k);
+};
+/** Does the house HAVE this part on this side (drawn grey when not painted)? */
+const exists = (k, side) => {
+  const t = T(); const sd = S.sides[side];
+  if (['walls','fascias','gutters','downpipes','eaves','windows','doors'].includes(k)) return true;
+  if (k==='gable') return (t.roof==='gable' && (side==='front'||side==='back')) || partOn('gable', side);
+  if (k==='verandah') return (t.verandah && side==='front') || partOn('verandah', side);
+  if (k==='posts'||k==='vceiling'||k==='handrail') return exists('verandah', side) && (partOn(k, side) || (S.parts.has(k) && defaultSides(k).includes(side)));
+  if (k==='garage'||k==='shutters') return partOn(k, side) || (S.parts.has(k) && defaultSides(k).includes(side));
+  return partOn(k, side);
+};
+const sideMat = (side) => (S.sides[side] && S.sides[side].mat) || S.wall.m1 || T().walls;
+const sideMat2 = (side) => T().storeys===2 ? ((S.sides[side] && S.sides[side].mat2) || S.wall.m2 || null) : null;
+const anyBrick = () => [S.wall.m1, S.wall.m2, ...SIDE_ORDER.map(k=>S.sides[k]&&S.sides[k].mat), ...SIDE_ORDER.map(k=>S.sides[k]&&S.sides[k].mat2)].includes('brick');
+
+/* ───────────────────────── the picture ───────────────────────── */
+const C = { stain:'#A4683F', line:'#9AA7B1', roof:'#5E6E79', roof2:'#4A5964', glass:'#CFE3EA', ground:'#C9D6CC', timber:'#B79C78' };
+const ON = { walls:'#8EE4F0', gable:'#3BD8E9', fascias:'#0E9FB4', gutters:'#0A7C8E', eaves:'#2BBCD0', downpipes:'#0A7C8E', windows:'#0E9FB4', doors:'#0A7C8E', garage:'#3BD8E9', verandah:'#0E9FB4', posts:'#0E9FB4', vceiling:'#8EE4F0', handrail:'#0A7C8E', shutters:'#0A7C8E' };
+const OFF = { walls:'#E3E8EC', vceiling:'#E3E8EC', gable:'#DCE2E6' };
+const col = (k, on) => on ? (ON[k]||'#3BD8E9') : (OFF[k]||'#C9D2D8');
+
+function pattern(mat, id){
+  switch(mat){
+    case 'boards':   return `<pattern id="${id}" width="8" height="7" patternUnits="userSpaceOnUse"><path d="M0 6.5H8" stroke="#16212A" stroke-opacity=".22"/></pattern>`;
+    case 'brick':    return `<pattern id="${id}" width="14" height="8" patternUnits="userSpaceOnUse"><path d="M0 .5H14M0 4.5H14M4 .5V4.5M11 4.5V8" stroke="#16212A" stroke-opacity=".2" fill="none"/></pattern>`;
+    case 'render':   return `<pattern id="${id}" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".5" fill="#16212A" fill-opacity=".10"/></pattern>`;
+    case 'stucco':   return `<pattern id="${id}" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r=".9" fill="#16212A" fill-opacity=".16"/><circle cx="3.8" cy="3.6" r=".6" fill="#16212A" fill-opacity=".12"/></pattern>`;
+    case 'sheet':    return `<pattern id="${id}" width="26" height="26" patternUnits="userSpaceOnUse"><path d="M25.5 0V26M0 25.5H26" stroke="#16212A" stroke-opacity=".22"/></pattern>`;
+    case 'colorbond':return `<pattern id="${id}" width="5" height="5" patternUnits="userSpaceOnUse"><path d="M1.5 0V5" stroke="#16212A" stroke-opacity=".22" stroke-width="1.6"/></pattern>`;
+    case 'vtimber':  return `<pattern id="${id}" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M3.5 0V7" stroke="#16212A" stroke-opacity=".25" stroke-width="2"/></pattern>`;
+    case 'concrete': return `<pattern id="${id}" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M39.5 0V40" stroke="#16212A" stroke-opacity=".25"/></pattern>`;
+    case 'shingles': return `<pattern id="${id}" width="10" height="6" patternUnits="userSpaceOnUse"><path d="M0 5.5h10M5 0v5.5" stroke="#16212A" stroke-opacity=".25" fill="none"/></pattern>`;
+    case 'strap':    return `<pattern id="${id}" width="20" height="14" patternUnits="userSpaceOnUse"><path d="M10 0V14" stroke="#16212A" stroke-opacity=".35" stroke-width="2.5"/></pattern>`;
+    case 'lace':     return `<pattern id="${id}" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1.6" fill="none" stroke="#16212A" stroke-opacity=".45" stroke-width=".8"/></pattern>`;
+    default: return '';
+  }
+}
+const g = (k, inner, side) => { const on = partOn(k, side); const hl = S.highlight===k; return `<g class="e e-${k} ${on?'on':''} ${hl?'hl':''}" data-e="${k}" data-on="${on?1:0}">${inner}</g>`; };
+
+function windowGlyph(x,y,w,h,on){
+  const t = S.win; const frame = on ? (t==='alu' ? C.line : ON.windows) : '#C9D2D8'; const sw = t==='alu' ? 1.2 : Math.max(2, w*0.09);
+  let bars = '';
+  if (t==='casement'||t==='winder'||t==='unsure') bars = `<path d="M${x+w/2} ${y}V${y+h}" stroke="${frame}" stroke-width="${sw}"/>`;
+  if (t==='winder') bars += [0.25,0.5,0.75].map(f=>`<path d="M${x} ${y+h*f}H${x+w}" stroke="${frame}" stroke-width="${sw*0.6}"/>`).join('');
+  if (t==='sash') bars = `<path d="M${x} ${y+h/2}H${x+w}" stroke="${frame}" stroke-width="${sw*1.4}"/>`;
+  if (t==='colonial') bars = [1/3,2/3].map(f=>`<path d="M${x+w*f} ${y}V${y+h}" stroke="${frame}" stroke-width="${sw*0.7}"/>`).join('') + [1/3,2/3].map(f=>`<path d="M${x} ${y+h*f}H${x+w}" stroke="${frame}" stroke-width="${sw*0.7}"/>`).join('');
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${C.glass}" stroke="${frame}" stroke-width="${sw}"/>${bars}`;
+}
+
+/** Draw one elevation. side: front | right | back | left. build=true draws the around-the-house extras too. */
+function elevation(side, build){
+  const t = T(); const sd = S.sides[side] || { w: typicalFront(), h: t.h, off:new Set(), add:new Set(), windows:2, doors:1, paint:true };
+  const notPainting = sd.paint === false;
+  const w = sd.w, h = sd.h;
+  const long = side==='left'||side==='right';
+  const fullGable = t.roof==='gable' && !long;
+  const terraceFront = t.roof==='parapet' && !long;
+  const riseM = fullGable ? (t.rise||2.2) : terraceFront ? (t.rise||0.9) : t.roof==='skillion' ? (t.rise||1.1) : Math.min(2.2, w*0.2);
+  const s = Math.min(280 / w, 150 / (h + riseM + 0.6), 46);   // px per metre — fits the width and the height
+  const W = w*s, H = h*s, R = riseM*s;
+  const yG = 205, yE = yG - H, x0 = 200 - W/2, x1 = 200 + W/2;
+  const ov = 10;
+  const defs = `<defs>${['boards','brick','render','stucco','sheet','colorbond','vtimber','concrete','shingles','strap','lace'].map(m=>pattern(m,'p-'+m)).join('')}</defs>`;
+  let o = `<svg viewBox="0 0 400 240" class="elev ${notPainting?'np':''}" aria-hidden="true" data-side="${side}">${defs}`;
+  o += `<rect x="0" y="${yG}" width="400" height="35" fill="${C.ground}"/>`;
+
+  // ── around-the-house extras (build view only, drawn behind the house)
+  if (build){
+    const ex = (k) => S.extras.has(k);
+    if (ex('paling')) o += `<g class="x on"><rect x="4" y="${yG-40}" width="${Math.max(10,x0-14)}" height="40" fill="${C.timber}"/>${Array.from({length:Math.floor((x0-18)/8)},(_,i)=>`<path d="M${10+i*8} ${yG-40}V${yG}" stroke="#16212A" stroke-opacity=".18"/>`).join('')}</g>`;
+    if (ex('picket')) o += `<g class="x on"><rect x="${x1+12}" y="${yG-26}" width="${Math.max(10,388-x1-12)}" height="26" fill="#fff" stroke="#16212A" stroke-opacity=".25"/>${Array.from({length:Math.floor((388-x1-12)/9)},(_,i)=>`<path d="M${x1+16+i*9} ${yG-30}l3 -5 3 5V${yG}" fill="#fff" stroke="#16212A" stroke-opacity=".3"/>`).join('')}</g>`;
+    if (ex('shed')) o += `<g class="x on"><polygon points="${x1+18},${yG-40} ${x1+48},${yG-58} ${x1+78},${yG-40}" fill="${C.roof}"/><rect x="${x1+20}" y="${yG-40}" width="56" height="40" fill="#E9EEF1" stroke="#16212A" stroke-opacity=".2"/><rect x="${x1+38}" y="${yG-26}" width="18" height="26" fill="#55636E"/></g>`;
+    if (ex('pergola')) o += `<g class="x on"><path d="M${x0-70} ${yG}V${yG-52}M${x0-14} ${yG}V${yG-52}" stroke="${C.roof}" stroke-width="5"/><path d="M${x0-80} ${yG-52}h76M${x0-80} ${yG-44}h76" stroke="${C.roof}" stroke-width="4"/>${[0,1,2,3,4].map(i=>`<path d="M${x0-66+i*13} ${yG-60}v16" stroke="${C.roof}" stroke-width="3"/>`).join('')}</g>`;
+    if (ex('deck')) o += `<g class="x on"><rect x="${x0+W*0.1}" y="${yG-6}" width="${W*0.8}" height="7" fill="#B08A5E" stroke="#16212A" stroke-opacity=".25"/>${Array.from({length:Math.floor(W*0.8/12)},(_,i)=>`<path d="M${x0+W*0.1+6+i*12} ${yG-6}v7" stroke="#16212A" stroke-opacity=".2"/>`).join('')}</g>`;
+    if (ex('gate')) o += `<g class="x on"><rect x="${x0-ov-30}" y="${yG-44}" width="22" height="44" fill="#F4F6F7" stroke="#16212A" stroke-opacity=".35"/><path d="M${x0-ov-26} ${yG-40}v36M${x0-ov-19} ${yG-40}v36M${x0-ov-12} ${yG-40}v36" stroke="#16212A" stroke-opacity=".2"/></g>`;
+    if (ex('bwall')) o += `<g class="x on"><rect x="${x1+12}" y="${yG-18}" width="${388-x1-12}" height="18" fill="#E4DED2" stroke="#16212A" stroke-opacity=".2"/><rect x="${x1+10}" y="${yG-22}" width="${392-x1-12}" height="5" fill="#C4BBA8"/></g>`;
+  }
+
+  // ── the neighbours, on a shared side (front and back views)
+  if (!long){ const sh = sharedSides(); const nb = (x, flip) => `<rect x="${x}" y="${yE-6}" width="46" height="${H+6}" fill="#E8EEF1" stroke="#B4C0C8" stroke-dasharray="3 3"/><text x="${x+23}" y="${yE+H/2+4}" text-anchor="middle" font-size="9" fill="#8A96A0" font-family="system-ui">next door</text>`; const L = side==='front' ? 'left' : 'right', Rr = side==='front' ? 'right' : 'left'; if (sh.includes(L)) o += nb(x0-ov-46); if (sh.includes(Rr)) o += nb(x1+ov); }
+  // ── roof
+  const fas = partOn('fascias', side), gut = partOn('gutters', side), eav = partOn('eaves', side);
+  const gOn = partOn('gable', side), gHas = exists('gable', side);
+  const gfillPat = S.gfill==='strap' ? 'strap' : S.gfill==='boards' ? 'boards' : S.gfill;
+  if (terraceFront){
+    // a Victorian terrace: a parapet with a cornice and a pediment, chimney pots behind
+    o += `<rect x="${x1-W*0.3-6}" y="${yE-R-18}" width="7" height="20" fill="${C.roof2}"/><rect x="${x1-W*0.3+4}" y="${yE-R-18}" width="7" height="20" fill="${C.roof2}"/>`;
+    o += g('walls', `<rect x="${x0-3}" y="${yE-R}" width="${W+6}" height="${R+4}" fill="${col('walls',partOn('walls',side))}"/><rect x="${x0-3}" y="${yE-R}" width="${W+6}" height="${R+4}" fill="url(#p-render)"/>`, side);
+    const ped = `<path d="M${200-W*0.18} ${yE-R} Q200 ${yE-R-22} ${200+W*0.18} ${yE-R} Z" fill="${col('fascias',fas)}" stroke="#16212A" stroke-opacity=".3"/>`;
+    const dent = Array.from({length:Math.floor((W+6)/9)},(_,i)=>`<rect x="${x0-2+i*9}" y="${yE-R+8}" width="4" height="4" fill="#16212A" fill-opacity=".25"/>`).join('');
+    o += g('fascias', `<rect x="${x0-7}" y="${yE-R-4}" width="${W+14}" height="7" fill="${col('fascias',fas)}" stroke="#16212A" stroke-opacity=".3"/>${ped}${dent}<rect x="${x0-5}" y="${yE-R+16}" width="${W+10}" height="3" fill="${col('fascias',fas)}"/>`, side);
+    // a terrace has no eaves on the street side; gutters sit behind the parapet
+    o += g('gutters', `<rect x="${x0-3}" y="${yE+2}" width="${W+6}" height="3" fill="${col('gutters',gut)}" fill-opacity=".9"/>`, side);
+  } else if (fullGable){
+    const apex = yE - R;
+    o += `<polygon points="${x0-ov},${yE} 200,${apex} ${x1+ov},${yE}" fill="${C.roof}"/>`;
+    const inset = 9; const gy = yE - inset*0.6; const gx0 = x0 - ov + inset*1.6, gx1 = x1 + ov - inset*1.6; const gapex = apex + inset*1.9;
+    o += g('gable', `<polygon points="${gx0},${gy} 200,${gapex} ${gx1},${gy}" fill="${col('gable',gOn)}"/><polygon points="${gx0},${gy} 200,${gapex} ${gx1},${gy}" fill="url(#p-${gfillPat})"/>`, side);
+    o += g('fascias', `<path d="M${x0-ov} ${yE}L200 ${apex}L${x1+ov} ${yE}" fill="none" stroke="${col('fascias',fas)}" stroke-width="5" stroke-linejoin="round"/>`, side);
+    o += g('eaves', `<path d="M${x0-ov} ${yE+3}L${x0+2} ${yE+3}M${x1-2} ${yE+3}L${x1+ov} ${yE+3}" stroke="${col('eaves',eav)}" stroke-width="5"/>`, side);
+  } else {
+    // hipped / skillion / the long side of any roof: a trapezoid, with a cross-gable on top when this side has a gable
+    const k = t.roof==='skillion' ? 0.08 : 0.26;
+    const top = yE - R; const tx0 = x0 - ov + W*k, tx1 = x1 + ov - W*k;
+    if (t.roof==='skillion') o += `<polygon points="${x0-ov},${yE} ${x0-ov+6},${top} ${x1+ov-6},${top+R*0.45} ${x1+ov},${yE}" fill="${C.roof}"/>`;
+    else o += `<polygon points="${x0-ov},${yE} ${tx0},${top} ${tx1},${top} ${x1+ov},${yE}" fill="${C.roof}"/>`;
+    if (t.roof==='gable' && long) o += `<path d="M${tx0} ${top}H${tx1}" stroke="${C.roof2}" stroke-width="3"/>`;
+    if (gHas && t.roof!=='skillion'){
+      const gw = W*0.5, gx0 = 200-gw/2, gx1 = 200+gw/2, gR = Math.min(R*1.05, 1.9*s); const apex = yE - gR;
+      o += `<polygon points="${gx0-6},${yE} 200,${apex-4} ${gx1+6},${yE}" fill="${C.roof2}"/>`;
+      o += g('gable', `<polygon points="${gx0+4},${yE-3} 200,${apex+8} ${gx1-4},${yE-3}" fill="${col('gable',gOn)}"/><polygon points="${gx0+4},${yE-3} 200,${apex+8} ${gx1-4},${yE-3}" fill="url(#p-${gfillPat})"/>`, side);
+      o += g('fascias', `<path d="M${gx0-6} ${yE}L200 ${apex-4}L${gx1+6} ${yE}" fill="none" stroke="${col('fascias',fas)}" stroke-width="4" stroke-linejoin="round"/>`, side);
+    }
+    o += g('fascias', `<rect x="${x0-ov-2}" y="${yE-1}" width="${W+ov*2+4}" height="6" fill="${col('fascias',fas)}" stroke="#16212A" stroke-opacity=".2"/>`, side);
+    o += g('eaves', `<rect x="${x0-ov}" y="${yE+5}" width="${W+ov*2}" height="4" fill="${col('eaves',eav)}"/>`, side);
+    o += g('gutters', `<rect x="${x0-ov-4}" y="${yE-6}" width="${W+ov*2+8}" height="5" rx="2.5" fill="${col('gutters',gut)}" stroke="#16212A" stroke-opacity=".25"/>`, side);
+  }
+  if ((S.type==='wb'||S.type==='cal') && side==='front') o += `<rect x="${x1-W*0.22}" y="${yE-R-14}" width="12" height="${R*0.7+14}" fill="${C.roof2}"/>`;
+
+  // ── walls — this side's material, with an optional second material lower down
+  const wOn = partOn('walls', side);
+  const m1 = sideMat(side), m2 = sideMat2(side);
+  const wallTop = yE + (terraceFront ? 0 : 8);
+  const wc = (m) => wOn ? (MATS[m]?.stain ? C.stain : ON.walls) : OFF.walls;
+  let walls = `<rect x="${x0}" y="${wallTop}" width="${W}" height="${yG-wallTop}" fill="${wc(m1)}"/><rect x="${x0}" y="${wallTop}" width="${W}" height="${yG-wallTop}" fill="url(#p-${m1})"/>`;
+  if (m2 && m2!==m1){ const upH = yE + H/2 - wallTop; walls += `<rect x="${x0}" y="${wallTop}" width="${W}" height="${upH}" fill="${wc(m2)}"/><rect x="${x0}" y="${wallTop}" width="${W}" height="${upH}" fill="url(#p-${m2})"/><path d="M${x0} ${yE+H/2}H${x1}" stroke="#16212A" stroke-opacity=".3"/>`; }
+  o += g('walls', walls, side);
+  o += `<rect x="${x0}" y="${wallTop}" width="${W}" height="${yG-wallTop}" fill="none" stroke="#16212A" stroke-opacity=".28"/>`;
+  if (t.storeys===2) o += `<path d="M${x0} ${yE+H/2}H${x1}" stroke="#16212A" stroke-opacity=".12"/>`;
+
+  // ── downpipes
+  const dpN = w > 10 ? 2 : 1;
+  const dpOn = partOn('downpipes', side);
+  o += g('downpipes', `<rect x="${x1+ov-1}" y="${yE}" width="4" height="${H}" fill="${col('downpipes',dpOn)}" stroke="#16212A" stroke-opacity=".25"/>${dpN>1?`<rect x="${x0-ov-3}" y="${yE}" width="4" height="${H}" fill="${col('downpipes',dpOn)}" stroke="#16212A" stroke-opacity=".25"/>`:''}`, side);
+
+  // ── verandah — on whichever side has one
+  const verHas = exists('verandah', side), ver = partOn('verandah', side);
+  const garHere = exists('garage', side);
+  let vx0 = x0 + W*0.06, vx1 = x1 - W*0.06; if (garHere) vx1 = x1 - W*0.42;
+  const vyTop = yG - Math.min(H-10, (t.roof==='parapet'?2.9:2.5)*s), vFloor = yG - 0.25*s;
+  const lace = t.posts==='lace';
+  if (verHas){
+    const pOn = partOn('posts',side), cOn = partOn('vceiling',side), hOn = partOn('handrail',side);
+    if (lace){
+      o += g('verandah', `<path d="M${vx0-10} ${vyTop} Q${vx0-10} ${vyTop-14} ${vx0} ${vyTop-14} H${vx1} Q${vx1+10} ${vyTop-14} ${vx1+10} ${vyTop} Z" fill="${C.roof}"/><rect x="${vx0-12}" y="${vyTop-2}" width="${vx1-vx0+24}" height="5" fill="${col('verandah',ver)}" stroke="#16212A" stroke-opacity=".2"/>`, side);
+      o += g('vceiling', `<rect x="${vx0-8}" y="${vyTop+3}" width="${vx1-vx0+16}" height="10" fill="${col('vceiling',cOn)}"/><rect x="${vx0-8}" y="${vyTop+3}" width="${vx1-vx0+16}" height="10" fill="url(#p-lace)"/>`, side);
+    } else {
+      o += g('verandah', `<polygon points="${vx0-8},${vyTop} ${vx0},${vyTop-14} ${vx1},${vyTop-14} ${vx1+8},${vyTop}" fill="${C.roof}"/><rect x="${vx0-10}" y="${vyTop-2}" width="${vx1-vx0+20}" height="6" fill="${col('verandah',ver)}" stroke="#16212A" stroke-opacity=".2"/>`, side);
+      o += g('vceiling', `<rect x="${vx0-6}" y="${vyTop+4}" width="${vx1-vx0+12}" height="5" fill="${col('vceiling',cOn)}"/>`, side);
+    }
+    const n = Math.max(2, Math.round((vx1-vx0)/(2.6*s))+1);
+    let posts = '';
+    for (let i=0;i<n;i++){ const px = vx0 + (vx1-vx0)*i/(n-1);
+      if (S.postKind==='columns') posts += `<rect x="${px-5}" y="${vyTop+8}" width="10" height="${vFloor-vyTop-8}" rx="2" fill="${col('posts',pOn)}" stroke="#16212A" stroke-opacity=".3"/><rect x="${px-7}" y="${vFloor-16}" width="14" height="16" fill="${pOn?'#8EE4F0':'#C9D2D8'}" stroke="#16212A" stroke-opacity=".3"/>`;
+      else if (lace) posts += `<rect x="${px-1.5}" y="${vyTop+12}" width="3" height="${vFloor-vyTop-12}" fill="${col('posts',pOn)}" stroke="#16212A" stroke-opacity=".3"/><path d="M${px-1.5} ${vyTop+13} l-10 0 l10 12 z M${px+1.5} ${vyTop+13} l10 0 l-10 12 z" fill="${col('posts',pOn)}" fill-opacity=".8"/>`;
+      else posts += `<rect x="${px-2.5}" y="${vyTop+8}" width="5" height="${vFloor-vyTop-8}" fill="${col('posts',pOn)}" stroke="#16212A" stroke-opacity=".3"/>`; }
+    o += g('posts', posts, side);
+    if (exists('handrail', side)) o += g('handrail', `<path d="M${vx0} ${vFloor-22}H${vx1}" stroke="${col('handrail',hOn)}" stroke-width="3"/>${Array.from({length:Math.floor((vx1-vx0)/9)},(_,i)=>`<path d="M${vx0+6+i*9} ${vFloor-22}V${vFloor}" stroke="${col('handrail',hOn)}" stroke-width="1.5"/>`).join('')}`, side);
+    o += `<rect x="${vx0-10}" y="${vFloor}" width="${vx1-vx0+20}" height="4" fill="#B6ADA0"/><rect x="${vx0+10}" y="${vFloor+4}" width="26" height="${yG-vFloor-4}" fill="#B6ADA0" stroke="#16212A" stroke-opacity=".2"/>`;
+  }
+
+  // ── garage
+  if (garHere){
+    const gw = (S.garageCars===2 ? 4.8 : 2.6)*s, gh = Math.min(H-14, 2.2*s); const gx = x1 - gw - W*0.04;
+    o += g('garage', `<rect x="${gx}" y="${yG-gh}" width="${gw}" height="${gh}" fill="${col('garage',partOn('garage',side))}" stroke="#16212A" stroke-opacity=".3"/>${[1,2,3].map(i=>`<path d="M${gx} ${yG-gh+gh*i/4}H${gx+gw}" stroke="#16212A" stroke-opacity=".18"/>`).join('')}`, side);
+  }
+
+  // ── doors
+  const dOn = partOn('doors', side);
+  const doorW = 0.9*s, doorH = Math.min(H-14, (t.roof==='parapet'?2.4:2.04)*s);
+  const nDoors = sd.doors || 0;
+  let doors = '';
+  if (nDoors > 0){
+    const dx = verHas ? vx0 + (vx1-vx0)*(terraceFront?0.25:0.5) - doorW/2 : x0 + W*0.5 - doorW/2;
+    doors += `<rect x="${dx}" y="${yG-doorH}" width="${doorW}" height="${doorH}" rx="1.5" fill="${col('doors',dOn)}" stroke="#16212A" stroke-opacity=".35"/><circle cx="${dx+doorW*0.78}" cy="${yG-doorH*0.5}" r="1.6" fill="#16212A" fill-opacity=".5"/>`;
+    if (terraceFront) doors += `<rect x="${dx+doorW+2}" y="${yG-doorH}" width="${doorW*0.35}" height="${doorH}" fill="${C.glass}" stroke="${col('doors',dOn)}" stroke-width="1.5"/>`;
+    for (let i=1;i<nDoors;i++){ const ddx = x0 + W*(0.14 + 0.72*(i%3)/3); doors += `<rect x="${ddx}" y="${yG-doorH}" width="${doorW*0.9}" height="${doorH}" rx="1.5" fill="${col('doors',dOn)}" stroke="#16212A" stroke-opacity=".35"/>`; }
+  }
+  o += g('doors', doors, side);
+
+  // ── windows, spread along the wall, on every storey
+  const wnOn = partOn('windows', side);
+  const n = sd.windows || 0; let wins = '';
+  const tall = terraceFront ? 2.2 : t.roof==='skillion' ? 1.6 : 1.5;
+  const ww = Math.min((t.roof==='skillion'?1.8:terraceFront?0.9:1.2)*s, W/(n+1)*0.62), wh = Math.min(tall*s, (t.storeys===2 ? H/2 : H) * (terraceFront?0.66:0.58));
+  const perStorey = t.storeys===2 ? [Math.ceil(n/2), Math.floor(n/2)] : [n];
+  perStorey.forEach((cnt, st) => {
+    const yTop = t.storeys===2 ? (st===0 ? yE+8 : yE+H/2) : wallTop; const lvlH = t.storeys===2 ? H/2 : H;
+    const wy = terraceFront ? yG - doorH : yTop + lvlH*0.32 - wh/2;
+    for (let i=0;i<cnt;i++){
+      const cx = terraceFront && verHas ? vx0 + (vx1-vx0)*(0.5 + 0.5*(i+1)/(cnt+1)) : x0 + W*(i+1)/(cnt+1);
+      let wx = cx - ww/2; const doorX = verHas ? vx0 + (vx1-vx0)*(terraceFront?0.25:0.5) : x0 + W*0.5; const isGround = st===perStorey.length-1;
+      if (!terraceFront && isGround && nDoors>0 && Math.abs(cx-doorX) < doorW*1.2) wx += (cx<doorX?-1:1)*doorW*1.3;
+      if (garHere && isGround && wx+ww > x1 - (S.garageCars===2?4.8:2.6)*s - W*0.05) wx -= W*0.25;
+      wins += windowGlyph(wx, isGround && verHas && !terraceFront ? Math.max(wy, vyTop+14) : wy, ww, wh, wnOn);
+    }
+  });
+  o += g('windows', wins, side);
+  if (exists('shutters', side)) o += g('shutters', `<rect x="${x0+W*0.08}" y="${yE+H*0.3-wh/2}" width="${ww*0.3}" height="${wh}" fill="${col('shutters',partOn('shutters',side))}" stroke="#16212A" stroke-opacity=".3"/><rect x="${x1-W*0.08-ww*0.3}" y="${yE+H*0.3-wh/2}" width="${ww*0.3}" height="${wh}" fill="${col('shutters',partOn('shutters',side))}" stroke="#16212A" stroke-opacity=".3"/>`, side);
+
+  if (build && S.extras.has('meter')) o += `<g class="x on"><rect x="${x0+6}" y="${yE+H*0.45}" width="12" height="15" fill="#F4F6F7" stroke="#16212A" stroke-opacity=".4"/></g>`;
+  if (build && S.extras.has('secdoor') && nDoors>0 && side==='front'){ const dx = verHas ? vx0 + (vx1-vx0)*(terraceFront?0.25:0.5) - doorW/2 : x0 + W*0.5 - doorW/2; o += `<g class="x on"><rect x="${dx}" y="${yG-doorH}" width="${doorW}" height="${doorH}" fill="none" stroke="#16212A" stroke-opacity=".5" stroke-dasharray="2 2"/></g>`; }
+  if (notPainting) o += `<rect x="0" y="0" width="400" height="240" fill="#F2F5F6" fill-opacity=".55"/><text x="200" y="120" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" font-weight="600" fill="#54626D">Not painting this side</text>`;
+  if (!build) o += `<text x="200" y="230" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="11.5" fill="#54626D">${w} m across · ${h} m to the ${terraceFront?'parapet':'gutter'}</text>`;
+  return o + `</svg>`;
+}
+
+
+/* ───────────────────────── quantities & an ILLUSTRATIVE price ───────────────────────── */
+/* These numbers only exist so the mockup can show the range narrowing. The real job uses lib/pricing and the live rate card. */
+const RATE_H = 100; const MAT_PCT = 0.15;
+const COND = { good:1, weathered:1.2, peeling:1.35 };
+function sideLines(k){
+  const t=T(), sd=S.sides[k]; if (!sd || sd.paint===false) return [];
+  const w=sd.w, h=sd.h; const L=[];
+  const on = (p) => partOn(p,k);
+  const long = k==='left'||k==='right';
+  const fullGable = t.roof==='gable' && !long;
+  const rise = fullGable ? (t.rise||2.2) : 1.9;
+  const gw = fullGable ? w : w*0.5;
+  const rake = 2*Math.sqrt((gw/2)**2 + rise**2);
+  if (on('walls')){
+    const m1k = sideMat(k), m2k = sideMat2(k); const m1 = MATS[m1k]||MATS.boards, m2 = m2k && m2k!==m1k ? MATS[m2k] : null;
+    const bare = (mk)=> mk==='brick' && S.brickPainted==='no';
+    const a1 = w*(m2 ? h/2 : h) + (t.roof==='parapet' && !long ? w*(t.rise||0.9) : 0);
+    L.push({ l:(bare(m1k)?'Bare brick (3 coats)':m1.l)+(m2?' downstairs':''), q:a1, u:'m²', hrs:a1/m1.rate*(bare(m1k)?1.45:1) });
+    if (m2){ const a2 = w*h/2; L.push({ l:(bare(m2k)?'Bare brick (3 coats)':m2.l)+' upstairs', q:a2, u:'m²', hrs:a2/m2.rate*(bare(m2k)?1.45:1) }); }
+  }
+  if (on('gable')){ const a = 0.5*gw*rise; const r = S.gfill==='stucco'?6.91:S.gfill==='boards'?4.61:S.gfill==='shingles'?4.0:5.99; L.push({ l:'Gable — '+GABLE_FILL[S.gfill].toLowerCase(), q:a, u:'m²', hrs:a/r + (S.gfill==='strap'?3.8:0), flag:S.gfill==='shingles' }); }
+  if (on('fascias')){ const m = (fullGable ? rake : w + (on('gable') ? rake : 0)); L.push({ l: t.roof==='parapet'&&!long ? 'Cornice and mouldings' : fullGable?'Barge boards':'Fascias', q:m, u:'m', hrs:m/6.91 }); }
+  if (on('gutters') && !fullGable){ L.push({ l:'Gutters', q:w, u:'m', hrs:w/6.91 }); }
+  if (on('downpipes')){ const n = w>10?2:1; L.push({ l:'Downpipes', q:n, u:'', hrs:n*1.08 }); }
+  if (on('eaves') && !(t.roof==='parapet'&&!long)){ L.push({ l:'Eaves', q:w, u:'m', hrs:w/4.61 }); }
+  if (on('windows') && sd.windows>0){ L.push({ l:`${WIN[S.win].l} windows`, q:sd.windows, u:'', hrs:sd.windows*WIN[S.win].hrs, flag:S.win==='alu'||S.win==='unsure' }); }
+  if (on('doors') && sd.doors>0){ const front = k==='front'?1:0; if (front) L.push({ l:'Front door', q:1, u:'', hrs:2.17 }); if (sd.doors-front>0) L.push({ l:'Doors', q:sd.doors-front, u:'', hrs:(sd.doors-front)*1.08 }); }
+  if (on('garage')) L.push({ l:`Garage door (${S.garageCars} car)`, q:1, u:'', hrs:S.garageCars===2?6.51:4.34 });
+  if (on('verandah')){
+    if (on('posts')){ const n = Math.max(2, Math.round(w*0.8/2.6)+1); L.push({ l:S.postKind==='columns'?'Columns':S.postKind==='lace'?'Posts and lacework':'Posts', q:n, u:'', hrs:n*(S.postKind==='columns'?1.08:S.postKind==='lace'?1.4:0.65) }); }
+    if (on('vceiling')){ const a = w*0.8*2.4; L.push({ l:'Verandah ceiling', q:a, u:'m²', hrs:a/10.14 }); }
+    if (on('handrail')){ const m = w*0.8; L.push({ l:'Handrail', q:m, u:'m', hrs:m/9.22 }); }
+  }
+  if (on('shutters')){ const n = sd.windows*2; L.push({ l:'Shutters', q:n, u:'', hrs:n*3.25 }); }
+  return L;
+}
+function extraLines(){
+  const L=[]; const sz=S.extraSize;
+  if (S.extras.has('paling')) L.push({ l:'Paling fence', q:sz.paling, u:'m', hrs:sz.paling/13.82 });
+  if (S.extras.has('picket')) L.push({ l:'Picket fence', q:sz.picket, u:'m', hrs:sz.picket/1.38 });
+  if (S.extras.has('deck')) L.push({ l:'Deck', q:sz.deck, u:'m²', hrs:sz.deck/9.22 });
+  if (S.extras.has('pergola')) L.push({ l:'Pergola', q:sz.pergola, u:'m²', hrs:sz.pergola*0.9 });
+  if (S.extras.has('bwall')) L.push({ l:'Boundary wall', q:sz.bwall, u:'m', hrs:sz.bwall*1.8/5.99 });
+  if (S.extras.has('shed')) L.push({ l:'Shed', q:1, u:'', flat:640 });
+  if (S.extras.has('gate')) L.push({ l:'Side gate', q:1, u:'', flat:120 });
+  if (S.extras.has('meter')) L.push({ l:'Meter box', q:1, u:'', flat:35 });
+  if (S.extras.has('secdoor')) L.push({ l:'Security door', q:1, u:'', flat:90 });
+  return L;
+}
+const linesCost = (L, condMul) => L.reduce((n,x)=> n + (x.flat ?? x.hrs*RATE_H*(1+MAT_PCT)*condMul), 0);
+function priceRange(){
+  const two = T().storeys===2 ? 1.15 : 1;
+  let lo=0, hi=0;
+  for (const k of SIDE_ORDER){
+    const sd=S.sides[k]; if(!sd||sd.paint===false) continue;
+    const L = sideLines(k);
+    const cLo = sd.cond ? COND[sd.cond] : COND.good, cHi = sd.cond ? COND[sd.cond] : COND.peeling;
+    const res = sd.ok ? (sd.size==='ns' ? 0.08 : 0.04) : 0.15;
+    lo += linesCost(L,cLo)*two*(1-res); hi += linesCost(L,cHi)*two*(1+res);
+  }
+  const E = extraLines(); lo += linesCost(E,1)*0.9; hi += linesCost(E,1)*1.1;
+  lo*=1.1; hi*=1.1;
+  lo = Math.floor(lo/100)*100; hi = Math.ceil(hi/100)*100;
+  const mid=(lo+hi)/2; const pct = mid>0 ? Math.round((hi-lo)/2/mid*100) : 0;
+  return { lo, hi, pct };
+}
+const paintedSides = () => SIDE_ORDER.filter(k=>S.sides[k]&&S.sides[k].paint!==false);
+function accuracyPct(){
+  const painted = paintedSides(); if (!painted.length) return 15;
+  const checked = painted.filter(k=>S.sides[k].ok).length;
+  const condOpen = painted.some(k=>!S.sides[k].cond);
+  return Math.round(15 - 11*(checked/painted.length) + (condOpen ? 6 : 0));
+}
+const allChecked = () => paintedSides().length>0 && paintedSides().every(k=>S.sides[k].ok);
+const allConfirmed = () => paintedSides().length>0 && paintedSides().every(k=>S.sides[k].conf);
+const money = (n) => '$' + Math.round(n).toLocaleString('en-AU');
+
+/* ───────────────────────── screens ───────────────────────── */
+const $ = (q) => document.querySelector(q);
+const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+/* The same shape as every other estimate: quick questions → details → a GUIDE range → tighten it side by side, or book a visit. */
+const STEPS = [['home','Your home'],['paint','Painting'],['about','About it'],['sides','Each side'],['gate','Details'],['range','Your range'],['walk','Tighten']];
+const chip = (on, label, a, v, extra='') => `<button type="button" class="chip ${on?'on':''} ${extra}" data-a="${a}" data-v="${v}" aria-pressed="${on}"><span class="bx">${TICK}</span>${label}</button>`;
+const pill = (on, label, a, v, cls='') => `<button type="button" class="pill ${on?'on':''} ${cls}" data-a="${a}" data-v="${v}" aria-pressed="${on}">${label}</button>`;
+const matPill = (on, k, a, v) => pill(on, `${MATS[k].l}`, a, v);
+
+/* small silhouettes for the type cards */
+function typeThumb(k){
+  const t = TYPES[k]; const two = t.storeys===2; const H = two ? 44 : 26; const yE = 60-H;
+  let o = `<svg viewBox="0 0 100 64"><rect x="0" y="60" width="100" height="4" fill="#C9D6CC"/>`;
+  const x0 = t.front<9 ? 30 : 16, x1 = t.front<9 ? 70 : 84; const W = x1-x0;
+  if (t.roof==='gable') o += `<polygon points="${x0-6},${yE} 50,${yE-22} ${x1+6},${yE}" fill="#5E6E79"/><polygon points="${x0+4},${yE-2} 50,${yE-16} ${x1-4},${yE-2}" fill="#DEE4E8"/>`;
+  else if (t.roof==='parapet') o += `<rect x="${x0-2}" y="${yE-12}" width="${W+4}" height="12" fill="#EEF2F5" stroke="#9AA7B1"/><rect x="${x0-4}" y="${yE-14}" width="${W+8}" height="4" fill="#9AA7B1"/><path d="M${50-8} ${yE-14} Q50 ${yE-24} ${50+8} ${yE-14}" fill="#9AA7B1"/><rect x="${x0+W*0.62}" y="${yE-22}" width="3" height="8" fill="#5E6E79"/><rect x="${x0+W*0.62+5}" y="${yE-22}" width="3" height="8" fill="#5E6E79"/>`;
+  else if (t.roof==='skillion') o += `<polygon points="${x0-6},${yE} ${x0-2},${yE-14} ${x1+2},${yE-6} ${x1+6},${yE}" fill="#5E6E79"/>`;
+  else o += `<polygon points="${x0-6},${yE} ${x0+W*0.25},${yE-14} ${x1-W*0.25},${yE-14} ${x1+6},${yE}" fill="#5E6E79"/>`;
+  const pat = t.walls==='boards' ? 'M0 4H100M0 8H100M0 12H100M0 16H100M0 20H100M0 24H100M0 28H100M0 32H100M0 36H100M0 40H100' : t.walls==='brick' ? 'M0 5H100M0 10H100M0 15H100M0 20H100M0 25H100M0 30H100M0 35H100M0 40H100' : t.walls==='sheet' ? 'M40 0V60M62 0V60' : '';
+  o += `<rect x="${x0}" y="${yE}" width="${W}" height="${H}" fill="${t.bare?'#E6DED3':'#EEF2F5'}" stroke="#9AA7B1"/>`;
+  if (pat) o += `<svg x="${x0}" y="${yE}" width="${W}" height="${H}" viewBox="0 0 100 ${H}" preserveAspectRatio="none"><path d="${pat}" stroke="#16212A" stroke-opacity=".18"/></svg>`;
+  if (t.shared) for (const s of t.shared){ o += `<rect x="${s==='left'?x0-14:x1}" y="${yE+6}" width="14" height="${H-6}" fill="#E8EEF1" stroke="#B4C0C8" stroke-dasharray="2 2"/>`; }
+  if (t.verandah && t.roof!=='parapet') o += `<rect x="${x0+4}" y="${yE+8}" width="${W*0.55}" height="3" fill="#5E6E79"/><path d="M${x0+6} ${yE+11}V60M${x0+4+W*0.55-2} ${yE+11}V60" stroke="#9AA7B1" stroke-width="2"/>`;
+  if (t.roof==='parapet') o += `<path d="M${x0-2} ${yE+9} Q${x0-2} ${yE+5} ${x0+3} ${yE+5} H${x1-3} Q${x1+2} ${yE+5} ${x1+2} ${yE+9}" fill="none" stroke="#5E6E79" stroke-width="2"/><path d="M${x0+2} ${yE+9}V60M${x0+W/2} ${yE+9}V60M${x1-2} ${yE+9}V60" stroke="#9AA7B1" stroke-width="1.2"/><path d="M${x0+2} ${yE+11}H${x1-2}" stroke="#9AA7B1" stroke-width="2" stroke-dasharray="1.5 1.5"/>`;
+  o += `<rect x="${x0+W*0.5-4}" y="${60-14}" width="8" height="14" fill="#B4C0C8"/>`;
+  if (t.roof==='parapet') o += `<rect x="${x0+W*0.68}" y="${60-22}" width="7" height="20" fill="#CFE3EA" stroke="#9AA7B1"/>`;
+  else { o += `<rect x="${x0+W*0.15}" y="${yE+H*0.35}" width="9" height="8" fill="#CFE3EA" stroke="#9AA7B1"/><rect x="${x1-W*0.15-9}" y="${yE+H*0.35}" width="9" height="8" fill="#CFE3EA" stroke="#9AA7B1"/>`; }
+  if (two) o += `<rect x="${x0+W*0.15}" y="${yE+H*0.72}" width="9" height="8" fill="#CFE3EA" stroke="#9AA7B1"/><rect x="${x1-W*0.15-9}" y="${yE+H*0.72}" width="9" height="8" fill="#CFE3EA" stroke="#9AA7B1"/>`;
+  if (t.unsure) o += `<text x="50" y="${yE+H*0.6}" text-anchor="middle" font-size="18" font-weight="700" fill="#9AA7B1" font-family="system-ui">?</text>`;
+  return o + '</svg>';
+}
+
+function screenHome(){
+  let h = `<p class="kick">Outside</p><h1>What kind of home is it?</h1><p class="sub">Tap the closest shape. We draw it, and you tell us what's being painted and what it's made of next.</p>`;
+  h += `<div class="q"><div class="body"><div class="cards" data-testid="ql-ext-type">${TYPE_ORDER.map(k=>`<button type="button" class="card ${S.type===k?'on':''}" data-a="type" data-v="${k}" aria-pressed="${S.type===k}">${typeThumb(k)}<b>${TYPES[k].n}</b><small>${TYPES[k].s}</small></button>`).join('')}</div></div></div>`;
+  if (S.type){
+    h += `<div class="q" id="q-size"><h2>About how big is it?</h2><p class="hint">The floor area, roughly. Bedrooms are a fine guide.</p><div class="body"><div class="pills">${SIZES.map(([k,l,s])=>pill(S.size===k, `${l} <span class="mono" style="font-size:12.5px;color:var(--muted);margin-left:6px">${s}</span>`, 'size', k)).join('')}</div></div></div>`;
+    if (T().shared){
+      const t = T(); const one = t.shared.length===1;
+      h += `<div class="q" data-testid="ext-endof-q"><h2>Where is it in the row?</h2><p class="hint">A ${t.n.toLowerCase()} usually shares ${one?'a wall on the '+t.shared[0]:'both side walls'}. An end one has a side wall we can paint.</p><div class="body"><div class="pills">${pill(S.endOf==='mid', one?`Shares the ${t.shared[0]} wall`:'In the middle of the row <span class="mono" style="font-size:12px;color:var(--muted)">shares both sides</span>','endof','mid')}${t.shared.includes('left')?pill(S.endOf==='left','End of the row — left side open','endof','left'):''}${t.shared.includes('right')?pill(S.endOf==='right','End of the row — right side open','endof','right'):''}${pill(S.endOf==='both','Stands alone <span class="mono" style="font-size:12px;color:var(--muted)">all four sides</span>','endof','both')}</div></div></div>`;
+    }
+  }
+  return h;
+}
+
+/* Painting — what are we painting? Nothing about materials yet. */
+function screenPaint(){
+  const t = T();
+  const groups = [['house','On the house'],['roof','Roofline'],['open','Windows & doors'],['ver', t.verandah ? 'The verandah' : 'Verandah or porch']];
+  let h = `<p class="kick">Painting</p><h1>Tap everything we're painting</h1><p class="sub">Each part lights up on the picture as you tick it. Nothing is ticked for you — plenty of jobs are the trims and roofline only. What it's made of comes next.</p>`;
+  for (const [gk, gl] of groups){
+    const ps = PARTS.filter(p=>p.grp===gk && (!p.needs || S.parts.has(p.needs)));
+    if (!ps.length) continue;
+    const n = ps.filter(p=>S.parts.has(p.k)).length;
+    h += `<div class="group"><h3>${gl}<span>${n ? n+' ticked' : ''}</span></h3><div class="chips">${ps.map(p=>chip(S.parts.has(p.k), p.l, 'part', p.k)).join('')}</div>${gk==='house'&&t.bare?'<p class="hint" style="color:var(--muted);font-size:14px;margin-top:8px">Brick is often left bare — tick the walls only if the brick is being painted.</p>':''}</div>`;
+  }
+  h += `<div class="group"><h3>Around the house<span>Optional</span></h3><div class="chips">${EXTRAS.map(([k,l])=>chip(S.extras.has(k), l, 'extra', k)).join('')}</div></div>`;
+  if (S.parts.size===0 && S.extras.size===0) h += `<p class="note">Tap at least one part of the house, or something around it, to continue.</p>`;
+  return h;
+}
+
+/* About it — materials for the ticked parts, then colours and access. Everything before the gate. */
+function screenAbout(){
+  const t = T();
+  let h = `<p class="kick">About it</p><h1>Tell us about what you ticked</h1><p class="sub">Only the parts you're painting. The picture changes to match.</p>`;
+  if (S.parts.has('walls')){
+    const two = t.storeys===2;
+    h += `<div class="group" data-testid="ext-walls-q"><h3>The walls</h3>`;
+    if (!two){
+      h += `<p class="hint" style="color:var(--muted);font-size:14.5px;margin-bottom:8px">What are they made of? If one side is different you can change it on the next step.</p><div class="pills">${Object.keys(MATS).map(k=>matPill(S.wall.m1===k, k, 'mat1', k)).join('')}</div>`;
+    } else {
+      h += `<p class="hint" style="color:var(--muted);font-size:14.5px;margin-bottom:8px">Two storeys are often two materials. What's downstairs, and what's upstairs?</p>
+        <p style="font-size:14px;font-weight:600;margin:6px 0 6px">Downstairs</p><div class="pills">${Object.keys(MATS).map(k=>matPill(S.wall.m1===k, k, 'mat1', k)).join('')}</div>
+        <p style="font-size:14px;font-weight:600;margin:12px 0 6px">Upstairs</p><div class="pills">${pill(!S.wall.m2||S.wall.m2===S.wall.m1,'Same as downstairs','mat2','none')}${Object.keys(MATS).filter(k=>k!==S.wall.m1).map(k=>matPill(S.wall.m2===k, k, 'mat2', k)).join('')}</div>`;
+    }
+    if (anyBrick()) h += `<p style="margin-top:12px;font-size:14.5px;color:var(--muted)">Has the brick been painted before?</p><div class="pills">${pill(S.brickPainted==='yes','Yes — painted brick','bp','yes')}${pill(S.brickPainted==='no','No — bare brick <span class="mono" style="font-size:12px;color:var(--muted)">sealer, then two coats</span>','bp','no')}</div>`;
+    if (S.wall.m1==='vtimber'||S.wall.m2==='vtimber') h += `<p class="note" style="margin-top:10px">Vertical timber is usually stained or oiled rather than painted — we price it that way. Tell your estimator if yours is painted.</p>`;
+    h += `</div>`;
+  }
+  if (S.parts.has('gable')){
+    h += `<div class="group" data-testid="ext-gable-q"><h3>The gable ends</h3><p class="hint" style="color:var(--muted);font-size:14.5px;margin-bottom:8px">The triangle under the roof. On a bungalow it's usually stucco or shingles.</p><div class="pills">${Object.entries(GABLE_FILL).map(([k,l])=>pill(S.gfill===k,l,'gfill',k)).join('')}</div>${S.gfill==='shingles'?'<p style="margin:8px 0 0;color:var(--amber);font-size:14px">Shingles are priced by your estimator — there is no set rate yet.</p>':''}</div>`;
+  }
+  if (S.parts.has('windows')){
+    h += `<div class="group" data-testid="ext-windows-q"><h3>The windows</h3><p class="hint" style="color:var(--muted);font-size:14.5px;margin-bottom:8px">What type, mostly? You count them side by side when you tighten the price.</p><div class="pills">${Object.entries(WIN).map(([k,w])=>pill(S.win===k, `${w.l}<span class="mono" style="display:block;font-size:12px;color:var(--muted);font-weight:400">${w.h}</span>`, 'win', k)).join('')}</div></div>`;
+  }
+  if (S.parts.has('garage')) h += `<div class="group"><h3>The garage door</h3><div class="pills">${pill(S.garageCars===1,'Single','gcars','1')}${pill(S.garageCars===2,'Double','gcars','2')}</div></div>`;
+  if (S.parts.has('posts')) h += `<div class="group"><h3>The posts</h3><div class="pills">${pill(S.postKind==='posts','Timber posts','pk','posts')}${pill(S.postKind==='columns','Brick or stucco columns','pk','columns')}${pill(S.postKind==='lace','Iron posts with lacework','pk','lace')}</div></div>`;
+  const sized = EXTRAS.filter(([k,,u])=>S.extras.has(k) && u!=='flat');
+  if (sized.length) h += `<div class="group"><h3>Around the house</h3><p class="hint" style="color:var(--muted);font-size:14.5px">Roughly how much? Near enough is fine — we check on the day.</p>${sized.map(([k,l,u])=>`<div class="count"><div class="t">${l}<small>${u==='lm'?'metres long':'square metres'}</small></div><div class="stepper"><button type="button" data-a="xs" data-v="${k}:-1" aria-label="less">−</button><span>${S.extraSize[k]} ${u==='lm'?'m':'m²'}</span><button type="button" data-a="xs" data-v="${k}:1" aria-label="more">+</button></div></div>`).join('')}</div>`;
+  h += `<div class="q"><h2>Colours</h2><div class="body"><div class="cards one" data-testid="ql-ext-colour">${[['same','The same colours again','Colour-matched — a freshen up'],['new','New colours','Two coats, standard preparation'],['bold','Going much lighter','An undercoat first, then two coats']].map(([k,l,s])=>`<button type="button" class="card ${S.colour===k?'on':''}" data-a="colour" data-v="${k}" style="padding:12px 14px"><b>${l}</b><small>${s}</small></button>`).join('')}</div></div></div>`;
+  h += `<div class="q"><h2>Anything tricky about getting to it?</h2><div class="body"><div class="chips">${[['steep','Steep block'],['tight','Tight side access'],['lift','Needs a lift or scaffold'],['none','Nothing tricky']].map(([k,l])=>chip(S.access.has(k),l,'access',k)).join('')}</div>${S.access.has('lift')?'<p class="note" style="margin-top:10px">Nothing for scaffolding or a lift is in this price. If the job needs one we quote it with you before we start, as a separate line.</p>':''}</div></div>`;
+  return h;
+}
+
+/* Each side — confirm what's being painted on each side, in simple terms, and change the material if a side differs.
+   Sizes, counts and condition wait for the tighten step after the range. */
+function sideListHTML(k, mode){
+  const sd = S.sides[k]; const t = T();
+  const here = PARTS.filter(p => (S.parts.has(p.k) && defaultSides(p.k).includes(k)) || sd.add.has(p.k));
+  const more = PARTS.filter(p => !here.includes(p) && (!p.needs || partOn(p.needs, k)));
+  let h = `<div class="group"><h3>Painting on this side<span>${here.filter(p=>partOn(p.k,k)).length} of ${here.length}</span></h3><div class="chips">${here.map(p=>chip(partOn(p.k,k), p.l, 'sidepart', `${k}:${p.k}`, partOn(p.k,k)?'':'off')).join('')}<button type="button" class="chip plain" data-a="addopen" data-v="${k}">${S.addOpen?'Done adding':'+ Add something on this side'}</button></div>
+    ${S.addOpen ? `<div class="follow" data-testid="ext-side-add"><h4>Add to the ${SIDE_LABEL[k].toLowerCase()}</h4><p>A gable on this side, a porch at the back, a garage round the side — tap to add it; it appears on the picture.</p><div class="chips">${more.map(p=>chip(false, p.l, 'sidepart', `${k}:${p.k}`)).join('')}${more.length?'':'<span class="hint" style="color:var(--muted)">Everything is already on this side.</span>'}</div></div>` : ''}
+  </div>`;
+  if (partOn('walls', k)){
+    const two = t.storeys===2;
+    h += `<div class="group" data-testid="ext-side-mat"><h3>${two?'Downstairs walls on this side':'The walls on this side'}<span>${sd.mat?'Different from the rest':'Same as the house'}</span></h3><div class="pills">${Object.keys(MATS).map(m=>matPill(sideMat(k)===m, m, 'sidemat', `${k}:${m}`)).join('')}</div>
+      ${two ? `<h3 style="margin-top:12px">Upstairs walls on this side<span>${sd.mat2?'Different from the rest':'Same as the house'}</span></h3><div class="pills">${Object.keys(MATS).map(m=>matPill((sideMat2(k)||sideMat(k))===m, m, 'sidemat2', `${k}:${m}`)).join('')}</div>` : ''}</div>`;
+  }
+  return h;
+}
+function screenSides(){
+  const painted = paintedSides();
+  const k = SIDE_ORDER[S.walkAt]; const sd = S.sides[k]; const t = T();
+  const done = painted.filter(x=>S.sides[x].conf).length;
+  let h = `<p class="kick">Each side</p><h1>Check each side of the house</h1><p class="sub">We've put what you ticked on every side. Go round from the street: untick anything that isn't on that side, add anything that is, and say if a side is a different material.</p>`;
+  h += `<div class="walk-steps" data-testid="ql-ext-sides">${SIDE_ORDER.map((x,i)=>{const s=S.sides[x]; return `<button type="button" class="${i===S.walkAt?'cur':''} ${s.conf&&s.paint!==false?'ok':''} ${s.paint===false?'skip':''}" data-a="walkto" data-v="${i}" data-testid="ql-ext-side-${x}"><span class="n">${s.paint===false?'–':s.conf?TICK:i+1}</span><span class="l">${SIDE_LABEL[x].replace(' side','')}</span></button>`}).join('')}</div>`;
+  h += `<div class="sidehead"><div><h2>${SIDE_LABEL[k]}</h2><p>${SIDE_HINT[k]}${sd.shared?' · usually a shared wall':''}</p></div><button type="button" class="notpaint ${sd.paint===false?'on':''}" data-a="np" data-v="${k}">${sd.paint===false?'Not painting · tap to add':'Not painting this side'}</button></div>`;
+  if (sd.paint===false){ h += `<p class="note" style="margin-top:14px">We'll leave the ${SIDE_LABEL[k].toLowerCase()} out of the estimate altogether.${sd.shared?' It is usually a shared wall on a '+t.n.toLowerCase()+'.':''}</p>`; }
+  else {
+    h += sideListHTML(k, 'sides');
+    h += `<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn pri" data-a="confside" data-v="${k}" data-testid="ext-confirm-side">${sd.conf?'Confirmed ✓ — next side':'Looks right — next side'} ${ARROW}</button></div>`;
+  }
+  if (done===painted.length && painted.length) h += `<div class="done-card" data-testid="ext-sides-done"><span class="av">${TICK}</span><span>All ${painted.length} sides confirmed. Sizes and counts come after your range.</span></div>`;
+  return h;
+}
+
+function screenGate(){
+  const c = S.contact;
+  let h = `<p class="kick">Last question</p><h1>Where shall we send your estimate?</h1><p class="sub">Enter your details to see your guide range. We save your estimate and email you a link.</p>`;
+  h += `<label class="field"><span>Full name</span><input value="${c.name}" autocomplete="name" data-f="name"></label><label class="field"><span>Email</span><input type="email" inputmode="email" value="${c.email}" autocomplete="email" data-f="email"></label><label class="field"><span>Mobile number</span><input type="tel" inputmode="tel" placeholder="04" value="${c.phone}" autocomplete="tel" data-f="phone"></label>`;
+  h += `<label class="consent"><input type="checkbox" ${S.marketing?'checked':''} data-f="marketing"> Send me occasional news and offers from Paint Group (optional)</label>`;
+  h += soFar();
+  return h;
+}
+function soFar(){
+  const rows = [];
+  rows.push([T().n, SIZES.find(x=>x[0]===S.size)?.[1] || 'size to confirm']);
+  if (S.parts.size) rows.push(['Painting', PARTS.filter(p=>S.parts.has(p.k)).map(p=>p.l.toLowerCase()).join(', ')]);
+  if (S.parts.has('walls')) rows.push(['Walls', MATS[S.wall.m1].l + (S.wall.m2&&S.wall.m2!==S.wall.m1?' downstairs, '+MATS[S.wall.m2].l.toLowerCase()+' upstairs':'')]);
+  rows.push(['Sides', `${paintedSides().length} of 4 · ${paintedSides().filter(k=>S.sides[k].conf).length} confirmed`]);
+  if (S.extras.size) rows.push(['Around the house', EXTRAS.filter(([k])=>S.extras.has(k)).map(([,l])=>l.toLowerCase()).join(', ')]);
+  return `<div class="sofar"><h3>Your job so far</h3><ul>${rows.map(([a,b])=>`<li><span>${a}</span><span class="mono" style="text-align:right">${b}</span></li>`).join('')}</ul></div>`;
+}
+
+function screenRange(){
+  const r = priceRange(); const pct = accuracyPct(); const det = pct <= 8; const done = allChecked();
+  const painted = paintedSides();
+  let h = `<p class="kick">Your range</p><h1>${det?'Here\'s your detailed range':'Here\'s your guide range'}</h1><p class="sub">${done ? 'Built from the sides you checked.' : 'Built from the house you drew, at typical sizes. Walk around it to tighten the range, or book a visit.'} Tom confirms every outside price before it's fixed.</p>`;
+  h += `<div class="price" data-testid="ext-range"><div class="lab"><span>Outside · ${painted.length} side${painted.length===1?'':'s'}</span><span class="tier ${det?'det':''}">${det?'Detailed':'Guide'} · within ${pct}%</span></div><p class="num"><span data-testid="range-width" class="vh">${pct}</span>${money(r.lo)} – ${money(r.hi)}</p><p class="gst">Includes GST · illustrative numbers in this mockup</p>
+    <div class="band"><span class="was" style="left:6%;width:88%"></span><span class="now" style="left:${22+(15-Math.min(15,pct))*1.6}%;width:${Math.max(14, pct*3.6)}%"></span></div><div class="bandlab"><span>Dashed: where a kerb-side guess would sit</span><span>Yours</span></div>
+    <div class="rows">${painted.map(k=>{const sd=S.sides[k]; const L=sideLines(k); const c=linesCost(L,sd.cond?COND[sd.cond]:1)*1.1*(T().storeys===2?1.15:1); return `<div class="row"><div><b>${SIDE_LABEL[k]}</b>${sd.ok?' <span class="tag">checked</span>':''}<small>${sd.w} × ${sd.h} m · ${L.map(x=>x.q>1&&x.u===''?`${x.q} ${x.l.toLowerCase()}`:x.l.toLowerCase()).join(', ')||'nothing ticked'}${sd.cond?' · '+sd.cond:''}</small></div><span class="mono">${money(Math.floor(c*(sd.ok?0.96:0.85)/100)*100)} – ${money(Math.ceil(c*(sd.ok?1.04:1.2)/100)*100)}</span></div>`}).join('')}${extraLines().length?`<div class="row"><div><b>Around the house</b><small>${extraLines().map(x=>x.l.toLowerCase()).join(', ')}</small></div><span class="mono">${money(Math.floor(linesCost(extraLines(),1)*1.1*0.9/100)*100)} – ${money(Math.ceil(linesCost(extraLines(),1)*1.1*1.1/100)*100)}</span></div>`:''}</div>
+    <p class="ptier">Not in this number: scaffolding or a lift, rotten timber replacement${S.gfill==='shingles'&&S.parts.has('gable')?', the shingles (priced by Tom)':''}.</p></div>`;
+  const doorBook = `<button type="button" class="door ${done?'pri':''}" data-a="book"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span><span><b>Book a site visit</b><small>Tom measures up and fixes the price with you — about 40 minutes.</small></span></button>`;
+  const doorTight = done
+    ? `<button type="button" class="door" data-a="jump" data-v="walk"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h4l10-10-4-4L4 16z"/></svg></span><span><b>Change a side</b><small>Go back round the house and adjust anything.</small></span></button>`
+    : `<button type="button" class="door pri" data-a="jump" data-v="walk" data-testid="door-tighten"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h16M12 4v16"/></svg></span><span><b>Tighten my price</b><small>Walk around the house side by side — about three minutes — and the range closes to within a few percent.</small></span></button>`;
+  h += `<div class="doors">${doorTight}${doorBook}
+    <button type="button" class="door" data-a="noop"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.6a2 2 0 0 1-.5 2.1L8.1 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.8.3 1.7.6 2.6.7a2 2 0 0 1 1.9 2z"/></svg></span><span><b>Speak with us</b><small>Call 1300 00 00 00 — we'll talk it through.</small></span></button>
+    <button type="button" class="door" data-a="noop"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span><b>Send us a message</b><small>Photos help. We reply the same day.</small></span></button></div>`;
+  h += `<div class="est"><span class="av">TR</span><p><b>Tom Roman</b>, your estimator. Every outside price is confirmed by a person before it's fixed — the visit is where the range becomes a quote.</p></div>`;
+  return h;
+}
+
+/* Tighten — walk around the house, one side at a time. Add or remove anything on this side, including materials. */
+function screenWalk(){
+  const painted = paintedSides();
+  const k = SIDE_ORDER[S.walkAt]; const sd = S.sides[k]; const t = T();
+  const checked = painted.filter(x=>S.sides[x].ok).length;
+  let h = `<p class="kick">Tighten my price</p><h1>Now one side at a time</h1><p class="sub">Start at the street and go clockwise. Add or remove anything on this side, count the windows and doors, and check the size. Each side turns blue when it's done.</p>`;
+  h += `<div class="walk-steps" data-testid="ext-walk-steps">${SIDE_ORDER.map((x,i)=>{const s=S.sides[x]; return `<button type="button" class="${i===S.walkAt?'cur':''} ${s.ok?'ok':''} ${s.paint===false?'skip':''}" data-a="walkto" data-v="${i}"><span class="n">${s.ok?TICK:i+1}</span><span class="l">${SIDE_LABEL[x].replace(' side','')}</span></button>`}).join('')}</div>`;
+  h += `<div class="sidehead"><div><h2>${SIDE_LABEL[k]}</h2><p>${SIDE_HINT[k]}${sd.shared?' · usually a shared wall':''}</p></div><button type="button" class="notpaint ${sd.paint===false?'on':''}" data-a="np" data-v="${k}">${sd.paint===false?'Not painting · tap to add':'Not painting this side'}</button></div>`;
+  if (sd.paint===false){ h += `<p class="note" style="margin-top:14px">We'll leave the ${SIDE_LABEL[k].toLowerCase()} out of the estimate altogether.</p>`; return h; }
+  h += sideListHTML(k, 'walk');
+  if (partOn('windows', k) || partOn('doors', k)){
+    h += `<div class="group"><h3>Count them</h3>`;
+    if (partOn('windows', k)) h += `<div class="count"><div class="t">Windows on this side<small>${WIN[S.win].l}${t.storeys===2?' · both floors':''}</small></div><div class="stepper"><button type="button" data-a="cnt" data-v="${k}:windows:-1" aria-label="fewer windows" ${sd.windows<=0?'disabled':''}>−</button><span data-testid="ext-win-n">${sd.windows}</span><button type="button" data-a="cnt" data-v="${k}:windows:1" aria-label="more windows">+</button></div></div>`;
+    if (partOn('doors', k)) h += `<div class="count"><div class="t">Doors on this side<small>${k==='front'?'The front door counts as one':'Back, laundry and side doors'}</small></div><div class="stepper"><button type="button" data-a="cnt" data-v="${k}:doors:-1" aria-label="fewer doors" ${sd.doors<=0?'disabled':''}>−</button><span>${sd.doors}</span><button type="button" data-a="cnt" data-v="${k}:doors:1" aria-label="more doors">+</button></div></div>`;
+    h += `</div>`;
+  }
+  const long = k==='left'||k==='right';
+  h += `<div class="group"><h3>The size</h3><div class="sizeline"><span class="m">${sd.w} m across × ${sd.h} m high</span><span class="tag">${sd.adj?'Your numbers':'Typical for a '+t.n.toLowerCase()}</span></div><p style="font-size:14px;color:var(--muted);margin-top:4px">Height is to the ${t.roof==='parapet'&&!long?'top of the parapet':'gutter'}. Pacing it out is close enough.</p>
+    <div class="pills" style="margin-top:10px">${pill(sd.size==='yes','Looks right','size',`${k}:yes`)}${pill(sd.size==='adj','Adjust it','size',`${k}:adj`)}${pill(sd.size==='ns','Not sure','size',`${k}:ns`,'amber')}</div>
+    ${sd.size==='adj' ? `<div class="adj"><div><label>Across (m)</label><div class="stepper"><button type="button" data-a="dim" data-v="${k}:w:-0.5">−</button><span>${sd.w}</span><button type="button" data-a="dim" data-v="${k}:w:0.5">+</button></div></div><div><label>High (m)</label><div class="stepper"><button type="button" data-a="dim" data-v="${k}:h:-0.3">−</button><span>${sd.h}</span><button type="button" data-a="dim" data-v="${k}:h:0.3">+</button></div></div></div>` : ''}
+    ${sd.size==='ns' ? `<p class="note amber" style="margin-top:10px">No problem — we keep the typical size and your estimator measures it on the visit. This side stays a little wider in your range.</p>` : ''}
+  </div>`;
+  h += `<div class="group"><h3>How's the paint on this side?</h3><div class="pills">${pill(sd.cond==='good','Good <span class="mono" style="font-size:12px;color:var(--muted)">sound, just tired</span>','cond',`${k}:good`)}${pill(sd.cond==='weathered','Weathered <span class="mono" style="font-size:12px;color:var(--muted)">faded, chalky</span>','cond',`${k}:weathered`)}${pill(sd.cond==='peeling','Peeling <span class="mono" style="font-size:12px;color:var(--muted)">flaking, bare patches</span>','cond',`${k}:peeling`,'amber')}</div></div>`;
+  const ready = sd.size != null;
+  h += `<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="btn pri" data-a="checkside" data-v="${k}" data-testid="ext-check-side" ${ready?'':'disabled'}>${sd.ok?'Checked ✓ — next side':'Check this side'} ${ARROW}</button>${!ready?'<span style="font-size:14px;color:var(--muted);align-self:center">Say if the size looks right first.</span>':''}</div>`;
+  if (checked===painted.length && painted.length) h += `<div class="done-card" data-testid="ext-walk-done"><span class="av">${TICK}</span><span>All ${painted.length} sides checked. Your range is now within about ${accuracyPct()}%.</span></div>`;
+  return h;
+}
+
+/* ───────────────────────── the picture card ───────────────────────── */
+function renderPic(){
+  const el = $('#pic');
+  if (!S.type){ el.innerHTML = `<div class="ph"><b>Your home</b><span>Pick a shape</span></div>${elevation('front', true)}<div class="pf"><span>We'll draw it here as you answer.</span></div>`; return; }
+  const t = T();
+  if (S.step==='walk' || S.step==='sides'){
+    const k = SIDE_ORDER[S.walkAt]; const walk = S.step==='walk';
+    el.innerHTML = `<div class="ph"><b>${SIDE_LABEL[k]}</b><div class="compass">${SIDE_ORDER.map((x,i)=>{const s=S.sides[x];return `<button type="button" class="${i===S.walkAt?'cur':''} ${(walk?s.ok:s.conf)&&s.paint!==false?'ok':''} ${s.paint===false?'skip':''}" data-a="walkto" data-v="${i}">${SIDE_LABEL[x].replace(' side','')[0]}</button>`}).join('')}</div></div>${elevation(k,!walk)}<div class="pf"><span><span class="dot"></span>Painting</span><span><span class="dot g"></span>Not painting</span>${walk?`<span style="margin-left:auto">Within about <b class="mono">${accuracyPct()}%</b></span>`:`<span style="margin-left:auto">${sideMat(k)?MATS[sideMat(k)].l:''}</span>`}</div>`;
+  } else {
+    const sub = `${S.size?SIZES.find(x=>x[0]===S.size)[1]+' · ':''}${t.storeys===2?'two storeys':'single storey'}${S.parts.has('walls')&&S.wall.m1?' · '+MATS[S.wall.m1].l.toLowerCase():''}`;
+    el.innerHTML = `<div class="ph"><b>${t.n}</b><span>${sub}</span></div>${elevation('front', true)}<div class="pf"><span><span class="dot"></span>Painting</span><span><span class="dot g"></span>Not painting</span>${S.step==='paint'||S.step==='about'?`<span style="margin-left:auto"><b>${S.parts.size}</b> part${S.parts.size===1?'':'s'} ticked</span>`:S.step==='range'?`<span style="margin-left:auto">Within about <b class="mono">${accuracyPct()}%</b></span>`:''}</div>`;
+  }
+}
+
+/* ───────────────────────── chrome ───────────────────────── */
+function renderRail(){
+  const i = STEPS.findIndex(s=>s[0]===S.step);
+  $('#rail').innerHTML = STEPS.map((s,j)=>`<li class="${j<i?'done':j===i?'cur':''}"><span class="n">${j<i?'✓':j+1}</span><span class="l">${s[1]}</span></li>`).join('');
+  $('#stripe').style.width = ((i+1)/STEPS.length*100) + '%';
+}
+function renderFoot(){
+  const i = STEPS.findIndex(s=>s[0]===S.step);
+  let label = 'Continue', ok = true, sub = `Step ${i+1} of 6`, title = STEPS[i][1];
+  if (S.step==='home'){ ok = !!S.type && !!S.size; sub = ok ? 'Next: what we\'re painting' : 'Pick a shape and a size'; }
+  if (S.step==='paint'){ ok = S.parts.size>0 || S.extras.size>0; sub = ok ? 'Next: what it\'s made of' : 'Tick at least one part'; }
+  if (S.step==='about'){ sub = 'Next: check each side'; }
+  if (S.step==='sides'){ ok = allConfirmed(); const d = paintedSides().filter(k=>S.sides[k].conf).length; sub = paintedSides().length ? `${d} of ${paintedSides().length} sides confirmed` : 'Tick at least one side'; title = ok ? 'All sides confirmed' : 'Each side'; }
+  if (S.step==='gate'){ label = 'See my range'; ok = S.contact.name.trim().length>1 && /@/.test(S.contact.email) && S.contact.phone.replace(/\D/g,'').length>=8; sub = ok ? 'Your range is one tap away' : 'Name, email and mobile'; }
+  if (S.step==='range'){ $('#foot').style.display='none'; return; }
+  if (S.step==='walk'){ const painted = paintedSides(); const done = painted.filter(k=>S.sides[k].ok).length; ok = allChecked(); sub = `${done} of ${painted.length} sides checked`; title = ok ? 'All sides checked' : 'Walk around'; label = 'See my range'; }
+  $('#foot').style.display='';
+  $('#footin').innerHTML = `${i>0?`<button type="button" class="back" data-a="back">Back</button>`:''}<div class="prog"><b>${title}</b>${sub}</div><button type="button" class="btn pri" data-a="next" ${ok?'':'disabled'}>${label} ${ARROW}</button>`;
+}
+function render(){
+  $('#pane').innerHTML = ({ home:screenHome, paint:screenPaint, about:screenAbout, sides:screenSides, gate:screenGate, range:screenRange, walk:screenWalk })[S.step]();
+  renderPic(); renderRail(); renderFoot();
+  document.querySelectorAll('.mockbar [data-a=jump]').forEach(b=>b.classList.toggle('on', b.dataset.v===S.step));
+}
+function go(step){ if (step==='sides'||step==='walk'){ const f = SIDE_ORDER.findIndex(x=>S.sides[x].paint!==false && !(step==='sides'?S.sides[x].conf:S.sides[x].ok)); S.walkAt = f>=0 ? f : 0; S.addOpen=false; } S.step = step; $('#stage').classList.remove('enter'); void $('#stage').offsetWidth; $('#stage').classList.add('enter'); render(); window.scrollTo({top:0,behavior:'smooth'}); }
+function nextStep(){ const i = STEPS.findIndex(s=>s[0]===S.step); if (S.step==='walk'){ go('range'); return; } if (S.step==='gate') S.gated = true; if (i < STEPS.length-1) go(STEPS[i+1][0]); }
+
+/* ───────────────────────── actions ───────────────────────── */
+function demoFill(){
+  if (!S.type){ setType('wb'); S.size='md'; seedSides(); }
+  if (S.parts.size===0){ ['walls','fascias','gutters','downpipes','eaves','windows','doors'].forEach(p=>S.parts.add(p)); if (T().roof==='gable') S.parts.add('gable'); if (T().verandah){ ['verandah','posts','vceiling'].forEach(p=>S.parts.add(p)); } S.win='casement'; }
+}
+const ACT = {
+  jump(v){ const order = STEPS.map(s=>s[0]); const i = order.indexOf(v);
+    if (i>=1) { if (!S.type){ setType('wb'); S.size='md'; seedSides(); } }
+    if (i>=2) demoFill();
+    if (i>=4) for (const k of SIDE_ORDER){ if (S.sides[k].paint!==false) S.sides[k].conf = true; }
+    if (i>=5) S.contact = { name:'Sam Taylor', email:'sam@example.com', phone:'0400 000 000' };
+    go(v); },
+  preset(v){ S = freshState(); setType(v); S.size='md'; seedSides(); go('paint'); },
+  reset(){ S = freshState(); go('home'); },
+  type(v){ const had = S.type; setType(v); render(); if (!had) setTimeout(()=>$('#q-size')?.scrollIntoView({behavior:'smooth',block:'center'}), 50); },
+  endof(v){ S.endOf = v; reseedShared(); flash('walls'); render(); },
+  size(v){ if (!v.includes(':')) { S.size=v; resizeSides(); render(); return; } const [k,s]=v.split(':'); const sd=S.sides[k]; sd.size=s; if (s==='adj') sd.adj=true; sd.ok=false; render(); },
+  part(v){ if (S.parts.has(v)){ S.parts.delete(v); PARTS.filter(p=>p.needs===v).forEach(p=>S.parts.delete(p.k)); } else { S.parts.add(v); } flash(v); render(); },
+  mat1(v){ S.wall.m1 = v; if (S.wall.m2===v) S.wall.m2=null; flash('walls'); render(); },
+  mat2(v){ S.wall.m2 = v==='none' ? null : v; flash('walls'); render(); },
+  bp(v){ S.brickPainted = v; render(); },
+  gfill(v){ S.gfill = v; flash('gable'); render(); },
+  win(v){ S.win = v; flash('windows'); render(); },
+  gcars(v){ S.garageCars = +v; render(); },
+  pk(v){ S.postKind = v; flash('posts'); render(); },
+  extra(v){ S.extras.has(v) ? S.extras.delete(v) : S.extras.add(v); render(); },
+  xs(v){ const [k,d] = v.split(':'); S.extraSize[k] = Math.max(1, S.extraSize[k] + (+d)*2); render(); },
+  confside(k){ const sd=S.sides[k]; sd.conf=true; S.addOpen=false; const next = SIDE_ORDER.findIndex((x,i)=>i>S.walkAt && S.sides[x].paint!==false && !S.sides[x].conf); const any = SIDE_ORDER.findIndex(x=>S.sides[x].paint!==false && !S.sides[x].conf); if (next>=0) S.walkAt=next; else if (any>=0) S.walkAt=any; render(); if (allConfirmed()) setTimeout(()=>$('[data-testid=ext-sides-done]')?.scrollIntoView({behavior:'smooth',block:'center'}),60); else window.scrollTo({top:0,behavior:'smooth'}); },
+  sidemat2(v){ const [k,m] = v.split(':'); const sd=S.sides[k]; sd.mat2 = (m===(S.wall.m2||S.wall.m1)) ? null : m; if (S.step==='sides') sd.conf=false; sd.ok=false; flash('walls'); render(); },
+  walkto(v){ S.walkAt = +v; S.addOpen=false; render(); },
+  np(k){ const sd = S.sides[k]; sd.paint = sd.paint===false ? true : false; sd.ok = sd.paint===false; sd.conf = sd.paint===false; render(); },
+  addopen(){ S.addOpen = !S.addOpen; render(); },
+  sidepart(v){ const [k,p] = v.split(':'); const sd=S.sides[k];
+    const byHouse = S.parts.has(p) && defaultSides(p).includes(k);
+    if (partOn(p,k)){ if (sd.add.has(p)) sd.add.delete(p); else sd.off.add(p); }
+    else { if (byHouse) sd.off.delete(p); else sd.add.add(p); }
+    sd.ok=false; if (S.step==='sides') sd.conf=false; flash(p); render(); },
+  sidemat(v){ const [k,m] = v.split(':'); const sd=S.sides[k]; sd.mat = (m===S.wall.m1) ? null : m; sd.ok=false; if (S.step==='sides') sd.conf=false; flash('walls'); render(); },
+  cnt(v){ const [k,f,d] = v.split(':'); const sd=S.sides[k]; sd[f] = Math.max(0, Math.min(f==='windows'?40:12, sd[f] + (+d))); sd.ok=false; flash(f); render(); },
+  dim(v){ const [k,f,d] = v.split(':'); const sd=S.sides[k]; sd[f] = Math.round(Math.max(f==='w'?3:2, Math.min(f==='w'?40:9, sd[f] + parseFloat(d)))*10)/10; sd.adj=true; sd.ok=false; render(); },
+  cond(v){ const [k,c]=v.split(':'); S.sides[k].cond = S.sides[k].cond===c ? null : c; render(); },
+  checkside(k){ const sd=S.sides[k]; sd.ok=true; S.addOpen=false; const next = SIDE_ORDER.findIndex((x,i)=>i>S.walkAt && S.sides[x].paint!==false && !S.sides[x].ok); const any = SIDE_ORDER.findIndex(x=>S.sides[x].paint!==false && !S.sides[x].ok); if (next>=0) S.walkAt=next; else if (any>=0) S.walkAt=any; render(); if (allChecked()) setTimeout(()=>$('[data-testid=ext-walk-done]')?.scrollIntoView({behavior:'smooth',block:'center'}),60); else window.scrollTo({top:0,behavior:'smooth'}); },
+  colour(v){ S.colour=v; render(); },
+  access(v){ if (v==='none'){ S.access.has('none') ? S.access.clear() : (S.access.clear(), S.access.add('none')); } else { S.access.delete('none'); S.access.has(v) ? S.access.delete(v) : S.access.add(v); } render(); },
+  next(){ nextStep(); },
+  back(){ const i = STEPS.findIndex(s=>s[0]===S.step); if (S.step==='walk'){ go('range'); return; } if (i>0) go(STEPS[i-1][0]); },
+  book(){ alert('Mockup: this opens the visit calendar (the existing booking screen).'); },
+  noop(){},
+};
+function flash(k){ S.highlight = k; setTimeout(()=>{ S.highlight=null; document.querySelectorAll('.e.hl').forEach(e=>e.classList.remove('hl')); }, 900); }
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-a]'); if (!b) return;
+  const a = b.dataset.a; if (ACT[a]) ACT[a](b.dataset.v);
+});
+document.addEventListener('input', (e) => {
+  const f = e.target.dataset.f; if (!f) return;
+  if (f==='marketing') S.marketing = e.target.checked; else S.contact[f] = e.target.value;
+  renderFoot();
+});
+/* tapping a part on the picture ticks it (Painting) or toggles it for this side (Tighten) */
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('.e[data-e]'); if (!el) return;
+  const k = el.dataset.e;
+  if (S.step==='paint') ACT.part(k);
+  else if (S.step==='walk'||S.step==='sides') ACT.sidepart(`${SIDE_ORDER[S.walkAt]}:${k}`);
+});
+
+S = freshState();
+render();
+
+</script>
+</body>
+</html>

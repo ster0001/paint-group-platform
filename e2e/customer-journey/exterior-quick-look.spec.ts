@@ -1,18 +1,28 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, passDetailsSheetIfShown } from "./drive";
 
 /**
- * C8b — the EXTERIOR quick look rebuilt, elements first (prototype `s-ext-job`
- * v2.6). Tom's check: walk it on the phone — nothing pre-ticked; the questions
- * that appear are only the ones you asked for; eight colonial windows price
- * higher than eight casements; unticking the body removes the walls everywhere.
+ * The EXTERIOR quick look — rewritten to the drawn house (Exterior wizard v2,
+ * S6; was C8b's one outside screen). Tom's checks, as they stand on the new
+ * screens: nothing pre-ticked; the questions that appear are only the ones
+ * you asked for (a material only for ticked walls, a window type only for
+ * ticked windows — elements before materials, brief §4); colonial windows
+ * price higher than casements (the rate row, not a multiplier); unticking
+ * the walls removes them everywhere — the question, What we'll do, the walk.
  *
- * The brief's e2e: tick body + windows + doors + fascias, choose colonial, 8
- * windows, 2 doors, new colours, weathered → a range; then untick the body and
- * watch the wall line and the materials question both go.
+ * Retired from C8b's version, each with the ruling behind it (listed in the
+ * S6 PR): the whole-house window and door counts and their "8 / 2" defaults
+ * (counts are per side, defaulted from the width — brief §7.6, ⚑ 12); the
+ * storeys question asked once on the outside screen (the shape knows — §7.3);
+ * the pergola's size and Confirm on the painting screen (sizes are asked on
+ * About it — §7.3); the sides editor as the Tighten door (the walk is the
+ * tighten step — §7.6, ⚑ 0).
  */
 
-async function toOutside(page: Page) {
+const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1";
+test.skip(!FLAG_ON, "exteriorV2 is off in this environment — set NEXT_PUBLIC_EXTERIOR_V2=1 on the test project");
+
+async function toHome(page: Page) {
   await openQuickLook(page);
   await fillQuickAddress(page);
   await page.getByTestId("ql-jobtype-exterior").click();
@@ -22,7 +32,15 @@ async function toOutside(page: Page) {
   await expect(page.getByTestId("ql-bedrooms")).toHaveCount(0);
   await expect(page.getByTestId("ql-storeys")).toHaveCount(0);
   await quickNext(page);
-  await expect(page.locator("[data-quick-step='outside']")).toBeVisible();
+  await expect(page.locator("[data-quick-step='home']")).toBeVisible();
+}
+
+async function toPaint(page: Page, shape = "wb") {
+  await toHome(page);
+  await page.getByTestId(`ql-ext-type-${shape}`).click();
+  await page.getByTestId("ql-ext-size-md").click();
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='paint']")).toBeVisible();
 }
 
 const range = async (page: Page) => {
@@ -31,75 +49,59 @@ const range = async (page: Page) => {
   return m ? { lo: Number(m[1]), hi: Number(m[2]) } : null;
 };
 
-test("nothing pre-ticked, the questions follow the ticks, storeys once, and no bedrooms anywhere", async ({ page }) => {
+test("nothing pre-ticked, the questions follow the ticks, no storeys question, and no bedrooms anywhere", async ({ page }) => {
   test.setTimeout(240_000);
-  await toOutside(page);
-  await expect(page.getByRole("heading", { name: "What are we painting?" })).toBeVisible();
-  await expect(page.getByText(/confirmed by your estimator/i)).toBeVisible();
+  await toPaint(page);
+  await expect(page.getByRole("heading", { name: /Tap everything we.re painting/ })).toBeVisible();
   await expect(page.getByText(/bedrooms/i)).toHaveCount(0);
-
-  // Nothing pre-ticked on the elements, the freestanding things, or (once shown) the materials.
-  for (const el of ["body", "windows", "doors", "fascias", "gutters", "eaves"]) {
-    await expect(page.getByTestId(`ql-ext-el-${el}`)).toHaveAttribute("aria-pressed", "false");
+  // Nothing pre-ticked on the parts or the things around the house.
+  for (const p of ["walls", "windows", "doors", "fascias", "gutters", "eaves"]) {
+    await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "false");
   }
-  // Tom, 15 Sep: "Any other areas being painted?" — the standalone keys (pergola since 5 Oct).
-  for (const s of ["garage_door", "paling_fence", "picket_fence", "deck", "pergola", "shed", "wall"]) {
-    await expect(page.getByTestId(`ql-ext-sep-${s}`)).toHaveAttribute("aria-pressed", "false");
+  for (const e of ["paling_fence", "picket_fence", "deck", "pergola", "shed", "wall"]) {
+    await expect(page.getByTestId(`ext-extra-${e}`)).toHaveAttribute("aria-pressed", "false");
   }
   // Tom, 5 Oct: the wizard is LIGHT, like the rest of the customer surfaces.
   const bg = await page.locator(".wz").first().evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(bg).toBe("rgb(244, 246, 248)");
-  // Tom, 5 Oct: a ticked pergola asks for its top's size and will not continue without a Confirm.
-  await page.getByTestId("ql-ext-sep-pergola").click();
-  await expect(page.getByTestId("ext-pergola-q")).toBeVisible();
-  await expect(page.getByTestId("ext-pergola-confirm")).toBeDisabled();
-  await page.getByTestId("ql-next").click();
-  await expect(page.getByTestId("ql-error")).toContainText(/how big is the pergola top/i);
-  await page.getByTestId("ext-pergola-length").fill("6");
-  await page.getByTestId("ext-pergola-length").blur();
-  await page.getByTestId("ext-pergola-width").fill("4");
-  await page.getByTestId("ext-pergola-width").blur();
-  await page.getByTestId("ext-pergola-confirm").click();
-  await expect(page.getByTestId("ext-pergola-confirm")).toHaveText(/Confirmed/);
-  await page.getByTestId("ql-ext-sep-pergola").click(); // untick — the question goes with it
-  await expect(page.getByTestId("ext-pergola-q")).toHaveCount(0);
-  // The gated questions are absent until their element is ticked.
-  await expect(page.getByTestId("ext-body-q")).toHaveCount(0);
-  await expect(page.getByTestId("ext-windows-q")).toHaveCount(0);
-  await expect(page.getByTestId("ext-door-count")).toHaveCount(0);
-  // Storeys is asked exactly once, here.
-  await expect(page.getByTestId("ql-ext-storeys")).toHaveCount(1);
-  await expect(page.locator("[data-testid='ql-storeys']")).toHaveCount(0);
+  // No material question here, and no storeys question anywhere (the shape knows).
+  await expect(page.getByTestId("ext-walls-q")).toHaveCount(0);
+  await expect(page.getByTestId("ql-ext-storeys")).toHaveCount(0);
+  await expect(page.locator(".wz-quick")).not.toContainText(/Single or double storey/);
 
   // Continue with nothing ticked is refused, in words.
   await page.getByTestId("ql-next").click();
   await expect(page.getByTestId("ql-error")).toContainText(/Tick at least one thing/);
 
-  // Tick the body → materials appear, nothing pre-ticked.
-  await page.getByTestId("ql-ext-el-body").click();
-  await expect(page.getByTestId("ext-body-q")).toBeVisible();
-  for (const m of ["weatherboards", "brick", "render", "stucco", "cement_sheet", "panelling", "unsure"]) {
-    await expect(page.getByTestId(`ql-ext-mat-${m}`)).toHaveAttribute("aria-pressed", "false");
-  }
-  // Windows → type and count; doors → count. Untick → they go.
-  await page.getByTestId("ql-ext-el-windows").click();
-  await expect(page.getByTestId("ext-windows-q")).toBeVisible();
-  await expect(page.getByTestId("ext-win-n")).toHaveText("8");
-  await page.getByTestId("ql-ext-el-doors").click();
-  await expect(page.getByTestId("ext-door-n")).toHaveText("2");
-  await page.getByTestId("ql-ext-el-windows").click();
+  // Tom, 5 Oct: a ticked pergola asks for its top's size and will not continue without it — on About it.
+  await page.getByTestId("ext-extra-pergola").click();
+  await page.getByTestId("ext-part-fascias").click();
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='about']")).toBeVisible();
+  await expect(page.getByTestId("ext-size-pergola")).toBeVisible();
+  await page.getByTestId("ql-next").click();
+  await expect(page.getByTestId("ql-error")).toContainText(/how big is the pergola top/i);
+  // The gated questions are absent until their part is ticked.
+  await expect(page.getByTestId("ext-walls-q")).toHaveCount(0);
   await expect(page.getByTestId("ext-windows-q")).toHaveCount(0);
-  await page.getByTestId("ql-ext-el-doors").click();
-  await expect(page.getByTestId("ext-door-count")).toHaveCount(0);
-  await page.getByTestId("ql-ext-el-body").click();
-  await expect(page.getByTestId("ext-body-q")).toHaveCount(0);
-
+  await page.getByTestId("ql-back").click();
+  await expect(page.locator("[data-quick-step='paint']")).toBeVisible();
+  await page.getByTestId("ext-extra-pergola").click(); // untick — the question goes with it
+  // Tick the walls → the material card appears on About it, nothing pre-ticked; windows → the type.
+  await page.getByTestId("ext-part-walls").click();
+  await page.getByTestId("ext-part-windows").click();
+  await quickNext(page);
+  await expect(page.getByTestId("ext-walls-q")).toBeVisible();
+  for (const m of ["weatherboards", "brick", "render", "stucco", "cement_sheet", "colorbond", "vertical_timber", "concrete"]) {
+    await expect(page.getByTestId(`ext-mat-${m}`)).toHaveAttribute("aria-pressed", "false");
+  }
+  await expect(page.getByTestId("ext-windows-q")).toBeVisible();
+  await expect(page.getByTestId("ext-size-pergola")).toHaveCount(0);
   // Access: scaffolding is an EXCLUSION, said the moment they tick it; "nothing tricky" is exclusive.
-  await page.getByTestId("ql-ext-el-fascias").click();
   await page.getByTestId("ql-ext-access-lift").click();
   await expect(page.getByTestId("ext-lift-note")).toContainText(/separate line/i);
   await page.getByTestId("ql-ext-access-none").click();
-  await expect(page.getByTestId("ql-ext-access-lift")).not.toHaveClass(/\bon\b/);
+  await expect(page.getByTestId("ql-ext-access-lift")).toHaveAttribute("aria-pressed", "false");
 });
 
 /**
@@ -110,49 +112,47 @@ test("nothing pre-ticked, the questions follow the ticks, storeys once, and no b
 test.describe.configure({ mode: "serial" });
 let casement: { lo: number; hi: number } | null = null;
 
-async function walkTypical(page: Page, windowType: "casement" | "colonial", body = true) {
-  await toOutside(page);
-  if (body) await page.getByTestId("ql-ext-el-body").click();
-  await page.getByTestId("ql-ext-el-windows").click();
-  await page.getByTestId("ql-ext-el-doors").click();
-  await page.getByTestId("ql-ext-el-fascias").click();
-  if (body) await page.getByTestId("ql-ext-mat-weatherboards").click();
+async function walkTypical(page: Page, windowType: "casement" | "colonial", walls = true) {
+  await toPaint(page, "wb");
+  if (walls) await page.getByTestId("ext-part-walls").click();
+  await page.getByTestId("ext-part-windows").click();
+  await page.getByTestId("ext-part-doors").click();
+  await page.getByTestId("ext-part-fascias").click();
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='about']")).toBeVisible();
+  if (walls) await page.getByTestId("ext-mat-weatherboards").click();
   await page.getByTestId(`ql-ext-win-${windowType}`).click();
-  await expect(page.getByTestId("ext-win-n")).toHaveText("8");
-  await expect(page.getByTestId("ext-door-n")).toHaveText("2");
   await page.getByTestId("ql-ext-colour-new").click();
-  // Tom, 15 Sep (late): condition is not asked here any more; "Which sides?"
-  // is the last screen, and its Continue is the one that says guide range.
+  // Condition is not asked before the gate (Tom, 15 Sep): the range spans good to peeling.
   await expect(page.getByTestId("ql-ext-condition")).toHaveCount(0);
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
   await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range|Continue to the last question/);
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
 }
 
-test("Tom's check 1: body + windows + doors + fascias, casement ×8, doors ×2, new colours, weathered → a range with exterior words", async ({ page }) => {
+test("Tom's check 1: walls + windows + doors + fascias, casement, new colours → a range with exterior words", async ({ page }) => {
   test.setTimeout(240_000);
   await walkTypical(page, "casement");
   casement = await range(page);
   expect(casement).not.toBeNull();
-  await expect(page.getByTestId("reveal-restatement")).toContainText(/the walls, windows, doors and fascias \(weatherboard\), 8 casement windows, 2 doors, new colours, the paintwork priced from good to peeling, single storey/);
-  await expect(page.getByTestId("reveal-restatement")).not.toContainText(/bedroom/);
-  // What we'll do is the EXTERIOR derivation — never the interior lines.
+  await expect(page.getByTestId("reveal-restatement")).toContainText(/the walls, windows, doors and fascias \(weatherboard\), \d+ casement windows, 2 doors, new colours, the paintwork priced from good to peeling, single storey/);
   const doLines = page.getByTestId("what-we-do");
   await expect(doLines).toContainText(/Walls — weatherboard/);
-  await expect(doLines).toContainText(/8 casement windows/);
+  await expect(doLines).toContainText(/\d+ casement windows/);
   await expect(doLines).toContainText(/2 doors/);
   await expect(doLines).toContainText(/Fascias/);
   await expect(doLines).toContainText(/Not included/);
   await expect(doLines).not.toContainText(/Skirtings|Ceilings and cornices/);
   await page.getByTestId("reveal-assumed-toggle").click();
   await expect(page.getByTestId("reveal-assumed")).not.toContainText(/bedroom/i);
-  await expect(page.getByTestId("reveal-assumed-windows")).toContainText(/About 8 windows at the casement rate/);
+  await expect(page.getByTestId("reveal-assumed-windows")).toContainText(/About \d+ windows at the casement rate/);
 });
 
-test("Tom's check 2: eight colonial windows price higher than eight casements — the rate row, not a multiplier", async ({ page }) => {
+test("Tom's check 2: colonial windows price higher than casements — the rate row, not a multiplier", async ({ page }) => {
   test.setTimeout(240_000);
   expect(casement, "the casement walk must have run first").not.toBeNull();
   await walkTypical(page, "colonial");
@@ -161,13 +161,18 @@ test("Tom's check 2: eight colonial windows price higher than eight casements �
   await expect(page.getByTestId("what-we-do")).toContainText(/cut in by hand, bar by bar/);
 });
 
-test("Tom's check 3: unticking the body removes the walls everywhere — the question, What we'll do, the sides", async ({ page }) => {
+test("Tom's check 3: unticking the walls removes them everywhere — the question, What we'll do, the walk", async ({ page }) => {
   test.setTimeout(240_000);
   await walkTypical(page, "casement", false);
   await expect(page.getByTestId("what-we-do")).not.toContainText(/Walls/);
   await expect(page.getByTestId("reveal-restatement")).not.toContainText(/the walls/);
-  await expect(page.getByTestId("reveal-restatement")).toContainText(/^Based on windows, doors and fascias, 8 casement windows/);
+  await expect(page.getByTestId("reveal-restatement")).toContainText(/^Based on windows, doors and fascias, \d+ casement windows/);
+  await expect(page.getByTestId("ext-range-front")).not.toContainText(/walls/);
+  // The walk around the house has no walls chip on any side, and the picture's walls stay grey.
   await page.getByTestId("door-tighten").click();
-  await expect(page.locator('[data-side="front"]')).toBeVisible({ timeout: 60_000 });
-  await expect(page.locator('[data-side="front"] .sd-wall')).toHaveCount(0);
+  await passDetailsSheetIfShown(page);
+  await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("ext-sidepart-walls")).toHaveCount(0);
+  await expect(page.getByTestId("ext-side-mat")).toHaveCount(0);
+  await expect(page.getByTestId("ql-picture").getByTestId("pic-outside").locator(".e[data-e='walls']")).toHaveAttribute("data-on", "0");
 });

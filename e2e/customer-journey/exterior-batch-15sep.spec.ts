@@ -1,46 +1,79 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
+import { MONEY_RANGE, quickNext, passGateIfShown, passDetailsSheetIfShown } from "./drive";
+import { toSides } from "./exterior-v2-drive";
 
 /**
- * Tom's exterior batch, 15 Sep 2026 — Part 2, on the sides editor:
+ * Tom's exterior batch, 15 Sep 2026 — rewritten to the drawn house (Exterior
+ * wizard v2, S6). What still holds, now on the new screens:
  *
- *  - "Which sides are we painting?" is asked ONCE, up top (the quick look's
- *    way), and a side unticked there comes OFF the estimate — no exclusion
- *    line, no amber "side excluded" flag (ruling (b), assumed).
- *  - a typed size mirrors onto the opposite side — pre-written into its
- *    boxes, still orange until that side is confirmed.
- *  - the extras card confirms with nothing ticked; "Nothing else" is gone.
+ *  - a side left not painting (Each side, §7.4) comes OFF the estimate — no
+ *    exclusion line, no amber "side excluded", no Right card, no way back
+ *    from the editor (ruling (b), 8 Sep);
+ *  - the editor's sides open already answered: the walk's size is recorded,
+ *    nothing is re-asked (§7.7);
+ *  - the condition is answered per side on the walk (⚑ 1) — the editor's card
+ *    opens on the one question the walk never asked (the rot), and the
+ *    estimator's amber lines say where;
+ *  - the extras card confirms with nothing ticked; "Nothing else" is gone;
  *  - a double storey on an outside-only job is the Access ×1.15 modifier
- *    (ACC-2STOREY), not the per-side "Working at height" hours line, and the
- *    work order's access note starts as "Additional time has been allowed
- *    for access".
+ *    (ACC-2STOREY), not the per-side hours line, and the work order's access
+ *    note starts as "Additional time has been allowed for access" — the shape
+ *    says double storey; nobody is asked.
+ *
+ * Retired, with the ruling (listed in the S6 PR): "condition first on the
+ * editor, peeling asks which sides with a photo box" (⚑ 1: asked per side on
+ * the walk; the photo box stays on the editor for anyone who changes the
+ * answer there); "a typed size mirrors onto the opposite side" (§7.6: each
+ * side is asked in turn on the walk, Not sure keeps its own typical — the
+ * editor's mirror still works for sizes typed THERE, but the walk answers
+ * them first); "the sides are unticked on a Which-sides screen" (§7.4: each
+ * side's Not painting).
  */
+
+const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1";
+test.skip(!FLAG_ON, "exteriorV2 is off in this environment — set NEXT_PUBLIC_EXTERIOR_V2=1 on the test project");
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-async function toEditor(page: Page, storeys: "single" | "double", dropSides: Array<"front" | "left" | "back" | "right"> = []) {
-  await openQuickLook(page);
-  await fillQuickAddress(page);
-  await page.getByTestId("ql-jobtype-exterior").click();
-  await quickNext(page);
-  await expect(page.locator("[data-quick-step='place']")).toBeVisible();
-  await quickNext(page);
-  await expect(page.locator("[data-quick-step='outside']")).toBeVisible();
-  await page.getByTestId("ql-ext-el-body").click();
-  await page.getByTestId("ql-ext-el-fascias").click();
-  await page.getByTestId("ql-ext-mat-weatherboards").click();
-  await page.getByTestId("ql-ext-colour-new").click();
-  await page.getByTestId(`ql-ext-storeys-${storeys}`).click();
-  await quickNext(page);
-  // Tom, 15 Sep (late, item 3): "Which sides?" is its own screen before the gate.
-  await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-  for (const k of dropSides) await page.getByTestId(`ql-ext-side-${k}`).click();
-  await quickNext(page);
-  await passGateIfShown(page); // S6: the details-first question sits before the range
-  await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
+/** The walk: every painted side checked (Looks right, or the given size on the front), the condition as given, then the range. */
+async function walkAll(page: Page, opts: { frontDims?: { w: number; h: number }; cond?: Record<string, "good" | "weathered" | "peeling"> } = {}) {
   await page.getByTestId("door-tighten").click();
+  await passDetailsSheetIfShown(page);
+  await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
+  for (let i = 0; i < 4; i++) {
+    if (await page.getByTestId("ext-walk-done").count()) break;
+    const side = (await page.getByTestId("ext-side-name").textContent())?.trim() ?? "";
+    const key = /Front/.test(side) ? "front" : /Right/.test(side) ? "right" : /Back/.test(side) ? "back" : "left";
+    if (key === "front" && opts.frontDims) {
+      await page.getByTestId("ext-size-adj").click();
+      // Steppers: across in 0.5 m, high in 0.3 m — walk from the typical to the target.
+      const n = async (id: string) => Number(((await page.getByTestId(`${id}-n`).textContent()) ?? "0").replace(/[^\d.]/g, ""));
+      while (Math.abs((await n("ext-dim-w")) - opts.frontDims.w) > 0.01) await page.getByTestId((await n("ext-dim-w")) > opts.frontDims.w ? "ext-dim-w-minus" : "ext-dim-w-plus").click();
+      while (Math.abs((await n("ext-dim-h")) - opts.frontDims.h) > 0.15) await page.getByTestId((await n("ext-dim-h")) > opts.frontDims.h ? "ext-dim-h-minus" : "ext-dim-h-plus").click();
+    } else {
+      await page.getByTestId("ext-size-yes").click();
+    }
+    await page.getByTestId(`ext-cond-${opts.cond?.[key] ?? "good"}`).click();
+    await page.getByTestId("ext-check-side").click();
+  }
+  await expect(page.getByTestId("ext-walk-done")).toBeVisible();
+  await page.getByTestId("ext-see-range").click();
+  await expect(page.getByTestId("reveal-tier")).toHaveAttribute("data-tier", "detailed", { timeout: 90_000 });
+}
+
+async function toEditor(page: Page, shape: "wb" | "ds", dropSides: Array<"front" | "left" | "back" | "right"> = [], walk: Parameters<typeof walkAll>[1] = {}) {
+  await toSides(page, shape, ["walls", "fascias"]);
+  for (const k of dropSides) { await page.getByTestId(`ql-ext-side-${k}`).click(); await page.getByTestId("ext-side-np").click(); }
+  await page.getByTestId("ql-ext-side-front").click();
+  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
+  await quickNext(page);
+  await passGateIfShown(page);
+  await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
+  await walkAll(page, walk);
+  await page.getByTestId("door-editor").click();
+  await passDetailsSheetIfShown(page);
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
   return new URL(page.url()).searchParams.get("id")!;
@@ -48,29 +81,20 @@ async function toEditor(page: Page, storeys: "single" | "double", dropSides: Arr
 
 const settled = (page: Page) => expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
 
-test("which sides? before the gate: an unticked side is not on the tighten screen at all; the rest open straight onto their size", async ({ page }) => {
-  test.setTimeout(240_000);
-  // Tom, 15 Sep (late, items 3–4): the sides are asked on their own screen
-  // just before the range; the right side is unticked there.
-  const id = await toEditor(page, "single", ["right"]);
+test("a side not painting is off the estimate altogether; the editor's sides open already answered", async ({ page }) => {
+  test.setTimeout(300_000);
+  const id = await toEditor(page, "wb", ["right"]);
 
   // No "Which sides?" card, no Right card, no "+ Right side" chip; the loop counts seven.
   await expect(page.getByTestId("sides-which")).toHaveCount(0);
   await expect(page.locator('[data-side="right"]')).toHaveCount(0);
   await expect(page.locator(".sd-prog")).toContainText("OF 7");
-
-  // The first questions are condition & access, one at a time, above the sides.
-  const q = page.getByTestId("sides-q");
-  await expect(q).toBeVisible();
-  await expect(q.getByTestId("sides-q-step-cond")).toContainText(/holding up overall/);
-
-  // Each side left opens straight onto the size — no "Are we painting this side?".
+  // The front: no "Are we painting this side?", and its size is already recorded from the walk.
   const front = page.locator('[data-side="front"]');
   await front.locator(".sd-hd").click();
   await expect(front.getByRole("button", { name: "Yes", exact: true })).toHaveCount(0);
-  await expect(front.getByPlaceholder("length m")).toBeVisible();
-
-  // No way back for the unticked side; a confirmed side still has its ×.
+  await expect(front.getByTestId("side-assumed-front")).toContainText(/Recorded:/);
+  // No way back for the side left off; a confirmed side still has its ×.
   await expect(page.getByRole("button", { name: /Add the right side/ })).toHaveCount(0);
   await expect(page.getByTestId("side-delete-front")).toBeVisible();
 
@@ -85,19 +109,15 @@ test("which sides? before the gate: an unticked side is not on the tighten scree
   }
 });
 
-test("condition first: peeling asks which sides (with a photo box); rot asks where; the counts and the last check confirm with a tick", async ({ page }) => {
-  test.setTimeout(240_000);
-  await toEditor(page, "single");
+test("the condition came from the walk: the editor's card opens on the rot; where it is; the last checks confirm with a tick", async ({ page }) => {
+  test.setTimeout(300_000);
+  await toEditor(page, "wb", [], { cond: { front: "peeling", right: "good", back: "good", left: "good" } });
   const q = page.getByTestId("sides-q");
   const settledQ = () => expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
 
-  // Q1 condition → peeling → Q2 which sides, with the photo box.
-  await q.getByRole("button", { name: /Peeling & flaking/ }).click();
-  await expect(q.getByTestId("sides-q-step-peeling")).toBeVisible({ timeout: 30_000 });
-  await expect(q.getByTestId("peeling-photo-label")).toBeVisible();
-  await q.getByTestId("peeling-sides").getByRole("button", { name: /\+ Front/ }).click();
-  await settledQ();
-  // Q3 rot → a little → Q4 where (the ticked substrates: weatherboards, fascias).
+  // The paintwork and where it is peeling are answered already (⚑ 1) — the card opens on the rot.
+  await expect(q.getByTestId("sides-q-step-cond")).toHaveCount(0);
+  await expect(q.getByTestId("sides-q-step-peeling")).toHaveCount(0);
   await expect(q.getByTestId("sides-q-step-rot")).toBeVisible({ timeout: 30_000 });
   await expect(q.getByTestId("sides-q-step-rot")).toContainText(/Any timber rot anywhere/);
   await q.getByRole("button", { name: "A little", exact: true }).click();
@@ -105,8 +125,7 @@ test("condition first: peeling asks which sides (with a photo box); rot asks whe
   await expect(q.getByTestId("rot-where")).toContainText(/Fascias/i);
   await q.getByTestId("rot-where").getByRole("button", { name: /Fascia/i }).first().click();
   await settledQ();
-  // Access was answered on the quick look ("nothing tricky" is the default), so
-  // the block settles here and the card behind it confirms itself.
+  // Access was answered on About it ("nothing tricky" is the default), so the block settles.
   await expect(q.getByTestId("sides-q-settled")).toBeVisible({ timeout: 30_000 });
   await expect(q.getByTestId("sides-q-settled")).toContainText(/nothing tricky about access/);
   await expect(q.getByTestId("sides-q-settled")).toContainText(/Peeling & flaking \(front\)/);
@@ -127,45 +146,27 @@ test("condition first: peeling asks which sides (with a photo box); rot asks whe
     const id = new URL(page.url()).searchParams.get("id")!;
     const db = createClient(url, serviceKey);
     const { data: est } = await db.from("estimates").select("builder_state").eq("id", id).single();
-    const bs = est!.builder_state as { aiDeferred?: Array<{ what: string; needs: string }> };
+    const bs = est!.builder_state as { aiDeferred?: Array<{ what: string; needs: string }>; sidesLoop?: { cond?: { cond?: string; peelingSides?: string[] } } };
     expect(bs.aiDeferred?.find((d) => d.what === "peeling & flaking paint")?.needs).toMatch(/peeling on the front/);
     expect(bs.aiDeferred?.find((d) => /rot/.test(d.what))?.needs).toMatch(/fascia/i);
+    expect(bs.sidesLoop?.cond?.cond).toBe("peeling");
+    expect(bs.sidesLoop?.cond?.peelingSides).toEqual(["front"]);
   }
 });
 
-test("a typed size mirrors onto the opposite side, pre-written and still to confirm; extras confirm empty", async ({ page }) => {
-  test.setTimeout(240_000);
-  await toEditor(page, "single");
+test("a size adjusted on the walk is recorded in the editor; the other sides keep their own typical; extras confirm empty", async ({ page }) => {
+  test.setTimeout(300_000);
+  await toEditor(page, "wb", [], { frontDims: { w: 13, h: 2.7 } });
   await settled(page);
 
   const front = page.locator('[data-side="front"]');
   await front.locator(".sd-hd").click();
-  await front.getByPlaceholder("length m").fill("13");
-  await front.getByPlaceholder("height m").fill("2.7");
-  await front.getByTestId("side-dims-front").getByRole("button", { name: "Update", exact: true }).click();
-  await settled(page);
   await expect(front.getByTestId("side-assumed-front")).toContainText(/Recorded: 13 m long × 2.7 m high/);
-
-  // The back took the front's numbers — pre-written, orange, and it says so.
-  // data-side, not hasText: the side note's help says "comes back", so a
-  // text filter for "Back" matches whichever card is open.
+  // The back is its own side (Looks right on the walk): recorded at its typical, not the front's numbers.
   const back = page.locator('[data-side="back"]');
-  await expect(back).not.toHaveClass(/done/);
   await back.locator(".sd-hd").click();
-  await expect(back.getByTestId("side-assumed-back")).toContainText(/Same as the front — 13 m × 2.7 m/);
-  await expect(back.getByPlaceholder("length m")).toHaveValue("13");
-  await expect(back.getByPlaceholder("height m")).toHaveValue("2.7");
-  await expect(back.getByTestId("side-dims-back")).toHaveAttribute("data-mirrored", "front");
-  // The left is not the front's opposite — untouched.
-  const left = page.locator('[data-side="left"]');
-  await left.locator(".sd-hd").click();
-  await expect(left.getByTestId("side-assumed-left")).toContainText(/Your guide range used/);
-  await expect(left.getByPlaceholder("length m")).toHaveValue("");
-  // Tapping Update on the back with the pre-written numbers records them.
-  await back.locator(".sd-hd").click();
-  await back.getByTestId("side-dims-back").getByRole("button", { name: "Update", exact: true }).click();
-  await settled(page);
-  await expect(back.getByTestId("side-assumed-back")).toContainText(/Recorded: 13 m long × 2.7 m high/);
+  await expect(back.getByTestId("side-assumed-back")).toContainText(/Recorded:/);
+  await expect(back.getByTestId("side-assumed-back")).not.toContainText(/13 m/);
 
   // Extras: nothing ticked, no "Nothing else" chip, confirms as it is.
   const extras = page.locator(".sd-card", { hasText: "Freestanding extras" });
@@ -175,10 +176,10 @@ test("a typed size mirrors onto the opposite side, pre-written and still to conf
   await expect(extras).toHaveClass(/done/, { timeout: 20_000 });
 });
 
-test("double storey, outside only: the Access ×1.15 modifier, no working-at-height line, the WO access note seeded", async ({ page }) => {
-  test.setTimeout(240_000);
+test("double storey, outside only: the shape says so — the Access ×1.15 modifier, no working-at-height line, the WO access note seeded", async ({ page }) => {
+  test.setTimeout(300_000);
   test.skip(!url || !serviceKey, "needs the service key to read builder_state");
-  const id = await toEditor(page, "double");
+  const id = await toEditor(page, "ds");
   const db = createClient(url!, serviceKey!);
   const { data: est } = await db.from("estimates").select("builder_state").eq("id", id).single();
   const bs = est!.builder_state as {

@@ -3,6 +3,11 @@
 import { CONDITION_BANDS, SCOPE_PRESETS, type QuickLook, type QuickLookStep } from "@/lib/wizard/quick-look";
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import { railFor, STEP_LABELS } from "./stepRail";
+import { typicalFor } from "@/lib/wizard/exterior-typicals";
+import { WALL_MATERIAL_LABEL } from "./ExteriorAbout";
+import { paintedSides } from "@/lib/wizard/exterior-model";
+import { EXT_COLOURS } from "@/lib/wizard/exterior-quick-look";
+import { SIZE_OPTIONS } from "./ExteriorHome";
 
 /**
  * "Your job so far" (UI refresh S2, brief §7.2) — one row per answered step,
@@ -40,11 +45,32 @@ export default function JobSoFar({ steps, at, quick, outside, address, roomCount
       case "job": return [`${SCOPE_PRESETS.find((o) => o.value === quick.scope)?.label ?? "The job"}${quick.bold ? " · a bold colour" : ""}`, "The job"];
       case "rooms": return [`${roomCount} room${roomCount === 1 ? "" : "s"}`, "The rooms"];
       case "condition": return [`${CONDITION_BANDS.find((o) => o.value === quick.condition)?.label ?? ""} · ${quick.occupied === "yes" ? "lived in" : "empty"}`, "Condition"];
+      case "home": {
+        const v2 = outside.v2 ?? null;
+        if (!v2) return ["Your home", "The shape"];
+        const size = SIZE_OPTIONS.find((o) => o.value === v2.sizeBand)?.label;
+        return [`${typicalFor(v2.propertyType).name}${size ? ` · ${size.toLowerCase()}` : ""}`, "Your home"];
+      }
+      case "paint": {
+        const v2 = outside.v2;
+        const n = (v2?.parts.length ?? 0) + (v2?.extras.length ?? 0);
+        return [`${n} thing${n === 1 ? "" : "s"} to paint`, "Painting"];
+      }
+      case "about": {
+        const v2 = outside.v2;
+        const mat = v2?.wall.down ? WALL_MATERIAL_LABEL[v2.wall.down] : null;
+        return [[mat, EXT_COLOURS.find((o) => o.value === outside.colour)?.label].filter(Boolean).join(" · ") || "About it", "About it"];
+      }
       case "outside": {
         const n = outside.elements.length + outside.standalone.length;
         return [`${n} thing${n === 1 ? "" : "s"} to paint`, "The outside"];
       }
       case "sides": {
+        if (outside.v2) {
+          const painted = paintedSides(outside.v2);
+          const done = painted.filter((k) => outside.v2!.sides[k]?.confirmed).length;
+          return [`${painted.length} of 4 · ${done} confirmed`, "Each side"];
+        }
         const n = (outside.sides ?? ["front", "left", "back", "right"]).length;
         return [n === 4 ? "All four sides" : `${n} side${n === 1 ? "" : "s"}`, "Which sides"];
       }

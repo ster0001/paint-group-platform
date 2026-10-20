@@ -20,6 +20,8 @@ import {
   type ExteriorAllowanceSettings,
 } from "./exterior-allowances";
 import { exteriorSides, type WizardState, type WizardSurfaceKey } from "./state";
+import { exteriorV2Answered, exteriorV2Nodes } from "./exterior-model";
+import type { ExteriorTypicalRow } from "./exterior-typicals";
 import type { DraftArea } from "@/lib/extract/draft";
 
 export type MergedBundle = {
@@ -53,6 +55,8 @@ export function applyExteriorAnswers(
   measured: MeasuredSides = {},
   /** ⚑ Tom's numbers once he has them; my proposal until then. */
   accessSettings: ExteriorAllowanceSettings = DEFAULT_EXTERIOR_ALLOWANCES,
+  /** Exterior wizard v2: the shape typicals from `exterior_typicals`; the built-in list when none are loaded. */
+  exteriorTypicals: ReadonlyArray<ExteriorTypicalRow> = [],
 ): void {
   const wantsExterior = state.jobType === "exterior" || state.jobType === "both";
   if (!wantsExterior) return;
@@ -62,7 +66,21 @@ export function applyExteriorAnswers(
   const hasExteriorNodes = merged.areas.some((a) => a.type === "Exterior");
   const house = state.exterior ? state.exterior.targets.includes("house") : true;
   const wantsWalls = !state.exterior || (state.exterior.painting.body && !state.exterior.substrates.includes("none"));
-  if (!hasExteriorNodes) {
+  // Exterior wizard v2: the DRAWN house prices its own tree — one node per
+  // painted side with the parts confirmed side by side, and the extras —
+  // through lib/wizard/exterior-model.ts. The v1 scaffold, the whole-job
+  // extras placeholders and the freestanding targets below are the older
+  // sessions' path and never run beside it.
+  // Until the Painting step has run (S3) the house is a shape and a size only:
+  // the v1 scaffold still lays the lines, sized from the drawn house below.
+  const v2 = state.exterior?.v2 && exteriorV2Answered(state.exterior.v2) ? state.exterior.v2 : null;
+  const drawn = state.exterior?.v2 ?? null;
+  if (v2 && !hasExteriorNodes) {
+    const nodes = exteriorV2Nodes(v2, nextId, exteriorTypicals);
+    merged.areas.push(...nodes.areas);
+    merged.deferred = merged.deferred.filter((d) => d.what !== "exterior envelope");
+    merged.deferred.push(...nodes.deferred);
+  } else if (!hasExteriorNodes) {
     // C8b: the quick look's window type and whole-job counts seed the sides.
     const scaffold = starterExteriorNodes(nextId, tickedSurfaces, wantsWalls, {
       windowType: state.exterior?.windowType ?? null,
@@ -79,9 +97,11 @@ export function applyExteriorAnswers(
 
   // A2: ticked whole-job extras are never measured by an elevation read —
   // they always arrive as $0 placeholders to measure.
-  const extras = exteriorExtrasNodes(nextId, tickedSurfaces, state.exterior?.extras.fenceType ?? "paling");
-  merged.areas.push(...extras.areas);
-  merged.deferred.push(...extras.deferred);
+  if (!v2) {
+    const extras = exteriorExtrasNodes(nextId, tickedSurfaces, state.exterior?.extras.fenceType ?? "paling");
+    merged.areas.push(...extras.areas);
+    merged.deferred.push(...extras.deferred);
+  }
 
   if (!state.exterior) return;
   const ext = state.exterior;
@@ -90,7 +110,7 @@ export function applyExteriorAnswers(
   // asked for the length and width and a Confirm, so the placeholder becomes
   // a sized, priced line and its "measure on site" deferral goes.
   const pg = ext.pergola;
-  if (tickedSurfaces.has("pergola") && pg?.confirmed && pg.lengthM != null && pg.widthM != null) {
+  if (!v2 && tickedSurfaces.has("pergola") && pg?.confirmed && pg.lengthM != null && pg.widthM != null) {
     const sized = applyPergolaSize(merged.areas as unknown as Parameters<typeof applyPergolaSize>[0], pg.lengthM, pg.widthM);
     if (sized.ok) {
       merged.areas = sized.blocks as unknown as typeof merged.areas;
@@ -151,7 +171,7 @@ export function applyExteriorAnswers(
       needs: "customer answered \"other\" for what the house is made of — confirm the substrate on site (scaffolded as weatherboard)",
     });
   }
-  applyFreestandingTargets(merged, ext, nextId);
+  if (!v2) applyFreestandingTargets(merged, ext, nextId);
 
   // Storeys give every side its height; unmeasured sides take typical lengths
   // (12 m front/back, 14 m sides), tagged assumed until the confirm loop
@@ -179,7 +199,8 @@ export function applyExteriorAnswers(
         a.H = m.H; // read off the facade photo
         a.assumedFields = a.assumedFields.filter((f) => f !== "H");
       } else {
-        a.H = sideH;
+        // Exterior wizard v2 (S2): the drawn house's wall height beats the 2.6 / 5.5 constants.
+        a.H = drawn && key && drawn.sides[key]?.h ? drawn.sides[key]!.h : sideH;
         if (!a.assumedFields.includes("H")) a.assumedFields = [...a.assumedFields, "H"];
       }
     }
@@ -188,7 +209,8 @@ export function applyExteriorAnswers(
         a.L = m.L; // the floorplan's own edge for this side
         a.assumedFields = a.assumedFields.filter((f) => f !== "L");
       } else {
-        a.L = Math.round((/front|rear|back/i.test(a.name) ? 12 : 14) * sideF * 100) / 100;
+        // Exterior wizard v2 (S2): the drawn house's typical width for this side beats 12 / 14 × the band.
+        a.L = drawn && key && drawn.sides[key]?.w ? drawn.sides[key]!.w : Math.round((/front|rear|back/i.test(a.name) ? 12 : 14) * sideF * 100) / 100;
         if (!a.assumedFields.includes("L")) a.assumedFields = [...a.assumedFields, "L"];
       }
     }
