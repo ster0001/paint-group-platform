@@ -80,14 +80,21 @@ declare namespace google.maps {
     function addListener(instance: object, eventName: string, handler: () => void): MapsEventListener;
     function clearInstanceListeners(instance: object): void;
   }
+  /** importLibrary("maps"): the map, the overlay and the line. */
   interface MapsLibrary {
     Map: typeof Map;
-    LatLngBounds: typeof LatLngBounds;
     OverlayView: typeof OverlayView;
     Polyline: typeof Polyline;
+  }
+  /** importLibrary("core"): bounds, points and events live here, not in "maps". */
+  interface CoreLibrary {
+    LatLng: typeof LatLng;
+    LatLngBounds: typeof LatLngBounds;
+    Point: typeof Point;
     event: typeof event;
   }
   function importLibrary(name: "maps"): Promise<MapsLibrary>;
+  function importLibrary(name: "core"): Promise<CoreLibrary>;
 }
 
 interface Window {

@@ -47,12 +47,12 @@ function addDays(iso: string, n: number): string {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
-/** The Monday three weeks out — past the Day spec's week, so no other spec's data sits on it. */
+/** The Monday four weeks out — past the Day spec's (+1 week) and the full-loop spec's weeks, so no other spec's data sits on it. */
 function targetMonday(): string {
   const today = todayMelb();
   const dow = new Date(`${today}T12:00:00Z`).getUTCDay();
   const nextMonday = addDays(today, ((8 - dow) % 7) || 7);
-  return addDays(nextMonday, 14);
+  return addDays(nextMonday, 21);
 }
 const MON = targetMonday();
 const WED = addDays(MON, 2);

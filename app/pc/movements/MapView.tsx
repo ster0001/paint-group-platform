@@ -9,7 +9,7 @@ import {
 import type { JobExtras } from "@/lib/movements/load";
 import { KIND_ICONS, movementIcon } from "@/lib/movements/gearIcons";
 import type { EquipmentCategory, MovementRow, Point } from "@/lib/movements/types";
-import { loadGoogleMaps, mapsBrowserKey } from "@/lib/maps/googleMaps";
+import { loadGoogleMaps, mapsBrowserKey, type GoogleMapsLib } from "@/lib/maps/googleMaps";
 import { geocodeJobs, reorderDay, sendRunPlan, type MovementActionResult } from "./actions";
 
 type Act = (run: () => Promise<MovementActionResult>, done?: (value: string) => string | void) => Promise<boolean>;
@@ -80,7 +80,7 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
   const key = mapsBrowserKey();
   const boxRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
-  const libRef = useRef<google.maps.MapsLibrary | null>(null);
+  const libRef = useRef<GoogleMapsLib | null>(null);
   const overlayRef = useRef<google.maps.OverlayView | null>(null);
   const lineRef = useRef<google.maps.Polyline | null>(null);
   const projRef = useRef<google.maps.MapCanvasProjection | null>(null);

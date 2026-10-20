@@ -14,23 +14,38 @@ export function mapsBrowserKey(): string | null {
   return k && k.trim() ? k.trim() : null;
 }
 
-let pending: Promise<google.maps.MapsLibrary> | null = null;
+/** What the map needs: the "maps" library (Map, OverlayView, Polyline) and "core" (LatLngBounds, event). */
+export type GoogleMapsLib = google.maps.MapsLibrary & google.maps.CoreLibrary;
 
-export function loadGoogleMaps(key: string): Promise<google.maps.MapsLibrary> {
+async function libraries(importLibrary: typeof google.maps.importLibrary): Promise<GoogleMapsLib> {
+  const [maps, core] = await Promise.all([importLibrary("maps"), importLibrary("core")]);
+  return { ...maps, ...core };
+}
+
+let pending: Promise<GoogleMapsLib> | null = null;
+const CALLBACK = "__pgGoogleMapsReady";
+
+type MapsWindow = Window & { [CALLBACK]?: () => void };
+
+export function loadGoogleMaps(key: string): Promise<GoogleMapsLib> {
   if (typeof window === "undefined") return Promise.reject(new Error("Google Maps loads in the browser only"));
   const have = window.google?.maps?.importLibrary;
-  if (have) return have("maps");
+  if (have) return libraries(have);
   if (pending) return pending;
-  pending = new Promise<google.maps.MapsLibrary>((resolve, reject) => {
-    const fail = (why: string) => { pending = null; reject(new Error(why)); };
-    const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&region=AU&language=en-AU`;
-    s.async = true;
-    s.onload = () => {
+  pending = new Promise<GoogleMapsLib>((resolve, reject) => {
+    const w = window as MapsWindow;
+    const fail = (why: string) => { pending = null; delete w[CALLBACK]; reject(new Error(why)); };
+    // With loading=async the script's own onload fires before the API is in place: the
+    // `callback` parameter is the documented ready signal, and importLibrary exists by then.
+    w[CALLBACK] = () => {
+      delete w[CALLBACK];
       const lib = window.google?.maps?.importLibrary;
       if (!lib) { fail("Google Maps loaded without importLibrary"); return; }
-      lib("maps").then(resolve, (e: unknown) => fail(e instanceof Error ? e.message : String(e)));
+      libraries(lib).then(resolve, (e: unknown) => fail(e instanceof Error ? e.message : String(e)));
     };
+    const s = document.createElement("script");
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&region=AU&language=en-AU&callback=${CALLBACK}`;
+    s.async = true;
     s.onerror = () => fail("The Google Maps script could not be loaded — check the key's website restriction includes this address.");
     document.head.appendChild(s);
   });
