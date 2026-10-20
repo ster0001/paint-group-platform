@@ -26,7 +26,7 @@
  */
 import pg from "pg";
 import { productionRef } from "./env.mjs";
-import { checkTarget, DEFAULTS, EXIT, exampleAccountSql, fkAction, parseArgs, runUserSql, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
+import { checkTarget, DEFAULTS, EXIT, exampleAccountSql, fixtureJobSql, fkAction, parseArgs, runUserSql, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
 import {
   E2E_RUN_LOCK_KEY,
   LOCK_HOLDER_QUERY,
@@ -185,11 +185,19 @@ async function purge(table, ids, deleteSelf, stats, depth = 0, trail = []) {
 // ---- orphans: rows no user or account marker reaches any more --------------
 
 /**
- * Three shapes of debris a cancelled run leaves that the user walk cannot
+ * Four shapes of debris a cancelled run leaves that the user walk cannot
  * find: a wizard draft whose anonymous user is already gone (no FK on
- * `user_id`), an open handoff on a conversation with no account, and a
- * callback event with no account. All age-gated; all through `purge`, so
- * whatever hangs off them by FK goes too. Test project only (the guard above).
+ * `user_id`), an open handoff on a conversation with no account, a callback
+ * event with no account, and — 21 Oct 2026 — a work-order fixture job built
+ * with the service client (`createLoopFixture`), which carries no user at
+ * all: 81 of them sat on the e2e painter, and the closed ones had moved the
+ * painter past "new" so every spec expecting a check on finish went red. The
+ * fixture is an estimate with the job hanging off it (ON DELETE CASCADE), so
+ * it goes the way `destroyLoopFixture` takes it: the ESTIMATE is purged and
+ * the FK walk clears the invoices, costs and contractor invoices that would
+ * refuse. All age-gated (the fixture job at DEFAULTS.fixtureJobAgeDays, never
+ * less); all through `purge`, so whatever hangs off them by FK goes too. Test
+ * project only (the guard above).
  */
 async function removeOrphans(days, stats) {
   const drafts = (await q(
@@ -203,7 +211,11 @@ async function removeOrphans(days, stats) {
   const callbacks = (await q(
     `select id from public.crm_events where type = 'callback_requested' and account_id is null and occurred_at < now() - ($1::int * interval '1 day') limit 2000`, [days])).map((r) => r.id);
   await purge("public.crm_events", callbacks, true, stats);
-  return { drafts: drafts.length, handoffs: handoffs.length, callbacks: callbacks.length };
+  const fixtureDays = Math.max(Number(days) || 0, DEFAULTS.fixtureJobAgeDays);
+  const fixtures = (await q(
+    `select distinct w.estimate_id as id from public.work_orders w where ${fixtureJobSql("w")} limit 500`, [fixtureDays])).map((r) => r.id);
+  await purge("public.estimates", fixtures, true, stats);
+  return { drafts: drafts.length, handoffs: handoffs.length, callbacks: callbacks.length, fixtures: fixtures.length };
 }
 
 // ---- selecting whom to remove ----------------------------------------------
@@ -392,7 +404,7 @@ if (cmd === "sweep") {
   // queue to its cap, which is how seven CRM specs went red on the test
   // project. Same shape: open handoffs and callback events whose conversation
   // or event has no account. Age-gated like everything else here.
-  let orphans = { drafts: 0, handoffs: 0, callbacks: 0 };
+  let orphans = { drafts: 0, handoffs: 0, callbacks: 0, fixtures: 0 };
   if (!gaveWay && Date.now() - t0 < budgetMs) {
     if (await takeLockOrGiveWay()) {
       try { orphans = await removeOrphans(days, stats); }
@@ -404,7 +416,8 @@ if (cmd === "sweep") {
   const seconds = (Date.now() - t0) / 1000;
   const line = summaryLine({ verb: `sweep (older than ${days}d, batch ${batch})`, deleted, left, seconds, byTable: stats });
   const why = gaveWay ? " · GAVE WAY to an e2e run" : exhausted ? " · TIME BUDGET HIT" : emptied ? " · nothing older left" : "";
-  const orphanLine = orphans.drafts + orphans.handoffs + orphans.callbacks ? ` · orphans: ${orphans.drafts} drafts, ${orphans.handoffs} handoffs, ${orphans.callbacks} callbacks` : "";
+  const orphanLine = orphans.drafts + orphans.handoffs + orphans.callbacks + orphans.fixtures
+    ? ` · orphans: ${orphans.drafts} drafts, ${orphans.handoffs} handoffs, ${orphans.callbacks} callbacks, ${orphans.fixtures} fixture jobs` : "";
   log(line + (accounts.selected ? ` · @example.com accounts ${accounts.deleted}/${accounts.selected}` : "") + orphanLine + why);
   const after = await counts();
   log(`users before ${before.anonymous + before.e2eLogins} → after ${after.anonymous + after.e2eLogins}`);

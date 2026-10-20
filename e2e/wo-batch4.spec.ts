@@ -14,6 +14,14 @@ import {
  *     products too;
  *   · pre-start: "Pre-start checklist" ticked → the sweep emails (here: no
  *     customer email on the fixture → a skipped event, which proves the path).
+ *
+ * The "QA due" job carries the office's per-job "check required" flag
+ * (`work_orders.qa_required`, 20261105): `wo_schedule_qa` (20270228) only
+ * books a check for a "new" painter while their closed jobs are under
+ * qaCadence.newContractorJobs, and the shared e2e painter is past that on the
+ * test project (closed fixture jobs accumulate across cancelled runs). The
+ * flag is what the product requires for a check whatever the painter's
+ * standing; the assertion stays about what the last pass does.
  */
 const contractor = credentials("CONTRACTOR");
 const staff = credentials("STAFF");
@@ -50,6 +58,8 @@ test.describe("batch 4 — no walkthrough, colour match, pre-start list", () => 
     qaWalk = await createLoopFixture(db!, cid, [{ heading: "Back", labels: ["Walls"] }]);
     cm = await createLoopFixture(db!, cid, [{ heading: "Side", labels: ["Walls"] }]);
     for (const f of [noWalk!, qaWalk!, cm!]) await allDone(f);
+    const { error: qaErr } = await db!.from("work_orders").update({ qa_required: true }).eq("id", qaWalk!.workOrderId);
+    if (qaErr) throw new Error(`qa_required: ${qaErr.message}`);
     // A colour-matched product with no code on the snapshot, plus an uncoloured one.
     const { data: w } = await db!.from("work_orders").select("wo_snapshot").eq("id", cm!.workOrderId).maybeSingle();
     const snap = (w as { wo_snapshot: Record<string, unknown> }).wo_snapshot;
