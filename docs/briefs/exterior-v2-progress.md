@@ -26,7 +26,7 @@ Gates (brief §9): `npm run build`, `npx tsc --noEmit`, `npx eslint --max-warnin
 | S3 (tick a bungalow fully; walls → render and watch the picture) | 20 Oct 2026 | **"Painting and About it look right. Go: S4"** (Tom, in the S0 chat). On the C1 server (`./scripts/c1/serve.sh`): Outside → place → Californian bungalow → tick everything (the verandah opens its posts, ceiling and handrail; tap the picture too) → About it: weatherboards, then render — the walls' texture changes; the gable fill, windows, posts cards; colours; access |
 | S4 (a whole quick path; gable added on the right of a bungalow; the guide range for a bungalow and a townhouse) | 20 Oct 2026 | **"Each side and the range look right. Go: S5"** (Tom, in the S0 chat). On the C1 server: Outside → bungalow → tick everything → About it → Each side: on the **Right** tap **+ Add something on this side** → **Gable ends** (it draws), **Looks right** on each side → details → the range: a row per side, the gable on the right's row, Tighten first. Then a townhouse in the middle of the row: two sides, the range reads right. |
 | S5 (tighten a bungalow with a right-side gable; open as staff and see that side's gable line) | 20 Oct 2026 | **"Tighten and the gable line look right. Go: S6"** (Tom, in the S0 chat). On the C1 server: the bungalow with a gable added on the right (S4's walk) → range → **Tighten my price** → walk: adjust the front to 10 m, Looks right on the rest, a condition on each, **Check this side** ×4 → **See my range** reads Detailed with every row checked → **Change anything else** → the editor's front card shows 10 × 3 m confirmed. Then open the estimate as staff (PC Command / the builder) and see the right side's **Gable end — stucco** line. |
-| S6 (final: all three presets + a unit) | | On the C1 server, phone and laptop: a bungalow, a townhouse and a terrace end to end (home → painting → about it → each side → range → walk → detailed range → editor), then a unit (shares the left wall). Then the production switch: `NEXT_PUBLIC_EXTERIOR_V2=1` on Vercel after the PRs merge and `20270278` + the seed are live. |
+| S6 (final: all three presets + a unit) | 20 Oct 2026 | **"All three presets and the unit read right. Merge order S0 to S6, then I'll flip the flag."** (Tom, in the S0 chat). On the C1 server, phone and laptop: a bungalow, a townhouse and a terrace end to end (home → painting → about it → each side → range → walk → detailed range → editor), then a unit (shares the left wall). Then the production switch: `NEXT_PUBLIC_EXTERIOR_V2=1` on Vercel after the PRs merge and `20270278` + the seed are live. |
 
 ## Rulings log (brief §12)
 
@@ -51,7 +51,7 @@ Each ⚑ has a default so the build never waits. A ruling from Tom goes in the R
 | 14 | Tighten door first; after every side is checked it reads "Change a side" and Book a site visit is primary | As described | | |
 | 15 | No deduction for openings from wall area | Keep | | |
 | 16 | Roof painting chip | Not now | | |
-| 17 | Production switch: `exteriorV2` ON in production after S6 | Tom flips it | | |
+| 17 | Production switch: `exteriorV2` ON in production after S6 | Tom flips it | Tom, 20 Oct 2026: merge S0 → S6 in order, then he sets `NEXT_PUBLIC_EXTERIOR_V2=1` on Vercel | S6 |
 | 18 | Double storey: equal halves; a single storey never gets a second material | As described | | |
 | — | **Mockup approval** (the S0 gate) | Build waits for "Mockup approved" | "Mockup approved. Go: S1" (Tom, 19 Oct 2026) | S0 |
 
