@@ -146,7 +146,13 @@ test.describe("board and paint usability, 18 Sep", () => {
     await signIn(page, staff!, /\/(home|estimates)/);
     // A short laptop, so the handful of lanes on the test board overflows the
     // timeline. Tom's board has dozens on a full screen — the same condition.
-    await page.setViewportSize({ width: 1280, height: 520 });
+    // Not SO short that the timeline hits its 260px minimum, though: below
+    // that the board keeps the floor and lets the page scroll instead, which
+    // is deliberate and not what this test is about. At 520px the bar and
+    // legend above the lanes left 251px (20 Oct), and the floor overhung the
+    // screen by the fractional remainder; asserted below so it cannot drift
+    // back under unnoticed.
+    await page.setViewportSize({ width: 1280, height: 600 });
     await page.goto("/pc/schedule");
     await expect(page.getByTestId("board-header")).toBeVisible({ timeout: 30_000 });
 
@@ -156,6 +162,7 @@ test.describe("board and paint usability, 18 Sep", () => {
       const row = document.querySelector(".sb .crow") as HTMLElement;
       return {
         tlTop: tl.getBoundingClientRect().top,
+        tlHeight: tl.getBoundingClientRect().height,
         headerTop: h.getBoundingClientRect().top,
         rowTop: row.getBoundingClientRect().top,
         scrolled: tl.scrollTop,
@@ -169,6 +176,8 @@ test.describe("board and paint usability, 18 Sep", () => {
     // On screen, and ending at the bottom of it: the timeline is sized to the
     // space it has, which is what gives the lanes somewhere to scroll.
     expect(before.tlTop, "the timeline starts on screen").toBeGreaterThan(0);
+    expect(before.tlHeight, "the screen leaves more than the timeline's 260px floor, so this measures the fit, not the floor")
+      .toBeGreaterThan(260);
     const bottomGap = await page.evaluate(() => {
       const tl = document.querySelector(".sb .tl") as HTMLElement;
       return window.innerHeight - tl.getBoundingClientRect().bottom;

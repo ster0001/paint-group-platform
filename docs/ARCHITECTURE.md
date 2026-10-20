@@ -4,6 +4,30 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 19 Oct 2026 — Movements Session 2: the board engine, lifted out of the Schedule board
+
+**2026-10-19 · `app/components/board/` (`Board.tsx`, `Lane.tsx`, `DayCell.tsx`, `Tray.tsx`, `SavedViews.tsx`, `Controls.tsx`,
+`chrome.tsx`, `useBoardDrag.ts`, `useBoardZoom.ts`, `format.ts`, `types.ts`, `board.css`, `boundary.test.ts`), `app/pc/schedule/ScheduleBoard.tsx`,
+`e2e/board-engine.spec.ts`, `CLAUDE.md`**
+
+The Schedule board's lanes × days machinery — window + zoom + paging, the measured scroller height, the sticky month/day header,
+lane rows with one `.bgc` per day, greedy sub-row packing, the pointer drag (5 px threshold, ghost on rAF, hit-test by
+`document.elementsFromPoint`, `.hot`/`.blocked` class toggles), the marquee across empty lane space, the searchable tray, the
+saved-views popover, scroll persistence and the scrim/sheet/toast chrome — now lives in `app/components/board/` as ONE engine
+(CLAUDE.md "one board engine"). `ScheduleBoard.tsx` (2,230 → ~1,780 lines) is its first consumer: it keeps every booking rule
+(working-day snapping, blocked/held spans, the offer/assign/move sheets, the block detail, the block-out/visit/hold sheet, every
+commit action) and hands the engine props for what differs. The engine resolves the drop target from the cell's `data-lane` /
+`data-day` / `data-slot` attributes (not DOM order — Session 0 item 9.10), so AM/PM halves and hourly rows (`slots` prop,
+`board.css`) can be drop targets for Movements; on the Schedule board (`slots="none"`) the result is identical. Two additions
+exist behind options that default OFF, so the Schedule board's behaviour is unchanged: `capturePointer` and `autoScroll`
+(Session 0 item 9.9). Every test ID and class the Schedule specs rely on is still emitted; `schedule.css` is untouched (the
+engine's base styles still live there — a later session may MOVE them to `board.css`, a pure move verified by the same specs).
+`e2e/board-engine.spec.ts` pins the contract from the user's side (confirm step opens on the ghost's day; a blocked span is
+called out under the pointer and on the sheet; a release off the lanes opens nothing; the same drag at a 412 px touch viewport).
+No migration.
+
+---
+
 ## 7 Oct 2026 — visit booking S6: the gate — details before the range, the switch, the tracking, the report
 
 **2026-10-07 · `supabase/migrations/20270217000000_wizard_gate.sql`, `lib/wizard/quick-look.ts`, `lib/wizard/state.ts`,
@@ -4777,5 +4801,6 @@ Manual test (after Tom pastes 20270268 and the deploy): open an in-progress job 
 
 **Remind me… on every PC Command card (19 Oct 2026 — Tom: "add a reminder date, to be able to close off an alert and for it to pop back up at a later date").** No new store: `remindLater` in `app/pc/actions.ts` writes one dated row through the existing `crm_dismiss_work_item` (until 6:00 am Melbourne on the chosen day, reason `Remind me on <date> (PC Command)`), and the item is derived again when the date comes. A work item uses its own key (the queue already honours `until`); a console card uses `pcCardSnoozeKey(workOrderId, cardKey)` in `lib/workorder/console.ts`, which `loadConsole` reads back as `snoozedKeys` and `buildQueue` filters alongside the permanent `card_dismissed` events. `app/pc/RemindLater.tsx` is the control, drawn on every card branch of `app/pc/page.tsx` and on the quality-check strip. `e2e/pc-remind-later.spec.ts` proves both kinds go and come back.
 
+**Movements — schema, RPCs and seed (19 Oct 2026 — Session 1 of `docs/briefs/movements-build-plan.md`, brief v2.2 §3.1, §5).** One record for the thing that moves: a chip IS a `movements` row — `status = tray` with no assignee and no day until it is dropped on a lane (`assignee_kind` supplier | person, `assignee_table` profiles | contractors, `due_date`, `half`, `time`, `sequence`). Migration `20270279000000_movements.sql` creates the seven enums, `movements`, `movement_items`, `wo_material_lines` (the materials list as lines — one list behind the estimate, the job page and the tray), `equipment_items` (tagged individually from `equipment_tag_seq`, no location column: location is derived from the last done movement by `equipment_item_location`), `supplier_branches` hanging off `vendors` by brand, `supplier_branch_accounts` (staff-only, never in a file), `wo_logistics_decisions`, the `movements` settings row (warehouse = `company_profile` address + its `visit_suburbs` centroid, `nearKm` 7, `boardPeople` empty) and the demo-wall triggers. **Only RPCs write it**: `movements_sync_for_wo` (chips from the jobs — one paint chip per product brand from the Materials rows in `wo_snapshot`, one per unmerged line, one rubbish question; never touches a placed chip except `source_changed_at`; closed jobs get return chips for stranded gear) runs from a trigger on `work_orders` (snapshot materials change, issue, close) and the line RPCs; `movement_create / place / unplace / mark_ordered / set_status / redate / set_time / set_sequence / update / send_run_plan (stub) / painter_done`, `material_line_add / update / remove / merge`, `material_request_accept`, `wo_logistics_decide`, `equipment_item_*`, `supplier_branch_upsert / set_account`. The lane rules live in `movement_place` (supplier lane refuses our own gear and a non-delivering branch; `blocked_by` must be done; staff-style drops book on placing, pickups and supplier orders stay `planned` until Ordered ✓), `colours_first` in `movement_mark_ordered`, auto returns in `movements_after_booked`. Painters read through `movements_for_painter` / `supplier_branches_for_painter` (the §5 column limits — Postgres column privileges are per role and staff share `authenticated`, so no painter policy sits on a base table); customers read nothing. `app/pc/movements/actions.ts` is the zod boundary over every RPC; `lib/movements/types.ts` names the enums; `lib/movements/boundary.test.ts` greps `app/` and `lib/` for direct writes and hand-set statuses; `lib/demo/scope.ts` lists the four job-linked tables. Seeds: `scripts/seed-suppliers.ts` (CSV → vendors + branches, centroids paged past the row cap, UNVERIFIED rows inactive) and `scripts/seed-equipment.ts` (refuses without `EQUIPMENT_SEED_CONFIRMED=1`, maps the template categories by name and refuses what it cannot map). `e2e/movements-rpc.spec.ts` asserts every transition and refusal through each role's own session. No screen yet (Sessions 4–6).
 
 **Invoice date and due date on every invoice (20 Oct 2026 — Tom).** No migration; `issued_on` / `due_on` were already stamped by `invoice_issue`. The customer sheet (`app/i/[token]/InvoiceSheet.tsx`, whose Chromium print is the PDF) kept the due date only while the invoice was open; it now shows Issued and Due on every non-draft invoice, paid included. The staff invoice page (`app/invoicing/inv/[id]/InvoiceDoc.tsx`) gained an Issued row beside Due. The Payments job panel's invoice cards (`JobPanel.tsx`, `issuedOn` added to `PanelInvoice` in `panelData.ts`) carry "Invoice date … · Due …" under the number (`invoice-dates`), and the meta line no longer repeats the due date. Proven on a paid invoice in `e2e/invoicing.spec.ts`. Help: `docs/help/invoicing/staff.md`, `customer.md`.

@@ -156,7 +156,10 @@ test.describe("board: change the end date of a job that is under way", () => {
     await page.mouse.up();
     await expect(page.getByTestId("booking-dates")).toHaveCount(0);
 
-    await block.click();
+    // A started block has no drag handler, so that press-and-release was just a
+    // click to the board: it answers with the block's OWN sheet (the one with
+    // the end-date row), not the "Move this booking?" sheet. Proceed from it —
+    // a second block.click() here would be swallowed by the open sheet's scrim.
     const row = page.getByTestId("finish-date-row");
     await expect(row).toBeVisible();
     await expect(row).toContainText(/start stays/i);
