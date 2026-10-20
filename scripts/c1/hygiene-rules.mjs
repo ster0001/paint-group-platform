@@ -10,7 +10,7 @@
  * database in the loop.
  */
 
-/** @type {{ warnRows: number, failRows: number, sweepAgeDays: number, batch: number, chunk: number, budgetMinutes: number }} */
+/** @type {{ warnRows: number, failRows: number, sweepAgeDays: number, batch: number, chunk: number, sliceUsers: number, budgetMinutes: number, lockWaitMinutes: number, fixtureJobAgeDays: number }} */
 export const DEFAULTS = Object.freeze({
   /** ⚑44 — logged every run regardless; these are only the backstop. */
   warnRows: 5_000,
@@ -38,6 +38,10 @@ export const DEFAULTS = Object.freeze({
    * is 20-40 minutes and the sweep has all night; bouncing off the first
    * refusal is how you get a string of green sweeps that deleted nothing. */
   lockWaitMinutes: 12,
+  /** Age gate for a service-role fixture JOB (fixtureJobSql). Wider than the
+   * user sweep's: a fixture carries no user, so its age is the only thing that
+   * says it is not a live run's — three days is well clear of any suite. */
+  fixtureJobAgeDays: 3,
 });
 
 /** Exit codes the runner uses, so a caller can tell a refusal from a failure. */
@@ -151,6 +155,43 @@ export function exampleAccountSql() {
   return `(a.email like '%@example.com' and a.email not like 'pg.demo.%'` +
     ` and not exists (select 1 from public.account_users au join auth.users u on u.id = au.profile_id` +
     ` where au.account_id = a.id and not ${runUserSql("u")}))`;
+}
+
+/**
+ * WHICH JOBS A RUN'S SERVICE-ROLE FIXTURE MAKES (21 Oct 2026). The work-order
+ * specs build their job through `createLoopFixture` (e2e/fixtures/woLoop.ts)
+ * with the service client — no user marker reaches it, so a cancelled run
+ * leaves the job behind for ever. By 21 Oct the shared e2e painter carried 76
+ * such jobs stuck at in_progress (6–11 Sep) and 5 closed, and the closed ones
+ * had quietly moved the painter past "new" (qaCadence.newContractorJobs), so
+ * every spec that expected a check on finish went red.
+ *
+ * A fixture job is named by BOTH marks the fixture writes — the ref prefix
+ * `WO-E2E` and the snapshot title `E2E tick fixture` — never by one alone: a
+ * real ref is `WO-` + eight hex characters of the share token, so `WO-E2E…`
+ * is possible by chance, and the schedule specs write their own `WO-E2E*`
+ * refs with other snapshots. Age-gated at `fixtureJobAgeDays` on `issued_at`
+ * (the fixture stamps it at creation), so a running suite's job — minutes old
+ * — is never selected. A fragment over `public.work_orders w`.
+ */
+export const FIXTURE_JOB_REF_PREFIX = "WO-E2E";
+export const FIXTURE_JOB_TITLE = "E2E tick fixture";
+
+export function fixtureJobSql(alias = "w") {
+  const c = (col) => (alias ? `${alias}.${col}` : col);
+  return `(${c("wo_ref")} like '${FIXTURE_JOB_REF_PREFIX}%' and ${c("wo_snapshot")}->>'jobTitle' = '${FIXTURE_JOB_TITLE}'` +
+    ` and ${c("estimate_id")} is not null and ${c("issued_at")} < now() - ($1::int * interval '1 day'))`;
+}
+
+/** The same decision, for one row — what the tests prove.
+ * @param {{ woRef?: string | null, jobTitle?: string | null, estimateId?: string | null, issuedAt?: string | null, now?: number, days?: number }} [row] */
+export function isFixtureJob({ woRef = "", jobTitle = "", estimateId = null, issuedAt = null, now = Date.now(), days = DEFAULTS.fixtureJobAgeDays } = {}) {
+  if (!String(woRef ?? "").startsWith(FIXTURE_JOB_REF_PREFIX)) return false;
+  if (jobTitle !== FIXTURE_JOB_TITLE) return false;
+  if (!estimateId) return false;
+  const issued = issuedAt ? new Date(issuedAt).getTime() : NaN;
+  if (!Number.isFinite(issued)) return false;
+  return issued < now - days * 86_400_000;
 }
 
 /**

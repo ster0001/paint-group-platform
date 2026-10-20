@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 // build) and this suite read the SAME file.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — an .mjs module with no declarations
-import { checkTarget, DEFAULTS, exampleAccountSql, fkAction, isRunUser, OWNED, parseArgs, projectRefOf, RUN_EMAIL_PATTERNS, runUserSql, seededExclusion, summaryLine, verdict } from "../../scripts/c1/hygiene-rules.mjs";
+import { checkTarget, DEFAULTS, exampleAccountSql, FIXTURE_JOB_TITLE, fixtureJobSql, fkAction, isFixtureJob, isRunUser, OWNED, parseArgs, projectRefOf, RUN_EMAIL_PATTERNS, runUserSql, seededExclusion, summaryLine, verdict } from "../../scripts/c1/hygiene-rules.mjs";
 
 const TEST = "qarfyjrzgdeoqbnbbxfp";
 const reasonOf = (r: ReturnType<typeof checkTarget>): string => (r.ok ? "" : r.reason);
@@ -98,6 +98,39 @@ describe("which accounts a run makes (11 Oct: three seeded demo orgs had been sw
   });
   it("still only @example.com", () => {
     expect(sql.startsWith("(a.email like '%@example.com'")).toBe(true);
+  });
+});
+
+describe("which jobs a run's service-role fixture makes (21 Oct: 81 WO-E2E jobs no marker reached)", () => {
+  const now = Date.parse("2026-10-21T00:00:00Z");
+  const day = 86_400_000;
+  const old = new Date(now - 4 * day).toISOString();
+  const fixture = { woRef: "WO-E2E4821", jobTitle: FIXTURE_JOB_TITLE, estimateId: "e1", issuedAt: old, now };
+  it("a fixture job older than the age gate is swept", () => {
+    expect(isFixtureJob(fixture)).toBe(true);
+    expect(isFixtureJob({ ...fixture, issuedAt: new Date(now - 3 * day - 1000).toISOString() })).toBe(true);
+  });
+  it("a running suite's job is never selected — minutes old, or today", () => {
+    expect(isFixtureJob({ ...fixture, issuedAt: new Date(now - 5 * 60_000).toISOString() })).toBe(false);
+    expect(isFixtureJob({ ...fixture, issuedAt: new Date(now - 2 * day).toISOString() })).toBe(false);
+    expect(isFixtureJob({ ...fixture, issuedAt: null })).toBe(false);
+  });
+  it("needs BOTH marks — a real ref that happens to start WO-E2E, or a schedule spec's WO-E2E* job, is not a fixture", () => {
+    expect(isFixtureJob({ ...fixture, jobTitle: "12 Demo Street" })).toBe(false);
+    expect(isFixtureJob({ ...fixture, jobTitle: "" })).toBe(false);
+    expect(isFixtureJob({ ...fixture, woRef: "WO-A1B2C3D4" })).toBe(false);
+    expect(isFixtureJob({ ...fixture, woRef: "wo-e2e4821" })).toBe(false);
+    expect(isFixtureJob({ ...fixture, estimateId: null })).toBe(false);
+  });
+  it("the age gate is three days, wider than the user sweep's one", () => {
+    expect(DEFAULTS.fixtureJobAgeDays).toBe(3);
+    expect(DEFAULTS.fixtureJobAgeDays).toBeGreaterThan(DEFAULTS.sweepAgeDays);
+  });
+  it("the SQL carries both marks verbatim, the estimate test and the age parameter, qualified", () => {
+    const sql = fixtureJobSql("w");
+    expect(sql).toBe("(w.wo_ref like 'WO-E2E%' and w.wo_snapshot->>'jobTitle' = 'E2E tick fixture'" +
+      " and w.estimate_id is not null and w.issued_at < now() - ($1::int * interval '1 day'))");
+    expect(FIXTURE_JOB_TITLE).not.toContain("'");
   });
 });
 

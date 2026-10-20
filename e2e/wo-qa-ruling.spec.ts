@@ -13,8 +13,14 @@ import {
  *   · the final walkthrough cannot be booked while a check is unpassed;
  *   · pass the checks and the booking opens.
  *
- * The fixture contractor is E2E_CONTRACTOR, who is "new" (fixture jobs are
- * destroyed after every run, so their closed count stays near zero).
+ * A check is only scheduled on finish when the product says one is due
+ * (`wo_schedule_qa`, 20270228): a "new" painter gets one while their closed
+ * jobs are under qaCadence.newContractorJobs — and the shared e2e painter is
+ * long past that on the test project, where cancelled runs leave closed
+ * fixture jobs behind (five by 21 Oct 2026). So every fixture here carries
+ * the office's per-job "check required" flag (`work_orders.qa_required`,
+ * 20261105), the way the PC books one in. The assertions are about what a
+ * scheduled check does to the route and the gate, not about who gets one.
  */
 const contractor = credentials("CONTRACTOR");
 const staff = credentials("STAFF");
@@ -24,6 +30,8 @@ let fixture: LoopFixture | null = null;
 let uiFixture: LoopFixture | null = null;
 
 async function allDone(f: LoopFixture) {
+  const { error } = await db!.from("work_orders").update({ qa_required: true }).eq("id", f.workOrderId);
+  if (error) throw new Error(`qa_required: ${error.message}`);
   await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
   await photosIn(db!, f.workOrderId);
 }
@@ -45,7 +53,7 @@ test.describe("QA ruling — finish, route, gate", () => {
     await destroyLoopFixture(db!, uiFixture);
   });
 
-  test("the painter finishes: prep pops up, with the QA heads-up for a new contractor", async () => {
+  test("the painter finishes: prep pops up, with the QA heads-up when a check is due", async () => {
     const r = await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: fixture!.workOrderId });
     expect(r).toBe("ok:completion_prep:qa_pending");
 
