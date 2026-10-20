@@ -258,6 +258,37 @@ async function enableOnlineEstimates(): Promise<void> {
   console.log("e2e: wizard_public.enabled was off on the test project — turned on for this run.");
 }
 
+/**
+ * THE GATE ORDER IS "DETAILS FIRST", DELIBERATELY, FOR THE WHOLE RUN.
+ *
+ * Three specs (`gate`, `save-and-book`, `visit-booking-api`) flip
+ * `settings.visit_booking_rules.gateOrder` to `range_first` and put it back
+ * in `afterAll`. A run that is cancelled between the two — CI cancels a PR's
+ * run the moment the PR merges, which is most of them — leaves the test
+ * project on `range_first`. Under that order "Tighten my price" opens the
+ * details sheet instead of the scope editor, so every spec that clicks the
+ * door and waits for `/estimate/scope` sits out its 60 s. The CI customer
+ * journey job was red that way on every branch from 14 Oct to 20 Oct 2026,
+ * ~2.5 h per run, and nobody saw it because the merge cancelled the run.
+ *
+ * Only `gateOrder` is touched; the rest of the row (zones, notice, calendar)
+ * is left as found — the specs that change those fields restore the row.
+ */
+async function pinGateOrder(): Promise<void> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  if (!serviceKey) return; // enableOnlineEstimates already warned
+  const { createClient } = await import("@supabase/supabase-js");
+  const db = createClient(url, serviceKey, { auth: { persistSession: false } });
+  const read = await db.from("settings").select("value").eq("key", "visit_booking_rules").maybeSingle();
+  if (read.error) throw new Error(`could not read visit_booking_rules: ${read.error.message}`);
+  const current = (read.data?.value && typeof read.data.value === "object" ? read.data.value : {}) as Record<string, unknown>;
+  if (current.gateOrder === "details_first") return;
+  const write = await db.from("settings").upsert({ key: "visit_booking_rules", value: { ...current, gateOrder: "details_first" } }, { onConflict: "key" });
+  if (write.error) throw new Error(`could not pin visit_booking_rules.gateOrder: ${write.error.message}`);
+  console.log(`e2e: visit_booking_rules.gateOrder was ${JSON.stringify(current.gateOrder ?? null)} on the test project — set to details_first for this run.`);
+}
+
 export default async function globalSetup(): Promise<void> {
   const target = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   const allowProduction = process.env.E2E_ALLOW_PRODUCTION === "1";
@@ -373,4 +404,5 @@ export default async function globalSetup(): Promise<void> {
 
   // ---- 4. the online estimator is on, and the service key really works ----
   await enableOnlineEstimates();
+  await pinGateOrder();
 }
