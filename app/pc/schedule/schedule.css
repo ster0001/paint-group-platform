@@ -1,92 +1,12 @@
-/* Scheduling board — ported from design/reference/staff-scheduling-timeline.html.
-   Scoped under .sb so it never touches the rest of the staff app.
+/* Scheduling board — what a BOOKING looks like on the board engine.
+   The engine's own `.sb` rules (tokens, top bar, controls, layout, tray chrome,
+   timeline, header, lanes, cells, ghost, sheet, toast, filters, the console
+   fit and the light-theme tokens) live in app/components/board/board.css,
+   which Board.tsx imports. This file carries only the Schedule board's blocks
+   (`.blk.*`), offers, holds, tray job cards and its own sheets. Scoped under
+   .sb like the engine. */
 
-   Zoom is driven entirely by --day-w. Blocks are absolutely positioned with
-   calc() against that variable, so changing it animates every block at once
-   instead of forcing a re-layout of the grid. */
-
-.sb {
-  --ink: #0a0b0d; --graphite: #12161a; --raised: #171c21; --line: #242b32;
-  --text: #edf0f2; --muted: #8c959d; --cyan: #3bd8e9; --on-cyan: #03272d;
-  --paint: #2fb9cb; --amber: #e0a83c; --emerald: #2fa46b; --clay: #b3574a;
-  /* Tom, 1 Oct: a HELD day is bright pink — unmissable on purpose, it is a reminder. */
-  --hold: #ff2d9b;
-  --sans: "Switzer", -apple-system, sans-serif;
-  --mono: "Martian Mono", ui-monospace, monospace;
-
-  --day-w: 64px;      /* the zoom level */
-  --lane-w: 220px;    /* contractor column */
-  --row-h: 66px;
-
-  background: var(--ink);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 14px;
-  -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
-}
-.sb *, .sb *::before, .sb *::after { box-sizing: border-box; }
-
-/* ---- top bar ------------------------------------------------------------- */
-.sb .top {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 12px 18px; border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 40;
-  background: rgba(10, 11, 13, 0.95); backdrop-filter: blur(12px); flex-wrap: wrap;
-}
-.sb .crumb { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
-.sb h1 { font-size: 17px; font-weight: 600; }
-.sb .legend { display: flex; gap: 14px; font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.06em; flex-wrap: wrap; }
-.sb .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
-
-/* ---- controls ------------------------------------------------------------ */
-.sb .ctrls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.sb .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.sb .seg button {
-  background: none; border: none; color: var(--muted); cursor: pointer;
-  font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em; padding: 7px 10px; text-transform: uppercase;
-}
-.sb .seg button.on { background: var(--cyan); color: var(--on-cyan); font-weight: 600; }
-.sb .seg button:hover:not(.on) { background: rgba(255, 255, 255, 0.05); color: var(--text); }
-.sb .ctrl-lab { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
-.sb .zoom { display: flex; align-items: center; gap: 6px; }
-.sb .zoom input[type="range"] { width: 96px; accent-color: var(--cyan); }
-
-.sb select, .sb input[type="text"], .sb input[type="date"] {
-  background: var(--ink); border: 1px solid var(--line); border-radius: 8px; color: var(--text);
-  font-family: var(--sans); font-size: 12.5px; padding: 6px 9px;
-}
-.sb input[type="date"] { color-scheme: dark; }
-
-/* ---- layout -------------------------------------------------------------- */
-.sb .layout { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 56px); }
-@media (max-width: 900px) { .sb .layout { grid-template-columns: 1fr; } }
-
-/* ---- tray ---------------------------------------------------------------- */
-/* The tray is its OWN scroller (Tom, 17 Sep): a long list of unscheduled jobs
-   used to push the timeline off the bottom of the page, so the card you had
-   finally scrolled to had nowhere to be dropped. It now pins under the sticky
-   header at the viewport's height and scrolls inside itself, so the lanes stay
-   beside every card. --sb-stick is the header it sits under. */
-.sb { --sb-stick: 56px; }
-.sb .tray {
-  border-right: 1px solid var(--line); padding: 16px;
-  position: sticky; top: var(--sb-stick);
-  /* The same measured height as the timeline, so the two columns end together. */
-  max-height: var(--sb-space, calc(100vh - var(--sb-stick))); overflow-y: auto;
-  align-self: stretch; /* the divider runs the full height of the lanes when the tray is short */
-}
-@media (max-width: 900px) {
-  /* One column: the tray sits above the lanes. Bounded so the timeline is
-     never more than a short scroll away, but not pinned — a pinned tray would
-     cover the lanes it is meant to be dropped onto. */
-  .sb .tray { position: static; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--line); }
-  /* A scroller inside a scroller is worse than a page that simply scrolls. */
-  .sb .tl { height: auto; max-height: none; overflow-x: auto; }
-  .sb .hdr { position: static; }
-}
-.sb .tray h2 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
-.sb .tray .sub { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 14px; text-transform: uppercase; }
+/* ---- tray job cards ------------------------------------------------------ */
 .sb .jcard {
   background: var(--graphite); border: 1px solid var(--line); border-radius: 12px;
   padding: 13px 14px; margin-bottom: 10px; cursor: grab;
@@ -107,110 +27,6 @@
 .sb .jcard .meta { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.04em; }
 .sb .jcard .pay { font-family: var(--mono); font-size: 11px; margin-top: 6px; }
 .sb .jcard .flagline { margin-top: 7px; font-family: var(--mono); font-size: 8.5px; color: var(--clay); }
-.sb .hint { font-size: 12px; color: var(--muted); margin-top: 14px; line-height: 1.6; }
-
-/* ---- timeline ------------------------------------------------------------ */
-/* No left padding: the lane column sticks to left:0 of the scrollport, so any
-   gutter here is a strip the pinned names DON'T cover — blocks scroll through
-   it and read as debris beside the name. */
-/* Tom, 18 Sep: "keep the month day and date locked at the top of the screen,
-   so you can still see when dragging a job". The header lives INSIDE the
-   horizontal scroller (it has to — it scrolls sideways with the columns), and
-   a sticky element only pins to its own scrollport, so pinning it to the page
-   does nothing. The timeline therefore becomes its own scroller in both
-   directions, bounded to the viewport exactly as the tray already is, and the
-   header pins to the top of that. The lanes scroll under it. */
-.sb .tl {
-  overflow: auto; padding: 0 16px 60px 0;
-  /* Ends where the screen ends, so the lanes scroll INSIDE it and the dates
-     can stay locked at its top. --sb-space is measured in ScheduleBoard (see
-     the comment there); the calc is only the pre-paint fallback. Sticky is
-     NOT the answer here: a sticky timeline only holds while its containing
-     block still has travel, and once the board is taller than the screen there
-     is none — it pins for a few pixels and then scrolls away, header and all,
-     which is precisely the case this was meant to fix. */
-  height: var(--sb-space, calc(100vh - var(--sb-stick)));
-  align-self: start;
-}
-/* z-index clears the lane name column (8/9), the blocks (4) and the today
-   line (5). The solid background stops any of them showing through it. */
-/* The timeline's top padding lives HERE rather than on .tl, so the header
-   pins flush at the top: left on the scroller it became a 16px gap that the
-   lanes scrolled up through, above the dates. */
-.sb .hdr { position: sticky; top: 0; z-index: 10; background: var(--ink); padding-top: 16px; }
-.sb .grid { min-width: min-content; }
-.sb .mb { display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w)); }
-.sb .mb .mcell {
-  font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--text); padding: 6px 8px; border-left: 1px solid var(--line);
-  white-space: nowrap; overflow: hidden;
-}
-.sb .mb .mcell.spacer { border-left: none; }
-
-.sb .dh { display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w)); border-bottom: 1px solid var(--line); }
-/* Two lines: the weekday, then the date. Stacked rather than "MON 12" on one
-   line so the name survives every zoom level instead of dropping out. */
-.sb .dh .cell {
-  padding: 6px 2px; text-align: center; font-family: var(--mono); font-size: 9px;
-  color: var(--muted); letter-spacing: 0.04em; overflow: hidden; white-space: nowrap;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1.2;
-}
-.sb .dh .cell .dw { font-size: 8px; letter-spacing: 0.09em; opacity: 0.8; }
-.sb .dh .cell .dn { font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.sb .dh .cell.we { color: #5a6268; }
-.sb .dh .cell.today { color: var(--cyan); }
-.sb .dh .cell.today .dn { font-weight: 700; }
-.sb .dh .cell.lanehead { align-items: flex-start; justify-content: center; text-align: left; padding-left: 12px; }
-
-.sb .crow {
-  display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w));
-  border-bottom: 1px solid rgba(36, 43, 50, 0.6); position: relative;
-  min-height: var(--row-h);
-  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-/* The lane column pins to the left edge of the scroller. Three weeks out, a
-   board with the names scrolled off is a wall of blocks nobody can attribute —
-   the name has to travel with the row. z-index clears the blocks (4) and the
-   today line (5); the solid background stops them showing through. */
-.sb .cinfo {
-  padding: 8px 12px; border-right: 1px solid var(--line); overflow: hidden;
-  display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0;
-  position: sticky; left: 0; z-index: 8; background: var(--ink);
-}
-.sb .dh .cell.lanehead, .sb .mb .mcell.spacer { position: sticky; left: 0; z-index: 9; background: var(--ink); }
-.sb .cinfo .nmrow { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.sb .cinfo .nm { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sb .cinfo .tg { font-family: var(--mono); font-size: 8.5px; color: var(--muted); letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sb .cinfo .bd { display: flex; gap: 6px; font-family: var(--mono); font-size: 8px; flex-shrink: 0; }
-.sb .cinfo .bd span { padding: 2px 7px; border-radius: 100px; border: 1px solid var(--line); color: var(--muted); }
-.sb .cinfo .bd .q { color: var(--emerald); border-color: rgba(47, 164, 107, 0.4); }
-.sb .cinfo .bd .no { color: var(--clay); border-color: rgba(179, 87, 74, 0.4); }
-
-/* Tom, 26 Sep: the console's own `.pc .lane` (a flex column, 9px gap — the
-   Projects lanes) leaks onto the board's lanes, which share the class name.
-   The gap widened every day cell to 73px against 64px header columns, so the
-   highlighted day drifted a column to the right across a week and the drop
-   pop-up named a date the header disagreed with. Pin the gap and span the day
-   columns explicitly. */
-.pc .sb .lane, .sb .lane { position: relative; display: grid; grid-template-columns: repeat(var(--days), var(--day-w)); gap: 0; grid-column: 2 / -1; }
-.sb .lane .bgc { position: relative; border-right: 1px solid rgba(36, 43, 50, 0.35); }
-/* Tom, 24 Sep: the date pop-up on the day a job is being dragged over — the
-   cell says its own date, inside the row so the scroller never clips it. */
-.sb .lane .bgc.hot::after {
-  content: attr(data-label); position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
-  background: var(--cyan); color: #06181c; font: 700 11px/1 var(--mono); letter-spacing: 0.02em;
-  padding: 5px 8px; border-radius: 6px; white-space: nowrap; z-index: 6; pointer-events: none;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-}
-.sb .lane.blocked .bgc.hot::after { background: var(--clay); color: #fff; }
-.sb .lane .bgc.we { background: rgba(255, 255, 255, 0.018); }
-/* Drop target — a single class toggle, no per-cell restyling during a drag. */
-.sb .lane .bgc.hot { background: rgba(59, 216, 233, 0.1); box-shadow: inset 0 0 0 1px rgba(59, 216, 233, 0.35); }
-/* marquee while dragging out a block-out range on empty lane space */
-.sb .lane .bgc.marq { background: repeating-linear-gradient(45deg, rgba(140,149,157,.22) 0 6px, transparent 6px 12px); box-shadow: inset 0 0 0 1px rgba(140,149,157,.5); }
-.sb .lane.blocked .bgc.hot { background: rgba(179, 87, 74, 0.12); box-shadow: inset 0 0 0 1px rgba(179, 87, 74, 0.4); }
-
-.sb .todayline { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--cyan); opacity: 0.55; z-index: 5; pointer-events: none; }
 
 /* ---- blocks -------------------------------------------------------------- */
 .sb .blk {
@@ -260,99 +76,6 @@
 /* Eased settle after a drop. */
 .sb .blk.settling { transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1); }
 .sb .blk .cd { font-family: var(--mono); font-size: 8.5px; color: var(--amber); }
-
-/* ---- drag ghost ---------------------------------------------------------- */
-.sb .ghost {
-  position: fixed; left: 0; top: 0; z-index: 90; pointer-events: none;
-  background: var(--raised); border: 1px solid var(--cyan); border-radius: 10px;
-  padding: 8px 12px; font-size: 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
-  will-change: transform; /* promoted once, so each frame is a compositor move */
-}
-.sb .ghost .g1 { font-weight: 600; white-space: nowrap; }
-.sb .ghost .g2 { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
-.sb .ghost .g3 { font-family: var(--mono); font-size: 14px; color: var(--cyan); margin-top: 6px; white-space: nowrap; font-weight: 700; }
-.sb .ghost.blocked { border-color: var(--clay); }
-.sb .ghost.blocked .g2 { color: var(--clay); }
-
-/* ---- side sheet ---------------------------------------------------------- */
-.sb .scrim { position: fixed; inset: 0; background: rgba(5, 6, 7, 0.5); opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 55; }
-.sb .scrim.on { opacity: 1; pointer-events: auto; }
-.sb .sheet {
-  position: fixed; right: -440px; top: 0; bottom: 0; width: 420px; max-width: 92vw;
-  background: var(--raised); border-left: 1px solid var(--line); z-index: 60;
-  transition: right 0.3s cubic-bezier(0.55, 0, 0.15, 1); padding: 22px; overflow-y: auto;
-}
-.sb .sheet.open { right: 0; }
-.sb .sheet h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-.sb .sheet .slab { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.12em; margin-bottom: 16px; text-transform: uppercase; }
-.sb .frow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid rgba(36, 43, 50, 0.6); font-size: 13px; }
-.sb .frow .l { color: var(--muted); }
-.sb .frow .v { font-family: var(--mono); font-size: 11.5px; text-align: right; }
-.sb .btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-family: var(--sans); font-weight: 600; font-size: 14px; cursor: pointer; margin-top: 12px; }
-.sb .btn.cy { background: var(--cyan); color: var(--on-cyan); }
-.sb .btn.cy:hover { background: var(--paint); }
-.sb .btn.gh { background: none; border: 1px solid var(--line); color: var(--text); }
-.sb .btn.gh:hover { background: rgba(255, 255, 255, 0.05); }
-.sb .btn.dim { background: none; border: 1px solid var(--line); color: var(--muted); }
-.sb .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.sb .err { border: 1px solid rgba(179, 87, 74, 0.6); background: rgba(179, 87, 74, 0.12); color: #e8b3aa; border-radius: 9px; padding: 10px 12px; font-size: 12.5px; margin-top: 12px; }
-
-/* ---- toast --------------------------------------------------------------- */
-.sb .toast {
-  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(16px);
-  background: var(--raised); border: 1px solid rgba(59, 216, 233, 0.45); border-radius: 12px;
-  padding: 12px 18px; font-size: 13px; opacity: 0; transition: all 0.3s; z-index: 80;
-  max-width: 520px; text-align: center; pointer-events: none;
-}
-.sb .toast.show { opacity: 1; transform: translateX(-50%); }
-.sb .toast b { color: var(--cyan); }
-
-/* ---- filter popover ------------------------------------------------------ */
-.sb .filters { position: relative; }
-.sb .fpop {
-  position: absolute; right: 0; top: calc(100% + 6px); width: 280px; z-index: 70;
-  background: var(--raised); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
-  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5);
-}
-.sb .fpop .lab { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin: 10px 0 6px; }
-.sb .fpop .crow2 { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12.5px; }
-.sb .fpop input[type="checkbox"] { accent-color: var(--cyan); width: 15px; height: 15px; }
-.sb .fpop .viewrow { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
-.sb .fpop .viewrow button.pick { flex: 1; text-align: left; background: none; border: none; color: var(--text); font-size: 12.5px; cursor: pointer; padding: 4px 0; }
-.sb .fpop .viewrow button.pick:hover { color: var(--cyan); }
-.sb .fpop .viewrow button.del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
-
-.sb .traysearch {
-  width: 100%; margin: 8px 0 10px; padding: 8px 10px; font-size: 12.5px; font-family: inherit;
-  background: var(--ink); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
-}
-.sb .traysearch::placeholder { color: var(--muted); }
-.sb .traysearch:focus { outline: none; border-color: var(--cyan); }
-.sb .empty { border: 1px dashed var(--line); border-radius: 12px; padding: 26px 18px; text-align: center; color: var(--muted); font-size: 12.5px; }
-
-/* ---- inside the Projects console ---------------------------------------- */
-/* The console shell is a 1060px reading column; a timeline wants every pixel it
-   can get. Widen the shell only on the page that actually holds a board, so
-   the rest of the console keeps its measure. */
-.pc .shell:has(> .sb) { max-width: 1500px; }
-.pc .sb {
-  min-height: 0; background: transparent;
-  border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
-}
-/* The console's own tab rail is the sticky furniture on this page, so the
-   board's own header does not stick here — but it must stay POSITIONED.
-   `position: static` threw away its `z-index: 40`, and because the header
-   carries a `backdrop-filter` it is a stacking context whatever its position,
-   so the whole thing painted below the board's rows (`.crow` is relative).
-   The Contractors filter popover hangs off this header: it looked right and
-   could not be clicked at all, because the lane cells behind it were taking
-   every click. `relative` keeps it in flow and lets the z-index apply. */
-.pc .sb .top { position: relative; }
-.pc .sb .layout { min-height: calc(100vh - 260px); }
-/* The console's tab rail sits at top:10px and is ~44px tall; the tray pins just
-   under it. `clip` rather than `hidden`: hidden makes .sb a scroll container,
-   which would pin the tray to a box that never scrolls instead of the page. */
-.pc .sb { overflow: clip; --sb-stick: 64px; }
 
 /* An offer that ran out its 24 hours and came back on its own. Amber, not red:
    nothing is broken — a contractor simply didn't answer, and the job is waiting
@@ -409,17 +132,6 @@
 .sb .lane .wtpin:hover { background: rgba(59,216,233,.22); }
 
 /* ---- light mode (Tom, 8 Sep): follows the Projects shell's data-theme ---- */
-.pc[data-theme="light"] .sb{
-  --ink:#F1F4F6; --graphite:#FFFFFF; --raised:#FFFFFF; --line:#D9E0E6;
-  --text:#12161A; --muted:#5C6771; --cyan:#0E8C9C; --on-cyan:#FFFFFF;
-  --paint:#1A9DAE; --amber:#9A6A12; --emerald:#1F7A4A; --clay:#A3463A; --panel:#FFFFFF;
-}
-.pc[data-theme="light"] .sb .top{background:rgba(241,244,246,.95)}
-.pc[data-theme="light"] .sb .seg button:hover:not(.on),.pc[data-theme="light"] .sb .btn.gh:hover{background:rgba(0,0,0,.05)}
-.pc[data-theme="light"] .sb .crow,.pc[data-theme="light"] .sb .frow{border-bottom-color:rgba(217,224,230,.9)}
-.pc[data-theme="light"] .sb .lane .bgc{border-right-color:rgba(217,224,230,.8)}
-.pc[data-theme="light"] .sb .lane .bgc.we{background:rgba(0,0,0,.03)}
-.pc[data-theme="light"] .sb .dh .cell.we{color:#8A949C}
 .pc[data-theme="light"] .sb .blk.accepted{color:#14532D}
 .pc[data-theme="light"] .sb .blk.in_progress{color:#0B4F58}
 /* Tom, 29 Sep: an employee's block kept the dark theme's pale green text on the
@@ -429,8 +141,6 @@
 .pc[data-theme="light"] .sb .blk.hold{color:#7A0A42;background:rgba(255,45,155,.24)}
 .pc[data-theme="light"] .sb .blk.hold .m{color:#9C1458}
 .pc[data-theme="light"] .sb .btn.hold,.pc[data-theme="light"] .sb .held-note{color:#7A0A42}
-.pc[data-theme="light"] .sb .err{color:#7A2E24}
-.pc[data-theme="light"] .sb .scrim{background:rgba(20,30,40,.35)}
 .pc[data-theme="light"] .sb .blk.dragging{box-shadow:0 12px 28px rgba(20,30,40,.2)}
 /* Tom, 22 Sep: the tray card's link to the estimate. */
 .sb .jcard .jlink { display: inline-block; margin: 2px 0 4px; font-size: 11px; color: var(--cyan); text-decoration: none; }

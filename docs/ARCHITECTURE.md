@@ -4,6 +4,26 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 20 Oct 2026 — Board engine CSS: the `.sb` base rules move into `board.css`
+
+**2026-10-20 · `app/components/board/board.css`, `app/pc/schedule/schedule.css`**
+
+The base `.sb` rules the board engine relies on — tokens, top bar, controls, `.layout`, the tray chrome (`.tray`, `.traysearch`,
+`.empty`, `.hint`), the timeline (`.tl`, `.hdr`, `.mb`, `.dh`, `.crow`, `.cinfo`, `.lane`, `.bgc` with `.we`/`.hot`/`.marq` and the
+`data-label` pop-up, `.todayline`), the ghost, scrim/sheet/toast, the filter popover, the `.pc .sb` console fit and the
+`.pc[data-theme="light"] .sb` tokens and chrome — now live in `app/components/board/board.css`, which `Board.tsx` imports, so every
+consumer of the engine gets them without importing the Schedule board's stylesheet. It is a PURE MOVE (the pending item from
+Sessions 2 and 4): each rule is byte-identical, in its original order, at its original specificity; `ScheduleBoard.tsx` still
+imports the engine before `schedule.css`, so the cascade order is what it was. `schedule.css` keeps only what a BOOKING looks like:
+the tray job card (`.jcard.*`), the blocks (`.blk.*`, the hold/visit/assigned variants, `.ghost.held`, `.btn.hold`, `.held-note`,
+`.seg.modes`, `.visit-hits`, `.cinfo .emp`), the lapsed banner, the chase notes, the walkthrough pin and the light-theme block
+colours. Proof is the Schedule board's own specs with zero edits (`e2e/board-engine.spec.ts`, `schedule-drag-dates`,
+`schedule-hold-visit`, `board-and-paint-usability`). The Movements screen (Session 4, `app/pc/movements/MovementsScreen.tsx`, on
+its own branch at the time of this move) can drop its `import "@/app/pc/schedule/schedule.css"` once both are on `main`; until
+then the import is harmless — it only adds the booking rules its `.mvx` sheet never matches.
+
+---
+
 ## 20 Oct 2026 — Movements Session 3: sync mirror, the one evaluator, the loader, nine work items
 
 **2026-10-20 · `lib/movements/sync.ts`, `lib/movements/evaluate.ts`, `lib/movements/load.ts`, `lib/movements/types.ts` (row shapes +
