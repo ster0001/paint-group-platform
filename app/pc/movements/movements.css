@@ -343,3 +343,56 @@
 .mvx .gear.open .trail { display: block; }
 .mvx .tr { display: grid; grid-template-columns: 62px 1fr; gap: 10px; padding: 5px 0; border-top: 1px dashed var(--line); font-size: 13px; }
 .mvx .tr:first-of-type { border-top: 0; } .mvx .tr .d { font-family: var(--mono); font-size: 10px; color: var(--muted); padding-top: 2px; }
+
+/* ---- Map (Session 6; mockup .mapwrap/.mapbox/.layers/.orow/.maplegend) -------------------- */
+.mvx .mapview { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 16px; align-items: start; }
+@media (min-width: 1000px) { .mvx .mapview { grid-template-columns: 1fr 340px; } }
+.mvx .mapview .side { display: flex; flex-direction: column; gap: 12px; }
+.mvx .mapview .card { border: 1px solid var(--line); border-radius: 16px; background: var(--ink); padding: 14px 16px; box-shadow: var(--shadow); }
+.mvx .mapview .card h3 { margin: 0; font-size: 15px; font-weight: 700; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.mvx .mapview .card h3 em { font-style: normal; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 400; margin-left: auto; }
+.mvx .mapview .days { margin-top: 0; }
+.mvx .layers { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.mvx .layers button { border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; font-family: var(--mono); font-size: 8.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--ink); }
+.mvx .layers button.on { color: var(--oncyan); background: var(--cyan); border-color: transparent; font-weight: 600; }
+.mvx .mapbox { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--graphite); box-shadow: var(--shadow); position: relative; height: 62vh; min-height: 420px; }
+.mvx .mapbox .gmap { position: absolute; inset: 0; }
+.mvx .mapbox .mapnote { position: absolute; left: 12px; right: 12px; top: 12px; margin: 0; z-index: 2; border: 1px solid var(--line); border-radius: 10px; background: var(--ink); color: var(--soft); padding: 8px 10px; font-size: 12.5px; }
+.mvx .mapbox .mapnote.bad { color: var(--clay); border-color: rgba(163,70,58,.6); }
+.mvx .mapbox .mapnote code { font-family: var(--mono); font-size: 11px; }
+.mvx .pinlayer { position: absolute; left: 0; top: 0; }
+.mvx .mpin { position: absolute; width: 0; height: 0; }
+.mvx .mpin .ibox { position: absolute; left: -13px; top: -13px; width: 26px; height: 26px; border-radius: 7px; border: 1.6px solid #fff; display: grid; place-items: center; color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); padding: 0; cursor: pointer; }
+.mvx .mpin .ibox svg { width: 16px; height: 16px; }
+.mvx .mpin.wh .ibox { cursor: default; }
+.mvx .mpin .jlbl { position: absolute; left: 16px; top: -9px; font-family: var(--sans); font-size: 11px; font-weight: 600; color: #12161A; white-space: nowrap; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 2px #fff; pointer-events: none; }
+.mvx .mpin .jsub { position: absolute; left: 16px; top: 4px; font-family: var(--mono); font-size: 8.5px; color: #4a5560; white-space: nowrap; text-shadow: 0 0 3px #fff, 0 0 3px #fff; pointer-events: none; }
+.mvx .mpin.shop i { position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: #1A9DAE; opacity: .45; border: 1px solid #fff; }
+.mvx .mpin.shop.stop i { left: -5px; top: -5px; width: 10px; height: 10px; opacity: 1; }
+.mvx .mpin.shop .jsub { top: -5px; left: 9px; }
+.mvx .mpin.shop:not(.stop) .jsub { opacity: .7; }
+.mvx .mbadge { position: absolute; width: 17px; height: 17px; border-radius: 50%; border: 1.6px solid #fff; color: #fff; font-family: var(--mono); font-weight: 700; font-size: 8.5px; display: grid; place-items: center; box-shadow: 0 1px 2px rgba(0,0,0,.3); z-index: 2; }
+.mvx .orderlist { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.mvx .orow { display: grid; grid-template-columns: 22px 26px 1fr auto; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--graphite); padding: 8px 9px; font-size: 12.5px; position: relative; user-select: none; -webkit-user-select: none; }
+.mvx .orow .hnd { color: var(--dim); font-size: 14px; letter-spacing: -2px; cursor: grab; text-align: center; touch-action: none; padding: 4px 0; }
+.mvx .orow .hnd:disabled { cursor: default; }
+.mvx .orow .num { width: 24px; height: 24px; border-radius: 50%; background: var(--pc, var(--cyan)); color: #fff; font-family: var(--mono); font-weight: 700; font-size: 10px; display: grid; place-items: center; }
+.mvx .orow .num.ctx { background: var(--violet); }
+.mvx .orow b { display: flex; gap: 6px; align-items: center; font-weight: 600; font-size: 12.5px; line-height: 1.25; }
+.mvx .orow b .ic { width: 20px; height: 20px; border-radius: 6px; }
+.mvx .orow b .ic svg { width: 13px; height: 13px; }
+.mvx .orow small { display: block; color: var(--muted); font-size: 10.5px; }
+.mvx .orow .obody { text-align: left; min-width: 0; }
+.mvx .orow .km { font-family: var(--mono); font-size: 9px; color: var(--muted); white-space: nowrap; text-align: right; }
+.mvx .orow.fixed { opacity: .75; border-style: dashed; }
+.mvx .orow.fixed .hnd { visibility: hidden; }
+.mvx .orow.lift { box-shadow: 0 10px 24px rgba(0,0,0,.18); border-color: var(--cyan); z-index: 2; }
+.mvx .orow.before::before, .mvx .orow.after::after { content: ""; position: absolute; left: 8px; right: 8px; height: 3px; border-radius: 2px; background: var(--cyan); }
+.mvx .orow.before::before { top: -5px; } .mvx .orow.after::after { bottom: -5px; }
+.mvx .maplegend { display: grid; gap: 5px; font-size: 12px; color: var(--soft); margin-top: 8px; }
+.mvx .maplegend > span > i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.15); }
+.mvx .maplegend > span > i.sq { border-radius: 3px; }
+.mvx .maplegend .needs { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+.mvx .maplegend .ki { width: 12px; height: 12px; display: inline-grid; color: var(--soft); }
+.mvx .maplegend .ki svg { width: 12px; height: 12px; }
+@media (max-width: 900px) { .mvx .mapbox { height: 52vh; min-height: 340px; } }

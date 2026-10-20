@@ -20,6 +20,7 @@ import AddChipSheet from "./AddChipSheet";
 import ChipSheet from "./ChipSheet";
 import DayView from "./DayView";
 import GearView from "./GearView";
+import MapView from "./MapView";
 import HowItWorks from "./HowItWorks";
 import SourcesView from "./SourcesView";
 import { fromSerial, type SerialWorld } from "./world";
@@ -30,7 +31,7 @@ import "./movements.css";
 export const HOUR_SLOTS: [number, number] = [7.5, 17.5];
 const HOURS = hourSlots(HOUR_SLOTS);
 
-type View = "week" | "sources" | "day" | "gear";
+type View = "week" | "sources" | "day" | "map" | "gear";
 type DragPayload = { chip: MovementRow };
 type DropCheck = { blocked: boolean; held: false; reason: string | null; warn: string | null; laneName: string; where: string };
 type SheetState = { kind: "chip"; id: string } | { kind: "add" } | { kind: "nearby"; laneId: string; day: string } | null;
@@ -48,6 +49,8 @@ export type MovementsScreenProps = {
   /** Day view (Session 5): the day and the person, from the URL. */
   dayParam: string | null;
   whoParam: string | null;
+  /** Session 6: the Map tab exists only when the browser key is set (Settings → Movements says so). */
+  mapsOn: boolean;
 };
 
 /** The slot a time sits in on an hourly lane: the last row that starts at or before it; a blank time → the first. */
@@ -70,7 +73,7 @@ type Filter = (typeof FILTERS)[number][0];
  * server read once; every change goes through app/pc/movements/actions.ts and the page
  * re-reads.
  */
-export default function MovementsScreen({ world: serial, ctx, failures, materialLines, jobExtras, view, weekStart, jobParam, movementParam, dayParam, whoParam }: MovementsScreenProps) {
+export default function MovementsScreen({ world: serial, ctx, failures, materialLines, jobExtras, view, weekStart, jobParam, movementParam, dayParam, whoParam, mapsOn }: MovementsScreenProps) {
   const router = useRouter();
   const world = useMemo<World>(() => fromSerial(serial), [serial]);
   const laneList = useMemo(() => lanes(world), [world]);
@@ -111,7 +114,8 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
     const j = next.job === undefined ? jobParam : next.job;
     const d = next.day ?? dayParam;
     const who = next.who ?? whoParam;
-    router.push(`/pc/movements?view=${v}&week=${w}${j ? `&job=${j}` : ""}${v === "day" && d ? `&day=${d}` : ""}${v === "day" && who ? `&who=${who}` : ""}`);
+    const dated = v === "day" || v === "map";
+    router.push(`/pc/movements?view=${v}&week=${w}${j ? `&job=${j}` : ""}${dated && d ? `&day=${d}` : ""}${dated && who ? `&who=${who}` : ""}`);
   };
 
   /** Run an action, say the result, re-read. */
@@ -389,6 +393,7 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
           <div className="seg views" role="tablist">
             <button type="button" role="tab" aria-selected={view === "week"} className={view === "week" ? "on" : ""} onClick={() => go({ view: "week" })}><span>Week</span><small>plan</small></button>
             <button type="button" role="tab" aria-selected={view === "day"} className={view === "day" ? "on" : ""} onClick={() => go({ view: "day", day: dayParam ?? weekStart })}><span>Day</span><small>run plans</small></button>
+            {mapsOn && <button type="button" role="tab" aria-selected={view === "map"} className={view === "map" ? "on" : ""} onClick={() => go({ view: "map", day: dayParam ?? weekStart })} data-testid="tab-map"><span>Map</span><small>jobs &amp; routes</small></button>}
             <button type="button" role="tab" aria-selected={view === "sources"} className={view === "sources" ? "on" : ""} onClick={() => go({ view: "sources" })}><span>Sources</span><small>where chips come from</small></button>
             <button type="button" role="tab" aria-selected={view === "gear"} className={view === "gear" ? "on" : ""} onClick={() => go({ view: "gear" })}><span>Gear</span><small>the register</small></button>
           </div>
@@ -465,6 +470,23 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
         </>
       ) : view === "gear" ? (
         <GearView world={world} lanes={laneList} onFindInTray={(m) => { router.push(`/pc/movements?view=week&week=${weekStart}${m.work_order_id ? `&job=${m.work_order_id}` : ""}&movement=${m.id}`); }} />
+      ) : view === "map" ? (
+        <MapView
+          world={world}
+          ctx={ctx}
+          lanes={laneList}
+          jobExtras={jobExtras}
+          days={days}
+          day={dayParam && days.includes(dayParam) ? dayParam : days[0]}
+          who={whoParam}
+          onPick={(n) => go({ view: "map", ...n })}
+          onRunPlan={(d, who) => go({ view: "day", day: d, who })}
+          act={act}
+          busy={busy}
+          onOpen={(m) => setSheet({ kind: "chip", id: m.id })}
+          onRefresh={() => router.refresh()}
+          categoryOf={categoryOf}
+        />
       ) : view === "day" ? (
         <DayView
           world={world}

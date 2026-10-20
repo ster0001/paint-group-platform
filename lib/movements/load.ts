@@ -45,11 +45,26 @@ export type MovementsWeek = {
 
 /** A Materials-card row with the brand the sync groups it under (`paint:<brand>`, blank → `brand?`). */
 export type PaintRowView = MovementLine & { brand: string };
-export type JobExtras = { paintRows: PaintRowView[]; crewNotes: string };
+export type JobExtras = {
+  paintRows: PaintRowView[]; crewNotes: string;
+  /** Flag 3: `exact` = work_orders.lat/lng; `suburb` = the centroid stands in; `none` = no point at all. */
+  pointSource: "exact" | "suburb" | "none";
+  /** The Map view asks the Places route for this job once per render while true: no real point, never checked (or not in the last 7 days). */
+  geocodeWanted: boolean;
+};
+
+const GEOCODE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
+/** Whether the lazy geocode should try this job now (`exact` never; a failed attempt waits a week). */
+export function geocodeWanted(w: Pick<WoRow, "lat" | "lng" | "point_checked_at">, now = Date.now()): boolean {
+  if (w.lat != null && w.lng != null) return false;
+  if (!w.point_checked_at) return true;
+  const t = new Date(w.point_checked_at).getTime();
+  return Number.isNaN(t) || now - t > GEOCODE_RETRY_MS;
+}
 
 type WoRow = {
   id: string; wo_ref: string; job_no: number | null; stage: string; start_date: string | null; end_date: string | null; contractor_id: string | null;
-  lat?: number | null; lng?: number | null;
+  lat?: number | null; lng?: number | null; point_checked_at?: string | null;
   wo_snapshot: { jobAddress?: string; jobTitle?: string; materials?: WOMaterial[]; crewNotes?: string } | null;
   colours: Record<string, { status?: string } | null> | null;
 };
@@ -184,7 +199,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
 
   const [extraRes, jobsRes, linesRes, decisionsRes, profilesRes, contractorsRes, google] = await Promise.all([
     inSlices<RawMovement>([...wanted], (ids) => sliced<RawMovement>(realOnly(supabase.from("movements").select(MOVEMENT_COLUMNS)).in("id", ids))),
-    inSlices<WoRow>(jobsWanted, (ids) => sliced<WoRow>(realOnly(supabase.from("work_orders").select("id, wo_ref, job_no, stage, start_date, end_date, contractor_id, wo_snapshot, colours")).in("id", ids))),
+    inSlices<WoRow>(jobsWanted, (ids) => sliced<WoRow>(realOnly(supabase.from("work_orders").select("id, wo_ref, job_no, stage, start_date, end_date, contractor_id, wo_snapshot, colours, lat, lng, point_checked_at")).in("id", ids))),
     inSlices<MaterialLineRow>(jobsWanted, (ids) => sliced<MaterialLineRow>(realOnly(supabase.from("wo_material_lines").select("id, work_order_id, text, source, sort, merged_into, created_at")).in("work_order_id", ids).order("sort").order("created_at"))),
     inSlices<LogisticsDecisionRow>(jobsWanted, (ids) => sliced<LogisticsDecisionRow>(realOnly(supabase.from("wo_logistics_decisions").select("work_order_id, line, decision")).in("work_order_id", ids))),
     inSlices<{ id: string; name: string | null }>(staffIds, (ids) => sliced<{ id: string; name: string | null }>(supabase.from("profiles").select("id, name").in("id", ids))),
@@ -212,8 +227,11 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   const jobs = jobsRes.rows.map((w) => jobFrom(w, suburbs));
   const jobExtras: Record<string, JobExtras> = {};
   for (const w of jobsRes.rows) {
+    const exact = w.lat != null && w.lng != null;
     jobExtras[w.id] = {
       crewNotes: w.wo_snapshot?.crewNotes ?? "",
+      pointSource: exact ? "exact" : jobPoint(w.wo_snapshot?.jobAddress ?? "", suburbs) ? "suburb" : "none",
+      geocodeWanted: geocodeWanted(w),
       paintRows: (w.wo_snapshot?.materials ?? []).filter((m) => m.product).map((m) => ({
         rowKey: m.colourKey ?? m.product, product: m.product, colourName: m.colourName ?? null, colourHex: m.colourHex ?? null,
         colourStatus: m.colourStatus ?? null, litres: m.litres ?? null, cans: cansOf(m.litres),

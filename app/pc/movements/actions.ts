@@ -8,6 +8,7 @@ import { isMissingRpc } from "@/lib/supabase/missingRpc";
 import { reportError } from "@/lib/monitoring/report";
 import { createServiceClient } from "@/lib/supabase/service";
 import { notifyMovementOrdered, notifyRunPlan } from "@/lib/movements/notify";
+import { geocodeAddress } from "@/lib/places/geocodeAddress";
 import {
   BRANCH_KINDS, EQUIPMENT_CATEGORIES, EQUIPMENT_STATUSES, LOGISTICS_DECISIONS, LOGISTICS_LINES,
   MATERIAL_LINE_SOURCES, MOVEMENT_ASSIGNEES, MOVEMENT_KINDS, MOVEMENT_STATUSES, PLACE_KINDS, RUBBISH_HOW,
@@ -62,6 +63,7 @@ const FRIENDLY: Record<string, string> = {
   bad_postcode: "A postcode is four digits.",
   bad_time: "Opening time looks wrong — use HH:MM.",
   bad_cost: "A cost cannot be negative.",
+  bad_point: "That is not a place on the map.",
 };
 
 function friendly(code: string): string {
@@ -326,6 +328,43 @@ export async function painterMovementDone(raw: unknown): Promise<MovementActionR
   const p = idInput.safeParse(raw);
   if (!p.success) return invalid(p);
   return call("movement_painter_done", { p_id: p.data.id }, "movements.painterDone", ["/portal", ...jobPaths(p.data.workOrderId).map((x) => x.replace("/pc/wo/", "/portal/jobs/"))]);
+}
+
+
+// ---- the map: real points on jobs (flag 3) -----------------------------------------------------
+
+const geocodeInput = z.object({ workOrderIds: z.array(uuid).min(1).max(8) });
+
+/**
+ * Fill `work_orders.lat/lng` lazily: the Map view names the jobs of the week that have no
+ * real point and were not tried this week; this reads their addresses, asks the Places key
+ * (server-side), and writes through `wo_set_point` — a miss still stamps the attempt. Returns
+ * how many points were set; the screen re-reads when it is more than none.
+ */
+export async function geocodeJobs(raw: unknown): Promise<MovementActionResult> {
+  const p = geocodeInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) return { ok: false, message: "Address lookup is not configured (GOOGLE_MAPS_API_KEY)." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("work_orders").select("id, wo_snapshot").in("id", p.data.workOrderIds);
+  if (error) {
+    reportError(new Error(error.message), { where: "movements.geocode.read" });
+    return { ok: false, message: "Could not read the jobs to place them on the map." };
+  }
+  let set = 0;
+  for (const row of (data ?? []) as { id: string; wo_snapshot: { jobAddress?: string } | null }[]) {
+    const point = await geocodeAddress(row.wo_snapshot?.jobAddress ?? "", key);
+    const { data: r, error: e } = await supabase.rpc("wo_set_point", { p_work_order_id: row.id, p_lat: point?.lat ?? null, p_lng: point?.lng ?? null });
+    if (e) {
+      if (isMissingRpc(e.message, "wo_set_point")) return { ok: false, message: "This needs database migration 20270283 run first — the map uses suburb centres until then." };
+      reportError(new Error(e.message), { where: "movements.geocode.write", extra: { workOrderId: row.id } });
+      continue;
+    }
+    if (String(r) === "ok:set") set += 1;
+  }
+  if (set > 0) revalidatePath("/pc/movements");
+  return { ok: true, value: String(set) };
 }
 
 // ---- material lines: one list, three doors --------------------------------------------------
