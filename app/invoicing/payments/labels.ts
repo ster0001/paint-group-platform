@@ -155,8 +155,10 @@ export function actionSpec(r: JobMoneyRow, jobHref: string): ActionSpec {
  * The jobs the provider's pickers offer (Pick a job, Record as a cost, Assign, Snap a receipt): every job
  * with a work order, open ones first — supplier invoices routinely arrive after a job is finished and
  * paid (the old picker kept closed jobs too; 8d: a found job missing from the list lost its preselection).
+ * Each carries the job's contract price, formatted here, so two jobs at one address can be told apart
+ * (Tom, 20 Oct 2026: "pull up the price of the job we are matching to").
  */
 export const pickerJobs = (rows: readonly JobMoneyRow[]) =>
   [...rows.filter((r) => r.workOrderId && r.section !== "paid_in_full"), ...rows.filter((r) => r.workOrderId && r.section === "paid_in_full")].map((r) => ({
-    estimateId: r.estimateId, workOrderId: r.workOrderId!, address: r.address, customer: r.customer, laneName: STAGE_NAME[r.lane],
+    estimateId: r.estimateId, workOrderId: r.workOrderId!, address: r.address, customer: r.customer, laneName: STAGE_NAME[r.lane], priceLabel: money(r.contractCents),
   }));
