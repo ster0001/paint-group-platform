@@ -28,6 +28,7 @@ export type PanelInvoice = {
   paidCents: number;
   balanceCents: number;
   dueOn: string | null;
+  issuedOn: string | null;
   /** over · need · sent · draft · paid · void — the card's colour, decided here. */
   state: "over" | "need" | "sent" | "draft" | "paid" | "void";
   overdueDays: number | null;
@@ -100,7 +101,7 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
       : inv.status === "draft" ? "draft" : "sent";
     return {
       id: inv.id, kind: inv.kind, status: inv.status, number: inv.number, totalCents: inv.total_inc_cents,
-      paidCents: invoicePaidCents(d, derivePays), balanceCents: Math.max(0, balance), dueOn: inv.due_on, state,
+      paidCents: invoicePaidCents(d, derivePays), balanceCents: Math.max(0, balance), dueOn: inv.due_on, issuedOn: inv.issued_on, state,
       overdueDays: over && inv.due_on ? daysBetween(inv.due_on, today) : null,
       pctOfContract: pctOfContract(inv.total_inc_cents, row.contractCents),
       views: viewsById.get(inv.id) ?? 0, voidedReason: inv.voided_reason || null, chaseHold: inv.chase_hold_reason ?? null,
