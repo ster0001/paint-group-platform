@@ -277,7 +277,7 @@
       "path": "docs/help/estimator/customer.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "1c06c29c7a",
+      "verified_at_commit": "bb273c9122",
       "sources": [
         "app/estimate/page.tsx",
         "app/wizard/WizardApp.tsx",
@@ -298,7 +298,7 @@
       "path": "docs/help/estimator/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "4ef1a0aa72",
+      "verified_at_commit": "bb273c9122",
       "sources": [
         "app/(app)/estimates/WaitingTable.tsx",
         "app/quote/EstimateHeader.tsx",

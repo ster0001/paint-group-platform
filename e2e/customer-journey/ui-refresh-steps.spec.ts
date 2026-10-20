@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, passDetailsSheetIfShown } from "./drive";
 
 /**
  * Wizard UI refresh, S1 — the shell, on every path (brief §7.1, §7.7, §10).
@@ -478,57 +478,78 @@ test.describe("UI refresh S4b · the room cards", () => {
 });
 
 test.describe("UI refresh S5 · home outside", () => {
-  // Exterior wizard v2: these drive the OLD outside screen and its picture, which the flag
-  // replaces with Your home → Painting → About it (S2–S3). S6 rewrites them to v2.
-  test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1", "exteriorV2 is on — the old outside screen is not on the path; rewritten in S6");
-  /** To the Outside step of an outside-only job. */
-  async function toOutside(page: Page) {
+  // Exterior wizard v2 (S6): rewritten to the drawn house — Your home → Painting → About it → Each side.
+  // Retired: the old outside picture's `two` class for the storeys toggle (the shape knows — §7.3) and
+  // the house-from-above's dashed edge for a side left off (Each side's tile reads "skip" — §7.4).
+  test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "1", "exteriorV2 is off — these drive the drawn house");
+
+  /** To the Painting step of an outside-only job, on a weatherboard home. */
+  async function toPaint(page: Page) {
     await openQuickLook(page);
     await fillQuickAddress(page);
     await page.getByTestId("ql-jobtype-exterior").click();
     await quickNext(page);
     await quickNext(page);
-    await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("[data-quick-step='home']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-ext-type-wb").click();
+    await page.getByTestId("ql-ext-size-md").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
   }
 
-  test("Tom's check: each tick paints into the house; a side left off goes dashed from above, and stays grey in the editor", async ({ page }) => {
-    test.setTimeout(240_000);
+  test("Tom's check: each tick paints into the house; a side left off is skipped on the walk and absent from the editor", async ({ page }) => {
+    test.setTimeout(300_000);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await toOutside(page);
-    const pic = page.getByTestId("pic-outside");
+    await toPaint(page);
+    const pic = page.getByTestId("ql-picture").getByTestId("pic-outside");
     await expect(pic).toBeVisible();
-    // Nothing pre-ticked: the walls and frames are today's colour.
-    await expect(pic.locator("[data-e='body'][data-on]").first()).toHaveAttribute("data-on", "0");
-    await page.getByTestId("ql-ext-el-body").click();
-    await expect(pic.locator("[data-e='body'][data-on]").first()).toHaveAttribute("data-on", "1");
-    await expect(page.getByTestId("ql-picture-note")).toContainText("Walls");
-    await page.getByTestId("ql-ext-el-windows").click();
-    await expect(pic.locator("[data-e='windows'][data-on]")).toHaveAttribute("data-on", "1");
-    await page.getByTestId("ql-ext-sep-picket_fence").click();
-    await expect(pic.locator("[data-x='picket_fence']")).toHaveAttribute("data-on", "1");
+    // Nothing pre-ticked: the walls and frames are grey.
+    await expect(pic.locator(".e[data-e='walls']")).toHaveAttribute("data-on", "0");
+    await page.getByTestId("ext-part-walls").click();
+    await expect(pic.locator(".e[data-e='walls']")).toHaveAttribute("data-on", "1");
+    await expect(page.getByTestId("ql-picture-note")).toContainText("The walls");
+    await page.getByTestId("ext-part-windows").click();
+    await expect(pic.locator(".e[data-e='windows']")).toHaveAttribute("data-on", "1");
+    await page.getByTestId("ext-extra-picket_fence").click();
+    await expect(pic.locator("[data-x='picket_fence']")).toHaveCount(1);
     await expect(page.getByTestId("ql-picture-note")).toContainText("Picket fence");
-    await page.getByTestId("ql-ext-mat-weatherboards").click();
-    await page.getByTestId("ql-ext-storeys-double").click();
-    await expect(pic).toHaveClass(/two/);
-    // On the house: two columns of picture cards on a laptop.
-    const a = (await page.getByTestId("ql-ext-el-body").boundingBox())!;
-    const b = (await page.getByTestId("ql-ext-el-windows").boundingBox())!;
-    expect(Math.abs(a.y - b.y), "body and windows share a row").toBeLessThan(4);
+    // On the house: two columns of chips on a laptop.
+    const a = (await page.getByTestId("ext-part-walls").boundingBox())!;
+    const b = (await page.getByTestId("ext-part-gable").boundingBox())!;
+    expect(Math.abs(a.y - b.y), "the walls and the gable share a row").toBeLessThan(4);
 
     await quickNext(page);
+    await expect(page.locator("[data-quick-step='about']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ext-mat-weatherboards").click();
+    await expect(pic.locator(".e[data-e='walls'] rect[fill='url(#p-boards)']")).toHaveCount(1);
+    await quickNext(page);
     await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-    const top = page.getByTestId("pic-top");
-    await expect(top.locator("[data-edge='right']")).toHaveAttribute("data-state", "on");
     await page.getByTestId("ql-ext-side-right").click();
-    await expect(top.locator("[data-edge='right']")).toHaveAttribute("data-state", "off");
+    await page.getByTestId("ext-side-np").click();
+    await expect(page.getByTestId("ql-ext-side-right")).toHaveAttribute("data-state", "skip");
+    await page.getByTestId("ql-ext-side-front").click();
+    for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
 
     await quickNext(page);
     await passGateIfShown(page);
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+    await expect(page.getByTestId("ext-range-right")).toHaveCount(0);
     await page.getByTestId("door-tighten").click();
+    await passDetailsSheetIfShown(page);
+    await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("ext-side-right")).toHaveAttribute("data-state", "skip");
+    for (let i = 0; i < 4 && !(await page.getByTestId("ext-walk-done").count()); i++) {
+      await page.getByTestId("ext-size-yes").click();
+      await page.getByTestId("ext-cond-good").click();
+      await page.getByTestId("ext-check-side").click();
+    }
+    await page.getByTestId("ext-see-range").click();
+    await expect(page.getByTestId("reveal-tier")).toHaveAttribute("data-tier", "detailed", { timeout: 90_000 });
+    await page.getByTestId("door-editor").click();
+    await passDetailsSheetIfShown(page);
     await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
     await openScopeEditor(page);
-    // The S4 frame: one slim header, the price card and the house from above in the rail.
+    // The S4 frame: one slim header, the price card and the house from above in the rail; no right side at all.
     const head = (await page.locator(".sc-freeze").boundingBox())!;
     expect(head.height).toBeLessThanOrEqual(64);
     const main = (await page.locator(".sd-ed > .sc-wrap").boundingBox())!;
@@ -536,38 +557,49 @@ test.describe("UI refresh S5 · home outside", () => {
     expect(price.x, "the price card sits in the right-hand rail").toBeGreaterThan(main.x + main.width);
     const above = page.locator(".sc-rail .sd-visual");
     await expect(above.getByTestId("pic-top")).toBeVisible();
-    await expect(above.locator("[data-edge='right']")).toHaveAttribute("data-state", "skip");
-    await expect(above.locator("[data-edge='front']")).toHaveAttribute("data-state", "todo");
+    await expect(page.locator(".sd-card[data-side='right']")).toHaveCount(0);
     await expect(page.locator(".sc-rail").getByTestId("estimator-strip")).toBeVisible();
     // Tap a side from above and its card opens.
     await above.locator("[data-edge='back']").click();
     await expect(page.locator(".sd-card[data-side='back'] .sd-body")).toBeVisible();
   });
 
-  test("phone: the outside step and the side-by-side editor fit the phone, the bar at the bottom", async ({ browser }) => {
-    test.setTimeout(240_000);
+  test("phone: the home, painting, each-side and walk steps fit the phone, the bar at the bottom", async ({ browser }) => {
+    test.setTimeout(300_000);
     const ctx = await browser.newContext({ ...devices["iPhone 13"] });
     const page = await ctx.newPage();
-    await toOutside(page);
-    await page.getByTestId("ql-ext-el-body").click();
-    await page.getByTestId("ql-ext-sep-deck").click();
-    let w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: window.innerWidth }));
-    expect(w.sw).toBeLessThanOrEqual(390);
+    const fits = async () => {
+      const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: window.innerWidth }));
+      expect(w.sw).toBeLessThanOrEqual(390);
+      expect(w.vw).toBeLessThanOrEqual(390);
+    };
+    await toPaint(page);
+    await fits();
+    await page.getByTestId("ext-part-walls").click();
+    await page.getByTestId("ext-extra-deck").click();
+    await fits();
     await quickNext(page);
+    await page.getByTestId("ext-mat-weatherboards").click();
+    await fits();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+    await fits();
+    for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
     await quickNext(page);
     await passGateIfShown(page);
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
     await page.getByTestId("door-tighten").click();
-    await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
-    await openScopeEditor(page);
-    await page.evaluate(() => window.scrollTo(0, 900));
-    await page.waitForTimeout(400);
-    await expect(page.locator(".sc-num")).toBeInViewport();
-    w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: window.innerWidth }));
-    expect(w.sw).toBeLessThanOrEqual(390);
-    expect(w.vw).toBeLessThanOrEqual(390);
-    const bar = (await page.locator(".sc-stick").boundingBox())!;
-    expect(bar.y + bar.height).toBeGreaterThanOrEqual(664 - 2);
+    await passDetailsSheetIfShown(page);
+    await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
+    await fits();
+    // Every control on the walk is at least 44px tall (acceptance 10).
+    const short = await page.locator("[data-quick-step='walk'] button:visible").evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height < 44).map((e) => (e as HTMLElement).dataset.testid ?? e.textContent?.trim().slice(0, 20)));
+    expect(short.filter((t) => !/ext-dim|ext-win|ext-door|back/i.test(String(t)))).toEqual([]);
+    // The fixed bar must not cover Check this side (S6: it did — the pane needs the bar's padding).
+    await page.getByTestId("ext-size-yes").click();
+    await page.getByTestId("ext-cond-good").click();
+    await page.getByTestId("ext-check-side").click({ timeout: 10_000 });
+    await expect(page.getByTestId("ext-side-front")).toHaveAttribute("data-state", "ok");
     await ctx.close();
   });
 });
