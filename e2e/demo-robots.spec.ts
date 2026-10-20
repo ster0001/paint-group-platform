@@ -42,6 +42,7 @@ let contractorUid = "";
 let woId = "";
 let savedRules: Record<string, unknown> | null = null;
 let savedPhone: string | null = null;
+let savedQaMode: string | null = null;
 
 const dayPlus = (ymd: string, n: number) => { const [y, m, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
 
@@ -107,9 +108,14 @@ test.describe("12 Demo Street — the robots answer every module", () => {
     const up = await db!.from("settings").upsert({ key: "demo_rules", value: { ...(savedRules ?? {}), robotDelayMs: 300 } }, { onConflict: "key" });
     expect(up.error?.message ?? "").toBe("");
     // The DEMO text needs a mobile on file; the test login may have none. Set one for the run, put it back after.
-    const { data: c } = await db!.from("contractors").select("phone").eq("id", contractorId).single();
+    const { data: c } = await db!.from("contractors").select("phone, qa_mode").eq("id", contractorId).single();
     savedPhone = (c as { phone: string | null }).phone;
     if (!savedPhone) expect((await db!.from("contractors").update({ phone: "0400 000 000" }).eq("id", contractorId)).error?.message ?? "").toBe("");
+    // Tom, 20 Oct: a painter on every_job (or a new painter) gets a quality check booked at
+    // accept — the practice job must not (20270281), or the finish routes to the office and
+    // Module 9 never runs. The strictest mode for the run; put back after.
+    savedQaMode = (c as { qa_mode?: string | null }).qa_mode ?? null;
+    expect((await db!.from("contractors").update({ qa_mode: "every_job" }).eq("id", contractorId)).error?.message ?? "").toBe("");
     const seeded = await rpcAs(contractor!, "demo_property_seed", { p_contractor_id: null });
     expect(seeded).toMatch(/^ok:/);
     woId = seeded.slice(3);
@@ -118,6 +124,7 @@ test.describe("12 Demo Street — the robots answer every module", () => {
   test.afterAll(async () => {
     if (savedRules) await db!.from("settings").upsert({ key: "demo_rules", value: savedRules }, { onConflict: "key" });
     if (contractorId && !savedPhone) await db!.from("contractors").update({ phone: null }).eq("id", contractorId);
+    if (contractorId && savedQaMode) await db!.from("contractors").update({ qa_mode: savedQaMode }).eq("id", contractorId);
     if (contractorId) await removeDemo(contractorId);
   });
 
@@ -129,6 +136,8 @@ test.describe("12 Demo Street — the robots answer every module", () => {
     await robotSaid("Booked");
     const { data: ev } = await db!.from("wo_events").select("type").eq("work_order_id", woId).eq("type", "appt_confirm_sent");
     expect(ev?.length ?? 0, "no customer confirmation leaves the practice job").toBe(0);
+    const { data: checks } = await db!.from("wo_qa_checks").select("id").eq("work_order_id", woId);
+    expect(checks?.length ?? 0, "no quality check is booked on the practice job (20270281)").toBe(0);
   });
 
   test("M10: ask for a new start date — the robot office approves it (Tom, 15 Oct)", async ({ page }) => {
