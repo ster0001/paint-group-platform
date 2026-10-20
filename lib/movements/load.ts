@@ -9,9 +9,9 @@ import { readGoogleBusyForStaff, type GoogleBusy, type GoogleReadKind } from "@/
 import { melbourneInstant } from "@/lib/time/businessHours";
 import type { WOMaterial } from "@/lib/workorder/snapshot";
 import { cansOf, jobPoint, jobRef } from "./sync";
-import { suburbOf, type Appointment, type Job, type Painter, type StaffPerson, type World } from "./evaluate";
+import { suburbOf, type Appointment, type Job, type Painter, type StaffPerson, type World, type WorldBranch } from "./evaluate";
 import {
-  movementsSettingsFrom, type BranchRow, type EquipmentItemRow, type LogisticsDecisionRow, type MaterialLineRow, type MovementItemRow,
+  movementsSettingsFrom, type EquipmentItemRow, type LogisticsDecisionRow, type MaterialLineRow, type MovementItemRow,
   type MovementLine, type MovementRow, type MovementsSettings, type Point,
 } from "./types";
 
@@ -121,13 +121,15 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
     fetchAllRows<MovementItemRow>((f, t) => realOnly(supabase.from("movement_items").select("movement_id, equipment_item_id, label")).order("movement_id").order("equipment_item_id").range(f, t))
       .then((rows) => ({ data: rows, error: null as { message: string } | null }), (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } })),
     supabase.from("equipment_items").select("id, tag, name, category, serial_or_model, status").neq("status", "retired").order("tag"),
-    supabase.from("supplier_branches").select("id, brand, branch, kind, address, suburb, phone, lat, lng, delivers_to_site, opens_weekday, favourite, active").eq("active", true).order("brand").order("branch"),
+    // The columns the screens draw (name, place, phone for the painter's run list, hours, delivers)
+    // — favourite and active are Settings → Movements → suppliers' business and would ride to the client for nothing.
+    supabase.from("supplier_branches").select("id, brand, branch, kind, address, suburb, phone, lat, lng, delivers_to_site, opens_weekday").eq("active", true).order("brand").order("branch"),
     // Tom, 20 Oct 2026: a quality check is on the board only when the job has "Quality check
     // required" ticked (work_orders.qa_required) and it was not waived — not on every staff job.
     realOnly(supabase.from("wo_qa_checks").select("id, work_order_id, scheduled_for, scheduled_time, kind, work_orders(qa_required, qa_waived)")).is("result", null).gte("scheduled_for", from).lte("scheduled_for", to),
     realOnly(supabase.from("wo_site_visits").select("id, work_order_id, scheduled_for, scheduled_time")).is("visited_at", null).gte("scheduled_for", from).lte("scheduled_for", to),
-    // The centroids (one paged read; ~1,000 rows). Keyed lower-case; the first by postcode wins, as the SQL orders it.
-    fetchAllRows<{ suburb: string; postcode: string; lat: number | null; lng: number | null }>((f, t) => supabase.from("visit_suburbs").select("suburb, postcode, lat, lng").order("suburb").order("postcode").range(f, t))
+    // The centroids (~3,500 rows: four pages, asked for together). Keyed lower-case; the first by postcode wins, as the SQL orders it.
+    fetchAllRows<{ suburb: string; postcode: string; lat: number | null; lng: number | null }>((f, t) => supabase.from("visit_suburbs").select("suburb, postcode, lat, lng").order("suburb").order("postcode").range(f, t), { prefetchPages: 4 })
       .then((rows) => ({ data: rows, error: null as { message: string } | null }), (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } })),
     // Brand by product NAME (Session 1 decision): the paint chip's live rows are the Materials
     // rows of its brand, and the rows carry only the product's name.
@@ -143,7 +145,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   fail("the gear on movements", linksRead.error);
   const equipmentRead = failed<EquipmentItemRow>(equipmentRes.error, equipmentRes.data as EquipmentItemRow[] | null);
   fail("the equipment register", equipmentRead.error);
-  const branchesRead = failed<BranchRow>(branchesRes.error, branchesRes.data as BranchRow[] | null);
+  const branchesRead = failed<WorldBranch>(branchesRes.error, branchesRes.data as WorldBranch[] | null);
   fail("the supplier branches", branchesRead.error);
   type QaRow = { id: string; work_order_id: string; scheduled_for: string; scheduled_time: string | null; kind: string; work_orders: QaFlags | null };
   const qaRead = failed<QaRow>(qaRes.error, qaRes.data as unknown as QaRow[] | null);

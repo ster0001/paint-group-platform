@@ -73,6 +73,8 @@ export type Appointment = {
   sub?: string;
 };
 
+export type WorldBranch = Omit<BranchRow, "favourite" | "active">;
+
 export type World = {
   /** Inclusive ISO days. */
   from: string;
@@ -88,7 +90,8 @@ export type World = {
   appointments: Appointment[];
   movements: MovementRow[];
   items: EquipmentItemRow[];
-  branches: BranchRow[];
+  /** supplier_branches, the columns the screen draws (no favourite or active — see load.ts). */
+  branches: WorldBranch[];
   decisions: LogisticsDecisionRow[];
   /** lower-cased suburb → centroid, for the addresses in play. */
   suburbs: Map<string, Point>;
