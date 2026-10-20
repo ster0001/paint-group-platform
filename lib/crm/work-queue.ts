@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inSlices as sliceRead } from "@/lib/supabase/inSlices";
+import { inSlices as sliceRead, type SliceError } from "@/lib/supabase/inSlices";
 import { isQuiet } from "./states";
 import { loadCrmThresholds, type CrmThresholds } from "./thresholds";
 import { invoiceIsOverdue, invoiceBalanceCents, melbourneToday, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
@@ -20,6 +20,9 @@ import { openHolds } from "@/lib/scheduling/holds";
 import { qaCheckLabel } from "@/lib/workorder/qaSchedule";
 import { PRE_START_WINDOW_DAYS } from "@/lib/workorder/stages";
 import { realOnly } from "@/lib/demo/scope";
+import { itemLocation, jobMoved, kindLabel as movementKindLabel, needsOrder as movementNeedsOrder } from "@/lib/movements/evaluate";
+import { jobRef } from "@/lib/movements/sync";
+import { movementsSettingsFrom, type MovementAssignee, type MovementKind, type MovementRow, type MovementStatus, type MovementsSettings, type PlaceKind } from "@/lib/movements/types";
 
 /**
  * The work queue (shell brief §3) — the one answer to "what needs a human?".
@@ -169,6 +172,28 @@ export const WORK_ITEM_KINDS = [
   "no_work_requested",
   /** Induction Step 3b (ruling I5): an active contractor with no public liability certificate on file. Verifying one clears it. */
   "insurance_missing",
+  /**
+   * Movements (brief §6, Session 3, 20 Oct 2026). Nine facts about what has to move, all
+   * derived from `movements` + the register by `lib/movements/evaluate.ts` — never stored:
+   *   movements_unplanned  a job starts within planningHorizonDays and still has tray chips
+   *   order_unplaced       a needsOrder movement is due within 2 days and nobody has ticked Ordered
+   *   delivery_unconfirmed a supplier delivery due today is still only booked at deliveryConfirmBy
+   *   movement_overdue     past its due date and not done
+   *   movement_problem     status problem
+   *   equipment_stranded   an item's location is stranded (on site at a closed job)
+   *   hire_off_due         a hire_off due today or tomorrow, not done
+   *   job_moved            the job's dates moved after the chip was placed (ruling 4: flag, never shift)
+   *   materials_changed_after_order  the Materials rows or the line changed after Ordered ✓
+   */
+  "movements_unplanned",
+  "order_unplaced",
+  "delivery_unconfirmed",
+  "movement_overdue",
+  "movement_problem",
+  "equipment_stranded",
+  "hire_off_due",
+  "job_moved",
+  "materials_changed_after_order",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -265,7 +290,8 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
  * SCREENS over one queue is not.
  */
 export type WorkItemHome = "crm" | "pc";
-const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "qa_check_to_book", "painter_message", "site_visit_due", "material_request", "no_work_requested", "insurance_missing"]);
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "qa_check_to_book", "painter_message", "site_visit_due", "material_request", "no_work_requested", "insurance_missing",
+  "movements_unplanned", "order_unplaced", "delivery_unconfirmed", "movement_overdue", "movement_problem", "equipment_stranded", "hire_off_due", "job_moved", "materials_changed_after_order"]);
 export function homeOf(kind: WorkItemKind): WorkItemHome {
   return PC_HOMED.has(kind) ? "pc" : "crm";
 }
@@ -353,6 +379,20 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   material_request: 28,
   no_work_requested: 30,
   insurance_missing: 12,
+  // Movements (brief §6): alongside material_request 28; stranded gear, a problem and an
+  // unconfirmed delivery at the top of the internal band — a painter on site waiting on
+  // something is the day's fire. The brief said "~40"; 31 is the ceiling, because
+  // employee_reassign (32, a booked day with nobody on it) outranks every internal kind
+  // (work-queue-employee.test.ts) — Session 3 decision, for Tom to overrule.
+  movements_unplanned: 24,
+  order_unplaced: 29,
+  delivery_unconfirmed: 31,
+  movement_overdue: 30,
+  movement_problem: 31,
+  equipment_stranded: 31,
+  hire_off_due: 26,
+  job_moved: 28,
+  materials_changed_after_order: 28,
 };
 
 export type PriorityInput = {
@@ -473,6 +513,15 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   material_request: "approvals",
   no_work_requested: "approvals",
   insurance_missing: "followups",
+  movements_unplanned: "followups",
+  order_unplaced: "approvals",
+  delivery_unconfirmed: "followups",
+  movement_overdue: "followups",
+  movement_problem: "followups",
+  equipment_stranded: "followups",
+  hire_off_due: "followups",
+  job_moved: "approvals",
+  materials_changed_after_order: "approvals",
 };
 
 // ---- source: customer check-ins on a running job (Tom, 25 Sep 2026) ----------
@@ -2478,6 +2527,309 @@ async function readNoWorkRequestRows(supabase: SupabaseClient): Promise<{ rows: 
 // The "no public liability on file" card was retired from PC Command on 19 Oct
 // 2026 (Tom). The certificate reminder texts (certificateReminders sweep) and
 // the Contractors screens still carry it; the kind stays declared for old keys.
+
+// ---- Movements (brief §6, Session 3) — nine facts about what has to move --------------------
+//
+// Pure builders over rows the reader shapes; the rules (needsOrder, jobMoved, the register's
+// locations) are lib/movements/evaluate.ts's, called here, never re-derived. Not yet wired into
+// buildPcWorkItems: Session 4 adds the reader there when the Movements tab ships (the cards
+// link to a screen that does not exist before then).
+
+export type MovementQueueRow = {
+  id: string;
+  workOrderId: string | null;
+  woRef: string;
+  /** PG-#### or the WO ref — the order ref on the card. */
+  jobRef: string;
+  /** The job address (or title, or ref). */
+  where: string;
+  jobStage: string | null;
+  jobStartDate: string | null;
+  kind: MovementKind;
+  sourceKey: string | null;
+  title: string;
+  detail: string | null;
+  status: MovementStatus;
+  assigneeKind: MovementAssignee | null;
+  assigneeId: string | null;
+  /** The lane's name when the reader could resolve it. */
+  assigneeName: string | null;
+  fromKind: PlaceKind | null;
+  toKind: PlaceKind | null;
+  fromBranch: string | null;
+  dueDate: string | null;
+  half: "AM" | "PM" | null;
+  time: string | null;
+  orderedAt: string | null;
+  plannedForStart: string | null;
+  sourceChangedAt: string | null;
+  problemNote: string;
+  updatedAt: string;
+};
+
+export type StrandedItemRow = {
+  itemId: string;
+  tag: string;
+  name: string;
+  workOrderId: string;
+  woRef: string;
+  where: string;
+  /** The job's end date (its close is not stamped on the row) — the due date of the item's return. */
+  closedOn: string | null;
+  /** The return chip for it, when the sweep has made one (tray or placed). */
+  returnMovementId: string | null;
+  returnStatus: MovementStatus | null;
+};
+
+export type MovementQueueSettings = Pick<MovementsSettings, "planningHorizonDays" | "deliveryConfirmBy">;
+
+const DAY_MS = 86_400_000;
+const dayPlus = (day: string, n: number) => MELB_DAY_KEY.format(new Date(melbInstant(day, 12).getTime() + n * DAY_MS));
+
+export function buildMovementWorkItems(
+  rows: readonly MovementQueueRow[], stranded: readonly StrandedItemRow[], settings: MovementQueueSettings, now: Date,
+): WorkItem[] {
+  const items: WorkItem[] = [];
+  const today = MELB_DAY_KEY.format(now);
+  const nowHm = `${String(melbourneParts(now).h).padStart(2, "0")}:${String(melbourneParts(now).min).padStart(2, "0")}`;
+  const none = { valueCents: null, promisedToCustomer: false };
+  const live = (r: MovementQueueRow) => r.status === "planned" || r.status === "booked" || r.status === "problem";
+  const who = (r: MovementQueueRow) => r.assigneeKind === "supplier" ? "the supplier" : r.assigneeName ?? "the lane";
+  // The evaluator's rules read the row as the table spells it.
+  const asMovement = (r: MovementQueueRow) => ({
+    kind: r.kind, source_key: r.sourceKey, detail: r.detail, title: r.title, assignee_kind: r.assigneeKind, to_kind: r.toKind, from_kind: r.fromKind, status: r.status, ordered_at: r.orderedAt,
+  });
+  const label = (r: MovementQueueRow) => `${movementKindLabel(asMovement(r))} · ${r.title}`;
+  const jobLine = (r: MovementQueueRow) => (r.workOrderId ? `${r.jobRef} · ${r.where}` : "Warehouse");
+  const weekHref = (r: MovementQueueRow) => `/pc/movements?view=week${r.workOrderId ? `&job=${r.workOrderId}` : ""}&movement=${r.id}`;
+  const dayHref = (r: MovementQueueRow) => `/pc/movements?view=day&day=${r.dueDate ?? today}${r.assigneeId ? `&who=${r.assigneeId}` : ""}&movement=${r.id}`;
+
+  // movements_unplanned — one per job: starts within the horizon, still has tray chips.
+  const trayByJob = new Map<string, MovementQueueRow[]>();
+  for (const r of rows) if (r.status === "tray" && r.workOrderId) trayByJob.set(r.workOrderId, [...(trayByJob.get(r.workOrderId) ?? []), r]);
+  for (const [woId, chips] of trayByJob) {
+    const first = chips[0];
+    if (!first.jobStartDate || first.jobStage === "closed") continue;
+    if (first.jobStartDate > dayPlus(today, settings.planningHorizonDays)) continue;
+    const dueDay = dayPlus(first.jobStartDate, -3);
+    items.push(finish({
+      key: itemKey("movements_unplanned", "work_order", woId, "tray"),
+      kind: "movements_unplanned", accountId: null, subjectRef: { type: "work_order", id: woId },
+      title: `${chips.length} chip${chips.length === 1 ? "" : "s"} still in the tray — ${first.jobRef}, ${first.where}`,
+      detail: `Starts ${first.jobStartDate}. ${chips.map((c) => c.title).slice(0, 3).join(" · ")}${chips.length > 3 ? ` +${chips.length - 3}` : ""}. Drag them onto who moves them.`,
+      since: melbInstant(today, 7).toISOString(), dueAt: melbInstant(dueDay, 17).toISOString(),
+      action: { label: "Plan it", href: `/pc/movements?view=week&job=${woId}` },
+    }, none, now));
+  }
+
+  for (const r of rows) {
+    if (!live(r)) continue;
+    const dueDay = r.dueDate;
+
+    // order_unplaced — needsOrder, due within 2 days.
+    if (dueDay && r.status !== "problem" && movementNeedsOrder(asMovement(r)) && dueDay <= dayPlus(today, 2)) {
+      items.push(finish({
+        key: itemKey("order_unplaced", "work_order", r.workOrderId ?? "warehouse", r.id),
+        kind: "order_unplaced", accountId: null, subjectRef: r.workOrderId ? { type: "work_order", id: r.workOrderId } : { type: "event", id: r.id },
+        title: `Order not placed — ${label(r)}`,
+        detail: `${jobLine(r)} · ${r.fromBranch ?? "no branch picked"} · ${who(r)} ${r.assigneeKind === "supplier" ? "delivers" : "picks up"} ${dueDay}${r.time ? ` ${r.time.slice(0, 5)}` : r.half ? ` ${r.half}` : ""}. Place the order, then tick Ordered — that is what texts the painter.`,
+        since: r.updatedAt, dueAt: melbInstant(dayPlus(dueDay, -1), 17).toISOString(),
+        action: { label: "Ordered ✓", href: weekHref(r) },
+      }, none, now));
+    }
+
+    // delivery_unconfirmed — a supplier delivery due today, still only booked at deliveryConfirmBy.
+    if (dueDay === today && r.assigneeKind === "supplier" && r.status === "booked" && r.orderedAt && nowHm >= settings.deliveryConfirmBy) {
+      const [h, m] = settings.deliveryConfirmBy.split(":").map(Number);
+      items.push(finish({
+        key: itemKey("delivery_unconfirmed", "work_order", r.workOrderId ?? "warehouse", `${r.id}-${today}`),
+        kind: "delivery_unconfirmed", accountId: null, subjectRef: r.workOrderId ? { type: "work_order", id: r.workOrderId } : { type: "event", id: r.id },
+        title: `Delivery today not confirmed — ${label(r)}`,
+        detail: `${jobLine(r)} · ${r.fromBranch ?? "the supplier"} · order ${r.jobRef || r.id.slice(0, 8)}. Nobody has ticked it done by ${settings.deliveryConfirmBy} — ring the shop.`,
+        since: melbInstant(today, h, m).toISOString(), dueAt: melbInstant(today, h, m).toISOString(),
+        action: { label: "Ring the shop", href: dayHref(r) },
+      }, none, now));
+    }
+
+    // movement_overdue — past its day and not done.
+    if (dueDay && dueDay < today && r.status !== "problem") {
+      items.push(finish({
+        key: itemKey("movement_overdue", "work_order", r.workOrderId ?? "warehouse", r.id),
+        kind: "movement_overdue", accountId: null, subjectRef: r.workOrderId ? { type: "work_order", id: r.workOrderId } : { type: "event", id: r.id },
+        title: `Not done — ${label(r)} was due ${dueDay}`,
+        detail: `${jobLine(r)} · ${who(r)}. Tick it done if it happened, re-date it if it did not, or mark the problem.`,
+        since: melbInstant(dueDay, 17).toISOString(), dueAt: melbInstant(dueDay, 17).toISOString(),
+        action: { label: "Open on Day", href: dayHref(r) },
+      }, none, now));
+    }
+
+    // movement_problem — somebody marked it.
+    if (r.status === "problem") {
+      items.push(finish({
+        key: itemKey("movement_problem", "work_order", r.workOrderId ?? "warehouse", r.id),
+        kind: "movement_problem", accountId: null, subjectRef: r.workOrderId ? { type: "work_order", id: r.workOrderId } : { type: "event", id: r.id },
+        title: `Problem — ${label(r)}`,
+        detail: `${jobLine(r)} · ${who(r)}${dueDay ? ` · ${dueDay}` : ""}. ${r.problemNote || "No note."}`,
+        since: r.updatedAt, dueAt: null,
+        action: { label: "Open", href: weekHref(r) },
+      }, none, now));
+    }
+
+    // hire_off_due — today or tomorrow.
+    if (r.kind === "hire_off" && dueDay && dueDay >= today && dueDay <= dayPlus(today, 1)) {
+      items.push(finish({
+        key: itemKey("hire_off_due", "work_order", r.workOrderId ?? "warehouse", r.id),
+        kind: "hire_off_due", accountId: null, subjectRef: r.workOrderId ? { type: "work_order", id: r.workOrderId } : { type: "event", id: r.id },
+        title: `Off-hire ${dueDay === today ? "today" : "tomorrow"} — ${r.title}`,
+        detail: `${jobLine(r)} · back to ${r.fromBranch ?? "the yard"}. Every extra day is billed.`,
+        since: melbInstant(dueDay, 7).toISOString(), dueAt: melbInstant(dueDay, 17).toISOString(),
+        action: { label: "Open", href: weekHref(r) },
+      }, none, now));
+    }
+
+    // job_moved — ruling 4.
+    if (jobMoved({ planned_for_start: r.plannedForStart, status: r.status }, { startDate: r.jobStartDate })) {
+      items.push(finish({
+        key: itemKey("job_moved", "work_order", r.workOrderId ?? "warehouse", `${r.id}-${r.jobStartDate}`),
+        kind: "job_moved", accountId: null, subjectRef: r.workOrderId ? { type: "work_order", id: r.workOrderId } : { type: "event", id: r.id },
+        title: `Job moved — ${label(r)} is still on ${dueDay}`,
+        detail: `${jobLine(r)} now starts ${r.jobStartDate} (was ${r.plannedForStart}). The movement did not move with it — re-date it or leave it.`,
+        since: r.updatedAt, dueAt: null,
+        action: { label: "Re-date", href: weekHref(r) },
+      }, none, now));
+    }
+
+    // materials_changed_after_order.
+    if (r.sourceChangedAt && r.orderedAt) {
+      items.push(finish({
+        key: itemKey("materials_changed_after_order", "work_order", r.workOrderId ?? "warehouse", `${r.id}-${r.sourceChangedAt.replace(/[^0-9A-Za-z]/g, "")}`),
+        kind: "materials_changed_after_order", accountId: null, subjectRef: r.workOrderId ? { type: "work_order", id: r.workOrderId } : { type: "event", id: r.id },
+        title: `Changed after ordering — ${label(r)}`,
+        detail: `${jobLine(r)} · ordered ${r.orderedAt.slice(0, 10)}. The ${r.kind === "paint" ? "Materials rows" : "line"} changed since — check the order matches.`,
+        since: r.sourceChangedAt, dueAt: null,
+        action: { label: "Review the order", href: weekHref(r) },
+      }, none, now));
+    }
+  }
+
+  // equipment_stranded — one per item.
+  for (const s of stranded) {
+    items.push(finish({
+      key: itemKey("equipment_stranded", "work_order", s.workOrderId, s.itemId),
+      kind: "equipment_stranded", accountId: null, subjectRef: { type: "work_order", id: s.workOrderId },
+      title: `${s.tag} ${s.name} is still at a closed job — ${s.where}`,
+      detail: `${s.woRef} closed${s.closedOn ? ` ${s.closedOn}` : ""}. ${s.returnMovementId ? (s.returnStatus === "tray" ? "Its return chip is in the tray — drop it on whoever collects." : `Its return is ${s.returnStatus}.`) : "The sweep will make its return chip; drop it on whoever collects."}`,
+      since: s.closedOn ? melbInstant(s.closedOn, 17).toISOString() : now.toISOString(),
+      dueAt: s.closedOn ? melbInstant(s.closedOn, 17).toISOString() : null,
+      action: { label: "Find it in the tray", href: `/pc/movements?view=week&job=${s.workOrderId}` },
+    }, none, now));
+  }
+  return items;
+}
+
+/** The nine Movements items, from the live movements and the register. Read once; the builder is pure. */
+export async function readMovementQueueRows(supabase: SupabaseClient): Promise<{ rows: MovementQueueRow[]; stranded: StrandedItemRow[]; settings: MovementQueueSettings; error: string | null }> {
+  const empty = { rows: [], stranded: [], settings: { planningHorizonDays: 7, deliveryConfirmBy: "10:00" } };
+  const [settingsRes, liveRes, linksRes] = await Promise.all([
+    supabase.from("settings").select("value").eq("key", "movements").maybeSingle(),
+    realOnly(supabase.from("movements")
+      .select("id, work_order_id, kind, source_key, title, detail, status, assignee_kind, assignee_id, assignee_table, from_kind, to_kind, due_date, half, time, ordered_at, planned_for_start, source_changed_at, problem_note, updated_at, "
+        + "work_orders(wo_ref, job_no, stage, start_date, wo_snapshot), supplier_branches!movements_from_branch_id_fkey(brand, branch)"))
+      .in("status", ["tray", "planned", "booked", "problem"]).order("due_date", { nullsFirst: true }).limit(2000),
+    // Every item link with its movement and job: the register's location is the latest DONE movement carrying the item.
+    realOnly(supabase.from("movement_items")
+      .select("movement_id, equipment_item_id, label, equipment_items(tag, name, status), movements(id, kind, status, to_kind, done_at, updated_at, work_order_id, work_orders(wo_ref, stage, end_date, wo_snapshot))"))
+      .limit(5000),
+  ]);
+  if (settingsRes.error) return { ...empty, error: `settings: ${settingsRes.error.message}` };
+  if (liveRes.error) return { ...empty, error: `movements: ${liveRes.error.message}` };
+  if (linksRes.error) return { ...empty, error: `movement items: ${linksRes.error.message}` };
+  const settings = movementsSettingsFrom(settingsRes.data?.value);
+
+  type LiveRow = {
+    id: string; work_order_id: string | null; kind: MovementKind; source_key: string | null; title: string; detail: string | null; status: MovementStatus;
+    assignee_kind: MovementAssignee | null; assignee_id: string | null; assignee_table: "profiles" | "contractors" | null; from_kind: PlaceKind | null; to_kind: PlaceKind | null;
+    due_date: string | null; half: "AM" | "PM" | null; time: string | null; ordered_at: string | null; planned_for_start: string | null;
+    source_changed_at: string | null; problem_note: string; updated_at: string;
+    work_orders: { wo_ref: string; job_no: number | null; stage: string; start_date: string | null; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null } | null;
+    supplier_branches: { brand: string; branch: string } | null;
+  };
+  const liveRows = (liveRes.data ?? []) as unknown as LiveRow[];
+
+  // Lane names: profiles for staff, the contractor's profile name (or company) for painters — one read each, by id.
+  const profileIds = [...new Set(liveRows.filter((r) => r.assignee_table === "profiles" && r.assignee_id).map((r) => r.assignee_id!))];
+  const contractorIds = [...new Set(liveRows.filter((r) => r.assignee_table === "contractors" && r.assignee_id).map((r) => r.assignee_id!))];
+  const [profiles, contractors] = await Promise.all([
+    sliceRead<{ id: string; name: string | null }>(profileIds, (ids) => supabase.from("profiles").select("id, name").in("id", ids)),
+    sliceRead<{ id: string; company_name: string | null; profiles: { name: string | null } | null }>(contractorIds, (ids) =>
+      supabase.from("contractors").select("id, company_name, profiles(name)").in("id", ids) as unknown as PromiseLike<{ data: { id: string; company_name: string | null; profiles: { name: string | null } | null }[] | null; error: SliceError | null }>),
+  ]);
+  if (profiles.error) return { ...empty, error: `staff names: ${profiles.error.message}` };
+  if (contractors.error) return { ...empty, error: `painter names: ${contractors.error.message}` };
+  const nameOf = new Map<string, string>();
+  for (const p of profiles.rows) if (p.name) nameOf.set(p.id, p.name);
+  for (const c of contractors.rows) nameOf.set(c.id, c.profiles?.name?.trim() || c.company_name?.trim() || "Painter");
+
+  const rows: MovementQueueRow[] = liveRows.map((r) => ({
+    id: r.id, workOrderId: r.work_order_id, woRef: r.work_orders?.wo_ref ?? "",
+    jobRef: r.work_orders ? jobRef({ job_no: r.work_orders.job_no, wo_ref: r.work_orders.wo_ref }) : "",
+    where: r.work_orders?.wo_snapshot?.jobAddress || r.work_orders?.wo_snapshot?.jobTitle || r.work_orders?.wo_ref || "",
+    jobStage: r.work_orders?.stage ?? null, jobStartDate: r.work_orders?.start_date ?? null,
+    kind: r.kind, sourceKey: r.source_key, title: r.title, detail: r.detail, status: r.status,
+    assigneeKind: r.assignee_kind, assigneeId: r.assignee_id, assigneeName: r.assignee_id ? nameOf.get(r.assignee_id) ?? null : null,
+    fromKind: r.from_kind, toKind: r.to_kind, fromBranch: r.supplier_branches ? `${r.supplier_branches.brand} ${r.supplier_branches.branch}` : null,
+    dueDate: r.due_date, half: r.half, time: r.time, orderedAt: r.ordered_at, plannedForStart: r.planned_for_start,
+    sourceChangedAt: r.source_changed_at, problemNote: r.problem_note, updatedAt: r.updated_at,
+  }));
+
+  type LinkRow = {
+    movement_id: string; equipment_item_id: string; label: string;
+    equipment_items: { tag: string; name: string; status: string } | null;
+    movements: { id: string; kind: MovementKind; status: MovementStatus; to_kind: PlaceKind | null; done_at: string | null; updated_at: string; work_order_id: string | null;
+      work_orders: { wo_ref: string; stage: string; end_date: string | null; wo_snapshot: { jobAddress?: string; jobTitle?: string } | null } | null } | null;
+  };
+  const links = ((linksRes.data ?? []) as unknown as LinkRow[]).filter((l) => l.movements && l.equipment_items && l.equipment_items.status !== "retired");
+  const movementsForLocation: MovementRow[] = [];
+  const jobsForLocation = new Map<string, { id: string; stage: string }>();
+  const byMovement = new Map<string, MovementRow>();
+  for (const l of links) {
+    const m = l.movements!;
+    let row = byMovement.get(m.id);
+    if (!row) {
+      row = { ...emptyMovement(m.id), kind: m.kind, status: m.status, to_kind: m.to_kind, done_at: m.done_at, updated_at: m.updated_at, work_order_id: m.work_order_id, due_date: null };
+      byMovement.set(m.id, row); movementsForLocation.push(row);
+    }
+    row.items.push({ movement_id: m.id, equipment_item_id: l.equipment_item_id, label: l.label });
+    if (m.work_order_id && m.work_orders) jobsForLocation.set(m.work_order_id, { id: m.work_order_id, stage: m.work_orders.stage });
+  }
+  const stranded: StrandedItemRow[] = [];
+  const seenItems = new Set<string>();
+  for (const l of links) {
+    if (seenItems.has(l.equipment_item_id)) continue;
+    seenItems.add(l.equipment_item_id);
+    const loc = itemLocation(l.equipment_item_id, { movements: movementsForLocation, jobs: [...jobsForLocation.values()] });
+    if (loc.state !== "stranded" || !loc.movement?.work_order_id) continue;
+    const out = links.find((x) => x.movement_id === loc.movement!.id)!;
+    const ret = liveRows.find((r) => r.source_key === `return:${loc.movement!.id}`) ?? null;
+    stranded.push({
+      itemId: l.equipment_item_id, tag: l.equipment_items!.tag, name: l.equipment_items!.name, workOrderId: loc.movement.work_order_id,
+      woRef: out.movements!.work_orders?.wo_ref ?? "", where: out.movements!.work_orders?.wo_snapshot?.jobAddress || out.movements!.work_orders?.wo_snapshot?.jobTitle || out.movements!.work_orders?.wo_ref || "",
+      closedOn: out.movements!.work_orders?.end_date ?? null, returnMovementId: ret?.id ?? null, returnStatus: ret?.status ?? null,
+    });
+  }
+  return { rows, stranded, settings: { planningHorizonDays: settings.planningHorizonDays, deliveryConfirmBy: settings.deliveryConfirmBy }, error: null };
+}
+
+/** A bare movement row for the location rule, which only reads kind, status, to_kind, done_at, updated_at, work_order_id and items. */
+function emptyMovement(id: string): MovementRow {
+  return {
+    id, work_order_id: null, kind: "other", source_key: null, title: "", detail: null, assignee_kind: null, assignee_table: null, assignee_id: null,
+    due_date: null, half: null, time: null, sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "",
+    status: "tray", ordered_at: null, client_notice: false, order_ref: "", lines: null, planned_for_start: null, return_due: null, blocked_by_movement_id: null,
+    expected_cost_cents: null, note: "", problem_note: "", painter_confirmed_at: null, source_changed_at: null, booked_at: null, done_at: null,
+    created_at: "", updated_at: "", items: [],
+  };
+}
 
 export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
   const [checkins, callbacks, painters, qaChecks, painterMessages, siteVisits, materials, noWork, dismissed] = await Promise.all([

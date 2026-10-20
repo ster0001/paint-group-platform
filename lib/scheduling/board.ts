@@ -91,6 +91,14 @@ export type Block = {
   /** Holds (Tom, 1 Oct): the reservation's own id, and what the office wrote on it. */
   holdId?: string;
   holdNote?: string;
+  /**
+   * Movements Session 3 (Session 0 item 9.4), ADDITIVE: the job's address from the
+   * snapshot and `work_orders.end_date`, so a Movements lane can place a block on the
+   * map and bound a return without a second read. `end` is untouched — a direct booking
+   * still spans one day here, exactly as the Schedule board has always drawn it.
+   */
+  address?: string;
+  woEndDate?: string | null;
 };
 
 /** A booked walkthrough, pinned on the assigned contractor's lane (§4b). */
@@ -185,7 +193,7 @@ export function daysFromHours(hours: number | null | undefined, painters: number
 
 type WRow = {
   id: string; estimate_id: string; wo_ref: string; stage: string; status: string; contractor_id: string | null;
-  start_date: string | null; contractor_payment_cents: number | null; wo_snapshot: unknown;
+  start_date: string | null; end_date?: string | null; contractor_payment_cents: number | null; wo_snapshot: unknown;
   issued_at: string | null; created_at: string | null;
   estimates: { title: string | null; accepted_at: string | null } | null;
 };
@@ -237,7 +245,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       // this was the query that silently lost jobs past PostgREST's row cap.
       paged<WRow>((f, t) => realOnly(supabase
         .from("work_orders")
-        .select("id, estimate_id, wo_ref, stage, status, contractor_id, start_date, contractor_payment_cents, wo_snapshot, issued_at, created_at, estimates ( title, accepted_at )"))
+        .select("id, estimate_id, wo_ref, stage, status, contractor_id, start_date, end_date, contractor_payment_cents, wo_snapshot, issued_at, created_at, estimates ( title, accepted_at )"))
         .or(`stage.neq.closed,and(start_date.lte.${addDays(to, 30)},end_date.gte.${addDays(from, -30)})`)
         .order("id").range(f, t)),
       // Windowed rather than "every offer ever made" (audit S6). The window is
@@ -396,6 +404,8 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       expiresAt: o.expires_at,
       source: null,
       reason: "",
+      address: doc?.jobAddress,
+      woEndDate: w?.end_date ?? null,
     });
   }
 
@@ -432,6 +442,8 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       expiresAt: null,
       source: null,
       reason: "",
+      address: doc?.jobAddress,
+      woEndDate: w.end_date ?? null,
     });
   }
 
@@ -464,6 +476,8 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         acceptedAt: a.accepted_at,
         crewIndex: i + 1,
         crewSize: crew.length,
+        address: doc?.jobAddress,
+        woEndDate: w.end_date ?? null,
       });
     });
   }
@@ -495,6 +509,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       appointmentId: a.id,
       // Marked accepted so the "assigned" colour never draws hollow — the visit was booked by the office.
       acceptedAt: asEmployee ? w.issued_at : undefined,
+      address: doc?.jobAddress,
     });
   }
 

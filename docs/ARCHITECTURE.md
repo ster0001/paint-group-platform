@@ -4,6 +4,38 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 20 Oct 2026 — Movements Session 3: sync mirror, the one evaluator, the loader, nine work items
+
+**2026-10-20 · `lib/movements/sync.ts`, `lib/movements/evaluate.ts`, `lib/movements/load.ts`, `lib/movements/types.ts` (row shapes +
+settings), `lib/crm/work-queue.ts` (nine kinds), `lib/scheduling/board.ts` (additive `Block.address` / `woEndDate`),
+`e2e/movements-sync-mirror.spec.ts`**
+
+Everything a Movements screen shows is computed ONCE, here, with tests; no screen exists yet (Session 4). `sync.ts` is the pure
+TypeScript twin of `movements_sync_for_wo` (migration 20270279 §10): same inputs, same rules — one paint chip per product brand
+(`paint:<brand>`, brand by product NAME via `products.brand`, blank → `paint:brand?`), one per unmerged line (`matline:<id>`),
+one undecided rubbish question, tray chips refreshed in place, a placed ORDERED chip only ever flagged (`source_changed_at`),
+closed jobs given return chips for stranded gear (`autoReturnFor` = `movements_after_booked`) — and it returns the PLAN (create /
+refresh / flag / remove / the chip set after) rather than writing anything. The database is still the one writer; the mirror exists
+so a screen can say what the sync will do and so the rule has a readable twin. Pinned two ways: `sync.test.ts` is a golden over the
+e2e fixture's known answers, and `e2e/movements-sync-mirror.spec.ts` runs the RPC and the mirror on one fixture through the staff
+session and compares the chip sets column for column. `evaluate.ts` is the one evaluator (brief §3.3): `lanes` (supplier, painters
+with work or a movement in the window by first start — contractors and employees alike, staff in `boardPeople` order; an employee
+in `boardPeople` is ONE lane), `contextBlocks`/`context` (jobs and leave from `loadBoard`, Google busy in Melbourne time with the
+read's kind as a lane note, checks / check-ins on the hourly staff lanes or those flagged `boardPeople[].checks`, walkthroughs on the
+painter's lane too), `kindLabel`, `methodOf`/`methodLabel`, `laneColour` (Settings for staff, a stable-hash palette for painters),
+`needsOrder`, `chipWindow`/`inWindow`, `blockedReason`, `nearby` (staff lanes only), `hotCells`, `whileYouAreThere`,
+`orderedStops`/`runPlan` (fixed context at its time, movements by sequence then time, km from the warehouse out and back),
+`reorder` (ruling 22: the same set of times handed out in the new order — what `movement_set_sequence` + `movement_set_time` are
+given), `itemLocation`/`locations` (= `equipment_item_location`), `jobNeeds` (ruling 21's amber), `jobMoved` (ruling 4), `gates`,
+`counts`. `load.ts` `loadMovementsWeek(from, to)` builds the `World` it computes over: one round trip per source, every read keeps
+its `error`, `realOnly()` on every list of a flagged table, failures returned as lines; it reuses `loadBoard` (which now carries the
+snapshot address and `work_orders.end_date` on each block, additively — `end` is untouched). The nine §6 work items are pure
+builders in `lib/crm/work-queue.ts` (`buildMovementWorkItems` + `readMovementQueueRows`), PC-homed, weighted under
+`employee_reassign` (32) because that invariant is tested; NOT yet in `buildPcWorkItems` — Session 4 wires them when the screen
+they link to exists. No migration.
+
+---
+
 ## 19 Oct 2026 — Movements Session 2: the board engine, lifted out of the Schedule board
 
 **2026-10-19 · `app/components/board/` (`Board.tsx`, `Lane.tsx`, `DayCell.tsx`, `Tray.tsx`, `SavedViews.tsx`, `Controls.tsx`,
