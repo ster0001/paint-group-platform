@@ -3,7 +3,7 @@ feature: movements
 role: pc
 title: Plan the week's paint, materials, gear and rubbish on the Movements board
 summary: How the Movements tab works — the tray of chips built from the jobs, the lanes for the supplier, each painter and each staff member, dragging a chip onto a day (or an hour), the chip sheet for the shop, time, order reference and note, Ordered ✓, Nearby and While-you're-there suggestions, and the Sources view that shows one materials list in its three places.
-sources: app/pc/movements, app/components/board, lib/movements/evaluate.ts, lib/movements/load.ts, lib/movements/sync.ts, app/pc/movements/actions.ts
+sources: app/pc/movements, app/pc/movements/DayView.tsx, app/pc/movements/run, app/components/board, lib/movements/evaluate.ts, lib/movements/load.ts, lib/movements/sync.ts, lib/movements/notify.ts, app/pc/movements/actions.ts
 verified_at_commit: 48b17db4cd
 ---
 
@@ -26,7 +26,7 @@ The project coordinator uses it on a laptop on Thursday or Friday to plan the we
 3. The **board** is lanes × days: **Supplier delivers** first, then every painter booked this week, then the staff lanes. A painter's or the supplier's day splits **AM over PM**; an hourly lane shows **ten one-hour rows from 07:30**. What everyone is already doing is drawn in: green **On site** blocks from the schedule, violet calendar entries, cyan quality checks, job check-ins and walkthroughs, grey leave. A lane whose Google Calendar could not be read says so under the name instead of showing an empty day.
 4. **Drag a chip** onto a half or an hour row. While you drag, the cells near where that person already is light cyan, the cell under your pointer lights green, and the ghost names the lane and the time; a red ghost says why the drop would be refused. Drop into an hour row and the movement takes that time. Drop a chip before its job ends (a return) or after it starts (a delivery) and the board places it but warns you.
 5. The chip becomes a **card** on the day: the kind of movement (Paint delivery, Paint pickup, Gear drop-off, Gear collection, Skip in, Rubbish to warehouse …) in the lane's colour, the shop, the time, the job reference and a state line. A supplier order or a painter's pickup shows amber **Not ordered yet** with an **Ordered ✓** button; a staff-lane drop is booked by placing it. **Done** ticks it; **↩** sends it back to the tray (so does dragging it onto the tray).
-6. Tick **Ordered ✓** once you have placed the order with the shop. That is what tells the painter: the text is drafted now and sent when the Day view ships; the client is told nothing unless you turned **Client notice** on in the chip. A paint order is refused until the colours are confirmed.
+6. Tick **Ordered ✓** once you have placed the order with the shop. That is what tells the painter: a pickup texts them the shop, its address, the from-time and the order reference; a delivery texts them what is coming and when. The texts are **drafts** until Tom switches them to automatic in Settings → Automations (Movements — your pickup is ready / a delivery is coming), so until then approve them from the queue. The client is told nothing unless you turned **Client notice** on in the chip. A paint order is refused until the colours are confirmed.
 
 ### Nearby and While you're there
 1. A staff lane's day shows a cyan **Nearby N — see** pill when tray chips sit within the Settings radius (7 km by default) of somewhere that person already is that day. Tap it for the list, nearest first, and tap a chip to drop it on that day at the time of the appointment it is near.
@@ -49,6 +49,14 @@ The project coordinator uses it on a laptop on Thursday or Friday to plan the we
 1. Switch to **Sources** and pick a job. Three cards show the same job: the **estimate's** crew notes, its internal Materials & sundries list and the Materials card's paint rows; the **job page's pre-start** with the two gate ticks (Materials ordered, Equipment movements booked), the paint chips per brand and the same materials list; and the **tray**, with this job's chips, live.
 2. Add a line in any card and it appears in all three and becomes a chip in the tray. Remove it anywhere and it is gone everywhere — unless its chip is already on someone's day, in which case bring the chip back to the tray first.
 3. The strip under the cards names the doors: the estimate, the job page, the painter's request (Accept as a line) and the tray.
+
+### Day — run plans
+1. Switch to **Day** (or tap **Orders to place** in the header). Pick a day — each chip says how many moves are on it — and a person; the people chips are everyone with a stop that day, in their lane colour.
+2. The timeline runs from the **warehouse** out: fixed appointments (a quality check, a calendar entry) are dashed with ◌; movements are numbered, with the kind of movement, what it is, where it goes and the kilometres from the previous stop. The header totals the stops and the km.
+3. **▲▼** move a stop earlier or later. The times move with the stops — the same set of times, in the new order — so the Week board shows the same thing. **Ordered ✓** on a stop that still owes its order works here too; the big **✓** ticks a booked stop done.
+4. **Send to <name>'s phone** texts the person their run for the day with a link: staff open their own list (Navigate, Ring, Done, Problem on each stop); a painter opens the **Your pickups and drop-offs today** card in the portal. Every press sends again, because the run can change.
+5. The **Orders to place** card lists every placed delivery or pickup in the week whose order is not yet in, soonest first, each with its own **Ordered ✓** (or **Booked ✓** for a hire or skip). A paint row whose colours are still TBC is disabled and says so.
+6. At 6 pm, a supplier delivery due today that nobody ticked Done texts the job's painter "did it arrive?" (draft-first, like the others).
 
 ### On a phone
 The board scrolls sideways with the lane names pinned on the left. The tray is a drawer at the bottom: tap **Tray** to open it, drag a chip up onto the board, and it closes behind you.

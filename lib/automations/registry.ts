@@ -106,6 +106,9 @@ const P = {
   status: ["{{first_name}}", "{{company_name}}", "{{colour}}", "{{link}}"],
   bonus: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{link}}"],
   callback: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{day}}", "{{what}}", "{{link}}"],
+  movement: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{what}}", "{{shop}}", "{{shop_address}}", "{{from_time}}", "{{day}}", "{{when}}", "{{order_ref}}", "{{link}}"],
+  movementClient: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{what}}", "{{day}}", "{{when}}"],
+  movementRun: ["{{first_name}}", "{{company_name}}", "{{day}}", "{{stops}}", "{{km}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
   visitCode: ["{{code}}", "{{company_name}}"],
@@ -604,6 +607,44 @@ export const AUTOMATIONS: Automation[] = [
       { field: "standardsNewVersionEmailIntro", label: "Email body", kind: "body", placeholders: P.standards },
     ],
     guard: "Once per painter per version (automation_claims).",
+  },
+
+  // ---- Movements (brief §3.5, Session 5). Draft-first: the office approves each text until
+  // Tom flips the mode in Settings → Automations after a week of drafts (build plan §3, S5).
+  {
+    key: "movement_pickup_ready", name: "Movements — your pickup is ready", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "movement_pickup_ready", capExempt: true,
+    trigger: "The office ticks Ordered ✓ on a pickup on the painter's lane (Movements board, Day view or the job page). Names the shop, its address, the from-time and the order reference.",
+    templates: [{ field: "movementPickupReadySms", label: "Text message", kind: "sms", placeholders: P.movement }],
+    guard: "Once per movement (movements.painter_alerted_at; re-ordering after Back to tray alerts again).",
+  },
+  {
+    key: "movement_delivery_booked", name: "Movements — a delivery is coming to site", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "movement_delivery_booked", capExempt: true,
+    trigger: "The office ticks Ordered ✓ on a supplier delivery (or Booked ✓ on a hire or skip). Says what is coming, which day and when.",
+    templates: [{ field: "movementDeliveryBookedSms", label: "Text message", kind: "sms", placeholders: P.movement }],
+    guard: "Once per movement (movements.painter_alerted_at).",
+  },
+  {
+    key: "movement_delivery_client_notice", name: "Movements — tell the customer a delivery is coming", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "movement_delivery_client_notice",
+    trigger: "Ordered ✓ on a supplier delivery whose chip has Client notice switched ON (off by default, per movement — ruling 11). The customer gets nothing otherwise.",
+    templates: [{ field: "movementDeliveryClientNoticeSms", label: "Text message", kind: "sms", placeholders: P.movementClient }],
+    guard: "Once per movement (movements.client_notified_at).",
+  },
+  {
+    key: "movement_run_plan", name: "Movements — your run for the day", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "movement_run_plan", capExempt: true,
+    trigger: "The office presses Send to <name>'s phone on the Day view. Staff get a link to their own run view; painters get the portal's pickups-and-drop-offs card.",
+    templates: [{ field: "movementRunPlanSms", label: "Text message", kind: "sms", placeholders: P.movementRun }],
+    guard: "Each press sends again (the run can change); the stops it covered are stamped run_plan_sent_at.",
+  },
+  {
+    key: "movement_arrived_check", name: "Movements — did the delivery arrive?", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "movement_arrived_check", capExempt: true,
+    trigger: "The 6 pm sweep, for every supplier delivery due today that nobody has ticked Done. Goes to the job's painter.",
+    templates: [{ field: "movementArrivedCheckSms", label: "Text message", kind: "sms", placeholders: P.movement }],
+    guard: "Once per movement (wo_events movement_arrived_check).",
   },
   {
     key: "contractor_callback_booked", name: "Call back booked", audience: "painter", channels: ["sms"], kind: "automatic",

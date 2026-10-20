@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingRpc } from "@/lib/supabase/missingRpc";
 import { reportError } from "@/lib/monitoring/report";
+import { createServiceClient } from "@/lib/supabase/service";
+import { notifyMovementOrdered, notifyRunPlan } from "@/lib/movements/notify";
 import {
   BRANCH_KINDS, EQUIPMENT_CATEGORIES, EQUIPMENT_STATUSES, LOGISTICS_DECISIONS, LOGISTICS_LINES,
   MATERIAL_LINE_SOURCES, MOVEMENT_ASSIGNEES, MOVEMENT_KINDS, MOVEMENT_STATUSES, PLACE_KINDS, RUBBISH_HOW,
@@ -172,7 +175,14 @@ export async function unplaceMovement(raw: unknown): Promise<MovementActionResul
 export async function markMovementOrdered(raw: unknown): Promise<MovementActionResult> {
   const p = idInput.safeParse(raw);
   if (!p.success) return invalid(p);
-  return call("movement_mark_ordered", { p_id: p.data.id }, "movements.markOrdered", jobPaths(p.data.workOrderId));
+  const r = await call("movement_mark_ordered", { p_id: p.data.id }, "movements.markOrdered", jobPaths(p.data.workOrderId));
+  // Session 5: the order step is what tells the painter (brief §3.5). Best-effort, after the
+  // response — a lost text never unwinds the order; the board shows "painter told" from the stamp.
+  if (r.ok) {
+    const service = createServiceClient();
+    if (service) after(() => notifyMovementOrdered(service, p.data.id));
+  }
+  return r;
 }
 
 const statusInput = idInput.extend({ status: z.enum(MOVEMENT_STATUSES), note: z.string().max(500).optional() });
@@ -267,13 +277,48 @@ export async function setPaintLine(raw: unknown): Promise<MovementActionResult> 
   }, "movements.setPaintLine", jobPaths(d.workOrderId));
 }
 
-const runPlanInput = z.object({ personKind: z.enum(["profiles", "contractors"]), personId: uuid, day: isoDate });
+const runPlanInput = z.object({
+  personKind: z.enum(["profiles", "contractors"]), personId: uuid, day: isoDate,
+  /** Display words for the text, from the evaluator's runPlan() on the screen that pressed Send. */
+  stops: z.number().int().min(0).max(200), km: z.number().min(0).max(5000),
+});
 
-/** Send to phone — a logged stub until Session 5 wires the text. */
+/** Send to <name>'s phone (Day view): the RPC stamps the stops and logs it; the text follows (Session 5). */
 export async function sendRunPlan(raw: unknown): Promise<MovementActionResult> {
   const p = runPlanInput.safeParse(raw);
   if (!p.success) return invalid(p);
-  return call("movement_send_run_plan", { p_person_kind: p.data.personKind, p_person_id: p.data.personId, p_day: p.data.day }, "movements.sendRunPlan");
+  const r = await call("movement_send_run_plan", { p_person_kind: p.data.personKind, p_person_id: p.data.personId, p_day: p.data.day }, "movements.sendRunPlan");
+  if (r.ok) {
+    const service = createServiceClient();
+    if (service) after(() => notifyRunPlan(service, { kind: p.data.personKind, id: p.data.personId }, p.data.day, { stops: p.data.stops, km: p.data.km }));
+  }
+  return r;
+}
+
+const reorderInput = z.object({
+  assigneeKind: z.enum(MOVEMENT_ASSIGNEES), assigneeId: uuid.nullable().optional(), day: isoDate,
+  /** The evaluator's reorder() patches: the new order, with the SAME set of times handed out in that order (ruling 22). */
+  patches: z.array(z.object({ id: uuid, sequence: z.number().int().min(1), time: clock })).min(1).max(200),
+  workOrderIds: z.array(uuid).max(200).optional(),
+});
+
+/**
+ * Reorder a person's day (Day view ▲▼, the map's order card): one round trip that sets the
+ * sequence and re-slots the times, so the week board and the run plan agree.
+ */
+export async function reorderDay(raw: unknown): Promise<MovementActionResult> {
+  const p = reorderInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  const ordered = [...p.data.patches].sort((x, y) => x.sequence - y.sequence);
+  const seq = await call("movement_set_sequence", {
+    p_assignee_kind: p.data.assigneeKind, p_assignee_id: p.data.assigneeId ?? null, p_day: p.data.day, p_ids: ordered.map((x) => x.id),
+  }, "movements.reorder");
+  if (!seq.ok) return seq;
+  for (const x of ordered) {
+    const t = await call("movement_set_time", { p_id: x.id, p_time: x.time }, "movements.reorder.time", (p.data.workOrderIds ?? []).flatMap(jobPaths));
+    if (!t.ok) return t;
+  }
+  return { ok: true, value: String(ordered.length) };
 }
 
 /** The painter's tick on a movement on their lane (portal; the RPC checks it is theirs). */
