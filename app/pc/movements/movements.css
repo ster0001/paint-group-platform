@@ -317,3 +317,29 @@
 .mvx .runlist .acts .btn.pri { background: var(--cyan); color: var(--oncyan); border-color: transparent; }
 .mvx .runlist .acts .btn.clay { color: var(--clay); border-color: rgba(163,70,58,.5); }
 .mvx .runlist .warn { color: var(--amber); font-size: 12px; align-self: center; }
+
+/* ---- Gear — the register (Session 6; mockup .gearhead/.gearlegend/.geargrid/.gear/.loc/.trail) ---- */
+.mvx .gearview { margin-top: 16px; }
+.mvx .gearhead { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.mvx .gearlegend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.mvx .gearlegend span { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px 4px 6px; background: var(--graphite); }
+.mvx .gearlegend svg { width: 16px; height: 16px; color: var(--violet); }
+.mvx .geargrid { display: grid; gap: 10px; margin-top: 12px; grid-template-columns: 1fr; }
+@media (min-width: 700px) { .mvx .geargrid { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1100px) { .mvx .geargrid { grid-template-columns: 1fr 1fr 1fr; } }
+.mvx .gear { border: 1px solid var(--line); border-radius: 14px; background: var(--ink); box-shadow: var(--shadow); overflow: hidden; }
+.mvx .gear .top { display: grid; grid-template-columns: 56px 1fr; gap: 10px; width: 100%; text-align: left; padding: 12px; align-items: start; }
+.mvx .gicon { width: 56px; height: 56px; border-radius: 12px; background: var(--graphite); display: grid; place-items: center; color: var(--violet); }
+.mvx .gicon svg { width: 34px; height: 34px; }
+.mvx .gear.flag .gicon { color: var(--clay); }
+.mvx .gear .nm { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mvx .gear .nm b { font-size: 14px; font-weight: 600; letter-spacing: -.01em; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mvx .gear .nm small { font-size: 12px; color: var(--muted); }
+.mvx .gear .tag { font-family: var(--mono); font-size: 9px; color: var(--cyan); letter-spacing: .04em; background: var(--cyan-soft); border: 1px solid rgba(14,140,156,.3); border-radius: 6px; padding: 2px 6px; }
+.mvx .loc { font-family: var(--mono); font-size: 8px; letter-spacing: .06em; text-transform: uppercase; padding: 4px 8px; border-radius: 100px; border: 1px solid var(--line); white-space: nowrap; display: inline-block; }
+.mvx .loc.wh { color: var(--emerald); border-color: rgba(31,122,74,.45); } .mvx .loc.site { color: var(--cyan); border-color: rgba(14,140,156,.4); }
+.mvx .loc.painter { color: var(--soft); } .mvx .loc.repair { color: var(--muted); } .mvx .loc.flag { color: var(--clay); border-color: rgba(163,70,58,.5); background: var(--clay-soft); }
+.mvx .trail { border-top: 1px solid var(--line); padding: 10px 12px 12px; display: none; }
+.mvx .gear.open .trail { display: block; }
+.mvx .tr { display: grid; grid-template-columns: 62px 1fr; gap: 10px; padding: 5px 0; border-top: 1px dashed var(--line); font-size: 13px; }
+.mvx .tr:first-of-type { border-top: 0; } .mvx .tr .d { font-family: var(--mono); font-size: 10px; color: var(--muted); padding-top: 2px; }
