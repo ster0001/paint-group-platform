@@ -3,7 +3,7 @@
 | Session | Branch | PR | Migration | _prod_migrations row | Status | Date |
 |---|---|---|---|---|---|---|
 | 0 recon | — (on `main`: bundle `2ef8a38f`, report) | — | — | — | ✅ report written: `docs/briefs/movements-session-0-report.md` | 19 Oct 2026 |
-| 1 schema + seed | claude/focused-mirzakhani-1dffeb (worktree branch; plan said feat/movements-s1-schema) | (open from the compare link) | `20270279000000_movements.sql` | ⏳ awaiting Tom's paste — row read back on C1 only | ✅ built: migration converges on C1 (read-back 19/19), 26 RPCs, seeds run on C1 (68 branches, 12 template items), `e2e/movements-rpc.spec.ts` 7/7 on C1 | 19 Oct 2026 |
+| 1 schema + seed | claude/focused-mirzakhani-1dffeb (worktree branch; plan said feat/movements-s1-schema) | #300 ✅ merged `90805b5a` 20 Oct | `20270279000000_movements.sql` | ⏳ NOT on production — ledger read 20 Oct 2026 (newest row 20270277); paste the SQL from PR #300, then read the ledger before Session 3 | ✅ built: migration converges on C1 (read-back 19/19), 26 RPCs, seeds run on C1 (68 branches, 12 template items), `e2e/movements-rpc.spec.ts` 7/7 on C1 | 19 Oct 2026 |
 | 2 board engine | claude/optimistic-williamson-b85dd5 (worktree; the plan's name `feat/movements-s2-board-engine` was not used — the session ran on its own branch) | #299 (merged main 89b637c7, 19 Oct 2026) | — | — | ✅ built: `app/components/board/` (engine), `ScheduleBoard.tsx` re-pointed, `e2e/board-engine.spec.ts` 3/3, Schedule specs 23/26 on C1 with the 3 reds reproduced on main (pre-existing), CLAUDE.md ruling, boundary test | 19 Oct 2026 |
 | 3 evaluator | feat/movements-s3-evaluator | | — | — | | |
 | 4 week | feat/movements-s4-week | | — | — | | |
