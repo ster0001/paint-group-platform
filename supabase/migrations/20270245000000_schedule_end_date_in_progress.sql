@@ -137,6 +137,9 @@ select
      where n.nspname = 'public' and p.proname = 'reassign_dates') as reassign_guards_start, true as _expect_reassign_guard,
   has_function_privilege('authenticated', 'public.move_booking(uuid, date, date, text)', 'execute') as move_grant, true as _expect_move_grant,
   has_function_privilege('authenticated', 'public.reassign_dates(uuid, date, date, text)', 'execute') as reassign_grant, true as _expect_reassign_grant,
-  has_function_privilege('authenticated', 'public.wo_contractor_set_finish_date(uuid, date)', 'execute') as finish_grant, true as _expect_finish_grant;
+  -- by name, not signature: 20270263 adds a p_reason argument, so a replay on a
+  -- database that already has it must still read back true (C1, 20 Oct 2026)
+  (select bool_or(has_function_privilege('authenticated', oid, 'execute')) from pg_proc
+     where proname = 'wo_contractor_set_finish_date' and pronamespace = 'public'::regnamespace) as finish_grant, true as _expect_finish_grant;
 
 insert into public._prod_migrations(name) values ('20270245000000_schedule_end_date_in_progress.sql') on conflict (name) do nothing;
