@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  customerCheckins, customerDefectTapeRungs, dayAt, dayLabel, jobDays, painterMorningHeadsUps, painterUpdateRungs, rungInstant,
+  customerCheckins, customerDefectTapeRungs, dayAt, dayLabel, jobDays, painterFinishReminderDay, painterMorningHeadsUps, painterUpdateRungs, rungInstant,
+  walkthroughDayOf,
 } from "./jobRhythm";
 
 // Mon 5 Oct 2026 → Fri 9 Oct is a five-day week; the 10th/11th are a weekend.
@@ -149,5 +150,24 @@ describe("the customer's defect-tape text (Tom, 8 Oct)", () => {
     const ten = jobDays("2026-10-01", "2026-10-14");
     expect(ten).toHaveLength(10);
     expect(customerDefectTapeRungs(ten)).toEqual([{ id: "am", date: "2026-10-09" }]);
+  });
+});
+
+// Tom, 19 Oct 2026: the painter's walkthrough-date text, two BUSINESS days before.
+describe("the painter's finish reminder day", () => {
+  const none = new Set<string>();
+  it("is two business days before the walkthrough — the weekend does not count", () => {
+    expect(painterFinishReminderDay("2026-10-07", none)).toBe("2026-10-05");   // Wed → Mon
+    expect(painterFinishReminderDay("2026-10-06", none)).toBe("2026-10-02");   // Tue → Fri
+    expect(painterFinishReminderDay("2026-10-05", none)).toBe("2026-10-01");   // Mon → Thu
+  });
+  it("skips a public holiday", () => {
+    expect(painterFinishReminderDay("2026-10-05", new Set(["2026-10-02"]))).toBe("2026-09-30");
+  });
+  it("counts from the booked final, else the booked last day — the date the painter's card shows", () => {
+    expect(walkthroughDayOf({ endDate: "2026-10-07", finals: [] })).toBe("2026-10-07");
+    expect(walkthroughDayOf({ endDate: "2026-10-07", finals: [{ status: "booked", date: "2026-10-09" }, { status: "cancelled", date: "2026-10-07" }] })).toBe("2026-10-09");
+    expect(walkthroughDayOf({ endDate: "2026-10-07", finals: [{ status: "cancelled", date: "2026-10-09" }] })).toBe("2026-10-07");
+    expect(walkthroughDayOf({ endDate: null, finals: [] })).toBeNull();
   });
 });

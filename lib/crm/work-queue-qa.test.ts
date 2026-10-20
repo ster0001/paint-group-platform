@@ -10,13 +10,65 @@ import { melbourneInstant } from "@/lib/time/businessHours";
 const row = (over: Partial<QaCheckQueueRow> = {}): QaCheckQueueRow => ({
   id: "c1", workOrderId: "wo1", kind: "final", date: "2026-10-14", time: "09:00:00",
   stage: "in_progress", woRef: "WO-101", where: "12 Test St, Thornbury", painter: "Sam",
+  startDate: "2026-10-08", endDate: "2026-10-15",
   finals: [{ status: "booked", date: "2026-10-15" }],
   ...over,
+});
+const toBook = (rows: QaCheckQueueRow[], at: Date) => buildQaCheckItems(rows, at).filter((i) => i.kind === "qa_check_to_book");
+const notToBook = (rows: QaCheckQueueRow[], at: Date) => buildQaCheckItems(rows, at).filter((i) => i.kind !== "qa_check_to_book");
+
+/**
+ * Tom, 19 Oct 2026: "if a quality check is required, it needs to be visible
+ * at the top of the page in PC command to book in the quality check before
+ * the final walk through". One strip item per required main check, from the
+ * booking until the check's day, in one of three states.
+ */
+describe("a required quality check, at the top of PC Command until its day", () => {
+  const before = melbourneInstant(2026, 10, 9, 9);
+  it("undated: book it — due on the job's last day, with the action on the job page", () => {
+    const [item] = toBook([row({ date: null, time: null })], before);
+    expect(item.kind).toBe("qa_check_to_book");
+    expect(item.title).toBe("Quality check required — no day booked yet — 12 Test St, Thornbury");
+    expect(item.detail).toContain("last day 2026-10-15");
+    expect(item.action).toEqual({ label: "Book the check", href: "/pc/wo/wo1#qa" });
+    expect(item.key).toMatch(/:c1-undated$/);
+    expect(item.key).toMatch(/^[a-z_]+:[a-z_]+:[^:]+:[a-zA-Z0-9_-]+$/);   // dismissable (crm_dismiss_work_item key shape)
+    expect(homeOf("qa_check_to_book")).toBe("pc");
+    expect(isCustomerVisible("qa_check_to_book")).toBe(false);
+  });
+  it("dated from the booking but no final walkthrough booked: book the final", () => {
+    const [item] = toBook([row({ finals: [] })], before);
+    expect(item.title).toBe("Quality check pencilled for 2026-10-14 at 09:00, final walkthrough not booked — 12 Test St, Thornbury");
+    expect(item.action.label).toBe("Book it in");
+    expect(item.key).toContain("c1-final-unbooked-2026-10-14");
+  });
+  it("booked before a booked final: confirm the slot; the key carries both dates so a move re-fires", () => {
+    const [item] = toBook([row()], before);
+    expect(item.title).toBe("Quality check 2026-10-14 at 09:00, before the final walkthrough on 2026-10-15 — 12 Test St, Thornbury");
+    expect(item.action.label).toBe("Open the check");
+    expect(item.key).toContain("c1-booked-2026-10-14-0900-2026-10-15");
+    expect(item.key).toMatch(/^[a-z_]+:[a-z_]+:[^:]+:[a-zA-Z0-9_-]+$/);
+    expect(item.dueAt).toBe(melbourneInstant(2026, 10, 15, 9).toISOString());
+  });
+  it("is gone on the check's day (the qa_check_due card takes over) and once the job is parked at Quality check or closed", () => {
+    expect(toBook([row()], melbourneInstant(2026, 10, 14, 7))).toEqual([]);
+    expect(toBook([row({ stage: "qa", date: null, time: null })], before)).toEqual([]);
+    expect(toBook([row({ stage: "closed" })], before)).toEqual([]);
+  });
+  it("shows a pre-start job only inside the Pre-start lane's week; never a mid-job or spot check", () => {
+    expect(toBook([row({ stage: "pre_start", startDate: "2026-10-12" })], before)).toHaveLength(1);
+    expect(toBook([row({ stage: "pre_start", startDate: "2026-10-30", endDate: "2026-11-05", finals: [] })], before)).toEqual([]);
+    expect(toBook([row({ kind: "mid", date: null, time: null })], before)).toEqual([]);
+  });
+  it("an undated check never raises the on-the-day or final-cancelled cards", () => {
+    expect(notToBook([row({ date: null, time: null, finals: [{ status: "cancelled", date: "2026-10-15" }] })], melbourneInstant(2026, 10, 14, 9))).toEqual([]);
+  });
 });
 
 describe("quality checks on their day", () => {
   it("is not there the day before, appears that morning, due at its time, homed on PC Command", () => {
-    expect(buildQaCheckItems([row()], melbourneInstant(2026, 10, 13, 9))).toEqual([]);
+    // Before its day the check is the top-of-page strip item only (19 Oct), never a day card.
+    expect(notToBook([row()], melbourneInstant(2026, 10, 13, 9))).toEqual([]);
     const [item] = buildQaCheckItems([row()], melbourneInstant(2026, 10, 14, 7, 30));
     expect(item.kind).toBe("qa_check_due");
     expect(item.title).toBe("Quality check today at 09:00 — 12 Test St, Thornbury");
@@ -46,7 +98,7 @@ describe("quality checks on their day", () => {
 describe("a booked check whose final walkthrough was cancelled", () => {
   const cancelled = row({ finals: [{ status: "cancelled", date: "2026-10-15" }] });
   it("is flagged — before its day too — and the check is left where it was", () => {
-    const [item] = buildQaCheckItems([cancelled], melbourneInstant(2026, 10, 9, 9));
+    const [item] = notToBook([cancelled], melbourneInstant(2026, 10, 9, 9));
     expect(item.kind).toBe("qa_check_final_cancelled");
     expect(item.title).toContain("final walkthrough was cancelled");
     expect(item.detail).toMatch(/Rebook the final/);
@@ -54,10 +106,10 @@ describe("a booked check whose final walkthrough was cancelled", () => {
   });
   it("goes once the final is rebooked; a site check-in never raises it", () => {
     const rebooked = row({ finals: [{ status: "booked", date: "2026-10-20" }, { status: "cancelled", date: "2026-10-15" }] });
-    expect(buildQaCheckItems([rebooked], melbourneInstant(2026, 10, 9, 9))).toEqual([]);
-    expect(buildQaCheckItems([row({ kind: "mid", finals: cancelled.finals })], melbourneInstant(2026, 10, 9, 9))).toEqual([]);
+    expect(notToBook([rebooked], melbourneInstant(2026, 10, 9, 9))).toEqual([]);
+    expect(notToBook([row({ kind: "mid", finals: cancelled.finals })], melbourneInstant(2026, 10, 9, 9))).toEqual([]);
     // A job that never had a final has nothing to flag.
-    expect(buildQaCheckItems([row({ finals: [] })], melbourneInstant(2026, 10, 9, 9))).toEqual([]);
+    expect(notToBook([row({ finals: [] })], melbourneInstant(2026, 10, 9, 9))).toEqual([]);
   });
 });
 

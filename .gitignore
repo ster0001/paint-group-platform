@@ -38,6 +38,7 @@ yarn-error.log*
 
 # data exports (rate cards etc. — keep business data out of the repo)
 *.csv
+!docs/briefs/data/*.csv
 
 # vercel
 .vercel
