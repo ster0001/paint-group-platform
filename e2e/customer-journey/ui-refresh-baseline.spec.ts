@@ -2,7 +2,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, passDetailsSheetIfShown } from "./drive";
 
 /**
  * Wizard UI refresh, S0 — the "before" set.
@@ -204,9 +204,9 @@ test.describe("ui refresh baseline screenshots", () => {
         await page.context().close();
       });
 
-      test("home outside: outside, sides, range, side by side", async ({ browser }) => {
-        // Exterior wizard v2: the old outside screen is not on the flagged path (S6 re-takes these shots on the new screens).
-        test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1", "exteriorV2 is on — the old outside screen is not on the path; re-shot in S6");
+      test("home outside: home, painting, about it, each side, range, the walk, side by side", async ({ browser }) => {
+        // Exterior wizard v2 (S6): the drawn house's screens; the old outside screen is off the flagged path.
+        test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "1", "exteriorV2 is off — these shots are the drawn house's screens");
         test.setTimeout(300_000);
         const page = await newPage(browser, width);
         await openQuickLook(page);
@@ -216,21 +216,41 @@ test.describe("ui refresh baseline screenshots", () => {
         await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });
         await shot(page, width, "30-ext-place");
         await quickNext(page);
-        await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
-        await page.getByTestId("ql-ext-el-body").click();
-        await page.getByTestId("ql-ext-mat-weatherboards").click();
-        await shot(page, width, "31-ext-outside");
+        await expect(page.locator("[data-quick-step='home']")).toBeVisible({ timeout: 20_000 });
+        await page.getByTestId("ql-ext-type-cal").click();
+        await page.getByTestId("ql-ext-size-md").click();
+        await shot(page, width, "31-ext-home");
+        await quickNext(page);
+        for (const p of ["walls", "gable", "fascias", "gutters", "windows", "doors", "verandah", "posts"]) await page.getByTestId(`ext-part-${p}`).click();
+        await shot(page, width, "32-ext-paint");
+        await quickNext(page);
+        await page.getByTestId("ext-mat-weatherboards").click();
+        await page.getByTestId("ext-gable-stucco").click();
+        await shot(page, width, "33-ext-about");
         await quickNext(page);
         await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-        await shot(page, width, "32-ext-sides");
+        await shot(page, width, "34-ext-sides");
+        for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
         await quickNext(page);
         await passGateIfShown(page, { email: `ui.refresh.ext.${Date.now()}@example.com` });
         await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
-        await shot(page, width, "33-ext-reveal");
+        await shot(page, width, "35-ext-reveal");
         await page.getByTestId("door-tighten").click();
+        await passDetailsSheetIfShown(page, { email: `ui.refresh.ext.${Date.now()}@example.com` });
+        await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
+        await shot(page, width, "36-ext-walk");
+        for (let i = 0; i < 4 && !(await page.getByTestId("ext-walk-done").count()); i++) {
+          await page.getByTestId("ext-size-yes").click();
+          await page.getByTestId("ext-cond-good").click();
+          await page.getByTestId("ext-check-side").click();
+        }
+        await page.getByTestId("ext-see-range").click();
+        await expect(page.getByTestId("reveal-tier")).toHaveAttribute("data-tier", "detailed", { timeout: 90_000 });
+        await shot(page, width, "37-ext-reveal-detailed");
+        await page.getByTestId("door-editor").click();
         await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 60_000 });
         await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-        await shot(page, width, "34-ext-sides-editor");
+        await shot(page, width, "38-ext-sides-editor");
         await page.context().close();
       });
 

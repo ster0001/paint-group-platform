@@ -1484,6 +1484,8 @@
   .wz .wz-stage [data-testid="ql-scope"], .wz .wz-stage [data-testid="ql-segment"], .wz .wz-stage [data-testid="wh-surf"] { grid-template-columns: 1fr; }
   .wz .wz-stage .wz-nav--col { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--bar); border-top: 1px solid var(--line); }
   .wz .wz-stage .wz-why + .wz-nav--col { margin-top: 0; }
+  /* Exterior wizard v2 (S6): the walk's pane clears the fixed bar — its Check this side sat under Back to my range on a phone. */
+  .wz .wz-stage > .wz-pane[data-quick-step="walk"] { padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
   .wz .wz-btn.wz-bpaint { flex: 1; min-width: 0; }
   .wz .wz-stage .wz-why { position: fixed; left: 16px; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 41; margin: 0; padding: 8px 12px; background: var(--amber-wash); border: 1px solid var(--amber-line); border-radius: 12px; }
   .wz .wz-chat.header .wz-chat-panel { top: auto; left: 0; right: 0; bottom: 0; width: 100%; height: min(78vh, 560px); border-radius: 18px 18px 0 0; }
