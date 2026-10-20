@@ -444,6 +444,13 @@ export async function tickChecklistItem(raw: unknown): Promise<PcResult> {
   if (s === "error:colours_first") {
     return { ok: false, message: "Tick the colour schedule first — the paint order depends on it." };
   }
+  // Movements Session 7: the two gates are real.
+  if (s === "error:paint_not_ordered") {
+    return { ok: false, message: "Not every paint chip is ordered yet — tick Ordered on the Movements board (or mark paint not needed / painter supplies below)." };
+  }
+  if (s === "error:equipment_not_booked") {
+    return { ok: false, message: "Not every gear chip is booked yet — drop it on someone's day on the Movements board (or mark gear not needed below)." };
+  }
   if (s.startsWith("error:derived:")) {
     return {
       ok: false,

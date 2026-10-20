@@ -368,3 +368,23 @@
 .pc .ctr-why{font-size:13px} .pc .ctr-why ul{margin:4px 0 0;padding-left:18px}
 .pc .ctr-pick{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 .pc .small{font-size:12.5px} .pc .muted{color:var(--muted)}
+
+/* ---- Movements on the job page (Session 7): chips under the two gate items ---- */
+.pc .prestart-mv { margin: 6px 0 2px; }
+.pc .mvcards { display: grid; gap: 6px; margin: 6px 0; }
+.pc .mvcard { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; background: var(--graphite); text-decoration: none; color: inherit; font-size: 12.5px; }
+.pc .mvcard .ic { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: var(--ink); color: var(--cyan); flex: none; }
+.pc .mvcard .ic svg { width: 14px; height: 14px; }
+.pc .mvcard .bd { display: grid; min-width: 0; }
+.pc .mvcard .bd b { font-weight: 600; }
+.pc .mvcard .bd small { color: var(--muted); font-size: 11px; }
+.pc .mvcard .bd small.st { font-family: var(--mono); font-size: 8px; letter-spacing: .06em; text-transform: uppercase; }
+.pc .mvcard.needs-order { border-left: 3px solid var(--amber); } .pc .mvcard.needs-order .st { color: var(--amber); }
+.pc .mvcard.tray { border-left: 3px solid var(--amber); border-style: dashed; }
+.pc .mvcard.booked { border-left: 3px solid var(--cyan); } .pc .mvcard.done { border-left: 3px solid var(--emerald); opacity: .75; }
+.pc .mvlines { margin: 8px 0; }
+.pc .mvlines .k { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.pc .mvlines .k small { text-transform: none; letter-spacing: 0; font-family: inherit; font-size: 11px; }
+.pc .mvline { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+.pc .mvline small { color: var(--muted); }
+.pc .btn.sm { padding: 2px 8px; font-size: 12px; }

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { replyMaterialRequestAction } from "@/app/pc/materialActions";
+import { acceptMaterialRequest } from "@/app/pc/movements/actions";
 
 export type MaterialRequestRow = { id: string; item: string; quantity: string; note: string; status: "requested" | "ordered" | "declined"; reply: string; createdAt: string; repliedAt: string | null };
 
@@ -24,6 +25,15 @@ export default function MaterialRequests({ workOrderId, rows }: { workOrderId: s
     setMsg({ ok: r.ok, text: r.message });
     if (r.ok) router.refresh();
   });
+  // Movements Session 7 (brief §3.5): the request becomes a materials line, so it is a chip in
+  // the tray; the reply "Added to the order — we will text you when it is ready" is written by
+  // the RPC, and Ordered ✓ on the chip later sends the pickup / delivery text.
+  const accept = (id: string) => start(async () => {
+    setMsg(null);
+    const r = await acceptMaterialRequest({ requestId: id, workOrderId });
+    setMsg({ ok: r.ok, text: r.ok ? "Added as a line — it is a chip in the Movements tray; tick Ordered there when it is in." : r.message });
+    if (r.ok) router.refresh();
+  });
   if (rows.length === 0) return null;
   return (
     <div className="card" id="materials" data-testid="material-requests">
@@ -36,6 +46,7 @@ export default function MaterialRequests({ workOrderId, rows }: { workOrderId: s
             <div className="row" style={{ alignItems: "center", gap: 6 }}>
               <input className="num" style={{ flex: 1 }} value={reply[r.id] ?? ""} onChange={(e) => setReply({ ...reply, [r.id]: e.target.value })}
                 placeholder="e.g. Ordered. At Dulux Preston from 7 am tomorrow." data-testid={`material-reply-${r.id}`} />
+              <button type="button" className="btn primary" disabled={pending} data-testid={`material-accept-${r.id}`} onClick={() => accept(r.id)} title="Make it a materials line and a chip in the Movements tray">Accept as a line</button>
               <button type="button" className="btn" disabled={pending} data-testid={`material-ordered-${r.id}`} onClick={() => run(r.id, "ordered")}>Ordered</button>
               <button type="button" className="btn dim" disabled={pending} data-testid={`material-declined-${r.id}`} onClick={() => run(r.id, "declined")}>Decline</button>
             </div>
