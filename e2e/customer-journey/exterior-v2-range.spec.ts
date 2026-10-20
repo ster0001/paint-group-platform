@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE } from "./drive";
-import { toSides } from "./exterior-v2-sides.spec";
+import { toSides } from "./exterior-v2-drive";
 
 /**
  * Exterior wizard v2 — S4: the gate and the guide range (brief §7.5; gate
@@ -58,7 +58,7 @@ test("the guide range on a bungalow: the pill, one row per side with the gable o
   await expect(page.getByTestId("ext-range-extras")).toHaveCount(0);
   await expect(page.getByTestId("ext-not-in")).toContainText(/scaffolding or a lift, rotten timber replacement/);
   // The restatement reads the drawn house: three sides, no storeys guess.
-  await expect(page.getByTestId("reveal-restatement")).toContainText(/the front, back and right side/);
+  await expect(page.getByTestId("reveal-restatement")).toContainText(/the front, right side and back/);
   // The doors, in the brief's order.
   const doors = page.locator(".wz-doors .wz-door");
   const ids = await doors.evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.testid ?? ""));
@@ -67,12 +67,12 @@ test("the guide range on a bungalow: the pill, one row per side with the gable o
   expect(ids.indexOf("door-message")).toBeGreaterThan(ids.indexOf("door-book"));
   await expect(page.getByTestId("door-tighten")).toHaveAttribute("data-hero", "1");
   await expect(page.getByTestId("door-tighten")).toContainText(/side by side/);
-  // Tighten opens the sides editor on the drawn house: front, right and back — no left side card at all.
+  // Tighten opens the walk around the drawn house (S5): front, right and back to check — the left side is not painting.
   await page.getByTestId("door-tighten").click();
   await passDetailsSheetIfShown(page);
-  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
-  await expect(page.locator(".sd-card", { hasText: "Front" }).first()).toBeVisible();
-  await expect(page.locator(".sd-card", { hasText: /^Left side/ })).toHaveCount(0);
+  await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("ext-side-front")).toHaveAttribute("data-state", "cur");
+  await expect(page.getByTestId("ext-side-left")).toHaveAttribute("data-state", "skip");
 });
 
 test("a townhouse in the middle of the row prices two sides; the extras get their own row; no price before the gate", async ({ page }) => {

@@ -234,6 +234,9 @@ export async function answerOutsideQuick(page: Page): Promise<"v2" | "v1"> {
     await page.getByTestId("ext-mat-weatherboards").click();
     await quickNext(page);
     await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+    // S4: Each side — "Looks right" on every painted side before the gate.
+    for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
+    await expect(page.getByTestId("ext-sides-done")).toBeVisible();
     return "v2";
   }
   // C8b: nothing is pre-ticked on the outside screen — a job has to name

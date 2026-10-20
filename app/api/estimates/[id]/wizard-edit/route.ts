@@ -49,6 +49,10 @@ import { loopConfirmState } from "@/lib/wizard/confirm-state";
 import { loadScopeRules } from "@/lib/extract/scope-cache";
 import { exteriorAddOptions, interiorAddOptions, perItemChargeOut } from "@/lib/wizard/add-catalogue";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
+import { exteriorV2Schema } from "@/lib/wizard/state";
+import { isModelDeferral, peelingSidesOf, rebuildExteriorNodes, worstCondition } from "@/lib/wizard/exterior-model";
+import { applyExteriorQuickLook, exteriorQuickLookFromState } from "@/lib/wizard/exterior-quick-look";
+import { loadExteriorTypicals } from "@/lib/wizard/exterior-typicals-db";
 import { DEFAULT_SEGMENTS, loadSegments } from "@/lib/wizard/segments";
 import { commercialWidenFor } from "@/lib/wizard/commercial";
 import { envelopeFor } from "@/lib/wizard/envelope";
@@ -387,6 +391,8 @@ const actionSchema = z.discriminatedUnion("action", [
     /** Tom, 15 Sep (late): where the timber rot is — wizard substrate keys, or "unsure". */
     rotWhere: z.array(z.string().min(1).max(30)).max(16).optional(),
   }),
+  /** Exterior wizard v2 (S5): the walk-around's answers — the whole drawn house, rebuilt into the tree by the one model. */
+  z.object({ action: z.literal("ext_walk"), v2: exteriorV2Schema }),
   z.object({ action: z.literal("loop_extras_none") }),
   z.object({ action: z.literal("loop_dw"), ok: z.boolean() }),
   z.object({ action: z.literal("loop_sweep"), ans: z.enum(["none"]).optional(), add: z.string().min(1).max(60).optional() }),
@@ -1250,6 +1256,48 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (act.action === "side_include" && !act.include) {
         const room = `Exterior - ${act.side}`;
         for (let i = deferred.length - 1; i >= 0; i--) if (deferred[i].room === room) deferred.splice(i, 1);
+      }
+    }
+    if (act.action === "ext_walk") {
+      // Exterior wizard v2 (S5): the tighten step's answers. The drawn house is
+      // the source of truth — the exterior side nodes and the extras node are
+      // REBUILT from it by lib/wizard/exterior-model.ts (each side keeps its
+      // node id and the customer's own words on it), the model's deferrals
+      // replace the old ones, the wizard state follows the house, and the
+      // worst side's condition takes the one Condition slot exactly as the
+      // loop's card does — nothing here computes a price.
+      const wiz = state.wizard as { state?: unknown } | undefined;
+      const snap = wizardStateSchema.safeParse(wiz?.state);
+      if (!snap.success || !snap.data.exterior?.v2) return { error: "This estimate was not built from a drawn house.", status: 400 };
+      const ctxW = await ctxPromise;
+      const rows = await loadExteriorTypicals(db, "wizard.edit.ext_walk");
+      const rebuilt = rebuildExteriorNodes(blocks, act.v2, rows, new Set(ctxW.rateItems.map((r) => r.code)));
+      blocks = rebuilt.blocks;
+      for (let i = deferred.length - 1; i >= 0; i--) if (isModelDeferral(deferred[i])) deferred.splice(i, 1);
+      deferred.push(...rebuilt.nodes.deferred);
+      const q = exteriorQuickLookFromState(snap.data.exterior);
+      (state as Record<string, unknown>).wizard = { ...(wiz ?? {}), state: applyExteriorQuickLook({ ...q, v2: act.v2 }, snap.data) };
+      const worst = worstCondition(act.v2);
+      const modSel = { ...((state.modSel as Record<string, string>) ?? {}) };
+      const hasWeathered = ctxW.modifiers.some((m) => m.code === WEATHERED_MODIFIER_CODE);
+      const hasPoor = ctxW.modifiers.some((m) => m.code === INTERIOR_POOR_MODIFIER_CODE);
+      const interiorPoor = (snap.data.details.damageTier ?? 0) >= 2 && snap.data.jobType !== "exterior";
+      if (worst === "peeling" && hasPoor) modSel.Condition = INTERIOR_POOR_MODIFIER_CODE;
+      else if (worst === "weathered" && hasWeathered && !(interiorPoor && modSel.Condition === INTERIOR_POOR_MODIFIER_CODE)) modSel.Condition = WEATHERED_MODIFIER_CODE;
+      else if (worst === "good" && modSel.Condition === WEATHERED_MODIFIER_CODE) delete modSel.Condition;
+      else if (worst === "good" && modSel.Condition === INTERIOR_POOR_MODIFIER_CODE && !interiorPoor) delete modSel.Condition;
+      (state as Record<string, unknown>).modSel = modSel;
+      const peeling = peelingSidesOf(act.v2);
+      sidesMeta = {
+        ...sidesMeta,
+        cond: { ...sidesMeta.cond, cond: worst, peelingSides: worst === "peeling" ? peeling : null },
+        done: { ...sidesMeta.done, cond: worst != null },
+      };
+      if (worst === "peeling") {
+        const d = deferred.find((x) => x.room === "Exterior" && x.what === "peeling & flaking paint");
+        const needs = `peeling on the ${peeling.join(", ")} — needs eyes on it; lead-safe check on the visit if pre-1970`;
+        if (d) d.needs = needs; else deferred.push({ room: "Exterior", areaId: null, what: "peeling & flaking paint", count: 1, needs });
+        await flagSiteCheck();
       }
     }
     if (act.action === "loop_cond") {

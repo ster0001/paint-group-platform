@@ -172,12 +172,12 @@ test("the rest of the outside path still reaches a range, and the sides editor's
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
+  // S5: Tighten opens the walk; the front's size is the drawn house's — 5 m across, 5.6 m high on a small
+  // townhouse — not the 12 × 2.6 the old scaffold assumed.
   await page.getByTestId("door-tighten").click();
   await passDetailsSheetIfShown(page);
-  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
-  // A small townhouse: 5 m across the front, 5.6 m walls — not the 12 × 2.6 the old scaffold assumed.
-  const front = page.locator(".sd-card", { hasText: "Front" }).first();
-  await front.locator(".sd-hd").click();
+  await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
   const { frontM } = scaledLengths(typicalFor("th"), "sm");
-  await expect(front).toContainText(new RegExp(`used ${frontM} m × ${typicalFor("th").wallHM} m`));
+  await expect(page.getByTestId("ext-size-line")).toContainText(new RegExp(`${frontM} m across × ${typicalFor("th").wallHM} m high`));
+  await expect(page.getByTestId("ext-size-tag")).toContainText(/Typical for a townhouse/i);
 });

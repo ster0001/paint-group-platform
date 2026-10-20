@@ -233,6 +233,10 @@ function customerOf(b: LooseBlock) {
 }
 
 export function isWallLine(s: LooseSurface): boolean {
+  // Exterior wizard v2 (S5): a gable end is priced at a wall code (stucco,
+  // weatherboards) but it is not a wall — it must not take a share of the
+  // wall, and the walls must still add up to 100% without it.
+  if (/^Gable end/i.test(String(s.clientLabel ?? s.internalLabel ?? ""))) return false;
   return WALL_CODES.some((w) => w.code === String(s.code ?? ""));
 }
 // C8b: the sides are exterior — the shared window codes read as exterior windows here.

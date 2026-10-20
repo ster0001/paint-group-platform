@@ -132,9 +132,12 @@ test("the extras ask their sizes; a ticked pergola needs its top; then the range
   await page.getByTestId("ext-size-pergola-w").blur();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-  // Which sides? still drives the drawn house: untick the right side and it leaves the picture's count.
+  // Each side (S4): the right side is not painting; Looks right on the other three.
   await page.getByTestId("ql-ext-side-right").click();
-  await expect(page.getByTestId("ql-ext-side-right")).toHaveAttribute("aria-pressed", "false");
+  await page.getByTestId("ext-side-np").click();
+  await expect(page.getByTestId("ql-ext-side-right")).toHaveAttribute("data-state", "skip");
+  await page.getByTestId("ql-ext-side-front").click(); // a side not painting has no Looks right; confirm from the front round
+  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
@@ -143,13 +146,11 @@ test("the extras ask their sizes; a ticked pergola needs its top; then the range
   await expect(page.getByTestId("reveal-restatement")).toContainText(/colonial windows/);
   await expect(page.getByTestId("reveal-restatement")).toContainText(/the front, back and left side/);
   await expect(page.getByTestId("reveal-restatement")).toContainText(/single storey/);
-  // And the editor opens on the drawn house's sides — the right side is not there at all (8 Sep ruling).
+  // And Tighten opens the walk on the drawn house's sides (S5) — the right side is not there to check at all (8 Sep ruling).
   await page.getByTestId("door-tighten").click();
   await passDetailsSheetIfShown(page);
-  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
-  await expect(page.locator(".sd-card", { hasText: "Front" }).first()).toBeVisible();
-  await expect(page.locator(".sd-card", { hasText: /^Right side/ })).toHaveCount(0);
-  const front = page.locator(".sd-card", { hasText: "Front" }).first();
-  await front.locator(".sd-hd").click();
-  await expect(front.locator(".sd-wall").first()).toContainText(/Weatherboard/i);
+  await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("ext-side-right")).toHaveAttribute("data-state", "skip");
+  await expect(page.getByTestId("ext-side-front")).toHaveAttribute("data-state", "cur");
+  await expect(page.getByTestId("ql-ext-caption")).toContainText(/weatherboards/i);
 });

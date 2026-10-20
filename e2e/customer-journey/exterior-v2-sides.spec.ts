@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
+import { quickNext } from "./drive";
+import { toSides } from "./exterior-v2-drive";
 
 /**
  * Exterior wizard v2 — S4: "Check each side of the house" (brief §7.4; gate
@@ -18,30 +19,6 @@ import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
 
 const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1";
 test.skip(!FLAG_ON, "exteriorV2 is off in this environment — set NEXT_PUBLIC_EXTERIOR_V2=1 on the test project");
-
-const BUNGALOW_PARTS = ["walls", "gable", "fascias", "gutters", "eaves", "windows", "doors", "verandah", "posts"];
-
-export async function toSides(page: Page, shape = "cal", parts = BUNGALOW_PARTS, rowPosition?: string) {
-  await openQuickLook(page);
-  await fillQuickAddress(page);
-  await page.getByTestId("ql-jobtype-exterior").click();
-  await quickNext(page);
-  await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });
-  await quickNext(page);
-  await expect(page.locator("[data-quick-step='home']")).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId(`ql-ext-type-${shape}`).click();
-  await page.getByTestId("ql-ext-size-md").click();
-  if (rowPosition) await page.getByTestId(`ql-ext-row-${rowPosition}`).click();
-  await quickNext(page);
-  await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
-  for (const p of parts) await page.getByTestId(`ext-part-${p}`).click();
-  await quickNext(page);
-  await expect(page.locator("[data-quick-step='about']")).toBeVisible({ timeout: 20_000 });
-  if (parts.includes("walls")) await page.getByTestId("ext-mat-weatherboards").click();
-  if (parts.includes("gable")) await page.getByTestId("ext-gable-stucco").click();
-  await quickNext(page);
-  await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-}
 
 const picture = (page: Page) => page.getByTestId("ql-picture").getByTestId("pic-outside");
 const tile = (page: Page, k: string) => page.getByTestId(`ql-ext-side-${k}`);
@@ -81,7 +58,7 @@ test("a gable added on the right side appears on the picture; a side's own mater
   await page.getByTestId("ext-side-addpart-gable").click();
   await expect(page.getByTestId("ext-sidepart-gable")).toHaveAttribute("aria-pressed", "true");
   await expect(picture(page).locator(".e[data-e='gable']")).toHaveAttribute("data-on", "1");
-  await expect(page.getByTestId("ext-side-count")).toHaveText("6 of 6");
+  await expect(page.getByTestId("ext-side-count")).toHaveText("7 of 7"); // the six that land here, plus the gable
   // Its own material.
   await expect(page.getByTestId("ext-side-mat-tag")).toHaveText("Same as the house");
   await expect(page.getByTestId("ext-side-mat-weatherboards")).toHaveAttribute("aria-pressed", "true");

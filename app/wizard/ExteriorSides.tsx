@@ -46,11 +46,6 @@ export default function ExteriorSidesStep({ v2, rows = [], at, onAt, onChange }:
   const sd = v2.sides[at];
   const painted = paintedSides(v2);
   const done = painted.filter((k) => v2.sides[k]?.confirmed).length;
-  const on = new Set(partsOnSide(v2, at, t));
-  const listed = sideListParts(v2, at, t);
-  const addable = sideAddableParts(v2, at, t);
-  const two = t.storeys === 2;
-  const mats = WALL_MATERIALS.map((m) => ({ value: m, label: WALL_MATERIAL_LABEL[m] }));
   const jump = (k: ExteriorSideKey) => { setAddOpen(false); onAt(k); };
   const confirm = () => {
     const next = confirmSide(v2, at);
@@ -97,13 +92,54 @@ export default function ExteriorSidesStep({ v2, rows = [], at, onAt, onChange }:
             </p>
           ) : (
             <>
+              <SidePartsAndWalls v2={v2} at={at} rows={rows} onChange={onChange} addOpen={addOpen} onAddOpen={setAddOpen} />
+
+              <div style={{ marginTop: 16 }}>
+                <button type="button" className={`wz-btn wz-bs2 ${sd.confirmed ? "on" : ""}`} data-testid="ext-confirm-side" onClick={confirm}>
+                  {sd.confirmed ? "Confirmed ✓ — next side" : "Looks right — next side"}
+                </button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {allSidesConfirmed(v2) && (
+        <div className="wz-done-card" data-testid="ext-sides-done">
+          <span className="av" aria-hidden="true">✓</span>
+          <span>All {painted.length} side{painted.length === 1 ? "" : "s"} confirmed. Sizes and counts come after your range.</span>
+        </div>
+      )}
+      {!allSidesConfirmed(v2) && painted.length > 0 && (
+        <p className="wz-chint" data-testid="ext-sides-progress" style={{ marginTop: 12 }}>{done} of {painted.length} sides confirmed.</p>
+      )}
+    </>
+  );
+}
+
+/** "Painting on this side" and "The walls on this side" — shared by Each side (§7.4) and Tighten (§7.6). */
+export function SidePartsAndWalls({ v2, at, rows = [], onChange, addOpen, onAddOpen }: {
+  v2: ExteriorV2; at: ExteriorSideKey; rows?: ReadonlyArray<ExteriorTypicalRow>; onChange: (next: ExteriorV2) => void;
+  addOpen: boolean; onAddOpen: (open: boolean) => void;
+}) {
+  const t = typicalFor(v2.propertyType, rows);
+  const sd = v2.sides[at];
+  if (!sd) return null;
+  const on = new Set(partsOnSide(v2, at, t));
+  const listed = sideListParts(v2, at, t);
+  const addable = sideAddableParts(v2, at, t);
+  const two = t.storeys === 2;
+  const mats = WALL_MATERIALS.map((m) => ({ value: m, label: WALL_MATERIAL_LABEL[m] }));
+  const setAddOpen = onAddOpen;
+  return (
+    <>
               <p className="wz-qhead">Painting on this side<span className="wz-qtag" data-testid="ext-side-count">{listed.filter((p) => on.has(p)).length} of {listed.length}</span></p>
               <div className="wz-chips" data-testid="ext-side-parts">
                 {listed.map((p) => (
                   <button key={p} type="button" className={`wz-tile ${on.has(p) ? "on" : "off"}`} aria-pressed={on.has(p)} data-testid={`ext-sidepart-${p}`}
                     onClick={() => onChange(toggleSidePart(v2, at, p, t))}>{PART_LABEL[p]}</button>
                 ))}
-                <button type="button" className="wz-tile plain" data-testid="ext-side-add-open" aria-expanded={addOpen} onClick={() => setAddOpen((o) => !o)}>
+                <button type="button" className="wz-tile plain" data-testid="ext-side-add-open" aria-expanded={addOpen} onClick={() => setAddOpen(!addOpen)}>
                   {addOpen ? "Done adding" : "+ Add something on this side"}
                 </button>
               </div>
@@ -153,25 +189,6 @@ export default function ExteriorSidesStep({ v2, rows = [], at, onAt, onChange }:
                 </div>
               )}
 
-              <div style={{ marginTop: 16 }}>
-                <button type="button" className={`wz-btn wz-bs2 ${sd.confirmed ? "on" : ""}`} data-testid="ext-confirm-side" onClick={confirm}>
-                  {sd.confirmed ? "Confirmed ✓ — next side" : "Looks right — next side"}
-                </button>
-              </div>
-            </>
-          )}
-        </>
-      )}
-
-      {allSidesConfirmed(v2) && (
-        <div className="wz-done-card" data-testid="ext-sides-done">
-          <span className="av" aria-hidden="true">✓</span>
-          <span>All {painted.length} side{painted.length === 1 ? "" : "s"} confirmed. Sizes and counts come after your range.</span>
-        </div>
-      )}
-      {!allSidesConfirmed(v2) && painted.length > 0 && (
-        <p className="wz-chint" data-testid="ext-sides-progress" style={{ marginTop: 12 }}>{done} of {painted.length} sides confirmed.</p>
-      )}
     </>
   );
 }

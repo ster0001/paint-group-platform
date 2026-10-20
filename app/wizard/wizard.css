@@ -2381,3 +2381,4 @@
 .wz .wz-ext-row small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
 .wz .wz-ext-row .wz-tag { font-family: var(--wz-mono); font-size: 10.5px; letter-spacing: .08em; color: var(--cyan); margin-left: 6px; }
 .wz .wz-ext-notin { font-size: 12.5px; color: var(--muted); margin: 8px 0 14px; }
+.wz .wz-rv-pill--det { background: rgba(59,216,233,.12); color: #0A7C8E; border-color: rgba(59,216,233,.45); }

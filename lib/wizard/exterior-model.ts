@@ -324,7 +324,101 @@ export function sideMaterial(v2: ExteriorV2, side: ExteriorSideKey, t: ExteriorT
   return s?.material ?? v2.wall.down ?? t.usualWalls;
 }
 
-/** The worst condition answered across the painted sides; null while any painted side is unanswered. *//** The worst condition answered across the painted sides; null while any painted side is unanswered. */
+// ---------------------------------------------------------------------------
+// Tighten (brief §7.6, S5): the walk-around after the range.
+// ---------------------------------------------------------------------------
+
+export function setSideCounts(v2: ExteriorV2, side: ExteriorSideKey, counts: { windows?: number; doors?: number }): ExteriorV2 {
+  const s = v2.sides[side];
+  if (!s) return v2;
+  const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.round(n)));
+  return { ...v2, sides: { ...v2.sides, [side]: { ...s, windows: counts.windows == null ? s.windows : clamp(counts.windows, 60), doors: counts.doors == null ? s.doors : clamp(counts.doors, 20), checked: false } } };
+}
+
+/** The size answer: Looks right / Adjust it (with the numbers) / Not sure (keeps the typical, stays assumed — ⚑ 13). */
+export function setSideSize(v2: ExteriorV2, side: ExteriorSideKey, answer: "yes" | "adj" | "ns", dims?: { w?: number; h?: number }): ExteriorV2 {
+  const s = v2.sides[side];
+  if (!s) return v2;
+  const w = answer === "adj" && dims?.w != null ? Math.max(0.5, Math.min(60, Math.round(dims.w * 2) / 2)) : s.w;
+  const h = answer === "adj" && dims?.h != null ? Math.max(1, Math.min(12, Math.round(dims.h * 10) / 10)) : s.h;
+  return { ...v2, sides: { ...v2.sides, [side]: { ...s, size: answer, w, h, adjusted: answer === "adj", checked: false } } };
+}
+
+export function setSideCond(v2: ExteriorV2, side: ExteriorSideKey, cond: "good" | "weathered" | "peeling"): ExteriorV2 {
+  const s = v2.sides[side];
+  if (!s) return v2;
+  return { ...v2, sides: { ...v2.sides, [side]: { ...s, cond, checked: false } } };
+}
+
+/** "Check this side" — only once the size question is answered (acceptance 11). */
+export function canCheckSide(v2: ExteriorV2, side: ExteriorSideKey): boolean {
+  const s = v2.sides[side];
+  return !!s && s.paint && s.size != null;
+}
+export function checkSide(v2: ExteriorV2, side: ExteriorSideKey): ExteriorV2 {
+  const s = v2.sides[side];
+  if (!s || !canCheckSide(v2, side)) return v2;
+  return { ...v2, sides: { ...v2.sides, [side]: { ...s, checked: true, confirmed: true } } };
+}
+export function allSidesChecked(v2: ExteriorV2): boolean {
+  const painted = paintedSides(v2);
+  return painted.length > 0 && painted.every((k) => v2.sides[k]?.checked);
+}
+export function nextUncheckedSide(v2: ExteriorV2, from: ExteriorSideKey): ExteriorSideKey | null {
+  const order = EXTERIOR_SIDE_KEYS;
+  const i = order.indexOf(from);
+  for (let n = 1; n <= order.length; n++) {
+    const k = order[(i + n) % order.length];
+    if (v2.sides[k]?.paint && !v2.sides[k]?.checked) return k;
+  }
+  return null;
+}
+/** The sides answered peeling — the work order's "where" (sides.ts `peelingSides`). */
+export function peelingSidesOf(v2: ExteriorV2): ExteriorSideKey[] {
+  return paintedSides(v2).filter((k) => v2.sides[k]?.cond === "peeling");
+}
+
+type NodeLike = { id?: unknown; kind?: unknown; name?: unknown; type?: unknown; areaType?: unknown; surfaces?: unknown } & Record<string, unknown>;
+
+/**
+ * After the walk (and any later change to the drawn house): the exterior side
+ * nodes and the extras node are REBUILT from `v2` by the one model, keeping
+ * each side's node id and the customer's own words on it (label, note, photos)
+ * so nothing attached to a side is lost; the access node and everything that
+ * is not the drawn house stay as they were. Returns the new block list and
+ * the model's deferrals; the caller swaps the old exterior deferrals for them.
+ */
+export function rebuildExteriorNodes<B extends NodeLike>(blocks: B[], v2: ExteriorV2, rows: ReadonlyArray<ExteriorTypicalRow> = [], rateCodes: ReadonlySet<string> | null = null): { blocks: B[]; nodes: ExteriorV2Nodes } {
+  const sideNames = new Set(Object.values(SIDE_NODE_NAME));
+  const baseName = (b: B) => String(b.name ?? "").split("(")[0].trim();
+  const isOurs = (b: B) => b.kind === "area" && b.type === "Exterior" && (sideNames.has(baseName(b)) || baseName(b) === "Exterior - Extras");
+  const old = blocks.filter(isOurs);
+  const rest = blocks.filter((b) => !isOurs(b));
+  let nextId = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...((Array.isArray(b.surfaces) ? b.surfaces : []) as Array<{ id?: unknown }>).map((s) => Number(s.id) || 0)])) + 1;
+  const nodes = exteriorV2Nodes(v2, () => nextId++, rows, rateCodes);
+  const rebuilt = nodes.areas.map((a) => {
+    const prev = old.find((b) => baseName(b) === a.name);
+    if (!prev) return a as unknown as B;
+    const keep: Record<string, unknown> = {};
+    for (const k of ["customerLabel", "customerNote", "customerPhotos", "customerCustom", "media"]) if (prev[k] != null) keep[k] = prev[k];
+    const id = Number(prev.id) || a.id;
+    for (const d of nodes.deferred) if (d.areaId === a.id) d.areaId = id;
+    return { ...a, id, ...keep } as unknown as B;
+  });
+  // The sides sit where the old exterior nodes sat (before the access node), so the editor's order holds.
+  const at = blocks.findIndex(isOurs);
+  const out = at < 0 ? [...rest, ...rebuilt] : [...rest.slice(0, at), ...rebuilt, ...rest.slice(at)];
+  return { blocks: out, nodes };
+}
+
+/** Is this deferral one the model raises (so a rebuild replaces it)? */
+export function isModelDeferral(d: { room?: string; kind?: string; what?: string }): boolean {
+  if (d.kind && d.kind.startsWith("exterior_")) return true;
+  const room = String(d.room ?? "");
+  return Object.values(SIDE_NODE_NAME).includes(room) || room === "Exterior - Extras";
+}
+
+/** The worst condition answered across the painted sides; null while any painted side is unanswered. */
 export function worstCondition(v2: ExteriorV2): "good" | "weathered" | "peeling" | null {
   const rank = { good: 0, weathered: 1, peeling: 2 } as const;
   let worst: keyof typeof rank | null = null;
