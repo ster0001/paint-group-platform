@@ -1,4 +1,7 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { movementsTabOn } from "@/lib/movements/tabSwitch";
 import { contextBlocks } from "@/lib/movements/evaluate";
 import { loadMovementsWeek } from "@/lib/movements/load";
 import { weekEnd, weekStartFrom } from "@/lib/movements/week";
@@ -20,6 +23,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function MovementsPage({ searchParams }: { searchParams: Promise<{ view?: string; week?: string; job?: string; movement?: string; day?: string; who?: string }> }) {
   const sp = await searchParams;
+  if (!(await movementsTabOn(await createClient()))) redirect("/pc");
   const view = sp.view === "sources" ? "sources" : sp.view === "day" ? "day" : sp.view === "gear" ? "gear" : "week";
   // Day view (Session 5): the week is the one the chosen day sits in; no day → today's week.
   const day = sp.day && isDateString(sp.day) ? sp.day : view === "day" ? todayIso() : null;

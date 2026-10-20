@@ -4,6 +4,7 @@ role: pc
 title: Plan the week's paint, materials, gear and rubbish on the Movements board
 summary: How the Movements tab works — the tray of chips built from the jobs, the lanes for the supplier, each painter and each staff member, dragging a chip onto a day (or an hour), the chip sheet for the shop, time, order reference and note, Ordered ✓, Nearby and While-you're-there suggestions, and the Sources view that shows one materials list in its three places.
 sources: app/pc/movements, app/pc/movements/DayView.tsx, app/pc/movements/run, app/components/board, lib/movements/evaluate.ts, lib/movements/load.ts, lib/movements/sync.ts, lib/movements/notify.ts, app/pc/movements/actions.ts
+walkthrough: media/pc-walkthrough.gif
 verified_at_commit: 48b17db4cd
 ---
 
@@ -89,6 +90,7 @@ The board scrolls sideways with the lane names pinned on the left. The tray is a
 - **"Say how the rubbish goes first"** — open the rubbish chip and answer the question.
 - **"Confirm the colours before ordering the paint"** — finish the colour consult on the job page; the chip can stay placed meanwhile.
 - **No staff lanes** — nobody is in Settings → Movements → board people yet.
+- **The tab has to go for a while** — Settings → Movements → Movements → untick **Show the Movements tab**. The tab and its screens are hidden; nothing is deleted; tick it again to bring them back.
 
 ## Related
 - [scheduling/staff](../scheduling/staff.md) — the Schedule board the Movements board shares its engine with.

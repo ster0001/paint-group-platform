@@ -4,6 +4,11 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 20 Oct 2026 — Movements Session 8: the full loop, the rollback switch, training
+
+**2026-10-20 · `e2e/movements-full-loop.spec.ts`, `lib/movements/tabSwitch.ts`, `app/pc/PcNav.tsx` / `app/pc/layout.tsx` / `app/pc/movements/page.tsx` (the switch), `app/(app)/settings/MovementsSettings.tsx` (`movementsTab`), `docs/manual-tests/movements-week-one.md`, `e2e/help-capture/gif-movements.spec.ts`.**
+The full-loop e2e seeds the mockup's week small (a live job with a paint chip, a materials line and gear going out; a closed job with a sprayer stranded on it), plans every chip, orders every order on the Day view, runs the week with the painter's ticks on the portal card and the PC's on the board, proves both items back at the warehouse on the Gear view, lands a supplier invoice on its movement by order reference, and asserts the customer sees nothing — every §8 criterion that can be asserted at the API or on a rendered page. `settings.movements.movementsTab` (default on) is the one-click rollback: off hides the tab (`PcNav` reads it through the layout) and sends `/pc/movements` back to the dashboard; nothing is deleted. The manual test is Tom's fifteen minutes; the GIF spec writes the two walkthroughs the help files embed.
+
 ## 20 Oct 2026 — Movements Session 6 (part): Gear view and Settings → Movements
 
 **2026-10-20 · `app/pc/movements/GearView.tsx`, `app/(app)/settings/{SuppliersSettings,EquipmentSettings,MovementsSettings}.tsx`, `movementsSettingsActions.ts`, `e2e/movements-gear-settings.spec.ts`.**

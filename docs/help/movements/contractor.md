@@ -4,6 +4,7 @@ role: contractor
 title: Your pickups and drop-offs — where the paint is, when it comes, what to bring back
 summary: The office plans how paint, materials, gear and rubbish get to and from your job. You see it in two places — a "Your pickups and drop-offs today" card on your home screen and a "Getting it to site" section on the job sheet — with the shop's address and phone, the order reference to quote at the counter, and a tick for each pickup, drop-off or return that is yours.
 sources: app/portal/MovementsCard.tsx, app/portal/page.tsx, app/portal/jobs/[id]/page.tsx, app/w/WorkOrderDoc.tsx, lib/movements/painterView.ts, lib/movements/painterLoad.ts, supabase/migrations/20270281000000_movements_painter_run.sql
+walkthrough: media/contractor-walkthrough.gif
 verified_at_commit: bde6480324
 ---
 

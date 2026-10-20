@@ -8,6 +8,7 @@ import HomeMark from "@/app/components/HomeMark";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme/cookie";
 import PcNav from "./PcNav";
+import { movementsTabOn } from "@/lib/movements/tabSwitch";
 import PcSearch from "./PcSearch";
 import "./pc.css";
 import StaffChatDock from "@/app/components/StaffChatDock";
@@ -31,6 +32,8 @@ export default async function PcLayout({ children }: { children: React.ReactNode
   // cookie the CRM set (same toggle, same palette names).
   const logos = await loadLogos(supabase);
   const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
+  // Movements Session 8: the one-click rollback (Settings → Movements → show the tab).
+  const movementsTab = await movementsTabOn(supabase);
 
   const today = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short",
@@ -50,7 +53,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
           </span>
         </div>
 
-        <PcNav />
+        <PcNav movementsTab={movementsTab} />
 
         {children}
 
