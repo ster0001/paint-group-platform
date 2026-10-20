@@ -4,6 +4,7 @@ role: pc
 title: Plan the week's paint, materials, gear and rubbish on the Movements board
 summary: How the Movements tab works — the tray of chips built from the jobs, the lanes for the supplier, each painter and each staff member, dragging a chip onto a day (or an hour), the chip sheet for the shop, time, order reference and note, Ordered ✓, Nearby and While-you're-there suggestions, and the Sources view that shows one materials list in its three places.
 sources: app/pc/movements, app/components/board, lib/movements/evaluate.ts, lib/movements/load.ts, lib/movements/sync.ts, app/pc/movements/actions.ts
+verified_at_commit: 48b17db4cd
 ---
 
 ## What this is for
