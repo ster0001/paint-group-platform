@@ -1,7 +1,7 @@
 "use client";
 
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
-import { aboutMissing, exteriorV2Answered, paintedSides } from "@/lib/wizard/exterior-model";
+import { aboutMissing, allSidesConfirmed, exteriorV2Answered, paintedSides } from "@/lib/wizard/exterior-model";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -1622,7 +1622,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (missing) { setError(missing); return; }
     }
     if (quickStep === "sides" && outside.v2 && paintedSides(outside.v2).length === 0) {
-      setError("Tick at least one side we're painting.");
+      setError("Tick at least one side we're painting — tap Not painting again to add one back.");
+      return;
+    }
+    // S4: every painted side needs "Looks right" before the gate (acceptance 8a).
+    if (quickStep === "sides" && outside.v2 && !allSidesConfirmed(outside.v2)) {
+      const left = paintedSides(outside.v2).filter((k) => !outside.v2!.sides[k]?.confirmed).length;
+      setError(`Tap "Looks right — next side" on each side — ${left} to go.`);
       return;
     }
     // C8b: an outside job has to name SOMETHING being painted — nothing is

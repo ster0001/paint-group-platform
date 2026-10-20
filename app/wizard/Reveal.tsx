@@ -8,6 +8,7 @@ import { assumedList, restatement, type QuickLook } from "@/lib/wizard/quick-loo
 import { commercialAssumedList, commercialRestatement, openCount, type CommercialAnswers, type Segment } from "@/lib/wizard/segments";
 import { exteriorAssumedList, exteriorRestatement, type ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import type { CustomerPayload } from "@/lib/wizard/view";
+import ExteriorRangeRows, { notInThisNumber } from "./ExteriorRangeRows";
 
 /**
  * THE GUIDE RANGE — estimator journey v2 §3, "the screen the redesign exists
@@ -128,7 +129,7 @@ export default function Reveal({
         <section className="wz-rv-card" aria-labelledby="reveal-kicker">
           <p className="wz-rv-label">
             <span className="wz-kick" id="reveal-kicker" data-testid="reveal-kicker">{kicker}</span>
-            <span className="wz-rv-pill">Guide · within {payload.bandPct}%</span>
+            <span className="wz-rv-pill">Guide · within <span data-testid="range-width">{payload.bandPct}</span>%</span>
           </p>
           {/* C11 — the roller reveal: the one motion moment on this screen (S3 keeps it rather
               than adding a count-up — the run sheet allows one, not both), and none at all for
@@ -136,7 +137,16 @@ export default function Reveal({
           <div className="wz-range" data-testid="reveal-range">
             <span className="wz-range-roll"><span>{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</span></span>
           </div>
-          <p className="wz-range-note">Includes GST. Excludes access equipment and structural repairs.</p>
+          {/* Exterior wizard v2 (S4): one row per side and one for around the house, then what is not in the number. */}
+          {exteriorOnly && outside?.v2 ? (
+            <>
+              <p className="wz-range-note">Includes GST.</p>
+              <ExteriorRangeRows v2={outside.v2} />
+              <p className="wz-ext-notin" data-testid="ext-not-in">Not in this number: {notInThisNumber(outside.v2)}.</p>
+            </>
+          ) : (
+            <p className="wz-range-note">Includes GST. Excludes access equipment and structural repairs.</p>
+          )}
           {/* C8 (⚑25): a "both" job — inside and outside, each its own range; the figure above is the two together. */}
           {payload.parts && (
             <div className="wz-parts" data-testid="reveal-parts">
@@ -191,19 +201,30 @@ export default function Reveal({
           <div className="wz-doors">
             <Door
               testId="door-tighten" icon="◫" title="Tighten my price" onClick={onTighten}
-              body={`Get a more accurate quote now. A few minutes, ${how}.`}
+              body={exteriorOnly && outside?.v2
+                ? "Walk around the house side by side — about three minutes — and the range closes to within a few percent."
+                : `Get a more accurate quote now. A few minutes, ${how}.`}
               hero
             />
+            {/* Exterior wizard v2 (brief §7.5): Tighten, Book a site visit, Speak with us, Send us a message — in that order. */}
+            {exteriorOnly && outside?.v2 && (
+              <Door
+                testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
+                body="Your estimator measures up and fixes the price with you — about 40 minutes."
+              />
+            )}
             {speakWithUs && onSpeak && (
               <Door
                 testId="door-speak" icon="☎" title="Speak with us" onClick={onSpeak}
                 body="Request a call to finalise your booking"
               />
             )}
-            <Door
-              testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
-              body="Choose a time for us to see the property"
-            />
+            {!(exteriorOnly && outside?.v2) && (
+              <Door
+                testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
+                body="Choose a time for us to see the property"
+              />
+            )}
             {onMessage && (
               <Door
                 testId="door-message" icon="✉" title="Send us a message" onClick={onMessage}
