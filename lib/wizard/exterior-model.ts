@@ -98,7 +98,7 @@ export function sharedSidesAfterRow(t: ExteriorTypical, rowPosition: ExteriorV2[
  */
 export function defaultSides(v2: Pick<ExteriorV2, "propertyType" | "sizeBand" | "rowPosition">, rows: ReadonlyArray<ExteriorTypicalRow> = []): Record<ExteriorSideKey, ExteriorV2Side> {
   const t = typicalFor(v2.propertyType, rows);
-  const lengths = scaledLengths(t, v2.sizeBand);
+  const lengths = scaledLengths(t, v2.sizeBand ?? "ns");
   const shared = new Set(sharedSidesAfterRow(t, v2.rowPosition));
   const out = {} as Record<ExteriorSideKey, ExteriorV2Side>;
   for (const k of EXTERIOR_SIDE_KEYS) {
@@ -123,6 +123,56 @@ export function partsOnSide(v2: ExteriorV2, side: ExteriorSideKey, t: ExteriorTy
   for (const p of s?.off ?? []) on.delete(p);
   for (const p of s?.add ?? []) on.add(p);
   return [...on];
+}
+
+/**
+ * Has the Painting step been answered? Until it has (S2 ships the home step
+ * alone), the house is a shape and a size: the v1 screens still collect the
+ * parts and the v1 scaffold still lays the lines — sized from the drawn house.
+ */
+export function exteriorV2Answered(v2: Pick<ExteriorV2, "parts" | "extras">): boolean {
+  return v2.parts.length > 0 || v2.extras.length > 0;
+}
+
+/**
+ * The shape, size or row position changed: re-seed the sides from the new
+ * typicals, keeping everything the customer has already said on a side (its
+ * parts on and off, its own material, its condition) and a width or height
+ * they adjusted by hand. Shared-or-not follows the new answer.
+ */
+export function reseedSides(v2: ExteriorV2, rows: ReadonlyArray<ExteriorTypicalRow> = []): ExteriorV2["sides"] {
+  const fresh = defaultSides(v2, rows);
+  const out: ExteriorV2["sides"] = {};
+  for (const k of EXTERIOR_SIDE_KEYS) {
+    const prev = v2.sides[k];
+    const next = fresh[k];
+    if (!prev) { out[k] = next; continue; }
+    const keepSize = prev.adjusted;
+    out[k] = {
+      ...next,
+      off: prev.off, add: prev.add, material: prev.material, materialUp: prev.materialUp,
+      cond: prev.cond,
+      w: keepSize ? prev.w : next.w, h: keepSize ? prev.h : next.h, adjusted: prev.adjusted,
+      windows: prev.checked ? prev.windows : next.windows, doors: prev.checked ? prev.doors : next.doors,
+      size: prev.size, checked: prev.checked, confirmed: prev.confirmed && next.paint === prev.paint,
+      // A side the customer took off stays off; a side they added back stays on unless it is now shared.
+      paint: next.shared ? false : prev.shared ? true : prev.paint,
+    };
+  }
+  return out;
+}
+
+/**
+ * Does the house HAVE this part on this side — drawn grey when it is not
+ * being painted (the picture's question, not the price's)?
+ */
+export function partExists(v2: ExteriorV2, side: ExteriorSideKey, part: ExteriorPart, t: ExteriorTypical): boolean {
+  const on = new Set(partsOnSide(v2, side, t));
+  if (part === "walls" || part === "fascias" || part === "gutters" || part === "downpipes" || part === "eaves" || part === "windows" || part === "doors") return true;
+  if (part === "gable") return (t.roof === "gable" && (side === "front" || side === "back")) || on.has("gable");
+  if (part === "verandah") return (t.verandah !== "none" && side === "front") || on.has("verandah");
+  if (part === "posts" || part === "ceiling" || part === "handrail") return partExists(v2, side, "verandah", t) && (on.has(part) || (v2.parts.includes(part) && defaultSidesForPart(part, t).includes(side)));
+  return on.has(part) || (v2.parts.includes(part) && defaultSidesForPart(part, t).includes(side));
 }
 
 /** The worst condition answered across the painted sides; null while any painted side is unanswered. */

@@ -8,6 +8,9 @@ import RoomPicture, { type RoomSurface } from "./pictures/RoomPicture";
 import PlanMap, { type PlanRoom } from "./pictures/PlanMap";
 import PlanViewer from "./PlanViewer";
 import OutsideHousePicture from "./pictures/OutsideHousePicture";
+import Elevation from "./pictures/Elevation";
+import { scaledLengths, typicalFor, type ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
+import { SIZE_OPTIONS } from "./ExteriorHome";
 import TopView, { type TopSide } from "./pictures/TopView";
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import AreaPlan, { type AreaBlock } from "./pictures/AreaPlan";
@@ -60,8 +63,10 @@ const CONDITION: Record<string, [string, string]> = {
   needs_work: ["Needs work.", "Flaking, cracked plaster, water marks or damage."],
 };
 
-export default function PictureCard({ step, quick, outside, suburb, rooms, planPreviewUrl, planPending, segmentName, com = null }: {
+export default function PictureCard({ step, quick, outside, suburb, rooms, planPreviewUrl, planPending, segmentName, com = null, exteriorTypicals = [] }: {
   step: QuickLookStep;
+  /** Exterior wizard v2 (S2): the shape typicals for the drawn house; empty = the built-in list. */
+  exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   quick: QuickLook;
   /** The outside answers, for the Outside and Sides pictures. */
   outside: ExteriorQuickLook;
@@ -80,8 +85,9 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
   const seg = com?.segment ?? null;
   const ans = com?.answers ?? null;
   const wh = !!seg && isWarehouse(seg);
-  const which: "house" | "room" | "plan" | "outside" | "top" | "areas" | "warehouse" | "comroom" =
-    seg && ans && (step === "com_warehouse" || (step === "com_job" && wh)) ? "warehouse"
+  const which: "house" | "room" | "plan" | "outside" | "top" | "areas" | "warehouse" | "comroom" | "home" =
+    step === "home" ? "home"
+    : seg && ans && (step === "com_warehouse" || (step === "com_job" && wh)) ? "warehouse"
       : seg && ans && step === "com_areas" ? "areas"
         : seg && ans && step === "com_job" ? "comroom"
           : step === "outside" || (outsideJob && step === "gate") ? "outside"
@@ -179,6 +185,27 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
         : extOn.length === 0
           ? "Tick what we’re painting and it takes its fresh coat in the picture."
           : "Each part you tick takes its fresh coat. Areas off the house appear beside it.";
+  } else if (which === "home") {
+    // Exterior wizard v2 (S2): the drawn house — the shape, the size band, and the typical sizes in words.
+    const v2 = outside.v2 ?? null;
+    if (v2) {
+      const t = typicalFor(v2.propertyType, exteriorTypicals);
+      const lengths = scaledLengths(t, v2.sizeBand ?? "ns");
+      const sizeLabel = SIZE_OPTIONS.find((o) => o.value === v2.sizeBand)?.label ?? null;
+      title = t.name;
+      tag = `${sizeLabel ? `${sizeLabel} · ` : ""}${t.storeys === 2 ? "two storeys" : "single storey"}`;
+      note = (
+        <span data-testid="ql-ext-caption" data-front={lengths.frontM} data-side={lengths.sideM}>
+          About <b>{lengths.frontM} m</b> across and <b>{lengths.sideM} m</b> deep, {t.wallHM} m to the {t.roof === "parapet" ? "parapet" : "gutter"}.
+          {v2.sizeBand == null ? " Pick a size and it scales." : v2.sizeBand === "ns" ? " Sized from the type — you can check it after your range." : ""}
+          {t.sharedSides.length > 0 && (v2.rowPosition === "both" ? " Standing alone, all four sides." : ` The dashed ${v2.rowPosition === "mid" && t.sharedSides.length === 2 ? "sides are" : "side is"} shared with next door.`)}
+        </span>
+      );
+    } else {
+      title = "Your home";
+      tag = "Pick a shape";
+      note = <span data-testid="ql-ext-caption">We&rsquo;ll draw it here as you answer.</span>;
+    }
   } else if (which === "top") {
     title = "Your home from above";
     const n = topSides.filter((s) => s.state === "on").length;
@@ -211,6 +238,9 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
           <OutsideHousePicture elements={outside.elements} standalone={outside.standalone} materials={outside.materials}
             storeys={outside.storeys} colour={outside.colour} highlight={extTouched?.on ? extTouched.key : null} />
         )}
+        {which === "home" && (outside.v2
+          ? <Elevation v2={outside.v2} side="front" build rows={exteriorTypicals} />
+          : <HousePicture kind={quick.propertyKind} storeys={quick.storeys} jobType={quick.jobType} />)}
         {which === "top" && <TopView sides={topSides} />}
         {which === "areas" && <AreaPlan blocks={areaBlocks} />}
         {which === "warehouse" && ans && (

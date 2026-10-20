@@ -1,5 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openQuickLook, fillQuickAddress } from "./drive";
+import { openQuickLook, fillQuickAddress, passHomeStepIfShown } from "./drive";
+import { stepCount } from "../../lib/wizard/quick-look";
+
+const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
 /**
  * C4 — audit 9.3 and 9.4, driven as the anonymous customer.
@@ -39,11 +42,13 @@ test("9.3(b) the screen-1 promise counts the real screens on every branch", asyn
   await page.getByTestId("ql-jobtype-interior").click();
   await expect(sub).toContainText("Five quick screens"); // 14 Sep (evening): + confirm the rooms
 
+  // Exterior wizard v2 (S2): "Your home" adds a screen when the flag is on — the
+  // promise is computed from stepsFor(), so the spec reads the same count.
   await page.getByTestId("ql-jobtype-exterior").click();
-  await expect(sub).toContainText("Four quick screens"); // 15 Sep (late): + which sides
+  await expect(sub).toContainText(`${cap(stepCount("exterior"))} quick screens`); // 15 Sep (late): + which sides
 
   await page.getByTestId("ql-jobtype-both").click();
-  await expect(sub).toContainText("Seven quick screens");
+  await expect(sub).toContainText(`${cap(stepCount("both"))} quick screens`);
 });
 
 test("9.3(a) a ?mode=business visitor still sees the quick look", async ({ page }) => {
@@ -75,6 +80,7 @@ test("home + outside reaches the outside screen, and there are only three", asyn
   await toPlace(page);
   await page.getByTestId("ql-kind-house").click();
   await page.getByTestId("ql-next").click();
+  await passHomeStepIfShown(page); // S2: the v2 home step, when the flag is on
   await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 30_000 });
 });
 

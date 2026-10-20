@@ -1,4 +1,5 @@
 import "server-only";
+import { loadExteriorTypicals } from "@/lib/wizard/exterior-typicals-db";
 /**
  * ScopeStore over the estimates table through the service-role client. The
  * caller (gateway → conversation) is responsible for the ownership check
@@ -47,15 +48,18 @@ export class SupabaseScopeStore implements ScopeStore {
 
   async refs(): Promise<TreeRefs> {
     if (this.refsCache) return this.refsCache;
-    const [{ data: rules }, { data: aliases }, { data: defects }, { data: typicals }] = await Promise.all([
+    const [{ data: rules }, { data: aliases }, { data: defects }, { data: typicals }, exteriorTypicals] = await Promise.all([
       this.db.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
       this.db.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
       this.db.from("defect_prep_rates").select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3").eq("version", SCOPE_VERSION),
       this.db.from("room_type_defaults").select("room_type, typical_length_m, typical_width_m").eq("version", 3),
+      // Exterior wizard v2 (S2): its error is handled inside — the built-in list carries the house.
+      loadExteriorTypicals(this.db, "scope-store.refs.exteriorTypicals"),
     ]);
     this.refsCache = {
       rules: (rules ?? []) as ScopeRule[], aliases: (aliases ?? []) as Alias[],
       defectRates: (defects ?? []) as DefectRate[], typicals: (typicals ?? []) as TypicalSizeRow[],
+      exteriorTypicals,
     };
     return this.refsCache;
   }

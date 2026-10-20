@@ -18,6 +18,8 @@ import JobSoFar from "./JobSoFar";
 import TalkCard from "./TalkCard";
 import { Pic } from "./pictures/pictograms";
 import { ExteriorPickTiles } from "./ExteriorTiles";
+import ExteriorHomeStep from "./ExteriorHome";
+import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 
 /** C12: what the commercial screens need from WizardApp. */
@@ -69,8 +71,10 @@ export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, whyNot = null, busy, onBack, onNext,
   onBook, onMessage, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null, gate = null,
   planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
-  steps = [], address = "", suburb = null, estimatorName = null, onGo = () => undefined,
+  steps = [], address = "", suburb = null, estimatorName = null, onGo = () => undefined, exteriorTypicals = [],
 }: {
+  /** Exterior wizard v2 (S2): the shape typicals for the home step and the drawn house. */
+  exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   /** UI refresh S2: `stepsFor()` for these answers — "Your job so far" and its Change links read it. */
   steps?: readonly QuickLookStep[];
   /** The address as typed or picked, and its suburb (the house card's tag). */
@@ -512,6 +516,11 @@ export default function QuickLook({
         </>
       )}
 
+      {/* Exterior wizard v2 (S2): "What kind of home is it?" — the drawn house, behind `exteriorV2`. */}
+      {step === "home" && (
+        <ExteriorHomeStep v2={outside.v2 ?? null} rows={exteriorTypicals} onChange={(v2) => onOutside({ v2 })} />
+      )}
+
       {/*
         THE EXTERIOR QUICK LOOK — prototype `s-ext-job` v2.6, "What are we
         painting?" (C8b). ELEMENTS FIRST, nothing pre-ticked; materials only
@@ -729,6 +738,7 @@ export default function QuickLook({
         phone the picture sits above the question and the talk card at the foot. */}
     <aside className="wz-side" data-testid="ql-side" aria-label="Your job">
       <PictureCard step={step} quick={quick} outside={outside} suburb={suburb} rooms={planList} planPreviewUrl={planPreviewUrl} planPending={planPending}
+        exteriorTypicals={exteriorTypicals}
         segmentName={commercial?.segment?.name ?? null}
         com={commercial ? { segment: commercial.segment, answers: commercial.answers, segmentKey: commercial.segmentKey } : null} />
       <JobSoFar steps={steps} at={step} quick={quick} outside={outside} address={address} roomCount={roomCount}

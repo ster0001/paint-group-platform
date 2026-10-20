@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, passHomeStepIfShown } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 import { credentials, signIn, test } from "../helpers";
 
@@ -133,6 +133,7 @@ test("'both' meets the choice screen, then shows two ranges", async ({ page }) =
   await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
+  await passHomeStepIfShown(page); // S2: the v2 home step, when the flag is on
   await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId("ql-ext-el-body").click(); // C8b: nothing pre-ticked
   await quickNext(page);

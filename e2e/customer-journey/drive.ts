@@ -122,6 +122,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
    * would. A spec that cares about the exterior answers drives them itself.
    */
   if (opts.jobType === "both") {
+    await passHomeStepIfShown(page);
     await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
     // C8b: nothing is pre-ticked on the outside screen — a job has to name
     // something being painted before it can continue. The body is the
@@ -197,6 +198,24 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
  * appears. Waits for whichever comes — the sheet or the scope editor's range
  * — and fills the sheet when it is there.
  */
+/**
+ * Exterior wizard v2 (S2): with `exteriorV2` ON the outside path asks "What
+ * kind of home is it?" before the outside questions. A spec about the OLD
+ * outside screens answers it with the plainest house — a weatherboard home,
+ * medium — and walks on; with the flag off the step is not there and this is
+ * a no-op. The S2+ specs drive the home step themselves.
+ */
+export async function passHomeStepIfShown(page: Page): Promise<boolean> {
+  const home = page.locator("[data-quick-step='home']");
+  const outside = page.locator("[data-quick-step='outside']");
+  await expect(home.or(outside)).toBeVisible({ timeout: 20_000 });
+  if (!(await home.count())) return false;
+  await page.getByTestId("ql-ext-type-wb").click();
+  await page.getByTestId("ql-ext-size-md").click();
+  await quickNext(page);
+  return true;
+}
+
 export async function passDetailsSheetIfShown(page: Page, who: { name?: string; email?: string; mobile?: string } = {}): Promise<boolean> {
   const sheet = page.getByTestId("talk-sheet");
   const editor = page.locator(".sc-r").first();
@@ -379,6 +398,7 @@ export async function openExteriorPages(page: Page, opts: { via?: "answers" | "u
   }
   await quickNext(page);                 // → the place
   await expect(page.locator("[data-quick-step='place']")).toBeVisible();
-  await quickNext(page);                 // → the exterior quick look (s-ext-job)
+  await quickNext(page);                 // → the exterior quick look (s-ext-job), after the v2 home step when it is on
+  await passHomeStepIfShown(page);
   await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
 }

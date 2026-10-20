@@ -277,7 +277,7 @@
       "path": "docs/help/estimator/customer.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "4ef1a0aa72",
+      "verified_at_commit": "2d91706167",
       "sources": [
         "app/estimate/page.tsx",
         "app/wizard/WizardApp.tsx",
