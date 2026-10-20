@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent } from "react";
+import { useMemo, type CSSProperties, type MouseEvent } from "react";
 import { EXTERIOR_PARTS, type ExteriorPart, type ExteriorV2 } from "@/lib/wizard/state";
 import {
   EXTERIOR_SIDE_KEYS, typicalFor, type ExteriorShapeKey, type ExteriorSideKey, type ExteriorTypical, type ExteriorTypicalRow, type WallMaterial,
@@ -247,6 +247,9 @@ export default function Elevation({ v2, side, build = true, highlight = null, ro
   onPart?: (part: ExteriorPart) => void;
 }) {
   const notPainting = v2.sides[side] ? !v2.sides[side]!.paint : false;
+  // Built once per change of its inputs, not on every render of the picture
+  // card (its caption timers re-render it with the same house).
+  const markup = useMemo(() => elevationMarkup(v2, side, { build, highlight, rows }), [v2, side, build, highlight, rows]);
   const onClick = onPart
     ? (e: MouseEvent<SVGSVGElement>) => {
       const g = (e.target as Element).closest?.("g.e[data-e]") as HTMLElement | null;
@@ -258,7 +261,7 @@ export default function Elevation({ v2, side, build = true, highlight = null, ro
     <svg
       className={`wz-elev ${notPainting ? "np" : ""} ${onPart ? "tappable" : ""}`} viewBox="0 0 400 240" aria-hidden="true"
       data-testid="pic-outside" data-side={side} data-shape={v2.propertyType} style={style} onClick={onClick}
-      dangerouslySetInnerHTML={{ __html: elevationMarkup(v2, side, { build, highlight, rows }) }}
+      dangerouslySetInnerHTML={{ __html: markup }}
     />
   );
 }
@@ -292,7 +295,8 @@ export function typeThumbMarkup(t: ExteriorTypical): string {
 }
 
 export function TypeThumb({ shape, rows = [] }: { shape: ExteriorShapeKey; rows?: ReadonlyArray<ExteriorTypicalRow> }) {
-  return <svg viewBox="0 0 100 64" aria-hidden="true" dangerouslySetInnerHTML={{ __html: typeThumbMarkup(typicalFor(shape, rows)) }} />;
+  const markup = useMemo(() => typeThumbMarkup(typicalFor(shape, rows)), [shape, rows]);
+  return <svg viewBox="0 0 100 64" aria-hidden="true" dangerouslySetInnerHTML={{ __html: markup }} />;
 }
 
 /** The parts a whole-house tick would land on this side — exported for the S3 screens. */

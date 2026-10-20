@@ -2,11 +2,11 @@
 
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import { aboutMissing, allSidesChecked, allSidesConfirmed, exteriorV2Answered, nextUncheckedSide, paintedSides } from "@/lib/wizard/exterior-model";
-import ExteriorWalkStep from "./ExteriorWalk";
 import PictureCard from "./PictureCard";
 import type { ExteriorSideKey } from "@/lib/wizard/exterior-typicals";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { browserClient } from "@/lib/supabase/lazyClient";
 import { checkUpload } from "@/lib/uploads/validate";
@@ -47,9 +47,8 @@ import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import QuickLook from "./QuickLook";
 import SaveAndBookSheet from "./SaveAndBookSheet";
-import TalkSheet, { type TalkMode } from "./TalkSheet";
+import type { TalkMode } from "./TalkSheet";
 import ConditionBox from "./ConditionBox";
-import Reveal from "./Reveal";
 import {
   DEFAULT_QUICK_LOOK, quickLookToState, stepsFor,
   colourFromChanges,
@@ -59,7 +58,7 @@ import {
 import {
   applyExteriorQuickLook, exteriorQuickLookFromState, paintsSomething,
   type ExteriorQuickLook as ExteriorQuickLookAnswers, ALL_SIDES } from "@/lib/wizard/exterior-quick-look";
-import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
+import type { CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered, pickResume } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
@@ -71,7 +70,20 @@ import {
   DEFAULT_SEGMENTS, briefConfigFor, commercialSurfaceKeys, defaultBriefAnswers, defaultCommercialAnswers, isWarehouse, segmentByKey, segmentTiles,
   type BriefAnswers, type CommercialAnswers, type Segment,
 } from "@/lib/wizard/segments";
-import { BriefDone } from "./CommercialScreens";
+/**
+ * Lighthouse S7 (20 Oct 2026): the screens after the questions are not in the
+ * first load. Every script fetched before the first screen's largest paint is
+ * charged to it (Lantern counts them all), and a customer on the quick look
+ * never needs the range, the walk, the result screen or the talk sheet until
+ * they get there. Each is fetched a moment after the customer is on a step
+ * that leads to it (the two effects beside the landing-step logic), so
+ * nothing is visibly later.
+ */
+const Reveal = dynamic(() => import("./Reveal"));
+const ExteriorWalkStep = dynamic(() => import("./ExteriorWalk"));
+const CustomerResult = dynamic(() => import("./CustomerResult"));
+const TalkSheet = dynamic(() => import("./TalkSheet"));
+const BriefDone = dynamic(() => import("./CommercialScreens").then((m) => m.BriefDone));
 
 /**
  * W1: the five paginated pages, exactly per the workflow doc — Property →
@@ -543,6 +555,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // again. A rebook or a member's prefilled walk is never overridden, and a
   // homepage hand-off for a DIFFERENT address starts fresh (lib/wizard/resume).
   const [resumed, setResumed] = useState<string | null>(null);
+  /** Set by the restore below, read once by the landing-step logic (quickStepKey). */
+  const resumeLandingRef = useRef(false);
   const clearResume = () => { try { localStorage.removeItem(RESUME_KEY); } catch { /* storage may be unavailable */ } };
   const startAgain = () => {
     clearResume();
@@ -601,6 +615,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       } else {
         setEntry(entryFromState(r.state));
       }
+      // The restored step is the landing step — no entrance (see resumeLandingRef).
+      resumeLandingRef.current = true;
       setPage(r.page);
       setResumed(resumeLine(r.page, r.state.jobType, screenTag));
     }, 0);
@@ -1431,7 +1447,32 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    */
   const quickStepKey = `quick-${quickStep}`;
   const [landingStepKey, setLandingStepKey] = useState<string | null>(quickStepKey);
-  if (landingStepKey !== null && landingStepKey !== quickStepKey) setLandingStepKey(null);
+  /**
+   * A RESUMED screen is the screen the page landed on too (Lighthouse S7,
+   * 20 Oct 2026): the restore lands a step after the first paint, and its
+   * entrance pushed the largest paint to the end of the fade again — every
+   * resumed step measured 85–86 against the first screen's 93. The resume
+   * effect raises this flag before it moves the page; the first render on
+   * the restored step takes it as the landing step. Nothing else changes:
+   * every step the customer moves to after that rises in as before.
+   */
+  if (resumeLandingRef.current) {
+    resumeLandingRef.current = false;
+    if (landingStepKey !== quickStepKey) setLandingStepKey(quickStepKey);
+  } else if (landingStepKey !== null && landingStepKey !== quickStepKey) setLandingStepKey(null);
+  // Prefetch the late screens (see the dynamic imports at the top) once the
+  // customer is past the first screen; the walk once the range is up.
+  const pastFirst = quickActive && page >= 2;
+  useEffect(() => {
+    if (!isCustomer || !pastFirst) return;
+    const t = setTimeout(() => { void import("./Reveal"); void import("./TalkSheet"); void import("./CustomerResult"); }, 800);
+    return () => clearTimeout(t);
+  }, [isCustomer, pastFirst]);
+  useEffect(() => {
+    if (screen !== "reveal") return;
+    const t = setTimeout(() => { void import("./ExteriorWalk"); }, 800);
+    return () => clearTimeout(t);
+  }, [screen]);
   /**
    * The page is a POSITION in the step list, and an answer can change the
    * list in front of it: commercial "Both" (picked on the Space screen) puts
