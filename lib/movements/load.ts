@@ -67,6 +67,12 @@ export function jobFrom(w: WoRow, suburbs: ReadonlyMap<string, Point>): Job {
   };
 }
 
+export type QaFlags = { qa_required: boolean | null; qa_waived: boolean | null };
+/** Tom, 20 Oct 2026: a quality check reaches the board only when the job has it ticked as required and not waived. */
+export function qaCheckRequired(wo: QaFlags | null | undefined): boolean {
+  return Boolean(wo?.qa_required) && !wo?.qa_waived;
+}
+
 type Read<T> = { rows: T[]; error: string | null };
 type Sliced<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 /** The generated Database types predate 20270279, so a typed builder on these tables answers `GenericStringError[]`; the row shape is asserted here, once. */
@@ -106,7 +112,9 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
       .then((rows) => ({ data: rows, error: null as { message: string } | null }), (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } })),
     supabase.from("equipment_items").select("id, tag, name, category, serial_or_model, status").neq("status", "retired").order("tag"),
     supabase.from("supplier_branches").select("id, brand, branch, kind, address, suburb, phone, lat, lng, delivers_to_site, opens_weekday, favourite, active").eq("active", true).order("brand").order("branch"),
-    realOnly(supabase.from("wo_qa_checks").select("id, work_order_id, scheduled_for, scheduled_time, kind")).is("result", null).gte("scheduled_for", from).lte("scheduled_for", to),
+    // Tom, 20 Oct 2026: a quality check is on the board only when the job has "Quality check
+    // required" ticked (work_orders.qa_required) and it was not waived — not on every staff job.
+    realOnly(supabase.from("wo_qa_checks").select("id, work_order_id, scheduled_for, scheduled_time, kind, work_orders(qa_required, qa_waived)")).is("result", null).gte("scheduled_for", from).lte("scheduled_for", to),
     realOnly(supabase.from("wo_site_visits").select("id, work_order_id, scheduled_for, scheduled_time")).is("visited_at", null).gte("scheduled_for", from).lte("scheduled_for", to),
     // The centroids (one paged read; ~1,000 rows). Keyed lower-case; the first by postcode wins, as the SQL orders it.
     fetchAllRows<{ suburb: string; postcode: string; lat: number | null; lng: number | null }>((f, t) => supabase.from("visit_suburbs").select("suburb, postcode, lat, lng").order("suburb").order("postcode").range(f, t))
@@ -124,8 +132,9 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   fail("the equipment register", equipmentRead.error);
   const branchesRead = failed<BranchRow>(branchesRes.error, branchesRes.data as BranchRow[] | null);
   fail("the supplier branches", branchesRead.error);
-  type QaRow = { id: string; work_order_id: string; scheduled_for: string; scheduled_time: string | null; kind: string };
-  const qaRead = failed<QaRow>(qaRes.error, qaRes.data as QaRow[] | null);
+  type QaRow = { id: string; work_order_id: string; scheduled_for: string; scheduled_time: string | null; kind: string; work_orders: QaFlags | null };
+  const qaRead = failed<QaRow>(qaRes.error, qaRes.data as unknown as QaRow[] | null);
+  qaRead.rows = qaRead.rows.filter((r) => qaCheckRequired(r.work_orders));
   fail("the quality checks", qaRead.error);
   type VisitRow = { id: string; work_order_id: string; scheduled_for: string; scheduled_time: string | null };
   const visitsRead = failed<VisitRow>(visitsRes.error, visitsRes.data as VisitRow[] | null);
