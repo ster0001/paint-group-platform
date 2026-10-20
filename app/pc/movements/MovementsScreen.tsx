@@ -95,8 +95,12 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
   }, []);
   const [sheet, setSheet] = useState<SheetState>(movementParam ? { kind: "chip", id: movementParam } : null);
   // A navigation within this screen (Gear → Find it in the tray, a work item link) changes the
-  // parameter without remounting: follow it.
-  useEffect(() => { if (movementParam) setSheet({ kind: "chip", id: movementParam }); }, [movementParam]);
+  // parameter without remounting: follow it (state derived from a prop, set during render).
+  const [seenMovementParam, setSeenMovementParam] = useState(movementParam);
+  if (movementParam !== seenMovementParam) {
+    setSeenMovementParam(movementParam);
+    if (movementParam) setSheet({ kind: "chip", id: movementParam });
+  }
   const [filter, setFilter] = useState<Filter>("all");
   const [trayOpen, setTrayOpen] = useState(false);
   const [busy, setBusy] = useState(false);
