@@ -3,7 +3,7 @@ feature: invoicing
 role: staff
 title: Payments — collect from customers, pay contractors and suppliers, and see each job's profit
 summary: The one Payments page (Payments in the sidebar): the headline and four blocks, chasing customers by job, one-press Paid with Undo, cash, sending with a due date, the deposit size, messages, the job panel with Money in and Money out and profit, contractor invoices (approve, pay with a reference, Green fast terms and holds, RCTIs, expenses and ask-first requests), supplier invoices (confirm, record as any cost, no job yet), Activity, card payments, what the customer sees when they press Pay, and when an invoice turns overdue.
-verified_at_commit: 1eea2f4e0b
+verified_at_commit: 61a5b3a953
 ---
 
 ## What this is for
@@ -46,7 +46,7 @@ Press a job's address to open its panel over the list (full screen on a phone). 
 At the top: the stage, the payment rail, and **Job total · Paid · Still owing** — the same figures as the job's row.
 
 ### Money in
-Every invoice is a card with its payments listed under it.
+Every invoice is a card with its payments listed under it. Once sent, the card shows **Invoice date** and **Due** under the invoice number; a paid card keeps both.
 - **A draft**: change its **Due date**, **Check invoice**, **Delete draft**, **Already paid**, or **Send**. A deposit draft has the size buttons on the card.
 - **A sent invoice**: **Change amount** (a deposit), **Cancel, invoice in full** (a deposit or progress claim with nothing paid on it), **Pause reminders** / **Resume reminders**, **Void**, **Open invoice**, **Cash or part**, **✓ Paid**.
 - **Cancel, invoice in full**: the job is finished and the deposit was never paid, so you want one invoice for the whole job. Press it on the unpaid deposit and confirm: the deposit (and any unpaid progress claim) is cancelled with its number burnt, and one final invoice for the whole job is drafted beside it. Check the draft and press **Send** as usual. The customer's old link says that invoice has been cancelled. It refuses if any money has already been paid on the deposit; the ordinary final already takes that money off.

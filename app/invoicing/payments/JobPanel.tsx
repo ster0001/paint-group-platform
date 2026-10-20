@@ -60,7 +60,7 @@ function cardSpec(base: ActionSpec, d: PanelData, i: PanelInvoice, today: string
 function InvoiceCard({ d, i, base, today, termsDays }: { d: PanelData; i: PanelInvoice; base: ActionSpec; today: string; termsDays: number }) {
   const meta = i.state === "void" ? `Void${i.voidedReason ? ` — ${i.voidedReason}` : ""}.`
     : i.status === "draft" ? `Not sent yet.${i.paidCents > 0 ? ` ${money(i.balanceCents)} still to pay.` : ""}`
-    : i.balanceCents > 0 ? `${i.dueOn ? `Due ${shortDate(i.dueOn)}. ` : ""}${i.views ? `Opened ${plural(i.views, "time")}.` : "Not opened yet."}${i.paidCents > 0 ? ` ${money(i.balanceCents)} still to pay.` : ""}`
+    : i.balanceCents > 0 ? `${i.views ? `Opened ${plural(i.views, "time")}.` : "Not opened yet."}${i.paidCents > 0 ? ` ${money(i.balanceCents)} still to pay.` : ""}`
     : "";
   return (
     <div className={`inv${i.state === "void" ? " gone" : ""}`} data-invoice={i.id} data-kind={i.kind}>
@@ -68,6 +68,11 @@ function InvoiceCard({ d, i, base, today, termsDays }: { d: PanelData; i: PanelI
         <div>
           <div className="k">{KIND_NAME[i.kind]} invoice{i.isDeposit && i.pctOfContract !== null ? ` (${i.pctOfContract}%)` : ""}</div>
           <div className="no">{i.number ?? "Number given when sent"}</div>
+          {i.issuedOn || i.dueOn ? (
+            <div className="dates" data-testid="invoice-dates">
+              {i.issuedOn ? `Invoice date ${shortDate(i.issuedOn)}` : ""}{i.issuedOn && i.dueOn ? " · " : ""}{i.dueOn ? `Due ${shortDate(i.dueOn)}` : ""}
+            </div>
+          ) : null}
         </div>
         <div style={{ textAlign: "right" }}>
           {i.balanceCents > 0 && i.state !== "void" ? <span className={`owe ${i.state}`}>{money(i.balanceCents)}</span> : <span className="paidamt">{money(i.totalCents)}</span>}
