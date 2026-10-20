@@ -16,8 +16,8 @@ import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
  *  - Continue needs at least one part or extra, said in words.
  */
 
-const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1";
-test.skip(!FLAG_ON, "exteriorV2 is off in this environment — set NEXT_PUBLIC_EXTERIOR_V2=1 on the test project");
+const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "0"; // on by default since 21 Oct; "0" is the off switch
+test.skip(!FLAG_ON, "exteriorV2 is switched off in this environment (NEXT_PUBLIC_EXTERIOR_V2=0)");
 
 async function toPaint(page: Page, shape = "cal") {
   await openQuickLook(page);

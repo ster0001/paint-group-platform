@@ -18,10 +18,13 @@ export type UiFlag = keyof typeof UI_FLAGS;
 
 /**
  * Exterior wizard v2 (brief §9 S2, ⚑ 17): the drawn-house outside path.
- * `NEXT_PUBLIC_EXTERIOR_V2=1` turns it on — set in `.env.test.local` and the
- * CI e2e job (ON on the test project), unset on Vercel (OFF in production)
- * until Tom flips it after S6. Read at call time so a test can stub it.
+ * ON by default since 21 Oct 2026 (Tom: "merge into the current exterior
+ * section of the wizard" — the switch is the code, not a Vercel variable).
+ * `NEXT_PUBLIC_EXTERIOR_V2=0` is the off switch, kept for one release so a
+ * production problem can fall back to the old outside screens without a
+ * revert; any other value, or none, is on. Read at call time so a test can
+ * stub it.
  */
 export function exteriorV2On(): boolean {
-  return process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1";
+  return process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "0";
 }

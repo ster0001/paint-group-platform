@@ -6,7 +6,7 @@ import { fillQuickAddress, openQuickLook, passDetailsSheetIfShown, passGateIfSho
 /**
  * Exterior wizard v2 — S2: "What kind of home is it?" and the drawn house
  * (brief §7.1, §8; gate spec for S2). As an anonymous customer, with the
- * `exteriorV2` flag ON (NEXT_PUBLIC_EXTERIOR_V2=1 on the test project):
+ * `exteriorV2` flag ON (the default since 21 Oct; `NEXT_PUBLIC_EXTERIOR_V2=0` turns it off):
  *
  *  - the home step sits between the place and the outside questions, on the rail;
  *  - every shape draws: the picture carries the shape and its parts in grey;
@@ -19,8 +19,8 @@ import { fillQuickAddress, openQuickLook, passDetailsSheetIfShown, passGateIfSho
  *    editor's typical size is now the drawn house's, not 12 × 2.6.
  */
 
-const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1";
-test.skip(!FLAG_ON, "exteriorV2 is off in this environment — set NEXT_PUBLIC_EXTERIOR_V2=1 on the test project");
+const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "0"; // on by default since 21 Oct; "0" is the off switch
+test.skip(!FLAG_ON, "exteriorV2 is switched off in this environment (NEXT_PUBLIC_EXTERIOR_V2=0)");
 
 async function toHome(page: Page) {
   await openQuickLook(page);

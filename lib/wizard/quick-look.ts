@@ -516,7 +516,7 @@ export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
  * `stepsFor` returned three for Outside and five for Both. Typed counts and
  * computed counts drift; this is the only place either is allowed to come from.
  */
-const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven"] as const;
+const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"] as const; // 21 Oct: a both job with the drawn house is nine question screens
 export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range", scope: ScopePreset = "whole", gate: boolean = false): string {
   const n = stepsFor(jobType, propertyKind, pattern, door, scope, gate).filter((s) => s !== "both").length;
   return COUNT_WORD[n] ?? String(n);

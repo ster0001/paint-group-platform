@@ -481,7 +481,7 @@ test.describe("UI refresh S5 · home outside", () => {
   // Exterior wizard v2 (S6): rewritten to the drawn house — Your home → Painting → About it → Each side.
   // Retired: the old outside picture's `two` class for the storeys toggle (the shape knows — §7.3) and
   // the house-from-above's dashed edge for a side left off (Each side's tile reads "skip" — §7.4).
-  test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "1", "exteriorV2 is off — these drive the drawn house");
+  test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 === "0", "exteriorV2 is switched off — these drive the drawn house");
 
   /** To the Painting step of an outside-only job, on a weatherboard home. */
   async function toPaint(page: Page) {
