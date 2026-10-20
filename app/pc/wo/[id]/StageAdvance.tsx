@@ -199,8 +199,12 @@ export default function StageAdvance({
           { key: "prep", done: readiness.prepLeft === 0,
             text: readiness.prepLeft === 0 ? "Finishing-up list answered"
               : `${readiness.prepLeft} finishing-up item${readiness.prepLeft === 1 ? "" : "s"} to tick or answer` },
-          ...(readiness.variationsWaiting > 0 ? [{ key: "variations", done: false,
-            text: `${readiness.variationsWaiting} variation${readiness.variationsWaiting === 1 ? "" : "s"} still waiting on a decision` }] : []),
+          // Tom, 19 Oct 2026 (20270277): an undecided variation holds the job
+          // only while a surface is still to tick — ticked off, it is a note,
+          // not a gate, and the office decides it in its own time.
+          ...(readiness.variationsWaiting > 0 ? [{ key: "variations", done: readiness.surfacesLeft === 0 && readiness.surfacesTotal > 0,
+            text: `${readiness.variationsWaiting} variation${readiness.variationsWaiting === 1 ? "" : "s"} still waiting on a decision`
+              + (readiness.surfacesLeft === 0 && readiness.surfacesTotal > 0 ? " — not holding the walkthrough now every surface is ticked" : "") }] : []),
         ];
         return (
           <div data-testid="readiness" style={{ marginBottom: 10 }}>

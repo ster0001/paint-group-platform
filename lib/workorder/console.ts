@@ -91,6 +91,8 @@ export type ConsoleInput = {
   lastUpdateAt?: Record<string, string>;
   /** Card keys a person has closed off (Tom, 25 Aug) — dropped from the queue. */
   dismissedKeys?: readonly string[];
+  /** Tom, 19 Oct 2026: cards put away until a date (work_item_dismissals, keyed by `pcCardSnoozeKey`), still inside their date. */
+  snoozedKeys?: readonly string[];
   /** 6c ask-first: contractor purchase requests awaiting a decision. */
   expenseAsks?: { id: string; workOrderId: string; contractorName: string; description: string; estCents: number; createdAt: string }[];
   settings: {
@@ -574,7 +576,21 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
   // Cards a person has closed off stay closed (Tom, 25 Aug) — the dismissal
   // is data too, so this filter is still "the data decides".
   const dismissed = new Set(input.dismissedKeys ?? []);
-  return rankQueue(cards.filter((c) => !dismissed.has(c.key)));
+  // Tom, 19 Oct 2026: "close off an alert and have it pop back up at a later
+  // date" — a dated dismissal keeps the card away until its morning, then the
+  // data draws it again.
+  const snoozed = new Set(input.snoozedKeys ?? []);
+  return rankQueue(cards.filter((c) => !dismissed.has(c.key) && !snoozed.has(pcCardSnoozeKey(c.workOrderId, c.key))));
+}
+
+/**
+ * A console card's key in the dismissal table's four-part shape
+ * (`kind:subjectType:subjectId:discriminator`, letters, digits, `_` and `-`
+ * only in the last part). Console keys carry colons and dots, so they are
+ * folded into the discriminator; the console compares encoded to encoded.
+ */
+export function pcCardSnoozeKey(workOrderId: string, cardKey: string): string {
+  return `pc_card:work_order:${workOrderId}:${cardKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
 /** §6.2 — critical oldest-first, then warning oldest-first, then info. */

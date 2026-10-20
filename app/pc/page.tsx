@@ -2,14 +2,14 @@ import Link from "next/link";
 import { reportError } from "@/lib/monitoring/report";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
-import { buildQueue, headline, pulseTiles, sparkline, variationsForApproval } from "@/lib/workorder/console";
+import { buildQueue, headline, pcCardSnoozeKey, pulseTiles, sparkline, variationsForApproval } from "@/lib/workorder/console";
 import DismissCard from "./DismissCard";
 import ReofferDialog from "./ReofferDialog";
 import BonusHandover from "./BonusHandover";
 import QueueDismiss from "./QueueDismiss";
+import RemindLater from "./RemindLater";
 import CollectionDone from "./CollectionDone";
 import CheckinDone from "./CheckinDone";
-import StandardsRemind from "./StandardsRemind";
 import WorkItemNote from "./WorkItemNote";
 import { loadWorkItemNotes } from "@/lib/workorder/pcNotes";
 import { buildPcWorkItems } from "@/lib/crm/work-queue";
@@ -39,6 +39,11 @@ export default async function DashboardPage() {
   // from here, not the CRM. Same evaluator and dismissals as Today — a
   // different screen over the one queue, not a second queue.
   const checkins = await buildPcWorkItems(supabase, input.now);
+  // Tom, 19 Oct 2026: a required quality check is the strip at the TOP of the
+  // page until its day — the same queue, drawn in its own place, so it is not
+  // also a card in Needs you now.
+  const qaToBook = checkins.items.filter((i) => i.kind === "qa_check_to_book");
+  const needsYou = checkins.items.filter((i) => i.kind !== "qa_check_to_book");
   // Tom, 8 Oct 2026: a short note on each reminder, kept against its key.
   const itemNotes = await loadWorkItemNotes(supabase, [
     ...checkins.items.map((i) => i.key), ...queue.map((c) => c.key),
@@ -134,6 +139,29 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {qaToBook.length > 0 && (
+        <div data-testid="qa-to-book" style={{
+          border: "1px solid rgba(59,216,233,.5)", background: "rgba(59,216,233,.07)",
+          borderRadius: 14, padding: "12px 16px", margin: "14px 0", fontSize: 14, display: "grid", gap: 8,
+        }}>
+          <div style={{ fontFamily: "var(--mono, monospace)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--cyan, #3BD8E9)" }}>
+            Quality checks to book in before the final walkthrough · {qaToBook.length}
+          </div>
+          {qaToBook.map((item) => (
+            <div key={item.key} data-testid={`qa-to-book-${item.subjectRef.id}`} data-state={item.action.label === "Book the check" ? "undated" : item.action.label === "Book it in" ? "final-unbooked" : "booked"}
+              style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 240 }}>
+                <strong>{item.title}</strong>
+                <div className="note" style={{ margin: "2px 0 0" }}>{item.detail}</div>
+              </div>
+              <Link className="btn primary" href={item.action.href} data-testid={`qa-to-book-open-${item.subjectRef.id}`}>{item.action.label}</Link>
+              {item.action.label === "Open the check" && <QueueDismiss itemKey={item.key} label="Confirmed" reason="Quality check slot confirmed (PC Command)" />}
+              <RemindLater itemKey={item.key} />
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="pulse">
         <div className="tile">
           <span className="k">On the books</span>
@@ -213,7 +241,7 @@ export default async function DashboardPage() {
           {checkins.failure && (
             <p className="empty" data-testid="checkins-failure" style={{ color: "var(--amber)" }}>{checkins.failure}</p>
           )}
-          {checkins.items.map((item) => item.kind === "walkthrough_flagged" || item.kind === "callback_unbooked" || item.kind === "callback_visit_soon" || item.kind === "callback_fixed" ? (
+          {needsYou.map((item) => item.kind === "walkthrough_flagged" || item.kind === "callback_unbooked" || item.kind === "callback_visit_soon" || item.kind === "callback_fixed" ? (
             // Call backs Step 3 (brief §8): one card per trigger, one primary action.
             <div className={`al ${item.bucket === "overdue" ? "al-crit" : item.kind === "callback_visit_soon" ? "al-info" : "al-warn"}`} key={item.key}
               data-testid={`callback-card-${item.key}`} data-kind={item.kind}>
@@ -230,6 +258,7 @@ export default async function DashboardPage() {
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`callback-card-open-${item.key}`}>{item.action.label}</Link>
               {item.kind === "walkthrough_flagged" && <CheckinDone itemKey={item.key} accountId={null} />}
+              <RemindLater itemKey={item.key} />
             </div>
           ) : item.kind === "painter_red" || item.kind === "painter_orange" || item.kind === "bonus_due" || item.kind === "bonus_changed" || item.kind === "payment_hold" ? (
             // Painter status Step 7 (brief §8): one card per trigger, one primary action.
@@ -250,6 +279,7 @@ export default async function DashboardPage() {
                 : <Link className="btn primary" href={item.action.href} data-testid={`status-card-open-${item.key}`}>{item.action.label}</Link>}
               {item.kind === "painter_orange" && <QueueDismiss itemKey={item.key} label="Rang them" reason="Rang the painter about their Orange status (PC Command)" />}
               {item.kind === "bonus_changed" && <QueueDismiss itemKey={item.key} label="Reviewed" reason="Reviewed the changed qualifying job (PC Command)" />}
+              <RemindLater itemKey={item.key} />
             </div>
           ) : item.kind === "site_visit_due" ? (
             // Tom, 9 Oct 2026: Felipe's own site check-in on its day. Never a
@@ -267,6 +297,7 @@ export default async function DashboardPage() {
               </div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`site-visit-card-open-${item.key}`}>{item.action.label}</Link>
+              <RemindLater itemKey={item.key} />
             </div>
           ) : item.kind === "qa_check_due" || item.kind === "qa_check_final_cancelled" ? (
             // Tom, 8 Oct 2026: a quality check on its day, or
@@ -285,17 +316,20 @@ export default async function DashboardPage() {
               </div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`qa-card-open-${item.key}`}>{item.action.label}</Link>
+              <RemindLater itemKey={item.key} />
             </div>
-          ) : item.kind === "material_request" || item.kind === "no_work_requested" || item.kind === "insurance_missing" ? (
-            // Induction Step 3b: three painter-raised cards. Each clears when
-            // the office answers on the job (or verifies the certificate).
-            <div className={`al ${item.bucket === "overdue" ? "al-crit" : item.kind === "insurance_missing" ? "al-info" : "al-warn"}`} key={item.key}
+          ) : item.kind === "material_request" || item.kind === "no_work_requested" ? (
+            // Induction Step 3b: two painter-raised cards. Each clears when
+            // the office answers on the job. (The "no insurance on file" card
+            // was retired on 19 Oct 2026 — Tom.)
+            <div className={`al ${item.bucket === "overdue" ? "al-crit" : "al-warn"}`} key={item.key}
               data-testid={`gap-card-${item.key}`} data-kind={item.kind}>
-              <span className="rail" /><span className="ic">{item.kind === "material_request" ? "🪣" : item.kind === "no_work_requested" ? "🌧" : "🛡"}</span>
+              <span className="rail" /><span className="ic">{item.kind === "material_request" ? "🪣" : "🌧"}</span>
               <div className="bd"><div className="hd"><strong>{item.title}</strong>
-                <span className="ref">{item.kind === "material_request" ? "Materials" : item.kind === "no_work_requested" ? "No work today" : "Insurance"} · {dueWord(item)}</span></div><p>{item.detail}</p></div>
+                <span className="ref">{item.kind === "material_request" ? "Materials" : "No work today"} · {dueWord(item)}</span></div><p>{item.detail}</p></div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`gap-card-open-${item.key}`}>{item.action.label}</Link>
+              <RemindLater itemKey={item.key} />
             </div>
           ) : item.kind === "painter_message" ? (
             // Tom, 9 Oct 2026: a painter wrote in a job's Messages box. Reading
@@ -313,25 +347,7 @@ export default async function DashboardPage() {
               </div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`message-card-open-${item.subjectRef.id}`}>{item.action.label}</Link>
-            </div>
-          ) : item.kind === "standards_unsigned" ? (
-            // Standards Step 2 (brief §8): a painter past the grace period who has
-            // not confirmed. One action — the reminder text; it clears itself
-            // when they confirm.
-            <div className="al al-warn" key={item.key} data-testid={`standards-${item.key}`}>
-              <span className="rail" />
-              <span className="ic">✎</span>
-              <div className="bd">
-                <div className="hd">
-                  <strong>{item.title}</strong>
-                  <span className="ref">Standards · {dueWord(item)}</span>
-                </div>
-                <p>{item.detail}</p>
-                {noteFor(item.key)}
-              </div>
-              <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
-              <Link className="btn" href={item.action.href} data-testid={`standards-open-${item.key}`}>Open painter</Link>
-              <StandardsRemind contractorId={item.subjectRef.id} itemKey={item.key} />
+              <RemindLater itemKey={item.key} />
             </div>
           ) : (
             <div className={`al ${item.bucket === "overdue" ? "al-crit" : "al-warn"}`} key={item.key}
@@ -349,6 +365,7 @@ export default async function DashboardPage() {
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn" href={item.action.href} data-testid={`checkin-open-${item.key}`}>Open the job</Link>
               <CheckinDone itemKey={item.key} accountId={item.accountId} />
+              <RemindLater itemKey={item.key} />
             </div>
           ))}
           {queue.map((card) => (
@@ -366,6 +383,7 @@ export default async function DashboardPage() {
               </div>
               <span className="tm">{age(card.ageHours)}</span>
               <DismissCard workOrderId={card.workOrderId} cardKey={card.key} />
+              <RemindLater itemKey={pcCardSnoozeKey(card.workOrderId, card.key)} />
               {card.action.kind === "reoffer" && card.offerId ? (
                 <span data-testid={`action-${card.key}`}>
                   <ReofferDialog
@@ -389,7 +407,7 @@ export default async function DashboardPage() {
             </div>
           ))}
 
-          {queue.length === 0 && checkins.items.length === 0 && (
+          {queue.length === 0 && needsYou.length === 0 && (
             <p className="empty" data-testid="queue-empty">
               Nothing needs you. Every job is where it should be.
             </p>

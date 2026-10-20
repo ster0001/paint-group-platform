@@ -74,6 +74,16 @@ CHECKERS.customer_defect_tape = async (db, hold) => {
   if (!w.end_date || w.end_date < melbourneDateKey(new Date())) return { ok: false, reason: "The job's last day has passed." };
   return { ok: true };
 };
+// Tom, 19 Oct: the walkthrough-date text is moot once the job has moved on or the day has come.
+CHECKERS.contractor_finish_reminder = async (db, hold) => {
+  if (!hold.work_order_id) return { ok: true };
+  const { data, error } = await db.from("work_orders").select("stage, end_date").eq("id", hold.work_order_id).maybeSingle();
+  if (error) throw error;
+  const w = data as { stage?: string; end_date?: string | null } | null;
+  if (!w?.stage || !["pre_start", "in_progress", "completion_prep", "qa"].includes(w.stage)) return { ok: false, reason: `The job is at ${w?.stage ?? "gone"}.` };
+  if (w.end_date && w.end_date < melbourneDateKey(new Date())) return { ok: false, reason: "The job's last day has passed." };
+  return { ok: true };
+};
 CHECKERS.contractor_invoice_prompt = async (db, hold) => {
   if (!hold.work_order_id) return { ok: true };
   const { data } = await db.from("contractor_invoices").select("status").eq("work_order_id", hold.work_order_id).eq("auto_draft_source", "signoff").limit(1).maybeSingle();
