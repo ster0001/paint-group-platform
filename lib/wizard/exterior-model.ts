@@ -175,6 +175,59 @@ export function partExists(v2: ExteriorV2, side: ExteriorSideKey, part: Exterior
   return on.has(part) || (v2.parts.includes(part) && defaultSidesForPart(part, t).includes(side));
 }
 
+/** The Painting step's groups (brief §7.2), in order. */
+export const PART_GROUPS: ReadonlyArray<{ key: "house" | "roof" | "open" | "verandah"; label: string; parts: ExteriorPart[] }> = [
+  { key: "house", label: "On the house", parts: ["walls", "gable"] },
+  { key: "roof", label: "Roofline", parts: ["fascias", "gutters", "downpipes", "eaves"] },
+  { key: "open", label: "Windows & doors", parts: ["windows", "doors", "garage", "shutters"] },
+  { key: "verandah", label: "Verandah or porch", parts: ["verandah", "posts", "ceiling", "handrail"] },
+];
+/** The verandah family is offered once the verandah is ticked. */
+export const VERANDAH_PARTS: ExteriorPart[] = ["posts", "ceiling", "handrail"];
+
+export const EXTRA_LABEL: Record<ExteriorExtra, string> = {
+  paling_fence: "Paling fence", picket_fence: "Picket fence", deck: "Deck", pergola: "Pergola", shed: "Shed / garage",
+  wall: "Boundary wall", side_gate: "Side gate", meter_box: "Meter box", security_door: "Security door",
+};
+
+/** Tick or untick a part. Unticking the verandah takes its posts, ceiling and handrail with it (they need it). */
+export function togglePart(v2: ExteriorV2, part: ExteriorPart): ExteriorV2 {
+  const on = v2.parts.includes(part);
+  let parts = on ? v2.parts.filter((p) => p !== part) : [...v2.parts, part];
+  if (on && part === "verandah") parts = parts.filter((p) => !VERANDAH_PARTS.includes(p));
+  if (!on && VERANDAH_PARTS.includes(part) && !parts.includes("verandah")) parts = ["verandah", ...parts];
+  return { ...v2, parts };
+}
+
+export function toggleExtra(v2: ExteriorV2, extra: ExteriorExtra): ExteriorV2 {
+  const on = v2.extras.includes(extra);
+  return { ...v2, extras: on ? v2.extras.filter((e) => e !== extra) : [...v2.extras, extra] };
+}
+
+/** Paint this side or not (the old Which-sides screen and S4's Not painting toggle). */
+export function setSidePaint(v2: ExteriorV2, side: ExteriorSideKey, paint: boolean): ExteriorV2 {
+  const s = v2.sides[side];
+  if (!s) return v2;
+  return { ...v2, sides: { ...v2.sides, [side]: { ...s, paint, confirmed: false, checked: false } } };
+}
+
+/** Does any wall — the house or a side — say brick? (The painted-before question.) */
+export function anyBrick(v2: ExteriorV2): boolean {
+  const mats = [v2.wall.down, v2.wall.up, ...EXTERIOR_SIDE_KEYS.flatMap((k) => [v2.sides[k]?.material, v2.sides[k]?.materialUp])];
+  return mats.includes("brick");
+}
+export function anyVerticalTimber(v2: ExteriorV2): boolean {
+  const mats = [v2.wall.down, v2.wall.up, ...EXTERIOR_SIDE_KEYS.flatMap((k) => [v2.sides[k]?.material, v2.sides[k]?.materialUp])];
+  return mats.includes("vertical_timber");
+}
+
+/** What About it still needs before the sides (the Continue gate): the walls' material, a ticked pergola's top. */
+export function aboutMissing(v2: ExteriorV2): string | null {
+  if (v2.parts.includes("walls") && !v2.wall.down) return "What are the walls made of? Tap one.";
+  if (v2.extras.includes("pergola") && !(v2.extraSizes.pergola_l > 0 && v2.extraSizes.pergola_w > 0)) return "Roughly how big is the pergola top? Length and width in metres.";
+  return null;
+}
+
 /** The worst condition answered across the painted sides; null while any painted side is unanswered. */
 export function worstCondition(v2: ExteriorV2): "good" | "weathered" | "peeling" | null {
   const rank = { good: 0, weathered: 1, peeling: 2 } as const;

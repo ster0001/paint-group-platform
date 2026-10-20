@@ -122,16 +122,10 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
    * would. A spec that cares about the exterior answers drives them itself.
    */
   if (opts.jobType === "both") {
-    await passHomeStepIfShown(page);
-    await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
-    // C8b: nothing is pre-ticked on the outside screen — a job has to name
-    // something being painted before it can continue. The body is the
-    // typical answer, and it keeps the walls the sides editor expects.
-    await page.getByTestId("ql-ext-el-body").click();
-    await quickNext(page);
-    // Tom, 15 Sep (late): "Which sides?" is its own screen after the outside
-    // one — all four start ticked, so Continue is the answer.
-    await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+    // The plainest outside answers, on whichever screens the flag puts there
+    // (S3); it lands on "Which sides?" — all four start ticked, so Continue
+    // is the answer (Tom, 15 Sep, late).
+    await answerOutsideQuick(page);
     await quickNext(page);
   }
 
@@ -214,6 +208,41 @@ export async function passHomeStepIfShown(page: Page): Promise<boolean> {
   await page.getByTestId("ql-ext-size-md").click();
   await quickNext(page);
   return true;
+}
+
+/**
+ * Exterior wizard v2 (S3): answer the outside quick look with the plainest
+ * house and land on "Which sides?" — whichever screens the flag puts there.
+ * With `exteriorV2` ON: home (weatherboard home, medium) → Painting (the walls
+ * and the fascias) → About it (weatherboards). OFF: the one outside screen
+ * (the body ticked, weatherboards). A spec about the outside answers drives
+ * them itself; this is for specs that only need an outside job priced.
+ */
+export async function answerOutsideQuick(page: Page): Promise<"v2" | "v1"> {
+  const home = page.locator("[data-quick-step='home']");
+  const outside = page.locator("[data-quick-step='outside']");
+  await expect(home.or(outside)).toBeVisible({ timeout: 20_000 });
+  if (await home.count()) {
+    await page.getByTestId("ql-ext-type-wb").click();
+    await page.getByTestId("ql-ext-size-md").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ext-part-walls").click();
+    await page.getByTestId("ext-part-fascias").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='about']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ext-mat-weatherboards").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+    return "v2";
+  }
+  // C8b: nothing is pre-ticked on the outside screen — a job has to name
+  // something being painted before it can continue.
+  await page.getByTestId("ql-ext-el-body").click();
+  await page.getByTestId("ql-ext-mat-weatherboards").click();
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+  return "v1";
 }
 
 export async function passDetailsSheetIfShown(page: Page, who: { name?: string; email?: string; mobile?: string } = {}): Promise<boolean> {
@@ -398,7 +427,6 @@ export async function openExteriorPages(page: Page, opts: { via?: "answers" | "u
   }
   await quickNext(page);                 // → the place
   await expect(page.locator("[data-quick-step='place']")).toBeVisible();
-  await quickNext(page);                 // → the exterior quick look (s-ext-job), after the v2 home step when it is on
-  await passHomeStepIfShown(page);
-  await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
+  await quickNext(page);                 // → the first outside screen: the v2 home step when the flag is on, else s-ext-job
+  await expect(page.locator("[data-quick-step='home'], [data-quick-step='outside']").first()).toBeVisible({ timeout: 20_000 });
 }

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, passGateIfShown, quickNext } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, passGateIfShown, quickNext, answerOutsideQuick } from "./drive";
 
 /**
  * Wizard UI refresh — "Nothing left behind" (brief §10; run sheet S8).
@@ -125,10 +125,8 @@ test.describe("UI refresh · nothing left behind (1440px, as a customer)", () =>
     await page.getByTestId("ql-jobtype-exterior").click();
     await quickNext(page);
     await quickNext(page);
-    await newShellStep(page, "outside");
-    await page.getByTestId("ql-ext-el-body").click();
-    await page.getByTestId("ql-ext-mat-weatherboards").click();
-    await quickNext(page);
+    // Exterior wizard v2: the outside answers on whichever screens the flag puts there (S3); lands on Which sides.
+    await answerOutsideQuick(page);
     await newShellStep(page, "sides");
     await quickNext(page);
     await passGateIfShown(page);

@@ -2349,3 +2349,4 @@
 .wz .wz-elev { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .wz .wz-elev .e.hl > * { filter: drop-shadow(0 0 3px rgba(14,159,180,.9)); }
 @media (prefers-reduced-motion: no-preference) { .wz .wz-elev .e > * { transition: fill .25s ease; } }
+.wz .wz-elev.tappable .e[data-e] { cursor: pointer; }

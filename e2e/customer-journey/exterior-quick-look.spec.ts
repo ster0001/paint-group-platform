@@ -1,5 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, passHomeStepIfShown } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
+
+/**
+ * Exterior wizard v2: this file drives the OLD outside screen (`ql-ext-el-*`),
+ * which the flag replaces with Your home → Painting → About it (S2–S3). S6
+ * rewrites it to v2; until then it runs only where the flag is off.
+ */
+test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1", "exteriorV2 is on — the old outside screen is not on the path; rewritten in S6");
 
 /**
  * C8b — the EXTERIOR quick look rebuilt, elements first (prototype `s-ext-job`
@@ -22,7 +29,6 @@ async function toOutside(page: Page) {
   await expect(page.getByTestId("ql-bedrooms")).toHaveCount(0);
   await expect(page.getByTestId("ql-storeys")).toHaveCount(0);
   await quickNext(page);
-  await passHomeStepIfShown(page); // S2: the v2 home step, when the flag is on
   await expect(page.locator("[data-quick-step='outside']")).toBeVisible();
 }
 

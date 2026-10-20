@@ -23,6 +23,8 @@ export const STEP_LABELS: Record<QuickLookStep, { rail: string; long: string }> 
   rooms: { rail: "Rooms", long: "The rooms" },
   condition: { rail: "Condition", long: "Condition" },
   home: { rail: "Your home", long: "Your home" },
+  paint: { rail: "Painting", long: "What we're painting" },
+  about: { rail: "About it", long: "About it" },
   outside: { rail: "Outside", long: "The outside" },
   sides: { rail: "Sides", long: "Which sides" },
   gate: { rail: "Details", long: "Your details" },

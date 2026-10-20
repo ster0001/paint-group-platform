@@ -26,9 +26,10 @@ describe("the flag and the step list", () => {
     expect(stepsFor("exterior")).toEqual(["start", "place", "outside", "sides"]);
     vi.stubEnv("NEXT_PUBLIC_EXTERIOR_V2", "1");
     expect(exteriorV2On()).toBe(true);
-    expect(stepsFor("exterior")).toEqual(["start", "place", "home", "outside", "sides"]);
-    expect(stepsFor("exterior", "house", "areas", "range", "whole", true)).toEqual(["start", "place", "home", "outside", "sides", "gate"]);
-    expect(stepsFor("both")).toEqual(["start", "both", "place", "job", "rooms", "condition", "home", "outside", "sides"]);
+    expect(stepsFor("exterior")).toEqual(["start", "place", "home", "paint", "about", "sides"]);
+    expect(stepsFor("exterior", "house", "areas", "range", "whole", true)).toEqual(["start", "place", "home", "paint", "about", "sides", "gate"]);
+    expect(stepsFor("both")).toEqual(["start", "both", "place", "job", "rooms", "condition", "home", "paint", "about", "sides"]);
+    expect(stepsFor("exterior")).not.toContain("outside"); // S3: the old screen is off the path (kept for resume)
     expect(stepsFor("interior")).toEqual(["start", "place", "job", "rooms", "condition"]);
     expect(stepsFor("exterior", "commercial")).not.toContain("home");
     vi.stubEnv("NEXT_PUBLIC_EXTERIOR_V2", "true");

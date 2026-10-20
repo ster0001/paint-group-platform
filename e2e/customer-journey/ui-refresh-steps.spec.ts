@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, passHomeStepIfShown } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick } from "./drive";
 
 /**
  * Wizard UI refresh, S1 — the shell, on every path (brief §7.1, §7.7, §10).
@@ -330,11 +330,7 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     await page.getByTestId("ql-jobtype-exterior").click();
     await quickNext(page);
     await quickNext(page);
-    await passHomeStepIfShown(page); // S2: the v2 home step, when the flag is on
-    await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
-    await page.getByTestId("ql-ext-el-body").click();
-    await page.getByTestId("ql-ext-mat-weatherboards").click();
-    await quickNext(page);
+    await answerOutsideQuick(page); // the outside answers on whichever screens the flag puts there (S3); lands on Which sides
     await quickNext(page);
     await passGateIfShown(page);
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
@@ -482,6 +478,9 @@ test.describe("UI refresh S4b · the room cards", () => {
 });
 
 test.describe("UI refresh S5 · home outside", () => {
+  // Exterior wizard v2: these drive the OLD outside screen and its picture, which the flag
+  // replaces with Your home → Painting → About it (S2–S3). S6 rewrites them to v2.
+  test.skip(process.env.NEXT_PUBLIC_EXTERIOR_V2 === "1", "exteriorV2 is on — the old outside screen is not on the path; rewritten in S6");
   /** To the Outside step of an outside-only job. */
   async function toOutside(page: Page) {
     await openQuickLook(page);
@@ -489,7 +488,6 @@ test.describe("UI refresh S5 · home outside", () => {
     await page.getByTestId("ql-jobtype-exterior").click();
     await quickNext(page);
     await quickNext(page);
-    await passHomeStepIfShown(page); // S2: the v2 home step, when the flag is on
     await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
   }
 
