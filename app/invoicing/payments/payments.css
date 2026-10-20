@@ -297,6 +297,7 @@
 .pm .inv .h{padding:12px 14px;display:flex;justify-content:space-between;gap:10px}
 .pm .inv .k{font-weight:600}
 .pm .inv .no{font-size:12px;color:var(--mute);margin-top:2px}
+.pm .inv .dates{font-size:12px;color:var(--text2);margin-top:3px}
 .pm .inv .meta{padding:0 14px 10px;font-size:13px;color:var(--text2)}
 .pm .inv .inset{padding:0 14px 12px}
 .pm .pay{border-top:1px dashed var(--line2);padding:9px 14px;display:flex;justify-content:space-between;font-size:13px;background:var(--inset)}
