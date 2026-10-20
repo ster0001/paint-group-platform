@@ -326,7 +326,7 @@ test.describe("employed painters — assignments", () => {
   test("changing the lead moves the marker and the customer-facing painter; no employee action created an offer", async () => {
     const rows = await assignments();
     const newLead = rows.find((r) => !r.is_lead)!;
-    expect(await rpcAs(staff!, "set_lead_painter", { p_work_order_id: fixture!.workOrderId, p_contractor_id: newLead.contractor_id })).toBe("ok:lead");
+    expect(await rpcAs(staff!, "set_lead_painter", { p_work_order_id: fixture!.workOrderId, p_contractor_id: newLead.contractor_id })).toBe("ok:lead_set");   // its answer since 20270230 (8 Oct)
     const after = await assignments();
     expect(after.filter((r) => r.is_lead).map((r) => r.contractor_id)).toEqual([newLead.contractor_id]);
     const { data: wo } = await db!.from("work_orders").select("contractor_id").eq("id", fixture!.workOrderId).single();
