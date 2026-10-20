@@ -94,6 +94,9 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
     toastTimer.current = setTimeout(() => setToast(""), ms);
   }, []);
   const [sheet, setSheet] = useState<SheetState>(movementParam ? { kind: "chip", id: movementParam } : null);
+  // A navigation within this screen (Gear → Find it in the tray, a work item link) changes the
+  // parameter without remounting: follow it.
+  useEffect(() => { if (movementParam) setSheet({ kind: "chip", id: movementParam }); }, [movementParam]);
   const [filter, setFilter] = useState<Filter>("all");
   const [trayOpen, setTrayOpen] = useState(false);
   const [busy, setBusy] = useState(false);
