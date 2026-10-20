@@ -10,4 +10,5 @@ export { Scrim, Sheet, Toast } from "./chrome";
 export { useBoardDrag, type BoardDrag, type BoardDragOptions, type AutoScrollOptions } from "./useBoardDrag";
 export { useBoardZoom, type BoardZoom, type BoardZoomOptions } from "./useBoardZoom";
 export { dayLabel, dayParts, monthRuns, isWeekend } from "./format";
+export { hourSlots } from "./DayCell";
 export type { BlockBind, BoardSlots, DropTarget, GhostFlags, LaneLayout, TrayBind } from "./types";

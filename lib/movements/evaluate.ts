@@ -708,3 +708,73 @@ export function counts(world: World): Counts {
     ordersToPlace: world.movements.filter((m) => needsOrder(m) && inWin(m)).length,
   };
 }
+
+// ---- the drop (Session 4) ---------------------------------------------------------------------
+
+export type DropVerdict = {
+  /** The RPC would refuse this drop — the ghost says why and the drop is not sent. */
+  blocked: boolean;
+  /** Allowed, but outside the chip's window (brief §3.3): said on the ghost, warned after the drop. */
+  warn: string | null;
+  reason: string | null;
+};
+
+/**
+ * What `movement_place` will say to this chip on this lane — the twin of the RPC's refusals
+ * (supplier lane: own gear, a rubbish chip that is not a skip, a paint/materials chip whose
+ * shop does not deliver; any lane: a blocked chip, an undecided rubbish chip) plus the window
+ * warning. The database stays the rule; this lets the ghost say it before the pointer lets go.
+ */
+export function dropProblem(world: World, chip: MovementRow, lane: Pick<MovementLane, "kind">, day: string): DropVerdict {
+  const refuse = (reason: string): DropVerdict => ({ blocked: true, warn: null, reason });
+  const blockedBy = blockedReason(chip, world);
+  if (blockedBy) return refuse(blockedBy);
+  if (isUndecidedRubbish(chip)) return refuse("say how the rubbish goes first — open the chip");
+  if (lane.kind === "supplier") {
+    const supplierKinds: ReadonlySet<MovementKind> = new Set(["paint", "materials", "hire_on", "hire_off", "rubbish_in", "rubbish_out"]);
+    if (!supplierKinds.has(chip.kind) || (chip.kind === "rubbish_out" && !chip.to_branch_id)) {
+      return refuse(chip.kind === "rubbish_out" ? "only a skip goes on the Supplier lane — drop it on a person" : "our own gear can't be delivered by a supplier — drop it on a person");
+    }
+    if ((chip.kind === "paint" || chip.kind === "materials") && chip.from_branch_id) {
+      const b = world.branches.find((x) => x.id === chip.from_branch_id);
+      if (b && !b.delivers_to_site) return refuse(`${b.brand} ${b.branch} doesn't deliver — pick a delivering shop in the chip, or drop it on a painter`);
+    }
+  }
+  const w = chipWindow(chip, jobById(world, chip.work_order_id));
+  if (!inWindow(w, day)) {
+    return { blocked: false, reason: null, warn: RETURN_KINDS.has(chip.kind) ? "before the job ends — fine if the painter has finished with it" : "after the job starts — the painter will be waiting on it" };
+  }
+  return { blocked: false, warn: null, reason: null };
+}
+
+/** The tray's groups: one per job (closed jobs with stranded gear as their own), Warehouse last. */
+export type TrayGroup = { key: string; job: Job | null; title: string; sub: string; closed: boolean };
+
+export function trayGroupOf(world: World, chip: MovementRow, painterName: (contractorId: string | null) => string | null): TrayGroup {
+  const job = jobById(world, chip.work_order_id);
+  if (!job) return { key: "warehouse", job: null, title: world.settings.warehouse.label || "Warehouse", sub: "no job", closed: false };
+  const painter = painterName(job.contractorId);
+  const closed = job.stage === "closed";
+  const dates = job.startDate ? `${shortDay(job.startDate)}–${job.endDate ? shortDay(job.endDate) : "?"}` : "no dates";
+  return {
+    key: job.id, job, title: job.address.split(",").slice(0, 2).join(",") || job.title,
+    sub: `${painter ? `${painter.split(" ")[0]} · ` : ""}${closed ? `closed${job.endDate ? ` ${shortDay(job.endDate)}` : ""}` : dates}`, closed,
+  };
+}
+
+const SHORT_DAY = new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", timeZone: "UTC" });
+/** "Mon 19" — a date as the board's header says it. */
+export function shortDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? iso : SHORT_DAY.format(d).replace(",", "");
+}
+
+/** Which tray filter a chip answers to: paint · materials · gear · rubbish. */
+export function chipFilterKind(m: Pick<MovementRow, "kind">): "paint" | "materials" | "gear" | "rubbish" {
+  switch (m.kind) {
+    case "paint": return "paint";
+    case "materials": case "restock": return "materials";
+    case "rubbish_in": case "rubbish_out": return "rubbish";
+    default: return "gear";
+  }
+}

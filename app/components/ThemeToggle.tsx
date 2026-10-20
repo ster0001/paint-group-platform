@@ -18,8 +18,13 @@ export default function ThemeToggle({ initial, rootSelector = ".crm", className 
     // A browser that chose before the cookie existed.
     try {
       const saved = window.localStorage.getItem(THEME_COOKIE) as UiTheme | null;
-      if (saved && saved !== theme && (saved === "dark" || saved === "light")) apply(saved);
+      if (saved && saved !== theme && (saved === "dark" || saved === "light")) { apply(saved); return; }
     } catch { /* storage blocked: the cookie still works */ }
+    // Movements (ruling 15): a tab may set the surface light before paint on a browser that has
+    // never chosen; the button then reads what the surface shows rather than what the server sent.
+    const shown = document.querySelector(rootSelector)?.getAttribute("data-theme");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the surface's attribute is only readable on the client
+    if ((shown === "dark" || shown === "light") && shown !== theme) setTheme(shown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

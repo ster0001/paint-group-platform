@@ -13,6 +13,8 @@ import { usePathname } from "next/navigation";
  */
 const TABS = [
   { href: "/pc/schedule", label: "Schedule" },
+  // Movements (Session 4): the tray of chips and the lanes × days board for paint, materials, gear and rubbish.
+  { href: "/pc/movements", label: "Movements" },
   { href: "/pc", label: "Dashboard" },
   { href: "/pc/flow", label: "Project Progress" },
   { href: "/pc/updates", label: "Updates" },

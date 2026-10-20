@@ -8,11 +8,11 @@ import { addDays, isDateString } from "@/lib/scheduling/dates";
 import { readGoogleBusyForStaff, type GoogleBusy, type GoogleReadKind } from "@/lib/gcal/read";
 import { melbourneInstant } from "@/lib/time/businessHours";
 import type { WOMaterial } from "@/lib/workorder/snapshot";
-import { jobPoint, jobRef } from "./sync";
+import { cansOf, jobPoint, jobRef } from "./sync";
 import { suburbOf, type Appointment, type Job, type Painter, type StaffPerson, type World } from "./evaluate";
 import {
   movementsSettingsFrom, type BranchRow, type EquipmentItemRow, type LogisticsDecisionRow, type MaterialLineRow, type MovementItemRow,
-  type MovementRow, type MovementsSettings, type Point,
+  type MovementLine, type MovementRow, type MovementsSettings, type Point,
 } from "./types";
 
 /**
@@ -35,12 +35,22 @@ export type MovementsWeek = {
   failures: string[];
   /** The material lines on the jobs in play, for the Sources view (one list, three doors). */
   materialLines: MaterialLineRow[];
+  /**
+   * Per job: the Materials card's live rows as a paint chip renders them before ordering,
+   * and the crew notes the Sources view shows beside the materials list (Session 4). Keyed by
+   * work order id; a plain object so it crosses the server → client boundary as-is.
+   */
+  jobExtras: Record<string, JobExtras>;
 };
+
+/** A Materials-card row with the brand the sync groups it under (`paint:<brand>`, blank → `brand?`). */
+export type PaintRowView = MovementLine & { brand: string };
+export type JobExtras = { paintRows: PaintRowView[]; crewNotes: string };
 
 type WoRow = {
   id: string; wo_ref: string; job_no: number | null; stage: string; start_date: string | null; end_date: string | null; contractor_id: string | null;
   lat?: number | null; lng?: number | null;
-  wo_snapshot: { jobAddress?: string; jobTitle?: string; materials?: WOMaterial[] } | null;
+  wo_snapshot: { jobAddress?: string; jobTitle?: string; materials?: WOMaterial[]; crewNotes?: string } | null;
   colours: Record<string, { status?: string } | null> | null;
 };
 
@@ -98,7 +108,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   const fail = (what: string, error: string | null) => { if (error) failures.push(`Couldn't read ${what}: ${error}`); };
 
   // ---- round 1: everything that needs nothing else ----------------------------------------
-  const [settingsRes, board, movementsRes, itemLinksRes, equipmentRes, branchesRes, qaRes, visitsRes, suburbsRes] = await Promise.all([
+  const [settingsRes, board, movementsRes, itemLinksRes, equipmentRes, branchesRes, qaRes, visitsRes, suburbsRes, productsRes] = await Promise.all([
     supabase.from("settings").select("value").eq("key", "movements").maybeSingle(),
     loadBoard(from, to),
     // The tray (any date) plus everything dated in the window. Done and cancelled rows in the
@@ -119,6 +129,9 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
     // The centroids (one paged read; ~1,000 rows). Keyed lower-case; the first by postcode wins, as the SQL orders it.
     fetchAllRows<{ suburb: string; postcode: string; lat: number | null; lng: number | null }>((f, t) => supabase.from("visit_suburbs").select("suburb, postcode, lat, lng").order("suburb").order("postcode").range(f, t))
       .then((rows) => ({ data: rows, error: null as { message: string } | null }), (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } })),
+    // Brand by product NAME (Session 1 decision): the paint chip's live rows are the Materials
+    // rows of its brand, and the rows carry only the product's name.
+    supabase.from("products").select("name, brand, effective_from").order("effective_from", { ascending: false, nullsFirst: false }).limit(2000),
   ]);
 
   fail("the Movements settings", settingsRes.error?.message ?? null);
@@ -141,6 +154,10 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   fail("the site check-ins", visitsRead.error);
   const suburbsRead = failed(suburbsRes.error, suburbsRes.data);
   fail("the suburb centroids", suburbsRead.error);
+  const productsRead = failed<{ name: string; brand: string | null; effective_from: string | null }>(productsRes.error, productsRes.data as { name: string; brand: string | null; effective_from: string | null }[] | null);
+  fail("the products", productsRead.error);
+  const brandOf = new Map<string, string>();
+  for (const p of productsRead.rows) { const k = p.name.trim().toLowerCase(); if (!brandOf.has(k)) brandOf.set(k, (p.brand ?? "").trim()); }
   const suburbs = new Map<string, Point>();
   for (const s of suburbsRead.rows) {
     const key = s.suburb.trim().toLowerCase();
@@ -193,6 +210,17 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   const movements: MovementRow[] = [...movementsRead.rows, ...extraRes.rows].map((m) => ({ ...m, lines: m.lines ?? null, items: itemsByMovement.get(m.id) ?? [] }));
 
   const jobs = jobsRes.rows.map((w) => jobFrom(w, suburbs));
+  const jobExtras: Record<string, JobExtras> = {};
+  for (const w of jobsRes.rows) {
+    jobExtras[w.id] = {
+      crewNotes: w.wo_snapshot?.crewNotes ?? "",
+      paintRows: (w.wo_snapshot?.materials ?? []).filter((m) => m.product).map((m) => ({
+        rowKey: m.colourKey ?? m.product, product: m.product, colourName: m.colourName ?? null, colourHex: m.colourHex ?? null,
+        colourStatus: m.colourStatus ?? null, litres: m.litres ?? null, cans: cansOf(m.litres),
+        brand: brandOf.get(m.product.trim().toLowerCase()) || "brand?",
+      })),
+    };
+  }
   const profileOf = new Map(((contractorsRes.data ?? []) as { id: string; profile_id: string | null }[]).map((c) => [c.id, c.profile_id]));
   const painters: Painter[] = board.lanes.map((l) => ({ contractorId: l.contractorId, profileId: profileOf.get(l.contractorId) ?? null, name: l.name, employmentType: l.employmentType }));
   const staff: StaffPerson[] = profilesRes.rows.map((p) => ({ profileId: p.id, name: p.name?.trim() || "Staff" }));
@@ -205,5 +233,6 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
     },
     failures,
     materialLines: linesRes.rows,
+    jobExtras,
   };
 }

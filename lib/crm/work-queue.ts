@@ -2531,9 +2531,8 @@ async function readNoWorkRequestRows(supabase: SupabaseClient): Promise<{ rows: 
 // ---- Movements (brief §6, Session 3) — nine facts about what has to move --------------------
 //
 // Pure builders over rows the reader shapes; the rules (needsOrder, jobMoved, the register's
-// locations) are lib/movements/evaluate.ts's, called here, never re-derived. Not yet wired into
-// buildPcWorkItems: Session 4 adds the reader there when the Movements tab ships (the cards
-// link to a screen that does not exist before then).
+// locations) are lib/movements/evaluate.ts's, called here, never re-derived. Wired into
+// buildPcWorkItems since Session 4 (the cards link to /pc/movements).
 
 export type MovementQueueRow = {
   id: string;
@@ -2832,7 +2831,7 @@ function emptyMovement(id: string): MovementRow {
 }
 
 export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
-  const [checkins, callbacks, painters, qaChecks, painterMessages, siteVisits, materials, noWork, dismissed] = await Promise.all([
+  const [checkins, callbacks, painters, qaChecks, painterMessages, siteVisits, materials, noWork, movements, dismissed] = await Promise.all([
     readJobCheckinRows(supabase, now),
     readCallbackRows(supabase),
     readPainterStatusRows(supabase),
@@ -2841,6 +2840,8 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     readSiteVisitRows(supabase),
     readMaterialRequestRows(supabase),
     readNoWorkRequestRows(supabase),
+    // Movements (brief §6, wired in Session 4 — the cards link to /pc/movements, which now exists).
+    readMovementQueueRows(supabase),
     supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
   ]);
   if (checkins.error) return { items: [], failure: `Couldn't read the jobs for check-ins: ${checkins.error}` };
@@ -2854,6 +2855,7 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     ...buildSiteVisitItems(siteVisits.rows, now),
     ...buildMaterialRequestItems(materials.rows, now),
     ...buildNoWorkRequestItems(noWork.rows, now),
+    ...buildMovementWorkItems(movements.rows, movements.stranded, movements.settings, now),
   ];
   const items = sortItems(applyDismissals(pcItems(built), dismissals, now));
   const failures = [
@@ -2865,6 +2867,7 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     siteVisits.error ? `Couldn't read the site check-ins (${siteVisits.error}).` : null,
     materials.error ? `Couldn't read the materials requests (${materials.error}).` : null,
     noWork.error ? `Couldn't read the no-work requests (${noWork.error}).` : null,
+    movements.error ? `Couldn't read the movements (${movements.error}).` : null,
   ].filter(Boolean);
   return { items, failure: failures.length ? failures.join(" ") : null };
 }
