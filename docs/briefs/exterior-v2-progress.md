@@ -9,7 +9,7 @@ Gates (brief §9): `npm run build`, `npx tsc --noEmit`, `npx eslint --max-warnin
 | Session | What | Status | Date | Branch / PR / merge SHA | Specs added or edited | ⚑ touched | Next session should know |
 |---|---|---|---|---|---|---|---|
 | S0 | Pack committed, ledger started, "before" screenshots, spec state recorded | DONE — WAITING FOR GO | 19 Oct 2026 | `feat/exterior-wizard-v2-s0` from `origin/main` `5e24bcf7` (worktree `../paint-group-platform-exteriorv2`); PR link in the S0 PR | None added, none edited. The six current exterior specs were RUN, not changed (state below). | none | The brief was written against `837f6115`; nothing in `lib/wizard`, `app/wizard`, `app/estimate/scope` or the six exterior specs changed between `837f6115` and `5e24bcf7` (the only touches were `lib/wizard/journey.ts` and `lib/pricing/labour.ts` for booked labour — unrelated). §2 row 9's "Where" is stale (below). Shots: `ui-refresh-shots/exterior-before/390/` in this worktree, gitignored. The worktree has no `node_modules` or `.env.test.local`; S0 ran the server and the specs from the main checkout, whose exterior code is identical — S1 onward should `npm ci` and copy `.env.test.local` into the worktree first. |
-| S1 | Data and model: `exterior_typicals` migration + seed, `v2` state schema, `lib/wizard/exterior-model.ts`, golden bungalow unit tests, envelope narrowing | TODO | | | | 2, 7, 8, 11, 12, 13, 18 | |
+| S1 | Data and model: `exterior_typicals` migration + seed, `v2` state schema, `lib/wizard/exterior-model.ts`, golden bungalow unit tests, envelope narrowing | BUILT — WAITING FOR GO | 19 Oct 2026 | `feat/exterior-wizard-v2-s1` (stacked on S0's branch; SHA on merge). Migration `20270278000000_exterior_typicals.sql` + `scripts/seed-exterior-typicals.ts` — SQL in the PR body, NOT run; the `_prod_migrations` row is read back before S2 reads the table. | Unit only (brief §9): `lib/wizard/exterior-model.test.ts` (golden bungalow line by line as the ENGINE reads it, acceptance 1, 2, 3, 4, 5a, 7, the typicals and defaults) and `lib/wizard/exterior-v2.test.ts` (round trip, the tree, envelope narrowing). Suite 3697 passed / 2 skipped (was 3659 + the 38 new). No existing spec or unit test edited. | 2 (typicals `source: proposed`), 4 (shingles = $0 placeholder + deferral), 7 (rake on the fascia line, no gutter on a full-gable side), 8 (posts / ceiling / handrail rules; lace = Posts + deferral), 9 (`Wood Shutters`), 10 (shared sides by row position), 11 (downpipes), 12 (window defaults), 13 (not-sure size stays assumed and pending), 18 (equal halves; one material on a single storey) — all at their DEFAULTS | S2 wires the typicals READ (`exterior_typicals` into `TreeRefs`, with its `error` handled and the built-in list as the fallback) and the first screen; S1 deliberately added no database read. `exteriorV2Nodes(v2, nextId, rows, rateCodes)` — pass the live card's codes when a caller has them. A terrace front folds its parapet into the node's `H` (wall line reads `w × (h + 0.9)`), and the gable line is a `WALL_CODES` code the sides editor will count as a wall — parked for S5 (parking lot). `v2.sides` is an object of four optional sides, not a `z.record`; `defaultSides()` fills all four. Worktree now has `node_modules` and `.env.test.local`. |
 | S2 | Your home + the picture: `Elevation.tsx`, `typeThumb`, the `home` step, `stepsFor` behind `exteriorV2` | TODO | | | `exterior-v2-home.spec.ts` (new) | 3, 10 | |
 | S3 | Painting + About it | TODO | | | `exterior-v2-paint.spec.ts`, `exterior-v2-about.spec.ts` (new) | 5, 9 | |
 | S4 | Each side + gate + the guide range | TODO | | | `exterior-v2-sides.spec.ts`, `exterior-v2-range.spec.ts` (new); `exterior-path.spec.ts` updated | 0, 14 | |
@@ -20,7 +20,7 @@ Gates (brief §9): `npm run build`, `npx tsc --noEmit`, `npx eslint --max-warnin
 
 | Session | Checked on | Result |
 |---|---|---|
-| S0 (the mockup: all three Try presets — Bungalow, Townhouse, Terrace — and one full walk-around) | | |
+| S0 (the mockup: all three Try presets — Bungalow, Townhouse, Terrace — and one full walk-around) | 19 Oct 2026 | **"Mockup approved. Go: S1"** (Tom, in the S0 chat) |
 | S1 (golden bungalow quantities match how he measures — ⚑ 7, ⚑ 8) | | |
 | S2 (each shape: "does it look like that house?") | | |
 | S3 (tick a bungalow fully; walls → render and watch the picture) | | |
@@ -53,7 +53,7 @@ Each ⚑ has a default so the build never waits. A ruling from Tom goes in the R
 | 16 | Roof painting chip | Not now | | |
 | 17 | Production switch: `exteriorV2` ON in production after S6 | Tom flips it | | |
 | 18 | Double storey: equal halves; a single storey never gets a second material | As described | | |
-| — | **Mockup approval** (the S0 gate) | Build waits for "Mockup approved" | | |
+| — | **Mockup approval** (the S0 gate) | Build waits for "Mockup approved" | "Mockup approved. Go: S1" (Tom, 19 Oct 2026) | S0 |
 
 ## S0 — the "before" state (19 Oct 2026)
 
@@ -86,6 +86,28 @@ Lock acquired first try; 20 tests, **15 passed / 5 failed**, 8.7 min.
 
 **The one cause of the five reds:** the C1 test project's booking rules are on **range first** (15 Oct, portal-shell session), so the gate never runs and the Tighten door opens the "A few details first" sheet (`talk-sheet`); the failure screenshots show that sheet over the range. `drive.ts` gained `passDetailsSheetIfShown` for this on 15 Oct (`fcc7f60b`) but these five tests click `door-tighten` directly. They are red for the environment, not for the product — they would pass with C1 back on details first, and the S4/S6 rewrites should go through `passDetailsSheetIfShown` after Tighten so they hold under either setting.
 
+## S1 — the golden bungalow (Tom's check)
+
+12 m across × 16 m deep × 3.0 m walls, gable rise 2.4 m, all four sides, weatherboards, stucco gables, casement windows (front 3 · right 2 · back 2 · left 2), doors (front door + one standard at the back), front verandah with columns, ceiling and handrail. The engine's quantities, as `exterior-model.test.ts` asserts them:
+
+| Side | Line | Quantity | Rule |
+|---|---|---|---|
+| Front | Weatherboards | 36 m² | 12 × 3.0 |
+| Front | Stucco (gable end) | 14.4 m² | ½ × 12 × 2.4 |
+| Front | Fascias (barge boards) | 12.92 lm | the rake 2 × √(6² + 2.4²) — ⚑ 7 |
+| Front | Gutters | 9.6 lm | none on the gable side; the verandah's 0.8 × 12 — ⚑ 7 |
+| Front | Downpipes | 2 | w > 10 — ⚑ 11 |
+| Front | Eaves | 12 lm | w |
+| Front | Awning / Casement Window | 3 | the side's count |
+| Front | Front Door | 1 | |
+| Front | Columns | 5 | max(2, round(9.6 ÷ 2.6) + 1) — ⚑ 8 |
+| Front | Soffits / Exterior Ceilings | 23.04 m² | 0.8 × 12 × 2.4 — ⚑ 8 |
+| Front | Hand Rails | 9.6 lm | 0.8 × 12 — ⚑ 8 |
+| Back | Weatherboards · Stucco · Fascias · Downpipes · Eaves · Windows · Standard Door | 36 · 14.4 · 12.92 · 2 · 12 · 2 · 1 | as the front, no verandah |
+| Right / Left | Weatherboards · Fascias · Gutters · Downpipes · Eaves · Windows | 48 · 16 · 16 · 2 · 16 · 2 | eave sides: 16 × 3.0, w, w, w > 10, w |
+
+Front at 10 m instead of 12: the front wall 30 m², barge 2 × √(5² + 2.4²), gutters 8, eaves 10, downpipes 1; every other side unchanged (acceptance 1).
+
 ## Differences found between the brief and the repo (at `5e24bcf7`)
 
 One line each: what the brief says, what the repo does, which one to follow.
@@ -97,4 +119,8 @@ One line each: what the brief says, what the repo does, which one to follow.
 - **§2 rows 2, 4, 5, 6, 7, 8 — hold.** `scaffoldCladdingCode` `starter.ts:304–313`; `spreadOverSides` `starter.ts:349`; `conditionOpen` `envelope.ts:55`, `applyConditionPricing` `exteriorAnswers.ts:382`; `panelling → colorbond` `exterior-quick-look.ts:122,196`; `EXT-WEATHERED` 1.8 at `20260922…:54–56`, `COND-POOR` 1.35 at `ratecard_v7.sql:39`; `computeQuantity` `lib/pricing/estimate.ts:380`.
 - **§3, §6, §7 pointers — hold.** `exterior` schema `state.ts:411–497`; `stepsFor("exterior")` = `withGate(["start","place","outside","sides"])` (`quick-look.ts:567`, gate appended under details-first); `QuickLook.tsx` outside step at L522, sides at L644; `builtPre1970` in `policy.ts:144/166/196`; `room_type_defaults` read at `scope-store-supabase.ts:54`; `DEFAULT_BANDS.midPct = 8` (`policy.ts:68`); the elevation-source rule is `lib/extract/exterior.ts:7`; the extras migration `20260921` carries the five rows the brief lists plus `Carport $520`.
 - **§3 — every file the brief names exists at HEAD** (34 paths checked: the three docs, the fourteen code files, the four unit tests, the six specs, the two help files, the seed and the two migrations).
+- **S1 · §6 `propertyType` enum vs §5.1.** The §6 zod snippet lists `vt`, `cb`, `sheet` as home types; §5.1, the mockup (`TYPE_ORDER`) and Tom's 12 Oct ruling make vertical timber, Colorbond and cement sheet MATERIALS and add `modern`. Followed §5.1: nine keys `wb cal brick ds th unit terrace modern other`.
+- **S1 · fields §6 did not list.** `wall.timberPainted` (vertical timber stains at Cutek unless painted — §5.2), `postKind: "lace"` (iron posts and lacework — ⚑ 8), `extraWallMaterial` (the boundary wall's `Render`/`Brick` — §5.2). `sides` is an object of four optional side records (zod 4's `z.record` with an enum key demands every key).
+- **S1 · the terrace parapet.** §5.2 says the front "adds the parapet `w × 0.9`" as wall area. The sides editor re-derives every wall line from the node's `L × H` on any touch (`syncWallMeasures`), so a separate parapet line would be wiped or double-counted. Followed: the parapet rides in the front node's `H` (`h + rise`), one wall line, same quantity.
+- **S1 · seed auth.** `room_type_defaults`'s seed signs in as staff (no service key in that project at the time). `seed-exterior-typicals.ts` writes through `SUPABASE_SERVICE_ROLE_KEY` when the env carries one (both env files do) and falls back to the staff login otherwise.
 - **S0 process.** The main checkout was on another session's branch, so S0 made its branch as a git worktree (`git worktree add … origin/main`) rather than switching the shared checkout — `../paint-group-platform-exteriorv2`, per the brief's "in its own worktree".
