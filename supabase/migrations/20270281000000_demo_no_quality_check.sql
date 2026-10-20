@@ -32,7 +32,7 @@ begin
   if v_wo.contractor_id is null then return 'ok:0'; end if;
   if coalesce(v_wo.qa_waived, false) then return 'ok:0'; end if;
   -- The practice job (induction brief): the painter runs the walk-through in Module 9,
-  -- so no check is ever booked on it, whatever the painter's mode or colour.
+  -- so no check is ever booked on it, whatever the mode or colour of the painter.
   if coalesce(v_wo.is_demo, false) then return 'ok:0'; end if;
 
   select coalesce(qa_mode, 'first_jobs') into v_mode from public.contractors where id = v_wo.contractor_id;
