@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import {
   CHANGING_GROUPS, CONDITION_BANDS, JOB_TYPES, OCCUPIED, PROPERTY_KINDS,
   ADD_ROOM_TYPES, SCOPE_PRESETS, STOREYS, changingForScope, roomTypeForName, stepCount, toggleChanging, visibleChanging, type Choice, type QuickLook, type QuickLookStep, exclusionOptions, toggleExcluded,
@@ -10,7 +11,16 @@ import {
   toggleAccess, toggleIn, toggleMaterial,
   type ExteriorQuickLook,
 } from "@/lib/wizard/exterior-quick-look";
-import { AreasScreen, BookScreen, BriefScreen, JobScreen, SegmentScreen, WarehouseScreen, type BookContact } from "./CommercialScreens";
+import type { BookContact } from "./CommercialScreens";
+// Lighthouse S7 (20 Oct 2026): the commercial screens load when a commercial
+// property is picked (prefetched below), not with every home's first screen.
+const commercialScreens = () => import("./CommercialScreens");
+const SegmentScreen = dynamic(() => commercialScreens().then((m) => m.SegmentScreen));
+const AreasScreen = dynamic(() => commercialScreens().then((m) => m.AreasScreen));
+const WarehouseScreen = dynamic(() => commercialScreens().then((m) => m.WarehouseScreen));
+const BriefScreen = dynamic(() => commercialScreens().then((m) => m.BriefScreen));
+const BookScreen = dynamic(() => commercialScreens().then((m) => m.BookScreen));
+const JobScreen = dynamic(() => commercialScreens().then((m) => m.JobScreen));
 import type { BriefAnswers, CommercialAnswers, Segment, SegmentBrief } from "@/lib/wizard/segments";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
 import PictureCard from "./PictureCard";
@@ -136,6 +146,8 @@ export default function QuickLook({
   const [skipPlanWait, setSkipPlanWait] = useState(false);
   // Exterior wizard v2 (S4): the side the Each-side step and the picture's compass are on.
   const [sideAt, setSideAt] = useState<ExteriorSideKey>("front");
+  // A commercial property fetches its screens now, before the segment step shows.
+  useEffect(() => { if (quick.propertyKind === "commercial") void commercialScreens(); }, [quick.propertyKind]);
   /** Tom, 14 Sep (evening): the "anything NOT being painted?" popup, open right after a preset is picked. */
   // Tom, 15 Sep (late): an outside job ends on the sides screen, not the outside screen.
   // S6: with a gate, the question before it says so, and the gate is the last screen.
