@@ -222,6 +222,7 @@ export default function InvoiceDoc({
           <div><div className="k">Billed to</div><div className="v">{meta.billedTo}<small>{meta.address}</small></div></div>
           <div><div className="k">Job</div><div className="v">{meta.jobTitle || "—"}<small>{meta.woRef ?? ""}</small></div></div>
           <div><div className="k">Invoice no.</div><div className="v mono">{number ?? "— at issue"}</div></div>
+          <div><div className="k">Issued</div><div className="v mono">{meta.issued ?? "— at issue"}</div></div>
           <div><div className="k">Due</div><div className="v mono">{meta.due ?? "issue + 7 days"}</div></div>
         </div>
 

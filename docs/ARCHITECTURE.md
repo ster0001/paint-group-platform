@@ -4,6 +4,38 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 20 Oct 2026 — Movements Session 3: sync mirror, the one evaluator, the loader, nine work items
+
+**2026-10-20 · `lib/movements/sync.ts`, `lib/movements/evaluate.ts`, `lib/movements/load.ts`, `lib/movements/types.ts` (row shapes +
+settings), `lib/crm/work-queue.ts` (nine kinds), `lib/scheduling/board.ts` (additive `Block.address` / `woEndDate`),
+`e2e/movements-sync-mirror.spec.ts`**
+
+Everything a Movements screen shows is computed ONCE, here, with tests; no screen exists yet (Session 4). `sync.ts` is the pure
+TypeScript twin of `movements_sync_for_wo` (migration 20270279 §10): same inputs, same rules — one paint chip per product brand
+(`paint:<brand>`, brand by product NAME via `products.brand`, blank → `paint:brand?`), one per unmerged line (`matline:<id>`),
+one undecided rubbish question, tray chips refreshed in place, a placed ORDERED chip only ever flagged (`source_changed_at`),
+closed jobs given return chips for stranded gear (`autoReturnFor` = `movements_after_booked`) — and it returns the PLAN (create /
+refresh / flag / remove / the chip set after) rather than writing anything. The database is still the one writer; the mirror exists
+so a screen can say what the sync will do and so the rule has a readable twin. Pinned two ways: `sync.test.ts` is a golden over the
+e2e fixture's known answers, and `e2e/movements-sync-mirror.spec.ts` runs the RPC and the mirror on one fixture through the staff
+session and compares the chip sets column for column. `evaluate.ts` is the one evaluator (brief §3.3): `lanes` (supplier, painters
+with work or a movement in the window by first start — contractors and employees alike, staff in `boardPeople` order; an employee
+in `boardPeople` is ONE lane), `contextBlocks`/`context` (jobs and leave from `loadBoard`, Google busy in Melbourne time with the
+read's kind as a lane note, checks / check-ins on the hourly staff lanes or those flagged `boardPeople[].checks`, walkthroughs on the
+painter's lane too), `kindLabel`, `methodOf`/`methodLabel`, `laneColour` (Settings for staff, a stable-hash palette for painters),
+`needsOrder`, `chipWindow`/`inWindow`, `blockedReason`, `nearby` (staff lanes only), `hotCells`, `whileYouAreThere`,
+`orderedStops`/`runPlan` (fixed context at its time, movements by sequence then time, km from the warehouse out and back),
+`reorder` (ruling 22: the same set of times handed out in the new order — what `movement_set_sequence` + `movement_set_time` are
+given), `itemLocation`/`locations` (= `equipment_item_location`), `jobNeeds` (ruling 21's amber), `jobMoved` (ruling 4), `gates`,
+`counts`. `load.ts` `loadMovementsWeek(from, to)` builds the `World` it computes over: one round trip per source, every read keeps
+its `error`, `realOnly()` on every list of a flagged table, failures returned as lines; it reuses `loadBoard` (which now carries the
+snapshot address and `work_orders.end_date` on each block, additively — `end` is untouched). The nine §6 work items are pure
+builders in `lib/crm/work-queue.ts` (`buildMovementWorkItems` + `readMovementQueueRows`), PC-homed, weighted under
+`employee_reassign` (32) because that invariant is tested; NOT yet in `buildPcWorkItems` — Session 4 wires them when the screen
+they link to exists. No migration.
+
+---
+
 ## 19 Oct 2026 — Movements Session 2: the board engine, lifted out of the Schedule board
 
 **2026-10-19 · `app/components/board/` (`Board.tsx`, `Lane.tsx`, `DayCell.tsx`, `Tray.tsx`, `SavedViews.tsx`, `Controls.tsx`,
@@ -4816,4 +4848,5 @@ Manual test (after Tom pastes 20270268 and the deploy): open an in-progress job 
 
 **Exterior wizard v2 — S6, the finish (20 Oct 2026).** The plan's six sessions are built behind `exteriorV2` (`NEXT_PUBLIC_EXTERIOR_V2=1`): on, every home outside and both job walks Your home → Painting → About it → Each side → Details → the guide range → the walk-around → the detailed range → the sides editor, all from the one drawn house on `exterior.v2` and the one model (`lib/wizard/exterior-model.ts`); off, nothing has changed. The old outside screen and the old Which-sides screen stay in `QUICK_LOOK_STEPS` for one release so a draft saved before the flag resumes on them (`stepsFor()` never lists them when the flag is on). The two specs that drove the old screen (`exterior-quick-look`, `exterior-batch-15sep`), the UI-refresh S5 outside block and the baseline's outside journey are rewritten to the new screens, each retired assertion named with its ruling in the S6 PR and the ledger; `docs/help/estimator/customer.md` and `staff.md` describe the new path and what the estimator receives; the "after" screenshots of the whole path sit beside the "before" set in the S0 worktree. Production turns it on when Tom sets the variable on Vercel (⚑ 17); until then production runs the old screens and the old specs' skips do not apply there.
 
+**Invoice date and due date on every invoice (20 Oct 2026 — Tom).** No migration; `issued_on` / `due_on` were already stamped by `invoice_issue`. The customer sheet (`app/i/[token]/InvoiceSheet.tsx`, whose Chromium print is the PDF) kept the due date only while the invoice was open; it now shows Issued and Due on every non-draft invoice, paid included. The staff invoice page (`app/invoicing/inv/[id]/InvoiceDoc.tsx`) gained an Issued row beside Due. The Payments job panel's invoice cards (`JobPanel.tsx`, `issuedOn` added to `PanelInvoice` in `panelData.ts`) carry "Invoice date … · Due …" under the number (`invoice-dates`), and the meta line no longer repeats the due date. Proven on a paid invoice in `e2e/invoicing.spec.ts`. Help: `docs/help/invoicing/staff.md`, `customer.md`.
 **Exterior wizard v2 — S7, Lighthouse on the new screens (20 Oct 2026).** Measured as an anonymous customer on the C1 build (Lighthouse 13.5 mobile, three runs, median), each step reached by driving the wizard there and reloading — the resume restores it, so the reloaded screen is what scores; a converted draft does not resume, so the range has timespan/snapshot numbers, not a score (`docs/briefs/exterior-v2-progress.md`, "Lighthouse (S7)"). Two changes. (1) A RESUMED step is a landing step: `WizardApp` raises `resumeLandingRef` in the restore and the landing-step logic marks the restored screen `.wz-landing`, so it paints still instead of rising in 0.45 s later (Chrome timed the largest paint to the end of that fade); every step after it still rises. (2) The screens after the questions — `Reveal`, `ExteriorWalk`, `CustomerResult`, `TalkSheet`, `BriefDone` and the six commercial screens in `QuickLook` — are `next/dynamic`, prefetched a moment after the customer is on a step that leads to them, so `/estimate`'s first load no longer carries them (first screen 93 → 98; the reloaded question steps 85–86 → 87–88). `Elevation` and `TypeThumb` memoise their markup on their inputs. Both first-paint conditions are pinned in `e2e/customer-journey/first-paint.spec.ts`. The reloaded steps stop at 87–88 because Lantern charges a hydration-rendered paint every first-load script (react-dom 71 KB, zod 4 classic 64 KB, the session chunk 60 KB on mount, the wizard ~85 KB gzipped); the three levers that would move them — zod/mini on the client, the anonymous session connected after the restored paint, server-rendering the resumed step — are behaviour or contract changes recorded in the ledger for Tom.

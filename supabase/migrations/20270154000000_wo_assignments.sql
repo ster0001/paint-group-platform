@@ -104,21 +104,28 @@ comment on column public.contractor_unavailability.kind is
 -- wo_visible_jobs is the owner-rights view every loop table's read policy
 -- keys on (20261213). A painter on a job by assignment sees its surfaces,
 -- photos, checklists and updates exactly as the contractor_id painter does.
-create or replace view public.wo_visible_jobs
-with (security_invoker = false) as
-  select w.id from public.work_orders w
-   where (select public.is_staff())
-      or (w.contractor_id is not null
-          and w.contractor_id = (select public.current_contractor_id()))
-      or w.id in (select a.work_order_id from public.wo_assignments a
-                   where a.contractor_id = (select public.current_contractor_id())
-                     and a.status <> 'released')
-      or w.estimate_id in (select e.id from public.estimates e
-                             join public.customers cu on cu.id = e.customer_id
-                            where cu.profile_id = (select auth.uid()));
+-- Convergence (C1 replay, 20 Oct 2026): once 20270201 has moved the view into
+-- the private schema, 20270265 owns its definition (which includes this
+-- assignments arm) and a public copy must not come back, so this is skipped.
+do $$ begin
+  if to_regclass('private.wo_visible_jobs') is null then
+  create or replace view public.wo_visible_jobs
+  with (security_invoker = false) as
+    select w.id from public.work_orders w
+     where (select public.is_staff())
+        or (w.contractor_id is not null
+            and w.contractor_id = (select public.current_contractor_id()))
+        or w.id in (select a.work_order_id from public.wo_assignments a
+                     where a.contractor_id = (select public.current_contractor_id())
+                       and a.status <> 'released')
+        or w.estimate_id in (select e.id from public.estimates e
+                               join public.customers cu on cu.id = e.customer_id
+                              where cu.profile_id = (select auth.uid()));
 
-grant select on public.wo_visible_jobs to authenticated;
-revoke all on public.wo_visible_jobs from anon;
+  grant select on public.wo_visible_jobs to authenticated;
+  revoke all on public.wo_visible_jobs from anon;
+  end if;
+end $$;
 
 create or replace function public.wo_my_job_ids_as_contractor()
 returns setof uuid language sql stable security definer set search_path = public as $$
@@ -441,7 +448,7 @@ select
   (select count(*) from pg_indexes where tablename = 'wo_assignments' and indexname in ('wo_assignments_one_lead', 'wo_assignments_one_per_painter')) = 2 as lead_and_once_indexes,
   (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'contractor_unavailability'
      and column_name in ('kind', 'requested_by', 'approved_by', 'approved_at')) = 4 as unavailability_columns,
-  (select pg_get_viewdef('public.wo_visible_jobs'::regclass) like '%wo_assignments%') as visible_jobs_widened,
+  (select pg_get_viewdef(coalesce(to_regclass('private.wo_visible_jobs'), to_regclass('public.wo_visible_jobs'))) like '%wo_assignments%') as visible_jobs_widened,
   (select count(*) from pg_proc where proname in ('wo_painters', 'wo_assignment_conflict', 'assign_job',
      'acknowledge_assignment', 'reassign_dates', 'set_lead_painter', 'release_assignment')) = 7 as seven_functions,
   (select count(*) from information_schema.role_table_grants

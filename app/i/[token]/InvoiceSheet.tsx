@@ -127,7 +127,9 @@ export default function InvoiceSheet({
           <div className="num mono" data-testid="invoice-number">{doc.number ?? "DRAFT"}</div>
           <div className="dates">
             {doc.issued_on ? <>Issued <b>{longDay(doc.issued_on)}</b><br /></> : null}
-            {open && <>Due <b>{longDay(doc.due_on)}</b></>}
+            {/* Tom, 20 Oct: the due date stays on the document once issued —
+                a paid invoice is still the record of when it was due. */}
+            {doc.due_on && doc.status !== "draft" && <>Due <b>{longDay(doc.due_on)}</b></>}
           </div>
         </div>
       </div>
