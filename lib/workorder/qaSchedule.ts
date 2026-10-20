@@ -31,6 +31,13 @@ export function workingDayBefore(date: string, holidays: ReadonlySet<string>): s
   return addDays(date, -1).iso;
 }
 
+/** The working day `n` working days before `date` (n = 1 is `workingDayBefore`). */
+export function workingDaysBefore(date: string, n: number, holidays: ReadonlySet<string>): string {
+  let d = date;
+  for (let i = 0; i < Math.max(1, n); i++) d = workingDayBefore(d, holidays);
+  return d;
+}
+
 export type QaWhen = { date: string; time: string };
 
 /** Where the rule puts a check for a final on `finalDate`. */

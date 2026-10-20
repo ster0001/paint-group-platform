@@ -187,10 +187,11 @@ test.describe("portal gaps — materials, no work today, certificates later", ()
     if (row.offerable) expect(sent?.length ?? 0, "an insured painter is not reminded").toBe(0);
     else expect(sent?.length ?? 0, "an uninsured painter past day 2 is reminded once").toBe(1);
 
-    if (needsCertificate) {
-      await signIn(page, staff!, /\/(home|estimates)/);
-      await page.goto("/pc");
-      await expect(page.locator(`[data-testid^="gap-card-insurance_missing:contractor:${contractorId}:"]`).first()).toBeVisible();
-    }
+    // Tom, 19 Oct 2026: the "no public liability on file" card is no longer on
+    // PC Command — the reminder texts above are the whole of it there.
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto("/pc");
+    await expect(page.locator("h1")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(`[data-testid^="gap-card-insurance_missing:contractor:${contractorId}:"]`)).toHaveCount(0);
   });
 });

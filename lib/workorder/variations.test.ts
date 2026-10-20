@@ -63,6 +63,33 @@ describe("the five-step tracker", () => {
     expect(blockedReason([{ status: "contractor_accepted" }])).toBeNull();
     expect(blockedReason([])).toBeNull();
   });
+
+  // Tom, 19 Oct 2026: with every area ticked off, an undecided variation no
+  // longer holds the walkthrough — the office decides it in its own time.
+  it("stops holding the job once every surface in scope is done", () => {
+    expect(blockedReason([{ status: "raised" }], 0)).toBeNull();
+    expect(blockedReason([{ status: "priced" }, { status: "customer_approved" }], 0)).toBeNull();
+    expect(blockedReason([{ status: "raised" }], 2)).toBe("1 variation still waiting on a decision");
+  });
+});
+
+const GATE_SQL = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20270277000000_walkthrough_with_open_variations.sql"), "utf8");
+
+describe("the gate in the database (20270277)", () => {
+  it("counts the undone surfaces in scope before an open variation can refuse", () => {
+    expect(GATE_SQL).toContain("and not removed_from_scope and state <> 'done'");
+    expect(GATE_SQL).toMatch(/if v_waiting > 0 then\s+select count\(\*\) into v_open/);
+    expect(GATE_SQL).toContain("still waiting on a decision");
+    expect(GATE_SQL).toMatch(/status in \('raised', 'priced', 'customer_approved'\)/);
+  });
+  it("keeps every other arm and registers itself", () => {
+    expect(GATE_SQL).toContain("the pre-start list has not been built for this job yet");
+    expect(GATE_SQL).toContain("surfaces still to tick off");
+    expect(GATE_SQL).toContain("wo_qa_open_count(p_wo_id)");
+    expect(GATE_SQL).toContain("wo_colour_match_outstanding(p_wo_id)");
+    expect(GATE_SQL).toContain("insert into public._prod_migrations(name) values ('20270277000000_walkthrough_with_open_variations.sql')");
+  });
 });
 
 // The rules that must live in the database, asserted against the SQL itself.
