@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-const KEY = "pg:movements:how-it-works";
+import { HOW_IT_WORKS_KEY as KEY } from "./howItWorksKey";
 
 /**
  * The three-sentence strip (brief §3.4): open on the first visit per browser, collapsed
@@ -21,6 +20,12 @@ export default function HowItWorks({ hourlyNames }: { hourlyNames: string[] }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable on the client
     if (!seen) setOpen(true);
   }, []);
+  // page.tsx may have set `.pc[data-how="open"]` before paint so the strip showed open from the
+  // first frame (movements.css). Once React has it open for real the attribute has done its job;
+  // leaving it would hold the strip open after the person closes it.
+  useEffect(() => {
+    if (open) { try { document.querySelector(".pc")?.removeAttribute("data-how"); } catch { /* no DOM, nothing to tidy */ } }
+  }, [open]);
   const hourly = hourlyNames.length ? `${hourlyNames.join("'s and ")}'s lanes are in hours.` : "Hourly lanes are set in Settings → Movements.";
   return (
     <details

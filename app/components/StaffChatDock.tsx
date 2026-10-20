@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
+import { browserClient } from "@/lib/supabase/lazyClient";
 import { useLiveConversation } from "@/app/estimate/assist/useLiveConversation";
 import { staffEstimateThreadAction, type EstimateChatMessage } from "./estimateChatActions";
 import { replyToEstimateChatAction } from "@/app/quote/actions";
@@ -124,12 +125,25 @@ export default function StaffChatDock() {
     const first = setTimeout(() => { void refresh(); }, 0);
     const timer = setInterval(() => { void refresh(); }, 12_000);
     // Realtime: any new agent message (staff may read them all) refreshes the inbox at once.
-    const supabase = createBrowserClient();
-    const channel = supabase.channel("staff-dock")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "agent_messages" }, () => { void refresh(); })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "agent_handoffs" }, () => { void refresh(); })
-      .subscribe();
-    return () => { clearTimeout(first); clearInterval(timer); void supabase.removeChannel(channel); };
+    // The client loads on first use (lib/supabase/lazyClient.ts): the dock is on every staff
+    // page, and a static import put supabase-js (~58KB gzipped) in every page's first bundle.
+    // It is asked for two seconds after mount, not at hydration: Lighthouse charges every
+    // script requested before the largest paint to that paint, and hydration lands within a few
+    // ms of it (Movements, 21 Oct 2026). The first inbox read above is not delayed; a line that
+    // arrives inside those two seconds is caught by it or by the 12 s poll.
+    let live: { supabase: SupabaseClient; channel: RealtimeChannel } | null = null;
+    let gone = false;
+    const realtime = setTimeout(() => {
+      void browserClient().then((supabase) => {
+        if (gone) return;
+        const channel = supabase.channel("staff-dock")
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "agent_messages" }, () => { void refresh(); })
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "agent_handoffs" }, () => { void refresh(); })
+          .subscribe();
+        live = { supabase, channel };
+      });
+    }, 2000);
+    return () => { gone = true; clearTimeout(first); clearInterval(timer); clearTimeout(realtime); if (live) void live.supabase.removeChannel(live.channel); };
   }, [refresh]);
 
   useEffect(() => {

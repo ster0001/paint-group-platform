@@ -233,6 +233,11 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     { data: assignmentRows, error: aErr },
     { data: appointmentRows, error: apErr },
     { data: holdRows, error: hErr },
+    // Finish standards (Step 2) and painter status (Step 7) read nothing from the rows above, so
+    // they travel in the same round trip — this loader gates the first byte of the Schedule and
+    // the Movements tab, and three reads in a row here were two round trips too many (21 Oct 2026).
+    standardsRes,
+    statusRes,
   ] = await Promise.all([
       supabase
         .from("contractors")
@@ -312,6 +317,8 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .is("released_at", null)
         .lte("start_date", to)
         .gte("end_date", from),
+      loadStandardsStatuses(supabase),
+      supabase.from("painter_status").select("painter_id, colour, offers_cleared_at"),
     ]);
 
   // An empty board because a query failed looks exactly like an empty board
@@ -334,11 +341,9 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
 
   // Finish standards (Step 2): which lanes send_offer would refuse. Reported if
   // it cannot be read; the lanes then carry no status and the RPC still refuses.
-  const standardsRes = await loadStandardsStatuses(supabase);
   if (standardsRes.error) errors.push(`standards: ${standardsRes.error}`);
   const standardsOf = new Map(standardsRes.rows.map((r) => [r.contractorId, r.status as string]));
   // Painter status Step 7 (⚑7, ⚑8): the colour on every lane, and whether a Red is cleared.
-  const statusRes = await supabase.from("painter_status").select("painter_id, colour, offers_cleared_at");
   if (statusRes.error) errors.push(`painter status: ${statusRes.error.message}`);
   const statusOf = new Map(((statusRes.data ?? []) as { painter_id: string; colour: Lane["statusColour"]; offers_cleared_at: string | null }[]).map((r) => [r.painter_id, r]));
 
