@@ -74,6 +74,15 @@ new migration lands in the repo, re-run it to keep C1 in step (this replaces
 the SQL-editor paste ritual on the test project — the connection string
 makes it automatic).
 
+A file with `create index concurrently` opens with `-- @no-transaction` (within
+its first 2000 characters) so the runner sends each statement on its own;
+`20270139` lacked it, which is why the ledger stopped there on 20 Oct 2026 while
+the ~140 later files were pasted by hand. When a replay meets a database that is
+already AHEAD of the file (an object a later migration moved or re-signed), fix
+the FILE to converge — resolve the name with `to_regclass`, skip what a later
+migration owns, read back by name not signature — never the database, and never
+insert a ledger row by hand: the runner records only what it applied itself.
+
 ## What the money suite proves (`e2e/stripe-live.spec.ts`)
 
 1. **Pay in full with a test card** (4242…): the hosted Checkout charges the
