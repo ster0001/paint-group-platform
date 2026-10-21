@@ -252,6 +252,15 @@ export type MessagingSettings = {
   inductionInviteEmailIntro: string;
   /** Worker (16h): the worker induction is complete — they can now be put on a job. */
   workerInductionCompleteSms: string;
+  /** Painter (agreement brief §3): they signed the subcontractor agreement — the PDF copy, to them and to the office. */
+  agreementSignedEmailSubject: string;
+  agreementSignedEmailIntro: string;
+  officeAgreementSignedSubject: string;
+  officeAgreementSignedBody: string;
+  /** Painter (agreement brief §7): the office asks them to sign in the portal; the grace window starts. */
+  agreementRequestSms: string;
+  agreementRequestEmailSubject: string;
+  agreementRequestEmailIntro: string;
   /** Painter (Step 6, message 6): the colour changed. */
   statusGreenSms: string;
   statusGreenLeadSms: string;
@@ -564,6 +573,19 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}} has written down how we work — the site rules, who says what to the customer, variations, the pre-defect check and the status light. " +
     "Please read the short refresher modules in the app and tick each one. It takes about an hour, and you will need to have done it to keep getting job offers.",
   workerInductionCompleteSms: "{{company_name}}: your worker induction is complete. Your contractor can now put you on a job. {{link}}",
+  agreementSignedEmailSubject: "Your signed {{company_name}} subcontractor agreement (Version {{version}})",
+  agreementSignedEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "Thank you for signing. Your copy of the Independent Contractor Agreement is attached and saved in your documents in the portal. " +
+    "It runs until {{expires_on}}; the portal will remind you a month before it is due for renewal.",
+  officeAgreementSignedSubject: "{{painter}} signed the subcontractor agreement (Version {{version}})",
+  officeAgreementSignedBody: "{{painter}} signed the Independent Contractor Agreement in the portal. The countersigned PDF is attached and on their record under Documents. It runs until {{expires_on}}.",
+  agreementRequestSms: "{{company_name}}: please read and sign your subcontractor agreement in the app — your details are already filled in, it takes a couple of minutes. {{link}}",
+  agreementRequestEmailSubject: "Please sign your {{company_name}} subcontractor agreement",
+  agreementRequestEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "{{company_name}} now keeps the Independent Contractor Agreement in the portal. Your business details are already filled in: read it on your phone, tick, sign on the screen, and a PDF copy comes straight back to you. " +
+    "Job offers keep coming while you do this, but not for long, so please sign this week.",
   statusGreenSms: "{{company_name}}: you are on Green. You now get priority on new jobs and faster payment. {{link}}",
   statusGreenLeadSms: "{{company_name}}: you are on Green. Thank you for the clean work. {{link}}",
   statusDroppedSms: "{{company_name}}: your status is now {{colour}}. Open the app to see why and what to do next. {{link}}",
@@ -625,6 +647,8 @@ export const TEMPLATE_PLACEHOLDERS = [
 export type TemplateVars = {
   /** Standards messages: the version number being confirmed. */
   version?: string;
+  /** Agreement messages: the expiry day of the signed agreement, "21 Oct 2027". */
+  expires_on?: string;
   /** Defect-tape text (Tom, 8 Oct): the job's booked last day, "Fri 9 Oct". */
   finish_date?: string;
   /** Call back booked: the visit day and what is wrong. */

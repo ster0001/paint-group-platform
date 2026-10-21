@@ -10,6 +10,11 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { PASSWORD_MIN, sendPasswordResetLink, setPasswordForUser } from "@/lib/auth/adminPassword";
 import { emailLogoUrl } from "@/lib/messaging/logo";
 import { isAuMobile } from "@/lib/validation/contact";
+import { randomUUID } from "node:crypto";
+import { checkUpload } from "@/lib/uploads/validate";
+import { sendAgreementRequest } from "@/lib/agreements/notify";
+import { BUCKET as AGREEMENT_BUCKET } from "@/lib/agreements/pdf";
+import { dmy as agreementDay } from "@/lib/agreements/status";
 
 /**
  * Tom, 18 Sep 2026: "send an invitation link to them when registering on the
@@ -417,4 +422,60 @@ export async function setInductionKindAction(raw: unknown): Promise<InductionAct
   const r = String(data ?? "");
   revalidatePath(`/contractors/${parsed.data.id}`);
   return r.startsWith("ok:") ? { ok: true, message: parsed.data.kind === "refresher" ? "Now on the refresher." : "Now on the full induction." } : { ok: false, message: `Could not change that (${r}).` };
+}
+
+// ---- Subcontractor agreement (agreement brief §7) ------------------------------------------
+export type AgreementActionResult = { ok: true; message: string } | { ok: false; message: string };
+
+/** The office asks a contractor to sign in the portal: the grace window starts in the RPC (ruling 14), then the text and email go. */
+export async function requestAgreementAction(raw: unknown): Promise<AgreementActionResult> {
+  const parsed = z.object({ id: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Could not read that — try again." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("agreement_request", { p_contractor_id: parsed.data.id });
+  if (error) { reportError(error, { where: "agreement.request" }); return { ok: false, message: error.code === "42883" ? "The agreement is not switched on yet (migration 20270285)." : "Could not record the request — it has been reported." }; }
+  const r = (data ?? {}) as { status?: string; reason?: string; grace_until?: string };
+  if (r.status !== "ok") {
+    return { ok: false, message: r.reason === "already_signed" ? "They already have a signed, current agreement." : r.reason === "not_staff" ? "Staff only." : `Could not request it (${r.reason ?? "unknown"}).` };
+  }
+  const service = createServiceClient();
+  const outcome = service ? await sendAgreementRequest(service, parsed.data.id) : "no service client";
+  revalidatePath("/contractors"); revalidatePath(`/contractors/${parsed.data.id}`);
+  const grace = r.grace_until ? ` Job offers stop ${agreementDay(r.grace_until)} unless they sign.` : "";
+  return { ok: true, message: outcome === "sent" ? `Asked. The text and email have gone.${grace}`
+    : outcome === "held" ? `Asked. It is after hours, so the message is queued for the morning window.${grace}`
+    : `Asked, but the message was not sent (${outcome}) — check their mobile and email.${grace}` };
+}
+
+/** The office uploads a scanned paper agreement for a contractor (a PDF or a photo), with the date it was signed. */
+export async function uploadAgreementAction(formData: FormData): Promise<AgreementActionResult> {
+  const parsed = z.object({
+    contractorId: uuid,
+    signedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    version: z.union([z.literal(""), z.string().regex(/^\d+$/)]),
+  }).safeParse({ contractorId: String(formData.get("contractorId") ?? ""), signedOn: String(formData.get("signedOn") ?? ""), version: String(formData.get("version") ?? "") });
+  if (!parsed.success) return { ok: false, message: "Check the date signed." };
+  const file = formData.get("file");
+  if (!file || typeof file === "string" || !(file instanceof Blob)) return { ok: false, message: "Choose the scanned agreement first." };
+  const name = (file as File).name ?? "";
+  const problem = checkUpload({ name, size: file.size, type: file.type }, "document");
+  if (problem) return { ok: false, message: problem };
+  const ext = /\.(pdf|jpe?g|png)$/i.exec(name)?.[1]?.toLowerCase() ?? (file.type === "application/pdf" ? "pdf" : file.type === "image/png" ? "png" : file.type === "image/jpeg" ? "jpg" : null);
+  if (!ext) return { ok: false, message: "A PDF, JPG or PNG of the signed agreement, please." };
+  const service = createServiceClient();
+  if (!service) return { ok: false, message: "Uploads are not available on this machine (no service key)." };
+  const path = `${parsed.data.contractorId}/agreements/upload-${randomUUID()}.${ext}`;
+  const up = await service.storage.from(AGREEMENT_BUCKET).upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type || undefined, upsert: false });
+  if (up.error) { reportError(up.error, { where: "agreement.upload.storage" }); return { ok: false, message: "The file could not be stored — it has been reported." }; }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("agreement_upload", { p_contractor_id: parsed.data.contractorId, p_file_path: path, p_signed_on: parsed.data.signedOn, p_version: parsed.data.version === "" ? null : Number(parsed.data.version) });
+  if (error || (data as { status?: string } | null)?.status !== "ok") {
+    await service.storage.from(AGREEMENT_BUCKET).remove([path]).then(() => {}, () => {});
+    if (error) { reportError(error, { where: "agreement.upload" }); return { ok: false, message: "Could not record the agreement — it has been reported." }; }
+    const reason = (data as { reason?: string } | null)?.reason ?? "unknown";
+    return { ok: false, message: reason === "bad_date" ? "The date signed cannot be in the future." : reason === "bad_version" ? "That version does not exist." : reason === "not_staff" ? "Staff only." : `Could not record it (${reason}).` };
+  }
+  const expires = (data as { expires_on?: string }).expires_on;
+  revalidatePath("/contractors"); revalidatePath(`/contractors/${parsed.data.contractorId}`);
+  return { ok: true, message: `Added. The contractor sees it in their Documents now${expires ? `; it runs until ${agreementDay(expires)}` : ""}.` };
 }

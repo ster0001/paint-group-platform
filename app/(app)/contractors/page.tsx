@@ -8,6 +8,9 @@ import ContractorsManager, { type BankAlert, type ContractorSummary, type Invite
 import { loadStandardsStatuses } from "@/lib/standards/status";
 import { staffStatusLine } from "@/lib/standards/acks";
 import { realOnly } from "@/lib/demo/scope";
+import { loadAgreementRules } from "@/lib/agreements/load";
+import { parseAgreementStatusRow, staffAgreementLine } from "@/lib/agreements/status";
+import { melbourneDate } from "@/lib/workorder/console";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +95,12 @@ export default async function ContractorsPage() {
   // Finish standards (Step 2): who has confirmed, who is invited, who is blocked.
   const standardsRes = await loadStandardsStatuses(supabase);
   const standardsOf = new Map(standardsRes.rows.map((r) => [r.contractorId, r]));
+  // Subcontractor agreement (agreement brief §7): one RPC for every contractor; absent before 20270285.
+  const [agreementRes, agreementRules] = await Promise.all([supabase.rpc("agreement_statuses"), loadAgreementRules(supabase)]);
+  let agreementError: string | null = null;
+  if (agreementRes.error && agreementRes.error.code !== "42883") { reportError(agreementRes.error, { where: "contractors.agreements" }); agreementError = agreementRes.error.message; }
+  const agreementOf = new Map(((agreementRes.data ?? []) as unknown[]).flatMap((r) => { const p = parseAgreementStatusRow(r); return p ? [[p.contractorId, p] as const] : []; }));
+  const today = melbourneDate(new Date());
   const now = new Date();
 
   const contractors: ContractorSummary[] = ((rows as Row[] | null) ?? []).map((c) => ({
@@ -124,6 +133,10 @@ export default async function ContractorsPage() {
       const r = standardsOf.get(c.id);
       return r ? { status: r.status, line: staffStatusLine(r.status, { ...r, confirmedNo: r.confirmedVersion, now }) } : null;
     })(),
+    agreement: (() => {
+      const r = agreementOf.get(c.id);
+      return r ? { line: staffAgreementLine(r, today, now, agreementRules.renewalWarnDays), gate: r.gate, signed: !!r.signedAt, canRequest: !r.signedAt || r.gate === "agreement_expired" } : null;
+    })(),
   }));
 
   type EventRow = { id: string; contractor_id: string; detail: unknown; created_at: string };
@@ -148,6 +161,7 @@ export default async function ContractorsPage() {
       bankAlerts={bankAlerts}
       employeesEnabled={employeesEnabled}
       standardsError={standardsRes.error}
+      agreementError={agreementError}
     />
   );
 }

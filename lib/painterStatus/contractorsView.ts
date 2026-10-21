@@ -16,10 +16,14 @@ export type ViewCallback = { id: string; painterId: string; workOrderId: string;
 export type ViewStandards = { painterId: string; status: string };
 export type ViewResult = { painterId: string; workOrderId: string; result: "clean" | "not_clean"; reasons: string[]; hours: number; signedOn: string | null; title: string };
 export type ViewJob = { painterId: string; workOrderId: string; woRef: string; title: string; stage: string };
+/** Subcontractor agreement (agreement brief §7): one row per contractor from agreement_statuses(). */
+export type ViewAgreement = { painterId: string; gate: "ok" | "agreement_unsigned" | "agreement_expired"; signed: boolean; expiresOn: string | null };
 
 export type ContractorsInputs = {
   painters: ViewPainter[]; statuses: ViewStatus[]; changes: ViewChange[]; bonuses: ViewBonus[];
   callbacks: ViewCallback[]; standards: ViewStandards[]; results: ViewResult[]; jobs: ViewJob[];
+  /** Optional until every caller reads it; absent = no agreement tags. */
+  agreements?: ViewAgreement[];
 };
 
 export type Tag = { text: string; tone: "" | "info" | "bad" | "wait" };
@@ -35,7 +39,7 @@ export type ContractorRow = {
   underWay: { workOrderId: string; woRef: string; title: string }[];
   finished: { workOrderId: string; woRef: string; title: string }[];
 };
-export type StripCounts = { green: number; yellow: number; orange: number; red: number; new: number; openCallbacks: number; bonusDue: number; notSigned: number };
+export type StripCounts = { green: number; yellow: number; orange: number; red: number; new: number; openCallbacks: number; bonusDue: number; notSigned: number; agreementNotSigned: number };
 export type ContractorsView = { rows: ContractorRow[]; counts: StripCounts };
 
 const ORDER: Record<Colour, number> = { red: 0, orange: 1, yellow: 2, new: 3, green: 4 };
@@ -45,6 +49,7 @@ const OPEN_CB = new Set(["open", "booked", "fixed"]);
 export function buildContractorsView(inp: ContractorsInputs, now: Date): ContractorsView {
   const statusOf = new Map(inp.statuses.map((s) => [s.painterId, s]));
   const standardsOf = new Map(inp.standards.map((s) => [s.painterId, s.status]));
+  const agreementOf = new Map((inp.agreements ?? []).map((a) => [a.painterId, a]));
   const rows: ContractorRow[] = inp.painters.filter((p) => p.active).map((p) => {
     const s = statusOf.get(p.id) ?? null;
     const m = s?.measures ?? {};
@@ -58,6 +63,8 @@ export function buildContractorsView(inp: ContractorsInputs, now: Date): Contrac
     if (bonuses.some((b) => b.status === "due" || b.status === "with_owner")) tags.push({ text: "Bonus due", tone: "info" });
     if (s?.colour === "orange" || s?.colour === "red") tags.push({ text: "Check every job", tone: "wait" });
     if (std === "blocked" || std === "grace" || std === "not_invited" || std === "employee_unsigned") tags.push({ text: "Standards not signed", tone: "wait" });
+    const ag = p.employmentType === "contractor" ? agreementOf.get(p.id) : undefined;
+    if (ag && (!ag.signed || ag.gate === "agreement_expired")) tags.push({ text: "Agreement not signed", tone: "wait" });
     if (s?.colour === "new" && s.streak > 0) tags.push({ text: `Job ${s.streak} of 4`, tone: "" });
     const none = results.length === 0;
     return {
@@ -78,10 +85,11 @@ export function buildContractorsView(inp: ContractorsInputs, now: Date): Contrac
   }).sort((a, b) => (a.colour ? ORDER[a.colour] : 3) - (b.colour ? ORDER[b.colour] : 3) || a.name.localeCompare(b.name));
 
   // The strip: the same rows, counted — never a second query.
-  const counts: StripCounts = { green: 0, yellow: 0, orange: 0, red: 0, new: 0, openCallbacks: 0, bonusDue: 0, notSigned: 0 };
+  const counts: StripCounts = { green: 0, yellow: 0, orange: 0, red: 0, new: 0, openCallbacks: 0, bonusDue: 0, notSigned: 0, agreementNotSigned: 0 };
   for (const r of rows) {
     if (r.colour) counts[r.colour] += 1;
     if (r.tags.some((t) => t.text === "Standards not signed")) counts.notSigned += 1;
+    if (r.tags.some((t) => t.text === "Agreement not signed")) counts.agreementNotSigned += 1;
   }
   counts.openCallbacks = inp.callbacks.filter((c) => OPEN_CB.has(c.status) && rows.some((r) => r.id === c.painterId)).length;
   counts.bonusDue = inp.bonuses.filter((b) => (b.status === "due" || b.status === "with_owner") && rows.some((r) => r.id === b.painterId)).length;

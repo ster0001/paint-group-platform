@@ -19,6 +19,11 @@ import { loadInductionStatusFor } from "@/lib/induction/progress";
 import DemoControls from "@/app/components/demo/DemoControls";
 import { loadStandardsStatuses } from "@/lib/standards/status";
 import { staffStatusLine } from "@/lib/standards/acks";
+import ContractorAgreement from "./ContractorAgreement";
+import { loadAgreementRules, loadAgreementStatus } from "@/lib/agreements/load";
+import { agreementDocUrl } from "@/lib/agreements/pdf";
+import { staffAgreementLine } from "@/lib/agreements/status";
+import { melbourneDate } from "@/lib/workorder/console";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +86,18 @@ export default async function ContractorDetailPage({ params }: { params: Promise
   const standardsRow = standardsRes.rows.find((r) => r.contractorId === id) ?? null;
   const standardsStatus = standardsRow?.status ?? "not_required";
   const standardsLine = standardsRow ? staffStatusLine(standardsRow.status, { ...standardsRow, confirmedNo: standardsRow.confirmedVersion, now: new Date() }) : "No standards published";
+
+  // Subcontractor agreement (agreement brief §7): the status RPC (staff may ask about anyone), the office line, a signed URL for the copy.
+  const agreementRes = employmentType === "employee" ? { status: null, error: null } : await loadAgreementStatus(supabase, id);
+  if (agreementRes.error && !/20270285/.test(agreementRes.error)) failures.push("the subcontractor agreement");
+  const agreementRules = await loadAgreementRules(supabase);
+  const agreementToday = melbourneDate(new Date());
+  const agreementLine = agreementRes.status
+    ? staffAgreementLine({ kind: agreementRes.status.kind, gate: agreementRes.status.gate, version: agreementRes.status.signed?.version ?? null, source: agreementRes.status.signed?.source ?? null,
+        signedAt: agreementRes.status.signed?.signedAt ?? null, expiresOn: agreementRes.status.signed?.expiresOn ?? null, requestedAt: agreementRes.status.requestedAt, graceUntil: agreementRes.status.graceUntil }, agreementToday, new Date(), agreementRules.renewalWarnDays)
+    : "";
+  const agreementService = createServiceClient();
+  const agreementPdfUrl = agreementRes.status?.signed?.pdfPath && agreementService ? await agreementDocUrl(agreementService, agreementRes.status.signed.pdfPath) : null;
 
   // Their jobs. A contractor holds the work order; an employed painter is on it
   // by assignment, so both paths are read and merged.
@@ -249,6 +266,14 @@ export default async function ContractorDetailPage({ params }: { params: Promise
           )}
         </section>
       </div>
+
+      {employmentType !== "employee" && (
+        <section className="mt-4 rounded-lg border border-gray-200 bg-white p-4" data-testid="card-agreement-section">
+          <h2 className="text-sm font-semibold">Subcontractor agreement</h2>
+          <p className="mt-1 text-xs text-gray-500">The Independent Contractor Agreement, signed in the portal with their details filled in, or the paper copy uploaded here. Job offers wait for a signed, unexpired one.</p>
+          <ContractorAgreement contractorId={c.id} status={agreementRes.status} line={agreementLine} pdfUrl={agreementPdfUrl} today={agreementToday} />
+        </section>
+      )}
 
       {employmentType !== "employee" && (
         <section className="mt-4 rounded-lg border border-gray-200 bg-white p-4" data-testid="card-workers">
