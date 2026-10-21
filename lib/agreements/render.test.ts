@@ -5,6 +5,7 @@ import { parseAgreement, type MergeValues } from "./source";
 import { SIGNING_FIELDS, displayValue, renderAgreementFragment, renderAgreementPdfHtml, visibleText } from "./render";
 
 const file = parseAgreement(readFileSync(resolve(__dirname, "../../docs/agreements/subcontractor-agreement-v1.md"), "utf8"));
+const file2 = parseAgreement(readFileSync(resolve(__dirname, "../../docs/agreements/subcontractor-agreement-v2.md"), "utf8"));
 
 const profile: MergeValues = {
   "contractor.company_name": "Sam Painter Pty Ltd",
@@ -63,6 +64,14 @@ describe("the one renderer", () => {
       .replace(/\s+/g, " ").trim();
     const pdfWithoutTitle = pdf.replace(/^Independent Contractor Agreement — Version 1 /, "");
     expect(pdfWithoutTitle).toBe(expected);
+  });
+
+  it("version 2 signs Attachment A too: three signature images, the name and date under it", () => {
+    const html = renderAgreementPdfHtml(file2, signed, { ...audit, version: 2 });
+    expect(html.match(/<img class="ag-sig"/g)).toHaveLength(3);
+    const attachment = html.slice(html.indexOf("Attachment A"));
+    expect(attachment).toContain("Sam Painter");
+    expect(attachment).toContain("21 October 2026");
   });
 
   it("escapes what a contractor typed", () => {

@@ -33,6 +33,7 @@ const legacy = { email: `pg.e2e.agree2.${run}@example.com`, password: `Agree2-${
 const TINY_PDF = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 const PROFILE = { company_name: "Agree Painter Pty Ltd", abn: "51824753556", address: "4 Brush Lane, Oakleigh VIC 3166" };
 let agreementId = "";
+let currentVersion = 1;
 
 async function restAs(creds: { email: string; password: string }, path: string): Promise<{ status: number; body: unknown }> {
   const token = await accessTokenFor(creds);
@@ -133,7 +134,7 @@ test.describe("subcontractor agreement — read, sign, keep", () => {
     await page.getByTestId("agreement-sign").click();
     await expect(page).toHaveURL(/\/portal\/agreement\?signed=1/, { timeout: 30_000 });
     await expect(page.getByTestId("agreement-just-signed")).toContainText(/PDF copy is on its way/);
-    await expect(page.getByTestId("agreement-signed-line")).toContainText(/^Signed .* · v1/);
+    await expect(page.getByTestId("agreement-signed-line")).toContainText(/^Signed .* · v\d+/);
 
     const rows = await signedRows();
     expect(rows).toHaveLength(1);
@@ -141,7 +142,8 @@ test.describe("subcontractor agreement — read, sign, keep", () => {
     agreementId = a.id;
     expect(a.status).toBe("signed");
     expect(a.source).toBe("portal");
-    expect(a.version).toBe(1);
+    expect(a.version).toBeGreaterThanOrEqual(1);   // the current version (v2 since 21 Oct)
+    const currentVersion = a.version;
     expect(a.signed_name).toBe(painter.name);
     expect(a.merged["contractor.abn"]).toBe("51 824 753 556");
     expect(a.merged["contractor.company_name"]).toBe(PROFILE.company_name);
@@ -194,7 +196,7 @@ test.describe("subcontractor agreement — read, sign, keep", () => {
 
   test("a second tap cannot create a second row", async () => {
     const again = await rpcAsJson<{ status: string; id: string }>(painter, "agreement_sign", {
-      p_version: 1, p_signed_name: painter.name, p_signature_path: `${painter.contractorId}/agreements/signature-00000000-0000-4000-8000-000000000000.png`,
+      p_version: currentVersion, p_signed_name: painter.name, p_signature_path: `${painter.contractorId}/agreements/signature-00000000-0000-4000-8000-000000000000.png`,
       p_ip: "203.0.113.9", p_user_agent: "spec", p_body_sha256: "ab".repeat(32),
     });
     expect(again.status).toBe("exists");
@@ -240,7 +242,7 @@ test.describe("subcontractor agreement — read, sign, keep", () => {
     await page.goto("/contractors");
     const cell = page.getByTestId(`agreement-${legacy.contractorId}`);
     await expect(cell).toContainText("Agreement: Not signed · not asked yet");
-    await expect(page.getByTestId(`agreement-${painter.contractorId}`)).toContainText(/Agreement: Signed v1/);
+    await expect(page.getByTestId(`agreement-${painter.contractorId}`)).toContainText(/Agreement: Signed v\d+/);
     await page.getByTestId(`agreement-request-${legacy.contractorId}`).click();
     await expect(cell).toContainText(/Asked[,.]/, { timeout: 20_000 });   // C1 has no SMS provider: "Asked, but the message was not sent (not_configured)"
     const { data: ev } = await db!.from("contractor_events").select("type, detail").eq("contractor_id", legacy.contractorId).in("type", ["agreement_requested", "agreement_request_sent"]);

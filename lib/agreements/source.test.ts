@@ -14,6 +14,9 @@ const md = readFileSync(resolve(__dirname, "../..", FILE), "utf8");
  * re-pin v1.
  */
 const V1_SHA256 = "389e3ee0dbc4d211283cf0ea2ab7514c63c021393e4afe04568c00a99f656bea";
+/** Version 2 (21 Oct 2026, Tom): v1 plus the contractor signature, name and date on Attachment A. */
+const V2_SHA256 = "4dbec8ceafdf8fb10af2a4344582dfb5c3610cbb8c927105bf1b94655cd4dade";
+const md2 = readFileSync(resolve(__dirname, "../..", "docs/agreements/subcontractor-agreement-v2.md"), "utf8");
 
 describe("subcontractor agreement v1 — the committed file parses and is pinned", () => {
   const file = parseAgreement(md);
@@ -73,6 +76,19 @@ describe("subcontractor agreement v1 — the committed file parses and is pinned
     expect(levels.get("(a)")).toBe(1);
     expect(levels.get("(iv)")).toBe(2);
     expect(levels.get("(A)")).toBe(3);
+  });
+});
+
+describe("subcontractor agreement v2 — Attachment A signed with the agreement", () => {
+  const file = parseAgreement(md2);
+  it("is Version 2, pinned, and differs from v1 only in the Attachment A signing row", () => {
+    expect(file.version).toBe(2);
+    expect(agreementBodyHash(md2)).toBe(V2_SHA256);
+    const strip = (m: string) => m.slice(m.indexOf("\n## ")).replace(/\| \{\{contractor\.signature\}\} \| \{\{contractor\.signed_name\}\} \| \{\{contractor\.signed_on\}\} \|\n$/, "| | | |\n");
+    expect(strip(md2)).toBe(md.slice(md.indexOf("\n## ")));
+    const at = file.blocks.findIndex((b) => b.kind === "heading" && b.text === "Attachment A");
+    const table = file.blocks.slice(at).find((b) => b.kind === "table");
+    expect(table && table.kind === "table" && table.rows[1]).toEqual(["{{contractor.signature}}", "{{contractor.signed_name}}", "{{contractor.signed_on}}"]);
   });
 });
 
