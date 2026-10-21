@@ -555,19 +555,44 @@
     },
     {
       "feature": "movements",
+      "role": "contractor",
+      "title": "Your pickups and drop-offs — where the paint is, when it comes, what to bring back",
+      "summary": "The office plans how paint, materials, gear and rubbish get to and from your job. You see it in two places — a \"Your pickups and drop-offs today\" card on your home screen and a \"Getting it to site\" section on the job sheet — with the shop's address and phone, the order reference to quote at the counter, and a tick for each pickup, drop-off or return that is yours.",
+      "path": "docs/help/movements/contractor.md",
+      "walkthrough": "media/contractor-walkthrough.gif",
+      "media": [],
+      "verified_at_commit": "bde6480324",
+      "sources": [
+        "app/portal/MovementsCard.tsx",
+        "app/portal/page.tsx",
+        "app/portal/jobs/[id]/page.tsx",
+        "app/w/WorkOrderDoc.tsx",
+        "lib/movements/painterView.ts",
+        "lib/movements/painterLoad.ts",
+        "supabase/migrations/20270281000000_movements_painter_run.sql"
+      ]
+    },
+    {
+      "feature": "movements",
       "role": "pc",
       "title": "Plan the week's paint, materials, gear and rubbish on the Movements board",
-      "summary": "How the Movements tab works — the tray of chips built from the jobs, the lanes for the supplier, each painter and each staff member, dragging a chip onto a day (or an hour), the chip sheet for the shop, time, order reference and note, Ordered ✓, Nearby and While-you're-there suggestions, and the Sources view that shows one materials list in its three places.",
+      "summary": "How the Movements tab works — the tray of chips built from the jobs, the lanes for the supplier, each painter and each staff member, dragging a chip onto a day (or an hour), the chip sheet for the shop, time, order reference and note, Ordered ✓, Nearby and While-you're-there suggestions, the Sources view that shows one materials list in its three places, the Day run plans, the Map with one icon per job and the drag-to-order card, and the Gear register.",
       "path": "docs/help/movements/pc.md",
-      "walkthrough": null,
+      "walkthrough": "media/pc-walkthrough.gif",
       "media": [],
       "verified_at_commit": "48b17db4cd",
       "sources": [
         "app/pc/movements",
+        "app/pc/movements/DayView.tsx",
+        "app/pc/movements/MapView.tsx",
+        "app/pc/movements/run",
         "app/components/board",
         "lib/movements/evaluate.ts",
         "lib/movements/load.ts",
         "lib/movements/sync.ts",
+        "lib/movements/notify.ts",
+        "lib/maps/googleMaps.ts",
+        "lib/places/geocodeAddress.ts",
         "app/pc/movements/actions.ts"
       ]
     },
@@ -1198,7 +1223,8 @@
       "sources": [
         "app/pc/wo/[id]/SiteVisitsCard.tsx",
         "app/pc/wo/[id]/ReviewCard.tsx",
-        "app/pc/wo/[id]/PrestartListBox.tsx",
+        "app/pc/wo/[id]/PrestartMovements.tsx",
+        "lib/movements/loadJob.ts",
         "app/pc/WorkItemNote.tsx",
         "app/pc",
         "app/components/wo",

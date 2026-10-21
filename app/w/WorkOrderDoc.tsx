@@ -11,6 +11,8 @@ import type { ScopeChange } from "@/lib/workorder/scopeChanges";
 import { WO_PHOTO_KIND_LABEL, groupByKind, officePhotos, type WOPhoto } from "@/lib/workorder/photos";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import AreaPhotoStrip from "@/app/components/wo/AreaPhotoStrip";
+import MovementsCard from "@/app/portal/MovementsCard";
+import type { JobLogistics } from "@/lib/movements/painterView";
 import { estimatedHours, formatHours } from "@/lib/workorder/hours";
 import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, type Booking } from "@/lib/workorder/booking";
 import FinishChip from "@/app/components/FinishChip";
@@ -42,8 +44,10 @@ export type WOEdit = {
  * from the frozen snapshot, which is why it is a prop rather than part of Doc.
  * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
  */
-export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [], scopeChanges = [], payInclChanges = null, standardsBase, smallJobHours = null }: {
+export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [], scopeChanges = [], payInclChanges = null, standardsBase, smallJobHours = null, logistics = null, logisticsError = null }: {
   doc: Doc; edit?: WOEdit; stage?: WoStage | null;
+  /** Movements (Session 5): the painter's pickup / delivery / gear / rubbish lines, from their own read. */
+  logistics?: JobLogistics | null; logisticsError?: string | null;
   /** Which shell's standards the finish chip's "Open the finish standards" goes to. */
   standardsBase?: "portal" | "pc";
   /** Ruling S9: with the Settings threshold, the sheet says whether the tape check is required. */
@@ -262,6 +266,22 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                     </div>
                   );
                 })()}
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* Movements (Session 5, brief §3.4): how the paint, materials and gear reach the site and
+            how the rubbish goes — the painter's lines from movements_for_painter, column-limited
+            in the database (no cost, no account, no office note unless flagged). */}
+        {(logistics?.any || logisticsError) && (
+          <section className="lg" id="logistics" data-testid="wo-logistics">
+            <h2>Getting it to site</h2>
+            {logisticsError && <p className="hint" style={{ color: "var(--amber)" }} data-testid="wo-logistics-error">{logisticsError}</p>}
+            {logistics && ([["paint", "Paint"], ["materials", "Materials"], ["gear", "Loan gear"], ["rubbish", "Rubbish"]] as const).map(([k, label]) => logistics[k].length > 0 && (
+              <div key={k}>
+                <h3>{label}</h3>
+                <MovementsCard compact lines={logistics[k]} day="" error={null} testId={`wo-logistics-${k}`} />
               </div>
             ))}
           </section>

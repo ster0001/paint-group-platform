@@ -17,6 +17,7 @@ import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { staffCustomerUpdateDrafted } from "@/lib/staff/notify";
 import { sendCustomerUpdateDueAlerts } from "@/lib/automations/sweeps/customerUpdateDue";
 import { realOnly } from "@/lib/demo/scope";
+import { sendArrivedChecks } from "@/lib/movements/notify";
 
 /**
  * The daily sweep: draft today's customer updates, flag the silent sites, and
@@ -236,6 +237,11 @@ async function sweep(opts: { force?: boolean } = {}) {
   let heldReleased = { released: 0, skipped: 0, failed: 0 };
   try { heldReleased = await releaseDueHolds(db, now); } catch (e) { reportError(e, { where: "wo-sweep.releaseHolds" }); }
 
+  // Movements (Session 5): a supplier delivery due today that nobody ticked Done → "did it
+  // arrive?" to the job's painter, draft-first through the dispatcher.
+  let arrivedChecks = 0;
+  try { arrivedChecks = await sendArrivedChecks(db, today); } catch (e) { reportError(e, { where: "wo-sweep.arrivedChecks" }); }
+
   // Step 5: the evaluator's daily pass — every active painter, so pending
   // results finalise once their seven days pass and a new painter is New.
   let painterStatus: { ran: number; failed: number; errors: string[] } = { ran: 0, failed: 0, errors: [] };
@@ -303,6 +309,7 @@ async function sweep(opts: { force?: boolean } = {}) {
     staffGcalErrors: staffGcal.errors,
     visitReminders,
     heldReleased,
+    arrivedChecks,
     timesheetsFilled,
     timesheetsManual,
     updateDueAlerts,

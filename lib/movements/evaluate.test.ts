@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Block } from "@/lib/scheduling/board";
 import {
   blockedReason, chipState, chipWindow, context, contextBlocks, counts, gates, hotCells, inWindow, itemLocation, jobMoved, jobNeeds, kindLabel,
-  knownSuburbIn, laneColour, lanes, locations, methodLabel, methodOf, nearby, needsOrder, orderedStops, reorder, runPlan, suburbOf, whileYouAreThere,
+  knownSuburbIn, laneColour, lanes, locations, mapPins, methodLabel, methodOf, nearby, needsOrder, orderedStops, pointKey, reorder, runPlan, suburbOf, whileYouAreThere,
   type Job, type World,
 } from "./evaluate";
 import { DEFAULT_MOVEMENTS_SETTINGS, type EquipmentItemRow, type MovementRow, type MovementsSettings } from "./types";
@@ -400,5 +400,65 @@ describe("gates and counts", () => {
     ] });
     expect(jobNeeds(w, "0092").map((m) => m.id)).toEqual(["t", "o"]);
     expect(jobNeeds(w, "0093")).toEqual([]);
+  });
+});
+
+describe("the map (rulings 21 and 22)", () => {
+  const felipeMonday = () => [
+    placed({ id: "a", kind: "equipment_out", work_order_id: "0092", assignee_id: FELIPE, due_date: MON, time: "08:30", sequence: 1, from_kind: "warehouse", to_kind: "site" }),
+    placed({ id: "b", kind: "materials", work_order_id: "0093", assignee_id: FELIPE, due_date: MON, half: "PM", sequence: 2, from_kind: "branch", from_branch_id: "dlx-preston", ordered_at: "x" }),
+  ];
+  it("one icon per job: teal when nothing is outstanding, amber with the first need's kind, grey for a closed job", () => {
+    const w = world({ movements: [
+      ...felipeMonday(),
+      mv({ id: "t", kind: "paint", work_order_id: "0094" }),                                    // Sandringham: a paint chip in the tray
+      mv({ id: "g", kind: "equipment_out", work_order_id: "0094" }),                            // and a gear chip after it
+      mv({ id: "ret", kind: "equipment_return", work_order_id: "0081", status: "done", assignee_kind: "person", assignee_id: FELIPE, due_date: "2026-10-05" }), // Hampton: closed, nothing left
+    ] });
+    const pins = mapPins(w, null, MON);
+    const by = Object.fromEntries(pins.jobs.map((p) => [p.job.id, p]));
+    expect(by["0092"]).toMatchObject({ fill: "teal", need: null, line: "on track", label: "22 Clarke St" });
+    expect(by["0094"]).toMatchObject({ fill: "amber", need: "paint", line: "paint to plan · gear to plan" });
+    expect(by["0094"].needs.map((m) => m.id)).toEqual(["t", "g"]);
+    expect(by["0081"]).toMatchObject({ fill: "grey", need: null, line: "closed · gear still here" });
+    // 0093 has a placed, ordered materials chip: nothing outstanding.
+    expect(by["0093"].fill).toBe("teal");
+    // Nobody selected: no numbers, no route; every point is the job's own or its suburb's centroid.
+    expect(pins.jobs.every((p) => p.badges.length === 0)).toBe(true);
+    expect(pins.route).toEqual([]);
+    expect(by["0092"].point).toEqual(SUB["northcote"]);
+  });
+  it("the selected person's order numbers sit on the icon of each stop; a fixed appointment is ◌; the route runs warehouse → stops → warehouse", () => {
+    const w = world({ movements: felipeMonday() });
+    const pins = mapPins(w, FELIPE, MON);
+    const by = Object.fromEntries(pins.jobs.map((p) => [p.job.id, p]));
+    // Felipe's Monday: the QA check at Station St (Fairfield) at 09:30 is fixed; the gear drop at Clarke St (08:30) is 1; the Preston pickup (PM) is 2 — at the SHOP, not the job.
+    expect(by["0090"].badges).toEqual([{ n: "◌", fixed: true, label: "Quality check" }]);
+    expect(mapPins(world({ movements: [placed({ id: "u", kind: "paint", work_order_id: "0093", assignee_id: null, due_date: MON, status: "planned" })] }), null, MON).jobs.find((p) => p.job.id === "0093")!.line).toBe("paint delivery · not ordered");
+    expect(by["0092"].badges).toEqual([{ n: 1, fixed: false, label: "Gear drop-off" }]);
+    expect(by["0093"].badges).toEqual([]);
+    const preston = pins.shops.find((s) => s.branch.id === "dlx-preston")!;
+    expect(preston.stopToday).toBe(true);
+    expect(preston.badges).toEqual([{ n: 2, fixed: false, label: "Materials pickup" }]);
+    expect(pins.shops.find((s) => s.branch.id === "tb-counter")!.stopToday).toBe(false);
+    expect(pins.warehouse).toMatchObject({ label: "Warehouse", badges: [] });
+    expect(pins.route[0]).toEqual(SUB["oakleigh south"]);
+    expect(pins.route[pins.route.length - 1]).toEqual(SUB["oakleigh south"]);
+    expect(pins.route.length).toBe(5);
+    // Ruling 22: after a reorder the numbers follow — the same evaluator, the same stops.
+    const patches = reorder(w, FELIPE, MON, ["b", "a"]);
+    const after = world({ movements: felipeMonday().map((m) => { const p = patches.find((x) => x.id === m.id)!; return { ...m, sequence: p.sequence, time: p.time, half: p.half }; }) });
+    const again = mapPins(after, FELIPE, MON);
+    expect(again.jobs.find((p) => p.job.id === "0092")!.badges[0].n).toBe(2);
+    expect(again.shops.find((s) => s.branch.id === "dlx-preston")!.badges[0].n).toBe(1);
+  });
+  it("a shop on the same point as the warehouse stacks the numbers; a job with no point is left off the map", () => {
+    const w = world({ movements: [placed({ id: "r", kind: "restock", assignee_id: FELIPE, due_date: MON, time: "07:30", from_kind: "branch", from_branch_id: "tb-counter", to_kind: "warehouse", ordered_at: "x" })],
+      jobs: [...JOBS, job({ id: "nowhere", address: "Somewhere, Narnia", suburb: "Narnia" })] });
+    const pins = mapPins(w, FELIPE, MON);
+    expect(pins.jobs.some((p) => p.job.id === "nowhere")).toBe(false);
+    expect(pins.shops.find((s) => s.branch.id === "tb-counter")!.badges.map((b) => b.n)).toEqual([1]);
+    expect(pins.warehouse!.badges.map((b) => b.n)).toEqual([1]);
+    expect(pointKey({ lat: -37.92, lng: 145.1 })).toBe("-37.92000,145.10000");
   });
 });

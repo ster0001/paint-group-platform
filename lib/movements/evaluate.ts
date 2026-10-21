@@ -73,6 +73,8 @@ export type Appointment = {
   sub?: string;
 };
 
+export type WorldBranch = Omit<BranchRow, "favourite" | "active">;
+
 export type World = {
   /** Inclusive ISO days. */
   from: string;
@@ -88,7 +90,8 @@ export type World = {
   appointments: Appointment[];
   movements: MovementRow[];
   items: EquipmentItemRow[];
-  branches: BranchRow[];
+  /** supplier_branches, the columns the screen draws (no favourite or active — see load.ts). */
+  branches: WorldBranch[];
   decisions: LogisticsDecisionRow[];
   /** lower-cased suburb → centroid, for the addresses in play. */
   suburbs: Map<string, Point>;
@@ -600,6 +603,89 @@ export function reorder(world: World, laneId: string, day: string, newOrderIds: 
   const times = mine.map((m) => movementTime(m, s)).sort((a, b) => timeOrder(a, null, s) - timeOrder(b, null, s));
   const order = [...newOrderIds.filter((id) => mine.some((m) => m.id === id)), ...mine.map((m) => m.id).filter((id) => !newOrderIds.includes(id))];
   return order.map((id, i) => ({ id, sequence: i + 1, time: times[i], half: halfOf(times[i]) }));
+}
+
+// ---- the map (Session 6, rulings 21 and 22) --------------------------------------------------
+
+export type MapBadge = { n: number | "◌"; fixed: boolean; label: string };
+export type MapFill = "teal" | "amber" | "grey";
+export type NeedKind = ReturnType<typeof chipFilterKind>;
+export type JobPin = {
+  job: Job; point: Point; fill: MapFill;
+  /** jobNeeds(job): the chips in the tray and the placed-but-unordered ones, in tray order. */
+  needs: MovementRow[];
+  /** The first need's kind (the icon on an amber pin), null on teal and grey. */
+  need: NeedKind | null;
+  /** The short address over the pin: the street, else the job ref. */
+  label: string;
+  /** One line under the address: what is needed, else "closed" or "on track". */
+  line: string;
+  badges: MapBadge[];
+};
+export type ShopPin = { branch: WorldBranch; point: Point; stopToday: boolean; badges: MapBadge[] };
+export type MapPins = {
+  jobs: JobPin[];
+  shops: ShopPin[];
+  warehouse: { point: Point; label: string; badges: MapBadge[] } | null;
+  /** The selected person's day as a line: warehouse, every stop with a point, warehouse. Empty when nobody is selected or the day is empty. */
+  route: Point[];
+};
+
+/** One key per place, so two stops at the same point stack their numbers. */
+export const pointKey = (p: Point): string => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+
+/**
+ * Ruling 21: one icon per job — teal when nothing is outstanding, amber carrying the first
+ * need's icon when `jobNeeds` is not empty, grey for a closed job (it is only in the world
+ * because gear is still on it). Ruling 22: the selected person's order numbers from
+ * `runPlan` sit on the icon of each stop of their day (◌ for a fixed appointment). Shops
+ * with a point are listed with whether they are a stop today; the view decides which to draw.
+ */
+export function mapPins(world: World, laneId: string | null, day: string, blocks: readonly ContextBlock[] = contextBlocks(world)): MapPins {
+  const badges = new Map<string, MapBadge[]>();
+  const route: Point[] = [];
+  const wh = warehousePoint(world);
+  if (laneId) {
+    const plan = runPlan(world, laneId, day, blocks);
+    if (plan.stops.length > 0 && wh) route.push(wh);
+    for (const s of plan.stops) {
+      if (!s.point) continue;
+      const key = pointKey(s.point);
+      const b: MapBadge = s.fixed ? { n: "◌", fixed: true, label: s.block.kindLabel } : { n: s.n ?? 0, fixed: false, label: kindLabel(s.movement) };
+      badges.set(key, [...(badges.get(key) ?? []), b]);
+      route.push(s.point);
+    }
+    if (plan.stops.length > 0 && wh) route.push(wh);
+  }
+  const at = (p: Point) => badges.get(pointKey(p)) ?? [];
+
+  const jobs: JobPin[] = [];
+  for (const job of world.jobs) {
+    const point = pointOfJob(world, job);
+    if (!point) continue;
+    const needs = jobNeeds(world, job.id);
+    const closed = job.stage === "closed";
+    const fill: MapFill = needs.length ? "amber" : closed ? "grey" : "teal";
+    // "paint to plan" for a tray chip; "paint delivery · not ordered" for a placed one still owing its order.
+    const words = needs.map((m) => (m.status === "tray" ? `${chipFilterKind(m)} to plan` : `${kindLabel(m).toLowerCase()} · not ordered`));
+    const line = needs.length ? `${words.slice(0, 2).join(" · ")}${needs.length > 2 ? ` +${needs.length - 2}` : ""}` : closed ? "closed · gear still here" : "on track";
+    const street = job.address.split(",")[0]?.trim() ?? "";
+    jobs.push({ job, point, fill, needs, need: needs.length ? chipFilterKind(needs[0]) : null, label: street || job.jobRef, line, badges: at(point) });
+  }
+
+  const shops: ShopPin[] = [];
+  for (const branch of world.branches) {
+    if (branch.lat == null || branch.lng == null) continue;
+    const point = { lat: branch.lat, lng: branch.lng };
+    const b = at(point);
+    shops.push({ branch, point, stopToday: b.length > 0, badges: b });
+  }
+
+  return {
+    jobs, shops,
+    warehouse: wh ? { point: wh, label: world.settings.warehouse.label || "Warehouse", badges: at(wh) } : null,
+    route,
+  };
 }
 
 // ---- the register ----------------------------------------------------------------------------

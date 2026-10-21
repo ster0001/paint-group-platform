@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   Board, Tray, Scrim, Sheet, Toast, useBoardDrag, useBoardZoom, hourSlots, type DropTarget,
 } from "@/app/components/board";
@@ -16,19 +17,27 @@ import type { EquipmentCategory, MaterialLineRow, MovementRow } from "@/lib/move
 import { WEEK_DAYS, weekLabel } from "@/lib/movements/week";
 import { addDays } from "@/lib/scheduling/dates";
 import { markMovementOrdered, placeMovement, setMovementStatus, unplaceMovement, type MovementActionResult } from "./actions";
-import AddChipSheet from "./AddChipSheet";
-import ChipSheet from "./ChipSheet";
 import HowItWorks from "./HowItWorks";
-import SourcesView from "./SourcesView";
 import { fromSerial, type SerialWorld } from "./world";
-import "@/app/pc/schedule/schedule.css";
 import "./movements.css";
+
+/**
+ * The Week board is what paints first; Day, Gear, Sources and the two sheets load as their own
+ * chunks when a view or a tap asks for them (Lighthouse charges every script requested before the
+ * largest paint to that paint). Same components, same props — only the moment they download.
+ */
+const AddChipSheet = dynamic(() => import("./AddChipSheet"));
+const ChipSheet = dynamic(() => import("./ChipSheet"));
+const DayView = dynamic(() => import("./DayView"));
+const GearView = dynamic(() => import("./GearView"));
+const MapView = dynamic(() => import("./MapView"));
+const SourcesView = dynamic(() => import("./SourcesView"));
 
 /** 07:30 … 16:30 — ruling 16's ten rows. */
 export const HOUR_SLOTS: [number, number] = [7.5, 17.5];
 const HOURS = hourSlots(HOUR_SLOTS);
 
-type View = "week" | "sources";
+type View = "week" | "sources" | "day" | "map" | "gear";
 type DragPayload = { chip: MovementRow };
 type DropCheck = { blocked: boolean; held: false; reason: string | null; warn: string | null; laneName: string; where: string };
 type SheetState = { kind: "chip"; id: string } | { kind: "add" } | { kind: "nearby"; laneId: string; day: string } | null;
@@ -43,6 +52,11 @@ export type MovementsScreenProps = {
   weekStart: string;
   jobParam: string | null;
   movementParam: string | null;
+  /** Day view (Session 5): the day and the person, from the URL. */
+  dayParam: string | null;
+  whoParam: string | null;
+  /** Session 6: the Map tab exists only when the browser key is set (Settings → Movements says so). */
+  mapsOn: boolean;
 };
 
 /** The slot a time sits in on an hourly lane: the last row that starts at or before it; a blank time → the first. */
@@ -65,7 +79,7 @@ type Filter = (typeof FILTERS)[number][0];
  * server read once; every change goes through app/pc/movements/actions.ts and the page
  * re-reads.
  */
-export default function MovementsScreen({ world: serial, ctx, failures, materialLines, jobExtras, view, weekStart, jobParam, movementParam }: MovementsScreenProps) {
+export default function MovementsScreen({ world: serial, ctx, failures, materialLines, jobExtras, view, weekStart, jobParam, movementParam, dayParam, whoParam, mapsOn }: MovementsScreenProps) {
   const router = useRouter();
   const world = useMemo<World>(() => fromSerial(serial), [serial]);
   const laneList = useMemo(() => lanes(world), [world]);
@@ -89,15 +103,25 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
     toastTimer.current = setTimeout(() => setToast(""), ms);
   }, []);
   const [sheet, setSheet] = useState<SheetState>(movementParam ? { kind: "chip", id: movementParam } : null);
+  // A navigation within this screen (Gear → Find it in the tray, a work item link) changes the
+  // parameter without remounting: follow it (state derived from a prop, set during render).
+  const [seenMovementParam, setSeenMovementParam] = useState(movementParam);
+  if (movementParam !== seenMovementParam) {
+    setSeenMovementParam(movementParam);
+    if (movementParam) setSheet({ kind: "chip", id: movementParam });
+  }
   const [filter, setFilter] = useState<Filter>("all");
   const [trayOpen, setTrayOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const go = (next: Partial<{ view: View; week: string; job: string | null }>) => {
+  const go = (next: Partial<{ view: View; week: string; job: string | null; day: string; who: string }>) => {
     const v = next.view ?? view;
     const w = next.week ?? weekStart;
     const j = next.job === undefined ? jobParam : next.job;
-    router.push(`/pc/movements?view=${v}&week=${w}${j ? `&job=${j}` : ""}`);
+    const d = next.day ?? dayParam;
+    const who = next.who ?? whoParam;
+    const dated = v === "day" || v === "map";
+    router.push(`/pc/movements?view=${v}&week=${w}${j ? `&job=${j}` : ""}${dated && d ? `&day=${d}` : ""}${dated && who ? `&who=${who}` : ""}`);
   };
 
   /** Run an action, say the result, re-read. */
@@ -374,14 +398,17 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
         <div className="ctl">
           <div className="seg views" role="tablist">
             <button type="button" role="tab" aria-selected={view === "week"} className={view === "week" ? "on" : ""} onClick={() => go({ view: "week" })}><span>Week</span><small>plan</small></button>
+            <button type="button" role="tab" aria-selected={view === "day"} className={view === "day" ? "on" : ""} onClick={() => go({ view: "day", day: dayParam ?? weekStart })}><span>Day</span><small>run plans</small></button>
+            {mapsOn && <button type="button" role="tab" aria-selected={view === "map"} className={view === "map" ? "on" : ""} onClick={() => go({ view: "map", day: dayParam ?? weekStart })} data-testid="tab-map"><span>Map</span><small>jobs &amp; routes</small></button>}
             <button type="button" role="tab" aria-selected={view === "sources"} className={view === "sources" ? "on" : ""} onClick={() => go({ view: "sources" })}><span>Sources</span><small>where chips come from</small></button>
+            <button type="button" role="tab" aria-selected={view === "gear"} className={view === "gear" ? "on" : ""} onClick={() => go({ view: "gear" })}><span>Gear</span><small>the register</small></button>
           </div>
           <div className="weeknav">
             <button type="button" aria-label="Previous week" onClick={() => go({ week: addDays(weekStart, -7) })}>‹</button>
             <b>Week of {shortDay(weekStart)}</b>
             <button type="button" aria-label="Next week" onClick={() => go({ week: addDays(weekStart, 7) })}>›</button>
           </div>
-          <span className="pill p-amber" data-testid="orders-pill" title="Every placed delivery or pickup whose order is not yet placed (the Day view's Orders card comes next)">Orders to place · {tally.ordersToPlace}</span>
+          <button type="button" className="pill p-amber" data-testid="orders-pill" title="Every placed delivery or pickup whose order is not yet placed — opens the Day view's Orders card" onClick={() => go({ view: "day", day: dayParam ?? weekStart })}>Orders to place · {tally.ordersToPlace}</button>
         </div>
       </div>
 
@@ -447,6 +474,42 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
             <span><i style={{ background: "var(--cyan)" }} />ordered / booked</span>
           </div>
         </>
+      ) : view === "gear" ? (
+        <GearView world={world} lanes={laneList} onFindInTray={(m) => { router.push(`/pc/movements?view=week&week=${weekStart}${m.work_order_id ? `&job=${m.work_order_id}` : ""}&movement=${m.id}`); }} />
+      ) : view === "map" ? (
+        <MapView
+          world={world}
+          ctx={ctx}
+          lanes={laneList}
+          jobExtras={jobExtras}
+          days={days}
+          day={dayParam && days.includes(dayParam) ? dayParam : days[0]}
+          who={whoParam}
+          onPick={(n) => go({ view: "map", ...n })}
+          onRunPlan={(d, who) => go({ view: "day", day: d, who })}
+          act={act}
+          busy={busy}
+          onOpen={(m) => setSheet({ kind: "chip", id: m.id })}
+          onRefresh={() => router.refresh()}
+          categoryOf={categoryOf}
+        />
+      ) : view === "day" ? (
+        <DayView
+          world={world}
+          ctx={ctx}
+          lanes={laneList}
+          days={days}
+          day={dayParam && days.includes(dayParam) ? dayParam : days[0]}
+          who={whoParam}
+          onPick={(n) => go({ view: "day", ...n })}
+          act={act}
+          busy={busy}
+          onOrdered={ordered}
+          onDone={done}
+          onOpen={(m) => setSheet({ kind: "chip", id: m.id })}
+          categoryOf={categoryOf}
+          painterName={painterName}
+        />
       ) : (
         <SourcesView
           world={world}

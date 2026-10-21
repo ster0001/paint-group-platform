@@ -155,6 +155,12 @@ export type MessagingSettings = {
   painterMessageEmailIntro: string;
   /** Painter: a failed quality check, areas to put right. */
   qaFailSms: string;
+  /** Movements (Session 5, draft-first): the order step tells the painter; the run plan; the arrived check; the per-delivery client notice. */
+  movementPickupReadySms: string;
+  movementDeliveryBookedSms: string;
+  movementDeliveryClientNoticeSms: string;
+  movementRunPlanSms: string;
+  movementArrivedCheckSms: string;
   /** P6 — Customer: the estimator visit, confirmed with a calendar invite; and the text the evening before. */
   visitConfirmSubject: string;
   visitConfirmBody: string;
@@ -437,6 +443,16 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Open the job in your portal to see it.",
   qaFailSms:
     "{{company_name}}: the quality check on {{wo_ref}} found areas that need rectifying. The details and photos are on the job in your portal: {{link}}",
+  movementPickupReadySms:
+    "{{company_name}}: {{what}} for {{wo_ref}} is ready at {{shop}}, {{shop_address}}, from {{from_time}} {{day}}. Order {{order_ref}} under Paint Group. Tap Picked up on the job once you have it: {{link}}",
+  movementDeliveryBookedSms:
+    "{{company_name}}: {{what}} for {{wo_ref}} is being delivered to site {{day}} {{when}} (order {{order_ref}}). It's on your job sheet: {{link}}",
+  movementDeliveryClientNoticeSms:
+    "{{company_name}}: {{what}} for your job at {{address}} is being delivered {{day}} {{when}}. Nothing for you to do — the painter takes it in.",
+  movementRunPlanSms:
+    "{{company_name}}: your run for {{day}} — {{stops}} stops, about {{km}} km. The list, with Navigate and Call on each stop: {{link}}",
+  movementArrivedCheckSms:
+    "{{company_name}}: did {{what}} for {{wo_ref}} arrive on site today? If not, reply NO and the office will chase the shop. {{link}}",
   visitConfirmSubject: "Your visit is booked — {{visit_when}}",
   visitConfirmBody:
     "Hello {{first_name}},\n\n" +
@@ -614,6 +630,14 @@ export type TemplateVars = {
   /** Call back booked: the visit day and what is wrong. */
   day?: string;
   what?: string;
+  /** Movements (Session 5): the shop and its address, the from-time, "in the morning" / "at 10:30 am", the order reference, the run's stops and km. */
+  shop?: string;
+  shop_address?: string;
+  from_time?: string;
+  when?: string;
+  order_ref?: string;
+  stops?: string;
+  km?: string;
   /** S7: "approved" | "declined" | "rejected", and "leave" | "RDO". */
   decision?: string;
   kind_word?: string;

@@ -1,10 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingRpc } from "@/lib/supabase/missingRpc";
 import { reportError } from "@/lib/monitoring/report";
+import { createServiceClient } from "@/lib/supabase/service";
+import { notifyMovementOrdered, notifyRunPlan } from "@/lib/movements/notify";
+import { geocodeAddress } from "@/lib/places/geocodeAddress";
 import {
   BRANCH_KINDS, EQUIPMENT_CATEGORIES, EQUIPMENT_STATUSES, LOGISTICS_DECISIONS, LOGISTICS_LINES,
   MATERIAL_LINE_SOURCES, MOVEMENT_ASSIGNEES, MOVEMENT_KINDS, MOVEMENT_STATUSES, PLACE_KINDS, RUBBISH_HOW,
@@ -59,6 +63,7 @@ const FRIENDLY: Record<string, string> = {
   bad_postcode: "A postcode is four digits.",
   bad_time: "Opening time looks wrong — use HH:MM.",
   bad_cost: "A cost cannot be negative.",
+  bad_point: "That is not a place on the map.",
 };
 
 function friendly(code: string): string {
@@ -172,7 +177,14 @@ export async function unplaceMovement(raw: unknown): Promise<MovementActionResul
 export async function markMovementOrdered(raw: unknown): Promise<MovementActionResult> {
   const p = idInput.safeParse(raw);
   if (!p.success) return invalid(p);
-  return call("movement_mark_ordered", { p_id: p.data.id }, "movements.markOrdered", jobPaths(p.data.workOrderId));
+  const r = await call("movement_mark_ordered", { p_id: p.data.id }, "movements.markOrdered", jobPaths(p.data.workOrderId));
+  // Session 5: the order step is what tells the painter (brief §3.5). Best-effort, after the
+  // response — a lost text never unwinds the order; the board shows "painter told" from the stamp.
+  if (r.ok) {
+    const service = createServiceClient();
+    if (service) after(() => notifyMovementOrdered(service, p.data.id));
+  }
+  return r;
 }
 
 const statusInput = idInput.extend({ status: z.enum(MOVEMENT_STATUSES), note: z.string().max(500).optional() });
@@ -267,13 +279,48 @@ export async function setPaintLine(raw: unknown): Promise<MovementActionResult> 
   }, "movements.setPaintLine", jobPaths(d.workOrderId));
 }
 
-const runPlanInput = z.object({ personKind: z.enum(["profiles", "contractors"]), personId: uuid, day: isoDate });
+const runPlanInput = z.object({
+  personKind: z.enum(["profiles", "contractors"]), personId: uuid, day: isoDate,
+  /** Display words for the text, from the evaluator's runPlan() on the screen that pressed Send. */
+  stops: z.number().int().min(0).max(200), km: z.number().min(0).max(5000),
+});
 
-/** Send to phone — a logged stub until Session 5 wires the text. */
+/** Send to <name>'s phone (Day view): the RPC stamps the stops and logs it; the text follows (Session 5). */
 export async function sendRunPlan(raw: unknown): Promise<MovementActionResult> {
   const p = runPlanInput.safeParse(raw);
   if (!p.success) return invalid(p);
-  return call("movement_send_run_plan", { p_person_kind: p.data.personKind, p_person_id: p.data.personId, p_day: p.data.day }, "movements.sendRunPlan");
+  const r = await call("movement_send_run_plan", { p_person_kind: p.data.personKind, p_person_id: p.data.personId, p_day: p.data.day }, "movements.sendRunPlan");
+  if (r.ok) {
+    const service = createServiceClient();
+    if (service) after(() => notifyRunPlan(service, { kind: p.data.personKind, id: p.data.personId }, p.data.day, { stops: p.data.stops, km: p.data.km }));
+  }
+  return r;
+}
+
+const reorderInput = z.object({
+  assigneeKind: z.enum(MOVEMENT_ASSIGNEES), assigneeId: uuid.nullable().optional(), day: isoDate,
+  /** The evaluator's reorder() patches: the new order, with the SAME set of times handed out in that order (ruling 22). */
+  patches: z.array(z.object({ id: uuid, sequence: z.number().int().min(1), time: clock })).min(1).max(200),
+  workOrderIds: z.array(uuid).max(200).optional(),
+});
+
+/**
+ * Reorder a person's day (Day view ▲▼, the map's order card): one round trip that sets the
+ * sequence and re-slots the times, so the week board and the run plan agree.
+ */
+export async function reorderDay(raw: unknown): Promise<MovementActionResult> {
+  const p = reorderInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  const ordered = [...p.data.patches].sort((x, y) => x.sequence - y.sequence);
+  const seq = await call("movement_set_sequence", {
+    p_assignee_kind: p.data.assigneeKind, p_assignee_id: p.data.assigneeId ?? null, p_day: p.data.day, p_ids: ordered.map((x) => x.id),
+  }, "movements.reorder");
+  if (!seq.ok) return seq;
+  for (const x of ordered) {
+    const t = await call("movement_set_time", { p_id: x.id, p_time: x.time }, "movements.reorder.time", (p.data.workOrderIds ?? []).flatMap(jobPaths));
+    if (!t.ok) return t;
+  }
+  return { ok: true, value: String(ordered.length) };
 }
 
 /** The painter's tick on a movement on their lane (portal; the RPC checks it is theirs). */
@@ -281,6 +328,43 @@ export async function painterMovementDone(raw: unknown): Promise<MovementActionR
   const p = idInput.safeParse(raw);
   if (!p.success) return invalid(p);
   return call("movement_painter_done", { p_id: p.data.id }, "movements.painterDone", ["/portal", ...jobPaths(p.data.workOrderId).map((x) => x.replace("/pc/wo/", "/portal/jobs/"))]);
+}
+
+
+// ---- the map: real points on jobs (flag 3) -----------------------------------------------------
+
+const geocodeInput = z.object({ workOrderIds: z.array(uuid).min(1).max(8) });
+
+/**
+ * Fill `work_orders.lat/lng` lazily: the Map view names the jobs of the week that have no
+ * real point and were not tried this week; this reads their addresses, asks the Places key
+ * (server-side), and writes through `wo_set_point` — a miss still stamps the attempt. Returns
+ * how many points were set; the screen re-reads when it is more than none.
+ */
+export async function geocodeJobs(raw: unknown): Promise<MovementActionResult> {
+  const p = geocodeInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) return { ok: false, message: "Address lookup is not configured (GOOGLE_MAPS_API_KEY)." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("work_orders").select("id, wo_snapshot").in("id", p.data.workOrderIds);
+  if (error) {
+    reportError(new Error(error.message), { where: "movements.geocode.read" });
+    return { ok: false, message: "Could not read the jobs to place them on the map." };
+  }
+  let set = 0;
+  for (const row of (data ?? []) as { id: string; wo_snapshot: { jobAddress?: string } | null }[]) {
+    const point = await geocodeAddress(row.wo_snapshot?.jobAddress ?? "", key);
+    const { data: r, error: e } = await supabase.rpc("wo_set_point", { p_work_order_id: row.id, p_lat: point?.lat ?? null, p_lng: point?.lng ?? null });
+    if (e) {
+      if (isMissingRpc(e.message, "wo_set_point")) return { ok: false, message: "This needs database migration 20270283 run first — the map uses suburb centres until then." };
+      reportError(new Error(e.message), { where: "movements.geocode.write", extra: { workOrderId: row.id } });
+      continue;
+    }
+    if (String(r) === "ok:set") set += 1;
+  }
+  if (set > 0) revalidatePath("/pc/movements");
+  return { ok: true, value: String(set) };
 }
 
 // ---- material lines: one list, three doors --------------------------------------------------
@@ -346,7 +430,7 @@ export async function createEquipmentItem(raw: unknown): Promise<MovementActionR
   if (!p.success) return invalid(p);
   return call("equipment_item_create", {
     p_name: p.data.name, p_category: p.data.category, p_serial_or_model: p.data.serialOrModel ?? "", p_notes: p.data.notes ?? "", p_tag: p.data.tag ?? null,
-  }, "movements.itemCreate", ["/settings/equipment"]);
+  }, "movements.itemCreate", ["/settings"]);
 }
 
 const itemUpdateInput = z.object({
@@ -363,7 +447,7 @@ export async function updateEquipmentItem(raw: unknown): Promise<MovementActionR
   if (d.category !== undefined) patch.category = d.category;
   if (d.serialOrModel !== undefined) patch.serial_or_model = d.serialOrModel;
   if (d.notes !== undefined) patch.notes = d.notes;
-  return call("equipment_item_update", { p_id: d.id, p: patch }, "movements.itemUpdate", ["/settings/equipment"]);
+  return call("equipment_item_update", { p_id: d.id, p: patch }, "movements.itemUpdate", ["/settings"]);
 }
 
 const itemStatusInput = z.object({ id: uuid, status: z.enum(EQUIPMENT_STATUSES) });
@@ -371,7 +455,7 @@ const itemStatusInput = z.object({ id: uuid, status: z.enum(EQUIPMENT_STATUSES) 
 export async function setEquipmentItemStatus(raw: unknown): Promise<MovementActionResult> {
   const p = itemStatusInput.safeParse(raw);
   if (!p.success) return invalid(p);
-  return call("equipment_item_set_status", { p_id: p.data.id, p_status: p.data.status }, "movements.itemStatus", ["/settings/equipment"]);
+  return call("equipment_item_set_status", { p_id: p.data.id, p_status: p.data.status }, "movements.itemStatus", ["/settings"]);
 }
 
 // ---- suppliers -------------------------------------------------------------------------------
@@ -398,7 +482,7 @@ export async function upsertSupplierBranch(raw: unknown): Promise<MovementAction
     ["active", "active"], ["sourceUrl", "source_url"], ["notes", "notes"],
   ];
   for (const [from, to] of map) if (d[from] !== undefined) payload[to] = d[from];
-  return call("supplier_branch_upsert", { p: payload }, "movements.branchUpsert", ["/settings/suppliers"]);
+  return call("supplier_branch_upsert", { p: payload }, "movements.branchUpsert", ["/settings"]);
 }
 
 const accountInput = z.object({ branchId: uuid, accountRef: z.string().max(80), accountName: z.string().max(120).optional() });
@@ -409,5 +493,5 @@ export async function setSupplierBranchAccount(raw: unknown): Promise<MovementAc
   if (!p.success) return invalid(p);
   return call("supplier_branch_set_account", {
     p_branch_id: p.data.branchId, p_account_ref: p.data.accountRef, p_account_name: p.data.accountName ?? "",
-  }, "movements.branchAccount", ["/settings/suppliers"]);
+  }, "movements.branchAccount", ["/settings"]);
 }

@@ -58,6 +58,8 @@ import { loadWorkers } from "@/lib/contractor/workers";
 import WorkerJob from "./WorkerJob";
 import { getWorkerJob } from "@/lib/contractor/workerJobs";
 import MaterialsRequest, { type MaterialsRequestRow } from "./MaterialsRequest";
+import { loadPainterMovements } from "@/lib/movements/painterLoad";
+import { jobLogistics } from "@/lib/movements/painterView";
 import NoWorkToday, { type NoWorkFlagRow } from "./NoWorkToday";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -498,6 +500,9 @@ export default async function PortalJobPage({
   ]);
   if (matReqRes.error) reportError(matReqRes.error, { where: "portal.job.materialRequests", bestEffort: true, extra: { workOrderId: id } });
   if (dayFlagRes.error) reportError(dayFlagRes.error, { where: "portal.job.dayFlags", bestEffort: true, extra: { workOrderId: id } });
+  // Movements (Session 5): the painter's own read of how things reach the site (RPC, column-limited).
+  const logisticsRead = await loadPainterMovements(supabase, { workOrderId: id });
+  const logistics = jobLogistics(logisticsRead.rows, logisticsRead.branches, id);
   const materialRequests: MaterialsRequestRow[] = ((matReqRes.error ? [] : matReqRes.data ?? []) as { id: string; item: string; quantity: string; status: MaterialsRequestRow["status"]; reply: string; created_at: string }[])
     .map((r) => ({ id: r.id, item: r.item, quantity: r.quantity, status: r.status, reply: r.reply, createdAt: r.created_at }));
   const noWorkFlags: NoWorkFlagRow[] = ((dayFlagRes.error ? [] : dayFlagRes.data ?? []) as NoWorkFlagRow[]);
@@ -856,7 +861,8 @@ export default async function PortalJobPage({
               credit: v.credit, status: "contractor_accepted", approvedAt: null,
             }))
           : scopeChangesFrom(vRows)}
-        payInclChanges={employee ? null : claimJob.adjustedCents} />
+        payInclChanges={employee ? null : claimJob.adjustedCents}
+        logistics={logistics} logisticsError={logisticsRead.error} />
     </div>
   );
 }
