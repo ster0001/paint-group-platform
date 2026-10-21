@@ -127,7 +127,6 @@ async function walkTypical(page: Page, windowType: "casement" | "colonial", wall
   await expect(page.getByTestId("ql-ext-condition")).toHaveCount(0);
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
   await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range|Continue to the last question/);
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range

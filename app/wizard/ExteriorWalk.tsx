@@ -4,16 +4,16 @@ import { useState } from "react";
 import type { ExteriorV2 } from "@/lib/wizard/state";
 import { EXTERIOR_SIDE_KEYS, scaledLengths, typicalFor, type ExteriorSideKey, type ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import {
-  allSidesChecked, canCheckSide, checkSide, nextUncheckedSide, paintedSides, setSideCond, setSideCounts, setSidePaint, setSideSize,
+  allSidesChecked, canCheckSide, checkSide, nextUncheckedSide, paintedSides, setSideCond, setSidePaint, setSideSize,
 } from "@/lib/wizard/exterior-model";
 import { EXT_CONDITIONS } from "@/lib/wizard/exterior-quick-look";
-import { SIDE_HINT, SIDE_LABEL, SidePartsAndWalls } from "./ExteriorSides";
+import { SIDE_HINT, SIDE_LABEL, SidePartsAndWalls, Stepper } from "./ExteriorSides";
 
 /**
  * TIGHTEN — the walk around the house (Exterior wizard v2 brief §7.6, S5).
  *
  * After the guide range: the same four tiles and the same per-side lists as
- * Each side (§7.4), now for the numbers — the window and door counts, whether
+ * Each side (§7.4) — with the window and door counts, now on both — plus whether
  * the typical size looks right (or adjust it, or not sure — ⚑ 13), and how
  * the paint is holding up on this side (⚑ 1). "Check this side" turns the
  * tile and moves to the next unchecked side; it waits for the size answer
@@ -27,20 +27,6 @@ export function walkTileState(v2: ExteriorV2, k: ExteriorSideKey, at: ExteriorSi
   if (s && !s.paint) return "skip";
   if (k === at) return "cur";
   return s?.checked ? "ok" : "todo";
-}
-
-function Stepper({ value, onChange, min = 0, max = 60, step = 1, testId, label, unit = "" }: {
-  value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; testId: string; label: string; unit?: string;
-}) {
-  const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, ""));
-  const round = (n: number) => Math.round(n / step) * step;
-  return (
-    <div className="wz-stepper" data-testid={testId}>
-      <button type="button" aria-label={`fewer ${label}`} data-testid={`${testId}-minus`} disabled={value - step < min} onClick={() => onChange(round(Math.max(min, value - step)))}>−</button>
-      <span data-testid={`${testId}-n`}>{fmt(value)}{unit}</span>
-      <button type="button" aria-label={`more ${label}`} data-testid={`${testId}-plus`} disabled={value + step > max} onClick={() => onChange(round(Math.min(max, value + step)))}>+</button>
-    </div>
-  );
 }
 
 export default function ExteriorWalkStep({ v2, rows = [], at, onAt, onChange, onDone, onBack, busy = false }: {
@@ -109,16 +95,6 @@ export default function ExteriorWalkStep({ v2, rows = [], at, onAt, onChange, on
           ) : (
             <>
               <SidePartsAndWalls v2={v2} at={at} rows={rows} onChange={onChange} addOpen={addOpen} onAddOpen={setAddOpen} />
-
-              <p className="wz-qhead">Count them</p>
-              <div className="wz-countrow" data-testid="ext-win-count">
-                <div className="wz-qtext">Windows on this side<small>Frames and sashes — a rough count is fine</small></div>
-                <Stepper value={sd.windows} onChange={(n) => onChange(setSideCounts(v2, at, { windows: n }))} max={60} testId="ext-win" label="windows" />
-              </div>
-              <div className="wz-countrow" data-testid="ext-door-count">
-                <div className="wz-qtext">Doors on this side<small>{at === "front" ? "Including the front door" : "Any door, painted"}</small></div>
-                <Stepper value={sd.doors} onChange={(n) => onChange(setSideCounts(v2, at, { doors: n }))} max={20} testId="ext-door" label="doors" />
-              </div>
 
               <p className="wz-qhead">The size
                 <span className="wz-qtag" data-testid="ext-size-tag">{sd.adjusted ? "Your numbers" : `Typical for a ${t.name.toLowerCase()}`}</span>

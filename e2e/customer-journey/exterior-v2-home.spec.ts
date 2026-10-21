@@ -168,7 +168,6 @@ test("the rest of the outside path still reaches a range, and the sides editor's
   await page.getByTestId("ql-ext-colour-new").click();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
