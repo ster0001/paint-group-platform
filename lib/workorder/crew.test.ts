@@ -64,6 +64,18 @@ describe("what the crew may see", () => {
     expect(crew.exclusions).toEqual(full.exclusions);
   });
 
+  it("carries the paint — sheen on a surface, sheen and row identity on a material (21 Oct 2026)", () => {
+    const painted = crewDoc({
+      ...full,
+      materials: [{ ...full.materials[0], finish: "Low Sheen", colourKey: "Weathershield||Vivid White" }],
+      areas: [{ ...full.areas[0], surfaces: [{ ...full.areas[0].surfaces[0], finish: "Low Sheen", colourKey: "Weathershield||Vivid White", colourName: "Vivid White", colourHex: "#fff" }] }],
+    });
+    expect(painted.areas[0].surfaces[0].finish).toBe("Low Sheen");
+    expect(painted.areas[0].surfaces[0].colourName).toBe("Vivid White");
+    expect(painted.materials[0].finish).toBe("Low Sheen");
+    expect(painted.materials[0].colourKey).toBe("Weathershield||Vivid White");
+  });
+
   it("zeroes the contractor's payment", () => {
     expect(crew.contractorPaymentCents).toBe(0);
   });
