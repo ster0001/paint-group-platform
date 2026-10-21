@@ -110,10 +110,55 @@ jobs:
           cp /tmp/engine.bak lib/pricing/engine.ts
           echo "Pricing mutation was caught — suite is live."
 
+  # WAS THIS PUSH TO MAIN ALREADY PROVEN BY ITS PR RUN? (21 Oct 2026)
+  #
+  # The old rule — main skips e2e when the commit message starts "Merge pull
+  # request #" — assumed the PR's run had tested the tree. It had not: every
+  # PR here is merged within minutes of opening, the `closed` event CANCELS the
+  # PR's run (see `on:`), and main then skipped on the strength of a run that
+  # never finished. No full e2e run completed in CI between 13 and 20 Oct, and
+  # a suite-wide red (the test project left on gateOrder range_first) went
+  # unseen for a week.
+  #
+  # This job earns the skip instead, from the API, with the built-in token:
+  # two parents · the PR head contains main's old tip (so the merge tree IS
+  # the PR head's tree the PR run built) · a green pull_request run into main
+  # on that head · whose "e2e (test project)" JOB concluded success (the
+  # `closed` run reports success with every job skipped). Anything short of
+  # all four is "not proven" and e2e runs. scripts/ci/pr-e2e-proof.mjs is the
+  # logic, lib/ci/pr-e2e-proof.test.ts pins it. It holds no lock and takes
+  # seconds, so a merge that WAS proven costs the test project nothing.
+  main-proof:
+    name: "main: proven by its PR run?"
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      proven: ${{ steps.proof.outputs.proven }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: scripts/ci
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      # Only a push to main can be proven. A pull_request or dispatch run
+      # never asks and never skips; the output stays empty, which reads as
+      # "not proven" below.
+      - name: Ask GitHub whether the PR run already ran e2e on this tree
+        id: proof
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          E2E_JOB_NAME: e2e (test project)
+        run: node scripts/ci/pr-e2e-proof.mjs
+
   e2e:
     name: e2e (test project)
     runs-on: ubuntu-latest
-    needs: gate
+    needs: [gate, main-proof]
     # WHY e2e DOES NOT RUN ON EVERY PUSH (11 Sep 2026).
     #
     # `pull_request` already re-runs on every push to a branch that has a PR
@@ -129,20 +174,27 @@ jobs:
     # push: it needs no secrets and no database, so it costs the test project
     # nothing.
     #
-    # AND NOT TWICE FOR ONE PULL REQUEST (20 Sep 2026). A PR's own e2e run
-    # already proved the exact code that lands on main when it is merged with
-    # a merge commit — so the push to main that follows was a second 40-minute
-    # run of the same suite on the same tree, holding the one lock while the
-    # next PR's run queued behind it. Tom counted eight runs for one merge on
-    # 20 Sep. A merge commit from the GitHub button always starts
-    # "Merge pull request #", so main skips e2e for exactly those pushes and
-    # still runs it for a direct push or merge to main, which has no other
-    # gate. A PR merged by SQUASH has no such message and DOES run again —
-    # that is deliberate: a squash tree is not the tree the PR tested.
+    # AND NOT TWICE FOR ONE PULL REQUEST (20 Sep 2026) — BUT ONLY WHEN THE
+    # FIRST TIME ACTUALLY HAPPENED (21 Oct 2026). Tom counted eight runs for
+    # one merge on 20 Sep, so main began skipping e2e for every commit whose
+    # message starts "Merge pull request #". That message proves a merge
+    # button was pressed, not that a suite ran: the merge cancels the PR's run
+    # (`closed`, above), and from 13 Oct no e2e run completed in CI at all.
+    # The skip is now decided by `main-proof` (the job above): a push to main
+    # runs e2e unless the PR run is SHOWN to have run the e2e job green on this
+    # exact tree. A pull_request run and a dispatch run are unchanged. A
+    # squash merge, a direct push, a PR that was behind main, a cancelled PR
+    # run, an API hiccup — all run the suite, which is the safe direction.
+    #
+    # The main run joins the same constant `e2e-test-project` group below, so
+    # it queues behind an in-flight PR run and never races it; and
+    # cancel-in-progress is false on main at the workflow level, so a second
+    # merge queues too rather than killing the first. The first main run after
+    # this merges is the proof that it works.
     if: >-
       github.event.action != 'closed'
-      && (github.event_name != 'push'
-      || (github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'Merge pull request #')))
+      && (github.event_name != 'push' || github.ref == 'refs/heads/main')
+      && needs.main-proof.outputs.proven != 'true'
     # ONE e2e RUN AT A TIME, ACROSS THE WHOLE REPOSITORY (11 Sep 2026).
     #
     # The workflow-level group above is keyed on `github.ref`, so it only ever
@@ -293,6 +345,12 @@ jobs:
           NEXT_PUBLIC_EXTERIOR_V2: "1"
         # CI=1 makes e2e/global-setup.ts turn a missing credential into a failed
         # run instead of a silent skip, and it still refuses production.
+        # GITHUB_RUN_ID (always set here) goes into the run lock's
+        # application_name: a cancelled runner is killed with its Postgres
+        # session still holding the lock for ~2 h of TCP keepalive, and the
+        # NEXT run clears that holder only once GitHub reports this run as
+        # completed (e2e/run-lock.ts isStaleCiHolder). An `if: cancelled()`
+        # step cannot do it — nothing runs after the kill.
         run: |
           npx next start -p 3101 &
           for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3101/login && break; sleep 1; done

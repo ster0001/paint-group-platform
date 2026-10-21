@@ -331,7 +331,7 @@ if (cmd === "sweep") {
   // swallows a startup-packet application_name (every holder read back as
   // "Supavisor"), and this sweep is exactly the holder nobody could identify.
   await lockClient.query("select set_config('application_name', $1, false)", [
-    lockHolderName("sweep", { ci: Boolean(process.env.CI || process.env.GITHUB_ACTIONS) }),
+    lockHolderName("sweep", { ci: Boolean(process.env.CI || process.env.GITHUB_ACTIONS), runId: process.env.GITHUB_RUN_ID ?? null }),
   ]);
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

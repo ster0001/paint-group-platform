@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOCK_NAME_PREFIX, describeLockHolder, lockHolderName, sessionPooledUrl } from "./session-pooled-url";
+import { LOCK_NAME_PREFIX, describeLockHolder, lockHolderName, parseLockHolder, sessionPooledUrl } from "./session-pooled-url";
 // The plain-JS twin the SWEEP uses: `node scripts/c1/hygiene.mjs` cannot import
 // a .ts module, and both must contend on the same connection or the lock
 // excludes nobody. Pinned equal below.
@@ -8,9 +8,10 @@ import {
   LOCK_HOLDER_QUERY as MJS_HOLDER_QUERY,
   describeLockHolder as mjsDescribeLockHolder,
   lockHolderName as mjsLockHolderName,
+  parseLockHolder as mjsParseLockHolder,
   sessionPooledUrl as mjsSessionPooledUrl,
 } from "../../scripts/c1/session-url.mjs";
-import { E2E_RUN_LOCK_KEY } from "../../e2e/run-lock";
+import { E2E_RUN_LOCK_KEY, ciRunIsOver, isStaleCiHolder } from "../../e2e/run-lock";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { LOCK_HOLDER_QUERY } from "./session-pooled-url";
@@ -112,11 +113,66 @@ describe("who holds the e2e run lock", () => {
   it("agrees with the plain-JS twin the sweep uses", () => {
     expect(mjsLockHolderName("sweep", { ci: true, now: AT })).toBe(lockHolderName("sweep", { ci: true, now: AT }));
     expect(mjsLockHolderName("e2e", { now: AT })).toBe(lockHolderName("e2e", { now: AT }));
+    expect(mjsLockHolderName("e2e", { ci: true, now: AT, runId: "19283746" })).toBe(lockHolderName("e2e", { ci: true, now: AT, runId: "19283746" }));
     const NOW = new Date("2026-09-19T21:40:00.000Z");
-    for (const n of [`${LOCK_NAME_PREFIX}:sweep:ci:2026-09-19T21:14Z`, "Supavisor", null]) {
+    for (const n of [`${LOCK_NAME_PREFIX}:sweep:ci:2026-09-19T21:14Z`, `${LOCK_NAME_PREFIX}:e2e:ci:run-19283746:2026-09-19T21:14Z`, "Supavisor", null]) {
       expect(mjsDescribeLockHolder(n, "00:01:00", NOW)).toBe(describeLockHolder(n, "00:01:00", NOW));
+      expect(mjsParseLockHolder(n)).toEqual(parseLockHolder(n));
     }
     expect(MJS_HOLDER_QUERY).toBe(LOCK_HOLDER_QUERY);
+  });
+
+  /**
+   * A cancelled GitHub runner is killed, not stopped, and its session keeps
+   * the lock for ~2 h of TCP keepalive (21 Oct 2026). The run id in the name
+   * is what lets the next run ask GitHub whether that holder is still a run.
+   */
+  describe("a CI holder carries its GitHub run id", () => {
+    it("stamps the run id in CI, never locally, and still fits application_name", () => {
+      const name = lockHolderName("e2e", { ci: true, now: AT, runId: "19283746" });
+      expect(name).toBe(`${LOCK_NAME_PREFIX}:e2e:ci:run-19283746:2026-09-19T21:14Z`);
+      expect(Buffer.byteLength(name, "utf8")).toBeLessThan(63);
+      expect(lockHolderName("e2e", { ci: false, now: AT, runId: "19283746" })).toBe(`${LOCK_NAME_PREFIX}:e2e:local:2026-09-19T21:14Z`);
+      // Not a run id: left out rather than written as something it is not.
+      expect(lockHolderName("e2e", { ci: true, now: AT, runId: "abc" })).toBe(`${LOCK_NAME_PREFIX}:e2e:ci:2026-09-19T21:14Z`);
+    });
+
+    it("reads back with and without a run id, and refuses what it did not write", () => {
+      expect(parseLockHolder(`${LOCK_NAME_PREFIX}:e2e:ci:run-19283746:2026-09-19T21:14Z`))
+        .toEqual({ kind: "e2e", where: "ci", runId: "19283746", startedAt: "2026-09-19T21:14Z" });
+      expect(parseLockHolder(`${LOCK_NAME_PREFIX}:sweep:local:2026-09-19T21:14Z`))
+        .toEqual({ kind: "sweep", where: "local", runId: null, startedAt: "2026-09-19T21:14Z" });
+      for (const bad of ["Supavisor", "", null, undefined, `${LOCK_NAME_PREFIX}:sweep`, `${LOCK_NAME_PREFIX}:e2e:ci:run-1`]) {
+        expect(parseLockHolder(bad), String(bad)).toBeNull();
+      }
+    });
+
+    it("names the run in the refusal so a person can open it", () => {
+      const NOW = new Date("2026-09-19T21:40:00.000Z");
+      expect(describeLockHolder(`${LOCK_NAME_PREFIX}:e2e:ci:run-19283746:2026-09-19T21:14Z`, "00:01:00", NOW))
+        .toBe("an e2e run, started in CI at 2026-09-19T21:14Z, 26 min ago (GitHub run 19283746)");
+    });
+
+    /** The guard never guesses: only a completed run is a dead holder. */
+    it("treats a holder as dead only when GitHub says its run is completed", async () => {
+      const name = `${LOCK_NAME_PREFIX}:e2e:ci:run-19283746:2026-09-19T21:14Z`;
+      const answering = (status: number, body: unknown) =>
+        (async () => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+      expect(await isStaleCiHolder(name, answering(200, { status: "completed", conclusion: "cancelled" }))).toBe(true);
+      expect(await isStaleCiHolder(name, answering(200, { status: "in_progress", conclusion: null }))).toBe(false);
+      expect(await isStaleCiHolder(name, answering(200, { status: "queued" }))).toBe(false);
+      expect(await isStaleCiHolder(name, answering(404, { message: "Not Found" }))).toBe(false);
+      expect(await isStaleCiHolder(name, answering(403, { message: "rate limit" }))).toBe(false);
+      expect(await isStaleCiHolder(name, (async () => { throw new Error("offline"); }) as unknown as typeof fetch)).toBe(false);
+      // No run id, a local holder, an unknown name: never asked, never cleared.
+      const never = (async () => { throw new Error("must not be called"); }) as unknown as typeof fetch;
+      expect(await isStaleCiHolder(`${LOCK_NAME_PREFIX}:e2e:ci:2026-09-19T21:14Z`, never)).toBe(false);
+      expect(await isStaleCiHolder(`${LOCK_NAME_PREFIX}:e2e:local:2026-09-19T21:14Z`, never)).toBe(false);
+      expect(await isStaleCiHolder("Supavisor", never)).toBe(false);
+      expect(ciRunIsOver({ status: "completed" })).toBe(true);
+      expect(ciRunIsOver({ status: "completed " })).toBe(false);
+      expect(ciRunIsOver(null)).toBe(false);
+    });
   });
 
   /**
