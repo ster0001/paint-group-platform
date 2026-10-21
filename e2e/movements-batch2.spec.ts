@@ -177,9 +177,9 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
     await expect(card).toBeVisible({ timeout: 30_000 });
     const bubbles = card.getByTestId("prestart-material-line");
     await expect(bubbles).toHaveCount(2);
-    const tapesBubble = bubbles.filter({ hasText: TAPES });
-    await tapesBubble.getByTestId("bubble-words").click();
-    const edit = tapesBubble.getByTestId("bubble-edit");
+    await bubbles.filter({ hasText: TAPES }).getByTestId("bubble-words").click();
+    // Editing swaps the words for an input, so the bubble no longer carries the text — find the input on the card.
+    const edit = card.getByTestId("bubble-edit");
     await edit.fill(`masking ${TAPES}`);
     await edit.press("Enter");
     await expect(card.getByTestId("prestart-materials-msg")).toContainText(/Line updated/, { timeout: 15_000 });
