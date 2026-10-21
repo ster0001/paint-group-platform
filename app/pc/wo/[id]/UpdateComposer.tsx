@@ -52,7 +52,7 @@ export default function UpdateComposer({ workOrderId, draftText, photos }: {
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        rows={3}
+        rows={draftText ? 12 : 4}
         maxLength={4000}
         placeholder="What's happened on site — plain words, the customer reads this."
         data-testid="update-body"
