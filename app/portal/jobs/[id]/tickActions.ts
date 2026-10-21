@@ -133,8 +133,9 @@ export type WalkthroughModeResult = { ok: true; url: string } | { ok: false; mes
 
 /**
  * Mode A: open the customer's walkthrough view inside this contractor's visit.
- * The RPC checks assignment, stage and a booked final; the session dies in two
- * hours. What comes back is the SAME /s view the customer's own link serves.
+ * The RPC checks assignment and stage; the session dies in two hours. What
+ * comes back is the SAME /s view the customer's own link serves. From the
+ * Quality check stage (Tom, 21 Oct 2026) the RPC delivers the pack on the way.
  */
 export async function startWalkthroughMode(raw: unknown): Promise<WalkthroughModeResult> {
   const parsed = z.object({ workOrderId: z.string().uuid() }).safeParse(raw);
@@ -154,6 +155,9 @@ export async function startWalkthroughMode(raw: unknown): Promise<WalkthroughMod
   }
   if (s === "error:not_at_walkthrough") return { ok: false, message: "The job isn't at the walkthrough stage yet." };
   if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
+  // Tom, 21 Oct 2026: from Quality check the server delivers the pack first;
+  // the one thing that can still refuse is the gate (colour-match codes).
+  if (s.startsWith("error:gate:")) return { ok: false, message: `Not yet — ${s.slice("error:gate:".length)}.` };
   return { ok: false, message: "Couldn't start the walkthrough just now." };
 }
 

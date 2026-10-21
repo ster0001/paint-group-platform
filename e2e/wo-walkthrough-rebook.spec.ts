@@ -109,7 +109,7 @@ test.describe("a cancelled final walkthrough can be rebooked (12 Cavell Court)",
     expect(live.map((w) => w.scheduled_date)).toEqual([inDays(9)]);
   });
 
-  test("a job that never had a final date still waits for the quality check", async () => {
+  test("a job that never had a final date books one with the check open too (Tom, 21 Oct 2026)", async () => {
     const contractorId = await contractorIdForEmail(db!, contractor!.email);
     const fresh = await createLoopFixture(db!, contractorId!, [{ heading: "Back", labels: ["Walls"] }]);
     try {
@@ -117,7 +117,7 @@ test.describe("a cancelled final walkthrough can be rebooked (12 Cavell Court)",
         .toMatch(/^ok/);
       expect(await rpcAs(staff!, "wo_book_walkthrough", {
         p_work_order_id: fresh.workOrderId, p_kind: "final", p_date: inDays(5), p_note: "", p_time: null,
-      })).toBe("error:qa_first");
+      })).toMatch(/^ok:/);
     } finally {
       await destroyLoopFixture(db!, fresh);
     }

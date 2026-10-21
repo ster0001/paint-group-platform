@@ -32,13 +32,19 @@ import { completeAfterRectification, contractorFinish, startWalkthroughMode } fr
  * server's own words. The cards below stay — this is a second door to the same
  * two actions, not a fork of them.
  */
-export default function WalkthroughBar({ workOrderId, phase, prepLeft, flaggedAreas = [] }: {
+export default function WalkthroughBar({ workOrderId, phase, prepLeft, flaggedAreas = [], qaOpen = false }: {
   workOrderId: string;
   phase: "finish" | "walkthrough" | "rectified";
   /** Required finishing-up items still open (server-computed at render). */
   prepLeft: number;
   /** Areas the customer flagged that are not yet marked put right. */
   flaggedAreas?: readonly string[];
+  /**
+   * Tom, 21 Oct 2026: phase "walkthrough" on a job still parked at Quality
+   * check — the check has not passed and no longer holds the walkthrough. The
+   * press is the same; the server delivers the pack on the way.
+   */
+  qaOpen?: boolean;
 }) {
   const router = useRouter();
   const barRef = useRef<HTMLDivElement>(null);
@@ -79,7 +85,7 @@ export default function WalkthroughBar({ workOrderId, phase, prepLeft, flaggedAr
       if (r.to === "walkthrough") {
         if (await openWalkthrough()) return;
       } else if (r.to === "qa") {
-        setMessage("Nice work. Paint Group will quality check the job now — once it passes, the office signs the job off.");
+        setMessage("Nice work. Paint Group still has a quality check to do on this job — it doesn't hold you up: this bar opens the walkthrough whenever the customer is with you.");
       } else {
         setMessage("Nice work — no walkthrough on this job, so it's complete. Paint Group will invoice the customer.");
       }
@@ -90,7 +96,9 @@ export default function WalkthroughBar({ workOrderId, phase, prepLeft, flaggedAr
   }
 
   const hint = phase === "walkthrough"
-    ? "With the customer beside you, hand them your phone to approve each area and sign."
+    ? (qaOpen
+      ? "Paint Group's quality check is still to come — it doesn't hold this up. With the customer beside you, hand them your phone to approve each area and sign."
+      : "With the customer beside you, hand them your phone to approve each area and sign.")
     : phase === "rectified"
       ? `The customer flagged ${flaggedAreas.join(", ")}. Once put right and ticked, this completes the job and sends them the report — no second walkthrough.`
       : prepLeft > 0
@@ -98,7 +106,7 @@ export default function WalkthroughBar({ workOrderId, phase, prepLeft, flaggedAr
       : "Every surface is done. This finishes the job and opens the walkthrough — or sends it for a quality check, if one is due (the office signs a checked job off).";
 
   return (
-    <div ref={barRef} data-testid="walkthrough-bar" data-phase={phase}
+    <div ref={barRef} data-testid="walkthrough-bar" data-phase={phase} data-qa-open={qaOpen ? "1" : undefined}
       style={{
         position: "sticky", top: 0, zIndex: 30, margin: "0 0 10px",
         background: "rgba(10, 11, 13, 0.96)", backdropFilter: "blur(12px)",
