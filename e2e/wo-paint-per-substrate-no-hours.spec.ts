@@ -13,13 +13,15 @@ import { credentials, missingCreds, test } from "./helpers";
  *     swatch — and each row under Materials & colours says which substrates it
  *     goes on, the same pairing the office reads on the PC Materials card.
  *  2. "remove the estimated hours from the work order, so they can just see and
- *     tick off the list of tasks": the Estimated hours fact, the per-surface
- *     hours, the condition's extra-prep hours and the hours on approved changes
- *     are gone from every painter-facing render. The office's own editor (the
- *     builder's work-order view) keeps them.
+ *     tick off the list of tasks" — and, later the same day, "the
+ *     subcontractors can still see the hours, it is just the painters they
+ *     share it with that can't": the Estimated hours fact, the per-surface
+ *     hours, the condition's extra-prep hours and the hours on a variation are
+ *     gone from the CREW's copy (/crew/[token], the worker login) and nowhere
+ *     else. The contractor's own link keeps every hour.
  *
- * Read as an ANONYMOUS painter on /w/[token] — the contractor share link — and
- * the whole response is scanned, RSC payload included, for the words.
+ * Read as an ANONYMOUS painter: the contractor share link /w/[token] and the
+ * crew link /crew/[token], the whole response scanned, RSC payload included.
  */
 const db: SupabaseClient | null = serviceClient();
 const staff = credentials("STAFF");
@@ -60,6 +62,7 @@ test.describe("Job sheet: paint on every substrate, no estimated hours (21 Oct 2
   let estimateId = "";
   let workOrderId = "";
   const shareToken = `wsp${run}${Date.now().toString(36)}abcdefgh`;
+  const crewToken = `wcp${run}${Date.now().toString(36)}abcdefgh`;
 
   test.beforeAll(async () => {
     const est = await db!.from("estimates").insert({
@@ -84,7 +87,7 @@ test.describe("Job sheet: paint on every substrate, no estimated hours (21 Oct 2
     estimateId = est.data.id as string;
 
     const wo = await db!.from("work_orders").insert({
-      estimate_id: estimateId, wo_ref: `WO-E2E${run}`, share_token: shareToken,
+      estimate_id: estimateId, wo_ref: `WO-E2E${run}`, share_token: shareToken, crew_token: crewToken,
     }).select("id").single();
     if (wo.error) throw new Error(`work order: ${wo.error.message}`);
     workOrderId = wo.data.id as string;
@@ -122,8 +125,16 @@ test.describe("Job sheet: paint on every substrate, no estimated hours (21 Oct 2
     await expect(page.getByTestId("mat-substrates-Dulux Aquanamel")).toContainText("Living room · Doors · 2 coats");
   });
 
-  test("the painter's sheet carries no estimated hours — not at the top, not per surface, not on the condition", async ({ page }) => {
-    const response = await page.goto(`/w/${shareToken}`);
+  test("the subcontractor's own link keeps every hour", async ({ page }) => {
+    await page.goto(`/w/${shareToken}`);
+    await expect(page.getByTestId("wo-estimated-hours")).toContainText("7.3 h");
+    await expect(page.locator(".surf-hours")).toHaveCount(3);
+    await expect(page.getByTestId("surf-prep-1:3")).toContainText("h prep");
+    await expect(page.getByTestId("wo-condition")).toContainText("+1.4 h");
+  });
+
+  test("the crew's copy carries no estimated hours — not at the top, not per surface, not on the condition — and still the paint", async ({ page }) => {
+    const response = await page.goto(`/crew/${crewToken}`);
     expect(response?.status()).toBe(200);
     await expect(page.locator("h1")).toContainText(`Paint lines ${run}`);
 
@@ -131,10 +142,12 @@ test.describe("Job sheet: paint on every substrate, no estimated hours (21 Oct 2
     await expect(page.locator(".surf-hours")).toHaveCount(0);
     await expect(page.getByTestId("surf-prep-1:3")).toHaveCount(0);
     await expect(page.getByTestId("wo-condition")).toHaveCount(0);
-    // The tick list is still the whole scope.
+    // The tick list is still the whole scope, and the paint is on it.
     await expect(page.getByTestId("surf-state-1:2")).toBeVisible();
     await expect(page.getByTestId("surf-state-1:3")).toBeVisible();
     await expect(page.getByTestId("surf-state-1:4")).toBeVisible();
+    await expect(page.getByTestId("surf-paint-1:2")).toContainText("Dulux Wash&Wear · Low Sheen · Natural White");
+    await expect(page.getByTestId("mat-substrates-Dulux Wash&Wear||Natural White")).toContainText("Living room · Walls · 2 coats");
 
     // The words themselves — rendered markup, not just test ids.
     const html = (await response?.text()) ?? "";

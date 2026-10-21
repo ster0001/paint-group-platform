@@ -135,16 +135,16 @@ test.describe("offer a job, contractor accepts", () => {
     // at all — this is the privacy gate, checked against the response body.
     expect(html).toMatch(/awaiting your answer|accept/i);
 
-    // The job's own page says the offered amount in those words. The job sheet
-    // carried the total estimated hours at the top from 1 Oct; since 21 Oct
-    // 2026 a painter's sheet carries no hours at all (Tom: "so they can just
-    // see and tick off the list of tasks").
+    // The job's own page says the offered amount in those words, and the job
+    // sheet carries the total estimated hours at the top (Tom, 1 Oct). The
+    // subcontractor keeps the hours; only the crew copy loses them (21 Oct).
     await contractorPage.goto(`/portal/jobs/${bookedWo.id}?from=requests`);
     const amount = contractorPage.getByTestId("offer-amount");
     await expect(amount).toContainText("Offered amount");
-    await expect(amount).toContainText(`${(docPay / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 })}`);
-    await expect(contractorPage.getByTestId("wo-estimated-hours")).toHaveCount(0);
-    await expect(contractorPage.locator(".surf-hours")).toHaveCount(0);
+    await expect(amount).toContainText(`$${(docPay / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 })}`);
+    const hours = contractorPage.getByTestId("wo-estimated-hours");
+    await expect(hours).toContainText("Estimated hours");
+    await expect(hours).toContainText(/\d+(\.\d)? h/);
     await contractorPage.goto("/portal/requests");
 
     const accept = contractorPage.getByRole("button", { name: /accept/i }).first();
