@@ -92,11 +92,12 @@ export default async function InductionModulePage({ params }: { params: Promise<
         </p>
       )}
       <div className="card" data-testid="induction-lines">
-        <ol className="std-clean" lang={lang} dir={dir} style={{ margin: 0 }}>
+        {/* Tom, 21 Oct 2026: one bullet per line, with air between them, so each point reads on its own. */}
+        <ul className="ind-lines" lang={lang} dir={dir}>
           {lines.map((l) => (
-            <li key={l.lineKey} data-testid={`induction-line-${l.lineKey}`} data-translated={l.translated} style={{ fontSize: 15, lineHeight: 1.5 }}>{l.text}</li>
+            <li key={l.lineKey} data-testid={`induction-line-${l.lineKey}`} data-translated={l.translated}>{l.text}</li>
           ))}
-        </ol>
+        </ul>
       </div>
 
       {steps.length > 0 && (

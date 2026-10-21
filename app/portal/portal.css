@@ -809,3 +809,10 @@
 .pt .mvl-acts .btn.sm.pri { background: var(--cyan); color: var(--on-cyan); border-color: transparent; font-weight: 600; }
 .pt .wo .lg { margin-top: 14px; }
 .pt .wo .lg h3 { font-size: 13px; margin: 10px 0 0; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-family: var(--mono); }
+
+/* Induction — the Read and confirm lines (Tom, 21 Oct 2026): a bullet per point, spaced out. */
+.pt ul.ind-lines { margin: 0; padding-left: 22px; list-style: disc; display: flex; flex-direction: column; gap: 12px; font-size: 15px; line-height: 1.5; }
+.pt ul.ind-lines li { padding-left: 4px; }
+.pt ul.ind-lines li::marker { color: var(--cyan, #3bd8e9); font-size: 18px; }
+.pt ul.ind-lines[dir="rtl"] { padding-left: 0; padding-inline-start: 22px; }
+.pt ul.ind-lines[dir="rtl"] li { padding-left: 0; padding-inline-start: 4px; }
