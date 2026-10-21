@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Block } from "@/lib/scheduling/board";
 import {
   blockedReason, chipState, chipWindow, context, contextBlocks, counts, gates, hotCells, inWindow, itemLocation, jobMoved, jobNeeds, kindLabel,
-  knownSuburbIn, laneColour, lanes, locations, mapPins, methodLabel, methodOf, nearby, needsOrder, orderedStops, pointKey, reorder, runPlan, suburbOf, whileYouAreThere,
+  knownSuburbIn, laneColour, lanes, locations, mapPins, methodLabel, methodOf, nearby, needsOrder, onMap, orderedStops, pointKey, reorder, runPlan, suburbOf, whileYouAreThere,
   type Job, type World,
 } from "./evaluate";
 import { DEFAULT_MOVEMENTS_SETTINGS, type EquipmentItemRow, type MovementRow, type MovementsSettings } from "./types";
@@ -34,7 +34,7 @@ const settings: MovementsSettings = {
 
 const job = (over: Partial<Job> & { id: string }): Job => ({
   woRef: `WO-${over.id}`, jobRef: `PG-${over.id}`, title: "Job", address: "1 Test St, Northcote VIC 3070", suburb: "Northcote", stage: "pre_start",
-  startDate: WED, endDate: FRI, contractorId: JOSEF, coloursConfirmed: true, point: null, ...over,
+  startDate: WED, endDate: FRI, contractorId: JOSEF, coloursConfirmed: true, point: null, paidOn: null, ...over,
 });
 const JOBS: Job[] = [
   job({ id: "0092", address: "22 Clarke St, Northcote VIC 3070", stage: "in_progress", startDate: MON, endDate: FRI, contractorId: JOSEF }),
@@ -404,12 +404,14 @@ describe("gates and counts", () => {
 });
 
 describe("the map (rulings 21 and 22)", () => {
+  // The fixture's booked jobs (pre_start) are off the map since 21 Oct; these cases are about the pins, so put them on site.
+  const ON_SITE = JOBS.map((j) => (j.stage === "pre_start" ? { ...j, stage: "in_progress" } : j));
   const felipeMonday = () => [
     placed({ id: "a", kind: "equipment_out", work_order_id: "0092", assignee_id: FELIPE, due_date: MON, time: "08:30", sequence: 1, from_kind: "warehouse", to_kind: "site" }),
     placed({ id: "b", kind: "materials", work_order_id: "0093", assignee_id: FELIPE, due_date: MON, half: "PM", sequence: 2, from_kind: "branch", from_branch_id: "dlx-preston", ordered_at: "x" }),
   ];
   it("one icon per job: teal when nothing is outstanding, amber with the first need's kind, grey for a closed job", () => {
-    const w = world({ movements: [
+    const w = world({ jobs: ON_SITE, movements: [
       ...felipeMonday(),
       mv({ id: "t", kind: "paint", work_order_id: "0094" }),                                    // Sandringham: a paint chip in the tray
       mv({ id: "g", kind: "equipment_out", work_order_id: "0094" }),                            // and a gear chip after it
@@ -429,12 +431,12 @@ describe("the map (rulings 21 and 22)", () => {
     expect(by["0092"].point).toEqual(SUB["northcote"]);
   });
   it("the selected person's order numbers sit on the icon of each stop; a fixed appointment is ◌; the route runs warehouse → stops → warehouse", () => {
-    const w = world({ movements: felipeMonday() });
+    const w = world({ jobs: ON_SITE, movements: felipeMonday() });
     const pins = mapPins(w, FELIPE, MON);
     const by = Object.fromEntries(pins.jobs.map((p) => [p.job.id, p]));
     // Felipe's Monday: the QA check at Station St (Fairfield) at 09:30 is fixed; the gear drop at Clarke St (08:30) is 1; the Preston pickup (PM) is 2 — at the SHOP, not the job.
     expect(by["0090"].badges).toEqual([{ n: "◌", fixed: true, label: "Quality check" }]);
-    expect(mapPins(world({ movements: [placed({ id: "u", kind: "paint", work_order_id: "0093", assignee_id: null, due_date: MON, status: "planned" })] }), null, MON).jobs.find((p) => p.job.id === "0093")!.line).toBe("paint delivery · not ordered");
+    expect(mapPins(world({ jobs: ON_SITE, movements: [placed({ id: "u", kind: "paint", work_order_id: "0093", assignee_id: null, due_date: MON, status: "planned" })] }), null, MON).jobs.find((p) => p.job.id === "0093")!.line).toBe("paint delivery · not ordered");
     expect(by["0092"].badges).toEqual([{ n: 1, fixed: false, label: "Gear drop-off" }]);
     expect(by["0093"].badges).toEqual([]);
     const preston = pins.shops.find((s) => s.branch.id === "dlx-preston")!;
@@ -447,7 +449,7 @@ describe("the map (rulings 21 and 22)", () => {
     expect(pins.route.length).toBe(5);
     // Ruling 22: after a reorder the numbers follow — the same evaluator, the same stops.
     const patches = reorder(w, FELIPE, MON, ["b", "a"]);
-    const after = world({ movements: felipeMonday().map((m) => { const p = patches.find((x) => x.id === m.id)!; return { ...m, sequence: p.sequence, time: p.time, half: p.half }; }) });
+    const after = world({ jobs: ON_SITE, movements: felipeMonday().map((m) => { const p = patches.find((x) => x.id === m.id)!; return { ...m, sequence: p.sequence, time: p.time, half: p.half }; }) });
     const again = mapPins(after, FELIPE, MON);
     expect(again.jobs.find((p) => p.job.id === "0092")!.badges[0].n).toBe(2);
     expect(again.shops.find((s) => s.branch.id === "dlx-preston")!.badges[0].n).toBe(1);
@@ -460,5 +462,30 @@ describe("the map (rulings 21 and 22)", () => {
     expect(pins.shops.find((s) => s.branch.id === "tb-counter")!.badges.map((b) => b.n)).toEqual([1]);
     expect(pins.warehouse!.badges.map((b) => b.n)).toEqual([1]);
     expect(pointKey({ lat: -37.92, lng: 145.1 })).toBe("-37.92000,145.10000");
+  });
+});
+
+describe("the map shows only the active jobs (Tom, 21 Oct 2026)", () => {
+  const TODAY = "2026-10-21";
+  it("onMap: on-site stages yes; an offer or a booking confirmed no; a closed job until a week after it was paid", () => {
+    for (const stage of ["in_progress", "qa", "completion_prep", "walkthrough"]) expect(onMap({ stage, paidOn: null }, TODAY)).toBe(true);
+    expect(onMap({ stage: "offered", paidOn: null }, TODAY)).toBe(false);
+    expect(onMap({ stage: "pre_start", paidOn: null }, TODAY)).toBe(false);
+    expect(onMap({ stage: "closed", paidOn: null }, TODAY)).toBe(true);           // closed, never paid: gear may still be there
+    expect(onMap({ stage: "closed", paidOn: "2026-10-14" }, TODAY)).toBe(true);   // paid 7 days ago: last day on the map
+    expect(onMap({ stage: "closed", paidOn: "2026-10-13" }, TODAY)).toBe(false);  // paid 8 days ago: gone
+    expect(onMap({ stage: "closed", paidOn: "2025-01-01" }, TODAY)).toBe(false);
+  });
+  it("mapPins leaves the offers and bookings off and keeps a recently paid closed job", () => {
+    const w = world({ jobs: [
+      job({ id: "live", stage: "in_progress" }),
+      job({ id: "booked", stage: "pre_start", suburb: "Carnegie", address: "7 Mimosa Rd, Carnegie VIC 3163" }),
+      job({ id: "offer", stage: "offered", suburb: "Preston", address: "1 High St, Preston VIC 3072" }),
+      job({ id: "paid-old", stage: "closed", paidOn: "2026-10-01", suburb: "Hampton", address: "19 Beach Rd, Hampton VIC 3188" }),
+      job({ id: "paid-new", stage: "closed", paidOn: "2026-10-18", suburb: "Brighton", address: "2 Bay St, Brighton VIC 3186" }),
+    ] });
+    expect(mapPins(w, null, MON, [], TODAY).jobs.map((p) => p.job.id)).toEqual(["live", "paid-new"]);
+    // No today given: the selected day stands in (the week board's day), so a reader of last week sees last week's map.
+    expect(mapPins(w, null, "2026-10-26", []).jobs.map((p) => p.job.id)).toEqual(["live"]);
   });
 });

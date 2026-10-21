@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coloursConfirmed, geocodeWanted, jobFrom, qaCheckRequired } from "./load";
+import { coloursConfirmed, geocodeWanted, jobFrom, latestPaidOn, qaCheckRequired } from "./load";
 
 describe("loadMovementsWeek's pure pieces", () => {
   it("a quality check reaches the board only when the job has it ticked as required and not waived (Tom, 20 Oct 2026)", () => {
@@ -21,7 +21,7 @@ describe("loadMovementsWeek's pure pieces", () => {
   it("jobFrom: PG ref, suburb and the centroid point", () => {
     const job = jobFrom({ id: "w", wo_ref: "WO-9", job_no: 9, stage: "pre_start", start_date: "2026-10-26", end_date: "2026-10-28", contractor_id: null,
       wo_snapshot: { jobAddress: "1 Test St, Oakleigh South VIC 3167", jobTitle: "Test" }, colours: null }, new Map([["oakleigh south", { lat: -37.92, lng: 145.1 }]]));
-    expect(job).toMatchObject({ jobRef: "PG-0009", suburb: "Oakleigh South", point: { lat: -37.92, lng: 145.1 }, title: "Test", coloursConfirmed: false });
+    expect(job).toMatchObject({ jobRef: "PG-0009", suburb: "Oakleigh South", point: { lat: -37.92, lng: 145.1 }, title: "Test", coloursConfirmed: false, paidOn: null });
   });
 });
 
@@ -34,5 +34,18 @@ describe("geocodeWanted (flag 3: lazy, at most once a week per job)", () => {
     expect(geocodeWanted({ lat: null, lng: null, point_checked_at: null }, NOW)).toBe(true);
     expect(geocodeWanted({ lat: null, lng: null, point_checked_at: "2026-10-20T00:00:00Z" }, NOW)).toBe(false);
     expect(geocodeWanted({ lat: null, lng: null, point_checked_at: "2026-10-01T00:00:00Z" }, NOW)).toBe(true);
+  });
+});
+
+describe("latestPaidOn (the map's closed-job grace runs from the LAST payment)", () => {
+  it("takes the latest paid_on across every invoice on the job; unpaid and unlinked rows count for nothing", () => {
+    const m = latestPaidOn([
+      { work_order_id: "a", payments: [{ paid_on: "2026-10-01" }, { paid_on: "2026-10-09" }] },
+      { work_order_id: "a", payments: [{ paid_on: "2026-10-05" }] },
+      { work_order_id: "b", payments: [{ paid_on: null }] },
+      { work_order_id: "c", payments: null },
+      { work_order_id: null, payments: [{ paid_on: "2026-10-20" }] },
+    ]);
+    expect([...m.entries()]).toEqual([["a", "2026-10-09"]]);
   });
 });
