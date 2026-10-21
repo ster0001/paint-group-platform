@@ -171,7 +171,9 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
   const m1: WallMaterial = sd?.material ?? v2.wall.down ?? t.usualWalls;
   const m2: WallMaterial | null = t.storeys === 2 ? (sd?.materialUp ?? v2.wall.up ?? null) : null;
   const wallTop = yE + (terraceFront ? 0 : 8);
-  const wc = (m: WallMaterial) => (wOn ? (m === "vertical_timber" ? C.stain : ON.walls) : OFF.walls);
+  // Vertical timber draws brown only while it is STAINED; "Painted" on About it turns it the painted blue (Tom, 21 Oct).
+  const stained = v2.wall.timberPainted !== "yes";
+  const wc = (m: WallMaterial) => (wOn ? (m === "vertical_timber" && stained ? C.stain : ON.walls) : OFF.walls);
   let walls = `<rect x="${n2(x0)}" y="${n2(wallTop)}" width="${n2(W)}" height="${n2(yG - wallTop)}" fill="${wc(m1)}"/><rect x="${n2(x0)}" y="${n2(wallTop)}" width="${n2(W)}" height="${n2(yG - wallTop)}" fill="url(#p-${PAT[m1]})"/>`;
   if (m2 && m2 !== m1) { const upH = yE + H / 2 - wallTop; walls += `<rect x="${n2(x0)}" y="${n2(wallTop)}" width="${n2(W)}" height="${n2(upH)}" fill="${wc(m2)}"/><rect x="${n2(x0)}" y="${n2(wallTop)}" width="${n2(W)}" height="${n2(upH)}" fill="url(#p-${PAT[m2]})"/><path d="M${n2(x0)} ${n2(yE + H / 2)}H${n2(x1)}" stroke="#16212A" stroke-opacity=".3"/>`; }
   o += g("walls", walls);

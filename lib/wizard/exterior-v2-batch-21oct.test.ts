@@ -111,3 +111,15 @@ describe("12 · the width flows to the trims", () => {
     expect(m(7)).toBe(9.6); // 0.8 w, not the length
   });
 });
+
+describe("vertical timber (Tom, 21 Oct follow-up 3)", () => {
+  it("draws brown while stained and the painted blue once About it says Painted", () => {
+    const base = house("modern", "md", ["walls"]);
+    const stained: ExteriorV2 = { ...base, wall: { ...base.wall, down: "vertical_timber", timberPainted: "no" } };
+    const painted: ExteriorV2 = { ...base, wall: { ...base.wall, down: "vertical_timber", timberPainted: "yes" } };
+    expect(elevationMarkup(stained, "front")).toContain('fill="#A4683F"');
+    expect(elevationMarkup(painted, "front")).not.toContain('fill="#A4683F"');
+    expect(elevationMarkup(painted, "front")).toContain('data-e="walls" data-on="1"><rect x="');
+    expect(group(elevationMarkup(painted, "front"), "walls")).toContain('fill="#8EE4F0"');
+  });
+});
