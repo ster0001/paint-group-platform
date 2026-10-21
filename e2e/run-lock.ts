@@ -36,6 +36,7 @@ import {
   LOCK_HOLDER_QUERY,
   describeLockHolder,
   lockHolderName,
+  parseLockHolder,
   sessionPooledUrl,
 } from "@/lib/testing/session-pooled-url";
 
@@ -79,7 +80,12 @@ export async function acquireRunLock(): Promise<"held" | "busy" | "skipped"> {
     // Named BEFORE the lock is attempted, so a run that does take it is
     // identifiable to whoever asks next.
     await c.query("select set_config('application_name', $1, false)", [
-      lockHolderName("e2e", { ci: Boolean(process.env.CI || process.env.GITHUB_ACTIONS) }),
+      lockHolderName("e2e", {
+        ci: Boolean(process.env.CI || process.env.GITHUB_ACTIONS),
+        // The GitHub run id, so the next run can tell a holder that is still a
+        // run from one whose runner was killed (see isStaleCiHolder).
+        runId: process.env.GITHUB_RUN_ID ?? null,
+      }),
     ]);
     // A SHORT retry before refusing (19 Sep 2026). The other thing that takes
     // this lock is the hygiene sweep, which now works in slices and drops it
@@ -101,7 +107,23 @@ export async function acquireRunLock(): Promise<"held" | "busy" | "skipped"> {
       if (Date.now() >= deadline) {
         // Ask WHO, on the way out — after the retry window, so the name in the
         // message belongs to a holder that really is standing in the way.
-        busyHolder = await readLockHolder(c);
+        const holder = await readLockHolderRow(c);
+        busyHolder = holder.description;
+        // A CI holder whose run GitHub says is over is a corpse, not a run
+        // (21 Oct 2026). Clear it ONCE and try the lock again; if that does
+        // not yield the lock, refuse as before.
+        if (holder.pid !== null && await isStaleCiHolder(holder.applicationName)) {
+          console.log(`e2e run lock: held by ${holder.description}, whose GitHub run has completed — ending its dead session (pid ${holder.pid}).`);
+          await c.query("select pg_terminate_backend($1)", [holder.pid]).catch((e: unknown) => {
+            console.log(`e2e run lock: could not end pid ${holder.pid}: ${e instanceof Error ? e.message : String(e)}`);
+          });
+          const again = await c.query<{ ok: boolean }>("select pg_try_advisory_lock($1) as ok", [E2E_RUN_LOCK_KEY]);
+          if (again.rows[0]?.ok) {
+            client = c;
+            return "held";
+          }
+          busyHolder = (await readLockHolderRow(c)).description;
+        }
         await c.end();
         return "busy";
       }
@@ -124,18 +146,70 @@ export async function releaseRunLock(): Promise<void> {
   await c.end().catch(() => {});
 }
 
+type HolderRow = { pid: number | null; applicationName: string | null; description: string };
+
 /** Ask the database who is holding it. Never throws: a refusal must still
  *  refuse, with a vaguer message, if this read fails. */
-async function readLockHolder(c: pg.Client): Promise<string> {
+async function readLockHolderRow(c: pg.Client): Promise<HolderRow> {
   try {
-    const r = await c.query<{ application_name: string | null; held_for: string | null }>(
+    const r = await c.query<{ pid: number; application_name: string | null; held_for: string | null }>(
       LOCK_HOLDER_QUERY, [E2E_RUN_LOCK_KEY]);
     const row = r.rows[0];
-    if (!row) return "another run (it let go while this one was asking)";
-    return describeLockHolder(row.application_name, row.held_for);
+    if (!row) return { pid: null, applicationName: null, description: "another run (it let go while this one was asking)" };
+    return { pid: row.pid, applicationName: row.application_name, description: describeLockHolder(row.application_name, row.held_for) };
   } catch {
-    return "another run (could not read pg_stat_activity to say which)";
+    return { pid: null, applicationName: null, description: "another run (could not read pg_stat_activity to say which)" };
   }
+}
+
+/**
+ * WHY A CANCELLED CI RUN KEEPS THE LOCK, AND HOW THE NEXT RUN CLEARS IT
+ * (21 Oct 2026).
+ *
+ * The lock is session-level, so it dies with the connection — but a cancelled
+ * GitHub runner is KILLED, not stopped: no `if: cancelled()` step runs, the
+ * socket is never closed, and the Supabase backend only notices when TCP
+ * keepalive gives up, about two hours later. Every PR here is merged within
+ * minutes of opening, which cancels the PR's run mid-suite; the main run that
+ * follows then meets a lock held by a process that no longer exists, and is
+ * REFUSED for two hours by a corpse. That is how main's e2e stayed unrun from
+ * 13 Oct.
+ *
+ * The holder stamped its GitHub run id into application_name. GitHub's run
+ * endpoint is public for this repository and needs no token; a run whose
+ * status is "completed" (success, failure, cancelled — any conclusion) has
+ * no runner left, so its session cannot be a live run. Only THAT case is
+ * cleared. A holder with no run id, a local holder, a run still in_progress
+ * or queued, a network error, a rate limit, a malformed answer — every one of
+ * them keeps the refusal exactly as before. The guard never guesses: when it
+ * cannot prove the holder is dead, it is treated as alive.
+ */
+export async function isStaleCiHolder(
+  applicationName: string | null | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+  const holder = parseLockHolder(applicationName);
+  if (!holder || holder.where !== "ci" || !holder.runId) return false;
+  const repo = process.env.GITHUB_REPOSITORY || "ster0001/paint-group-platform";
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return false;
+  try {
+    const headers: Record<string, string> = { accept: "application/vnd.github+json", "user-agent": "paint-group-platform-e2e-lock" };
+    if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+    const res = await fetchImpl(`https://api.github.com/repos/${repo}/actions/runs/${holder.runId}`, { headers });
+    if (!res.ok) return false;
+    const body: unknown = await res.json();
+    return ciRunIsOver(body);
+  } catch {
+    return false;
+  }
+}
+
+/** The one reading of GitHub's answer: "completed" and nothing else means the
+ *  runner is gone. Exported so the unit suite can pin it without a network. */
+export function ciRunIsOver(body: unknown): boolean {
+  if (typeof body !== "object" || body === null) return false;
+  const status = (body as { status?: unknown }).status;
+  return status === "completed";
 }
 
 /**
@@ -157,6 +231,8 @@ export function runLockBusyMessage(): string {
     "  is still going.\n" +
     "  The sweep releases it when its budget is up (default 20 min, 45 when clearing a\n" +
     "  backlog by hand); an e2e run releases it when it finishes. CI runs are visible\n" +
-    "  under Actions, and a local one is usually a peer checkout's ./scripts/c1/run-e2e.sh."
+    "  under Actions, and a local one is usually a peer checkout's ./scripts/c1/run-e2e.sh.\n" +
+    "  A CI holder whose run GitHub reports as completed is cleared automatically; this\n" +
+    "  one was not, so it is either still running or could not be identified."
   );
 }

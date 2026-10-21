@@ -36,11 +36,37 @@ export function sessionPooledUrl(raw: string): string {
  */
 export const LOCK_NAME_PREFIX = "pg-e2e-lock";
 
-/** `pg-e2e-lock:sweep:ci:2026-09-19T21:14Z` — parseable, and readable raw. */
-export function lockHolderName(kind: "e2e" | "sweep", opts: { ci?: boolean; now?: Date } = {}): string {
+/**
+ * `pg-e2e-lock:sweep:ci:2026-09-19T21:14Z` — parseable, and readable raw.
+ *
+ * In CI the GitHub run id goes in as well (21 Oct 2026):
+ * `pg-e2e-lock:e2e:ci:run-19283746:2026-10-21T03:14Z`. A cancelled runner is
+ * killed, not stopped — no `if: cancelled()` step runs — and its Postgres
+ * session lingers for ~2 h of TCP keepalive with the lock still granted. The
+ * run id is what lets the NEXT run ask GitHub, read-only, whether that holder
+ * is still a run at all (`e2e/run-lock.ts`). Longest form is ~50 bytes, under
+ * the 63-byte NAMEDATALEN cut.
+ */
+export function lockHolderName(kind: "e2e" | "sweep", opts: { ci?: boolean; now?: Date; runId?: string | null } = {}): string {
   const where = opts.ci ? "ci" : "local";
   const at = (opts.now ?? new Date()).toISOString().slice(0, 16) + "Z";
-  return `${LOCK_NAME_PREFIX}:${kind}:${where}:${at}`;
+  const run = opts.ci && opts.runId && /^\d+$/.test(opts.runId) ? `run-${opts.runId}:` : "";
+  return `${LOCK_NAME_PREFIX}:${kind}:${where}:${run}${at}`;
+}
+
+/** What a holder wrote about itself, or null for a name this code did not
+ *  write (an older checkout, "Supavisor", "psql"). */
+export type LockHolder = { kind: string; where: "ci" | "local"; runId: string | null; startedAt: string };
+
+export function parseLockHolder(applicationName?: string | null): LockHolder | null {
+  const parts = (applicationName ?? "").split(":");
+  if (parts[0] !== LOCK_NAME_PREFIX || parts.length < 4) return null;
+  const [, kind, where, ...rest] = parts;
+  if (where !== "ci" && where !== "local") return null;
+  const run = rest[0]?.match(/^run-(\d+)$/);
+  const at = run ? rest.slice(1) : rest;
+  if (at.length === 0) return null;
+  return { kind, where, runId: run ? run[1] : null, startedAt: at.join(":") };
 }
 
 /**
@@ -50,8 +76,8 @@ export function lockHolderName(kind: "e2e" | "sweep", opts: { ci?: boolean; now?
  * as a wrong answer.
  */
 export function describeLockHolder(applicationName?: string | null, connectionAge?: string | null, now?: Date): string {
-  const parts = (applicationName ?? "").split(":");
-  if (parts[0] !== LOCK_NAME_PREFIX || parts.length < 4) {
+  const holder = parseLockHolder(applicationName);
+  if (!holder) {
     // `backend_start` is the POOLED BACKEND's age, not this holder's: a
     // rehearsal that took the lock one second earlier reported "running
     // 00:44:27" because the pooler handed it a 44-minute-old backend. So it is
@@ -59,8 +85,7 @@ export function describeLockHolder(applicationName?: string | null, connectionAg
     const open = connectionAge ? `; its pooled connection has been open ${connectionAge}, which is NOT how long it has held the lock` : "";
     return `something that did not record what it is (application_name ${JSON.stringify(applicationName ?? null)})${open} — an older checkout, most likely`;
   }
-  const [, kind, where, ...at] = parts;
-  const startedAt = at.join(":");
+  const { kind, where, runId, startedAt } = holder;
   const what = kind === "sweep"
     ? "the hygiene sweep (scripts/c1/hygiene.mjs)"
     : kind === "e2e" ? "an e2e run" : `a ${kind}`;
@@ -69,12 +94,13 @@ export function describeLockHolder(applicationName?: string | null, connectionAg
   const started = Date.parse(startedAt);
   const mins = Number.isNaN(started) ? null : Math.round(((now ?? new Date()).getTime() - started) / 60_000);
   const ago = mins === null ? "" : `, ${mins} min ago`;
-  return `${what}, started ${where === "ci" ? "in CI" : "locally"} at ${startedAt}${ago}`;
+  const run = runId ? ` (GitHub run ${runId})` : "";
+  return `${what}, started ${where === "ci" ? "in CI" : "locally"} at ${startedAt}${ago}${run}`;
 }
 
 /** Finds the holder of the advisory lock. `pg_advisory_lock(bigint)` splits the
  *  key across classid/objid; ours fits in the low half, so classid is 0. */
 export const LOCK_HOLDER_QUERY =
-  "select a.application_name, date_trunc('second', now() - a.backend_start)::text as held_for " +
+  "select a.pid, a.application_name, date_trunc('second', now() - a.backend_start)::text as held_for " +
   "from pg_locks l join pg_stat_activity a on a.pid = l.pid " +
   "where l.locktype = 'advisory' and l.classid = 0 and l.objid = $1 and l.granted limit 1";
