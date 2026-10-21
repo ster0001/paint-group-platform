@@ -90,25 +90,26 @@ describe("12 · the width flows to the trims", () => {
     surfaces: [
       { id: 2, code: "Weatherboards", sharePct: 100, measureL: 12, measureH: 2.7 },
       { id: 3, code: "Fascias", measureL: 12 },
-      { id: 4, code: "Gutters", measureL: 12 },
+      { id: 4, code: "Gutters", measureL: 21.6 }, // the drawn house's w + 0.8w for a verandah
       { id: 5, code: "Eaves", measureL: 12, origin: "customer_stated" },
       { id: 6, code: "Fascias", measureL: 13.4, clientLabel: "Barge boards" },
       { id: 7, code: "Hand Rails", measureL: 9.6 },
     ],
     customer: { include: true, size: null, confirmed: false },
   });
-  it("fascias, gutters and eaves at the old width take the new one; a typed run, a rake and a handrail stay", () => {
-    const r = applySideDims([side()], "front", { lengthM: 10, heightM: 2.7 });
+  it("every fascia, gutter and eaves line takes the new width — a verandah's share and a rake included; a typed run and a handrail stay", () => {
+    const r = applySideDims([side()], "front", { lengthM: 15, heightM: 4 });
     expect(r.ok).toBe(true);
     const b = (r as { ok: true; blocks: LooseBlock[] }).blocks[0];
     const m = (id: number) => Number(b.surfaces!.find((s) => Number(s.id) === id)!.measureL);
-    expect(b.L).toBe(10);
-    expect(m(2)).toBe(10); // the wall follows as it always did
-    expect(m(3)).toBe(10);
-    expect(m(4)).toBe(10);
+    expect(b.L).toBe(15);
+    expect(b.H).toBe(4);
+    expect(m(2)).toBe(15); // the wall follows as it always did
+    expect(m(3)).toBe(15);
+    expect(m(4)).toBe(15); // was 21.6 — "as standard" the width (Tom)
     expect(m(5)).toBe(12); // customer_stated
-    expect(m(6)).toBe(13.4); // a rake, never equal to the length
-    expect(m(7)).toBe(9.6); // 0.8 w, not the length
+    expect(m(6)).toBe(15); // the rake too — Tom's rule is the width
+    expect(m(7)).toBe(9.6); // a handrail is not a trim
   });
 });
 

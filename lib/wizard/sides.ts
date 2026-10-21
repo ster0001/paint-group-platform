@@ -354,21 +354,22 @@ export function applySideInclude(blocks: LooseBlock[], key: SideKey, include: bo
 }
 
 /**
- * Tom, 21 Oct (item 12): a side's new width is also the run of its fascias,
- * gutters and eaves. The drawn house pins those lines' metres at the typical
- * width; a run the customer typed themselves (`customer_stated`), or one that
- * never equalled the side's length (a gable's rake, a verandah's 0.8w), is
- * left alone.
+ * Tom, 21 Oct (item 12, and again that evening): "if the building is 15 m wide,
+ * the gutters, fascias and eaves should all auto-adjust to 15 m as standard."
+ * So a side's new width IS the run of every fascia, gutter and eaves line on
+ * it — whatever the drawn house pinned them at (the typical width, a verandah's
+ * extra share, a gable's rake). The one exception is a run the customer typed
+ * themselves (`customer_stated`); handrails and downpipes are not trims and
+ * keep their own metres.
  */
 const TRIM_FOLLOWS_LENGTH = /fascia|gutter|eave/i;
-function followSideLength(b: LooseBlock, oldL: number): void {
+function followSideLength(b: LooseBlock): void {
   const L = Number(b.L) || 0;
-  if (!(L > 0) || !(oldL > 0)) return;
+  if (!(L > 0)) return;
   for (const s of b.surfaces ?? []) {
     if (!TRIM_FOLLOWS_LENGTH.test(String(s.code ?? ""))) continue;
     if (s.origin === "customer_stated") continue;
-    const m = s.measureL == null ? null : Number(s.measureL);
-    if (m != null && Math.abs(m - oldL) < 0.05) s.measureL = Math.round(L * 100) / 100;
+    s.measureL = Math.round(L * 100) / 100;
   }
 }
 
@@ -388,11 +389,10 @@ export function applySideDims(
     const L = dims.lengthM ?? (Number(b.L) || 0);
     const H = dims.heightM ?? (Number(b.H) || 0);
     if (!(L > 0) || !(H > 0)) return "Length and height in metres, please — or “not sure”.";
-    const oldL = Number(b.L) || 0;
     // Mockup behaviour: the gentle clamp (3–40 m long, 2–8 m high) — out of
     // range proceeds at the nearest bound, never a refusal.
     b.L = Math.min(40, Math.max(3, L));
-    followSideLength(b, oldL);
+    followSideLength(b);
     b.H = Math.min(8, Math.max(2, H));
     b.origin = "customer_stated"; b.confidence = 0.85;
     b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "H");
@@ -419,10 +419,9 @@ function mirrorDims(blocks: LooseBlock[], key: SideKey): SidesResult {
   const pc = customerOf(partner);
   if (pc.confirmed || pc.size != null || pc.include === false) return { ok: true, blocks };
   return withSide(blocks, PARTNER[key], (b) => {
-    const oldL = Number(b.L) || 0;
     b.L = Number(from.L) || b.L;
     b.H = Number(from.H) || b.H;
-    followSideLength(b, oldL);
+    followSideLength(b);
     b.customer = { ...customerOf(b), mirroredFrom: key };
     syncWallMeasures(b);
   });
