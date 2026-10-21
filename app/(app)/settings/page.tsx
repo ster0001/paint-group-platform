@@ -278,16 +278,23 @@ export default async function SettingsPage() {
   // ---- Movements (Session 6): the register, the shops and the board's row -------------
   // Fuller reads than the board's loader (inactive branches, retired items, notes); the
   // trade account reference is masked here, on the server, to its last four characters.
-  const [branchesRes, accountsRes, equipmentRes, staffRes] = await Promise.all([
+  const [branchesRes, accountsRes, equipmentRes, staffRes, employeesRes] = await Promise.all([
     supabase.from("supplier_branches").select("id, brand, branch, kind, address, suburb, postcode, phone, email, map_place_id, lat, lng, delivers_to_site, opens_weekday, favourite, active, notes").order("brand").order("branch"),
     supabase.from("supplier_branch_accounts").select("branch_id, account_ref"),
     supabase.from("equipment_items").select("id, tag, name, category, serial_or_model, notes, status").order("tag"),
     supabase.from("profiles").select("id, name").eq("role", "staff").order("name").limit(100),
+    // Employed painters are board people too (brief ⚑5): an employee in boardPeople is ONE lane
+    // (their painter lane) that takes its slots and colour from here.
+    supabase.from("contractors").select("profile_id, employment_type, profiles(name)").eq("employment_type", "employee").eq("active", true),
   ]);
   const accountMask = new Map(((accountsRes.data ?? []) as { branch_id: string; account_ref: string }[]).map((a) => [a.branch_id, a.account_ref ? `••••${a.account_ref.slice(-4)}` : null]));
   const branchRows: BranchFull[] = ((branchesRes.data ?? []) as Omit<BranchFull, "accountMasked">[]).map((b) => ({ ...b, accountMasked: accountMask.get(b.id) ?? null }));
   const equipmentRows = (equipmentRes.data ?? []) as EquipmentRow[];
   const staffOptions: StaffOption[] = ((staffRes.data ?? []) as { id: string; name: string | null }[]).map((s) => ({ id: s.id, name: s.name?.trim() || "Staff" }));
+  for (const e of (employeesRes.data ?? []) as unknown as { profile_id: string | null; profiles: { name: string | null } | null }[]) {
+    if (e.profile_id && !staffOptions.some((o) => o.id === e.profile_id)) staffOptions.push({ id: e.profile_id, name: `${e.profiles?.name?.trim() || "Employee"} · employee` });
+  }
+  staffOptions.sort((x, y) => x.name.localeCompare(y.name));
   const movementsSettings = movementsSettingsFrom(allSettings.find((r) => r.key === "movements")?.value);
   const movementsReadError = [branchesRes.error, accountsRes.error, equipmentRes.error].find(Boolean)?.message ?? null;
 
