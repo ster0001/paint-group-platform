@@ -4,6 +4,34 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 20 Oct 2026 — Movements Session 4: the Week board and Sources — the first screen
+
+**2026-10-20 · `app/pc/movements/` (`page.tsx`, `MovementsScreen.tsx`, `ChipSheet.tsx`, `AddChipSheet.tsx`, `SourcesView.tsx`,
+`HowItWorks.tsx`, `world.ts`, `movements.css`), `app/components/board/` (additive props), `lib/movements/evaluate.ts`
+(`dropProblem`, `trayGroupOf`, `chipFilterKind`, `shortDay`), `lib/movements/load.ts` (`jobExtras`: paint rows by brand + crew notes),
+`lib/movements/week.ts`, `lib/movements/gearIcons.tsx`, `app/pc/PcNav.tsx`, `lib/crm/work-queue.ts` (nine kinds wired),
+`e2e/movements-week.spec.ts`, `docs/help/movements/pc.md`**
+
+`/pc/movements?view=week|sources&week=&job=` is PC Command's Movements tab (brief §3.4): the tray of chips (grouped by job,
+filters with counts, search, + Add a chip) beside the lanes × days board — Supplier, every painter booked in the week, the
+staff in Settings' `boardPeople` — with AM/PM halves on `slots='half'` lanes and ten 07:30 hourly rows on `slots='hour'` lanes
+(ruling 16; a drop into a row sets the movement's `time`). **It is the second consumer of the one board engine** and the
+Schedule board is unchanged: the engine grew only props — `slots` per lane, a fractional `slotHours` start, `renderSlot` /
+`renderCellHead` (content INSIDE a cell: context blocks, placed cards, the Nearby pill), `rowSizing="content"`, `laneClass`,
+`Tray` grouping (`groupKey` / `renderGroupHead`, `controls`, `after`, `className`), `onDropOnTray` and `dragJustEnded()` on
+`useBoardDrag` — and the Movements board is the first to turn `capturePointer` and `autoScroll` ON. Everything drawn is the
+evaluator over the world the page read once (`loadMovementsWeek`, context blocks computed on the server, the suburb map pruned
+to the week's suburbs for the client); every change is an action in `app/pc/movements/actions.ts` followed by `router.refresh()`.
+The ghost's refusals come from `dropProblem` (the twin of `movement_place`'s), but the RPC is still called and its answer is
+the toast. The chip sheet (lines → `wo_set_material`; materials line text; gear with locations; the rubbish question of
+ruling 20; shop nearest-first; time chips; order reference; client notice off by default; note; Ordered ✓; Copy order text;
+Back to tray; Remove for manual chips) and the Sources view (three cards over the one `wo_material_lines` list, add/remove from
+any card, the three-doors strip) sit on the same page. Ruling 15: a browser with no theme cookie is set light before paint by
+an inline script and the console toggle adopts what it sees. The nine §6 work items now reach `buildPcWorkItems`. Day, Map and
+Gear have no tabs yet (Sessions 5–6).
+
+---
+
 ## 20 Oct 2026 — Movements Session 3: sync mirror, the one evaluator, the loader, nine work items
 
 **2026-10-20 · `lib/movements/sync.ts`, `lib/movements/evaluate.ts`, `lib/movements/load.ts`, `lib/movements/types.ts` (row shapes +

@@ -26,6 +26,12 @@ export type BoardDragOptions<P, C extends GhostFlags> = {
   /** A marquee across empty lane space was released — inclusive ISO days. */
   onRangeSelect?: (laneId: string, startDay: string, endDay: string) => void;
   /**
+   * The pointer was released over the tray (`aside.tray`) after a real drag —
+   * a placed thing being put back (Movements). The engine owns this hit-test;
+   * nothing outside it asks the DOM what is under the pointer.
+   */
+  onDropOnTray?: (payload: P) => void;
+  /**
    * OFF by default (the Schedule board never had it — Session 0 item 9.9).
    * Pointer capture keeps a touch drag alive when the finger leaves the
    * element that started it.
@@ -105,7 +111,7 @@ const cellsOf = (laneEl: HTMLElement) => Array.from(laneEl.querySelectorAll<HTML
  * `window` and one AbortController tears them all down.
  */
 export function useBoardDrag<P, C extends GhostFlags>({
-  days, dayW, check, onDrop, onRangeSelect, capturePointer = false, autoScroll = false, scroller,
+  days, dayW, check, onDrop, onRangeSelect, onDropOnTray, capturePointer = false, autoScroll = false, scroller,
 }: BoardDragOptions<P, C>) {
   const range = days.length;
   const dayIdx = useMemo(() => new Map(days.map((d, i) => [d, i] as const)), [days]);
@@ -122,6 +128,10 @@ export function useBoardDrag<P, C extends GhostFlags>({
   const drag = useRef<Drag<P> | null>(null);
   const marquee = useRef<Marquee | null>(null);
   const scrollRaf = useRef<number | null>(null);
+  // When the last REAL drag let go. With pointer capture on, the browser fires the
+  // click on the element that started the drag after the drop; a consumer whose
+  // cards open on click asks `dragJustEnded()` to tell that click from a tap.
+  const lastDragEnd = useRef(0);
 
   // What the ghost shows: the payload being dragged, the LAST check result
   // (it persists while the pointer is off the grid, as the Schedule board's
@@ -131,9 +141,9 @@ export function useBoardDrag<P, C extends GhostFlags>({
 
   // The latest callbacks, so the window listeners never go stale and never
   // need re-subscribing mid-drag.
-  const latest = useRef({ check, onDrop, onRangeSelect, days, dayW, dayIdx, range });
+  const latest = useRef({ check, onDrop, onRangeSelect, onDropOnTray, days, dayW, dayIdx, range });
   useEffect(() => {
-    latest.current = { check, onDrop, onRangeSelect, days, dayW, dayIdx, range };
+    latest.current = { check, onDrop, onRangeSelect, onDropOnTray, days, dayW, dayIdx, range };
   });
 
   /** Where the ghost is drawn — bind to the `.ghost` element's `ref`. */
@@ -274,7 +284,12 @@ export function useBoardDrag<P, C extends GhostFlags>({
     }
 
     const t = target.current;
+    if (d.moved) lastDragEnd.current = Date.now();
     if (d.moved && t) latest.current.onDrop(d.payload, t);
+    else if (d.moved && latest.current.onDropOnTray && typeof document !== "undefined" && typeof document.elementsFromPoint === "function") {
+      const overTray = document.elementsFromPoint(e.clientX, e.clientY).some((el) => el instanceof HTMLElement && el.matches("aside.tray"));
+      if (overTray) latest.current.onDropOnTray(d.payload);
+    }
 
     clearHot();
     target.current = null;
@@ -385,6 +400,16 @@ export function useBoardDrag<P, C extends GhostFlags>({
     setGhostEl,
     /** The payload mid-drag, for callers whose check needs it (a block ignoring itself). */
     dragging: () => drag.current?.payload ?? null,
+    /**
+     * True ONCE after a real drag let go — with pointer capture the browser fires
+     * a click on the element that started the drag, and that click is not a tap.
+     * Consumed on the first ask (the trailing click); forgotten after a second.
+     */
+    dragJustEnded: () => {
+      const recent = Date.now() - lastDragEnd.current < 1000;
+      lastDragEnd.current = 0;
+      return recent;
+    },
   };
 }
 
