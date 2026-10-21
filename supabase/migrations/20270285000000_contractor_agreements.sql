@@ -313,7 +313,8 @@ declare v_cid uuid;
 begin
   v_cid := coalesce(p_contractor_id, public.current_contractor_id());
   if v_cid is null then return null; end if;
-  if not (public.is_staff() or v_cid = public.current_contractor_id()) then return null; end if;
+  -- coalesce: a login with no contractors row (a customer) compares to null, and null is not a yes.
+  if not (public.is_staff() or coalesce(v_cid = public.current_contractor_id(), false)) then return null; end if;
   return public.agreement_status_of(v_cid);
 end $$;
 revoke all on function public.agreement_status(uuid) from public, anon;

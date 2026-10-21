@@ -28,6 +28,9 @@ const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 const run = Date.now().toString(36);
 const painter = { email: `pg.e2e.agree.${run}@example.com`, password: `Agree-${run}-pw!`, name: "Agree Painter", userId: "", contractorId: "" };
+/** On the books before the portal agreement (agreement_kind = existing): asked, then the paper copy uploaded by the office. */
+const legacy = { email: `pg.e2e.agree2.${run}@example.com`, password: `Agree2-${run}-pw!`, name: "Legacy Painter", userId: "", contractorId: "" };
+const TINY_PDF = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 const PROFILE = { company_name: "Agree Painter Pty Ltd", abn: "51824753556", address: "4 Brush Lane, Oakleigh VIC 3166" };
 let agreementId = "";
 
@@ -47,34 +50,48 @@ async function openAsPainter(page: Page) {
   await signIn(page, painter, /\/portal/);
 }
 
+async function makePainter(p: { email: string; password: string; name: string; userId: string; contractorId: string }, company: string) {
+  const token = await rpcAs(staff!, "create_contractor_invite", { p_email: p.email, p_name: p.name, p_company: company, p_tier: null, p_days: 7 });
+  expect(token).toMatch(/^[0-9a-f]{48}$/);
+  const made = await db!.auth.admin.createUser({ email: p.email, password: p.password, email_confirm: true, user_metadata: { name: p.name } });
+  expect(made.error?.message ?? "").toBe("");
+  p.userId = made.data.user!.id;
+  expect(await rpcAs(p, "redeem_contractor_invite", { p_token: token })).toBe("ok");
+  p.contractorId = (await contractorIdForEmail(db!, p.email))!;
+}
+
+async function removePainter(p: { email: string; userId: string; contractorId: string }) {
+  if (!p.contractorId) return;
+  const { data: objs } = await db!.storage.from("contractor-docs").list(`${p.contractorId}/agreements`);
+  const paths = ((objs ?? []) as { name: string }[]).map((o) => `${p.contractorId}/agreements/${o.name}`);
+  if (paths.length) await db!.storage.from("contractor-docs").remove(paths);
+  await db!.from("contractor_documents").delete().eq("contractor_id", p.contractorId);
+  await db!.from("contractor_agreements").delete().eq("contractor_id", p.contractorId);
+  await db!.from("contractors").delete().eq("id", p.contractorId);
+  await db!.from("profiles").delete().eq("id", p.userId);
+  await db!.auth.admin.deleteUser(p.userId);
+  await db!.from("contractor_invites").delete().eq("email", p.email);
+}
+
 test.describe("subcontractor agreement — read, sign, keep", () => {
   test.skip(!staff || !other || !customer || !db, missingCreds("STAFF"));
 
   test.beforeAll(async () => {
     test.setTimeout(120_000);
-    const token = await rpcAs(staff!, "create_contractor_invite", { p_email: painter.email, p_name: painter.name, p_company: PROFILE.company_name, p_tier: null, p_days: 7 });
-    expect(token).toMatch(/^[0-9a-f]{48}$/);
-    const made = await db!.auth.admin.createUser({ email: painter.email, password: painter.password, email_confirm: true, user_metadata: { name: painter.name } });
-    expect(made.error?.message ?? "").toBe("");
-    painter.userId = made.data.user!.id;
-    expect(await rpcAs(painter, "redeem_contractor_invite", { p_token: token })).toBe("ok");
-    painter.contractorId = (await contractorIdForEmail(db!, painter.email))!;
+    await makePainter(painter, PROFILE.company_name);
     // Module 1 done except the ABN: the first test is about the blank.
     const up = await db!.from("contractors").update({ company_name: PROFILE.company_name, abn: null, address: PROFILE.address, phone: "0400 000 099", tour_seen_at: new Date().toISOString() }).eq("id", painter.contractorId);
     expect(up.error?.message ?? "").toBe("");
+    await makePainter(legacy, "Legacy Painter Pty Ltd");
+    // On the books before the feature: the migration marks them existing; the spec sets it the same way. Refresher induction, so only the agreement gate is in play.
+    const up2 = await db!.from("contractors").update({ company_name: "Legacy Painter Pty Ltd", abn: "41639780108", address: "25/25-27 Bunney Road, Oakleigh", phone: "0400 000 098", tour_seen_at: new Date().toISOString(), agreement_kind: "existing", induction_kind: "refresher" }).eq("id", legacy.contractorId);
+    expect(up2.error?.message ?? "").toBe("");
   });
 
   test.afterAll(async () => {
-    if (!db || !painter.contractorId) return;
-    const { data: objs } = await db.storage.from("contractor-docs").list(`${painter.contractorId}/agreements`);
-    const paths = ((objs ?? []) as { name: string }[]).map((o) => `${painter.contractorId}/agreements/${o.name}`);
-    if (paths.length) await db.storage.from("contractor-docs").remove(paths);
-    await db.from("contractor_documents").delete().eq("contractor_id", painter.contractorId);
-    await db.from("contractor_agreements").delete().eq("contractor_id", painter.contractorId);
-    await db.from("contractors").delete().eq("id", painter.contractorId);
-    await db.from("profiles").delete().eq("id", painter.userId);
-    await db.auth.admin.deleteUser(painter.userId);
-    await db.from("contractor_invites").delete().eq("email", painter.email);
+    if (!db) return;
+    await removePainter(painter);
+    await removePainter(legacy);
   });
 
   test("a blank ABN sends them to Profile with the field named; the home tile says offers wait", async ({ page }) => {
@@ -211,5 +228,67 @@ test.describe("subcontractor agreement — read, sign, keep", () => {
     const anon = createClient(URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
     const anonRows = await anon.from("contractor_agreements").select("id");
     expect(anonRows.error?.code === "42501" || (anonRows.data ?? []).length === 0).toBe(true);
+  });
+
+  test("the office: an existing contractor is asked, the grace window runs out and offers stop, the paper copy is uploaded and offers flow", async ({ page }) => {
+    test.setTimeout(120_000);
+    // Before anything: on the books, not asked, offers flow (ruling 14) — and they are on the queue as not asked.
+    expect(String((await db!.rpc("agreement_gate_of", { p_contractor_id: legacy.contractorId })).data)).toBe("ok");
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto("/contractors");
+    const cell = page.getByTestId(`agreement-${legacy.contractorId}`);
+    await expect(cell).toContainText("Agreement: Not signed · not asked yet");
+    await expect(page.getByTestId(`agreement-${painter.contractorId}`)).toContainText(/Agreement: Signed v1/);
+    await page.getByTestId(`agreement-request-${legacy.contractorId}`).click();
+    await expect(cell).toContainText(/Asked[,.]/, { timeout: 20_000 });   // C1 has no SMS provider: "Asked, but the message was not sent (not_configured)"
+    const { data: ev } = await db!.from("contractor_events").select("type, detail").eq("contractor_id", legacy.contractorId).in("type", ["agreement_requested", "agreement_request_sent"]);
+    expect((ev ?? []).map((e) => (e as { type: string }).type).sort()).toEqual(["agreement_request_sent", "agreement_requested"]);
+    await page.reload();
+    await expect(cell).toContainText(/Not signed · asked .*, offers stop/);
+
+    // The grace window runs out: the gate bites in the RPC and in the trigger, with the same word.
+    const past = await db!.from("contractors").update({ agreement_grace_until: new Date(Date.now() - 60_000).toISOString() }).eq("id", legacy.contractorId);
+    expect(past.error?.message ?? "").toBe("");
+    expect(String((await db!.rpc("agreement_gate_of", { p_contractor_id: legacy.contractorId })).data)).toBe("agreement_unsigned");
+    const { data: anyJob } = await db!.from("work_orders").select("id").eq("is_demo", false).limit(1).single();
+    const blocked = await db!.from("booking_offers").insert({ work_order_id: (anyJob as { id: string }).id, contractor_id: legacy.contractorId, state: "offered", start_date: "2030-01-06", expires_at: new Date(Date.now() + 3_600_000).toISOString() });
+    expect(blocked.error?.message ?? "").toContain("agreement_unsigned");
+
+    // The office uploads the paper copy with the date it was signed.
+    await page.goto(`/contractors/${legacy.contractorId}`);
+    const card = page.getByTestId("agreement-card");
+    await expect(card).toHaveAttribute("data-gate", "agreement_unsigned");
+    await expect(page.getByTestId("agreement-gate")).toContainText(/no job offers/);
+    await page.getByTestId("agreement-upload-date").fill("2026-03-03");
+    await page.getByTestId("agreement-upload-version").selectOption("");
+    await page.getByTestId("agreement-upload-file").setInputFiles({ name: "signed-agreement.pdf", mimeType: "application/pdf", buffer: TINY_PDF });
+    await page.getByTestId("agreement-upload").click();
+    await expect(page.getByTestId("agreement-msg")).toContainText(/^Added\./, { timeout: 20_000 });
+    await expect(page.getByTestId("agreement-line")).toContainText(/^Uploaded · 3 Mar 2026/);
+    await expect(page.getByTestId("agreement-download")).toBeVisible();
+    const { data: rows } = await db!.from("contractor_agreements").select("source, status, version, pdf_path, expires_on, commencement_on").eq("contractor_id", legacy.contractorId);
+    expect(rows).toHaveLength(1);
+    const r = rows![0] as { source: string; status: string; version: number | null; pdf_path: string; expires_on: string; commencement_on: string };
+    expect(r).toMatchObject({ source: "uploaded", status: "signed", version: null, commencement_on: "2026-03-03", expires_on: "2027-03-03" });
+    expect(r.pdf_path).toMatch(new RegExp(`^${legacy.contractorId}/agreements/upload-[0-9a-f-]{36}\\.pdf$`));
+    const { data: doc } = await db!.from("contractor_documents").select("kind, file_url").eq("contractor_id", legacy.contractorId).eq("kind", "agreement").single();
+    expect((doc as { file_url: string }).file_url).toBe(r.pdf_path);
+    expect(String((await db!.rpc("agreement_gate_of", { p_contractor_id: legacy.contractorId })).data)).toBe("ok");
+    await page.goto("/contractors");
+    await expect(cell).toContainText(/Agreement: Uploaded · 3 Mar 2026/);
+    await expect(page.getByTestId(`agreement-request-${legacy.contractorId}`)).toHaveCount(0);
+  });
+
+  test("the contractor whose paper copy was uploaded sees the same card and can download it; they are not asked to sign", async ({ page }) => {
+    await signIn(page, legacy, /\/portal/);
+    await expect(page.getByTestId("action-agreement")).toHaveCount(0);
+    await page.goto("/portal/profile");
+    await expect(page.getByTestId("profile-agreement-chip")).toHaveText("Signed");
+    await expect(page.getByTestId("profile-agreement-line")).toContainText(/Signed 3 Mar 2026 · signed on paper/);
+    const dl = await page.request.get("/portal/agreement/pdf");
+    expect(dl.status()).toBe(200);
+    await page.goto("/portal/agreement");
+    await expect(page.getByTestId("agreement-signed")).toBeVisible();
+    await expect(page.getByTestId("agreement-read")).toHaveCount(0);
   });
 });
