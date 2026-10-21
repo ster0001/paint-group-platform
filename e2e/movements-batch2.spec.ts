@@ -175,6 +175,8 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
     expect(await rpcAs(staff!, "movements_sync_now", { p_work_order_id: job!.workOrderId })).toMatch(/^ok/);
     const { data: b } = await db!.from("movements").select("from_kind, from_branch_id").eq("id", paint.id).single();
     expect(b, "the sync refilled a shop onto a stock chip").toMatchObject({ from_kind: "warehouse", from_branch_id: null });
+    // The estimate line was split earlier: the sync must NOT bring the original text back as a duplicate.
+    expect((await lines()).length, "an edited estimate line came back on sync").toBe(2);
     expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "person", p_assignee_id: contractorId, p_due_date: MON, p_half: "AM" }), "no order step from stock").toBe("ok:booked");
     expect(await rpcAs(staff!, "movement_unplace", { p_id: paint.id })).toMatch(/^ok/);
     expect(await rpcAs(staff!, "movement_set_method", { p_id: paint.id, p_method: "pickup", p_branch_id: branchId })).toBe("ok:pickup");

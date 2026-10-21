@@ -6,6 +6,8 @@
 --      on a person. movement_place refuses a stock chip on the Supplier lane (from_stock). The
 --      sync never refills a shop onto a stock chip (paint and materials branches re-emitted
 --      from 20270287 with that guard).
+--   3. The estimate import remembers what it brought over (section 3 below), so a line the
+--      office edited, split or removed on the job never comes back as a duplicate.
 --   2. One-tap delete needs no SQL: a synced chip that is cancelled is not re-created by the
 --      sync (it looks a chip up by source key whatever its status) and a materials line chip
 --      is deleted through material_line_remove.
@@ -275,11 +277,58 @@ end $$;
 revoke all on function public.movement_set_method(uuid, text, uuid) from public, anon;
 grant execute on function public.movement_set_method(uuid, text, uuid) to authenticated;
 
+-- ---- 3. the estimate import remembers what it brought over --------------------------------
+-- Found by the tray-delete spec: movements_lines_from_estimate (20270282) de-duplicated by exact
+-- text, so a line the office edited, split or REMOVED on the job came back on the next sync as
+-- a duplicate of the estimate text. The job now records the estimate texts it has imported;
+-- a text is imported once, whatever becomes of its line afterwards. Lines up to 500 chars.
+alter table public.work_orders add column if not exists estimate_lines_imported jsonb not null default '[]'::jsonb;
+
+create or replace function public.movements_lines_from_estimate(p_work_order_id uuid)
+returns integer language plpgsql security definer set search_path = public as $$
+declare v_made integer := 0; v_text text; v_sort integer; v_done jsonb;
+begin
+  select coalesce(estimate_lines_imported, '[]'::jsonb) into v_done from public.work_orders where id = p_work_order_id;
+  if v_done is null then return 0; end if;
+  for v_text in
+    select left(btrim(x), 500)
+      from public.work_orders w
+      join public.estimates e on e.id = w.estimate_id,
+           jsonb_array_elements_text(case when jsonb_typeof(e.builder_state -> 'internalMaterials') = 'array' then e.builder_state -> 'internalMaterials' else '[]'::jsonb end) x
+     where w.id = p_work_order_id and btrim(x) <> ''
+  loop
+    if v_done ? v_text then continue; end if;
+    if not exists (select 1 from public.wo_material_lines l where l.work_order_id = p_work_order_id and l.source = 'estimate' and l.text = v_text) then
+      select coalesce(max(sort), 0) + 1 into v_sort from public.wo_material_lines where work_order_id = p_work_order_id;
+      insert into public.wo_material_lines (work_order_id, text, source, sort) values (p_work_order_id, v_text, 'estimate', v_sort);
+      v_made := v_made + 1;
+    end if;
+    v_done := v_done || to_jsonb(v_text);
+  end loop;
+  update public.work_orders set estimate_lines_imported = v_done where id = p_work_order_id and estimate_lines_imported is distinct from v_done;
+  if v_made > 0 then
+    perform public.movements_event(p_work_order_id, 'material_lines_from_estimate', jsonb_build_object('count', v_made));
+  end if;
+  return v_made;
+end $$;
+revoke all on function public.movements_lines_from_estimate(uuid) from public, authenticated, anon;
+
+-- Backfill once: every issued job counts the estimate texts it already holds (or held) as imported,
+-- so nothing the office has since edited or removed comes back. Guarded: only empty records.
+update public.work_orders w
+   set estimate_lines_imported = coalesce((
+     select jsonb_agg(distinct left(btrim(x), 500))
+       from public.estimates e, jsonb_array_elements_text(case when jsonb_typeof(e.builder_state -> 'internalMaterials') = 'array' then e.builder_state -> 'internalMaterials' else '[]'::jsonb end) x
+      where e.id = w.estimate_id and btrim(x) <> ''), '[]'::jsonb)
+ where w.wo_snapshot is not null and w.estimate_lines_imported = '[]'::jsonb;
+
 -- ---- read-back: compare to the _expect_ values before calling this live ------------------
 select
   (select count(*) from pg_constraint where conname = 'movements_method_pref_check' and pg_get_constraintdef(oid) like '%stock%') as stock_allowed, 1 as _expect_stock_allowed,
   (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'movement_set_method' and pg_get_functiondef(p.oid) like '%ok:stock%') as set_method_stock, 1 as _expect_set_method_stock,
   (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'movement_place' and pg_get_functiondef(p.oid) like '%from_stock%') as place_refuses_stock, 1 as _expect_place_refuses_stock,
-  (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'movements_sync_for_wo' and pg_get_functiondef(p.oid) like '%method_pref is distinct from%') as sync_keeps_stock, 1 as _expect_sync_keeps_stock;
+  (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'movements_sync_for_wo' and pg_get_functiondef(p.oid) like '%method_pref is distinct from%') as sync_keeps_stock, 1 as _expect_sync_keeps_stock,
+  (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'work_orders' and column_name = 'estimate_lines_imported') as import_memory, 1 as _expect_import_memory,
+  (select count(*) from public.work_orders where wo_snapshot is not null and estimate_lines_imported = '[]'::jsonb and estimate_id in (select id from public.estimates where jsonb_array_length(coalesce(builder_state -> 'internalMaterials', '[]'::jsonb)) > 0)) as issued_jobs_not_backfilled, 0 as _expect_issued_jobs_not_backfilled;
 
 insert into public._prod_migrations(name) values ('20270292000000_movements_stock_and_tray_delete.sql') on conflict (name) do nothing;
