@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function MovementsPage({ searchParams }: { searchParams: Promise<{ view?: string; week?: string; job?: string; movement?: string; day?: string; who?: string }> }) {
   const sp = await searchParams;
-  const view = sp.view === "sources" ? "sources" : sp.view === "day" ? "day" : "week";
+  const view = sp.view === "sources" ? "sources" : sp.view === "day" ? "day" : sp.view === "gear" ? "gear" : "week";
   // Day view (Session 5): the week is the one the chosen day sits in; no day → today's week.
   const day = sp.day && isDateString(sp.day) ? sp.day : view === "day" ? todayIso() : null;
   const weekStart = weekStartFrom(sp.week ?? (day ?? undefined), todayIso());

@@ -391,7 +391,7 @@ export async function createEquipmentItem(raw: unknown): Promise<MovementActionR
   if (!p.success) return invalid(p);
   return call("equipment_item_create", {
     p_name: p.data.name, p_category: p.data.category, p_serial_or_model: p.data.serialOrModel ?? "", p_notes: p.data.notes ?? "", p_tag: p.data.tag ?? null,
-  }, "movements.itemCreate", ["/settings/equipment"]);
+  }, "movements.itemCreate", ["/settings"]);
 }
 
 const itemUpdateInput = z.object({
@@ -408,7 +408,7 @@ export async function updateEquipmentItem(raw: unknown): Promise<MovementActionR
   if (d.category !== undefined) patch.category = d.category;
   if (d.serialOrModel !== undefined) patch.serial_or_model = d.serialOrModel;
   if (d.notes !== undefined) patch.notes = d.notes;
-  return call("equipment_item_update", { p_id: d.id, p: patch }, "movements.itemUpdate", ["/settings/equipment"]);
+  return call("equipment_item_update", { p_id: d.id, p: patch }, "movements.itemUpdate", ["/settings"]);
 }
 
 const itemStatusInput = z.object({ id: uuid, status: z.enum(EQUIPMENT_STATUSES) });
@@ -416,7 +416,7 @@ const itemStatusInput = z.object({ id: uuid, status: z.enum(EQUIPMENT_STATUSES) 
 export async function setEquipmentItemStatus(raw: unknown): Promise<MovementActionResult> {
   const p = itemStatusInput.safeParse(raw);
   if (!p.success) return invalid(p);
-  return call("equipment_item_set_status", { p_id: p.data.id, p_status: p.data.status }, "movements.itemStatus", ["/settings/equipment"]);
+  return call("equipment_item_set_status", { p_id: p.data.id, p_status: p.data.status }, "movements.itemStatus", ["/settings"]);
 }
 
 // ---- suppliers -------------------------------------------------------------------------------
@@ -443,7 +443,7 @@ export async function upsertSupplierBranch(raw: unknown): Promise<MovementAction
     ["active", "active"], ["sourceUrl", "source_url"], ["notes", "notes"],
   ];
   for (const [from, to] of map) if (d[from] !== undefined) payload[to] = d[from];
-  return call("supplier_branch_upsert", { p: payload }, "movements.branchUpsert", ["/settings/suppliers"]);
+  return call("supplier_branch_upsert", { p: payload }, "movements.branchUpsert", ["/settings"]);
 }
 
 const accountInput = z.object({ branchId: uuid, accountRef: z.string().max(80), accountName: z.string().max(120).optional() });
@@ -454,5 +454,5 @@ export async function setSupplierBranchAccount(raw: unknown): Promise<MovementAc
   if (!p.success) return invalid(p);
   return call("supplier_branch_set_account", {
     p_branch_id: p.data.branchId, p_account_ref: p.data.accountRef, p_account_name: p.data.accountName ?? "",
-  }, "movements.branchAccount", ["/settings/suppliers"]);
+  }, "movements.branchAccount", ["/settings"]);
 }

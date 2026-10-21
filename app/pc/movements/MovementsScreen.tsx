@@ -19,6 +19,7 @@ import { markMovementOrdered, placeMovement, setMovementStatus, unplaceMovement,
 import AddChipSheet from "./AddChipSheet";
 import ChipSheet from "./ChipSheet";
 import DayView from "./DayView";
+import GearView from "./GearView";
 import HowItWorks from "./HowItWorks";
 import SourcesView from "./SourcesView";
 import { fromSerial, type SerialWorld } from "./world";
@@ -29,7 +30,7 @@ import "./movements.css";
 export const HOUR_SLOTS: [number, number] = [7.5, 17.5];
 const HOURS = hourSlots(HOUR_SLOTS);
 
-type View = "week" | "sources" | "day";
+type View = "week" | "sources" | "day" | "gear";
 type DragPayload = { chip: MovementRow };
 type DropCheck = { blocked: boolean; held: false; reason: string | null; warn: string | null; laneName: string; where: string };
 type SheetState = { kind: "chip"; id: string } | { kind: "add" } | { kind: "nearby"; laneId: string; day: string } | null;
@@ -93,6 +94,13 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
     toastTimer.current = setTimeout(() => setToast(""), ms);
   }, []);
   const [sheet, setSheet] = useState<SheetState>(movementParam ? { kind: "chip", id: movementParam } : null);
+  // A navigation within this screen (Gear → Find it in the tray, a work item link) changes the
+  // parameter without remounting: follow it (state derived from a prop, set during render).
+  const [seenMovementParam, setSeenMovementParam] = useState(movementParam);
+  if (movementParam !== seenMovementParam) {
+    setSeenMovementParam(movementParam);
+    if (movementParam) setSheet({ kind: "chip", id: movementParam });
+  }
   const [filter, setFilter] = useState<Filter>("all");
   const [trayOpen, setTrayOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -382,6 +390,7 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
             <button type="button" role="tab" aria-selected={view === "week"} className={view === "week" ? "on" : ""} onClick={() => go({ view: "week" })}><span>Week</span><small>plan</small></button>
             <button type="button" role="tab" aria-selected={view === "day"} className={view === "day" ? "on" : ""} onClick={() => go({ view: "day", day: dayParam ?? weekStart })}><span>Day</span><small>run plans</small></button>
             <button type="button" role="tab" aria-selected={view === "sources"} className={view === "sources" ? "on" : ""} onClick={() => go({ view: "sources" })}><span>Sources</span><small>where chips come from</small></button>
+            <button type="button" role="tab" aria-selected={view === "gear"} className={view === "gear" ? "on" : ""} onClick={() => go({ view: "gear" })}><span>Gear</span><small>the register</small></button>
           </div>
           <div className="weeknav">
             <button type="button" aria-label="Previous week" onClick={() => go({ week: addDays(weekStart, -7) })}>‹</button>
@@ -454,6 +463,8 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
             <span><i style={{ background: "var(--cyan)" }} />ordered / booked</span>
           </div>
         </>
+      ) : view === "gear" ? (
+        <GearView world={world} lanes={laneList} onFindInTray={(m) => { router.push(`/pc/movements?view=week&week=${weekStart}${m.work_order_id ? `&job=${m.work_order_id}` : ""}&movement=${m.id}`); }} />
       ) : view === "day" ? (
         <DayView
           world={world}

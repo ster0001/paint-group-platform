@@ -59,6 +59,16 @@ The project coordinator uses it on a laptop on Thursday or Friday to plan the we
 5. The **Orders to place** card lists every placed delivery or pickup in the week whose order is not yet in, soonest first, each with its own **Ordered ✓** (or **Booked ✓** for a hire or skip). A paint row whose colours are still TBC is disabled and says so.
 6. At 6 pm, a supplier delivery due today that nobody ticked Done texts the job's painter "did it arrive?" (draft-first, like the others).
 
+### Gear — the register
+1. Switch to **Gear**. Filter **All · At warehouse · Out on site · With a painter · Flagged**; the legend shows the nine type icons (step ladder, extension ladder 7 m and 10 m, platform ladder, spray gun, Planex sander, Festool vacuum, mobile scaffold, fall protection).
+2. Each card is one item: its type icon, name and tag, where it is now and what carries it next, and a pill — **Warehouse** (green), **On site** / **On site · return booked** (cyan), **With painter**, **Repair**, or **On site · job closed** (clay — flagged). Location is never typed: it is the last ticked movement that carried the item.
+3. Tap a card for its trail (every movement that carried it, done or planned). A flagged item has **Find it in the tray**, which opens its return chip on the Week board so you can drop it on whoever is passing; **Edit item** goes to Settings → Equipment.
+
+### Settings — Suppliers, Equipment, Movements
+1. **Settings → Movements → Suppliers**: every paint shop, hardware store and hire yard by brand. Filter by kind; tick **delivers**, **favourite** (first in the chip sheet) and **active** on the row; **Edit** for the address, suburb (its centroid places the shop), opening time and notes; **Add a branch** for a new one (its brand's vendor is created with it). Type the **trade account reference** in the box and press **Set**: it is saved to its own staff-only table and shown masked (••••1234) from then on — it never appears on a painter's screen or in the repo.
+2. **Settings → Movements → Equipment**: the register. **Add item** with a name, type and serial; the tag (E-###) is given on save unless you type one. Change an item's status (active · repair · retired · lost) on the row; an item on a planned movement cannot be retired until that movement is finished.
+3. **Settings → Movements → Movements**: the warehouse (label, address, suburb, postcode, optional lat/lng), the **Nearby radius** (7 km by default), the **planning horizon**, the **delivery confirm time**, the default AM / PM times, the hire-cost switch, the strip, and **board people** — who gets a staff lane, **AM / PM or 1-hour slots**, their colour, and whether quality checks and check-ins sit on their lane. The folder also says whether the Google Maps browser key is set: the Map view stays off until it is.
+
 ### On a phone
 The board scrolls sideways with the lane names pinned on the left. The tray is a drawer at the bottom: tap **Tray** to open it, drag a chip up onto the board, and it closes behind you.
 

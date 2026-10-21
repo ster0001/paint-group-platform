@@ -4,6 +4,11 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 20 Oct 2026 — Movements Session 6 (part): Gear view and Settings → Movements
+
+**2026-10-20 · `app/pc/movements/GearView.tsx`, `app/(app)/settings/{SuppliersSettings,EquipmentSettings,MovementsSettings}.tsx`, `movementsSettingsActions.ts`, `e2e/movements-gear-settings.spec.ts`.**
+`/pc/movements?view=gear` is the register (ruling 18): every item with its type icon, tag, where it is now and what carries it next, all from the evaluator's `locations()` — the last ticked movement that carried the item, never a typed location — with filters, the nine-icon legend, the trail, and Find it in the tray for a stranded item (its return chip on the Week board). Settings gains a **Movements** bucket: **Suppliers** (branches by brand through `supplier_branch_upsert`; the trade account reference through `supplier_branch_set_account`, masked to its last four characters on the server before it reaches the page), **Equipment** (`equipment_item_create/update/set_status`, tag on save) and **Movements** (the one `settings.movements` row — warehouse, Nearby radius, horizon, confirm time, default half times, board people with slots, colour and checks, hire costs, the strip — written by `saveMovementsSettingsAction` under `settings_staff_all`, and a line saying whether the Google Maps browser key is set). **The Map view is not built**: `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` is absent (⚑4) and the plan says stop, not stand in; it lands with the order card once the key exists.
+
 ## 20 Oct 2026 — Movements Session 7: the crossings
 
 **2026-10-20 · `supabase/migrations/20270282000000_movements_crossings.sql`, `lib/movements/loadJob.ts`, `app/pc/wo/[id]/PrestartMovements.tsx` (replaces `PrestartListBox.tsx`), `app/quote/QuoteBuilder.tsx` (`internalMaterials`), `app/pc/wo/[id]/MaterialRequests.tsx` (Accept as a line), `app/pc/flow/page.tsx` (gate pills), `lib/workorder/console.ts` / `consoleData.ts` (collect cards retired), `e2e/movements-crossings.spec.ts`.**

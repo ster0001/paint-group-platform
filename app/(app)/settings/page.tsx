@@ -67,6 +67,10 @@ import { listShowcaseJobsForStaff } from "@/lib/showcase/staff";
 import DashboardSettings, { type HistoryRow, type SpendRow, type TargetRow, type ThresholdRow } from "./DashboardSettings";
 import { numericSettingValue, settingNotes, settingUnit } from "@/lib/settings/numeric";
 import { realOnly } from "@/lib/demo/scope";
+import SuppliersSettings, { type BranchFull } from "./SuppliersSettings";
+import EquipmentSettings, { type EquipmentRow } from "./EquipmentSettings";
+import MovementsSettings, { type StaffOption } from "./MovementsSettings";
+import { movementsSettingsFrom } from "@/lib/movements/types";
 
 const AUTOMATION_COUNT = AUTOMATIONS.length;
 
@@ -270,6 +274,22 @@ export default async function SettingsPage() {
       content: <DashboardSettings targets={(targetsRes.data ?? []) as TargetRow[]} spend={(spendRes.data ?? []) as SpendRow[]} thresholds={thresholds} history={(historyRes.data ?? []) as HistoryRow[]} />,
     };
   }
+
+  // ---- Movements (Session 6): the register, the shops and the board's row -------------
+  // Fuller reads than the board's loader (inactive branches, retired items, notes); the
+  // trade account reference is masked here, on the server, to its last four characters.
+  const [branchesRes, accountsRes, equipmentRes, staffRes] = await Promise.all([
+    supabase.from("supplier_branches").select("id, brand, branch, kind, address, suburb, postcode, phone, email, map_place_id, lat, lng, delivers_to_site, opens_weekday, favourite, active, notes").order("brand").order("branch"),
+    supabase.from("supplier_branch_accounts").select("branch_id, account_ref"),
+    supabase.from("equipment_items").select("id, tag, name, category, serial_or_model, notes, status").order("tag"),
+    supabase.from("profiles").select("id, name").eq("role", "staff").order("name").limit(100),
+  ]);
+  const accountMask = new Map(((accountsRes.data ?? []) as { branch_id: string; account_ref: string }[]).map((a) => [a.branch_id, a.account_ref ? `••••${a.account_ref.slice(-4)}` : null]));
+  const branchRows: BranchFull[] = ((branchesRes.data ?? []) as Omit<BranchFull, "accountMasked">[]).map((b) => ({ ...b, accountMasked: accountMask.get(b.id) ?? null }));
+  const equipmentRows = (equipmentRes.data ?? []) as EquipmentRow[];
+  const staffOptions: StaffOption[] = ((staffRes.data ?? []) as { id: string; name: string | null }[]).map((s) => ({ id: s.id, name: s.name?.trim() || "Staff" }));
+  const movementsSettings = movementsSettingsFrom(allSettings.find((r) => r.key === "movements")?.value);
+  const movementsReadError = [branchesRes.error, accountsRes.error, equipmentRes.error].find(Boolean)?.message ?? null;
 
   // ---- the buckets (Tom, 3 Sep 2026) --------------------------------------
   // Six sections, each a list of folders. Titles are what the office and the
@@ -553,6 +573,18 @@ export default async function SettingsPage() {
               initial={(allSettings.find((r) => r.key === COST_INTAKE_KEY)?.value as { duplicateWindowDays?: number; autoConfirmExactRef?: boolean; expenseThresholdCents?: number } | undefined) ?? null}
             />
           ) },
+      ],
+    },
+    {
+      id: "movements", title: "Movements", icon: "🚚",
+      blurb: "The shops, the gear register and the board — what PC Command → Movements reads.",
+      folders: [
+        { id: "suppliers", title: "Suppliers", subtitle: "Every paint shop, hardware store and hire yard by brand — address, opening time, delivers to site, favourite, active, and the trade account reference (masked once saved)", count: branchRows.filter((b) => b.active).length || undefined,
+          content: movementsReadError && !branchesRes.data ? <p className="text-sm text-amber-700">Couldn&rsquo;t read the branches: {movementsReadError} — this needs migration 20270279.</p> : <SuppliersSettings initial={branchRows} /> },
+        { id: "equipment", title: "Equipment", subtitle: "The gear register — one row per item, tagged E-###, with its type icon; where each item is comes from the Movements board, never typed here", count: equipmentRows.filter((e) => e.status === "active").length || undefined,
+          content: movementsReadError && !equipmentRes.data ? <p className="text-sm text-amber-700">Couldn&rsquo;t read the register: {movementsReadError} — this needs migration 20270279.</p> : <EquipmentSettings initial={equipmentRows} /> },
+        { id: "movements", title: "Movements", subtitle: "The warehouse, the Nearby radius, the planning horizon, who gets a staff lane (and in hours or AM/PM), hire costs, the strip — and the Google Maps key check",
+          content: <MovementsSettings initial={movementsSettings} staff={staffOptions} mapsKeyPresent={Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY)} /> },
       ],
     },
   ];
