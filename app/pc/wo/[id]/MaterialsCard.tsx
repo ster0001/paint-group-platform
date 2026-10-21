@@ -52,6 +52,8 @@ export type MaterialInvoiceProp = {
 
 export type MaterialsBudgetProp = {
   budgetCents: number | null;
+  /** Movements (Session 7): what the ordered chips of this job expect to cost. Null = not read. */
+  orderedCents?: number | null;
   invoicedIncCents: number;
   invoicedExCents: number;
   pct: number | null;
@@ -127,6 +129,10 @@ export default function MaterialsCard({
         <div className="money" style={{ borderTop: 0, paddingTop: 0, gap: "10px 0" }}>
           <span className="mi"><span>Budget (est. materials)</span>
             <b data-testid="materials-budget-amount">{budget.budgetCents == null ? "—" : money(budget.budgetCents)}</b></span>
+          {budget.orderedCents != null && budget.orderedCents > 0 && (
+            <span className="mi"><span>Ordered (expected)</span>
+              <b data-testid="materials-ordered-amount" style={{ color: "var(--amber)" }}>{money(budget.orderedCents)}</b></span>
+          )}
           <span className="mi"><span>Invoiced ex GST</span>
             <b data-testid="materials-invoiced-amount"
               style={{ color: budget.over ? "var(--clay)" : budget.invoicedExCents > 0 ? "var(--cyan)" : undefined }}>

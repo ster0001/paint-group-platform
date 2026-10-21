@@ -36,6 +36,7 @@ export async function tickPrepItem(raw: unknown): Promise<PrepResult> {
     return { ok: true };
   }
   if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
+  if (s === "error:paint_not_ordered" || s === "error:equipment_not_booked") return { ok: false, message: "The office ticks this one once the order is in." };
   return { ok: false, message: "Couldn't save that just now." };
 }
 

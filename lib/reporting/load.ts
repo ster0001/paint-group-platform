@@ -426,7 +426,6 @@ function excludeConsole(input: ConsoleData["input"], woIds: ReadonlySet<string>)
     warrantyIssues: byWo(input.warrantyIssues),
     signoffs: without(input.signoffs, (s) => s.workOrderId, woIds),
     quietSites: without(input.quietSites, (q) => q.workOrderId, woIds),
-    collections: byWo(input.collections),
   };
 }
 

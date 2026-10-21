@@ -92,35 +92,8 @@ test.describe("PC pre-start: materials list, soonest first, reminder notes", () 
     await expect(lane.getByTestId(`soon-${later!.workOrderId}`)).toHaveCount(0);
   });
 
-  test("materials and equipment are written and saved before the item is ticked", async ({ page }) => {
-    await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`/pc/wo/${soonest!.workOrderId}`);
-    const list = page.getByTestId("checklist-pre-start");
-    await expect(list).toBeVisible();
-
-    await list.getByTestId("prestart-text-materials").fill("12L Weathershield Lexicon\n4L Aquanamel");
-    await list.getByTestId("prestart-save-materials").click();
-    await expect(list.getByTestId("prestart-msg-materials")).toHaveText("Saved");
-    await list.getByTestId("prestart-text-equipment").fill("2 ladders, sprayer, drop sheets");
-    await list.getByTestId("prestart-save-equipment").click();
-    await expect(list.getByTestId("prestart-msg-equipment")).toHaveText("Saved");
-
-    await page.reload();
-    await expect(page.getByTestId("prestart-text-materials")).toHaveValue("12L Weathershield Lexicon\n4L Aquanamel");
-    await expect(page.getByTestId("prestart-text-equipment")).toHaveValue("2 ladders, sprayer, drop sheets");
-
-    // Saved as a reference — nothing was ticked by saving.
-    const { data, error } = await db!.from("wo_checklist_items").select("label, done_at")
-      .eq("work_order_id", soonest!.workOrderId).eq("phase", "pre_start");
-    expect(error).toBeNull();
-    const rows = (data ?? []) as { label: string; done_at: string | null }[];
-    expect(rows.find((r) => r.label === "Materials ordered")?.done_at).toBeNull();
-    expect(rows.find((r) => r.label === "Equipment movements booked")?.done_at).toBeNull();
-
-    const { data: saved } = await db!.from("wo_prestart_lists").select("materials, equipment")
-      .eq("work_order_id", soonest!.workOrderId).single();
-    expect(saved).toEqual({ materials: "12L Weathershield Lexicon\n4L Aquanamel", equipment: "2 ladders, sprayer, drop sheets" });
-  });
+  // The free-text materials / equipment boxes were replaced by material lines and chips in
+  // Movements Session 7 (20270282 imported the old text as lines); e2e/movements-crossings.spec.ts covers them.
 
   test("a note on a dashboard reminder is there next time", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
@@ -145,16 +118,12 @@ test.describe("PC pre-start: materials list, soonest first, reminder notes", () 
     expect(data ?? []).toHaveLength(0);
   });
 
-  test("the painter's own session reads neither the lists nor the notes, and cannot write them", async () => {
+  test("the painter's own session reads none of the notes, and cannot write them", async () => {
     await db!.from("work_item_notes").upsert({ item_key: `colours:${three!.workOrderId}`, note: "office only" });
-    await db!.from("wo_prestart_lists").upsert({ work_order_id: three!.workOrderId, materials: "office only" });
 
     expect(await readAs(contractor!, `work_item_notes?item_key=eq.colours:${three!.workOrderId}`)).toEqual([]);
-    expect(await readAs(contractor!, `wo_prestart_lists?work_order_id=eq.${three!.workOrderId}`)).toEqual([]);
 
     expect(await rpcAs(contractor!, "pc_set_work_item_note", { p_item_key: `colours:${three!.workOrderId}`, p_note: "x" }))
-      .toBe("error:not_staff");
-    expect(await rpcAs(contractor!, "wo_set_prestart_list", { p_work_order_id: three!.workOrderId, p_kind: "materials", p_text: "x" }))
       .toBe("error:not_staff");
   });
 });
