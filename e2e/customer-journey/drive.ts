@@ -255,10 +255,9 @@ export async function lookAtEverySide(page: Page): Promise<void> {
   }
 }
 
-/** Tom, 21 Oct: the talk-it-through box floats bottom-right; on a phone it is a pill that opens the card. */
+/** Tom, 21 Oct: the talk-it-through box floats bottom-right as a bar with its buttons always in it — nothing to open (kept for the callers that wait on it). */
 export async function openTalk(page: Page): Promise<void> {
-  const toggle = page.getByTestId("ql-talk-toggle");
-  if (await toggle.isVisible() && (await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await page.getByTestId("ql-talk").waitFor({ state: "visible" });
 }
 
 export async function passDetailsSheetIfShown(page: Page, who: { name?: string; email?: string; mobile?: string } = {}): Promise<boolean> {

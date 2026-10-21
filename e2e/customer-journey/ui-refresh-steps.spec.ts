@@ -587,11 +587,12 @@ test.describe("UI refresh S5 · home outside", () => {
     await quickNext(page);
     await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
     await fits();
-    // 21 Oct: the talk-it-through pill floats above the bar on a phone and opens the card.
-    await expect(page.getByTestId("ql-talk-toggle")).toBeVisible();
-    await page.getByTestId("ql-talk-toggle").click();
+    // 21 Oct: the talk-it-through BAR floats above the Continue bar on a phone with the three options in it.
+    await expect(page.getByTestId("ql-talk")).toBeVisible();
     await expect(page.getByTestId("ql-book")).toBeVisible();
-    await page.getByTestId("ql-talk-toggle").click();
+    await expect(page.getByTestId("ql-message")).toBeVisible();
+    const talkBox = (await page.getByTestId("ql-talk").boundingBox())!;
+    expect(talkBox.height, "a bar, not a card").toBeLessThan(80);
     await lookAtEverySide(page);
     await quickNext(page);
     await passGateIfShown(page);
