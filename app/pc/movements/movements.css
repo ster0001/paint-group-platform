@@ -462,3 +462,8 @@
 .mvx .trow .tb small { display: block; color: var(--muted); font-size: 10.5px; }
 .mvx .mpin .mpop .mopen.plan { margin-left: 6px; border-color: #5B4FD6; color: #5B4FD6; }
 .mvx .prow small.warn { color: var(--amber); }
+
+/* Tom, 22 Oct 2026: one tap removes a tray chip. */
+.mvx .chip .x { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: var(--graphite); color: var(--muted); font-size: 14px; line-height: 1; display: grid; place-items: center; cursor: pointer; touch-action: auto; }
+.mvx .chip .x:hover:not(:disabled) { color: var(--clay); border-color: var(--clay); }
+.mvx .chip .x:disabled { opacity: .4; }

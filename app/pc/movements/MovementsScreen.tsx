@@ -16,7 +16,7 @@ import { movementIcon } from "@/lib/movements/gearIcons";
 import type { EquipmentCategory, MaterialLineRow, MovementRow } from "@/lib/movements/types";
 import { WEEK_DAYS, weekLabel } from "@/lib/movements/week";
 import { addDays } from "@/lib/scheduling/dates";
-import { markMovementOrdered, placeMovement, scheduleSiteVisit, setMovementStatus, unplaceMovement, type MovementActionResult } from "./actions";
+import { markMovementOrdered, placeMovement, removeMaterialLine, scheduleSiteVisit, setMovementStatus, unplaceMovement, type MovementActionResult } from "./actions";
 import HowItWorks from "./HowItWorks";
 import { fromSerial, type SerialWorld } from "./world";
 import "./movements.css";
@@ -257,6 +257,15 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
       ? `Ordered · ${lane.name.split(" ")[0]}'s pickup text is drafted: ready at ${branch ? `${branch.brand} ${branch.branch}` : "the shop"} from ${movementTime(m, world.settings)}, order ${m.order_ref || "—"} under Paint Group`
       : `Ordered · ${painter} will be told a delivery is coming ${m.due_date ? shortDay(m.due_date) : ""} ${m.time ? m.time.slice(0, 5) : m.half ?? ""} · client notice ${m.client_notice ? "on" : "off"}`;
   }), [act, laneById, painterName, world]);
+  // Tom, 22 Oct 2026: one tap removes a tray chip. A materials line chip removes its line (so the
+  // job page and the estimate lose it too); any other chip is cancelled, and the sync does not
+  // bring a cancelled chip back.
+  const removeChip = useCallback((m: MovementRow) => {
+    const lineId = m.source_key?.startsWith("matline:") ? m.source_key.slice(8) : null;
+    return lineId
+      ? act(() => removeMaterialLine({ id: lineId, workOrderId: m.work_order_id }), () => "Removed — the line is off the job page and the estimate too")
+      : act(() => setMovementStatus({ id: m.id, status: "cancelled", workOrderId: m.work_order_id }), () => `Removed — ${m.title.split(" · ")[0]} is off the tray`);
+  }, [act]);
   const done = useCallback((m: MovementRow) => act(() => setMovementStatus({ id: m.id, status: "done", workOrderId: m.work_order_id }), () =>
     m.items.length ? `${m.items.map((i) => i.label.split(" · ")[0]).join(" + ")} now ${m.kind === "equipment_return" ? "at the warehouse" : "on site"}` : "Done"), [act]);
   const unplace = useCallback((m: MovementRow) => act(() => unplaceMovement({ id: m.id, workOrderId: m.work_order_id }), () => "Back in the tray"), [act]);
@@ -320,6 +329,8 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
           >
             <span className={`ic ${chipFilterKind(m)}`}>{movementIcon(m, categoryOf(m))}</span>
             <div className="b"><b>{m.title}</b>{sub && <small className={blocked ? "bad" : tbc ? "warn" : ""}>{sub}</small>}</div>
+            <button type="button" className="x" aria-label={`Remove ${m.title}`} title="Remove from the tray" disabled={busy} data-testid="tray-chip-remove"
+              onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); void removeChip(m); }}>×</button>
             <span className="grip">⋮⋮</span>
           </div>
         );
@@ -642,7 +653,8 @@ function chipSub(m: MovementRow, world: World): string {
   const branch = world.branches.find((b) => b.id === (m.from_branch_id ?? m.to_branch_id));
   const b = branch ? `${branch.brand} ${branch.branch}` : "";
   if (isUndecidedRubbish(m)) return "painter disposed · painter drops at warehouse · left on site";
-  if ((m.kind === "materials" || m.kind === "paint") && !b) return `${m.detail ?? ""} · no shop yet — tap to confirm the shop and delivery / pickup`.replace(/^ · /, "");
+  if ((m.kind === "materials" || m.kind === "paint") && m.method_pref === "stock") return `${m.detail ?? ""} · from our stock — drop it on whoever carries it`.replace(/^ · /, "");
+  if ((m.kind === "materials" || m.kind === "paint") && !b) return `${m.detail ?? ""} · no shop yet — tap to confirm the shop, delivery / pickup, or our stock`.replace(/^ · /, "");
   const parts = [m.detail, b, m.method_pref === "delivery" ? "delivery" : m.method_pref === "pickup" ? "pickup" : null].filter(Boolean);
   if (m.kind === "equipment_return" || m.kind === "hire_off") {
     const job = world.jobs.find((j) => j.id === m.work_order_id);
