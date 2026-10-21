@@ -65,8 +65,9 @@ function windowGlyph(x: number, y: number, w: number, h: number, on: boolean, ty
   const frame = on ? (type === "alu" ? C.line : ON.windows) : "#C9D2D8";
   const sw = type === "alu" ? 1.2 : Math.max(2, w * 0.09);
   let bars = "";
+  // A winder is a plain square window that winds out — drawn like a casement, one mullion, no louvre bars
+  // (Tom, 21 Oct: the louvre bars read as colonial squares).
   if (type === "casement" || type === "winder" || type === "unsure") bars = `<path d="M${n2(x + w / 2)} ${n2(y)}V${n2(y + h)}" stroke="${frame}" stroke-width="${n2(sw)}"/>`;
-  if (type === "winder") bars += [0.25, 0.5, 0.75].map((f) => `<path d="M${n2(x)} ${n2(y + h * f)}H${n2(x + w)}" stroke="${frame}" stroke-width="${n2(sw * 0.6)}"/>`).join("");
   if (type === "sash") bars = `<path d="M${n2(x)} ${n2(y + h / 2)}H${n2(x + w)}" stroke="${frame}" stroke-width="${n2(sw * 1.4)}"/>`;
   if (type === "colonial") bars = [1 / 3, 2 / 3].map((f) => `<path d="M${n2(x + w * f)} ${n2(y)}V${n2(y + h)}" stroke="${frame}" stroke-width="${n2(sw * 0.7)}"/>`).join("") + [1 / 3, 2 / 3].map((f) => `<path d="M${n2(x)} ${n2(y + h * f)}H${n2(x + w)}" stroke="${frame}" stroke-width="${n2(sw * 0.7)}"/>`).join("");
   return `<rect x="${n2(x)}" y="${n2(y)}" width="${n2(w)}" height="${n2(h)}" fill="${C.glass}" stroke="${frame}" stroke-width="${n2(sw)}"/>${bars}`;
