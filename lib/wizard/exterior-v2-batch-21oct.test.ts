@@ -89,15 +89,15 @@ describe("12 · the width flows to the trims", () => {
     L: 12, H: 2.7,
     surfaces: [
       { id: 2, code: "Weatherboards", sharePct: 100, measureL: 12, measureH: 2.7 },
-      { id: 3, code: "Fascias", measureL: 12 },
-      { id: 4, code: "Gutters", measureL: 21.6 }, // the drawn house's w + 0.8w for a verandah
-      { id: 5, code: "Eaves", measureL: 12, origin: "customer_stated" },
+      { id: 3, code: "Fascias", measureL: 12, origin: "customer_stated" }, // the drawn house writes EVERY line customer_stated
+      { id: 4, code: "Gutters", measureL: 21.6, origin: "customer_stated" }, // the drawn house's w + 0.8w for a verandah
+      { id: 5, code: "Eaves", measureL: 12, origin: "customer_stated", metresTyped: true }, // typed in the editor's metres box
       { id: 6, code: "Fascias", measureL: 13.4, clientLabel: "Barge boards" },
       { id: 7, code: "Hand Rails", measureL: 9.6 },
     ],
     customer: { include: true, size: null, confirmed: false },
   });
-  it("every fascia, gutter and eaves line takes the new width — a verandah's share and a rake included; a typed run and a handrail stay", () => {
+  it("every fascia, gutter and eaves line takes the new width — the drawn house's customer_stated lines included; a run typed in the metres box and a handrail stay", () => {
     const r = applySideDims([side()], "front", { lengthM: 15, heightM: 4 });
     expect(r.ok).toBe(true);
     const b = (r as { ok: true; blocks: LooseBlock[] }).blocks[0];
@@ -107,7 +107,7 @@ describe("12 · the width flows to the trims", () => {
     expect(m(2)).toBe(15); // the wall follows as it always did
     expect(m(3)).toBe(15);
     expect(m(4)).toBe(15); // was 21.6 — "as standard" the width (Tom)
-    expect(m(5)).toBe(12); // customer_stated
+    expect(m(5)).toBe(12); // typed in the metres box
     expect(m(6)).toBe(15); // the rake too — Tom's rule is the width
     expect(m(7)).toBe(9.6); // a handrail is not a trim
   });
@@ -122,5 +122,17 @@ describe("vertical timber (Tom, 21 Oct follow-up 3)", () => {
     expect(elevationMarkup(painted, "front")).not.toContain('fill="#A4683F"');
     expect(elevationMarkup(painted, "front")).toContain('data-e="walls" data-on="1"><rect x="');
     expect(group(elevationMarkup(painted, "front"), "walls")).toContain('fill="#8EE4F0"');
+  });
+});
+
+describe("winder windows (Tom, 21 Oct follow-up)", () => {
+  it("draw as plain square windows — one mullion like a casement, no louvre bars that read as colonial", () => {
+    const base = house("wb", "md", ["walls", "windows"]);
+    const winder = elevationMarkup({ ...base, windowType: "winder" }, "front");
+    const casement = elevationMarkup({ ...base, windowType: "casement" }, "front");
+    const colonial = elevationMarkup({ ...base, windowType: "colonial" }, "front");
+    const bars = (svg: string) => (group(svg, "windows").match(/<path /g) ?? []).length;
+    expect(bars(winder)).toBe(bars(casement));
+    expect(bars(winder)).toBeLessThan(bars(colonial));
   });
 });

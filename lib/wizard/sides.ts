@@ -368,7 +368,10 @@ function followSideLength(b: LooseBlock): void {
   if (!(L > 0)) return;
   for (const s of b.surfaces ?? []) {
     if (!TRIM_FOLLOWS_LENGTH.test(String(s.code ?? ""))) continue;
-    if (s.origin === "customer_stated") continue;
+    // `metresTyped` is set only by the editor's metres box (applySideMetres).
+    // `origin` is NOT the test: the drawn house writes every line as
+    // customer_stated, which is why nothing followed on production (21 Oct).
+    if (s.metresTyped === true) continue;
     s.measureL = Math.round(L * 100) / 100;
   }
 }
@@ -650,8 +653,9 @@ export function applySideMetres(blocks: LooseBlock[], key: SideKey, surfaceId: n
     const line = (b.surfaces ?? []).find((s) => Number(s.id) === surfaceId);
     if (!line) return "That item isn't on this side.";
     if (isWallLine(line)) return "Wall surfaces measure from the side's own size — set the % of wall instead.";
-    if (metres == null) { line.measureL = null; return; }
+    if (metres == null) { line.measureL = null; delete line.metresTyped; return; }
     line.measureL = Math.round(metres * 10) / 10;
+    line.metresTyped = true; // a run the customer typed: a later width change leaves it alone
     line.origin = "customer_stated";
     line.confidence = 0.85;
   });
