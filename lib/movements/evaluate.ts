@@ -50,6 +50,8 @@ export type Job = {
   coloursConfirmed: boolean;
   /** work_orders.lat/lng when ⚑3 lands; the loader fills it from the suburb centroid until then. */
   point: Point | null;
+  /** The latest payment date on the job's invoices (YYYY-MM-DD), null when nothing has been paid. */
+  paidOn: string | null;
 };
 
 export type Painter = {
@@ -633,6 +635,22 @@ export type MapPins = {
   route: Point[];
 };
 
+/** Stages the map calls active: the job is on site, or between the last brush and the close. */
+export const MAP_ACTIVE_STAGES: ReadonlySet<string> = new Set(["in_progress", "qa", "completion_prep", "walkthrough"]);
+export const MAP_CLOSED_GRACE_DAYS = 7;
+
+/**
+ * Tom, 21 Oct 2026: the map shows only the active jobs — never an offer or a booking confirmed
+ * (offered, pre_start), and a closed job only until a week after its invoice was paid (an unpaid
+ * closed job with gear still on it stays). `today` is the Melbourne calendar day.
+ */
+export function onMap(job: Pick<Job, "stage" | "paidOn">, today: string): boolean {
+  if (MAP_ACTIVE_STAGES.has(job.stage)) return true;
+  if (job.stage !== "closed") return false;
+  if (!job.paidOn) return true;
+  return daysBetween(job.paidOn, today).length - 1 <= MAP_CLOSED_GRACE_DAYS;
+}
+
 /** One key per place, so two stops at the same point stack their numbers. */
 export const pointKey = (p: Point): string => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
 
@@ -643,7 +661,7 @@ export const pointKey = (p: Point): string => `${p.lat.toFixed(5)},${p.lng.toFix
  * `runPlan` sit on the icon of each stop of their day (◌ for a fixed appointment). Shops
  * with a point are listed with whether they are a stop today; the view decides which to draw.
  */
-export function mapPins(world: World, laneId: string | null, day: string, blocks: readonly ContextBlock[] = contextBlocks(world)): MapPins {
+export function mapPins(world: World, laneId: string | null, day: string, blocks: readonly ContextBlock[] = contextBlocks(world), today: string = day): MapPins {
   const badges = new Map<string, MapBadge[]>();
   const route: Point[] = [];
   const wh = warehousePoint(world);
@@ -663,6 +681,7 @@ export function mapPins(world: World, laneId: string | null, day: string, blocks
 
   const jobs: JobPin[] = [];
   for (const job of world.jobs) {
+    if (!onMap(job, today)) continue;
     const point = pointOfJob(world, job);
     if (!point) continue;
     const needs = jobNeeds(world, job.id);

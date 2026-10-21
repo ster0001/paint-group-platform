@@ -12,8 +12,11 @@ import { contractorIdForEmail, createLoopFixture, destroyLoopFixture, rpcAs, ser
  *        dragging the handle of row 2 above row 1 in the order card reorders the day — the
  *        numbers on the map and the rows change together, the Day view shows the same order,
  *        and the database holds the same two times in the new order (ruling 22);
- *     2. the job is amber while its last need is the rubbish question; tapping the pin opens
- *        that chip, answering it turns the icon teal within one render.
+ *     2. the job is amber while its last need is the rubbish question; the pin is an icon only —
+ *        tapping it opens the address popover, whose Open button opens that chip; answering it
+ *        turns the icon teal within one render;
+ *     3. only active jobs are on the map (Tom, 21 Oct): the same job set back to booking
+ *        confirmed (pre_start) is gone after a reload.
  *
  * Needs NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY in the app's build (the Map tab does not exist
  * without it) — the spec skips, loudly, when the key is absent from the test env.
@@ -108,7 +111,8 @@ test.describe("Movements Map (Session 6)", () => {
     const snap = { ...((w as { wo_snapshot: Row }).wo_snapshot), materials, jobAddress: `${RUN} Map St, Oakleigh South VIC 3167`, jobTitle: `E2E Movements Map ${RUN}` };
     // Flag 3: the job carries its real point (as the lazy geocode would have written through wo_set_point).
     const { error: uErr } = await db!.from("work_orders").update({
-      wo_snapshot: snap, stage: "pre_start", start_date: MON, end_date: WED, lat: JOB_POINT.lat, lng: JOB_POINT.lng, point_checked_at: new Date().toISOString(),
+      // On site: offers and bookings (pre_start) are not on the map since 21 Oct.
+      wo_snapshot: snap, stage: "in_progress", start_date: MON, end_date: WED, lat: JOB_POINT.lat, lng: JOB_POINT.lng, point_checked_at: new Date().toISOString(),
       colours: { [PRODUCT]: { status: "confirmed", name: "Monument", hex: "#333333" } },
     }).eq("id", job.workOrderId);
     if (uErr) throw new Error(`fixture update (needs migration 20270283 for lat/lng): ${uErr.message}`);
@@ -161,8 +165,13 @@ test.describe("Movements Map (Session 6)", () => {
     await expect(pin).toHaveAttribute("data-point", "exact");
     await expect(pin).toHaveAttribute("data-fill", "amber");
     await expect(pin).toHaveAttribute("data-need", "rubbish");
-    await expect(pin).toContainText(`${RUN} Map St`);
-    await expect(pin).toContainText("rubbish to plan");
+    // Icon only: the address lives in the popover, hidden until hover or tap.
+    await expect(pin.getByTestId("map-pop")).toBeHidden();
+    await pin.getByRole("button", { name: /Map St/ }).hover();
+    await expect(pin.getByTestId("map-pop")).toBeVisible();
+    await expect(pin.getByTestId("map-pop")).toContainText(`${RUN} Map St`);
+    await expect(pin.getByTestId("map-pop")).toContainText("rubbish to plan");
+    await page.mouse.move(5, 5);
     // The shop is a stop today: drawn solid with "1"; the job carries "2".
     await expect(shopPin(page)).toHaveAttribute("data-stop", "true");
     await expect(shopPin(page).getByTestId("map-badge")).toHaveText("1");
@@ -173,8 +182,9 @@ test.describe("Movements Map (Session 6)", () => {
     await expect(row(page, paintId)).toContainText(`${BRAND} Carnegie → ${RUN} Map St`);
 
     // Drag the drop-off's handle above the pickup (pointer events: down, move past the threshold, over the top half of row 1, up).
-    // Both rows must be inside the viewport: a pointer-up outside it finds no row under the pointer.
-    await row(page, dropoffId).scrollIntoViewIfNeeded();
+    // Both rows must be inside the viewport AND clear of the sticky nav bar: a pointer-up outside
+    // the viewport, or under the bar, finds no row under the pointer.
+    await page.getByTestId("order-list").evaluate((el) => el.scrollIntoView({ block: "center" }));
     await expect(row(page, paintId)).toBeInViewport();
     await expect(row(page, dropoffId)).toBeInViewport();
     const handle = row(page, dropoffId).getByTestId("order-handle");
@@ -207,12 +217,15 @@ test.describe("Movements Map (Session 6)", () => {
     await expect(stops.nth(1)).toHaveAttribute("data-movement-id", paintId);
   });
 
-  test("the icon: tapping the amber pin opens its last need (the rubbish question); answering it turns the job teal", async ({ page }) => {
+  test("the icon: tapping the amber pin shows the address, its Open button opens the last need (the rubbish question); answering it turns the job teal", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await openMap(page);
     const pin = jobPin(page);
     await expect(pin).toHaveAttribute("data-fill", "amber");
-    await pin.getByRole("button").click();
+    await pin.getByRole("button", { name: /Map St/ }).click();
+    await expect(pin).toHaveAttribute("data-open", "true");
+    await expect(pin.getByTestId("map-pop")).toContainText(`${RUN} Map St`);
+    await pin.getByTestId("map-pop-open").click();
     const sheet = page.getByTestId("chip-sheet");
     await expect(sheet).toBeVisible();
     await expect(sheet).toContainText("Rubbish — how?");
@@ -221,7 +234,9 @@ test.describe("Movements Map (Session 6)", () => {
     // Clearing the job's last need: the icon turns teal, the line says on track, no need icon.
     await expect(jobPin(page)).toHaveAttribute("data-fill", "teal", { timeout: 15_000 });
     await expect(jobPin(page)).toHaveAttribute("data-need", "");
-    await expect(jobPin(page)).toContainText("on track");
+    await jobPin(page).getByRole("button").hover();
+    await expect(jobPin(page).getByTestId("map-pop")).toContainText("on track");
+    await page.mouse.move(5, 5);
     const rubbish = chip(await chipsOf(job!.workOrderId), "rubbish")!;
     expect(rubbish.detail).toBe("painter disposes of it");
     // Shops toggle: off by default shows only today's stop; on shows every shop with a point — this one stays, and is named.
@@ -233,5 +248,14 @@ test.describe("Movements Map (Session 6)", () => {
     await page.getByTestId("toggle-route").click();
     await expect(page.getByTestId("toggle-route")).toHaveAttribute("aria-pressed", "true");
     await expect(jobPin(page)).toHaveCount(1);
+  });
+
+  test("only active jobs: set back to booking confirmed, the job leaves the map", async ({ page }) => {
+    const { error } = await db!.from("work_orders").update({ stage: "pre_start" }).eq("id", job!.workOrderId);
+    expect(error).toBeNull();
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await openMap(page);
+    await expect(jobPin(page)).toHaveCount(0);
+    await expect(page.getByTestId("map-warehouse")).toHaveCount(1);
   });
 });

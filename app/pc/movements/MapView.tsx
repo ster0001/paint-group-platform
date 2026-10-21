@@ -10,6 +10,7 @@ import type { JobExtras } from "@/lib/movements/load";
 import { KIND_ICONS, movementIcon } from "@/lib/movements/gearIcons";
 import type { EquipmentCategory, MovementRow, Point } from "@/lib/movements/types";
 import { loadGoogleMaps, mapsBrowserKey, type GoogleMapsLib } from "@/lib/maps/googleMaps";
+import { todayIso } from "@/lib/scheduling/dates";
 import { geocodeJobs, reorderDay, sendRunPlan, type MovementActionResult } from "./actions";
 
 type Act = (run: () => Promise<MovementActionResult>, done?: (value: string) => string | void) => Promise<boolean>;
@@ -71,9 +72,12 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
   const people = useMemo(() => lanes.filter((l) => l.kind !== "supplier" && runPlan(world, l.id, day, ctx).stops.length > 0), [lanes, world, day, ctx]);
   const lane = people.find((l) => l.id === who) ?? people[0] ?? null;
   const plan = useMemo(() => (lane ? runPlan(world, lane.id, day, ctx) : null), [world, lane, day, ctx]);
-  const pins = useMemo(() => mapPins(world, lane?.id ?? null, day, ctx), [world, lane, day, ctx]);
+  const today = todayIso();
+  const pins = useMemo(() => mapPins(world, lane?.id ?? null, day, ctx, today), [world, lane, day, ctx, today]);
   const [shops, setShops] = useState(false);
   const [route, setRoute] = useState(false);
+  // Tom, 21 Oct: icons only — the address and the need line show on hover, or stay open after a tap.
+  const [openPin, setOpenPin] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
 
   // ---- the map itself ------------------------------------------------------------------------
@@ -260,13 +264,16 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
           {badges(pins.warehouse.badges, colour)}
         </div>
       ); })()}
-      {pins.jobs.map((p) => { const at = place(p.point); if (!at) return null; const first = p.needs[0]; return (
-        <div key={`job:${p.job.id}`} className={`mpin job ${p.fill}`} style={at} data-testid="map-job" data-job-id={p.job.id} data-fill={p.fill} data-need={p.need ?? ""} data-point={jobExtras[p.job.id]?.pointSource ?? "none"}>
-          <button type="button" className="ibox" style={{ background: FILL[p.fill] }} title={first ? `${p.job.jobRef} · ${kindLabel(first)} — tap to open` : `${p.job.jobRef} · ${p.line}`}
-            onClick={() => { if (first) onOpen(first); }} aria-label={`${p.label} — ${p.line}`}>
+      {pins.jobs.map((p) => { const at = place(p.point); if (!at) return null; const first = p.needs[0]; const open = openPin === p.job.id; return (
+        <div key={`job:${p.job.id}`} className={`mpin job ${p.fill}${open ? " open" : ""}`} style={at} data-testid="map-job" data-job-id={p.job.id} data-fill={p.fill} data-need={p.need ?? ""} data-point={jobExtras[p.job.id]?.pointSource ?? "none"} data-open={open ? "true" : "false"}>
+          <button type="button" className="ibox" style={{ background: FILL[p.fill] }} aria-label={`${p.label} — ${p.line}`} aria-expanded={open}
+            onClick={() => setOpenPin((cur) => (cur === p.job.id ? null : p.job.id))}>
             {first ? movementIcon(first, categoryOf(first)) : HOUSE}
           </button>
-          <span className="jlbl">{p.label}</span><span className="jsub">{p.line}</span>
+          <div className="mpop" data-testid="map-pop">
+            <b>{p.label}</b><small>{p.job.suburb ? `${p.job.suburb} · ` : ""}{p.job.jobRef}</small><small className="ln">{p.line}</small>
+            {first && <button type="button" className="mopen" onClick={() => { setOpenPin(null); onOpen(first); }} data-testid="map-pop-open">Open {kindLabel(first).toLowerCase()}</button>}
+          </div>
           {badges(p.badges, colour)}
         </div>
       ); })}
@@ -331,7 +338,7 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
           {state.kind === "failed" && <p className="mapnote bad" role="alert">{state.why}</p>}
           {pinNodes}
         </div>
-        <p className="note">Every job is one icon. It turns amber and shows a paint / materials / gear / rubbish icon when that job still needs something planned or ordered — tap it to open that chip. Numbers are {lane ? `${first}'s` : "the selected person's"} order for the day.</p>
+        <p className="note">Only the active jobs: on site, in the finish, or closed with gear still there (a closed job leaves a week after it is paid). Each is one icon — amber with a paint / materials / gear / rubbish icon when it still needs something. Hover or tap an icon for the address; the amber ones open their chip from there. Numbers are {lane ? `${first}'s` : "the selected person's"} order for the day.</p>
       </div>
 
       <div className="side">

@@ -83,13 +83,29 @@ export function coloursConfirmed(wo: Pick<WoRow, "wo_snapshot" | "colours">): bo
 }
 
 /** A work order row as the evaluator's Job. The point is the suburb centroid until ⚑3 fills lat/lng. */
-export function jobFrom(w: WoRow, suburbs: ReadonlyMap<string, Point>): Job {
+export function jobFrom(w: WoRow, suburbs: ReadonlyMap<string, Point>, paidOn: string | null = null): Job {
   const address = w.wo_snapshot?.jobAddress ?? "";
   return {
     id: w.id, woRef: w.wo_ref, jobRef: jobRef(w), title: w.wo_snapshot?.jobTitle || w.wo_ref, address, suburb: suburbOf(address),
     stage: w.stage, startDate: w.start_date, endDate: w.end_date, contractorId: w.contractor_id, coloursConfirmed: coloursConfirmed(w),
     point: w.lat != null && w.lng != null ? { lat: w.lat, lng: w.lng } : jobPoint(address, suburbs),
+    paidOn,
   };
+}
+
+type PaidRow = { work_order_id: string | null; payments: { paid_on: string | null }[] | null };
+/** The latest payment date per job, from the invoices on it (the map hides a closed job a week after it was paid). */
+export function latestPaidOn(rows: readonly PaidRow[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    if (!r.work_order_id) continue;
+    for (const pmt of r.payments ?? []) {
+      if (!pmt.paid_on) continue;
+      const have = out.get(r.work_order_id);
+      if (!have || pmt.paid_on > have) out.set(r.work_order_id, pmt.paid_on);
+    }
+  }
+  return out;
 }
 
 export type QaFlags = { qa_required: boolean | null; qa_waived: boolean | null };
@@ -204,7 +220,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   const windowStart = melbourneInstant(+from.slice(0, 4), +from.slice(5, 7), +from.slice(8, 10), 0);
   const windowEnd = melbourneInstant(+addDays(to, 1).slice(0, 4), +addDays(to, 1).slice(5, 7), +addDays(to, 1).slice(8, 10), 0);
 
-  const [extraRes, jobsRes, linesRes, decisionsRes, profilesRes, contractorsRes, google] = await Promise.all([
+  const [extraRes, jobsRes, linesRes, decisionsRes, profilesRes, contractorsRes, google, paidRes] = await Promise.all([
     inSlices<RawMovement>([...wanted], (ids) => sliced<RawMovement>(realOnly(supabase.from("movements").select(MOVEMENT_COLUMNS)).in("id", ids))),
     inSlices<WoRow>(jobsWanted, (ids) => sliced<WoRow>(realOnly(supabase.from("work_orders").select("id, wo_ref, job_no, stage, start_date, end_date, contractor_id, wo_snapshot, colours, lat, lng, point_checked_at")).in("id", ids))),
     inSlices<MaterialLineRow>(jobsWanted, (ids) => sliced<MaterialLineRow>(realOnly(supabase.from("wo_material_lines").select("id, work_order_id, text, source, sort, merged_into, created_at")).in("work_order_id", ids).order("sort").order("created_at"))),
@@ -216,6 +232,8 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
       (r) => ({ busy: r.busy, reads: Object.fromEntries(Object.entries(r.reads).map(([id, read]) => [id, read.kind])) as Record<string, GoogleReadKind>, error: null as string | null }),
       (e: unknown) => ({ busy: [] as GoogleBusy[], reads: {} as Record<string, GoogleReadKind>, error: e instanceof Error ? e.message : String(e) }))
       : Promise.resolve({ busy: [] as GoogleBusy[], reads: {} as Record<string, GoogleReadKind>, error: null as string | null }),
+    // The map's rule (Tom, 21 Oct): a closed job leaves the map a week after its invoice was paid.
+    inSlices<PaidRow>(jobsWanted, (ids) => sliced<PaidRow>(realOnly(supabase.from("invoices").select("work_order_id, payments(paid_on)")).in("work_order_id", ids))),
   ]);
 
   fail("the movements a chip depends on", extraRes.error?.message ?? null);
@@ -224,6 +242,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   fail("the logistics decisions", decisionsRes.error?.message ?? null);
   fail("the staff on the board", profilesRes.error?.message ?? null);
   fail("the painters' logins", contractorsRes.error?.message ?? null);
+  fail("the invoices on the jobs", paidRes.error?.message ?? null);
   if (google.error) failures.push(`Couldn't read Google Calendar: ${google.error}`);
 
   // ---- assemble ----------------------------------------------------------------------------
@@ -231,7 +250,8 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   for (const l of linksRead.rows) itemsByMovement.set(l.movement_id, [...(itemsByMovement.get(l.movement_id) ?? []), l]);
   const movements: MovementRow[] = [...movementsRead.rows, ...extraRes.rows].map((m) => ({ ...m, lines: m.lines ?? null, items: itemsByMovement.get(m.id) ?? [] }));
 
-  const jobs = jobsRes.rows.map((w) => jobFrom(w, suburbs));
+  const paidOn = latestPaidOn(paidRes.rows);
+  const jobs = jobsRes.rows.map((w) => jobFrom(w, suburbs, paidOn.get(w.id) ?? null));
   const jobExtras: Record<string, JobExtras> = {};
   for (const w of jobsRes.rows) {
     const exact = w.lat != null && w.lng != null;
