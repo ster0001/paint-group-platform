@@ -96,13 +96,15 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
   // table, so they are split ONCE, here, and each section reads its own half.
   const officeShots = officePhotos(photos);
   const siteShots = photos.filter((p) => p.kind !== "reference");
-  // Tom, 21 Oct 2026: a painter's sheet carries NO estimated hours — not the
+  // Tom, 21 Oct 2026: the CREW's copy carries NO estimated hours — not the
   // total at the top, not the figure beside each surface, not the condition's
-  // extra-prep hours, not the hours on an approved change — "so they can just
-  // see and tick off the list of tasks". Only the office's editor (the
-  // builder's work-order view, which passes `edit`) still shows them. The
-  // staff "Painter's view" has no `edit` either, so it reads as the painter does.
-  const office = Boolean(edit);
+  // extra-prep hours, not the hours on a variation — "so they can just see and
+  // tick off the list of tasks". The subcontractor still sees every hour (Tom,
+  // later the same day: "the subcontractors can still see the hours, it is just
+  // the painters they share it with that can't"), and so do the office and an
+  // employed painter. The crew's data still carries the hours — the tape-check
+  // rule reads them — so this gate is the one place they are kept off the page.
+  const showHours = variant !== "crew";
 
   return (
     <div className="wo">
@@ -147,9 +149,9 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
             <div className="v">{doc.contactFirstName || "—"}{doc.contactPhone ? ` · ${doc.contactPhone}` : ""}</div>
           </div>
           {/* Tom, 1 Oct: the job's total estimated hours at the top, in those
-              words. The same sum the scheduler sizes the booking from. Office
-              only since 21 Oct 2026 — the painter's sheet has no hours. */}
-          {office && (
+              words. The same sum the scheduler sizes the booking from. Not on
+              the crew's copy (21 Oct 2026). */}
+          {showHours && (
             <div className="fact" data-testid="wo-estimated-hours">
               <div className="k">Estimated hours</div>
               <div className="v">{formatHours(estimatedHours(doc))}</div>
@@ -206,7 +208,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
         {/* CONDITION — the extra prep the job carries, in hours (Tom, 3 Sep).
             The per-surface hours already include it; this says so plainly so a
             poor-condition job never reads like an ordinary one. */}
-        {office && conditionAllowanceLine(doc.condition) && (
+        {showHours && conditionAllowanceLine(doc.condition) && (
           <div className="wo-finish wo-condition" data-testid="wo-condition">
             <span className="wo-finish-lab">Condition · extra prep</span>
             <span className="wo-finish-val">{conditionAllowanceLine(doc.condition)}</span>
@@ -415,7 +417,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                           : tick === "prepped" || s.status === "in_progress" ? " doing" : "";
                         return <span className={`pill${tone}`} data-testid={`surf-state-${s.key}`}>{label}</span>;
                       })()}
-                      {edit && (
+                      {showHours && (edit || s.hours != null) && (
                         <div className="surf-hours">
                           <span className="hlab">Hours</span>
                           {edit
@@ -493,7 +495,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                 <li key={v.id} data-testid={`scope-change-${v.id}`}>
                   <b>{v.credit ? "Removed" : "Added"}</b>
                   {v.comment ? ` — ${v.comment}` : ""}
-                  {office && !v.credit && v.estHours != null && v.estHours > 0 ? ` · ~${v.estHours} h` : ""}
+                  {!v.credit && v.estHours != null && v.estHours > 0 ? ` · ~${v.estHours} h` : ""}
                   {variant === "contractor" && (
                     <span style={{ marginLeft: 6, fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)" }}>
                       {v.status === "contractor_accepted" ? "In the job" : v.credit ? "Awaiting your acknowledgement" : "Awaiting your accept"}
