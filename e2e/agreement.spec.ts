@@ -86,6 +86,8 @@ test.describe("subcontractor agreement — read, sign, keep", () => {
     // On the books before the feature: the migration marks them existing; the spec sets it the same way. Refresher induction, so only the agreement gate is in play.
     const up2 = await db!.from("contractors").update({ company_name: "Legacy Painter Pty Ltd", abn: "41639780108", address: "25/25-27 Bunney Road, Oakleigh", phone: "0400 000 098", tour_seen_at: new Date().toISOString(), agreement_kind: "existing", induction_kind: "refresher" }).eq("id", legacy.contractorId);
     expect(up2.error?.message ?? "").toBe("");
+    // The finish standards gate sits in front of the agreement gate in send_offer and the trigger: confirm them, so the offer test reaches the agreement.
+    for (const sec of ["levels", "rules", "time", "interior", "exterior", "defect"]) await rpcAs(legacy, "standards_ack_section", { p_section: sec });
   });
 
   test.afterAll(async () => {
