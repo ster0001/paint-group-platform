@@ -2388,17 +2388,27 @@
 .wz .wz-rv-pill--det { background: rgba(59,216,233,.12); color: #0A7C8E; border-color: rgba(59,216,233,.45); }
 
 /* ───── Tom, 21 Oct (exterior batch) ───── */
-/* 5 · "Would you rather talk it through?" floats bottom-right on every wizard page and stays put while scrolling. */
-.wz .wz-talk-body { display: grid; gap: 10px; }
+/* 5 · "Would you rather talk it through?" floats bottom-right on every wizard page as a slim BAR (Tom, 21 Oct: "more of a bar than a bubble"). */
+.wz .wz-stage .wz-side .wz-talk { position: fixed; z-index: 45; margin: 0; display: block; padding: 0; background: none; border: 0; }
+.wz .wz-talk-body { display: flex; align-items: center; gap: 10px; padding: 7px 10px 7px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 100px; box-shadow: 0 10px 28px -14px rgba(13,22,28,.45); }
+.wz .wz-talk-body .wz-talk-who { gap: 8px; flex: none; }
+.wz .wz-talk-body .wz-talk-av { width: 32px; height: 32px; font-size: 12px; }
+.wz .wz-stage .wz-talk-body .wz-talk-head { font-size: 13.5px; line-height: 1.2; }
+.wz .wz-talk-body .wz-talk-head small { display: none; }
+.wz .wz-stage .wz-talk-body .wz-talk-row { display: flex; gap: 6px; }
+.wz .wz-stage .wz-talk-body .wz-talk-row .wz-btn { min-height: 36px; padding: 0 12px; border-radius: 100px; font-size: 13px; gap: 6px; white-space: nowrap; }
+.wz .wz-stage .wz-talk-body .wz-talk-row .wz-btn svg { width: 15px; height: 15px; }
 .wz .wz-talk-fab { display: none; }
 @media (min-width: 901px) {
-  .wz .wz-stage .wz-side .wz-talk { position: fixed; right: 20px; bottom: 20px; z-index: 45; width: 320px; margin: 0; box-shadow: 0 14px 36px -14px rgba(13,22,28,.4); }
+  .wz .wz-stage .wz-side .wz-talk { right: 16px; bottom: 16px; }
 }
 @media (max-width: 900px) {
-  .wz .wz-stage .wz-side .wz-talk { position: fixed; right: 12px; bottom: 86px; z-index: 45; width: auto; margin: 0; padding: 0; background: none; border: 0; display: flex; justify-content: flex-end; order: 0; }
-  .wz .wz-talk-fab { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 100px; border: 1px solid var(--line); background: var(--panel); color: var(--heading); font-family: var(--wz-sans); font-size: 14px; font-weight: 600; box-shadow: 0 10px 28px -12px rgba(13,22,28,.5); cursor: pointer; }
-  .wz .wz-talk-body { display: none; }
-  .wz .wz-talk.open .wz-talk-body { display: grid; gap: 10px; position: absolute; right: 0; bottom: 54px; width: min(340px, calc(100vw - 24px)); padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 14px 36px -14px rgba(13,22,28,.4); }
+  /* a bar of the options just above the Continue bar; the heading goes, the avatar stays as the cue */
+  .wz .wz-stage .wz-side .wz-talk { left: 12px; right: 12px; bottom: 84px; order: 0; }
+  .wz .wz-talk-body { border-radius: 18px; padding: 6px 8px; gap: 6px; }
+  .wz .wz-stage .wz-talk-body .wz-talk-head { display: none; }
+  .wz .wz-stage .wz-talk-body .wz-talk-row { flex: 1; justify-content: space-between; }
+  .wz .wz-stage .wz-talk-body .wz-talk-row .wz-btn { flex: 1; min-height: 38px; padding: 0 6px; font-size: 12px; white-space: normal; line-height: 1.15; text-align: center; }
 }
 /* 9 · "A few questions first" glows until it is answered. */
 @keyframes sd-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(59,216,233,0); } 50% { box-shadow: 0 0 0 5px rgba(59,216,233,.22), 0 0 26px rgba(59,216,233,.45); } }
