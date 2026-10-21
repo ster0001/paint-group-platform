@@ -229,13 +229,12 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
     expect(String(placed.time)).toMatch(/^07:30/);
     expect(placed.duration_min).toBe(30);
 
-    // The estimate builder: Enter makes a bubble.
+    // The estimate builder: the field is the bubble input, and on this issued (locked) estimate the
+    // line from the fixture shows as a bubble while the input is disabled with the rest of the builder.
     await page.goto(`/quote?id=${job!.estimateId}`);
     const input = page.getByTestId("internal-materials-input");
     await expect(input).toBeVisible({ timeout: 30_000 });
-    await input.fill(`E2E drop sheets ${RUN}`);
-    await input.press("Enter");
-    await expect(page.getByTestId("draft-bubble").filter({ hasText: `E2E drop sheets ${RUN}` })).toBeVisible();
-    await expect(input).toHaveValue("");
+    await expect(input).toBeDisabled();
+    await expect(page.getByTestId("draft-bubble").first()).toBeVisible();
   });
 });
