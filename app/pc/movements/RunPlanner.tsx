@@ -13,7 +13,12 @@ type Act = (run: () => Promise<MovementActionResult>, done?: (value: string) => 
 /** One row of the draft run: a tray chip, or a purpose on a job. Lives only in the browser until Publish. */
 export type PlanEntry = {
   key: string;
+  /** The chip this stop is (null = a purpose on the job, a new chip at publish). */
   movementId: string | null;
+  /** The chip the stop came from, kept so the purpose can switch back to it. */
+  chipId: string | null;
+  /** What that chip is for; a different purpose chosen on the row makes the stop a new chip instead. */
+  chipPurpose: RunPurpose | null;
   workOrderId: string | null;
   purpose: RunPurpose | null;
   /** The chip's kind words when it is a chip (the purpose select is for job stops). */
@@ -43,12 +48,14 @@ export function nextStart(world: World, laneId: string, day: string, blocks: rea
  * drag up and down; the map draws the line; nothing is posted until Publish, which lands
  * every stop on the person's day in one call.
  */
-export default function RunPlanner({ world, lanes, lane, onLane, day, blocks, entries, setEntries, act, busy, onPublished, dropHint }: {
+export default function RunPlanner({ world, lanes, lane, onLane, day, blocks, entries, setEntries, act, busy, onPublished, dropHint, onOpenChip }: {
   world: World; lanes: MovementLane[]; lane: MovementLane | null; onLane: (id: string) => void; day: string; blocks: readonly ContextBlock[];
   entries: PlanEntry[]; setEntries: (next: PlanEntry[] | ((cur: PlanEntry[]) => PlanEntry[])) => void;
   act: Act; busy: boolean; onPublished: () => void;
   /** The drop handler the map and the tray list feed (dataTransfer "chip:<id>" or "job:<id>"). */
   dropHint: (e: React.DragEvent) => void;
+  /** Open a chip's sheet (shop, time, note) from its row. */
+  onOpenChip: (id: string) => void;
 }) {
   const first = lane?.name.split(" ")[0] ?? "someone";
   const [over, setOver] = useState<{ key: string; before: boolean } | null>(null);
@@ -64,6 +71,11 @@ export default function RunPlanner({ world, lanes, lane, onLane, day, blocks, en
     return out;
   };
   const update = (key: string, patch: Partial<PlanEntry>) => setEntries((cur) => cur.map((e) => (e.key === key ? { ...e, ...patch } : e)));
+  /** Tom, 21 Oct: the reason for a stop is the office's, chip or not — the chip's own purpose keeps the chip, any other makes a new chip for that reason. */
+  const setPurpose = (e: PlanEntry, purpose: RunPurpose | null) =>
+    update(e.key, { purpose, movementId: e.chipId && purpose === e.chipPurpose ? e.chipId : null });
+  const chipOf = (e: PlanEntry) => (e.chipId ? world.movements.find((m) => m.id === e.chipId) ?? null : null);
+  const noShop = (e: PlanEntry) => { const m = chipOf(e); return Boolean(e.movementId && m && (m.kind === "paint" || m.kind === "materials") && !m.from_branch_id); };
   const remove = (key: string) => setEntries((cur) => cur.filter((e) => e.key !== key));
 
   // ---- drag a row up or down -----------------------------------------------------------------
@@ -144,7 +156,7 @@ export default function RunPlanner({ world, lanes, lane, onLane, day, blocks, en
           </select>
         </em>
       </h3>
-      <p className="note">{shortDay(day)} · tap a job on the map or a chip in the list, or drag either in here. The first stop starts at {RUN_START} unless the calendar holds it. Nothing is on {first}&rsquo;s day until you publish.</p>
+      <p className="note">{shortDay(day)} · tap a job on the map or a chip in the list, or drag either in here. Say what each stop is for — a chip&rsquo;s own reason keeps the chip, any other reason makes a new chip for it. Rubbish on an office run is a collection: it rides in the car until the warehouse. The first stop starts at {RUN_START} unless the calendar holds it. Nothing is on {first}&rsquo;s day until you publish.</p>
       <div className="planlist" data-testid="run-plan-list">
         {entries.length === 0 && <p className="note empty" data-testid="run-plan-empty">Empty — add the first stop.</p>}
         {entries.map((e, i) => (
@@ -156,15 +168,14 @@ export default function RunPlanner({ world, lanes, lane, onLane, day, blocks, en
             <div className="pbody">
               <b>{e.label}</b>
               <small>{e.sub}</small>
+              {noShop(e) && <small className="warn" data-testid="run-plan-no-shop">no shop yet — open the chip and pick where it is collected from</small>}
               <div className="pctl">
-                {e.movementId
-                  ? <span className="chp on" data-testid="run-plan-kind">{e.chipLabel}</span>
-                  : (
-                    <select value={e.purpose ?? ""} aria-label="What for" data-testid="run-plan-purpose" onChange={(ev) => update(e.key, { purpose: (ev.target.value || null) as RunPurpose | null })}>
-                      <option value="">what for?</option>
-                      {RUN_PURPOSES.map((p) => <option key={p} value={p}>{RUN_PURPOSE_LABEL[p]}</option>)}
-                    </select>
-                  )}
+                <select value={e.purpose ?? ""} aria-label="What for" data-testid="run-plan-purpose" onChange={(ev) => setPurpose(e, (ev.target.value || null) as RunPurpose | null)}>
+                  <option value="">what for?</option>
+                  {RUN_PURPOSES.map((p) => <option key={p} value={p}>{RUN_PURPOSE_LABEL[p]}{e.chipId && p === e.chipPurpose ? ` · this chip` : ""}</option>)}
+                </select>
+                {e.chipId && !e.movementId && <span className="chp" data-testid="run-plan-new-chip" title="A different reason from the chip: publishing makes a new chip for it; the chip stays in the tray">new chip</span>}
+                {e.chipId && <button type="button" className="btn sm" disabled={busy} onClick={() => onOpenChip(e.chipId!)} data-testid="run-plan-open">Open chip</button>}
                 <input type="time" value={e.time} step={300} aria-label="Start" data-testid="run-plan-time" onChange={(ev) => { if (ev.target.value) update(e.key, { time: ev.target.value }); }} />
                 <select value={String(e.durationMin)} aria-label="How long" data-testid="run-plan-duration" onChange={(ev) => update(e.key, { durationMin: Number(ev.target.value) })}>
                   {DURATIONS.map((m) => <option key={m} value={String(m)}>{durationWord(m)}</option>)}
