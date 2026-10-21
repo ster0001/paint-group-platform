@@ -75,7 +75,7 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
                   <span className="money" style={{ fontSize: 15 }}>{moneyFmt(item.amountCents)}</span>
                 )}
               </div>
-              <p className="sub" style={{ marginTop: 4 }}>{item.body}</p>
+              <p className="sub" style={{ marginTop: 4, whiteSpace: "pre-line" }}>{item.body}</p>
               <PhotoGrid photos={gridFor(item.photoIds)} />
               {item.chip && (
                 <div className="row" style={{ marginTop: 12 }}>

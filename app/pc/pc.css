@@ -187,7 +187,7 @@
 .pc .sw i{width:20px;height:12px;border-radius:3px;background:var(--graphite);border:1px solid var(--line);display:block}
 .pc .sw i.a{background:rgba(47,164,107,.25);border-color:rgba(47,164,107,.6)}
 .pc .sw i.b{background:rgba(59,216,233,.2);border-color:rgba(59,216,233,.55)}
-.pc .draft{background:rgba(10,11,13,.5);border:1px solid var(--line);border-radius:10px;padding:13px 14px;font-size:13.5px;color:var(--soft)}
+.pc .draft{background:rgba(10,11,13,.5);border:1px solid var(--line);border-radius:10px;padding:13px 14px;font-size:13.5px;color:var(--soft);white-space:pre-line;line-height:1.5}
 .pc .draft b{color:var(--text)}
 .pc .row{display:flex;gap:8px;flex-wrap:wrap}
 .pc .vsteps{display:flex;align-items:center;gap:0;margin:2px 0}

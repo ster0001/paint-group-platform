@@ -84,42 +84,97 @@ export function groupTicks(ticks: TickEvent[]): Grouped[] {
 }
 
 /**
+ * "Walls — weatherboard and render" → "walls (weatherboard and render)";
+ * "Windows × 3" → "3 windows"; "Entry door" → "entry door". The painter's
+ * tick labels are a checklist; the customer reads prose.
+ */
+export function plainSurface(label: string): string {
+  let l = label.trim();
+  let count = "";
+  const m = l.match(/^(.*?)\s*[×x]\s*(\d+)\s*$/i);
+  if (m) { l = m[1].trim(); count = m[2]; }
+  const [head, ...rest] = l.split(/\s+[—–-]\s+/);
+  const detail = rest.join(", ").trim();
+  let out = head.trim();
+  out = out.charAt(0).toLowerCase() + out.slice(1);
+  if (count) out = `${count} ${out}`;
+  if (detail) out += ` (${detail.charAt(0).toLowerCase() + detail.slice(1)})`;
+  return out;
+}
+
+/** "Front of the house" — areaPhrase with a capital, for the start of a bullet. */
+function areaHeading(heading: string): string {
+  const a = areaPhrase(heading).replace(/^the\s+/i, "");
+  return a.charAt(0).toUpperCase() + a.slice(1);
+}
+
+/** "Tuesday 14 October" in Melbourne, never the UTC date. */
+export function longDateMelbourne(d: Date): string {
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long",
+  }).formatToParts(d).filter((x) => x.type !== "literal").map((x) => x.value).join(" ");
+}
+
+/**
  * The draft, or null when the day produced nothing worth sending.
  * Null is a signal, not a failure — the console turns it into a flag.
+ *
+ * Shape (Tom, 21 Oct 2026 — "the messages still aren't clearer"): short
+ * labelled sections a customer can scan, not one long sentence of colons.
+ *
+ *   Hi Melissa,
+ *
+ *   Here is today's progress (Tuesday 14 October):
+ *
+ *   Finished today
+ *   • Front of the house: walls (weatherboard and render), 3 windows and entry door
+ *
+ *   Prepped and ready for paint
+ *   • Left-hand side: walls (weatherboard) — we will be back on these tomorrow
+ *
+ *   6 new photos are on your job page.
+ *
+ *   Any questions, just reply to this message.
+ *   The Paint Group team
  */
 export function composeUpdate({ customerFirstName, ticks, photoCount, now }: DraftInput): string | null {
   const groups = groupTicks(ticks);
   if (groups.length === 0) return null;
 
-  const sentences: string[] = [];
+  const blocks: string[] = [];
+  blocks.push(`${greeting(now, customerFirstName)},`);
+  blocks.push(`Here is today's progress (${longDateMelbourne(now)}):`);
 
   const finished = groups.filter((g) => g.done.length > 0);
   if (finished.length > 0) {
-    const parts = finished.map((g) => {
-      // A colon, not a dash: surface labels carry their own em-dashes
-      // ("Walls — weatherboard"), and two in one clause reads like a stutter.
-      const what = listPhrase(g.done);
-      return `${areaPhrase(g.heading)}: ${what}`;
-    });
-    sentences.push(
-      finished.length === 1
-        ? `today we completed ${parts[0]}`
-        : `today we completed ${listPhrase(parts)}`,
-    );
+    blocks.push(["Finished today",
+      ...finished.map((g) => `• ${areaHeading(g.heading)}: ${listPhrase(g.done.map(plainSurface))}`),
+    ].join("\n"));
   }
 
   const prepped = groups.filter((g) => g.prepped.length > 0);
   if (prepped.length > 0) {
-    const parts = prepped.map((g) => `${areaPhrase(g.heading)} (${listPhrase(g.prepped)})`);
-    sentences.push(
-      `we have prepped ${listPhrase(parts)} and will be back on that tomorrow`,
-    );
+    blocks.push(["Prepped and ready for paint",
+      ...prepped.map((g) => `• ${areaHeading(g.heading)}: ${listPhrase(g.prepped.map(plainSurface))} — we will be back on these tomorrow`),
+    ].join("\n"));
   }
 
-  const body = sentences.join(", and ");
-  const opening = `${greeting(now, customerFirstName)} — ${body}.`;
+  if (photoCount > 0) {
+    blocks.push(photoCount === 1 ? "1 new photo is on your job page." : `${photoCount} new photos are on your job page.`);
+  }
 
-  return photoCount > 0
-    ? `${opening} Photos attached (${photoCount}).`
-    : opening;
+  blocks.push("Any questions, just reply to this message.\nThe Paint Group team");
+  return blocks.join("\n\n");
+}
+
+/**
+ * The text-message form of an update: the greeting line, then the first
+ * "Finished"/"Prepped" bullet(s), on one line, within one or two segments.
+ * A text that starts with a sign-off or a wall of bullets reads as spam.
+ */
+export function smsSummary(text: string, max = 240): string {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean)
+    .filter((l) => !/^(any questions|the paint group team)/i.test(l));
+  const flat = lines.map((l) => l.replace(/^•\s*/, "")).join(" ").replace(/\s+/g, " ");
+  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }

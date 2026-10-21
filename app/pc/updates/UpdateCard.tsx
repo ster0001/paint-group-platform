@@ -67,12 +67,13 @@ export default function UpdateCard({
       )}
 
       {editing ? (
-        <textarea className="edit" rows={5} value={body} data-testid={`edit-${id}`}
+        <textarea className="edit" rows={12} value={body} data-testid={`edit-${id}`}
           onChange={(e) => setBody(e.target.value)} />
       ) : (
         <div className="draft" data-testid={`text-${id}`}>
           {body}
-          {photoCount > 0 && <> <b>Photos attached ({photoCount}).</b></>}
+          {/* The composed text names its own photos; only a hand-written draft needs the count added. */}
+          {photoCount > 0 && !/photo/i.test(body) && <> <b>Photos attached ({photoCount}).</b></>}
         </div>
       )}
 
