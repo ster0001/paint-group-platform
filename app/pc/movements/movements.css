@@ -1,7 +1,11 @@
 /* PC Command → Movements — design/reference/pc-movements-mockup.html (v4), 1:1 where the
    board engine's own chrome (app/pc/schedule/schedule.css, scoped .sb) does not already
    draw it. Scoped under .mvx so nothing here reaches the Schedule board. Light is the
-   tab's default (ruling 15); dark follows the console toggle through .pc[data-theme]. */
+   tab's default (ruling 15); dark follows the console toggle through .pc[data-theme].
+   The engine's base rules come in HERE rather than as a second import in MovementsScreen:
+   one render-blocking stylesheet for the tab instead of two (every blocking request before
+   the first paint costs a round trip on a phone), same cascade order as before. */
+@import "../schedule/schedule.css";
 
 .mvx {
   --soft: #3A434B; --dim: #D9E0E6; --violet: #5B4FD6; --oncyan: #FFFFFF;
@@ -43,6 +47,10 @@
 .mvx .how summary::-webkit-details-marker { display: none; }
 .mvx .how summary::after { content: "+"; margin-left: auto; font-size: 14px; }
 .mvx .how[open] summary::after { content: "–"; }
+/* First frame on a browser that has not closed the strip yet: page.tsx sets data-how from localStorage
+   during parse, so the strip shows open before hydration opens it for real — no board jump (CLS). */
+.pc[data-how="open"] .mvx .how:not([open])::details-content { content-visibility: visible; }
+.pc[data-how="open"] .mvx .how:not([open]) summary::after { content: "–"; }
 .mvx .how ol { margin: 8px 0 0; padding-left: 20px; color: var(--soft); font-size: 13.5px; }
 .mvx .how li { margin: 3px 0; } .mvx .how b { color: var(--text); }
 .mvx .err { margin-top: 12px; border: 1px solid rgba(163,70,58,.6); background: var(--clay-soft); color: var(--clay); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; }

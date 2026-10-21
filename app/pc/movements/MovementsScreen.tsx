@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   Board, Tray, Scrim, Sheet, Toast, useBoardDrag, useBoardZoom, hourSlots, type DropTarget,
 } from "@/app/components/board";
@@ -16,16 +17,21 @@ import type { EquipmentCategory, MaterialLineRow, MovementRow } from "@/lib/move
 import { WEEK_DAYS, weekLabel } from "@/lib/movements/week";
 import { addDays } from "@/lib/scheduling/dates";
 import { markMovementOrdered, placeMovement, setMovementStatus, unplaceMovement, type MovementActionResult } from "./actions";
-import AddChipSheet from "./AddChipSheet";
-import ChipSheet from "./ChipSheet";
-import DayView from "./DayView";
-import GearView from "./GearView";
-import MapView from "./MapView";
 import HowItWorks from "./HowItWorks";
-import SourcesView from "./SourcesView";
 import { fromSerial, type SerialWorld } from "./world";
-import "@/app/pc/schedule/schedule.css";
 import "./movements.css";
+
+/**
+ * The Week board is what paints first; Day, Gear, Sources and the two sheets load as their own
+ * chunks when a view or a tap asks for them (Lighthouse charges every script requested before the
+ * largest paint to that paint). Same components, same props — only the moment they download.
+ */
+const AddChipSheet = dynamic(() => import("./AddChipSheet"));
+const ChipSheet = dynamic(() => import("./ChipSheet"));
+const DayView = dynamic(() => import("./DayView"));
+const GearView = dynamic(() => import("./GearView"));
+const MapView = dynamic(() => import("./MapView"));
+const SourcesView = dynamic(() => import("./SourcesView"));
 
 /** 07:30 … 16:30 — ruling 16's ten rows. */
 export const HOUR_SLOTS: [number, number] = [7.5, 17.5];
