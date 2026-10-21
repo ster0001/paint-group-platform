@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { contextBlocks } from "@/lib/movements/evaluate";
 import { loadMovementsWeek } from "@/lib/movements/load";
 import { weekEnd, weekStartFrom } from "@/lib/movements/week";
-import { todayIso } from "@/lib/scheduling/dates";
+import { isDateString, todayIso } from "@/lib/scheduling/dates";
 import { THEME_COOKIE } from "@/lib/theme/cookie";
 import MovementsScreen from "./MovementsScreen";
 import { toSerial } from "./world";
@@ -18,10 +18,12 @@ export const dynamic = "force-dynamic";
  * data follows it; everything on screen is `lib/movements/evaluate.ts` over what
  * `loadMovementsWeek` read, and every change goes through app/pc/movements/actions.ts.
  */
-export default async function MovementsPage({ searchParams }: { searchParams: Promise<{ view?: string; week?: string; job?: string; movement?: string }> }) {
+export default async function MovementsPage({ searchParams }: { searchParams: Promise<{ view?: string; week?: string; job?: string; movement?: string; day?: string; who?: string }> }) {
   const sp = await searchParams;
-  const view = sp.view === "sources" ? "sources" : "week";
-  const weekStart = weekStartFrom(sp.week, todayIso());
+  const view = sp.view === "sources" ? "sources" : sp.view === "day" ? "day" : "week";
+  // Day view (Session 5): the week is the one the chosen day sits in; no day → today's week.
+  const day = sp.day && isDateString(sp.day) ? sp.day : view === "day" ? todayIso() : null;
+  const weekStart = weekStartFrom(sp.week ?? (day ?? undefined), todayIso());
   const to = weekEnd(weekStart);
   const week = await loadMovementsWeek(weekStart, to);
   const ctx = contextBlocks(week.world);
@@ -48,6 +50,8 @@ export default async function MovementsPage({ searchParams }: { searchParams: Pr
         weekStart={weekStart}
         jobParam={sp.job ?? null}
         movementParam={sp.movement ?? null}
+        dayParam={day}
+        whoParam={sp.who ?? null}
       />
     </>
   );

@@ -25,6 +25,11 @@ import StatusCard from "./StatusCard";
 import DeferCertificates from "./DeferCertificates";
 import { loadMyThreads } from "@/lib/workorder/messagesLoad";
 import { messageWhen } from "@/lib/workorder/messageModel";
+import MovementsCard from "./MovementsCard";
+import { loadPainterMovements } from "@/lib/movements/painterLoad";
+import { todayStops } from "@/lib/movements/painterView";
+import { melbourneDate as melbourneIso } from "@/lib/workorder/console";
+import { isDateString } from "@/lib/scheduling/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +43,11 @@ const melbourneDate = () =>
 
 const firstName = (full: string) => full.trim().split(/\s+/)[0] || "there";
 
-export default async function PortalHome() {
+export default async function PortalHome({ searchParams }: { searchParams?: Promise<{ day?: string }> }) {
   const { name, contractor, capabilities, employmentType, worker } = await requireContractor();
+  // The run-plan text links to a day (?day=); otherwise today, in Melbourne.
+  const sp = (await searchParams) ?? {};
+  const movementsDay = sp.day && isDateString(sp.day) ? sp.day : melbourneIso(new Date());
 
   // A worker (induction Step 3a): the jobs their contractor shared, and Help. Nothing else lives on this login.
   if (worker && capabilities.isWorker) {
@@ -106,6 +114,10 @@ export default async function PortalHome() {
   const myMessages = await loadMyThreads(supabaseForStandards);
   // Painter status (Step 6): their own row, or nothing — RLS decides (⚑21, R17).
   const { status: myStatus } = await loadMyStatus(supabaseForStandards, contractor.id);
+  // Movements (Session 5, ruling 8): every movement on this painter's lane that day — their own
+  // job's pickup or a staff-style run — through their session's RPC.
+  const movementsRead = await loadPainterMovements(supabaseForStandards, { day: movementsDay });
+  const movementsToday = todayStops(movementsRead.rows, movementsRead.branches, movementsDay);
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
   const allJobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
@@ -223,6 +235,9 @@ export default async function PortalHome() {
       {docsError && <div className="err">{docsErrorMessage(docsError)}</div>}
 
       {myStatus && <StatusCard status={myStatus} lead={employmentType === "employee"} />}
+      {(movementsToday.length > 0 || movementsRead.error) && (
+        <MovementsCard lines={movementsToday} day={movementsDay} error={movementsRead.error} title={movementsDay === melbourneIso(new Date()) ? "Your pickups and drop-offs today" : `Your pickups and drop-offs · ${movementsDay}`} />
+      )}
 
       {/* Can this contractor be offered work? The single most important fact —
           for a contractor. An employee is assigned, never offered (ruling 1). */}

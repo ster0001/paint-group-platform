@@ -259,3 +259,61 @@
   .mvx .lh b { font-size: 12px; }
   .mvx .legend { padding-bottom: 70px; }
 }
+
+/* ---- Day — run plans (Session 5; mockup .days/.people/.tl/.stop) ------------------------- */
+.mvx .dayview { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-top: 16px; align-items: start; }
+.mvx .dayview .card { border: 1px solid var(--line); border-radius: 16px; background: var(--ink); padding: 14px 16px; box-shadow: var(--shadow); }
+.mvx .dayview .card h3 { margin: 0; font-size: 15px; font-weight: 700; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.mvx .dayview .card h3 em { font-style: normal; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 400; }
+.mvx .days { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; margin-top: 10px; }
+.mvx .days button { flex: 1 0 auto; min-width: 62px; background: var(--graphite); border: 1px solid var(--line); border-radius: 11px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 1px; color: var(--muted); }
+.mvx .days button b { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--soft); }
+.mvx .days button small { font-family: var(--mono); font-size: 8.5px; }
+.mvx .days button.on { border-color: var(--cyan); background: var(--cyan-soft); } .mvx .days button.on b { color: var(--cyan); }
+.mvx .people { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 4px; align-items: center; }
+.mvx .people button { border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px; font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--ink); display: inline-flex; align-items: center; gap: 6px; }
+.mvx .people button i { width: 8px; height: 8px; border-radius: 50%; background: var(--pc); display: inline-block; }
+.mvx .people button.on { background: var(--pc); color: #fff; border-color: transparent; font-weight: 600; }
+.mvx .people button.on i { background: #fff; }
+.mvx .tl { position: relative; padding-left: 58px; margin-top: 12px; }
+.mvx .tl::before { content: ""; position: absolute; left: 42px; top: 6px; bottom: 6px; border-left: 2px solid var(--dim); }
+.mvx .stop { position: relative; margin-bottom: 9px; }
+.mvx .stop .t { position: absolute; left: -58px; top: 8px; width: 36px; text-align: right; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
+.mvx .stop .n { position: absolute; left: -23px; top: 8px; width: 18px; height: 18px; border-radius: 50%; background: var(--pc, var(--cyan)); color: #fff; font-family: var(--mono); font-weight: 700; font-size: 9px; display: grid; place-items: center; z-index: 1; }
+.mvx .stop .n.ctx { background: var(--violet); } .mvx .stop .n.done { background: var(--emerald); }
+.mvx .stop .bx { border: 1px solid var(--line); border-radius: 11px; padding: 9px 10px; background: var(--graphite); display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.mvx .stop .bx.ctx { border-style: dashed; background: transparent; }
+.mvx .stop .bx b { font-size: 13px; display: flex; gap: 6px; align-items: center; font-weight: 600; }
+.mvx .stop .bx small { color: var(--muted); font-size: 11px; display: block; }
+.mvx .stop .bx .km { font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.mvx .stop .bxb { text-align: left; display: block; min-width: 0; }
+.mvx .stop .acts { display: flex; gap: 6px; align-items: center; }
+.mvx .stop .ord { display: flex; gap: 3px; flex-direction: column; }
+.mvx .stop .ord button { width: 22px; height: 18px; border: 1px solid var(--line); border-radius: 5px; font-size: 10px; color: var(--muted); background: var(--ink); }
+.mvx .stop .ord button:disabled { opacity: .35; cursor: default; }
+.mvx .stop .tick { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); display: grid; place-items: center; color: var(--emerald); font-size: 15px; background: var(--ink); }
+.mvx .stop .tick.on { background: var(--em-soft); border-color: var(--emerald); }
+.mvx .stop .tick:disabled { opacity: .5; cursor: default; }
+.mvx .btnrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.mvx .note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+.mvx .opt .optb { text-align: left; display: block; min-width: 0; }
+.mvx .opt .sub { display: block; color: var(--muted); font-size: 11px; }
+@media (max-width: 900px) { .mvx .dayview { grid-template-columns: 1fr; } }
+
+/* ---- the phone list (/pc/movements/run) ---------------------------------------------------- */
+.mvx.run { max-width: 620px; margin: 0 auto; padding: 0 2px; }
+.mvx.run .crumb { margin: 0 0 8px; font-size: 13px; } .mvx.run .crumb a { color: var(--cyan); text-decoration: none; }
+.mvx .runlist h1 { font-size: 24px; }
+.mvx .runlist ol { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; }
+.mvx .runlist li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--ink); }
+.mvx .runlist li.fixed { border-style: dashed; background: transparent; }
+.mvx .runlist li.done { opacity: .6; }
+.mvx .runlist .n { width: 28px; height: 28px; border-radius: 50%; background: var(--violet); color: #fff; display: grid; place-items: center; font-family: var(--mono); font-weight: 700; font-size: 12px; }
+.mvx .runlist li b { display: block; font-size: 15px; }
+.mvx .runlist .what { display: block; font-size: 14px; margin-top: 2px; }
+.mvx .runlist small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.mvx .runlist .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.mvx .runlist .acts .btn { min-height: 40px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); text-decoration: none; color: var(--text); font-weight: 600; }
+.mvx .runlist .acts .btn.pri { background: var(--cyan); color: var(--oncyan); border-color: transparent; }
+.mvx .runlist .acts .btn.clay { color: var(--clay); border-color: rgba(163,70,58,.5); }
+.mvx .runlist .warn { color: var(--amber); font-size: 12px; align-self: center; }

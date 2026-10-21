@@ -35,5 +35,6 @@ Three things painters used to phone or text about now have a button on the job: 
 - **No reply after a few hours** — ring the office; the card is on their board with a time against it.
 
 ## Related
+- [movements/contractor](../movements/contractor.md) — once the office orders what you asked for, the pickup or delivery appears on your home card and the job sheet, with the shop and the order reference.
 - [Work orders — contractor](../work-orders/contractor.md)
 - [Worker logins — contractor](../worker-logins/contractor.md)
