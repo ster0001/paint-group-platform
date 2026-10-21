@@ -404,3 +404,12 @@
 .mvx .maplegend .ki { width: 12px; height: 12px; display: inline-grid; color: var(--soft); }
 .mvx .maplegend .ki svg { width: 12px; height: 12px; }
 @media (max-width: 900px) { .mvx .mapbox { height: 52vh; min-height: 340px; } }
+
+/* Tom, 21 Oct 2026: the board fills the page. The engine sizes its scroller to the viewport
+   left below the headline (--sb-space), which on this tab — headline, strip, hourly lanes ten
+   rows tall — left a 400 px window over a board twice that height and blank page under it.
+   Here the board grows with its lanes and the PAGE scrolls; the lane column stays sticky on
+   the left (horizontal) and the tray scrolls with it. The Schedule board is untouched. */
+.mvx .sb .tl { height: auto; max-height: none; overflow-y: visible; }
+.mvx .sb .layout { align-items: start; }
+.mvx .sb .tray { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }

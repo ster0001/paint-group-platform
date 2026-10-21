@@ -32,6 +32,7 @@ export function loadGoogleMaps(key: string): Promise<GoogleMapsLib> {
   const have = window.google?.maps?.importLibrary;
   if (have) return libraries(have);
   if (pending) return pending;
+  let authFailed = false;
   pending = new Promise<GoogleMapsLib>((resolve, reject) => {
     const w = window as MapsWindow;
     const fail = (why: string) => { pending = null; delete w[CALLBACK]; reject(new Error(why)); };
@@ -41,7 +42,14 @@ export function loadGoogleMaps(key: string): Promise<GoogleMapsLib> {
       delete w[CALLBACK];
       const lib = window.google?.maps?.importLibrary;
       if (!lib) { fail("Google Maps loaded without importLibrary"); return; }
-      libraries(lib).then(resolve, (e: unknown) => fail(e instanceof Error ? e.message : String(e)));
+      libraries(lib).then((l) => { if (!authFailed) resolve(l); }, (e: unknown) => fail(e instanceof Error ? e.message : String(e)));
+    };
+    // Google reports a refused key (website restriction, API not enabled, billing) through this
+    // global, not through the script's load: the script arrives fine and the map goes grey with
+    // "This page can't load Google Maps correctly". Name the cause instead.
+    (window as Window & { gm_authFailure?: () => void }).gm_authFailure = () => {
+      authFailed = true;
+      fail("Google refused the Maps key for this address. In Google Cloud → Credentials → the key: add this site to the website restrictions (https://<domain>/*), enable the Maps JavaScript API, and check billing is on for the project.");
     };
     const s = document.createElement("script");
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&region=AU&language=en-AU&callback=${CALLBACK}`;
