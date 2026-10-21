@@ -592,6 +592,13 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                               <button key={z} className={sel(`ws:${s.key}:${t.id}`, t.sizeBand === z, z) ? "on" : ""} onClick={() => act({ action: "win_size", side: s.key, surfaceId: t.id, size: z }, { describe: withDelta(`Windows set to ${z === "S" ? "small" : z === "M" ? "medium" : "large"}`), opt: [`ws:${s.key}:${t.id}`, z] })}>{z}</button>
                             ))}
                             <em className="sd-whint">Small is under 50 × 50 cm · Medium 50 cm to 1.5 m · Large over 1.5 m</em>
+                            {/* Tom, 21 Oct: "+ add a different sized window" lives IN the window box, not as a button below. */}
+                            {t.id === [...s.tiles].reverse().find((x) => x.window)?.id && (
+                              <button type="button" className="sd-waddin" data-testid={`side-add-window-${s.key}`}
+                                onClick={() => act({ action: "add_window_group", side: s.key }, { done: "Added another window group — set how many, and its size." })}>
+                                + Add a different sized window
+                              </button>
+                            )}
                           </span>
                         )}
                       </div>
@@ -607,13 +614,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                       </div>
                     ))}
                   </div>
-                  {s.tiles.some((t) => t.window) && (
-                    <button className="sd-addsurf sd-addwin" data-testid={`side-add-window-${s.key}`}
-                      onClick={() => act({ action: "add_window_group", side: s.key }, { done: "Added another window group — set how many, and its size." })}>
-                      + Add a different sized window
-                    </button>
-                  )}
-                  <button className="sd-addsurf" onClick={() => setAddOpen(addOpen === s.key ? null : s.key)}>+ Add a surface to this side</button>
+                                    <button className="sd-addsurf" onClick={() => setAddOpen(addOpen === s.key ? null : s.key)}>+ Add a surface to this side</button>
                   {addOpen === s.key && (
                     <div className="sd-addpanel">
                       <p className="sd-pl">EVERYTHING WE PAINT — TAP TO ADD TO {s.label.toUpperCase()}</p>
