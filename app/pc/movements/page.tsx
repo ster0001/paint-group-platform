@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 /**
  * PC Command → Movements (brief §3.4, Session 4): the tray of chips and the lanes × days
  * board for paint, materials, gear and rubbish, plus the Sources view (one materials list,
- * three doors). Day, Map and Gear are later sessions — no tabs for them yet.
+ * three doors), Day (Session 5), Map (Session 6, needs the browser key) and Gear (Session 6).
  *
  * Staff-only: the console layout redirects anyone else. The week lives in the URL so the
  * data follows it; everything on screen is `lib/movements/evaluate.ts` over what
@@ -24,9 +24,10 @@ export const dynamic = "force-dynamic";
  */
 export default async function MovementsPage({ searchParams }: { searchParams: Promise<{ view?: string; week?: string; job?: string; movement?: string; day?: string; who?: string }> }) {
   const sp = await searchParams;
-  const view = sp.view === "sources" ? "sources" : sp.view === "day" ? "day" : sp.view === "gear" ? "gear" : "week";
-  // Day view (Session 5): the week is the one the chosen day sits in; no day → today's week.
-  const day = sp.day && isDateString(sp.day) ? sp.day : view === "day" ? todayIso() : null;
+  const mapsOn = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY);
+  const view = sp.view === "sources" ? "sources" : sp.view === "day" ? "day" : sp.view === "map" ? "map" : sp.view === "gear" ? "gear" : "week";
+  // Day and Map views: the week is the one the chosen day sits in; no day → today's week.
+  const day = sp.day && isDateString(sp.day) ? sp.day : view === "day" || view === "map" ? todayIso() : null;
   const weekStart = weekStartFrom(sp.week ?? (day ?? undefined), todayIso());
   const to = weekEnd(weekStart);
   // The switch and the week are read together (one round trip, not two in a row — the first
@@ -67,6 +68,7 @@ export default async function MovementsPage({ searchParams }: { searchParams: Pr
         movementParam={sp.movement ?? null}
         dayParam={day}
         whoParam={sp.who ?? null}
+        mapsOn={mapsOn}
       />
     </>
   );

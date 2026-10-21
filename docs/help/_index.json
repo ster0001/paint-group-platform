@@ -576,7 +576,7 @@
       "feature": "movements",
       "role": "pc",
       "title": "Plan the week's paint, materials, gear and rubbish on the Movements board",
-      "summary": "How the Movements tab works — the tray of chips built from the jobs, the lanes for the supplier, each painter and each staff member, dragging a chip onto a day (or an hour), the chip sheet for the shop, time, order reference and note, Ordered ✓, Nearby and While-you're-there suggestions, and the Sources view that shows one materials list in its three places.",
+      "summary": "How the Movements tab works — the tray of chips built from the jobs, the lanes for the supplier, each painter and each staff member, dragging a chip onto a day (or an hour), the chip sheet for the shop, time, order reference and note, Ordered ✓, Nearby and While-you're-there suggestions, the Sources view that shows one materials list in its three places, the Day run plans, the Map with one icon per job and the drag-to-order card, and the Gear register.",
       "path": "docs/help/movements/pc.md",
       "walkthrough": "media/pc-walkthrough.gif",
       "media": [],
@@ -584,12 +584,15 @@
       "sources": [
         "app/pc/movements",
         "app/pc/movements/DayView.tsx",
+        "app/pc/movements/MapView.tsx",
         "app/pc/movements/run",
         "app/components/board",
         "lib/movements/evaluate.ts",
         "lib/movements/load.ts",
         "lib/movements/sync.ts",
         "lib/movements/notify.ts",
+        "lib/maps/googleMaps.ts",
+        "lib/places/geocodeAddress.ts",
         "app/pc/movements/actions.ts"
       ]
     },
