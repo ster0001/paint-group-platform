@@ -84,7 +84,7 @@ Under the invoices:
 ## Materials
 - **To check**: invoices that arrived at bills@ or were snapped as receipts. Each shows the supplier, invoice number, date and GST read from the document, what the supplier wrote as the reference, and the job found. When the job came from the order reference the row says how sure the reader was.
   - **Confirm** files it on the job found, as materials, approved.
-  - **Other job** / **Pick a job** chooses the job yourself. **Not for a job** files it as overhead.
+  - **Other job** / **Pick a job** chooses the job yourself: search by address or customer, and each job in the list shows its stage, customer and contract price, so two jobs at the same address can be told apart. **Not for a job** files it as overhead.
   - **Record as a cost…** is for anything that is not materials (scaffold, rubbish, carpentry…), or for a document the reader could not read: choose the kind of cost and the job, and type or correct the total and GST.
   - **Delete** keeps the document and counts it nowhere; **Restore** puts it back. A possible duplicate has **Dismiss**.
 - **On a job, to approve** and **Approved, to pay**, grouped by supplier with one **✓ Paid** per supplier (with Undo).

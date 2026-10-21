@@ -49,7 +49,7 @@ export type ActionSpec = {
 export type PaymentsUiSettings = { depositOptionsPct: number[]; notifyPaymentDefault: boolean; today: string };
 
 /** A job the picker offers (Other job, Pick a job, Snap a receipt). */
-export type PickJob = { estimateId: string; workOrderId: string; address: string; customer: string | null; laneName: string };
+export type PickJob = { estimateId: string; workOrderId: string; address: string; customer: string | null; laneName: string; priceLabel: string };
 
 /** A Materials row as its buttons, View and the picker need it — figures decided on the server. */
 export type MatSpec = {
@@ -544,7 +544,7 @@ function PickSheet({ row, jobs, onClose, onPick, heading }: { row: MatSpec | nul
         <div className="field"><input type="search" placeholder="Search address or customer" aria-label="Search jobs" value={q} onChange={(e) => setQ(e.target.value)} autoFocus /></div>
         <div className="pick">
           {list.length ? list.map((j) => (
-            <button key={j.workOrderId} type="button" onClick={() => onPick(j)}>{j.address}<small>{j.laneName}{j.customer ? ` · ${j.customer}` : ""}</small></button>
+            <button key={j.workOrderId} type="button" onClick={() => onPick(j)}>{j.address}<small>{j.laneName}{j.customer ? ` · ${j.customer}` : ""} · {j.priceLabel}</small></button>
           )) : <div className="empty">No job matches.</div>}
         </div>
         <button type="button" className="cancel" onClick={onClose}>Cancel</button>
@@ -684,7 +684,7 @@ function CostSheet({ row, jobs, onClose, onDone }: { row: MatSpec; jobs: PickJob
         <div className="field"><label htmlFor="costJob">Job</label>
           {job ? <div className="adj"><p style={{ margin: 0 }}><b>{job.address}</b> <button type="button" className="b sm" onClick={() => setJob(null)}>Change</button></p></div>
             : <><input id="costJob" type="search" placeholder="Search address or customer" value={q} onChange={(e) => setQ(e.target.value)} />
-              <div className="pick">{list.map((j) => <button key={j.workOrderId} type="button" onClick={() => setJob(j)}>{j.address}<small>{j.laneName}{j.customer ? ` · ${j.customer}` : ""}</small></button>)}</div></>}
+              <div className="pick">{list.map((j) => <button key={j.workOrderId} type="button" onClick={() => setJob(j)}>{j.address}<small>{j.laneName}{j.customer ? ` · ${j.customer}` : ""} · {j.priceLabel}</small></button>)}</div></>}
         </div>
         <div className="two">
           <div className="field"><label htmlFor="costTotal">Total inc GST ($)</label><input id="costTotal" className="money" inputMode="decimal" value={total}

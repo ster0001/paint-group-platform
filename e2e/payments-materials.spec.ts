@@ -124,7 +124,10 @@ test.describe("Payments → Materials — as staff", () => {
     await row(page, "NOJOB").getByRole("button", { name: "Pick a job" }).click();
     const picker = page.getByRole("dialog", { name: "Which job is this for?" });
     await picker.getByLabel("Search jobs").fill(`${stamp} Matjob`);
-    await picker.getByRole("button", { name: new RegExp(`${stamp} Matjob St`) }).click();
+    // Each job in the picker shows its contract price, so two jobs at one address can be told apart.
+    const matjob = picker.getByRole("button", { name: new RegExp(`${stamp} Matjob St`) });
+    await expect(matjob).toContainText("$3,000.00");
+    await matjob.click();
     await expect.poll(async () => (await costOf(nojob))?.work_order_id, { timeout: 20_000 }).toBe(j.f.workOrderId);
 
     // Not for a job: overhead, out of the to-match queue.
@@ -172,6 +175,7 @@ test.describe("Payments → Materials — as staff", () => {
     const sheet = page.getByRole("dialog", { name: "Record as a cost" });
     await sheet.getByRole("button", { name: "Rubbish" }).click();
     await sheet.getByLabel("Job").fill(`${stamp} Costjob`);
+    await expect(sheet.getByRole("button", { name: new RegExp(`${stamp} Costjob St`) })).toContainText("$3,000.00");
     await sheet.getByRole("button", { name: new RegExp(`${stamp} Costjob St`) }).click();
     await sheet.getByLabel("Total inc GST ($)").fill("220");
     await expect(sheet.getByLabel("GST ($)", { exact: true })).toHaveValue("20.00");
