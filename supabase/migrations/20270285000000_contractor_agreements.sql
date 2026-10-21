@@ -111,6 +111,23 @@ returns date language sql stable security definer set search_path = public as $$
   from public.contractors c where c.id = p_contractor_id
 $$;
 
+-- Schedule D and M for the NEXT signature: a renewal runs on from the last expiry (clause 2.3),
+-- a lapsed one starts today, a first one starts on the commencement date above.
+create or replace function public.agreement_next_term_of(p_contractor_id uuid, out commencement_on date, out expires_on date)
+language plpgsql stable security definer set search_path = public as $$
+declare v_prev date; v_found boolean; v_today date; v_months integer;
+begin
+  v_today := public.agreement_melbourne_date(now());
+  v_months := coalesce((public.agreement_rules()->>'termMonths')::integer, 12);
+  select true, a.expires_on into v_found, v_prev from public.contractor_agreements a where a.contractor_id = p_contractor_id and a.status = 'signed';
+  if coalesce(v_found, false) then
+    commencement_on := case when v_prev is not null and v_prev >= v_today then v_prev else v_today end;
+  else
+    commencement_on := public.agreement_commencement_of(p_contractor_id);
+  end if;
+  expires_on := commencement_on + make_interval(months => v_months);
+end $$;
+
 -- The one word the offer gate reads: ok, agreement_unsigned or agreement_expired.
 -- Mirrored word for word by agreementGateOf in lib/agreements/status.ts (test-pinned).
 create or replace function public.agreement_gate_of(p_contractor_id uuid)
@@ -141,7 +158,7 @@ end $$;
 create or replace function public.agreement_sign(p_version integer, p_signed_name text, p_signature_path text, p_ip text, p_user_agent text, p_body_sha256 text)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare v_cid uuid; v_c public.contractors%rowtype; v_cur integer; v_prev public.contractor_agreements%rowtype;
-        v_missing text[] := '{}'; v_rules jsonb; v_comm date; v_exp date; v_signed_on date; v_months integer; v_warn integer;
+        v_missing text[] := '{}'; v_rules jsonb; v_comm date; v_exp date; v_signed_on date; v_warn integer;
         v_merged jsonb; v_id uuid; v_abn text; v_name text; v_ip inet;
 begin
   v_cid := public.current_contractor_id();
@@ -164,21 +181,14 @@ begin
 
   begin v_ip := nullif(trim(coalesce(p_ip, '')), '')::inet; exception when others then v_ip := null; end;
   v_rules := public.agreement_rules();
-  v_months := coalesce((v_rules->>'termMonths')::integer, 12);
   v_warn := coalesce((v_rules->>'renewalWarnDays')::integer, 30);
   v_signed_on := public.agreement_melbourne_date(now());
 
   select * into v_prev from public.contractor_agreements where contractor_id = v_cid and status = 'signed';
-  if found then
-    if v_prev.version = p_version and (v_prev.expires_on is null or v_prev.expires_on - v_warn > v_signed_on) then
-      return jsonb_build_object('status', 'exists', 'id', v_prev.id, 'expires_on', v_prev.expires_on);
-    end if;
-    -- A renewal runs on from the last expiry (clause 2.3); a lapsed one starts today.
-    if v_prev.expires_on is not null and v_prev.expires_on >= v_signed_on then v_comm := v_prev.expires_on; else v_comm := v_signed_on; end if;
-  else
-    v_comm := public.agreement_commencement_of(v_cid);
+  if found and v_prev.version = p_version and (v_prev.expires_on is null or v_prev.expires_on - v_warn > v_signed_on) then
+    return jsonb_build_object('status', 'exists', 'id', v_prev.id, 'expires_on', v_prev.expires_on);
   end if;
-  v_exp := v_comm + make_interval(months => v_months);
+  select t.commencement_on, t.expires_on into v_comm, v_exp from public.agreement_next_term_of(v_cid) t;
 
   v_merged := jsonb_build_object(
     'contractor.company_name', trim(v_c.company_name),
@@ -290,7 +300,8 @@ begin
     'kind', v_c.agreement_kind, 'gate', public.agreement_gate_of(p_contractor_id),
     'current_version', public.agreement_current_version(),
     'requested_at', v_c.agreement_requested_at, 'grace_until', v_c.agreement_grace_until,
-    'commencement_on', public.agreement_commencement_of(p_contractor_id),
+    'commencement_on', (select t.commencement_on from public.agreement_next_term_of(p_contractor_id) t),
+    'next_expires_on', (select t.expires_on from public.agreement_next_term_of(p_contractor_id) t),
     'renewal_warn_days', coalesce((public.agreement_rules()->>'renewalWarnDays')::integer, 30),
     'signed', v_signed, 'history', v_history);
 end $$;
@@ -331,7 +342,7 @@ select
   (select count(*) from information_schema.columns where table_name = 'contractors' and column_name in ('agreement_kind', 'agreement_requested_at', 'agreement_grace_until')) as contractor_columns, 3 as _expect_contractor_columns,
   (select count(*) from information_schema.columns where table_name = 'contractor_documents' and column_name = 'contractor_agreement_id') as document_column, 1 as _expect_document_column,
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'
-     and p.proname in ('agreement_rules','agreement_melbourne_date','agreement_commencement_of','agreement_gate_of','agreement_sign','agreement_attach_pdf','agreement_upload','agreement_request','agreement_status_of','agreement_status','agreement_statuses')) as functions, 11 as _expect_functions,
+     and p.proname in ('agreement_rules','agreement_melbourne_date','agreement_commencement_of','agreement_next_term_of','agreement_gate_of','agreement_sign','agreement_attach_pdf','agreement_upload','agreement_request','agreement_status_of','agreement_status','agreement_statuses')) as functions, 12 as _expect_functions,
   has_function_privilege('authenticated', 'public.agreement_sign(integer, text, text, text, text, text)', 'execute') as sign_callable, true as _expect_sign_callable,
   has_function_privilege('authenticated', 'public.agreement_gate_of(uuid)', 'execute') as gate_by_session, false as _expect_gate_by_session,
   has_function_privilege('authenticated', 'public.agreement_status_of(uuid)', 'execute') as status_of_by_session, false as _expect_status_of_by_session,

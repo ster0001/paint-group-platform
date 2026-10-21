@@ -103,6 +103,8 @@ const P = {
   defectTape: ["{{first_name}}", "{{company_name}}", "{{suburb}}", "{{address}}", "{{finish_date}}"],
   finishReminder: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{address}}", "{{finish_date}}", "{{link}}"],
   standards: ["{{first_name}}", "{{company_name}}", "{{link}}", "{{version}}"],
+  agreement: ["{{first_name}}", "{{company_name}}", "{{link}}", "{{version}}", "{{expires_on}}"],
+  officeAgreement: ["{{painter}}", "{{version}}", "{{expires_on}}"],
   status: ["{{first_name}}", "{{company_name}}", "{{colour}}", "{{link}}"],
   bonus: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{link}}"],
   callback: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{day}}", "{{what}}", "{{link}}"],
@@ -546,6 +548,37 @@ export const AUTOMATIONS: Automation[] = [
       { field: "inductionCompleteEmailIntro", label: "Email body", kind: "body", placeholders: P.standards },
     ],
     guard: "Once per painter per version — the document row is the guard.",
+  },
+  {
+    key: "contractor_agreement_signed", name: "Subcontractor agreement — signed, your copy", audience: "painter", channels: ["email", "pdf"], kind: "automatic",
+    defaultChannel: "email", sendKind: "agreement_signed", capExempt: true,
+    trigger: "The painter signs the Independent Contractor Agreement in the portal. The countersigned PDF is rendered once from the same page they read, saved in their documents and attached (agreement brief Step 3).",
+    templates: [
+      { field: "agreementSignedEmailSubject", label: "Email subject", kind: "subject", placeholders: P.agreement },
+      { field: "agreementSignedEmailIntro", label: "Email body", kind: "body", placeholders: P.agreement },
+    ],
+    guard: "Once per signature — the agreement_pdf_sent event is the guard.",
+  },
+  {
+    key: "office_agreement_signed", name: "Subcontractor agreement signed (office copy)", audience: "office", channels: ["email", "pdf"], kind: "automatic",
+    defaultChannel: "email", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "A painter signs the agreement in the portal: the office gets the same PDF, to the office address.",
+    templates: [
+      { field: "officeAgreementSignedSubject", label: "Email subject", kind: "subject", placeholders: P.officeAgreement },
+      { field: "officeAgreementSignedBody", label: "Message", kind: "body", placeholders: P.officeAgreement },
+    ],
+    guard: "Once per signature, with the painter copy.",
+  },
+  {
+    key: "contractor_agreement_request", name: "Subcontractor agreement — please sign", audience: "painter", channels: ["sms", "email"], kind: "manual",
+    defaultChannel: "both", sendKind: "agreement_request", capExempt: true,
+    trigger: "The office taps Request signature on a contractor who has no signed agreement (an existing contractor, or a new one who skipped it). The grace window before offers stop starts with it.",
+    templates: [
+      { field: "agreementRequestSms", label: "Text", kind: "body", placeholders: P.agreement },
+      { field: "agreementRequestEmailSubject", label: "Email subject", kind: "subject", placeholders: P.agreement },
+      { field: "agreementRequestEmailIntro", label: "Email body", kind: "body", placeholders: P.agreement },
+    ],
+    href: "/contractors",
   },
   {
     key: "contractor_induction_invite", name: "Induction refresher — please do it", audience: "painter", channels: ["sms", "email"], kind: "manual",

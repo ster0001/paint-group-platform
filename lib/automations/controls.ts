@@ -197,6 +197,7 @@ export const SAMPLE_VARS: Record<string, string> = {
   // Movements (Session 5)
   shop: "Paint Spot Carnegie", shop_address: "1066 Dandenong Rd, Carnegie", from_time: "6:30 am", when: "in the morning", order_ref: "PG-0093", stops: "5", km: "61",
   first_name: "Sarah", name: "Sarah Chen", customer_name: "Sarah Chen", company_name: "Paint Group", company_email: "info@paintgroup.com.au",
+  expires_on: "21 Oct 2027",
   invite_line: "A calendar invitation from info@paintgroup.com.au will arrive separately — accept it and the visit sits in your calendar.",
   estimate_title: "12 Elm Grove, Thornbury", job_title: "12 Elm Grove, Thornbury", address: "12 Elm Grove, Thornbury",
   suburb: "Thornbury", total: "$4,850.00", deposit: "$485.00", amount: "$1,200.00", estimator_name: "Tom",

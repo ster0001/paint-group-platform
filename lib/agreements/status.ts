@@ -77,8 +77,9 @@ export type AgreementStatus = {
   currentVersion: number | null;
   requestedAt: string | null;
   graceUntil: string | null;
-  /** Schedule D for the next signature. */
+  /** Schedule D and M for the next signature (agreement_next_term_of). */
   commencementOn: string | null;
+  nextExpiresOn: string | null;
   renewalWarnDays: number;
   signed: SignedAgreement | null;
   history: AgreementHistoryRow[];
@@ -101,7 +102,7 @@ export function parseAgreementStatus(raw: unknown): AgreementStatus | null {
   })) : [];
   return {
     kind: kindOf(r.kind), gate: gateOf(r.gate), currentVersion: int(r.current_version),
-    requestedAt: str(r.requested_at), graceUntil: str(r.grace_until), commencementOn: str(r.commencement_on),
+    requestedAt: str(r.requested_at), graceUntil: str(r.grace_until), commencementOn: str(r.commencement_on), nextExpiresOn: str(r.next_expires_on),
     renewalWarnDays: int(r.renewal_warn_days) ?? DEFAULT_AGREEMENT_RULES.renewalWarnDays,
     signed: s ? {
       id: String(s.id ?? ""), version: int(s.version), source: sourceOf(s.source), signedAt: str(s.signed_at) ?? "", signedName: str(s.signed_name) ?? "",
