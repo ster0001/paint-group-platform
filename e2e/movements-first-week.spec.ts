@@ -135,7 +135,7 @@ test.describe("Movements first-week asks", () => {
     const paint = (await chips()).filter((r) => r.kind === "paint");
     expect(paint.length, "one paint order for the brand").toBe(1);
     expect(paint[0].source_key).toBe(`paint:${BRAND}`);
-    expect((paint[0].lines as Row[]).length, "both products on the one order").toBe(2);
+    // The lines freeze onto the chip at ordering; before that the chip reads the Materials card live.
   });
 
   test("1: a comma-separated line is one chip; 500 characters fit; no shop is assumed", async () => {

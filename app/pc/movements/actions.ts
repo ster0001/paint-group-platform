@@ -1,5 +1,7 @@
 "use server";
 
+import { RUN_PURPOSES } from "@/lib/movements/evaluate";
+
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
@@ -443,7 +445,7 @@ export async function setMovementDuration(raw: unknown): Promise<MovementActionR
   return call("movement_set_duration", { p_id: p.data.id, p_minutes: p.data.minutes }, "movements.setDuration", jobPaths(p.data.workOrderId));
 }
 
-export const RUN_PURPOSES = ["collect_materials", "quality_check", "site_checkin", "rubbish_collection", "drop_materials", "drop_paint"] as const;
+// A "use server" file may export only async functions: the purposes live in lib/movements/evaluate.ts.
 const publishInput = z.object({
   personKind: z.enum(["profiles", "contractors"]), personId: uuid, day: isoDate,
   stops: z.array(z.object({
