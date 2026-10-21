@@ -137,6 +137,8 @@ export type MovementsSettings = {
   showHowItWorks: boolean;
   recordHireCosts: boolean;
   defaultHalfTime: { AM: string; PM: string };
+  /** Session 8 rollback switch: off hides the Movements tab and refuses its routes (the data stays). */
+  movementsTab: boolean;
 };
 
 export const DEFAULT_MOVEMENTS_SETTINGS: MovementsSettings = {
@@ -148,6 +150,7 @@ export const DEFAULT_MOVEMENTS_SETTINGS: MovementsSettings = {
   showHowItWorks: true,
   recordHireCosts: true,
   defaultHalfTime: { AM: "07:00", PM: "13:00" },
+  movementsTab: true,
 };
 
 /** The settings row as stored, with every missing or malformed field falling back to the default. */
@@ -181,5 +184,6 @@ export function movementsSettingsFrom(value: unknown): MovementsSettings {
     showHowItWorks: typeof v.showHowItWorks === "boolean" ? v.showHowItWorks : d.showHowItWorks,
     recordHireCosts: typeof v.recordHireCosts === "boolean" ? v.recordHireCosts : d.recordHireCosts,
     defaultHalfTime: { AM: str(half.AM, d.defaultHalfTime.AM), PM: str(half.PM, d.defaultHalfTime.PM) },
+    movementsTab: typeof v.movementsTab === "boolean" ? v.movementsTab : d.movementsTab,
   };
 }

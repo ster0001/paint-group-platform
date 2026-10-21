@@ -23,6 +23,7 @@ const input = z.object({
   showHowItWorks: z.boolean(),
   recordHireCosts: z.boolean(),
   defaultHalfTime: z.object({ AM: clock, PM: clock }),
+  movementsTab: z.boolean(),
 });
 
 /**
@@ -44,5 +45,6 @@ export async function saveMovementsSettingsAction(raw: unknown): Promise<Result>
   if (error) return { ok: false, message: "Couldn't save — please try again." };
   revalidatePath("/settings");
   revalidatePath("/pc/movements");
+  revalidatePath("/pc", "layout"); // the tab rail reads movementsTab
   return { ok: true };
 }

@@ -310,7 +310,9 @@ begin
     select m.id into new.movement_id from public.movements m
      where m.work_order_id = new.work_order_id and m.status <> 'cancelled'
        and lower(btrim(m.order_ref)) = lower(btrim(new.order_ref))
-     order by m.ordered_at desc nulls last, m.created_at limit 1;
+     -- Every chip on a job defaults to the job reference: a supplier invoice is for what a
+     -- supplier delivered (paint, then materials), and the most recent order of those.
+     order by (m.assignee_kind = 'supplier') desc, (m.kind = 'paint') desc, (m.kind = 'materials') desc, m.ordered_at desc nulls last, m.created_at limit 1;
   end if;
   return new;
 end $$;

@@ -9,9 +9,9 @@ import { readGoogleBusyForStaff, type GoogleBusy, type GoogleReadKind } from "@/
 import { melbourneInstant } from "@/lib/time/businessHours";
 import type { WOMaterial } from "@/lib/workorder/snapshot";
 import { cansOf, jobPoint, jobRef } from "./sync";
-import { suburbOf, type Appointment, type Job, type Painter, type StaffPerson, type World } from "./evaluate";
+import { suburbOf, type Appointment, type Job, type Painter, type StaffPerson, type World, type WorldBranch } from "./evaluate";
 import {
-  movementsSettingsFrom, type BranchRow, type EquipmentItemRow, type LogisticsDecisionRow, type MaterialLineRow, type MovementItemRow,
+  movementsSettingsFrom, type EquipmentItemRow, type LogisticsDecisionRow, type MaterialLineRow, type MovementItemRow,
   type MovementLine, type MovementRow, type MovementsSettings, type Point,
 } from "./types";
 
@@ -45,11 +45,26 @@ export type MovementsWeek = {
 
 /** A Materials-card row with the brand the sync groups it under (`paint:<brand>`, blank → `brand?`). */
 export type PaintRowView = MovementLine & { brand: string };
-export type JobExtras = { paintRows: PaintRowView[]; crewNotes: string };
+export type JobExtras = {
+  paintRows: PaintRowView[]; crewNotes: string;
+  /** Flag 3: `exact` = work_orders.lat/lng; `suburb` = the centroid stands in; `none` = no point at all. */
+  pointSource: "exact" | "suburb" | "none";
+  /** The Map view asks the Places route for this job once per render while true: no real point, never checked (or not in the last 7 days). */
+  geocodeWanted: boolean;
+};
+
+const GEOCODE_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
+/** Whether the lazy geocode should try this job now (`exact` never; a failed attempt waits a week). */
+export function geocodeWanted(w: Pick<WoRow, "lat" | "lng" | "point_checked_at">, now = Date.now()): boolean {
+  if (w.lat != null && w.lng != null) return false;
+  if (!w.point_checked_at) return true;
+  const t = new Date(w.point_checked_at).getTime();
+  return Number.isNaN(t) || now - t > GEOCODE_RETRY_MS;
+}
 
 type WoRow = {
   id: string; wo_ref: string; job_no: number | null; stage: string; start_date: string | null; end_date: string | null; contractor_id: string | null;
-  lat?: number | null; lng?: number | null;
+  lat?: number | null; lng?: number | null; point_checked_at?: string | null;
   wo_snapshot: { jobAddress?: string; jobTitle?: string; materials?: WOMaterial[]; crewNotes?: string } | null;
   colours: Record<string, { status?: string } | null> | null;
 };
@@ -121,13 +136,15 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
     fetchAllRows<MovementItemRow>((f, t) => realOnly(supabase.from("movement_items").select("movement_id, equipment_item_id, label")).order("movement_id").order("equipment_item_id").range(f, t))
       .then((rows) => ({ data: rows, error: null as { message: string } | null }), (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } })),
     supabase.from("equipment_items").select("id, tag, name, category, serial_or_model, status").neq("status", "retired").order("tag"),
-    supabase.from("supplier_branches").select("id, brand, branch, kind, address, suburb, phone, lat, lng, delivers_to_site, opens_weekday, favourite, active").eq("active", true).order("brand").order("branch"),
+    // The columns the screens draw (name, place, phone for the painter's run list, hours, delivers)
+    // — favourite and active are Settings → Movements → suppliers' business and would ride to the client for nothing.
+    supabase.from("supplier_branches").select("id, brand, branch, kind, address, suburb, phone, lat, lng, delivers_to_site, opens_weekday").eq("active", true).order("brand").order("branch"),
     // Tom, 20 Oct 2026: a quality check is on the board only when the job has "Quality check
     // required" ticked (work_orders.qa_required) and it was not waived — not on every staff job.
     realOnly(supabase.from("wo_qa_checks").select("id, work_order_id, scheduled_for, scheduled_time, kind, work_orders(qa_required, qa_waived)")).is("result", null).gte("scheduled_for", from).lte("scheduled_for", to),
     realOnly(supabase.from("wo_site_visits").select("id, work_order_id, scheduled_for, scheduled_time")).is("visited_at", null).gte("scheduled_for", from).lte("scheduled_for", to),
-    // The centroids (one paged read; ~1,000 rows). Keyed lower-case; the first by postcode wins, as the SQL orders it.
-    fetchAllRows<{ suburb: string; postcode: string; lat: number | null; lng: number | null }>((f, t) => supabase.from("visit_suburbs").select("suburb, postcode, lat, lng").order("suburb").order("postcode").range(f, t))
+    // The centroids (~3,500 rows: four pages, asked for together). Keyed lower-case; the first by postcode wins, as the SQL orders it.
+    fetchAllRows<{ suburb: string; postcode: string; lat: number | null; lng: number | null }>((f, t) => supabase.from("visit_suburbs").select("suburb, postcode, lat, lng").order("suburb").order("postcode").range(f, t), { prefetchPages: 4 })
       .then((rows) => ({ data: rows, error: null as { message: string } | null }), (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } })),
     // Brand by product NAME (Session 1 decision): the paint chip's live rows are the Materials
     // rows of its brand, and the rows carry only the product's name.
@@ -143,7 +160,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   fail("the gear on movements", linksRead.error);
   const equipmentRead = failed<EquipmentItemRow>(equipmentRes.error, equipmentRes.data as EquipmentItemRow[] | null);
   fail("the equipment register", equipmentRead.error);
-  const branchesRead = failed<BranchRow>(branchesRes.error, branchesRes.data as BranchRow[] | null);
+  const branchesRead = failed<WorldBranch>(branchesRes.error, branchesRes.data as WorldBranch[] | null);
   fail("the supplier branches", branchesRead.error);
   type QaRow = { id: string; work_order_id: string; scheduled_for: string; scheduled_time: string | null; kind: string; work_orders: QaFlags | null };
   const qaRead = failed<QaRow>(qaRes.error, qaRes.data as unknown as QaRow[] | null);
@@ -184,7 +201,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
 
   const [extraRes, jobsRes, linesRes, decisionsRes, profilesRes, contractorsRes, google] = await Promise.all([
     inSlices<RawMovement>([...wanted], (ids) => sliced<RawMovement>(realOnly(supabase.from("movements").select(MOVEMENT_COLUMNS)).in("id", ids))),
-    inSlices<WoRow>(jobsWanted, (ids) => sliced<WoRow>(realOnly(supabase.from("work_orders").select("id, wo_ref, job_no, stage, start_date, end_date, contractor_id, wo_snapshot, colours")).in("id", ids))),
+    inSlices<WoRow>(jobsWanted, (ids) => sliced<WoRow>(realOnly(supabase.from("work_orders").select("id, wo_ref, job_no, stage, start_date, end_date, contractor_id, wo_snapshot, colours, lat, lng, point_checked_at")).in("id", ids))),
     inSlices<MaterialLineRow>(jobsWanted, (ids) => sliced<MaterialLineRow>(realOnly(supabase.from("wo_material_lines").select("id, work_order_id, text, source, sort, merged_into, created_at")).in("work_order_id", ids).order("sort").order("created_at"))),
     inSlices<LogisticsDecisionRow>(jobsWanted, (ids) => sliced<LogisticsDecisionRow>(realOnly(supabase.from("wo_logistics_decisions").select("work_order_id, line, decision")).in("work_order_id", ids))),
     inSlices<{ id: string; name: string | null }>(staffIds, (ids) => sliced<{ id: string; name: string | null }>(supabase.from("profiles").select("id, name").in("id", ids))),
@@ -212,8 +229,11 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   const jobs = jobsRes.rows.map((w) => jobFrom(w, suburbs));
   const jobExtras: Record<string, JobExtras> = {};
   for (const w of jobsRes.rows) {
+    const exact = w.lat != null && w.lng != null;
     jobExtras[w.id] = {
       crewNotes: w.wo_snapshot?.crewNotes ?? "",
+      pointSource: exact ? "exact" : jobPoint(w.wo_snapshot?.jobAddress ?? "", suburbs) ? "suburb" : "none",
+      geocodeWanted: geocodeWanted(w),
       paintRows: (w.wo_snapshot?.materials ?? []).filter((m) => m.product).map((m) => ({
         rowKey: m.colourKey ?? m.product, product: m.product, colourName: m.colourName ?? null, colourHex: m.colourHex ?? null,
         colourStatus: m.colourStatus ?? null, litres: m.litres ?? null, cans: cansOf(m.litres),
