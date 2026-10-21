@@ -28,7 +28,7 @@ Every job needs paint, usually some materials, sometimes gear from the warehouse
 ### On the job sheet
 1. Open the job. Under **Materials & colours** there is a **Getting it to site** section with up to four groups: **Paint**, **Materials**, **Loan gear**, **Rubbish**.
 2. Paint and materials say either *Delivered to site Mon 19 Oct, morning* (nothing for you to do) or *Pick up at …* (yours, with the same Navigate, Call and tick as the card).
-3. Loan gear says when it comes to site and, if you are to bring it back, *Bring it back to the warehouse Fri 23 Oct* with a **Returned ✓** tick.
+3. Loan gear says when it comes to site and, if you are to bring it back, *Bring it back to the warehouse Fri 23 Oct* with a **Returned ✓** tick. Gear the office typed in words (an extension ladder, drop sheets) shows those words instead of register items.
 4. Rubbish says how it goes: a skip's in and out days, *Drop the rubbish at the warehouse on your last day*, *Take the rubbish to the tip — claim the fee under Expenses*, or *Leave the rubbish on site — it is collected*.
 5. Short of something that is not on the list? **Request more** on the same job page still works — the office turns it into a line and you are told when it is ready.
 

@@ -18,7 +18,7 @@ import type {
  *   paint      one chip per product brand from the Materials rows, `paint:<brand>`; brand by
  *              product NAME through products.brand, blank → `paint:brand?` / "Paint (brand?)";
  *              default branch = nearest DELIVERING paint branch of that brand, favourites first
- *   materials  one chip per line not merged into another, `matline:<id>`; nearest hardware branch
+ *   materials  one chip per line not merged into another, `matline:<id>`; NO default shop (21 Oct)
  *   rubbish    one undecided chip per job, `rubbish`, until the office answers how (ruling 20)
  *   removal    a tray chip whose source went away is deleted; a placed, ORDERED chip whose
  *              source went away or changed is flagged (`source_changed_at`), never touched otherwise
@@ -332,12 +332,13 @@ export function syncForWo(input: SyncInput): SyncPlan {
         const key = `matline:${l.id}`;
         const title = l.text.slice(0, 160);
         const detail = lineDetail(l.source);
-        const branch = nearestBranch(branches, "hardware", null, input.jobPoint, false);
+        // Tom, 21 Oct 2026: no default shop — the office confirms the shop and delivery / pickup in the chip.
+        const branch = null;
         const existing = byKey(key);
         if (!existing) {
           plan.create.push({
-            work_order_id: wo.id, kind: "materials", source_key: key, title, detail, from_kind: "branch", from_branch_id: branch?.id ?? null,
-            from_text: branchText(branch), to_kind: "site", to_branch_id: null, to_text: site, status: "tray", due_date: null, order_ref: ref,
+            work_order_id: wo.id, kind: "materials", source_key: key, title, detail, from_kind: null, from_branch_id: null,
+            from_text: "", to_kind: "site", to_branch_id: null, to_text: site, status: "tray", due_date: null, order_ref: ref,
           });
           created += 1;
         } else if (existing.status === "tray") {
@@ -395,7 +396,7 @@ function asRow(c: NewChip): MovementRow {
     id: `new:${c.source_key}`, work_order_id: c.work_order_id, kind: c.kind, source_key: c.source_key, title: c.title, detail: c.detail,
     assignee_kind: null, assignee_table: null, assignee_id: null, due_date: c.due_date, half: null, time: null, sequence: null,
     from_kind: c.from_kind, from_branch_id: c.from_branch_id, from_text: c.from_text, to_kind: c.to_kind, to_branch_id: c.to_branch_id, to_text: c.to_text,
-    status: "tray", ordered_at: null, client_notice: false, order_ref: c.order_ref, lines: null, planned_for_start: null, return_due: null,
+    status: "tray", ordered_at: null, method_pref: null, client_notice: false, order_ref: c.order_ref, lines: null, planned_for_start: null, return_due: null,
     blocked_by_movement_id: null, expected_cost_cents: null, note: "", problem_note: "", painter_confirmed_at: null, source_changed_at: null,
     booked_at: null, done_at: null, created_at: "", updated_at: "", items: c.items?.map((i) => ({ movement_id: `new:${c.source_key}`, ...i })) ?? [],
   };

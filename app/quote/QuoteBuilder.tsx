@@ -2612,14 +2612,14 @@ export default function QuoteBuilder({
               )}
               {!customerView && (
                 <section className="rounded-xl border border-gray-200 bg-white p-4" data-testid="internal-materials">
-                  <h2 className="text-sm font-semibold">Materials &amp; sundries <span className="font-normal text-gray-400">· internal · one line per item · never on the customer&rsquo;s copy</span></h2>
+                  <h2 className="text-sm font-semibold">Materials &amp; sundries <span className="font-normal text-gray-400">· internal · one line per order, commas between items · never on the customer&rsquo;s copy</span></h2>
                   <p className="mt-1 text-xs text-gray-500">What the painter needs that isn&rsquo;t paint — caulk, filler, tape, sheets, a plank hire. Each line becomes a chip in the Movements tray when the job is issued.</p>
                   <textarea
                     className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none"
                     rows={Math.min(8, Math.max(2, internalMaterials.length + 1))}
-                    placeholder={"Gap filler × 2\nMasking tape × 4\nDrop sheets × 6"}
+                    placeholder={"Gap filler, interior filler, exterior filler, brushes, rollers\nFloor protection, sanding pads"}
                     value={internalMaterials.join("\n")}
-                    onChange={(e) => setInternalMaterials(e.target.value.split("\n").map((x) => x.slice(0, 200)))}
+                    onChange={(e) => setInternalMaterials(e.target.value.split("\n").map((x) => x.slice(0, 500)))}
                     onBlur={() => setInternalMaterials((xs) => xs.map((x) => x.trim()).filter(Boolean))}
                     aria-label="Materials and sundries, internal"
                     data-testid="internal-materials-input"

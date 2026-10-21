@@ -39,7 +39,7 @@ const SUBURBS = new Map([["oakleigh south", { lat: -37.92, lng: 145.1 }]]);
 
 const row = (over: Partial<MovementRow> & { id: string; kind: MovementRow["kind"] }): MovementRow => ({
   work_order_id: WO, source_key: null, title: "", detail: null, assignee_kind: null, assignee_table: null, assignee_id: null, due_date: null, half: null, time: null,
-  sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "", status: "tray", ordered_at: null,
+  sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "", status: "tray", ordered_at: null, method_pref: null,
   client_notice: false, order_ref: "PG-0001", lines: null, planned_for_start: null, return_due: null, blocked_by_movement_id: null, expected_cost_cents: null,
   note: "", problem_note: "", painter_confirmed_at: null, source_changed_at: null, booked_at: null, done_at: null, created_at: "2026-10-19T00:00:00Z",
   updated_at: "2026-10-19T00:00:00Z", items: [], ...over,
@@ -194,7 +194,7 @@ describe("syncForWo — chips come from the jobs", () => {
     expect(plan.refresh.map((p) => p.id)).toEqual([existing[0].id]);
   });
 
-  it("material lines: one chip per unmerged line, nearest hardware branch (favourite first), detail by source; a merged line's chip is removed", () => {
+  it("material lines: one chip per unmerged line with NO default shop (Tom, 21 Oct), detail by source; a merged line's chip is removed", () => {
     const lines: MaterialLineRow[] = [
       { id: "l1", work_order_id: WO, text: "Caulk × 6", source: "estimate", sort: 0, merged_into: null, created_at: "2026-10-19T00:00:01Z" },
       { id: "l2", work_order_id: WO, text: "Drop sheets", source: "pc", sort: 0, merged_into: null, created_at: "2026-10-19T00:00:02Z" },
@@ -202,7 +202,7 @@ describe("syncForWo — chips come from the jobs", () => {
     ];
     const plan = syncForWo(input({ materialLines: lines }));
     expect(plan.result).toBe("ok:6:0:0");
-    expect(byKey(plan, "matline:l1")).toMatchObject({ kind: "materials", title: "Caulk × 6", detail: "from the estimate", from_branch_id: "b-hardware", from_text: `${HARDWARE} Store`, to_text: "1 Test St, Oakleigh South VIC 3167" });
+    expect(byKey(plan, "matline:l1")).toMatchObject({ kind: "materials", title: "Caulk × 6", detail: "from the estimate", from_kind: null, from_branch_id: null, from_text: "", to_text: "1 Test St, Oakleigh South VIC 3167" });
     expect(byKey(plan, "matline:l2")!.detail).toBe("from the job page");
     expect(byKey(plan, "matline:l3")!.detail).toBe("asked for by the painter");
     // Merge l2 into l1 → its tray chip goes.

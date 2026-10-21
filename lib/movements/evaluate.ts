@@ -95,6 +95,8 @@ export type World = {
   decisions: LogisticsDecisionRow[];
   /** lower-cased suburb → centroid, for the addresses in play. */
   suburbs: Map<string, Point>;
+  /** Tom, 21 Oct 2026: site check-ins with no day yet — chips in the tray until dropped on a staff lane. */
+  unscheduledCheckins: { id: string; workOrderId: string }[];
 };
 
 // ---- lanes ----------------------------------------------------------------------------------
@@ -813,6 +815,8 @@ export type DropVerdict = {
  */
 export function dropProblem(world: World, chip: MovementRow, lane: Pick<MovementLane, "kind">, day: string): DropVerdict {
   const refuse = (reason: string): DropVerdict => ({ blocked: true, warn: null, reason });
+  // Tom, 21 Oct 2026: an order with no shop chosen is not a delivery yet — the chip asks first.
+  if (lane.kind === "supplier" && (chip.kind === "paint" || chip.kind === "materials") && !chip.from_branch_id) return refuse("pick the shop in the chip first");
   const blockedBy = blockedReason(chip, world);
   if (blockedBy) return refuse(blockedBy);
   if (isUndecidedRubbish(chip)) return refuse("say how the rubbish goes first — open the chip");

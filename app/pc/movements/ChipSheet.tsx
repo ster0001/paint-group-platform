@@ -10,7 +10,7 @@ import { km } from "@/lib/movements/sync";
 import type { JobExtras } from "@/lib/movements/load";
 import { GEAR_ICONS, movementIcon } from "@/lib/movements/gearIcons";
 import type { BranchRow, MovementRow, RubbishHow } from "@/lib/movements/types";
-import { redateMovement, setMovementStatus, setPaintLine, updateMovement, type MovementActionResult } from "./actions";
+import { redateMovement, setMovementMethod, setMovementStatus, setPaintLine, updateMovement, type MovementActionResult } from "./actions";
 
 const HOURS = hourSlots([7.5, 17.5]);
 const HALF_TIMES = ["06:00", "06:30", "07:00", "AM", "13:00", "PM", "15:30"] as const;
@@ -88,6 +88,16 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
       if (chip.time) { const ok2 = await act(() => updateMovement({ id: chip.id, workOrderId: chip.work_order_id, time: null })); if (!ok2) return false; }
     }
     return true;
+  }
+
+  /** Tom, 21 Oct 2026: delivered or picked up, with the shop — delivery lands it on the Supplier lane. */
+  async function confirmMethod(method: "delivery" | "pickup") {
+    const ok = await act(() => setMovementMethod({ id: chip.id, workOrderId: chip.work_order_id, method, branchId }), (v) =>
+      v === "placed" ? "Delivery — placed on the Supplier lane on the job's first day; tick Ordered once the shop has it"
+      : v === "pickshop" ? "Pick the shop first, then Delivered to site"
+      : v === "nodelivery" ? "That shop is counter-only — pick one that delivers, or choose Picked up"
+      : "Picked up — drag the chip onto whoever collects it");
+    if (ok && method === "delivery") onClose();
   }
 
   async function rubbish(how: RubbishHow) {
@@ -171,10 +181,21 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
         </div>
       )}
 
+      {(chip.kind === "paint" || chip.kind === "materials") && !placed && (
+        <div className="fld" data-testid="chip-method">
+          <div className="k">How does it get to site? <em>{chip.method_pref ? (chip.method_pref === "delivery" ? "delivered" : "picked up") : "not confirmed"}</em></div>
+          <div className="chips">
+            <button type="button" className={`chp ${chip.method_pref === "delivery" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("delivery")} data-testid="method-delivery">Delivered to site</button>
+            <button type="button" className={`chp ${chip.method_pref === "pickup" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("pickup")} data-testid="method-pickup">Picked up</button>
+          </div>
+          <p className="note">Pick the shop below first. Delivered = this chip goes onto the Supplier lane on the job&rsquo;s first day. Picked up = drag it onto whoever collects it.</p>
+        </div>
+      )}
+
       {(lineChip || manual) && (
         <div className="fld">
           <div className="k">{lineChip ? "Line" : "What"} <em>{lineChip ? "same row on the estimate and the job page" : "your words"}</em></div>
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} aria-label="Line text" />
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={500} aria-label="Line text" />
         </div>
       )}
 

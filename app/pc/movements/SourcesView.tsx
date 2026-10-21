@@ -61,8 +61,8 @@ export default function SourcesView({ world, materialLines, jobExtras, jobId, on
         })}
       </div>
       <div className="addln">
-        <input type="text" value={draft[key] ?? ""} onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))} maxLength={200}
-          placeholder="Add a line — e.g. 2× drop sheets 12 m" aria-label="Add a materials line"
+        <input type="text" value={draft[key] ?? ""} onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))} maxLength={500}
+          placeholder="One order per line — gap filler, interior filler, brushes, rollers" aria-label="Add a materials line"
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addLine(source, key); } }} />
         <button type="button" className="btn sm" disabled={busy} onClick={() => void addLine(source, key)}>Add</button>
       </div>

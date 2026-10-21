@@ -16,7 +16,7 @@ import { movementIcon } from "@/lib/movements/gearIcons";
 import type { EquipmentCategory, MaterialLineRow, MovementRow } from "@/lib/movements/types";
 import { WEEK_DAYS, weekLabel } from "@/lib/movements/week";
 import { addDays } from "@/lib/scheduling/dates";
-import { markMovementOrdered, placeMovement, setMovementStatus, unplaceMovement, type MovementActionResult } from "./actions";
+import { markMovementOrdered, placeMovement, scheduleSiteVisit, setMovementStatus, unplaceMovement, type MovementActionResult } from "./actions";
 import HowItWorks from "./HowItWorks";
 import { fromSerial, type SerialWorld } from "./world";
 import "./movements.css";
@@ -38,7 +38,7 @@ export const HOUR_SLOTS: [number, number] = [7.5, 17.5];
 const HOURS = hourSlots(HOUR_SLOTS);
 
 type View = "week" | "sources" | "day" | "map" | "gear";
-type DragPayload = { chip: MovementRow };
+type DragPayload = { chip: MovementRow } | { checkin: { id: string; workOrderId: string } };
 type DropCheck = { blocked: boolean; held: false; reason: string | null; warn: string | null; laneName: string; where: string };
 type SheetState = { kind: "chip"; id: string } | { kind: "add" } | { kind: "nearby"; laneId: string; day: string } | null;
 
@@ -159,6 +159,12 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
   const check = useCallback((p: DragPayload, t: DropTarget): DropCheck => {
     const lane = laneById.get(t.laneId);
     if (!lane) return { blocked: true, held: false, reason: "not a lane", warn: null, laneName: "", where: "" };
+    if ("checkin" in p) {
+      const whenC = lane.slots === "hour" ? (t.slot ?? HOURS[0]) : t.slot === "pm" ? "PM" : "AM";
+      return lane.kind === "staff"
+        ? { blocked: false, held: false, reason: null, warn: null, laneName: lane.name, where: `${shortDay(t.day)} ${whenC}` }
+        : { blocked: true, held: false, reason: "a check-in goes on a staff lane", warn: null, laneName: lane.name, where: "" };
+    }
     const v = dropProblem(world, p.chip, lane, t.day);
     const when = lane.slots === "hour" ? (t.slot ?? HOURS[0]) : t.slot === "pm" ? "PM" : "AM";
     return { blocked: v.blocked, held: false, reason: v.reason, warn: v.warn, laneName: lane.name, where: `${shortDay(t.day)} ${when}` };
@@ -182,11 +188,17 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
     const lane = laneById.get(t.laneId);
     if (!lane) return;
     const { half, time } = slotTarget(lane, t);
+    if ("checkin" in p) {
+      // Tom, 21 Oct 2026: a site check-in dropped on a staff day gets that day and time.
+      const at = time ?? world.settings.defaultHalfTime[half ?? "AM"];
+      void act(() => scheduleSiteVisit({ visitId: p.checkin.id, date: t.day, time: at, workOrderId: p.checkin.workOrderId }), () => `Check-in booked ${shortDay(t.day)} ${at} on ${lane.name.split(" ")[0]}'s lane`);
+      return;
+    }
     void place(p.chip, lane, t.day, half, time);
-  }, [laneById, place]);
+  }, [laneById, place, act, world]);
 
   const onDropOnTray = useCallback((p: DragPayload) => {
-    if (p.chip.status === "tray") return;
+    if (!("chip" in p) || p.chip.status === "tray") return;
     void act(() => unplaceMovement({ id: p.chip.id, workOrderId: p.chip.work_order_id }), () => "Back in the tray");
   }, [act]);
 
@@ -198,7 +210,8 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
 
   // Hot cells: every lane-day where someone already has context near the dragged chip.
   const hot = useMemo(() => {
-    const chip = drag.ghost?.payload.chip;
+    const payload = drag.ghost?.payload;
+    const chip = payload && "chip" in payload ? payload.chip : null;
     if (!chip) return new Set<string>();
     return new Set(hotCells(world, chip, ctx).map((c) => `${c.laneId}|${c.day}`));
   }, [drag.ghost, world, ctx]);
@@ -280,7 +293,27 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
           </div>
         );
       }}
-      after={<button type="button" className="add" onClick={() => setSheet({ kind: "add" })} data-testid="add-chip">+ Add a chip — from scratch</button>}
+      after={
+        <>
+          {world.unscheduledCheckins.length > 0 && (
+            <div className="checkins" data-testid="tray-checkins">
+              <div className="tjob"><div className="t"><span>Site check-ins to book</span><small>drag onto a staff day · the time is the row</small></div></div>
+              {world.unscheduledCheckins.map((c) => {
+                const job = world.jobs.find((j) => j.id === c.workOrderId);
+                return (
+                  <div key={c.id} className="chip todo checkin" data-testid="tray-checkin" data-visit-id={c.id} title="Drag onto a staff lane"
+                    onPointerDown={(e) => drag.beginDrag(e, { checkin: c })}>
+                    <span className="ic">◎</span>
+                    <div className="b"><b>Job check-in</b><small>{job ? [job.jobRef, job.suburb].filter(Boolean).join(" · ") : "job"}</small></div>
+                    <span className="grip">⋮⋮</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <button type="button" className="add" onClick={() => setSheet({ kind: "add" })} data-testid="add-chip">+ Add a chip — from scratch</button>
+        </>
+      }
     />
   );
 
@@ -454,8 +487,8 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
               renderCellHead={renderCellHead}
               renderGhost={(p, c) => (
                 <>
-                  <div className="g1">{p.chip.title}</div>
-                  <div className="g2">{c?.blocked ? c.reason?.toUpperCase() : c?.warn ? `OUTSIDE THE WINDOW — ${c.warn.toUpperCase()}` : kindLabel(p.chip).toUpperCase()}</div>
+                  <div className="g1">{"chip" in p ? p.chip.title : "Job check-in"}</div>
+                  <div className="g2">{c?.blocked ? c.reason?.toUpperCase() : c?.warn ? `OUTSIDE THE WINDOW — ${c.warn.toUpperCase()}` : "chip" in p ? kindLabel(p.chip).toUpperCase() : "SITE CHECK-IN"}</div>
                   {c && !c.blocked && <div className="g3">→ {c.laneName} · {c.where}</div>}
                 </>
               )}
@@ -578,7 +611,8 @@ function chipSub(m: MovementRow, world: World): string {
   const branch = world.branches.find((b) => b.id === (m.from_branch_id ?? m.to_branch_id));
   const b = branch ? `${branch.brand} ${branch.branch}` : "";
   if (isUndecidedRubbish(m)) return "painter disposed · painter drops at warehouse · left on site";
-  const parts = [m.detail, b].filter(Boolean);
+  if ((m.kind === "materials" || m.kind === "paint") && !b) return `${m.detail ?? ""} · no shop yet — tap to confirm the shop and delivery / pickup`.replace(/^ · /, "");
+  const parts = [m.detail, b, m.method_pref === "delivery" ? "delivery" : m.method_pref === "pickup" ? "pickup" : null].filter(Boolean);
   if (m.kind === "equipment_return" || m.kind === "hire_off") {
     const job = world.jobs.find((j) => j.id === m.work_order_id);
     if (job?.stage === "closed") return "left on a closed job";
