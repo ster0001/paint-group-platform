@@ -1,5 +1,6 @@
 "use client";
 
+import { BubbleInput } from "@/app/components/materials/MaterialBubbles";
 import { useRouter } from "next/navigation";
 
 import { registerBuilder } from "./builderBridge";
@@ -394,7 +395,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; preparationHours?: number | null; adminNotes?: string; swms?: { path: string; name: string } | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null; extraPaints?: ExtraPaint[] } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; preparationHours?: number | null; adminNotes?: string; internalMaterials?: string[]; swms?: { path: string; name: string } | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null; extraPaints?: ExtraPaint[] } | null;
   // Deferred plan-reader decisions ride builder_state so the review gate can
   // price them; the builder carries them through saves — and, since 7 Sep,
   // RESOLVES one of them: the estimator's sign-off on the customer's photos.
@@ -520,6 +521,10 @@ export default function QuoteBuilder({
   // Tom, 17 Sep: admin notes for the estimator — staff only, never on the
   // customer's copy or the work order. Lives in builder_state.
   const [adminNotes, setAdminNotes] = useState<string>(() => loaded?.adminNotes ?? "");
+  // Movements Session 7 (ruling 12, 17): the internal Materials & sundries list — one line per
+  // item the painter needs that isn't paint. Staff only, never on the customer's copy; at issue
+  // (and on every sync) the lines become the job's wo_material_lines (source = estimate).
+  const [internalMaterials, setInternalMaterials] = useState<string[]>(() => (Array.isArray(loaded?.internalMaterials) ? loaded!.internalMaterials!.filter((x) => typeof x === "string") : []));
   // Tom, 18 Sep: this job's SWMS (a PDF in presentation-docs), downloadable by
   // the customer beside the public liability card. null = none attached.
   const [swms, setSwms] = useState<{ path: string; name: string } | null>(() => loaded?.swms ?? null);
@@ -1081,7 +1086,7 @@ export default function QuoteBuilder({
   // presentationId is part of the fingerprint (3 Sep): ticking a presentation
   // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
   // tab kept showing the last published copy — without the presentation.
-  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, presentationId, leadSource, photoReview, extraPaints });
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, internalMaterials, swms, aiDeferred, idealPainters, presentationId, leadSource, photoReview, extraPaints });
 
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   // A new estimate (no row yet) with edits is unsaved work too (29 Sep) — the
@@ -1158,7 +1163,7 @@ export default function QuoteBuilder({
           // (`woDoc`, the shape acceptance freezes) so the server can fold
           // the COLOURS chosen here into the live job — the customer's
           // colour card and the painter's sheet read the snapshot, not this.
-          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc() },
+          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, internalMaterials, swms, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc() },
         });
         // Tom, 24 Sep: the painter's price follows the working scope's contractor rate until the job is sent out.
         const payNote = !result.ok ? "" : PAY_NOTE[result.pay ?? ""] ?? "";
@@ -1205,7 +1210,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, swms, aiDeferred, idealPainters, photoReview, extraPaints, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, internalMaterials, swms, aiDeferred, idealPainters, photoReview, extraPaints, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
       share_token: token,
       presentation_id: presentationId,
       lead_source: leadSource,
@@ -2604,6 +2609,22 @@ export default function QuoteBuilder({
                     data-testid="admin-notes-input"
                     disabled={locked}
                   />
+                </section>
+              )}
+              {!customerView && (
+                <section className="rounded-xl border border-gray-200 bg-white p-4" data-testid="internal-materials">
+                  <h2 className="text-sm font-semibold">Materials &amp; sundries <span className="font-normal text-gray-400">· internal · one bubble per order, commas between items, tap to edit · never on the customer&rsquo;s copy</span></h2>
+                  <p className="mt-1 text-xs text-gray-500">What the painter needs that isn&rsquo;t paint — caulk, filler, tape, sheets, a plank hire. Each line becomes a chip in the Movements tray when the job is issued.</p>
+                  <div className="mt-2 text-sm">
+                    <BubbleInput
+                      value={internalMaterials}
+                      onChange={(next) => setInternalMaterials(next.map((x) => x.trim()).filter(Boolean))}
+                      disabled={locked}
+                      placeholder="Gap filler, interior filler, exterior filler, brushes, rollers — Enter makes it an order"
+                      label="Materials and sundries, internal"
+                      inputTestId="internal-materials-input"
+                    />
+                  </div>
                 </section>
               )}
               {!customerView && (

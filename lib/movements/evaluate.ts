@@ -50,6 +50,8 @@ export type Job = {
   coloursConfirmed: boolean;
   /** work_orders.lat/lng when ⚑3 lands; the loader fills it from the suburb centroid until then. */
   point: Point | null;
+  /** The latest payment date on the job's invoices (YYYY-MM-DD), null when nothing has been paid. */
+  paidOn: string | null;
 };
 
 export type Painter = {
@@ -73,6 +75,8 @@ export type Appointment = {
   sub?: string;
 };
 
+export type WorldBranch = Omit<BranchRow, "favourite" | "active">;
+
 export type World = {
   /** Inclusive ISO days. */
   from: string;
@@ -88,10 +92,13 @@ export type World = {
   appointments: Appointment[];
   movements: MovementRow[];
   items: EquipmentItemRow[];
-  branches: BranchRow[];
+  /** supplier_branches, the columns the screen draws (no favourite or active — see load.ts). */
+  branches: WorldBranch[];
   decisions: LogisticsDecisionRow[];
   /** lower-cased suburb → centroid, for the addresses in play. */
   suburbs: Map<string, Point>;
+  /** Tom, 21 Oct 2026: site check-ins with no day yet — chips in the tray until dropped on a staff lane. */
+  unscheduledCheckins: { id: string; workOrderId: string }[];
 };
 
 // ---- lanes ----------------------------------------------------------------------------------
@@ -602,6 +609,106 @@ export function reorder(world: World, laneId: string, day: string, newOrderIds: 
   return order.map((id, i) => ({ id, sequence: i + 1, time: times[i], half: halfOf(times[i]) }));
 }
 
+// ---- the map (Session 6, rulings 21 and 22) --------------------------------------------------
+
+export type MapBadge = { n: number | "◌"; fixed: boolean; label: string };
+export type MapFill = "teal" | "amber" | "grey";
+export type NeedKind = ReturnType<typeof chipFilterKind>;
+export type JobPin = {
+  job: Job; point: Point; fill: MapFill;
+  /** jobNeeds(job): the chips in the tray and the placed-but-unordered ones, in tray order. */
+  needs: MovementRow[];
+  /** The first need's kind (the icon on an amber pin), null on teal and grey. */
+  need: NeedKind | null;
+  /** The short address over the pin: the street, else the job ref. */
+  label: string;
+  /** One line under the address: what is needed, else "closed" or "on track". */
+  line: string;
+  badges: MapBadge[];
+};
+export type ShopPin = { branch: WorldBranch; point: Point; stopToday: boolean; badges: MapBadge[] };
+export type MapPins = {
+  jobs: JobPin[];
+  shops: ShopPin[];
+  warehouse: { point: Point; label: string; badges: MapBadge[] } | null;
+  /** The selected person's day as a line: warehouse, every stop with a point, warehouse. Empty when nobody is selected or the day is empty. */
+  route: Point[];
+};
+
+/** Stages the map calls active: the job is on site, or between the last brush and the close. */
+export const MAP_ACTIVE_STAGES: ReadonlySet<string> = new Set(["in_progress", "qa", "completion_prep", "walkthrough"]);
+export const MAP_CLOSED_GRACE_DAYS = 7;
+
+/**
+ * Tom, 21 Oct 2026: the map shows only the active jobs — never an offer or a booking confirmed
+ * (offered, pre_start), and a closed job only until a week after its invoice was paid (an unpaid
+ * closed job with gear still on it stays). `today` is the Melbourne calendar day.
+ */
+export function onMap(job: Pick<Job, "stage" | "paidOn">, today: string): boolean {
+  if (MAP_ACTIVE_STAGES.has(job.stage)) return true;
+  if (job.stage !== "closed") return false;
+  if (!job.paidOn) return true;
+  return daysBetween(job.paidOn, today).length - 1 <= MAP_CLOSED_GRACE_DAYS;
+}
+
+/** One key per place, so two stops at the same point stack their numbers. */
+export const pointKey = (p: Point): string => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+
+/**
+ * Ruling 21: one icon per job — teal when nothing is outstanding, amber carrying the first
+ * need's icon when `jobNeeds` is not empty, grey for a closed job (it is only in the world
+ * because gear is still on it). Ruling 22: the selected person's order numbers from
+ * `runPlan` sit on the icon of each stop of their day (◌ for a fixed appointment). Shops
+ * with a point are listed with whether they are a stop today; the view decides which to draw.
+ */
+export function mapPins(world: World, laneId: string | null, day: string, blocks: readonly ContextBlock[] = contextBlocks(world), today: string = day): MapPins {
+  const badges = new Map<string, MapBadge[]>();
+  const route: Point[] = [];
+  const wh = warehousePoint(world);
+  if (laneId) {
+    const plan = runPlan(world, laneId, day, blocks);
+    if (plan.stops.length > 0 && wh) route.push(wh);
+    for (const s of plan.stops) {
+      if (!s.point) continue;
+      const key = pointKey(s.point);
+      const b: MapBadge = s.fixed ? { n: "◌", fixed: true, label: s.block.kindLabel } : { n: s.n ?? 0, fixed: false, label: kindLabel(s.movement) };
+      badges.set(key, [...(badges.get(key) ?? []), b]);
+      route.push(s.point);
+    }
+    if (plan.stops.length > 0 && wh) route.push(wh);
+  }
+  const at = (p: Point) => badges.get(pointKey(p)) ?? [];
+
+  const jobs: JobPin[] = [];
+  for (const job of world.jobs) {
+    if (!onMap(job, today)) continue;
+    const point = pointOfJob(world, job);
+    if (!point) continue;
+    const needs = jobNeeds(world, job.id);
+    const closed = job.stage === "closed";
+    const fill: MapFill = needs.length ? "amber" : closed ? "grey" : "teal";
+    // "paint to plan" for a tray chip; "paint delivery · not ordered" for a placed one still owing its order.
+    const words = needs.map((m) => (m.status === "tray" ? `${chipFilterKind(m)} to plan` : `${kindLabel(m).toLowerCase()} · not ordered`));
+    const line = needs.length ? `${words.slice(0, 2).join(" · ")}${needs.length > 2 ? ` +${needs.length - 2}` : ""}` : closed ? "closed · gear still here" : "on track";
+    const street = job.address.split(",")[0]?.trim() ?? "";
+    jobs.push({ job, point, fill, needs, need: needs.length ? chipFilterKind(needs[0]) : null, label: street || job.jobRef, line, badges: at(point) });
+  }
+
+  const shops: ShopPin[] = [];
+  for (const branch of world.branches) {
+    if (branch.lat == null || branch.lng == null) continue;
+    const point = { lat: branch.lat, lng: branch.lng };
+    const b = at(point);
+    shops.push({ branch, point, stopToday: b.length > 0, badges: b });
+  }
+
+  return {
+    jobs, shops,
+    warehouse: wh ? { point: wh, label: world.settings.warehouse.label || "Warehouse", badges: at(wh) } : null,
+    route,
+  };
+}
+
 // ---- the register ----------------------------------------------------------------------------
 
 export type ItemState = "warehouse" | "site" | "person" | "repair" | "stranded" | "other";
@@ -707,4 +814,147 @@ export function counts(world: World): Counts {
     placed: world.movements.filter((m) => isLive(m) && inWin(m)).length,
     ordersToPlace: world.movements.filter((m) => needsOrder(m) && inWin(m)).length,
   };
+}
+
+// ---- the drop (Session 4) ---------------------------------------------------------------------
+
+export type DropVerdict = {
+  /** The RPC would refuse this drop — the ghost says why and the drop is not sent. */
+  blocked: boolean;
+  /** Allowed, but outside the chip's window (brief §3.3): said on the ghost, warned after the drop. */
+  warn: string | null;
+  reason: string | null;
+};
+
+/**
+ * What `movement_place` will say to this chip on this lane — the twin of the RPC's refusals
+ * (supplier lane: own gear, a rubbish chip that is not a skip, a paint/materials chip whose
+ * shop does not deliver; any lane: a blocked chip, an undecided rubbish chip) plus the window
+ * warning. The database stays the rule; this lets the ghost say it before the pointer lets go.
+ */
+export function dropProblem(world: World, chip: MovementRow, lane: Pick<MovementLane, "kind">, day: string): DropVerdict {
+  const refuse = (reason: string): DropVerdict => ({ blocked: true, warn: null, reason });
+  // Tom, 22 Oct 2026: from our stock is ours to carry — a person, never the Supplier lane.
+  if (lane.kind === "supplier" && (chip.kind === "paint" || chip.kind === "materials") && (chip.from_kind === "warehouse" || chip.method_pref === "stock")) return refuse("that comes from our stock — drop it on whoever carries it");
+  // Tom, 21 Oct 2026: an order with no shop chosen is not a delivery yet — the chip asks first.
+  if (lane.kind === "supplier" && (chip.kind === "paint" || chip.kind === "materials") && !chip.from_branch_id) return refuse("pick the shop in the chip first");
+  const blockedBy = blockedReason(chip, world);
+  if (blockedBy) return refuse(blockedBy);
+  if (isUndecidedRubbish(chip)) return refuse("say how the rubbish goes first — open the chip");
+  if (lane.kind === "supplier") {
+    const supplierKinds: ReadonlySet<MovementKind> = new Set(["paint", "materials", "hire_on", "hire_off", "rubbish_in", "rubbish_out"]);
+    if (!supplierKinds.has(chip.kind) || (chip.kind === "rubbish_out" && !chip.to_branch_id)) {
+      return refuse(chip.kind === "rubbish_out" ? "only a skip goes on the Supplier lane — drop it on a person" : "our own gear can't be delivered by a supplier — drop it on a person");
+    }
+    if ((chip.kind === "paint" || chip.kind === "materials") && chip.from_branch_id) {
+      const b = world.branches.find((x) => x.id === chip.from_branch_id);
+      if (b && !b.delivers_to_site) return refuse(`${b.brand} ${b.branch} doesn't deliver — pick a delivering shop in the chip, or drop it on a painter`);
+    }
+  }
+  const w = chipWindow(chip, jobById(world, chip.work_order_id));
+  if (!inWindow(w, day)) {
+    return { blocked: false, reason: null, warn: RETURN_KINDS.has(chip.kind) ? "before the job ends — fine if the painter has finished with it" : "after the job starts — the painter will be waiting on it" };
+  }
+  return { blocked: false, warn: null, reason: null };
+}
+
+/** The tray's groups: one per job (closed jobs with stranded gear as their own), Warehouse last. */
+export type TrayGroup = { key: string; job: Job | null; title: string; sub: string; closed: boolean };
+
+export function trayGroupOf(world: World, chip: MovementRow, painterName: (contractorId: string | null) => string | null): TrayGroup {
+  const job = jobById(world, chip.work_order_id);
+  if (!job) return { key: "warehouse", job: null, title: world.settings.warehouse.label || "Warehouse", sub: "no job", closed: false };
+  const painter = painterName(job.contractorId);
+  const closed = job.stage === "closed";
+  const dates = job.startDate ? `${shortDate(job.startDate)}–${job.endDate ? shortDate(job.endDate) : "?"}` : "no dates";
+  return {
+    key: job.id, job, title: job.address.split(",").slice(0, 2).join(",") || job.title,
+    sub: `${painter ? `${painter.split(" ")[0]} · ` : ""}${closed ? `closed${job.endDate ? ` ${shortDate(job.endDate)}` : ""}` : dates}`, closed,
+  };
+}
+
+const SHORT_DAY = new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", timeZone: "UTC" });
+const SHORT_DATE = new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+/** "Mon 27 Oct" — Tom, 21 Oct 2026: the tray says the month too. */
+export function shortDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? iso : SHORT_DATE.format(d).replace(/,/g, "");
+}
+/** "Mon 19" — a date as the board's header says it. */
+export function shortDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? iso : SHORT_DAY.format(d).replace(",", "");
+}
+
+/** Which tray filter a chip answers to: paint · materials · gear · rubbish. */
+export function chipFilterKind(m: Pick<MovementRow, "kind">): "paint" | "materials" | "gear" | "rubbish" {
+  switch (m.kind) {
+    case "paint": return "paint";
+    case "materials": case "restock": return "materials";
+    case "rubbish_in": case "rubbish_out": return "rubbish";
+    default: return "gear";
+  }
+}
+
+// ---- the run planner on the Map (Tom, 21 Oct 2026) ------------------------------------------
+
+/** "HH:MM" + minutes → "HH:MM", capped at 23:59. */
+export function addMinutes(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = Math.min(23 * 60 + 59, Math.max(0, h * 60 + m + minutes));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+const minutesOf = (t: string): number => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+
+export const RUN_START = "07:30";
+export const RUN_STEP_MINUTES = 15;
+
+/** What a person is already held by on a day: fixed appointments with a time (an hour when no end is known) and their placed movements. */
+export function busyOn(world: World, laneId: string, day: string, blocks: readonly ContextBlock[] = contextBlocks(world)): { from: string; to: string; label: string }[] {
+  const out: { from: string; to: string; label: string }[] = [];
+  for (const b of context(world, laneId, day, blocks)) {
+    if (b.kind === "job" || b.kind === "leave" || !b.time) continue;
+    out.push({ from: b.time, to: b.endTime ?? addMinutes(b.time, 60), label: b.label });
+  }
+  for (const m of world.movements) {
+    if (m.due_date !== day || m.assignee_kind !== "person" || m.assignee_id !== laneId || m.status === "tray" || m.status === "cancelled") continue;
+    const t = movementTime(m, world.settings);
+    out.push({ from: t, to: addMinutes(t, m.duration_min ?? 60), label: m.title });
+  }
+  return out.sort((a, b) => a.from.localeCompare(b.from));
+}
+
+/**
+ * The first start from `from` where a stop of `durationMin` fits beside what the person
+ * already has (and the stops already in the draft plan): 07:30 for the first stop unless an
+ * appointment holds that time, then the next free quarter hour.
+ */
+export function firstFreeTime(busy: readonly { from: string; to: string }[], from: string, durationMin: number): string {
+  let t = from;
+  for (let guard = 0; guard < 96; guard++) {
+    const end = addMinutes(t, durationMin);
+    const clash = busy.find((b) => minutesOf(b.from) < minutesOf(end) && minutesOf(b.to) > minutesOf(t));
+    if (!clash) return t;
+    const next = minutesOf(clash.to);
+    const rounded = Math.ceil(next / RUN_STEP_MINUTES) * RUN_STEP_MINUTES;
+    t = addMinutes("00:00", Math.max(rounded, minutesOf(t) + RUN_STEP_MINUTES));
+  }
+  return t;
+}
+
+export const RUN_PURPOSES = ["collect_materials", "quality_check", "site_checkin", "rubbish_collection", "drop_materials", "drop_paint"] as const;
+export type RunPurpose = (typeof RUN_PURPOSES)[number];
+export const RUN_PURPOSE_LABEL: Record<RunPurpose, string> = {
+  collect_materials: "Collect materials", quality_check: "Quality check", site_checkin: "Site check-in",
+  rubbish_collection: "Rubbish collection", drop_materials: "Drop off materials", drop_paint: "Drop off paint",
+};
+
+/** The purpose a tray chip stands for on the run (the words on the row). */
+export function purposeOfChip(m: Pick<MovementRow, "kind" | "method_pref">): RunPurpose {
+  switch (m.kind) {
+    case "paint": return "drop_paint";
+    case "materials": case "restock": return m.method_pref === "pickup" ? "collect_materials" : "drop_materials";
+    case "rubbish_in": case "rubbish_out": return "rubbish_collection";
+    default: return "drop_materials";
+  }
 }

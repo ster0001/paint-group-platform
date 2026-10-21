@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ExteriorV2 } from "@/lib/wizard/state";
 import { EXTERIOR_SIDE_KEYS, typicalFor, WALL_MATERIALS, type ExteriorSideKey, type ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import {
-  allSidesConfirmed, confirmSide, nextUnconfirmedSide, paintedSides, partsOnSide, PART_LABEL, setSideMaterial, setSidePaint,
+  confirmSide, paintedSides, partsOnSide, PART_LABEL, setSideCounts, setSideMaterial, setSidePaint,
   sideAddableParts, sideListParts, sideMaterial, toggleSidePart,
 } from "@/lib/wizard/exterior-model";
 import { WALL_MATERIAL_LABEL } from "./ExteriorAbout";
@@ -18,14 +18,34 @@ import { WALL_MATERIAL_LABEL } from "./ExteriorAbout";
  * side" — the whole-house parts that land here as chips, each removable, plus
  * "+ Add something on this side" for the rest of the list; "The walls on this
  * side" (downstairs and upstairs on a double storey) with the full material
- * list, tagged Same as the house or Different from the rest; and "Looks right —
- * next side". No sizes or counts here — they come after the range (S5).
- * Changing a part or a material un-confirms the side (acceptance 8a); a side
- * left not painting is not on the estimate at all (Tom, 8 Sep).
+ * list, tagged Same as the house or Different from the rest; and the window
+ * and door counts for the side (Tom, 21 Oct: "+ and − per side" — they were
+ * only on the walk-around). Sizes still come after the range (S5).
+ *
+ * Tom, 21 Oct: there is NO "Looks right — next side" tap, and only the sides
+ * ticked on About it ("Which sides are we painting?") have a tile here.
+ * Looking at a side checks it (the tile ticks); Continue needs every ticked
+ * side looked at (WizardApp refuses in words otherwise). A side left not
+ * painting is not on the estimate at all (Tom, 8 Sep).
  */
 
 export const SIDE_LABEL: Record<ExteriorSideKey, string> = { front: "Front", right: "Right side", back: "Back", left: "Left side" };
 export const SIDE_HINT: Record<ExteriorSideKey, string> = { front: "The street side", right: "Looking from the street", back: "The back of the house", left: "Looking from the street" };
+
+/** − n + for a count or a length; shared by Each side (counts) and the walk (counts, metres). */
+export function Stepper({ value, onChange, min = 0, max = 60, step = 1, testId, label, unit = "" }: {
+  value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; testId: string; label: string; unit?: string;
+}) {
+  const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, ""));
+  const round = (n: number) => Math.round(n / step) * step;
+  return (
+    <div className="wz-stepper" data-testid={testId}>
+      <button type="button" aria-label={`fewer ${label}`} data-testid={`${testId}-minus`} disabled={value - step < min} onClick={() => onChange(round(Math.max(min, value - step)))}>−</button>
+      <span data-testid={`${testId}-n`}>{fmt(value)}{unit}</span>
+      <button type="button" aria-label={`more ${label}`} data-testid={`${testId}-plus`} disabled={value + step > max} onClick={() => onChange(round(Math.min(max, value + step)))}>+</button>
+    </div>
+  );
+}
 
 export function sideTileState(v2: ExteriorV2, k: ExteriorSideKey, at: ExteriorSideKey): "cur" | "ok" | "skip" | "todo" {
   const s = v2.sides[k];
@@ -45,28 +65,25 @@ export default function ExteriorSidesStep({ v2, rows = [], at, onAt, onChange }:
   const [addOpen, setAddOpen] = useState(false);
   const sd = v2.sides[at];
   const painted = paintedSides(v2);
-  const done = painted.filter((k) => v2.sides[k]?.confirmed).length;
   const jump = (k: ExteriorSideKey) => { setAddOpen(false); onAt(k); };
-  const confirm = () => {
-    const next = confirmSide(v2, at);
-    onChange(next);
-    const after = nextUnconfirmedSide(next, at);
-    setAddOpen(false);
-    if (after) onAt(after);
-  };
+  // Looking at a side checks it; a side taken off (or never ticked) is never the one shown.
+  useEffect(() => {
+    if (!sd?.paint) { const first = painted[0]; if (first && first !== at) onAt(first); return; }
+    if (!sd.confirmed) onChange(confirmSide(v2, at));
+  }, [at, sd?.paint, sd?.confirmed]); // eslint-disable-line react-hooks/exhaustive-deps -- runs when the side shown changes or loses its tick
 
   return (
     <>
       <p className="wz-kick">Each side</p>
       <h1>Check each side of the house</h1>
-      <p className="wz-sub">We&rsquo;ve put what you ticked on every side. Go round from the street: untick anything that isn&rsquo;t on that side, add anything that is, and say if a side is a different material.</p>
+      <p className="wz-sub">We&rsquo;ve put what you ticked on each side you&rsquo;re painting. Look at every side: untick anything that isn&rsquo;t there, add anything that is, count its windows and doors, and say if it&rsquo;s a different material. Then Continue.</p>
 
       <div className="wz-walk-steps" data-testid="ql-ext-sides">
-        {EXTERIOR_SIDE_KEYS.map((k, i) => {
+        {EXTERIOR_SIDE_KEYS.filter((k) => v2.sides[k]?.paint).map((k, i) => {
           const st = sideTileState(v2, k, at);
           return (
             <button key={k} type="button" data-state={st} aria-current={k === at ? "step" : undefined} data-testid={`ql-ext-side-${k}`} onClick={() => jump(k)}>
-              <span className="n">{st === "skip" ? "–" : st === "ok" ? "✓" : i + 1}</span>
+              <span className="n">{st === "ok" ? "✓" : i + 1}</span>
               <span className="l">{SIDE_LABEL[k].replace(" side", "")}</span>
             </button>
           );
@@ -93,31 +110,21 @@ export default function ExteriorSidesStep({ v2, rows = [], at, onAt, onChange }:
           ) : (
             <>
               <SidePartsAndWalls v2={v2} at={at} rows={rows} onChange={onChange} addOpen={addOpen} onAddOpen={setAddOpen} />
-
-              <div style={{ marginTop: 16 }}>
-                <button type="button" className={`wz-btn wz-bs2 ${sd.confirmed ? "on" : ""}`} data-testid="ext-confirm-side" onClick={confirm}>
-                  {sd.confirmed ? "Confirmed ✓ — next side" : "Looks right — next side"}
-                </button>
-              </div>
             </>
           )}
         </>
       )}
 
-      {allSidesConfirmed(v2) && (
-        <div className="wz-done-card" data-testid="ext-sides-done">
-          <span className="av" aria-hidden="true">✓</span>
-          <span>All {painted.length} side{painted.length === 1 ? "" : "s"} confirmed. Sizes and counts come after your range.</span>
-        </div>
-      )}
-      {!allSidesConfirmed(v2) && painted.length > 0 && (
-        <p className="wz-chint" data-testid="ext-sides-progress" style={{ marginTop: 12 }}>{done} of {painted.length} sides confirmed.</p>
+      {painted.length > 0 && (
+        <p className="wz-chint" data-testid="ext-sides-progress" style={{ marginTop: 14 }}>
+          {painted.filter((k) => v2.sides[k]?.confirmed).length} of {painted.length} side{painted.length === 1 ? "" : "s"} looked at. Sizes come after your range &mdash; Continue once you&rsquo;ve seen every side.
+        </p>
       )}
     </>
   );
 }
 
-/** "Painting on this side" and "The walls on this side" — shared by Each side (§7.4) and Tighten (§7.6). */
+/** "Painting on this side", "The walls on this side" and the window / door counts — shared by Each side (§7.4) and Tighten (§7.6). */
 export function SidePartsAndWalls({ v2, at, rows = [], onChange, addOpen, onAddOpen }: {
   v2: ExteriorV2; at: ExteriorSideKey; rows?: ReadonlyArray<ExteriorTypicalRow>; onChange: (next: ExteriorV2) => void;
   addOpen: boolean; onAddOpen: (open: boolean) => void;
@@ -189,6 +196,23 @@ export function SidePartsAndWalls({ v2, at, rows = [], onChange, addOpen, onAddO
                 </div>
               )}
 
+              {(on.has("windows") || on.has("doors")) && (
+                <>
+                  <p className="wz-qhead">Count them</p>
+                  {on.has("windows") && (
+                    <div className="wz-countrow" data-testid="ext-win-count">
+                      <div className="wz-qtext">Windows on this side<small>Frames and sashes — a rough count is fine</small></div>
+                      <Stepper value={sd.windows} onChange={(n) => onChange(setSideCounts(v2, at, { windows: n }))} max={60} testId="ext-win" label="windows" />
+                    </div>
+                  )}
+                  {on.has("doors") && (
+                    <div className="wz-countrow" data-testid="ext-door-count">
+                      <div className="wz-qtext">Doors on this side<small>{at === "front" ? "Including the front door" : "Any door, painted"}</small></div>
+                      <Stepper value={sd.doors} onChange={(n) => onChange(setSideCounts(v2, at, { doors: n }))} max={20} testId="ext-door" label="doors" />
+                    </div>
+                  )}
+                </>
+              )}
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { emailContractorInvite, inviteAllStandardsAction, inviteStandardsAction } from "./actions";
+import { emailContractorInvite, inviteAllStandardsAction, inviteStandardsAction, requestAgreementAction } from "./actions";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -35,6 +35,8 @@ export type ContractorSummary = {
   costRateCents: number | null;
   /** Finish standards (Step 2): where they are with the sign-off, in the office's words. Null until 20270225 is applied. */
   standards: { status: string; line: string } | null;
+  /** Subcontractor agreement (agreement brief §7): the office line, the gate, and whether Request signature applies. Null until 20270285, and for employees. */
+  agreement: { line: string; gate: string; signed: boolean; canRequest: boolean } | null;
 };
 
 /** An unacknowledged change to where a contractor gets paid. */
@@ -73,6 +75,7 @@ export default function ContractorsManager({
   bankAlerts,
   employeesEnabled = false,
   standardsError = null,
+  agreementError = null,
 }: {
   contractors: ContractorSummary[];
   invites: InviteRow[];
@@ -85,6 +88,8 @@ export default function ContractorsManager({
   employeesEnabled?: boolean;
   /** Set when the standards statuses could not be read — the rows then show no standards line. */
   standardsError?: string | null;
+  /** Set when the agreement statuses could not be read — the rows then show no agreement line. */
+  agreementError?: string | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -417,6 +422,14 @@ export default function ContractorsManager({
     const r = await inviteStandardsAction({ id }).catch(() => ({ ok: false, message: "That didn't work — try again." }));
     setStdMsg((m) => ({ ...m, [id]: r.message })); setStdBusy(null); router.refresh();
   }
+  // Subcontractor agreement (agreement brief §7): ask one contractor to sign in the portal.
+  const [agBusy, setAgBusy] = useState<string | null>(null);
+  const [agMsg, setAgMsg] = useState<Record<string, string>>({});
+  async function requestAgreement(id: string) {
+    setAgBusy(id); setAgMsg((m) => ({ ...m, [id]: "" }));
+    const r = await requestAgreementAction({ id }).catch(() => ({ ok: false, message: "That didn't work — try again." }));
+    setAgMsg((m) => ({ ...m, [id]: r.message })); setAgBusy(null); router.refresh();
+  }
   async function inviteAllStandards() {
     setStdBusy("all"); setErr(""); setMsg("");
     const r = await inviteAllStandardsAction().catch(() => ({ ok: false, message: "That didn't work — try again." }));
@@ -458,6 +471,7 @@ export default function ContractorsManager({
 
       {err && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
       {standardsError && <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="standards-read-failure">Couldn&rsquo;t read who has confirmed the finish standards ({standardsError}).</div>}
+      {agreementError && <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="agreement-read-failure">Couldn&rsquo;t read who has signed the subcontractor agreement ({agreementError}).</div>}
       {msg && <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</div>}
 
       {/* ---- bank changes waiting to be checked ---- */}
@@ -700,6 +714,21 @@ export default function ContractorsManager({
                           </button>
                         )}
                         {stdMsg[c.id] && <span className="text-gray-600">{stdMsg[c.id]}</span>}
+                      </div>
+                    )}
+                    {c.agreement && c.employmentType === "contractor" && (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs" data-testid={`agreement-${c.id}`} data-gate={c.agreement.gate} data-signed={c.agreement.signed}>
+                        <span className={c.agreement.signed && c.agreement.gate === "ok" ? "text-emerald-700" : c.agreement.gate !== "ok" ? "text-red-700" : "text-amber-700"}>
+                          Agreement: {c.agreement.line}
+                        </span>
+                        {c.agreement.canRequest && c.active && (
+                          <button type="button" disabled={agBusy === c.id} onClick={() => requestAgreement(c.id)}
+                            className="text-gray-700 underline hover:text-gray-900 disabled:opacity-50" data-testid={`agreement-request-${c.id}`}>
+                            {agBusy === c.id ? "Sending…" : "Request signature"}
+                          </button>
+                        )}
+                        {!c.agreement.signed && <Link href={`/contractors/${c.id}`} className="text-gray-500 underline hover:text-gray-900">Upload a signed copy</Link>}
+                        {agMsg[c.id] && <span className="text-gray-600">{agMsg[c.id]}</span>}
                       </div>
                     )}
                   </div>

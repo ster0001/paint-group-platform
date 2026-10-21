@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, passDetailsSheetIfShown } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, passDetailsSheetIfShown, openTalk, lookAtEverySide } from "./drive";
 
 /**
  * Wizard UI refresh, S1 — the shell, on every path (brief §7.1, §7.7, §10).
@@ -122,7 +122,9 @@ test.describe("UI refresh S1 · the shell's layout contract", () => {
       await expect(page.locator(".wz-steps")).toHaveCount(0);
       await expect(page.locator(".wz-rather")).toHaveCount(0);
       // The ways to a person stay one tap away (addendum A, R3).
+      await openTalk(page);
       await expect(page.getByTestId("ql-book")).toBeVisible();
+      await openTalk(page);
       await expect(page.getByTestId("ql-message")).toBeVisible();
       // ⚑ 10: the chat is an icon in the header.
       await expect(page.getByTestId("wz-head").getByTestId("wz-chat-bubble")).toBeVisible();
@@ -210,7 +212,9 @@ test.describe("UI refresh S2 · the live picture and Your job so far (home, insi
     await toPlace(page);
     const talk = page.getByTestId("ql-side").getByTestId("ql-talk");
     await expect(talk).toContainText("Would you rather talk it through?");
+    await openTalk(page);
     await expect(talk.getByTestId("ql-book")).toBeVisible();
+    await openTalk(page);
     await expect(talk.getByTestId("ql-message")).toBeVisible();
     await expect(page.getByTestId("ql-talk")).toHaveCount(1); // rendered once, never a copy
   });
@@ -528,7 +532,6 @@ test.describe("UI refresh S5 · home outside", () => {
     await page.getByTestId("ext-side-np").click();
     await expect(page.getByTestId("ql-ext-side-right")).toHaveAttribute("data-state", "skip");
     await page.getByTestId("ql-ext-side-front").click();
-    for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
 
     await quickNext(page);
     await passGateIfShown(page);
@@ -584,22 +587,21 @@ test.describe("UI refresh S5 · home outside", () => {
     await quickNext(page);
     await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
     await fits();
-    for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
+    // 21 Oct: the talk-it-through BAR floats above the Continue bar on a phone with the three options in it.
+    await expect(page.getByTestId("ql-talk")).toBeVisible();
+    await expect(page.getByTestId("ql-book")).toBeVisible();
+    await expect(page.getByTestId("ql-message")).toBeVisible();
+    const talkBox = (await page.getByTestId("ql-talk").boundingBox())!;
+    expect(talkBox.height, "a bar, not a card").toBeLessThan(80);
+    await lookAtEverySide(page);
     await quickNext(page);
     await passGateIfShown(page);
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+    // 21 Oct: Tighten opens the customer editor on a phone too.
     await page.getByTestId("door-tighten").click();
     await passDetailsSheetIfShown(page);
-    await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
     await fits();
-    // Every control on the walk is at least 44px tall (acceptance 10).
-    const short = await page.locator("[data-quick-step='walk'] button:visible").evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height < 44).map((e) => (e as HTMLElement).dataset.testid ?? e.textContent?.trim().slice(0, 20)));
-    expect(short.filter((t) => !/ext-dim|ext-win|ext-door|back/i.test(String(t)))).toEqual([]);
-    // The fixed bar must not cover Check this side (S6: it did — the pane needs the bar's padding).
-    await page.getByTestId("ext-size-yes").click();
-    await page.getByTestId("ext-cond-good").click();
-    await page.getByTestId("ext-check-side").click({ timeout: 10_000 });
-    await expect(page.getByTestId("ext-side-front")).toHaveAttribute("data-state", "ok");
     await ctx.close();
   });
 });
@@ -727,6 +729,7 @@ test.describe("UI refresh S8a · the sheet pattern", () => {
     test.setTimeout(180_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     await toPlace(page);
+    await openTalk(page);
     await page.getByTestId("ql-book").click();
     await expect(page.getByTestId("talk-sheet")).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(400);
@@ -763,6 +766,7 @@ test.describe("UI refresh S8a · the sheet pattern", () => {
     const ctx = await browser.newContext({ ...devices["iPhone 13"] });
     const page = await ctx.newPage();
     await toPlace(page);
+    await openTalk(page);
     await page.getByTestId("ql-book").click();
     await expect(page.getByTestId("talk-sheet")).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(400);

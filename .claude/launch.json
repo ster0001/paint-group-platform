@@ -17,6 +17,18 @@
         "./scripts/c1/serve.sh"
       ],
       "port": 3101
+    },
+    {
+      "name": "c1-dev",
+      "url": "http://localhost:3102"
+    },
+    {
+      "name": "c1-built",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": [
+        "./scripts/c1/start-built.sh"
+      ],
+      "port": 3101
     }
   ]
 }

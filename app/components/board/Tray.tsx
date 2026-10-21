@@ -22,6 +22,19 @@ export type TrayProps<T> = {
   renderItem: (item: T, bind: TrayBind) => ReactNode;
   onDragStart: (e: ReactPointerEvent, item: T) => void;
   hint?: ReactNode;
+  /**
+   * Group the SHOWN items (after the search) under a heading — the Movements
+   * tray is grouped by job. Items keep their order; a group starts where its
+   * key first appears. The Schedule board passes neither.
+   */
+  groupKey?: (item: T) => string;
+  renderGroupHead?: (key: string, items: T[]) => ReactNode;
+  /** Anything between the search box and the list (filter chips). */
+  controls?: ReactNode;
+  /** Extra class names on the aside (a phone drawer's `open`). */
+  className?: string;
+  /** Anything after the list (+ Add a chip). */
+  after?: ReactNode;
 };
 
 /**
@@ -31,13 +44,31 @@ export type TrayProps<T> = {
  */
 export function Tray<T>({
   items, itemKey, searchText, searchPlaceholder, searchLabel, title, sub, emptyText, noMatch, prelude, renderItem, onDragStart, hint,
+  groupKey, renderGroupHead, controls, className, after,
 }: TrayProps<T>) {
   const [search, setSearch] = useState("");
   const query = search.trim().toLowerCase();
   const shown = query ? items.filter((it) => searchText(it).toLowerCase().includes(query)) : items;
 
+  const list = groupKey
+    ? [...shown.reduce((m, it) => {
+        const k = groupKey(it);
+        m.set(k, [...(m.get(k) ?? []), it]);
+        return m;
+      }, new Map<string, T[]>())].map(([key, group]) => (
+        <Fragment key={`group:${key}`}>
+          {renderGroupHead?.(key, group)}
+          {group.map((it) => <Fragment key={itemKey(it)}>{renderItem(it, { onPointerDown: (e) => onDragStart(e, it) })}</Fragment>)}
+        </Fragment>
+      ))
+    : shown.map((it) => (
+        <Fragment key={itemKey(it)}>
+          {renderItem(it, { onPointerDown: (e) => onDragStart(e, it) })}
+        </Fragment>
+      ));
+
   return (
-    <aside className="tray">
+    <aside className={`tray${className ? ` ${className}` : ""}`}>
       {prelude}
 
       <h2>{title}</h2>
@@ -53,17 +84,13 @@ export function Tray<T>({
           data-testid="tray-search"
         />
       )}
+      {controls}
       {items.length === 0 ? (
         <div className="empty">{emptyText}</div>
       ) : shown.length === 0 ? (
         <div className="empty" data-testid="tray-no-match">{noMatch(search.trim(), items.length)}</div>
-      ) : (
-        shown.map((it) => (
-          <Fragment key={itemKey(it)}>
-            {renderItem(it, { onPointerDown: (e) => onDragStart(e, it) })}
-          </Fragment>
-        ))
-      )}
+      ) : list}
+      {after}
       {hint !== undefined && <p className="hint">{hint}</p>}
     </aside>
   );

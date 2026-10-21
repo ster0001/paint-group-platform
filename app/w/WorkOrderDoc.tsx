@@ -2,7 +2,8 @@
 
 import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
 import { WO_STATUS_LABEL, cansLabel, litresLabel } from "@/lib/workorder/snapshot";
-import { areaMaterials, rowEstimatedLitres } from "@/lib/workorder/materials";
+import { areaMaterials, rowEstimatedLitres, substratesFor } from "@/lib/workorder/materials";
+import { paintLabel } from "@/lib/workorder/surfacePaint";
 import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
 import { STAGE_LANES, stageTitle, type WoStage } from "@/lib/workorder/stages";
 import { SURFACE_STATE_LABEL, dimsLabel, measureLabel, type SurfaceState } from "@/lib/workorder/surfaces";
@@ -11,6 +12,8 @@ import type { ScopeChange } from "@/lib/workorder/scopeChanges";
 import { WO_PHOTO_KIND_LABEL, groupByKind, officePhotos, type WOPhoto } from "@/lib/workorder/photos";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import AreaPhotoStrip from "@/app/components/wo/AreaPhotoStrip";
+import MovementsCard from "@/app/portal/MovementsCard";
+import type { JobLogistics } from "@/lib/movements/painterView";
 import { estimatedHours, formatHours } from "@/lib/workorder/hours";
 import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, type Booking } from "@/lib/workorder/booking";
 import FinishChip from "@/app/components/FinishChip";
@@ -42,8 +45,10 @@ export type WOEdit = {
  * from the frozen snapshot, which is why it is a prop rather than part of Doc.
  * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
  */
-export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [], scopeChanges = [], payInclChanges = null, standardsBase, smallJobHours = null }: {
+export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", acceptanceMode = "offered", crewVariations = [], removedKeys = [], scopeChanges = [], payInclChanges = null, standardsBase, smallJobHours = null, logistics = null, logisticsError = null }: {
   doc: Doc; edit?: WOEdit; stage?: WoStage | null;
+  /** Movements (Session 5): the painter's pickup / delivery / gear / rubbish lines, from their own read. */
+  logistics?: JobLogistics | null; logisticsError?: string | null;
   /** Which shell's standards the finish chip's "Open the finish standards" goes to. */
   standardsBase?: "portal" | "pc";
   /** Ruling S9: with the Settings threshold, the sheet says whether the tape check is required. */
@@ -91,6 +96,15 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
   // table, so they are split ONCE, here, and each section reads its own half.
   const officeShots = officePhotos(photos);
   const siteShots = photos.filter((p) => p.kind !== "reference");
+  // Tom, 21 Oct 2026: the CREW's copy carries NO estimated hours — not the
+  // total at the top, not the figure beside each surface, not the condition's
+  // extra-prep hours, not the hours on a variation — "so they can just see and
+  // tick off the list of tasks". The subcontractor still sees every hour (Tom,
+  // later the same day: "the subcontractors can still see the hours, it is just
+  // the painters they share it with that can't"), and so do the office and an
+  // employed painter. The crew's data still carries the hours — the tape-check
+  // rule reads them — so this gate is the one place they are kept off the page.
+  const showHours = variant !== "crew";
 
   return (
     <div className="wo">
@@ -135,11 +149,14 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
             <div className="v">{doc.contactFirstName || "—"}{doc.contactPhone ? ` · ${doc.contactPhone}` : ""}</div>
           </div>
           {/* Tom, 1 Oct: the job's total estimated hours at the top, in those
-              words. The same sum the scheduler sizes the booking from. */}
-          <div className="fact" data-testid="wo-estimated-hours">
-            <div className="k">Estimated hours</div>
-            <div className="v">{formatHours(estimatedHours(doc))}</div>
-          </div>
+              words. The same sum the scheduler sizes the booking from. Not on
+              the crew's copy (21 Oct 2026). */}
+          {showHours && (
+            <div className="fact" data-testid="wo-estimated-hours">
+              <div className="k">Estimated hours</div>
+              <div className="v">{formatHours(estimatedHours(doc))}</div>
+            </div>
+          )}
           <div className="fact">
             <div className="k">Start date</div>
             {edit ? <input type="date" value={doc.startDate ?? ""} onChange={(e) => edit.onStart(e.target.value || null)} />
@@ -191,7 +208,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
         {/* CONDITION — the extra prep the job carries, in hours (Tom, 3 Sep).
             The per-surface hours already include it; this says so plainly so a
             poor-condition job never reads like an ordinary one. */}
-        {conditionAllowanceLine(doc.condition) && (
+        {showHours && conditionAllowanceLine(doc.condition) && (
           <div className="wo-finish wo-condition" data-testid="wo-condition">
             <span className="wo-finish-lab">Condition · extra prep</span>
             <span className="wo-finish-val">{conditionAllowanceLine(doc.condition)}</span>
@@ -233,6 +250,20 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                       <span className={`cchip ${m.colourStatus}`}>{m.colourStatus === "confirmed" ? "Confirmed" : "TBC"}</span>
                     )}
                   </div>
+                  {/* Where it goes (Tom, 21 Oct 2026): the substrates painted in
+                      this product × colour, area by area — the same pairing the
+                      office reads on the PC Materials card. */}
+                  {(() => {
+                    const subs = substratesFor(doc, m.colourKey ?? m.product);
+                    if (subs.length === 0) return null;
+                    return (
+                      <div className="mat-subs" data-testid={`mat-substrates-${m.colourKey ?? m.product}`}>
+                        {subs.map((s, j) => (
+                          <span className="pill" key={j}>{s.area} · {s.label} · {s.coats} {s.coats === 1 ? "coat" : "coats"}</span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {/* Colour match (Tom, 23 Aug): codes on the sheet when the
                       estimator had them; otherwise the painter supplies them
                       on the job page before sign-off. */}
@@ -262,6 +293,22 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                     </div>
                   );
                 })()}
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* Movements (Session 5, brief §3.4): how the paint, materials and gear reach the site and
+            how the rubbish goes — the painter's lines from movements_for_painter, column-limited
+            in the database (no cost, no account, no office note unless flagged). */}
+        {(logistics?.any || logisticsError) && (
+          <section className="lg" id="logistics" data-testid="wo-logistics">
+            <h2>Getting it to site</h2>
+            {logisticsError && <p className="hint" style={{ color: "var(--amber)" }} data-testid="wo-logistics-error">{logisticsError}</p>}
+            {logistics && ([["paint", "Paint"], ["materials", "Materials"], ["gear", "Loan gear"], ["rubbish", "Rubbish"]] as const).map(([k, label]) => logistics[k].length > 0 && (
+              <div key={k}>
+                <h3>{label}</h3>
+                <MovementsCard compact lines={logistics[k]} day="" error={null} testId={`wo-logistics-${k}`} />
               </div>
             ))}
           </section>
@@ -333,8 +380,22 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                       </div>
                       <div className="surf-meta">
                         {measureLabel(s) && <span data-testid={`surf-measure-${s.key}`}>{measureLabel(s)} · </span>}
-                        {s.coats} {s.coats === 1 ? "coat" : "coats"}{s.product ? ` · ${s.product}` : ""}
+                        {s.coats} {s.coats === 1 ? "coat" : "coats"}
                       </div>
+                      {/* The paint this substrate gets — product · sheen · colour,
+                          with its swatch — on every sheet (Tom, 21 Oct 2026: the
+                          office could see it, the painter could not). Nothing on
+                          a line with no paint. */}
+                      {(() => {
+                        const paint = paintLabel(s);
+                        if (!paint) return null;
+                        return (
+                          <div className="surf-paint" data-testid={`surf-paint-${s.key}`}>
+                            {s.colourHex && <span className="swatch" style={{ background: s.colourHex }} />}
+                            <span>{paint}</span>
+                          </div>
+                        );
+                      })()}
                       {s.prep && <div className="surf-prep">{s.prep}</div>}
                     </div>
                     <div className="surf-right">
@@ -356,7 +417,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                           : tick === "prepped" || s.status === "in_progress" ? " doing" : "";
                         return <span className={`pill${tone}`} data-testid={`surf-state-${s.key}`}>{label}</span>;
                       })()}
-                      {(edit || s.hours != null) && (
+                      {showHours && (edit || s.hours != null) && (
                         <div className="surf-hours">
                           <span className="hlab">Hours</span>
                           {edit
@@ -457,7 +518,6 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                 <li key={i}>
                   <b style={{ textTransform: "capitalize" }}>{v.category.replace(/_/g, " ")}</b>
                   {v.comment ? ` — ${v.comment}` : ""}
-                  {v.estHours != null ? ` · ~${v.estHours} h` : ""}
                   <span style={{ marginLeft: 6, fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)" }}>
                     {v.status.replace(/_/g, " ")}
                   </span>

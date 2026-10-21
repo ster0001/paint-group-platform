@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, answerOutsideQuick } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, answerOutsideQuick, openTalk } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 import { credentials, signIn, test } from "../helpers";
 
@@ -28,6 +28,7 @@ test("nine taps to a range, and no email is asked before it (range first)", asyn
   await openQuickLook(page);
   // Screen 1 carries the way out (S4, R3): request a site visit, call, or send a message.
   await expect(page.getByTestId("ql-talk")).toBeVisible();
+  await openTalk(page);
   await expect(page.getByTestId("ql-book")).toBeVisible();
   // The pill is in the header from the first screen.
   await expect(page.getByTestId("save-and-book-pill")).toBeVisible();

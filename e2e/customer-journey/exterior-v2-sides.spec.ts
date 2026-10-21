@@ -11,10 +11,12 @@ import { toSides } from "./exterior-v2-drive";
  *    the gable sides, the verandah on the front); a part can be taken off a
  *    side, and anything added from the full list — it appears on the picture;
  *  - a side can take its own wall material, tagged Different from the rest;
- *  - "Looks right — next side" confirms and moves on; the tile turns; every
- *    painted side must be confirmed to continue (8a); a change un-confirms;
- *  - shared sides start not painting and can be added back;
- *  - no sizes, counts or dollars here (8).
+ *  - (21 Oct) which sides is asked on About it; only the ticked sides have a
+ *    tile; looking at a side ticks it, and Continue needs every ticked side
+ *    seen; the window and door counts have + and − here, and the picture
+ *    follows them;
+ *  - a shared side starts unticked and is added back on About it;
+ *  - no sizes or dollars here (8).
  */
 
 const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "0"; // on by default since 21 Oct; "0" is the off switch
@@ -77,51 +79,58 @@ test("a gable added on the right side appears on the picture; a side's own mater
   await expect(page.getByTestId("ext-sidepart-eaves")).toHaveAttribute("aria-pressed", "true");
 });
 
-test("Looks right confirms and moves on; every painted side must be confirmed; a change un-confirms", async ({ page }) => {
+test("no Looks right tap: a side ticks once you have looked at it, the counts have + and − here, and Continue needs every ticked side seen", async ({ page }) => {
   test.setTimeout(180_000);
   await toSides(page);
-  await page.getByTestId("ql-next").click();
-  await expect(page.getByTestId("ql-error")).toContainText(/Looks right.*4 to go/);
-  await page.getByTestId("ext-confirm-side").click();
+  // 4 · the window / door counts live here now, and the picture follows them.
+  const glass = picture(page).locator('g[data-e="windows"] rect[fill="#CFE3EA"]');
+  const before = await glass.count();
+  await expect(page.getByTestId("ext-win-count")).toBeVisible();
+  await expect(page.getByTestId("ext-door-count")).toBeVisible();
+  await page.getByTestId("ext-win-plus").click();
+  await page.getByTestId("ext-win-plus").click();
+  await expect(glass).toHaveCount(before + 2);
+  await page.getByTestId("ext-door-plus").click();
+  await expect(page.getByTestId("ext-door-n")).toHaveText("2");
+  // 6 · no confirm button; looking at a side ticks it; Continue waits for the rest.
+  await expect(page.getByTestId("ext-confirm-side")).toHaveCount(0);
+  await tile(page, "right").click();
   await expect(tile(page, "front")).toHaveAttribute("data-state", "ok");
   await expect(tile(page, "right")).toHaveAttribute("data-state", "cur");
-  await expect(page.getByTestId("ext-sides-progress")).toContainText("1 of 4");
-  await page.getByTestId("ext-confirm-side").click();
-  await page.getByTestId("ext-confirm-side").click();
-  await expect(page.getByTestId("ext-sides-done")).toHaveCount(0);
-  await page.getByTestId("ext-confirm-side").click();
-  await expect(page.getByTestId("ext-sides-done")).toContainText("All 4 sides confirmed");
-  for (const k of ["front", "right", "back"]) await expect(tile(page, k)).toHaveAttribute("data-state", "ok");
-  // A change on a confirmed side un-confirms it (8a).
-  await tile(page, "front").click();
-  await page.getByTestId("ext-sidepart-gutters").click();
-  await expect(page.getByTestId("ext-sides-done")).toHaveCount(0);
+  await expect(tile(page, "back")).toHaveAttribute("data-state", "todo");
+  await expect(page.getByTestId("ext-sides-progress")).toContainText("2 of 4 sides looked at");
   await page.getByTestId("ql-next").click();
-  await expect(page.getByTestId("ql-error")).toContainText(/1 to go/);
-  await page.getByTestId("ext-confirm-side").click();
-  await expect(page.getByTestId("ext-sides-done")).toBeVisible();
+  await expect(page.getByTestId("ql-error")).toContainText(/Tap each side.*2 to go/);
+  await tile(page, "back").click();
+  await tile(page, "left").click();
+  await expect(page.getByTestId("ext-sides-progress")).toContainText("4 of 4 sides looked at");
   await quickNext(page);
   await expect(page.locator("[data-quick-step='gate'], [data-testid='reveal']").first()).toBeVisible({ timeout: 90_000 });
 });
 
-test("a townhouse's shared sides start not painting with a note, and can be added back; Not painting takes a side off", async ({ page }) => {
+test("a townhouse's shared sides are not on Each side at all; Not painting takes a side off the tiles; a side added back on About it comes back", async ({ page }) => {
   test.setTimeout(180_000);
   await toSides(page, "th", ["walls", "fascias"], "mid");
-  await expect(tile(page, "left")).toHaveAttribute("data-state", "skip");
-  await expect(tile(page, "right")).toHaveAttribute("data-state", "skip");
-  await tile(page, "left").click();
-  await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId("ext-side-np-note")).toContainText(/shared wall on a townhouse/);
-  await expect(page.getByTestId("ql-ext-caption")).toContainText(/not painting/i);
-  await expect(page.getByTestId("ext-side-parts")).toHaveCount(0);
-  // Add it back: it is a painted side with its parts.
+  // 6 · only the ticked sides have a tile: the front and the back.
+  await expect(tile(page, "front")).toHaveAttribute("data-state", "cur");
+  await expect(tile(page, "back")).toBeVisible();
+  await expect(tile(page, "left")).toHaveCount(0);
+  await expect(tile(page, "right")).toHaveCount(0);
+  await expect(page.getByTestId("ext-sides-progress")).toContainText("1 of 2 sides looked at");
+  // Not painting the front: its tile goes, the back is shown and counted.
   await page.getByTestId("ext-side-np").click();
-  await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByTestId("ext-sidepart-walls")).toHaveAttribute("aria-pressed", "true");
-  await expect(tile(page, "left")).toHaveAttribute("data-state", "cur");
-  // And the front can be taken off — then the progress counts three painted sides.
-  await tile(page, "front").click();
-  await page.getByTestId("ext-side-np").click();
-  await expect(tile(page, "front")).toHaveAttribute("data-state", "skip");
-  await expect(page.getByTestId("ext-sides-progress")).toContainText("of 2");
+  await expect(tile(page, "front")).toHaveCount(0);
+  await expect(tile(page, "back")).toHaveAttribute("data-state", "cur");
+  await expect(page.getByTestId("ext-sides-progress")).toContainText("1 of 1 side looked at");
+  // Back to About it: the question shows the back ticked, the front and the shared sides not; tick the left — it is on Each side again.
+  await page.getByTestId("ql-back").click();
+  await expect(page.getByTestId("ext-about-sides")).toBeVisible();
+  await expect(page.getByTestId("ext-about-side-back")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("ext-about-side-front")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByTestId("ext-about-side-left")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByTestId("ext-about-side-left")).toContainText(/usually a shared wall/);
+  await page.getByTestId("ext-about-side-left").click();
+  await quickNext(page);
+  await expect(tile(page, "left")).toBeVisible();
+  await expect(tile(page, "front")).toHaveCount(0);
 });

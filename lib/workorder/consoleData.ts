@@ -34,7 +34,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const fortnightAgo = new Date(now.getTime() - 14 * 86_400_000).toISOString();
 
-  const [woRows, offers, variations, updates, signoffs, flags, closed, tickRows, contractors, settings, coloursTickedRows, collections,
+  const [woRows, offers, variations, updates, signoffs, flags, closed, tickRows, contractors, settings, coloursTickedRows,
          qaOpen, walkBooked, qaPassed, sentUpdateRows] =
     await Promise.all([
       fetchAll<WoRow>((from, to) => realOnly(supabase.from("work_orders")
@@ -82,11 +82,6 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         .select("work_order_id"))
         .eq("phase", "pre_start").eq("label", "Colour schedule finalised").not("done_at", "is", null)
         .order("id").range(from, to)),
-      // Rubbish / equipment yeses nobody has organised yet (Tom, 23 Aug).
-      realOnly(supabase.from("wo_checklist_items")
-        .select("id, work_order_id, item_key, answer_note, done_at, work_orders(wo_ref, contractor_id, wo_snapshot)"))
-        .eq("phase", "completion_prep").in("item_key", ["rubbish", "equipment"])
-        .eq("answer", "yes").is("handled_at", null),
       // Tom, 23 Aug: quality checks to do, walkthroughs not booked, updates due.
       realOnly(supabase.from("wo_qa_checks").select("work_order_id, kind, scheduled_for, created_at")).is("result", null),
       realOnly(supabase.from("wo_walkthroughs").select("work_order_id")).eq("kind", "final").eq("status", "booked"),
@@ -262,16 +257,6 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         extensionApprovedAt: s.extension_approved_at,
       })),
       quietSites: flags.map((f) => ({ workOrderId: f.work_order_id, at: f.created_at, days: f.meta?.days ?? 3 })),
-      collections: ((collections.data ?? []) as unknown as {
-        id: string; work_order_id: string; item_key: string; answer_note: string | null; done_at: string | null;
-        work_orders: { wo_ref: string; contractor_id: string | null; wo_snapshot: { jobTitle?: string } | null } | null;
-      }[]).map((c) => ({
-        itemId: c.id, workOrderId: c.work_order_id,
-        kind: c.item_key === "equipment" ? "equipment" as const : "rubbish" as const,
-        note: c.answer_note ?? "", answeredAt: c.done_at ?? now.toISOString(),
-        woRef: c.work_orders?.wo_ref ?? "", title: c.work_orders?.wo_snapshot?.jobTitle ?? c.work_orders?.wo_ref ?? "",
-        contractorName: c.work_orders?.contractor_id ? contractorName.get(c.work_orders.contractor_id) ?? null : null,
-      })),
       qaChecks: ((qaOpen.data ?? []) as { work_order_id: string; kind: string; scheduled_for: string | null; created_at: string }[])
         .map((c) => ({ workOrderId: c.work_order_id, kind: c.kind, scheduledFor: c.scheduled_for, createdAt: c.created_at })),
       walkthroughBooked: ((walkBooked.data ?? []) as { work_order_id: string }[]).map((w) => w.work_order_id),

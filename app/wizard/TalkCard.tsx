@@ -1,3 +1,5 @@
+"use client";
+
 import { initialsOf } from "@/lib/wizard/estimator";
 
 /**
@@ -5,8 +7,10 @@ import { initialsOf } from "@/lib/wizard/estimator";
  * — on every step before the range: request a visit, call, or send a message.
  * A visit asked for here is a request for staff, never a booking. The test
  * ids are the ones the box has always had (`ql-talk`, `ql-book`, `ql-call`,
- * `ql-message`), and it is rendered ONCE: in the right-hand column on a
- * laptop, at the foot of the step on a phone (CSS moves it, never a copy).
+ * `ql-message`), and it is rendered ONCE. Tom, 21 Oct: it FLOATS bottom-right
+ * on every wizard page as a slim BAR, not a card — one row on a laptop (the
+ * avatar, one line, the three buttons); on a phone a bar of the three options
+ * just above the Continue bar — so the page underneath stays readable.
  *
  * The estimator is whoever the wizard already resolves (⚑ 23,
  * `resolveEstimator` — Settings → Estimator until an address names a patch);
@@ -20,7 +24,8 @@ export default function TalkCard({ estimatorName, phone, onBook, onMessage }: {
 }) {
   const name = estimatorName?.trim() || null;
   return (
-    <div className="wz-talk" data-testid="ql-talk">
+    <div className="wz-talk" data-testid="ql-talk" role="region" aria-label="Would you rather talk it through?">
+      <div className="wz-talk-body">
       <div className="wz-talk-who">
         <span className="wz-talk-av" aria-hidden="true">{name ? initialsOf(name) : "PG"}</span>
         <p className="wz-talk-head">
@@ -43,6 +48,7 @@ export default function TalkCard({ estimatorName, phone, onBook, onMessage }: {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
           Send a message
         </button>
+      </div>
       </div>
     </div>
   );

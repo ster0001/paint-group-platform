@@ -17,9 +17,9 @@ import { jobProfit } from "@/lib/invoicing/jobProfit";
 import PriceVariation from "./PriceVariation";
 import UpdateComposer from "./UpdateComposer";
 import Checklist, { type ChecklistItem } from "./Checklist";
-import PrestartListBox from "./PrestartListBox";
+import PrestartMovements from "./PrestartMovements";
+import { loadJobMovements } from "@/lib/movements/loadJob";
 import PrestartPaintEstimate from "./PrestartPaintEstimate";
-import { loadPrestartList } from "@/lib/workorder/pcNotes";
 import WalkthroughCard from "./WalkthroughCard";
 import ReviewCard, { type ReviewState } from "./ReviewCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
@@ -437,24 +437,26 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   const outstanding = (phase: string) =>
     forPhase(phase).filter((c) => c.required && !c.done).length;
 
-  // Tom, 8 Oct 2026: the materials / equipment a job needs, written under
-  // those two pre-start items and saved before either is ticked.
-  const prestart = row.stage === "pre_start" ? await loadPrestartList(supabase, id) : null;
+  // Movements Session 7 (brief §3.4 "Job page"): under Materials ordered — the paint rows,
+  // this job's paint and materials chips, and the one materials list; under Equipment
+  // movements booked — the gear chips. The two gate ticks read gates(), the same answer the
+  // tick RPC gives. The old free-text boxes were imported as lines by 20270282.
+  // Tom, 21 Oct 2026: the materials list stays on the job page after pre-start is ticked and on
+  // every later stage (9 Ercildoune: nowhere to edit it) — as its own card once pre-start is gone.
+  const jobMovements = await loadJobMovements(supabase, id);
   const prestartExtras: Record<string, ReactNode> = {};
-  if (prestart) {
+  if (jobMovements) {
     const pre = forPhase("pre_start");
-    const materialsItem = pre.find((c) => /^materials/i.test(c.label));
-    const equipmentItem = pre.find((c) => /^equipment/i.test(c.label));
-    // Tom, 13 Oct 2026: the paint estimate labelled in the pre-start's
-    // materials item — the same rows as the Materials card.
+    const materialsItem = pre.find((c) => c.itemKey === "materials" || /^materials/i.test(c.label));
+    const equipmentItem = pre.find((c) => c.itemKey === "equipment" || /^equipment/i.test(c.label));
+    const common = { workOrderId: id, movements: jobMovements.movements, lines: jobMovements.lines, decisions: jobMovements.decisions, branches: jobMovements.branches, items: jobMovements.items, gates: jobMovements.gates, failures: jobMovements.failures };
     if (materialsItem) prestartExtras[materialsItem.id] = (
       <>
         <PrestartPaintEstimate rows={materialRows} />
-        <PrestartListBox workOrderId={id} kind="materials" initial={prestart.list.materials} />
+        <PrestartMovements kind="materials" {...common} />
       </>
     );
-    if (equipmentItem) prestartExtras[equipmentItem.id] =
-      <PrestartListBox workOrderId={id} kind="equipment" initial={prestart.list.equipment} />;
+    if (equipmentItem) prestartExtras[equipmentItem.id] = <PrestartMovements kind="equipment" {...common} failures={[]} />;
   }
 
   const contractorRateCents = Math.round(
@@ -874,6 +876,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
             rows={materialRows}
             budget={{
               ...budget,
+              orderedCents: jobMovements?.orderedCents ?? null,
               invoices: materialInvoices.map((inv) => ({
                 id: inv.id, supplier: inv.supplier, amountCents: inv.amount_cents,
                 date: inv.invoice_date, ref: inv.order_ref,
@@ -919,8 +922,15 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               extras={prestartExtras}
             />
           )}
-          {prestart?.failure && (
-            <p className="note" style={{ color: "var(--amber)" }} data-testid="prestart-list-failure">{prestart.failure}</p>
+
+          {row.stage !== "pre_start" && jobMovements && (
+            <div className="card" data-testid="job-movements-card">
+              <h3>Materials &amp; movements <em>{jobMovements.movements.length} chip{jobMovements.movements.length === 1 ? "" : "s"}</em></h3>
+              <p className="note">The paint and materials orders and the gear on this job, the same list as the estimate and the Movements tray. Tap a chip to open it on the board.</p>
+              <PrestartPaintEstimate rows={materialRows} />
+              <PrestartMovements kind="materials" workOrderId={id} movements={jobMovements.movements} lines={jobMovements.lines} decisions={jobMovements.decisions} branches={jobMovements.branches} items={jobMovements.items} gates={jobMovements.gates} failures={jobMovements.failures} showGate={false} />
+              <PrestartMovements kind="equipment" workOrderId={id} movements={jobMovements.movements} lines={jobMovements.lines} decisions={jobMovements.decisions} branches={jobMovements.branches} items={jobMovements.items} gates={jobMovements.gates} failures={[]} showGate={false} />
+            </div>
           )}
 
           {/* A job at pre-start with no list is a fault, not a finished list —

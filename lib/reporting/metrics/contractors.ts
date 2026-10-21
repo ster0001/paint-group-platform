@@ -178,7 +178,15 @@ export const standardsNotSigned: MetricDef<StripRow> = {
   select: (input) => (statusView(input)?.rows ?? []).filter((r) => r.tags.some((t) => t.text === "Standards not signed")).map((r) => ({ painter: r.name, what: "Standards not signed" })),
 };
 
+export const agreementsNotSigned: MetricDef<StripRow> = {
+  key: "contractors.agreement_unsigned", kind: "now", section: "contractors", title: "Agreement not signed",
+  definition: "Active contractors with no signed, unexpired subcontractor agreement — new ones whose offers wait, existing ones asked or not yet asked, and expired ones. Request signature or an uploaded paper copy clears it.",
+  unit: "count", gst: null, roles: ROLES, aggregate: "count", href: "/contractors",
+  columns: [{ key: "painter", label: "Painter" }, { key: "what", label: "Tag" }],
+  select: (input) => (statusView(input)?.rows ?? []).filter((r) => r.tags.some((t) => t.text === "Agreement not signed")).map((r) => ({ painter: r.name, what: "Agreement not signed" })),
+};
+
 export const CONTRACTOR_METRICS = [
   finishedOnTime, silentContractors, qaPassedFirstTime, offersWithin24h, variationsRaised, expensesPending, hoursVsEstimate, daysOnSite,
-  paintersOnGreen, openCallBacks, bonusReviewsDue, standardsNotSigned,
+  paintersOnGreen, openCallBacks, bonusReviewsDue, standardsNotSigned, agreementsNotSigned,
 ] as const;

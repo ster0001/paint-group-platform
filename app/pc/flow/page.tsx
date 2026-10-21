@@ -7,6 +7,7 @@ import { melbourneDate } from "@/lib/workorder/console";
 import { loadOpenCallbacks } from "@/lib/callbacks/load";
 import { callbackLine } from "@/lib/callbacks/model";
 import { reportError } from "@/lib/monitoring/report";
+import { loadGatesForJobs } from "@/lib/movements/loadJob";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,10 @@ export default async function FlowPage() {
   const openCallbacks = await loadOpenCallbacks(supabase);
   if (openCallbacks.error) reportError(new Error(openCallbacks.error), { where: "pc.flow.callbacks", bestEffort: true });
   const callbackJobIds = [...new Set(openCallbacks.callbacks.map((c) => c.workOrderId))];
+  // Movements Session 7: the two pre-start gates as pills on every pre-start card.
+  const preStartIds = input.workOrders.filter((w) => laneFor(w.stage as WoStage, w.startDate, today) === "pre_start").map((w) => w.id);
+  const gateRead = await loadGatesForJobs(supabase, preStartIds);
+  if (gateRead.failure) reportError(new Error(gateRead.failure), { where: "pc.flow.gates", bestEffort: true });
   const pausedJobs = new Set<string>();
   if (callbackJobIds.length) {
     const { data: held, error: heldErr } = await supabase.from("invoices").select("work_order_id").eq("chase_hold_kind", "call_back").in("work_order_id", callbackJobIds);
@@ -130,6 +135,12 @@ export default async function FlowPage() {
                           {!job.coloursConfirmed && stage === "pre_start" && (
                             <span className="pill p-amber">Colours TBC</span>
                           )}
+                          {stage === "pre_start" && gateRead.gates.get(job.id) && (() => { const g = gateRead.gates.get(job.id)!; return (
+                            <>
+                              <span className={`pill ${g.paint ? "p-em" : "p-amber"}`} data-testid={`gate-paint-${job.id}`}>{g.paint ? "Paint ordered" : "Paint ⚑"}</span>
+                              <span className={`pill ${g.gear ? "p-em" : "p-amber"}`} data-testid={`gate-gear-${job.id}`}>{g.gear ? "Gear booked" : "Gear ⚑"}</span>
+                            </>
+                          ); })()}
                           {severity === "warning" && <span className="pill p-amber">Waiting</span>}
                         </div>
                       </Link>

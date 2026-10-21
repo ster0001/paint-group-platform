@@ -81,6 +81,11 @@
 .wo .surf-count { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 100px; border: 1px solid var(--line); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--text); vertical-align: 1px; white-space: nowrap; }
 .wo .surf-meta { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
 .wo .surf-prep { font-size: 13px; color: var(--muted); margin-top: 3px; }
+/* The paint this substrate gets: swatch + "product · sheen · colour" (21 Oct 2026). */
+.wo .surf-paint { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); margin-top: 3px; }
+.wo .surf-paint .swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(255,255,255,.2); flex-shrink: 0; display: inline-block; }
+/* Which substrates a paint row goes on, under it in Materials & colours. */
+.wo .mat-subs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 /* Finish standards (Step 1): the surface's standard at this job's level. */
 .wo .wo-tape { font-size: 12.5px; color: var(--text); margin-top: 2px; }
 .wo .surf-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; min-width: 92px; }
@@ -141,6 +146,7 @@
   .wo .area-mat-name, .wo .area-mat-l { color: #111 !important; }
   .wo .mat-cans, .wo .mat-est, .wo .area-mats-h { color: #444 !important; }
   .wo h2, .wo .muted, .wo .wo-addr, .wo .surf-prep, .wo .mat-colour, .wo .surf-meta, .wo .excl li { color: #444 !important; }
+  .wo .surf-paint { color: #111 !important; }
   .wo .chip, .wo .cchip, .wo .pill { color: #333 !important; border-color: #999 !important; }
   .wo .surf-hours .hval, .wo .surf-hours input { color: #111 !important; }
   .wo .surf-hours .hlab { color: #666 !important; }

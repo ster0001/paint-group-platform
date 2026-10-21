@@ -7,10 +7,10 @@ import { isMissingRpc } from "@/lib/supabase/missingRpc";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
- * Tom, 8 Oct 2026: two small office writes on PC Command — the pre-start
- * materials / equipment lists and a short note on a dashboard reminder. Each is
- * a zod-checked translation over one staff-checked RPC (migration 20270243);
- * no rule lives here.
+ * Tom, 8 Oct 2026: a short note on a dashboard reminder — a zod-checked
+ * translation over one staff-checked RPC (migration 20270243); no rule lives
+ * here. (The pre-start materials / equipment list action that lived beside it
+ * went in Movements Session 7: the lists are material lines and chips now.)
  */
 
 export type NoteResult = { ok: true } | { ok: false; message: string };
@@ -30,25 +30,6 @@ function fromRpc(fn: string, data: unknown, error: { message: string } | null, w
   if (reason === "too_long") return { ok: false, message: "That's too long to save — shorten it." };
   if (reason === "not_found") return { ok: false, message: "That job isn't there any more — reload the page." };
   return { ok: false, message: reason.replace(/_/g, " ") || "That didn't save." };
-}
-
-const listInput = z.object({
-  workOrderId: z.string().uuid(),
-  kind: z.enum(["materials", "equipment"]),
-  text: z.string().max(4000),
-});
-
-/** Save the materials or the equipment list for a job's pre-start. Never ticks anything. */
-export async function savePrestartList(raw: unknown): Promise<NoteResult> {
-  const p = listInput.safeParse(raw);
-  if (!p.success) return { ok: false, message: "That list is too long to save (4,000 characters)." };
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("wo_set_prestart_list", {
-    p_work_order_id: p.data.workOrderId, p_kind: p.data.kind, p_text: p.data.text,
-  });
-  const r = fromRpc("wo_set_prestart_list", data, error, "pc.prestart.saveList");
-  if (r.ok) revalidatePath(`/pc/wo/${p.data.workOrderId}`);
-  return r;
 }
 
 const noteInput = z.object({

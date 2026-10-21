@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, openQuickLook, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE } from "./drive";
+import { fillQuickAddress, openQuickLook, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide } from "./drive";
 
 /**
  * Exterior wizard v2 — S3: "Tell us about what you ticked" (brief §7.3;
@@ -132,12 +132,11 @@ test("the extras ask their sizes; a ticked pergola needs its top; then the range
   await page.getByTestId("ext-size-pergola-w").blur();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-  // Each side (S4): the right side is not painting; Looks right on the other three.
+  // Each side (21 Oct): the right side is not painting — its tile goes; look at the other three.
   await page.getByTestId("ql-ext-side-right").click();
   await page.getByTestId("ext-side-np").click();
-  await expect(page.getByTestId("ql-ext-side-right")).toHaveAttribute("data-state", "skip");
-  await page.getByTestId("ql-ext-side-front").click(); // a side not painting has no Looks right; confirm from the front round
-  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
+  await expect(page.getByTestId("ql-ext-side-right")).toHaveCount(0);
+  await lookAtEverySide(page);
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
@@ -146,11 +145,33 @@ test("the extras ask their sizes; a ticked pergola needs its top; then the range
   await expect(page.getByTestId("reveal-restatement")).toContainText(/colonial windows/);
   await expect(page.getByTestId("reveal-restatement")).toContainText(/the front, back and left side/);
   await expect(page.getByTestId("reveal-restatement")).toContainText(/single storey/);
-  // And Tighten opens the walk on the drawn house's sides (S5) — the right side is not there to check at all (8 Sep ruling).
+  // And Tighten opens the customer editor (21 Oct, item 8) — the right side is not there at all (8 Sep ruling).
   await page.getByTestId("door-tighten").click();
   await passDetailsSheetIfShown(page);
-  await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId("ext-side-right")).toHaveAttribute("data-state", "skip");
-  await expect(page.getByTestId("ext-side-front")).toHaveAttribute("data-state", "cur");
-  await expect(page.getByTestId("ql-ext-caption")).toContainText(/weatherboards/i);
+  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator('[data-side="right"]')).toHaveCount(0);
+  await expect(page.locator('[data-side="front"]')).toBeVisible();
+});
+
+test("Which sides are we painting? is asked on About it: all four ticked on a bungalow, untick one and it is not on Each side; none ticked is refused", async ({ page }) => {
+  test.setTimeout(180_000);
+  await toAbout(page, "wb", ["walls", "fascias"]);
+  await page.getByTestId("ext-mat-weatherboards").click();
+  const q = page.getByTestId("ext-about-sides");
+  await expect(q).toBeVisible();
+  for (const k of ["front", "right", "back", "left"]) await expect(page.getByTestId(`ext-about-side-${k}`)).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId("ext-about-side-right").click();
+  await expect(page.getByTestId("ext-about-side-right")).toHaveAttribute("aria-pressed", "false");
+  // None ticked: Continue refused in words.
+  for (const k of ["front", "back", "left"]) await page.getByTestId(`ext-about-side-${k}`).click();
+  await page.getByTestId("ql-next").click();
+  await expect(page.getByTestId("ql-error")).toContainText(/at least one side/i);
+  await page.getByTestId("ext-about-side-front").click();
+  await page.getByTestId("ext-about-side-back").click();
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("ql-ext-side-front")).toBeVisible();
+  await expect(page.getByTestId("ql-ext-side-back")).toBeVisible();
+  await expect(page.getByTestId("ql-ext-side-right")).toHaveCount(0);
+  await expect(page.getByTestId("ql-ext-side-left")).toHaveCount(0);
 });

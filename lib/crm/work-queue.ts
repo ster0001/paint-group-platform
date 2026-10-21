@@ -173,6 +173,16 @@ export const WORK_ITEM_KINDS = [
   /** Induction Step 3b (ruling I5): an active contractor with no public liability certificate on file. Verifying one clears it. */
   "insurance_missing",
   /**
+   * Subcontractor agreement (agreement brief §7, 21 Oct 2026). Two facts from
+   * agreement_statuses(), never stored: an active contractor with no signed,
+   * unexpired agreement (a new one, whose offers wait; an existing one asked
+   * and in or past the grace window; an existing one not asked yet), and a
+   * signed one inside its renewal window or past its expiry. Request signature
+   * or an upload clears the first; the next signature clears the second.
+   */
+  "agreement_unsigned",
+  "agreement_expiring",
+  /**
    * Movements (brief §6, Session 3, 20 Oct 2026). Nine facts about what has to move, all
    * derived from `movements` + the register by `lib/movements/evaluate.ts` — never stored:
    *   movements_unplanned  a job starts within planningHorizonDays and still has tray chips
@@ -290,7 +300,7 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
  * SCREENS over one queue is not.
  */
 export type WorkItemHome = "crm" | "pc";
-const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "qa_check_to_book", "painter_message", "site_visit_due", "material_request", "no_work_requested", "insurance_missing",
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "qa_check_to_book", "painter_message", "site_visit_due", "material_request", "no_work_requested", "insurance_missing", "agreement_unsigned", "agreement_expiring",
   "movements_unplanned", "order_unplaced", "delivery_unconfirmed", "movement_overdue", "movement_problem", "equipment_stranded", "hire_off_due", "job_moved", "materials_changed_after_order"]);
 export function homeOf(kind: WorkItemKind): WorkItemHome {
   return PC_HOMED.has(kind) ? "pc" : "crm";
@@ -379,6 +389,9 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   material_request: 28,
   no_work_requested: 30,
   insurance_missing: 12,
+  // The agreement: with insurance_missing — paperwork that stops offers, below the day's fires.
+  agreement_unsigned: 12,
+  agreement_expiring: 10,
   // Movements (brief §6): alongside material_request 28; stranded gear, a problem and an
   // unconfirmed delivery at the top of the internal band — a painter on site waiting on
   // something is the day's fire. The brief said "~40"; 31 is the ceiling, because
@@ -513,6 +526,8 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   material_request: "approvals",
   no_work_requested: "approvals",
   insurance_missing: "followups",
+  agreement_unsigned: "followups",
+  agreement_expiring: "followups",
   movements_unplanned: "followups",
   order_unplaced: "approvals",
   delivery_unconfirmed: "followups",
@@ -2531,9 +2546,8 @@ async function readNoWorkRequestRows(supabase: SupabaseClient): Promise<{ rows: 
 // ---- Movements (brief §6, Session 3) — nine facts about what has to move --------------------
 //
 // Pure builders over rows the reader shapes; the rules (needsOrder, jobMoved, the register's
-// locations) are lib/movements/evaluate.ts's, called here, never re-derived. Not yet wired into
-// buildPcWorkItems: Session 4 adds the reader there when the Movements tab ships (the cards
-// link to a screen that does not exist before then).
+// locations) are lib/movements/evaluate.ts's, called here, never re-derived. Wired into
+// buildPcWorkItems since Session 4 (the cards link to /pc/movements).
 
 export type MovementQueueRow = {
   id: string;
@@ -2825,14 +2839,104 @@ function emptyMovement(id: string): MovementRow {
   return {
     id, work_order_id: null, kind: "other", source_key: null, title: "", detail: null, assignee_kind: null, assignee_table: null, assignee_id: null,
     due_date: null, half: null, time: null, sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "",
-    status: "tray", ordered_at: null, client_notice: false, order_ref: "", lines: null, planned_for_start: null, return_due: null, blocked_by_movement_id: null,
+    status: "tray", ordered_at: null, method_pref: null, duration_min: 60, client_notice: false, order_ref: "", lines: null, planned_for_start: null, return_due: null, blocked_by_movement_id: null,
     expected_cost_cents: null, note: "", problem_note: "", painter_confirmed_at: null, source_changed_at: null, booked_at: null, done_at: null,
     created_at: "", updated_at: "", items: [],
   };
 }
 
+// ---- source: the subcontractor agreement (agreement brief §7, 21 Oct 2026) ------------
+
+export type AgreementQueueRow = {
+  contractorId: string; name: string; employmentType: "contractor" | "employee"; active: boolean;
+  kind: "new" | "existing"; gate: "ok" | "agreement_unsigned" | "agreement_expired";
+  signed: boolean; source: "portal" | "uploaded" | null; expiresOn: string | null;
+  requestedAt: string | null; graceUntil: string | null; createdAt: string;
+};
+
+/** A Melbourne calendar date as the instant its day ends (midday, so the bucket is that day). */
+const melbourneMidday = (ymd: string) => new Date(`${ymd}T02:00:00Z`).toISOString();
+
+/**
+ * One item per active contractor (never an employee) with no signed, unexpired
+ * agreement, and one per signed agreement inside its renewal window
+ * (`renewalWarnDays`, 30) or past it. `today` is the Melbourne calendar date.
+ */
+export function buildAgreementItems(rows: readonly AgreementQueueRow[], renewalWarnDays: number, today: string, now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  const dmy = (ymd: string) => new Date(`${ymd}T00:00:00Z`).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
+  for (const r of rows) {
+    if (!r.active || r.employmentType === "employee") continue;
+    const expired = r.signed && r.expiresOn !== null && r.expiresOn < today;
+    if (!r.signed || expired) {
+      const subject: SubjectRef = { type: "contractor", id: r.contractorId };
+      const asked = r.requestedAt !== null;
+      const graceOpen = r.graceUntil !== null && now.getTime() < new Date(r.graceUntil).getTime();
+      const detail = expired ? `Their agreement expired ${dmy(r.expiresOn as string)} — no job offers until they sign the new term.`
+        : r.kind === "existing" && !asked ? "On the books before the portal agreement existed and not asked to sign yet. Request signature starts their grace window; or upload the paper copy."
+        : r.kind === "existing" && graceOpen ? `Asked ${dmy((r.requestedAt as string).slice(0, 10))}; job offers stop ${dmy((r.graceUntil as string).slice(0, 10))} unless they sign.`
+        : r.kind === "existing" ? `Asked ${dmy((r.requestedAt as string).slice(0, 10))} and the grace window has ended — no job offers until they sign.`
+        : "A new contractor: no job offers until the agreement is signed in the portal.";
+      items.push(finish({
+        key: itemKey("agreement_unsigned", "contractor", r.contractorId, expired ? "expired" : asked ? "asked" : "unsigned"),
+        kind: "agreement_unsigned", accountId: null, subjectRef: subject,
+        title: `${r.name} — subcontractor agreement not signed`,
+        detail,
+        since: r.requestedAt ?? (expired ? melbourneMidday(r.expiresOn as string) : r.createdAt),
+        dueAt: expired ? melbourneMidday(r.expiresOn as string) : r.graceUntil,
+        action: { label: asked || expired ? "Open their record" : "Request signature", href: `/contractors/${r.contractorId}` },
+      }, { valueCents: null, promisedToCustomer: false }, now));
+      continue;
+    }
+    if (r.expiresOn !== null) {
+      const days = Math.round((Date.UTC(+r.expiresOn.slice(0, 4), +r.expiresOn.slice(5, 7) - 1, +r.expiresOn.slice(8, 10)) - Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 1, +today.slice(8, 10))) / DAY_MS);
+      if (days <= renewalWarnDays) {
+        items.push(finish({
+          key: itemKey("agreement_expiring", "contractor", r.contractorId, r.expiresOn),
+          kind: "agreement_expiring", accountId: null, subjectRef: { type: "contractor", id: r.contractorId },
+          title: `${r.name} — agreement expires ${dmy(r.expiresOn)}`,
+          detail: `${days <= 0 ? "Expires today" : `${days} day${days === 1 ? "" : "s"} left`}. The portal is asking them to sign the new term; after the date, no job offers until they do.`,
+          since: new Date(new Date(melbourneMidday(r.expiresOn)).getTime() - renewalWarnDays * DAY_MS).toISOString(),
+          dueAt: melbourneMidday(r.expiresOn),
+          action: { label: "Open their record", href: `/contractors/${r.contractorId}` },
+        }, { valueCents: null, promisedToCustomer: false }, now));
+      }
+    }
+  }
+  return items;
+}
+
+async function readAgreementRows(supabase: SupabaseClient, now: Date): Promise<{ rows: AgreementQueueRow[]; renewalWarnDays: number; today: string; error: string | null }> {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const [st, cs, rules] = await Promise.all([
+    supabase.rpc("agreement_statuses"),
+    supabase.from("contractors").select("id, company_name, employment_type, active, created_at, profiles(name)"),
+    supabase.from("settings").select("value").eq("key", "agreement_rules").maybeSingle(),
+  ]);
+  // Before migration 20270285 the RPC does not exist: no items, and the queue says nothing — the feature is simply not there yet.
+  if (st.error && st.error.code === "42883") return { rows: [], renewalWarnDays: 30, today, error: null };
+  const errors = [st.error, cs.error, rules.error].filter(Boolean).map((e) => e!.message);
+  type CRow = { id: string; company_name: string | null; employment_type: string | null; active: boolean; created_at: string; profiles: { name: string | null } | null };
+  const byId = new Map(((cs.data ?? []) as unknown as CRow[]).map((c) => [c.id, c]));
+  type SRow = { contractor_id: string; kind: string; gate: string; source: string | null; signed_at: string | null; expires_on: string | null; requested_at: string | null; grace_until: string | null };
+  const rows: AgreementQueueRow[] = ((st.data ?? []) as SRow[]).flatMap((r) => {
+    const c = byId.get(r.contractor_id);
+    if (!c) return [];
+    return [{
+      contractorId: r.contractor_id, name: c.profiles?.name?.trim() || c.company_name?.trim() || "A painter",
+      employmentType: c.employment_type === "employee" ? "employee" as const : "contractor" as const, active: c.active,
+      kind: r.kind === "existing" ? "existing" as const : "new" as const,
+      gate: r.gate === "agreement_unsigned" || r.gate === "agreement_expired" ? r.gate : "ok" as const,
+      signed: r.signed_at !== null, source: r.source === "portal" || r.source === "uploaded" ? r.source : null,
+      expiresOn: r.expires_on, requestedAt: r.requested_at, graceUntil: r.grace_until, createdAt: c.created_at,
+    }];
+  });
+  const warn = (rules.data as { value?: { renewalWarnDays?: unknown } } | null)?.value?.renewalWarnDays;
+  return { rows, renewalWarnDays: Number.isInteger(warn) && (warn as number) >= 1 ? (warn as number) : 30, today, error: errors.length ? errors.join("; ") : null };
+}
+
 export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
-  const [checkins, callbacks, painters, qaChecks, painterMessages, siteVisits, materials, noWork, dismissed] = await Promise.all([
+  const [checkins, callbacks, painters, qaChecks, painterMessages, siteVisits, materials, noWork, movements, agreements, dismissed] = await Promise.all([
     readJobCheckinRows(supabase, now),
     readCallbackRows(supabase),
     readPainterStatusRows(supabase),
@@ -2841,6 +2945,9 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     readSiteVisitRows(supabase),
     readMaterialRequestRows(supabase),
     readNoWorkRequestRows(supabase),
+    // Movements (brief §6, wired in Session 4 — the cards link to /pc/movements, which now exists).
+    readMovementQueueRows(supabase),
+    readAgreementRows(supabase, now),
     supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
   ]);
   if (checkins.error) return { items: [], failure: `Couldn't read the jobs for check-ins: ${checkins.error}` };
@@ -2854,6 +2961,8 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     ...buildSiteVisitItems(siteVisits.rows, now),
     ...buildMaterialRequestItems(materials.rows, now),
     ...buildNoWorkRequestItems(noWork.rows, now),
+    ...buildMovementWorkItems(movements.rows, movements.stranded, movements.settings, now),
+    ...buildAgreementItems(agreements.rows, agreements.renewalWarnDays, agreements.today, now),
   ];
   const items = sortItems(applyDismissals(pcItems(built), dismissals, now));
   const failures = [
@@ -2865,6 +2974,8 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     siteVisits.error ? `Couldn't read the site check-ins (${siteVisits.error}).` : null,
     materials.error ? `Couldn't read the materials requests (${materials.error}).` : null,
     noWork.error ? `Couldn't read the no-work requests (${noWork.error}).` : null,
+    movements.error ? `Couldn't read the movements (${movements.error}).` : null,
+    agreements.error ? `Couldn't read the subcontractor agreements (${agreements.error}).` : null,
   ].filter(Boolean);
   return { items, failure: failures.length ? failures.join(" ") : null };
 }

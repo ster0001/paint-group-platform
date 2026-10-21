@@ -56,15 +56,28 @@ const snapshotFalse = () => false;
 
 /** A selectable chip — a real component so its onClick is a handler in the
  * linter's eyes (the old render-time chip() helper tripped react-hooks/refs). */
-function Chip({ on, label, hint, onClick }: { on: boolean; label: string; hint?: string; onClick: () => void }) {
+function Chip({ on, label, hint, art, onClick }: { on: boolean; label: string; hint?: string; art?: React.ReactNode; onClick: () => void }) {
   return (
     // The hint is visible but NOT part of the accessible name — a chip is still
     // "Weathered" to a screen reader and to every spec that clicks it by name.
     <button className={`sd-chip ${on ? "on" : ""}${hint ? " has-hint" : ""}`} aria-label={hint ? label : undefined} onClick={onClick}>
+      {art}
       {label}
       {hint && <small className="sd-chip-hint" aria-hidden="true">{hint}</small>}
     </button>
   );
+}
+
+/**
+ * Tom, 21 Oct (item 10): what each paintwork answer LOOKS like — three little
+ * weatherboard swatches: sound, chalky and faded, lifting with bare timber.
+ */
+function CondArt({ kind }: { kind: "good" | "weathered" | "peeling" }) {
+  const boards = [0, 7, 14, 21].map((y) => `<rect x="0" y="${y}" width="72" height="6" fill="${kind === "weathered" ? "#DCE5E8" : "#CFEFF4"}"/>`).join("");
+  const lines = [6, 13, 20, 27].map((y) => `<path d="M0 ${y}.5H72" stroke="#16212A" stroke-opacity=".25"/>`).join("");
+  const weathered = kind === "weathered" ? `<rect x="8" y="1" width="18" height="4" fill="#fff" fill-opacity=".7"/><rect x="40" y="8" width="24" height="4" fill="#fff" fill-opacity=".6"/><rect x="18" y="15" width="14" height="4" fill="#fff" fill-opacity=".65"/><rect x="50" y="22" width="16" height="4" fill="#fff" fill-opacity=".6"/>` : "";
+  const peeling = kind === "peeling" ? `<path d="M10 7l6-4 5 4-3 3z M30 14l7-3 4 5-6 2z M52 0l6 3-2 4-7-1z M20 21l8-2 3 5-9 1z" fill="#B07A4A"/><path d="M16 3l5 4M37 11l4 5M58 3l-2 4" stroke="#16212A" stroke-opacity=".35"/>` : "";
+  return <span className="sd-chip-art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 72 30" width="72" height="30">${boards}${lines}${weathered}${peeling}</svg>` }} />;
 }
 
 export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, openKey, onOpenKey, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, estimator = null, customerSuburb = null }: {
@@ -578,6 +591,14 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                             {(["S", "M", "L"] as const).map((z) => (
                               <button key={z} className={sel(`ws:${s.key}:${t.id}`, t.sizeBand === z, z) ? "on" : ""} onClick={() => act({ action: "win_size", side: s.key, surfaceId: t.id, size: z }, { describe: withDelta(`Windows set to ${z === "S" ? "small" : z === "M" ? "medium" : "large"}`), opt: [`ws:${s.key}:${t.id}`, z] })}>{z}</button>
                             ))}
+                            <em className="sd-whint">Small is under 50 × 50 cm · Medium 50 cm to 1.5 m · Large over 1.5 m</em>
+                            {/* Tom, 21 Oct: "+ add a different sized window" lives IN the window box, not as a button below. */}
+                            {t.id === [...s.tiles].reverse().find((x) => x.window)?.id && (
+                              <button type="button" className="sd-waddin" data-testid={`side-add-window-${s.key}`}
+                                onClick={() => act({ action: "add_window_group", side: s.key }, { done: "Added another window group — set how many, and its size." })}>
+                                + Add a different sized window
+                              </button>
+                            )}
                           </span>
                         )}
                       </div>
@@ -593,7 +614,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                       </div>
                     ))}
                   </div>
-                  <button className="sd-addsurf" onClick={() => setAddOpen(addOpen === s.key ? null : s.key)}>+ Add a surface to this side</button>
+                                    <button className="sd-addsurf" onClick={() => setAddOpen(addOpen === s.key ? null : s.key)}>+ Add a surface to this side</button>
                   {addOpen === s.key && (
                     <div className="sd-addpanel">
                       <p className="sd-pl">EVERYTHING WE PAINT — TAP TO ADD TO {s.label.toUpperCase()}</p>
@@ -803,9 +824,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       body: (
         <div className="sd-chips" data-testid="cond-chips">
           {/* Tom, 5 Oct: a line under each answer says what it means in practice. */}
-          <Chip on={sel("cond:cond", mc.cond === "good", "good")} label={"Good overall"} hint="A few spots to fill and the odd mark, but mostly sound — a repaint, not a rescue." onClick={() => condAct({ action: "loop_cond", cond: "good" }, { describe: withDelta("Good to hear — noted"), opt: ["cond:cond", "good"] })} />
-          <Chip on={sel("cond:cond", mc.cond === "weathered", "weathered")} label={"Weathered"} hint="Chalky, faded or thin in places — more sanding and spot-priming allowed for." onClick={() => condAct({ action: "loop_cond", cond: "weathered" }, { describe: withDelta("Extra prep allowed for weathered paintwork"), opt: ["cond:cond", "weathered"] })} />
-          <Chip on={sel("cond:cond", mc.cond === "peeling", "peeling")} label={"Peeling & flaking"} hint="Lifting or flaking with bare timber showing — scraped back and properly prepared before any paint goes on." onClick={() => condAct({ action: "loop_cond", cond: "peeling" }, { describe: withDelta("Extra prep allowed for peeling paintwork — and a lead-safe check is part of our visit"), opt: ["cond:cond", "peeling"] })} />
+          <Chip on={sel("cond:cond", mc.cond === "good", "good")} art={<CondArt kind="good" />} label={"Good overall"} hint="A few spots to fill and the odd mark, but mostly sound — a repaint, not a rescue." onClick={() => condAct({ action: "loop_cond", cond: "good" }, { describe: withDelta("Good to hear — noted"), opt: ["cond:cond", "good"] })} />
+          <Chip on={sel("cond:cond", mc.cond === "weathered", "weathered")} art={<CondArt kind="weathered" />} label={"Weathered"} hint="Chalky, faded or thin in places — more sanding and spot-priming allowed for." onClick={() => condAct({ action: "loop_cond", cond: "weathered" }, { describe: withDelta("Extra prep allowed for weathered paintwork"), opt: ["cond:cond", "weathered"] })} />
+          <Chip on={sel("cond:cond", mc.cond === "peeling", "peeling")} art={<CondArt kind="peeling" />} label={"Peeling & flaking"} hint="Lifting or flaking with bare timber showing — scraped back and properly prepared before any paint goes on." onClick={() => condAct({ action: "loop_cond", cond: "peeling" }, { describe: withDelta("Extra prep allowed for peeling paintwork — and a lead-safe check is part of our visit"), opt: ["cond:cond", "peeling"] })} />
         </div>
       ),
     },

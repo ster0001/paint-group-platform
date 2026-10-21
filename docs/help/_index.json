@@ -10,6 +10,73 @@
   ],
   "files": [
     {
+      "feature": "agreement",
+      "role": "contractor",
+      "title": "Your subcontractor agreement — read it on your phone, sign on the screen, keep the PDF",
+      "summary": "The Independent Contractor Agreement between ENLVN Pty Ltd (Paint Group) and your business lives in the portal. Your trading name, ABN and address are already filled in from your profile. Read it through, tick, sign with your finger and tap Sign; a PDF copy with Paint Group's countersignature is emailed to you and kept under Profile → Subcontractor agreement, where you can download it any time. Job offers wait until it is signed. It runs for twelve months; a month before it ends the portal asks you to sign the new term. If you signed on paper before the portal, the office uploads that copy and you are not asked again.",
+      "path": "docs/help/agreement/contractor.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/portal/agreement/page.tsx",
+        "app/portal/agreement/SignForm.tsx",
+        "app/portal/agreement/actions.ts",
+        "app/portal/agreement/pdf/route.ts",
+        "app/portal/profile/ProfileForm.tsx",
+        "app/portal/page.tsx",
+        "lib/agreements/render.ts",
+        "lib/agreements/status.ts",
+        "lib/agreements/pdf.ts",
+        "lib/agreements/notify.ts",
+        "docs/agreements/subcontractor-agreement-v1.md",
+        "supabase/migrations/20270284000000_agreement_versions.sql",
+        "supabase/migrations/20270285000000_contractor_agreements.sql",
+        "supabase/migrations/20270286000000_agreement_offer_gate.sql"
+      ]
+    },
+    {
+      "feature": "agreement",
+      "role": "pc",
+      "title": "Subcontractor agreements on PC Command — the queue items and the Contractors tag",
+      "summary": "PC Command carries two work items from the one queue — Agreement not signed (an active contractor with no signed, unexpired agreement: a new one whose offers wait, an existing one asked or not yet asked, or an expired one) and Agreement expiring (inside the 30-day renewal window). Both link to the contractor's record where the office taps Request signature or uploads a paper copy. PC Command → Contractors shows the Agreement not signed tag on the same rows. A job offer to a contractor without a current agreement refuses with agreement_unsigned or agreement_expired.",
+      "path": "docs/help/agreement/pc.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "lib/crm/work-queue.ts",
+        "lib/painterStatus/contractorsView.ts",
+        "app/pc/contractors/ContractorRows.tsx",
+        "app/(app)/contractors/[id]/ContractorAgreement.tsx",
+        "supabase/migrations/20270286000000_agreement_offer_gate.sql"
+      ]
+    },
+    {
+      "feature": "agreement",
+      "role": "staff",
+      "title": "Subcontractor agreements — who has signed, Request signature, upload a paper copy",
+      "summary": "Contractors sign the Independent Contractor Agreement in the portal with their details filled in; the countersigned PDF is on their record under Documents and the office gets a copy by email. Contractors shows an Agreement line per contractor (Signed v1 · date, Uploaded · date, Not signed, Expires …) with Request signature; the contractor record has the same plus Download signed copy and Add signed agreement for contractors who signed on paper. Job offers refuse (error agreement_unsigned or agreement_expired) until a signed, unexpired agreement is on file. Everyone on the books before the feature keeps their offers until you tap Request signature, which starts a grace window (14 days, Settings → agreement_rules.graceDays) before offers stop.",
+      "path": "docs/help/agreement/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/(app)/contractors/page.tsx",
+        "app/(app)/contractors/ContractorsManager.tsx",
+        "app/(app)/contractors/[id]/page.tsx",
+        "app/(app)/contractors/[id]/ContractorAgreement.tsx",
+        "app/(app)/contractors/actions.ts",
+        "lib/agreements/status.ts",
+        "lib/agreements/notify.ts",
+        "lib/crm/work-queue.ts",
+        "lib/painterStatus/contractorsView.ts",
+        "lib/reporting/metrics/contractors.ts",
+        "supabase/migrations/20270285000000_contractor_agreements.sql",
+        "supabase/migrations/20270286000000_agreement_offer_gate.sql"
+      ]
+    },
+    {
       "feature": "automations",
       "role": "staff",
       "title": "Control every automatic message from one screen",
@@ -552,6 +619,49 @@
       "media": [],
       "verified_at_commit": "5138945ff6",
       "sources": []
+    },
+    {
+      "feature": "movements",
+      "role": "contractor",
+      "title": "Your pickups and drop-offs — where the paint is, when it comes, what to bring back",
+      "summary": "The office plans how paint, materials, gear and rubbish get to and from your job. You see it in two places — a \"Your pickups and drop-offs today\" card on your home screen and a \"Getting it to site\" section on the job sheet — with the shop's address and phone, the order reference to quote at the counter, and a tick for each pickup, drop-off or return that is yours.",
+      "path": "docs/help/movements/contractor.md",
+      "walkthrough": "media/contractor-walkthrough.gif",
+      "media": [],
+      "verified_at_commit": "bde6480324",
+      "sources": [
+        "app/portal/MovementsCard.tsx",
+        "app/portal/page.tsx",
+        "app/portal/jobs/[id]/page.tsx",
+        "app/w/WorkOrderDoc.tsx",
+        "lib/movements/painterView.ts",
+        "lib/movements/painterLoad.ts",
+        "supabase/migrations/20270281000000_movements_painter_run.sql"
+      ]
+    },
+    {
+      "feature": "movements",
+      "role": "pc",
+      "title": "Plan the week's paint, materials, gear and rubbish on the Movements board",
+      "summary": "How the Movements tab works — the tray of chips built from the jobs, the lanes for the supplier, each painter and each staff member, dragging a chip onto a day (or an hour), the chip sheet for the shop, time, order reference and note, Ordered ✓, Nearby and While-you're-there suggestions, the Sources view that shows one materials list in its three places, the Day run plans, the Map with one icon per job and the drag-to-order card, and the Gear register.",
+      "path": "docs/help/movements/pc.md",
+      "walkthrough": "media/pc-walkthrough.gif",
+      "media": [],
+      "verified_at_commit": "48b17db4cd",
+      "sources": [
+        "app/pc/movements",
+        "app/pc/movements/DayView.tsx",
+        "app/pc/movements/MapView.tsx",
+        "app/pc/movements/run",
+        "app/components/board",
+        "lib/movements/evaluate.ts",
+        "lib/movements/load.ts",
+        "lib/movements/sync.ts",
+        "lib/movements/notify.ts",
+        "lib/maps/googleMaps.ts",
+        "lib/places/geocodeAddress.ts",
+        "app/pc/movements/actions.ts"
+      ]
     },
     {
       "feature": "painter-messages",
@@ -1180,7 +1290,8 @@
       "sources": [
         "app/pc/wo/[id]/SiteVisitsCard.tsx",
         "app/pc/wo/[id]/ReviewCard.tsx",
-        "app/pc/wo/[id]/PrestartListBox.tsx",
+        "app/pc/wo/[id]/PrestartMovements.tsx",
+        "lib/movements/loadJob.ts",
         "app/pc/WorkItemNote.tsx",
         "app/pc",
         "app/components/wo",

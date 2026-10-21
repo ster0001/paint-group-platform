@@ -66,9 +66,15 @@ export const PART_LABEL: Record<ExteriorPart, string> = {
   verandah: "Verandah or porch", posts: "Posts / columns", ceiling: "Verandah ceiling", handrail: "Handrail / balustrade",
 };
 
-/** Where a whole-house tick lands (§5.2): the front for the verandah family, the garage and shutters; the gable sides for a gable; all four for the rest. */
+/**
+ * Where a whole-house tick lands (§5.2): the front for the verandah family, the
+ * garage and shutters; the gable sides for a gable on a gable-roof shape — and
+ * the FRONT on any other roof (Tom, 21 Oct: ticking Gable ends on a weatherboard
+ * home drew nothing, because a hip roof had no gable side; a street-facing cross
+ * gable is the usual case, and any side can take one on Each side); all four for the rest.
+ */
 export function defaultSidesForPart(part: ExteriorPart, t: ExteriorTypical): ExteriorSideKey[] {
-  if (part === "gable") return t.roof === "gable" ? ["front", "back"] : [];
+  if (part === "gable") return t.roof === "gable" ? ["front", "back"] : ["front"];
   if (part === "verandah" || part === "posts" || part === "ceiling" || part === "handrail" || part === "garage" || part === "shutters") return ["front"];
   return [...EXTERIOR_SIDE_KEYS];
 }
@@ -293,7 +299,17 @@ export function setSideMaterial(v2: ExteriorV2, side: ExteriorSideKey, material:
   return { ...v2, sides: { ...v2.sides, [side]: unconfirmed(next) } };
 }
 
-/** "Looks right — next side." */
+/**
+ * Tom, 21 Oct: there is no "Looks right" tap any more — looking at a side (moving
+ * off it) confirms it, and Continue confirms every painted side at once.
+ */
+export function confirmAllSides(v2: ExteriorV2): ExteriorV2 {
+  const sides = { ...v2.sides };
+  for (const k of EXTERIOR_SIDE_KEYS) if (sides[k]?.paint && !sides[k]!.confirmed) sides[k] = { ...sides[k]!, confirmed: true };
+  return { ...v2, sides };
+}
+
+/** A side is confirmed once the customer has looked at it (the tile ticks), or on Continue. */
 export function confirmSide(v2: ExteriorV2, side: ExteriorSideKey): ExteriorV2 {
   const s = v2.sides[side];
   if (!s) return v2;

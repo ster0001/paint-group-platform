@@ -26,7 +26,7 @@ describe("the Contractors view — one model for the strip and the rows", () => 
   test("strip counts equal what the rows show (brief Step 8 acceptance)", () => {
     const v = buildContractorsView(base, now);
     expect(v.rows.map((r) => r.name)).toEqual(["Dan", "Nikos", "Marco"]); // Red first, then un-evaluated, then Green; the inactive one is gone
-    expect(v.counts).toEqual({ green: 1, yellow: 0, orange: 0, red: 1, new: 0, openCallbacks: 1, bonusDue: 1, notSigned: 2 });
+    expect(v.counts).toEqual({ green: 1, yellow: 0, orange: 0, red: 1, new: 0, openCallbacks: 1, bonusDue: 1, notSigned: 2, agreementNotSigned: 0 });
     expect(v.rows.filter((r) => r.colour === "green").length).toBe(v.counts.green);
     expect(v.rows.filter((r) => r.tags.some((t) => t.text === "Standards not signed")).length).toBe(v.counts.notSigned);
   });

@@ -38,7 +38,9 @@ const crewSurface = (s: WOSurface): WOSurface => ({
   coats: s.coats,
   product: s.product,
   // Paint is scope, not money: the per-area materials breakdown (13 Oct 2026)
-  // groups a surface's litres by its product × colour.
+  // groups a surface's litres by its product × colour, and the surface's own
+  // paint line (21 Oct 2026) reads product · sheen · colour.
+  ...(s.finish ? { finish: s.finish } : {}),
   ...(s.colourKey ? { colourKey: s.colourKey, colourName: s.colourName ?? "", colourHex: s.colourHex ?? "" } : {}),
   ...(typeof s.litres === "number" ? { litres: s.litres } : {}),
   prep: s.prep,
@@ -59,6 +61,10 @@ const crewArea = (a: WOArea): WOArea => ({
 
 const crewMaterial = (m: WOMaterial): WOMaterial => ({
   product: m.product,
+  // The sheen and the row's identity: the "where it goes" list under a paint
+  // (21 Oct 2026) pairs the row with its surfaces by colourKey.
+  ...(m.finish ? { finish: m.finish } : {}),
+  ...(m.colourKey ? { colourKey: m.colourKey } : {}),
   photoUrl: m.photoUrl,
   litres: m.litres,
   ...(typeof m.estimatedLitres === "number" ? { estimatedLitres: m.estimatedLitres } : {}),

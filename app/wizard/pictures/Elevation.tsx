@@ -13,8 +13,9 @@ import { defaultSidesForPart, partExists, partsOnSide, postCount } from "@/lib/w
  * (every value interpolated is a number, a fixed word or a pattern id —
  * never customer text), and the component injects it into one `<svg>`.
  *
- * Scale = min(280 ÷ w, 150 ÷ (h + rise + 0.6), 46) px per metre, so adjusting
- * a side visibly changes the shape. Every part is `<g class="e e-<part>"
+ * Two scales — `sx` across (fits the width) and `sy` up (fits the height, and
+ * does not change with the width) — so adjusting a side visibly changes its
+ * shape without shrinking the house (Tom, 21 Oct). Every part is `<g class="e e-<part>"
  * data-e data-on>` in the mockup's colour layering (walls light cyan, gable
  * cyan, roofline deep teal, openings teal; stain brown for vertical timber;
  * greys when not painting). Materials are SVG patterns. Roof shapes: hip
@@ -64,8 +65,9 @@ function windowGlyph(x: number, y: number, w: number, h: number, on: boolean, ty
   const frame = on ? (type === "alu" ? C.line : ON.windows) : "#C9D2D8";
   const sw = type === "alu" ? 1.2 : Math.max(2, w * 0.09);
   let bars = "";
+  // A winder is a plain square window that winds out — drawn like a casement, one mullion, no louvre bars
+  // (Tom, 21 Oct: the louvre bars read as colonial squares).
   if (type === "casement" || type === "winder" || type === "unsure") bars = `<path d="M${n2(x + w / 2)} ${n2(y)}V${n2(y + h)}" stroke="${frame}" stroke-width="${n2(sw)}"/>`;
-  if (type === "winder") bars += [0.25, 0.5, 0.75].map((f) => `<path d="M${n2(x)} ${n2(y + h * f)}H${n2(x + w)}" stroke="${frame}" stroke-width="${n2(sw * 0.6)}"/>`).join("");
   if (type === "sash") bars = `<path d="M${n2(x)} ${n2(y + h / 2)}H${n2(x + w)}" stroke="${frame}" stroke-width="${n2(sw * 1.4)}"/>`;
   if (type === "colonial") bars = [1 / 3, 2 / 3].map((f) => `<path d="M${n2(x + w * f)} ${n2(y)}V${n2(y + h)}" stroke="${frame}" stroke-width="${n2(sw * 0.7)}"/>`).join("") + [1 / 3, 2 / 3].map((f) => `<path d="M${n2(x)} ${n2(y + h * f)}H${n2(x + w)}" stroke="${frame}" stroke-width="${n2(sw * 0.7)}"/>`).join("");
   return `<rect x="${n2(x)}" y="${n2(y)}" width="${n2(w)}" height="${n2(h)}" fill="${C.glass}" stroke="${frame}" stroke-width="${n2(sw)}"/>${bars}`;
@@ -85,11 +87,29 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
   const fullGable = t.roof === "gable" && !long;
   const terraceFront = t.roof === "parapet" && !long;
   const riseM = fullGable ? (t.gableRiseM ?? 2.2) : terraceFront ? (t.gableRiseM ?? 0.9) : t.roof === "skillion" ? (t.gableRiseM ?? 1.1) : Math.min(2.2, w * 0.2);
-  const s = Math.min(280 / w, 150 / (h + riseM + 0.6), 46);
-  const W = w * s, H = h * s, R = riseM * s;
-  const yG = 205, yE = yG - H, x0 = 200 - W / 2, x1 = 200 + W / 2;
+  /**
+   * Tom, 21 Oct: ONE scale made a wide house a flat one — a very large or a
+   * long side came out 36 px high with windows that could not fit, and the
+   * right side looked squashed. Two scales now: `sx` (px per metre across)
+   * fits the width into the frame; `sy` (px per metre up) fits the wall and
+   * roof into the height and does not change with the width. So a bigger
+   * house gets wider, not smaller; every side stands the same height; and
+   * the openings keep a readable size. A sketch, not a scale drawing.
+   */
+  const shared = EXTERIOR_SIDE_KEYS.filter((k) => v2.sides[k]?.shared);
+  const neighbours = !long && shared.length > 0;
+  // Width: 250 px at 10 m, 5.5 px more per metre, inside [150, 316] (280 with a
+  // neighbour drawn) — so a bigger house reads bigger without ever leaving the frame.
+  const wMax = neighbours ? 280 : 316;
+  const sx = Math.min(Math.max(150, Math.min(wMax, 250 + (w - 10) * 5.5)) / w, 46);
+  // Height: the shape's wall and its tallest roof fit the frame — the same on
+  // every side and at every size, so a long side is never squashed.
+  const riseForScale = Math.max(2.2, t.gableRiseM ?? 0);
+  const sy = Math.min(168 / (h + riseForScale + 0.6), 52);
+  const W = w * sx, H = h * sy, R = riseM * sy;
+  const yG = 216, yE = yG - H, x0 = 200 - W / 2, x1 = 200 + W / 2;
   const ov = 10;
-  let o = `<rect x="0" y="${yG}" width="400" height="35" fill="${C.ground}"/>`;
+  let o = `<rect x="0" y="${yG}" width="400" height="${240 - yG}" fill="${C.ground}"/>`;
 
   // around-the-house extras (build view only, drawn behind the house)
   if (opts.build) {
@@ -105,7 +125,6 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
 
   // the neighbours, on a shared side (front and back views)
   if (!long) {
-    const shared = EXTERIOR_SIDE_KEYS.filter((k) => v2.sides[k]?.shared);
     const nb = (x: number) => `<g data-testid="pic-nextdoor"><rect x="${n2(x)}" y="${n2(yE - 6)}" width="46" height="${n2(H + 6)}" fill="#E8EEF1" stroke="#B4C0C8" stroke-dasharray="3 3"/><text x="${n2(x + 23)}" y="${n2(yE + H / 2 + 4)}" text-anchor="middle" font-size="9" fill="#8A96A0" font-family="system-ui">next door</text></g>`;
     const L = side === "front" ? "left" : "right", Rr = side === "front" ? "right" : "left";
     if (shared.includes(L)) o += nb(x0 - ov - 46);
@@ -137,7 +156,7 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
     else o += `<polygon points="${n2(x0 - ov)},${n2(yE)} ${n2(tx0)},${n2(top)} ${n2(tx1)},${n2(top)} ${n2(x1 + ov)},${n2(yE)}" fill="${C.roof}"/>`;
     if (t.roof === "gable" && long) o += `<path d="M${n2(tx0)} ${n2(top)}H${n2(tx1)}" stroke="${C.roof2}" stroke-width="3"/>`;
     if (gHas && t.roof !== "skillion") {
-      const gw = W * 0.5, gx0 = 200 - gw / 2, gx1 = 200 + gw / 2, gR = Math.min(R * 1.05, 1.9 * s); const apex = yE - gR;
+      const gw = W * 0.5, gx0 = 200 - gw / 2, gx1 = 200 + gw / 2, gR = Math.min(R * 1.05, 1.9 * sy); const apex = yE - gR;
       o += `<polygon points="${n2(gx0 - 6)},${n2(yE)} 200,${n2(apex - 4)} ${n2(gx1 + 6)},${n2(yE)}" fill="${C.roof2}"/>`;
       o += g("gable", `<polygon points="${n2(gx0 + 4)},${n2(yE - 3)} 200,${n2(apex + 8)} ${n2(gx1 - 4)},${n2(yE - 3)}" fill="${col("gable", gOn)}"/><polygon points="${n2(gx0 + 4)},${n2(yE - 3)} 200,${n2(apex + 8)} ${n2(gx1 - 4)},${n2(yE - 3)}" fill="url(#p-${gfillPat})"/>`);
       o += g("fascias", `<path d="M${n2(gx0 - 6)} ${n2(yE)}L200 ${n2(apex - 4)}L${n2(gx1 + 6)} ${n2(yE)}" fill="none" stroke="${col("fascias", fas)}" stroke-width="4" stroke-linejoin="round"/>`);
@@ -153,7 +172,9 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
   const m1: WallMaterial = sd?.material ?? v2.wall.down ?? t.usualWalls;
   const m2: WallMaterial | null = t.storeys === 2 ? (sd?.materialUp ?? v2.wall.up ?? null) : null;
   const wallTop = yE + (terraceFront ? 0 : 8);
-  const wc = (m: WallMaterial) => (wOn ? (m === "vertical_timber" ? C.stain : ON.walls) : OFF.walls);
+  // Vertical timber draws brown only while it is STAINED; "Painted" on About it turns it the painted blue (Tom, 21 Oct).
+  const stained = v2.wall.timberPainted !== "yes";
+  const wc = (m: WallMaterial) => (wOn ? (m === "vertical_timber" && stained ? C.stain : ON.walls) : OFF.walls);
   let walls = `<rect x="${n2(x0)}" y="${n2(wallTop)}" width="${n2(W)}" height="${n2(yG - wallTop)}" fill="${wc(m1)}"/><rect x="${n2(x0)}" y="${n2(wallTop)}" width="${n2(W)}" height="${n2(yG - wallTop)}" fill="url(#p-${PAT[m1]})"/>`;
   if (m2 && m2 !== m1) { const upH = yE + H / 2 - wallTop; walls += `<rect x="${n2(x0)}" y="${n2(wallTop)}" width="${n2(W)}" height="${n2(upH)}" fill="${wc(m2)}"/><rect x="${n2(x0)}" y="${n2(wallTop)}" width="${n2(W)}" height="${n2(upH)}" fill="url(#p-${PAT[m2]})"/><path d="M${n2(x0)} ${n2(yE + H / 2)}H${n2(x1)}" stroke="#16212A" stroke-opacity=".3"/>`; }
   o += g("walls", walls);
@@ -169,9 +190,11 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
   const verHas = has("verandah"), ver = partOn("verandah");
   const garHere = has("garage");
   const vx0 = x0 + W * 0.06; let vx1 = x1 - W * 0.06; if (garHere) vx1 = x1 - W * 0.42;
-  const vyTop = yG - Math.min(H - 10, (t.roof === "parapet" ? 2.9 : 2.5) * s), vFloor = yG - 0.25 * s;
+  const vyTop = yG - Math.min(H - 10, (t.roof === "parapet" ? 2.9 : 2.5) * sy), vFloor = yG - 0.25 * sy;
   const postKind = v2.postKind ?? (t.verandah === "lace" ? "lace" : t.verandah === "columns" ? "columns" : "posts");
   const lace = postKind === "lace";
+  /** Where the posts stand — the windows are laid out in the bays between them (Tom, 21 Oct, items 1 and 3). */
+  const postXs: number[] = [];
   if (verHas) {
     const pOn = partOn("posts"), cOn = partOn("ceiling"), hOn = partOn("handrail");
     if (lace) {
@@ -181,10 +204,11 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
       o += g("verandah", `<polygon points="${n2(vx0 - 8)},${n2(vyTop)} ${n2(vx0)},${n2(vyTop - 14)} ${n2(vx1)},${n2(vyTop - 14)} ${n2(vx1 + 8)},${n2(vyTop)}" fill="${C.roof}"/><rect x="${n2(vx0 - 10)}" y="${n2(vyTop - 2)}" width="${n2(vx1 - vx0 + 20)}" height="6" fill="${col("verandah", ver)}" stroke="#16212A" stroke-opacity=".2"/>`);
       o += g("ceiling", `<rect x="${n2(vx0 - 6)}" y="${n2(vyTop + 4)}" width="${n2(vx1 - vx0 + 12)}" height="5" fill="${col("ceiling", cOn)}"/>`);
     }
-    const n = postCount((vx1 - vx0) / s / 0.8);
+    const n = postCount((vx1 - vx0) / sx / 0.8);
     let posts = "";
     for (let i = 0; i < n; i++) {
       const px = vx0 + ((vx1 - vx0) * i) / (n - 1);
+      postXs.push(px);
       if (postKind === "columns") posts += `<rect x="${n2(px - 5)}" y="${n2(vyTop + 8)}" width="10" height="${n2(vFloor - vyTop - 8)}" rx="2" fill="${col("posts", pOn)}" stroke="#16212A" stroke-opacity=".3"/><rect x="${n2(px - 7)}" y="${n2(vFloor - 16)}" width="14" height="16" fill="${pOn ? "#8EE4F0" : "#C9D2D8"}" stroke="#16212A" stroke-opacity=".3"/>`;
       else if (lace) posts += `<rect x="${n2(px - 1.5)}" y="${n2(vyTop + 12)}" width="3" height="${n2(vFloor - vyTop - 12)}" fill="${col("posts", pOn)}" stroke="#16212A" stroke-opacity=".3"/><path d="M${n2(px - 1.5)} ${n2(vyTop + 13)} l-10 0 l10 12 z M${n2(px + 1.5)} ${n2(vyTop + 13)} l10 0 l-10 12 z" fill="${col("posts", pOn)}" fill-opacity=".8"/>`;
       else posts += `<rect x="${n2(px - 2.5)}" y="${n2(vyTop + 8)}" width="5" height="${n2(vFloor - vyTop - 8)}" fill="${col("posts", pOn)}" stroke="#16212A" stroke-opacity=".3"/>`;
@@ -195,44 +219,92 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
   }
 
   // garage
+  const garW = garHere ? (v2.garageCars === 2 ? 4.8 : 2.6) * sx : 0;
+  const gx = x1 - garW - W * 0.04;
   if (garHere) {
-    const gw = (v2.garageCars === 2 ? 4.8 : 2.6) * s, gh = Math.min(H - 14, 2.2 * s); const gx = x1 - gw - W * 0.04;
+    const gw = garW, gh = Math.min(H - 14, 2.2 * sy);
     o += g("garage", `<rect x="${n2(gx)}" y="${n2(yG - gh)}" width="${n2(gw)}" height="${n2(gh)}" fill="${col("garage", partOn("garage"))}" stroke="#16212A" stroke-opacity=".3"/>${[1, 2, 3].map((i) => `<path d="M${n2(gx)} ${n2(yG - gh + (gh * i) / 4)}H${n2(gx + gw)}" stroke="#16212A" stroke-opacity=".18"/>`).join("")}`);
   }
 
   // doors
   const dOn = partOn("doors");
-  const doorW = 0.9 * s, doorH = Math.min(H - 14, (t.roof === "parapet" ? 2.4 : 2.04) * s);
+  const doorW = 0.9 * sx, doorH = Math.min(H - 14, (t.roof === "parapet" ? 2.4 : 2.04) * sy);
   const nDoors = sd?.doors ?? (side === "front" ? 1 : 0);
-  const doorX = verHas ? vx0 + (vx1 - vx0) * (terraceFront ? 0.25 : 0.5) : x0 + W * 0.5;
+  // The front door: the middle of the verandah, else the middle of the wall — and always clear of a garage.
+  const doorX = Math.min(verHas ? vx0 + (vx1 - vx0) * (terraceFront ? 0.25 : 0.5) : x0 + W * 0.5, (garHere ? gx : x1) - doorW);
   let doors = "";
   if (nDoors > 0) {
     const dx = doorX - doorW / 2;
     doors += `<rect x="${n2(dx)}" y="${n2(yG - doorH)}" width="${n2(doorW)}" height="${n2(doorH)}" rx="1.5" fill="${col("doors", dOn)}" stroke="#16212A" stroke-opacity=".35"/><circle cx="${n2(dx + doorW * 0.78)}" cy="${n2(yG - doorH * 0.5)}" r="1.6" fill="#16212A" fill-opacity=".5"/>`;
     if (terraceFront) doors += `<rect x="${n2(dx + doorW + 2)}" y="${n2(yG - doorH)}" width="${n2(doorW * 0.35)}" height="${n2(doorH)}" fill="${C.glass}" stroke="${col("doors", dOn)}" stroke-width="1.5"/>`;
-    for (let i = 1; i < nDoors; i++) { const ddx = x0 + W * (0.14 + (0.72 * (i % 3)) / 3); doors += `<rect x="${n2(ddx)}" y="${n2(yG - doorH)}" width="${n2(doorW * 0.9)}" height="${n2(doorH)}" rx="1.5" fill="${col("doors", dOn)}" stroke="#16212A" stroke-opacity=".35"/>`; }
+    for (let i = 1; i < nDoors; i++) { const ddx = x0 + W * (0.12 + (0.72 * (i % 3)) / 3); doors += `<rect x="${n2(ddx)}" y="${n2(yG - doorH)}" width="${n2(doorW * 0.9)}" height="${n2(doorH)}" rx="1.5" fill="${col("doors", dOn)}" stroke="#16212A" stroke-opacity=".35"/>`; }
   }
   o += g("doors", doors);
 
-  // windows, spread along the wall, on every storey
+  // windows — on every storey, laid out in the wall EITHER SIDE of the door and
+  // clear of the garage, so the count always fits (Tom, 21 Oct: they used to
+  // be spread over the whole wall and nudged off the door, and fell outside it).
   const wnOn = partOn("windows");
   const n = sd?.windows ?? 2; let wins = "";
   const tall = terraceFront ? 2.2 : t.roof === "skillion" ? 1.6 : 1.5;
-  const ww = Math.min((t.roof === "skillion" ? 1.8 : terraceFront ? 0.9 : 1.2) * s, (W / (n + 1)) * 0.62), wh = Math.min(tall * s, (t.storeys === 2 ? H / 2 : H) * (terraceFront ? 0.66 : 0.58));
+  const wwMax = (t.roof === "skillion" ? 1.8 : terraceFront ? 0.9 : 1.2) * sx;
+  let ww = wwMax, wh = Math.min(tall * sy, (t.storeys === 2 ? H / 2 : H) * (terraceFront ? 0.66 : 0.58));
+  const winRects: Array<{ x: number; y: number; w: number; h: number }> = [];
   const perStorey = t.storeys === 2 ? [Math.ceil(n / 2), Math.floor(n / 2)] : [n];
   perStorey.forEach((cnt, st) => {
+    const isGround = st === perStorey.length - 1;
     const yTop = t.storeys === 2 ? (st === 0 ? yE + 8 : yE + H / 2) : wallTop; const lvlH = t.storeys === 2 ? H / 2 : H;
+    wh = Math.min(tall * sy, lvlH * (terraceFront ? 0.66 : 0.58));
     const wy = terraceFront ? yG - doorH : yTop + lvlH * 0.32 - wh / 2;
-    for (let i = 0; i < cnt; i++) {
-      const cx = terraceFront && verHas ? vx0 + (vx1 - vx0) * (0.5 + (0.5 * (i + 1)) / (cnt + 1)) : x0 + (W * (i + 1)) / (cnt + 1);
-      let wx = cx - ww / 2; const isGround = st === perStorey.length - 1;
-      if (!terraceFront && isGround && nDoors > 0 && Math.abs(cx - doorX) < doorW * 1.2) wx += (cx < doorX ? -1 : 1) * doorW * 1.3;
-      if (garHere && isGround && wx + ww > x1 - (v2.garageCars === 2 ? 4.8 : 2.6) * s - W * 0.05) wx -= W * 0.25;
-      wins += windowGlyph(wx, isGround && verHas && !terraceFront ? Math.max(wy, vyTop + 14) : wy, ww, wh, wnOn, v2.windowType);
+    const place = (from: number, to: number, k: number) => {
+      if (k <= 0 || to <= from) return;
+      ww = Math.max(4, Math.min(wwMax, ((to - from) / (k + 1)) * 0.74));
+      for (let i = 0; i < k; i++) {
+        const cx = from + ((to - from) * (i + 1)) / (k + 1);
+        const y = isGround && verHas && !terraceFront ? Math.max(wy, vyTop + 14) : wy;
+        winRects.push({ x: cx - ww / 2, y, w: ww, h: wh });
+        wins += windowGlyph(cx - ww / 2, y, ww, wh, wnOn, v2.windowType);
+      }
+    };
+    if (terraceFront && verHas) { place(vx0 + (vx1 - vx0) * 0.5, vx1, cnt); return; }
+    const L = x0 + W * 0.04, Rr = (isGround && garHere ? gx : x1) - W * 0.04;
+    // Under a verandah the windows take the bays between the posts (never the
+    // door's bay), so posts and windows are spaced together, not on top of each other.
+    if (isGround && postXs.length >= 2) {
+      const bays: Array<[number, number]> = [];
+      for (let i = 0; i + 1 < postXs.length; i++) {
+        const a = postXs[i] + 7, b = postXs[i + 1] - 7;
+        if (nDoors > 0 && doorX > postXs[i] && doorX < postXs[i + 1]) continue;
+        if (b - a >= 6) bays.push([a, b]);
+      }
+      if (bays.length) {
+        for (let i = 0; i < bays.length; i++) place(bays[i][0], bays[i][1], Math.floor(cnt / bays.length) + (i < cnt % bays.length ? 1 : 0));
+        return;
+      }
     }
+    if (isGround && nDoors > 0) {
+      const dL = doorX - doorW * 0.9, dR = doorX + doorW * 0.9;
+      const minSlot = 6;
+      const roomL = dL - L >= minSlot, roomR = Rr - dR >= minSlot;
+      if (!roomL && !roomR) place(L, Rr, cnt); // a very small wall: spread them anyway rather than lose any
+      else {
+        let leftN = Math.ceil(cnt / 2);
+        if (!roomR) leftN = cnt; else if (!roomL) leftN = 0;
+        place(L, dL, leftN);
+        place(dR, Rr, cnt - leftN);
+      }
+    } else place(L, Rr, cnt);
   });
   o += g("windows", wins);
-  if (has("shutters")) o += g("shutters", `<rect x="${n2(x0 + W * 0.08)}" y="${n2(yE + H * 0.3 - wh / 2)}" width="${n2(ww * 0.3)}" height="${n2(wh)}" fill="${col("shutters", partOn("shutters"))}" stroke="#16212A" stroke-opacity=".3"/><rect x="${n2(x1 - W * 0.08 - ww * 0.3)}" y="${n2(yE + H * 0.3 - wh / 2)}" width="${n2(ww * 0.3)}" height="${n2(wh)}" fill="${col("shutters", partOn("shutters"))}" stroke="#16212A" stroke-opacity=".3"/>`);
+  // Shutters sit flush against each window, a pair a window (Tom, 21 Oct, item 4).
+  if (has("shutters")) {
+    const shOn = partOn("shutters");
+    o += g("shutters", winRects.map((r) => {
+      const sw = Math.max(3, Math.min(7, r.w * 0.32));
+      const one = (x: number) => `<rect x="${n2(x)}" y="${n2(r.y)}" width="${n2(sw)}" height="${n2(r.h)}" fill="${col("shutters", shOn)}" stroke="#16212A" stroke-opacity=".3"/><path d="M${n2(x + 1)} ${n2(r.y + r.h * 0.25)}h${n2(sw - 2)}M${n2(x + 1)} ${n2(r.y + r.h * 0.5)}h${n2(sw - 2)}M${n2(x + 1)} ${n2(r.y + r.h * 0.75)}h${n2(sw - 2)}" stroke="#16212A" stroke-opacity=".25"/>`;
+      return one(r.x - sw - 1) + one(r.x + r.w + 1);
+    }).join(""));
+  }
 
   if (opts.build && (v2.extras as readonly string[]).includes("meter_box")) o += `<g class="x on" data-x="meter_box"><rect x="${n2(x0 + 6)}" y="${n2(yE + H * 0.45)}" width="12" height="15" fill="#F4F6F7" stroke="#16212A" stroke-opacity=".4"/></g>`;
   if (opts.build && (v2.extras as readonly string[]).includes("security_door") && nDoors > 0 && side === "front") o += `<g class="x on" data-x="security_door"><rect x="${n2(doorX - doorW / 2)}" y="${n2(yG - doorH)}" width="${n2(doorW)}" height="${n2(doorH)}" fill="none" stroke="#16212A" stroke-opacity=".5" stroke-dasharray="2 2"/></g>`;

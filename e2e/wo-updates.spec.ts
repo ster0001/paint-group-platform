@@ -108,10 +108,12 @@ test.describe("daily updates and the silent site", () => {
     expect(u.status).toBe("drafted");
     // Tom, 14 Oct 2026: the name, never the time of day — the customer reads
     // it whenever the office sends it, not when the painter ticked.
-    expect(u.draft_text.startsWith("Hi Melissa — ")).toBe(true);
+    expect(u.draft_text.startsWith("Hi Melissa,")).toBe(true);
+    // Short labelled sections, not one long sentence (Tom, 21 Oct 2026).
+    expect(u.draft_text).toContain("Finished today\n• ");
     expect(u.draft_text).not.toMatch(/good (morning|afternoon|evening)/i);
-    expect(u.draft_text).toContain("the front of the house");
-    expect(u.draft_text).toContain("Windows × 3");
+    expect(u.draft_text).toContain("Front of the house");
+    expect(u.draft_text).toContain("3 windows");
     // It says only what happened: nothing about the surfaces nobody touched.
     expect(u.draft_text).not.toContain("Back");
     // And it is traceable to the events it came from.

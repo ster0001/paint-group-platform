@@ -8,6 +8,7 @@ import HomeMark from "@/app/components/HomeMark";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme/cookie";
 import PcNav from "./PcNav";
+import { movementsTabOn } from "@/lib/movements/tabSwitch";
 import PcSearch from "./PcSearch";
 import "./pc.css";
 import StaffChatDock from "@/app/components/StaffChatDock";
@@ -23,14 +24,22 @@ export default async function PcLayout({ children }: { children: React.ReactNode
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase.from("profiles").select("role, name").eq("id", user.id).single();
+  // Everything the shell needs about this person in ONE round trip, not four in a row: the
+  // first byte of every console page waited on this chain (Movements Lighthouse, 21 Oct 2026).
+  // A visitor who is not staff costs three reads they never see before the redirect.
+  const [{ data: profile }, vis, logos, cookieStore, movementsTab] = await Promise.all([
+    supabase.from("profiles").select("role, name").eq("id", user.id).single(),
+    staffVisibility(supabase, user.id),
+    // Tom, 8 Sep: the logo top-left goes home; dark or light follows the one
+    // cookie the CRM set (same toggle, same palette names).
+    loadLogos(supabase),
+    cookies(),
+    // Movements Session 8: the one-click rollback (Settings → Movements → show the tab).
+    movementsTabOn(supabase),
+  ]);
   if (profile?.role !== "staff") redirect("/portal");
-  const vis = await staffVisibility(supabase, user.id);
   await gateStaffArea(vis, "projects");
-  // Tom, 8 Sep: the logo top-left goes home; dark or light follows the one
-  // cookie the CRM set (same toggle, same palette names).
-  const logos = await loadLogos(supabase);
-  const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
+  const theme = themeFromCookie(cookieStore.get(THEME_COOKIE)?.value);
 
   const today = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short",
@@ -50,7 +59,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
           </span>
         </div>
 
-        <PcNav />
+        <PcNav movementsTab={movementsTab} />
 
         {children}
 

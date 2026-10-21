@@ -8,7 +8,6 @@ import ReofferDialog from "./ReofferDialog";
 import BonusHandover from "./BonusHandover";
 import QueueDismiss from "./QueueDismiss";
 import RemindLater from "./RemindLater";
-import CollectionDone from "./CollectionDone";
 import CheckinDone from "./CheckinDone";
 import WorkItemNote from "./WorkItemNote";
 import { loadWorkItemNotes } from "@/lib/workorder/pcNotes";
@@ -394,9 +393,6 @@ export default async function DashboardPage() {
                     defaultStart={defaultReofferStart}
                   />
                 </span>
-              ) : card.action.kind === "collect" ? (
-                <CollectionDone itemId={card.key.slice("collect:".length)} cardKey={card.key}
-                  href={card.action.href ?? `/pc/wo/${card.workOrderId}`} />
               ) : (
                 <Link className={`btn ${card.severity === "critical" ? "primary" : ""}`}
                   href={card.action.href ?? `/pc/wo/${card.workOrderId}`}

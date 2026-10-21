@@ -136,7 +136,8 @@ test.describe("offer a job, contractor accepts", () => {
     expect(html).toMatch(/awaiting your answer|accept/i);
 
     // The job's own page says the offered amount in those words, and the job
-    // sheet carries the total estimated hours at the top (Tom, 1 Oct).
+    // sheet carries the total estimated hours at the top (Tom, 1 Oct). The
+    // subcontractor keeps the hours; only the crew copy loses them (21 Oct).
     await contractorPage.goto(`/portal/jobs/${bookedWo.id}?from=requests`);
     const amount = contractorPage.getByTestId("offer-amount");
     await expect(amount).toContainText("Offered amount");

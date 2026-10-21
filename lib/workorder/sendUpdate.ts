@@ -15,7 +15,7 @@ import { emailConfigured, sendEmail, sendSms, smsConfigured, recipientList } fro
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "@/lib/invoicing/pdf";
-import { opensWithGreeting } from "./updates";
+import { opensWithGreeting, smsSummary } from "./updates";
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -143,7 +143,7 @@ export async function deliverCustomerUpdate(
     else {
       const body =
         (greets ? "" : `Hi ${firstName}, an update on your painting at ${address}: `) +
-        `${text.slice(0, 180)}${text.length > 180 ? "…" : ""}` +
+        smsSummary(text) +
         `${link ? ` See photos and details: ${link}` : ""}`;
       const r = await sendSms({ to: phone, body, ctx: { accountId: wo.estimates.account_id, estimateId: wo.estimate_id, kind: "job_update" } });
       const phone2 = normalisePhoneAU(wo.estimates.contact_phone2 ?? "");

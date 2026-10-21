@@ -13,6 +13,8 @@ import { usePathname } from "next/navigation";
  */
 const TABS = [
   { href: "/pc/schedule", label: "Schedule" },
+  // Movements (Session 4): the tray of chips and the lanes × days board for paint, materials, gear and rubbish.
+  { href: "/pc/movements", label: "Movements" },
   { href: "/pc", label: "Dashboard" },
   { href: "/pc/flow", label: "Project Progress" },
   { href: "/pc/updates", label: "Updates" },
@@ -26,11 +28,11 @@ const TABS = [
   // own tab; job pages still deep-link to their own money view.
 ];
 
-export default function PcNav() {
+export default function PcNav({ movementsTab = true }: { movementsTab?: boolean }) {
   const path = usePathname();
   return (
     <nav className="nav" aria-label="Console views">
-      {TABS.map((t) => {
+      {TABS.filter((t) => movementsTab || t.href !== "/pc/movements").map((t) => {
         // "/pc" is a prefix of every other tab, so it only matches exactly.
         const on = t.href === "/pc" ? path === "/pc" : path === t.href || path.startsWith(t.href + "/");
         return (

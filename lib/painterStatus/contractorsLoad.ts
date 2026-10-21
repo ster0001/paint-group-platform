@@ -13,7 +13,7 @@ import { realOnly } from "@/lib/demo/scope";
  */
 export async function loadContractorsView(db: SupabaseClient, now = new Date()): Promise<{ view: ContractorsView; error: string | null }> {
   const since = new Date(now.getTime() - 400 * 86_400_000).toISOString();
-  const [painters, statuses, changes, bonuses, callbacks, standards, results, jobs] = await Promise.all([
+  const [painters, statuses, changes, bonuses, callbacks, standards, results, jobs, agreements] = await Promise.all([
     db.from("contractors").select("id, company_name, employment_type, active, profiles(name)").order("company_name"),
     db.from("painter_status").select("painter_id, colour, line, streak, best_streak, bonus_counter, measures, offers_cleared_at, computed_at"),
     db.from("contractor_events").select("contractor_id, created_at, detail").eq("type", "status_changed").gte("created_at", since).order("created_at", { ascending: false }).limit(1000),
@@ -22,6 +22,8 @@ export async function loadContractorsView(db: SupabaseClient, now = new Date()):
     loadStandardsStatuses(db),
     realOnly(db.from("painter_job_results").select("painter_id, work_order_id, result, reasons, hours, signed_on, work_orders(wo_ref, wo_snapshot)")).neq("result", "pending").order("signed_on", { ascending: false }).limit(2000),
     realOnly(db.from("work_orders").select("id, wo_ref, stage, contractor_id, wo_snapshot")).not("contractor_id", "is", null).in("stage", ["pre_start", "in_progress", "qa", "walkthrough", "completion_prep", "closed"]).order("created_at", { ascending: false }).limit(600),
+    // Subcontractor agreement (agreement brief §7): the same facts the gate reads. Absent before 20270285 — no tags, not a failure.
+    db.rpc("agreement_statuses"),
   ]);
   const failures: string[] = [];
   for (const [label, r] of [["painters", painters], ["painter status", statuses], ["status history", changes], ["call backs", callbacks], ["job results", results], ["jobs", jobs]] as const) {
@@ -29,6 +31,7 @@ export async function loadContractorsView(db: SupabaseClient, now = new Date()):
   }
   if (bonuses.error && !/permission|policy|42501/i.test(bonuses.error.message)) { reportError(bonuses.error, { where: "contractorsView.bonuses" }); failures.push("bonus reviews"); }
   if (standards.error) failures.push("standards");
+  if (agreements.error && agreements.error.code !== "42883") { reportError(agreements.error, { where: "contractorsView.agreements" }); failures.push("agreements"); }
 
   type CRow = { id: string; company_name: string | null; employment_type: string | null; active: boolean; profiles: { name: string | null } | null };
   type Snap = { jobAddress?: string; jobTitle?: string } | null;
@@ -44,6 +47,8 @@ export async function loadContractorsView(db: SupabaseClient, now = new Date()):
     callbacks: ((callbacks.data ?? []) as unknown as { id: string; painter_id: string; work_order_id: string; status: string; work_orders: { wo_ref: string | null } | null }[])
       .map((c) => ({ id: c.id, painterId: c.painter_id, workOrderId: c.work_order_id, status: c.status, woRef: c.work_orders?.wo_ref ?? null })),
     standards: standards.rows.map((s) => ({ painterId: s.contractorId, status: s.status })),
+    agreements: agreements.error ? [] : ((agreements.data ?? []) as { contractor_id: string; gate: string; signed_at: string | null; expires_on: string | null }[])
+      .map((a) => ({ painterId: a.contractor_id, gate: a.gate === "agreement_unsigned" || a.gate === "agreement_expired" ? a.gate : "ok" as const, signed: a.signed_at !== null, expiresOn: a.expires_on })),
     results: ((results.data ?? []) as unknown as { painter_id: string; work_order_id: string; result: "clean" | "not_clean"; reasons: string[] | null; hours: number; signed_on: string | null; work_orders: { wo_ref: string | null; wo_snapshot: Snap } | null }[])
       .map((r) => ({ painterId: r.painter_id, workOrderId: r.work_order_id, result: r.result, reasons: r.reasons ?? [], hours: Number(r.hours), signedOn: r.signed_on, title: titleOf(r.work_orders?.wo_ref, r.work_orders?.wo_snapshot ?? null) })),
     jobs: ((jobs.data ?? []) as { id: string; wo_ref: string; stage: string; contractor_id: string; wo_snapshot: Snap }[])

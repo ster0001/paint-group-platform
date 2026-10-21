@@ -353,6 +353,29 @@ export function applySideInclude(blocks: LooseBlock[], key: SideKey, include: bo
   return { ok: true, blocks: out.map((b) => (isSideBlock(b) ? sidesOnly[i++] : b)) };
 }
 
+/**
+ * Tom, 21 Oct (item 12, and again that evening): "if the building is 15 m wide,
+ * the gutters, fascias and eaves should all auto-adjust to 15 m as standard."
+ * So a side's new width IS the run of every fascia, gutter and eaves line on
+ * it — whatever the drawn house pinned them at (the typical width, a verandah's
+ * extra share, a gable's rake). The one exception is a run the customer typed
+ * themselves (`customer_stated`); handrails and downpipes are not trims and
+ * keep their own metres.
+ */
+const TRIM_FOLLOWS_LENGTH = /fascia|gutter|eave/i;
+function followSideLength(b: LooseBlock): void {
+  const L = Number(b.L) || 0;
+  if (!(L > 0)) return;
+  for (const s of b.surfaces ?? []) {
+    if (!TRIM_FOLLOWS_LENGTH.test(String(s.code ?? ""))) continue;
+    // `metresTyped` is set only by the editor's metres box (applySideMetres).
+    // `origin` is NOT the test: the drawn house writes every line as
+    // customer_stated, which is why nothing followed on production (21 Oct).
+    if (s.metresTyped === true) continue;
+    s.measureL = Math.round(L * 100) / 100;
+  }
+}
+
 /** The L×H answer. notSure widens the range (the deferral is the route's
  * job); real metres reprice walls and run items through the engine. */
 export function applySideDims(
@@ -372,6 +395,7 @@ export function applySideDims(
     // Mockup behaviour: the gentle clamp (3–40 m long, 2–8 m high) — out of
     // range proceeds at the nearest bound, never a refusal.
     b.L = Math.min(40, Math.max(3, L));
+    followSideLength(b);
     b.H = Math.min(8, Math.max(2, H));
     b.origin = "customer_stated"; b.confidence = 0.85;
     b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "H");
@@ -400,6 +424,7 @@ function mirrorDims(blocks: LooseBlock[], key: SideKey): SidesResult {
   return withSide(blocks, PARTNER[key], (b) => {
     b.L = Number(from.L) || b.L;
     b.H = Number(from.H) || b.H;
+    followSideLength(b);
     b.customer = { ...customerOf(b), mirroredFrom: key };
     syncWallMeasures(b);
   });
@@ -628,8 +653,9 @@ export function applySideMetres(blocks: LooseBlock[], key: SideKey, surfaceId: n
     const line = (b.surfaces ?? []).find((s) => Number(s.id) === surfaceId);
     if (!line) return "That item isn't on this side.";
     if (isWallLine(line)) return "Wall surfaces measure from the side's own size — set the % of wall instead.";
-    if (metres == null) { line.measureL = null; return; }
+    if (metres == null) { line.measureL = null; delete line.metresTyped; return; }
     line.measureL = Math.round(metres * 10) / 10;
+    line.metresTyped = true; // a run the customer typed: a later width change leaves it alone
     line.origin = "customer_stated";
     line.confidence = 0.85;
   });

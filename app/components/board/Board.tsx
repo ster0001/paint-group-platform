@@ -32,8 +32,15 @@ export type BoardProps<L, B, P, C extends GhostFlags> = {
 
   /** Sub-row height in px — the block grid the lane packs into. */
   rowHeight?: number;
-  slots?: BoardSlots;
-  /** For `slots="hour"`: first hour, hour after the last. */
+  /**
+   * "fixed" (default): a row is `rows × rowHeight` tall — the Schedule board.
+   * "content": the day cells size the row — a board whose content lives INSIDE
+   * the cells (Movements: hourly rows, cards in halves).
+   */
+  rowSizing?: "fixed" | "content";
+  /** One slicing for every lane, or per lane (Movements: hourly staff lanes beside AM/PM painter lanes). */
+  slots?: BoardSlots | ((lane: L) => BoardSlots);
+  /** For `slots="hour"`: first hour, hour after the last. A fractional start (7.5) gives half-past rows. */
   slotHours?: [number, number];
 
   /** The header cell above the lane column ("Contractor"). */
@@ -41,9 +48,15 @@ export type BoardProps<L, B, P, C extends GhostFlags> = {
   renderLaneHead: (lane: L, layout: LaneLayout<B>) => ReactNode;
   /** Extra `data-*` attributes on the lane element. */
   laneData?: (lane: L) => Record<string, string | undefined>;
+  /** Extra class names on the lane element (a lane's kind, its colour hook). */
+  laneClass?: (lane: L) => string | undefined;
   /** Absolutely positioned content inside the lane, drawn under the blocks (walkthrough pins). */
   renderLaneOverlay?: (lane: L) => ReactNode;
   renderBlock: (block: B, bind: BlockBind) => ReactNode;
+  /** Content INSIDE a sub-slot (`am` / `pm` / `HH:MM`): context blocks, placed cards. Needs `slots` other than "none". */
+  renderSlot?: (lane: L, day: string, slot: string) => ReactNode;
+  /** Content at the top of a day cell, above its slots (the Nearby pill). */
+  renderCellHead?: (lane: L, day: string) => ReactNode;
   /** Inside the `.ghost`: what the thing being dragged says. */
   renderGhost: (payload: P, check: C | null, target: DropTarget | null) => ReactNode;
   /** Drawn where the lanes would be when none is visible. */
@@ -71,8 +84,8 @@ export type BoardProps<L, B, P, C extends GhostFlags> = {
  */
 export function Board<L, B, P, C extends GhostFlags>({
   zoom, drag, lanes, laneId, filterLane, blocks, blockId, blockLane, blockStart, blockEnd, countsTowardLoad, blockPayload, isMovable,
-  rowHeight = 52, slots = "none", slotHours = [7, 17],
-  laneHeadTitle, renderLaneHead, laneData, renderLaneOverlay, renderBlock, renderGhost, emptyMessage,
+  rowHeight = 52, rowSizing = "fixed", slots = "none", slotHours = [7, 17],
+  laneHeadTitle, renderLaneHead, laneData, laneClass, renderLaneOverlay, renderBlock, renderSlot, renderCellHead, renderGhost, emptyMessage,
   storageKey, header, tray, children,
 }: BoardProps<L, B, P, C>) {
   const { dayW, range, start, days, today, setScrollerEl, scrollerEl } = zoom;
@@ -252,13 +265,17 @@ export function Board<L, B, P, C extends GhostFlags>({
                     start={start}
                     range={range}
                     rowHeight={rowHeight}
-                    slots={slots}
+                    rowSizing={rowSizing}
+                    slots={typeof slots === "function" ? slots(l) : slots}
                     slotHours={slotHours}
                     drag={drag}
                     renderLaneHead={renderLaneHead}
                     laneData={laneData}
+                    laneClass={laneClass}
                     renderLaneOverlay={renderLaneOverlay}
                     renderBlock={renderBlock}
+                    renderSlot={renderSlot}
+                    renderCellHead={renderCellHead}
                     blockId={blockId}
                     blockStart={blockStart}
                     blockEnd={blockEnd}

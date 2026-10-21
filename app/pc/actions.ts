@@ -444,6 +444,13 @@ export async function tickChecklistItem(raw: unknown): Promise<PcResult> {
   if (s === "error:colours_first") {
     return { ok: false, message: "Tick the colour schedule first — the paint order depends on it." };
   }
+  // Movements Session 7: the two gates are real.
+  if (s === "error:paint_not_ordered") {
+    return { ok: false, message: "Not every paint chip is ordered yet — tick Ordered on the Movements board (or mark paint not needed / painter supplies below)." };
+  }
+  if (s === "error:equipment_not_booked") {
+    return { ok: false, message: "Not every gear chip is booked yet — drop it on someone's day on the Movements board (or mark gear not needed below)." };
+  }
   if (s.startsWith("error:derived:")) {
     return {
       ok: false,
@@ -893,9 +900,6 @@ export async function bookWalkthrough(raw: unknown): Promise<PcResult> {
     v.kind === "final" ? "Final walkthrough booked." : "Pre-walkthrough booked.");
   if (!r.ok && r.message === "no date") {
     return { ok: false, message: "No accepted booking to take a date from — pick the day yourself." };
-  }
-  if (!r.ok && r.message === "qa first") {
-    return { ok: false, message: "Quality check first — the final isn't booked with the customer until the checks pass." };
   }
   // Calendar invites to the customer AND the painter follow every booking or
   // move of the FINAL (Tom, 1 Sep) — same UID, climbing sequence, so a change

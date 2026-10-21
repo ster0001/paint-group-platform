@@ -217,7 +217,7 @@ export default function Reveal({
               <Door
                 testId="door-tighten" icon="◫" title="Tighten my price" onClick={onTighten}
                 body={exteriorOnly && outside?.v2
-                  ? "Walk around the house side by side — about three minutes — and the range closes to within a few percent."
+                  ? "Side by side, a few minutes — confirm each side's size and the paintwork, and the range closes to within a few percent."
                   : `Get a more accurate quote now. A few minutes, ${how}.`}
                 hero
               />

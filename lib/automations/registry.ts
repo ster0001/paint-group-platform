@@ -103,9 +103,14 @@ const P = {
   defectTape: ["{{first_name}}", "{{company_name}}", "{{suburb}}", "{{address}}", "{{finish_date}}"],
   finishReminder: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{suburb}}", "{{address}}", "{{finish_date}}", "{{link}}"],
   standards: ["{{first_name}}", "{{company_name}}", "{{link}}", "{{version}}"],
+  agreement: ["{{first_name}}", "{{company_name}}", "{{link}}", "{{version}}", "{{expires_on}}"],
+  officeAgreement: ["{{painter}}", "{{version}}", "{{expires_on}}"],
   status: ["{{first_name}}", "{{company_name}}", "{{colour}}", "{{link}}"],
   bonus: ["{{first_name}}", "{{company_name}}", "{{amount}}", "{{link}}"],
   callback: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{day}}", "{{what}}", "{{link}}"],
+  movement: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{what}}", "{{shop}}", "{{shop_address}}", "{{from_time}}", "{{day}}", "{{when}}", "{{order_ref}}", "{{link}}"],
+  movementClient: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{what}}", "{{day}}", "{{when}}"],
+  movementRun: ["{{first_name}}", "{{company_name}}", "{{day}}", "{{stops}}", "{{km}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
   visitCode: ["{{code}}", "{{company_name}}"],
@@ -545,6 +550,37 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Once per painter per version — the document row is the guard.",
   },
   {
+    key: "contractor_agreement_signed", name: "Subcontractor agreement — signed, your copy", audience: "painter", channels: ["email", "pdf"], kind: "automatic",
+    defaultChannel: "email", sendKind: "agreement_signed", capExempt: true,
+    trigger: "The painter signs the Independent Contractor Agreement in the portal. The countersigned PDF is rendered once from the same page they read, saved in their documents and attached (agreement brief Step 3).",
+    templates: [
+      { field: "agreementSignedEmailSubject", label: "Email subject", kind: "subject", placeholders: P.agreement },
+      { field: "agreementSignedEmailIntro", label: "Email body", kind: "body", placeholders: P.agreement },
+    ],
+    guard: "Once per signature — the agreement_pdf_sent event is the guard.",
+  },
+  {
+    key: "office_agreement_signed", name: "Subcontractor agreement signed (office copy)", audience: "office", channels: ["email", "pdf"], kind: "automatic",
+    defaultChannel: "email", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "A painter signs the agreement in the portal: the office gets the same PDF, to the office address.",
+    templates: [
+      { field: "officeAgreementSignedSubject", label: "Email subject", kind: "subject", placeholders: P.officeAgreement },
+      { field: "officeAgreementSignedBody", label: "Message", kind: "body", placeholders: P.officeAgreement },
+    ],
+    guard: "Once per signature, with the painter copy.",
+  },
+  {
+    key: "contractor_agreement_request", name: "Subcontractor agreement — please sign", audience: "painter", channels: ["sms", "email"], kind: "manual",
+    defaultChannel: "both", sendKind: "agreement_request", capExempt: true,
+    trigger: "The office taps Request signature on a contractor who has no signed agreement (an existing contractor, or a new one who skipped it). The grace window before offers stop starts with it.",
+    templates: [
+      { field: "agreementRequestSms", label: "Text", kind: "body", placeholders: P.agreement },
+      { field: "agreementRequestEmailSubject", label: "Email subject", kind: "subject", placeholders: P.agreement },
+      { field: "agreementRequestEmailIntro", label: "Email body", kind: "body", placeholders: P.agreement },
+    ],
+    href: "/contractors",
+  },
+  {
     key: "contractor_induction_invite", name: "Induction refresher — please do it", audience: "painter", channels: ["sms", "email"], kind: "manual",
     defaultChannel: "both", sendKind: "induction_invite", capExempt: true,
     trigger: "The office presses Invite to the refresher on an existing painter (Contractors page). The grace period (Settings -> standards_rules.graceDays) starts whether or not the message goes; offers stop when it ends with the refresher unticked.",
@@ -604,6 +640,44 @@ export const AUTOMATIONS: Automation[] = [
       { field: "standardsNewVersionEmailIntro", label: "Email body", kind: "body", placeholders: P.standards },
     ],
     guard: "Once per painter per version (automation_claims).",
+  },
+
+  // ---- Movements (brief §3.5, Session 5). Draft-first: the office approves each text until
+  // Tom flips the mode in Settings → Automations after a week of drafts (build plan §3, S5).
+  {
+    key: "movement_pickup_ready", name: "Movements — your pickup is ready", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "movement_pickup_ready", capExempt: true,
+    trigger: "The office ticks Ordered ✓ on a pickup on the painter's lane (Movements board, Day view or the job page). Names the shop, its address, the from-time and the order reference.",
+    templates: [{ field: "movementPickupReadySms", label: "Text message", kind: "sms", placeholders: P.movement }],
+    guard: "Once per movement (movements.painter_alerted_at; re-ordering after Back to tray alerts again).",
+  },
+  {
+    key: "movement_delivery_booked", name: "Movements — a delivery is coming to site", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "movement_delivery_booked", capExempt: true,
+    trigger: "The office ticks Ordered ✓ on a supplier delivery (or Booked ✓ on a hire or skip). Says what is coming, which day and when.",
+    templates: [{ field: "movementDeliveryBookedSms", label: "Text message", kind: "sms", placeholders: P.movement }],
+    guard: "Once per movement (movements.painter_alerted_at).",
+  },
+  {
+    key: "movement_delivery_client_notice", name: "Movements — tell the customer a delivery is coming", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "movement_delivery_client_notice",
+    trigger: "Ordered ✓ on a supplier delivery whose chip has Client notice switched ON (off by default, per movement — ruling 11). The customer gets nothing otherwise.",
+    templates: [{ field: "movementDeliveryClientNoticeSms", label: "Text message", kind: "sms", placeholders: P.movementClient }],
+    guard: "Once per movement (movements.client_notified_at).",
+  },
+  {
+    key: "movement_run_plan", name: "Movements — your run for the day", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "movement_run_plan", capExempt: true,
+    trigger: "The office presses Send to <name>'s phone on the Day view. Staff get a link to their own run view; painters get the portal's pickups-and-drop-offs card.",
+    templates: [{ field: "movementRunPlanSms", label: "Text message", kind: "sms", placeholders: P.movementRun }],
+    guard: "Each press sends again (the run can change); the stops it covered are stamped run_plan_sent_at.",
+  },
+  {
+    key: "movement_arrived_check", name: "Movements — did the delivery arrive?", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", approvable: true, defaultMode: "approve", sendKind: "movement_arrived_check", capExempt: true,
+    trigger: "The 6 pm sweep, for every supplier delivery due today that nobody has ticked Done. Goes to the job's painter.",
+    templates: [{ field: "movementArrivedCheckSms", label: "Text message", kind: "sms", placeholders: P.movement }],
+    guard: "Once per movement (wo_events movement_arrived_check).",
   },
   {
     key: "contractor_callback_booked", name: "Call back booked", audience: "painter", channels: ["sms"], kind: "automatic",

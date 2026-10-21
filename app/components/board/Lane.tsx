@@ -15,13 +15,18 @@ export type LaneProps<L, B, P, C extends GhostFlags> = {
   start: string;
   range: number;
   rowHeight: number;
+  /** "fixed": the row is `rows × rowHeight` tall (the Schedule board). "content": the cells decide (Movements). */
+  rowSizing: "fixed" | "content";
   slots: BoardSlots;
   slotHours: [number, number];
   drag: BoardDrag<P, C>;
   renderLaneHead: (lane: L, layout: LaneLayout<B>) => ReactNode;
   laneData?: (lane: L) => Record<string, string | undefined>;
+  laneClass?: (lane: L) => string | undefined;
   renderLaneOverlay?: (lane: L) => ReactNode;
   renderBlock: (block: B, bind: BlockBind) => ReactNode;
+  renderSlot?: (lane: L, day: string, slot: string) => ReactNode;
+  renderCellHead?: (lane: L, day: string) => ReactNode;
   blockId: (block: B) => string;
   blockStart: (block: B) => string;
   blockEnd: (block: B) => string;
@@ -35,22 +40,32 @@ export type LaneProps<L, B, P, C extends GhostFlags> = {
  * `bgc`), then any overlay, then the blocks positioned off `--day-w`.
  */
 export function Lane<L, B, P, C extends GhostFlags>({
-  lane, id, layout, days, start, range, rowHeight, slots, slotHours, drag,
-  renderLaneHead, laneData, renderLaneOverlay, renderBlock, blockId, blockStart, blockEnd, isMovable, blockPayload,
+  lane, id, layout, days, start, range, rowHeight, rowSizing, slots, slotHours, drag,
+  renderLaneHead, laneData, laneClass, renderLaneOverlay, renderBlock, renderSlot, renderCellHead, blockId, blockStart, blockEnd, isMovable, blockPayload,
 }: LaneProps<L, B, P, C>) {
+  const extra = laneClass?.(lane);
   return (
-    <div className="crow" style={{ height: `${Math.max(1, layout.rows) * rowHeight + 14}px` }}>
+    <div className="crow" style={rowSizing === "fixed" ? { height: `${Math.max(1, layout.rows) * rowHeight + 14}px` } : undefined}>
       <div className="cinfo">{renderLaneHead(lane, layout)}</div>
 
       <div
-        className="lane"
+        className={`lane${extra ? ` ${extra}` : ""}`}
         data-testid="lane"
         data-lane={id}
         {...(laneData?.(lane) ?? {})}
         ref={(el) => drag.registerLane(id, el)}
         onPointerDown={(e) => drag.beginRangeSelect(e, id)}
       >
-        {days.map((d) => <DayCell key={d} day={d} slots={slots} slotHours={slotHours} />)}
+        {days.map((d) => (
+          <DayCell
+            key={d}
+            day={d}
+            slots={slots}
+            slotHours={slotHours}
+            renderSlot={renderSlot ? (slot) => renderSlot(lane, d, slot) : undefined}
+            head={renderCellHead?.(lane, d)}
+          />
+        ))}
 
         {renderLaneOverlay?.(lane)}
 

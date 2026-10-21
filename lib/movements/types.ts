@@ -98,10 +98,15 @@ export type MovementRow = {
   problem_note: string;
   painter_confirmed_at: string | null;
   source_changed_at: string | null;
+  /** How long the stop takes, minutes (an hour unless changed). */
+  duration_min: number;
   booked_at: string | null;
   done_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Tom, 21 Oct 2026: delivered or picked up, confirmed in the chip (null = not yet). */
+  /** How the office said it gets to site: delivered, picked up, or from our stock (the warehouse). */
+  method_pref: "delivery" | "pickup" | "stock" | null;
   /** The gear on it (movement_items), carried by the loader. */
   items: MovementItemRow[];
 };
@@ -137,6 +142,8 @@ export type MovementsSettings = {
   showHowItWorks: boolean;
   recordHireCosts: boolean;
   defaultHalfTime: { AM: string; PM: string };
+  /** Session 8 rollback switch: off hides the Movements tab and refuses its routes (the data stays). */
+  movementsTab: boolean;
 };
 
 export const DEFAULT_MOVEMENTS_SETTINGS: MovementsSettings = {
@@ -148,6 +155,7 @@ export const DEFAULT_MOVEMENTS_SETTINGS: MovementsSettings = {
   showHowItWorks: true,
   recordHireCosts: true,
   defaultHalfTime: { AM: "07:00", PM: "13:00" },
+  movementsTab: true,
 };
 
 /** The settings row as stored, with every missing or malformed field falling back to the default. */
@@ -181,5 +189,6 @@ export function movementsSettingsFrom(value: unknown): MovementsSettings {
     showHowItWorks: typeof v.showHowItWorks === "boolean" ? v.showHowItWorks : d.showHowItWorks,
     recordHireCosts: typeof v.recordHireCosts === "boolean" ? v.recordHireCosts : d.recordHireCosts,
     defaultHalfTime: { AM: str(half.AM, d.defaultHalfTime.AM), PM: str(half.PM, d.defaultHalfTime.PM) },
+    movementsTab: typeof v.movementsTab === "boolean" ? v.movementsTab : d.movementsTab,
   };
 }

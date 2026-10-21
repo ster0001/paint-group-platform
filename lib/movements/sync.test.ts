@@ -39,7 +39,7 @@ const SUBURBS = new Map([["oakleigh south", { lat: -37.92, lng: 145.1 }]]);
 
 const row = (over: Partial<MovementRow> & { id: string; kind: MovementRow["kind"] }): MovementRow => ({
   work_order_id: WO, source_key: null, title: "", detail: null, assignee_kind: null, assignee_table: null, assignee_id: null, due_date: null, half: null, time: null,
-  sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "", status: "tray", ordered_at: null,
+  sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "", status: "tray", ordered_at: null, method_pref: null, duration_min: 60,
   client_notice: false, order_ref: "PG-0001", lines: null, planned_for_start: null, return_due: null, blocked_by_movement_id: null, expected_cost_cents: null,
   note: "", problem_note: "", painter_confirmed_at: null, source_changed_at: null, booked_at: null, done_at: null, created_at: "2026-10-19T00:00:00Z",
   updated_at: "2026-10-19T00:00:00Z", items: [], ...over,
@@ -172,6 +172,12 @@ describe("syncForWo — chips come from the jobs", () => {
     expect(plan.refresh.find((p) => p.id === existing[1].id)).toMatchObject({ from_branch_id: "b-new", from_text: `${BRAND_B} Depot`, changed: true });
   });
 
+  it("Tom, 22 Oct: a chip from our stock keeps no shop — the sync never refills one onto it", () => {
+    const existing = afterFirstSync().map((m) => (m.source_key === `paint:${BRAND_B}` ? { ...m, method_pref: "stock" as const, from_kind: "warehouse" as const, from_branch_id: null, from_text: "Warehouse" } : m));
+    const plan = syncForWo(input({ movements: existing, branches: [...BRANCHES, branch({ id: "b-new", brand: BRAND_B, branch: "Depot", delivers_to_site: true })] }));
+    expect(plan.refresh.find((p) => p.id === existing[1].id)).toMatchObject({ from_branch_id: null, from_text: "Warehouse", changed: false });
+  });
+
   it("a Materials change AFTER ordering flags the chip (source_changed_at) and never re-titles it", () => {
     const existing = afterFirstSync().map((m) => (m.source_key === `paint:${BRAND_A}`
       ? { ...m, status: "booked" as const, assignee_kind: "supplier" as const, due_date: "2026-10-25", ordered_at: "2026-10-20T00:00:00Z", lines: paintGroups(MATERIALS, brandIndex(PRODUCTS))[0].rows }
@@ -194,7 +200,7 @@ describe("syncForWo — chips come from the jobs", () => {
     expect(plan.refresh.map((p) => p.id)).toEqual([existing[0].id]);
   });
 
-  it("material lines: one chip per unmerged line, nearest hardware branch (favourite first), detail by source; a merged line's chip is removed", () => {
+  it("material lines: one chip per unmerged line with NO default shop (Tom, 21 Oct), detail by source; a merged line's chip is removed", () => {
     const lines: MaterialLineRow[] = [
       { id: "l1", work_order_id: WO, text: "Caulk × 6", source: "estimate", sort: 0, merged_into: null, created_at: "2026-10-19T00:00:01Z" },
       { id: "l2", work_order_id: WO, text: "Drop sheets", source: "pc", sort: 0, merged_into: null, created_at: "2026-10-19T00:00:02Z" },
@@ -202,7 +208,7 @@ describe("syncForWo — chips come from the jobs", () => {
     ];
     const plan = syncForWo(input({ materialLines: lines }));
     expect(plan.result).toBe("ok:6:0:0");
-    expect(byKey(plan, "matline:l1")).toMatchObject({ kind: "materials", title: "Caulk × 6", detail: "from the estimate", from_branch_id: "b-hardware", from_text: `${HARDWARE} Store`, to_text: "1 Test St, Oakleigh South VIC 3167" });
+    expect(byKey(plan, "matline:l1")).toMatchObject({ kind: "materials", title: "Caulk × 6", detail: "from the estimate", from_kind: null, from_branch_id: null, from_text: "", to_text: "1 Test St, Oakleigh South VIC 3167" });
     expect(byKey(plan, "matline:l2")!.detail).toBe("from the job page");
     expect(byKey(plan, "matline:l3")!.detail).toBe("asked for by the painter");
     // Merge l2 into l1 → its tray chip goes.

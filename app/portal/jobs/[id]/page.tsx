@@ -58,6 +58,8 @@ import { loadWorkers } from "@/lib/contractor/workers";
 import WorkerJob from "./WorkerJob";
 import { getWorkerJob } from "@/lib/contractor/workerJobs";
 import MaterialsRequest, { type MaterialsRequestRow } from "./MaterialsRequest";
+import { loadPainterMovements } from "@/lib/movements/painterLoad";
+import { jobLogistics } from "@/lib/movements/painterView";
 import NoWorkToday, { type NoWorkFlagRow } from "./NoWorkToday";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -444,6 +446,11 @@ export default async function PortalJobPage({
     }
   }
   const atWalkthrough = stage === "walkthrough";
+  // Tom, 21 Oct 2026: a job parked at Quality check whose check has NOT passed
+  // can still be walked — the painter starts the walkthrough from here and the
+  // server delivers the pack on the way (wo_start_walkthrough_mode, 20270284).
+  // A passed check is the office's sign-off (24 Sep) and shows the notice instead.
+  const walkBeforeQa = stage === "qa" && walkthroughRequired && !staffSignsOff && !qaPassed;
   // Session 6: Start / Finish day on THIS job, hours only (clocksOn painters).
   const timesheet = capabilities.clocksOn && stage !== "closed" ? await loadMyTimesheet(id) : null;
   const bookedFinal = ((walkthroughRows ?? []) as { kind: string; scheduled_date: string }[])
@@ -475,7 +482,7 @@ export default async function PortalJobPage({
   // A quality-checked job at the sign-off stage is the office's: no bar, a notice instead.
   // ...and a job whose walkthrough was switched off after it got here (Tom,
   // 24 Sep) has none to start either — the office closes it.
-  const showWalkthroughBar = job.committed && ((atWalkthrough && !staffSignsOff && walkthroughRequired) || canPrep || (canTick && allSurfacesDone));
+  const showWalkthroughBar = job.committed && ((atWalkthrough && !staffSignsOff && walkthroughRequired) || walkBeforeQa || canPrep || (canTick && allSurfacesDone));
   const prepLeft = prepItems.filter((i) => i.required && !i.done).length;
   // Tom (17 Sep): areas the customer flagged at their walkthrough and nobody
   // has yet marked put right. While any exist on an in-progress job, the
@@ -498,6 +505,9 @@ export default async function PortalJobPage({
   ]);
   if (matReqRes.error) reportError(matReqRes.error, { where: "portal.job.materialRequests", bestEffort: true, extra: { workOrderId: id } });
   if (dayFlagRes.error) reportError(dayFlagRes.error, { where: "portal.job.dayFlags", bestEffort: true, extra: { workOrderId: id } });
+  // Movements (Session 5): the painter's own read of how things reach the site (RPC, column-limited).
+  const logisticsRead = await loadPainterMovements(supabase, { workOrderId: id });
+  const logistics = jobLogistics(logisticsRead.rows, logisticsRead.branches, id);
   const materialRequests: MaterialsRequestRow[] = ((matReqRes.error ? [] : matReqRes.data ?? []) as { id: string; item: string; quantity: string; status: MaterialsRequestRow["status"]; reply: string; created_at: string }[])
     .map((r) => ({ id: r.id, item: r.item, quantity: r.quantity, status: r.status, reply: r.reply, createdAt: r.created_at }));
   const noWorkFlags: NoWorkFlagRow[] = ((dayFlagRes.error ? [] : dayFlagRes.data ?? []) as NoWorkFlagRow[]);
@@ -518,8 +528,8 @@ export default async function PortalJobPage({
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
       {showWalkthroughBar && (
-        <WalkthroughBar workOrderId={id} phase={atWalkthrough ? "walkthrough" : rectifiedPhase ? "rectified" : "finish"}
-          prepLeft={prepLeft} flaggedAreas={rectifiedPhase ? flaggedAreas : []} />
+        <WalkthroughBar workOrderId={id} phase={atWalkthrough || walkBeforeQa ? "walkthrough" : rectifiedPhase ? "rectified" : "finish"}
+          prepLeft={prepLeft} flaggedAreas={rectifiedPhase ? flaggedAreas : []} qaOpen={walkBeforeQa} />
       )}
       <div style={{ padding: "0 16px" }}>
         <Link href={from === "requests" ? "/portal/requests" : from === "calendar" ? "/portal/calendar" : "/portal/jobs"}
@@ -727,7 +737,9 @@ export default async function PortalJobPage({
       )}
 
       {/* The QA notice (Tom, 23 Aug): while the job is being checked, the
-          painter knows sign-off waits for it — no walkthrough date until then. */}
+          painter knows where sign-off stands. Tom, 21 Oct 2026: a check that
+          has not passed no longer holds the walkthrough — the painter can run
+          it from here; a passed check is still the office's sign-off. */}
       {stage === "qa" && (
         <div style={{ padding: "0 16px" }}>
           <div className="card" data-testid="qa-notice">
@@ -735,9 +747,16 @@ export default async function PortalJobPage({
             <p className="hint" style={{ padding: 0, marginTop: 6 }}>
               {qaHold
                 ? `The quality check has passed. The walkthrough is waiting on the office: ${qaHold}.`
-                : "Paint Group is quality checking this job before sign-off. Once it passes, the office signs the job off — nothing for you to do unless something comes back to fix."}
+                : walkBeforeQa
+                  ? "Paint Group still has a quality check to do on this job. It doesn't hold you up: with the customer beside you, start the walkthrough below and they can sign off on your phone. If the check finds something first, it comes back to you to fix."
+                  : "Paint Group is quality checking this job before sign-off. Once it passes, the office signs the job off — nothing for you to do unless something comes back to fix."}
             </p>
           </div>
+        </div>
+      )}
+      {walkBeforeQa && job.committed && (
+        <div style={{ padding: "0 16px" }}>
+          <WalkthroughStart workOrderId={id} finalDate={bookedFinal} qaOpen />
         </div>
       )}
 
@@ -856,7 +875,8 @@ export default async function PortalJobPage({
               credit: v.credit, status: "contractor_accepted", approvedAt: null,
             }))
           : scopeChangesFrom(vRows)}
-        payInclChanges={employee ? null : claimJob.adjustedCents} />
+        payInclChanges={employee ? null : claimJob.adjustedCents}
+        logistics={logistics} logisticsError={logisticsRead.error} />
     </div>
   );
 }

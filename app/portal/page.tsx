@@ -25,6 +25,13 @@ import StatusCard from "./StatusCard";
 import DeferCertificates from "./DeferCertificates";
 import { loadMyThreads } from "@/lib/workorder/messagesLoad";
 import { messageWhen } from "@/lib/workorder/messageModel";
+import MovementsCard from "./MovementsCard";
+import { loadPainterMovements } from "@/lib/movements/painterLoad";
+import { todayStops } from "@/lib/movements/painterView";
+import { melbourneDate as melbourneIso } from "@/lib/workorder/console";
+import { isDateString } from "@/lib/scheduling/dates";
+import { loadAgreementStatus } from "@/lib/agreements/load";
+import { dmy as agreementDay, renewalDue } from "@/lib/agreements/status";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +45,11 @@ const melbourneDate = () =>
 
 const firstName = (full: string) => full.trim().split(/\s+/)[0] || "there";
 
-export default async function PortalHome() {
+export default async function PortalHome({ searchParams }: { searchParams?: Promise<{ day?: string }> }) {
   const { name, contractor, capabilities, employmentType, worker } = await requireContractor();
+  // The run-plan text links to a day (?day=); otherwise today, in Melbourne.
+  const sp = (await searchParams) ?? {};
+  const movementsDay = sp.day && isDateString(sp.day) ? sp.day : melbourneIso(new Date());
 
   // A worker (induction Step 3a): the jobs their contractor shared, and Help. Nothing else lives on this login.
   if (worker && capabilities.isWorker) {
@@ -106,6 +116,10 @@ export default async function PortalHome() {
   const myMessages = await loadMyThreads(supabaseForStandards);
   // Painter status (Step 6): their own row, or nothing — RLS decides (⚑21, R17).
   const { status: myStatus } = await loadMyStatus(supabaseForStandards, contractor.id);
+  // Movements (Session 5, ruling 8): every movement on this painter's lane that day — their own
+  // job's pickup or a staff-style run — through their session's RPC.
+  const movementsRead = await loadPainterMovements(supabaseForStandards, { day: movementsDay });
+  const movementsToday = todayStops(movementsRead.rows, movementsRead.branches, movementsDay);
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
   const allJobs = capabilities.acceptsOffers ? await listContractorJobs(contractor.id) : await listEmployeeJobs();
@@ -164,7 +178,7 @@ export default async function PortalHome() {
   const missing = missingProfileFields(contractor);
 
   // Everything the contractor has to act on right now, drawn from real state.
-  const actions: { icon: string; text: string; chip?: string; defer?: boolean }[] = [];
+  const actions: { icon: string; text: string; chip?: string; defer?: boolean; href?: string; testId?: string }[] = [];
   const awaitingCheck = docs.find((d) => d.kind === "insurance" && d.file_url && !d.verified_at);
   if (docsError) {
     // Say nothing about insurance when we couldn't read the documents at all —
@@ -207,6 +221,24 @@ export default async function PortalHome() {
       chip: "Needed",
     });
   }
+  // The subcontractor agreement (agreement brief §3): the same reminder tile that nags for
+  // insurance, from the status RPC. Offers wait on it (ruling 1), and renewal is a month out.
+  if (capabilities.requiresInsurance) {
+    const { status: agreement } = await loadAgreementStatus(supabaseForStandards);
+    if (agreement && !agreement.signed) {
+      actions.push({
+        icon: "✍", href: "/portal/agreement", testId: "action-agreement",
+        text: `Read and sign your subcontractor agreement — your details are already filled in${agreement.gate !== "ok" ? ". Job offers wait until it is signed" : ""}`,
+        chip: agreement.gate !== "ok" ? "Required" : "To do",
+      });
+    } else if (agreement?.signed && renewalDue(agreement.signed.expiresOn, melbourneIso(new Date()), agreement.renewalWarnDays)) {
+      actions.push({
+        icon: "✍", href: "/portal/agreement", testId: "action-agreement-renew",
+        text: `Your subcontractor agreement is due for renewal${agreement.signed.expiresOn ? ` on ${agreementDay(agreement.signed.expiresOn)}` : ""} — read and sign the new term`,
+        chip: "Renew",
+      });
+    }
+  }
   // Company details exist for the RCTI — an employee has no invoice to put them on.
   if (missing.length && capabilities.canSelfInvoice) {
     actions.push({
@@ -223,6 +255,9 @@ export default async function PortalHome() {
       {docsError && <div className="err">{docsErrorMessage(docsError)}</div>}
 
       {myStatus && <StatusCard status={myStatus} lead={employmentType === "employee"} />}
+      {(movementsToday.length > 0 || movementsRead.error) && (
+        <MovementsCard lines={movementsToday} day={movementsDay} error={movementsRead.error} title={movementsDay === melbourneIso(new Date()) ? "Your pickups and drop-offs today" : `Your pickups and drop-offs · ${movementsDay}`} />
+      )}
 
       {/* Can this contractor be offered work? The single most important fact —
           for a contractor. An employee is assigned, never offered (ruling 1). */}
@@ -270,7 +305,7 @@ export default async function PortalHome() {
         <div className="card">
           <h3>Action items</h3>
           {actions.map((a, i) => (
-            <Link key={i} href="/portal/profile" className="act" data-testid={a.defer ? "action-insurance" : undefined}>
+            <Link key={i} href={a.href ?? "/portal/profile"} className="act" data-testid={a.defer ? "action-insurance" : a.testId}>
               <i aria-hidden>{a.icon}</i>
               <span>{a.text}</span>
               {a.chip && (

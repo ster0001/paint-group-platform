@@ -8,7 +8,7 @@ verified_at_commit: 780c451640
 ---
 
 ## What this is for
-Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is where the work is recorded. Anything counted per item (doors, windows, posts) says how many on the job sheet and its tick row, as **Doors × 4**, on every job. The job sheet also shows each area's size in metres under its name and, on jobs issued since 15 Oct 2026, each measured surface's size (**38.4 m²**, **14 lm**); every photo pinned to an area is on the sheet. You tick each surface as you prep and finish it, photograph before and after, raise anything you find that is outside the job sheet, answer the finishing-up questions, and at the end hand the phone to the customer to sign. The office and the customer see progress from what you tick. Everything here is identical to a contractor's job, except that nothing on an employee's job sheet carries a price.
+Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is where the work is recorded. Anything counted per item (doors, windows, posts) says how many on the job sheet and its tick row, as **Doors × 4**, on every job. The job sheet also shows each area's size in metres under its name and, on jobs issued since 15 Oct 2026, each measured surface's size (**38.4 m²**, **14 lm**); every photo pinned to an area is on the sheet. You tick each surface as you prep and finish it, photograph before and after, raise anything you find that is outside the job sheet, answer the finishing-up questions, and at the end hand the phone to the customer to sign. The office and the customer see progress from what you tick. Every surface says its **paint** under its name — product, sheen and colour with a swatch, or **Colour to be confirmed** — and each paint under **Materials & colours** lists the substrates it goes on (since 21 Oct 2026). Everything here is identical to a contractor's job, except that nothing on an employee's job sheet carries a price.
 
 ## Before you start
 - The job is on your **Jobs** tab with your days and a time budget — see [Your assigned jobs](../scheduling/employee.md). Tap **Accept** first so the office knows you have seen it.
@@ -57,7 +57,7 @@ Each area of the scope ends with **Materials for this area · estimate**: the pa
 8b. If the office visits the job and wants you to know something, their note arrives as a message from the office in the job's **Messages** box (to the lead painter), with any photos — tap one to open it full size, and reply there. See `docs/help/painter-messages/employee.md`.
 
 ### The quality check
-9. If the office has scheduled a quality check, the job waits at **Quality check** and the page says so. If areas come back to put right, they are listed on the job with the inspector's notes and photos and reappear on your tick list; tick each one off once it is done and the check runs again.
+9. If the office has scheduled a quality check, the job sits at **Quality check** and the page says so — but the check does not hold the walkthrough up (since 21 Oct 2026): the lead painter's page still carries **Start the walkthrough**, and the office does its check in its own time. If areas come back to put right, they are listed on the job with the inspector's notes and photos and reappear on your tick list; tick each one off once it is done and the check runs again.
 
 ### Walkthrough and sign-off on your phone
 10. At **Walkthrough**, the lead painter's page carries **Start the walkthrough**. Any painter on the job can run it: walk the customer through each area, they approve or mark anything to fix, and sign on your phone. The job closes and the page reads **Job complete**.
@@ -68,7 +68,7 @@ If the office has switched it on for you, the **All surfaces done** card asks fo
 ## What the colours and labels mean
 - **🔒 Locked until Step 1** — the scope cannot be ticked until the job's before photos are uploaded.
 - **Cyan PREPPED / green DONE** — a surface's live state, shared by everyone on the job.
-- **Quality check** notice — the office is checking; the walkthrough opens when it passes.
+- **Quality check** notice — the office still has a check to do; the walkthrough can go ahead regardless.
 - **Job complete** — signed off and closed.
 
 ## If something goes wrong

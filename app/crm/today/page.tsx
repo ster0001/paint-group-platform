@@ -46,6 +46,7 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   material_request: "Materials request",
   no_work_requested: "No work today",
   insurance_missing: "No insurance on file",
+  agreement_unsigned: "Agreement not signed", agreement_expiring: "Agreement expiring",
   // Movements (brief §6) — PC-homed, never on Today; the tag exists for the shared type.
   movements_unplanned: "Plan the movements", order_unplaced: "Order not placed", delivery_unconfirmed: "Delivery unconfirmed",
   movement_overdue: "Movement overdue", movement_problem: "Movement problem", equipment_stranded: "Gear stranded",

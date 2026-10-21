@@ -234,9 +234,8 @@ export async function answerOutsideQuick(page: Page): Promise<"v2" | "v1"> {
     await page.getByTestId("ext-mat-weatherboards").click();
     await quickNext(page);
     await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-    // S4: Each side — "Looks right" on every painted side before the gate.
-    for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
-    await expect(page.getByTestId("ext-sides-done")).toBeVisible();
+    // 21 Oct: no "Looks right" tap on Each side — but every ticked side must be looked at.
+    await lookAtEverySide(page);
     return "v2";
   }
   // C8b: nothing is pre-ticked on the outside screen — a job has to name
@@ -248,9 +247,25 @@ export async function answerOutsideQuick(page: Page): Promise<"v2" | "v1"> {
   return "v1";
 }
 
+/** Exterior v2 (21 Oct): Each side needs every ticked side looked at before Continue — tap each tile in turn. */
+export async function lookAtEverySide(page: Page): Promise<void> {
+  for (const k of ["front", "right", "back", "left"]) {
+    const tile = page.getByTestId(`ql-ext-side-${k}`);
+    if (await tile.count()) await tile.click();
+  }
+}
+
+/** Tom, 21 Oct: the talk-it-through box floats bottom-right as a bar with its buttons always in it — nothing to open (kept for the callers that wait on it). */
+export async function openTalk(page: Page): Promise<void> {
+  await page.getByTestId("ql-talk").waitFor({ state: "visible" });
+}
+
 export async function passDetailsSheetIfShown(page: Page, who: { name?: string; email?: string; mobile?: string } = {}): Promise<boolean> {
   const sheet = page.getByTestId("talk-sheet");
-  const editor = page.locator(".sc-r").first();
+  // Where the door lands when there is no sheet: the sides editor, or — on the
+  // drawn house (exterior v2) — the walk-around. Without `ext-walk` here every
+  // v2 tighten spec timed out under details-first (the 15 reds of 20 Oct).
+  const editor = page.locator(".sc-r").first().or(page.getByTestId("ext-walk"));
   await expect(sheet.or(editor)).toBeVisible({ timeout: 60_000 });
   if (!(await sheet.count())) return false;
   await page.getByTestId("talk-name").fill(who.name ?? "Drive Tester");

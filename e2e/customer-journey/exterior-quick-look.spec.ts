@@ -127,7 +127,6 @@ async function walkTypical(page: Page, windowType: "casement" | "colonial", wall
   await expect(page.getByTestId("ql-ext-condition")).toHaveCount(0);
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
   await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range|Continue to the last question/);
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range
@@ -161,18 +160,18 @@ test("Tom's check 2: colonial windows price higher than casements — the rate r
   await expect(page.getByTestId("what-we-do")).toContainText(/cut in by hand, bar by bar/);
 });
 
-test("Tom's check 3: unticking the walls removes them everywhere — the question, What we'll do, the walk", async ({ page }) => {
+test("Tom's check 3: unticking the walls removes them everywhere — the question, What we'll do, the editor", async ({ page }) => {
   test.setTimeout(240_000);
   await walkTypical(page, "casement", false);
   await expect(page.getByTestId("what-we-do")).not.toContainText(/Walls/);
   await expect(page.getByTestId("reveal-restatement")).not.toContainText(/the walls/);
   await expect(page.getByTestId("reveal-restatement")).toContainText(/^Based on windows, doors and fascias, \d+ casement windows/);
   await expect(page.getByTestId("ext-range-front")).not.toContainText(/walls/);
-  // The walk around the house has no walls chip on any side, and the picture's walls stay grey.
+  // 21 Oct: Tighten opens the customer editor — the front card carries no wall line.
   await page.getByTestId("door-tighten").click();
   await passDetailsSheetIfShown(page);
-  await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId("ext-sidepart-walls")).toHaveCount(0);
-  await expect(page.getByTestId("ext-side-mat")).toHaveCount(0);
-  await expect(page.getByTestId("ql-picture").getByTestId("pic-outside").locator(".e[data-e='walls']")).toHaveAttribute("data-on", "0");
+  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
+  const front = page.locator('[data-side="front"]');
+  await front.locator(".sd-hd").click();
+  await expect(front).not.toContainText(/Weatherboards/);
 });

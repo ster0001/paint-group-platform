@@ -155,6 +155,12 @@ export type MessagingSettings = {
   painterMessageEmailIntro: string;
   /** Painter: a failed quality check, areas to put right. */
   qaFailSms: string;
+  /** Movements (Session 5, draft-first): the order step tells the painter; the run plan; the arrived check; the per-delivery client notice. */
+  movementPickupReadySms: string;
+  movementDeliveryBookedSms: string;
+  movementDeliveryClientNoticeSms: string;
+  movementRunPlanSms: string;
+  movementArrivedCheckSms: string;
   /** P6 — Customer: the estimator visit, confirmed with a calendar invite; and the text the evening before. */
   visitConfirmSubject: string;
   visitConfirmBody: string;
@@ -246,6 +252,15 @@ export type MessagingSettings = {
   inductionInviteEmailIntro: string;
   /** Worker (16h): the worker induction is complete — they can now be put on a job. */
   workerInductionCompleteSms: string;
+  /** Painter (agreement brief §3): they signed the subcontractor agreement — the PDF copy, to them and to the office. */
+  agreementSignedEmailSubject: string;
+  agreementSignedEmailIntro: string;
+  officeAgreementSignedSubject: string;
+  officeAgreementSignedBody: string;
+  /** Painter (agreement brief §7): the office asks them to sign in the portal; the grace window starts. */
+  agreementRequestSms: string;
+  agreementRequestEmailSubject: string;
+  agreementRequestEmailIntro: string;
   /** Painter (Step 6, message 6): the colour changed. */
   statusGreenSms: string;
   statusGreenLeadSms: string;
@@ -437,6 +452,16 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Open the job in your portal to see it.",
   qaFailSms:
     "{{company_name}}: the quality check on {{wo_ref}} found areas that need rectifying. The details and photos are on the job in your portal: {{link}}",
+  movementPickupReadySms:
+    "{{company_name}}: {{what}} for {{wo_ref}} is ready at {{shop}}, {{shop_address}}, from {{from_time}} {{day}}. Order {{order_ref}} under Paint Group. Tap Picked up on the job once you have it: {{link}}",
+  movementDeliveryBookedSms:
+    "{{company_name}}: {{what}} for {{wo_ref}} is being delivered to site {{day}} {{when}} (order {{order_ref}}). It's on your job sheet: {{link}}",
+  movementDeliveryClientNoticeSms:
+    "{{company_name}}: {{what}} for your job at {{address}} is being delivered {{day}} {{when}}. Nothing for you to do — the painter takes it in.",
+  movementRunPlanSms:
+    "{{company_name}}: your run for {{day}} — {{stops}} stops, about {{km}} km. The list, with Navigate and Call on each stop: {{link}}",
+  movementArrivedCheckSms:
+    "{{company_name}}: did {{what}} for {{wo_ref}} arrive on site today? If not, reply NO and the office will chase the shop. {{link}}",
   visitConfirmSubject: "Your visit is booked — {{visit_when}}",
   visitConfirmBody:
     "Hello {{first_name}},\n\n" +
@@ -548,6 +573,19 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}} has written down how we work — the site rules, who says what to the customer, variations, the pre-defect check and the status light. " +
     "Please read the short refresher modules in the app and tick each one. It takes about an hour, and you will need to have done it to keep getting job offers.",
   workerInductionCompleteSms: "{{company_name}}: your worker induction is complete. Your contractor can now put you on a job. {{link}}",
+  agreementSignedEmailSubject: "Your signed {{company_name}} subcontractor agreement (Version {{version}})",
+  agreementSignedEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "Thank you for signing. Your copy of the Independent Contractor Agreement is attached and saved in your documents in the portal. " +
+    "It runs until {{expires_on}}; the portal will remind you a month before it is due for renewal.",
+  officeAgreementSignedSubject: "{{painter}} signed the subcontractor agreement (Version {{version}})",
+  officeAgreementSignedBody: "{{painter}} signed the Independent Contractor Agreement in the portal. The countersigned PDF is attached and on their record under Documents. It runs until {{expires_on}}.",
+  agreementRequestSms: "{{company_name}}: please read and sign your subcontractor agreement in the app — your details are already filled in, it takes a couple of minutes. {{link}}",
+  agreementRequestEmailSubject: "Please sign your {{company_name}} subcontractor agreement",
+  agreementRequestEmailIntro:
+    "Hi {{first_name}},\n\n" +
+    "{{company_name}} now keeps the Independent Contractor Agreement in the portal. Your business details are already filled in: read it on your phone, tick, sign on the screen, and a PDF copy comes straight back to you. " +
+    "Job offers keep coming while you do this, but not for long, so please sign this week.",
   statusGreenSms: "{{company_name}}: you are on Green. You now get priority on new jobs and faster payment. {{link}}",
   statusGreenLeadSms: "{{company_name}}: you are on Green. Thank you for the clean work. {{link}}",
   statusDroppedSms: "{{company_name}}: your status is now {{colour}}. Open the app to see why and what to do next. {{link}}",
@@ -609,11 +647,21 @@ export const TEMPLATE_PLACEHOLDERS = [
 export type TemplateVars = {
   /** Standards messages: the version number being confirmed. */
   version?: string;
+  /** Agreement messages: the expiry day of the signed agreement, "21 Oct 2027". */
+  expires_on?: string;
   /** Defect-tape text (Tom, 8 Oct): the job's booked last day, "Fri 9 Oct". */
   finish_date?: string;
   /** Call back booked: the visit day and what is wrong. */
   day?: string;
   what?: string;
+  /** Movements (Session 5): the shop and its address, the from-time, "in the morning" / "at 10:30 am", the order reference, the run's stops and km. */
+  shop?: string;
+  shop_address?: string;
+  from_time?: string;
+  when?: string;
+  order_ref?: string;
+  stops?: string;
+  km?: string;
   /** S7: "approved" | "declined" | "rejected", and "leave" | "RDO". */
   decision?: string;
   kind_word?: string;
