@@ -642,9 +642,12 @@ export async function POST(request: Request) {
   // Tom, 7 Oct 2026: cupboards start answered — kitchen / vanity / laundry No, robe doors Yes.
   merged.areas = applyCupboardDefaults(merged.areas as unknown as LooseRoomBlock[], new Set(ctx.rateItems.map((r) => r.code)), () => nextId++) as unknown as typeof merged.areas;
 
-  // The exterior loop's Condition & access card arrives PRE-ANSWERED from the
-  // wizard's own questions (cond + access; rot was never asked, so it stays
-  // the one open question on that card).
+  // The exterior loop's Condition & access card: the paintwork arrives
+  // pre-answered only when the wizard asked it (it does not on the drawn
+  // house); rot was never asked. Tom, 21 Oct (item 11): ACCESS IS ASKED in the
+  // editor — it used to arrive pre-answered "none" from About it's default, so
+  // the card settled after the rot and nobody was ever asked about access.
+  // The wizard's own access answer still prices its allowance in the tree.
   const ext = effectiveState.exterior;
   const sidesLoopSeed = (effectiveState.jobType !== "interior" && ext)
     ? {
@@ -652,7 +655,7 @@ export async function POST(request: Request) {
         cond: {
           cond: ext.condition ?? null,
           rot: null,
-          acc: ext.access.length > 0 ? ext.access[0] : "none" as const,
+          acc: null,
         },
         // A deck/fence/pergola ticked in the wizard already answers the
         // loop's "anything freestanding?" card.

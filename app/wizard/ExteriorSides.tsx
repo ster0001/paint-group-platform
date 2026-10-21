@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ExteriorV2 } from "@/lib/wizard/state";
 import { EXTERIOR_SIDE_KEYS, typicalFor, WALL_MATERIALS, type ExteriorSideKey, type ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import {
@@ -22,10 +22,11 @@ import { WALL_MATERIAL_LABEL } from "./ExteriorAbout";
  * and door counts for the side (Tom, 21 Oct: "+ and − per side" — they were
  * only on the walk-around). Sizes still come after the range (S5).
  *
- * Tom, 21 Oct: there is NO "Looks right — next side" tap. Looking at a side
- * (moving off it) ticks its tile; Continue stands for every painted side
- * (`confirmAllSides` in WizardApp). A side left not painting is not on the
- * estimate at all (Tom, 8 Sep).
+ * Tom, 21 Oct: there is NO "Looks right — next side" tap, and only the sides
+ * ticked on About it ("Which sides are we painting?") have a tile here.
+ * Looking at a side checks it (the tile ticks); Continue needs every ticked
+ * side looked at (WizardApp refuses in words otherwise). A side left not
+ * painting is not on the estimate at all (Tom, 8 Sep).
  */
 
 export const SIDE_LABEL: Record<ExteriorSideKey, string> = { front: "Front", right: "Right side", back: "Back", left: "Left side" };
@@ -64,25 +65,25 @@ export default function ExteriorSidesStep({ v2, rows = [], at, onAt, onChange }:
   const [addOpen, setAddOpen] = useState(false);
   const sd = v2.sides[at];
   const painted = paintedSides(v2);
-  // Moving off a side is looking at it: the tile ticks (no separate tap — Tom, 21 Oct).
-  const jump = (k: ExteriorSideKey) => {
-    setAddOpen(false);
-    if (k !== at && sd?.paint && !sd.confirmed) onChange(confirmSide(v2, at));
-    onAt(k);
-  };
+  const jump = (k: ExteriorSideKey) => { setAddOpen(false); onAt(k); };
+  // Looking at a side checks it; a side taken off (or never ticked) is never the one shown.
+  useEffect(() => {
+    if (!sd?.paint) { const first = painted[0]; if (first && first !== at) onAt(first); return; }
+    if (!sd.confirmed) onChange(confirmSide(v2, at));
+  }, [at, sd?.paint, sd?.confirmed]); // eslint-disable-line react-hooks/exhaustive-deps -- runs when the side shown changes or loses its tick
 
   return (
     <>
       <p className="wz-kick">Each side</p>
       <h1>Check each side of the house</h1>
-      <p className="wz-sub">We&rsquo;ve put what you ticked on every side. Tap a side to see it: untick anything that isn&rsquo;t there, add anything that is, count its windows and doors, and say if it&rsquo;s a different material. Then Continue.</p>
+      <p className="wz-sub">We&rsquo;ve put what you ticked on each side you&rsquo;re painting. Look at every side: untick anything that isn&rsquo;t there, add anything that is, count its windows and doors, and say if it&rsquo;s a different material. Then Continue.</p>
 
       <div className="wz-walk-steps" data-testid="ql-ext-sides">
-        {EXTERIOR_SIDE_KEYS.map((k, i) => {
+        {EXTERIOR_SIDE_KEYS.filter((k) => v2.sides[k]?.paint).map((k, i) => {
           const st = sideTileState(v2, k, at);
           return (
             <button key={k} type="button" data-state={st} aria-current={k === at ? "step" : undefined} data-testid={`ql-ext-side-${k}`} onClick={() => jump(k)}>
-              <span className="n">{st === "skip" ? "–" : st === "ok" ? "✓" : i + 1}</span>
+              <span className="n">{st === "ok" ? "✓" : i + 1}</span>
               <span className="l">{SIDE_LABEL[k].replace(" side", "")}</span>
             </button>
           );
@@ -116,7 +117,7 @@ export default function ExteriorSidesStep({ v2, rows = [], at, onAt, onChange }:
 
       {painted.length > 0 && (
         <p className="wz-chint" data-testid="ext-sides-progress" style={{ marginTop: 14 }}>
-          {painted.length} side{painted.length === 1 ? "" : "s"} being painted. Sizes come after your range — Continue when the sides look right.
+          {painted.filter((k) => v2.sides[k]?.confirmed).length} of {painted.length} side{painted.length === 1 ? "" : "s"} looked at. Sizes come after your range &mdash; Continue once you&rsquo;ve seen every side.
         </p>
       )}
     </>

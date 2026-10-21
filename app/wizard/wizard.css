@@ -2386,3 +2386,27 @@
 .wz .wz-ext-row .wz-tag { font-family: var(--wz-mono); font-size: 10.5px; letter-spacing: .08em; color: var(--cyan); margin-left: 6px; }
 .wz .wz-ext-notin { font-size: 12.5px; color: var(--muted); margin: 8px 0 14px; }
 .wz .wz-rv-pill--det { background: rgba(59,216,233,.12); color: #0A7C8E; border-color: rgba(59,216,233,.45); }
+
+/* ───── Tom, 21 Oct (exterior batch) ───── */
+/* 5 · "Would you rather talk it through?" floats bottom-right on every wizard page and stays put while scrolling. */
+.wz .wz-talk-body { display: grid; gap: 10px; }
+.wz .wz-talk-fab { display: none; }
+@media (min-width: 901px) {
+  .wz .wz-stage .wz-side .wz-talk { position: fixed; right: 20px; bottom: 20px; z-index: 45; width: 320px; margin: 0; box-shadow: 0 14px 36px -14px rgba(13,22,28,.4); }
+}
+@media (max-width: 900px) {
+  .wz .wz-stage .wz-side .wz-talk { position: fixed; right: 12px; bottom: 86px; z-index: 45; width: auto; margin: 0; padding: 0; background: none; border: 0; display: flex; justify-content: flex-end; order: 0; }
+  .wz .wz-talk-fab { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 100px; border: 1px solid var(--line); background: var(--panel); color: var(--heading); font-family: var(--wz-sans); font-size: 14px; font-weight: 600; box-shadow: 0 10px 28px -12px rgba(13,22,28,.5); cursor: pointer; }
+  .wz .wz-talk-body { display: none; }
+  .wz .wz-talk.open .wz-talk-body { display: grid; gap: 10px; position: absolute; right: 0; bottom: 54px; width: min(340px, calc(100vw - 24px)); padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 14px 36px -14px rgba(13,22,28,.4); }
+}
+/* 9 · "A few questions first" glows until it is answered. */
+@keyframes sd-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(59,216,233,0); } 50% { box-shadow: 0 0 0 5px rgba(59,216,233,.22), 0 0 26px rgba(59,216,233,.45); } }
+.wz .sd-card[data-side="cond"]:not(.done) { border-color: var(--cyan); animation: sd-glow 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .wz .sd-card[data-side="cond"]:not(.done) { animation: none; box-shadow: 0 0 0 4px rgba(59,216,233,.25); } }
+/* 10 · what each paintwork answer looks like. */
+.wz .sd-chip .sd-chip-art { display: block; width: 72px; height: 30px; margin: 0 auto 6px; border-radius: 6px; overflow: hidden; }
+/* 13 + 14 · the window sizes in words, and a visible way to add a different size. */
+.wz .sd-wseg .sd-whint { flex: 1 0 100%; font-style: normal; font-size: 10.5px; line-height: 1.35; color: var(--muted); }
+.wz .sd-addwin { margin-top: 8px; }
+

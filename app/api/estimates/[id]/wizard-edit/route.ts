@@ -1345,6 +1345,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return res.ok;
       };
       if (act.cond) {
+        // Tom, 21 Oct (item 7): the paintwork answer CLOSES the condition question.
+        // `conditionOpen` reads the wizard state's `exterior.condition`; without
+        // this the dear end kept the worst-case modifier after "Good overall",
+        // and the range stayed at the guide's width however many sides were confirmed.
+        const wizC = state.wizard as { state?: { exterior?: { condition?: string | null } | null } } | undefined;
+        if (wizC?.state?.exterior) wizC.state.exterior.condition = act.cond;
         const modSel = { ...((state.modSel as Record<string, string>) ?? {}) };
         const hasWeathered = ctxCond.modifiers.some((m) => m.code === WEATHERED_MODIFIER_CODE);
         const hasPoor = ctxCond.modifiers.some((m) => m.code === INTERIOR_POOR_MODIFIER_CODE);

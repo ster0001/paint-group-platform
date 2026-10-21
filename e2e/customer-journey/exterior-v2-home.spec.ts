@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { stepsFor } from "../../lib/wizard/quick-look";
 import { EXTERIOR_SHAPE_KEYS, scaledLengths, typicalFor } from "../../lib/wizard/exterior-typicals";
-import { fillQuickAddress, openQuickLook, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE } from "./drive";
+import { fillQuickAddress, openQuickLook, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide } from "./drive";
 
 /**
  * Exterior wizard v2 — S2: "What kind of home is it?" and the drawn house
@@ -168,15 +168,17 @@ test("the rest of the outside path still reaches a range, and the sides editor's
   await page.getByTestId("ql-ext-colour-new").click();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+  await lookAtEverySide(page);
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
-  // S5: Tighten opens the walk; the front's size is the drawn house's — 5 m across, 5.6 m high on a small
-  // townhouse — not the 12 × 2.6 the old scaffold assumed.
+  // 21 Oct: Tighten opens the customer editor; the front's size there is the drawn house's — 5 m across,
+  // 5.6 m high on a small townhouse — not the 12 × 2.6 the old scaffold assumed.
   await page.getByTestId("door-tighten").click();
   await passDetailsSheetIfShown(page);
-  await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
+  const front = page.locator('[data-side="front"]');
+  await front.locator(".sd-hd").click();
   const { frontM } = scaledLengths(typicalFor("th"), "sm");
-  await expect(page.getByTestId("ext-size-line")).toContainText(new RegExp(`${frontM} m across × ${typicalFor("th").wallHM} m high`));
-  await expect(page.getByTestId("ext-size-tag")).toContainText(/Typical for a townhouse/i);
+  await expect(front.getByTestId("side-assumed-front")).toContainText(new RegExp(`${frontM} m × ${typicalFor("th").wallHM} m`));
 });

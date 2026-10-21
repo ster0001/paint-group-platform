@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import type { ExteriorV2 } from "@/lib/wizard/state";
 import { typicalFor, WALL_MATERIALS, type ExteriorTypicalRow, type WallMaterial } from "@/lib/wizard/exterior-typicals";
+import { setSidePaint } from "@/lib/wizard/exterior-model";
+import { EXTERIOR_SIDE_KEYS } from "@/lib/wizard/exterior-typicals";
 import { anyBrick, anyVerticalTimber, EXTRA_LABEL } from "@/lib/wizard/exterior-model";
 import { EXT_ACCESS, EXT_COLOURS, EXT_WINDOW_TYPES, toggleAccess, type ExteriorAccessAnswer, type ExteriorColour } from "@/lib/wizard/exterior-quick-look";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
@@ -190,6 +192,25 @@ export default function ExteriorAboutStep({ v2, rows = [], colour, access, onCha
           )}
         </Card>
       )}
+
+      {/* Tom, 21 Oct (item 6): which sides, asked HERE — only the ticked sides appear on Each side. */}
+      <div data-testid="ext-about-sides" style={{ marginTop: 22 }}>
+        <p className="wz-qhead">Which sides are we painting?</p>
+        <p className="wz-chint" style={{ marginTop: 0 }}>Tick every side we&rsquo;re painting &mdash; you check each one next.{t.sharedSides.length ? " A shared wall starts unticked." : ""}</p>
+        <div className="wz-chips">
+          {EXTERIOR_SIDE_KEYS.map((k) => {
+            const sd = v2.sides[k];
+            const on = !!sd?.paint;
+            const label = k === "front" ? "Front" : k === "back" ? "Back" : k === "left" ? "Left side" : "Right side";
+            return (
+              <button key={k} type="button" className={`wz-tile ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ext-about-side-${k}`}
+                onClick={() => onChange(setSidePaint(v2, k, !on))}>
+                {label}{sd?.shared && <span className="wz-tilesub">usually a shared wall</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <p className="wz-qhead">Colours</p>
       <div className="wz-cards" data-testid="ql-ext-colour">

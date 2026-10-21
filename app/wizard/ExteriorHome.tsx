@@ -21,7 +21,7 @@ import { TypeThumb } from "./pictures/Elevation";
 
 /** The words on the cards — the mockup's; the sizes and shapes themselves are the typicals. */
 export const SHAPE_HINT: Record<ExteriorShapeKey, string> = {
-  wb: "Single storey, hipped roof, a porch",
+  wb: "Single storey, hipped roof",
   cal: "Gables, deep eaves, front verandah",
   brick: "Walls usually left bare",
   ds: "Two levels",
