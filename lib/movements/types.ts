@@ -98,6 +98,8 @@ export type MovementRow = {
   problem_note: string;
   painter_confirmed_at: string | null;
   source_changed_at: string | null;
+  /** How long the stop takes, minutes (an hour unless changed). */
+  duration_min: number;
   booked_at: string | null;
   done_at: string | null;
   created_at: string;

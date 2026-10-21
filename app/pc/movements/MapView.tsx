@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  kindLabel, mapPins, reorder, runPlan, shortDay,
+  chipPoint, kindLabel, mapPins, purposeOfChip, reorder, runPlan, shortDay, trayGroupOf,
   type ContextBlock, type JobPin, type MapBadge, type MovementLane, type RunPlanStop, type World,
 } from "@/lib/movements/evaluate";
+import RunPlanner, { nextStart, type PlanEntry } from "./RunPlanner";
 import type { JobExtras } from "@/lib/movements/load";
 import { KIND_ICONS, movementIcon } from "@/lib/movements/gearIcons";
 import type { EquipmentCategory, MovementRow, Point } from "@/lib/movements/types";
@@ -80,6 +81,48 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
   const [openPin, setOpenPin] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
 
+  // ---- the run planner (Tom, 21 Oct 2026): a draft in the browser until Publish ----------------
+  const personLanes = useMemo(() => lanes.filter((l) => l.kind !== "supplier"), [lanes]);
+  const [draft, setDraft] = useState<PlanEntry[]>([]);
+  const [planWho, setPlanWho] = useState<string | null>(null);
+  const planLane = personLanes.find((l) => l.id === planWho) ?? lane ?? personLanes.find((l) => l.kind === "staff") ?? personLanes[0] ?? null;
+  const painterName = (contractorId: string | null) => world.painters.find((p) => p.contractorId === contractorId)?.name ?? null;
+  const jobWords = (jobId: string | null) => { const j = world.jobs.find((x) => x.id === jobId); return j ? { label: j.address.split(",")[0] || j.jobRef, sub: [j.jobRef, j.suburb].filter(Boolean).join(" · ") } : { label: "Warehouse", sub: "" }; };
+  const addChip = (m: MovementRow) => {
+    if (!planLane) return;
+    setDraft((cur) => {
+      if (cur.some((e) => e.movementId === m.id)) return cur;
+      const w = jobWords(m.work_order_id);
+      const entry: PlanEntry = {
+        key: `chip:${m.id}`, movementId: m.id, workOrderId: m.work_order_id, purpose: purposeOfChip(m), chipLabel: kindLabel(m),
+        label: `${w.label} · ${m.title}`, sub: w.sub, point: chipPoint(m, world), time: nextStart(world, planLane.id, day, ctx, cur, 60), durationMin: 60,
+      };
+      return [...cur, entry];
+    });
+  };
+  const addJob = (jobId: string) => {
+    if (!planLane) return;
+    const need = pins.jobs.find((p) => p.job.id === jobId)?.needs.find((m) => m.status === "tray");
+    if (need) { addChip(need); return; }
+    setDraft((cur) => {
+      const w = jobWords(jobId);
+      const key = `job:${jobId}:${cur.length}`;
+      const job = world.jobs.find((j) => j.id === jobId);
+      const point = pins.jobs.find((p) => p.job.id === jobId)?.point ?? (job ? chipPoint({ work_order_id: jobId } as MovementRow, world) : null);
+      return [...cur, { key, movementId: null, workOrderId: jobId, purpose: null, chipLabel: null, label: w.label, sub: w.sub, point, time: nextStart(world, planLane.id, day, ctx, cur, 60), durationMin: 60 }];
+    });
+  };
+  const dropHint = (e: React.DragEvent) => {
+    const data = e.dataTransfer.getData("text/plain");
+    if (data.startsWith("chip:")) { const m = world.movements.find((x) => x.id === data.slice(5)); if (m) addChip(m); }
+    else if (data.startsWith("job:")) addJob(data.slice(4));
+  };
+  // The tray beside the map: every chip still to plan on a dated job, grouped by job (ask 8).
+  const toPlan = useMemo(() => world.movements
+    .filter((m) => m.status === "tray" && (!m.work_order_id || world.jobs.find((j) => j.id === m.work_order_id)?.startDate))
+    .map((m) => ({ m, g: trayGroupOf(world, m, painterName) }))
+    .sort((a, b) => a.g.title.localeCompare(b.g.title) || a.m.created_at.localeCompare(b.m.created_at)), [world]); // eslint-disable-line react-hooks/exhaustive-deps -- painterName reads world only
+
   // ---- the map itself ------------------------------------------------------------------------
   const key = mapsBrowserKey();
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -153,10 +196,20 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
     map.fitBounds(b, 48);
   }, [pins, state]);
 
-  // The route line (flag 7: straight lines, dashed, the lane's colour), only while toggled on.
+  // The route line (flag 7: straight lines, dashed, the lane's colour), only while toggled on —
+  // and the DRAFT run (solid, the planner's lane colour) whenever the plan has a stop with a point.
   useEffect(() => {
     const map = mapRef.current, lib = libRef.current;
     if (!map || !lib || state.kind !== "ready") return;
+    const pts = draft.flatMap((e) => (e.point ? [e.point] : []));
+    if (pts.length > 0 && planLane) {
+      const wh = pins.warehouse?.point;
+      const path = wh ? [wh, ...pts, wh] : pts;
+      const opts: google.maps.PolylineOptions = { path, map, strokeColor: planLane.colour, strokeOpacity: 0.9, strokeWeight: 3, clickable: false, icons: [] };
+      if (lineRef.current) lineRef.current.setOptions(opts); else lineRef.current = new lib.Polyline(opts);
+      lineRef.current.setMap(map);
+      return;
+    }
     if (!route || pins.route.length < 2 || !lane) { lineRef.current?.setMap(null); return; }
     const opts: google.maps.PolylineOptions = {
       path: pins.route, map, strokeColor: lane.colour, strokeOpacity: 0, strokeWeight: 2, clickable: false,
@@ -165,7 +218,7 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
     if (lineRef.current) lineRef.current.setOptions(opts);
     else lineRef.current = new lib.Polyline(opts);
     lineRef.current.setMap(map);
-  }, [route, pins, lane, state]);
+  }, [route, pins, lane, state, draft, planLane]);
 
   // Flag 3, lazily: the jobs of the week with no real point get one from the Places key, once.
   const geocoded = useRef(false);
@@ -267,12 +320,14 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
       {pins.jobs.map((p) => { const at = place(p.point); if (!at) return null; const first = p.needs[0]; const open = openPin === p.job.id; return (
         <div key={`job:${p.job.id}`} className={`mpin job ${p.fill}${open ? " open" : ""}`} style={at} data-testid="map-job" data-job-id={p.job.id} data-fill={p.fill} data-need={p.need ?? ""} data-point={jobExtras[p.job.id]?.pointSource ?? "none"} data-open={open ? "true" : "false"}>
           <button type="button" className="ibox" style={{ background: FILL[p.fill] }} aria-label={`${p.label} — ${p.line}`} aria-expanded={open}
+            draggable onDragStart={(e) => { e.dataTransfer.setData("text/plain", `job:${p.job.id}`); e.dataTransfer.effectAllowed = "copy"; }}
             onClick={() => setOpenPin((cur) => (cur === p.job.id ? null : p.job.id))}>
             {first ? movementIcon(first, categoryOf(first)) : HOUSE}
           </button>
           <div className="mpop" data-testid="map-pop">
             <b>{p.label}</b><small>{p.job.suburb ? `${p.job.suburb} · ` : ""}{p.job.jobRef}</small><small className="ln">{p.line}</small>
             {first && <button type="button" className="mopen" onClick={() => { setOpenPin(null); onOpen(first); }} data-testid="map-pop-open">Open {kindLabel(first).toLowerCase()}</button>}
+            <button type="button" className="mopen plan" onClick={() => { setOpenPin(null); addJob(p.job.id); }} data-testid="map-pop-plan">+ Add to run</button>
           </div>
           {badges(p.badges, colour)}
         </div>
@@ -338,10 +393,27 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
           {state.kind === "failed" && <p className="mapnote bad" role="alert">{state.why}</p>}
           {pinNodes}
         </div>
-        <p className="note">Only the active jobs: on site, in the finish, or closed with gear still there (a closed job leaves a week after it is paid). Each is one icon — amber with a paint / materials / gear / rubbish icon when it still needs something. Hover or tap an icon for the address; the amber ones open their chip from there. Numbers are {lane ? `${first}'s` : "the selected person's"} order for the day.</p>
+        <p className="note">Only the active jobs: on site, in the finish, or closed with gear still there (a closed job leaves a week after it is paid). Each is one icon — amber with a paint / materials / gear / rubbish icon when it still needs something. Hover or tap an icon for the address; the amber ones open their chip from there, and <b>+ Add to run</b> puts the job on the run plan (drag the icon into the plan box does the same). Numbers are {lane ? `${first}'s` : "the selected person's"} order for the day.</p>
+        <div className="card totray" data-testid="map-tray">
+          <h3>Still to plan <em>{toPlan.length} chip{toPlan.length === 1 ? "" : "s"} in the tray</em></h3>
+          <p className="note">Everything outstanding, by job. Tap + or drag a chip into the run plan.</p>
+          <div className="trows">
+            {toPlan.length === 0 && <p className="note">The tray is empty — every chip has a person and a day.</p>}
+            {toPlan.map(({ m, g }) => (
+              <div key={m.id} className="trow" draggable data-testid="map-tray-chip" data-movement-id={m.id}
+                onDragStart={(e) => { e.dataTransfer.setData("text/plain", `chip:${m.id}`); e.dataTransfer.effectAllowed = "copy"; }}>
+                <span className="ic">{movementIcon(m, categoryOf(m))}</span>
+                <span className="tb"><b>{m.title}</b><small>{kindLabel(m)} · {g.title}{g.sub ? ` · ${g.sub}` : ""}</small></span>
+                <button type="button" className="btn sm" disabled={busy || draft.some((e) => e.movementId === m.id)} onClick={() => addChip(m)} data-testid="map-tray-add">{draft.some((e) => e.movementId === m.id) ? "In the plan" : "+ Add"}</button>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="side">
+        <RunPlanner world={world} lanes={lanes} lane={planLane} onLane={setPlanWho} day={day} blocks={ctx} entries={draft} setEntries={setDraft} act={act} busy={busy}
+          onPublished={() => { if (planLane) onPick({ who: planLane.id }); }} dropHint={dropHint} />
         <div className="card" data-testid="order-card">
           <h3>{lane ? `${lane.name} · ${shortDay(day)}` : `${shortDay(day)}`}<em data-testid="order-summary">{lane && plan ? `${plan.stopCount} stop${plan.stopCount === 1 ? "" : "s"} · ${plan.totalKm.toFixed(0)} km · drag to reorder` : "no stops"}</em></h3>
           <div className="orderlist" ref={listRef} data-testid="order-list">

@@ -864,14 +864,20 @@ export function trayGroupOf(world: World, chip: MovementRow, painterName: (contr
   if (!job) return { key: "warehouse", job: null, title: world.settings.warehouse.label || "Warehouse", sub: "no job", closed: false };
   const painter = painterName(job.contractorId);
   const closed = job.stage === "closed";
-  const dates = job.startDate ? `${shortDay(job.startDate)}–${job.endDate ? shortDay(job.endDate) : "?"}` : "no dates";
+  const dates = job.startDate ? `${shortDate(job.startDate)}–${job.endDate ? shortDate(job.endDate) : "?"}` : "no dates";
   return {
     key: job.id, job, title: job.address.split(",").slice(0, 2).join(",") || job.title,
-    sub: `${painter ? `${painter.split(" ")[0]} · ` : ""}${closed ? `closed${job.endDate ? ` ${shortDay(job.endDate)}` : ""}` : dates}`, closed,
+    sub: `${painter ? `${painter.split(" ")[0]} · ` : ""}${closed ? `closed${job.endDate ? ` ${shortDate(job.endDate)}` : ""}` : dates}`, closed,
   };
 }
 
 const SHORT_DAY = new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", timeZone: "UTC" });
+const SHORT_DATE = new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+/** "Mon 27 Oct" — Tom, 21 Oct 2026: the tray says the month too. */
+export function shortDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? iso : SHORT_DATE.format(d).replace(/,/g, "");
+}
 /** "Mon 19" — a date as the board's header says it. */
 export function shortDay(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -885,5 +891,68 @@ export function chipFilterKind(m: Pick<MovementRow, "kind">): "paint" | "materia
     case "materials": case "restock": return "materials";
     case "rubbish_in": case "rubbish_out": return "rubbish";
     default: return "gear";
+  }
+}
+
+// ---- the run planner on the Map (Tom, 21 Oct 2026) ------------------------------------------
+
+/** "HH:MM" + minutes → "HH:MM", capped at 23:59. */
+export function addMinutes(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = Math.min(23 * 60 + 59, Math.max(0, h * 60 + m + minutes));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+const minutesOf = (t: string): number => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+
+export const RUN_START = "07:30";
+export const RUN_STEP_MINUTES = 15;
+
+/** What a person is already held by on a day: fixed appointments with a time (an hour when no end is known) and their placed movements. */
+export function busyOn(world: World, laneId: string, day: string, blocks: readonly ContextBlock[] = contextBlocks(world)): { from: string; to: string; label: string }[] {
+  const out: { from: string; to: string; label: string }[] = [];
+  for (const b of context(world, laneId, day, blocks)) {
+    if (b.kind === "job" || b.kind === "leave" || !b.time) continue;
+    out.push({ from: b.time, to: b.endTime ?? addMinutes(b.time, 60), label: b.label });
+  }
+  for (const m of world.movements) {
+    if (m.due_date !== day || m.assignee_kind !== "person" || m.assignee_id !== laneId || m.status === "tray" || m.status === "cancelled") continue;
+    const t = movementTime(m, world.settings);
+    out.push({ from: t, to: addMinutes(t, m.duration_min ?? 60), label: m.title });
+  }
+  return out.sort((a, b) => a.from.localeCompare(b.from));
+}
+
+/**
+ * The first start from `from` where a stop of `durationMin` fits beside what the person
+ * already has (and the stops already in the draft plan): 07:30 for the first stop unless an
+ * appointment holds that time, then the next free quarter hour.
+ */
+export function firstFreeTime(busy: readonly { from: string; to: string }[], from: string, durationMin: number): string {
+  let t = from;
+  for (let guard = 0; guard < 96; guard++) {
+    const end = addMinutes(t, durationMin);
+    const clash = busy.find((b) => minutesOf(b.from) < minutesOf(end) && minutesOf(b.to) > minutesOf(t));
+    if (!clash) return t;
+    const next = minutesOf(clash.to);
+    const rounded = Math.ceil(next / RUN_STEP_MINUTES) * RUN_STEP_MINUTES;
+    t = addMinutes("00:00", Math.max(rounded, minutesOf(t) + RUN_STEP_MINUTES));
+  }
+  return t;
+}
+
+export const RUN_PURPOSES = ["collect_materials", "quality_check", "site_checkin", "rubbish_collection", "drop_materials", "drop_paint"] as const;
+export type RunPurpose = (typeof RUN_PURPOSES)[number];
+export const RUN_PURPOSE_LABEL: Record<RunPurpose, string> = {
+  collect_materials: "Collect materials", quality_check: "Quality check", site_checkin: "Site check-in",
+  rubbish_collection: "Rubbish collection", drop_materials: "Drop off materials", drop_paint: "Drop off paint",
+};
+
+/** The purpose a tray chip stands for on the run (the words on the row). */
+export function purposeOfChip(m: Pick<MovementRow, "kind" | "method_pref">): RunPurpose {
+  switch (m.kind) {
+    case "paint": return "drop_paint";
+    case "materials": case "restock": return m.method_pref === "pickup" ? "collect_materials" : "drop_materials";
+    case "rubbish_in": case "rubbish_out": return "rubbish_collection";
+    default: return "drop_materials";
   }
 }

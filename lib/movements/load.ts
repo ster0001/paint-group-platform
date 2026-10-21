@@ -71,7 +71,7 @@ type WoRow = {
 
 const MOVEMENT_COLUMNS = "id, work_order_id, kind, source_key, title, detail, assignee_kind, assignee_table, assignee_id, due_date, half, time, sequence, "
   + "from_kind, from_branch_id, from_text, to_kind, to_branch_id, to_text, status, ordered_at, client_notice, order_ref, lines, planned_for_start, return_due, "
-  + "blocked_by_movement_id, expected_cost_cents, note, problem_note, painter_confirmed_at, source_changed_at, booked_at, done_at, created_at, updated_at, method_pref";
+  + "blocked_by_movement_id, expected_cost_cents, note, problem_note, painter_confirmed_at, source_changed_at, booked_at, done_at, created_at, updated_at, method_pref, duration_min";
 
 type RawMovement = Omit<MovementRow, "items">;
 

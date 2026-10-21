@@ -396,7 +396,7 @@ function asRow(c: NewChip): MovementRow {
     id: `new:${c.source_key}`, work_order_id: c.work_order_id, kind: c.kind, source_key: c.source_key, title: c.title, detail: c.detail,
     assignee_kind: null, assignee_table: null, assignee_id: null, due_date: c.due_date, half: null, time: null, sequence: null,
     from_kind: c.from_kind, from_branch_id: c.from_branch_id, from_text: c.from_text, to_kind: c.to_kind, to_branch_id: c.to_branch_id, to_text: c.to_text,
-    status: "tray", ordered_at: null, method_pref: null, client_notice: false, order_ref: c.order_ref, lines: null, planned_for_start: null, return_due: null,
+    status: "tray", ordered_at: null, method_pref: null, duration_min: 60, client_notice: false, order_ref: c.order_ref, lines: null, planned_for_start: null, return_due: null,
     blocked_by_movement_id: null, expected_cost_cents: null, note: "", problem_note: "", painter_confirmed_at: null, source_changed_at: null,
     booked_at: null, done_at: null, created_at: "", updated_at: "", items: c.items?.map((i) => ({ movement_id: `new:${c.source_key}`, ...i })) ?? [],
   };

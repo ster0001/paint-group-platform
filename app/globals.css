@@ -87,3 +87,25 @@ body {
   color: #9ca3af;
   pointer-events: none;
 }
+
+/* Tom, 21 Oct 2026: materials as bubbles — one per order line, tap to edit, × removes, an item
+   inside a multi-item bubble has its own × that splits it into its own order. Shared by the
+   job page, the Sources view and the chip sheet (movements.css inherits these under .mvx). */
+.bubbles { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.bubble { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; border: 1px solid var(--line, #d1d5db); border-radius: 999px; background: var(--graphite, #f3f4f6); padding: 4px 6px 4px 11px; font-size: 13px; color: var(--text); }
+.bubble .words { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: text; display: inline-flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.bubble .words:disabled { cursor: default; }
+.bubble .item { display: inline-flex; align-items: center; gap: 3px; }
+.bubble .item::after { content: ","; color: var(--muted); }
+.bubble .item:last-child::after { content: ""; }
+.bubble .ix { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; font-size: 11px; line-height: 1; color: var(--muted); border: 1px solid var(--line); cursor: pointer; }
+.bubble .ix:hover { color: var(--clay); border-color: var(--clay); }
+.bubble small { color: var(--muted); font-size: 10.5px; white-space: nowrap; }
+.bubble .x { width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--ink); color: var(--muted); font-size: 14px; line-height: 1; display: grid; place-items: center; cursor: pointer; }
+.bubble .x:hover:not(:disabled) { color: var(--clay); }
+.bubble .x:disabled { opacity: .4; cursor: default; }
+.bubble.locked { border-style: dashed; }
+.bubble.editing { padding: 2px 4px; }
+.bubble.editing input { border: 0; background: transparent; color: inherit; font: inherit; padding: 2px 6px; min-width: 240px; outline: none; }
+.bubbles-input .addrow { display: flex; gap: 6px; margin-top: 4px; }
+.bubbles-input .addrow input { flex: 1; }

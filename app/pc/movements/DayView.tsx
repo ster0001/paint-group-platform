@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  chipFilterKind, chipState, isSkip, kindLabel, needsOrder, reorder, runPlan, shortDay,
+  addMinutes, chipFilterKind, chipState, isSkip, kindLabel, needsOrder, reorder, runPlan, shortDay,
   type ContextBlock, type MovementLane, type RunPlanStop, type World,
 } from "@/lib/movements/evaluate";
 import { movementIcon } from "@/lib/movements/gearIcons";
@@ -98,7 +98,7 @@ export default function DayView({ world, ctx, lanes, days, day, who, onPick, act
     const at = ids.indexOf(m.id);
     return (
       <div key={m.id} className="stop" style={{ ["--pc" as string]: lane?.colour } as React.CSSProperties} data-testid="run-stop" data-movement-id={m.id} data-n={s.n ?? undefined}>
-        <span className="t">{s.time}</span>
+        <span className="t">{s.time}<br /><small>–{addMinutes(s.time, m.duration_min ?? 60)}</small></span>
         <span className={`n${done ? " done" : ""}`} data-testid="run-stop-n">{done ? "✓" : s.n}</span>
         <div className="bx">
           <button type="button" className="bxb" onClick={() => onOpen(m)}>
