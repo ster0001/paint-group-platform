@@ -49,7 +49,7 @@ function whereOf(m: MovementRow, world: World, lane: MovementLane): string {
   const branch = world.branches.find((b) => b.id === (m.from_branch_id ?? m.to_branch_id));
   const shop = branch ? `${branch.brand} ${branch.branch}` : null;
   if (m.kind === "equipment_return" || m.kind === "hire_off" || m.kind === "repair_back") return `${site} → warehouse`;
-  if (m.kind === "rubbish_out") return m.to_kind === "tip" ? `${site} → the tip` : m.to_kind === "warehouse" ? `${site} → warehouse` : site;
+  if (m.kind === "rubbish_out") return m.detail?.startsWith("collected on the run") ? `${site} · rubbish in the car` : m.to_kind === "tip" ? `${site} → the tip` : m.to_kind === "warehouse" ? `${site} → warehouse` : site;
   if (m.from_kind === "branch" && shop && lane.kind !== "supplier") return `${shop} → ${site}`;
   if (m.from_kind === "warehouse") return `warehouse → ${site}`;
   return shop ? `${shop} → ${site}` : site;
@@ -94,7 +94,7 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
       if (cur.some((e) => e.movementId === m.id)) return cur;
       const w = jobWords(m.work_order_id);
       const entry: PlanEntry = {
-        key: `chip:${m.id}`, movementId: m.id, workOrderId: m.work_order_id, purpose: purposeOfChip(m), chipLabel: kindLabel(m),
+        key: `chip:${m.id}`, movementId: m.id, chipId: m.id, chipPurpose: purposeOfChip(m), workOrderId: m.work_order_id, purpose: purposeOfChip(m), chipLabel: kindLabel(m),
         label: `${w.label} · ${m.title}`, sub: w.sub, point: chipPoint(m, world), time: nextStart(world, planLane.id, day, ctx, cur, 60), durationMin: 60,
       };
       return [...cur, entry];
@@ -109,7 +109,7 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
       const key = `job:${jobId}:${cur.length}`;
       const job = world.jobs.find((j) => j.id === jobId);
       const point = pins.jobs.find((p) => p.job.id === jobId)?.point ?? (job ? chipPoint({ work_order_id: jobId } as MovementRow, world) : null);
-      return [...cur, { key, movementId: null, workOrderId: jobId, purpose: null, chipLabel: null, label: w.label, sub: w.sub, point, time: nextStart(world, planLane.id, day, ctx, cur, 60), durationMin: 60 }];
+      return [...cur, { key, movementId: null, chipId: null, chipPurpose: null, workOrderId: jobId, purpose: null, chipLabel: null, label: w.label, sub: w.sub, point, time: nextStart(world, planLane.id, day, ctx, cur, 60), durationMin: 60 }];
     });
   };
   const dropHint = (e: React.DragEvent) => {
@@ -413,7 +413,8 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
 
       <div className="side">
         <RunPlanner world={world} lanes={lanes} lane={planLane} onLane={setPlanWho} day={day} blocks={ctx} entries={draft} setEntries={setDraft} act={act} busy={busy}
-          onPublished={() => { if (planLane) onPick({ who: planLane.id }); }} dropHint={dropHint} />
+          onPublished={() => { if (planLane) onPick({ who: planLane.id }); }} dropHint={dropHint}
+          onOpenChip={(id) => { const m = world.movements.find((x) => x.id === id); if (m) onOpen(m); }} />
         <div className="card" data-testid="order-card">
           <h3>{lane ? `${lane.name} · ${shortDay(day)}` : `${shortDay(day)}`}<em data-testid="order-summary">{lane && plan ? `${plan.stopCount} stop${plan.stopCount === 1 ? "" : "s"} · ${plan.totalKm.toFixed(0)} km · drag to reorder` : "no stops"}</em></h3>
           <div className="orderlist" ref={listRef} data-testid="order-list">

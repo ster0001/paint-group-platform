@@ -30,7 +30,7 @@ function whereOf(m: MovementRow, world: World): string {
   const branch = world.branches.find((b) => b.id === (m.from_branch_id ?? m.to_branch_id));
   const shop = branch ? `${branch.brand} ${branch.branch}` : null;
   if (m.kind === "equipment_return" || m.kind === "hire_off" || m.kind === "repair_back") return `${site} → warehouse`;
-  if (m.kind === "rubbish_out") return m.to_kind === "tip" ? `${site} → the tip` : m.to_kind === "warehouse" ? `${site} → warehouse` : site;
+  if (m.kind === "rubbish_out") return m.detail?.startsWith("collected on the run") ? `${site} · rubbish in the car` : m.to_kind === "tip" ? `${site} → the tip` : m.to_kind === "warehouse" ? `${site} → warehouse` : site;
   if (m.assignee_kind === "person" && m.from_kind === "branch" && shop) return `${shop} → ${site}`;
   if (m.assignee_kind === "person" && m.from_kind === "warehouse") return `warehouse → ${site}`;
   return shop ? `${shop} → ${site}` : site;

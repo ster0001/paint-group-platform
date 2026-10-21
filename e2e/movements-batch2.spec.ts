@@ -166,6 +166,22 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
     expect(await rpcAs(staff!, "movement_unplace", { p_id: tapes.id })).toMatch(/^ok/);
   });
 
+  test("publish: a rubbish chip on an office run is a collection — in the car until the warehouse, no tip, no warehouse trip", async () => {
+    const rubbish = (await chips()).find((r) => r.source_key === "rubbish")!;
+    expect(rubbish, "the rubbish question from the sync").toBeTruthy();
+    expect(await rpcAs(staff!, "movement_publish_run", {
+      p_person_kind: "profiles", p_person_id: staffProfileId, p_day: WED, p_stops: [{ movement_id: rubbish.id, purpose: "rubbish_collection", time: "14:00", duration_min: 30 }],
+    })).toBe("ok:1");
+    const { data: after } = await db!.from("movements").select("title, detail, to_kind, status, assignee_id, due_date").eq("id", rubbish.id).single();
+    const r = after as Row;
+    expect(r.title).toBe("Rubbish — collected on the run");
+    expect(r.to_kind).toBe("warehouse");
+    expect(String(r.detail)).toContain("stays in the car");
+    expect(r.assignee_id).toBe(staffProfileId);
+    expect(r.due_date).toBe(WED);
+    expect(await rpcAs(staff!, "movement_unplace", { p_id: rubbish.id })).toMatch(/^ok/);
+  });
+
   test("in the browser: the job page card past pre-start with bubbles; the Map planner publishes a chip at 07:30; the builder makes a bubble", async ({ page }) => {
     const { error } = await db!.from("work_orders").update({ stage: "in_progress" }).eq("id", job!.workOrderId);
     if (error) throw new Error(error.message);
@@ -194,6 +210,13 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
     const row = page.getByTestId("run-plan-row");
     await expect(row).toHaveCount(1);
     await expect(row.getByTestId("run-plan-time")).toHaveValue("07:30");
+    // Tom: the reason is the office's — another reason makes a new chip; the chip's own keeps it.
+    await expect(row.getByTestId("run-plan-purpose")).toHaveValue("drop_materials");
+    await row.getByTestId("run-plan-purpose").selectOption("site_checkin");
+    await expect(row.getByTestId("run-plan-new-chip")).toBeVisible();
+    await row.getByTestId("run-plan-purpose").selectOption("drop_materials");
+    await expect(row.getByTestId("run-plan-new-chip")).toHaveCount(0);
+    await expect(row.getByTestId("run-plan-open")).toBeVisible();
     await expect(row.getByTestId("run-plan-end")).toContainText("08:30");
     await row.getByTestId("run-plan-duration").selectOption("30");
     await expect(row.getByTestId("run-plan-end")).toContainText("08:00");

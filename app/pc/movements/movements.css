@@ -461,3 +461,4 @@
 .mvx .trow .tb b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mvx .trow .tb small { display: block; color: var(--muted); font-size: 10.5px; }
 .mvx .mpin .mpop .mopen.plan { margin-left: 6px; border-color: #5B4FD6; color: #5B4FD6; }
+.mvx .prow small.warn { color: var(--amber); }
