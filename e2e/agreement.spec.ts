@@ -143,7 +143,7 @@ test.describe("subcontractor agreement — read, sign, keep", () => {
     expect(a.status).toBe("signed");
     expect(a.source).toBe("portal");
     expect(a.version).toBeGreaterThanOrEqual(1);   // the current version (v2 since 21 Oct)
-    const currentVersion = a.version;
+    currentVersion = a.version;
     expect(a.signed_name).toBe(painter.name);
     expect(a.merged["contractor.abn"]).toBe("51 824 753 556");
     expect(a.merged["contractor.company_name"]).toBe(PROFILE.company_name);
@@ -195,11 +195,11 @@ test.describe("subcontractor agreement — read, sign, keep", () => {
   });
 
   test("a second tap cannot create a second row", async () => {
-    const again = await rpcAsJson<{ status: string; id: string }>(painter, "agreement_sign", {
+    const again = await rpcAsJson<{ status: string; id: string; reason?: string }>(painter, "agreement_sign", {
       p_version: currentVersion, p_signed_name: painter.name, p_signature_path: `${painter.contractorId}/agreements/signature-00000000-0000-4000-8000-000000000000.png`,
       p_ip: "203.0.113.9", p_user_agent: "spec", p_body_sha256: "ab".repeat(32),
     });
-    expect(again.status).toBe("exists");
+    expect(again.status, JSON.stringify(again)).toBe("exists");
     expect(again.id).toBe(agreementId);
     expect(await signedRows()).toHaveLength(1);
     // The PDF is attached exactly once.
