@@ -10,8 +10,9 @@ import {
  *
  *   · the painter finishes their own job — the SERVER routes it to quality
  *     check (new/flagged contractor) or completion prep, never their choice;
- *   · the final walkthrough cannot be booked while a check is unpassed;
- *   · pass the checks and the booking opens.
+ *   · the final walkthrough is booked whether or not a check has passed
+ *     (Tom, 21 Oct 2026 — until 20270284 a FIRST final answered qa_first);
+ *   · pass the checks and the pack goes out from the qa stage.
  *
  * A check is only scheduled on finish when the product says one is due
  * (`wo_schedule_qa`, 20270228): a "new" painter gets one while their closed
@@ -74,18 +75,21 @@ test.describe("QA ruling — finish, route, gate", () => {
     expect(r).toBe("ok:qa");
   });
 
-  test("no final sign-off date while a check is unpassed", async () => {
+  test("the final sign-off date is booked while a check is unpassed (Tom, 21 Oct 2026)", async () => {
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
     const r = await rpcAs(staff!, "wo_book_walkthrough",
       { p_work_order_id: fixture!.workOrderId, p_kind: "final", p_date: today, p_note: "" });
-    expect(r).toBe("error:qa_first");
-    // A pre-walkthrough is still allowed — the gate is on the SIGN-OFF date.
+    expect(r).toMatch(/^ok:/);
+    // The check is untouched by the booking: still open, still the office's.
+    const { data: open } = await db!.rpc("wo_qa_open_count", { p_work_order_id: fixture!.workOrderId });
+    expect(Number(open)).toBe(1);
+    // A pre-walkthrough too.
     const pre = await rpcAs(staff!, "wo_book_walkthrough",
       { p_work_order_id: fixture!.workOrderId, p_kind: "pre", p_date: today, p_note: "" });
     expect(pre).toMatch(/^ok:/);
   });
 
-  test("passing the checks opens the booking", async () => {
+  test("passing the checks: the final rebooks and the pack goes out from qa", async () => {
     const { data: checks } = await db!.from("wo_qa_checks")
       .select("id").eq("work_order_id", fixture!.workOrderId);
     for (const c of (checks ?? []) as { id: string }[]) {

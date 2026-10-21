@@ -57,7 +57,7 @@ Each area of the scope ends with **Materials for this area · estimate**: the pa
 8b. If the office visits the job and wants you to know something, their note arrives as a message from the office in the job's **Messages** box (to the lead painter), with any photos — tap one to open it full size, and reply there. See `docs/help/painter-messages/employee.md`.
 
 ### The quality check
-9. If the office has scheduled a quality check, the job waits at **Quality check** and the page says so. If areas come back to put right, they are listed on the job with the inspector's notes and photos and reappear on your tick list; tick each one off once it is done and the check runs again.
+9. If the office has scheduled a quality check, the job sits at **Quality check** and the page says so — but the check does not hold the walkthrough up (since 21 Oct 2026): the lead painter's page still carries **Start the walkthrough**, and the office does its check in its own time. If areas come back to put right, they are listed on the job with the inspector's notes and photos and reappear on your tick list; tick each one off once it is done and the check runs again.
 
 ### Walkthrough and sign-off on your phone
 10. At **Walkthrough**, the lead painter's page carries **Start the walkthrough**. Any painter on the job can run it: walk the customer through each area, they approve or mark anything to fix, and sign on your phone. The job closes and the page reads **Job complete**.
@@ -68,7 +68,7 @@ If the office has switched it on for you, the **All surfaces done** card asks fo
 ## What the colours and labels mean
 - **🔒 Locked until Step 1** — the scope cannot be ticked until the job's before photos are uploaded.
 - **Cyan PREPPED / green DONE** — a surface's live state, shared by everyone on the job.
-- **Quality check** notice — the office is checking; the walkthrough opens when it passes.
+- **Quality check** notice — the office still has a check to do; the walkthrough can go ahead regardless.
 - **Job complete** — signed off and closed.
 
 ## If something goes wrong

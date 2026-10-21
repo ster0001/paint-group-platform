@@ -14,11 +14,18 @@ import { startWalkthroughMode } from "./tickActions";
  * the customer's behalf — the phone changes hands, not the signature.
  */
 export default function WalkthroughStart({
-  workOrderId, finalDate,
+  workOrderId, finalDate, qaOpen = false,
 }: {
   workOrderId: string;
   /** The booked final, if any — shown so the painter knows the plan. */
   finalDate: string | null;
+  /**
+   * Tom, 21 Oct 2026: the job is parked at Quality check and the check has not
+   * passed. The walkthrough goes ahead anyway — the server delivers the pack on
+   * the way (wo_start_walkthrough_mode, 20270284) and the office logs the check
+   * in its own time.
+   */
+  qaOpen?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -44,6 +51,7 @@ export default function WalkthroughStart({
           : "No date booked — start it whenever the customer is with you."}{" "}
         Walk the job with the customer on your phone: they approve each area and
         sign with their own name, right there.
+        {qaOpen && " Paint Group's quality check is still to come — it doesn't hold the walkthrough up."}
       </p>
       {message && <p className="tick-msg" role="status" data-testid="walkthrough-start-msg">{message}</p>}
       <button type="button" className="btn" disabled={busy} onClick={() => void start()}

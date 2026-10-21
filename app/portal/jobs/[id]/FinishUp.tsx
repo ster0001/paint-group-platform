@@ -66,7 +66,7 @@ export default function FinishUp({ workOrderId, flaggedAreas = [], hoursAsk = nu
     setBusy(false);
     if (!r.ok) { setMessage(r.message); return; }
     setMessage((r.to === "qa"
-      ? "Nice work. Paint Group will quality check the job now — the sign-off date gets booked with the customer once it passes."
+      ? "Nice work. Paint Group still has a quality check to do on this job — it doesn't hold you up: start the walkthrough from the bar at the top whenever the customer is with you."
       : r.to === "closed"
         ? "Nice work — no walkthrough on this job, so it's complete. Paint Group will invoice the customer."
         : "Nice work — the customer has their pack, and the walkthrough is next.") + (hoursNote ? ` ${hoursNote}` : ""));
@@ -80,7 +80,7 @@ export default function FinishUp({ workOrderId, flaggedAreas = [], hoursAsk = nu
       <p className="hint" style={{ padding: 0, marginTop: 6 }}>
         {rectified
           ? `The customer flagged ${flaggedAreas.join(", ")} at their walkthrough. With those put right and ticked, this completes the job and sends them the completion report — what they flagged and what was done — with no second walkthrough.`
-          : "Work through the finishing-up list above, then send the job on — if a quality check is due it happens before the customer walkthrough is booked."}
+          : "Work through the finishing-up list above, then send the job on. If a quality check is due the office does it in its own time — it never holds the walkthrough up."}
       </p>
       {hoursAsk && (
         <div className="hours-ask" data-testid="hours-ask" style={{ marginTop: 10, display: "grid", gap: 8 }}>

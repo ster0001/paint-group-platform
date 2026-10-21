@@ -175,10 +175,11 @@ test.describe("QA fail → rectify → re-check → pass → walkthrough, on the
     expect(rows[0].label).toContain("re-sand");
     rectifyId = rows[0].id;
 
-    // And the sign-off date still can't be booked: the re-check is open.
+    // The sign-off date is booked regardless (Tom, 21 Oct 2026); the re-check
+    // stays open and is the office's to log.
     expect(await rpcAs(staff!, "wo_book_walkthrough", {
       p_work_order_id: job!.workOrderId, p_kind: "final", p_date: today(), p_note: "", p_time: null,
-    })).toBe("error:qa_first");
+    })).toMatch(/^ok:/);
   });
 
   test("3 · the painter puts it right on that list and finishes again — back to quality check", async ({ page }) => {
@@ -201,8 +202,12 @@ test.describe("QA fail → rectify → re-check → pass → walkthrough, on the
     await page.reload();
     await expect(page.getByTestId("qa-notice")).toBeVisible({ timeout: 30_000 });
 
-    // The gate holds on the re-check — ONE open check, not the fail as well.
-    expect(await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: job!.workOrderId }))
+    // ONE open check (the re-check), not the fail as well. Since 20270284 the
+    // open check holds closed-without-walkthrough, not the pack — so the count
+    // is the proof here, and the office logs the re-check in step 4.
+    const { data: open } = await db!.rpc("wo_qa_open_count", { p_work_order_id: job!.workOrderId });
+    expect(Number(open)).toBe(1);
+    expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "closed" }))
       .toBe("error:gate:1 quality check still open");
   });
 
