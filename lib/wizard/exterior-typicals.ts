@@ -65,7 +65,8 @@ export const EXTERIOR_TYPICALS_VERSION = 1;
 
 /** §5.1 — my proposed Melbourne numbers, placeholders until Tom replaces them (⚑ 2). */
 export const EXTERIOR_TYPICALS: ReadonlyArray<ExteriorTypical> = [
-  { key: "wb", name: "Weatherboard home", storeys: 1, roof: "hip", frontM: 11, sideM: 14, wallHM: 2.7, gableRiseM: null, usualWalls: "weatherboards", wallsPainted: true, sharedSides: [], verandah: "porch", source: "proposed" },
+  // Tom, 21 Oct: no porch or posts unless the customer ticks the verandah (migration 20270287 says the same to the table).
+  { key: "wb", name: "Weatherboard home", storeys: 1, roof: "hip", frontM: 11, sideM: 14, wallHM: 2.7, gableRiseM: null, usualWalls: "weatherboards", wallsPainted: true, sharedSides: [], verandah: "none", source: "proposed" },
   { key: "cal", name: "Californian bungalow", storeys: 1, roof: "gable", frontM: 12, sideM: 16, wallHM: 3.0, gableRiseM: 2.4, usualWalls: "weatherboards", wallsPainted: true, sharedSides: [], verandah: "columns", source: "proposed" },
   { key: "brick", name: "Brick veneer home", storeys: 1, roof: "hip", frontM: 12, sideM: 15, wallHM: 2.5, gableRiseM: null, usualWalls: "brick", wallsPainted: false, sharedSides: [], verandah: "none", source: "proposed" },
   { key: "ds", name: "Double-storey home", storeys: 2, roof: "hip", frontM: 12, sideM: 14, wallHM: 5.6, gableRiseM: null, usualWalls: "render", wallsPainted: true, sharedSides: [], verandah: "none", source: "proposed" },

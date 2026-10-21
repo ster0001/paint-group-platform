@@ -1,7 +1,7 @@
 "use client";
 
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
-import { aboutMissing, allSidesChecked, allSidesConfirmed, confirmAllSides, exteriorV2Answered, nextUncheckedSide, paintedSides } from "@/lib/wizard/exterior-model";
+import { aboutMissing, allSidesConfirmed, exteriorV2Answered, paintedSides } from "@/lib/wizard/exterior-model";
 import PictureCard from "./PictureCard";
 import type { ExteriorSideKey } from "@/lib/wizard/exterior-typicals";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -1695,13 +1695,19 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (quickStep === "about" && outside.v2) {
       const missing = aboutMissing(outside.v2);
       if (missing) { setError(missing); return; }
+      // Tom, 21 Oct (item 6): which sides is asked on About it; at least one.
+      if (paintedSides(outside.v2).length === 0) { setError("Tick at least one side we're painting."); return; }
     }
     if (quickStep === "sides" && outside.v2 && paintedSides(outside.v2).length === 0) {
       setError("Tick at least one side we're painting — tap Not painting again to add one back.");
       return;
     }
-    // Tom, 21 Oct: no per-side "Looks right" tap — Continue stands for every painted side.
-    if (quickStep === "sides" && outside.v2 && !allSidesConfirmed(outside.v2)) setOutside({ v2: confirmAllSides(outside.v2) });
+    // Tom, 21 Oct (item 6): no tap on a side, but every ticked side must have been looked at.
+    if (quickStep === "sides" && outside.v2 && !allSidesConfirmed(outside.v2)) {
+      const left = paintedSides(outside.v2).filter((k) => !outside.v2!.sides[k]?.confirmed).length;
+      setError(`Tap each side to check it — ${left} to go.`);
+      return;
+    }
     // C8b: an outside job has to name SOMETHING being painted — nothing is
     // pre-ticked, so an untouched screen is not an answer.
     if (quickStep === "outside" && !paintsSomething(outside)) {
@@ -1919,15 +1925,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           // back — you were at Scope" over a brand-new job.
           onTighten={() => {
             void recordRangeOption(reveal.estimateId, "tighten");
-            // Exterior wizard v2 (S5): on the drawn house, Tighten is the walk around it — here, not the editor.
-            const walk = quick.jobType === "exterior" && !!outside.v2;
-            const go = () => { if (walk) { setWalkAt(nextUncheckedSide(outside.v2!, "left") ?? "front"); setWalking(true); window.scrollTo({ top: 0 }); } else { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); } };
+            // Tom, 21 Oct (item 8): Tighten opens the customer editor on every path — the drawn house too (the walk-around step is retired).
+            const go = () => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); };
             // R7 (range first): any option asks for the details before going further.
             if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
             go();
           }}
           onEditor={() => { void recordRangeOption(reveal.estimateId, "tighten"); clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
-          walkChecked={quick.jobType === "exterior" && !!outside.v2 && allSidesChecked(outside.v2)}
           onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           speakWithUs={Boolean((reveal.payload as { speakWithUs?: boolean }).speakWithUs)}
           onSpeak={() => { void recordRangeOption(reveal.estimateId, "speak"); setTalk({ mode: "call" }); }}

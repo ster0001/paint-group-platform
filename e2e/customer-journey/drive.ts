@@ -234,7 +234,8 @@ export async function answerOutsideQuick(page: Page): Promise<"v2" | "v1"> {
     await page.getByTestId("ext-mat-weatherboards").click();
     await quickNext(page);
     await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-    // 21 Oct: no "Looks right" tap on Each side — Continue stands for every painted side.
+    // 21 Oct: no "Looks right" tap on Each side — but every ticked side must be looked at.
+    await lookAtEverySide(page);
     return "v2";
   }
   // C8b: nothing is pre-ticked on the outside screen — a job has to name
@@ -244,6 +245,20 @@ export async function answerOutsideQuick(page: Page): Promise<"v2" | "v1"> {
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
   return "v1";
+}
+
+/** Exterior v2 (21 Oct): Each side needs every ticked side looked at before Continue — tap each tile in turn. */
+export async function lookAtEverySide(page: Page): Promise<void> {
+  for (const k of ["front", "right", "back", "left"]) {
+    const tile = page.getByTestId(`ql-ext-side-${k}`);
+    if (await tile.count()) await tile.click();
+  }
+}
+
+/** Tom, 21 Oct: the talk-it-through box floats bottom-right; on a phone it is a pill that opens the card. */
+export async function openTalk(page: Page): Promise<void> {
+  const toggle = page.getByTestId("ql-talk-toggle");
+  if (await toggle.isVisible() && (await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
 }
 
 export async function passDetailsSheetIfShown(page: Page, who: { name?: string; email?: string; mobile?: string } = {}): Promise<boolean> {

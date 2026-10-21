@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { initialsOf } from "@/lib/wizard/estimator";
 
 /**
@@ -5,8 +8,10 @@ import { initialsOf } from "@/lib/wizard/estimator";
  * — on every step before the range: request a visit, call, or send a message.
  * A visit asked for here is a request for staff, never a booking. The test
  * ids are the ones the box has always had (`ql-talk`, `ql-book`, `ql-call`,
- * `ql-message`), and it is rendered ONCE: in the right-hand column on a
- * laptop, at the foot of the step on a phone (CSS moves it, never a copy).
+ * `ql-message`), and it is rendered ONCE. Tom, 21 Oct: it FLOATS bottom-right
+ * on every wizard page and stays there while scrolling — the full card on a
+ * laptop; on a phone a "Talk it through?" pill above the Continue bar that
+ * opens the same card (`ql-talk-toggle`), so it never covers the question.
  *
  * The estimator is whoever the wizard already resolves (⚑ 23,
  * `resolveEstimator` — Settings → Estimator until an address names a patch);
@@ -19,8 +24,14 @@ export default function TalkCard({ estimatorName, phone, onBook, onMessage }: {
   onMessage: () => void;
 }) {
   const name = estimatorName?.trim() || null;
+  const [open, setOpen] = useState(false);
   return (
-    <div className="wz-talk" data-testid="ql-talk">
+    <div className={`wz-talk ${open ? "open" : ""}`} data-testid="ql-talk">
+      <button type="button" className="wz-talk-fab" data-testid="ql-talk-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>
+        {open ? "Close" : "Talk it through?"}
+      </button>
+      <div className="wz-talk-body">
       <div className="wz-talk-who">
         <span className="wz-talk-av" aria-hidden="true">{name ? initialsOf(name) : "PG"}</span>
         <p className="wz-talk-head">
@@ -43,6 +54,7 @@ export default function TalkCard({ estimatorName, phone, onBook, onMessage }: {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
           Send a message
         </button>
+      </div>
       </div>
     </div>
   );

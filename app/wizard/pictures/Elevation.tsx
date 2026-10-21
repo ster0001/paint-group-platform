@@ -190,6 +190,8 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
   const vyTop = yG - Math.min(H - 10, (t.roof === "parapet" ? 2.9 : 2.5) * sy), vFloor = yG - 0.25 * sy;
   const postKind = v2.postKind ?? (t.verandah === "lace" ? "lace" : t.verandah === "columns" ? "columns" : "posts");
   const lace = postKind === "lace";
+  /** Where the posts stand — the windows are laid out in the bays between them (Tom, 21 Oct, items 1 and 3). */
+  const postXs: number[] = [];
   if (verHas) {
     const pOn = partOn("posts"), cOn = partOn("ceiling"), hOn = partOn("handrail");
     if (lace) {
@@ -203,6 +205,7 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
     let posts = "";
     for (let i = 0; i < n; i++) {
       const px = vx0 + ((vx1 - vx0) * i) / (n - 1);
+      postXs.push(px);
       if (postKind === "columns") posts += `<rect x="${n2(px - 5)}" y="${n2(vyTop + 8)}" width="10" height="${n2(vFloor - vyTop - 8)}" rx="2" fill="${col("posts", pOn)}" stroke="#16212A" stroke-opacity=".3"/><rect x="${n2(px - 7)}" y="${n2(vFloor - 16)}" width="14" height="16" fill="${pOn ? "#8EE4F0" : "#C9D2D8"}" stroke="#16212A" stroke-opacity=".3"/>`;
       else if (lace) posts += `<rect x="${n2(px - 1.5)}" y="${n2(vyTop + 12)}" width="3" height="${n2(vFloor - vyTop - 12)}" fill="${col("posts", pOn)}" stroke="#16212A" stroke-opacity=".3"/><path d="M${n2(px - 1.5)} ${n2(vyTop + 13)} l-10 0 l10 12 z M${n2(px + 1.5)} ${n2(vyTop + 13)} l10 0 l-10 12 z" fill="${col("posts", pOn)}" fill-opacity=".8"/>`;
       else posts += `<rect x="${n2(px - 2.5)}" y="${n2(vyTop + 8)}" width="5" height="${n2(vFloor - vyTop - 8)}" fill="${col("posts", pOn)}" stroke="#16212A" stroke-opacity=".3"/>`;
@@ -243,6 +246,7 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
   const tall = terraceFront ? 2.2 : t.roof === "skillion" ? 1.6 : 1.5;
   const wwMax = (t.roof === "skillion" ? 1.8 : terraceFront ? 0.9 : 1.2) * sx;
   let ww = wwMax, wh = Math.min(tall * sy, (t.storeys === 2 ? H / 2 : H) * (terraceFront ? 0.66 : 0.58));
+  const winRects: Array<{ x: number; y: number; w: number; h: number }> = [];
   const perStorey = t.storeys === 2 ? [Math.ceil(n / 2), Math.floor(n / 2)] : [n];
   perStorey.forEach((cnt, st) => {
     const isGround = st === perStorey.length - 1;
@@ -254,11 +258,27 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
       ww = Math.max(4, Math.min(wwMax, ((to - from) / (k + 1)) * 0.74));
       for (let i = 0; i < k; i++) {
         const cx = from + ((to - from) * (i + 1)) / (k + 1);
-        wins += windowGlyph(cx - ww / 2, isGround && verHas && !terraceFront ? Math.max(wy, vyTop + 14) : wy, ww, wh, wnOn, v2.windowType);
+        const y = isGround && verHas && !terraceFront ? Math.max(wy, vyTop + 14) : wy;
+        winRects.push({ x: cx - ww / 2, y, w: ww, h: wh });
+        wins += windowGlyph(cx - ww / 2, y, ww, wh, wnOn, v2.windowType);
       }
     };
     if (terraceFront && verHas) { place(vx0 + (vx1 - vx0) * 0.5, vx1, cnt); return; }
     const L = x0 + W * 0.04, Rr = (isGround && garHere ? gx : x1) - W * 0.04;
+    // Under a verandah the windows take the bays between the posts (never the
+    // door's bay), so posts and windows are spaced together, not on top of each other.
+    if (isGround && postXs.length >= 2) {
+      const bays: Array<[number, number]> = [];
+      for (let i = 0; i + 1 < postXs.length; i++) {
+        const a = postXs[i] + 7, b = postXs[i + 1] - 7;
+        if (nDoors > 0 && doorX > postXs[i] && doorX < postXs[i + 1]) continue;
+        if (b - a >= 6) bays.push([a, b]);
+      }
+      if (bays.length) {
+        for (let i = 0; i < bays.length; i++) place(bays[i][0], bays[i][1], Math.floor(cnt / bays.length) + (i < cnt % bays.length ? 1 : 0));
+        return;
+      }
+    }
     if (isGround && nDoors > 0) {
       const dL = doorX - doorW * 0.9, dR = doorX + doorW * 0.9;
       const minSlot = 6;
@@ -273,7 +293,15 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
     } else place(L, Rr, cnt);
   });
   o += g("windows", wins);
-  if (has("shutters")) o += g("shutters", `<rect x="${n2(x0 + W * 0.08)}" y="${n2(yE + H * 0.3 - wh / 2)}" width="${n2(ww * 0.3)}" height="${n2(wh)}" fill="${col("shutters", partOn("shutters"))}" stroke="#16212A" stroke-opacity=".3"/><rect x="${n2(x1 - W * 0.08 - ww * 0.3)}" y="${n2(yE + H * 0.3 - wh / 2)}" width="${n2(ww * 0.3)}" height="${n2(wh)}" fill="${col("shutters", partOn("shutters"))}" stroke="#16212A" stroke-opacity=".3"/>`);
+  // Shutters sit flush against each window, a pair a window (Tom, 21 Oct, item 4).
+  if (has("shutters")) {
+    const shOn = partOn("shutters");
+    o += g("shutters", winRects.map((r) => {
+      const sw = Math.max(3, Math.min(7, r.w * 0.32));
+      const one = (x: number) => `<rect x="${n2(x)}" y="${n2(r.y)}" width="${n2(sw)}" height="${n2(r.h)}" fill="${col("shutters", shOn)}" stroke="#16212A" stroke-opacity=".3"/><path d="M${n2(x + 1)} ${n2(r.y + r.h * 0.25)}h${n2(sw - 2)}M${n2(x + 1)} ${n2(r.y + r.h * 0.5)}h${n2(sw - 2)}M${n2(x + 1)} ${n2(r.y + r.h * 0.75)}h${n2(sw - 2)}" stroke="#16212A" stroke-opacity=".25"/>`;
+      return one(r.x - sw - 1) + one(r.x + r.w + 1);
+    }).join(""));
+  }
 
   if (opts.build && (v2.extras as readonly string[]).includes("meter_box")) o += `<g class="x on" data-x="meter_box"><rect x="${n2(x0 + 6)}" y="${n2(yE + H * 0.45)}" width="12" height="15" fill="#F4F6F7" stroke="#16212A" stroke-opacity=".4"/></g>`;
   if (opts.build && (v2.extras as readonly string[]).includes("security_door") && nDoors > 0 && side === "front") o += `<g class="x on" data-x="security_door"><rect x="${n2(doorX - doorW / 2)}" y="${n2(yG - doorH)}" width="${n2(doorW)}" height="${n2(doorH)}" fill="none" stroke="#16212A" stroke-opacity=".5" stroke-dasharray="2 2"/></g>`;

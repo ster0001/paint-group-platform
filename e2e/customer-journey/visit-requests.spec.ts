@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "../fixtures/woLoop";
 import { gotoTodayWith, test } from "../helpers";
-import { openQuickLook, quickNext } from "./drive";
+import { openQuickLook, quickNext, openTalk } from "./drive";
 import { cleanupCustomers, ensureEstimator, fillDetailsIfAsked, loginStaff, RUN, staffEmail, startCustomer, type Customer } from "./visitHelpers";
 import { melbourneParts } from "../../lib/time/businessHours";
 
@@ -142,9 +142,12 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     await quickNext(page);
     // Step 2: the three options are there.
     await expect(page.getByTestId("ql-talk")).toContainText("Would you rather talk it through?");
+    await openTalk(page);
     await expect(page.getByTestId("ql-book")).toHaveText("Request a site visit");
+    await openTalk(page);
     await expect(page.getByTestId("ql-message")).toHaveText("Send a message");
     const email = `visit.prerange.${RUN}@example.com`, mobile = "0412 000 777";
+    await openTalk(page);
     await page.getByTestId("ql-book").click();
     await expect(page.getByTestId("talk-sheet")).toBeVisible();
     await expect(page.getByText("Tell us where the property is and how to reach you, and we will arrange a visit.")).toBeVisible();
@@ -167,6 +170,7 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     await page.getByTestId("talk-close").click();
 
     // A message before the range: details first, then the box; it lands in the website chat with a handoff.
+    await openTalk(page);
     await page.getByTestId("ql-message").click();
     await expect(page.getByRole("heading", { name: "A few details first" })).toBeVisible();
     await page.getByTestId("talk-name").fill("Early Bird");
