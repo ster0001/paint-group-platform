@@ -256,7 +256,7 @@ test.describe("Movements week board, as the PC", () => {
     await page.goto(`/pc/movements?view=sources&week=${MON}&job=${job!.workOrderId}`);
     const estimate = page.getByTestId("sources-estimate");
     await expect(estimate).toBeVisible({ timeout: 30_000 });
-    await estimate.getByPlaceholder(/Add a line/).fill(LINE_TEXT);
+    await estimate.getByPlaceholder(/One order per line/).fill(LINE_TEXT);
     await estimate.getByRole("button", { name: "Add" }).click();
     await expect(estimate.getByTestId("material-line").filter({ hasText: LINE_TEXT })).toBeVisible({ timeout: 15_000 });
     // The same row on the job-page card and as a chip on the tray card.

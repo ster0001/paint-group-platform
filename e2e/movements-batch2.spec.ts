@@ -166,6 +166,24 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
     expect(await rpcAs(staff!, "movement_unplace", { p_id: tapes.id })).toMatch(/^ok/);
   });
 
+  test("Tom, 22 Oct: from our stock — the warehouse is the source, no order step, never the Supplier lane, and the sync leaves it alone", async () => {
+    const paint = (await chips()).find((r) => r.kind === "paint")!;
+    expect(await rpcAs(staff!, "movement_set_method", { p_id: paint.id, p_method: "stock" })).toBe("ok:stock");
+    const { data: a } = await db!.from("movements").select("from_kind, from_branch_id, method_pref").eq("id", paint.id).single();
+    expect(a).toMatchObject({ from_kind: "warehouse", from_branch_id: null, method_pref: "stock" });
+    expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "supplier", p_assignee_id: null, p_due_date: MON, p_half: "AM" })).toBe("error:from_stock");
+    expect(await rpcAs(staff!, "movements_sync_now", { p_work_order_id: job!.workOrderId })).toMatch(/^ok/);
+    const { data: b } = await db!.from("movements").select("from_kind, from_branch_id").eq("id", paint.id).single();
+    expect(b, "the sync refilled a shop onto a stock chip").toMatchObject({ from_kind: "warehouse", from_branch_id: null });
+    // The estimate line was split earlier: the sync must NOT bring the original text back as a duplicate.
+    expect((await lines()).length, "an edited estimate line came back on sync").toBe(2);
+    expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "person", p_assignee_id: contractorId, p_due_date: MON, p_half: "AM" }), "no order step from stock").toBe("ok:booked");
+    expect(await rpcAs(staff!, "movement_unplace", { p_id: paint.id })).toMatch(/^ok/);
+    expect(await rpcAs(staff!, "movement_set_method", { p_id: paint.id, p_method: "pickup", p_branch_id: branchId })).toBe("ok:pickup");
+    const { data: c } = await db!.from("movements").select("from_kind, from_branch_id").eq("id", paint.id).single();
+    expect(c).toMatchObject({ from_kind: "branch", from_branch_id: branchId });
+  });
+
   test("publish: a rubbish chip on an office run is a collection — in the car until the warehouse, no tip, no warehouse trip", async () => {
     const rubbish = (await chips()).find((r) => r.source_key === "rubbish")!;
     expect(rubbish, "the rubbish question from the sync").toBeTruthy();
@@ -200,6 +218,15 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
     await edit.press("Enter");
     await expect(card.getByTestId("prestart-materials-msg")).toContainText(/Line updated/, { timeout: 15_000 });
     expect((await lines()).some((l) => l.text === `masking ${TAPES}`), "the edit reached the line").toBe(true);
+
+    // Tom, 22 Oct: one tap removes a tray chip — a materials line chip takes its line with it.
+    await page.goto(`/pc/movements?view=week&week=${MON}`);
+    await expect(page.getByTestId("movements-board")).toBeVisible({ timeout: 30_000 });
+    const gone = (await chips()).find((r) => String(r.title).includes("tapes"))!;
+    await page.locator(`[data-testid="tray-chip"][data-movement-id="${gone.id}"]`).getByTestId("tray-chip-remove").click();
+    await expect(page.locator(".toast.show")).toContainText(/Removed/);
+    await expect(page.locator(`[data-testid="tray-chip"][data-movement-id="${gone.id}"]`)).toHaveCount(0, { timeout: 15_000 });
+    expect((await lines()).some((l) => String(l.text).includes("tapes")), "the line went with the chip").toBe(false);
 
     // The Map's run planner: add the gear chip from the tray list, 07:30, publish.
     const gear = okId(await rpcAs(staff!, "movement_create", { p: { kind: "equipment_out", work_order_id: job!.workOrderId, title: GEAR } }));

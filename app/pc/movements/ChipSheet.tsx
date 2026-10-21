@@ -107,9 +107,10 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
   }
 
   /** Tom, 21 Oct 2026: delivered or picked up, with the shop — delivery lands it on the Supplier lane. */
-  async function confirmMethod(method: "delivery" | "pickup") {
-    const ok = await act(() => setMovementMethod({ id: chip.id, workOrderId: chip.work_order_id, method, branchId }), (v) =>
-      v === "placed" ? "Delivery — placed on the Supplier lane on the job's first day; tick Ordered once the shop has it"
+  async function confirmMethod(method: "delivery" | "pickup" | "stock") {
+    const ok = await act(() => setMovementMethod({ id: chip.id, workOrderId: chip.work_order_id, method, branchId: method === "stock" ? null : branchId }), (v) =>
+      v === "stock" ? "From our stock — no order to place; drop the chip on whoever carries it from the warehouse"
+      : v === "placed" ? "Delivery — placed on the Supplier lane on the job's first day; tick Ordered once the shop has it"
       : v === "pickshop" ? "Pick the shop first, then Delivered to site"
       : v === "nodelivery" ? "That shop is counter-only — pick one that delivers, or choose Picked up"
       : "Picked up — drag the chip onto whoever collects it");
@@ -199,12 +200,13 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
 
       {(chip.kind === "paint" || chip.kind === "materials") && !placed && (
         <div className="fld" data-testid="chip-method">
-          <div className="k">How does it get to site? <em>{chip.method_pref ? (chip.method_pref === "delivery" ? "delivered" : "picked up") : "not confirmed"}</em></div>
+          <div className="k">How does it get to site? <em>{chip.method_pref ? (chip.method_pref === "delivery" ? "delivered" : chip.method_pref === "pickup" ? "picked up" : "from our stock") : "not confirmed"}</em></div>
           <div className="chips">
             <button type="button" className={`chp ${chip.method_pref === "delivery" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("delivery")} data-testid="method-delivery">Delivered to site</button>
             <button type="button" className={`chp ${chip.method_pref === "pickup" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("pickup")} data-testid="method-pickup">Picked up</button>
+            <button type="button" className={`chp ${chip.method_pref === "stock" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("stock")} data-testid="method-stock">From our stock</button>
           </div>
-          <p className="note">Pick the shop below first. Delivered = this chip goes onto the Supplier lane on the job&rsquo;s first day. Picked up = drag it onto whoever collects it.</p>
+          <p className="note">Pick the shop below first for a delivery or a pickup. Delivered = this chip goes onto the Supplier lane on the job&rsquo;s first day. Picked up = drag it onto whoever collects it. From our stock = it comes from the warehouse, nothing to order — drag it onto whoever carries it.</p>
         </div>
       )}
 

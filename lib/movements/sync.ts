@@ -282,10 +282,12 @@ export function syncForWo(input: SyncInput): SyncPlan {
   let created = 0, refreshed = 0, removed = 0;
 
   const refreshTray = (m: MovementRow, title: string, detail: string | null, branch: BranchRow | null) => {
-    const takeBranch = m.from_branch_id === null && branch !== null;
+    // Tom, 22 Oct 2026: a chip from our stock keeps no shop — the sync never refills one.
+    const stock = m.method_pref === "stock";
+    const takeBranch = !stock && m.from_branch_id === null && branch !== null;
     const patch: RefreshPatch = {
       id: m.id, title, detail, to_text: site,
-      from_branch_id: m.from_branch_id ?? branch?.id ?? null,
+      from_branch_id: stock ? null : m.from_branch_id ?? branch?.id ?? null,
       from_text: takeBranch ? branchText(branch) : m.from_text,
       order_ref: m.order_ref === "" ? ref : m.order_ref,
       changed: m.title !== title || (m.detail ?? null) !== detail || m.to_text !== site || takeBranch,

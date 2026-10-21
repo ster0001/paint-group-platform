@@ -74,6 +74,7 @@ const FRIENDLY: Record<string, string> = {
   closed: "That job is closed.",
   past: "That day has gone — pick one from today on.",
   no_such_item: "That item is not on the line any more — reload.",
+  from_stock: "That comes from our stock — drop it on whoever carries it, not the Supplier lane.",
   last_item: "That is the only item on the line — remove the line instead.",
   bad_duration: "A stop is between 15 minutes and 10 hours.",
   no_stops: "Nothing in the run plan yet.",
@@ -389,7 +390,7 @@ export async function geocodeJobs(raw: unknown): Promise<MovementActionResult> {
 
 const lineAddInput = z.object({ workOrderId: uuid, text: z.string().min(1).max(500), source: z.enum(MATERIAL_LINE_SOURCES).optional() });
 
-const methodInput = idInput.extend({ method: z.enum(["delivery", "pickup"]), branchId: uuid.nullable().optional() });
+const methodInput = idInput.extend({ method: z.enum(["delivery", "pickup", "stock"]), branchId: uuid.nullable().optional() });
 
 /** Tom, 21 Oct 2026: confirm the shop and delivered / picked up on a tray order. Delivery + a delivering shop places it on the Supplier lane. */
 export async function setMovementMethod(raw: unknown): Promise<MovementActionResult> {
