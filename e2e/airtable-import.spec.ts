@@ -415,13 +415,15 @@ test.describe("Airtable → CRM import", () => {
     await expect(page.getByTestId("paintscout-strip")).toBeVisible();
     await expect(page.getByTestId("hours-pending")).toHaveCount(0);
 
-    // The painter, with nothing but the link, sees the lines and their hours.
+    // The painter, with nothing but the link, sees the lines and their paint —
+    // and no hours (Tom, 21 Oct 2026: the painter's sheet carries none).
     const painter = await browser.newContext();
     const sheetPage = await painter.newPage();
     await sheetPage.goto(`/w/${wo!.share_token}`);
-    await expect(sheetPage.getByText("Skirting Boards")).toBeVisible();
-    await expect(sheetPage.locator(".hval", { hasText: /^10$/ })).toBeVisible();
-    await expect(sheetPage.getByText("Dulux Wash&Wear")).toBeVisible();
+    await expect(sheetPage.getByText("Skirting Boards", { exact: true })).toBeVisible();
+    await expect(sheetPage.locator(".surf-hours")).toHaveCount(0);
+    await expect(sheetPage.getByTestId("wo-estimated-hours")).toHaveCount(0);
+    await expect(sheetPage.locator(".surf-paint", { hasText: "Dulux Wash&Wear" })).toBeVisible();
     await painter.close();
   });
 });

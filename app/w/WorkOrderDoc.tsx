@@ -2,7 +2,8 @@
 
 import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
 import { WO_STATUS_LABEL, cansLabel, litresLabel } from "@/lib/workorder/snapshot";
-import { areaMaterials, rowEstimatedLitres } from "@/lib/workorder/materials";
+import { areaMaterials, rowEstimatedLitres, substratesFor } from "@/lib/workorder/materials";
+import { paintLabel } from "@/lib/workorder/surfacePaint";
 import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
 import { STAGE_LANES, stageTitle, type WoStage } from "@/lib/workorder/stages";
 import { SURFACE_STATE_LABEL, dimsLabel, measureLabel, type SurfaceState } from "@/lib/workorder/surfaces";
@@ -95,6 +96,13 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
   // table, so they are split ONCE, here, and each section reads its own half.
   const officeShots = officePhotos(photos);
   const siteShots = photos.filter((p) => p.kind !== "reference");
+  // Tom, 21 Oct 2026: a painter's sheet carries NO estimated hours — not the
+  // total at the top, not the figure beside each surface, not the condition's
+  // extra-prep hours, not the hours on an approved change — "so they can just
+  // see and tick off the list of tasks". Only the office's editor (the
+  // builder's work-order view, which passes `edit`) still shows them. The
+  // staff "Painter's view" has no `edit` either, so it reads as the painter does.
+  const office = Boolean(edit);
 
   return (
     <div className="wo">
@@ -139,11 +147,14 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
             <div className="v">{doc.contactFirstName || "—"}{doc.contactPhone ? ` · ${doc.contactPhone}` : ""}</div>
           </div>
           {/* Tom, 1 Oct: the job's total estimated hours at the top, in those
-              words. The same sum the scheduler sizes the booking from. */}
-          <div className="fact" data-testid="wo-estimated-hours">
-            <div className="k">Estimated hours</div>
-            <div className="v">{formatHours(estimatedHours(doc))}</div>
-          </div>
+              words. The same sum the scheduler sizes the booking from. Office
+              only since 21 Oct 2026 — the painter's sheet has no hours. */}
+          {office && (
+            <div className="fact" data-testid="wo-estimated-hours">
+              <div className="k">Estimated hours</div>
+              <div className="v">{formatHours(estimatedHours(doc))}</div>
+            </div>
+          )}
           <div className="fact">
             <div className="k">Start date</div>
             {edit ? <input type="date" value={doc.startDate ?? ""} onChange={(e) => edit.onStart(e.target.value || null)} />
@@ -195,7 +206,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
         {/* CONDITION — the extra prep the job carries, in hours (Tom, 3 Sep).
             The per-surface hours already include it; this says so plainly so a
             poor-condition job never reads like an ordinary one. */}
-        {conditionAllowanceLine(doc.condition) && (
+        {office && conditionAllowanceLine(doc.condition) && (
           <div className="wo-finish wo-condition" data-testid="wo-condition">
             <span className="wo-finish-lab">Condition · extra prep</span>
             <span className="wo-finish-val">{conditionAllowanceLine(doc.condition)}</span>
@@ -237,6 +248,20 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                       <span className={`cchip ${m.colourStatus}`}>{m.colourStatus === "confirmed" ? "Confirmed" : "TBC"}</span>
                     )}
                   </div>
+                  {/* Where it goes (Tom, 21 Oct 2026): the substrates painted in
+                      this product × colour, area by area — the same pairing the
+                      office reads on the PC Materials card. */}
+                  {(() => {
+                    const subs = substratesFor(doc, m.colourKey ?? m.product);
+                    if (subs.length === 0) return null;
+                    return (
+                      <div className="mat-subs" data-testid={`mat-substrates-${m.colourKey ?? m.product}`}>
+                        {subs.map((s, j) => (
+                          <span className="pill" key={j}>{s.area} · {s.label} · {s.coats} {s.coats === 1 ? "coat" : "coats"}</span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {/* Colour match (Tom, 23 Aug): codes on the sheet when the
                       estimator had them; otherwise the painter supplies them
                       on the job page before sign-off. */}
@@ -353,8 +378,22 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                       </div>
                       <div className="surf-meta">
                         {measureLabel(s) && <span data-testid={`surf-measure-${s.key}`}>{measureLabel(s)} · </span>}
-                        {s.coats} {s.coats === 1 ? "coat" : "coats"}{s.product ? ` · ${s.product}` : ""}
+                        {s.coats} {s.coats === 1 ? "coat" : "coats"}
                       </div>
+                      {/* The paint this substrate gets — product · sheen · colour,
+                          with its swatch — on every sheet (Tom, 21 Oct 2026: the
+                          office could see it, the painter could not). Nothing on
+                          a line with no paint. */}
+                      {(() => {
+                        const paint = paintLabel(s);
+                        if (!paint) return null;
+                        return (
+                          <div className="surf-paint" data-testid={`surf-paint-${s.key}`}>
+                            {s.colourHex && <span className="swatch" style={{ background: s.colourHex }} />}
+                            <span>{paint}</span>
+                          </div>
+                        );
+                      })()}
                       {s.prep && <div className="surf-prep">{s.prep}</div>}
                     </div>
                     <div className="surf-right">
@@ -376,7 +415,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                           : tick === "prepped" || s.status === "in_progress" ? " doing" : "";
                         return <span className={`pill${tone}`} data-testid={`surf-state-${s.key}`}>{label}</span>;
                       })()}
-                      {(edit || s.hours != null) && (
+                      {edit && (
                         <div className="surf-hours">
                           <span className="hlab">Hours</span>
                           {edit
@@ -454,7 +493,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                 <li key={v.id} data-testid={`scope-change-${v.id}`}>
                   <b>{v.credit ? "Removed" : "Added"}</b>
                   {v.comment ? ` — ${v.comment}` : ""}
-                  {!v.credit && v.estHours != null && v.estHours > 0 ? ` · ~${v.estHours} h` : ""}
+                  {office && !v.credit && v.estHours != null && v.estHours > 0 ? ` · ~${v.estHours} h` : ""}
                   {variant === "contractor" && (
                     <span style={{ marginLeft: 6, fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)" }}>
                       {v.status === "contractor_accepted" ? "In the job" : v.credit ? "Awaiting your acknowledgement" : "Awaiting your accept"}
@@ -477,7 +516,6 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                 <li key={i}>
                   <b style={{ textTransform: "capitalize" }}>{v.category.replace(/_/g, " ")}</b>
                   {v.comment ? ` — ${v.comment}` : ""}
-                  {v.estHours != null ? ` · ~${v.estHours} h` : ""}
                   <span style={{ marginLeft: 6, fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)" }}>
                     {v.status.replace(/_/g, " ")}
                   </span>
