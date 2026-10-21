@@ -71,6 +71,12 @@ const FRIENDLY: Record<string, string> = {
   already_recorded: "That check-in already happened.",
   closed: "That job is closed.",
   past: "That day has gone — pick one from today on.",
+  no_such_item: "That item is not on the line any more — reload.",
+  last_item: "That is the only item on the line — remove the line instead.",
+  bad_duration: "A stop is between 15 minutes and 10 hours.",
+  no_stops: "Nothing in the run plan yet.",
+  bad_purpose: "Pick what the stop is for.",
+  no_job: "A stop needs a job.",
   after_final: "A check-in cannot come after the final walkthrough.",
 };
 
@@ -97,6 +103,8 @@ async function call(fn: string, args: Record<string, unknown>, where: string, re
     for (const path of ["/pc/movements", ...revalidate]) revalidatePath(path);
     return { ok: true, value: s.replace(/^ok:?/, "") };
   }
+  const stop = s.match(/^error:stop_(\d+)_(.+)$/);
+  if (stop) return { ok: false, message: `Stop ${stop[1]}: ${friendly(stop[2])}` };
   return { ok: false, message: friendly(s.replace(/^error:/, "")) };
 }
 
@@ -415,6 +423,46 @@ export async function removeMaterialLine(raw: unknown): Promise<MovementActionRe
   const p = idInput.safeParse(raw);
   if (!p.success) return invalid(p);
   return call("material_line_remove", { p_id: p.data.id }, "movements.lineRemove", jobPaths(p.data.workOrderId));
+}
+
+const splitInput = z.object({ id: uuid, item: z.string().min(1).max(500), workOrderId: uuid.nullable().optional() });
+
+/** Tom, 21 Oct 2026: one item off a comma-separated line becomes its own line and chip (tapes out of stock). */
+export async function splitMaterialLine(raw: unknown): Promise<MovementActionResult> {
+  const p = splitInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  return call("material_line_split", { p_id: p.data.id, p_item: p.data.item }, "movements.lineSplit", jobPaths(p.data.workOrderId));
+}
+
+const durationInput = z.object({ id: uuid, minutes: z.number().int().min(15).max(600), workOrderId: uuid.nullable().optional() });
+
+/** How long a stop takes — the end time on the run plan. */
+export async function setMovementDuration(raw: unknown): Promise<MovementActionResult> {
+  const p = durationInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  return call("movement_set_duration", { p_id: p.data.id, p_minutes: p.data.minutes }, "movements.setDuration", jobPaths(p.data.workOrderId));
+}
+
+export const RUN_PURPOSES = ["collect_materials", "quality_check", "site_checkin", "rubbish_collection", "drop_materials", "drop_paint"] as const;
+const publishInput = z.object({
+  personKind: z.enum(["profiles", "contractors"]), personId: uuid, day: isoDate,
+  stops: z.array(z.object({
+    movementId: uuid.nullable().optional(), workOrderId: uuid.nullable().optional(),
+    purpose: z.enum(RUN_PURPOSES).nullable().optional(), time: clock, durationMin: z.number().int().min(15).max(600).optional(),
+  })).min(1).max(60),
+  workOrderIds: z.array(uuid).max(60).optional(),
+});
+
+/**
+ * Publish a run planned on the Map (Tom, 21 Oct 2026): one RPC places every stop on the
+ * person for the day at its time, makes the purpose-only stops, writes the durations and the
+ * order. Until this is called the plan exists only in the browser.
+ */
+export async function publishRun(raw: unknown): Promise<MovementActionResult> {
+  const p = publishInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  const stops = p.data.stops.map((s) => ({ movement_id: s.movementId ?? null, work_order_id: s.workOrderId ?? null, purpose: s.purpose ?? null, time: s.time, duration_min: s.durationMin ?? 60 }));
+  return call("movement_publish_run", { p_person_kind: p.data.personKind, p_person_id: p.data.personId, p_day: p.data.day, p_stops: stops }, "movements.publishRun", (p.data.workOrderIds ?? []).flatMap(jobPaths));
 }
 
 const mergeInput = z.object({ ids: z.array(uuid).max(50), into: uuid, workOrderId: uuid.nullable().optional() });

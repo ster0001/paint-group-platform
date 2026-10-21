@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Block } from "@/lib/scheduling/board";
 import {
+  addMinutes, busyOn, firstFreeTime, purposeOfChip,
   blockedReason, chipState, chipWindow, context, contextBlocks, counts, gates, hotCells, inWindow, itemLocation, jobMoved, jobNeeds, kindLabel,
   knownSuburbIn, laneColour, lanes, locations, mapPins, methodLabel, methodOf, nearby, needsOrder, onMap, orderedStops, pointKey, reorder, runPlan, suburbOf, whileYouAreThere,
   type Job, type World,
@@ -55,7 +56,7 @@ const BLOCKS: Block[] = [
 ];
 const mv = (over: Partial<MovementRow> & { id: string; kind: MovementRow["kind"] }): MovementRow => ({
   work_order_id: null, source_key: null, title: over.id, detail: null, assignee_kind: null, assignee_table: null, assignee_id: null, due_date: null, half: null, time: null,
-  sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "", status: "tray", ordered_at: null, method_pref: null,
+  sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "", status: "tray", ordered_at: null, method_pref: null, duration_min: 60,
   client_notice: false, order_ref: "", lines: null, planned_for_start: null, return_due: null, blocked_by_movement_id: null, expected_cost_cents: null,
   note: "", problem_note: "", painter_confirmed_at: null, source_changed_at: null, booked_at: null, done_at: null, created_at: "2026-10-18T00:00:00Z",
   updated_at: "2026-10-18T00:00:00Z", items: [], ...over,
@@ -487,5 +488,30 @@ describe("the map shows only the active jobs (Tom, 21 Oct 2026)", () => {
     expect(mapPins(w, null, MON, [], TODAY).jobs.map((p) => p.job.id)).toEqual(["live", "paid-new"]);
     // No today given: the selected day stands in (the week board's day), so a reader of last week sees last week's map.
     expect(mapPins(w, null, "2026-10-26", []).jobs.map((p) => p.job.id)).toEqual(["live"]);
+  });
+});
+
+describe("the run planner (Tom, 21 Oct 2026)", () => {
+  it("adds minutes and caps at midnight", () => {
+    expect(addMinutes("07:30", 60)).toBe("08:30");
+    expect(addMinutes("23:30", 60)).toBe("23:59");
+  });
+  it("the first stop starts at 07:30 unless something holds it, then the next free quarter hour", () => {
+    expect(firstFreeTime([], "07:30", 60)).toBe("07:30");
+    expect(firstFreeTime([{ from: "07:30", to: "08:30" }], "07:30", 60)).toBe("08:30");
+    expect(firstFreeTime([{ from: "08:00", to: "08:40" }], "07:30", 60)).toBe("08:45");
+    expect(firstFreeTime([{ from: "07:00", to: "08:00" }, { from: "08:00", to: "09:00" }], "07:30", 30)).toBe("09:00");
+  });
+  it("busyOn lists the person's appointments and placed stops with their durations", () => {
+    const w = world({
+      movements: [placed({ id: "p1", kind: "paint", assignee_id: FELIPE, due_date: MON, time: "10:00:00", duration_min: 30 })],
+    });
+    const b = busyOn(w, FELIPE, MON);
+    expect(b.find((x) => x.label === "p1")).toEqual({ from: "10:00", to: "10:30", label: "p1" });
+  });
+  it("a chip's purpose follows its kind and method", () => {
+    expect(purposeOfChip({ kind: "paint", method_pref: null })).toBe("drop_paint");
+    expect(purposeOfChip({ kind: "materials", method_pref: "pickup" })).toBe("collect_materials");
+    expect(purposeOfChip({ kind: "rubbish_out", method_pref: null })).toBe("rubbish_collection");
   });
 });

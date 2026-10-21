@@ -2839,7 +2839,7 @@ function emptyMovement(id: string): MovementRow {
   return {
     id, work_order_id: null, kind: "other", source_key: null, title: "", detail: null, assignee_kind: null, assignee_table: null, assignee_id: null,
     due_date: null, half: null, time: null, sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "",
-    status: "tray", ordered_at: null, method_pref: null, client_notice: false, order_ref: "", lines: null, planned_for_start: null, return_due: null, blocked_by_movement_id: null,
+    status: "tray", ordered_at: null, method_pref: null, duration_min: 60, client_notice: false, order_ref: "", lines: null, planned_for_start: null, return_due: null, blocked_by_movement_id: null,
     expected_cost_cents: null, note: "", problem_note: "", painter_confirmed_at: null, source_changed_at: null, booked_at: null, done_at: null,
     created_at: "", updated_at: "", items: [],
   };

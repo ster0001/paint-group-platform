@@ -10,7 +10,8 @@ import { km } from "@/lib/movements/sync";
 import type { JobExtras } from "@/lib/movements/load";
 import { GEAR_ICONS, movementIcon } from "@/lib/movements/gearIcons";
 import type { BranchRow, MovementRow, RubbishHow } from "@/lib/movements/types";
-import { redateMovement, setMovementMethod, setMovementStatus, setPaintLine, updateMovement, type MovementActionResult } from "./actions";
+import { redateMovement, setMovementDuration, setMovementMethod, setMovementStatus, setPaintLine, splitMaterialLine, updateMovement, type MovementActionResult } from "./actions";
+import { MaterialBubbles } from "@/app/components/materials/MaterialBubbles";
 
 const HOURS = hourSlots([7.5, 17.5]);
 const HALF_TIMES = ["06:00", "06:30", "07:00", "AM", "13:00", "PM", "15:30"] as const;
@@ -37,10 +38,18 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
   const hire = chip.kind === "hire_on" || chip.kind === "hire_off";
   const branchKind: BranchRow["kind"] | null = chip.kind === "paint" ? "paint" : chip.kind === "materials" || chip.kind === "restock" ? "hardware" : skip || hire ? "hire" : null;
   const point = chipPoint(chip, world);
-  const shops = branchKind
-    ? world.branches.filter((b) => b.kind === branchKind).map((b) => ({ b, d: km(point, b.lat != null && b.lng != null ? { lat: b.lat, lng: b.lng } : null) }))
-      .sort((x, y) => (x.d ?? 9e9) - (y.d ?? 9e9) || x.b.branch.localeCompare(y.b.branch))
+  // Tom, 21 Oct 2026: paint and materials orders list EVERY paint shop first (nearest first),
+  // then the hardware stores, and a search box narrows by brand, branch or suburb.
+  const [shopQuery, setShopQuery] = useState("");
+  const shopKinds: BranchRow["kind"][] = branchKind === "paint" || branchKind === "hardware" ? ["paint", "hardware"] : branchKind ? [branchKind] : [];
+  const q = shopQuery.trim().toLowerCase();
+  const shops = shopKinds.length
+    ? world.branches.filter((b) => shopKinds.includes(b.kind)).map((b) => ({ b, d: km(point, b.lat != null && b.lng != null ? { lat: b.lat, lng: b.lng } : null) }))
+      .filter(({ b }) => !q || `${b.brand} ${b.branch} ${b.suburb}`.toLowerCase().includes(q))
+      .sort((x, y) => shopKinds.indexOf(x.b.kind) - shopKinds.indexOf(y.b.kind) || (x.d ?? 9e9) - (y.d ?? 9e9) || x.b.branch.localeCompare(y.b.branch))
     : [];
+  const lineId = chip.kind === "materials" && chip.source_key?.startsWith("matline:") ? chip.source_key.slice(8) : null;
+  const [duration, setDuration] = useState(String(chip.duration_min ?? 60));
   const brand = chip.kind === "paint" && chip.source_key?.startsWith("paint:") ? chip.source_key.slice(6) : null;
   const liveRows = brand && job ? (jobExtras[job.id]?.paintRows ?? []).filter((r) => r.brand === brand) : [];
   const rows = chip.lines ?? liveRows;
@@ -66,6 +75,7 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
     branch: branchId !== (chip.from_branch_id ?? chip.to_branch_id),
     time: placed && time !== (chip.time ? chip.time.slice(0, 5) : chip.half ?? HOURS[0]),
     note: note !== chip.note, orderRef: orderRef !== chip.order_ref, clientNotice: clientNotice !== chip.client_notice, title: title !== chip.title,
+    duration: placed && Number(duration) !== (chip.duration_min ?? 60),
   };
 
   /** Save the draft: one movement_update (plus a redate when the time chip is AM/PM). Returns false on a refusal. */
@@ -82,6 +92,12 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
     if (dirty.title && (manual || lineChip)) { patch.title = title; any = true; }
     if (dirty.time && time !== "AM" && time !== "PM") { patch.time = time; any = true; }
     if (any) { const ok = await act(() => updateMovement(patch)); if (!ok) return false; }
+    if (dirty.duration) {
+      const mins = Number(duration);
+      if (!(mins >= 15 && mins <= 600)) { say("A stop is between 15 minutes and 10 hours"); return false; }
+      const ok = await act(() => setMovementDuration({ id: chip.id, minutes: mins, workOrderId: chip.work_order_id }));
+      if (!ok) return false;
+    }
     if (dirty.time && (time === "AM" || time === "PM") && chip.due_date) {
       const ok = await act(() => redateMovement({ id: chip.id, dueDate: chip.due_date!, half: time, workOrderId: chip.work_order_id }));
       if (!ok) return false;
@@ -196,6 +212,19 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
         <div className="fld">
           <div className="k">{lineChip ? "Line" : "What"} <em>{lineChip ? "same row on the estimate and the job page" : "your words"}</em></div>
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={500} aria-label="Line text" />
+          {lineId && chip.title.includes(",") && (
+            <>
+              <p className="note">Tom, 21 Oct: an item out of stock? Its × takes it off this order into a new chip of its own.</p>
+              <MaterialBubbles
+                testId="chip-line-bubble"
+                busy={busy}
+                bubbles={[{ id: lineId, text: chip.title, locked: false }]}
+                onEdit={(id, text) => act(() => updateMovement({ id: chip.id, workOrderId: chip.work_order_id, title: text }), () => "Line updated")}
+                onRemove={() => say("Remove the whole line from the job page")}
+                onSplit={async (id, item) => { const ok = await act(() => splitMaterialLine({ id, item, workOrderId: chip.work_order_id }), () => `${item} is its own chip now — in the tray`); if (ok) onClose(); }}
+              />
+            </>
+          )}
         </div>
       )}
 
@@ -245,9 +274,10 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
         </div>
       )}
 
-      {shops.length > 0 && (
+      {(shops.length > 0 || q) && (
         <div className="fld">
-          <div className="k">{branchKind === "hire" ? "Hire yard" : "Shop"} <em>nearest first</em></div>
+          <div className="k">{branchKind === "hire" ? "Hire yard" : "Shop"} <em>{shopKinds.length > 1 ? "paint shops first, then hardware · nearest first" : "nearest first"}</em></div>
+          {shopKinds.length > 1 && <input type="search" value={shopQuery} onChange={(e) => setShopQuery(e.target.value)} placeholder="Search a shop, brand or suburb" aria-label="Search shops" data-testid="shop-search" style={{ marginBottom: 6 }} />}
           <div className="list">
             {shops.map(({ b, d }) => (
               <button key={b.id} type="button" className={`opt ${branchId === b.id ? "on" : ""}`} data-testid="shop-option" onClick={() => setBranchId(b.id)}>
@@ -262,9 +292,15 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
 
       {placed && lane && (
         <div className="fld">
-          <div className="k">Time</div>
+          <div className="k">Time <em>any time of day · how long it takes</em></div>
           <div className="chips">
             {timeChips.map((t) => <button key={t} type="button" className={`chp ${time === t ? "on" : ""}`} onClick={() => setTime(t)}>{t}</button>)}
+          </div>
+          <div className="row" style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <input type="time" value={/^\d{2}:\d{2}$/.test(time) ? time : ""} step={300} aria-label="Exact time" data-testid="chip-time" onChange={(e) => { if (e.target.value) setTime(e.target.value); }} />
+            <select value={duration} aria-label="How long" data-testid="chip-duration" onChange={(e) => setDuration(e.target.value)}>
+              {[15, 30, 45, 60, 90, 120, 180, 240].map((m) => <option key={m} value={String(m)}>{m < 60 ? `${m} min` : `${m / 60} h${m % 60 ? ` ${m % 60}` : ""}`}</option>)}
+            </select>
           </div>
         </div>
       )}

@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { chipFilterKind, chipState, kindLabel, type Gates } from "@/lib/movements/evaluate";
 import { movementIcon } from "@/lib/movements/gearIcons";
 import type { BranchRow, EquipmentItemRow, LogisticsDecisionRow, MaterialLineRow, MovementRow } from "@/lib/movements/types";
-import { addMaterialLine, createMovement, decideLogistics, removeMaterialLine, type MovementActionResult } from "@/app/pc/movements/actions";
+import { addMaterialLine, createMovement, decideLogistics, mergeMaterialLines, removeMaterialLine, splitMaterialLine, updateMaterialLine, type MovementActionResult } from "@/app/pc/movements/actions";
+import { MaterialBubbles } from "@/app/components/materials/MaterialBubbles";
 
 /**
  * The job page's pre-start, under the two gate items (brief §3.4 "Job page", Session 7):
@@ -25,13 +26,15 @@ export type PrestartMovementsProps = {
   items: EquipmentItemRow[];
   gates: Gates;
   failures: string[];
+  /** Off on the standalone card (a job past pre-start): the gate sentence is about the tick. */
+  showGate?: boolean;
 };
 
 const STATE_WORD: Record<ReturnType<typeof chipState>, string> = {
   tray: "in the tray — not planned yet", "needs-order": "placed · order not placed", planned: "planned", booked: "ordered / booked", done: "done", problem: "problem", cancelled: "cancelled",
 };
 
-export default function PrestartMovements({ workOrderId, kind, movements, lines, decisions, branches, items, gates, failures }: PrestartMovementsProps) {
+export default function PrestartMovements({ workOrderId, kind, movements, lines, decisions, branches, items, gates, failures, showGate = true }: PrestartMovementsProps) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -57,11 +60,11 @@ export default function PrestartMovements({ workOrderId, kind, movements, lines,
   return (
     <div className="prestart-mv" data-testid={`prestart-${kind}`} data-gate={ok ? "open" : "blocked"}>
       {failures.map((f) => <p key={f} className="note" style={{ color: "var(--amber)" }} data-testid="prestart-mv-failure">{f}</p>)}
-      <p className="note" data-testid={`prestart-${kind}-gate`} style={{ color: ok ? "var(--emerald)" : "var(--amber)", margin: "4px 0" }}>
+      {showGate && <p className="note" data-testid={`prestart-${kind}-gate`} style={{ color: ok ? "var(--emerald)" : "var(--amber)", margin: "4px 0" }}>
         {kind === "materials"
           ? (decision ? `Marked ${decision === "not_needed" ? "not needed" : "painter supplies"} — the tick is free.` : ok ? `${gates.paintOrdered} of ${gates.paintTotal} paint chip${gates.paintTotal === 1 ? "" : "s"} ordered — the tick is free.` : `Ordered ${gates.paintOrdered} of ${gates.paintTotal} paint chip${gates.paintTotal === 1 ? "" : "s"} — the tick refuses until ${blocker ? `"${blocker.title}"` : "every chip"} is ordered.`)
           : (decision ? "Marked not needed — the tick is free." : ok ? `${gates.gearBooked} of ${gates.gearTotal} gear chip${gates.gearTotal === 1 ? "" : "s"} booked — the tick is free.` : `Booked ${gates.gearBooked} of ${gates.gearTotal} gear chip${gates.gearTotal === 1 ? "" : "s"} — the tick refuses until ${blocker ? `"${blocker.title}"` : "every chip"} is booked.`)}
-      </p>
+      </p>}
       {chips.length > 0 && (
         <div className="mvcards" data-testid={`prestart-${kind}-chips`}>
           {chips.map((m) => {
@@ -81,19 +84,27 @@ export default function PrestartMovements({ workOrderId, kind, movements, lines,
       )}
       {kind === "materials" && (
         <div className="mvlines" data-testid="prestart-material-lines">
-          <div className="k">Materials lines <small>one line = one order chip; separate the items with commas · same list on the estimate and in the tray</small></div>
-          {liveLines.length === 0 && <p className="note" style={{ margin: "4px 0" }}>No materials lines yet.</p>}
-          {liveLines.map((l) => {
-            const chip = chipOfLine(l);
-            const placed = chip && chip.status !== "tray" && chip.status !== "cancelled";
-            return (
-              <div key={l.id} className="mvline" data-testid="prestart-material-line" data-line-id={l.id}>
-                <span>{l.text}<small> · {l.source === "estimate" ? "from the estimate" : l.source === "painter_request" ? "the painter asked" : "added here"}{chip ? ` · ${STATE_WORD[chipState(chip)]}` : ""}</small></span>
-                <button type="button" className="btn dim sm" disabled={pending || Boolean(placed)} title={placed ? "On someone's day — bring the chip back to the tray first" : "Remove this line"}
-                  onClick={() => run(() => removeMaterialLine({ id: l.id, workOrderId }), "Line removed")} data-testid="prestart-line-remove">×</button>
-              </div>
-            );
-          })}
+          <div className="k">Materials orders <small>one bubble = one order chip; commas separate the items · tap the words to edit · × on an item splits it into its own order · same list on the estimate and in the tray</small></div>
+          {liveLines.length === 0 && <p className="note" style={{ margin: "4px 0" }}>No materials orders yet.</p>}
+          <MaterialBubbles
+            testId="prestart-material-line"
+            busy={pending}
+            bubbles={liveLines.map((l) => {
+              const chip = chipOfLine(l);
+              const placed = Boolean(chip && chip.status !== "tray" && chip.status !== "cancelled");
+              return { id: l.id, text: l.text, locked: placed, sub: `${l.source === "estimate" ? "estimate" : l.source === "painter_request" ? "painter asked" : "job page"}${chip ? ` · ${STATE_WORD[chipState(chip)]}` : ""}` };
+            })}
+            onEdit={(id, text) => run(() => updateMaterialLine({ id, text, workOrderId }), "Line updated — its chip follows")}
+            onRemove={(id) => run(() => removeMaterialLine({ id, workOrderId }), "Line removed")}
+            onSplit={(id, item) => run(() => splitMaterialLine({ id, item, workOrderId }), `${item} is its own order now — a new chip in the tray`)}
+          />
+          {liveLines.filter((l) => { const c = chipOfLine(l); return !c || c.status === "tray"; }).length > 1 && (
+            <button type="button" className="btn dim sm" disabled={pending} data-testid="prestart-lines-combine"
+              title="Every line still in the tray becomes one order"
+              onClick={() => { const free = liveLines.filter((l) => { const c = chipOfLine(l); return !c || c.status === "tray"; }); run(() => mergeMaterialLines({ ids: free.slice(1).map((l) => l.id), into: free[0].id, workOrderId }), "Combined into one order"); }}>
+              Combine into one order
+            </button>
+          )}
           <div className="row" style={{ gap: 6, marginTop: 6 }}>
             <input className="num" style={{ flex: 1 }} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="One order per line, commas between items — gap filler, interior filler, brushes, rollers" maxLength={500} data-testid="prestart-line-input"
               onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) run(() => addMaterialLine({ workOrderId, text: draft.trim(), source: "pc" }), "Line added — it is a chip in the tray now"); }} />

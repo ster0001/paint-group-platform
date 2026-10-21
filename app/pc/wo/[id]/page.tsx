@@ -441,7 +441,9 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   // this job's paint and materials chips, and the one materials list; under Equipment
   // movements booked — the gear chips. The two gate ticks read gates(), the same answer the
   // tick RPC gives. The old free-text boxes were imported as lines by 20270282.
-  const jobMovements = row.stage === "pre_start" || row.stage === "offered" ? await loadJobMovements(supabase, id) : null;
+  // Tom, 21 Oct 2026: the materials list stays on the job page after pre-start is ticked and on
+  // every later stage (9 Ercildoune: nowhere to edit it) — as its own card once pre-start is gone.
+  const jobMovements = await loadJobMovements(supabase, id);
   const prestartExtras: Record<string, ReactNode> = {};
   if (jobMovements) {
     const pre = forPhase("pre_start");
@@ -919,6 +921,16 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               coloursHref={coloursHref}
               extras={prestartExtras}
             />
+          )}
+
+          {row.stage !== "pre_start" && jobMovements && (
+            <div className="card" data-testid="job-movements-card">
+              <h3>Materials &amp; movements <em>{jobMovements.movements.length} chip{jobMovements.movements.length === 1 ? "" : "s"}</em></h3>
+              <p className="note">The paint and materials orders and the gear on this job, the same list as the estimate and the Movements tray. Tap a chip to open it on the board.</p>
+              <PrestartPaintEstimate rows={materialRows} />
+              <PrestartMovements kind="materials" workOrderId={id} movements={jobMovements.movements} lines={jobMovements.lines} decisions={jobMovements.decisions} branches={jobMovements.branches} items={jobMovements.items} gates={jobMovements.gates} failures={jobMovements.failures} showGate={false} />
+              <PrestartMovements kind="equipment" workOrderId={id} movements={jobMovements.movements} lines={jobMovements.lines} decisions={jobMovements.decisions} branches={jobMovements.branches} items={jobMovements.items} gates={jobMovements.gates} failures={[]} showGate={false} />
+            </div>
           )}
 
           {/* A job at pre-start with no list is a fault, not a finished list —

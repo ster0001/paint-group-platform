@@ -114,6 +114,32 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
   const [trayOpen, setTrayOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Tom, 21 Oct 2026: the month and the days stay at the top while the PAGE scrolls down the
+  // lanes. The board grows with its lanes here (no inner scroller — the first-day fix), so the
+  // engine's sticky header has nothing to stick to: the header is shifted down by however far
+  // the page has scrolled past the top of the board, on every scroll frame.
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (view !== "week") return;
+    const root = boardRef.current;
+    if (!root) return;
+    let raf = 0;
+    const place = () => {
+      raf = 0;
+      const tl = root.querySelector<HTMLElement>(".sb .tl");
+      const hdr = root.querySelector<HTMLElement>(".sb .hdr");
+      if (!tl || !hdr) return;
+      const r = tl.getBoundingClientRect();
+      const shift = Math.max(0, Math.min(-r.top, r.height - hdr.offsetHeight - 40));
+      root.style.setProperty("--hdr-shift", `${Math.round(shift)}px`);
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(place); };
+    place();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [view]);
+
   const go = (next: Partial<{ view: View; week: string; job: string | null; day: string; who: string }>) => {
     const v = next.view ?? view;
     const w = next.week ?? weekStart;
@@ -148,13 +174,16 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, after the scroller exists
   }, [view]);
 
-  const slotTarget = (lane: MovementLane, target: DropTarget): { half: "AM" | "PM" | null; time: string | null } => {
+  const slotTarget = useCallback((lane: MovementLane, target: DropTarget): { half: "AM" | "PM" | null; time: string | null } => {
     if (lane.slots === "hour") {
       const t = target.slot && /^\d{2}:\d{2}$/.test(target.slot) ? target.slot : HOURS[0];
       return { half: t < "12:00" ? "AM" : "PM", time: t };
     }
-    return { half: target.slot === "pm" ? "PM" : "AM", time: null };
-  };
+    const half = target.slot === "pm" ? "PM" : "AM";
+    // Tom, 21 Oct 2026: a pickup dropped on a morning gets 07:00 (Settings → default times) as
+    // its time, adjustable to any time in the chip; the Supplier lane keeps plain AM / PM.
+    return { half, time: lane.kind === "supplier" ? null : world.settings.defaultHalfTime[half] };
+  }, [world.settings.defaultHalfTime]);
 
   const check = useCallback((p: DragPayload, t: DropTarget): DropCheck => {
     const lane = laneById.get(t.laneId);
@@ -195,7 +224,7 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
       return;
     }
     void place(p.chip, lane, t.day, half, time);
-  }, [laneById, place, act, world]);
+  }, [laneById, place, act, world, slotTarget]);
 
   const onDropOnTray = useCallback((p: DragPayload) => {
     if (!("chip" in p) || p.chip.status === "tray") return;
@@ -239,7 +268,9 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
       if (!g.job) return "3";
       return `${g.closed ? "2" : "1"}:${g.job.startDate ?? "9999"}:${g.job.id}`;
     };
-    return world.movements.filter((m) => m.status === "tray").sort((a, b) => groupOrder(a).localeCompare(groupOrder(b)) || a.created_at.localeCompare(b.created_at));
+    // Tom, 21 Oct 2026: a job with no dates has nothing to plan yet — its chips stay out of the tray.
+    const dated = (m: MovementRow) => { const j = world.jobs.find((x) => x.id === m.work_order_id); return !m.work_order_id || !j || Boolean(j.startDate); };
+    return world.movements.filter((m) => m.status === "tray" && dated(m)).sort((a, b) => groupOrder(a).localeCompare(groupOrder(b)) || a.created_at.localeCompare(b.created_at));
   }, [world, painterName]);
   const filterCount = (f: Filter) => (f === "all" ? trayChips.length : trayChips.filter((m) => chipFilterKind(m) === f).length);
   const shownChips = filter === "all" ? trayChips : trayChips.filter((m) => chipFilterKind(m) === filter);
@@ -295,10 +326,10 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
       }}
       after={
         <>
-          {world.unscheduledCheckins.length > 0 && (
+          {world.unscheduledCheckins.some((c) => world.jobs.find((j) => j.id === c.workOrderId)?.startDate) && (
             <div className="checkins" data-testid="tray-checkins">
               <div className="tjob"><div className="t"><span>Site check-ins to book</span><small>drag onto a staff day · the time is the row</small></div></div>
-              {world.unscheduledCheckins.map((c) => {
+              {world.unscheduledCheckins.filter((c) => world.jobs.find((j) => j.id === c.workOrderId)?.startDate).map((c) => {
                 const job = world.jobs.find((j) => j.id === c.workOrderId);
                 return (
                   <div key={c.id} className="chip todo checkin" data-testid="tray-checkin" data-visit-id={c.id} title="Drag onto a staff lane"
@@ -455,7 +486,7 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
 
       {view === "week" ? (
         <>
-          <div data-testid="movements-board">
+          <div data-testid="movements-board" ref={boardRef}>
             <Board<MovementLane, never, DragPayload, DropCheck>
               zoom={zoom}
               drag={drag}

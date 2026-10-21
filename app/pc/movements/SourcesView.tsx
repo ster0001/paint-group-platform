@@ -5,7 +5,8 @@ import { chipFilterKind, chipState, gates, kindLabel, shortDay, type World } fro
 import type { JobExtras } from "@/lib/movements/load";
 import { movementIcon } from "@/lib/movements/gearIcons";
 import type { EquipmentCategory, MaterialLineRow, MovementRow } from "@/lib/movements/types";
-import { addMaterialLine, removeMaterialLine, type MovementActionResult } from "./actions";
+import { addMaterialLine, removeMaterialLine, splitMaterialLine, updateMaterialLine, type MovementActionResult } from "./actions";
+import { MaterialBubbles } from "@/app/components/materials/MaterialBubbles";
 
 type Act = (run: () => Promise<MovementActionResult>, done?: (value: string) => string | void) => Promise<boolean>;
 
@@ -49,16 +50,18 @@ export default function SourcesView({ world, materialLines, jobExtras, jobId, on
   const lineList = (source: "estimate" | "pc", key: string) => (
     <>
       <div className="lines">
-        {lines.length === 0 && <p className="note" style={{ margin: "4px 0" }}>No materials lines yet.</p>}
-        {lines.map((l) => {
-          const c = chipOfLine(l);
-          return (
-            <div key={l.id} className="ln" data-testid="material-line">
-              <span>{l.text}<small><span className="src">{SOURCE_WORD[l.source]}</span>{c ? (c.status === "tray" ? " · in the tray" : ` · on ${(personName(c) ?? "").split(" ")[0]}'s ${c.due_date ? shortDay(c.due_date) : ""}`) : " · chip pending"}</small></span>
-              <button type="button" disabled={busy} onClick={() => void act(() => removeMaterialLine({ id: l.id, workOrderId: job.id }), () => "Line removed everywhere")}>remove</button>
-            </div>
-          );
-        })}
+        {lines.length === 0 && <p className="note" style={{ margin: "4px 0" }}>No materials orders yet.</p>}
+        <MaterialBubbles
+          testId="material-line"
+          busy={busy}
+          bubbles={lines.map((l) => {
+            const c = chipOfLine(l);
+            return { id: l.id, text: l.text, locked: Boolean(c && c.status !== "tray" && c.status !== "cancelled"), sub: `${SOURCE_WORD[l.source]}${c ? (c.status === "tray" ? " · in the tray" : ` · on ${(personName(c) ?? "").split(" ")[0]}'s ${c.due_date ? shortDay(c.due_date) : ""}`) : " · chip pending"}` };
+          })}
+          onEdit={(id, text) => act(() => updateMaterialLine({ id, text, workOrderId: job.id }), () => "Line updated everywhere")}
+          onRemove={(id) => act(() => removeMaterialLine({ id, workOrderId: job.id }), () => "Line removed everywhere")}
+          onSplit={(id, item) => act(() => splitMaterialLine({ id, item, workOrderId: job.id }), () => `${item} is its own order now`)}
+        />
       </div>
       <div className="addln">
         <input type="text" value={draft[key] ?? ""} onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))} maxLength={500}

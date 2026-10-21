@@ -420,3 +420,44 @@
 .mvx .sb .tl { height: auto; max-height: none; overflow-y: visible; }
 .mvx .sb .layout { align-items: start; }
 .mvx .sb .tray { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
+
+/* Tom, 21 Oct 2026: the days stay frozen at the top while the page scrolls the lanes. The board
+   has no inner scroller on this tab, so sticky cannot hold; MovementsScreen measures how far
+   the page has scrolled past the board and shifts the header by it (--hdr-shift). */
+.mvx .sb .hdr { position: relative; top: auto; transform: translateY(var(--hdr-shift, 0px)); will-change: transform; }
+.mvx .bubbles .bubble { background: var(--ink); }
+.mvx .sheet input[type="time"], .mvx .sheet select, .mvx .sheet input[type="search"] { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--ink); color: var(--text); font: inherit; }
+.mvx .sheet input[type="search"] { width: 100%; }
+
+/* Tom, 21 Oct 2026: the run planner on the Map — a draft box, rows that drag, publish. */
+.mvx .planner.dropping { border-color: var(--cyan); box-shadow: 0 0 0 3px var(--cyan-soft); }
+.mvx .planner h3 em select { font: inherit; font-size: 12.5px; text-transform: none; letter-spacing: 0; font-family: var(--sans); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--graphite); color: var(--text); }
+.mvx .planlist { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; min-height: 56px; border: 1px dashed var(--line); border-radius: 12px; padding: 8px; }
+.mvx .planlist .empty { margin: 8px 4px; }
+.mvx .prow { display: grid; grid-template-columns: 22px 26px 1fr auto; gap: 8px; align-items: start; border: 1px solid var(--line); border-radius: 10px; background: var(--graphite); padding: 8px 9px; font-size: 12.5px; position: relative; user-select: none; -webkit-user-select: none; }
+.mvx .prow .hnd { color: var(--dim); font-size: 14px; letter-spacing: -2px; cursor: grab; text-align: center; touch-action: none; padding: 4px 0; background: none; border: 0; }
+.mvx .prow .num { width: 24px; height: 24px; border-radius: 50%; background: var(--pc, var(--cyan)); color: #fff; font-family: var(--mono); font-weight: 700; font-size: 10px; display: grid; place-items: center; }
+.mvx .prow .pbody { min-width: 0; }
+.mvx .prow .pbody b { display: block; font-weight: 600; line-height: 1.25; }
+.mvx .prow .pbody small { display: block; color: var(--muted); font-size: 10.5px; }
+.mvx .prow .pctl { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.mvx .prow .pctl select, .mvx .prow .pctl input { border: 1px solid var(--line); border-radius: 8px; padding: 5px 7px; background: var(--ink); color: var(--text); font: inherit; font-size: 12px; }
+.mvx .prow .pctl .chp { padding: 4px 9px; font-size: 11px; }
+.mvx .prow .pctl .end { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.mvx .prow .pacts { display: grid; gap: 3px; }
+.mvx .prow .pacts button { width: 24px; height: 22px; border: 1px solid var(--line); border-radius: 6px; background: var(--ink); color: var(--soft); font-size: 10px; }
+.mvx .prow .pacts button.x { font-size: 14px; }
+.mvx .prow .pacts button:disabled { opacity: .35; }
+.mvx .prow.lift { box-shadow: 0 10px 24px rgba(0,0,0,.18); border-color: var(--cyan); z-index: 2; }
+.mvx .prow.before::before, .mvx .prow.after::after { content: ""; position: absolute; left: 8px; right: 8px; height: 3px; border-radius: 2px; background: var(--cyan); }
+.mvx .prow.before::before { top: -5px; } .mvx .prow.after::after { bottom: -5px; }
+.mvx .planner .btnrow { margin-top: 10px; }
+.mvx .totray { margin-top: 12px; }
+.mvx .totray .trows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-height: 340px; overflow: auto; }
+.mvx .trow { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--graphite); padding: 7px 9px; cursor: grab; }
+.mvx .trow .ic { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: var(--ink); color: var(--cyan); }
+.mvx .trow .ic svg { width: 14px; height: 14px; }
+.mvx .trow .tb { min-width: 0; font-size: 12.5px; }
+.mvx .trow .tb b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mvx .trow .tb small { display: block; color: var(--muted); font-size: 10.5px; }
+.mvx .mpin .mpop .mopen.plan { margin-left: 6px; border-color: #5B4FD6; color: #5B4FD6; }
