@@ -67,7 +67,6 @@ async function toEditor(page: Page, shape: "wb" | "ds", dropSides: Array<"front"
   await toSides(page, shape, ["walls", "fascias"]);
   for (const k of dropSides) { await page.getByTestId(`ql-ext-side-${k}`).click(); await page.getByTestId("ext-side-np").click(); }
   await page.getByTestId("ql-ext-side-front").click();
-  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });

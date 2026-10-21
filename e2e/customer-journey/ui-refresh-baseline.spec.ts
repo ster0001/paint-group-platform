@@ -230,8 +230,7 @@ test.describe("ui refresh baseline screenshots", () => {
         await quickNext(page);
         await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
         await shot(page, width, "34-ext-sides");
-        for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
-        await quickNext(page);
+            await quickNext(page);
         await passGateIfShown(page, { email: `ui.refresh.ext.${Date.now()}@example.com` });
         await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
         await shot(page, width, "35-ext-reveal");

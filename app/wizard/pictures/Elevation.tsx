@@ -13,8 +13,9 @@ import { defaultSidesForPart, partExists, partsOnSide, postCount } from "@/lib/w
  * (every value interpolated is a number, a fixed word or a pattern id —
  * never customer text), and the component injects it into one `<svg>`.
  *
- * Scale = min(280 ÷ w, 150 ÷ (h + rise + 0.6), 46) px per metre, so adjusting
- * a side visibly changes the shape. Every part is `<g class="e e-<part>"
+ * Two scales — `sx` across (fits the width) and `sy` up (fits the height, and
+ * does not change with the width) — so adjusting a side visibly changes its
+ * shape without shrinking the house (Tom, 21 Oct). Every part is `<g class="e e-<part>"
  * data-e data-on>` in the mockup's colour layering (walls light cyan, gable
  * cyan, roofline deep teal, openings teal; stain brown for vertical timber;
  * greys when not painting). Materials are SVG patterns. Roof shapes: hip
@@ -85,11 +86,29 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
   const fullGable = t.roof === "gable" && !long;
   const terraceFront = t.roof === "parapet" && !long;
   const riseM = fullGable ? (t.gableRiseM ?? 2.2) : terraceFront ? (t.gableRiseM ?? 0.9) : t.roof === "skillion" ? (t.gableRiseM ?? 1.1) : Math.min(2.2, w * 0.2);
-  const s = Math.min(280 / w, 150 / (h + riseM + 0.6), 46);
-  const W = w * s, H = h * s, R = riseM * s;
-  const yG = 205, yE = yG - H, x0 = 200 - W / 2, x1 = 200 + W / 2;
+  /**
+   * Tom, 21 Oct: ONE scale made a wide house a flat one — a very large or a
+   * long side came out 36 px high with windows that could not fit, and the
+   * right side looked squashed. Two scales now: `sx` (px per metre across)
+   * fits the width into the frame; `sy` (px per metre up) fits the wall and
+   * roof into the height and does not change with the width. So a bigger
+   * house gets wider, not smaller; every side stands the same height; and
+   * the openings keep a readable size. A sketch, not a scale drawing.
+   */
+  const shared = EXTERIOR_SIDE_KEYS.filter((k) => v2.sides[k]?.shared);
+  const neighbours = !long && shared.length > 0;
+  // Width: 250 px at 10 m, 5.5 px more per metre, inside [150, 316] (280 with a
+  // neighbour drawn) — so a bigger house reads bigger without ever leaving the frame.
+  const wMax = neighbours ? 280 : 316;
+  const sx = Math.min(Math.max(150, Math.min(wMax, 250 + (w - 10) * 5.5)) / w, 46);
+  // Height: the shape's wall and its tallest roof fit the frame — the same on
+  // every side and at every size, so a long side is never squashed.
+  const riseForScale = Math.max(2.2, t.gableRiseM ?? 0);
+  const sy = Math.min(168 / (h + riseForScale + 0.6), 52);
+  const W = w * sx, H = h * sy, R = riseM * sy;
+  const yG = 216, yE = yG - H, x0 = 200 - W / 2, x1 = 200 + W / 2;
   const ov = 10;
-  let o = `<rect x="0" y="${yG}" width="400" height="35" fill="${C.ground}"/>`;
+  let o = `<rect x="0" y="${yG}" width="400" height="${240 - yG}" fill="${C.ground}"/>`;
 
   // around-the-house extras (build view only, drawn behind the house)
   if (opts.build) {
@@ -105,7 +124,6 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
 
   // the neighbours, on a shared side (front and back views)
   if (!long) {
-    const shared = EXTERIOR_SIDE_KEYS.filter((k) => v2.sides[k]?.shared);
     const nb = (x: number) => `<g data-testid="pic-nextdoor"><rect x="${n2(x)}" y="${n2(yE - 6)}" width="46" height="${n2(H + 6)}" fill="#E8EEF1" stroke="#B4C0C8" stroke-dasharray="3 3"/><text x="${n2(x + 23)}" y="${n2(yE + H / 2 + 4)}" text-anchor="middle" font-size="9" fill="#8A96A0" font-family="system-ui">next door</text></g>`;
     const L = side === "front" ? "left" : "right", Rr = side === "front" ? "right" : "left";
     if (shared.includes(L)) o += nb(x0 - ov - 46);
@@ -137,7 +155,7 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
     else o += `<polygon points="${n2(x0 - ov)},${n2(yE)} ${n2(tx0)},${n2(top)} ${n2(tx1)},${n2(top)} ${n2(x1 + ov)},${n2(yE)}" fill="${C.roof}"/>`;
     if (t.roof === "gable" && long) o += `<path d="M${n2(tx0)} ${n2(top)}H${n2(tx1)}" stroke="${C.roof2}" stroke-width="3"/>`;
     if (gHas && t.roof !== "skillion") {
-      const gw = W * 0.5, gx0 = 200 - gw / 2, gx1 = 200 + gw / 2, gR = Math.min(R * 1.05, 1.9 * s); const apex = yE - gR;
+      const gw = W * 0.5, gx0 = 200 - gw / 2, gx1 = 200 + gw / 2, gR = Math.min(R * 1.05, 1.9 * sy); const apex = yE - gR;
       o += `<polygon points="${n2(gx0 - 6)},${n2(yE)} 200,${n2(apex - 4)} ${n2(gx1 + 6)},${n2(yE)}" fill="${C.roof2}"/>`;
       o += g("gable", `<polygon points="${n2(gx0 + 4)},${n2(yE - 3)} 200,${n2(apex + 8)} ${n2(gx1 - 4)},${n2(yE - 3)}" fill="${col("gable", gOn)}"/><polygon points="${n2(gx0 + 4)},${n2(yE - 3)} 200,${n2(apex + 8)} ${n2(gx1 - 4)},${n2(yE - 3)}" fill="url(#p-${gfillPat})"/>`);
       o += g("fascias", `<path d="M${n2(gx0 - 6)} ${n2(yE)}L200 ${n2(apex - 4)}L${n2(gx1 + 6)} ${n2(yE)}" fill="none" stroke="${col("fascias", fas)}" stroke-width="4" stroke-linejoin="round"/>`);
@@ -169,7 +187,7 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
   const verHas = has("verandah"), ver = partOn("verandah");
   const garHere = has("garage");
   const vx0 = x0 + W * 0.06; let vx1 = x1 - W * 0.06; if (garHere) vx1 = x1 - W * 0.42;
-  const vyTop = yG - Math.min(H - 10, (t.roof === "parapet" ? 2.9 : 2.5) * s), vFloor = yG - 0.25 * s;
+  const vyTop = yG - Math.min(H - 10, (t.roof === "parapet" ? 2.9 : 2.5) * sy), vFloor = yG - 0.25 * sy;
   const postKind = v2.postKind ?? (t.verandah === "lace" ? "lace" : t.verandah === "columns" ? "columns" : "posts");
   const lace = postKind === "lace";
   if (verHas) {
@@ -181,7 +199,7 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
       o += g("verandah", `<polygon points="${n2(vx0 - 8)},${n2(vyTop)} ${n2(vx0)},${n2(vyTop - 14)} ${n2(vx1)},${n2(vyTop - 14)} ${n2(vx1 + 8)},${n2(vyTop)}" fill="${C.roof}"/><rect x="${n2(vx0 - 10)}" y="${n2(vyTop - 2)}" width="${n2(vx1 - vx0 + 20)}" height="6" fill="${col("verandah", ver)}" stroke="#16212A" stroke-opacity=".2"/>`);
       o += g("ceiling", `<rect x="${n2(vx0 - 6)}" y="${n2(vyTop + 4)}" width="${n2(vx1 - vx0 + 12)}" height="5" fill="${col("ceiling", cOn)}"/>`);
     }
-    const n = postCount((vx1 - vx0) / s / 0.8);
+    const n = postCount((vx1 - vx0) / sx / 0.8);
     let posts = "";
     for (let i = 0; i < n; i++) {
       const px = vx0 + ((vx1 - vx0) * i) / (n - 1);
@@ -195,41 +213,64 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
   }
 
   // garage
+  const garW = garHere ? (v2.garageCars === 2 ? 4.8 : 2.6) * sx : 0;
+  const gx = x1 - garW - W * 0.04;
   if (garHere) {
-    const gw = (v2.garageCars === 2 ? 4.8 : 2.6) * s, gh = Math.min(H - 14, 2.2 * s); const gx = x1 - gw - W * 0.04;
+    const gw = garW, gh = Math.min(H - 14, 2.2 * sy);
     o += g("garage", `<rect x="${n2(gx)}" y="${n2(yG - gh)}" width="${n2(gw)}" height="${n2(gh)}" fill="${col("garage", partOn("garage"))}" stroke="#16212A" stroke-opacity=".3"/>${[1, 2, 3].map((i) => `<path d="M${n2(gx)} ${n2(yG - gh + (gh * i) / 4)}H${n2(gx + gw)}" stroke="#16212A" stroke-opacity=".18"/>`).join("")}`);
   }
 
   // doors
   const dOn = partOn("doors");
-  const doorW = 0.9 * s, doorH = Math.min(H - 14, (t.roof === "parapet" ? 2.4 : 2.04) * s);
+  const doorW = 0.9 * sx, doorH = Math.min(H - 14, (t.roof === "parapet" ? 2.4 : 2.04) * sy);
   const nDoors = sd?.doors ?? (side === "front" ? 1 : 0);
-  const doorX = verHas ? vx0 + (vx1 - vx0) * (terraceFront ? 0.25 : 0.5) : x0 + W * 0.5;
+  // The front door: the middle of the verandah, else the middle of the wall — and always clear of a garage.
+  const doorX = Math.min(verHas ? vx0 + (vx1 - vx0) * (terraceFront ? 0.25 : 0.5) : x0 + W * 0.5, (garHere ? gx : x1) - doorW);
   let doors = "";
   if (nDoors > 0) {
     const dx = doorX - doorW / 2;
     doors += `<rect x="${n2(dx)}" y="${n2(yG - doorH)}" width="${n2(doorW)}" height="${n2(doorH)}" rx="1.5" fill="${col("doors", dOn)}" stroke="#16212A" stroke-opacity=".35"/><circle cx="${n2(dx + doorW * 0.78)}" cy="${n2(yG - doorH * 0.5)}" r="1.6" fill="#16212A" fill-opacity=".5"/>`;
     if (terraceFront) doors += `<rect x="${n2(dx + doorW + 2)}" y="${n2(yG - doorH)}" width="${n2(doorW * 0.35)}" height="${n2(doorH)}" fill="${C.glass}" stroke="${col("doors", dOn)}" stroke-width="1.5"/>`;
-    for (let i = 1; i < nDoors; i++) { const ddx = x0 + W * (0.14 + (0.72 * (i % 3)) / 3); doors += `<rect x="${n2(ddx)}" y="${n2(yG - doorH)}" width="${n2(doorW * 0.9)}" height="${n2(doorH)}" rx="1.5" fill="${col("doors", dOn)}" stroke="#16212A" stroke-opacity=".35"/>`; }
+    for (let i = 1; i < nDoors; i++) { const ddx = x0 + W * (0.12 + (0.72 * (i % 3)) / 3); doors += `<rect x="${n2(ddx)}" y="${n2(yG - doorH)}" width="${n2(doorW * 0.9)}" height="${n2(doorH)}" rx="1.5" fill="${col("doors", dOn)}" stroke="#16212A" stroke-opacity=".35"/>`; }
   }
   o += g("doors", doors);
 
-  // windows, spread along the wall, on every storey
+  // windows — on every storey, laid out in the wall EITHER SIDE of the door and
+  // clear of the garage, so the count always fits (Tom, 21 Oct: they used to
+  // be spread over the whole wall and nudged off the door, and fell outside it).
   const wnOn = partOn("windows");
   const n = sd?.windows ?? 2; let wins = "";
   const tall = terraceFront ? 2.2 : t.roof === "skillion" ? 1.6 : 1.5;
-  const ww = Math.min((t.roof === "skillion" ? 1.8 : terraceFront ? 0.9 : 1.2) * s, (W / (n + 1)) * 0.62), wh = Math.min(tall * s, (t.storeys === 2 ? H / 2 : H) * (terraceFront ? 0.66 : 0.58));
+  const wwMax = (t.roof === "skillion" ? 1.8 : terraceFront ? 0.9 : 1.2) * sx;
+  let ww = wwMax, wh = Math.min(tall * sy, (t.storeys === 2 ? H / 2 : H) * (terraceFront ? 0.66 : 0.58));
   const perStorey = t.storeys === 2 ? [Math.ceil(n / 2), Math.floor(n / 2)] : [n];
   perStorey.forEach((cnt, st) => {
+    const isGround = st === perStorey.length - 1;
     const yTop = t.storeys === 2 ? (st === 0 ? yE + 8 : yE + H / 2) : wallTop; const lvlH = t.storeys === 2 ? H / 2 : H;
+    wh = Math.min(tall * sy, lvlH * (terraceFront ? 0.66 : 0.58));
     const wy = terraceFront ? yG - doorH : yTop + lvlH * 0.32 - wh / 2;
-    for (let i = 0; i < cnt; i++) {
-      const cx = terraceFront && verHas ? vx0 + (vx1 - vx0) * (0.5 + (0.5 * (i + 1)) / (cnt + 1)) : x0 + (W * (i + 1)) / (cnt + 1);
-      let wx = cx - ww / 2; const isGround = st === perStorey.length - 1;
-      if (!terraceFront && isGround && nDoors > 0 && Math.abs(cx - doorX) < doorW * 1.2) wx += (cx < doorX ? -1 : 1) * doorW * 1.3;
-      if (garHere && isGround && wx + ww > x1 - (v2.garageCars === 2 ? 4.8 : 2.6) * s - W * 0.05) wx -= W * 0.25;
-      wins += windowGlyph(wx, isGround && verHas && !terraceFront ? Math.max(wy, vyTop + 14) : wy, ww, wh, wnOn, v2.windowType);
-    }
+    const place = (from: number, to: number, k: number) => {
+      if (k <= 0 || to <= from) return;
+      ww = Math.max(4, Math.min(wwMax, ((to - from) / (k + 1)) * 0.74));
+      for (let i = 0; i < k; i++) {
+        const cx = from + ((to - from) * (i + 1)) / (k + 1);
+        wins += windowGlyph(cx - ww / 2, isGround && verHas && !terraceFront ? Math.max(wy, vyTop + 14) : wy, ww, wh, wnOn, v2.windowType);
+      }
+    };
+    if (terraceFront && verHas) { place(vx0 + (vx1 - vx0) * 0.5, vx1, cnt); return; }
+    const L = x0 + W * 0.04, Rr = (isGround && garHere ? gx : x1) - W * 0.04;
+    if (isGround && nDoors > 0) {
+      const dL = doorX - doorW * 0.9, dR = doorX + doorW * 0.9;
+      const minSlot = 6;
+      const roomL = dL - L >= minSlot, roomR = Rr - dR >= minSlot;
+      if (!roomL && !roomR) place(L, Rr, cnt); // a very small wall: spread them anyway rather than lose any
+      else {
+        let leftN = Math.ceil(cnt / 2);
+        if (!roomR) leftN = cnt; else if (!roomL) leftN = 0;
+        place(L, dL, leftN);
+        place(dR, Rr, cnt - leftN);
+      }
+    } else place(L, Rr, cnt);
   });
   o += g("windows", wins);
   if (has("shutters")) o += g("shutters", `<rect x="${n2(x0 + W * 0.08)}" y="${n2(yE + H * 0.3 - wh / 2)}" width="${n2(ww * 0.3)}" height="${n2(wh)}" fill="${col("shutters", partOn("shutters"))}" stroke="#16212A" stroke-opacity=".3"/><rect x="${n2(x1 - W * 0.08 - ww * 0.3)}" y="${n2(yE + H * 0.3 - wh / 2)}" width="${n2(ww * 0.3)}" height="${n2(wh)}" fill="${col("shutters", partOn("shutters"))}" stroke="#16212A" stroke-opacity=".3"/>`);

@@ -68,8 +68,7 @@ export default function JobSoFar({ steps, at, quick, outside, address, roomCount
       case "sides": {
         if (outside.v2) {
           const painted = paintedSides(outside.v2);
-          const done = painted.filter((k) => outside.v2!.sides[k]?.confirmed).length;
-          return [`${painted.length} of 4 · ${done} confirmed`, "Each side"];
+          return [`${painted.length} of 4 sides`, "Each side"];
         }
         const n = (outside.sides ?? ["front", "left", "back", "right"]).length;
         return [n === 4 ? "All four sides" : `${n} side${n === 1 ? "" : "s"}`, "Which sides"];

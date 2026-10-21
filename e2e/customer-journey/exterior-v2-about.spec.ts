@@ -137,7 +137,6 @@ test("the extras ask their sizes; a ticked pergola needs its top; then the range
   await page.getByTestId("ext-side-np").click();
   await expect(page.getByTestId("ql-ext-side-right")).toHaveAttribute("data-state", "skip");
   await page.getByTestId("ql-ext-side-front").click(); // a side not painting has no Looks right; confirm from the front round
-  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });

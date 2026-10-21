@@ -1,7 +1,7 @@
 "use client";
 
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
-import { aboutMissing, allSidesChecked, allSidesConfirmed, exteriorV2Answered, nextUncheckedSide, paintedSides } from "@/lib/wizard/exterior-model";
+import { aboutMissing, allSidesChecked, allSidesConfirmed, confirmAllSides, exteriorV2Answered, nextUncheckedSide, paintedSides } from "@/lib/wizard/exterior-model";
 import PictureCard from "./PictureCard";
 import type { ExteriorSideKey } from "@/lib/wizard/exterior-typicals";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -1700,12 +1700,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       setError("Tick at least one side we're painting — tap Not painting again to add one back.");
       return;
     }
-    // S4: every painted side needs "Looks right" before the gate (acceptance 8a).
-    if (quickStep === "sides" && outside.v2 && !allSidesConfirmed(outside.v2)) {
-      const left = paintedSides(outside.v2).filter((k) => !outside.v2!.sides[k]?.confirmed).length;
-      setError(`Tap "Looks right — next side" on each side — ${left} to go.`);
-      return;
-    }
+    // Tom, 21 Oct: no per-side "Looks right" tap — Continue stands for every painted side.
+    if (quickStep === "sides" && outside.v2 && !allSidesConfirmed(outside.v2)) setOutside({ v2: confirmAllSides(outside.v2) });
     // C8b: an outside job has to name SOMETHING being painted — nothing is
     // pre-ticked, so an untouched screen is not an answer.
     if (quickStep === "outside" && !paintsSomething(outside)) {

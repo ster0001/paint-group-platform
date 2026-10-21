@@ -1620,6 +1620,8 @@
   .wz .wz-pic { border-radius: 18px; }
   .wz .wz-pic-head { display: none; }
   .wz .wz-pic-art { aspect-ratio: auto; height: 112px; }
+  /* Tom, 21 Oct: the drawn house needs the room — 112 px made a 400 × 240 elevation 150 px wide, its windows unreadable. */
+  .wz .wz-pic-art:has(> .wz-elev) { height: 172px; }
   .wz .wz-pic-note { padding: 7px 14px 8px; min-height: 0; font-size: 13.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .wz .wz-stage .wz-cards--col { gap: 8px; }
   .wz .wz-stage .wz-cards--col .wz-card { min-height: 104px; padding: 12px 10px; gap: 8px; }

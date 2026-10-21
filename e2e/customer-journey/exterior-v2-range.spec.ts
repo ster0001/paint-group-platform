@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
@@ -19,16 +19,6 @@ import { toSides } from "./exterior-v2-drive";
 const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "0"; // on by default since 21 Oct; "0" is the off switch
 test.skip(!FLAG_ON, "exteriorV2 is switched off in this environment (NEXT_PUBLIC_EXTERIOR_V2=0)");
 
-async function confirmAll(page: Page) {
-  for (let i = 0; i < 4; i++) {
-    const btn = page.getByTestId("ext-confirm-side");
-    if (!(await btn.count())) break;
-    if (await page.getByTestId("ext-sides-done").count()) break;
-    await btn.click();
-  }
-  await expect(page.getByTestId("ext-sides-done")).toBeVisible();
-}
-
 test("the guide range on a bungalow: the pill, one row per side with the gable on the right only, around the house, not in this number, the doors in order", async ({ page }) => {
   test.setTimeout(240_000);
   await toSides(page, "cal", ["walls", "gable", "fascias", "gutters", "eaves", "windows", "doors", "verandah", "posts"]);
@@ -39,7 +29,6 @@ test("the guide range on a bungalow: the pill, one row per side with the gable o
   await page.getByTestId("ql-ext-side-left").click();
   await page.getByTestId("ext-side-np").click();
   await page.getByTestId("ql-ext-side-front").click();
-  await confirmAll(page);
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
@@ -92,7 +81,6 @@ test("a townhouse in the middle of the row prices two sides; the extras get thei
   await page.getByTestId("ext-size-paling_fence-input").blur();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
-  await confirmAll(page);
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });

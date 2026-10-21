@@ -25,7 +25,6 @@ test.skip(!FLAG_ON, "exteriorV2 is switched off in this environment (NEXT_PUBLIC
 
 async function toWalk(page: Page) {
   await toSides(page, "cal", ["walls", "gable", "fascias", "gutters", "eaves", "windows", "doors"]);
-  for (let i = 0; i < 4 && !(await page.getByTestId("ext-sides-done").count()); i++) await page.getByTestId("ext-confirm-side").click();
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
