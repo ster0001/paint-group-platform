@@ -33,7 +33,7 @@ export type WeekendAvailability = { worksSaturday: boolean; worksSunday: boolean
 export type ContractorDoc = {
   id: string;
   contractor_id: string;
-  kind: "insurance" | "workcover" | "licence" | "other" | "white_card" | "working_at_heights" | "standards" | "induction";
+  kind: "insurance" | "workcover" | "licence" | "other" | "white_card" | "working_at_heights" | "standards" | "induction" | "agreement";
   name: string;
   file_url: string;
   expires_on: string | null;
@@ -103,6 +103,8 @@ export const DOC_LABEL: Record<ContractorDoc["kind"], string> = {
   standards: "Finish standards — your signed copy",
   /** Generated at the last induction tick (Step 5) — every line ticked, in the painter's language. */
   induction: "Induction — your signed copy",
+  /** The subcontractor agreement (agreement brief): signed in the portal, or the paper copy the office uploaded. Never uploaded by the painter. */
+  agreement: "Subcontractor agreement — your signed copy",
 };
 
 /**

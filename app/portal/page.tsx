@@ -30,6 +30,8 @@ import { loadPainterMovements } from "@/lib/movements/painterLoad";
 import { todayStops } from "@/lib/movements/painterView";
 import { melbourneDate as melbourneIso } from "@/lib/workorder/console";
 import { isDateString } from "@/lib/scheduling/dates";
+import { loadAgreementStatus } from "@/lib/agreements/load";
+import { dmy as agreementDay, renewalDue } from "@/lib/agreements/status";
 
 export const dynamic = "force-dynamic";
 
@@ -176,7 +178,7 @@ export default async function PortalHome({ searchParams }: { searchParams?: Prom
   const missing = missingProfileFields(contractor);
 
   // Everything the contractor has to act on right now, drawn from real state.
-  const actions: { icon: string; text: string; chip?: string; defer?: boolean }[] = [];
+  const actions: { icon: string; text: string; chip?: string; defer?: boolean; href?: string; testId?: string }[] = [];
   const awaitingCheck = docs.find((d) => d.kind === "insurance" && d.file_url && !d.verified_at);
   if (docsError) {
     // Say nothing about insurance when we couldn't read the documents at all —
@@ -218,6 +220,24 @@ export default async function PortalHome({ searchParams }: { searchParams?: Prom
       text: "Upload your WorkCover certificate — required while anyone works with you",
       chip: "Needed",
     });
+  }
+  // The subcontractor agreement (agreement brief §3): the same reminder tile that nags for
+  // insurance, from the status RPC. Offers wait on it (ruling 1), and renewal is a month out.
+  if (capabilities.requiresInsurance) {
+    const { status: agreement } = await loadAgreementStatus(supabaseForStandards);
+    if (agreement && !agreement.signed) {
+      actions.push({
+        icon: "✍", href: "/portal/agreement", testId: "action-agreement",
+        text: `Read and sign your subcontractor agreement — your details are already filled in${agreement.gate !== "ok" ? ". Job offers wait until it is signed" : ""}`,
+        chip: agreement.gate !== "ok" ? "Required" : "To do",
+      });
+    } else if (agreement?.signed && renewalDue(agreement.signed.expiresOn, melbourneIso(new Date()), agreement.renewalWarnDays)) {
+      actions.push({
+        icon: "✍", href: "/portal/agreement", testId: "action-agreement-renew",
+        text: `Your subcontractor agreement is due for renewal${agreement.signed.expiresOn ? ` on ${agreementDay(agreement.signed.expiresOn)}` : ""} — read and sign the new term`,
+        chip: "Renew",
+      });
+    }
   }
   // Company details exist for the RCTI — an employee has no invoice to put them on.
   if (missing.length && capabilities.canSelfInvoice) {
@@ -285,7 +305,7 @@ export default async function PortalHome({ searchParams }: { searchParams?: Prom
         <div className="card">
           <h3>Action items</h3>
           {actions.map((a, i) => (
-            <Link key={i} href="/portal/profile" className="act" data-testid={a.defer ? "action-insurance" : undefined}>
+            <Link key={i} href={a.href ?? "/portal/profile"} className="act" data-testid={a.defer ? "action-insurance" : a.testId}>
               <i aria-hidden>{a.icon}</i>
               <span>{a.text}</span>
               {a.chip && (

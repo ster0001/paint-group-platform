@@ -66,6 +66,7 @@ export default function ProfileForm({
   capabilities,
   standards = null,
   language = null,
+  agreement = null,
 }: {
   contractor: ContractorRow;
   docs: ContractorDoc[];
@@ -75,6 +76,8 @@ export default function ProfileForm({
   standards?: { confirmed: boolean; line: string } | null;
   /** Induction language (Step 4, ruling I8): the choice, or null when not chosen yet. */
   language?: { code: string; name: string; nativeName: string } | null;
+  /** Subcontractor agreement (agreement brief §3): the Documents card. Null for an employee, or before the feature exists. */
+  agreement?: { signed: boolean; due: boolean; line: string; downloadable: boolean; required: boolean } | null;
   name: string;
   email: string;
   /** Weekend availability — null (pre-migration) hides the card. */
@@ -627,6 +630,25 @@ export default function ProfileForm({
         </div>
       )}
 
+      {/* ---- subcontractor agreement (agreement brief §3) ------------------- */}
+      {agreement && (
+        <div className={`card ${agreement.signed && !agreement.due ? "" : "amberish"}`} data-testid="profile-agreement">
+          <h3>Subcontractor agreement</h3>
+          <div style={{ marginTop: 6 }}>
+            <span className={`chip ${agreement.signed && !agreement.due ? "grn" : "amb"}`} data-testid="profile-agreement-chip">
+              {agreement.signed ? (agreement.due ? "Due for renewal" : "Signed") : "Not signed"}
+            </span>
+          </div>
+          <p className="hint" data-testid="profile-agreement-line">{agreement.line}</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {agreement.downloadable && <a href="/portal/agreement/pdf" className="btn gh" style={{ marginTop: 8 }} data-testid="profile-agreement-download">Download PDF</a>}
+            <Link href="/portal/agreement" className={`btn ${agreement.signed && !agreement.due ? "gh" : "cy"}`} style={{ marginTop: 8 }} data-testid="profile-agreement-open">
+              {agreement.signed ? (agreement.due ? "Renew now" : "Read your agreement") : "Sign now"}
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* ---- induction language (Step 4, ruling I8) --------------------- */}
       <div className={`card ${language ? "" : "amberish"}`} data-testid="profile-language">
         <h3>Your language</h3>
@@ -690,7 +712,7 @@ export default function ProfileForm({
                       {d.name}
                       {d.expires_on ? ` · EXPIRES ${d.expires_on}` : " · NO EXPIRY"}
                     </small>
-                    {!d.expires_on && (
+                    {!d.expires_on && d.kind !== "agreement" && (
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }} data-testid={`doc-set-expiry-${d.id}`}>
                         <input type="date" aria-label={`Expiry for ${DOC_LABEL[d.kind]}`} value={rowExpiry[d.id] ?? ""}
                           onChange={(e) => setRowExpiry((m) => ({ ...m, [d.id]: e.target.value }))} style={{ fontSize: "12px" }} />
@@ -709,7 +731,7 @@ export default function ProfileForm({
                   >
                     View
                   </button>
-                  {d.kind !== "standards" && <button
+                  {d.kind !== "standards" && d.kind !== "agreement" && <button
                     type="button"
                     onClick={() => removeDoc(d.id)}
                     style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "11.5px" }}
