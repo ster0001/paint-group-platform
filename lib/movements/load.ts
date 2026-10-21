@@ -71,7 +71,7 @@ type WoRow = {
 
 const MOVEMENT_COLUMNS = "id, work_order_id, kind, source_key, title, detail, assignee_kind, assignee_table, assignee_id, due_date, half, time, sequence, "
   + "from_kind, from_branch_id, from_text, to_kind, to_branch_id, to_text, status, ordered_at, client_notice, order_ref, lines, planned_for_start, return_due, "
-  + "blocked_by_movement_id, expected_cost_cents, note, problem_note, painter_confirmed_at, source_changed_at, booked_at, done_at, created_at, updated_at";
+  + "blocked_by_movement_id, expected_cost_cents, note, problem_note, painter_confirmed_at, source_changed_at, booked_at, done_at, created_at, updated_at, method_pref";
 
 type RawMovement = Omit<MovementRow, "items">;
 
@@ -123,7 +123,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   const fail = (what: string, error: string | null) => { if (error) failures.push(`Couldn't read ${what}: ${error}`); };
 
   // ---- round 1: everything that needs nothing else ----------------------------------------
-  const [settingsRes, board, movementsRes, itemLinksRes, equipmentRes, branchesRes, qaRes, visitsRes, suburbsRes, productsRes] = await Promise.all([
+  const [settingsRes, board, movementsRes, itemLinksRes, equipmentRes, branchesRes, qaRes, visitsRes, unscheduledRes, suburbsRes, productsRes] = await Promise.all([
     supabase.from("settings").select("value").eq("key", "movements").maybeSingle(),
     loadBoard(from, to),
     // The tray (any date) plus everything dated in the window. Done and cancelled rows in the
@@ -143,6 +143,8 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
     // required" ticked (work_orders.qa_required) and it was not waived — not on every staff job.
     realOnly(supabase.from("wo_qa_checks").select("id, work_order_id, scheduled_for, scheduled_time, kind, work_orders(qa_required, qa_waived)")).is("result", null).gte("scheduled_for", from).lte("scheduled_for", to),
     realOnly(supabase.from("wo_site_visits").select("id, work_order_id, scheduled_for, scheduled_time")).is("visited_at", null).gte("scheduled_for", from).lte("scheduled_for", to),
+    // Tom, 21 Oct 2026: check-ins nobody has given a day yet go into the tray.
+    realOnly(supabase.from("wo_site_visits").select("id, work_order_id")).is("visited_at", null).is("scheduled_for", null).limit(500),
     // The centroids (~3,500 rows: four pages, asked for together). Keyed lower-case; the first by postcode wins, as the SQL orders it.
     fetchAllRows<{ suburb: string; postcode: string; lat: number | null; lng: number | null }>((f, t) => supabase.from("visit_suburbs").select("suburb, postcode, lat, lng").order("suburb").order("postcode").range(f, t), { prefetchPages: 4 })
       .then((rows) => ({ data: rows, error: null as { message: string } | null }), (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } })),
@@ -169,6 +171,9 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   type VisitRow = { id: string; work_order_id: string; scheduled_for: string; scheduled_time: string | null };
   const visitsRead = failed<VisitRow>(visitsRes.error, visitsRes.data as VisitRow[] | null);
   fail("the site check-ins", visitsRead.error);
+  const unscheduledRead = failed<{ id: string; work_order_id: string }>(unscheduledRes.error, unscheduledRes.data as { id: string; work_order_id: string }[] | null);
+  fail("the unscheduled check-ins", unscheduledRead.error);
+  const unscheduledCheckins = unscheduledRead.rows.map((r) => ({ id: r.id, workOrderId: r.work_order_id }));
   const suburbsRead = failed(suburbsRes.error, suburbsRes.data);
   fail("the suburb centroids", suburbsRead.error);
   const productsRead = failed<{ name: string; brand: string | null; effective_from: string | null }>(productsRes.error, productsRes.data as { name: string; brand: string | null; effective_from: string | null }[] | null);
@@ -194,7 +199,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   const wanted = new Set<string>();
   for (const m of movementsRead.rows) if (m.blocked_by_movement_id && !have.has(m.blocked_by_movement_id)) wanted.add(m.blocked_by_movement_id);
   for (const l of linksRead.rows) if (!have.has(l.movement_id)) wanted.add(l.movement_id);
-  const jobsWanted = jobIds(movementsRead.rows, board.blocks, appointments);
+  const jobsWanted = [...new Set([...jobIds(movementsRead.rows, board.blocks, appointments), ...unscheduledCheckins.map((c) => c.workOrderId)])];
   const staffIds = settings.boardPeople.map((p) => p.id);
   const windowStart = melbourneInstant(+from.slice(0, 4), +from.slice(5, 7), +from.slice(8, 10), 0);
   const windowEnd = melbourneInstant(+addDays(to, 1).slice(0, 4), +addDays(to, 1).slice(5, 7), +addDays(to, 1).slice(8, 10), 0);
@@ -250,6 +255,8 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
       from, to, settings, jobs, blocks: board.blocks, painters, staff,
       googleBusy: google.busy, googleReads: google.reads, appointments, movements,
       items: equipmentRead.rows, branches: branchesRead.rows, decisions: decisionsRes.rows, suburbs,
+      // A closed job cannot take a check-in (the RPC refuses), so its orphans stay out of the tray.
+      unscheduledCheckins: unscheduledCheckins.filter((c) => jobs.some((j) => j.id === c.workOrderId && j.stage !== "closed")),
     },
     failures,
     materialLines: linesRes.rows,

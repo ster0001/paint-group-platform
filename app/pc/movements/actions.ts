@@ -64,6 +64,14 @@ const FRIENDLY: Record<string, string> = {
   bad_time: "Opening time looks wrong — use HH:MM.",
   bad_cost: "A cost cannot be negative.",
   bad_point: "That is not a place on the map.",
+  no_shop: "Pick the shop in the chip first — an order with no shop is not a delivery yet.",
+  bad_method: "Delivered or picked up — one of the two.",
+  not_an_order: "Only a paint or materials chip has a shop and a method.",
+  no_time: "A check-in needs a time — drop it on an hour row, or on a morning or afternoon.",
+  already_recorded: "That check-in already happened.",
+  closed: "That job is closed.",
+  past: "That day has gone — pick one from today on.",
+  after_final: "A check-in cannot come after the final walkthrough.",
 };
 
 function friendly(code: string): string {
@@ -369,7 +377,25 @@ export async function geocodeJobs(raw: unknown): Promise<MovementActionResult> {
 
 // ---- material lines: one list, three doors --------------------------------------------------
 
-const lineAddInput = z.object({ workOrderId: uuid, text: z.string().min(1).max(200), source: z.enum(MATERIAL_LINE_SOURCES).optional() });
+const lineAddInput = z.object({ workOrderId: uuid, text: z.string().min(1).max(500), source: z.enum(MATERIAL_LINE_SOURCES).optional() });
+
+const methodInput = idInput.extend({ method: z.enum(["delivery", "pickup"]), branchId: uuid.nullable().optional() });
+
+/** Tom, 21 Oct 2026: confirm the shop and delivered / picked up on a tray order. Delivery + a delivering shop places it on the Supplier lane. */
+export async function setMovementMethod(raw: unknown): Promise<MovementActionResult> {
+  const p = methodInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  return call("movement_set_method", { p_id: p.data.id, p_method: p.data.method, p_branch_id: p.data.branchId ?? null }, "movements.setMethod", jobPaths(p.data.workOrderId));
+}
+
+const visitInput = z.object({ visitId: uuid, date: isoDate, time: clock, workOrderId: uuid.nullable().optional() });
+
+/** Tom, 21 Oct 2026: an unscheduled site check-in dropped on a staff lane gets its day and time. */
+export async function scheduleSiteVisit(raw: unknown): Promise<MovementActionResult> {
+  const p = visitInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  return call("wo_site_visit_set_schedule", { p_visit_id: p.data.visitId, p_date: p.data.date, p_time: p.data.time }, "movements.scheduleVisit", jobPaths(p.data.workOrderId));
+}
 
 export async function addMaterialLine(raw: unknown): Promise<MovementActionResult> {
   const p = lineAddInput.safeParse(raw);
@@ -377,7 +403,7 @@ export async function addMaterialLine(raw: unknown): Promise<MovementActionResul
   return call("material_line_add", { p_work_order_id: p.data.workOrderId, p_text: p.data.text, p_source: p.data.source ?? "pc" }, "movements.lineAdd", jobPaths(p.data.workOrderId));
 }
 
-const lineUpdateInput = z.object({ id: uuid, text: z.string().min(1).max(200), workOrderId: uuid.nullable().optional() });
+const lineUpdateInput = z.object({ id: uuid, text: z.string().min(1).max(500), workOrderId: uuid.nullable().optional() });
 
 export async function updateMaterialLine(raw: unknown): Promise<MovementActionResult> {
   const p = lineUpdateInput.safeParse(raw);

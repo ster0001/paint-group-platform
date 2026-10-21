@@ -102,6 +102,8 @@ export type MovementRow = {
   done_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Tom, 21 Oct 2026: delivered or picked up, confirmed in the chip (null = not yet). */
+  method_pref: "delivery" | "pickup" | null;
   /** The gear on it (movement_items), carried by the loader. */
   items: MovementItemRow[];
 };

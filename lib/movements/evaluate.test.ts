@@ -55,7 +55,7 @@ const BLOCKS: Block[] = [
 ];
 const mv = (over: Partial<MovementRow> & { id: string; kind: MovementRow["kind"] }): MovementRow => ({
   work_order_id: null, source_key: null, title: over.id, detail: null, assignee_kind: null, assignee_table: null, assignee_id: null, due_date: null, half: null, time: null,
-  sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "", status: "tray", ordered_at: null,
+  sequence: null, from_kind: null, from_branch_id: null, from_text: "", to_kind: null, to_branch_id: null, to_text: "", status: "tray", ordered_at: null, method_pref: null,
   client_notice: false, order_ref: "", lines: null, planned_for_start: null, return_due: null, blocked_by_movement_id: null, expected_cost_cents: null,
   note: "", problem_note: "", painter_confirmed_at: null, source_changed_at: null, booked_at: null, done_at: null, created_at: "2026-10-18T00:00:00Z",
   updated_at: "2026-10-18T00:00:00Z", items: [], ...over,
@@ -77,7 +77,7 @@ const BRANCHES = [
 
 function world(over: Partial<World> = {}): World {
   return {
-    from: MON, to: SAT, settings, jobs: JOBS, blocks: BLOCKS,
+    from: MON, to: SAT, settings, jobs: JOBS, blocks: BLOCKS, unscheduledCheckins: [],
     painters: [
       { contractorId: JOSEF, profileId: "josef-profile", name: "Josef Kovac", employmentType: "contractor" },
       { contractorId: MIRA, profileId: "mira-profile", name: "Mira Delaney", employmentType: "contractor" },

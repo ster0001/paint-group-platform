@@ -35,12 +35,16 @@ The project coordinator uses it on a laptop on Thursday or Friday to plan the we
 
 ### The chip sheet
 1. Tap any chip, in the tray or on the board. The sheet shows where it is placed and how it moves ("delivered to site", "Josef picks up", "Felipe drops off").
-2. **Paint**: the lines are the job's Materials card for that brand — tap a line to change its colour name or litres (that edits the card; the chip re-reads it). Once ordered, the lines are frozen as they were at ordering.
-3. **Materials**: the line text is the same row the estimate and the job page show.
-4. **Gear**: the items, each with where it is now.
+2. **Paint**: one chip per brand per job — every product of the brand is a line on the one order, and a product whose brand was left blank takes the brand its name starts with. The lines are the job's Materials card for that brand — tap a line to change its colour name or litres (that edits the card, the same litres the job page's Materials card and the estimate builder's working scope edit; the chip re-reads it and recounts the cans). Once ordered, the lines are frozen as they were at ordering.
+3. **Materials**: the line text is the same row the estimate and the job page show. One line is one order — write the items on the line separated by commas (up to 500 characters). No shop is assumed for a materials order: the tray says *no shop yet — tap to confirm*, and the Supplier lane refuses it until you have. In the sheet pick the **Shop**, then **How does it get to site?** — **Delivered to site** puts the chip on the Supplier lane on the job's first day (tick Ordered ✓ once the shop has the order); **Picked up** records that and leaves the chip in the tray for you to drop on whoever collects it.
+4. **Gear**: the items, each with where it is now. A gear chip typed as words on the job page (the **Gear needed** box under Equipment movements booked — one line per chip, commas between items) has no register items; booking it still makes its return chip.
 5. **Rubbish — how?**: **Painter disposed** (nothing to move, recorded on the painter's last day), **Painter drops at warehouse** (a drop-off on the painter's lane on their last day), **Left on site** (the chip stays in the tray as a collection — drop it on whoever collects, or make it a **Skip** from the chip with a hire yard and the in and out days).
 6. **Shop** (or **Hire yard**) lists the branches of the right kind nearest first, with distance, opening time and whether they deliver. **Time** chips are the hourly rows on an hourly lane, otherwise early-morning times and AM/PM. **Order reference** is printed on the supplier's order and is what the invoice matches itself to. **Client notice** is off unless you turn it on for that delivery. Add a **note** for the shop or the painter.
 7. **Ordered ✓** (when the order step is owed), **Copy order text** (paint with confirmed colours — paste into the email or the trade app), **Back to tray**, **Remove** (a chip you added by hand), **Save**.
+
+### Site check-ins to book
+1. A site check-in that has no day yet (one made from the job page, or a job's standing check-in nobody has placed) sits under the tray as **Site check-ins to book**, one per job.
+2. Drag it onto a staff lane: the hour row (or the morning / afternoon on an AM/PM lane) is the time. The check-in is booked for that day and time and leaves the tray; the job page and the staff calendar show it as before. It refuses a painter or supplier lane, a day that has gone, and a time after the final walkthrough.
 
 ### + Add a chip — from scratch
 1. Tap **+ Add a chip** under the tray (or on the Sources view). Pick **Paint · Materials · Gear · Rubbish**, then the job (or **Warehouse**).

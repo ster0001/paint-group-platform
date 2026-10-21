@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { chipFilterKind, chipState, kindLabel, type Gates } from "@/lib/movements/evaluate";
 import { movementIcon } from "@/lib/movements/gearIcons";
 import type { BranchRow, EquipmentItemRow, LogisticsDecisionRow, MaterialLineRow, MovementRow } from "@/lib/movements/types";
-import { addMaterialLine, decideLogistics, removeMaterialLine, type MovementActionResult } from "@/app/pc/movements/actions";
+import { addMaterialLine, createMovement, decideLogistics, removeMaterialLine, type MovementActionResult } from "@/app/pc/movements/actions";
 
 /**
  * The job page's pre-start, under the two gate items (brief §3.4 "Job page", Session 7):
@@ -81,7 +81,7 @@ export default function PrestartMovements({ workOrderId, kind, movements, lines,
       )}
       {kind === "materials" && (
         <div className="mvlines" data-testid="prestart-material-lines">
-          <div className="k">Materials lines <small>the one list — same on the estimate and in the Movements tray</small></div>
+          <div className="k">Materials lines <small>one line = one order chip; separate the items with commas · same list on the estimate and in the tray</small></div>
           {liveLines.length === 0 && <p className="note" style={{ margin: "4px 0" }}>No materials lines yet.</p>}
           {liveLines.map((l) => {
             const chip = chipOfLine(l);
@@ -95,14 +95,24 @@ export default function PrestartMovements({ workOrderId, kind, movements, lines,
             );
           })}
           <div className="row" style={{ gap: 6, marginTop: 6 }}>
-            <input className="num" style={{ flex: 1 }} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Add a line — caulk × 6, 4 drop sheets, a plank hire…" maxLength={200} data-testid="prestart-line-input"
+            <input className="num" style={{ flex: 1 }} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="One order per line, commas between items — gap filler, interior filler, brushes, rollers" maxLength={500} data-testid="prestart-line-input"
               onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) run(() => addMaterialLine({ workOrderId, text: draft.trim(), source: "pc" }), "Line added — it is a chip in the tray now"); }} />
             <button type="button" className="btn" disabled={pending || !draft.trim()} onClick={() => run(() => addMaterialLine({ workOrderId, text: draft.trim(), source: "pc" }), "Line added — it is a chip in the tray now")} data-testid="prestart-line-add">Add</button>
           </div>
         </div>
       )}
+      {kind === "equipment" && (
+        <div className="mvlines" data-testid="prestart-gear-lines">
+          <div className="k">Gear needed <small>one line = one gear chip; separate the items with commas · its return chip appears when it is booked</small></div>
+          <div className="row" style={{ gap: 6, marginTop: 6 }}>
+            <input className="num" style={{ flex: 1 }} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Extension ladder, drop sheets, sprayer" maxLength={160} data-testid="prestart-gear-input"
+              onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) run(() => createMovement({ kind: "equipment_out", workOrderId, title: draft.trim() }), "Gear chip added to the tray — its return appears once it is booked"); }} />
+            <button type="button" className="btn" disabled={pending || !draft.trim()} onClick={() => run(() => createMovement({ kind: "equipment_out", workOrderId, title: draft.trim() }), "Gear chip added to the tray — its return appears once it is booked")} data-testid="prestart-gear-add">Add</button>
+          </div>
+        </div>
+      )}
       <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-        <Link className="btn" href={boardHref()} data-testid={`prestart-${kind}-board`}>{kind === "materials" ? "Plan on the Movements board" : "Add gear from the register"}</Link>
+        <Link className="btn" href={boardHref()} data-testid={`prestart-${kind}-board`}>{kind === "materials" ? "Plan on the Movements board" : "Pick gear from the register"}</Link>
         {!decision && (
           <>
             <button type="button" className="btn dim" disabled={pending} onClick={() => run(() => decideLogistics({ workOrderId, line: kind === "materials" ? "paint" : "equipment", decision: "not_needed" }), "Marked not needed")} data-testid={`prestart-${kind}-not-needed`}>Not needed</button>
