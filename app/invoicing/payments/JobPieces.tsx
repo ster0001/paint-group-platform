@@ -27,7 +27,7 @@ export function Rail({ row }: { row: JobMoneyRow }) {
     <div className="rail" role="img" aria-label={railLabel(row)}>
       <div className="segs">{LANES.map((l, k) => <i key={l} className={k < at ? "done" : k === at ? "cur" : ""} />)}</div>
       {SLOTS.filter((k) => k !== "progress" || row.slots.progress.state !== "none").map((k) => (
-        <i key={k} className={`gate ${row.slots[k].state}`} style={{ left: GATE_LEFT[k] }} />
+        <i key={k} className={`gate ${row.slots[k].tone}`} style={{ left: GATE_LEFT[k] }} />
       ))}
     </div>
   );
@@ -72,7 +72,7 @@ export function Actions({ row, small = false }: { row: JobMoneyRow; small?: bool
 
 export function JobCard({ row }: { row: JobMoneyRow }) {
   const owe = oweOf(row);
-  const tone = row.health === "need" || row.health === "noinv" ? "need" : row.health === "over" ? "over" : "";
+  const tone = row.healthTone === "need" || row.healthTone === "noinv" ? "need" : row.healthTone === "over" ? "over" : "";
   return (
     <article className={`job ${tone}${row.pulse ? " pulse" : ""}`} data-estimate={row.estimateId}>
       <div>
@@ -99,6 +99,6 @@ export function JobCard({ row }: { row: JobMoneyRow }) {
 /** The D / P / F lights on a board card. */
 export function Lights({ row }: { row: JobMoneyRow }) {
   return <>{SLOTS.filter((k) => k !== "progress" || row.slots.progress.state !== "none").map((k) => (
-    <span key={k} className={`lt ${row.slots[k].state}`} title={SLOT_NAME[k]}>{SLOT_LETTER[k]}</span>
+    <span key={k} className={`lt ${row.slots[k].tone}`} title={SLOT_NAME[k]}>{SLOT_LETTER[k]}</span>
   ))}</>;
 }

@@ -21,6 +21,7 @@ import PrestartMovements from "./PrestartMovements";
 import { loadJobMovements } from "@/lib/movements/loadJob";
 import PrestartPaintEstimate from "./PrestartPaintEstimate";
 import WalkthroughCard from "./WalkthroughCard";
+import JobTitle from "./JobTitle";
 import ReviewCard, { type ReviewState } from "./ReviewCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
 import QaControls from "./QaControls";
@@ -592,7 +593,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
       <div className="wohead">
         <div className="wotop">
           <div>
-            <h2>{row.wo_snapshot?.jobTitle ?? row.wo_ref}</h2>
+            <JobTitle workOrderId={row.id} title={row.wo_snapshot?.jobTitle ?? row.wo_ref} />
             <span className="ref" data-testid="wo-ref">
               {row.wo_ref}{row.wo_snapshot?.jobAddress ? ` · ${row.wo_snapshot.jobAddress}` : ""}
               {painterName ? ` · Painter: ${painterName}` : ""}

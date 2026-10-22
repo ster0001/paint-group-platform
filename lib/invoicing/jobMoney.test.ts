@@ -292,7 +292,13 @@ describe("Step 2 — what the page reads off a row", () => {
     expect(row("ironbark").next?.lead).toMatchObject({ dueInDays: 0, state: "need" });   // "due today"
   });
   it("the orange pulse: deposit not in AND starting within a week or under way (⚑P1)", () => {
-    expect(["kite", "saltbush", "kookaburra", "kestrel", "ironbark"].every((id) => row(id).pulse)).toBe(true);
+    expect(["kite", "saltbush", "kookaburra"].every((id) => row(id).pulse)).toBe(true);
+    // Tom, 22 Oct 2026: a deposit ISSUED and not yet due draws blue, so it does not pulse orange.
+    expect(row("kestrel").pulse).toBe(false);
+    expect(row("ironbark").pulse).toBe(false);
+    expect(row("kestrel").slots.deposit.tone).toBe("sent");
+    expect(row("kestrel").slots.deposit.state).toBe("need");      // the chase sections still read state
+    expect(row("kestrel").healthTone).toBe("sent");
     expect(row("stint").pulse).toBe(false);          // orange, but 18 days out
     expect(row("brolga").pulse).toBe(false);
   });

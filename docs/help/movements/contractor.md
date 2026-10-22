@@ -26,7 +26,7 @@ Every job needs paint, usually some materials, sometimes gear from the warehouse
 5. If the office texts you a run for a day other than today, the link opens the same card for that day.
 
 ### On the job sheet
-1. When the office puts a pickup, drop-off or return on your day they can send you a **calendar invitation** by email: accept it and the stop sits in your phone's calendar with the shop or the site as the place and the order reference in the notes. A moved stop sends an updated invitation that replaces the first.
+1. When the office puts a pickup, drop-off or return on your day you get a **text** saying what to do, where and when, and they can send you a **calendar invitation** by email: accept it and the stop sits in your phone's calendar with the shop or the site as the place and the order reference in the notes. A moved stop sends an updated invitation that replaces the first.
 2. Open the job. Under **Materials & colours** there is a **Getting it to site** section with up to four groups: **Paint**, **Materials**, **Loan gear**, **Rubbish**.
 3. Paint and materials say either *Delivered to site Mon 19 Oct, morning* (nothing for you to do) or *Pick up at …* (yours, with the same Navigate, Call and tick as the card).
 4. Loan gear says when it comes to site and, if you are to bring it back, *Bring it back to the warehouse Fri 23 Oct* with a **Returned ✓** tick. Gear the office typed in words (an extension ladder, drop sheets) shows those words instead of register items.

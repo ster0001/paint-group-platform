@@ -253,7 +253,7 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
       expect(iv.invite_sent_at, "the invitation was recorded").toBeTruthy();
       expect(iv.invite_sequence).toBe(1);
     } else {
-      expect(toastText).toMatch(/no email on file/);
+      expect(toastText).toMatch(/no email/);
       expect(iv.invite_sent_at).toBeNull();
     }
 

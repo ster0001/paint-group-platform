@@ -112,6 +112,7 @@ const P = {
   movementClient: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{what}}", "{{day}}", "{{when}}"],
   movementRun: ["{{first_name}}", "{{company_name}}", "{{day}}", "{{stops}}", "{{km}}", "{{link}}"],
   movementInvite: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{what}}", "{{where}}", "{{day}}", "{{when}}", "{{order_ref}}", "{{note}}", "{{link}}"],
+  movementBooked: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{ask}}", "{{where}}", "{{day}}", "{{when}}", "{{order_line}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
   visitCode: ["{{code}}", "{{company_name}}"],
@@ -682,6 +683,13 @@ export const AUTOMATIONS: Automation[] = [
       { field: "movementInviteBody", label: "Email", kind: "body", placeholders: P.movementInvite },
     ],
     guard: "Only when the office ticks Send a calendar invitation in the confirm box; every send is recorded (movements.invite_sent_at, invite_sequence).",
+  },
+  {
+    key: "movement_booked_text", name: "Movements — text: what to do, where and when", audience: "painter", channels: ["sms"], kind: "automatic",
+    defaultChannel: "sms", sendKind: "movement_booked_text", capExempt: true,
+    trigger: "Goes with the calendar invitation when the office confirms a stop on a person's day (Tom, 22 Oct 2026): please collect the paint from X, pick up the materials from X, collect the rubbish from X, drop off the gear at X. Staff and painters alike.",
+    templates: [{ field: "movementBookedSms", label: "Text message", kind: "sms", placeholders: P.movementBooked }],
+    guard: "Once per confirm; a re-confirm after a move texts again with the new day and time.",
   },
   {
     key: "movement_arrived_check", name: "Movements — did the delivery arrive?", audience: "painter", channels: ["sms"], kind: "automatic",

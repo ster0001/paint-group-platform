@@ -32,8 +32,8 @@ verified_at_commit: 61a5b3a953
 4. Under the list, **Aged receivables** splits the money on sent invoices by days overdue: not overdue, 1–7, 8–14, 15–30, over 30.
 
 ### The buttons on a job
-- **✓ Paid $amount** records a bank transfer for the full amount, dated today, in one press. A bar appears at the bottom with **Undo** for a few seconds. The receipt emails once the Undo has gone.
-- **Cash or part** opens the payment sheet: Bank, Cash or Other, the amount, and the date it arrived (never in the future).
+- **One-click paid $amount** records a bank transfer for the full amount, dated today, in one press. A bar appears at the bottom with **Undo** for a few seconds. The receipt emails once the Undo has gone.
+- **Record a payment** opens the payment sheet: Bank, Cash or Other, the amount, and the date it arrived (never in the future).
   - **Cash** against an invoice you have not sent: the invoice is not sent to the customer; the payment is still recorded against the job.
   - **Send notification of payment**: on means the customer gets an email confirming the cash; off means nothing is sent.
 - **Send** (a draft) asks for the due date first. A deposit due on or after the start date is flagged. The due date can be changed any time before sending.
@@ -48,7 +48,7 @@ At the top: the stage, the payment rail, and **Job total · Paid · Still owing*
 ### Money in
 Every invoice is a card with its payments listed under it. Once sent, the card shows **Invoice date** and **Due** under the invoice number; a paid card keeps both.
 - **A draft**: change its **Due date**, **Check invoice**, **Delete draft**, **Already paid**, or **Send**. A deposit draft has the size buttons on the card.
-- **A sent invoice**: **Change amount** (a deposit), **Cancel, invoice in full** (a deposit or progress claim with nothing paid on it), **Pause reminders** / **Resume reminders**, **Void**, **Open invoice**, **Cash or part**, **✓ Paid**.
+- **A sent invoice**: **Change amount** (a deposit), **Cancel, invoice in full** (a deposit or progress claim with nothing paid on it), **Pause reminders** / **Resume reminders**, **Void**, **Open invoice**, **Record a payment**, **One-click paid**.
 - **Cancel, invoice in full**: the job is finished and the deposit was never paid, so you want one invoice for the whole job. Press it on the unpaid deposit and confirm: the deposit (and any unpaid progress claim) is cancelled with its number burnt, and one final invoice for the whole job is drafted beside it. Check the draft and press **Send** as usual. The customer's old link says that invoice has been cancelled. It refuses if any money has already been paid on the deposit; the ordinary final already takes that money off.
 - **This draft was worked out before an earlier invoice was issued… Redraft**: a final drafted while the deposit was still a draft charges the whole contract. Press **Redraft** and it is worked out again from what is left to invoice. New finals now redraft themselves when an earlier invoice is issued.
 - **No $0 finals, no leftover deposits.** When a job is signed off with nothing left to invoice, no final is drafted. When a final is first drafted at sign-off, a deposit that was never sent is removed: the final already asks for that money. Redrafting a final never removes a deposit.
@@ -61,9 +61,9 @@ Every invoice is a card with its payments listed under it. Once sent, the card s
 - **An employee job has no contractor line.** When the crew is employees and no offer is live, the figure the job sheet carries as the painter's pay is the estimate's labour budget, not money owed to anyone — it is not a cost here. Before 15 October 2026 it was counted on top of the painters' days, so every employee job read two labour costs.
 - A job under way with no materials recorded shows a note: the profit reads too high until the supplier invoices are matched.
 - **Contractor invoices on this job** have **Approve** and **✓ Paid**.
-- **Supplier invoices on this job** have **View**.
-- **Costs recorded on this job**: scaffold, rubbish and other trades have **Approve**, then **✓ Paid** (with Undo). Employee **Labour** lines have no buttons: employees are paid through payroll.
-- **Add a cost** records a cost with its document.
+- **Supplier invoices on this job** have **View** and **Edit** (since 22 Oct 2026): change the supplier (the label), the amount, the invoice date or the reference, and **which order** it belongs to — the job's paint and materials orders from the Movements board are the list, so a material can be moved to a different order.
+- **Costs recorded on this job**: scaffold, rubbish and other trades have **Approve**, then **✓ Paid** (with Undo), and **Edit** until paid — the label, the category (the ones that landed as *Other* can be put right) and the ex-GST amount, with the GST filled at 10%. Employee **Labour** lines have no buttons: employees are paid through payroll.
+- **Add a cost** records a cost with its document. **+ Add a material cost to an order** records one by hand with no document: supplier, amount including GST, the order it sits on, the date and a reference.
 
 ## Contractors
 Sections, worst first: **Past the pay-by date**, **To approve**, **Approved, to pay**, **With the contractor**, **Paid**. Each row says what the customer has paid on that job.
@@ -106,6 +106,7 @@ On the invoice page a customer presses **Pay $amount** and a box opens with the 
 A deposit invoice lists every line item from the accepted estimate under **Contract works — from your accepted estimate**, then the deposit itself under **This invoice**. The scope lines are for information; they are not added into the deposit's total.
 
 ## What the colours and labels mean
+- A deposit that is **issued and not yet due** is blue, like any other sent invoice, whatever stage the job is at (since 22 Oct 2026 — it used to turn orange the moment the job was booked). Orange is for a deposit still sitting as a draft, or not raised, on a booked job; red is overdue. The To-chase sections and the deposit chase are unchanged — they still read the deposit as not in until it is paid.
 - **Orange** — a deposit not in. A job starting within a week, or already under way, glows.
 - **Red** — overdue: money still owing at **midday the day after the due date**. An invoice due Tuesday turns overdue at 12:00 on Wednesday, the moment the first reminder goes.
 - **Cyan** — sent, not yet due.

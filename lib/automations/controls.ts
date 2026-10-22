@@ -195,6 +195,8 @@ export function smsLength(body: string): SmsLength {
  */
 export const SAMPLE_VARS: Record<string, string> = {
   note: "Ask for the trade account at the counter.",
+  ask: "Please collect the paint (Dulux · 2 lines · 6 cans) from Dulux Trade Centre Oakleigh",
+  order_line: "Order PG-0427 under Paint Group. ",
   // Movements (Session 5)
   shop: "Paint Spot Carnegie", shop_address: "1066 Dandenong Rd, Carnegie", from_time: "6:30 am", when: "in the morning", order_ref: "PG-0093", stops: "5", km: "61",
   first_name: "Sarah", name: "Sarah Chen", customer_name: "Sarah Chen", company_name: "Paint Group", company_email: "info@paintgroup.com.au",

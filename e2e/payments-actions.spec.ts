@@ -87,7 +87,7 @@ test.describe("Payments quick actions — as staff", () => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`${PAGE}?q=${encodeURIComponent(j.address)}`);
 
-    await card(page, j).getByRole("button", { name: "✓ Paid $2,000.00" }).click();
+    await card(page, j).getByRole("button", { name: "One-click paid $2,000.00" }).click();
     const toast = page.getByTestId("pm-toast");
     await expect(toast).toContainText("Recorded $2,000.00 from Onepress, bank transfer, today.");
     let pays = await paymentsOf(inv.id);
@@ -109,7 +109,7 @@ test.describe("Payments quick actions — as staff", () => {
 
     // Pressed again and left alone: the receipt is claimed when the window closes.
     await page.reload();
-    await card(page, j).getByRole("button", { name: "✓ Paid $2,000.00" }).click();
+    await card(page, j).getByRole("button", { name: "One-click paid $2,000.00" }).click();
     await expect(toast).toContainText("Recorded $2,000.00");
     await page.waitForTimeout(12_000);
     const after = (await paymentsOf(inv.id)).filter((p) => p.status === "succeeded");

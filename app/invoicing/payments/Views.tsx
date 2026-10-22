@@ -75,7 +75,7 @@ export function BoardView({ rows }: { rows: JobMoneyRow[] }) {
                     <div className="a">{r.address.split(",")[0]}</div>
                     <div className="c">{r.customer || r.woRef}</div>
                     <div className="l"><Lights row={r} /><span className="o">{owe.amount ? <span className={`owe sm ${owe.state}`}>{owe.amount}</span> : r.section === "paid_in_full" ? <span className="okc">✓</span> : null}</span></div>
-                    <div className={`w ${r.health === "need" || r.health === "noinv" ? "need" : r.health === "over" ? "over" : ""}`}>{what}</div>
+                    <div className={`w ${r.healthTone === "need" || r.healthTone === "noinv" ? "need" : r.healthTone === "over" ? "over" : ""}`}>{what}</div>
                   </OpenJobLink>
                 );
               })}

@@ -286,8 +286,8 @@ export function RowActions({ spec, small = false }: { spec: ActionSpec; small?: 
   }
   if (p.kind === "pay") {
     return <>
-      <button type="button" className={`${cls} pri`} disabled={ui.busy} onClick={() => ui.quickPay(spec)}>✓ Paid{small ? "" : ` ${fmt2(p.balanceCents)}`}</button>
-      {small ? null : <button type="button" className={cls} disabled={ui.busy} onClick={() => ui.openPay(spec, p.invoiceId)}>Cash or part</button>}
+      <button type="button" className={`${cls} pri`} disabled={ui.busy} onClick={() => ui.quickPay(spec)}>One-click paid{small ? "" : ` ${fmt2(p.balanceCents)}`}</button>
+      {small ? null : <button type="button" className={cls} disabled={ui.busy} onClick={() => ui.openPay(spec, p.invoiceId)}>Record a payment</button>}
       {message}
     </>;
   }

@@ -693,6 +693,56 @@ export async function recordJobCostAction(raw: unknown): Promise<InvoicingResult
 
 const assignMaterialInput = z.object({ materialCostId: uuid, woId: uuid });
 
+const materialUpdateInput = z.object({
+  estimateId: uuid, id: uuid,
+  supplier: z.string().trim().min(1).max(120).optional(), amountCents: z.number().int().min(0).max(100_000_000).optional(),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(), orderRef: z.string().trim().max(60).optional(),
+  movementId: uuid.nullable().optional(),
+});
+/** Tom, 22 Oct 2026: tap a material to fix its label (supplier) or price, or move it to another order. */
+export async function updateMaterialCostAction(raw: unknown): Promise<InvoicingResult> {
+  const p = materialUpdateInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Check the material details and try again." };
+  const d = p.data;
+  const patch: Record<string, unknown> = {};
+  if (d.supplier !== undefined) patch.supplier = d.supplier;
+  if (d.amountCents !== undefined) patch.amount_cents = d.amountCents;
+  if (d.invoiceDate !== undefined) patch.invoice_date = d.invoiceDate;
+  if (d.orderRef !== undefined) patch.order_ref = d.orderRef;
+  if (d.movementId !== undefined) patch.movement_id = d.movementId;
+  return call("material_cost_update", { p_id: d.id, p: patch }, { estimateId: d.estimateId }, "Material updated.");
+}
+
+const materialAddInput = z.object({
+  estimateId: uuid, woId: uuid, supplier: z.string().trim().min(1).max(120), amountCents: z.number().int().min(0).max(100_000_000),
+  movementId: uuid.nullable().optional(), orderRef: z.string().trim().max(60).default(""), invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+});
+/** Tom, 22 Oct 2026: a material cost typed by hand against an order, no document. */
+export async function addMaterialCostAction(raw: unknown): Promise<InvoicingResult> {
+  const p = materialAddInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "A supplier and an amount are needed." };
+  const d = p.data;
+  return call("material_cost_add_manual", { p_work_order_id: d.woId, p_supplier: d.supplier, p_amount_cents: d.amountCents, p_movement_id: d.movementId ?? null, p_order_ref: d.orderRef, p_invoice_date: d.invoiceDate ?? null }, { estimateId: d.estimateId }, "Material cost added.");
+}
+
+const jobCostUpdateInput = z.object({
+  estimateId: uuid, id: uuid,
+  description: z.string().trim().max(400).optional(), category: z.enum(JOB_COST_CATEGORIES).optional(),
+  amountExCents: z.number().int().min(0).max(100_000_000).optional(), gstCents: z.number().int().min(0).max(100_000_000).optional(),
+});
+/** Tom, 22 Oct 2026: fix a recorded cost's label, category or amount (the ones that landed as Other). */
+export async function updateJobCostAction(raw: unknown): Promise<InvoicingResult> {
+  const p = jobCostUpdateInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Check the cost details and try again." };
+  const d = p.data;
+  const patch: Record<string, unknown> = {};
+  if (d.description !== undefined) patch.description = d.description;
+  if (d.category !== undefined) patch.category = d.category;
+  if (d.amountExCents !== undefined) patch.amount_ex_cents = d.amountExCents;
+  if (d.gstCents !== undefined) patch.gst_cents = d.gstCents;
+  return call("job_cost_update", { p_id: d.id, p: patch }, { estimateId: d.estimateId }, "Cost updated.");
+}
+
 export async function assignMaterialCostAction(raw: unknown): Promise<InvoicingResult> {
   const p = assignMaterialInput.safeParse(raw);
   if (!p.success) return { ok: false, message: "Pick the job first." };

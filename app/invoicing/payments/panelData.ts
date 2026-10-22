@@ -9,6 +9,7 @@ import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
 import { reportError } from "@/lib/monitoring/report";
 import { bookedLabour, missingRateNote } from "@/lib/invoicing/bookedLabour";
 import { loadBookedLabour, loadJobCosts, loadJobMoney, toDerive, toDerivePayments, type InvoiceRow } from "../data";
+import { realOnly } from "@/lib/demo/scope";
 
 /**
  * The job panel's rows (payments-merge brief §4.7, Step 7). The panel reads
@@ -45,8 +46,21 @@ export type PanelInvoice = {
   payments: PanelPayment[];
 };
 
+/** Tom, 22 Oct 2026: a paint or materials order (a Movements chip) a supplier invoice can sit on. */
+export type PanelOrder = { id: string; title: string; kind: string; status: string };
+export type PanelJobCost = { id: string; description: string; category: string; amountExCents: number; gstCents: number; status: string };
+/** A material cost on the job with the fields its edit form changes (every row, matched or by hand). */
+export type PanelMaterialRow = { id: string; supplier: string; amountCents: number; invoiceDate: string | null; orderRef: string | null; movementId: string | null };
+
 export type PanelData = {
   row: JobMoneyRow;
+  /** The job's paint and materials orders, for moving a material cost or adding one by hand. */
+  orders: PanelOrder[];
+  /** material cost id → the order it sits on (null = none yet). */
+  materialOrder: Record<string, string | null>;
+  /** The recorded job costs with the fields the edit form changes. */
+  jobCostRows: PanelJobCost[];
+  materialRows: PanelMaterialRow[];
   invoices: PanelInvoice[];
   contractors: ContractorRow[];
   supplierInvoices: MatRow[];
@@ -65,10 +79,13 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
   if (!row) return null;
   const job = await loadJobMoney(supabase, estimateId);
   const woId = job.wo?.id ?? null;
-  const [costs, booked, chat] = await Promise.all([
+  const [costs, booked, chat, ordersRes, matLinksRes] = await Promise.all([
     woId ? loadJobCosts(supabase, woId) : Promise.resolve({ jobCosts: [], materials: [], expenses: [], loadError: null }),
     woId ? loadBookedLabour(supabase, woId) : Promise.resolve(null),
     supabase.from("estimate_messages").select("body").eq("estimate_id", estimateId).eq("direction", "staff").order("created_at", { ascending: false }).limit(1),
+    // Tom, 22 Oct 2026: the job's orders and which order each material cost sits on (CostEdit).
+    woId ? realOnly(supabase.from("movements").select("id, kind, title, status")).eq("work_order_id", woId).in("kind", ["paint", "materials"]).neq("status", "cancelled").order("created_at") : Promise.resolve({ data: [], error: null }),
+    woId ? realOnly(supabase.from("material_costs").select("id, movement_id")).eq("work_order_id", woId) : Promise.resolve({ data: [], error: null }),
   ]);
   if (chat.error) reportError(chat.error, { where: "loadJobPanel.chat", bestEffort: true });
 
@@ -97,7 +114,7 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
       inv.status === "void" || inv.status === "written_off" ? "void"
       : balance <= 0 ? "paid"
       : over ? "over"
-      : isDeposit && row.slots.deposit.state === "need" ? "need"
+      : isDeposit && row.slots.deposit.tone === "need" ? "need"
       : inv.status === "draft" ? "draft" : "sent";
     return {
       id: inv.id, kind: inv.kind, status: inv.status, number: inv.number, totalCents: inv.total_inc_cents,
@@ -135,12 +152,19 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
   });
 
   const onJob = (r: MatRow) => r.job?.estimateId === estimateId;
+  const orders: PanelOrder[] = ordersRes.error ? [] : ((ordersRes.data ?? []) as PanelOrder[]);
+  const materialOrder: Record<string, string | null> = {};
+  if (!matLinksRes.error) for (const l of (matLinksRes.data ?? []) as { id: string; movement_id: string | null }[]) materialOrder[l.id] = l.movement_id;
+  const jobCostRows: PanelJobCost[] = costs.jobCosts.map((c) => ({ id: c.id, description: c.description ?? "", category: c.category, amountExCents: c.amount_ex_cents, gstCents: c.gst_cents ?? 0, status: c.status }));
+  const materialRows: PanelMaterialRow[] = costs.materials.map((m) => ({ id: m.id, supplier: m.supplier ?? "", amountCents: m.amount_cents, invoiceDate: m.invoice_date ?? null, orderRef: m.order_ref ?? null, movementId: materialOrder[m.id] ?? null }));
   return {
-    row, invoices,
+    row, invoices, orders, materialOrder, jobCostRows, materialRows,
     contractors: page.contractors.filter((c) => c.estimateId === estimateId),
     supplierInvoices: [...page.materials.toApprove, ...page.materials.toPay.flatMap((g) => g.rows), ...page.materials.paid].filter(onJob),
     profit, labourNote: missingRateNote(labour.missingRate), woId, woRef: job.wo?.wo_ref ?? null,
     lastMessage: ((chat.data ?? [])[0] as { body: string } | undefined)?.body ?? null,
-    loadProblem: job.loadError?.headline ?? costs.loadError?.headline ?? booked?.loadError?.headline ?? null,
+    loadProblem: job.loadError?.headline ?? costs.loadError?.headline ?? booked?.loadError?.headline
+      ?? (ordersRes.error ? `The job's orders could not be read: ${ordersRes.error.message}` : null)
+      ?? (matLinksRes.error ? `Which order each material sits on could not be read: ${matLinksRes.error.message}` : null),
   };
 }

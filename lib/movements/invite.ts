@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendAutomation } from "@/lib/automations/dispatch";
 import { contactFor } from "@/lib/contractor/notify";
-import { renderTemplate } from "@/lib/messaging/config";
+import { normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 import { buildPlainEmailHtml } from "@/lib/messaging/send";
 import { emailLogoUrl } from "@/lib/messaging/logo";
@@ -26,7 +26,22 @@ type Row = {
   from_kind: string | null; from_branch_id: string | null; from_text: string; to_text: string; order_ref: string; note: string; invite_sequence: number;
 };
 
-export type InviteOutcome = { ok: true; sent: true; to: string } | { ok: true; sent: false; why: string } | { ok: false; message: string };
+export type InviteOutcome = { ok: true; sent: true; to: string; texted: boolean } | { ok: true; sent: false; why: string; texted: boolean } | { ok: false; message: string };
+
+/** "Please collect the paint (…) from Dulux Trade Oakleigh" — what the worker is asked to do, in words. */
+export function askWord(m: { kind: string; title: string; from_kind: string | null; to_kind?: string | null; detail: string | null }, shop: string, site: string, warehouse: string): string {
+  const what = m.title.split(" · ").slice(0, 2).join(" · ");
+  switch (m.kind) {
+    case "paint": return m.from_kind === "branch" ? `Please collect the paint (${what}) from ${shop}` : `Please bring the paint (${what}) from ${warehouse} to ${site}`;
+    case "materials": case "restock": return m.from_kind === "branch" ? `Please pick up the materials (${what}) from ${shop}` : `Please bring the materials (${what}) from ${warehouse} to ${site}`;
+    case "rubbish_out": return m.to_kind === "tip" ? `Please collect the rubbish from ${site} and take it to the tip` : `Please collect the rubbish from ${site}`;
+    case "rubbish_in": return `Please see the skip in at ${site}`;
+    case "equipment_out": case "hire_on": return `Please drop off the gear (${what}) at ${site}`;
+    case "equipment_return": case "hire_off": case "repair_back": return `Please bring ${what} back from ${site}`;
+    case "repair_out": return `Please take ${what} in for repair`;
+    default: return `${what} at ${site}`;
+  }
+}
 
 export async function sendMovementInvite(service: SupabaseClient, movementId: string): Promise<InviteOutcome> {
   const { data, error } = await service.from("movements")
@@ -35,26 +50,28 @@ export async function sendMovementInvite(service: SupabaseClient, movementId: st
   if (error) return { ok: false, message: `Couldn't read the movement: ${error.message}` };
   const m = data as Row | null;
   if (!m) return { ok: false, message: "That movement is not there any more." };
-  if (m.assignee_kind !== "person" || !m.assignee_id || !m.due_date) return { ok: true, sent: false, why: "not on a person's day" };
-  if (m.status === "cancelled" || m.status === "done") return { ok: true, sent: false, why: `the movement is ${m.status}` };
+  if (m.assignee_kind !== "person" || !m.assignee_id || !m.due_date) return { ok: true, sent: false, why: "not on a person's day", texted: false };
+  if (m.status === "cancelled" || m.status === "done") return { ok: true, sent: false, why: `the movement is ${m.status}`, texted: false };
 
   // Who, and where to send it.
-  let to: string | null = null; let firstName = "there"; let contractorId: string | null = null;
+  let to: string | null = null; let phone: string | null = null; let firstName = "there"; let contractorId: string | null = null;
   if (m.assignee_table === "contractors") {
     const c = await contactFor(service, m.assignee_id);
-    to = c.email && !isTestEmail(c.email) ? c.email : null; firstName = c.firstName; contractorId = m.assignee_id;
+    to = c.email && !isTestEmail(c.email) ? c.email : null; phone = c.phone; firstName = c.firstName; contractorId = m.assignee_id;
   } else {
     const [prof, userRes] = await Promise.all([
-      service.from("profiles").select("name").eq("id", m.assignee_id).maybeSingle(),
+      service.from("profiles").select("name, phone").eq("id", m.assignee_id).maybeSingle(),
       service.auth.admin.getUserById(m.assignee_id),
     ]);
     if (prof.error) return { ok: false, message: `Couldn't read the person: ${prof.error.message}` };
     if (userRes.error) return { ok: false, message: `Couldn't read the login: ${userRes.error.message}` };
     const u = userRes.data;
-    firstName = ((prof.data as { name: string | null } | null)?.name ?? "").trim().split(/\s+/)[0] || "there";
+    const pr = prof.data as { name: string | null; phone?: string | null } | null;
+    firstName = (pr?.name ?? "").trim().split(/\s+/)[0] || "there";
+    phone = pr?.phone ? normalisePhoneAU(pr.phone) : null;
     to = u?.user?.email && !isTestEmail(u.user.email) ? u.user.email : null;
   }
-  if (!to) return { ok: true, sent: false, why: `${firstName} has no email on file` };
+  if (!to && !phone) return { ok: true, sent: false, why: `${firstName} has no email or phone on file`, texted: false };
 
   // Where: a pickup from a shop is at the shop; everything else is at the job (or the warehouse).
   const [jobRes, branchRes] = await Promise.all([
@@ -77,10 +94,23 @@ export async function sendMovementInvite(service: SupabaseClient, movementId: st
   const time = (m.time ?? (m.half === "PM" ? "13:00" : "07:00")).slice(0, 5);
   const minutes = m.duration_min ?? 60;
   const link = m.assignee_table === "contractors" ? `${siteUrl()}/portal/jobs/${m.work_order_id ?? ""}#logistics` : `${siteUrl()}/pc/movements/run?day=${m.due_date}&who=me`;
+  const warehouse = m.from_text || "the warehouse";
   const vars = {
     first_name: firstName, company_name: companyName, wo_ref: ref, what, where: location || "see the job", day: dayWord(m.due_date),
     when: `${time}–${addMinutes(time, minutes)}`, order_ref: m.order_ref || "—", note: m.note || "", link,
+    ask: askWord({ kind: m.kind, title: m.title, from_kind: m.from_kind, to_kind: null, detail: m.detail }, shop || "the shop", site || "the site", warehouse),
+    order_line: m.order_ref ? `Order ${m.order_ref} under ${companyName}. ` : "",
   };
+  // Tom, 22 Oct 2026: the text goes with the invitation — what to do, where and when.
+  let texted = false;
+  if (phone) {
+    const t = await sendAutomation(service, {
+      key: "movement_booked_text", to: { phone }, sms: { body: renderTemplate(messaging.movementBookedSms, vars) },
+      ctx: { workOrderId: m.work_order_id, kind: "movement_booked_text" }, contractorId,
+    });
+    texted = t.outcome === "sent";
+  }
+  if (!to) return { ok: true, sent: false, why: `${firstName} has no email on file${texted ? " — the text went" : ""}`, texted };
   const subject = renderTemplate(messaging.movementInviteSubject, vars);
   const body = renderTemplate(messaging.movementInviteBody, vars);
   const ics = buildIcs({
@@ -105,9 +135,9 @@ export async function sendMovementInvite(service: SupabaseClient, movementId: st
   if (sent.outcome !== "sent") {
     const why = sent.outcome === "off" ? "the invitation automation is switched off" : sent.outcome === "nobody" ? sent.detail
       : sent.outcome === "pending" ? "waiting for approval in Automations" : "held until the quiet hours end";
-    return { ok: true, sent: false, why };
+    return { ok: true, sent: false, why, texted };
   }
   const { error: recErr } = await service.rpc("movement_record_invite", { p_id: m.id });
   if (recErr) return { ok: false, message: `Sent, but could not record it: ${recErr.message}` };
-  return { ok: true, sent: true, to };
+  return { ok: true, sent: true, to, texted };
 }

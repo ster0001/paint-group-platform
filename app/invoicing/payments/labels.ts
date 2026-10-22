@@ -69,7 +69,7 @@ export function oweOf(r: JobMoneyRow): { amount: string; state: SlotState | ""; 
   if (n?.lead) {
     const lead = n.lead;
     const label = lead.state === "over" || lead.sent ? dueText(lead) : `${KIND_NAME[lead.kind].toLowerCase()} not sent`;
-    return { amount: money(lead.balanceCents), state: lead.state, label };
+    return { amount: money(lead.balanceCents), state: lead.tone, label };
   }
   if (n?.state === "noinv") return { amount: "No invoice", state: "uninv", label: "deposit not raised" };
   if (n?.state === "uninv") return { amount: money(r.uninvoicedCents), state: "uninv", label: "not invoiced" };
@@ -92,7 +92,7 @@ export function pillOf(r: JobMoneyRow, key: SlotKey): PillView | null {
   if (!lead) return null;
   const pct = key === "deposit" && lead.pctOfContract !== null ? ` ${lead.pctOfContract}%` : "";
   return {
-    state: s.state, before: `${KIND_NAME[lead.kind]}${pct}`, amount: money(lead.balanceCents), after: dueText(lead),
+    state: s.tone, before: `${KIND_NAME[lead.kind]}${pct}`, amount: money(lead.balanceCents), after: dueText(lead),
     editable: key === "deposit" && lead.kind === "deposit" && !lead.sent,
   };
 }

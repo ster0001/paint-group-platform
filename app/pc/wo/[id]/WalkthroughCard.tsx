@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  bookWalkthrough, markClientUnavailable, setWalkthroughRequired, setWalkthroughStatus, staffComplete, staffSign, staffStartWalkthrough,
+  bookWalkthrough, markClientUnavailable, sendRemoteSignoff, setWalkthroughRequired, setWalkthroughStatus, staffComplete, staffSign, staffStartWalkthrough,
 } from "../../actions";
 
 export type WalkthroughRow = {
@@ -197,7 +197,10 @@ export default function WalkthroughCard({
 
           {/* Our side of the sign-off (Tom, 23 Aug): run it on our device with
               the customer, or record it when they've approved another way. */}
-          {stage === "walkthrough" && (
+          {/* Tom, 22 Oct 2026: the office can start the walkthrough at the quality-check stage too —
+              before a check has passed — the same way a painter can (the pack goes out, the
+              check stays open for the office). */}
+          {(stage === "walkthrough" || stage === "qa") && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }} data-testid="staff-signoff">
               <p className="note">Sign-off from our side — when you&rsquo;re with the customer, or they&rsquo;ve approved by phone or on paper.</p>
               <div className="row" style={{ flexWrap: "wrap" }}>
@@ -248,6 +251,11 @@ export default function WalkthroughCard({
                   Sign-off happens on the painter&rsquo;s phone at the walkthrough. Only open
                   the remote path if the customer genuinely can&rsquo;t be there.
                 </p>
+                <button className="btn" disabled={pending} data-testid="send-remote-signoff"
+                  title="Opens the remote sign-off and sends the customer the link to review the photos and sign"
+                  onClick={() => run(() => sendRemoteSignoff({ workOrderId }))}>
+                  Send to the customer to sign remotely
+                </button>
                 <button className="btn dim" disabled={pending} data-testid="mark-unavailable"
                   onClick={() => run(() => markClientUnavailable({ workOrderId }))}>
                   Customer can&rsquo;t attend — open remote sign-off

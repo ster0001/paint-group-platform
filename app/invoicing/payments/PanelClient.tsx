@@ -83,7 +83,7 @@ export function InvoiceCardActions({ c, today }: { c: CardSpec; today: string })
         <button type="button" className="b" disabled={busy}
           onClick={() => { const reason = window.prompt("Void this invoice — what's the reason? (The number is burnt, not reused.)"); if (reason?.trim()) run(() => voidInvoiceAction({ invoiceId: c.invoiceId, estimateId: c.estimateId, reason: reason.trim() })); }}>Void</button>
         {open}
-        <button type="button" className="b" disabled={ui.busy} onClick={() => ui.openPay(c.spec, c.invoiceId)}>Cash or part</button>
+        <button type="button" className="b" disabled={ui.busy} onClick={() => ui.openPay(c.spec, c.invoiceId)}>Record a payment</button>
         <button type="button" className="b pri" disabled={ui.busy} onClick={() => ui.quickPay(c.spec)}>✓ Paid {fmt2(c.balanceCents)}</button>
       </div>
     </>
