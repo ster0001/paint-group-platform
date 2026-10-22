@@ -30,7 +30,12 @@ export type QaCheckView = {
  * The failed card stays as the record and says where its re-check went.
  */
 
-export default function QaCheck({ check, workOrderId }: { check: QaCheckView; workOrderId: string }) {
+/**
+ * `early` (Tom, 22 Oct 2026): the job is still In progress — the painter has
+ * not ticked every box. The card is worked exactly the same; it says so, and
+ * the pass message (recordQa) says what the pass means for the finish.
+ */
+export default function QaCheck({ check, workOrderId, early = false }: { check: QaCheckView; workOrderId: string; early?: boolean }) {
   const router = useRouter();
   const [standards, setStandards] = useState(check.standards);
   const [result, setResult] = useState(check.result);
@@ -154,10 +159,15 @@ export default function QaCheck({ check, workOrderId }: { check: QaCheckView; wo
   }
 
   return (
-    <div className="card" data-testid={`qa-${check.id}`}>
+    <div className="card" data-testid={`qa-${check.id}`} data-early={early ? "1" : "0"}>
       <h3>
-        Quality check <em>{check.retryOf ? "re-check · " : ""}{left === 0 ? "ready to log" : `${left} to check`}</em>
+        Quality check <em>{check.retryOf ? "re-check · " : ""}{early ? "before the finish · " : ""}{left === 0 ? "ready to log" : `${left} to check`}</em>
       </h3>
+      {early && (
+        <p className="note" data-testid={`qa-early-${check.id}`}>
+          The painter hasn&rsquo;t ticked every box yet. Log it now all the same: a pass means the job skips the Quality check lane when they finish; a fail puts the rectification on their list straight away.
+        </p>
+      )}
       <p className="note">
         {check.retryOf
           ? "Re-inspection after a fail: the rectification is ticked, every standard looked at again before a pass."

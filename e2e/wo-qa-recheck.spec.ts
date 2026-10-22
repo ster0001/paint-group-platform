@@ -125,7 +125,7 @@ test.describe("QA fail → rectify → re-check → pass → walkthrough, on the
     await expect(page.getByTestId("finish-up")).toBeVisible({ timeout: 30_000 });
     await pressFinish(page, "qa");
     await page.reload();
-    await expect(page.getByTestId("qa-notice")).toContainText(/quality checking/i, { timeout: 30_000 });
+    await expect(page.getByTestId("qa-notice")).toContainText(/quality check to do/i, { timeout: 30_000 });
 
     const { data: checks } = await db!.from("wo_qa_checks")
       .select("id, kind, result").eq("work_order_id", job!.workOrderId);

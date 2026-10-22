@@ -429,9 +429,6 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   // sign off — derived from the checks, same rule as wo_staff_signs_off.
   const staffSignsOff = staffSignsOffFor(qaChecks);
   const todayMelbourne = melbourneDate(requestNow());
-  const checkInDue = new Set(qaSchedule.checks
-    .filter((c) => c.kind !== "final" && c.result === null && c.date !== null && c.date <= todayMelbourne)
-    .map((c) => c.id));
 
   const forPhase = (phase: string) => checklist.filter((c) => c.phase === phase);
   const outstanding = (phase: string) =>
@@ -990,16 +987,21 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               must survive that, or its "pack sent" message vanishes with it.
               Same for a FAIL, which sends the job back to In progress: the
               logged record (and where its re-check went) stays in view while
-              the painter rectifies; the unlogged re-check itself waits for
-              their next finish before it is drawn. */}
-          {/* Tom, 8 Oct 2026: a mid-job or spot check whose day has come is
-              recorded while the job is still running — its PC Command card
-              ("Record the check") lands here. Site check-ins are NOT checks
-              (9 Oct): they have their own card just below. */}
+              the painter rectifies, and the unlogged re-check is drawn with it. */}
+          {/* Tom, 22 Oct 2026 ("so we can quality check before a job is
+              finished"): EVERY check on the job is on the page from In
+              progress, logged before the painter has ticked the last box.
+              Until then an unlogged card waited for the finish — only a
+              mid-job or spot check whose day had come (8 Oct) was drawn. The
+              database never gated it: wo_record_qa has no stage test, a
+              mid-job FAIL lands on the painter's list straight away, and a job
+              whose checks have all passed skips the Quality check lane when
+              the painter finishes (open count 0 at wo_contractor_confirm_prep).
+              Site check-ins are NOT checks (9 Oct): their own card is below. */}
           <div id="qa">
-            {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
-              && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null || checkInDue.has(c.id)).map((c) => (
-              <QaCheck key={c.id} check={c} workOrderId={id} />
+            {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress" || row.stage === "completion_prep")
+              && qaChecks.map((c) => (
+              <QaCheck key={c.id} check={c} workOrderId={id} early={row.stage === "in_progress" || row.stage === "completion_prep"} />
             ))}
           </div>
           <SiteVisitsCard visits={siteVisits.visits} painter={notePainter} closed={row.stage === "closed"} failure={siteVisits.failure} />
