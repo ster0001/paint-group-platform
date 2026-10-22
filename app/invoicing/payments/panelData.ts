@@ -159,6 +159,8 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
     supplierInvoices: [...page.materials.toApprove, ...page.materials.toPay.flatMap((g) => g.rows), ...page.materials.paid].filter(onJob),
     profit, labourNote: missingRateNote(labour.missingRate), woId, woRef: job.wo?.wo_ref ?? null,
     lastMessage: ((chat.data ?? [])[0] as { body: string } | undefined)?.body ?? null,
-    loadProblem: job.loadError?.headline ?? costs.loadError?.headline ?? booked?.loadError?.headline ?? null,
+    loadProblem: job.loadError?.headline ?? costs.loadError?.headline ?? booked?.loadError?.headline
+      ?? (ordersRes.error ? `The job's orders could not be read: ${ordersRes.error.message}` : null)
+      ?? (matLinksRes.error ? `Which order each material sits on could not be read: ${matLinksRes.error.message}` : null),
   };
 }

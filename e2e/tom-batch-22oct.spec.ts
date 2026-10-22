@@ -86,7 +86,7 @@ test.describe("Tom batch 22 Oct: titles, cost edits, deposit colour", () => {
     await page.getByTestId("wo-title-save").click();
     await expect(page.getByTestId("wo-title")).toContainText(`E2E ${RUN} — Interior`, { timeout: 15_000 });
 
-    await page.goto(`/invoicing/job/${job!.estimateId}`);
+    await page.goto(`/invoicing/job/${job!.estimateId}?jt=out`);
     await page.getByTestId("add-material-cost").click();
     await page.getByTestId("add-material-supplier").fill(`Bunnings ${RUN}`);
     await page.getByTestId("add-material-amount").fill("88.00");
