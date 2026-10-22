@@ -69,7 +69,7 @@ begin
   if coalesce(p_amount_cents, -1) < 0 then return 'error:bad_amount'; end if;
   if p_movement_id is not null and not exists (select 1 from public.movements mv where mv.id = p_movement_id and mv.work_order_id = p_work_order_id) then return 'error:bad_order'; end if;
   insert into public.material_costs (work_order_id, supplier, amount_cents, invoice_date, order_ref, source, matched_by, matched_at, movement_id)
-    values (p_work_order_id, left(btrim(p_supplier), 120), p_amount_cents, p_invoice_date, left(btrim(coalesce(p_order_ref, '')), 60), 'manual', 'staff', now(), p_movement_id)
+    values (p_work_order_id, left(btrim(p_supplier), 120), p_amount_cents, p_invoice_date, left(btrim(coalesce(p_order_ref, '')), 60), 'manual', 'manual', now(), p_movement_id)
     returning id into v_id;
   perform public.movements_event(p_work_order_id, 'material_cost_added', jsonb_build_object('material_cost_id', v_id, 'movement_id', p_movement_id, 'amount_cents', p_amount_cents));
   return 'ok:' || v_id;
