@@ -971,7 +971,9 @@ export async function setWalkthroughStatus(raw: unknown): Promise<PcResult> {
 export async function setJobTitle(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ workOrderId: uuid, title: z.string().trim().min(1).max(120) }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Type a title first." };
-  return call("wo_set_job_title", { p_work_order_id: parsed.data.workOrderId, p_title: parsed.data.title }, "Title saved.");
+  const r = await call("wo_set_job_title", { p_work_order_id: parsed.data.workOrderId, p_title: parsed.data.title }, "Title saved.");
+  if (r.ok) revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+  return r;
 }
 
 /**
