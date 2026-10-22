@@ -146,10 +146,12 @@ test("R2b sides loop: amber to cyan, walls must total 100%, a removed side leave
 
   // Tom, 15 Sep (late, items 6, 8, 11): condition & access are the paginated
   // questions at the TOP; the card behind them confirms itself on the last answer.
-  // The old page set already answered the paintwork and access, so only the
-  // rot question is open here.
+  // The old page set answered the paintwork; the rot question is open here,
+  // and access is asked after it in the editor (Tom, 21 Oct, item 11 — the
+  // wizard's access answer no longer pre-fills it).
   const cond = page.getByTestId("sides-q");
   await cond.getByRole("button", { name: /No, looks solid/ }).click();
+  await cond.getByRole("button", { name: "None of these ✓", exact: true }).click();
   await expect(cond).toHaveClass(/done/, { timeout: 30_000 });
 
   // Tom, 15 Sep (late, items 9–10): the last checks are paginated and confirm with a tick.
@@ -218,13 +220,14 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
   // toast names the delta. "Good overall" takes it back off.
   // Tom, 15 Sep (late): the questions are paginated — one at a time, with a
   // Back link to change an earlier answer.
-  // The old page set answered "Good overall" and access already, so the block
-  // opens on the rot question. Answering it settles the block; an earlier
-  // answer is changed from its chip on the settled line (the Back link only
-  // moves between OPEN questions).
+  // The old page set answered "Good overall", so the block opens on the rot
+  // question; access is asked after it (Tom, 21 Oct, item 11). Answering both
+  // settles the block; an earlier answer is changed from its chip on the
+  // settled line (the Back link only moves between OPEN questions).
   const cond = page.getByTestId("sides-q");
   await expect(cond.getByTestId("sides-q-step-rot")).toBeVisible({ timeout: 30_000 });
   await cond.getByRole("button", { name: /No, looks solid/ }).click();
+  await cond.getByRole("button", { name: "None of these ✓", exact: true }).click();
   await expect(cond.getByTestId("sides-q-settled")).toBeVisible({ timeout: 30_000 });
   await settled();
   await cond.getByTestId("sides-q-change-cond").click();

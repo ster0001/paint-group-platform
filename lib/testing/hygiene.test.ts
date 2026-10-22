@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 // build) and this suite read the SAME file.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — an .mjs module with no declarations
-import { checkTarget, DEFAULTS, exampleAccountSql, FIXTURE_JOB_TITLE, fixtureJobSql, fkAction, isFixtureJob, isRunUser, OWNED, parseArgs, projectRefOf, RUN_EMAIL_PATTERNS, runUserSql, seededExclusion, summaryLine, verdict } from "../../scripts/c1/hygiene-rules.mjs";
+import { checkTarget, DEFAULTS, exampleAccountSql, FIXTURE_JOB_TITLE, fixtureJobSql, fkAction, isFixtureJob, isRunUser, orphanVisitRequestSql, OWNED, parseArgs, projectRefOf, RUN_EMAIL_PATTERNS, runUserSql, seededExclusion, summaryLine, verdict } from "../../scripts/c1/hygiene-rules.mjs";
 
 const TEST = "qarfyjrzgdeoqbnbbxfp";
 const reasonOf = (r: ReturnType<typeof checkTarget>): string => (r.ok ? "" : r.reason);
@@ -131,6 +131,15 @@ describe("which jobs a run's service-role fixture makes (21 Oct: 81 WO-E2E jobs 
     expect(sql).toBe("(w.wo_ref like 'WO-E2E%' and w.wo_snapshot->>'jobTitle' = 'E2E tick fixture'" +
       " and w.estimate_id is not null and w.issued_at < now() - ($1::int * interval '1 day'))");
     expect(FIXTURE_JOB_TITLE).not.toContain("'");
+  });
+});
+
+describe("which visit requests a run leaves behind (23 Oct 2026: no FK reaches one)", () => {
+  it("an @example.com request with no estimate left, past the age gate — never pg.demo.*, never a real address", () => {
+    const sql = orphanVisitRequestSql("r");
+    expect(sql).toBe("(r.email like '%@example.com' and r.email not like 'pg.demo.%'" +
+      " and (r.estimate_id is null or not exists (select 1 from public.estimates e where e.id = r.estimate_id))" +
+      " and r.created_at < now() - ($1::int * interval '1 day'))");
   });
 });
 

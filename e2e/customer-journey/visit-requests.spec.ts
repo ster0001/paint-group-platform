@@ -254,9 +254,11 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
     await page.reload();
     await expect(answered).toContainText("Time offered");
     await expect(answered).toContainText("The customer was sent the details by text");
-    // The card is gone from Today.
+    // THIS request's card is gone from Today — by its id, not its name: a
+    // cancelled run leaves its "Visit sorrento" request behind (no marker
+    // reaches a visit_requests row), and that card wears the same title.
     await page.goto("/crm/today?f=followups");
-    await expect(page.getByText(`Offer a visit time — ${sorrentoName}`)).toHaveCount(0);
+    await expect(page.locator(`a[href="/crm/visit-requests/${sorrentoRequestId}"]`)).toHaveCount(0);
 
     // Overdue: a request whose due time has passed reads as overdue.
     const werribee = customers.find((c) => c.email.startsWith("visit.werribee."))!;

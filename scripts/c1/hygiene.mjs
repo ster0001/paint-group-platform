@@ -26,7 +26,7 @@
  */
 import pg from "pg";
 import { productionRef } from "./env.mjs";
-import { checkTarget, DEFAULTS, EXIT, exampleAccountSql, fixtureJobSql, fkAction, parseArgs, runUserSql, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
+import { checkTarget, DEFAULTS, EXIT, exampleAccountSql, fixtureJobSql, fkAction, orphanVisitRequestSql, parseArgs, runUserSql, seededExclusion, summaryLine, verdict } from "./hygiene-rules.mjs";
 import {
   E2E_RUN_LOCK_KEY,
   LOCK_HOLDER_QUERY,
@@ -147,6 +147,31 @@ const ident = (name) => name.split(".").map((p) => `"${p.replace(/"/g, '""')}"`)
  * `deleteSelf=false` means Postgres will cascade the rows itself; we only
  * clear their restricting children.
  */
+/**
+ * WHICH ROLE DELETES (23 Oct 2026). The delete guards — `invoice_guard_delete`,
+ * `contractor_invoice_guard` and their kin — refuse a non-draft row unless
+ * `current_user` is `service_role`: that is how every app path and every
+ * SECURITY DEFINER RPC stays blocked while the specs' own fixture cleanup
+ * (the service client) gets through. This script connects as `postgres`, so
+ * the nightly sweep died on the first fixture job whose invoice had been
+ * issued (`invoice_undeletable`), from 22 Oct, and the fixtures it exists to
+ * remove stayed. `postgres` is a member of `service_role`, so a public-schema
+ * write runs as that role; `service_role` may not touch `auth.users`, so an
+ * auth-schema write runs as the session user. SET LOCAL lives for the
+ * transaction — every purge runs inside one (`inTx`).
+ */
+async function writeAs(table) {
+  await client.query(table.startsWith("public.") ? "set local role service_role" : "reset role");
+}
+
+/** One purge, one transaction: SET LOCAL needs it, and a refused delete must
+ *  leave nothing half-done. Rethrows so the caller decides whether to go on. */
+async function inTx(fn) {
+  await client.query("begin");
+  try { const r = await fn(); await client.query("commit"); return r; }
+  catch (e) { await client.query("rollback").catch(() => {}); throw e; }
+}
+
 async function purge(table, ids, deleteSelf, stats, depth = 0, trail = []) {
   if (ids.length === 0) return;
   if (depth > 14) throw new Error(`FK walk too deep at ${table} (via ${trail.join(" → ")})`);
@@ -155,6 +180,7 @@ async function purge(table, ids, deleteSelf, stats, depth = 0, trail = []) {
     if (action === "leave") continue;
     const col = `"${fk.column}"`;
     if (action === "nullify") {
+      await writeAs(fk.child);
       await client.query(`update ${ident(fk.child)} set ${col} = null where ${col} = any($1)`, [ids]);
       continue;
     }
@@ -163,6 +189,7 @@ async function purge(table, ids, deleteSelf, stats, depth = 0, trail = []) {
       // No single-column primary key: nothing hangs off such a table by FK, so
       // a direct delete is the whole job (join tables, per-row settings).
       if (action === "purge") {
+        await writeAs(fk.child);
         const r = await client.query(`delete from ${ident(fk.child)} where ${col} = any($1)`, [ids]);
         stats[fk.child] = (stats[fk.child] ?? 0) + r.rowCount;
       }
@@ -177,6 +204,7 @@ async function purge(table, ids, deleteSelf, stats, depth = 0, trail = []) {
   }
   if (deleteSelf) {
     const pk = pkOf.get(table) ?? "id";
+    await writeAs(table);
     const r = await client.query(`delete from ${ident(table)} where "${pk}" = any($1)`, [ids]);
     stats[table] = (stats[table] ?? 0) + r.rowCount;
   }
@@ -203,19 +231,23 @@ async function removeOrphans(days, stats) {
   const drafts = (await q(
     `select d.id from public.wizard_drafts d left join auth.users u on u.id = d.user_id
       where d.user_id is not null and u.id is null and d.started_at < now() - ($1::int * interval '1 day') limit 5000`, [days])).map((r) => r.id);
-  await purge("public.wizard_drafts", drafts, true, stats);
+  await inTx(() => purge("public.wizard_drafts", drafts, true, stats));
   const handoffs = (await q(
     `select h.id from public.agent_handoffs h join public.agent_conversations ac on ac.id = h.conversation_id
       where h.status in ('requested', 'claimed', 'active') and ac.account_id is null and h.requested_at < now() - ($1::int * interval '1 day') limit 2000`, [days])).map((r) => r.id);
-  await purge("public.agent_handoffs", handoffs, true, stats);
+  await inTx(() => purge("public.agent_handoffs", handoffs, true, stats));
   const callbacks = (await q(
     `select id from public.crm_events where type = 'callback_requested' and account_id is null and occurred_at < now() - ($1::int * interval '1 day') limit 2000`, [days])).map((r) => r.id);
-  await purge("public.crm_events", callbacks, true, stats);
+  await inTx(() => purge("public.crm_events", callbacks, true, stats));
   const fixtureDays = Math.max(Number(days) || 0, DEFAULTS.fixtureJobAgeDays);
   const fixtures = (await q(
     `select distinct w.estimate_id as id from public.work_orders w where ${fixtureJobSql("w")} limit 500`, [fixtureDays])).map((r) => r.id);
-  await purge("public.estimates", fixtures, true, stats);
-  return { drafts: drafts.length, handoffs: handoffs.length, callbacks: callbacks.length, fixtures: fixtures.length };
+  await inTx(() => purge("public.estimates", fixtures, true, stats));
+  // 23 Oct 2026: a run's visit request outlives its customer (no FK reaches it).
+  const requests = (await q(
+    `select r.id from public.visit_requests r where ${orphanVisitRequestSql("r")} limit 2000`, [days])).map((r) => r.id);
+  await inTx(() => purge("public.visit_requests", requests, true, stats));
+  return { drafts: drafts.length, handoffs: handoffs.length, callbacks: callbacks.length, fixtures: fixtures.length, requests: requests.length };
 }
 
 // ---- selecting whom to remove ----------------------------------------------
@@ -404,7 +436,7 @@ if (cmd === "sweep") {
   // queue to its cap, which is how seven CRM specs went red on the test
   // project. Same shape: open handoffs and callback events whose conversation
   // or event has no account. Age-gated like everything else here.
-  let orphans = { drafts: 0, handoffs: 0, callbacks: 0, fixtures: 0 };
+  let orphans = { drafts: 0, handoffs: 0, callbacks: 0, fixtures: 0, requests: 0 };
   if (!gaveWay && Date.now() - t0 < budgetMs) {
     if (await takeLockOrGiveWay()) {
       try { orphans = await removeOrphans(days, stats); }
@@ -416,8 +448,8 @@ if (cmd === "sweep") {
   const seconds = (Date.now() - t0) / 1000;
   const line = summaryLine({ verb: `sweep (older than ${days}d, batch ${batch})`, deleted, left, seconds, byTable: stats });
   const why = gaveWay ? " · GAVE WAY to an e2e run" : exhausted ? " · TIME BUDGET HIT" : emptied ? " · nothing older left" : "";
-  const orphanLine = orphans.drafts + orphans.handoffs + orphans.callbacks + orphans.fixtures
-    ? ` · orphans: ${orphans.drafts} drafts, ${orphans.handoffs} handoffs, ${orphans.callbacks} callbacks, ${orphans.fixtures} fixture jobs` : "";
+  const orphanLine = orphans.drafts + orphans.handoffs + orphans.callbacks + orphans.fixtures + orphans.requests
+    ? ` · orphans: ${orphans.drafts} drafts, ${orphans.handoffs} handoffs, ${orphans.callbacks} callbacks, ${orphans.fixtures} fixture jobs, ${orphans.requests} visit requests` : "";
   log(line + (accounts.selected ? ` · @example.com accounts ${accounts.deleted}/${accounts.selected}` : "") + orphanLine + why);
   const after = await counts();
   log(`users before ${before.anonymous + before.e2eLogins} → after ${after.anonymous + after.e2eLogins}`);
