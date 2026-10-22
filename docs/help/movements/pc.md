@@ -22,10 +22,15 @@ The project coordinator uses it on a laptop on Thursday or Friday to plan the we
 ## Steps
 
 ### What the tray shows
-1. **×** on any tray chip removes it in one tap: a materials line chip takes its line off the job page and the estimate too; any other chip is cancelled and the sync does not bring it back. A removed paint chip does not come back by itself: make a new one with **+ Add a chip**.
-2. One group per job, with the painter and the dates with their month (*Saul · Mon 27 Oct–Wed 29 Oct*). A job with no dates has nothing to plan yet, so its chips (and its check-ins) stay out of the tray until the job is booked.
-3. A pickup dropped on a morning gets 07:00 as its time (Settings → Movements → default times), an afternoon 13:00; open the chip to make it any time of day. The Supplier lane keeps plain AM / PM.
-4. The month and the days stay at the top while you scroll down the lanes.
+1. The ‹ › arrows move the board a week; the lanes and the tray follow without a reload.
+2. **×** on any tray chip removes it in one tap: a materials line chip takes its line off the job page and the estimate too; any other chip is cancelled and the sync does not bring it back. A removed paint chip does not come back by itself: make a new one with **+ Add a chip**.
+3. One group per job, with the painter and the dates with their month (*Saul · Mon 27 Oct–Wed 29 Oct*). A job with no dates has nothing to plan yet, so its chips (and its check-ins) stay out of the tray until the job is booked.
+4. A pickup dropped on a morning gets 07:00 as its time (Settings → Movements → default times), an afternoon 13:00; open the chip to make it any time of day. The Supplier lane keeps plain AM / PM.
+5. The month and the days stay at the top while you scroll down the lanes.
+
+### Dropping a chip on a person
+1. A drop on a painter's or a staff person's lane opens a **confirm box** first: who it is going to, the **day** and the **time** (both editable), and a tick for **Send a calendar invitation**. Nothing is placed until you press Confirm; Cancel leaves the chip in the tray. The Supplier lane still places straight away.
+2. With the tick on, that person gets an email with an .ics invitation: the stop sits in their phone's calendar with the shop (a pickup) or the site as the place, the order reference and a link to the details. Moving the stop and confirming again sends an updated invitation that replaces the first in their calendar. The toast says who it went to, or why it did not (no email on file, or the automation switched off in Settings → Automations → "Movements — calendar invitation for a stop").
 
 ### Planning the week
 1. Open **Projects → Movements**. The headline says how many chips are still in the tray and how many movements are placed; **Orders to place** counts every placed delivery or pickup whose order you have not yet ticked. **‹ ›** moves a week at a time. The **How this tab works** strip opens on your first visit and folds away after; open it again from its title.
@@ -40,7 +45,7 @@ The project coordinator uses it on a laptop on Thursday or Friday to plan the we
 2. Under a calendar entry or a quality check, one dashed **While you're there** suggestion names the single nearest tray chip. Tap it to drop it.
 
 ### The chip sheet
-1. Tap any chip, in the tray or on the board. The sheet shows where it is placed and how it moves ("delivered to site", "Josef picks up", "Felipe drops off").
+1. Tap any chip, in the tray or on the board. The sheet shows where it is placed and how it moves ("delivered to site", "Josef picks up", "Felipe drops off"). On a paint, materials or gear chip, **Open in PC Command →** at the top takes you to the same job's page, whose Materials & movements card links back to the chip on the board — the two screens are a tap apart for one job.
 2. **Paint**: one chip per brand per job — every product of the brand is a line on the one order, and a product whose brand was left blank takes the brand its name starts with. The lines are the job's Materials card for that brand — tap a line to change its colour name or litres (that edits the card, the same litres the job page's Materials card and the estimate builder's working scope edit; the chip re-reads it and recounts the cans). Once ordered, the lines are frozen as they were at ordering.
 3. **Materials**: the line text is the same row the estimate and the job page show. One line is one order — write the items on the line separated by commas (up to 500 characters). A line with several items shows each item as a bubble with its own ×: that × takes the item off this order into a new chip of its own (tapes out of stock — the rest of the order stays as it was). No shop is assumed for a materials order: the tray says *no shop yet — tap to confirm*, and the Supplier lane refuses it until you have. In the sheet pick the **Shop**, then **How does it get to site?** — **Delivered to site** puts the chip on the Supplier lane on the job's first day (tick Ordered ✓ once the shop has the order); **Picked up** records that and leaves the chip in the tray for you to drop on whoever collects it; **From our stock** means it comes from the warehouse — no shop, nothing to order, and dropping the chip on whoever carries it books it (the Supplier lane refuses it).
 4. **Gear**: the items, each with where it is now. A gear chip typed as words on the job page (the **Gear needed** box under Equipment movements booked — one line per chip, commas between items) has no register items; booking it still makes its return chip.

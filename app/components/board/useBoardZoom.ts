@@ -48,6 +48,13 @@ export function useBoardZoom({
   const [dayW, setDayW] = useState(initialDayW);
   const [range, setRange] = useState(rangeDays);
   const [start, setStart] = useState(from);
+  // Tom, 22 Oct 2026: the Movements tab moves weeks by changing `from` (a new URL, the same
+  // mounted screen); the window follows it. State derived from a prop, set during render.
+  const [seenFrom, setSeenFrom] = useState(from);
+  if (from !== seenFrom) {
+    setSeenFrom(from);
+    setStart(from);
+  }
   // The horizontal scroller (`main.tl`) — fit-to-range measures it. Kept
   // behind a setter and a getter rather than a ref object so the hook's
   // return value carries no ref (the React Compiler would otherwise treat

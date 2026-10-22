@@ -111,6 +111,7 @@ const P = {
   movement: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{what}}", "{{shop}}", "{{shop_address}}", "{{from_time}}", "{{day}}", "{{when}}", "{{order_ref}}", "{{link}}"],
   movementClient: ["{{first_name}}", "{{company_name}}", "{{address}}", "{{what}}", "{{day}}", "{{when}}"],
   movementRun: ["{{first_name}}", "{{company_name}}", "{{day}}", "{{stops}}", "{{km}}", "{{link}}"],
+  movementInvite: ["{{first_name}}", "{{company_name}}", "{{wo_ref}}", "{{what}}", "{{where}}", "{{day}}", "{{when}}", "{{order_ref}}", "{{note}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
   visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
   visitCode: ["{{code}}", "{{company_name}}"],
@@ -671,6 +672,16 @@ export const AUTOMATIONS: Automation[] = [
     trigger: "The office presses Send to <name>'s phone on the Day view. Staff get a link to their own run view; painters get the portal's pickups-and-drop-offs card.",
     templates: [{ field: "movementRunPlanSms", label: "Text message", kind: "sms", placeholders: P.movementRun }],
     guard: "Each press sends again (the run can change); the stops it covered are stamped run_plan_sent_at.",
+  },
+  {
+    key: "movement_calendar_invite", name: "Movements — calendar invitation for a stop", audience: "painter", channels: ["email", "ics"], kind: "automatic",
+    defaultChannel: "email", sendKind: "movement_calendar_invite", capExempt: true, quietExempt: true,
+    trigger: "The office drops a chip on a person's day and confirms the day and time in the box (Tom, 22 Oct 2026). Staff and painters alike. The .ics puts the stop in their calendar with the shop or the site as the place; a re-send after a move edits that entry.",
+    templates: [
+      { field: "movementInviteSubject", label: "Subject", kind: "subject", placeholders: P.movementInvite },
+      { field: "movementInviteBody", label: "Email", kind: "body", placeholders: P.movementInvite },
+    ],
+    guard: "Only when the office ticks Send a calendar invitation in the confirm box; every send is recorded (movements.invite_sent_at, invite_sequence).",
   },
   {
     key: "movement_arrived_check", name: "Movements — did the delivery arrive?", audience: "painter", channels: ["sms"], kind: "automatic",
