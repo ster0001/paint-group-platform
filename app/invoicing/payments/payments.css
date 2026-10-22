@@ -449,3 +449,9 @@
 .pm .chipset button{height:36px;padding:0 12px;border:1px solid var(--line2);border-radius:18px;font-size:13px;color:var(--text2)}
 .pm .chipset button.on{border-color:var(--pri);color:var(--cyan-t);background:var(--cyan-bg)}
 .pm .job .addr a:hover,.pm .tr .a a:hover{text-decoration:underline}
+
+/* Tom, 22 Oct 2026: edit a cost in place (CostEdit.tsx). */
+.pm .costedit{display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center;margin-left:6px}
+.pm .costedit input,.pm .costedit select{border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:inherit;font-size:12.5px;background:var(--bg,#fff);color:var(--text);max-width:170px}
+.pm .costedit input[type="date"]{max-width:150px}
+.pm .costedit .err{color:var(--red);font-size:12px}

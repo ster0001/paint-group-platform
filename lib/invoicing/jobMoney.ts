@@ -110,6 +110,8 @@ export const STATE_RANK: Record<SlotState, number> = {
 export type Slot = {
   key: SlotKey;
   state: SlotState;
+  /** The colour the slot draws in. Tom, 22 Oct 2026: a deposit ISSUED and not yet due is blue (sent) wherever the job is; need stays orange only while the deposit is a draft or missing. Sections and chasing still read state. */
+  tone: SlotState;
   /** The slot's figure: invoice totals, or the uninvoiced remainder for later/uninv; null for noinv/none. */
   amountCents: number | null;
   /** Still owing on the slot's invoices. */
@@ -127,6 +129,8 @@ export type SlotLead = {
   number: string | null;
   kind: JobMoneyInvoice["kind"];
   state: SlotState;
+  /** The colour (see Slot.tone). */
+  tone: SlotState;
   /** Sent to the customer (issued or later), as opposed to a draft. */
   sent: boolean;
   balanceCents: number;
@@ -188,6 +192,8 @@ export type JobMoneyRow = {
   overdueCents: number;
   overdueCount: number;
   health: SlotState;
+  /** The colour the card draws in (see Slot.tone). */
+  healthTone: SlotState;
   section: Section;
   /** A deposit not in on a job starting within a week or already under way — the orange row pulses (⚑P1). */
   pulse: boolean;
@@ -276,10 +282,12 @@ export function jobMoneyRow(
     return inv.status === "draft" ? "draft" : "sent";
   };
 
+  // The colour: need with an issued, not-overdue invoice draws as sent (Tom, 22 Oct 2026).
+  const toneOf = (inv: JobMoneyInvoice, slot: SlotKey): SlotState => { const s = stateOf(inv, slot); return s === "need" && inv.status !== "draft" ? "sent" : s; };
   const leadOf = (inv: JobMoneyInvoice, slot: SlotKey): SlotLead => {
     const state = stateOf(inv, slot);
     return {
-      invoiceId: inv.id, number: inv.number, kind: inv.kind, state,
+      invoiceId: inv.id, number: inv.number, kind: inv.kind, state, tone: toneOf(inv, slot),
       sent: inv.status !== "draft",
       balanceCents: invoiceBalanceCents(inv, payments),
       dueOn: inv.dueOn,
@@ -302,14 +310,14 @@ export function jobMoneyRow(
       const first = [...unpaid].sort((a, b) => STATE_RANK[stateOf(a, key)] - STATE_RANK[stateOf(b, key)] || (a.dueOn ?? "9").localeCompare(b.dueOn ?? "9"))[0];
       return {
         lead: first ? leadOf(first, key) : null,
-        key, state: worst(invs.map((i) => stateOf(i, key))),
+        key, state: worst(invs.map((i) => stateOf(i, key))), tone: worst(invs.map((i) => toneOf(i, key))),
         amountCents: invs.reduce((s, i) => s + i.totalIncCents, 0),
         balanceCents: unpaid.reduce((s, i) => s + invoiceBalanceCents(i, payments), 0),
         dueOn: dues[0] ?? null,
         invoiceIds: invs.map((i) => i.id),
       };
     }
-    const empty = (state: SlotState, amountCents: number | null): Slot => ({ key, state, amountCents, balanceCents: 0, dueOn: null, invoiceIds: [], lead: null });
+    const empty = (state: SlotState, amountCents: number | null): Slot => ({ key, state, tone: state, amountCents, balanceCents: 0, dueOn: null, invoiceIds: [], lead: null });
     if (key === "deposit") {
       if (visible.length > 0 || lane === "closed") return empty("none", null);
       return NEED_LANES.has(lane) ? empty("noinv", null) : empty("later", null);
@@ -364,7 +372,8 @@ export function jobMoneyRow(
     overdueCents: overdueInvs.reduce((s, i) => s + invoiceBalanceCents(i, payments), 0),
     overdueCount: overdueInvs.length,
     health, section,
-    pulse: (health === "need" || health === "noinv") && (underWay || lane === "pre_start"),
+    healthTone: health === "need" && next ? slots[next.slot].tone : health,
+    pulse: (health === "need" || health === "noinv") && (underWay || lane === "pre_start") && !(health === "need" && next && slots[next.slot].tone === "sent"),
     lastMessagedDays: job.lastMessagedAt ? Math.max(0, daysBetween(melbourneToday(new Date(job.lastMessagedAt)), today)) : null,
     hiddenDraftIds: hidden.map((i) => i.id),
     invoiceNumbers: jobInvoices.map((i) => i.number).filter((n): n is string => !!n),

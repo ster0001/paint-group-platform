@@ -967,6 +967,29 @@ export async function setWalkthroughStatus(raw: unknown): Promise<PcResult> {
   return r;
 }
 
+/** Tom, 22 Oct 2026: the working scope title is the office's to change (wo_set_job_title). */
+export async function setJobTitle(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, title: z.string().trim().min(1).max(120) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Type a title first." };
+  return call("wo_set_job_title", { p_work_order_id: parsed.data.workOrderId, p_title: parsed.data.title }, "Title saved.");
+}
+
+/**
+ * Tom, 22 Oct 2026: the customer was not there for the walkthrough — open the remote
+ * sign-off (wo_mark_client_unavailable) and send them the link to review and sign, now.
+ */
+export async function sendRemoteSignoff(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const marked = await call("wo_mark_client_unavailable", { p_work_order_id: parsed.data.workOrderId });
+  if (!marked.ok) return marked;
+  const service = createServiceClient();
+  if (!service) return { ok: false, message: "Opened for remote sign-off, but the server cannot send from here." };
+  const { sendSignoffRequest } = await import("@/lib/workorder/signoffRequest");
+  const r = await sendSignoffRequest(service, parsed.data.workOrderId);
+  return r.ok ? { ok: true, message: r.message } : { ok: false, message: r.message };
+}
+
 export async function markClientUnavailable(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };

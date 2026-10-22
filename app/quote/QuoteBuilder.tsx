@@ -1187,8 +1187,10 @@ export default function QuoteBuilder({
     const supabase = createClient();
     const finishCode = modSel["Level of Finish"];
     const token = shareToken ?? genShareToken();
+    // Tom, 22 Oct 2026: the title starts as the address but is the estimator's to change
+    // (Interior / Exterior tell two jobs at one address apart) — a typed title is kept.
     const addressTitle = jobAddress ? [jobAddress.address, jobAddress.city].map((x) => (x ?? "").trim()).filter(Boolean).join(", ") : "";
-    const savedTitle = addressTitle || title.trim() || "Untitled quote";
+    const savedTitle = title.trim() || addressTitle || "Untitled quote";
     if (savedTitle !== title) setTitle(savedTitle);
     // On update we deliberately DON'T touch status — a sent estimate stays sent,
     // and its refreshed sent_snapshot is what the customer sees live.
@@ -2316,14 +2318,15 @@ export default function QuoteBuilder({
           )}
           {viewMode === "builder" && !locked && (
             <>
-              {!revision && (
-                <input
-                  className="w-40 rounded-md border border-line2 bg-graphite px-3 py-2 text-sm text-white placeholder-gray-500"
-                  placeholder="Quote name"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              )}
+              <input
+                className="w-48 rounded-md border border-line2 bg-graphite px-3 py-2 text-sm text-white placeholder-gray-500"
+                placeholder="Job title (starts as the address)"
+                title="The job title — it starts as the address; add Interior, Exterior or a stage so two jobs at one address read apart"
+                aria-label="Job title"
+                data-testid="builder-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
               <button
                 onClick={() => { void (revision ? saveRevisionChecked() : save()); }}
                 disabled={saving}

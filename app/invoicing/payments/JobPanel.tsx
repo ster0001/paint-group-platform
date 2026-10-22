@@ -5,6 +5,7 @@ import type { ProfitLine } from "@/lib/invoicing/jobProfit";
 import { Pills, Rail } from "./JobPieces";
 import { CiButtons, CostButtons, MatButtons, RowActions, type ActionSpec, type MatSpec } from "./ActionsClient";
 import { AddCostButton, InvoiceCardActions, MoneyInLinks, OpenChatButton, RedraftFinal, type CardSpec } from "./PanelClient";
+import { AddMaterialCostButton, EditJobCostButton, EditMaterialButton } from "./CostEdit";
 import { KIND_NAME, STAGE_NAME, actionSpec, money, plural, shortDate, startText } from "./labels";
 import type { PanelData, PanelInvoice } from "./panelData";
 
@@ -116,6 +117,7 @@ function CostRows({ d }: { d: PanelData }) {
           <span className="r">{r.jobCostStatus ? <span className={`tag ${r.jobCostStatus === "paid" ? "paid" : ""}`}>{COST_TAG[r.jobCostStatus] ?? r.jobCostStatus}</span> : null}
             {/* Tom, 15 Oct 2026: a booked day counts from the day it is booked; the row says it is booked, not yet recorded. */}
             {r.booked ? <span className="tag" data-testid="job-cost-booked">Booked</span> : null}<span className="mono">{money(r.cents)}</span>
+            {(() => { const jc = d.jobCostRows.find((c) => c.id === r.id); return jc ? <EditJobCostButton estimateId={d.row.estimateId} cost={jc} /> : null; })()}
             {/* Employee labour is paid through payroll — nothing to approve or mark paid here (Tom, 9 Oct). */}
             {r.payable && r.jobCostStatus ? <CostButtons id={r.id} status={r.jobCostStatus} label={`${r.label} ${money(r.cents)}`} /> : null}</span>
         </div>
@@ -210,14 +212,15 @@ export function JobPanel({ d, tab, tabHref, closeHref, closeLabel, today, termsD
                   return (
                     <div className="li" key={m.key}>
                       <span>{m.supplier}<small>{m.invoiceNo ?? ""}</small></span>
-                      <span className="r"><span className={`tag ${m.state === "paid" ? "paid" : ""}`}>{MAT_TAG[m.state] ?? ""}</span><span className="mono">{money(m.amountCents)}</span><MatButtons row={{ ...ms, state: m.state === "rec" ? "rec" : "paid" }} /></span>
+                      <span className="r"><span className={`tag ${m.state === "paid" ? "paid" : ""}`}>{MAT_TAG[m.state] ?? ""}</span><span className="mono">{money(m.amountCents)}</span><MatButtons row={{ ...ms, state: m.state === "rec" ? "rec" : "paid" }} />
+                        {m.kind === "cost" && <EditMaterialButton estimateId={r.estimateId} orders={d.orders} cost={{ id: m.id, supplier: m.supplier, amountCents: m.amountCents, invoiceDate: m.invoiceDate, orderRef: m.reference, movementId: d.materialOrder[m.id] ?? null }} />}</span>
                     </div>
                   );
                 })}
               </div>
             ) : null}
             <CostRows d={d} />
-            {d.woId ? <div style={{ marginTop: 12 }}><AddCostButton estimateId={r.estimateId} woId={d.woId} startOpen={startAddCost} /></div> : null}
+            {d.woId ? <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}><AddCostButton estimateId={r.estimateId} woId={d.woId} startOpen={startAddCost} /><AddMaterialCostButton estimateId={r.estimateId} woId={d.woId} orders={d.orders} /></div> : null}
             <p className="fine">Figures are the costs recorded in the platform today. Job value including GST is {money(r.contractCents)}.</p>
           </>
         )}

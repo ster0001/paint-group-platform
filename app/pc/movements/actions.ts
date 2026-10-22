@@ -446,7 +446,7 @@ export async function sendMovementInvite(raw: unknown): Promise<MovementActionRe
   const r = await inviteWorker(service, p.data.id);
   if (!r.ok) { reportError(new Error(r.message), { where: "movements.invite", extra: { id: p.data.id } }); return r; }
   for (const path of ["/pc/movements", ...jobPaths(p.data.workOrderId)]) revalidatePath(path);
-  return { ok: true, value: r.sent ? `sent:${r.to}` : `skipped:${r.why}` };
+  return { ok: true, value: r.sent ? `sent:${r.to}${r.texted ? " + text" : ""}` : `skipped:${r.why}` };
 }
 
 const splitInput = z.object({ id: uuid, item: z.string().min(1).max(500), workOrderId: uuid.nullable().optional() });

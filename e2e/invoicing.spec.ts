@@ -218,7 +218,7 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     await signIn(page, staff!, /\/(home|estimates)/);
     await openMoneyView(page);
     const card = invoiceCard(page, "deposit");
-    await card.getByRole("button", { name: "Cash or part" }).click();
+    await card.getByRole("button", { name: "Record a payment" }).click();
     const sheet = page.getByRole("dialog", { name: "Record a payment" });
     await sheet.getByLabel("Amount received").fill("1850.00");
     // Tom, 1 Oct: the date the money arrived is typed in, defaulting to today
