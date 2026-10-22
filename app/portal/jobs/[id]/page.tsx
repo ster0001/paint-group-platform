@@ -451,6 +451,9 @@ export default async function PortalJobPage({
   // server delivers the pack on the way (wo_start_walkthrough_mode, 20270284).
   // A passed check is the office's sign-off (24 Sep) and shows the notice instead.
   const walkBeforeQa = stage === "qa" && walkthroughRequired && !staffSignsOff && !qaPassed;
+  // Tom, 23 Oct 2026: and from finishing up (completion_prep) once the prep list is ticked —
+  // the RPC refuses in words while items are still open.
+  const walkFromPrep = stage === "completion_prep" && walkthroughRequired && !staffSignsOff;
   // Session 6: Start / Finish day on THIS job, hours only (clocksOn painters).
   const timesheet = capabilities.clocksOn && stage !== "closed" ? await loadMyTimesheet(id) : null;
   const bookedFinal = ((walkthroughRows ?? []) as { kind: string; scheduled_date: string }[])
@@ -754,7 +757,7 @@ export default async function PortalJobPage({
           </div>
         </div>
       )}
-      {walkBeforeQa && job.committed && (
+      {(walkBeforeQa || walkFromPrep) && job.committed && (
         <div style={{ padding: "0 16px" }}>
           <WalkthroughStart workOrderId={id} finalDate={bookedFinal} qaOpen />
         </div>

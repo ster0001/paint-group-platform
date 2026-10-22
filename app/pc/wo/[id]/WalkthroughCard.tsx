@@ -197,10 +197,11 @@ export default function WalkthroughCard({
 
           {/* Our side of the sign-off (Tom, 23 Aug): run it on our device with
               the customer, or record it when they've approved another way. */}
-          {/* Tom, 22 Oct 2026: the office can start the walkthrough at the quality-check stage too —
-              before a check has passed — the same way a painter can (the pack goes out, the
-              check stays open for the office). */}
-          {(stage === "walkthrough" || stage === "qa") && (
+          {/* Tom, 22–23 Oct 2026: the office can start the walkthrough from the moment the job is
+              under way — in progress, finishing up, or parked at the quality check — before any
+              check has passed. Starting it sends the completion pack and moves the job to the
+              walkthrough; an open check stays open for the office. */}
+          {(stage === "walkthrough" || stage === "qa" || stage === "completion_prep" || stage === "in_progress") && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }} data-testid="staff-signoff">
               <p className="note">Sign-off from our side — when you&rsquo;re with the customer, or they&rsquo;ve approved by phone or on paper.</p>
               <div className="row" style={{ flexWrap: "wrap" }}>

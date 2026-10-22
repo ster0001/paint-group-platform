@@ -1008,7 +1008,10 @@ export async function staffStartWalkthrough(raw: unknown): Promise<PcResult & { 
   if (error) return { ok: false, message: error.message };
   const s = String(data ?? "");
   if (s.startsWith("ok:")) return { ok: true, url: `/s/${s.slice(3)}`, message: "Walkthrough open on this device." };
-  if (s === "error:not_at_walkthrough") return { ok: false, message: "The job isn't at the walkthrough stage yet." };
+  if (s === "error:not_at_walkthrough") return { ok: false, message: "The job isn't at a stage the walkthrough can start from yet." };
+  if (s === "error:surfaces_first") return { ok: false, message: "Every surface must be ticked off first — the painter does that on the job sheet." };
+  if (s.startsWith("error:gate:")) return { ok: false, message: `Not yet: ${humaniseGate(s.slice("error:gate:".length))}` };
+  if (s.startsWith("error:actor_not_allowed")) return { ok: false, message: "Only the office can start the walkthrough from this stage." };
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
 }
 
