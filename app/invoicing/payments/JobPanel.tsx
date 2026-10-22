@@ -117,7 +117,12 @@ function CostRows({ d }: { d: PanelData }) {
           <span className="r">{r.jobCostStatus ? <span className={`tag ${r.jobCostStatus === "paid" ? "paid" : ""}`}>{COST_TAG[r.jobCostStatus] ?? r.jobCostStatus}</span> : null}
             {/* Tom, 15 Oct 2026: a booked day counts from the day it is booked; the row says it is booked, not yet recorded. */}
             {r.booked ? <span className="tag" data-testid="job-cost-booked">Booked</span> : null}<span className="mono">{money(r.cents)}</span>
-            {(() => { const jc = d.jobCostRows.find((c) => c.id === r.id); return jc ? <EditJobCostButton estimateId={d.row.estimateId} cost={jc} /> : null; })()}
+            {(() => {
+              const jc = d.jobCostRows.find((c) => c.id === r.id);
+              if (jc) return <EditJobCostButton estimateId={d.row.estimateId} cost={jc} />;
+              const mc = d.materialRows.find((m) => m.id === r.id);
+              return mc ? <EditMaterialButton estimateId={d.row.estimateId} orders={d.orders} cost={mc} /> : null;
+            })()}
             {/* Employee labour is paid through payroll — nothing to approve or mark paid here (Tom, 9 Oct). */}
             {r.payable && r.jobCostStatus ? <CostButtons id={r.id} status={r.jobCostStatus} label={`${r.label} ${money(r.cents)}`} /> : null}</span>
         </div>

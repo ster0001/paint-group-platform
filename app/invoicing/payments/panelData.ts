@@ -49,6 +49,8 @@ export type PanelInvoice = {
 /** Tom, 22 Oct 2026: a paint or materials order (a Movements chip) a supplier invoice can sit on. */
 export type PanelOrder = { id: string; title: string; kind: string; status: string };
 export type PanelJobCost = { id: string; description: string; category: string; amountExCents: number; gstCents: number; status: string };
+/** A material cost on the job with the fields its edit form changes (every row, matched or by hand). */
+export type PanelMaterialRow = { id: string; supplier: string; amountCents: number; invoiceDate: string | null; orderRef: string | null; movementId: string | null };
 
 export type PanelData = {
   row: JobMoneyRow;
@@ -58,6 +60,7 @@ export type PanelData = {
   materialOrder: Record<string, string | null>;
   /** The recorded job costs with the fields the edit form changes. */
   jobCostRows: PanelJobCost[];
+  materialRows: PanelMaterialRow[];
   invoices: PanelInvoice[];
   contractors: ContractorRow[];
   supplierInvoices: MatRow[];
@@ -153,8 +156,9 @@ export async function loadJobPanel(supabase: SupabaseClient, page: JobMoneyPage,
   const materialOrder: Record<string, string | null> = {};
   if (!matLinksRes.error) for (const l of (matLinksRes.data ?? []) as { id: string; movement_id: string | null }[]) materialOrder[l.id] = l.movement_id;
   const jobCostRows: PanelJobCost[] = costs.jobCosts.map((c) => ({ id: c.id, description: c.description ?? "", category: c.category, amountExCents: c.amount_ex_cents, gstCents: c.gst_cents ?? 0, status: c.status }));
+  const materialRows: PanelMaterialRow[] = costs.materials.map((m) => ({ id: m.id, supplier: m.supplier ?? "", amountCents: m.amount_cents, invoiceDate: m.invoice_date ?? null, orderRef: m.order_ref ?? null, movementId: materialOrder[m.id] ?? null }));
   return {
-    row, invoices, orders, materialOrder, jobCostRows,
+    row, invoices, orders, materialOrder, jobCostRows, materialRows,
     contractors: page.contractors.filter((c) => c.estimateId === estimateId),
     supplierInvoices: [...page.materials.toApprove, ...page.materials.toPay.flatMap((g) => g.rows), ...page.materials.paid].filter(onJob),
     profit, labourNote: missingRateNote(labour.missingRate), woId, woRef: job.wo?.wo_ref ?? null,
