@@ -538,7 +538,38 @@ export async function recordQa(raw: unknown): Promise<QaResult> {
     const why = s.slice("ok:pass:gate:".length).replace(/:thin_record$/, "");
     return { ok: true, message: `Passed — but the handover can't go yet: ${humaniseGate(why)}${thin}` };
   }
+  // Tom, 22 Oct 2026: a check logged before the painter has finished. The RPC
+  // answers a plain ok:pass (nothing routes while the job is In progress), so
+  // the office is told what that pass means for the finish.
+  const early = await passedBeforeFinish(supabase, parsed.data.checkId);
+  if (early) {
+    return {
+      ok: true,
+      message: early.open === 0
+        ? `Passed — logged before the painter finished. Nothing else to check: when they tick the last box and finish, the job skips the Quality check lane and the office signs it off.${thin}`
+        : `Passed — logged before the painter finished. ${early.open} check${early.open === 1 ? "" : "s"} still to log on this job.${thin}`,
+    };
+  }
   return { ok: true, message: `Passed — another check is still to log before sign-off.${thin}` };
+}
+
+/**
+ * Whether the check's job is still with the painter (In progress, or the
+ * hidden prep stage), and how many checks are still open on it. Null when it
+ * is not — or when either read fails, and the caller keeps its usual words.
+ */
+async function passedBeforeFinish(
+  supabase: Awaited<ReturnType<typeof createClient>>, checkId: string,
+): Promise<{ open: number } | null> {
+  const { data: chk, error } = await supabase.from("wo_qa_checks")
+    .select("work_order_id, work_orders(stage)").eq("id", checkId).maybeSingle();
+  if (error) { reportError(error, { where: "recordQa.passedBeforeFinish", bestEffort: true }); return null; }
+  const row = chk as { work_order_id: string; work_orders: { stage: string } | null } | null;
+  const stage = row?.work_orders?.stage;
+  if (!row || (stage !== "in_progress" && stage !== "completion_prep")) return null;
+  const { data: open, error: openErr } = await supabase.rpc("wo_qa_open_count", { p_work_order_id: row.work_order_id });
+  if (openErr) { reportError(openErr, { where: "recordQa.openCount", bestEffort: true }); return null; }
+  return { open: Number(open ?? 0) };
 }
 
 /** The job-level "quality check required" flag (Tom, 23 Aug). */
