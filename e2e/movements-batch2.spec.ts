@@ -219,6 +219,35 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
     await expect(card.getByTestId("prestart-materials-msg")).toContainText(/Line updated/, { timeout: 15_000 });
     expect((await lines()).some((l) => l.text === `masking ${TAPES}`), "the edit reached the line").toBe(true);
 
+    // Tom, 22 Oct: a drop on the staff lane asks first; the time is changed in the box; the invitation goes with it.
+    const invited = okId(await rpcAs(staff!, "movement_create", { p: { kind: "equipment_out", work_order_id: job!.workOrderId, title: `E2E invite ladder ${RUN}` } }));
+    await page.goto(`/pc/movements?view=week&week=${MON}`);
+    await expect(page.getByTestId("movements-board")).toBeVisible({ timeout: 30_000 });
+    const trayInvite = page.locator(`[data-testid="tray-chip"][data-movement-id="${invited}"]`);
+    await expect(trayInvite).toBeVisible();
+    const staffLane = page.locator(`[data-testid="lane"][data-lane="${staffProfileId}"]`);
+    const target = staffLane.locator(`.bgc[data-day="${WED}"] .slot[data-slot="09:30"]`);
+    await trayInvite.scrollIntoViewIfNeeded(); await target.scrollIntoViewIfNeeded();
+    const a = await trayInvite.boundingBox(); const b = await target.boundingBox();
+    if (!a || !b) throw new Error("no box");
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await page.mouse.down();
+    for (let i = 1; i <= 10; i++) await page.mouse.move(a.x + a.width / 2 + ((b.x + b.width / 2 - a.x - a.width / 2) * i) / 10, a.y + a.height / 2 + ((b.y + b.height / 2 - a.y - a.height / 2) * i) / 10);
+    await page.mouse.up();
+    const confirm = page.getByTestId("confirm-sheet");
+    await expect(confirm).toBeVisible();
+    await expect(confirm.getByTestId("confirm-time")).toHaveValue("09:30");
+    await confirm.getByTestId("confirm-time").fill("11:00");
+    await expect(confirm.getByTestId("confirm-invite")).toBeChecked();
+    await confirm.getByTestId("confirm-place").click();
+    await expect(page.locator(".toast.show")).toContainText(/Calendar invitation sent|no invitation/, { timeout: 20_000 });
+    const { data: inv } = await db!.from("movements").select("status, due_date, time, invite_sent_at, invite_sequence").eq("id", invited).single();
+    const iv = inv as Row;
+    expect(iv.due_date).toBe(WED);
+    expect(String(iv.time)).toMatch(/^11:00/);
+    expect(iv.status).toBe("booked");
+    expect(iv.invite_sent_at, "the invitation was recorded").toBeTruthy();
+    expect(iv.invite_sequence).toBe(1);
+
     // Tom, 22 Oct: one tap removes a tray chip — a materials line chip takes its line with it.
     await page.goto(`/pc/movements?view=week&week=${MON}`);
     await expect(page.getByTestId("movements-board")).toBeVisible({ timeout: 30_000 });

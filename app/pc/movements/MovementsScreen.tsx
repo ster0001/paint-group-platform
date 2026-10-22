@@ -16,7 +16,7 @@ import { movementIcon } from "@/lib/movements/gearIcons";
 import type { EquipmentCategory, MaterialLineRow, MovementRow } from "@/lib/movements/types";
 import { WEEK_DAYS, weekLabel } from "@/lib/movements/week";
 import { addDays } from "@/lib/scheduling/dates";
-import { markMovementOrdered, placeMovement, removeMaterialLine, scheduleSiteVisit, setMovementStatus, unplaceMovement, type MovementActionResult } from "./actions";
+import { markMovementOrdered, placeMovement, removeMaterialLine, scheduleSiteVisit, sendMovementInvite, setMovementStatus, unplaceMovement, type MovementActionResult } from "./actions";
 import HowItWorks from "./HowItWorks";
 import { fromSerial, type SerialWorld } from "./world";
 import "./movements.css";
@@ -40,7 +40,11 @@ const HOURS = hourSlots(HOUR_SLOTS);
 type View = "week" | "sources" | "day" | "map" | "gear";
 type DragPayload = { chip: MovementRow } | { checkin: { id: string; workOrderId: string } };
 type DropCheck = { blocked: boolean; held: false; reason: string | null; warn: string | null; laneName: string; where: string };
-type SheetState = { kind: "chip"; id: string } | { kind: "add" } | { kind: "nearby"; laneId: string; day: string } | null;
+type SheetState =
+  | { kind: "chip"; id: string } | { kind: "add" } | { kind: "nearby"; laneId: string; day: string }
+  /** Tom, 22 Oct 2026: a drop on a person's lane asks first — day and time editable, then the invitation. */
+  | { kind: "confirm"; chipId: string; laneId: string; day: string; half: "AM" | "PM" | null; time: string | null }
+  | null;
 
 export type MovementsScreenProps = {
   world: SerialWorld;
@@ -221,6 +225,12 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
       // Tom, 21 Oct 2026: a site check-in dropped on a staff day gets that day and time.
       const at = time ?? world.settings.defaultHalfTime[half ?? "AM"];
       void act(() => scheduleSiteVisit({ visitId: p.checkin.id, date: t.day, time: at, workOrderId: p.checkin.workOrderId }), () => `Check-in booked ${shortDay(t.day)} ${at} on ${lane.name.split(" ")[0]}'s lane`);
+      return;
+    }
+    if (lane.kind !== "supplier") {
+      // Tom, 22 Oct 2026: a person's day is confirmed first — the day and time can be changed,
+      // and the worker gets a calendar invitation when the office says so.
+      setSheet({ kind: "confirm", chipId: p.chip.id, laneId: lane.id, day: t.day, half, time });
       return;
     }
     void place(p.chip, lane, t.day, half, time);
@@ -457,6 +467,41 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
   const nearbyList: Nearby[] = sheet?.kind === "nearby" ? nearby(world, sheet.laneId, sheet.day, ctx) : [];
   const nearbyLane = sheet?.kind === "nearby" ? laneById.get(sheet.laneId) ?? null : null;
   const close = () => setSheet(null);
+  // The confirm box's draft (day and time are editable there).
+  const [confirmDay, setConfirmDay] = useState("");
+  const [confirmTime, setConfirmTime] = useState("");
+  const [confirmInvite, setConfirmInvite] = useState(true);
+  const [seenConfirm, setSeenConfirm] = useState<string | null>(null);
+  const confirmKey = sheet?.kind === "confirm" ? `${sheet.chipId}:${sheet.laneId}:${sheet.day}:${sheet.time ?? sheet.half ?? ""}` : null;
+  if (confirmKey !== seenConfirm) {
+    setSeenConfirm(confirmKey);
+    if (sheet?.kind === "confirm") {
+      setConfirmDay(sheet.day);
+      setConfirmTime(sheet.time ?? (sheet.half ? world.settings.defaultHalfTime[sheet.half] : world.settings.defaultHalfTime.AM));
+      setConfirmInvite(true);
+    }
+  }
+  const confirmChip = sheet?.kind === "confirm" ? world.movements.find((m) => m.id === sheet.chipId) ?? null : null;
+  const confirmLane = sheet?.kind === "confirm" ? laneById.get(sheet.laneId) ?? null : null;
+  const confirmDrop = async () => {
+    if (!confirmChip || !confirmLane || !/^\d{4}-\d{2}-\d{2}$/.test(confirmDay) || !/^\d{2}:\d{2}$/.test(confirmTime)) { say("Pick a day and a time"); return; }
+    const half: "AM" | "PM" = confirmTime < "12:00" ? "AM" : "PM";
+    close();
+    const v = dropProblem(world, confirmChip, confirmLane, confirmDay);
+    const placed = await act(() => placeMovement({
+      id: confirmChip.id, assigneeKind: "person", assigneeId: confirmLane.id, dueDate: confirmDay, half, time: confirmTime, workOrderId: confirmChip.work_order_id,
+    }), (status) => {
+      const probe = { ...confirmChip, assignee_kind: "person" as const, status: status === "planned" ? "planned" as const : "booked" as const };
+      return `${kindLabel(probe)} → ${confirmLane.name}, ${shortDay(confirmDay)} ${confirmTime}${needsOrder(probe) ? " · tick Ordered when you've placed it" : ""}`;
+    });
+    if (!placed) return;
+    if (v.warn) setTimeout(() => say(`That's ${v.warn}`, 4200), 2600);
+    if (confirmInvite) {
+      const first = confirmLane.name.split(" ")[0];
+      await act(() => sendMovementInvite({ id: confirmChip.id, workOrderId: confirmChip.work_order_id }), (value) =>
+        value.startsWith("sent:") ? `Calendar invitation sent to ${first} (${value.slice(5)})` : `Placed — no invitation: ${value.replace(/^skipped:/, "")}`);
+    }
+  };
 
   const hourlyNames = laneList.filter((l) => l.slots === "hour").map((l) => l.name.split(" ")[0]);
   const headline = tally.tray === 0
@@ -602,7 +647,7 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
       )}
 
       <Scrim on={sheet !== null} onClick={close} />
-      <Sheet open={sheet !== null} testId={sheet?.kind === "chip" ? "chip-sheet" : sheet?.kind === "add" ? "add-chip-sheet" : sheet?.kind === "nearby" ? "nearby-sheet" : undefined}>
+      <Sheet open={sheet !== null} testId={sheet?.kind === "chip" ? "chip-sheet" : sheet?.kind === "add" ? "add-chip-sheet" : sheet?.kind === "nearby" ? "nearby-sheet" : sheet?.kind === "confirm" ? "confirm-sheet" : undefined}>
         {sheet && <span className="grab" />}
         {sheet && <button type="button" className="sh-x" onClick={close} aria-label="Close">×</button>}
         {sheetChip && (
@@ -623,6 +668,29 @@ export default function MovementsScreen({ world: serial, ctx, failures, material
         {sheet?.kind === "chip" && !sheetChip && <p className="sh-sub">That chip is not on this week&rsquo;s board any more.</p>}
         {sheet?.kind === "add" && (
           <AddChipSheet world={world} jobId={jobParam} act={act} busy={busy} onClose={close} />
+        )}
+        {sheet?.kind === "confirm" && confirmChip && confirmLane && (
+          <>
+            <div className="sh-h"><h3>{kindLabel(confirmChip)} · {confirmChip.title.split(" · ")[0]}</h3><span className="ref">{world.jobs.find((j) => j.id === confirmChip.work_order_id)?.jobRef ?? "Warehouse"}</span></div>
+            <p className="sh-sub">Onto <b data-testid="confirm-who">{confirmLane.name}</b>&rsquo;s day. Check the day and time, then confirm — nothing is placed until you do.</p>
+            <div className="fld">
+              <div className="k">Day and time <em>editable</em></div>
+              <div className="daterow">
+                <label>Day <input type="date" value={confirmDay} onChange={(e) => setConfirmDay(e.target.value)} data-testid="confirm-day" /></label>
+                <label>Time <input type="time" value={confirmTime} step={300} onChange={(e) => { if (e.target.value) setConfirmTime(e.target.value); }} data-testid="confirm-time" /></label>
+              </div>
+            </div>
+            <div className="fld">
+              <label className="chk" style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
+                <input type="checkbox" checked={confirmInvite} onChange={(e) => setConfirmInvite(e.target.checked)} data-testid="confirm-invite" />
+                Send {confirmLane.name.split(" ")[0]} a calendar invitation (an .ics by email — the stop lands in their calendar with the place on it)
+              </label>
+            </div>
+            <div className="btnrow" style={{ marginTop: 14 }}>
+              <button type="button" className="btn" disabled={busy} onClick={close} data-testid="confirm-cancel">Cancel — back to the tray</button>
+              <button type="button" className="btn primary" disabled={busy} onClick={() => void confirmDrop()} data-testid="confirm-place">Confirm {shortDay(confirmDay || sheet.day)} {confirmTime}</button>
+            </div>
+          </>
         )}
         {sheet?.kind === "nearby" && nearbyLane && (
           <>

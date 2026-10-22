@@ -161,6 +161,9 @@ export type MessagingSettings = {
   movementDeliveryClientNoticeSms: string;
   movementRunPlanSms: string;
   movementArrivedCheckSms: string;
+  /** Tom, 22 Oct 2026: the calendar invitation emailed to the worker when a stop goes onto their day. */
+  movementInviteSubject: string;
+  movementInviteBody: string;
   /** P6 — Customer: the estimator visit, confirmed with a calendar invite; and the text the evening before. */
   visitConfirmSubject: string;
   visitConfirmBody: string;
@@ -462,6 +465,12 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}}: your run for {{day}} — {{stops}} stops, about {{km}} km. The list, with Navigate and Call on each stop: {{link}}",
   movementArrivedCheckSms:
     "{{company_name}}: did {{what}} for {{wo_ref}} arrive on site today? If not, reply NO and the office will chase the shop. {{link}}",
+  movementInviteSubject: "{{what}} — {{day}} {{when}} ({{wo_ref}})",
+  movementInviteBody:
+    "Hi {{first_name}},\n\n" +
+    "{{what}} for {{wo_ref}} is on your day: {{day}}, {{when}}, at {{where}}.\n\n" +
+    "The attached invite puts it in your calendar. Order reference: {{order_ref}}. {{note}}\n\n" +
+    "The details, with Navigate and Call: {{link}}",
   visitConfirmSubject: "Your visit is booked — {{visit_when}}",
   visitConfirmBody:
     "Hello {{first_name}},\n\n" +

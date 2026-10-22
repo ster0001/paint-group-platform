@@ -162,6 +162,9 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
       <div className="sh-h">
         <h3>{filterKind === "paint" ? "Paint" : filterKind === "materials" ? "Materials" : filterKind === "gear" ? "Gear" : "Rubbish"} · {chip.title.split(" · ")[0]}</h3>
         <span className="ref">{job ? `${job.jobRef} · ${job.address}` : world.settings.warehouse.label || "Warehouse"}</span>
+        {job && (filterKind === "paint" || filterKind === "materials" || filterKind === "gear") && (
+          <a className="btn sm" href={`/pc/wo/${job.id}`} data-testid="chip-open-pc" title="The same job in PC Command — its materials and movements card">Open in PC Command →</a>
+        )}
       </div>
       <p className="sh-sub">
         {placed && lane

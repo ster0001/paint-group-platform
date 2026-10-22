@@ -10,6 +10,7 @@ import { isMissingRpc } from "@/lib/supabase/missingRpc";
 import { reportError } from "@/lib/monitoring/report";
 import { createServiceClient } from "@/lib/supabase/service";
 import { notifyMovementOrdered, notifyRunPlan } from "@/lib/movements/notify";
+import { sendMovementInvite as inviteWorker } from "@/lib/movements/invite";
 import { geocodeAddress } from "@/lib/places/geocodeAddress";
 import {
   BRANCH_KINDS, EQUIPMENT_CATEGORIES, EQUIPMENT_STATUSES, LOGISTICS_DECISIONS, LOGISTICS_LINES,
@@ -426,6 +427,26 @@ export async function removeMaterialLine(raw: unknown): Promise<MovementActionRe
   const p = idInput.safeParse(raw);
   if (!p.success) return invalid(p);
   return call("material_line_remove", { p_id: p.data.id }, "movements.lineRemove", jobPaths(p.data.workOrderId));
+}
+
+/**
+ * Tom, 22 Oct 2026: after the office confirms the day and time of a drop, the worker gets a
+ * calendar invitation (an .ics by email). Sent here, not after(), so the toast can say whether
+ * it went and to whom.
+ */
+export async function sendMovementInvite(raw: unknown): Promise<MovementActionResult> {
+  const p = idInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  const supabase = await createClient();
+  const { data: me, error: meErr } = await supabase.rpc("is_staff");
+  if (meErr) return { ok: false, message: `Couldn't check who you are: ${meErr.message}` };
+  if (me !== true) return { ok: false, message: FRIENDLY.not_staff };
+  const service = createServiceClient();
+  if (!service) return { ok: false, message: "The server cannot send email from here." };
+  const r = await inviteWorker(service, p.data.id);
+  if (!r.ok) { reportError(new Error(r.message), { where: "movements.invite", extra: { id: p.data.id } }); return r; }
+  for (const path of ["/pc/movements", ...jobPaths(p.data.workOrderId)]) revalidatePath(path);
+  return { ok: true, value: r.sent ? `sent:${r.to}` : `skipped:${r.why}` };
 }
 
 const splitInput = z.object({ id: uuid, item: z.string().min(1).max(500), workOrderId: uuid.nullable().optional() });

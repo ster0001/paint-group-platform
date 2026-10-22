@@ -192,6 +192,15 @@ test.describe("Movements week board, as the PC", () => {
     await expect(page.locator(`.cinfo:has-text("1-hour slots")`).first()).toBeVisible();
 
     await dragTo(page, tray, slotIn(felipe, MON, "10:30"));
+    // Tom, 22 Oct: a drop on a person's day asks first — who, day, time (editable), and the invitation.
+    const confirm = page.getByTestId("confirm-sheet");
+    await expect(confirm).toBeVisible();
+    await expect(confirm.getByTestId("confirm-who")).toContainText(/\S/);
+    await expect(confirm.getByTestId("confirm-day")).toHaveValue(MON);
+    await expect(confirm.getByTestId("confirm-time")).toHaveValue("10:30");
+    await confirm.getByTestId("confirm-invite").uncheck();
+    await confirm.getByTestId("confirm-place").click();
+    await expect(confirm).toBeHidden();
     const placed = card(page, String(taubmans.id));
     await expect(placed).toBeVisible({ timeout: 15_000 });
     await expect(placed).toHaveAttribute("data-time", "10:30");
