@@ -446,10 +446,10 @@ export async function tickChecklistItem(raw: unknown): Promise<PcResult> {
   }
   // Movements Session 7: the two gates are real.
   if (s === "error:paint_not_ordered") {
-    return { ok: false, message: "Not every paint chip is ordered yet — tick Ordered on the Movements board (or mark paint not needed / painter supplies below)." };
+    return { ok: false, message: "A paint or materials chip is still in the tray — put it on a day or the Supplier lane and this ticks itself (or mark not needed / painter supplies under this item)." };
   }
   if (s === "error:equipment_not_booked") {
-    return { ok: false, message: "Not every gear chip is booked yet — drop it on someone's day on the Movements board (or mark gear not needed below)." };
+    return { ok: false, message: "A gear chip is still in the tray — drop it on someone's day on the Movements board and this ticks itself (or mark gear not needed below)." };
   }
   if (s.startsWith("error:derived:")) {
     return {

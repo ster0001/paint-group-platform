@@ -129,26 +129,35 @@ test.describe("Movements crossings (Session 7)", () => {
     }
   });
 
-  test("Materials ordered refuses until every paint chip is ordered; painter supplies unlocks it too", async () => {
+  // Tom, 24 Oct 2026 (6 Fleet St, 43 Keith St): a chip OFF the tray is enough — planned on the
+  // Supplier lane counts, Ordered ✓ is the painter's text — and the item ticks ITSELF the moment
+  // the gate opens (migration 20270298). A chip back in the tray blocks a hand tick again but
+  // never unticks what was ticked.
+  test("Materials ordered refuses while a paint chip is in the tray; placing it ticks the item by itself; painter supplies too", async () => {
     const it = await items();
     const colours = it.get("pre_start:colours")!;
     const materials = it.get("pre_start:materials")!;
     expect(await rpcAs(staff!, "wo_answer_checklist_item", { p_item_id: colours.id, p_answer: "yes", p_note: "" })).toBe("ok:yes");
     expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: true })).toBe("error:paint_not_ordered");
+    expect((await items()).get("pre_start:materials")!.done).toBe(false);
 
     const paint = (await chips()).find((r) => r.source_key === `paint:${BRAND}`)!;
     expect(await rpcAs(staff!, "movement_update", { p_id: paint.id, p: { from_branch_id: branchId } })).toMatch(/^ok/);
     expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "supplier", p_assignee_id: null, p_due_date: START, p_half: "AM" })).toBe("ok:planned");
-    expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: true })).toBe("error:paint_not_ordered");
+    expect((await items()).get("pre_start:materials")!.done, "ticked itself when the chip left the tray").toBe(true);
+    const { data: ev } = await db!.from("wo_events").select("actor_kind, meta").eq("work_order_id", job!.workOrderId).eq("type", "checklist_ticked");
+    expect(((ev ?? []) as { actor_kind: string; meta: { auto?: boolean; label?: string } }[]).some((e) => e.actor_kind === "system" && e.meta.auto === true && e.meta.label === "Materials ordered")).toBe(true);
     expect(await rpcAs(staff!, "movement_mark_ordered", { p_id: paint.id })).toBe("ok:booked");
+    expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: false })).toBe("ok:undone");
     expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: true })).toBe("ok:done");
     expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: false })).toBe("ok:undone");
 
-    // ⚑10: the painter buying the paint themselves is an answer.
+    // ⚑10: the painter buying the paint themselves is an answer — and it ticks the item too.
     expect(await rpcAs(staff!, "movement_unplace", { p_id: paint.id })).toMatch(/^ok/);
     expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: true })).toBe("error:paint_not_ordered");
     expect(await rpcAs(staff!, "wo_logistics_decide", { p_work_order_id: job!.workOrderId, p_line: "paint", p_decision: "painter_supplies" })).toMatch(/^ok/);
-    expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: true })).toBe("ok:done");
+    expect((await items()).get("pre_start:materials")!.done, "ticked itself on the decision").toBe(true);
+    expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: false })).toBe("ok:undone");
     expect(await rpcAs(staff!, "wo_logistics_decide", { p_work_order_id: job!.workOrderId, p_line: "paint", p_decision: null })).toMatch(/^ok/);
   });
 
@@ -239,5 +248,24 @@ test.describe("Movements crossings (Session 7)", () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!; const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     const body = await fetch(`${url}/rest/v1/wo_material_lines?work_order_id=eq.${job!.workOrderId}&select=id`, { headers: { apikey: anon, Authorization: `Bearer ${token}` } }).then((r) => r.json());
     expect(Array.isArray(body) ? body : [], "no painter read on the lines table").toEqual([]);
+  });
+
+  // Tom, 24 Oct 2026 (6 Fleet St Laverton): the paint chip sat planned on the Supplier lane for a day
+  // outside the board's week, so the tray looked empty and Materials ordered would not tick. The gate
+  // now only minds the tray, the job page names the chip still in it, and the item ticks itself.
+  test("the job page names the chip still in the tray; once every chip is on the board the item is ticked by itself", async ({ page }) => {
+    const paint = (await chips()).find((r) => r.source_key === `paint:${BRAND}`)!;
+    expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "supplier", p_assignee_id: null, p_due_date: START, p_half: "AM" })).toBe("ok:planned");
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`/pc/wo/${job!.workOrderId}`);
+    const mats = page.getByTestId("prestart-materials");
+    // The drop-sheets line added above is a materials chip still in the tray — it is the one named.
+    await expect(mats.getByTestId("prestart-materials-gate")).toContainText(/ticks itself once "E2E drop sheets .*" \(in the tray\)/, { timeout: 30_000 });
+    expect((await items()).get("pre_start:materials")!.done).toBe(false);
+    const sheets = (await chips()).find((r) => String(r.title).startsWith("E2E drop sheets"))!;
+    expect(await rpcAs(staff!, "movement_place", { p_id: sheets.id, p_assignee_kind: "supplier", p_assignee_id: null, p_due_date: START, p_half: "AM" })).toBe("ok:planned");
+    expect((await items()).get("pre_start:materials")!.done, "ticked itself once the last chip left the tray").toBe(true);
+    await page.reload();
+    await expect(mats.getByTestId("prestart-materials-gate")).toContainText(/on the board — ticked by itself/, { timeout: 30_000 });
   });
 });

@@ -56,21 +56,25 @@ export default function PrestartMovements({ workOrderId, kind, movements, lines,
   const boardHref = (m?: MovementRow) => `/pc/movements?view=week&job=${workOrderId}${m ? `&movement=${m.id}` : ""}`;
   const ok = kind === "materials" ? gates.paint : gates.gear;
   const blocker = kind === "materials" ? gates.paintBlocker : gates.gearBlocker;
+  // Tom, 24 Oct 2026 (6 Fleet St, 43 Keith St): a chip on the board is enough and the gate items tick
+  // themselves (migration 20270298) — the sentence names the one chip still in the tray.
+  const whereIs = (m: MovementRow) => m.status === "tray" ? "in the tray" : `on the ${m.assignee_kind === "supplier" ? "Supplier lane" : "board"}${m.due_date ? ` for ${new Date(`${m.due_date}T12:00:00+10:00`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" })}` : ""}`;
 
   return (
     <div className="prestart-mv" data-testid={`prestart-${kind}`} data-gate={ok ? "open" : "blocked"}>
       {failures.map((f) => <p key={f} className="note" style={{ color: "var(--amber)" }} data-testid="prestart-mv-failure">{f}</p>)}
       {showGate && <p className="note" data-testid={`prestart-${kind}-gate`} style={{ color: ok ? "var(--emerald)" : "var(--amber)", margin: "4px 0" }}>
         {kind === "materials"
-          ? (decision ? `Marked ${decision === "not_needed" ? "not needed" : "painter supplies"} — the tick is free.` : ok ? `${gates.paintOrdered} of ${gates.paintTotal} paint chip${gates.paintTotal === 1 ? "" : "s"} ordered — the tick is free.` : `Ordered ${gates.paintOrdered} of ${gates.paintTotal} paint chip${gates.paintTotal === 1 ? "" : "s"} — the tick refuses until ${blocker ? `"${blocker.title}"` : "every chip"} is ordered.`)
-          : (decision ? "Marked not needed — the tick is free." : ok ? `${gates.gearBooked} of ${gates.gearTotal} gear chip${gates.gearTotal === 1 ? "" : "s"} booked — the tick is free.` : `Booked ${gates.gearBooked} of ${gates.gearTotal} gear chip${gates.gearTotal === 1 ? "" : "s"} — the tick refuses until ${blocker ? `"${blocker.title}"` : "every chip"} is booked.`)}
+          ? (decision ? `Marked ${decision === "not_needed" ? "not needed" : "painter supplies"} — ticked.` : ok ? `${gates.paintOrdered} of ${gates.paintTotal} paint and materials chip${gates.paintTotal === 1 ? "" : "s"} on the board — ${gates.paintTotal === 0 ? "the tick is free" : "ticked by itself"}.` : `${gates.paintOrdered} of ${gates.paintTotal} paint and materials chip${gates.paintTotal === 1 ? "" : "s"} on the board — ticks itself once ${blocker ? `"${blocker.title}" (${whereIs(blocker)})` : "every chip"} is on a day or the Supplier lane.`)
+          : (decision ? "Marked not needed — ticked." : ok ? `${gates.gearBooked} of ${gates.gearTotal} gear chip${gates.gearTotal === 1 ? "" : "s"} booked — ${gates.gearTotal === 0 ? "the tick is free" : "ticked by itself"}.` : `Booked ${gates.gearBooked} of ${gates.gearTotal} gear chip${gates.gearTotal === 1 ? "" : "s"} — ticks itself once ${blocker ? `"${blocker.title}" (${whereIs(blocker)})` : "every chip"} is on someone's day.`)}
       </p>}
       {chips.length > 0 && (
         <div className="mvcards" data-testid={`prestart-${kind}-chips`}>
           {chips.map((m) => {
             const st = chipState(m);
             return (
-              <Link key={m.id} href={boardHref(m)} className={`mvcard ${st}`} data-testid="prestart-chip" data-movement-id={m.id} data-state={st}>
+              <div key={m.id} className="mvcard-row" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <Link href={boardHref(m)} className={`mvcard ${st}`} style={{ flex: 1, minWidth: 0 }} data-testid="prestart-chip" data-movement-id={m.id} data-state={st}>
                 <span className={`ic ${chipFilterKind(m)}`}>{movementIcon(m, categoryOf(m))}</span>
                 <span className="bd">
                   <b>{m.title}</b>
@@ -78,6 +82,7 @@ export default function PrestartMovements({ workOrderId, kind, movements, lines,
                   <small className="st">{STATE_WORD[st]}</small>
                 </span>
               </Link>
+              </div>
             );
           })}
         </div>

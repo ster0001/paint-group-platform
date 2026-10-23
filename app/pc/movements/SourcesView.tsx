@@ -111,7 +111,7 @@ export default function SourcesView({ world, materialLines, jobExtras, jobId, on
         <div className="card" data-testid="sources-prestart">
           <div className="where">PC Command · job page · pre-start</div>
           <h3>Pre-start <em><a href={`/pc/wo/${job.id}`}>{job.jobRef}</a></em></h3>
-          <div className="gate"><span className={`box ${g.paint ? "on" : ""}`}>✓</span><div>Materials ordered<small>{g.paintOrdered} of {g.paintTotal} paint chip{g.paintTotal === 1 ? "" : "s"} ordered · {lines.length} materials line{lines.length === 1 ? "" : "s"}</small></div></div>
+          <div className="gate"><span className={`box ${g.paint ? "on" : ""}`}>✓</span><div>Materials ordered<small>{g.paintOrdered} of {g.paintTotal} paint and materials chip{g.paintTotal === 1 ? "" : "s"} on the board · {lines.length} materials line{lines.length === 1 ? "" : "s"}</small></div></div>
           <div className="fakefield">
             <div className="lbl">Paint <small>from the Materials card · one chip per brand</small></div>
             <div style={{ marginTop: 6 }}>

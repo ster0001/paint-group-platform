@@ -777,7 +777,7 @@ export function jobMoved(m: Pick<MovementRow, "planned_for_start" | "status">, j
 }
 
 export type Gates = {
-  /** Every paint chip ordered or done, or a paint decision (not_needed / painter_supplies). */
+  /** Every paint and materials chip on the board (placed, ordered or done — Tom, 24 Oct 2026: a chip in the tray is the only blocker), or a paint decision (not_needed / painter_supplies). */
   paint: boolean;
   /** Every gear chip (out, hire) booked or done, or an equipment decision. */
   gear: boolean;
@@ -786,13 +786,19 @@ export type Gates = {
   paintBlocker: MovementRow | null; gearBlocker: MovementRow | null;
 };
 
-/** The two pre-start gate answers (brief §3.5; Session 7 redefines the tick to ask these). */
+/**
+ * The two pre-start gate answers (brief §3.5; Session 7 redefines the tick to ask these).
+ * Tom, 24 Oct 2026 (6 Fleet St, 43 Keith St): a paint or materials chip counts once it is OFF the
+ * tray — planned on the Supplier lane is enough; Ordered ✓ is the painter's text, not the gate.
+ * Mirrors movements_gate_paint / movements_gate_gear (20270298) word for word; the gates tick
+ * the pre-start items themselves (movements_autotick) the moment they open.
+ */
 export function gates(world: World, jobId: string): Gates {
   const decided = (line: LogisticsDecisionRow["line"]) => world.decisions.some((d) => d.work_order_id === jobId && d.line === line);
   const mine = world.movements.filter((m) => m.work_order_id === jobId && m.status !== "cancelled");
-  const paint = mine.filter((m) => m.kind === "paint");
+  const paint = mine.filter((m) => m.kind === "paint" || m.kind === "materials");
   const gear = mine.filter((m) => m.kind === "equipment_out" || m.kind === "hire_on");
-  const paintOk = (m: MovementRow) => m.status === "done" || m.ordered_at !== null;
+  const paintOk = (m: MovementRow) => m.status !== "tray" && m.status !== "problem";
   const gearOk = (m: MovementRow) => m.status === "done" || m.status === "booked";
   const paintBlocker = paint.find((m) => !paintOk(m)) ?? null;
   const gearBlocker = gear.find((m) => !gearOk(m)) ?? null;
