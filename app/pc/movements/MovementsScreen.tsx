@@ -721,9 +721,10 @@ function chipSub(m: MovementRow, world: World): string {
   const branch = world.branches.find((b) => b.id === (m.from_branch_id ?? m.to_branch_id));
   const b = branch ? `${branch.brand} ${branch.branch}` : "";
   if (isUndecidedRubbish(m)) return "painter disposed · painter drops at warehouse · left on site";
-  if ((m.kind === "materials" || m.kind === "paint") && m.method_pref === "stock") return `${m.detail ?? ""} · from our stock — drop it on whoever carries it`.replace(/^ · /, "");
-  if ((m.kind === "materials" || m.kind === "paint") && !b) return `${m.detail ?? ""} · no shop yet — tap to confirm the shop, delivery / pickup, or our stock`.replace(/^ · /, "");
-  const parts = [m.detail, b, m.method_pref === "delivery" ? "delivery" : m.method_pref === "pickup" ? "pickup" : null].filter(Boolean);
+  const dropoff = m.to_kind && m.to_kind !== "site" ? ` → ${m.to_text}` : "";
+  if ((m.kind === "materials" || m.kind === "paint") && m.method_pref === "dropoff") return `${m.detail ?? ""} · drop off from the warehouse${dropoff} — drop it on whoever carries it`.replace(/^ · /, "");
+  if ((m.kind === "materials" || m.kind === "paint") && !b) return `${m.detail ?? ""} · no pickup place yet — tap to set the places and how it moves`.replace(/^ · /, "");
+  const parts = [m.detail, b ? `${b}${dropoff}` : null, m.method_pref === "delivery" ? "delivery" : m.method_pref === "pickup" ? "pickup" : m.method_pref === "pickup_deliver" ? "pick up and deliver" : null].filter(Boolean);
   if (m.kind === "equipment_return" || m.kind === "hire_off") {
     const job = world.jobs.find((j) => j.id === m.work_order_id);
     if (job?.stage === "closed") return "left on a closed job";

@@ -387,7 +387,7 @@ export function kindLabel(m: Pick<MovementRow, "kind" | "assignee_kind" | "sourc
   }
 }
 
-export type Method = "supplier_delivers" | "hire_delivers" | "pickup" | "drop_off" | "collect" | "takes_to_tip" | "painter_disposes" | "unplaced";
+export type Method = "supplier_delivers" | "hire_delivers" | "pickup" | "pickup_deliver" | "drop_off" | "collect" | "takes_to_tip" | "painter_disposes" | "unplaced";
 
 /** From assignee kind + chip kind + from/to. */
 export function methodOf(m: Pick<MovementRow, "kind" | "assignee_kind" | "from_kind" | "to_kind" | "source_key" | "detail">): Method {
@@ -395,6 +395,8 @@ export function methodOf(m: Pick<MovementRow, "kind" | "assignee_kind" | "from_k
   if (m.assignee_kind === "supplier") return m.kind === "hire_on" || m.kind === "hire_off" || isSkip(m) ? "hire_delivers" : "supplier_delivers";
   if (isPainterDisposes(m)) return "painter_disposes";
   if (RETURN_KINDS.has(m.kind)) return m.kind === "rubbish_out" && m.to_kind === "tip" ? "takes_to_tip" : "collect";
+  // Tom, 23 Oct 2026: pick up and deliver names both places on the run.
+  if ("method_pref" in m && (m as { method_pref?: string | null }).method_pref === "pickup_deliver") return "pickup_deliver";
   if (m.from_kind === "branch") return "pickup";
   return "drop_off";
 }
@@ -406,6 +408,7 @@ export function methodLabel(m: Parameters<typeof methodOf>[0], laneName: string 
     case "supplier_delivers": return "delivered to site";
     case "hire_delivers": return "hire company delivers";
     case "pickup": return `${first} picks up`;
+    case "pickup_deliver": return `${first} picks up and delivers`;
     case "drop_off": return `${first} drops off`;
     case "collect": return `${first} collects`;
     case "takes_to_tip": return `${first} takes it to the tip`;
@@ -835,7 +838,7 @@ export type DropVerdict = {
 export function dropProblem(world: World, chip: MovementRow, lane: Pick<MovementLane, "kind">, day: string): DropVerdict {
   const refuse = (reason: string): DropVerdict => ({ blocked: true, warn: null, reason });
   // Tom, 22 Oct 2026: from our stock is ours to carry — a person, never the Supplier lane.
-  if (lane.kind === "supplier" && (chip.kind === "paint" || chip.kind === "materials") && (chip.from_kind === "warehouse" || chip.method_pref === "stock")) return refuse("that comes from our stock — drop it on whoever carries it");
+  if (lane.kind === "supplier" && (chip.kind === "paint" || chip.kind === "materials") && (chip.from_kind === "warehouse" || chip.method_pref === "dropoff" || chip.method_pref === "pickup" || chip.method_pref === "pickup_deliver")) return refuse("a person carries that — drop it on whoever does, not the Supplier lane");
   // Tom, 21 Oct 2026: an order with no shop chosen is not a delivery yet — the chip asks first.
   if (lane.kind === "supplier" && (chip.kind === "paint" || chip.kind === "materials") && !chip.from_branch_id) return refuse("pick the shop in the chip first");
   const blockedBy = blockedReason(chip, world);
@@ -953,7 +956,7 @@ export const RUN_PURPOSE_LABEL: Record<RunPurpose, string> = {
 export function purposeOfChip(m: Pick<MovementRow, "kind" | "method_pref">): RunPurpose {
   switch (m.kind) {
     case "paint": return "drop_paint";
-    case "materials": case "restock": return m.method_pref === "pickup" ? "collect_materials" : "drop_materials";
+    case "materials": case "restock": return m.method_pref === "pickup" || m.method_pref === "pickup_deliver" ? "collect_materials" : "drop_materials";
     case "rubbish_in": case "rubbish_out": return "rubbish_collection";
     default: return "drop_materials";
   }

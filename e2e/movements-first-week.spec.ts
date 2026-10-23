@@ -197,7 +197,7 @@ test.describe("Movements first-week asks", () => {
     await tray.click();
     const sheet = page.getByTestId("chip-sheet");
     await expect(sheet).toBeVisible();
-    await expect(sheet.getByTestId("chip-method")).toContainText(/How does it get to site/);
+    await expect(sheet.getByTestId("chip-method")).toContainText(/How does it move/);
     await sheet.getByTestId("shop-option").filter({ hasText: `${BRAND} Delivers` }).click();
     await sheet.getByTestId("method-delivery").click();
     await expect(sheet).toBeHidden({ timeout: 15_000 });

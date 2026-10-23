@@ -76,6 +76,9 @@ const FRIENDLY: Record<string, string> = {
   past: "That day has gone — pick one from today on.",
   no_such_item: "That item is not on the line any more — reload.",
   from_stock: "That comes from our stock — drop it on whoever carries it, not the Supplier lane.",
+  person_carries: "A pick up, a drop off or a pick up and deliver is ours to carry — drop it on a person, not the Supplier lane.",
+  bad_side: "Pickup place or drop-off place — one of the two.",
+  bad_place: "A saved place, the warehouse or the job site.",
   last_item: "That is the only item on the line — remove the line instead.",
   bad_duration: "A stop is between 15 minutes and 10 hours.",
   no_stops: "Nothing in the run plan yet.",
@@ -391,7 +394,7 @@ export async function geocodeJobs(raw: unknown): Promise<MovementActionResult> {
 
 const lineAddInput = z.object({ workOrderId: uuid, text: z.string().min(1).max(500), source: z.enum(MATERIAL_LINE_SOURCES).optional() });
 
-const methodInput = idInput.extend({ method: z.enum(["delivery", "pickup", "stock"]), branchId: uuid.nullable().optional() });
+const methodInput = idInput.extend({ method: z.enum(["delivery", "pickup", "dropoff", "pickup_deliver"]), branchId: uuid.nullable().optional() });
 
 /** Tom, 21 Oct 2026: confirm the shop and delivered / picked up on a tray order. Delivery + a delivering shop places it on the Supplier lane. */
 export async function setMovementMethod(raw: unknown): Promise<MovementActionResult> {
@@ -447,6 +450,39 @@ export async function sendMovementInvite(raw: unknown): Promise<MovementActionRe
   if (!r.ok) { reportError(new Error(r.message), { where: "movements.invite", extra: { id: p.data.id } }); return r; }
   for (const path of ["/pc/movements", ...jobPaths(p.data.workOrderId)]) revalidatePath(path);
   return { ok: true, value: r.sent ? `sent:${r.to}${r.texted ? " + text" : ""}` : `skipped:${r.why}` };
+}
+
+const placeSideInput = z.object({ id: uuid, side: z.enum(["from", "to"]), kind: z.enum(["branch", "warehouse", "site"]), branchId: uuid.nullable().optional(), workOrderId: uuid.nullable().optional() });
+
+/** Tom, 23 Oct 2026: the pickup place (from) or the drop-off place (to) of a chip — a saved place, the warehouse or the job site. */
+export async function setMovementPlace(raw: unknown): Promise<MovementActionResult> {
+  const p = placeSideInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  return call("movement_set_place", { p_id: p.data.id, p_side: p.data.side, p_kind: p.data.kind, p_branch_id: p.data.branchId ?? null }, "movements.setPlace", jobPaths(p.data.workOrderId));
+}
+
+const addPlaceInput = z.object({ name: z.string().trim().min(1).max(80), address: z.string().trim().min(3).max(200), kind: z.enum(BRANCH_KINDS).optional() });
+
+/**
+ * Tom, 23 Oct 2026: type an address and keep it as a place to pick up from or drop off at. It is
+ * saved as a supplier branch of kind other (so every list, the map and the distances know it),
+ * with a point from the Places key when one is set. Returns ok:<branch id>.
+ */
+export async function addPlace(raw: unknown): Promise<MovementActionResult> {
+  const p = addPlaceInput.safeParse(raw);
+  if (!p.success) return invalid(p);
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  let point: { lat: number; lng: number } | null = null;
+  if (key) {
+    try { point = await geocodeAddress(p.data.address, key); } catch (e) { reportError(e, { where: "movements.addPlace.geocode" }); }
+  }
+  const parts = p.data.address.split(",").map((s) => s.trim()).filter(Boolean);
+  const suburb = parts.length > 1 ? parts[1].replace(/\s+(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\b.*$/i, "").trim() : "";
+  const postcode = (p.data.address.match(/\b(\d{4})\b/) ?? [])[1] ?? "";
+  return call("supplier_branch_upsert", { p: {
+    id: null, brand: p.data.name, branch: parts[0] ?? p.data.address, kind: p.data.kind ?? "other",
+    address: p.data.address, suburb, postcode, lat: point?.lat ?? null, lng: point?.lng ?? null, delivers_to_site: false, active: true,
+  } }, "movements.addPlace", ["/settings"]);
 }
 
 const splitInput = z.object({ id: uuid, item: z.string().min(1).max(500), workOrderId: uuid.nullable().optional() });

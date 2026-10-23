@@ -23,17 +23,20 @@ type Row = {
   id: string; work_order_id: string | null; kind: string; title: string; detail: string | null; status: string;
   assignee_kind: "supplier" | "person" | null; assignee_table: "profiles" | "contractors" | null; assignee_id: string | null;
   due_date: string | null; half: "AM" | "PM" | null; time: string | null; duration_min: number | null;
-  from_kind: string | null; from_branch_id: string | null; from_text: string; to_text: string; order_ref: string; note: string; invite_sequence: number;
+  from_kind: string | null; from_branch_id: string | null; from_text: string; to_kind: string | null; to_text: string; order_ref: string; note: string; invite_sequence: number; method_pref: string | null;
 };
 
 export type InviteOutcome = { ok: true; sent: true; to: string; texted: boolean } | { ok: true; sent: false; why: string; texted: boolean } | { ok: false; message: string };
 
 /** "Please collect the paint (…) from Dulux Trade Oakleigh" — what the worker is asked to do, in words. */
-export function askWord(m: { kind: string; title: string; from_kind: string | null; to_kind?: string | null; detail: string | null }, shop: string, site: string, warehouse: string): string {
+export function askWord(m: { kind: string; title: string; from_kind: string | null; to_kind?: string | null; detail: string | null; method_pref?: string | null; to_text?: string | null }, shop: string, site: string, warehouse: string): string {
   const what = m.title.split(" · ").slice(0, 2).join(" · ");
+  // Tom, 23 Oct 2026: the drop-off place is named when it is not the site.
+  const dest = m.to_kind && m.to_kind !== "site" && m.to_text ? m.to_text : site;
+  const both = m.method_pref === "pickup_deliver";
   switch (m.kind) {
-    case "paint": return m.from_kind === "branch" ? `Please collect the paint (${what}) from ${shop}` : `Please bring the paint (${what}) from ${warehouse} to ${site}`;
-    case "materials": case "restock": return m.from_kind === "branch" ? `Please pick up the materials (${what}) from ${shop}` : `Please bring the materials (${what}) from ${warehouse} to ${site}`;
+    case "paint": return m.from_kind === "branch" ? `Please collect the paint (${what}) from ${shop}${both || dest !== site ? ` and deliver it to ${dest}` : ""}` : `Please bring the paint (${what}) from ${warehouse} to ${dest}`;
+    case "materials": case "restock": return m.from_kind === "branch" ? `Please pick up the materials (${what}) from ${shop}${both || dest !== site ? ` and deliver them to ${dest}` : ""}` : `Please bring the materials (${what}) from ${warehouse} to ${dest}`;
     case "rubbish_out": return m.to_kind === "tip" ? `Please collect the rubbish from ${site} and take it to the tip` : `Please collect the rubbish from ${site}`;
     case "rubbish_in": return `Please see the skip in at ${site}`;
     case "equipment_out": case "hire_on": return `Please drop off the gear (${what}) at ${site}`;
@@ -45,7 +48,7 @@ export function askWord(m: { kind: string; title: string; from_kind: string | nu
 
 export async function sendMovementInvite(service: SupabaseClient, movementId: string): Promise<InviteOutcome> {
   const { data, error } = await service.from("movements")
-    .select("id, work_order_id, kind, title, detail, status, assignee_kind, assignee_table, assignee_id, due_date, half, time, duration_min, from_kind, from_branch_id, from_text, to_text, order_ref, note, invite_sequence")
+    .select("id, work_order_id, kind, title, detail, status, assignee_kind, assignee_table, assignee_id, due_date, half, time, duration_min, from_kind, from_branch_id, from_text, to_kind, to_text, order_ref, note, invite_sequence, method_pref")
     .eq("id", movementId).maybeSingle();
   if (error) return { ok: false, message: `Couldn't read the movement: ${error.message}` };
   const m = data as Row | null;
@@ -98,7 +101,7 @@ export async function sendMovementInvite(service: SupabaseClient, movementId: st
   const vars = {
     first_name: firstName, company_name: companyName, wo_ref: ref, what, where: location || "see the job", day: dayWord(m.due_date),
     when: `${time}–${addMinutes(time, minutes)}`, order_ref: m.order_ref || "—", note: m.note || "", link,
-    ask: askWord({ kind: m.kind, title: m.title, from_kind: m.from_kind, to_kind: null, detail: m.detail }, shop || "the shop", site || "the site", warehouse),
+    ask: askWord({ kind: m.kind, title: m.title, from_kind: m.from_kind, to_kind: m.to_kind, to_text: m.to_text, method_pref: m.method_pref, detail: m.detail }, shop || "the shop", site || "the site", warehouse),
     order_line: m.order_ref ? `Order ${m.order_ref} under ${companyName}. ` : "",
   };
   // Tom, 22 Oct 2026: the text goes with the invitation — what to do, where and when.

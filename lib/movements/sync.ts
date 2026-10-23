@@ -282,15 +282,17 @@ export function syncForWo(input: SyncInput): SyncPlan {
   let created = 0, refreshed = 0, removed = 0;
 
   const refreshTray = (m: MovementRow, title: string, detail: string | null, branch: BranchRow | null) => {
-    // Tom, 22 Oct 2026: a chip from our stock keeps no shop — the sync never refills one.
-    const stock = m.method_pref === "stock";
+    // Tom, 22–23 Oct 2026: a drop-off chip (from the warehouse) keeps no shop, and a chosen drop-off
+    // place is kept — only a site drop-off follows the site text.
+    const stock = m.method_pref === "dropoff";
     const takeBranch = !stock && m.from_branch_id === null && branch !== null;
+    const toSite = (m.to_kind ?? "site") === "site";
     const patch: RefreshPatch = {
-      id: m.id, title, detail, to_text: site,
+      id: m.id, title, detail, to_text: toSite ? site : m.to_text,
       from_branch_id: stock ? null : m.from_branch_id ?? branch?.id ?? null,
       from_text: takeBranch ? branchText(branch) : m.from_text,
       order_ref: m.order_ref === "" ? ref : m.order_ref,
-      changed: m.title !== title || (m.detail ?? null) !== detail || m.to_text !== site || takeBranch,
+      changed: m.title !== title || (m.detail ?? null) !== detail || (toSite && m.to_text !== site) || takeBranch,
     };
     plan.refresh.push(patch);
     refreshed += 1;

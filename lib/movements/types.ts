@@ -106,7 +106,7 @@ export type MovementRow = {
   updated_at: string;
   /** Tom, 21 Oct 2026: delivered or picked up, confirmed in the chip (null = not yet). */
   /** How the office said it gets to site: delivered, picked up, or from our stock (the warehouse). */
-  method_pref: "delivery" | "pickup" | "stock" | null;
+  method_pref: "delivery" | "pickup" | "dropoff" | "pickup_deliver" | null;
   /** The gear on it (movement_items), carried by the loader. */
   items: MovementItemRow[];
 };
