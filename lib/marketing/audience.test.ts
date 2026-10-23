@@ -67,6 +67,10 @@ describe("Paint Home (docs/briefs/paint-home.md §3) — the third audience, by 
     expect(resolveAudience("localhost:3101", "/painthome", null)).toEqual({ audience: "painthome", redirect: null, rewrite: null });
     expect(resolveAudience("localhost:3101", "/painthome/work/unit-1", null)).toEqual({ audience: "painthome", redirect: null, rewrite: "/work/unit-1" });
     expect(resolveAudience("127.0.0.1:3000", "/painthome/icon", null)).toEqual({ audience: "painthome", redirect: null, rewrite: null });
+    // Next names the built files with a hash: /painthome/icon-wk70vv, /painthome/opengraph-image-wk70vv
+    expect(resolveAudience("localhost:3101", "/painthome/icon-wk70vv", null)).toEqual({ audience: "painthome", redirect: null, rewrite: null });
+    expect(resolveAudience("localhost:3101", "/painthome/opengraph-image-wk70vv", null)).toEqual({ audience: "painthome", redirect: null, rewrite: null });
+    expect(resolveAudience("paintgroup.com.au", "/painthome/opengraph-image-wk70vv", null)).toEqual({ audience: "painthome", redirect: "https://painthome.com.au/painthome/opengraph-image-wk70vv", rewrite: null });
     expect(resolveAudience("painthome.localhost:3101", "/", null)).toEqual({ audience: "painthome", redirect: null, rewrite: "/painthome" });
     expect(resolveAudience("business.localhost:3101", "/painthome", null).audience).toBe("painthome");
   });

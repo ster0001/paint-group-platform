@@ -68,7 +68,7 @@ export type Resolution =
   | { audience: "business" | "painthome"; redirect: string; rewrite: null };
 
 /** The Paint Home route's own metadata files (app/(marketing)/painthome/opengraph-image.tsx, icon.tsx) — served where Next put them. */
-const isRouteFile = (rest: string) => /^\/(opengraph-image|icon)(\.|$|\/)/.test(rest);
+const isRouteFile = (rest: string) => /^\/(opengraph-image|icon)(-[a-z0-9]+)?(\.|\?|$|\/)/.test(rest);
 
 /**
  * host + pathname → the audience, and what the proxy must do:
