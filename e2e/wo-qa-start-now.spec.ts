@@ -22,7 +22,9 @@ test.describe("Start quality check from the PC job page", () => {
   test.beforeAll(async () => {
     const contractorId = (await contractorIdForEmail(db!, contractor!.email))!;
     job = await createLoopFixture(db!, contractorId, [{ heading: "Front", labels: ["Walls"] }]);
-    // The fixture's own cadence can book a check as it is made; this spec starts from none.
+    // The fixture flags the job for a check and the job page's cadence heal books one on load;
+    // this spec starts from none: flag off, any booked check removed.
+    expect(await rpcAs(staff!, "wo_set_qa_required", { p_work_order_id: job.workOrderId, p_required: false })).toMatch(/^ok/);
     const { error } = await db!.from("wo_qa_checks").delete().eq("work_order_id", job.workOrderId);
     if (error) throw new Error(error.message);
   });
