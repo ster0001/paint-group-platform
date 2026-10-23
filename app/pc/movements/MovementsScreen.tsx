@@ -722,6 +722,15 @@ function chipSub(m: MovementRow, world: World): string {
   const b = branch ? `${branch.brand} ${branch.branch}` : "";
   if (isUndecidedRubbish(m)) return "painter disposed · painter drops at warehouse · left on site";
   const dropoff = m.to_kind && m.to_kind !== "site" ? ` → ${m.to_text}` : "";
+  // Tom, 23 Oct 2026: gear, rubbish and the rest say their two places too.
+  const placeOf = (kind: MovementRow["from_kind"], text: string) => kind === "warehouse" ? "warehouse" : kind === "site" ? "site" : kind === "tip" ? "the tip" : kind === "branch" && text ? text.split(",")[0] : null;
+  if (m.kind !== "materials" && m.kind !== "paint" && !isUndecidedRubbish(m)) {
+    const from = placeOf(m.from_kind, m.from_text), to = placeOf(m.to_kind, m.to_text);
+    const legs = from || to ? `${from ?? "?"} → ${to ?? "?"}` : "tap to set the pickup and drop-off places";
+    const job = world.jobs.find((j) => j.id === m.work_order_id);
+    const closedNote = (m.kind === "equipment_return" || m.kind === "hire_off") && job?.stage === "closed" ? "left on a closed job" : null;
+    return [m.detail, legs, closedNote].filter(Boolean).join(" · ");
+  }
   if ((m.kind === "materials" || m.kind === "paint") && m.method_pref === "dropoff") return `${m.detail ?? ""} · drop off from the warehouse${dropoff} — drop it on whoever carries it`.replace(/^ · /, "");
   if ((m.kind === "materials" || m.kind === "paint") && !b) return `${m.detail ?? ""} · no pickup place yet — tap to set the places and how it moves`.replace(/^ · /, "");
   const parts = [m.detail, b ? `${b}${dropoff}` : null, m.method_pref === "delivery" ? "delivery" : m.method_pref === "pickup" ? "pickup" : m.method_pref === "pickup_deliver" ? "pick up and deliver" : null].filter(Boolean);
