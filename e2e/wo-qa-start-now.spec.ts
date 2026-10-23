@@ -22,6 +22,9 @@ test.describe("Start quality check from the PC job page", () => {
   test.beforeAll(async () => {
     const contractorId = (await contractorIdForEmail(db!, contractor!.email))!;
     job = await createLoopFixture(db!, contractorId, [{ heading: "Front", labels: ["Walls"] }]);
+    // The fixture's own cadence can book a check as it is made; this spec starts from none.
+    const { error } = await db!.from("wo_qa_checks").delete().eq("work_order_id", job.workOrderId);
+    if (error) throw new Error(error.message);
   });
   test.afterAll(async () => { await destroyLoopFixture(db!, job); });
 
