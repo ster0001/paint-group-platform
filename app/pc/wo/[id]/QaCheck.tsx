@@ -128,7 +128,7 @@ export default function QaCheck({ check, workOrderId, early = false }: { check: 
     // draws it); one loaded from the record has it already.
     const rechecked = check.superseded || result === "fail";
     return (
-      <div className="card" data-testid={`qa-${check.id}`}>
+      <div className="card" id={`qa-${check.id}`} data-testid={`qa-${check.id}`}>
         <h3>Quality check <em>{kindLabel}{check.retryOf ? " · re-check" : ""}</em></h3>
         {askCallback && (
           <div className="card" style={{ borderColor: "rgba(224,168,60,.45)" }} data-testid={`qa-callback-ask-${check.id}`}>
@@ -159,7 +159,7 @@ export default function QaCheck({ check, workOrderId, early = false }: { check: 
   }
 
   return (
-    <div className="card" data-testid={`qa-${check.id}`} data-early={early ? "1" : "0"}>
+    <div className="card" id={`qa-${check.id}`} data-testid={`qa-${check.id}`} data-early={early ? "1" : "0"}>
       <h3>
         Quality check <em>{check.retryOf ? "re-check · " : ""}{early ? "before the finish · " : ""}{left === 0 ? "ready to log" : `${left} to check`}</em>
       </h3>

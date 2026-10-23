@@ -22,8 +22,10 @@ import { addQaCheck, addSiteVisit, setQaRequired, setQaWaived } from "../../acti
  *     adding a check-in, clears it.
  */
 export default function QaControls({
-  workOrderId, qaRequired, qaWaived = false, scheduledCount, closed,
-}: { workOrderId: string; qaRequired: boolean; qaWaived?: boolean; scheduledCount: number; closed: boolean }) {
+  workOrderId, qaRequired, qaWaived = false, scheduledCount, closed, openCheckId = null, stage,
+}: { workOrderId: string; qaRequired: boolean; qaWaived?: boolean; scheduledCount: number; closed: boolean;
+  /** Tom, 23 Oct 2026: the first unlogged check on the job — Start quality check goes to it instead of adding one. */
+  openCheckId?: string | null; stage?: string }) {
   const router = useRouter();
   const [required, setRequired] = useState(qaRequired);
   const [waived, setWaived] = useState(qaWaived);
@@ -69,13 +71,26 @@ export default function QaControls({
       )}
 
       {/* R13 (Step 5): a Green painter is checked only when Paint Group chooses. */}
-      <button type="button" className="btn dim" style={{ justifySelf: "start" }} disabled={pending} data-testid="qa-spot-check"
+      {/* Tom, 23 Oct 2026: "start quality check" — now, whether a check is booked for another
+          time, or none is booked. A booked, unlogged check is the one to work (its day and time
+          do not hold it); with none, a spot check is made this moment and its card appears. */}
+      <button type="button" className="btn primary" style={{ justifySelf: "start" }} disabled={pending} data-testid="qa-spot-check"
         onClick={() => startTransition(async () => {
           setMessage(null);
+          const scrollTo = (id: string) => setTimeout(() => document.getElementById(`qa-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+          if (openCheckId) {
+            setMessage("The check is below — tick each standard and log it. A booked day or time never holds it.");
+            scrollTo(openCheckId);
+            return;
+          }
           const r = await addQaCheck({ workOrderId, date: null, kind: "spot" });
-          if (r.ok) { setMessage(r.message ?? "Spot check added."); router.refresh(); } else setMessage(r.message);
+          if (!r.ok) { setMessage(r.message); return; }
+          const early = stage === "pre_start" || stage === "offered" || stage === "booking_confirmed";
+          setMessage(early ? "Quality check started — its card appears once the job is under way." : "Quality check started — its card is below: tick each standard and log it.");
+          router.refresh();
+          setTimeout(() => document.getElementById("qa")?.scrollIntoView({ behavior: "smooth", block: "start" }), 700);
         })}>
-        Spot check this job
+        {openCheckId ? "Start quality check now" : "Start quality check"}
       </button>
 
       {adding ? (

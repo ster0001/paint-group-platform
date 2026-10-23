@@ -1180,7 +1180,8 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               }))}
               final={qaSchedule.final} today={todayMelbourne} closed={row.stage === "closed"} />
             <QaControls workOrderId={id} qaRequired={Boolean(row.qa_required)} qaWaived={Boolean(row.qa_waived)}
-              scheduledCount={(qaRows ?? []).length} closed={row.stage === "closed"} />
+              scheduledCount={(qaRows ?? []).length} closed={row.stage === "closed"} stage={row.stage}
+              openCheckId={qaChecks.find((c) => c.result === null && !c.superseded)?.id ?? null} />
           </div>
         </div>
       </div>
