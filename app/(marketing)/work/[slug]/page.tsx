@@ -10,6 +10,9 @@ import ProjectPage from "../../_components/ProjectPage";
 import { publishedShowcaseJobs, relatedShowcaseJobs, showcaseJobBySlug } from "@/lib/showcase/queries";
 import { formatPriceRange, showcaseMediaUrl } from "@/lib/showcase/format";
 import { parseVideoUrl } from "@/lib/marketing/video";
+import { AudienceProvider } from "../../_components/Audience";
+import { brandView } from "@/lib/marketing/brand";
+import { getBrand } from "@/lib/marketing/brandServer";
 
 /**
  * /work/[slug] — one showcase job through THE template (brief §4.4c).
@@ -29,9 +32,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const price = job.price_low_cents != null && job.price_high_cents != null ? formatPriceRange(job.price_low_cents, job.price_high_cents) : "";
   const title = `${job.title} in ${job.suburb}${price ? `, ${price}` : ""} | Paint Group`;
   const description = job.summary || job.scope_line || `${job.title} in ${job.suburb}, painted by Paint Group.`;
+  // Paint Home brief §7 (⚑ P9): a job page seen on Paint Home keeps ONE
+  // canonical, the Paint Group URL, so the two sites never compete in search.
+  const audience = await getAudience();
+  const canonical = audience === "painthome" ? `${residentialOrigin() ?? "https://paintgroup.com.au"}/work/${job.slug}` : undefined;
   return {
     title,
     description,
+    ...(canonical ? { alternates: { canonical } } : {}),
     openGraph: {
       title, description, type: "article",
       images: job.hero_path ? [{ url: showcaseMediaUrl(job.hero_path), alt: `${job.title} in ${job.suburb}` }] : [],
@@ -47,13 +55,16 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
   // property_type; the other domain 301s to it (no URL answers on both).
   const audience = await getAudience();
   const domain = commercialDomain();
+  // Paint Home (brief §7): a home job may appear on both sites with ONE
+  // canonical, the Paint Group URL (⚑ P9); a commercial job never shows there.
   if (domain) {
     const residential = residentialOrigin() ?? "";
-    if (job.property_type === "business" && audience === "home") permanentRedirect(`https://${domain}/work/${job.slug}`);
+    if (job.property_type === "business" && audience !== "business") permanentRedirect(`https://${domain}/work/${job.slug}`);
     if (job.property_type === "home" && audience === "business" && residential) permanentRedirect(`${residential}/work/${job.slug}`);
   }
   const prefix = audiencePrefix(audience);
-  const [all, logoUrl] = await Promise.all([publishedShowcaseJobs(), getSiteLogo()]);
+  const [all, logoUrl, brand] = await Promise.all([publishedShowcaseJobs(), getSiteLogo(), getBrand(audience)]);
+  const painthome = audience === "painthome";
   const related = relatedShowcaseJobs(all, job);
 
   // Article JSON-LD — deliberately no Product/Offer markup: prices are ranges
@@ -87,15 +98,17 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
   } : null;
 
   return (
-    <>
-      <Nav logoUrl={logoUrl} copy={{ links: [{ label: "Real jobs, real prices", href: "/work" }, { label: "How it works", href: "/#how" }, { label: "Reviews", href: "/#reviews" }], otherLabel: audience === "home" ? "For business →" : "For homes →", otherHref: otherAudienceHref(audience), cta: "See my price", prefix }} />
-      <main data-audience={audience}>
-        <ProjectPage job={job} related={related} />
-      </main>
-      <Footer />
-      <CallBar />
+    <AudienceProvider audience={audience} brand={brandView(brand)}>
+      <div className="shopfront" data-brand={brand.key}>
+        <Nav logoUrl={logoUrl} brand={brand} copy={{ links: [{ label: "Real jobs, real prices", href: "/work" }, { label: "How it works", href: "/#how" }, { label: "Reviews", href: "/#reviews" }], otherLabel: painthome ? "" : audience === "home" ? "For business →" : "For homes →", otherHref: otherAudienceHref(audience), cta: "See my price", prefix }} />
+        <main data-audience={audience}>
+          <ProjectPage job={job} related={related} />
+        </main>
+        <Footer brand={brand} prefix={prefix} />
+        <CallBar />
+      </div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {videoLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(videoLd) }} />}
-    </>
+    </AudienceProvider>
   );
 }

@@ -1,10 +1,10 @@
 import TelLink from "../_components/TelLink";
-import { HOURS_LINE, PHONE_DISPLAY } from "@/lib/marketing/site";
+import { BRAND_DEFAULTS, type Brand } from "@/lib/marketing/brand";
 
 export type StepsCopy = { h2: string; steps: Array<{ title: string; body: string }>; talkLine: string };
 
-/** §4.3 — four white cards on warm; copy from site content (session 8). */
-export default function HowItWorks({ copy }: { copy: StepsCopy }) {
+/** §4.3 — four white cards on warm; copy from site content (session 8). The number and hours are the brand's (lib/marketing/brand.ts). */
+export default function HowItWorks({ copy, brand = BRAND_DEFAULTS.paintgroup }: { copy: StepsCopy; brand?: Pick<Brand, "phoneDisplay" | "hoursLine"> }) {
   return (
     <section className="sec light warm" id="how">
       <div className="wrap">
@@ -15,7 +15,7 @@ export default function HowItWorks({ copy }: { copy: StepsCopy }) {
           ))}
         </div>
         <div className="phone-row">
-          {copy.talkLine} <b><TelLink where="how">Call {PHONE_DISPLAY}</TelLink></b><span>{HOURS_LINE}</span>
+          {copy.talkLine} <b><TelLink where="how">Call {brand.phoneDisplay}</TelLink></b><span>{brand.hoursLine}</span>
         </div>
       </div>
     </section>

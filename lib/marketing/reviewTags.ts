@@ -25,7 +25,9 @@ export function suggestAudience(text: string): Audience | null {
 export function pickReviews<R extends ReviewLike>(reviews: R[], tags: ReviewTag[], audience: Audience): { reviews: R[]; fallback: boolean } {
   const tagOf = new Map(tags.map((t) => [t.review_key, t.audience]));
   const confirmed = (r: R) => tagOf.get(reviewKey(r)) ?? null;
-  if (audience === "home") {
+  // Paint Home shows the same reviews as the homes site (brief §4: they are
+  // Paint Group's Google reviews; the credit line under them says so).
+  if (audience === "home" || audience === "painthome") {
     return { reviews: reviews.filter((r) => confirmed(r) !== "business"), fallback: false };
   }
   const business = reviews.filter((r) => confirmed(r) === "business");

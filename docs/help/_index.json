@@ -664,6 +664,39 @@
       ]
     },
     {
+      "feature": "paint-home",
+      "role": "customer",
+      "title": "Paint Home — pricing your home online",
+      "summary": "Paint Home is for apartments, units, townhouses and smaller homes; you type your address, answer a few questions, see a price range in about ten minutes, and one short call confirms it. The painters, the guarantee and the insurance are the same ones behind Paint Group, which powers Paint Home.",
+      "path": "docs/help/paint-home/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/(marketing)/painthome/page.tsx",
+        "app/(marketing)/_sections/Hero.tsx",
+        "app/(marketing)/_sections/Footer.tsx"
+      ]
+    },
+    {
+      "feature": "paint-home",
+      "role": "staff",
+      "title": "Paint Home — the second shopfront, and Settings → Brands",
+      "summary": "Paint Home (painthome.com.au) is the same business, wizard, painters, CRM and invoicing under a second name; Settings → Brands holds each shopfront's domain, phone, legal line and accent colour, and the Paint Home pages are the home site under the Paint Home brand until its own words are seeded.",
+      "path": "docs/help/paint-home/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "lib/marketing/brand.ts",
+        "lib/marketing/audience.ts",
+        "app/(marketing)/painthome/page.tsx",
+        "app/(app)/settings/BrandsSettings.tsx",
+        "app/(marketing)/_sections/Nav.tsx",
+        "app/(marketing)/_sections/Footer.tsx"
+      ]
+    },
+    {
       "feature": "painter-messages",
       "role": "contractor",
       "title": "Read and answer messages from the office about a job — with photos",

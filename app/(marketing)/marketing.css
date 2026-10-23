@@ -426,3 +426,71 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk .trade-promoted .trade { grid-template-columns: 1fr; }
 .mk .trade-promoted .tbl { order: 2; max-width: none; }
 .mk nav .links .other { color: var(--color-cyan); }
+
+/* ---------------------------------------------------------------------------
+   Paint Home (docs/briefs/paint-home.md §1a) — a second palette keyed to the
+   logo, laid over the SAME component tokens so no layout rule changes:
+   ink → slate, paper → stone, warm → sage-pale, cyan → teal. `--brand` is
+   the logo cyan, an accent only (address-field border, selected chip, focus
+   ring, the ghost price) — never a full section; Settings → Brands drives it
+   through `--brand-primary`. Switzer everywhere: the `.mono` labels become
+   Switzer 500 at 13px, sentence case, no tracking; prices and the phone are
+   tabular. Paint Group's tokens above are untouched. */
+.mk [data-brand="painthome"] {
+  --brand: var(--brand-primary, #17F9F1);
+  --color-ink: #2E3A3D; --color-graphite: #3B484C; --color-raised: #48565A; --color-line: #5A6A6E;
+  --color-cyan: #02ADB5; --color-on-cyan: #FFFFFF; --color-paint: #02ADB5;
+  --color-paper: #F4F2EE; --color-warm: #E4ECE6; --color-lline: #D8D2C8;
+  --color-text: #F2F4F3; --color-muted: #B6C0BE; --color-tink: #22302F; --color-tmut: #5F6E6B;
+  --color-amber: #D9A66B; --color-emerald: #6FA287; --color-clay: #B8766B;
+  --ph-sage: #9DB4A6; --ph-blush: #E8CFC9; --ph-blush-deep: #C99A90; --ph-stone-2: #EAE6DF; --ph-card: #FBFAF8;
+  background: var(--color-ink); color: var(--color-text);
+}
+.mk [data-brand="painthome"] .mono,
+.mk [data-brand="painthome"] nav .phone,
+.mk [data-brand="painthome"] footer b,
+.mk [data-brand="painthome"] .ghost .gprice,
+.mk [data-brand="painthome"] .job .price,
+.mk [data-brand="painthome"] .money,
+.mk [data-brand="painthome"] .card .n { font-family: var(--font-switzer), system-ui, sans-serif; letter-spacing: 0; text-transform: none; }
+.mk [data-brand="painthome"] .mono, .mk [data-brand="painthome"] footer b { font-size: 13px; font-weight: 500; }
+.mk [data-brand="painthome"] nav .phone,
+.mk [data-brand="painthome"] .ghost .gprice,
+.mk [data-brand="painthome"] .job .price,
+.mk [data-brand="painthome"] .money,
+.mk [data-brand="painthome"] .tile .big,
+.mk [data-brand="painthome"] .phone-row b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.mk [data-brand="painthome"] nav .phone { font-size: 15px; font-weight: 500; }
+.mk [data-brand="painthome"] .card .n { font-size: 15px; font-weight: 600; letter-spacing: .02em; }
+.mk [data-brand="painthome"] .ghost .gprice { color: var(--brand); font-size: 18px; letter-spacing: -.01em; }
+.mk [data-brand="painthome"] :focus-visible { outline-color: var(--brand); }
+/* nav: the mark, the small-print credit, slate glass */
+.mk [data-brand="painthome"] nav { background: rgba(46, 58, 61, .9); border-bottom-color: rgba(255, 255, 255, .08); }
+.mk [data-brand="painthome"] .brand { display: inline-flex; align-items: center; gap: 12px; }
+.mk [data-brand="painthome"] .logo { height: 30px; width: auto; display: block; }
+.mk [data-brand="painthome"] .pb { font-size: 11px; font-weight: 500; letter-spacing: .02em; color: var(--color-muted); white-space: nowrap; }
+@media (max-width: 600px) { .mk [data-brand="painthome"] .brand .pb { display: none; } .mk [data-brand="painthome"] .logo { height: 26px; } }
+/* hero: slate with a slight warm-grey gradient; the block semi-transparent slate with a faint blush border */
+.mk [data-brand="painthome"] .hero { background: linear-gradient(160deg, #2E3A3D 0%, #2E3A3D 55%, #4A4A50 100%); }
+.mk [data-brand="painthome"] .block { background: rgba(46, 58, 61, .92); border-color: rgba(232, 207, 201, .28); }
+.mk [data-brand="painthome"] .hero-photo::after { background: linear-gradient(90deg, rgba(46, 58, 61, .82) 0%, rgba(46, 58, 61, .55) 55%, rgba(46, 58, 61, .35) 100%); }
+@media (max-width: 959px) {
+  .mk [data-brand="painthome"] .hero-photo::after { background: linear-gradient(180deg, rgba(46, 58, 61, 0) 0%, rgba(46, 58, 61, 0) 45%, rgba(46, 58, 61, .96) 100%); }
+  .mk [data-brand="painthome"] .hero .block { background: rgba(46, 58, 61, .8); }
+}
+.mk [data-brand="painthome"] .field { border-color: var(--brand); }
+.mk [data-brand="painthome"] .field.typing { box-shadow: 0 0 0 6px rgba(23, 249, 241, .14); }
+.mk [data-brand="painthome"] .chip[aria-pressed="true"] { background: var(--brand); color: var(--color-ink); border-color: var(--brand); }
+/* light sections: the cards are the warm off-white, not pure white */
+.mk [data-brand="painthome"] .card, .mk [data-brand="painthome"] .job, .mk [data-brand="painthome"] .tile,
+.mk [data-brand="painthome"] .pc, .mk [data-brand="painthome"] .rev, .mk [data-brand="painthome"] .prow { background: var(--ph-card); }
+.mk [data-brand="painthome"] .prow[aria-selected="true"] { background: var(--color-ink); border-color: var(--color-ink); }
+.mk [data-brand="painthome"] .prow[aria-selected="true"] .bar { background: var(--brand); }
+/* the one warm note: blush on the closing CTA, the stars and the rule markers */
+.mk [data-brand="painthome"] .cta { background: var(--ph-blush); color: var(--color-ink); }
+.mk [data-brand="painthome"] .rev .stars, .mk [data-brand="painthome"] .rule i { color: var(--ph-blush-deep); background: var(--ph-blush-deep); }
+.mk [data-brand="painthome"] .rev .stars { background: none; }
+.mk [data-brand="painthome"] .powered { margin-top: 24px; font-size: 13px; color: var(--color-tmut); }
+.mk [data-brand="painthome"] .sweeps { background: repeating-linear-gradient(180deg, rgba(2, 173, 181, .04) 0 60px, rgba(2, 173, 181, .11) 60px 120px); }
+.mk [data-brand="painthome"] .callbar { background: rgba(46, 58, 61, .94); }
+.mk [data-brand="painthome"] .logo-full { width: 220px; height: auto; display: block; margin-bottom: 12px; }

@@ -43,6 +43,10 @@ export function estimateHref(
      *  visit that started on the homepage (or the commercial domain, where
      *  localStorage cannot follow) is still attributed at /estimate. */
     carry?: string | URLSearchParams | null;
+    /** Paint Home brief §5: which shopfront the visitor came through. Only
+     *  `painthome` is ever written — Paint Group is the wizard's default and
+     *  carries no tag (the wizard reads it in Session 3). */
+    brand?: "painthome";
   } = {},
 ): string {
   const q = new URLSearchParams();
@@ -52,6 +56,7 @@ export function estimateHref(
   if (opts.scope) q.set("scope", opts.scope);
   if (opts.from) q.set("from", opts.from);
   if (opts.src) q.set("src", opts.src);
+  if (opts.brand) q.set("brand", opts.brand);
   for (const [k, v] of carriedParams(opts.carry)) q.set(k, v);
   return `${(opts.origin ?? "").replace(/\/$/, "")}/estimate?${q.toString()}`;
 }

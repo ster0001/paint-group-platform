@@ -2,15 +2,19 @@ import Image from "next/image";
 import Link from "next/link";
 import TelLink from "../_components/TelLink";
 import TrackedLink from "../_components/TrackedLink";
-import { PHONE_DISPLAY } from "@/lib/marketing/site";
+import PaintHomeLogo from "../_components/PaintHomeLogo";
+import { BRAND_DEFAULTS, type Brand } from "@/lib/marketing/brand";
 
 /** §4.1 — sticky translucent ink; four links ≥960px; the phone number is
  *  in the nav on desktop and in the call bar on mobile, so it never hides.
- *  The logo is Settings → Company details → logo 1 (light-on-dark); the
- *  wordmark stands in when none is set. */
+ *  Paint Group's logo is Settings → Company details → logo 1 (light-on-dark);
+ *  the wordmark stands in when none is set. Paint Home's is the inline mark
+ *  cropped to its top row, with the one small-print credit beside it (Paint
+ *  Home brief §1a, §4: "powered by Paint Group" — here, under the reviews,
+ *  one FAQ sentence and the footer, nowhere else). */
 export type NavCopy = { links: Array<{ label: string; href: string }>; otherLabel: string; otherHref: string; cta: string; prefix: string };
 
-export default function Nav({ logoUrl = "", copy }: { logoUrl?: string; copy?: NavCopy }) {
+export default function Nav({ logoUrl = "", copy, brand = BRAND_DEFAULTS.paintgroup }: { logoUrl?: string; copy?: NavCopy; brand?: Brand }) {
   const c: NavCopy = copy ?? {
     links: [{ label: "Real jobs, real prices", href: "/work" }, { label: "How it works", href: "#how" }, { label: "For business", href: "#trade" }, { label: "Reviews", href: "#reviews" }],
     otherLabel: "", otherHref: "", cta: "See my price", prefix: "",
@@ -18,12 +22,15 @@ export default function Nav({ logoUrl = "", copy }: { logoUrl?: string; copy?: N
   // Internal paths carry the business site's local prefix (session 8 §2);
   // anchors and the cross-domain link are plain.
   const href = (h: string) => (h.startsWith("/") ? `${c.prefix}${h}` : h);
+  const painthome = brand.key === "painthome";
   return (
     <nav aria-label="Main">
-      <Link href={c.prefix || "/"} className={logoUrl ? "brand" : "mono"} aria-label="Paint Group home">
-        {logoUrl
-          ? <Image src={logoUrl} alt="Paint Group" width={160} height={32} priority style={{ height: 28, width: "auto" }} />
-          : "PAINT GROUP"}
+      <Link href={c.prefix || "/"} className={painthome || logoUrl ? "brand" : "mono"} aria-label={`${brand.name} home`}>
+        {painthome
+          ? <><PaintHomeLogo variant="nav" on="dark" className="logo" title={brand.name} /><span className="pb" data-testid="nav-powered-by">powered by {brand.poweredBy}</span></>
+          : logoUrl
+            ? <Image src={logoUrl} alt="Paint Group" width={160} height={32} priority style={{ height: 28, width: "auto" }} />
+            : "PAINT GROUP"}
       </Link>
       <div className="links">
         {c.links.map((l) => (l.href.startsWith("/")
@@ -32,7 +39,7 @@ export default function Nav({ logoUrl = "", copy }: { logoUrl?: string; copy?: N
         {c.otherLabel && c.otherHref && <a href={c.otherHref} className="other" data-testid="nav-other-audience">{c.otherLabel}</a>}
       </div>
       <div className="right">
-        <TelLink where="nav" className="phone">{PHONE_DISPLAY}</TelLink>
+        <TelLink where="nav" className="phone">{brand.phoneDisplay}</TelLink>
         <TrackedLink href="#top" ev="nav_cta" evProps={{ where: "nav" }} className="btn btn-cyan">{c.cta}</TrackedLink>
       </div>
     </nav>

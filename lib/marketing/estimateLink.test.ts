@@ -43,3 +43,11 @@ describe("paid-ad parameters ride the hand-off (6 Sep)", () => {
     expect(estimateHref("", "home", { carry: "" })).toBe("/estimate?mode=home");
   });
 });
+
+test("Paint Home brief §5: the hand-off carries brand=painthome; Paint Group carries no brand", () => {
+  const u = new URL(estimateHref("7/40 Wattletree Road, Malvern East", "home", { src: "painthome_home_hero", brand: "painthome" }), "http://x");
+  expect(u.searchParams.get("brand")).toBe("painthome");
+  expect(u.searchParams.get("mode")).toBe("home");
+  expect(u.searchParams.get("src")).toBe("painthome_home_hero");
+  expect(new URL(estimateHref("x", "home"), "http://x").searchParams.get("brand")).toBeNull();
+});

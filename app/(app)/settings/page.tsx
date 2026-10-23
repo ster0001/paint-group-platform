@@ -51,6 +51,9 @@ import { freshConnection, listAccounts, listCompanyFiles, type MyobAccount } fro
 import { requestNowMs } from "@/lib/time/requestClock";
 import { AUTOMATIONS } from "@/lib/automations/registry";
 import WebsiteContentManager from "./WebsiteContentManager";
+import BrandsSettings from "./BrandsSettings";
+import { parseBrandSettings } from "@/lib/marketing/brand";
+import { BRANDS_SETTINGS_KEY } from "@/lib/marketing/brandServer";
 import CrmSettings, { type TagRow as CrmTagRow } from "./CrmSettings";
 import VisitsSettingsPanel from "./VisitsSettings";
 import VisitZonesSettings from "./VisitZonesSettings";
@@ -159,6 +162,8 @@ export default async function SettingsPage() {
   const languageCounts: Record<string, number> = {};
   for (const r of (langCountRes.error ? [] : (langCountRes.data ?? [])) as { induction_language: string }[]) languageCounts[r.induction_language] = (languageCounts[r.induction_language] ?? 0) + 1;
   const websiteContent = parseWebsiteContent(allSettings.find((r) => r.key === WEBSITE_CONTENT_KEY)?.value);
+  // Paint Home brief §6: Settings → Brands, the editable face of lib/marketing/brand.ts.
+  const brandSettings = parseBrandSettings(allSettings.find((r) => r.key === BRANDS_SETTINGS_KEY)?.value);
   const videoJobs = (await listShowcaseJobsForStaff()).filter((j) => j.video_url).map((j) => ({ id: j.id, title: j.title, suburb: j.suburb, published: j.published }));
   // Session 8: the copy for both audiences and the fetched reviews' tags.
   const [homeCopy, businessCopy, tagRes] = await Promise.all([
@@ -312,6 +317,8 @@ export default async function SettingsPage() {
           content: <DocumentsManager initialDocs={companyDocs} warrantyApproved={warrantyApproved} /> },
         { id: "website", title: "Website", subtitle: "The homepage's painter cards and the photos in the promise card and the progress story — the top-left logo comes from Company details (logo 1)", count: websiteContent.painters.length,
           content: <WebsiteContentManager initial={websiteContent} videoJobs={videoJobs} /> },
+        { id: "brands", title: "Brands", subtitle: "Paint Group and Paint Home — the domain, phone number, legal line and accent colour each shopfront shows; the Paint Home mark is the supplied vector",
+          content: <BrandsSettings initial={brandSettings} /> },
         { id: "site-copy", title: "Website copy", subtitle: "Every word on the homes site and the business site, by section, with a live preview. Business copy is a draft to work through here.",
           content: <SiteCopyEditor initial={{ home: homeCopy, business: businessCopy }} businessHref={businessHref} /> },
         { id: "review-tags", title: "Reviews", subtitle: "Tag each Google review Home or Business so the business site shows the right ones", count: reviewTags.length,

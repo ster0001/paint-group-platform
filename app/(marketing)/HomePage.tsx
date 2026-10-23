@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import Nav from "./_sections/Nav";
 import Hero from "./_sections/Hero";
 import HowItWorks from "./_sections/HowItWorks";
@@ -20,7 +21,8 @@ import { getSiteCopy } from "@/lib/marketing/siteCopy";
 import { audiencePrefix, commercialDomain, otherAudienceHref, residentialOrigin, type Audience } from "@/lib/marketing/audience";
 import { text } from "@/lib/marketing/copy";
 import type { SiteCopy } from "@/lib/marketing/copy/schema";
-import { PHONE_DISPLAY } from "@/lib/marketing/site";
+import { brandView, type Brand } from "@/lib/marketing/brand";
+import { getBrand } from "@/lib/marketing/brandServer";
 import type { GhostExample } from "@/lib/marketing/ghostEstimator";
 
 /**
@@ -31,17 +33,30 @@ import type { GhostExample } from "@/lib/marketing/ghostEstimator";
  * site_content (lib/marketing/siteCopy) or the showcase table or Google;
  * the section ORDER is the one thing decided here: the trade lane is
  * promoted to sit straight after the jobs on the business site (§4).
+ *
+ * Paint Home (docs/briefs/paint-home.md) is the THIRD audience, rendered by
+ * `painthome/page.tsx` (painthome.com.au's root is rewritten there). Same
+ * sections, same components; what differs is the BRAND (lib/marketing/
+ * brand.ts → nav, footer, metadata, schema, phone, the `[data-brand]`
+ * palette) and, from Session 2, the words. No trade lane, no link to the
+ * business site (§4).
  */
 // Both routes declare `export const revalidate = 60` themselves (Next needs a literal there).
 
-const LOCAL_BUSINESS_ID = "https://paintgroup.com.au/#business";
-
 function copyFor(c: SiteCopy, audience: Audience) {
   const t = (s: Parameters<typeof text>[1], k: string) => text(c, s, k);
+  // The self-typing examples carry the wizard MODE; Paint Home is residential only.
+  const mode: GhostExample["mode"] = audience === "business" ? "business" : "home";
   const examples: GhostExample[] = [1, 2, 3]
-    .map((n) => ({ address: t("estimator_examples", `example_${n}_address`), price: t("estimator_examples", `example_${n}_price`), time: t("estimator_examples", `example_${n}_time`), mode: audience }))
+    .map((n) => ({ address: t("estimator_examples", `example_${n}_address`), price: t("estimator_examples", `example_${n}_price`), time: t("estimator_examples", `example_${n}_time`), mode }))
     .filter((e) => e.address && e.price);
   const labels = { placeholder: t("hero", "placeholder"), button: t("hero", "button"), chipsLabel: t("hero", "chips_label"), chipHome: t("hero", "chip_home"), chipBusiness: t("hero", "chip_business") };
+  // Paint Home: the nav has no "For business" link and no link to the
+  // other site (brief §4). The link set is the copy's until Session 2
+  // seeds Paint Home's own; the one pointing at the trade lane is dropped
+  // here because the lane is not on the page.
+  const navLinks = [1, 2, 3, 4].map((n) => ({ label: t("nav", `link_${n}_label`), href: t("nav", `link_${n}_href`) })).filter((l) => l.label && l.href)
+    .filter((l) => audience !== "painthome" || l.href !== "#trade");
   return {
     hero: { kicker: t("hero", "kicker"), h1Lines: t("hero", "h1").split("\n").map((l) => l.trim()).filter(Boolean), lead: t("hero", "lead"), talkLine: t("hero", "talk_line"), labels, examples },
     steps: { h2: t("how_it_works", "h2"), steps: [1, 2, 3, 4].map((n) => ({ title: t("how_it_works", `step_${n}_title`), body: t("how_it_works", `step_${n}_body`) })), talkLine: t("how_it_works", "talk_line") },
@@ -57,15 +72,29 @@ function copyFor(c: SiteCopy, audience: Audience) {
     faq: { h2: t("faq", "h2"), entries: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ q: t("faq", `q_${n}`), a: t("faq", `a_${n}`) })).filter((e) => e.q) as FaqEntry[] },
     cta: { h2: t("cta", "h2"), callLine: t("cta", "call_line"), labels },
     nav: {
-      links: [1, 2, 3, 4].map((n) => ({ label: t("nav", `link_${n}_label`), href: t("nav", `link_${n}_href`) })).filter((l) => l.label && l.href),
-      otherLabel: t("nav", "other_audience_label"), otherHref: otherAudienceHref(audience), cta: t("nav", "cta"), prefix: audiencePrefix(audience),
+      links: navLinks,
+      otherLabel: audience === "painthome" ? "" : t("nav", "other_audience_label"), otherHref: otherAudienceHref(audience), cta: t("nav", "cta"), prefix: audiencePrefix(audience),
     },
     meta: { title: t("meta", "title_tag"), description: t("meta", "meta_description"), serviceType: t("meta", "service_type") },
   };
 }
 
+/** Paint Home's index switch is its own (brief §7): PAINTHOME_INDEXABLE=1, independent of SITE_INDEXABLE. */
+const paintHomeIndexable = () => process.env.PAINTHOME_INDEXABLE === "1";
+
 export async function homeMetadata(audience: Audience): Promise<Metadata> {
-  const c = copyFor(await getSiteCopy(audience), audience);
+  const [siteCopy, brand] = await Promise.all([getSiteCopy(audience), getBrand(audience)]);
+  const c = copyFor(siteCopy, audience);
+  if (audience === "painthome") {
+    return {
+      title: c.meta.title,
+      description: c.meta.description,
+      // §7: its own canonical, OG image and index switch; the images resolve against its domain.
+      metadataBase: new URL(brand.url),
+      alternates: { canonical: `${brand.url}/` },
+      robots: { index: paintHomeIndexable(), follow: paintHomeIndexable() },
+    };
+  }
   return {
     title: c.meta.title,
     description: c.meta.description,
@@ -74,46 +103,60 @@ export async function homeMetadata(audience: Audience): Promise<Metadata> {
   };
 }
 
+/** The schema.org LocalBusiness for a brand: Paint Home is its own `@id` under Paint Group's (brief §3). */
+export function localBusinessLd(brand: Brand, serviceType: string, url: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": brand.localBusinessId,
+    name: brand.name,
+    telephone: brand.phoneDisplay,
+    areaServed: "Melbourne, Victoria",
+    address: { "@type": "PostalAddress", addressLocality: "Melbourne", addressRegion: "VIC", addressCountry: "AU" },
+    serviceType,
+    url,
+    ...(brand.parentBusinessId ? { parentOrganization: { "@type": "Organization", "@id": brand.parentBusinessId, name: "Paint Group" } } : {}),
+  };
+}
+
 export default async function HomePage({ audience }: { audience: Audience }) {
-  const [content, logoUrl, siteCopy] = await Promise.all([getWebsiteContent(), getSiteLogo(), getSiteCopy(audience)]);
+  const [content, logoUrl, siteCopy, brand] = await Promise.all([getWebsiteContent(), getSiteLogo(), getSiteCopy(audience), getBrand(audience)]);
   const c = copyFor(siteCopy, audience);
   const prefix = audiencePrefix(audience);
   // ⚑ D2: the wizard lives on the residential domain; from the commercial
-  // domain the hand-off is absolute.
+  // domain the hand-off is absolute. Paint Home hosts the wizard under its
+  // own domain (Paint Home brief §5, ⚑ P5), so its hand-off is relative.
   const wizardOrigin = audience === "business" && commercialDomain() ? (residentialOrigin() ?? "") : "";
   const business = audience === "business";
-  const localBusinessLd = {
-    "@context": "https://schema.org",
-    "@type": "LocalBusiness",
-    "@id": LOCAL_BUSINESS_ID,
-    name: "Paint Group",
-    telephone: PHONE_DISPLAY,
-    areaServed: "Melbourne, Victoria",
-    address: { "@type": "PostalAddress", addressLocality: "Melbourne", addressRegion: "VIC", addressCountry: "AU" },
-    serviceType: c.meta.serviceType,
-    url: business && commercialDomain() ? `https://${commercialDomain()}/` : "https://paintgroup.com.au/",
-  };
+  const painthome = audience === "painthome";
+  const pageUrl = painthome ? `${brand.url}/` : business && commercialDomain() ? `https://${commercialDomain()}/` : "https://paintgroup.com.au/";
+  const ld = localBusinessLd(brand, c.meta.serviceType, pageUrl);
+  // `--brand-primary` is the one token Settings → Brands drives; the rest of
+  // Paint Home's palette is the `[data-brand="painthome"]` block in marketing.css.
+  const brandStyle = { "--brand-primary": brand.primaryColour } as CSSProperties;
   return (
-    <AudienceProvider audience={audience} wizardOrigin={wizardOrigin}>
-      <Nav logoUrl={logoUrl} copy={c.nav} />
-      <main data-audience={audience}>
-        <Hero heroPhoto={business ? (content.heroPhotoBusiness ?? content.heroPhoto) : content.heroPhoto} copy={c.hero} />
-        <HowItWorks copy={c.steps} />
-        <RealJobs audience={audience} copy={c.jobs} prefix={prefix} />
-        {business && <Trade copy={c.trade} promoted />}
-        <PromiseSection variationPhotos={content.promisePhotos} copy={c.promise} />
-        <Story photos={content.storyPhotos} copy={c.story} />
-        <LiveStrip heading={c.live} />
-        <Painters painters={content.painters} copy={c.painters} />
-        {!business && <Trade copy={c.trade} />}
-        <Reviews featuredVideoJobId={content.featuredVideoJobId} featuredVideo={content.featuredVideo} audience={audience} copy={c.reviews} />
-        <Faq h2={c.faq.h2} entries={c.faq.entries} />
-        <ClosingCta copy={c.cta} />
-      </main>
-      <Footer />
-      <CallBar />
+    <AudienceProvider audience={audience} wizardOrigin={wizardOrigin} brand={brandView(brand)}>
+      <div className="shopfront" data-brand={brand.key} style={brandStyle}>
+        <Nav logoUrl={logoUrl} copy={c.nav} brand={brand} />
+        <main data-audience={audience}>
+          <Hero heroPhoto={business ? (content.heroPhotoBusiness ?? content.heroPhoto) : content.heroPhoto} copy={c.hero} />
+          <HowItWorks copy={c.steps} brand={brand} />
+          <RealJobs audience={audience} copy={c.jobs} prefix={prefix} />
+          {business && <Trade copy={c.trade} promoted />}
+          <PromiseSection variationPhotos={content.promisePhotos} copy={c.promise} />
+          <Story photos={content.storyPhotos} copy={c.story} />
+          <LiveStrip heading={c.live} />
+          <Painters painters={content.painters} copy={c.painters} brand={brand} />
+          {audience === "home" && <Trade copy={c.trade} />}
+          <Reviews featuredVideoJobId={content.featuredVideoJobId} featuredVideo={content.featuredVideo} audience={audience} copy={c.reviews} poweredBy={brand.poweredBy} />
+          <Faq h2={c.faq.h2} entries={c.faq.entries} />
+          <ClosingCta copy={c.cta} />
+        </main>
+        <Footer brand={brand} prefix={prefix} />
+        <CallBar />
+      </div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd(c.faq.entries)) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
     </AudienceProvider>
   );
 }

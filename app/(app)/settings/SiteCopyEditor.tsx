@@ -12,16 +12,21 @@ import { saveSiteContentAction } from "./siteContentActions";
  * business page lives at /business here). Markdown keys are plain
  * textareas; no rich text. Save writes only what changed.
  */
-export default function SiteCopyEditor({ initial, businessHref }: { initial: Record<Audience, SiteCopy>; businessHref: string }) {
-  const [tab, setTab] = useState<Audience>("home");
-  const [copy, setCopy] = useState<Record<Audience, SiteCopy>>(initial);
+const TAB_LABEL: Record<Audience, string> = { home: "Homes", business: "Businesses", painthome: "Paint Home" };
+
+export default function SiteCopyEditor({ initial, businessHref, paintHomeHref = "/painthome" }: { initial: Partial<Record<Audience, SiteCopy>>; businessHref: string; paintHomeHref?: string }) {
+  // The tabs are the copy sets handed in: Homes and Businesses today; Paint
+  // Home joins when its site_content rows exist (Paint Home brief, Session 2).
+  const tabs = AUDIENCES.filter((a) => initial[a]);
+  const [tab, setTab] = useState<Audience>(tabs[0] ?? "home");
+  const [copy, setCopy] = useState<Record<Audience, SiteCopy>>(initial as Record<Audience, SiteCopy>);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
   const [open, setOpen] = useState<string>("hero");
 
-  const previewSrc = useMemo(() => (tab === "home" ? "/" : businessHref) + `?preview=${previewKey}`, [tab, businessHref, previewKey]);
+  const previewSrc = useMemo(() => (tab === "home" ? "/" : tab === "painthome" ? paintHomeHref : businessHref) + `?preview=${previewKey}`, [tab, businessHref, paintHomeHref, previewKey]);
 
   const set = (section: string, key: string, value: string) => {
     setCopy((c) => ({ ...c, [tab]: { ...c[tab], [section]: { ...c[tab][section as keyof SiteCopy], [key]: value } } }));
@@ -48,10 +53,10 @@ export default function SiteCopyEditor({ initial, businessHref }: { initial: Rec
   return (
     <div className="grid gap-4" data-testid="site-copy">
       <div className="flex flex-wrap items-center gap-2">
-        {AUDIENCES.map((a) => (
+        {tabs.map((a) => (
           <button key={a} type="button" onClick={() => setTab(a)} data-testid={`copy-tab-${a}`}
             className={`rounded-full border px-3 py-1.5 text-sm ${tab === a ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}>
-            {a === "home" ? "Homes" : "Businesses"}
+            {TAB_LABEL[a]}
           </button>
         ))}
         <span className="ml-auto text-xs text-gray-500">{dirtyCount ? `${dirtyCount} unsaved` : "All saved"}</span>
@@ -85,7 +90,7 @@ export default function SiteCopyEditor({ initial, businessHref }: { initial: Rec
         </div>
         <div className="self-start lg:sticky lg:top-4">
           <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
-            <span>Live preview: {tab === "home" ? "homes site" : "business site"}</span>
+            <span>Live preview: {tab === "home" ? "homes site" : tab === "painthome" ? "Paint Home" : "business site"}</span>
             <a href={previewSrc.split("?")[0]} target="_blank" rel="noopener noreferrer" className="underline">Open in a tab</a>
           </div>
           <iframe key={previewSrc} src={previewSrc} title="Homepage preview" className="h-[70vh] w-full rounded-lg border border-gray-200 bg-white" data-testid="copy-preview" />
