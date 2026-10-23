@@ -5,6 +5,8 @@ import Link from "next/link";
 import { journeyWho, type WizardJourney } from "@/lib/wizard/journey";
 import WizardPill from "./WizardPill";
 import JourneyDrawer from "./JourneyDrawer";
+import { filterWizardSessions } from "@/lib/estimate/search";
+import { useSearchNeedle } from "./useSearchNeedle";
 
 /**
  * Buckets brief §5 — the Wizard tab: every open session (no estimate yet)
@@ -12,8 +14,12 @@ import JourneyDrawer from "./JourneyDrawer";
  */
 export default function WizardSessionsTable({ sessions, openId = null }: { sessions: WizardJourney[]; openId?: string | null }) {
   const [open, setOpen] = useState<WizardJourney | null>(() => sessions.find((s) => s.id === openId) ?? null);
+  // The search needle (`?q=`) narrows the tab on the client (Tom, 23 Oct 2026).
+  const q = useSearchNeedle();
+  const shown = filterWizardSessions(sessions, q);
   return (
     <>
+      {q && shown.length === 0 && <p className="mt-4 text-sm text-gray-500" data-testid="estimates-search-empty">No wizard session matches “{q}”.</p>}
       <div className="relative mt-4 overflow-x-auto rounded-lg border border-gray-200 bg-white">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
@@ -26,7 +32,7 @@ export default function WizardSessionsTable({ sessions, openId = null }: { sessi
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {sessions.map((s) => (
+            {shown.map((s) => (
               <tr key={s.id} className="hover:bg-gray-50" data-testid={`wizard-row-${s.id}`}>
                 <td className="px-4 py-2.5">
                   <div className="font-medium">{journeyWho(s)}</div>
@@ -40,7 +46,7 @@ export default function WizardSessionsTable({ sessions, openId = null }: { sessi
             ))}
           </tbody>
         </table>
-        {sessions.length === 0 && <div className="p-10 text-center text-sm text-gray-400">No open wizard sessions match. <Link href="/estimates?status=wizard" className="underline">Clear filters</Link></div>}
+        {shown.length === 0 && <div className="p-10 text-center text-sm text-gray-400">No open wizard sessions match. <Link href="/estimates?status=wizard" className="underline">Clear filters</Link></div>}
       </div>
       {open && <JourneyDrawer j={open} onClose={() => setOpen(null)} />}
     </>

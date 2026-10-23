@@ -12,6 +12,8 @@ import type { ListRow } from "@/lib/estimate/listRows";
 import { formatEstimateNumber } from "@/lib/estimate/number";
 import { TONE } from "./WizardPill";
 import JourneyDrawer from "./JourneyDrawer";
+import { filterEstimateRows } from "@/lib/estimate/search";
+import { useSearchNeedle } from "./useSearchNeedle";
 
 /**
  * The estimates table with multi-select delete (Tom, 20 Aug 2026).
@@ -42,8 +44,15 @@ const money = (c: number | null) =>
 /** Whole dollars, for the two ends of a range — the customer's own screen rounds the same way. */
 const money0 = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 
-export default function EstimatesTable({ estimates }: { estimates: EstimateRow[] }) {
+/**
+ * `estimates` is the whole tab; the search needle (`?q=`) narrows it HERE, on
+ * the client, so typing never re-fetches the page (Tom, 23 Oct 2026). `empty`
+ * is what the page shows when the tab has no rows at all.
+ */
+export default function EstimatesTable({ estimates, empty = null }: { estimates: EstimateRow[]; empty?: React.ReactNode }) {
   const router = useRouter();
+  const q = useSearchNeedle();
+  const shown = filterEstimateRows(estimates, q);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [asking, setAsking] = useState(false);
   const [progress, setProgress] = useState("");
@@ -52,7 +61,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
   const [removing, setRemoving] = useState<Set<string>>(new Set());
   const [journey, setJourney] = useState<WizardJourney | null>(null);
 
-  const visible = estimates.filter((e) => !removing.has(e.id));
+  const visible = shown.filter((e) => !removing.has(e.id));
   const selectable = visible.filter((e) => e.status !== "accepted");
   const allTicked = selectable.length > 0 && selectable.every((e) => selected.has(e.id));
 
@@ -110,8 +119,14 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
   const removeSelected = () =>
     removeNow(visible.filter((e) => selected.has(e.id)).map((e) => e.id));
 
+  const searchEmpty = q && visible.length === 0
+    ? <p className="mt-4 text-sm text-gray-500" data-testid="estimates-search-empty">No estimate matches “{q}” on this tab.</p>
+    : null;
+  if (estimates.length === 0) return <>{searchEmpty}{empty}</>;
+
   return (
     <>
+      {searchEmpty}
       {selected.size > 0 && (
         <div data-bulkbar className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm">
           <span className="font-medium">{selected.size} selected</span>
