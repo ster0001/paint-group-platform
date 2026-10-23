@@ -183,6 +183,23 @@ export function fixtureJobSql(alias = "w") {
     ` and ${c("estimate_id")} is not null and ${c("issued_at")} < now() - ($1::int * interval '1 day'))`;
 }
 
+/**
+ * WHICH VISIT REQUESTS A RUN LEAVES BEHIND (23 Oct 2026). `visit_requests`
+ * has no foreign key to the estimate or the user that made it, so the user
+ * walk never reaches one: when a cancelled run's anonymous customer is swept,
+ * their request stays, open, for ever — and on Today as "Offer a visit time —
+ * Visit sorrento", which is the title the live spec then asserted away. The
+ * mark is the customer's `@example.com` address (never a real customer's,
+ * never the seeded pg.demo.* orgs) with no estimate left to belong to, older
+ * than the age gate. A fragment over `public.visit_requests r`, `$1` = days.
+ */
+export function orphanVisitRequestSql(alias = "r") {
+  const c = (col) => (alias ? `${alias}.${col}` : col);
+  return `(${c("email")} like '%@example.com' and ${c("email")} not like 'pg.demo.%'` +
+    ` and (${c("estimate_id")} is null or not exists (select 1 from public.estimates e where e.id = ${c("estimate_id")}))` +
+    ` and ${c("created_at")} < now() - ($1::int * interval '1 day'))`;
+}
+
 /** The same decision, for one row — what the tests prove.
  * @param {{ woRef?: string | null, jobTitle?: string | null, estimateId?: string | null, issuedAt?: string | null, now?: number, days?: number }} [row] */
 export function isFixtureJob({ woRef = "", jobTitle = "", estimateId = null, issuedAt = null, now = Date.now(), days = DEFAULTS.fixtureJobAgeDays } = {}) {

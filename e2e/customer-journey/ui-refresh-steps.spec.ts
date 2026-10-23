@@ -517,10 +517,9 @@ test.describe("UI refresh S5 · home outside", () => {
     await page.getByTestId("ext-extra-picket_fence").click();
     await expect(pic.locator("[data-x='picket_fence']")).toHaveCount(1);
     await expect(page.getByTestId("ql-picture-note")).toContainText("Picket fence");
-    // On the house: two columns of chips on a laptop.
-    const a = (await page.getByTestId("ext-part-walls").boundingBox())!;
-    const b = (await page.getByTestId("ext-part-gable").boundingBox())!;
-    expect(Math.abs(a.y - b.y), "the walls and the gable share a row").toBeLessThan(4);
+    // The two-column grid of S5 is gone: exterior v2's Painting screen (S3,
+    // 20 Oct) lays the parts out as pills that wrap, each with its hint, so
+    // no row assertion here — the picture is what this check is about.
 
     await quickNext(page);
     await expect(page.locator("[data-quick-step='about']")).toBeVisible({ timeout: 20_000 });
@@ -530,25 +529,19 @@ test.describe("UI refresh S5 · home outside", () => {
     await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-ext-side-right").click();
     await page.getByTestId("ext-side-np").click();
-    await expect(page.getByTestId("ql-ext-side-right")).toHaveAttribute("data-state", "skip");
-    await page.getByTestId("ql-ext-side-front").click();
+    // 21 Oct: a side not painting leaves Each side — its tile goes — and every
+    // painting side must be looked at before Continue.
+    await expect(page.getByTestId("ql-ext-side-right")).toHaveCount(0);
+    await lookAtEverySide(page);
 
     await quickNext(page);
     await passGateIfShown(page);
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
     await expect(page.getByTestId("ext-range-right")).toHaveCount(0);
+    // 21 Oct (item 8): Tighten opens the customer editor itself — the
+    // walk-around step, its tiles, size and condition taps and See my range
+    // are retired (exterior-v2-tighten.spec.ts).
     await page.getByTestId("door-tighten").click();
-    await passDetailsSheetIfShown(page);
-    await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId("ext-side-right")).toHaveAttribute("data-state", "skip");
-    for (let i = 0; i < 4 && !(await page.getByTestId("ext-walk-done").count()); i++) {
-      await page.getByTestId("ext-size-yes").click();
-      await page.getByTestId("ext-cond-good").click();
-      await page.getByTestId("ext-check-side").click();
-    }
-    await page.getByTestId("ext-see-range").click();
-    await expect(page.getByTestId("reveal-tier")).toHaveAttribute("data-tier", "detailed", { timeout: 90_000 });
-    await page.getByTestId("door-editor").click();
     await passDetailsSheetIfShown(page);
     await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
     await openScopeEditor(page);

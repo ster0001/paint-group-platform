@@ -82,9 +82,11 @@ test("every side's size confirmed closes the range to within a few percent; the 
     await dims.getByRole("button", { name: "Update" }).click();
     await expect(card.getByTestId(`side-assumed-${k}`)).toContainText(/Recorded: 12 m long × 3 m high/, { timeout: 30_000 });
     if (k === "front") {
-      // 12 · the fascias, gutters and eaves now run 12 m — the metres box follows the side.
+      // 12 · the fascias, gutters and eaves now run 12 m — the side's width is
+      // WRITTEN into every lineal row's metres box (21 Oct, f63b59d6), not
+      // merely suggested as its placeholder.
       const metres = card.locator("[data-testid^='side-metres-front-']");
-      await expect(metres.first()).toHaveAttribute("placeholder", "12");
+      await expect(metres.first()).toHaveValue("12");
       // 13 + 14 · the sizes in words, and the add-a-size button under the windows.
       await expect(card.locator(".sd-whint").first()).toContainText(/under 50 × 50 cm/);
       const groups = card.locator(".sd-wseg");

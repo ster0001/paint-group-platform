@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, passDetailsSheetIfShown } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, passDetailsSheetIfShown, lookAtEverySide } from "./drive";
 
 /**
  * The EXTERIOR quick look — rewritten to the drawn house (Exterior wizard v2,
@@ -127,6 +127,8 @@ async function walkTypical(page: Page, windowType: "casement" | "colonial", wall
   await expect(page.getByTestId("ql-ext-condition")).toHaveCount(0);
   await quickNext(page);
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+  // 21 Oct: Each side lets nobody through until every painting side has been looked at.
+  await lookAtEverySide(page);
   await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range|Continue to the last question/);
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range
