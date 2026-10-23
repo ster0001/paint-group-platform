@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import SignaturePad from "@/app/components/SignaturePad";
 import { useRouter } from "next/navigation";
 import {
-  bookWalkthrough, markClientUnavailable, sendRemoteSignoff, setWalkthroughRequired, setWalkthroughStatus, staffComplete, staffSign, staffStartWalkthrough,
+  bookWalkthrough, markClientUnavailable, sendRemoteSignoff, setWalkthroughRequired, setWalkthroughStatus, staffComplete, staffSign, staffSignDrawn, staffStartWalkthrough,
 } from "../../actions";
 
 export type WalkthroughRow = {
@@ -53,6 +54,9 @@ export default function WalkthroughCard({
   const [signName, setSignName] = useState("");
   const [signNote, setSignNote] = useState("");
   const [completeNote, setCompleteNote] = useState("");
+  // Tom, 23 Oct 2026: the customer signs on our device by drawing — the same pad as their own link.
+  const [signature, setSignature] = useState<string | null>(null);
+  const [byPhone, setByPhone] = useState(false);
 
   const run = (fn: () => Promise<{ ok: boolean; message?: string }>) =>
     startTransition(async () => {
@@ -216,24 +220,36 @@ export default function WalkthroughCard({
                 </button>
                 <button className="btn dim" disabled={pending} data-testid="staff-sign-open"
                   onClick={() => setSigning((v) => !v)}>
-                  {signing ? "Hide" : "Record sign-off manually"}
+                  {signing ? "Hide" : "Customer signs here"}
                 </button>
               </div>
               {signing && (
                 <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
                   <input className="num" style={{ width: "100%" }} value={signName} placeholder="Customer's full name"
                     onChange={(e) => setSignName(e.target.value)} data-testid="staff-sign-name" />
+                  {!byPhone && (
+                    <div data-testid="staff-sign-pad">
+                      <p className="note" style={{ margin: "0 0 4px" }}>Hand the customer the device — they sign in the box, the same as on their own link.</p>
+                      <SignaturePad onChange={setSignature} />
+                    </div>
+                  )}
                   <textarea className="edit" rows={2} value={signNote} data-testid="staff-sign-note"
-                    placeholder="How they approved — e.g. by phone 3:10pm, happy with everything"
+                    placeholder={byPhone ? "How they approved — e.g. by phone 3:10pm, happy with everything" : "Note for the record (optional)"}
                     onChange={(e) => setSignNote(e.target.value)} />
+                  <label className="note" style={{ display: "flex", gap: 8, alignItems: "center", margin: 0 }}>
+                    <input type="checkbox" checked={byPhone} onChange={(e) => setByPhone(e.target.checked)} data-testid="staff-sign-by-phone" />
+                    The customer is not here — they approved by phone or on paper (no signature)
+                  </label>
                   <div className="row">
-                    <button className="btn primary" disabled={pending || !signName.trim()} data-testid="staff-sign"
-                      onClick={() => run(() => staffSign({ workOrderId, name: signName.trim(), note: signNote.trim() }))}>
-                      {pending ? "Signing…" : "Sign off and close the job"}
+                    <button className="btn primary" disabled={pending || !signName.trim() || (!byPhone && !signature)} data-testid="staff-sign"
+                      onClick={() => run(() => byPhone
+                        ? staffSign({ workOrderId, name: signName.trim(), note: signNote.trim() })
+                        : staffSignDrawn({ workOrderId, name: signName.trim(), note: signNote.trim(), signature: signature ?? "" }))}>
+                      {pending ? "Signing…" : byPhone ? "Record the approval and close the job" : "Sign off and close the job"}
                     </button>
                   </div>
                   <p className="note" style={{ margin: 0 }}>
-                    Any area the customer hasn&rsquo;t answered is approved on their behalf. Recorded as signed by staff.
+                    Any area the customer hasn&rsquo;t answered is approved on their behalf. {byPhone ? "Recorded as signed by staff." : "Their drawn signature is kept on the report."}
                   </p>
                 </div>
               )}

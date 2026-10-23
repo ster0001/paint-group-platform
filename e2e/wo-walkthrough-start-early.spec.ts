@@ -74,6 +74,23 @@ test.describe("the walkthrough starts before the quality check, from both sides"
       const opened = await popup;
       if (opened) { await expect(opened).toHaveURL(/\/s\//); await opened.close(); }
       expect(await stageOf(live.workOrderId)).toBe("walkthrough");
+
+      // Tom, 23 Oct 2026: the customer signs on OUR device by drawing (wo_staff_sign_drawn, 20270297) —
+      // a name alone is refused — and the signed walkthrough stays on the page with the signature
+      // and a link into the signed report.
+      const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+      expect(await rpcAs(staff!, "wo_staff_sign_drawn", { p_work_order_id: live.workOrderId, p_name: "Sam Customer", p_signature: "Sam Customer", p_note: "" })).toBe("error:signature_required");
+      expect(await rpcAs(staff!, "wo_staff_sign_drawn", { p_work_order_id: live.workOrderId, p_name: "Sam Customer", p_signature: png, p_note: "signed in the kitchen" })).toMatch(/^ok/);
+      const { data: so } = await db!.from("wo_signoff").select("signed_at, signature, captured_on, customer_token").eq("work_order_id", live.workOrderId).single();
+      const row = so as { signed_at: string | null; signature: string | null; captured_on: string | null; customer_token: string | null };
+      expect(row.signed_at).toBeTruthy();
+      expect(row.signature).toBe(png);
+      expect(row.captured_on).toBe("staff_device");
+      await page.goto(`/pc/wo/${live.workOrderId}`);
+      await expect(page.getByTestId("signed-walkthrough")).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId("signed-walkthrough")).toContainText("Sam Customer");
+      await expect(page.getByTestId("signed-signature")).toBeVisible();
+      await expect(page.getByTestId("signed-walkthrough-link")).toHaveAttribute("href", new RegExp(`^/s/${row.customer_token}`));
     } finally {
       await destroyLoopFixture(db!, live);
     }

@@ -992,6 +992,21 @@ export async function sendRemoteSignoff(raw: unknown): Promise<PcResult> {
   return r.ok ? { ok: true, message: r.message } : { ok: false, message: r.message };
 }
 
+/** Tom, 23 Oct 2026: the customer signs on OUR device with a drawn signature (wo_staff_sign_drawn). */
+export async function staffSignDrawn(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    workOrderId: uuid, name: z.string().trim().min(1).max(120), note: z.string().max(1000).default(""),
+    signature: z.string().startsWith("data:image/png;base64,").min(60).max(400_000),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "The customer's name and their signature in the box are needed." };
+  const r = await call("wo_staff_sign_drawn",
+    { p_work_order_id: parsed.data.workOrderId, p_name: parsed.data.name, p_signature: parsed.data.signature, p_note: parsed.data.note },
+    "Signed off — the report is frozen, the warranty has started and the job is closed.");
+  if (!r.ok && r.message === "signature required") return { ok: false, message: "Please have the customer sign in the box." };
+  if (r.ok) revalidatePath(`/pc/wo/${parsed.data.workOrderId}`);
+  return r;
+}
+
 export async function markClientUnavailable(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };

@@ -143,7 +143,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
         .select("id, kind, scheduled_date, status")
         .eq("work_order_id", id).order("created_at", { ascending: true }),
       supabase.from("wo_signoff")
-        .select("signed_at, client_unavailable_at, areas")
+        .select("signed_at, client_unavailable_at, areas, customer_token, signed_name, signed_kind, signature, captured_on")
         .eq("work_order_id", id).maybeSingle(),
     ]);
 
@@ -953,6 +953,29 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
               site, so an early booking follows the schedule automatically. */}
           {/* Tom, 24 Sep: from the OFFER too — "walkthrough not required" is a
               decision the office may take the moment the job is approved. */}
+          {/* Tom, 23 Oct 2026: the signed walkthrough stays on the page — who signed, when, the drawn
+              signature, and the signed report at the customer's own link. */}
+          {(() => {
+            const so = signoffRow as { signed_at?: string | null; customer_token?: string | null; signed_name?: string | null; signed_kind?: string | null; signature?: string | null; captured_on?: string | null } | null;
+            if (!so?.signed_at) return null;
+            const when = new Date(so.signed_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+            const how = so.captured_on === "staff_device" ? "on our device" : so.captured_on === "staff_recorded" ? "recorded by the office" : so.signed_kind === "rectified" ? "completed after rectification" : "on their own link";
+            return (
+              <div className="card" data-testid="signed-walkthrough">
+                <h3>Signed walkthrough <em>{when}</em></h3>
+                <p className="note">Signed by <b>{so.signed_name || "the customer"}</b> {how}. The report is frozen as they saw it.</p>
+                {so.signature && so.signature.startsWith("data:image/png;base64,") && (
+                  // eslint-disable-next-line @next/next/no-img-element -- a data URL from the sign-off row
+                  <img src={so.signature} alt="The customer's signature" data-testid="signed-signature" style={{ maxWidth: 320, maxHeight: 120, background: "#fff", border: "1px solid var(--line)", borderRadius: 8, padding: 6, margin: "6px 0" }} />
+                )}
+                {so.customer_token && (
+                  <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                    <a className="btn primary" href={`/s/${so.customer_token}?back=${encodeURIComponent(`/pc/wo/${id}`)}`} target="_blank" rel="noopener" data-testid="signed-walkthrough-link">Open the signed walkthrough →</a>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {(row.stage === "offered" || row.stage === "pre_start" || row.stage === "in_progress" || row.stage === "qa"
             || row.stage === "completion_prep" || row.stage === "walkthrough") && (
             <WalkthroughCard
