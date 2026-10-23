@@ -6,7 +6,6 @@ import NewEstimateButton, { type TemplateMeta } from "./NewEstimateButton";
 import SearchBox from "./SearchBox";
 import EstimatesTable from "./EstimatesTable";
 import AssistantFab from "@/app/quote/AssistantFab";
-import { parseEstimateNumber } from "@/lib/estimate/number";
 import { DEFAULT_LIST_FILTER, LIST_FILTERS as FILTERS, filterQuery, SOURCE_FILTERS, SOURCE_LABEL, sourceFilterOf, sourceQuery } from "@/lib/estimate/displayStatus";
 import { buildListRow, hasWizardData, LIST_SELECT, type RawListRow } from "@/lib/estimate/listRows";
 import { loopProgress } from "@/lib/wizard/confirm-state";
@@ -25,14 +24,12 @@ export default async function EstimatesPage({
 }: {
   searchParams: Promise<{ status?: string; bucket?: string; source?: string; mode?: string; open?: string; built?: string; q?: string }>;
 }) {
-  const { status, bucket, source, mode, open, built, q: qRaw } = await searchParams;
-  // Tom, 15 Sep: the search box — one needle, matched against whatever the tab shows.
-  const q = (qRaw ?? "").trim();
-  const needle = q.toLowerCase();
-  // (the Wizard tab's query builder below is `wq`, not `q` — the search needle keeps this name)
-  const hit = (...fields: Array<string | null | undefined>) =>
-    !needle || fields.some((f) => (f ?? "").toLowerCase().includes(needle));
-  const search = <SearchBox q={q} />;
+  const { status, bucket, source, mode, open, built } = await searchParams;
+  // Tom, 15 Sep: the search box — one needle (`?q=`), matched against whatever
+  // the tab shows. Since 23 Oct 2026 the needle is read and applied on the
+  // CLIENT, by the three tab tables through `lib/estimate/search.ts`: the box
+  // writes the URL with replaceState and nothing here re-fetches for it.
+  const search = <SearchBox />;
   // C7b: the source filter on the status tabs. `built`, not `source` — the
   // Wizard tab already uses `source` for a session's entry_source.
   const sourceFilter = sourceFilterOf(built);
@@ -81,7 +78,7 @@ export default async function EstimatesPage({
     // runs the read errors and nothing is hidden.
     const hiddenRes = await supabase.from("estimates_waiting_hidden").select("item_key").limit(2000);
     const hidden = new Set(((hiddenRes.error ? [] : (hiddenRes.data ?? [])) as Array<{ item_key: string }>).map((r) => r.item_key));
-    const mine = estimatesPageItems(queue.items).filter((i) => !hidden.has(i.key)).filter((i) => hit(i.title, i.detail));
+    const mine = estimatesPageItems(queue.items).filter((i) => !hidden.has(i.key));
     return (
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -89,7 +86,6 @@ export default async function EstimatesPage({
           <div className="flex flex-wrap items-center gap-3">{search}<NewEstimateButton templates={templates0} /></div>
         </div>
         {tabs}
-        {q && mine.length === 0 && <p className="mt-4 text-sm text-gray-500" data-testid="estimates-search-empty">Nothing waiting on you matches “{q}”.</p>}
         <WaitingTable items={mine} now={new Date()} />
         <AssistantFab estimateId={null} />
       </div>
@@ -109,7 +105,6 @@ export default async function EstimatesPage({
     const { data: rows } = await wq;
     const order: Record<string, number> = { ready_call: 0, ready_visit: 0, needs_help: 1, priced_no_request: 2, online_now: 3, dropped: 4 };
     const sessions: WizardJourney[] = ((rows ?? []) as unknown as Record<string, unknown>[]).map(journeyFromRow)
-      .filter((s) => hit(s.name, s.address, s.suburb, s.email, s.phone))
       .sort((a, b) => (order[a.bucket] - order[b.bucket]) || (a.bucket.startsWith("ready")
         ? (a.outcomeAt ?? "").localeCompare(b.outcomeAt ?? "")
         : (b.lastActiveAt ?? "").localeCompare(a.lastActiveAt ?? "")));
@@ -129,7 +124,6 @@ export default async function EstimatesPage({
           <div className="flex flex-wrap items-center gap-3">{search}<NewEstimateButton templates={templates0} /></div>
         </div>
         {tabs}
-        {q && sessions.length === 0 && <p className="mt-4 text-sm text-gray-500" data-testid="estimates-search-empty">No wizard session matches “{q}”.</p>}
         <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="wizard-filters">
           <span className="mr-1 text-xs uppercase tracking-wide text-gray-400">Bucket</span>
           {chip("All", base(undefined, source, mode), !bucketOk)}
@@ -207,10 +201,7 @@ export default async function EstimatesPage({
   const loopOf = new Map((blockRows ?? []).map((r) => [r.id as string, loopProgress(r.builder_state)]));
   const bands = bandsFromSettings(bandsRow?.value);
   const now = new Date();
-  const rows = estimates.map((e) => buildListRow(e, { wizard: sessionOf.get(e.id) ?? null, loop: loopOf.get(e.id) ?? null, bands, now }))
-    .filter((r) => hit(r.title, r.customer, r.address, r.wizard?.name, r.wizard?.address, r.wizard?.suburb)
-      // Tom, 29 Sep: "0042", "#42" or "42" finds estimate 42.
-      || (parseEstimateNumber(q) != null && r.number === parseEstimateNumber(q)));
+  const rows = estimates.map((e) => buildListRow(e, { wizard: sessionOf.get(e.id) ?? null, loop: loopOf.get(e.id) ?? null, bands, now }));
 
   // C7b (brief 2.5): the source filter, a segmented control under the tabs.
   const sourceControl = (
@@ -247,7 +238,6 @@ export default async function EstimatesPage({
 
       {tabs}
       {sourceControl}
-      {q && rows.length === 0 && <p className="mt-4 text-sm text-gray-500" data-testid="estimates-search-empty">No estimate matches “{q}” on this tab.</p>}
 
       {listError ? (
         // A failed read is not "no estimates" — say what happened (6 Sep: the
@@ -255,15 +245,15 @@ export default async function EstimatesPage({
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800" data-testid="estimates-error">
           The estimates list could not be loaded: {listError.message}. Reload the page.
         </div>
-      ) : rows.length > 0 ? (
-        <EstimatesTable estimates={rows} />
       ) : (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
-          No estimates{status && status !== "all" ? ` marked “${status}”` : ""}{sourceFilter === "customers" ? " from customers" : sourceFilter === "inhouse" ? " built in-house" : ""} yet.{" "}
-          <Link href="/quote" className="font-medium text-gray-700 hover:underline">
-            Create one →
-          </Link>
-        </div>
+        <EstimatesTable estimates={rows} empty={
+          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+            No estimates{status && status !== "all" ? ` marked “${status}”` : ""}{sourceFilter === "customers" ? " from customers" : sourceFilter === "inhouse" ? " built in-house" : ""} yet.{" "}
+            <Link href="/quote" className="font-medium text-gray-700 hover:underline">
+              Create one →
+            </Link>
+          </div>
+        } />
       )}
       <AssistantFab estimateId={null} />
     </div>

@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import type { WorkItem } from "@/lib/crm/work-queue";
 import { hideWaitingItemsAction, unhideWaitingItemsAction } from "./actions";
+import { filterWaitingItems } from "@/lib/estimate/search";
+import { useSearchNeedle } from "./useSearchNeedle";
 
 /**
  * C7b — "Waiting on you": the work queue, filtered to estimates.
@@ -67,7 +69,9 @@ export default function WaitingTable({ items, now }: { items: WorkItem[]; now: D
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const visible = items.filter((i) => !removed.has(i.key));
+  // The search needle (`?q=`) narrows the tab on the client (Tom, 23 Oct 2026).
+  const q = useSearchNeedle();
+  const visible = filterWaitingItems(items, q).filter((i) => !removed.has(i.key));
   const allTicked = visible.length > 0 && visible.every((i) => selected.has(i.key));
 
   const toggle = (key: string) =>
@@ -130,6 +134,7 @@ export default function WaitingTable({ items, now }: { items: WorkItem[]; now: D
     return (
       <>
         {notice}
+        {q && <p className="mt-4 text-sm text-gray-500" data-testid="estimates-search-empty">Nothing waiting on you matches “{q}”.</p>}
         <p className="mt-8 text-sm text-gray-500" data-testid="waiting-empty">
           Nothing is waiting on you. Anything a customer asks for lands here.
         </p>
