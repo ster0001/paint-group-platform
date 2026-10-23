@@ -95,6 +95,10 @@ test.describe("pre-offer and pre-start checklists", () => {
     expect(await rpcAs(staff!, "wo_answer_checklist_item", { p_item_id: colours.id, p_answer: "yes", p_note: "" }))
       .toBe("ok:yes");
     const materials = (await items("pre_start")).find((i) => i.label === "Materials ordered")!;
+    // 24 Oct 2026: the fixture's one materials row is a chip in the tray, which holds this item
+    // until it is on the board or answered — the painter buying it is the answer here.
+    expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: true })).toBe("error:paint_not_ordered");
+    expect(await rpcAs(staff!, "wo_logistics_decide", { p_work_order_id: job!.workOrderId, p_line: "paint", p_decision: "painter_supplies" })).toMatch(/^ok/);
     expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: true }))
       .toBe("ok:done");
 

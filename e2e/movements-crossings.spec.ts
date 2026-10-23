@@ -144,7 +144,12 @@ test.describe("Movements crossings (Session 7)", () => {
     const paint = (await chips()).find((r) => r.source_key === `paint:${BRAND}`)!;
     expect(await rpcAs(staff!, "movement_update", { p_id: paint.id, p: { from_branch_id: branchId } })).toMatch(/^ok/);
     expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "supplier", p_assignee_id: null, p_due_date: START, p_half: "AM" })).toBe("ok:planned");
-    expect((await items()).get("pre_start:materials")!.done, "ticked itself when the chip left the tray").toBe(true);
+    // The estimate's sundries line is a materials chip still in the tray — it holds the gate too.
+    expect((await items()).get("pre_start:materials")!.done, "a materials chip in the tray still holds it").toBe(false);
+    const sundries = (await chips()).find((r) => String(r.source_key).startsWith("matline:"))!;
+    expect(await rpcAs(staff!, "movement_update", { p_id: sundries.id, p: { from_branch_id: branchId } })).toMatch(/^ok/);
+    expect(await rpcAs(staff!, "movement_place", { p_id: sundries.id, p_assignee_kind: "supplier", p_assignee_id: null, p_due_date: START, p_half: "AM" })).toBe("ok:planned");
+    expect((await items()).get("pre_start:materials")!.done, "ticked itself when the last chip left the tray").toBe(true);
     const { data: ev } = await db!.from("wo_events").select("actor_kind, meta").eq("work_order_id", job!.workOrderId).eq("type", "checklist_ticked");
     expect(((ev ?? []) as { actor_kind: string; meta: { auto?: boolean; label?: string } }[]).some((e) => e.actor_kind === "system" && e.meta.auto === true && e.meta.label === "Materials ordered")).toBe(true);
     expect(await rpcAs(staff!, "movement_mark_ordered", { p_id: paint.id })).toBe("ok:booked");
@@ -236,7 +241,7 @@ test.describe("Movements crossings (Session 7)", () => {
     await expect(mats.getByTestId("prestart-materials-msg")).toContainText(/Line added/);
     await expect.poll(async () => (await chips()).length, { timeout: 15_000 }).toBe(before + 1);
     // The gate line says why the tick would refuse (the paint chip is back in the tray, unordered).
-    await expect(mats.getByTestId("prestart-materials-gate")).toContainText(/refuses until/);
+    await expect(mats.getByTestId("prestart-materials-gate")).toContainText(/ticks itself once/);
     const equipment = page.getByTestId("prestart-equipment");
     await expect(equipment.getByTestId("prestart-equipment-gate")).toContainText(/the tick is free/);
   });
@@ -263,6 +268,7 @@ test.describe("Movements crossings (Session 7)", () => {
     await expect(mats.getByTestId("prestart-materials-gate")).toContainText(/ticks itself once "E2E drop sheets .*" \(in the tray\)/, { timeout: 30_000 });
     expect((await items()).get("pre_start:materials")!.done).toBe(false);
     const sheets = (await chips()).find((r) => String(r.title).startsWith("E2E drop sheets"))!;
+    expect(await rpcAs(staff!, "movement_update", { p_id: sheets.id, p: { from_branch_id: branchId } })).toMatch(/^ok/);
     expect(await rpcAs(staff!, "movement_place", { p_id: sheets.id, p_assignee_kind: "supplier", p_assignee_id: null, p_due_date: START, p_half: "AM" })).toBe("ok:planned");
     expect((await items()).get("pre_start:materials")!.done, "ticked itself once the last chip left the tray").toBe(true);
     await page.reload();

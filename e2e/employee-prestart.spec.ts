@@ -172,6 +172,9 @@ test.describe("the pre-start list — the same on an employee's job as a contrac
     await db!.from("work_orders").update({
       colours: { Weathershield: { name: "Vivid White", hex: "#fff", status: "confirmed" } },
     }).eq("id", assigned!.workOrderId);
+    // 24 Oct 2026: the fixture's materials row is a chip in the tray, which holds Materials ordered
+    // until it is on the board or answered.
+    expect(await rpcAs(staff!, "wo_logistics_decide", { p_work_order_id: assigned!.workOrderId, p_line: "paint", p_decision: "painter_supplies" })).toMatch(/^ok/);
     for (const i of rows) {
       if (i.auto_key || !i.required) continue;
       if (i.kind === "yes_no") {
