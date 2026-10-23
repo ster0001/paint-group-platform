@@ -166,18 +166,41 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
     expect(await rpcAs(staff!, "movement_unplace", { p_id: tapes.id })).toMatch(/^ok/);
   });
 
-  test("Tom, 22 Oct: from our stock — the warehouse is the source, no order step, never the Supplier lane, and the sync leaves it alone", async () => {
+  test("Tom, 23 Oct: a drop-off place on a chip is kept by the sync; a typed address becomes a saved place; pick up and deliver names both", async () => {
     const paint = (await chips()).find((r) => r.kind === "paint")!;
-    expect(await rpcAs(staff!, "movement_set_method", { p_id: paint.id, p_method: "stock" })).toBe("ok:stock");
+    expect(await rpcAs(staff!, "movement_set_place", { p_id: paint.id, p_side: "to", p_kind: "warehouse" })).toBe("ok:to");
+    expect(await rpcAs(staff!, "movements_sync_now", { p_work_order_id: job!.workOrderId })).toMatch(/^ok/);
+    const { data: kept } = await db!.from("movements").select("to_kind, to_text").eq("id", paint.id).single();
+    expect((kept as { to_kind: string }).to_kind, "the sync kept the drop-off").toBe("warehouse");
+    // A typed address, saved as a place of kind other, then used as the drop-off.
+    const placeId = okId(await rpcAs(staff!, "supplier_branch_upsert", { p: { brand: `E2E storage ${RUN}`, branch: "4 Lockup Lane", kind: "other", address: "4 Lockup Lane, Oakleigh South VIC 3167", suburb: "Oakleigh South", postcode: "3167", lat: -37.93, lng: 145.11, delivers_to_site: false, active: true } }));
+    try {
+      expect(await rpcAs(staff!, "movement_set_place", { p_id: paint.id, p_side: "to", p_kind: "branch", p_branch_id: placeId })).toBe("ok:to");
+      expect(await rpcAs(staff!, "movement_set_method", { p_id: paint.id, p_method: "pickup_deliver", p_branch_id: branchId })).toBe("ok:pickup_deliver");
+      const { data: both } = await db!.from("movements").select("from_branch_id, to_branch_id, to_text, method_pref").eq("id", paint.id).single();
+      expect(both).toMatchObject({ from_branch_id: branchId, to_branch_id: placeId, method_pref: "pickup_deliver" });
+      expect(String((both as { to_text: string }).to_text)).toContain("Lockup Lane");
+      expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "supplier", p_assignee_id: null, p_due_date: MON, p_half: "AM" })).toBe("error:person_carries");
+      expect(await rpcAs(staff!, "movement_set_place", { p_id: paint.id, p_side: "to", p_kind: "site" })).toBe("ok:to");
+      expect(await rpcAs(staff!, "movement_set_place", { p_id: paint.id, p_side: "up", p_kind: "site" })).toBe("error:bad_side");
+    } finally {
+      await db!.from("supplier_branches").delete().eq("id", placeId);
+      await db!.from("vendors").delete().eq("name", `E2E storage ${RUN}`);
+    }
+  });
+
+  test("Tom, 22 Oct: drop off (from our warehouse) — no shop, no order step, never the Supplier lane, and the sync leaves it alone", async () => {
+    const paint = (await chips()).find((r) => r.kind === "paint")!;
+    expect(await rpcAs(staff!, "movement_set_method", { p_id: paint.id, p_method: "dropoff" })).toBe("ok:dropoff");
     const { data: a } = await db!.from("movements").select("from_kind, from_branch_id, method_pref").eq("id", paint.id).single();
-    expect(a).toMatchObject({ from_kind: "warehouse", from_branch_id: null, method_pref: "stock" });
-    expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "supplier", p_assignee_id: null, p_due_date: MON, p_half: "AM" })).toBe("error:from_stock");
+    expect(a).toMatchObject({ from_kind: "warehouse", from_branch_id: null, method_pref: "dropoff" });
+    expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "supplier", p_assignee_id: null, p_due_date: MON, p_half: "AM" })).toBe("error:person_carries");
     expect(await rpcAs(staff!, "movements_sync_now", { p_work_order_id: job!.workOrderId })).toMatch(/^ok/);
     const { data: b } = await db!.from("movements").select("from_kind, from_branch_id").eq("id", paint.id).single();
-    expect(b, "the sync refilled a shop onto a stock chip").toMatchObject({ from_kind: "warehouse", from_branch_id: null });
+    expect(b, "the sync refilled a shop onto a drop-off chip").toMatchObject({ from_kind: "warehouse", from_branch_id: null });
     // The estimate line was split earlier: the sync must NOT bring the original text back as a duplicate.
     expect((await lines()).length, "an edited estimate line came back on sync").toBe(2);
-    expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "person", p_assignee_id: contractorId, p_due_date: MON, p_half: "AM" }), "no order step from stock").toBe("ok:booked");
+    expect(await rpcAs(staff!, "movement_place", { p_id: paint.id, p_assignee_kind: "person", p_assignee_id: contractorId, p_due_date: MON, p_half: "AM" }), "no order step from the warehouse").toBe("ok:booked");
     expect(await rpcAs(staff!, "movement_unplace", { p_id: paint.id })).toMatch(/^ok/);
     expect(await rpcAs(staff!, "movement_set_method", { p_id: paint.id, p_method: "pickup", p_branch_id: branchId })).toBe("ok:pickup");
     const { data: c } = await db!.from("movements").select("from_kind, from_branch_id").eq("id", paint.id).single();

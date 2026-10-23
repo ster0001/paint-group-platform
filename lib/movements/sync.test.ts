@@ -172,8 +172,14 @@ describe("syncForWo — chips come from the jobs", () => {
     expect(plan.refresh.find((p) => p.id === existing[1].id)).toMatchObject({ from_branch_id: "b-new", from_text: `${BRAND_B} Depot`, changed: true });
   });
 
-  it("Tom, 22 Oct: a chip from our stock keeps no shop — the sync never refills one onto it", () => {
-    const existing = afterFirstSync().map((m) => (m.source_key === `paint:${BRAND_B}` ? { ...m, method_pref: "stock" as const, from_kind: "warehouse" as const, from_branch_id: null, from_text: "Warehouse" } : m));
+  it("Tom, 23 Oct: a chosen drop-off place is kept; only a site drop-off follows the site", () => {
+    const existing = afterFirstSync().map((m) => (m.source_key === `paint:${BRAND_A}` ? { ...m, to_kind: "branch" as const, to_branch_id: "b-counter", to_text: `${BRAND_A} Counter only` } : m));
+    const plan = syncForWo(input({ movements: existing }));
+    expect(plan.refresh.find((p) => p.id === existing[0].id)).toMatchObject({ to_text: `${BRAND_A} Counter only`, changed: false });
+  });
+
+  it("Tom, 22 Oct: a drop-off chip (from the warehouse) keeps no shop — the sync never refills one onto it", () => {
+    const existing = afterFirstSync().map((m) => (m.source_key === `paint:${BRAND_B}` ? { ...m, method_pref: "dropoff" as const, from_kind: "warehouse" as const, from_branch_id: null, from_text: "Warehouse" } : m));
     const plan = syncForWo(input({ movements: existing, branches: [...BRANCHES, branch({ id: "b-new", brand: BRAND_B, branch: "Depot", delivers_to_site: true })] }));
     expect(plan.refresh.find((p) => p.id === existing[1].id)).toMatchObject({ from_branch_id: null, from_text: "Warehouse", changed: false });
   });

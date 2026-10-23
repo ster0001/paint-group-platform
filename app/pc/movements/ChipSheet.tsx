@@ -10,7 +10,7 @@ import { km } from "@/lib/movements/sync";
 import type { JobExtras } from "@/lib/movements/load";
 import { GEAR_ICONS, movementIcon } from "@/lib/movements/gearIcons";
 import type { BranchRow, MovementRow, RubbishHow } from "@/lib/movements/types";
-import { redateMovement, setMovementDuration, setMovementMethod, setMovementStatus, setPaintLine, splitMaterialLine, updateMovement, type MovementActionResult } from "./actions";
+import { addPlace, redateMovement, setMovementDuration, setMovementMethod, setMovementPlace, setMovementStatus, setPaintLine, splitMaterialLine, updateMovement, type MovementActionResult } from "./actions";
 import { MaterialBubbles } from "@/app/components/materials/MaterialBubbles";
 
 const HOURS = hourSlots([7.5, 17.5]);
@@ -41,7 +41,7 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
   // Tom, 21 Oct 2026: paint and materials orders list EVERY paint shop first (nearest first),
   // then the hardware stores, and a search box narrows by brand, branch or suburb.
   const [shopQuery, setShopQuery] = useState("");
-  const shopKinds: BranchRow["kind"][] = branchKind === "paint" || branchKind === "hardware" ? ["paint", "hardware"] : branchKind ? [branchKind] : [];
+  const shopKinds: BranchRow["kind"][] = branchKind === "paint" || branchKind === "hardware" ? ["paint", "hardware", "other"] : branchKind ? [branchKind] : [];
   const q = shopQuery.trim().toLowerCase();
   const shops = shopKinds.length
     ? world.branches.filter((b) => shopKinds.includes(b.kind)).map((b) => ({ b, d: km(point, b.lat != null && b.lng != null ? { lat: b.lat, lng: b.lng } : null) }))
@@ -107,15 +107,34 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
   }
 
   /** Tom, 21 Oct 2026: delivered or picked up, with the shop — delivery lands it on the Supplier lane. */
-  async function confirmMethod(method: "delivery" | "pickup" | "stock") {
-    const ok = await act(() => setMovementMethod({ id: chip.id, workOrderId: chip.work_order_id, method, branchId: method === "stock" ? null : branchId }), (v) =>
-      v === "stock" ? "From our stock — no order to place; drop the chip on whoever carries it from the warehouse"
+  async function confirmMethod(method: "delivery" | "pickup" | "dropoff" | "pickup_deliver") {
+    const ok = await act(() => setMovementMethod({ id: chip.id, workOrderId: chip.work_order_id, method, branchId: method === "dropoff" ? null : branchId }), (v) =>
+      v === "dropoff" ? "Drop off — from the warehouse to the drop-off place, nothing to order; drop the chip on whoever carries it"
+      : v === "pickup_deliver" ? "Pick up and deliver — both places are on the run; drop the chip on whoever does it"
       : v === "placed" ? "Delivery — placed on the Supplier lane on the job's first day; tick Ordered once the shop has it"
       : v === "pickshop" ? "Pick the shop first, then Delivered to site"
       : v === "nodelivery" ? "That shop is counter-only — pick one that delivers, or choose Picked up"
       : "Picked up — drag the chip onto whoever collects it");
     if (ok && method === "delivery") onClose();
   }
+
+  /** Tom, 23 Oct 2026: the pickup place (from) or the drop-off place (to) — a saved place, the warehouse or the site. */
+  async function setPlace(side: "from" | "to", kind: "branch" | "warehouse" | "site", id: string | null = null) {
+    const ok = await act(() => setMovementPlace({ id: chip.id, side, kind, branchId: id, workOrderId: chip.work_order_id }), () =>
+      side === "from" ? "Pickup place set" : "Drop-off place set");
+    if (ok && side === "from" && kind === "branch") setBranchId(id);
+  }
+  const [addingFor, setAddingFor] = useState<"from" | "to" | null>(null);
+  const [placeName, setPlaceName] = useState("");
+  const [placeAddress, setPlaceAddress] = useState("");
+  async function savePlace() {
+    if (!addingFor) return;
+    if (!placeName.trim() || placeAddress.trim().length < 3) { say("A name and an address, please"); return; }
+    let newId: string | null = null;
+    const ok = await act(() => addPlace({ name: placeName.trim(), address: placeAddress.trim() }), (v) => { newId = v; return "Place saved — it is in every list now"; });
+    if (ok && newId) { await setPlace(addingFor, "branch", newId); setAddingFor(null); setPlaceName(""); setPlaceAddress(""); }
+  }
+  const dropoffWord = chip.to_kind === "warehouse" ? "the warehouse" : chip.to_kind === "branch" && chip.to_text ? chip.to_text : "the job site";
 
   async function rubbish(how: RubbishHow) {
     const painter = world.painters.find((p) => p.contractorId === job?.contractorId)?.name.split(" ")[0] ?? "the painter";
@@ -203,13 +222,39 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
 
       {(chip.kind === "paint" || chip.kind === "materials") && !placed && (
         <div className="fld" data-testid="chip-method">
-          <div className="k">How does it get to site? <em>{chip.method_pref ? (chip.method_pref === "delivery" ? "delivered" : chip.method_pref === "pickup" ? "picked up" : "from our stock") : "not confirmed"}</em></div>
+          <div className="k">How does it move? <em>{chip.method_pref === "delivery" ? "delivered" : chip.method_pref === "pickup" ? "pick up" : chip.method_pref === "dropoff" ? "drop off" : chip.method_pref === "pickup_deliver" ? "pick up and deliver" : "not confirmed"}</em></div>
           <div className="chips">
-            <button type="button" className={`chp ${chip.method_pref === "delivery" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("delivery")} data-testid="method-delivery">Delivered to site</button>
-            <button type="button" className={`chp ${chip.method_pref === "pickup" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("pickup")} data-testid="method-pickup">Picked up</button>
-            <button type="button" className={`chp ${chip.method_pref === "stock" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("stock")} data-testid="method-stock">From our stock</button>
+            <button type="button" className={`chp ${chip.method_pref === "pickup" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("pickup")} data-testid="method-pickup">Pick up</button>
+            <button type="button" className={`chp ${chip.method_pref === "dropoff" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("dropoff")} data-testid="method-dropoff">Drop off</button>
+            <button type="button" className={`chp ${chip.method_pref === "pickup_deliver" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("pickup_deliver")} data-testid="method-pickup-deliver">Pick up and deliver</button>
+            <button type="button" className={`chp ${chip.method_pref === "delivery" ? "on" : ""}`} disabled={busy} onClick={() => void confirmMethod("delivery")} data-testid="method-delivery">Delivered by the shop</button>
           </div>
-          <p className="note">Pick the shop below first for a delivery or a pickup. Delivered = this chip goes onto the Supplier lane on the job&rsquo;s first day. Picked up = drag it onto whoever collects it. From our stock = it comes from the warehouse, nothing to order — drag it onto whoever carries it.</p>
+          <p className="note">Pick up = someone collects it at the pickup place and brings it to the drop-off place. Drop off = it comes from our warehouse to the drop-off place, nothing to order. Pick up and deliver = collected at the pickup place and delivered to the drop-off place, both on the run. Delivered by the shop = the shop drives it; this chip goes onto the Supplier lane on the job&rsquo;s first day.</p>
+        </div>
+      )}
+
+      {(chip.kind === "paint" || chip.kind === "materials") && (
+        <div className="fld" data-testid="chip-dropoff">
+          <div className="k">Drop-off place <em>{dropoffWord}</em></div>
+          <div className="chips">
+            <button type="button" className={`chp ${!chip.to_kind || chip.to_kind === "site" ? "on" : ""}`} disabled={busy || !job} onClick={() => void setPlace("to", "site")} data-testid="dropoff-site">The job site</button>
+            <button type="button" className={`chp ${chip.to_kind === "warehouse" ? "on" : ""}`} disabled={busy} onClick={() => void setPlace("to", "warehouse")} data-testid="dropoff-warehouse">Our warehouse</button>
+            {chip.to_kind === "branch" && <span className="chp on" data-testid="dropoff-branch">{chip.to_text}</span>}
+            <button type="button" className="chp" disabled={busy} onClick={() => setAddingFor("to")} data-testid="dropoff-add">+ Another address</button>
+          </div>
+          <p className="note">Any saved place can be the drop-off too: pick it in the list below and press <b>Use as drop-off</b>.</p>
+        </div>
+      )}
+
+      {addingFor && (
+        <div className="fld" data-testid="add-place">
+          <div className="k">New {addingFor === "from" ? "pickup" : "drop-off"} place <em>saved for next time</em></div>
+          <div className="daterow" style={{ alignItems: "center" }}>
+            <input type="text" value={placeName} onChange={(e) => setPlaceName(e.target.value)} placeholder="Name — e.g. Customer's storage unit" aria-label="Place name" maxLength={80} data-testid="place-name" />
+            <input type="text" value={placeAddress} onChange={(e) => setPlaceAddress(e.target.value)} placeholder="Address — 12 Example St, Suburb VIC 3000" aria-label="Place address" maxLength={200} style={{ minWidth: 260 }} data-testid="place-address" />
+            <button type="button" className="btn sm primary" disabled={busy} onClick={() => void savePlace()} data-testid="place-save">Save and use</button>
+            <button type="button" className="btn sm" disabled={busy} onClick={() => setAddingFor(null)}>Cancel</button>
+          </div>
         </div>
       )}
 
@@ -281,15 +326,22 @@ export default function ChipSheet({ chip, world, jobExtras, lane, act, busy, onC
 
       {(shops.length > 0 || q) && (
         <div className="fld">
-          <div className="k">{branchKind === "hire" ? "Hire yard" : "Shop"} <em>{shopKinds.length > 1 ? "paint shops first, then hardware · nearest first" : "nearest first"}</em></div>
-          {shopKinds.length > 1 && <input type="search" value={shopQuery} onChange={(e) => setShopQuery(e.target.value)} placeholder="Search a shop, brand or suburb" aria-label="Search shops" data-testid="shop-search" style={{ marginBottom: 6 }} />}
+          <div className="k">{branchKind === "hire" ? "Hire yard" : "Pickup place"} <em>{shopKinds.length > 1 ? "paint shops first, then hardware and saved places · nearest first" : "nearest first"}</em></div>
+          {shopKinds.length > 1 && (
+            <div className="daterow" style={{ alignItems: "center", marginBottom: 6 }}>
+              <input type="search" value={shopQuery} onChange={(e) => setShopQuery(e.target.value)} placeholder="Search a shop, brand, suburb or saved place" aria-label="Search shops" data-testid="shop-search" style={{ flex: 1 }} />
+              <button type="button" className="btn sm" disabled={busy} onClick={() => setAddingFor("from")} data-testid="pickup-add">+ Type an address</button>
+            </div>
+          )}
           <div className="list">
             {shops.map(({ b, d }) => (
-              <button key={b.id} type="button" className={`opt ${branchId === b.id ? "on" : ""}`} data-testid="shop-option" onClick={() => setBranchId(b.id)}>
+              <div key={b.id} className={`opt ${branchId === b.id ? "on" : ""}`} data-testid="shop-option" data-branch-id={b.id} role="button" tabIndex={0} onClick={() => setBranchId(b.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setBranchId(b.id); } }}>
                 <span className="rad" />
-                <span>{b.brand} {b.branch}<span className="sub">{[b.address, b.opens_weekday ? `opens ${b.opens_weekday.slice(0, 5)}` : null, b.delivers_to_site ? "delivers" : "pickup"].filter(Boolean).join(" · ")}</span></span>
-                <span className="km">{d == null ? "" : `${d.toFixed(1)} km`}</span>
-              </button>
+                <span>{b.brand} {b.branch}<span className="sub">{[b.address, b.opens_weekday ? `opens ${b.opens_weekday.slice(0, 5)}` : null, b.delivers_to_site ? "delivers" : b.kind === "other" ? "saved place" : "pickup"].filter(Boolean).join(" · ")}</span></span>
+                <span className="km">{d == null ? "" : `${d.toFixed(1)} km`}
+                  {(chip.kind === "paint" || chip.kind === "materials") && <button type="button" className="btn sm" style={{ marginLeft: 6 }} disabled={busy} onClick={(e) => { e.stopPropagation(); void setPlace("to", "branch", b.id); }} data-testid="use-as-dropoff">Use as drop-off</button>}
+                </span>
+              </div>
             ))}
           </div>
         </div>
