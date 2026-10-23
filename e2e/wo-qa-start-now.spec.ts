@@ -69,4 +69,3 @@ test.describe("Start quality check from the PC job page", () => {
     expect(await rpcAs(staff!, "wo_record_qa", { p_check_id: check.id, p_result: "pass", p_notes: "e2e", p_rectify: [] })).toMatch(/^ok/);
   });
 });
-});
