@@ -242,6 +242,24 @@ test.describe("Movements second batch: bubbles, split, the run planner", () => {
     await expect(card.getByTestId("prestart-materials-msg")).toContainText(/Line updated/, { timeout: 15_000 });
     expect((await lines()).some((l) => l.text === `masking ${TAPES}`), "the edit reached the line").toBe(true);
 
+    // Tom, 23 Oct: a gear chip has the same pickup and drop-off rows — the drop-off goes to the warehouse.
+    const gearChip = okId(await rpcAs(staff!, "movement_create", { p: { kind: "equipment_out", work_order_id: job!.workOrderId, title: `E2E places ladder ${RUN}` } }));
+    await page.goto(`/pc/movements?view=week&week=${MON}&movement=${gearChip}`);
+    const gearSheet = page.getByTestId("chip-sheet");
+    await expect(gearSheet).toBeVisible({ timeout: 30_000 });
+    await expect(gearSheet.getByTestId("chip-pickup")).toBeVisible();
+    await expect(gearSheet.getByTestId("chip-dropoff")).toBeVisible();
+    await gearSheet.getByTestId("dropoff-warehouse").click();
+    await expect(page.locator(".toast.show")).toContainText(/Drop-off place set/, { timeout: 15_000 });
+    const { data: gp } = await db!.from("movements").select("to_kind, to_text").eq("id", gearChip).single();
+    expect((gp as { to_kind: string }).to_kind).toBe("warehouse");
+    await gearSheet.getByTestId("pickup-site").click();
+    await expect(page.locator(".toast.show")).toContainText(/Pickup place set/, { timeout: 15_000 });
+    const { data: gp2 } = await db!.from("movements").select("from_kind").eq("id", gearChip).single();
+    expect((gp2 as { from_kind: string }).from_kind).toBe("site");
+    await expect(page.locator(`[data-testid="tray-chip"][data-movement-id="${gearChip}"]`)).toContainText("site → warehouse");
+    expect(await rpcAs(staff!, "movement_set_status", { p_id: gearChip, p_status: "cancelled", p_note: "" })).toMatch(/^ok/);
+
     // Tom, 22 Oct: a drop on the staff lane asks first; the time is changed in the box; the invitation goes with it.
     const invited = okId(await rpcAs(staff!, "movement_create", { p: { kind: "equipment_out", work_order_id: job!.workOrderId, title: `E2E invite ladder ${RUN}` } }));
     await page.goto(`/pc/movements?view=week&week=${MON}`);
