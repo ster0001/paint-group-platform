@@ -58,7 +58,7 @@ export default function PrestartMovements({ workOrderId, kind, movements, lines,
   const blocker = kind === "materials" ? gates.paintBlocker : gates.gearBlocker;
   // Tom, 24 Oct 2026 (6 Fleet St, 43 Keith St): a chip on the board is enough and the gate items tick
   // themselves (migration 20270298) — the sentence names the one chip still in the tray.
-  const whereIs = (m: MovementRow) => m.status === "tray" ? "in the tray" : `on the ${m.assignee_kind === "supplier" ? "Supplier lane" : "board"}${m.due_date ? ` for ${new Date(`${m.due_date}T12:00:00+10:00`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" })}` : ""}`;
+  const whereIs = (m: MovementRow) => m.status === "tray" ? "in the tray" : `on the ${m.assignee_kind === "supplier" ? "Supplier lane" : "board"}${m.due_date ? ` for ${new Date(`${m.due_date}T12:00:00Z`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" })}` : ""}`;
 
   return (
     <div className="prestart-mv" data-testid={`prestart-${kind}`} data-gate={ok ? "open" : "blocked"}>
