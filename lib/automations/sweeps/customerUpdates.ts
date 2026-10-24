@@ -102,7 +102,7 @@ export async function runCustomerUpdatesAutoSend(db: SupabaseClient, now = new D
     if (sent.error || !String(sent.data ?? "").startsWith("ok:")) {
       out.failed += 1; reportError(sent.error ?? new Error(String(sent.data)), { where: "automations.customerUpdates.send", extra: { id: r.id } }); continue;
     }
-    // Timeline only for the check-in (R10) and the defect-day note; email + text for the rest.
+    // Timeline only for the check-in (R10); email + text for the rest, the defect-day message included (M1).
     if (!isTimelineOnlyKind(r.kind)) {
       try { await deliverCustomerUpdate(db, r.id, [], "both"); } catch (e) { reportError(e, { where: "automations.customerUpdates.deliver", extra: { id: r.id } }); }
     }

@@ -161,53 +161,23 @@ test.describe("morning heads-up to the painter + defect-tape text to the custome
     expect(await events(painterJob!.workOrderId, "reminder_morning_sent")).toHaveLength(1);
   });
 
-  test("the customer is asked to mark touch-ups with tape: morning, then afternoon, each once", async ({ request }) => {
+  test("the defect-tape text is superseded: the old sweep sends nothing, and the queue carries the defect-day message (M1, 24 Oct 2026)", async ({ request }) => {
     const am = await sweep(request, "defect");
-    expect(am.defectTape?.dispatched ?? 0).toBeGreaterThanOrEqual(1);
-    let ev = await events(customerJob!.workOrderId, "defect_tape_sent");
-    expect(ev).toHaveLength(1);
-    expect(ev[0].meta).toMatchObject({ rung: "am", day: melb(0) });
-    expect(["sent", "not_configured", "failed", "pending"]).toContain(ev[0].meta.outcome);
-    let s = await sends(customerJob!.workOrderId, DEFECT);
-    expect(s.msgs.length + s.holds.length).toBe(1);
-    const first = s.msgs[0]?.body ?? s.holds[0]?.sms_body ?? "";
-    expect(first).toMatch(/Hi Erin/);
-    expect(first).toMatch(/painter's tape/);
-    expect(first).toMatch(/Thornbury/);
-    // Never the painter's job on the same day: a job whose defect day is not today gets nothing.
-    expect(await events(painterJob!.workOrderId, "defect_tape_sent")).toHaveLength(0);
+    expect(am.defectTape).toMatchObject({ dispatched: 0, superseded: true });
+    expect(await events(customerJob!.workOrderId, "defect_tape_sent")).toHaveLength(0);
+    const s = await sends(customerJob!.workOrderId, DEFECT);
+    expect(s.msgs.length + s.holds.length).toBe(0);
 
-    await sweep(request, "defect");
-    expect(await events(customerJob!.workOrderId, "defect_tape_sent")).toHaveLength(1);
-
-    // The afternoon window opens: the second text, in its own words, once.
-    await setSetting("defect_tape_rules", { morning: "00:01", morningUntil: "23:59", afternoon: "00:02", afternoonUntil: "23:59" });
-    await sweep(request, "defect");
-    await sweep(request, "defect");
-    ev = await events(customerJob!.workOrderId, "defect_tape_sent");
-    expect(ev.map((e) => e.meta.rung)).toEqual(["am", "pm"]);
-    s = await sends(customerJob!.workOrderId, DEFECT);
-    expect(s.msgs.length + s.holds.length).toBe(2);
-    if (s.msgs.length === 2) expect(s.msgs[1].body).toMatch(/quick reminder/i);
-  });
-
-  test("a customer who switched off job texts is recorded as suppressed, not texted", async ({ request }) => {
-    await db!.from("automation_claims").delete().eq("automation_key", DEFECT).eq("entity_id", customerJob!.workOrderId);
-    await db!.from("messages").delete().eq("work_order_id", customerJob!.workOrderId);
-    await db!.from("automation_holds").delete().eq("work_order_id", customerJob!.workOrderId);
-    const { error } = await db!.from("accounts").update({ notify_prefs: { job: { sms: false } } }).eq("id", accountId);
+    // The queue's defect-day row, drafted on the same day the text used to go (today for a
+    // three-day job ending in two days); the painter's job, whose day was yesterday, gets none.
+    await setSetting("messaging", { customerDefectDayTime: "00:00" }, true);
+    const res = await request.get("/api/cron/campaign-sweep?only=updates", { headers: { Authorization: `Bearer ${SECRET}` }, timeout: 170_000 });
+    expect(res.status()).toBe(200);
+    const { data: rows, error } = await db!.from("wo_updates").select("work_order_id, kind, status, draft_text")
+      .in("work_order_id", [customerJob!.workOrderId, painterJob!.workOrderId]).eq("kind", "defect_day");
     if (error) throw error;
-    await setSetting("defect_tape_rules", { morning: "00:01", morningUntil: "23:59", afternoon: "23:59", afternoonUntil: "23:59" });
-    await sweep(request, "defect");
-    const ev = await events(customerJob!.workOrderId, "defect_tape_sent");
-    expect(ev).toHaveLength(3);
-    const last = ev[ev.length - 1].meta;
-    expect(last.rung).toBe("am");
-    // The office may have set this automation to "approves first" on the test project; then it waits in the queue instead.
-    if (last.outcome !== "pending") {
-      expect(last.outcome).toBe("suppressed");
-      const s = await sends(customerJob!.workOrderId, DEFECT);
-      expect(s.msgs.map((m) => m.status)).toEqual(["suppressed"]);
-    }
+    expect(rows!.map((r) => r.work_order_id)).toEqual([customerJob!.workOrderId]);
+    expect(rows![0].status).toBe("drafted");
+    expect(rows![0].draft_text).toMatch(/^Hi Erin, we've started going over the job today/);
   });
 });

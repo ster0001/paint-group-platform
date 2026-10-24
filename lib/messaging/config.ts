@@ -302,7 +302,7 @@ export type MessagingSettings = {
   customerEndOfDayBody: string;
   /** Trigger B (Step 3): the 40% check-in, timeline only. {{first_name}}. */
   customerCheckinBody: string;
-  /** Trigger C (Step 3): the defect-day note, timeline only. {{first_name}}. */
+  /** Trigger C (Step 3): the defect-day message — text, email and timeline; it replaced the defect-tape text (M1, 24 Oct 2026). {{first_name}}. */
   customerDefectDayBody: string;
   /** HH:MM Melbourne: when the check-in and the defect-day note are drafted. */
   customerCheckinTime: string;
