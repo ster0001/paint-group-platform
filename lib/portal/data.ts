@@ -355,7 +355,7 @@ async function projectForWo(
     startDate: (wo.start_date as string | null) ?? null,
     endDate: (wo.end_date as string | null) ?? null,
     painterFirstName: painterName,
-    replyTo: latestSender ? (latestSender.trim().split(/\s+/)[0] ?? null) : null,
+    replyTo: latestSender ? latestSender.trim() || null : null,   // already a first name, or the company
     reportToken: (() => {
       const so = signoff.data as { signed_at: string | null; customer_token: string | null } | null;
       return so?.signed_at ? so.customer_token : null;
