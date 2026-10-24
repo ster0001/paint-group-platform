@@ -7,6 +7,9 @@ import Footer from "../_sections/Footer";
 import CallBar from "../_sections/CallBar";
 import WorkList from "./WorkList";
 import { publishedShowcaseJobs } from "@/lib/showcase/queries";
+import { AudienceProvider } from "../_components/Audience";
+import { brandView } from "@/lib/marketing/brand";
+import { getBrand } from "@/lib/marketing/brandServer";
 
 /**
  * /work — every published showcase job as a JobCard, newest completed
@@ -29,10 +32,14 @@ export default async function WorkPage() {
   // stay on its own domain.
   const audience = await getAudience();
   const prefix = audiencePrefix(audience);
-  const [jobs, logoUrl] = await Promise.all([publishedShowcaseJobs(), getSiteLogo()]);
+  const [jobs, logoUrl, brand] = await Promise.all([publishedShowcaseJobs(), getSiteLogo(), getBrand(audience)]);
+  // Paint Home (brief §3–4): its brand on the nav and footer, no link to the
+  // other site, and the list opens on homes — it never shows a commercial job.
+  const painthome = audience === "painthome";
   return (
-    <>
-      <Nav logoUrl={logoUrl} copy={{ links: [{ label: "Real jobs, real prices", href: "/work" }, { label: "How it works", href: "/#how" }, { label: "Reviews", href: "/#reviews" }], otherLabel: audience === "home" ? "For business →" : "For homes →", otherHref: otherAudienceHref(audience), cta: "See my price", prefix }} />
+    <AudienceProvider audience={audience} brand={brandView(brand)}>
+    <div className="shopfront" data-brand={brand.key}>
+      <Nav logoUrl={logoUrl} brand={brand} copy={{ links: [{ label: "Real jobs, real prices", href: "/work" }, { label: "How it works", href: "/#how" }, { label: "Reviews", href: "/#reviews" }], otherLabel: painthome ? "" : audience === "home" ? "For business →" : "For homes →", otherHref: otherAudienceHref(audience), cta: "See my price", prefix }} />
       <main className="sec light" id="jobs">
         <div className="wrap">
           <div className="head">
@@ -44,11 +51,12 @@ export default async function WorkPage() {
               </p>
             </div>
           </div>
-          <WorkList jobs={jobs} initialProperty={audience === "business" ? "business" : "all"} prefix={prefix} />
+          <WorkList jobs={painthome ? jobs.filter((j) => j.property_type === "home") : jobs} initialProperty={audience === "business" ? "business" : painthome ? "home" : "all"} prefix={prefix} />
         </div>
       </main>
-      <Footer />
+      <Footer brand={brand} prefix={prefix} />
       <CallBar />
-    </>
+    </div>
+    </AudienceProvider>
   );
 }

@@ -10,7 +10,6 @@ import type { GhostExample } from "@/lib/marketing/ghostEstimator";
 import TelLink from "../_components/TelLink";
 import { track } from "@/lib/analytics";
 import { estimateHref, type Mode } from "@/lib/marketing/estimateLink";
-import { PHONE_DISPLAY } from "@/lib/marketing/site";
 import { showcaseMediaUrl } from "@/lib/showcase/format";
 
 /**
@@ -18,16 +17,21 @@ import { showcaseMediaUrl } from "@/lib/showcase/format";
  * Copy is the prototype's, verbatim. Submit fires `see_price` with
  * {where, mode} and routes to the wizard with both on the URL.
  * The self-typing estimator plays inside AddressField (`ghost`).
+ *
+ * Paint Home (brief §5): the hand-off carries `brand=painthome`; the
+ * home/business chips are not shown — Paint Home is residential only (the
+ * Inside / Outside scope chips land with its words in Session 2/3).
  */
 export type HeroCopy = { kicker: string; h1Lines: string[]; lead: string; talkLine: string; labels: FieldLabels; examples: GhostExample[] };
 
 export default function Hero({ heroPhoto = null, copy }: { heroPhoto?: string | null; copy: HeroCopy }) {
   const router = useRouter();
-  const { audience, wizardOrigin } = useAudience();
+  const { audience, wizardOrigin, brand } = useAudience();
+  const painthome = audience === "painthome";
 
   function submit(address: string, mode: Mode) {
     track("see_price", { where: "hero", mode, address });
-    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "hero"), origin: wizardOrigin, carry: window.location.search }));
+    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "hero"), origin: wizardOrigin, carry: window.location.search, brand: painthome ? "painthome" : undefined }));
   }
 
   return (
@@ -42,10 +46,10 @@ export default function Hero({ heroPhoto = null, copy }: { heroPhoto?: string | 
           <div className="mono" style={{ color: "var(--color-muted)" }}>{copy.kicker}</div>
           <h1>{copy.h1Lines.map((line, i) => <span key={i}>{i > 0 && <br />}{line}</span>)}</h1>
           <p className="lead"><Md src={copy.lead} inline /></p>
-          <AddressField where="hero" showChips ghost examples={copy.examples} labels={copy.labels} onSubmit={submit} />
+          <AddressField where="hero" showChips={!painthome} ghost examples={copy.examples} labels={copy.labels} onSubmit={submit} />
           <div className="under">
             <span>
-              {copy.talkLine} <strong><TelLink where="hero">Call {PHONE_DISPLAY}</TelLink></strong>
+              {copy.talkLine} <strong><TelLink where="hero">Call {brand.phoneDisplay}</TelLink></strong>
             </span>
           </div>
         </div>

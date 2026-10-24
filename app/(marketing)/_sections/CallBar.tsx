@@ -2,7 +2,8 @@ import TelLink from "../_components/TelLink";
 import TrackedLink from "../_components/TrackedLink";
 
 /** §2 — the sticky bottom call bar on <960px, exactly as the prototype. The
- *  wrapper's bottom padding keeps content from hiding behind it. */
+ *  wrapper's bottom padding keeps content from hiding behind it. The number
+ *  is the brand's (TelLink reads it from AudienceProvider). */
 export default function CallBar() {
   return (
     <div className="callbar">

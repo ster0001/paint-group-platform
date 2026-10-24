@@ -27,7 +27,15 @@ const nextConfig: NextConfig = {
       { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
     ];
     const robots = process.env.SITE_INDEXABLE === "1" ? [] : [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
-    return [{ source: "/:path*", headers: [...security, ...robots] }];
+    // Paint Home (docs/briefs/paint-home.md §7): its own switch,
+    // PAINTHOME_INDEXABLE=1, independent of the Paint Group flip. Matched by
+    // host; a later rule's value for the same key wins over the general one.
+    const paintHomeHost = (process.env.PAINTHOME_DOMAIN || "painthome.com.au").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\./g, "\\.");
+    const paintHomeRobots = process.env.PAINTHOME_INDEXABLE === "1" ? [{ key: "X-Robots-Tag", value: "all" }] : [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
+    return [
+      { source: "/:path*", headers: [...security, ...robots] },
+      { source: "/:path*", has: [{ type: "host", value: `(www\\.)?${paintHomeHost}` }], headers: paintHomeRobots },
+    ];
   },
   // Showcase photos live in the public showcase-media bucket and are served
   // through next/image (CLAUDE.md: images via next/image with Supabase

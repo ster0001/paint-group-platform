@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paint Home — Homepage prototype (powered by Paint Group)</title>
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Paint Home palette — light teal from the logo, the rest muted and domestic */
+  --brand:#17F9F1;            /* logo cyan — accent only (nav mark, focus, small highlights) */
+  --teal:#02ADB5;             /* brush teal — buttons, links, step numbers */
+  --teal-deep:#0A8A90;        /* hover / on light */
+  --slate:#2E3A3D;            /* "ink" for Paint Home: a deep grey-green, not black */
+  --slate-2:#3B484C;--slate-3:#48565A;--slate-line:#5A6A6E;
+  --sage:#9DB4A6;             /* muted green — soft section + tags */
+  --sage-pale:#E4ECE6;
+  --blush:#E8CFC9;            /* soft pink — one warm note: hero wash, review stars, CTA */
+  --blush-deep:#C99A90;
+  --stone:#F4F2EE;--stone-2:#EAE6DF;--stone-line:#D8D2C8;
+  --text:#F2F4F3;--muted:#B6C0BE;
+  --tink:#22302F;--tmut:#5F6E6B;
+  /* mapped onto the shared component names so the layout code is unchanged */
+  --ink:var(--slate);--graphite:var(--slate-2);--raised:var(--slate-3);--line:var(--slate-line);
+  --cyan:var(--teal);--on-cyan:#FFFFFF;--paint:var(--teal);
+  --paper:var(--stone);--warm:var(--sage-pale);--lline:var(--stone-line);
+  --amber:#D9A66B;--emerald:#6FA287;--clay:#B8766B;
+  --sans:'Switzer',system-ui,sans-serif;--mono:var(--sans);
+  --pad:clamp(20px,5vw,64px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{font-family:var(--sans);background:var(--ink);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.mono{font-family:var(--sans);font-size:13px;font-weight:500;letter-spacing:.01em}
+h1,h2,h3{font-weight:600;letter-spacing:-.025em;line-height:1.02}
+h1{font-size:clamp(44px,8vw,88px)}
+h2{font-size:clamp(32px,4.4vw,56px);max-width:18ch}
+h3{font-size:clamp(20px,2vw,26px);letter-spacing:-.015em;line-height:1.15}
+.lead{font-size:clamp(17px,1.5vw,20px);color:var(--muted);max-width:60ch}
+.sec{padding:clamp(64px,9vw,120px) var(--pad)}
+.wrap{max-width:1312px;margin:0 auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:16px 26px;border-radius:999px;font-weight:500;font-size:17px;letter-spacing:-.01em;transition:transform .15s ease,background .15s}
+.btn:active{transform:scale(.98)}
+.btn-cyan{background:var(--teal);color:#fff}
+.btn-cyan:hover{background:var(--teal-deep)}
+.btn-ink{background:var(--slate);color:var(--text)}
+.btn-ghost{border:1px solid rgba(237,240,242,.3)}
+.light .btn-ghost{border-color:var(--lline);color:var(--tink)}
+.light{background:var(--paper);color:var(--tink)}
+.light .lead{color:var(--tmut)}
+.warm{background:var(--warm)}
+
+/* brand */
+.brand{display:inline-flex;align-items:center;gap:12px}
+.logo{height:30px;width:auto;display:block}
+.logo-full{width:220px;height:auto;display:block;margin-bottom:12px}
+@media(max-width:600px){.brand .pb{display:none}.logo{height:26px}}
+.pb{font-family:var(--sans);font-size:11px;font-weight:500;letter-spacing:.02em;color:var(--muted)}
+.powered{margin-top:24px;font-size:13px;color:var(--tmut)}
+.powered a{text-decoration:underline;text-underline-offset:3px}
+/* NAV */
+nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:16px var(--pad);background:rgba(46,58,61,.9);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08)}
+nav .links{display:none;gap:28px;color:var(--muted);font-size:16px}
+nav .right{display:flex;align-items:center;gap:16px}
+nav .phone{font-size:15px;font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums}
+@media(max-width:600px){nav .phone{display:none}}
+@media(min-width:960px){nav .links{display:flex}}
+
+/* HERO */
+.hero{position:relative;background:linear-gradient(160deg,var(--slate) 0%,var(--slate) 55%,#4A4A50 100%);min-height:100svh;display:flex;align-items:center;padding:clamp(40px,8vw,120px) var(--pad);overflow:hidden}
+.stage{position:relative;z-index:2;max-width:920px;width:100%;min-width:0}
+.block{position:relative;background:rgba(46,58,61,.92);border:1px solid rgba(232,207,201,.28);padding:clamp(20px,4vw,48px);display:grid;gap:24px;min-width:0;max-width:100%;overflow:hidden}
+.block .mono,.ghost,.under{overflow-wrap:anywhere}
+.field{display:flex;align-items:center;gap:12px;background:var(--slate-2);border:2px solid var(--brand);border-radius:999px;padding:8px 8px 8px 22px;transition:box-shadow .3s;min-width:0;max-width:100%}
+@media(max-width:600px){.field{flex-wrap:wrap;border-radius:22px;padding:10px}.field input{flex:1 1 100%;padding:8px 10px}.field .btn{flex:1 1 100%}}
+.field.typing{box-shadow:0 0 0 6px rgba(23,249,241,.14)}
+.field input{flex:1;min-width:0;background:none;border:0;color:var(--text);font:inherit;font-size:clamp(16px,1.4vw,20px)}
+.field input::placeholder{color:var(--muted)}
+.field .btn{padding:14px 22px;white-space:nowrap}
+.ghost{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;min-height:28px;min-width:0;max-width:100%;font-size:15px;color:var(--muted);opacity:0;transition:opacity .4s}
+.ghost.on{opacity:1}
+.ghost .gprice{font-size:18px;font-weight:600;color:var(--brand);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.ghost .gtime{font-size:13px;text-transform:none}
+.chips{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.chip{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:var(--raised);font-weight:500;font-size:15px;transition:background .25s,color .25s}
+.chip[aria-pressed=true]{background:var(--brand);color:var(--slate);border-color:var(--brand)}
+.suggest{display:none;background:var(--graphite);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.suggest.open{display:block}
+.suggest button{display:block;width:100%;text-align:left;padding:14px 22px;border-bottom:1px solid var(--line);font-size:16px}
+.suggest button:last-child{border:0}
+.suggest button:hover{background:var(--raised)}
+.under{color:var(--muted);font-size:15px;display:flex;flex-wrap:wrap;gap:8px 20px}
+.under strong{color:var(--text);font-weight:500}
+.cue{position:absolute;left:var(--pad);bottom:24px;color:var(--muted)}
+.sweeps{position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(59,216,233,.04) 0 60px,rgba(59,216,233,.11) 60px 120px);filter:blur(18px);pointer-events:none}
+/* STEPS */
+.grid4{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:40px}
+.card{background:#FBFAF8;border:1px solid var(--lline);border-radius:14px;padding:28px;display:grid;gap:12px;align-content:start}
+.card .n{color:var(--paint);font-size:15px;font-weight:600;letter-spacing:.02em}
+.card p{color:var(--tmut);font-size:16px}
+.phone-row{margin-top:48px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;font-size:20px}
+.phone-row b{font-size:clamp(24px,2.4vw,30px);font-weight:600;letter-spacing:-.02em}
+.phone-row span{color:var(--tmut);font-size:17px}
+
+/* JOBS */
+.jobs{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:40px}
+.job{background:#FBFAF8;border:1px solid var(--lline);border-radius:22px;overflow:hidden;display:grid;text-align:left;transition:transform .2s,box-shadow .2s}
+.job:hover{transform:translateY(-4px);box-shadow:0 24px 50px rgba(0,0,0,.12)}
+.job .img{aspect-ratio:4/3;background:var(--ph,linear-gradient(135deg,#C9C2B4,#E7E3DA))}
+.job .body{padding:20px 24px 24px;display:grid;gap:10px}
+.job .top{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.job .meta{font-size:13px;color:var(--tmut)}
+.job .price{font-size:clamp(22px,2.2vw,28px);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.job .scope{color:var(--tmut);font-size:16px}
+.job .btn{margin-top:6px;width:100%;font-size:16px;padding:14px}
+
+/* PROMISE */
+.promise{display:grid;gap:24px;margin-top:40px;grid-template-columns:1fr}
+@media(min-width:900px){.promise{grid-template-columns:520px 1fr}}
+.plist{display:grid;gap:8px;align-content:start}
+.prow{display:flex;gap:16px;align-items:center;text-align:left;padding:20px 22px;border-radius:14px;background:#FBFAF8;border:1px solid var(--lline);transition:background .2s,color .2s}
+.prow .bar{width:4px;height:44px;border-radius:2px;background:var(--lline);flex:none}
+.prow .t{display:grid;gap:2px;flex:1}.prow b{font-weight:600;font-size:18px;letter-spacing:-.01em}.prow small{color:var(--tmut);font-size:14px}
+.prow[aria-selected=true]{background:var(--slate);color:var(--text);border-color:var(--slate)}
+.prow[aria-selected=true] .bar{background:var(--brand)}.prow[aria-selected=true] small{color:var(--muted)}
+.panel{background:var(--ink);color:var(--text);border-radius:22px;padding:clamp(20px,3vw,32px);display:grid;gap:18px;align-content:start}
+.panel h3{font-size:clamp(22px,2.4vw,30px)}
+.pcard{background:var(--graphite);border:1px solid var(--line);border-radius:14px;padding:22px;display:grid;gap:12px}
+.pill{font-size:12px;font-weight:500;padding:4px 10px;border-radius:999px;background:var(--amber);color:var(--ink);letter-spacing:.04em}
+.pill.green{background:var(--emerald)}.pill.grey{background:var(--raised);color:var(--muted)}
+.pcard .row{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.money{font-size:26px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.pcard .btns{display:flex;gap:10px;flex-wrap:wrap}.pcard .btns .btn{flex:1;padding:13px 18px;font-size:15px}
+.ph{display:flex;gap:10px}.ph i{display:block;width:120px;height:84px;border-radius:8px;background:var(--raised)}
+.panel p.note{color:var(--muted);font-size:15px}
+.done{color:var(--emerald);font-size:13px;font-weight:500}
+
+/* shared bits */
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 0 0 rgba(47,164,107,.6);animation:pulse 2s infinite;flex:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,164,107,.6)}70%{box-shadow:0 0 0 10px rgba(47,164,107,0)}100%{box-shadow:0 0 0 0 rgba(47,164,107,0)}}
+/* PROGRESS STORY */
+.storywrap{display:grid;gap:40px;grid-template-columns:1fr;align-items:center}
+@media(min-width:960px){.storywrap{grid-template-columns:1fr 420px;gap:64px}}
+.caption{margin-top:32px;min-height:4.2em;font-size:clamp(24px,2.6vw,34px);font-weight:600;letter-spacing:-.02em;line-height:1.15;max-width:18ch;transition:opacity .35s}
+.caption.swap{opacity:0}
+.capsr{position:absolute;left:-9999px}
+@media (prefers-reduced-motion:reduce){.capsr{position:static;margin-top:16px;padding-left:20px;color:var(--tmut);font-size:16px}.caption{display:none}}
+.storycopy .replay{margin-top:20px;color:var(--tmut);border:1px solid var(--lline);padding:8px 12px;border-radius:999px;opacity:0;transition:opacity .4s}
+.storycopy .replay.on{opacity:1}
+.device{position:relative;justify-self:center;width:min(390px,100%);aspect-ratio:390/800;background:var(--ink);color:var(--text);border-radius:44px;padding:56px 18px 18px;box-shadow:0 40px 80px rgba(0,0,0,.28),inset 0 0 0 2px #2A3138;overflow:hidden;display:grid;align-content:start;gap:12px;font-size:14px}
+.notch{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:120px;height:28px;border-radius:14px;background:#000}
+.banner{position:absolute;left:14px;right:14px;top:16px;padding:12px 14px;border-radius:14px;background:var(--graphite);border:1px solid var(--line);font-size:13px;transform:translateY(-140%);transition:transform .5s cubic-bezier(.2,.9,.3,1);z-index:2}
+.banner.on{transform:translateY(40px)}
+.banner b{color:var(--cyan)}
+.ptop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}.ptop b{font-size:15px;display:block;letter-spacing:-.01em}
+.ptrack{height:6px;border-radius:3px;background:var(--raised);overflow:hidden}.ptrack i{display:block;height:100%;width:0;background:var(--cyan);transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.pareas{display:grid;gap:6px}
+.parea{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:var(--raised);border:1px solid transparent;transition:border-color .3s}
+.parea b{display:block;font-size:14px}.parea small{color:var(--muted);font-size:12px}
+.parea .state{transition:color .3s}
+.parea[data-s=done]{border-color:rgba(59,216,233,.5)}
+.pphotos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;min-height:0}
+.pphotos i{display:block;aspect-ratio:4/3;border-radius:8px;background:linear-gradient(135deg,#2A3138,#171C21);transform:translateX(40px);opacity:0;transition:.5s cubic-bezier(.2,.8,.2,1)}
+.pphotos i.on{transform:none;opacity:1}
+.pupd{background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:6px;font-size:13px;min-height:74px}
+.pvar{background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:8px;font-size:13px;transform:translateY(30px);opacity:0;transition:.45s cubic-bezier(.2,.8,.2,1)}
+.pvar.on{transform:none;opacity:1}
+.pvar .row,.psign .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pvar .money,.psign .money{font-size:18px}
+.pbtn{padding:8px 14px;border-radius:999px;background:var(--cyan);color:var(--on-cyan);font-weight:500;transition:transform .15s,background .3s}
+.pbtn.press{transform:scale(.94)}.pbtn.ok{background:var(--emerald);color:var(--ink)}
+.psign{position:absolute;inset:0;background:var(--ink);padding:110px 24px 24px;display:grid;align-content:start;gap:14px;opacity:0;transition:opacity .5s;z-index:3}
+.psign.on{opacity:1}
+.sig{width:100%;height:auto}.sig path{stroke-dasharray:600;stroke-dashoffset:600;transition:stroke-dashoffset 1.6s ease-in-out}
+.psign.on .sig path{stroke-dashoffset:0}
+[hidden]{display:none!important}
+
+/* LIVE STRIP */
+.live{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:24px}
+.tile{background:#FBFAF8;border:1px solid var(--lline);border-radius:14px;padding:26px;display:grid;gap:6px}
+.tile .big{font-size:clamp(40px,5vw,56px);font-weight:600;letter-spacing:-.03em;line-height:1}
+.tile b{font-weight:600;font-size:18px;letter-spacing:-.01em}.tile small{color:var(--tmut);font-size:14px}
+
+/* PAINTERS */
+.painters{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:40px}
+.pc{background:#FBFAF8;border:1px solid var(--lline);border-radius:14px;padding:24px;display:grid;gap:10px}
+.pc .av{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#C9C2B4,#8C959D)}
+.pc b{font-size:20px;letter-spacing:-.01em}.pc .meta{font-size:13px;color:var(--tmut)}.pc q{color:var(--tmut);font-size:16px}
+.rules{margin-top:32px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.rule{display:flex;gap:12px;font-size:17px}.rule i{font-style:normal;color:var(--blush-deep);font-weight:600}
+
+/* TRADE */
+.trade{display:grid;gap:40px;grid-template-columns:1fr;align-items:center}
+@media(min-width:960px){.trade{grid-template-columns:1.05fr 1fr}}
+.tbl{background:var(--graphite);border:1px solid var(--line);border-radius:22px;padding:18px;display:grid;gap:8px}
+.tbl .r{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-radius:10px;background:var(--raised)}
+.tbl .r b{display:block;font-size:16px}.tbl .r small{color:var(--muted);font-size:12px}
+.tbl .r .st{font-size:14px;text-align:right}
+.trade h2{color:var(--text)}.trade .lead{color:var(--muted)}
+
+/* REVIEWS */
+.revs{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:40px}
+.rev{background:#FBFAF8;border:1px solid var(--lline);border-radius:14px;padding:28px;display:grid;gap:14px}
+.rev .stars{color:var(--blush-deep);letter-spacing:2px}.rev p{font-size:18px;line-height:1.4}.rev small{color:var(--tmut);font-size:13px}
+
+/* FAQ */
+.faq{margin-top:32px;border-top:1px solid var(--lline);max-width:860px}
+.faq details{border-bottom:1px solid var(--lline)}
+.faq summary{list-style:none;cursor:pointer;padding:20px 0;font-size:clamp(18px,1.6vw,21px);font-weight:600;letter-spacing:-.01em;display:flex;justify-content:space-between;gap:16px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:'+';font-weight:400;color:var(--tmut)}
+.faq details[open] summary::after{content:'–'}
+.faq p{padding:0 0 20px;color:var(--tmut);font-size:17px;max-width:64ch}
+
+/* CTA + FOOTER */
+.cta{background:var(--blush);color:var(--slate);text-align:center}
+.cta h2{margin:0 auto;max-width:22ch}
+.cta .field{margin:32px auto 16px;max-width:720px;background:var(--slate);border-color:var(--slate)}
+.cta .field input{color:var(--text)}
+.cta p{font-size:16px}
+footer{padding:56px var(--pad);display:grid;gap:32px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));color:var(--muted);font-size:15px}
+footer b{display:block;color:var(--text);margin-bottom:10px;font-size:13px;font-weight:600}
+footer a{display:block;color:var(--text);margin-bottom:8px}
+
+/* sticky phone (mobile) */
+.callbar{position:fixed;left:0;right:0;bottom:0;z-index:25;display:flex;gap:10px;padding:12px var(--pad);background:rgba(46,58,61,.94);backdrop-filter:blur(10px);border-top:1px solid var(--line)}
+.callbar .btn{flex:1;padding:14px;font-size:16px}
+@media(min-width:960px){.callbar{display:none}}
+body{padding-bottom:76px}@media(min-width:960px){body{padding-bottom:0}}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#" class="brand" aria-label="Paint Home — powered by Paint Group"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 132" class="logo" role="img" aria-labelledby="title desc">
+<title id="title">Paint Home — powered by Paint Group</title>
+<desc id="desc">Paint Home — Your Qualified Local Painters. Transparent vector logo.</desc>
+<path id="brush" fill="#02adb5" fill-rule="evenodd" d="M110.376 184.96 C96.144 170.638 84.387 158.599 84.249 158.207 C84.111 157.814 100.878 140.619 121.509 119.996 L159.021 82.5 185.51 109.038 C215.545 139.128 215.156 138.501 208.384 145.997 C206.395 148.199 204.323 150 203.78 150 C203.237 150 199.286 147.075 195 143.5 C190.714 139.925 186.897 137 186.518 137 C186.139 137 189.229 140.713 193.386 145.25 L200.944 153.5 183.748 170.734 L166.552 187.969 163.026 184.682 C140.639 163.816 133.129 157 132.524 157 C132.13 157 138.826 164.401 147.404 173.446 C155.982 182.491 163 190.282 163 190.759 C163 191.235 158.563 195.985 153.14 201.313 C138.696 215.504 141.973 216.757 110.376 184.96 Z M72.482 147.982 L67.539 142.964 105.538 104.966 L143.536 66.967 148.755 72.252 L153.975 77.537 116.354 115.269 C95.662 136.021 78.438 153 78.079 153 C77.719 153 75.201 150.742 72.482 147.982 Z M58.581 133.25 C54.398 129.041 53.919 128.118 54.384 125.144 C54.674 123.291 57.263 118.59 60.167 114.644 C69.251 102.303 74 94.905 74 93.096 C74 89.979 69.694 87.204 60 84.071 C54.775 82.383 48.716 79.983 46.535 78.738 C40.347 75.207 17.377 47.54 11.885 37.003 C5.971 25.658 16.024 11.081 30.367 10.206 L36.5 9.831 50.5 20.033 C77.295 39.559 82.623 45.682 85.606 60.374 C88.129 72.8 89.873 75.14 95.125 73.142 C96.44 72.643 102.912 68.649 109.508 64.267 C128.304 51.781 128.387 51.762 134.972 58.472 C139.352 62.934 139.357 62.948 137.431 65.086 C132.395 70.672 64.571 138 63.979 138 C63.607 138 61.178 135.863 58.581 133.25 Z"/>
+<path id="paint" fill="#eeeeee" fill-rule="evenodd" d="M260.454 120.741 C260.189 120.049 260.09 105.087 260.236 87.491 L260.5 55.5 274.287 55.222 C289.976 54.905 294.176 55.727 300.153 60.286 C314.155 70.966 311.674 91.663 295.5 99.114 C292.496 100.497 289.073 100.962 281.75 100.978 L272 101 272 111.5 L272 122 266.469 122 C262.946 122 260.762 121.543 260.454 120.741 Z M292.413 87.649 C293.879 86.688 295.812 84.365 296.708 82.486 C298.088 79.593 298.15 78.444 297.114 74.987 C295.261 68.803 291.583 67.008 280.75 67.004 L272 67 272 78.622 L272 90.245 280.873 89.82 C287.06 89.525 290.554 88.867 292.413 87.649 Z M309 121.514 C309 121.07 313.239 112.258 333.901 69.75 C337.844 61.638 341.647 55 342.351 55 C343.056 55 346.499 60.962 350.001 68.25 C353.504 75.537 359.349 87.575 362.991 95 C366.633 102.425 371.026 111.537 372.754 115.25 L375.895 122 369.571 122 L363.246 122 361.095 117 L358.944 112 342.489 112 L326.034 112 323.5 117 L320.966 122 314.983 122 C311.692 122 309 121.781 309 121.514 Z M353 100.505 C353 99.684 343.697 79.569 342.87 78.601 C342.187 77.802 332 97.987 332 100.139 C332 100.613 336.725 101 342.5 101 C348.275 101 353 100.777 353 100.505 Z M386.237 88.75 L386.5 55.5 391.5 55.5 L396.5 55.5 396.763 88.75 L397.027 122 391.5 122 L385.973 122 386.237 88.75 Z M410.474 120.794 C410.198 120.073 410.09 105.087 410.236 87.491 L410.5 55.5 413.749 55.187 C417.495 54.826 415.373 52.759 439 79.784 L455.5 98.658 456 77.079 L456.5 55.5 462 55.5 L467.5 55.5 467.763 88.75 L468.027 122 464.709 122 C460.54 122 459.043 120.602 438.5 97.53 L422.5 79.561 422 100.53 L421.5 121.5 416.239 121.803 C412.593 122.012 410.823 121.703 410.474 120.794 Z M499.667 121.333 C499.3 120.967 499 108.607 499 93.868 L499 67.07 488.75 66.785 L478.5 66.5 478.5 61 L478.5 55.5 504.5 55.5 L530.5 55.5 530.5 61 L530.5 66.5 520.25 66.785 L510 67.07 510 94.535 L510 122 505.167 122 C502.508 122 500.033 121.7 499.667 121.333 Z"/>
+<path id="home" fill="#17f9f1" fill-rule="evenodd" d="M552.48 120.808 C552.2 120.079 552.09 105.087 552.236 87.491 L552.5 55.5 555.5 55.5 L558.5 55.5 559 70.5 L559.5 85.5 579.724 85.771 L599.948 86.041 600.224 70.771 L600.5 55.5 603.75 55.187 L607 54.873 607 87.968 C607 117.685 606.833 121.127 605.364 121.691 C604.464 122.036 603.002 121.861 602.114 121.302 C600.776 120.459 600.453 117.867 600.222 106.122 L599.945 91.959 579.722 92.229 L559.5 92.5 559 107 L558.5 121.5 555.744 121.817 C554.128 122.003 552.778 121.586 552.48 120.808 Z M640.291 120.084 C637.426 119.108 633.002 116.604 630.46 114.521 C611.082 98.642 615.03 68.635 637.926 57.767 C644.481 54.655 659.449 54.642 666.22 57.742 C672.837 60.772 679.12 66.908 682.564 73.706 C685.165 78.839 685.5 80.526 685.5 88.5 C685.5 96.493 685.168 98.154 682.536 103.35 C674.853 118.514 656.736 125.69 640.291 120.084 Z M662.04 113.44 C667.859 111.567 673.653 105.946 676.785 99.135 C681.369 89.167 678.757 76.896 670.335 68.825 C665.447 64.142 655.289 60.538 649.557 61.455 C625.399 65.318 616.641 92.514 634.326 108.75 C636.872 111.088 639.303 113.02 639.728 113.044 C640.152 113.068 642.75 113.727 645.5 114.508 C650.847 116.026 654.8 115.771 662.04 113.44 Z M697.713 121.379 C697.321 120.987 697 105.892 697 87.833 L697 55 699.908 55 C702.54 55 703.387 55.975 708.814 65.25 C712.113 70.888 719.317 83.088 724.823 92.362 L734.833 109.224 737.235 105.362 C738.556 103.238 745.876 91.016 753.501 78.201 C766.288 56.713 767.565 54.926 769.933 55.201 L772.5 55.5 772.5 88.5 L772.5 121.5 769.5 121.5 L766.5 121.5 766 96.099 L765.5 70.698 753.136 91.599 C737.402 118.198 736.23 120.006 734.736 119.973 C733.574 119.949 731.025 115.841 712.105 83.5 L704.5 70.5 704 96 L703.5 121.5 700.963 121.796 C699.567 121.959 698.104 121.771 697.713 121.379 Z M785.462 120.761 C785.192 120.058 785.09 105.087 785.236 87.491 L785.5 55.5 807 55.5 L828.5 55.5 828.813 58.75 L829.127 62 810.563 62 L792 62 792 74 L792 86 803.563 86 L815.127 86 814.813 89.25 L814.5 92.5 803.249 92.5 L791.998 92.5 791.999 103.75 L792 115 810.563 115 L829.127 115 828.813 118.25 L828.5 121.5 807.226 121.77 C790.678 121.98 785.844 121.756 785.462 120.761 Z"/>
+
+</svg><span class="pb">powered by Paint Group</span></a>
+  <div class="links"><a href="#jobs">Real jobs, real prices</a><a href="#how">How it works</a><a href="#who">Who'll be painting</a><a href="#reviews">Reviews</a></div>
+  <div class="right"><a class="phone" href="tel:1300000000">1300 000 000</a><a class="btn btn-cyan" style="padding:11px 18px;font-size:15px" href="#top" data-ev="nav_cta">See my price</a></div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="top">
+  <div class="stage">
+    <div class="block">
+      <div class="mono" style="color:var(--muted)">Melbourne · priced online · confirmed by phone</div>
+      <h1>Your qualified<br>local painters.</h1>
+      <p class="lead">Apartments, units and smaller homes, inside and out. Enter your address, tell us what needs painting, and see your price today. We confirm it on one short call. No site visit, no waiting.</p>
+      <form class="field" id="addr" autocomplete="off" onsubmit="return go(event)">
+        <span aria-hidden="true">📍</span>
+        <input id="addrIn" placeholder="Type your address" aria-label="Address" data-ev="address_typed">
+        <button class="btn btn-cyan" type="submit" data-ev="see_price">See my price →</button>
+      </form>
+      <div class="ghost" id="ghost" aria-live="polite"><span class="gaddr"></span><span class="garrow">→</span><span class="gprice"></span><span class="gtime"></span></div>
+      <div class="suggest" id="sug"></div>
+      <div class="chips" role="group" aria-label="This is">
+        <span class="mono" style="color:var(--muted)">Painting</span>
+        <button class="chip" aria-pressed="true" data-mode="interior" data-ev="scope_interior">Inside</button>
+        <button class="chip" aria-pressed="false" data-mode="exterior" data-ev="scope_exterior">Outside</button>
+      </div>
+      <div class="under"><span>Apartments · units · townhouses · smaller homes</span><span>One room or the whole place</span></div>
+    </div>
+  </div>
+  </section>
+
+<!-- HOW IT WORKS -->
+<section class="sec light warm" id="how"><div class="wrap">
+  <h2>How it works.</h2>
+  <div class="grid4">
+    <div class="card"><span class="n">01</span><h3>Price it online</h3><p>Your address, the rooms, roughly how big. Add photos if you have them. Your price appears on screen in about ten minutes.</p></div>
+    <div class="card"><span class="n">02</span><h3>We confirm it by phone</h3><p>One five-minute call to check the details. Your price is then set. No site visit for most jobs.</p></div>
+    <div class="card"><span class="n">03</span><h3>Choose your start date</h3><p>Pick a day that suits. You'll know who's coming before it's booked.</p></div>
+    <div class="card"><span class="n">04</span><h3>Approve it, then pay</h3><p>Photo updates while the work's on. A final walk-through with you. The invoice follows your approval, not before.</p></div>
+  </div>
+  <div class="phone-row">Prefer to talk first? <b><a href="tel:1300000000">1300 000 000</a></b><span>Mon–Fri, 8am–5pm</span></div>
+</div></section>
+
+<!-- JOBS -->
+<section class="sec light" id="jobs"><div class="wrap">
+  <div class="head"><div><div class="mono" style="color:var(--tmut);margin-bottom:12px">Completed jobs · final prices · inc. GST</div><h2>Real jobs. Real prices.</h2><p class="lead" style="margin-top:14px">Finished homes across Melbourne, with the price each one came to. Choose one like yours and we'll start your estimate from it.</p></div><a href="#" style="font-weight:500">All 40 jobs →</a></div>
+  <div class="jobs">
+    <button class="job" data-ev="job_card" data-scope="exterior"><div class="img" style="--ph:linear-gradient(135deg,#9DB4A6,#DCE5DE)"></div><div class="body"><div class="top"><h3>Exterior weatherboard</h3><span class="meta">6 days on site</span></div><span class="meta">Thornbury · completed Jul 2026</span><span class="price">$14,200 – $15,800</span><span class="scope">Whole exterior, 2 coats, fascias &amp; gutters, front fence</span><span class="btn btn-ink">Start from this job →</span></div></button>
+    <button class="job" data-ev="job_card" data-scope="interior"><div class="img" style="--ph:linear-gradient(135deg,#E8CFC9,#F4ECEA)"></div><div class="body"><div class="top"><h3>Interior Victorian</h3><span class="meta">4 days on site</span></div><span class="meta">Fitzroy North · completed Aug 2026</span><span class="price">$8,400 – $9,600</span><span class="scope">4 rooms + hallway, walls, ceilings, trim</span><span class="btn btn-ink">Start from this job →</span></div></button>
+    <button class="job" data-ev="job_card" data-scope="interior"><div class="img" style="--ph:linear-gradient(135deg,#C9CFC6,#EDEFEA)"></div><div class="body"><div class="top"><h3>Two-bedroom apartment</h3><span class="meta">2 days on site</span></div><span class="meta">Malvern East · completed Sep 2026</span><span class="price">$3,400 – $3,900</span><span class="scope">Whole apartment, walls + ceilings, 2 coats, confirmed on the phone</span><span class="btn btn-ink">Start from this job →</span></div></button>
+  </div>
+</div></section>
+
+<!-- PROMISE -->
+<section class="sec light" id="promise"><div class="wrap">
+  <h2>Four things in writing before we start.</h2>
+  <p class="lead" style="margin-top:14px">Select one to see the screen you'll get.</p>
+  <div class="promise">
+    <div class="plist" role="tablist" aria-label="Our promise">
+      <button class="prow" role="tab" aria-selected="true" data-p="0"><span class="bar"></span><span class="t"><b>The invoice matches the price you approved</b><small>Anything extra is priced and sent to you for approval first.</small></span></button>
+      <button class="prow" role="tab" aria-selected="false" data-p="1"><span class="bar"></span><span class="t"><b>Your price is confirmed by a person</b><small>One short call. After that, the number doesn't change.</small></span></button>
+      <button class="prow" role="tab" aria-selected="false" data-p="2"><span class="bar"></span><span class="t"><b>You approve the work before you pay</b><small>A final walk-through together. The invoice follows your approval.</small></span></button>
+      <button class="prow" role="tab" aria-selected="false" data-p="3"><span class="bar"></span><span class="t"><b>Two-year guarantee. $20M insured.</b><small>Both documents in your account from day one.</small></span></button>
+    </div>
+    <div class="panel" id="ppanel" role="tabpanel"></div>
+  </div>
+</div></section>
+
+<!-- HOW YOU'RE KEPT INFORMED — scripted progress story -->
+<section class="sec light warm" id="story"><div class="wrap storywrap">
+  <div class="storycopy">
+    <div class="mono" style="color:var(--tmut);margin-bottom:12px">Your portal · one job, start to finish · demo data</div>
+    <h2>Follow the job from your phone.</h2>
+    <p class="lead" style="margin-top:14px">A typical week, as you'd see it.</p>
+    <div class="caption" id="cap" aria-live="polite"></div>
+    <ol class="capsr" id="capsr"></ol>
+    <button class="replay mono" id="replay" onclick="playStory()">↻ Replay</button>
+  </div>
+  <div class="device" id="phone" aria-hidden="true">
+    <div class="notch"></div>
+    <div class="banner" id="banner"></div>
+    <div class="ptop"><div><b>12 Elm Street, Northcote</b><div class="mono" style="color:var(--muted)">Interior · 4 rooms + hallway · $9,180 inc. GST</div></div><span class="pill green" id="pday">Day 1 of 5</span></div>
+    <div class="ptrack"><i id="pfill"></i></div>
+    <div class="pareas" id="pareas">
+      <div class="parea" data-a="living"><span><b>Living room</b><small>Not started</small></span><span class="state todo">To do</span></div>
+      <div class="parea" data-a="hall"><span><b>Hallway</b><small>Not started</small></span><span class="state todo">To do</span></div>
+      <div class="parea" data-a="bed1"><span><b>Main bedroom</b><small>Not started</small></span><span class="state todo">To do</span></div>
+      <div class="parea" data-a="bed2"><span><b>Bedroom 2</b><small>Not started</small></span><span class="state todo">To do</span></div>
+      <div class="parea" data-a="kitchen"><span><b>Kitchen</b><small>Not started</small></span><span class="state todo">To do</span></div>
+    </div>
+    <div class="pphotos" id="pphotos"></div>
+    <div class="pupd" id="pupd" hidden><span class="mono" style="color:var(--cyan)">Today's update · Felipe M.</span><span id="pupdtext"></span></div>
+    <div class="pvar" id="pvar" hidden><div class="row"><span class="mono" style="color:var(--muted)">Variation #2</span><span class="pill" id="pvarpill">Waiting for you</span></div><b>Small patch of rot behind the fascia — replace, prime, paint to match</b><div class="row"><span class="money">+ $486</span><span class="pbtn" id="pvarbtn">Approve $486</span></div></div>
+    <div class="psign" id="psign" hidden><div class="mono" style="color:var(--emerald)">Signed off · 12 Elm Street</div><svg viewBox="0 0 260 70" class="sig"><path id="sigpath" d="M8 48 C 30 10, 48 62, 70 30 S 110 60, 130 28 S 170 10, 190 44 S 230 60, 252 22" fill="none" stroke="#EDF0F2" stroke-width="2.5" stroke-linecap="round"/></svg><div class="row"><span>Final invoice</span><span class="money">$9,180</span></div><small style="color:var(--muted)">inc. GST · due now · thank you</small></div>
+  </div>
+</div></section>
+
+<!-- LIVE STRIP -->
+<section class="sec light" id="live"><div class="wrap">
+  <div style="display:flex;align-items:center;gap:12px"><span class="dot"></span><span class="mono">This month at Paint Home</span><span style="color:var(--tmut);font-size:14px">· updated 2 min ago</span></div>
+  <div class="live">
+    <div class="tile"><span class="big" data-count="38">0</span><b>Estimates built this week</b><small>Most from a phone</small></div>
+    <div class="tile"><span class="big" data-count="6">0</span><b>Homes being painted now</b><small>Northcote · Preston · Kew · +3</small></div>
+    <div class="tile"><span class="big" data-count="100" data-suffix="%">0</span><b>Invoices matching the approved price</b><small>Every one</small></div>
+    <div class="tile"><span class="big" data-count="9" data-suffix=" min">0</span><b>Average time to a price</b><small>Address to estimate</small></div>
+  </div>
+</div></section>
+
+<!-- PAINTERS -->
+<section class="sec light warm" id="who"><div class="wrap">
+  <h2>Who does the work.</h2>
+  <p class="lead" style="margin-top:14px">Our own painters. Qualified, insured, and used to working in occupied homes. You'll know who's coming before the date is confirmed.</p>
+  <div class="painters">
+    <div class="pc"><span class="av"></span><b>Felipe M.</b><span class="meta">Interiors, heritage · painting with us since 2024</span><q>"I'd rather spend the extra hour on prep than come back."</q></div>
+    <div class="pc"><span class="av"></span><b>Adi S.</b><span class="meta">Exteriors, weatherboard · painting with us since 2025</span><q>"Photos every day. It keeps everyone honest, me included."</q></div>
+    <div class="pc"><span class="av"></span><b>[Painter 3]</b><span class="meta">Specialty · with us since</span><q>"[One line in their own words]"</q></div>
+  </div>
+  <div class="rules">
+    <div class="rule"><i>—</i>Your requirements are documented and given to your painter before day one.</div>
+    <div class="rule"><i>—</i>The finish you're paying for is specified, room by room.</div>
+    <div class="rule"><i>—</i>Daily photos from the site.</div>
+    <div class="rule"><i>—</i>Nothing is complete until you've approved it.</div>
+  </div>
+</div></section>
+
+<!-- REVIEWS -->
+<section class="sec light" id="reviews"><div class="wrap">
+  <div class="mono" style="color:var(--tmut);margin-bottom:12px">5.0 from 93 Google reviews</div>
+  <h2>What customers say.</h2>
+  <p class="lead" style="margin-top:14px">Google reviews from completed jobs.</p>
+  <div class="revs">
+    <div class="rev"><span class="stars">★★★★★</span><p>[Real review — pick one that mentions the price being what was quoted]</p><small>Name · suburb · job type</small></div>
+    <div class="rev"><span class="stars">★★★★★</span><p>[Real review — one that mentions daily updates or the painter by name]</p><small>Name · suburb · job type</small></div>
+    <div class="rev"><span class="stars">★★★★★</span><p>[Real review — one that mentions the finish or the prep]</p><small>Name · suburb · job type</small></div>
+  </div>
+  <p class="powered">Powered by <a href="https://paintgroup.com.au">Paint Group</a> · reviews on Google</p>
+</div></section>
+
+<!-- FAQ -->
+<section class="sec light warm" id="faq"><div class="wrap">
+  <h2>Common questions.</h2>
+  <div class="faq">
+    <details><summary>Who is Paint Home?</summary><p>Qualified local painters for apartments, units, townhouses and smaller homes across Melbourne, inside and out. Ten years of residential painting, a two-year workmanship guarantee and $20M public liability insurance. Jobs this size don't need a site visit, so we price online and confirm by phone. Paint Home is powered by Paint Group. Enlvn Pty Ltd trading as Paint Home.</p></details>
+    <details><summary>What happens after I enter my address?</summary><p>You answer a few questions about the property — what's being painted, roughly how big, the condition. Photos help but aren't required. A price range appears on screen. Save it and it's yours to come back to; nobody rings you unless you ask.</p></details>
+    <details><summary>Is the price on screen my final price?</summary><p>It's a real range, and it gets tighter as you answer. The final price is confirmed with you by one of our people on a short call before anything is booked — most Paint Home jobs don't need a site visit. Once it's signed off, that's the number on your invoice; anything extra found on site is priced and approved by you first.</p></details>
+    <details><summary>Who does the painting?</summary><p>Our own trusted network — painters who are quality-checked, fully insured and used to working in people's homes. You'll see who's coming in your portal before the start date is locked in.</p></details>
+    <details><summary>My job is larger than a few rooms. Can you still help?</summary><p>Enter the address anyway. If it's more than can be priced online — a full heritage house, work needing scaffold, a commercial property — we'll say so and pass you to the right team, with everything you've entered carried across.</p></details>
+    <details><summary>How soon can you start?</summary><p>Once your price is signed off, we'll give you the earliest start we can hold for a job that size — smaller interiors are usually quicker than whole-house or exterior work, which depends on the weather. You pick a date that suits from what's available.</p></details>
+    <details><summary>Do I need to be home?</summary><p>Not while the painting happens — we'll agree access with you and send photo updates every day. The final walkthrough is done with you there, so we'll book it for a time that works.</p></details>
+    <details><summary>What if something extra is found?</summary><p>It's raised as a variation with photos and a price. Nothing extra starts, and nothing extra lands on the invoice, until you've tapped Approve.</p></details>
+    <details><summary>When do I pay?</summary><p>A deposit when your price is signed off, and the balance after you've walked the job with us and approved it — not before.</p></details>
+    <details><summary>What does the guarantee cover?</summary><p>Our workmanship, for two years from sign-off. If the finish fails because of how it was applied, we come back and fix it. The warranty and our $20M public liability certificate sit in your portal.</p></details>
+  </div>
+</div></section>
+
+<!-- CTA -->
+<section class="sec cta"><div class="wrap">
+  <h2>See your price today.</h2>
+  <form class="field" onsubmit="return go(event,'bottom')"><span aria-hidden="true">📍</span><input placeholder="Type your address" aria-label="Address" data-ev="address_typed_bottom"><button class="btn btn-cyan" type="submit">See my price →</button></form>
+  <p>Ten minutes online. Confirmed on one call. Or ring <a href="tel:1300000000" style="font-weight:600">1300 000 000</a>, Mon–Fri 8am–5pm.</p>
+</div></section>
+
+<footer>
+  <div><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 221" class="logo-full" role="img" aria-labelledby="title desc">
+<title id="title">Paint Home</title>
+<desc id="desc">Paint Home — Your Qualified Local Painters. Transparent vector logo.</desc>
+<path id="brush" fill="#02adb5" fill-rule="evenodd" d="M110.376 184.96 C96.144 170.638 84.387 158.599 84.249 158.207 C84.111 157.814 100.878 140.619 121.509 119.996 L159.021 82.5 185.51 109.038 C215.545 139.128 215.156 138.501 208.384 145.997 C206.395 148.199 204.323 150 203.78 150 C203.237 150 199.286 147.075 195 143.5 C190.714 139.925 186.897 137 186.518 137 C186.139 137 189.229 140.713 193.386 145.25 L200.944 153.5 183.748 170.734 L166.552 187.969 163.026 184.682 C140.639 163.816 133.129 157 132.524 157 C132.13 157 138.826 164.401 147.404 173.446 C155.982 182.491 163 190.282 163 190.759 C163 191.235 158.563 195.985 153.14 201.313 C138.696 215.504 141.973 216.757 110.376 184.96 Z M72.482 147.982 L67.539 142.964 105.538 104.966 L143.536 66.967 148.755 72.252 L153.975 77.537 116.354 115.269 C95.662 136.021 78.438 153 78.079 153 C77.719 153 75.201 150.742 72.482 147.982 Z M58.581 133.25 C54.398 129.041 53.919 128.118 54.384 125.144 C54.674 123.291 57.263 118.59 60.167 114.644 C69.251 102.303 74 94.905 74 93.096 C74 89.979 69.694 87.204 60 84.071 C54.775 82.383 48.716 79.983 46.535 78.738 C40.347 75.207 17.377 47.54 11.885 37.003 C5.971 25.658 16.024 11.081 30.367 10.206 L36.5 9.831 50.5 20.033 C77.295 39.559 82.623 45.682 85.606 60.374 C88.129 72.8 89.873 75.14 95.125 73.142 C96.44 72.643 102.912 68.649 109.508 64.267 C128.304 51.781 128.387 51.762 134.972 58.472 C139.352 62.934 139.357 62.948 137.431 65.086 C132.395 70.672 64.571 138 63.979 138 C63.607 138 61.178 135.863 58.581 133.25 Z"/>
+<path id="paint" fill="#eeeeee" fill-rule="evenodd" d="M260.454 120.741 C260.189 120.049 260.09 105.087 260.236 87.491 L260.5 55.5 274.287 55.222 C289.976 54.905 294.176 55.727 300.153 60.286 C314.155 70.966 311.674 91.663 295.5 99.114 C292.496 100.497 289.073 100.962 281.75 100.978 L272 101 272 111.5 L272 122 266.469 122 C262.946 122 260.762 121.543 260.454 120.741 Z M292.413 87.649 C293.879 86.688 295.812 84.365 296.708 82.486 C298.088 79.593 298.15 78.444 297.114 74.987 C295.261 68.803 291.583 67.008 280.75 67.004 L272 67 272 78.622 L272 90.245 280.873 89.82 C287.06 89.525 290.554 88.867 292.413 87.649 Z M309 121.514 C309 121.07 313.239 112.258 333.901 69.75 C337.844 61.638 341.647 55 342.351 55 C343.056 55 346.499 60.962 350.001 68.25 C353.504 75.537 359.349 87.575 362.991 95 C366.633 102.425 371.026 111.537 372.754 115.25 L375.895 122 369.571 122 L363.246 122 361.095 117 L358.944 112 342.489 112 L326.034 112 323.5 117 L320.966 122 314.983 122 C311.692 122 309 121.781 309 121.514 Z M353 100.505 C353 99.684 343.697 79.569 342.87 78.601 C342.187 77.802 332 97.987 332 100.139 C332 100.613 336.725 101 342.5 101 C348.275 101 353 100.777 353 100.505 Z M386.237 88.75 L386.5 55.5 391.5 55.5 L396.5 55.5 396.763 88.75 L397.027 122 391.5 122 L385.973 122 386.237 88.75 Z M410.474 120.794 C410.198 120.073 410.09 105.087 410.236 87.491 L410.5 55.5 413.749 55.187 C417.495 54.826 415.373 52.759 439 79.784 L455.5 98.658 456 77.079 L456.5 55.5 462 55.5 L467.5 55.5 467.763 88.75 L468.027 122 464.709 122 C460.54 122 459.043 120.602 438.5 97.53 L422.5 79.561 422 100.53 L421.5 121.5 416.239 121.803 C412.593 122.012 410.823 121.703 410.474 120.794 Z M499.667 121.333 C499.3 120.967 499 108.607 499 93.868 L499 67.07 488.75 66.785 L478.5 66.5 478.5 61 L478.5 55.5 504.5 55.5 L530.5 55.5 530.5 61 L530.5 66.5 520.25 66.785 L510 67.07 510 94.535 L510 122 505.167 122 C502.508 122 500.033 121.7 499.667 121.333 Z"/>
+<path id="home" fill="#17f9f1" fill-rule="evenodd" d="M552.48 120.808 C552.2 120.079 552.09 105.087 552.236 87.491 L552.5 55.5 555.5 55.5 L558.5 55.5 559 70.5 L559.5 85.5 579.724 85.771 L599.948 86.041 600.224 70.771 L600.5 55.5 603.75 55.187 L607 54.873 607 87.968 C607 117.685 606.833 121.127 605.364 121.691 C604.464 122.036 603.002 121.861 602.114 121.302 C600.776 120.459 600.453 117.867 600.222 106.122 L599.945 91.959 579.722 92.229 L559.5 92.5 559 107 L558.5 121.5 555.744 121.817 C554.128 122.003 552.778 121.586 552.48 120.808 Z M640.291 120.084 C637.426 119.108 633.002 116.604 630.46 114.521 C611.082 98.642 615.03 68.635 637.926 57.767 C644.481 54.655 659.449 54.642 666.22 57.742 C672.837 60.772 679.12 66.908 682.564 73.706 C685.165 78.839 685.5 80.526 685.5 88.5 C685.5 96.493 685.168 98.154 682.536 103.35 C674.853 118.514 656.736 125.69 640.291 120.084 Z M662.04 113.44 C667.859 111.567 673.653 105.946 676.785 99.135 C681.369 89.167 678.757 76.896 670.335 68.825 C665.447 64.142 655.289 60.538 649.557 61.455 C625.399 65.318 616.641 92.514 634.326 108.75 C636.872 111.088 639.303 113.02 639.728 113.044 C640.152 113.068 642.75 113.727 645.5 114.508 C650.847 116.026 654.8 115.771 662.04 113.44 Z M697.713 121.379 C697.321 120.987 697 105.892 697 87.833 L697 55 699.908 55 C702.54 55 703.387 55.975 708.814 65.25 C712.113 70.888 719.317 83.088 724.823 92.362 L734.833 109.224 737.235 105.362 C738.556 103.238 745.876 91.016 753.501 78.201 C766.288 56.713 767.565 54.926 769.933 55.201 L772.5 55.5 772.5 88.5 L772.5 121.5 769.5 121.5 L766.5 121.5 766 96.099 L765.5 70.698 753.136 91.599 C737.402 118.198 736.23 120.006 734.736 119.973 C733.574 119.949 731.025 115.841 712.105 83.5 L704.5 70.5 704 96 L703.5 121.5 700.963 121.796 C699.567 121.959 698.104 121.771 697.713 121.379 Z M785.462 120.761 C785.192 120.058 785.09 105.087 785.236 87.491 L785.5 55.5 807 55.5 L828.5 55.5 828.813 58.75 L829.127 62 810.563 62 L792 62 792 74 L792 86 803.563 86 L815.127 86 814.813 89.25 L814.5 92.5 803.249 92.5 L791.998 92.5 791.999 103.75 L792 115 810.563 115 L829.127 115 828.813 118.25 L828.5 121.5 807.226 121.77 C790.678 121.98 785.844 121.756 785.462 120.761 Z"/>
+<path id="tagline" fill="#eeeeee" fill-rule="evenodd" d="M452.604 218.25 C454.484 210.191 460.459 203.887 467.461 202.573 C474.258 201.298 483.745 205.613 487.097 211.503 C489.341 215.448 490.5 221 489.079 221 C488.486 221 488 219.866 488 218.48 C488 217.094 486.875 214.178 485.5 212.001 C480.559 204.173 469.709 201.634 462.001 206.5 C457.98 209.038 454 215.237 454 218.96 C454 220.082 453.541 221 452.981 221 C452.38 221 452.225 219.871 452.604 218.25 Z M462.292 217.75 C463.122 215.672 464.934 213.836 467.318 212.657 C470.961 210.855 471.135 210.858 475.023 212.781 C478.878 214.689 479 214.692 479 212.875 C479 211.844 479.45 211 480 211 C480.55 211 481 212.8 481 215 L481 219 476.75 218.85 C473.869 218.749 473.368 218.568 475.195 218.289 C478.586 217.772 477.961 215.641 473.928 213.97 C469.998 212.342 465.589 214.163 463.964 218.086 C463.301 219.689 462.361 221 461.876 221 C461.391 221 461.578 219.537 462.292 217.75 Z M357.388 160.569 C357.072 159.745 355.589 159.174 353.89 159.222 C346.444 159.434 341.733 152.125 345.163 145.684 C346.98 142.274 349.163 141.066 353.576 141.032 C360.549 140.977 364.746 147.794 361.61 154.081 C360.72 155.864 360.287 158.295 360.621 159.628 C361.067 161.402 360.803 162 359.577 162 C358.675 162 357.69 161.356 357.388 160.569 Z M351 153.5 C351 151.664 355.083 151.483 356.842 153.242 C357.83 154.23 358.275 154.18 359.026 152.992 C361.399 149.239 358.179 144 353.5 144 C350.702 144 347 147.17 347 149.566 C347 151.691 348.848 155 350.035 155 C350.566 155 351 154.325 351 153.5 Z M285.733 158.115 C281.917 156.207 279.567 151.86 280.451 148.34 C282.262 141.124 291.668 138.381 296.548 143.646 C303.626 151.283 295.042 162.767 285.733 158.115 Z M294.171 154.345 C298.071 150.816 295.267 144 289.916 144 C286.35 144 284 146.383 284 150 C284 155.407 290.113 158.018 294.171 154.345 Z M306.857 158.786 C303.434 157.645 302 154.151 302 146.953 C302 141.711 302.234 141 303.956 141 C305.691 141 305.946 141.821 306.206 148.25 C306.478 154.957 306.673 155.524 308.805 155.827 C312.752 156.386 314 154.356 314 147.378 C314 142.375 314.323 141 315.5 141 C317.594 141 317.618 153.673 315.529 156.655 C313.786 159.144 310.415 159.972 306.857 158.786 Z M371 159.281 C366.905 157.802 366 155.823 366 148.345 C366 142.581 366.313 141 367.456 141 C368.57 141 368.981 142.704 369.206 148.25 L369.5 155.5 373 155.5 L376.5 155.5 376.794 148.25 C377.019 142.704 377.43 141 378.544 141 C380.856 141 380.599 155.164 378.25 157.227 C376.092 159.121 372.992 160 371 159.281 Z M529.284 159.242 C526.182 158.721 522 153.414 522 150 C522 145.592 526.416 141 530.655 141 C534.468 141 538 142.489 538 144.096 C538 144.742 536.37 144.878 533.599 144.463 C529.923 143.911 528.851 144.149 527.099 145.901 C524.576 148.424 524.441 150.757 526.634 153.888 C528.102 155.983 528.777 156.155 533.234 155.563 C536.99 155.065 538.097 155.21 537.781 156.157 C537.224 157.828 532.051 159.707 529.284 159.242 Z M696.75 158.754 C695.237 158.248 694 157.191 694 156.405 C694 155.298 694.902 155.121 698 155.616 C701.579 156.188 702 156.039 702 154.195 C702 152.928 701.133 151.871 699.75 151.449 C692.401 149.21 691.905 141 699.118 141 C702.863 141 705 141.952 705 143.619 C705 144.698 704.072 144.875 701 144.384 C695.563 143.515 695.52 146.205 700.927 148.963 C705.554 151.323 706.909 154.338 704.525 156.972 C702.355 159.37 700.12 159.882 696.75 158.754 Z M269 154.93 C269 152.044 268.128 149.592 266 146.5 C262.574 141.521 262.431 141 264.491 141 C265.311 141 266.998 142.569 268.241 144.488 C269.483 146.406 270.725 147.975 271 147.975 C271.275 147.975 272.517 146.406 273.759 144.488 C275.002 142.569 276.689 141 277.509 141 C279.569 141 279.426 141.521 276 146.5 C273.872 149.592 273 152.044 273 154.93 C273 158.333 272.672 159 271 159 C269.328 159 269 158.333 269 154.93 Z M320.211 150.25 L320.5 141.5 325.356 141.191 C328.867 140.967 330.736 141.356 332.106 142.596 C334.402 144.674 334.575 149.282 332.437 151.42 C331.02 152.837 331.02 153.191 332.437 155.214 C334.381 157.989 334.413 159 332.557 159 C331.763 159 330.316 157.65 329.341 156 C328.366 154.35 326.766 153 325.784 153 C324.468 153 324 153.787 324 156 C324 158.352 323.56 159 321.961 159 C320.042 159 319.939 158.483 320.211 150.25 Z M330.5 147 C330.5 144.91 329.966 144.449 327.25 144.187 C324.209 143.893 324 144.075 324 147 C324 149.925 324.209 150.107 327.25 149.813 C329.966 149.551 330.5 149.09 330.5 147 Z M386.5 150 C388.986 145.05 391.219 141 391.462 141 C391.866 141 400 157.804 400 158.638 C400 159.748 396.845 158.761 396.362 157.5 C395.97 156.479 394.372 156 391.362 156 C388.351 156 386.753 156.479 386.362 157.5 C386.045 158.325 384.93 159 383.883 159 C382.206 159 382.517 157.93 386.5 150 Z M393.965 152.25 C393.945 151.838 393.326 150.412 392.59 149.082 C391.252 146.668 391.248 146.667 390.125 148.766 C388.417 151.959 388.755 153 391.5 153 C392.875 153 393.984 152.662 393.965 152.25 Z M403 150 C403 142.667 403.278 141 404.5 141 C405.7 141 406 142.5 406 148.5 L406 156 410.5 156 C413.833 156 415 156.389 415 157.5 C415 158.667 413.667 159 409 159 L403 159 403 150 Z M418 150 C418 142.667 418.278 141 419.5 141 C420.722 141 421 142.667 421 150 C421 157.333 420.722 159 419.5 159 C418.278 159 418 157.333 418 150 Z M424.422 157.656 C424.138 156.917 424.04 152.98 424.203 148.906 L424.5 141.5 430.75 141.202 C435.853 140.959 437 141.189 437 142.452 C437 143.62 435.895 144 432.5 144 C428.367 144 428 144.204 428 146.5 C428 148.333 428.533 149 430 149 C431.111 149 432 149.667 432 150.5 C432 151.333 431.111 152 430 152 C428.381 152 428 152.667 428 155.5 C428 157.976 427.552 159 426.469 159 C425.626 159 424.705 158.395 424.422 157.656 Z M439 150 C439 142.667 439.278 141 440.5 141 C441.722 141 442 142.667 442 150 C442 157.333 441.722 159 440.5 159 C439.278 159 439 157.333 439 150 Z M446 150 L446 141 452 141 C456.667 141 458 141.333 458 142.5 C458 143.614 456.826 144 453.43 144 C449.264 144 448.889 144.198 449.18 146.25 C449.386 147.696 450.304 148.614 451.75 148.82 C454.869 149.262 454.653 152 451.5 152 C449.667 152 449 152.533 449 154 C449 155.704 449.667 156 453.5 156 C456.833 156 458 156.389 458 157.5 C458 158.667 456.667 159 452 159 L446 159 446 150 Z M461 150 L461 141 466.548 141 C471.262 141 472.464 141.397 474.548 143.646 C478.02 147.392 477.932 153.232 474.354 156.548 C472.23 158.516 470.651 159 466.354 159 L461 159 461 150 Z M472.443 153.777 C475.756 149.048 473.123 144 467.345 144 L464 144 464 149.333 C464 152.267 464.3 154.967 464.667 155.333 C466.2 156.867 470.944 155.918 472.443 153.777 Z M487 150 C487 142.667 487.278 141 488.5 141 C489.7 141 490 142.5 490 148.5 L490 156 494 156 C496.889 156 498 156.417 498 157.5 C498 158.652 496.722 159 492.5 159 L487 159 487 150 Z M504.656 157.867 C503.642 157.278 502.174 155.267 501.393 153.398 C500.165 150.46 500.167 149.537 501.402 146.58 C503.098 142.522 505.573 141 510.48 141 C515.602 141 519 144.59 519 150 C519 155.516 515.607 159.012 510.295 158.97 C508.208 158.953 505.67 158.457 504.656 157.867 Z M514.171 154.345 C516.448 152.284 516.531 148.244 514.345 145.829 C510.911 142.034 504 144.705 504 149.826 C504 155.175 510.207 157.933 514.171 154.345 Z M541 158.519 C541 157.612 549.095 141 549.538 141 C549.781 141 552.014 145.05 554.5 150 C558.483 157.93 558.794 159 557.117 159 C556.07 159 554.955 158.325 554.638 157.5 C554.247 156.479 552.649 156 549.638 156 C546.628 156 545.03 156.479 544.638 157.5 C544.124 158.84 541 159.715 541 158.519 Z M551.407 149.82 L549.763 146.641 548.417 149.07 C546.478 152.571 546.653 153 550.026 153 L553.051 153 551.407 149.82 Z M562 150 C562 142.667 562.278 141 563.5 141 C564.7 141 565 142.5 565 148.5 L565 156 569 156 C571.889 156 573 156.417 573 157.5 C573 158.652 571.722 159 567.5 159 L562 159 562 150 Z M583 150 L583 141 587.809 141 C593.893 141 596.333 142.718 596.333 147 C596.333 150.959 593.944 153 589.309 153 C586.299 153 586 153.271 586 156 C586 158 585.5 159 584.5 159 C583.278 159 583 157.333 583 150 Z M592.5 147 C592.5 144.91 591.966 144.449 589.25 144.187 C586.209 143.893 586 144.075 586 147 C586 149.925 586.209 150.107 589.25 149.813 C591.966 149.551 592.5 149.09 592.5 147 Z M597 158.515 C597 157.522 605.466 141 605.973 141.003 C606.263 141.005 608.36 144.943 610.633 149.753 C614.629 158.208 614.795 160.935 611.113 157.603 C608.88 155.581 602.645 155.518 601 157.5 C599.844 158.893 597 159.614 597 158.515 Z M607.818 150.5 C607.192 149.125 606.373 148 606 148 C605.627 148 604.808 149.125 604.182 150.5 C603.107 152.86 603.209 153 606 153 C608.791 153 608.893 152.86 607.818 150.5 Z M618 150 C618 142.667 618.278 141 619.5 141 C620.722 141 621 142.667 621 150 C621 157.333 620.722 159 619.5 159 C618.278 159 618 157.333 618 150 Z M625 150 C625 143.463 625.342 141.002 626.25 141.007 C626.938 141.011 629.525 143.482 632 146.5 C634.475 149.518 636.837 151.989 637.25 151.993 C637.663 151.997 638 149.525 638 146.5 C638 142.278 638.348 141 639.5 141 C640.722 141 641 142.667 641 150 C641 156.103 640.631 159 639.853 159 C639.222 159 636.317 156.412 633.398 153.25 L628.09 147.5 628.045 153.25 C628.01 157.674 627.654 159 626.5 159 C625.278 159 625 157.333 625 150 Z M650 151.5 L650 144 647 144 C645 144 644 143.5 644 142.5 C644 141.31 645.444 141 651 141 C656.556 141 658 141.31 658 142.5 C658 143.433 657.056 144 655.5 144 C653.056 144 653 144.167 653 151.5 C653 157.5 652.7 159 651.5 159 C650.3 159 650 157.5 650 151.5 Z M662 150 L662 141 668 141 C672.667 141 674 141.333 674 142.5 C674 143.611 672.833 144 669.5 144 C665.367 144 665 144.204 665 146.5 C665 148.522 665.494 149 667.583 149 C670.716 149 670.373 151.348 667.172 151.82 C665.83 152.017 665 152.855 665 154.012 C665 155.494 665.87 155.949 669.172 156.193 C671.467 156.362 673.53 157.062 673.756 157.75 C674.054 158.658 672.503 159 668.083 159 L662 159 662 150 Z M677 150 L677 141 681.418 141 C687.2 141 688.956 141.754 690.084 144.72 C690.756 146.487 690.563 148.118 689.393 150.585 C687.895 153.74 687.897 154.193 689.409 156.501 C690.947 158.849 690.937 159 689.239 159 C688.245 159 686.634 157.65 685.659 156 C684.657 154.304 683.042 153 681.943 153 C680.451 153 680 153.696 680 156 C680 158 679.5 159 678.5 159 C677.278 159 677 157.333 677 150 Z M686.5 147 C686.5 144.91 685.966 144.449 683.25 144.187 C680.209 143.893 680 144.075 680 147 C680 149.925 680.209 150.107 683.25 149.813 C685.966 149.551 686.5 149.09 686.5 147 Z"/>
+</svg>Your qualified local painters<br>Melbourne, within 50 km<br><br><span class="pb">Powered by Paint Group</span><br>Enlvn Pty Ltd trading as Paint Home<br>Dulux · Haymes · Master Painters · NICA</div>
+  <div><b>SERVICES</b><a href="#">Apartments & units</a><a href="#">Interiors</a><a href="#">Exteriors</a><a href="#">Bigger jobs</a></div>
+  <div><b>COMPANY</b><a href="#jobs">Real jobs, real prices</a><a href="#reviews">Reviews</a><a href="#faq">Questions</a><a href="#">Contact</a></div>
+  <div><b>LEGAL</b><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Warranty</a></div>
+</footer>
+
+<div class="callbar"><a class="btn btn-ghost" href="tel:1300000000">Call us</a><a class="btn btn-cyan" href="#top">See my price</a></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- analytics hook: every data-ev fires here; swap for Clarity/PostHog later
+const ev=(name,extra={})=>{console.log('[event]',name,extra)};
+document.addEventListener('click',e=>{const t=e.target.closest('[data-ev]');if(t)ev(t.dataset.ev)});
+const toast=(m)=>{const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2200)};
+
+// ---- hero address field
+const sug=document.getElementById('sug'),inp=document.getElementById('addrIn');
+const streets=['Street','Grove','Road','Avenue'];const subs=['Northcote VIC 3070','Thornbury VIC 3071','Preston VIC 3072','Kew VIC 3101'];
+inp.addEventListener('input',()=>{const v=inp.value.trim();if(v.length<3){sug.classList.remove('open');return}
+  const num=v.match(/^\d+/)?.[0]||'12';const word=v.replace(/^\d+\s*/,'').split(' ')[0]||'Elm';const W=word[0].toUpperCase()+word.slice(1);
+  sug.innerHTML=[0,1,2].map(i=>`<button type="button">${num} ${W} ${streets[i]}, ${subs[i]}</button>`).join('');sug.classList.add('open');
+  sug.querySelectorAll('button').forEach(b=>b.onclick=()=>{inp.value=b.textContent;sug.classList.remove('open');ev('address_selected')})});
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',x===c));document.body.dataset.mode=c.dataset.mode;
+  toast(c.dataset.mode==='exterior'?'Outside — the estimator will ask about your walls, trims and fence':'Inside — the estimator will ask about your rooms')});
+function go(e,where){e.preventDefault();const f=e.target.querySelector('input').value||'your address';ev('see_price',{where});toast(`Opening the estimator for ${f}…`);return false}
+
+// ---- promise explorer
+const P=[
+ {h:"Your painter finds rotten timber behind the fascia. Here's what happens next.",card:`<div class="row"><span class="mono" style="color:var(--muted)">Variation #2 · 12 Elm St</span><span class="pill">Waiting for you</span></div><b>Replace 2.4 m of rotten fascia board, prime and paint to match</b><div class="ph"><i></i><i></i></div><div class="row"><span><span class="mono" style="color:var(--muted)">Extra, inc. GST</span><br><span class="money">+ $486</span></span><span style="color:var(--muted);font-size:14px">Work won't start until you approve</span></div><div class="btns"><button class="btn btn-cyan" onclick="approve(this)">Approve $486</button><button class="btn btn-ghost">Ask a question</button></div>`,note:"Declined variations are recorded on your completion report. Nothing lands on the invoice that you didn't tap Approve on."},
+ {h:"Your range gets tighter with every answer. Then we sign it off together.",card:`<div class="row"><span class="mono" style="color:var(--muted)">Estimate · 12 Elm St</span><span class="pill">Ready to confirm</span></div><div style="display:grid;gap:8px;font-size:15px"><div class="row"><span style="color:var(--muted)">After your address</span><span class="mono" style="color:var(--muted)">$6,000 – $12,000</span></div><div class="row"><span style="color:var(--muted)">After room sizes</span><span class="mono" style="color:var(--muted)">$8,000 – $10,400</span></div><div class="row"><span>After doors, windows and photos</span><span class="money">$8,400 – $9,600</span></div></div><span style="color:var(--muted);font-size:14px">4 rooms + hallway · walls, ceilings, trim · 2 coats · apartment — we can confirm this one on the phone</span><div class="btns"><button class="btn btn-cyan">Confirm my price — book a call</button></div>`,note:"Every price is signed off by one of our people before it's booked: a call for apartments, units and smaller jobs, a visit for larger or older homes. What we sign off together is what goes on the invoice."},
+ {h:"The last day on site is a walkthrough with you, area by area.",card:`<div class="row"><span class="mono" style="color:var(--muted)">Walkthrough · Fri 5 Sep</span><span class="pill">In progress</span></div><div style="display:grid;gap:6px;font-size:15px"><div class="row"><span>Living room</span><span class="done">Approved</span></div><div class="row"><span>Hallway</span><span class="done">Approved</span></div><div class="row"><span>Main bedroom</span><span style="color:var(--amber)">Flagged · scuff by door</span></div><div class="row"><span>Bedroom 2 · Kitchen</span><span style="color:var(--muted)">Not yet checked</span></div></div><span style="color:var(--muted);font-size:14px">Flagged items are fixed before you sign. Final invoice is issued only after your signature.</span><div class="btns"><button class="btn btn-ghost" disabled style="opacity:.5">Sign off (1 item open)</button></div>`,note:"The walkthrough is done with you, on site. Flagged items are fixed first; the invoice follows your signature."},
+ {h:"Both documents are in your portal the day you accept.",card:`<div class="row"><span class="mono" style="color:var(--muted)">Documents · 12 Elm St</span></div><div style="display:grid;gap:8px;font-size:15px"><div class="row"><span>Workmanship warranty · 2 years from sign-off</span><span class="mono" style="color:var(--cyan)">PDF</span></div><div class="row"><span>Public liability certificate · $20M</span><span class="mono" style="color:var(--cyan)">PDF</span></div><div class="row"><span>Colour schedule · what went where</span><span class="mono" style="color:var(--cyan)">PDF</span></div><div class="row"><span>Completion report · signed</span><span class="pill grey">After sign-off</span></div></div>`,note:"Six months from now you'll want to know which white is on the hallway. It's here."}
+];
+const panel=document.getElementById('ppanel');
+const showP=i=>{panel.innerHTML=`<span class="mono" style="color:var(--cyan)">What this looks like in your job</span><h3>${P[i].h}</h3><div class="pcard">${P[i].card}</div><p class="note">${P[i].note}</p>`};
+document.querySelectorAll('.prow').forEach(r=>r.onclick=()=>{document.querySelectorAll('.prow').forEach(x=>x.setAttribute('aria-selected',x===r));showP(+r.dataset.p);ev('promise_'+r.dataset.p)});
+showP(0);
+function approve(b){b.textContent='Approved ✓';b.disabled=true;b.style.background='var(--emerald)';b.style.color='var(--ink)';b.closest('.pcard').querySelector('.pill').outerHTML='<span class="pill green">Approved</span>';toast('Approved. Felipe gets the go-ahead and $486 is added to your fixed price.')}
+
+// ---- progress story: one timeline, eight beats, 22s
+const $=id=>document.getElementById(id);
+const cap=$('cap'),capsr=$('capsr');
+const setArea=(a,st,sub)=>{const el=document.querySelector(`.parea[data-a=${a}]`);el.dataset.s=st;const s=el.querySelector('.state');s.className='state '+st;s.textContent={todo:'To do',prepped:'Prepped',done:'Done'}[st];if(sub)el.querySelector('small').textContent=sub};
+const typeInto=(el,text,ms)=>{el.textContent='';let i=0;const step=()=>{if(i<=text.length){el.textContent=text.slice(0,i++);storyTimers.push(setTimeout(step,ms))}};step()};
+const BEATS=[
+ [0,'Monday, 7:31am. Felipe arrives.',()=>{}],
+ [2000,'A message before work starts.',()=>{$('banner').innerHTML='<b>Felipe M.</b> Furniture moved, floors covered. Starting the living room.';$('banner').classList.add('on');$('pfill').style.width='8%'}],
+ [5000,'Photos from the site, daily.',()=>{$('banner').classList.remove('on');['Prep · floors covered','Living room · masked up'].forEach((c,i)=>{const el=document.createElement('i');el.title=c;$('pphotos').appendChild(el);storyTimers.push(setTimeout(()=>el.classList.add('on'),120+i*180))});setArea('living','prepped','Masked up, first coat next')}],
+ [8000,'Each room marked done as it\'s finished.',()=>{$('pday').textContent='Day 3 of 5';setArea('living','done','Walls ✓ Ceiling ✓ Trim ✓');storyTimers.push(setTimeout(()=>setArea('hall','prepped','First coat on'),400));$('pfill').style.width='48%'}],
+ [11000,'An end-of-day update, in plain words.',()=>{$('pupd').hidden=false;typeInto($('pupdtext'),'Living room finished and looking great. Hallway has its first coat; second coat first thing tomorrow. Back on site at 7:30.',22)}],
+ [14500,'Extras are priced and sent for your approval.',()=>{$('pupd').hidden=true;$('pvar').hidden=false;requestAnimationFrame(()=>$('pvar').classList.add('on'));storyTimers.push(setTimeout(()=>{$('pvarbtn').classList.add('press')},1500));storyTimers.push(setTimeout(()=>{$('pvarbtn').classList.remove('press');$('pvarbtn').classList.add('ok');$('pvarbtn').textContent='Approved ✓';$('pvarpill').className='pill green';$('pvarpill').textContent='Approved'},1700))}],
+ [17500,'A final walk-through, together.',()=>{$('pvar').classList.remove('on');storyTimers.push(setTimeout(()=>$('pvar').hidden=true,400));$('pday').textContent='Day 5 of 5';[['hall','Walls ✓ Ceiling ✓ Trim ✓'],['bed1','Walls ✓ Ceiling ✓ Trim ✓'],['bed2','Walls ✓ Ceiling ✓ Trim ✓'],['kitchen','Walls ✓ Ceiling ✓ Trim ✓']].forEach(([a,sub],i)=>storyTimers.push(setTimeout(()=>setArea(a,'done',sub),i*300)));$('pfill').style.width='100%';storyTimers.push(setTimeout(()=>{$('banner').innerHTML='<b>Walkthrough booked</b> · Fri 3:30pm, with you on site.';$('banner').classList.add('on')},1400))}],
+ [20000,'You approve. Then the invoice.',()=>{$('banner').classList.remove('on');$('psign').hidden=false;requestAnimationFrame(()=>$('psign').classList.add('on'))}],
+ [22000,null,()=>{$('replay').classList.add('on');ev('progress_story_complete')}]
+];
+capsr.innerHTML=BEATS.filter(b=>b[1]).map(b=>`<li>${b[1]}</li>`).join('');
+let storyTimers=[],storyPlayed=false;
+function resetStory(){storyTimers.forEach(clearTimeout);storyTimers=[];$('banner').classList.remove('on');$('pday').textContent='Day 1 of 5';$('pfill').style.width='0%';['living','hall','bed1','bed2','kitchen'].forEach(a=>setArea(a,'todo','Not started'));$('pphotos').innerHTML='';$('pupd').hidden=true;$('pupdtext').textContent='';$('pvar').hidden=true;$('pvar').classList.remove('on');$('pvarbtn').className='pbtn';$('pvarbtn').textContent='Approve $486';$('pvarpill').className='pill';$('pvarpill').textContent='Waiting for you';$('psign').hidden=true;$('psign').classList.remove('on');$('replay').classList.remove('on');cap.textContent=''}
+function playStory(){resetStory();ev(storyPlayed?'progress_story_replay':'progress_story_start');storyPlayed=true;
+  BEATS.forEach(([t,text,fn])=>storyTimers.push(setTimeout(()=>{if(text){cap.classList.add('swap');storyTimers.push(setTimeout(()=>{cap.textContent=text;cap.classList.remove('swap')},180))}fn()},t)))}
+if(matchMedia('(prefers-reduced-motion: reduce)').matches){BEATS.forEach(b=>b[2]());storyTimers.forEach(clearTimeout)}else{const sio=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){playStory();sio.unobserve($('story'))}}),{threshold:.5});sio.observe($('story'))}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&storyPlayed&&!$('replay').classList.contains('on')){resetStory();cap.textContent='Paused — tap Replay';$('replay').classList.add('on')}});
+
+// ---- the estimator running itself in the hero (home-only, small jobs)
+const G=[['7/40 Wattletree Road, Malvern East','interior','$3,400 – $3,900','7 min · 2-bed apartment'],['12 Elm Street, Northcote','interior','$8,400 – $9,600','9 min · 4 rooms + hallway'],['9 Clarke Street, Thornbury','exterior','$6,200 – $7,100','8 min · single-storey weatherboard'],['3 Separation Street, Northcote','interior','$1,900 – $2,300','5 min · two rooms']];
+const ghost=document.getElementById('ghost'),fieldEl=document.getElementById('addr');let gi=0,gStop=false,gTimer;
+const chipSet=m=>document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',x.dataset.mode===m));
+const wait=ms=>new Promise(r=>gTimer=setTimeout(r,ms));
+async function ghostRun(){if(gStop)return;const [addr,mode,price,time]=G[gi%G.length];gi++;
+  inp.value='';ghost.classList.remove('on');fieldEl.classList.add('typing');
+  for(let i=1;i<=addr.length;i++){if(gStop)return;inp.value=addr.slice(0,i);await wait(38+Math.random()*40)}
+  chipSet(mode);await wait(500);if(gStop)return;
+  ghost.querySelector('.gaddr').textContent=addr;ghost.querySelector('.gprice').textContent=price;ghost.querySelector('.gtime').textContent=time;ghost.classList.add('on');fieldEl.classList.remove('typing');
+  await wait(3200);if(gStop)return;ghost.classList.remove('on');await wait(500);ghostRun()}
+const stopGhost=()=>{if(gStop)return;gStop=true;clearTimeout(gTimer);inp.value='';ghost.classList.remove('on');fieldEl.classList.remove('typing');chipSet('interior');ev('ghost_stopped')};
+inp.addEventListener('focus',stopGhost);inp.addEventListener('pointerdown',stopGhost);document.querySelectorAll('.chip').forEach(c=>c.addEventListener('pointerdown',stopGhost));
+if(!matchMedia('(prefers-reduced-motion: reduce)').matches)setTimeout(ghostRun,900);
+
+// ---- live counters
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;const el=e.target,n=+el.dataset.count,suf=el.dataset.suffix||'';let t0;const step=ts=>{t0??=ts;const p=Math.min(1,(ts-t0)/900);el.textContent=Math.round(n*(1-Math.pow(1-p,3)))+suf;if(p<1)requestAnimationFrame(step)};requestAnimationFrame(step);io.unobserve(el)}),{threshold:.5});
+document.querySelectorAll('[data-count]').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

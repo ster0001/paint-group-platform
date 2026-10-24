@@ -18,7 +18,10 @@ export type RankableJob = {
 export function rankShowcaseJobs<J extends RankableJob>(jobs: J[], audience: Audience): J[] {
   const live = jobs.filter((j) => j.published);
   const newest = (a: J, b: J) => (b.completed_on ?? "").localeCompare(a.completed_on ?? "");
-  if (audience === "home") {
+  // Paint Home (brief §4) reads the home arm until Session 2 adds
+  // featured_rank_painthome and the phone-close price ceiling; it never
+  // shows a commercial job.
+  if (audience === "home" || audience === "painthome") {
     return live.filter((j) => j.property_type === "home" && j.featured_rank != null)
       .sort((a, b) => (a.featured_rank ?? 9) - (b.featured_rank ?? 9)).slice(0, 3);
   }

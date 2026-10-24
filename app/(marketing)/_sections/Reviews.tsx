@@ -24,9 +24,11 @@ const PLACEHOLDERS = [
   "[Real review: one that mentions the finish or the prep]",
 ];
 
-export default async function Reviews({ featuredVideoJobId = null, featuredVideo = null, audience = "home", copy }: {
+export default async function Reviews({ featuredVideoJobId = null, featuredVideo = null, audience = "home", copy, poweredBy = null }: {
   featuredVideoJobId?: string | null; featuredVideo?: WebsiteContent["featuredVideo"] | null;
   audience?: Audience; copy?: { h2: string; fallbackH2: string };
+  /** Paint Home brief §2: the reviews are Paint Group's; the one-line credit under the cards is the honesty mechanism. */
+  poweredBy?: string | null;
 }) {
   const h2 = copy?.h2 ?? "What people say once the tape comes off.";
   // Tom, 6 Sep: a testimonial video pasted in Settings → Website wins; a
@@ -92,6 +94,7 @@ export default async function Reviews({ featuredVideoJobId = null, featuredVideo
               </div>
             )}
         </div>
+        {poweredBy && <p className="powered" data-testid="reviews-powered-by">Powered by {poweredBy} · reviews on Google</p>}
       </div>
     </section>
   );
