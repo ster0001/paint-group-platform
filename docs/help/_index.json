@@ -690,6 +690,7 @@
       "media": [],
       "verified_at_commit": null,
       "sources": [
+        "lib/messaging/brand.ts",
         "lib/marketing/brand.ts",
         "lib/marketing/audience.ts",
         "lib/marketing/copy/painthome.ts",

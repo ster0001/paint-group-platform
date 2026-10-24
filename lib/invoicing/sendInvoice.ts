@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { brandRecord, companyForBrand, entityForBrand, fromForBrand, messageBrandOf, publicOriginFor } from "@/lib/messaging/brand";
 import { emailConfigured, sendEmail, sendSms, smsConfigured, recipientList } from "@/lib/messaging/send";
 import { automationOn, normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
 import { outcomeWord, sendAutomation } from "@/lib/automations/dispatch";
@@ -37,6 +38,8 @@ const longDay = (iso: string | null) =>
 
 export function buildInvoiceEmailHtml(opts: {
   companyName: string;
+  /** Paint Home brief §5: the brand's email mark; absent = the Paint Group wordmark the email always had. */
+  logoUrl?: string;
   heading: string;
   intro: string;
   link: string;
@@ -69,7 +72,9 @@ export function buildInvoiceEmailHtml(opts: {
   <tr><td align="center">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:94%;background:#ffffff;border-radius:12px;overflow:hidden;">
       <tr><td style="padding:24px 32px 16px;border-bottom:1px solid #e5e7eb;">
-        <span style="font-size:19px;font-weight:700;letter-spacing:.08em;color:#111827;">PAINT<span style="color:#0e8296;">GROUP</span></span>
+        ${opts.logoUrl
+          ? `<img src="${esc(opts.logoUrl)}" alt="${esc(opts.companyName)}" height="40" style="height:40px;max-width:200px;object-fit:contain;" />`
+          : `<span style="font-size:19px;font-weight:700;letter-spacing:.08em;color:#111827;">PAINT<span style="color:#0e8296;">GROUP</span></span>`}
       </td></tr>
       <tr><td style="padding:24px 32px 6px;">
         <h1 style="margin:0 0 14px;font-size:20px;line-height:1.3;color:#111827;">${esc(opts.heading)}</h1>
@@ -105,12 +110,12 @@ export async function sendInvoiceEmail(
 ): Promise<InvoiceSendOutcome> {
   const { data } = await service
     .from("invoices")
-    .select("id, number, kind, status, total_inc_cents, due_on, token, estimates(accepted_name, contact_email:sent_snapshot->>contactEmail, contact_email2:sent_snapshot->>contactEmail2, job_address:sent_snapshot->>jobAddress)")
+    .select("id, number, kind, status, total_inc_cents, due_on, token, brand, estimates(accepted_name, contact_email:sent_snapshot->>contactEmail, contact_email2:sent_snapshot->>contactEmail2, job_address:sent_snapshot->>jobAddress)")
     .eq("id", invoiceId)
     .maybeSingle();
   const inv = data as {
     id: string; number: string | null; kind: string; status: string;
-    total_inc_cents: number; due_on: string | null; token: string;
+    total_inc_cents: number; due_on: string | null; token: string; brand?: string | null;
     estimates: { accepted_name: string | null; contact_email: string | null; contact_email2: string | null; job_address: string | null } | null;
   } | null;
   if (!inv || inv.status === "draft" || !inv.number) return { status: "error", message: "not issued" };
@@ -123,8 +128,11 @@ export async function sendInvoiceEmail(
   const { data: settings } = await service
     .from("settings").select("key, value").in("key", ["invoicing_entity", "invoicing_bank"]);
   const rows = (settings ?? []) as { key: string; value: Record<string, string> }[];
-  const entity = rows.find((r) => r.key === "invoicing_entity")?.value ?? {};
+  // Paint Home brief §5: the invoice's brand — Paint Home trades as Paint Home, with the brand's mark, sender and domain.
+  const brand = messageBrandOf(inv.brand);
+  const entity = entityForBrand(rows.find((r) => r.key === "invoicing_entity")?.value ?? {}, brand);
   const bank = rows.find((r) => r.key === "invoicing_bank")?.value ?? {};
+  const brandCompany = companyForBrand({} as { logoUrlEmail?: string }, brand);
 
   const KIND_PHRASE: Record<string, string> = {
     deposit: "the deposit for your painting work",
@@ -133,7 +141,7 @@ export async function sendInvoiceEmail(
     variation: "an approved variation on your painting work",
     standalone: "your painting work",
   };
-  const link = `${siteUrl()}/i/${inv.token}`;
+  const link = `${publicOriginFor(brand, siteUrl())}/i/${inv.token}`;
   const firstName = (inv.estimates?.accepted_name ?? "").split(" ")[0] || "there";
   const standard =
     `Please find your invoice ${inv.number} for ${KIND_PHRASE[inv.kind] ?? "your painting work"}` +
@@ -145,6 +153,7 @@ export async function sendInvoiceEmail(
 
   const html = buildInvoiceEmailHtml({
     companyName: (entity.tradingName as string) || "Paint Group",
+    logoUrl: brandCompany.logoUrlEmail ?? undefined,
     heading: `Invoice ${inv.number} — ${money(inv.total_inc_cents)}`,
     intro,
     link,
@@ -158,7 +167,7 @@ export async function sendInvoiceEmail(
     console.log(`[invoice-send:log-driver] to=${to} subject="Invoice ${inv.number}" link=${link}`);
     return { status: "not_configured", to };
   }
-  const result = await sendEmail({ to: recipients, subject: `Invoice ${inv.number} from Paint Group`, html, ctx: { invoiceId: inv.id, kind: "invoice" } });
+  const result = await sendEmail({ to: recipients, subject: `Invoice ${inv.number} from ${(entity.tradingName as string) || "Paint Group"}`, html, from: fromForBrand(brand), ctx: { invoiceId: inv.id, kind: "invoice" } });
   if (result.status === "sent") return { status: "sent", to };
   if (result.status === "not_configured") return { status: "not_configured", to };
   reportError(new Error(result.message), { where: "sendInvoiceEmail", extra: { invoiceId } });
@@ -178,11 +187,11 @@ export async function sendInvoiceSms(
 ): Promise<InvoiceSendOutcome> {
   const { data } = await service
     .from("invoices")
-    .select("id, number, status, total_inc_cents, token, estimates(accepted_name, contact_phone:builder_state->contact->>phone, contact_phone2:builder_state->contact->>secondary_phone)")
+    .select("id, number, status, total_inc_cents, token, brand, estimates(accepted_name, contact_phone:builder_state->contact->>phone, contact_phone2:builder_state->contact->>secondary_phone)")
     .eq("id", invoiceId)
     .maybeSingle();
   const inv = data as {
-    id: string; number: string | null; status: string; total_inc_cents: number; token: string;
+    id: string; number: string | null; status: string; total_inc_cents: number; token: string; brand?: string | null;
     estimates: { accepted_name: string | null; contact_phone: string | null; contact_phone2: string | null } | null;
   } | null;
   if (!inv || inv.status === "draft" || !inv.number) return { status: "error", message: "not issued" };
@@ -193,12 +202,13 @@ export async function sendInvoiceSms(
   const phone2 = normalisePhoneAU(inv.estimates?.contact_phone2 ?? "");
   const extraPhones = phone2 && phone2 !== phone ? [phone2] : [];
 
-  const link = `${siteUrl()}/i/${inv.token}`;
+  const smsBrand = messageBrandOf(inv.brand);
+  const link = `${publicOriginFor(smsBrand, siteUrl())}/i/${inv.token}`;
   const firstName = (inv.estimates?.accepted_name ?? "").split(" ")[0] || "there";
   const note = (personalMessage ?? "").trim();
   const body =
     `Hi ${firstName}, ${note ? `${note} — ` : ""}your invoice ${inv.number} for ${money(inv.total_inc_cents)} ` +
-    `from Paint Group is ready: ${link}`;
+    `from ${brandRecord(smsBrand).name} is ready: ${link}`;
 
   if (!smsConfigured()) {
     console.log(`[invoice-sms:log-driver] to=${phone} body="${body.slice(0, 120)}"`);
@@ -286,7 +296,7 @@ export async function sendReceiptEmail(
 ): Promise<InvoiceSendOutcome> {
   const { data } = await service
     .from("payments")
-    .select("id, amount_cents, receipt_number, invoice_id, invoices(number, token, estimates(accepted_name, contact_email:sent_snapshot->>contactEmail))")
+    .select("id, amount_cents, receipt_number, invoice_id, invoices(number, token, brand, estimates(accepted_name, contact_email:sent_snapshot->>contactEmail))")
     .eq("id", paymentId)
     .maybeSingle();
   const pay = data as {
@@ -301,16 +311,20 @@ export async function sendReceiptEmail(
   if (!to) return { status: "no_recipient" };
 
   // Settings → Automations: "Payment receipt".
-  const { messaging, company: co } = await loadMessaging(service);
+  const { messaging, company: co0 } = await loadMessaging(service);
   if (!automationOn(messaging, "payment_receipt")) return { status: "skipped" };
+  // Paint Home brief §5: the receipt carries the invoice's brand.
+  const receiptBrand = messageBrandOf((pay.invoices as { brand?: unknown }).brand);
+  const co = companyForBrand(co0, receiptBrand);
   const firstName = (pay.invoices.estimates?.accepted_name ?? "").split(" ")[0] || "there";
-  const link = `${siteUrl()}/i/${pay.invoices.token}`;
+  const link = `${publicOriginFor(receiptBrand, siteUrl())}/i/${pay.invoices.token}`;
   const pvars = {
     first_name: firstName, amount: money(pay.amount_cents), invoice_number: pay.invoices.number ?? "",
     receipt_number: pay.receipt_number ?? "", company_name: co.name || "Paint Group",
   };
   const html = buildInvoiceEmailHtml({
     companyName: co.name || "Paint Group",
+    logoUrl: receiptBrand === "painthome" ? co.logoUrlEmail ?? undefined : undefined,
     heading: `Payment received — thank you`,
     intro: renderTemplate(messaging.receiptBody, pvars),
     link,

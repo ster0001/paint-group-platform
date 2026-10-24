@@ -17,6 +17,8 @@ export type PortalEstimate = {
   sent_at: string | null;
   created_at: string;
   property_id?: string | null;
+  /** Paint Home brief §5 (⚑ P8): which shopfront the estimate came through; Paint Group when absent. */
+  brand?: string | null;
 };
 
 export type PortalWorkOrder = {

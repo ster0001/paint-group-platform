@@ -20,6 +20,9 @@ Your address, and a rough idea of what needs painting: which rooms, or the outsi
 5. Press **Confirm my price. Book a call**. One of our people calls you, checks the details, and the price is then set. There is no site visit for most Paint Home jobs.
 6. Pick a start date from what is available. You will know who is coming before it is confirmed.
 
+## Your emails, texts and account
+Everything we send about a Paint Home job comes from Paint Home: the estimate, the invoice, the receipt, the booking confirmation and the walk-through invite. Links open on painthome.com.au. Your invoice names Paint Home and shows the legal line *Enlvn Pty Ltd trading as Paint Home*. If you have had work done through Paint Group before, the same login shows all of your jobs in one place, each marked with where it came from.
+
 ## What the colours and labels mean
 - **powered by Paint Group** — Paint Home is run by Paint Group. The reviews you see are Paint Group's Google reviews, and the two-year guarantee and the public liability insurance are the same documents.
 - **Enlvn Pty Ltd trading as Paint Home** — the legal entity behind both names.

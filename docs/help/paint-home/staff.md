@@ -3,7 +3,7 @@ feature: paint-home
 role: staff
 title: Paint Home — the second shopfront: its words, its cards, and Settings → Brands
 summary: Paint Home (painthome.com.au) is the same business, wizard, painters, CRM and invoicing under a second name; its words are edited on the Paint Home tab of Website copy, its three cards are home jobs under the phone-close price with their own featured rank, and Settings → Brands holds each shopfront's domain, phone, legal line and accent colour.
-sources: lib/marketing/brand.ts, lib/marketing/audience.ts, lib/marketing/copy/painthome.ts, app/(marketing)/painthome/page.tsx, app/(app)/settings/BrandsSettings.tsx, app/(app)/settings/SiteCopyEditor.tsx, app/(app)/settings/showcase/ShowcaseEditor.tsx, lib/showcase/rank.ts, lib/wizard/brand.ts, app/wizard/Reveal.tsx, app/api/wizard/submit/route.ts
+sources: lib/messaging/brand.ts, lib/marketing/brand.ts, lib/marketing/audience.ts, lib/marketing/copy/painthome.ts, app/(marketing)/painthome/page.tsx, app/(app)/settings/BrandsSettings.tsx, app/(app)/settings/SiteCopyEditor.tsx, app/(app)/settings/showcase/ShowcaseEditor.tsx, lib/showcase/rank.ts, lib/wizard/brand.ts, app/wizard/Reveal.tsx, app/api/wizard/submit/route.ts
 ---
 
 ## What this is for
@@ -28,6 +28,11 @@ This page covers what the office sees of it today: how the site is served, and t
 A Paint Home visitor uses the same estimator, served under painthome.com.au, with two doors shut: there is no commercial property kind and no "inside and outside" job (two separate estimates instead). Their address and Inside / Outside choice arrive pre-answered. At the price step Paint Home only takes jobs a person can confirm on the phone: when the top of the range is at or under the phone-close ceiling (Settings → `wizard_policy`, remote confirmation cap) and nothing needs seeing, the one door is **Confirm my price. Book a call**, which files a call request on CRM Today the same way "Speak with us" does. Over the ceiling, or when the job needs a person on site, the customer sees a hand-off ("This one's bigger than we can price from your phone"), is told the Paint Group team looks after larger jobs, and books a site visit; every answer is kept on the estimate.
 
 Every Paint Home session, estimate, work order and invoice carries `brand = painthome`. The pill and filter that show it in the lists come in Session 5; until then it is in the database and on the estimate row.
+
+## What a Paint Home customer receives
+Every customer-facing message is the same template with the brand laid over it: the estimate email and text, the invoice email and text, the payment receipt, the booking confirmation, the walk-through calendar invite and the welcome all name Paint Home, carry the Paint Home mark, and link to painthome.com.au. The sender stays our verified mailbox with "Paint Home" as the display name. An invoice for a Paint Home job trades as Paint Home with the line *Enlvn Pty Ltd trading as Paint Home*; the ABN, address and bank details are the company's and do not change. The estimate page and the invoice page show the brand of the estimate, whichever address the customer opens them from.
+
+The customer portal is shared: one login sees every job from either door. A customer whose jobs all came through Paint Home sees the Paint Home mark and number in the portal header; a customer with jobs from both doors sees Paint Group's header and a *Paint Home* tag on each Paint Home job.
 
 ## What the colours and labels mean
 - **Accent in use** — the hex, the phone link and the address that the site is rendering right now, after your save.
