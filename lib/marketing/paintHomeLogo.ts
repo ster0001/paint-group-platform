@@ -13,7 +13,9 @@
  */
 export const PAINT_HOME_LOGO = {
   viewBoxFull: "0 0 840 221",
-  viewBoxNav: "0 0 840 132",
+  // The brush runs to y≈216, below the wordmark, so the nav keeps the full canvas and drops only the tagline path
+  // (Tom, 25 Oct: the 132-high crop the brief named cut the brush in half).
+  viewBoxNav: "0 0 840 221",
   brush: "#02adb5",
   home: "#17f9f1",
   /** The text fill per background, as the two supplied files have it. */
