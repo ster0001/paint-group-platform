@@ -4,7 +4,7 @@ role: customer
 title: Your project, day by day — following the job and the photos your painting team sends
 summary: Where to see each update from your painting team with the photos the office attached to it, where every area is up to, who is at your home, and what to do if a photo or update is missing.
 sources: app/account/(portal)/JobTimeline.tsx, lib/portal/timeline.ts, lib/portal/data.ts
-verified_at_commit: eb981f7e0e
+verified_at_commit: fa938d66d2
 ---
 
 ## What this is for
@@ -22,7 +22,7 @@ Once your job is booked, **Your project, day by day** in your account is the rec
 5. Tap a photo to see it full size. Tap **Close** to come back.
 
 ## Updates from the office
-Since 24 Oct 2026 the office sends short notes to your timeline as the job moves: when a whole surface is prepped or painted right through (*Walls are painted right through the house. Ceilings are up next.*) and a quick summary at the end of a working day. Each one carries who it is from — **Felipe, Paint Group** — under the words. There is one **Reply to Felipe** button for the whole timeline; it opens your message thread with the office, where every reply is read.
+Since 24 Oct 2026 the office sends short notes to your timeline as the job moves: when a whole surface is prepped or painted right through (*Walls are painted right through the house. Ceilings are up next.*) and a quick summary at the end of a working day. Part-way through a longer job you also get a short check-in asking how you are finding things, and on the morning the painters start marking up touch-ups a note saying so (put a bit of tape on anything you want looked at). Each one carries who it is from — **Felipe, Paint Group** — under the words. There is one **Reply to Felipe** button for the whole timeline; it opens your message thread with the office, where every reply is read.
 
 ## What the labels mean
 - **From your painting team** — an update sent to you; the same words came by email and text.

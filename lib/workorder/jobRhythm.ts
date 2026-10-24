@@ -120,6 +120,33 @@ export function customerDefectTapeRungs(days: readonly string[]): DefectTapeRung
   return [{ id: "am", date: days[n - 4] }];
 }
 
+/**
+ * Work order UX Step 3, Trigger B: the customer check-in day — the first morning
+ * on or after `pct` of the booked days have elapsed, on jobs of `minDays` or
+ * more booked days; null otherwise. After k days of an n-day job k/n has
+ * elapsed, so the morning of day ceil(pct·n)+1 is the first at or past the mark:
+ * 3 days → day 3 · 5 → day 3 · 7 → day 4 · 10 → day 5. Never past the last day.
+ */
+export function customerCheckinDay(days: readonly string[], pct = 0.4, minDays = 3): string | null {
+  const n = days.length;
+  if (n < Math.max(minDays, 1)) return null;
+  const idx = Math.min(n - 1, Math.ceil(pct * n - 1e-9));
+  return days[idx] ?? null;
+}
+
+/**
+ * Work order UX Step 3, Trigger C: the morning the customer is told the
+ * touch-up pass has started. The same day as the defect-tape text where there
+ * is one (3+ days, `customerDefectTapeRungs`); on a one- or two-day job — every
+ * job, ruling R11 — the last booked day. Null when the job has no days.
+ */
+export function customerDefectDay(days: readonly string[]): string | null {
+  const n = days.length;
+  if (n === 0) return null;
+  const rung = customerDefectTapeRungs(days)[0];
+  return rung ? rung.date : days[n - 1];
+}
+
 /** The day the painter is reminded of the walkthrough date: two business days before it. */
 export function painterFinishReminderDay(walkthroughDate: string, holidays: ReadonlySet<string>): string {
   return workingDaysBefore(walkthroughDate, 2, holidays);

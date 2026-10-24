@@ -9,7 +9,7 @@ import { runMoneySignoffSweep } from "@/lib/automations/sweeps/moneySignoff";
 import { runJobReminderSweep } from "@/lib/automations/sweeps/jobReminders";
 import { runDefectTapeSweep } from "@/lib/automations/sweeps/defectTape";
 import { runFinishReminderSweep } from "@/lib/automations/sweeps/finishReminder";
-import { runCustomerUpdatesAutoSend } from "@/lib/automations/sweeps/customerUpdates";
+import { runCustomerNoteTriggers, runCustomerUpdatesAutoSend } from "@/lib/automations/sweeps/customerUpdates";
 import { sendFollowupDigest, sendPrestartReminders } from "@/lib/automations/sweeps/officeDigests";
 import { reportError } from "@/lib/monitoring/report";
 
@@ -69,6 +69,7 @@ export async function GET(req: Request) {
     // Tom, 19 Oct: the painter's "final walkthrough in two business days" text. `?only=finish` is the hand run.
     const finishReminder = only === "moments" || only === "certificates" || only === "standards" || only === "status" || only === "defect" ? null : await runFinishReminderSweep(db, now);
     // Work order UX Step 2: the Customer updates queue sends itself only while its switch is on. `?only=updates` is the hand run.
+    const customerNotes = only == null || only === "updates" ? await runCustomerNoteTriggers(db, now) : null;
     const customerUpdates = only == null || only === "updates" ? await runCustomerUpdatesAutoSend(db, now) : null;
     // Standards Step 2: "please confirm the finish standards" on days 2, 4 and 6
     // after the invite, and the new-version message (lib/standards/acks.ts).
@@ -97,6 +98,7 @@ export async function GET(req: Request) {
       jobReminders,
       defectTape,
       finishReminder,
+      customerNotes,
       customerUpdates,
       standards,
       certificates,
