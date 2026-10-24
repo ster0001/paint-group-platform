@@ -60,3 +60,9 @@ export async function setAutoSend(db: SupabaseClient, on: boolean): Promise<{ er
   const { error: upErr } = await db.from("settings").upsert({ key: MESSAGING_KEY, value: { ...saved, controls } }, { onConflict: "key" });
   return { error: upErr?.message ?? null };
 }
+
+/** The kinds that reach the customer on the timeline only — never emailed or texted (R10; Step 3 default for the defect-day note). */
+export const TIMELINE_ONLY_KINDS: ReadonlySet<string> = new Set(["checkin_40", "defect_day"]);
+export function isTimelineOnlyKind(kind: string | null | undefined): boolean {
+  return !!kind && TIMELINE_ONLY_KINDS.has(kind);
+}

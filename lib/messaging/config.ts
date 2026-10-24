@@ -300,6 +300,13 @@ export type MessagingSettings = {
   customerMilestonePlaceCommercial: string;
   /** Trigger D, the end-of-day summary rolled up by surface. {{first_name}}, {{progress}}, {{tomorrow}}, {{photos}}. */
   customerEndOfDayBody: string;
+  /** Trigger B (Step 3): the 40% check-in, timeline only. {{first_name}}. */
+  customerCheckinBody: string;
+  /** Trigger C (Step 3): the defect-day note, timeline only. {{first_name}}. */
+  customerDefectDayBody: string;
+  /** HH:MM Melbourne: when the check-in and the defect-day note are drafted. */
+  customerCheckinTime: string;
+  customerDefectDayTime: string;
   /** Painter (Tom, 19 Oct): two business days before the walkthrough — the date, and move it in the app if ahead or behind. */
   contractorFinishReminderSms: string;
   contractorFinishReminderEmailSubject: string;
@@ -654,6 +661,10 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   customerMilestonePlaceHome: "house",
   customerMilestonePlaceCommercial: "place",
   customerEndOfDayBody: "Hi {{first_name}}, quick one on today. {{progress}}{{tomorrow}}{{photos}}",
+  customerCheckinBody: "Hi {{first_name}}, just touching base to see how you're finding things so far. Happy with the progress? Anything at all, reply here and we'll sort it.",
+  customerDefectDayBody: "Hi {{first_name}}, we've started going over the job today marking up anything that needs a touch up before your walkthrough. If you spot anything you want extra attention on just let us know, or stick a bit of tape on it and we'll take care of it.",
+  customerCheckinTime: "09:00",
+  customerDefectDayTime: "07:30",
   contractorFinishReminderSms:
     "{{company_name}}: hi {{first_name}}, the final walkthrough on {{wo_ref}} at {{suburb}} is {{finish_date}} — two business days away. Running ahead or behind? Change the date in the app so the office and the customer know. {{link}}",
   contractorFinishReminderEmailSubject: "Final walkthrough {{finish_date}} — {{wo_ref}} at {{suburb}}",

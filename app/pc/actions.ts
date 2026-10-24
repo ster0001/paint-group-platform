@@ -14,7 +14,7 @@ import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireStaff } from "@/lib/supabase/guards";
 import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
-import { loadCustomerUpdatesSettings, setAutoSend } from "@/lib/workorder/customerUpdates";
+import { isTimelineOnlyKind, loadCustomerUpdatesSettings, setAutoSend } from "@/lib/workorder/customerUpdates";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
 import { qaWhenMessage } from "@/lib/workorder/qaSchedule";
@@ -201,11 +201,18 @@ export async function approveAndSendUpdate(raw: unknown): Promise<PcResult> {
     "Sent to the timeline — email and text on their way.");
   if (sent.ok) {
     // The record is written; DELIVERY rides behind the response (Tom, 25 Aug:
-    // updates were recorded as sent but nobody ever received anything).
+    // updates were recorded as sent but nobody ever received anything). The
+    // 40% check-in and the defect-day note are TIMELINE ONLY (rulings R10 and
+    // the Step 3 default): recorded, never emailed or texted.
     const updateId = parsed.data.updateId;
     after(async () => {
       const service = createServiceClient();
-      if (service) await deliverCustomerUpdate(service, updateId, [], "both");
+      if (!service) return;
+      const { data: row, error } = await service.from("wo_updates").select("kind").eq("id", updateId).maybeSingle();
+      // A failed read of the kind is reported, and the update goes out as every update did before Step 3.
+      if (error) reportError(error, { where: "pc.approveAndSend.kind", extra: { updateId } });
+      else if (isTimelineOnlyKind((row as { kind?: string } | null)?.kind)) return;
+      await deliverCustomerUpdate(service, updateId, [], "both");
     });
   }
   return sent;
