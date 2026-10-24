@@ -1,4 +1,5 @@
 import { openAssistSession } from "@/lib/agent/session";
+import { wizardTitle } from "@/lib/wizard/brandServer";
 import { getCompanyContact } from "@/lib/portal/data";
 import Wordmark from "@/app/wizard/Wordmark";
 import AssistView from "./AssistView";
@@ -16,10 +17,10 @@ import "./assist.css";
  */
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Chat your estimate through · Paint Group",
-  robots: { index: false, follow: false },
-};
+// Paint Home brief §5: the title carries the brand the page is served under (lib/wizard/brandServer.ts).
+export async function generateMetadata() {
+  return { title: await wizardTitle("Chat your estimate through"), robots: { index: false, follow: false } };
+}
 
 export default async function AssistPage({ searchParams }: { searchParams: Promise<{ c?: string; estimate?: string }> }) {
   const params = await searchParams;

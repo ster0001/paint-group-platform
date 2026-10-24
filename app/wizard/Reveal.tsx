@@ -10,6 +10,7 @@ import { exteriorAssumedList, exteriorRestatement, type ExteriorQuickLook } from
 import { DEFAULT_BANDS } from "@/lib/wizard/policy";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import ExteriorRangeRows, { notInThisNumber } from "./ExteriorRangeRows";
+import { PAINT_HOME_WORDS, type WizardBrand } from "@/lib/wizard/brand";
 
 /**
  * THE GUIDE RANGE — estimator journey v2 §3, "the screen the redesign exists
@@ -47,8 +48,11 @@ const OPEN_BY_KEY: Record<string, string[]> = { openings: ["doors", "windows"], 
 
 export default function Reveal({
   payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null, outside = null, speakWithUs = false, onSpeak, onMessage, contactKnown = false,
-  firstName = null, trust = null, walkChecked = false, onEditor,
+  firstName = null, trust = null, walkChecked = false, onEditor, brand = "paintgroup", paintHome = null,
 }: {
+  /** Paint Home brief §5: the shopfront, and the server's phone-close verdict — `call` draws "Confirm my price. Book a call"; `visit` draws the hand-off. */
+  brand?: WizardBrand;
+  paintHome?: { tier: "call" | "visit"; capCents: number } | null;
   /** Exterior wizard v2 (S5): every painted side checked on the walk — the Tighten door reads "Change a side" and Book a site visit is primary (⚑ 14). */
   walkChecked?: boolean;
   /** Exterior wizard v2 (S5): "Change anything else" — the after-range sides editor (§7.7). */
@@ -198,15 +202,35 @@ export default function Reveal({
               </div>
             ) : (
               <p className="wz-ladder-visit" data-testid="reveal-tiers-visit">
-                <b>Then a visit.</b> {payload.commercial ? "Every commercial price" : "Every outside price"} is confirmed on site by your estimator before it&rsquo;s fixed.
+                {brand === "painthome" && paintHome?.tier === "call"
+                  ? <><b>Then one call.</b> {PAINT_HOME_WORDS.thenCall}</>
+                  : <><b>Then a visit.</b> {payload.commercial ? "Every commercial price" : "Every outside price"} is confirmed on site by your estimator before it&rsquo;s fixed.</>}
               </p>
             )}
           </div>
         </section>
 
+        {brand === "painthome" && paintHome?.tier === "visit" ? (
+          // Paint Home brief §5: over the phone-close ceiling (or a job that needs seeing) — the polite
+          // hand-off, every answer kept. The first and only place the wizard names Paint Group.
+          <div className="wz-rv-doors wz-ph-handoff" data-testid="painthome-handoff">
+            <p className="wz-kick">{PAINT_HOME_WORDS.handoff.kicker}</p>
+            <h2 className="wz-doors-head">{PAINT_HOME_WORDS.handoff.heading}</h2>
+            <p className="wz-sub">{PAINT_HOME_WORDS.handoff.body}</p>
+            <p className="wz-sub" data-testid="painthome-handoff-team">{PAINT_HOME_WORDS.handoff.team}</p>
+            <div className="wz-doors">
+              <Door testId="door-book" icon="📍" title={PAINT_HOME_WORDS.handoff.button} onClick={onBook} body="Choose a time for us to see the property. About 40 minutes." hero />
+              {onMessage && <Door testId="door-message" icon="✉" title="Send us a message" onClick={onMessage} body="Ask a question about your estimate" />}
+            </div>
+          </div>
+        ) : (
         <div className="wz-rv-doors">
           <h2 className="wz-doors-head">Where would you like to go from here?</h2>
           <div className="wz-doors">
+            {/* Paint Home brief §5: phone-close — one short call confirms the price; no site visit is offered. */}
+            {brand === "painthome" && paintHome?.tier === "call" && onSpeak && (
+              <Door testId="door-call" icon="☎" title={PAINT_HOME_WORDS.confirmDoor.title} onClick={onSpeak} body={PAINT_HOME_WORDS.confirmDoor.body} hero />
+            )}
             {/* Exterior wizard v2 (⚑ 14): once every side is checked the walk door reads "Change a side" and the visit is the primary door. */}
             {exteriorOnly && outside?.v2 && walkChecked ? (
               <Door
@@ -219,11 +243,11 @@ export default function Reveal({
                 body={exteriorOnly && outside?.v2
                   ? "Side by side, a few minutes — confirm each side's size and the paintwork, and the range closes to within a few percent."
                   : `Get a more accurate quote now. A few minutes, ${how}.`}
-                hero
+                hero={!(brand === "painthome" && paintHome?.tier === "call")}
               />
             )}
             {/* Exterior wizard v2 (brief §7.5): Tighten, Book a site visit, Speak with us, Send us a message — in that order. */}
-            {exteriorOnly && outside?.v2 && (
+            {exteriorOnly && outside?.v2 && brand !== "painthome" && (
               <Door
                 testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
                 body="Your estimator measures up and fixes the price with you — about 40 minutes."
@@ -236,13 +260,13 @@ export default function Reveal({
                 body="Every side's lines, with what you counted already filled in."
               />
             )}
-            {speakWithUs && onSpeak && (
+            {speakWithUs && onSpeak && brand !== "painthome" && (
               <Door
                 testId="door-speak" icon="☎" title="Speak with us" onClick={onSpeak}
                 body="Request a call to finalise your booking"
               />
             )}
-            {!(exteriorOnly && outside?.v2) && (
+            {!(exteriorOnly && outside?.v2) && brand !== "painthome" && (
               <Door
                 testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
                 body="Choose a time for us to see the property"
@@ -291,6 +315,7 @@ export default function Reveal({
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* C11 (v2.4) — the person is in the screen: who confirms this price, and the ways to

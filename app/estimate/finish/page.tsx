@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { wizardTitle } from "@/lib/wizard/brandServer";
 import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadCustomerScope, type EstimateRow } from "@/lib/wizard/customer-scope";
@@ -14,10 +15,10 @@ import "../../wizard/wizard.css";
  * about money, and the two would disagree the first time either changed.
  */
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Your estimate · Paint Group",
-  robots: { index: false, follow: false },
-};
+// Paint Home brief §5: the title carries the brand the page is served under (lib/wizard/brandServer.ts).
+export async function generateMetadata() {
+  return { title: await wizardTitle("Your estimate"), robots: { index: false, follow: false } };
+}
 
 function Holding({ line, logoUrl }: { line: string; logoUrl?: string | null }) {
   return (

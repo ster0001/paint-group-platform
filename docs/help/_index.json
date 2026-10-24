@@ -675,7 +675,9 @@
       "sources": [
         "app/(marketing)/painthome/page.tsx",
         "app/(marketing)/_sections/Hero.tsx",
-        "app/(marketing)/_sections/Footer.tsx"
+        "app/(marketing)/_sections/Footer.tsx",
+        "app/wizard/Reveal.tsx",
+        "lib/wizard/brand.ts"
       ]
     },
     {
@@ -695,7 +697,10 @@
         "app/(app)/settings/BrandsSettings.tsx",
         "app/(app)/settings/SiteCopyEditor.tsx",
         "app/(app)/settings/showcase/ShowcaseEditor.tsx",
-        "lib/showcase/rank.ts"
+        "lib/showcase/rank.ts",
+        "lib/wizard/brand.ts",
+        "app/wizard/Reveal.tsx",
+        "app/api/wizard/submit/route.ts"
       ]
     },
     {

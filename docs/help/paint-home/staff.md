@@ -3,7 +3,7 @@ feature: paint-home
 role: staff
 title: Paint Home — the second shopfront: its words, its cards, and Settings → Brands
 summary: Paint Home (painthome.com.au) is the same business, wizard, painters, CRM and invoicing under a second name; its words are edited on the Paint Home tab of Website copy, its three cards are home jobs under the phone-close price with their own featured rank, and Settings → Brands holds each shopfront's domain, phone, legal line and accent colour.
-sources: lib/marketing/brand.ts, lib/marketing/audience.ts, lib/marketing/copy/painthome.ts, app/(marketing)/painthome/page.tsx, app/(app)/settings/BrandsSettings.tsx, app/(app)/settings/SiteCopyEditor.tsx, app/(app)/settings/showcase/ShowcaseEditor.tsx, lib/showcase/rank.ts
+sources: lib/marketing/brand.ts, lib/marketing/audience.ts, lib/marketing/copy/painthome.ts, app/(marketing)/painthome/page.tsx, app/(app)/settings/BrandsSettings.tsx, app/(app)/settings/SiteCopyEditor.tsx, app/(app)/settings/showcase/ShowcaseEditor.tsx, lib/showcase/rank.ts, lib/wizard/brand.ts, app/wizard/Reveal.tsx, app/api/wizard/submit/route.ts
 ---
 
 ## What this is for
@@ -23,6 +23,11 @@ This page covers what the office sees of it today: how the site is served, and t
 5. **Change a phone number.** Type it as it should read on the site (digits and spaces). The `tel:` link is worked out from it. Save, and the line under the fields shows the number and link now in use. The websites pick it up within a minute.
 6. **Change the accent colour.** A six-digit hex, like `#17F9F1`. On Paint Home this is the logo cyan used on the address field border, the selected chip, the focus ring and small highlights; it never fills a whole section.
 7. **Logos.** They are not edited here. Paint Group's is Company details → logo 1. Paint Home's is the supplied vector mark, drawn inline on every page, so there is nothing to upload.
+
+## The wizard on Paint Home
+A Paint Home visitor uses the same estimator, served under painthome.com.au, with two doors shut: there is no commercial property kind and no "inside and outside" job (two separate estimates instead). Their address and Inside / Outside choice arrive pre-answered. At the price step Paint Home only takes jobs a person can confirm on the phone: when the top of the range is at or under the phone-close ceiling (Settings → `wizard_policy`, remote confirmation cap) and nothing needs seeing, the one door is **Confirm my price. Book a call**, which files a call request on CRM Today the same way "Speak with us" does. Over the ceiling, or when the job needs a person on site, the customer sees a hand-off ("This one's bigger than we can price from your phone"), is told the Paint Group team looks after larger jobs, and books a site visit; every answer is kept on the estimate.
+
+Every Paint Home session, estimate, work order and invoice carries `brand = painthome`. The pill and filter that show it in the lists come in Session 5; until then it is in the database and on the estimate row.
 
 ## What the colours and labels mean
 - **Accent in use** — the hex, the phone link and the address that the site is rendering right now, after your save.

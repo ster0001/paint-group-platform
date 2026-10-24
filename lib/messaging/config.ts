@@ -469,10 +469,10 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}}: did {{what}} for {{wo_ref}} arrive on site today? If not, reply NO and the office will chase the shop. {{link}}",
   movementBookedSms:
     "{{company_name}}: {{ask}} — {{day}} at {{when}}, {{where}}. {{order_line}}Details, with Navigate and Call: {{link}}",
-  movementInviteSubject: "{{what}} — {{day}} {{when}} ({{wo_ref}})",
+  movementInviteSubject: "{{ask}} — {{day}} {{when}} ({{wo_ref}})",
   movementInviteBody:
     "Hi {{first_name}},\n\n" +
-    "{{what}} for {{wo_ref}} is on your day: {{day}}, {{when}}, at {{where}}.\n\n" +
+    "{{ask}} — {{day}} at {{when}}, {{where}} ({{wo_ref}}).\n\n" +
     "The attached invite puts it in your calendar. Order reference: {{order_ref}}. {{note}}\n\n" +
     "The details, with Navigate and Call: {{link}}",
   visitConfirmSubject: "Your visit is booked — {{visit_when}}",

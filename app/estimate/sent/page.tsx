@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { wizardBrand, wizardTitle } from "@/lib/wizard/brandServer";
+import { paintHomeEstimatorIntro } from "@/lib/wizard/brand";
 import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadCustomerScope, type EstimateRow } from "@/lib/wizard/customer-scope";
@@ -16,10 +18,10 @@ import "../../wizard/wizard.css";
  * to their job, and a toast cannot be returned to.
  */
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Sent to your estimator · Paint Group",
-  robots: { index: false, follow: false },
-};
+// Paint Home brief §5: the title carries the brand the page is served under (lib/wizard/brandServer.ts).
+export async function generateMetadata() {
+  return { title: await wizardTitle("Sent to your estimator"), robots: { index: false, follow: false } };
+}
 
 function Holding({ line }: { line: string }) {
   return (
@@ -89,11 +91,14 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
    */
   const assigned = (requestRes?.data as { assigned_to?: string | null } | null)?.assigned_to ?? null;
   const snapshot = ((state.wizard as { state?: { customer?: { suburb?: string } } } | undefined)?.state?.customer ?? {});
-  const whoHasIt = estimatorLine({
-    name: bundle.sendTo,
-    suburb: snapshot.suburb ?? null,
-    covers: assigned != null,
-  });
+  // Paint Home brief §5: Sarah is introduced simply — "Sarah, who'll be checking your price" — no company name.
+  const whoHasIt = (await wizardBrand()) === "painthome"
+    ? paintHomeEstimatorIntro(bundle.sendTo)
+    : estimatorLine({
+      name: bundle.sendTo,
+      suburb: snapshot.suburb ?? null,
+      covers: assigned != null,
+    });
   const rooms = bundle.kind === "rooms" ? bundle.initialRooms : [];
   const photos = bundle.kind === "rooms" || bundle.kind === "sides" ? (bundle.docs.photos?.length ?? 0) : 0;
 

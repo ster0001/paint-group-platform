@@ -199,7 +199,7 @@ async function run(service: SupabaseClient, workOrderId: string, removed: readon
         attachments: [{
           filename: a.method === "CANCEL" ? "check-cancelled.ics" : "quality-check.ics",
           content: Buffer.from(ics, "utf8").toString("base64"),
-          contentType: `text/calendar; method=${a.method}`,
+          contentType: `text/calendar; charset=utf-8; method=${a.method}`,
         }],
         // A staff-only send: never on a customer's thread.
         ctx: { kind: "staff_alert" },

@@ -61,6 +61,8 @@ import {
 import type { CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered, pickResume } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
+import { allowedForBrand, type WizardBrand } from "@/lib/wizard/brand";
+import { brandFor } from "@/lib/marketing/brand";
 import ChatWidget from "./ChatWidget";
 import WizardHeader from "./WizardHeader";
 import { UI_FLAGS } from "@/lib/wizard/ui-flags";
@@ -171,7 +173,9 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [] }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [], brand = "paintgroup" }: {
+  /** Paint Home brief §5: the shopfront this session came through — the host or the hand-off decided it (lib/wizard/brandServer.ts). Paint Group by default. */
+  brand?: WizardBrand;
   /** Exterior wizard v2 (S2): the shape typicals (`exterior_typicals`); empty = the built-in list. */
   exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   /** UI refresh S2 (⚑ 23): the estimator the wizard resolves (`resolveEstimator`), named in "Talk it through". Null names nobody. */
@@ -209,7 +213,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** Homepage hand-off (lib/marketing/prefill.ts): the address the visitor
    * typed on the marketing site, shown in the field; "business" pre-selects
    * the commercial property kind. Intent only — no account, no event. */
-  intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string };
+  intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string; scope?: string | null };
   /** Tom, 7 Sep: the SERVER copy of a half-finished walk (the autosaved
    * draft for this user) — merged with the browser copy on mount, newest wins. */
   resume?: Omit<ResumeRecord, "v"> | null;
@@ -220,6 +224,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    */
   assisted?: { who: string; screen: string | null } | null;
 }) {
+  // Paint Home brief §5: the Inside / Outside chip's scope, as a job type (anything else is ignored).
+  const scopeIntent: "interior" | "exterior" | null = intent?.scope === "interior" ? "interior" : intent?.scope === "exterior" ? "exterior" : null;
   const makeInitialState = (): WizardState => {
     const seed = prefillState ?? defaultWizardState();
     const base = mode === "customer"
@@ -234,6 +240,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
           },
           address: prefill?.address ?? seed.address,
+          // Paint Home brief §5: the chip's scope is the job type from the first paint (the quick look mirrors it on every tap).
+          ...(scopeIntent ? { jobType: scopeIntent } : {}),
           contact: {
             name: prefill?.name ?? seed.contact?.name ?? "",
             email: prefill?.email ?? seed.contact?.email ?? "",
@@ -267,6 +275,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const quick: QuickLookAnswers = state.quickLook ?? {
     ...DEFAULT_QUICK_LOOK,
     ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
+    // Paint Home brief §5: the Inside / Outside chip arrives pre-answered on screen 1, still editable.
+    ...(scopeIntent ? { jobType: scopeIntent } : {}),
   };
   /** C13: which commercial screens the chosen row walks — the warehouse pattern has its own. */
   const commercialPattern = isWarehouse(segmentByKey(segments, state.customer?.commercialSegment)) ? "warehouse" as const : "areas" as const;
@@ -342,7 +352,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     }
   };
 
-  const setQuick = (patch: Partial<QuickLookAnswers>) => {
+  const setQuick = (raw: Partial<QuickLookAnswers>) => {
+    // Paint Home brief §5: a commercial kind or a "both" job is never accepted on Paint Home, however it arrived.
+    const patch = { ...raw, ...allowedForBrand(brand, raw) };
     const next = { ...quick, ...patch };
     setState((s) => ({
       ...s,
@@ -413,6 +425,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [bookOpen, setBookOpen] = useState(false);
   useEffect(() => {
     if (mode === "customer" && !state.gateVersion) setState((s) => ({ ...s, gateVersion: gateOrder }));
+    // Paint Home brief §5: the brand is set ONCE at the start and rides the state (autosave, resume, submit).
+    if (mode === "customer" && brand === "painthome" && state.brand !== "painthome") setState((s) => ({ ...s, brand: "painthome" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /** Visit booking S4: the talk sheet (request a site visit / send a message) and the range screen's "sent" screen. */
@@ -1839,7 +1853,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     return (
       <div className="wz">
         <header className="wz-top">
-          <Wordmark logoUrl={logoUrl} />
+          <Wordmark logoUrl={logoUrl} brand={brand} />
         </header>
         <BriefDone slot={briefDone.slot} emailed={briefDone.emailed} booked={briefDone.booked} bookingProblem={briefDone.bookingProblem} email={briefDone.email} phone={companyPhone}
           address={state.address?.formatted ?? quickAddress ?? null} holdDays={holdDays} />
@@ -1851,7 +1865,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       <div data-ready="1" className="wz-shell">
         {/* UI refresh S3 (brief §7.1): after the details, the rail is the three accuracy steps. */}
         <WizardHeader
-          logo={<Wordmark logoUrl={logoUrl} />}
+          brandName={brandFor(brand === "painthome" ? "painthome" : "home").name}
+          logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={[]}
           at="gate"
           after={{
@@ -1934,6 +1949,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           onEditor={() => { void recordRangeOption(reveal.estimateId, "tighten"); clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
           onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           speakWithUs={Boolean((reveal.payload as { speakWithUs?: boolean }).speakWithUs)}
+          brand={brand}
+          paintHome={(reveal.payload as { paintHome?: { tier: "call" | "visit"; capCents: number } }).paintHome ?? null}
           onSpeak={() => { void recordRangeOption(reveal.estimateId, "speak"); setTalk({ mode: "call" }); }}
           onMessage={() => { void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
           contactKnown={contactKnown}
@@ -1957,7 +1974,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         // UI refresh S1: the slim header with the step rail, built from the
         // same `stepsFor()` list the screens walk. ⚑ 10: the chat is its icon.
         <WizardHeader
-          logo={<Wordmark logoUrl={logoUrl} />}
+          brandName={brandFor(brand === "painthome" ? "painthome" : "home").name}
+          logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={quickSteps}
           at={quickStep}
           done={screen === "processing"}
@@ -1967,7 +1985,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         />
       ) : (
       <header className="wz-top">
-        <Wordmark logoUrl={logoUrl} />
+        <Wordmark logoUrl={logoUrl} brand={brand} />
         {/* UI refresh S9: the old dots are gone (brief §10) — the staff page list says where it is in words. */}
         <span className="wz-pcount" data-testid="pages-count">{screen === "processing" ? "Working it out" : `Step ${page} of ${lastPage}`}</span>
         {/* C8 — Save & book in the header of every screen (prototype: every
@@ -2063,6 +2081,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 step={quickStep}
                 quick={quick}
                 onQuick={setQuick}
+                brand={brand}
                 exteriorTypicals={exteriorTypicals}
                 planRooms={state.planRooms}
                 planPreviewUrl={state.planPreviewUrl}
@@ -2107,7 +2126,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 suburb={state.address?.suburb || state.customer?.suburb || null}
                 estimatorName={estimatorName}
                 onNext={quickNext}
-                onBook={() => { flushDraft(lastScreen); setTalk({ mode: "visit" }); }}
+                // Paint Home brief §5: the mid-flow door asks for a call, never a site visit.
+                onBook={() => { flushDraft(lastScreen); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); }}
                 onMessage={() => { flushDraft(lastScreen); setTalk({ mode: "message" }); }}
                 gate={hasGate ? {
                   contact: state.contact,
@@ -2214,6 +2234,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           <div className="wz-step" key={page}>
             {pageKey === "property" && (
               <PageProperty
+                brand={brand}
                 state={state} set={set} isCustomer={isCustomer} substrates={substrates} segments={segments}
                 stepsTotal={lastPage}
                 entry={entry} onEntry={chooseEntry} brief={brief} setBrief={setBrief} startChat={startChat} startingChat={startingChat} sessionPhase={sessionPhase}
@@ -2329,8 +2350,10 @@ function Seg<T extends string>({ options, value, onPick }: {
 
 function PageProperty({
   state, set, isCustomer = false, substrates, stepsTotal, entry, onEntry, brief, setBrief, startChat, startingChat, sessionPhase, segments,
-  planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "",
+  planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "", brand = "paintgroup",
 }: {
+  /** Paint Home brief §5: the shut doors apply on the old page set too. */
+  brand?: WizardBrand;
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   isCustomer?: boolean;
@@ -2383,7 +2406,8 @@ function PageProperty({
       options={[
         { v: "interior" as const, label: "Interior" },
         { v: "exterior" as const, label: "Exterior" },
-        { v: "both" as const, label: "Both" },
+        // Paint Home brief §5 (⚑ P6): no "both" on Paint Home, on the old pages either.
+        ...(brand === "painthome" ? [] : [{ v: "both" as const, label: "Both" }]),
       ]}
       value={state.jobType}
       onPick={(v) => {
@@ -2510,7 +2534,8 @@ function PageProperty({
               { v: "house" as const, label: "House" },
               { v: "townhouse" as const, label: "Townhouse" },
               { v: "unit_apartment" as const, label: "Unit / apartment" },
-              { v: "commercial" as const, label: "Commercial" },
+              // Paint Home brief §5: residential only, on the old pages either.
+              ...(brand === "painthome" ? [] : [{ v: "commercial" as const, label: "Commercial" }]),
             ]}
             value={state.customer.propertyKind}
             onPick={(v) => set({ customer: { ...state.customer!, propertyKind: v } })}

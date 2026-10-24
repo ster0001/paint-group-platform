@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { wizardTitle } from "@/lib/wizard/brandServer";
 import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadMessaging } from "@/lib/messaging/load";
@@ -15,10 +16,10 @@ import "../../wizard/wizard.css";
  * the stored address; the page only shows what it was given.
  */
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Book a site visit · Paint Group",
-  robots: { index: false, follow: false },
-};
+// Paint Home brief §5: the title carries the brand the page is served under (lib/wizard/brandServer.ts).
+export async function generateMetadata() {
+  return { title: await wizardTitle("Book a site visit"), robots: { index: false, follow: false } };
+}
 
 function Holding({ line }: { line: string }) {
   return (
