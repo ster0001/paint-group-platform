@@ -318,7 +318,7 @@ jobs:
           NEXT_PUBLIC_EXTERIOR_V2: "1"
         run: npm run build
 
-      - name: Customer journey · role RLS · ledger parity
+      - name: Customer journey · role RLS · ledger parity · work order UX
         env:
           CI: "1"
           # The assistant journeys drive the deterministic stub model — no
@@ -354,7 +354,12 @@ jobs:
         run: |
           npx next start -p 3101 &
           for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3101/login && break; sleep 1; done
-          npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts e2e/ledger-parity.spec.ts e2e/trade-org-rls.spec.ts e2e/trade-walk-a.spec.ts
+          # Work order UX (24 Oct 2026): the By surface ticks, the Customer updates queue and
+          # the two timeline notes — never ran in CI until they were listed here. The morning
+          # heads-up + defect-tape spec proves the defect day's hand-over to the queue (M1).
+          npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts e2e/ledger-parity.spec.ts e2e/trade-org-rls.spec.ts e2e/trade-walk-a.spec.ts \
+            e2e/wo-ticks-by-surface.spec.ts e2e/wo-customer-updates.spec.ts e2e/wo-customer-notes.spec.ts \
+            e2e/automation-morning-defect.spec.ts
 
       # C7c acceptance: "a full run leaves the count it started with, ±0".
       # global-setup logged the count before and global-teardown deleted this
