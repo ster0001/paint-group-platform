@@ -17,7 +17,7 @@ const TABS = [
   { href: "/pc/movements", label: "Movements" },
   { href: "/pc", label: "Dashboard" },
   { href: "/pc/flow", label: "Project Progress" },
-  { href: "/pc/updates", label: "Updates" },
+  { href: "/pc/updates", label: "Customer updates" },
   // Employed painters (S6): the days waiting on approval, and the payroll CSV.
   { href: "/pc/timesheets", label: "Timesheets" },
   // Painter status (Step 8): the Contractors section — lights, call backs, rewards, who has signed.

@@ -281,6 +281,25 @@ export type MessagingSettings = {
   defectTapeSms2: string;
   defectTapeEmailSubject: string;
   defectTapeEmailIntro: string;
+
+  // ---- Customer updates queue (work order UX Step 2, 24 Oct 2026) ----------
+  // Every automatic customer message about a job in progress lands on
+  // /pc/updates for the coordinator to send, edit or drop. Wording lives here.
+  /** The sender the customer reads ("Felipe, Paint Group"). Empty = the company profile's coordinator. */
+  customerUpdatesSender: string;
+  /** Trigger A, one surface prepped everywhere. {{first_name}}, {{group}} ("walls"). */
+  customerMilestonePrepped: string;
+  /** Trigger A, two surfaces prepped in one bundle. {{group_a}}, {{group_b}}. */
+  customerMilestoneTwoPrepped: string;
+  /** Trigger A, painted right through. {{group}}, {{place}} (house / place), {{next_sentence}}. */
+  customerMilestonePainted: string;
+  /** The sentence after a painted milestone when another surface is still open. {{next_group}}. */
+  customerMilestoneNext: string;
+  /** "right through the {{place}}" — residential, and the commercial variant (⚑3). */
+  customerMilestonePlaceHome: string;
+  customerMilestonePlaceCommercial: string;
+  /** Trigger D, the end-of-day summary rolled up by surface. {{first_name}}, {{progress}}, {{tomorrow}}, {{photos}}. */
+  customerEndOfDayBody: string;
   /** Painter (Tom, 19 Oct): two business days before the walkthrough — the date, and move it in the app if ahead or behind. */
   contractorFinishReminderSms: string;
   contractorFinishReminderEmailSubject: string;
@@ -626,6 +645,15 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Your painting at {{address}} is nearly done — the last day is {{finish_date}}.\n\n" +
     "Before the final walkthrough, please walk around and put a small piece of the painter's tape on any spot you'd like touched up. The painter will fix each one before we sign the job off.\n\n" +
     "Thank you,\n{{company_name}}",
+
+  customerUpdatesSender: "",
+  customerMilestonePrepped: "Hi {{first_name}}, all the {{group}} are prepped now so painting on those starts next.",
+  customerMilestoneTwoPrepped: "Hi {{first_name}}, {{group_a}} and {{group_b}} are both prepped now so painting on those starts next.",
+  customerMilestonePainted: "Hi {{first_name}}, {{group}} are painted right through the {{place}}.{{next_sentence}}",
+  customerMilestoneNext: " {{next_group}} are up next.",
+  customerMilestonePlaceHome: "house",
+  customerMilestonePlaceCommercial: "place",
+  customerEndOfDayBody: "Hi {{first_name}}, quick one on today. {{progress}}{{tomorrow}}{{photos}}",
   contractorFinishReminderSms:
     "{{company_name}}: hi {{first_name}}, the final walkthrough on {{wo_ref}} at {{suburb}} is {{finish_date}} — two business days away. Running ahead or behind? Change the date in the app so the office and the customer know. {{link}}",
   contractorFinishReminderEmailSubject: "Final walkthrough {{finish_date}} — {{wo_ref}} at {{suburb}}",
@@ -664,6 +692,9 @@ export type TemplateVars = {
   expires_on?: string;
   /** Defect-tape text (Tom, 8 Oct): the job's booked last day, "Fri 9 Oct". */
   finish_date?: string;
+  /** Customer updates queue (work order UX Step 2): surface milestones and the end-of-day summary. */
+  group?: string; group_a?: string; group_b?: string; place?: string; next_sentence?: string; next_group?: string;
+  progress?: string; tomorrow?: string; photos?: string;
   /** Call back booked: the visit day and what is wrong. */
   day?: string;
   what?: string;
