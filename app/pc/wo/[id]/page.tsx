@@ -119,7 +119,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: qaLinkRows, error: qaLinkErr }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
     await Promise.all([
       supabase.from("wo_surfaces")
-        .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key")
+        .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key, group_code")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_variations")
         .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents, contractor_declined_at, contractor_decline_note, office_rejected_at, office_reject_note")
@@ -232,7 +232,7 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
     });
     if (String(seeded ?? "").startsWith("ok:")) {
       const { data: fresh } = await supabase.from("wo_surfaces")
-        .select("id, heading, heading_meta, label, state, rectification, sort, photos_optional")
+        .select("id, heading, heading_meta, label, state, rectification, sort, photos_optional, group_code")
         .eq("work_order_id", id).order("sort");
       healedSurfaceRows = fresh as typeof surfaceRows;
     }
@@ -464,8 +464,9 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
   const surfaces = ((liveSurfaceRows ?? []) as {
     id: string; heading: string; heading_meta: string; label: string; surface_key?: string | null;
     state: SurfaceRow["state"]; rectification: boolean; removed_from_scope?: boolean; photos_optional?: boolean | null;
+    group_code?: string | null;
   }[]).map((s) => ({
-    ...s, removed: s.removed_from_scope ?? false, photosOptional: Boolean(s.photos_optional),
+    ...s, removed: s.removed_from_scope ?? false, photosOptional: Boolean(s.photos_optional), group: s.group_code ?? null,
     // "Doors × 4" — the count from the frozen document, by key (Tom, 14 Oct 2026).
     ...(s.surface_key && countByKey[s.surface_key] != null ? { count: countByKey[s.surface_key] } : {}),
   }));
@@ -727,9 +728,10 @@ export default async function PcWorkOrderPage({ params, searchParams }: { params
       <div className="grid2">
         {row.stage === "in_progress" ? (
           <TickList
+            workOrderId={id}
             surfaces={surfaces.map((s) => ({
               id: s.id, heading: s.heading, label: s.label, state: s.state,
-              rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional, count: s.count,
+              rectification: s.rectification, removed: s.removed, photosOptional: s.photosOptional, count: s.count, group: s.group,
             }))}
             hasBeforePhoto={hasBeforePhoto}
             headingMeta={Object.fromEntries(

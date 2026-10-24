@@ -413,7 +413,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}} has offered you a job ({{wo_ref}}). The offer holds for 24 hours — " +
     "sign in to your portal to see the dates, the price and the job sheet, and give your answer.",
   offerReminderSms: "Job offer at {{suburb}} ({{start_date}}) is still waiting and expires at {{expiry_time}}. Accept or decline: {{link}}",
-  contractorJobUpdateSms: "{{company_name}}: {{wo_ref}} at {{suburb}}, {{day_label}} — please update your work order: tick what's done and add today's photos. {{link}}",
+  contractorJobUpdateSms: "{{company_name}}: {{wo_ref}} at {{suburb}}, {{day_label}} — please update your work order: tick what's done and add today's photos. Tap By surface to update the whole job in one go. {{link}}",
   assignmentSms:
     "{{company_name}}: you're on {{wo_ref}} from {{start_date}} ({{address}}). Open your work order and tap Accept: {{link}}",
   assignmentEmailSubject: "You're on a job — {{wo_ref}}, from {{start_date}}",
@@ -567,8 +567,8 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Hi {{first_name}},\n\n" +
     "{{company_name}} has updated the finish standards (Version {{version}}). Please read what changed, then confirm the six sections again to keep getting job offers.",
   callbackBookedSms: "{{company_name}}: call back at {{address}} on {{day}}: {{what}}. Details and the fix photo are on the job: {{link}}",
-  contractorJobUpdateSms2: "{{company_name}}: please update your job in the app today — {{wo_ref}} at {{suburb}}, {{day_label}}. {{link}}",
-  contractorJobUpdateSms3: "{{company_name}}: last reminder today. Please update your job in the app — {{wo_ref}} at {{suburb}}. {{link}}",
+  contractorJobUpdateSms2: "{{company_name}}: please update your job in the app today — {{wo_ref}} at {{suburb}}, {{day_label}}. Tap By surface to update the whole job in one go. {{link}}",
+  contractorJobUpdateSms3: "{{company_name}}: last reminder today. Please update your job in the app — {{wo_ref}} at {{suburb}}. Tap By surface to update the whole job in one go. {{link}}",
   contractorJobUpdateSms3Green: "{{company_name}}: update today to keep your Green — {{wo_ref}} at {{suburb}}. {{link}}",
   contractorDemoPromptSms: "DEMO: Please update your job in the app today. {{link}}",
   workerInviteSms: "{{company_name}}: {{first_name}} has added you as a painter on their crew. Tap to open your jobs (no password needed): {{link}}",
@@ -610,7 +610,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officePainterRedSubject: "{{painter}} dropped to Red",
   officePainterRedBody: "{{painter}} is now on Red: {{line}} No new job offers go to them until you record \"Spoken with, offers allowed\" on their page.",
   contractorJobUpdateMorningSms:
-    "{{company_name}}: morning {{first_name}}, today is an update day on {{wo_ref}} at {{suburb}} ({{day_label}}). Before you finish, tick what's done and add today's photos in the app. {{link}}",
+    "{{company_name}}: morning {{first_name}}, today is an update day on {{wo_ref}} at {{suburb}} ({{day_label}}). Before you finish, tick what's done and add today's photos in the app. Tap By surface to update the whole job in one go. {{link}}",
   contractorJobUpdateMorningEmailSubject: "Update day today — {{wo_ref}} at {{suburb}}",
   contractorJobUpdateMorningEmailIntro:
     "Hi {{first_name}},\n\n" +

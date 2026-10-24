@@ -4,7 +4,7 @@ role: employee
 title: Run a job from the first tick to the customer's signature
 summary: How an assigned job works on your phone as an employed painter — the pre-start list, before photos in one batch, ticking surfaces off, after photos of every room or side, the finishing-up list, the quality check and the walkthrough — the same as every painter, with no money on it.
 sources: app/portal/jobs, app/components/wo, app/s, lib/workorder, lib/contractor/employeeJobs.ts
-verified_at_commit: 780c451640
+verified_at_commit: cd95185da3
 ---
 
 ## What this is for
@@ -15,6 +15,7 @@ Once you have tapped **Accept** on an assigned job, the job page in **Jobs** is 
 - The office works through the **pre-start list**: colours confirmed, materials ordered and so on. Your job page shows how many items are still to be ticked by the office. The **Start the job** button unlocks when that list is done.
 - Photos are taken with your phone's camera from the job page. A big photo is shrunk on your phone before it goes, so it is quick even on one bar of signal. While it goes the button shows a percentage; a photo that does not upload says why ("stalled — nothing moved for 45 seconds", "sign out and back in") and can be retried. Nothing sits on "Uploading…" for ever.
 - If several painters share the job, every one of you can tick, photograph and raise a variation. Progress is the job's, not yours alone.
+- **Scope & ticks** opens **By surface** (since 24 Oct 2026): one row per surface — all the ceilings, all the walls — with **Mark all prepped** and **Mark all painted** for every room in one tap, and **Undo** for six seconds after. Painted unlocks once every room of that surface is prepped. **By room** is the row-by-row list as before; the app remembers your choice. Ticks made in bulk are recorded against you exactly like single ticks.
 
 ## Steps
 

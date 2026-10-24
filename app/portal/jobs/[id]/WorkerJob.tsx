@@ -26,7 +26,7 @@ export default async function WorkerJob({ job, from }: { job: WorkerJobModel; fr
   const id = job.id;
   const [surfRes, photoRes, standardsLoad, smallJob] = await Promise.all([
     supabase.from("wo_surfaces")
-      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional")
+      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, group_code")
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos").select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
     loadStandards(),
@@ -36,8 +36,8 @@ export default async function WorkerJob({ job, from }: { job: WorkerJobModel; fr
   if (photoRes.error) reportError(photoRes.error, { where: "worker.job.photos", bestEffort: true, extra: { workOrderId: id } });
 
   const surfaces: SurfaceRow[] = ((surfRes.data ?? []) as
-    { id: string; heading: string; heading_meta: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean; photos_optional?: boolean | null }[])
-    .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope, photosOptional: Boolean(r.photos_optional) }));
+    { id: string; heading: string; heading_meta: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean; photos_optional?: boolean | null; group_code?: string | null }[])
+    .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope, photosOptional: Boolean(r.photos_optional), group: r.group_code ?? null }));
   const headingMeta: Record<string, string> = {};
   for (const r of (surfRes.data ?? []) as { heading: string; heading_meta: string }[]) if (r.heading_meta) headingMeta[r.heading] = r.heading_meta;
   const hasBeforePhoto = ((photoRes.data ?? []) as { kind: string }[]).some((p) => p.kind === "before");
@@ -79,7 +79,7 @@ export default async function WorkerJob({ job, from }: { job: WorkerJobModel; fr
               <BatchUploader workOrderId={id} kind="before" testId="before-more" title="More before photos" hint="Only if a room or side was missed." areas={areas} />
             </details>
           )}
-          <TickList surfaces={surfaces} hasBeforePhoto={hasBeforePhoto} headingMeta={headingMeta} />
+          <TickList workOrderId={id} surfaces={surfaces} hasBeforePhoto={hasBeforePhoto} headingMeta={headingMeta} />
           <BatchUploader workOrderId={id} kind="progress" testId="progress"
             title="Progress photos" hint="A photo at the end of each day is what the customer sees as progress." areas={areas} />
         </div>

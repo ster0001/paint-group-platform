@@ -4,6 +4,7 @@ role: customer
 title: Your project, day by day — following the job and the photos your painting team sends
 summary: Where to see each update from your painting team with the photos the office attached to it, where every area is up to, who is at your home, and what to do if a photo or update is missing.
 sources: app/account/(portal)/JobTimeline.tsx, lib/portal/timeline.ts, lib/portal/data.ts
+verified_at_commit: cd95185da3
 ---
 
 ## What this is for

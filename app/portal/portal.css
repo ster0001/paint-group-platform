@@ -809,3 +809,37 @@
 .pt .mvl-acts .btn.sm.pri { background: var(--cyan); color: var(--on-cyan); border-color: transparent; font-weight: 600; }
 .pt .wo .lg { margin-top: 14px; }
 .pt .wo .lg h3 { font-size: 13px; margin: 10px 0 0; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-family: var(--mono); }
+
+/* ---- By surface view (work order UX Step 1, 24 Oct 2026) ---- */
+.pt .tick-view { display: flex; gap: 6px; margin: 12px 0 6px; }
+.pt .tick-view button { flex: 1; border: 1px solid var(--line); background: var(--graphite); color: var(--muted); font: 600 12px var(--sans, inherit); padding: 8px; border-radius: 999px; cursor: pointer; }
+.pt .tick-view button.on { border-color: var(--cyan); color: var(--cyan); background: rgba(59, 216, 233, 0.12); }
+.pt .tick-groups { margin-top: 6px; }
+.pt .surf { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
+.pt .surf:first-child { border-top: 0; padding-top: 6px; }
+.pt .surf-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; background: none; border: 0; padding: 0; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.pt .surf-name { font-weight: 600; font-size: 15px; }
+.pt .surf-rooms { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pt .surf-rooms .chev { font-size: 11px; }
+.pt .surf-bar { height: 6px; background: rgba(255,255,255,.07); border-radius: 3px; overflow: hidden; display: flex; }
+.pt .surf-bar i { display: block; height: 100%; transition: width .4s cubic-bezier(.2,.7,.2,1); }
+.pt .surf-bar .d { background: var(--emerald, #2FA46B); }
+.pt .surf-bar .p { background: var(--amber); }
+.pt .surf-acts { display: flex; gap: 8px; }
+.pt .surf-btn { flex: 1; border: 1px solid var(--line); background: var(--graphite); color: var(--text); font: 600 13px var(--sans, inherit); padding: 11px 6px; border-radius: 12px; min-height: 44px; cursor: pointer; }
+.pt .surf-btn.next { background: var(--cyan); color: var(--on-cyan, #03272D); border-color: transparent; }
+.pt .surf-btn.done { background: rgba(47, 164, 107, 0.16); border-color: transparent; color: var(--emerald, #2FA46B); }
+.pt .surf-btn:disabled { opacity: .45; cursor: default; }
+.pt .surf-btn.done:disabled { opacity: 1; }
+.pt .surf-btn.locked { opacity: .55; }
+.pt .surf-detail { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.pt .surf-detail b { color: var(--text); font-weight: 500; }
+.pt .surf-hint { color: var(--muted); }
+.pt .tick-note { margin: 12px 0 0; font-size: 11.5px; color: var(--muted); }
+.pt .tick-note b { color: var(--text); font-weight: 600; }
+.pt .tick-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 40; width: calc(100% - 24px); max-width: 406px; display: flex; gap: 14px; align-items: center; background: var(--text); color: var(--ink); padding: 12px 14px; border-radius: 12px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.pt .tick-toast button { margin-left: auto; background: none; border: 0; color: var(--cyan); font: 700 13px var(--sans, inherit); cursor: pointer; padding: 4px 6px; }
+.pt[data-theme="light"] .tick-view button.on { background: rgba(14, 140, 156, 0.1); }
+.pt[data-theme="light"] .surf-bar { background: rgba(18, 22, 26, 0.08); }
+.pt[data-theme="light"] .surf-btn.done { background: rgba(31, 122, 74, 0.12); }
+.pt[data-theme="light"] .tick-toast { background: var(--text); color: var(--graphite); }
