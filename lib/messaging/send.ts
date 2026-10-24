@@ -82,6 +82,8 @@ export async function sendEmail(opts: {
   /** CRM v2 P3: who this is about. Every send is recorded in `messages`
    *  whether or not the caller says; saying links it to the estimate/job. */
   ctx?: MessageContext;
+  /** Paint Home brief §5: the brand's From header (lib/messaging/brand.ts fromForBrand) — same verified mailbox, the brand's display name. Absent = the configured default. */
+  from?: string;
 }): Promise<DeliveryResult> {
   const token = newReplyToken();
   // Decision 8.6: with REPLY_DOMAIN set, replies route back into the CRM
@@ -98,7 +100,7 @@ export async function sendEmail(opts: {
     provider: "resend", providerMessageId: result.status === "sent" ? result.id ?? null : null,
     status: result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : result.status === "suppressed" ? "suppressed" : "failed",
     // The row is the FIRST address (the account match reads it); the rest ride meta.
-    toAddress: recipients[0] ?? null, fromAddress: process.env.EMAIL_FROM || DEFAULT_FROM,
+    toAddress: recipients[0] ?? null, fromAddress: opts.from || process.env.EMAIL_FROM || DEFAULT_FROM,
     replyToken: routedReplyTo && !off ? token : null,
     meta: {
       ...(recipients.length > 1 ? { alsoTo: recipients.slice(1) } : {}),
@@ -146,6 +148,7 @@ async function sendEmailRaw(opts: {
   html: string;
   replyTo?: string;
   attachments?: { filename: string; content: string; contentType?: string }[];
+  from?: string;
 }): Promise<DeliveryResult> {
   if (!emailConfigured()) return { status: "not_configured" };
   try {
@@ -156,7 +159,7 @@ async function sendEmailRaw(opts: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.EMAIL_FROM || DEFAULT_FROM,
+        from: opts.from || process.env.EMAIL_FROM || DEFAULT_FROM,
         to: recipientList(opts.to),
         subject: opts.subject,
         html: opts.html,

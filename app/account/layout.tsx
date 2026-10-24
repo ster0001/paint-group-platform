@@ -4,7 +4,7 @@ import "./account.css";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Your Paint Group account",
+  title: "Your account",
   robots: { index: false, follow: false },
 };
 

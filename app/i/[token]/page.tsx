@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { reportError } from "@/lib/monitoring/report";
+import { entityForBrand, messageBrandOf } from "@/lib/messaging/brand";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { stripeConfigured } from "@/lib/invoicing/stripe";
@@ -108,7 +110,18 @@ export default async function CustomerInvoicePage({
     }
   }
 
-  const entity = doc.entity ?? {};
+  // Paint Home brief §5: the invoice's brand decides the entity block it shows (and prints — this page is the PDF).
+  // The RPC payload has no brand; one service read by token, the same way the PDF link is signed below.
+  let invoiceBrand: ReturnType<typeof messageBrandOf> = "paintgroup";
+  {
+    const service = createServiceClient();
+    if (service) {
+      const { data: b, error: bErr } = await service.from("invoices").select("brand").eq("token", token).maybeSingle();
+      if (bErr) reportError(bErr, { where: "invoice.token.brand", bestEffort: true });
+      invoiceBrand = messageBrandOf((b as { brand?: unknown } | null)?.brand);
+    }
+  }
+  const entity = entityForBrand(doc.entity ?? {}, invoiceBrand);
   const bank = doc.bank ?? {};
   const balance = doc.total_inc_cents - doc.paid_cents;
   const open = ["issued", "sent", "viewed", "partially_paid"].includes(doc.status);

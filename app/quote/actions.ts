@@ -15,6 +15,7 @@ import { reportError } from "@/lib/monitoring/report";
 import { LEAD_SOURCE_REQUIRED } from "@/lib/estimate/leadSource";
 import { postStaffChatReply } from "@/lib/estimates/chatReply";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { companyForBrand, fromForBrand, messageBrandOf, publicOriginFor } from "@/lib/messaging/brand";
 import { contactSearchOr } from "@/lib/contacts/match";
 
 const replyInput = z.object({
@@ -117,7 +118,7 @@ async function deliver(
   // Everything that goes into the message body beyond the typed wording comes
   // from the database, not the request.
   const [{ data: est }, { data: settingsRows }] = await Promise.all([
-    supabase.from("estimates").select("share_token, title, total_cents, builder_state").eq("id", v.estimateId).single(),
+    supabase.from("estimates").select("share_token, title, total_cents, builder_state, brand").eq("id", v.estimateId).single(),
     supabase.from("settings").select("key, value").in("key", ["company_profile", MESSAGING_KEY]),
   ]);
   if (!est?.share_token) {
@@ -126,10 +127,12 @@ async function deliver(
   }
 
   const rows = (settingsRows as { key: string; value: unknown }[] | null) ?? [];
-  const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((rows.find((r) => r.key === "company_profile")?.value as Partial<CompanyProfile>) ?? {}) };
+  // Paint Home brief §5: the estimate's brand — one template set, the brand's name, logo, sender and domain.
+  const brand = messageBrandOf((est as { brand?: unknown }).brand);
+  const company: CompanyProfile = companyForBrand({ ...DEFAULT_COMPANY, ...((rows.find((r) => r.key === "company_profile")?.value as Partial<CompanyProfile>) ?? {}) }, brand);
   const messaging: MessagingSettings = { ...DEFAULT_MESSAGING, ...((rows.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingSettings>) ?? {}) };
 
-  const link = `${await baseUrl()}/e/${est.share_token}`;
+  const link = `${publicOriginFor(brand, await baseUrl())}/e/${est.share_token}`;
   const contact = ((est.builder_state as { contact?: Contact } | null)?.contact ?? null);
   const totalLabel = est.total_cents
     ? `${(est.total_cents / 100).toLocaleString("en-AU", { style: "currency", currency: "AUD" })} inc GST`
@@ -157,6 +160,7 @@ async function deliver(
         to: [v.email.to, ...(v.email.alsoTo ?? [])],
         subject: v.email.subject,
         replyTo: company.email || undefined,
+        from: fromForBrand(brand),
         html: buildEstimateEmailHtml({
           intro: v.email.message,
           link,
