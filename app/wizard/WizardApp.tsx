@@ -213,7 +213,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** Homepage hand-off (lib/marketing/prefill.ts): the address the visitor
    * typed on the marketing site, shown in the field; "business" pre-selects
    * the commercial property kind. Intent only — no account, no event. */
-  intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string };
+  intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string; scope?: string | null };
   /** Tom, 7 Sep: the SERVER copy of a half-finished walk (the autosaved
    * draft for this user) — merged with the browser copy on mount, newest wins. */
   resume?: Omit<ResumeRecord, "v"> | null;
@@ -224,6 +224,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    */
   assisted?: { who: string; screen: string | null } | null;
 }) {
+  // Paint Home brief §5: the Inside / Outside chip's scope, as a job type (anything else is ignored).
+  const scopeIntent: "interior" | "exterior" | null = intent?.scope === "interior" ? "interior" : intent?.scope === "exterior" ? "exterior" : null;
   const makeInitialState = (): WizardState => {
     const seed = prefillState ?? defaultWizardState();
     const base = mode === "customer"
@@ -238,6 +240,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
           },
           address: prefill?.address ?? seed.address,
+          // Paint Home brief §5: the chip's scope is the job type from the first paint (the quick look mirrors it on every tap).
+          ...(scopeIntent ? { jobType: scopeIntent } : {}),
           contact: {
             name: prefill?.name ?? seed.contact?.name ?? "",
             email: prefill?.email ?? seed.contact?.email ?? "",
@@ -271,6 +275,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const quick: QuickLookAnswers = state.quickLook ?? {
     ...DEFAULT_QUICK_LOOK,
     ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
+    // Paint Home brief §5: the Inside / Outside chip arrives pre-answered on screen 1, still editable.
+    ...(scopeIntent ? { jobType: scopeIntent } : {}),
   };
   /** C13: which commercial screens the chosen row walks — the warehouse pattern has its own. */
   const commercialPattern = isWarehouse(segmentByKey(segments, state.customer?.commercialSegment)) ? "warehouse" as const : "areas" as const;
@@ -2227,6 +2233,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           <div className="wz-step" key={page}>
             {pageKey === "property" && (
               <PageProperty
+                brand={brand}
                 state={state} set={set} isCustomer={isCustomer} substrates={substrates} segments={segments}
                 stepsTotal={lastPage}
                 entry={entry} onEntry={chooseEntry} brief={brief} setBrief={setBrief} startChat={startChat} startingChat={startingChat} sessionPhase={sessionPhase}
@@ -2342,8 +2349,10 @@ function Seg<T extends string>({ options, value, onPick }: {
 
 function PageProperty({
   state, set, isCustomer = false, substrates, stepsTotal, entry, onEntry, brief, setBrief, startChat, startingChat, sessionPhase, segments,
-  planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "",
+  planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "", brand = "paintgroup",
 }: {
+  /** Paint Home brief §5: the shut doors apply on the old page set too. */
+  brand?: WizardBrand;
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   isCustomer?: boolean;
@@ -2396,7 +2405,8 @@ function PageProperty({
       options={[
         { v: "interior" as const, label: "Interior" },
         { v: "exterior" as const, label: "Exterior" },
-        { v: "both" as const, label: "Both" },
+        // Paint Home brief §5 (⚑ P6): no "both" on Paint Home, on the old pages either.
+        ...(brand === "painthome" ? [] : [{ v: "both" as const, label: "Both" }]),
       ]}
       value={state.jobType}
       onPick={(v) => {
@@ -2523,7 +2533,8 @@ function PageProperty({
               { v: "house" as const, label: "House" },
               { v: "townhouse" as const, label: "Townhouse" },
               { v: "unit_apartment" as const, label: "Unit / apartment" },
-              { v: "commercial" as const, label: "Commercial" },
+              // Paint Home brief §5: residential only, on the old pages either.
+              ...(brand === "painthome" ? [] : [{ v: "commercial" as const, label: "Commercial" }]),
             ]}
             value={state.customer.propertyKind}
             onPick={(v) => set({ customer: { ...state.customer!, propertyKind: v } })}

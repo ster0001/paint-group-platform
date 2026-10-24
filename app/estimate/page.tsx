@@ -298,7 +298,9 @@ export default async function CustomerWizardPage({
   // estimate id itself never appears on the URL. No linked estimate (or a
   // state that fails validation) → the job type alone seeds the draft.
 
-  if (!prefillState && (intent.from || intent.scope)) {
+  // Paint Home brief §5: the Inside / Outside chip is the quick look's first answer (the intent carries
+  // it, WizardApp pre-selects it) — a seeded state would land on the OLD page set and skip the quick look.
+  if (!prefillState && (intent.from || (intent.scope && brand !== "painthome"))) {
     const showcase = intent.from ? await showcaseJobBySlug(intent.from) : null;
     const scope = showcase?.job_type ?? intent.scope;
     if (showcase?.estimate_id && svc) {
