@@ -34,6 +34,8 @@ import { materialsView, type JobRef, type MaterialsInput as MaterialsRowsInput, 
 /** One job with an accepted estimate. `woStage` null = no work order yet. */
 export type JobMoneyJob = {
   estimateId: string;
+  /** Paint Home brief §6: the shopfront the job came through (null = Paint Group). */
+  brand?: string | null;
   address: string;
   customer: string | null;
   woRef: string | null;
@@ -166,6 +168,8 @@ export type NextAction = {
 
 export type JobMoneyRow = {
   estimateId: string;
+  /** Paint Home brief §6: the pill and the `?brand=` filter read this. */
+  brand: string | null;
   workOrderId: string | null;
   address: string;
   customer: string | null;
@@ -363,7 +367,7 @@ export function jobMoneyRow(
     : "nothing";
 
   return {
-    estimateId: job.estimateId, workOrderId: job.workOrderId ?? null, address: job.address, customer: job.customer, woRef: job.woRef, contractor: job.contractor,
+    estimateId: job.estimateId, brand: job.brand ?? null, workOrderId: job.workOrderId ?? null, address: job.address, customer: job.customer, woRef: job.woRef, contractor: job.contractor,
     lane, startDate: job.startDate,
     startsInDays: job.startDate ? daysBetween(today, job.startDate) : null,
     underWay,

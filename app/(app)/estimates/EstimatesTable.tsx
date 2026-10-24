@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BrandPill } from "@/app/components/BrandPill";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteEstimateAction } from "./actions";
@@ -245,6 +246,8 @@ export default function EstimatesTable({ estimates, empty = null }: { estimates:
                       {[e.customer, e.address && e.address !== e.title ? e.address : null].filter(Boolean).join(" · ")}
                     </div>
                   )}
+                  {/* Paint Home brief §6: the shopfront the lead came through. */}
+                  <BrandPill brand={e.brand} className="mr-2 mt-1 inline-block rounded-full border border-teal-600 px-2 py-0.5 text-[11px] font-semibold text-teal-800" />
                   {/* Tom, 12 Oct: "needs a visit" lives here so the pill can show the view count. */}
                   {e.pill.flag && (
                     <span className="mr-2 mt-1 inline-block rounded-full border border-amber-400 px-2 py-0.5 text-[11px] font-semibold text-amber-800" data-testid={`estimate-flag-${e.id}`}>

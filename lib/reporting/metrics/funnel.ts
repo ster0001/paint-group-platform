@@ -13,17 +13,22 @@ import { inRange, melbourneDay, type MetricDef, type MetricInput, type Range } f
 export type FunnelRow = {
   started_on: string; email_captured: boolean; saved: boolean; sent: boolean; viewed: boolean; accepted: boolean;
   furthest: string; lead_source: string; days_sent_to_accepted: number;
+  /** Paint Home brief §6: the shopfront the session came through. */
+  brand: "paintgroup" | "painthome";
 };
+
+/** Paint Home brief §6: a session's brand (null = Paint Group); `brand` on `funnelRows` / `buildFunnel` keeps one shopfront. */
+export const brandOfDraft = (d: { brand?: string | null }): "paintgroup" | "painthome" => (d.brand === "painthome" ? "painthome" : "paintgroup");
 
 const STEPS = ["started", "email", "saved", "sent", "viewed", "accepted"] as const;
 export type FunnelStepKey = (typeof STEPS)[number];
 export const STEP_LABEL: Record<FunnelStepKey, string> = { started: "Wizard started", email: "Email captured", saved: "Estimate saved", sent: "Sent", viewed: "Viewed", accepted: "Accepted" };
 
-export function funnelRows(input: MetricInput, range: Range): FunnelRow[] {
+export function funnelRows(input: MetricInput, range: Range, brand: "paintgroup" | "painthome" | null = null): FunnelRow[] {
   const f = input.funnel; if (!f) return [];
   const est = new Map(f.estimates.map((e) => [e.id, e]));
   return f.drafts
-    .filter((d) => inRange(d.started_at, range))
+    .filter((d) => inRange(d.started_at, range) && (brand == null || brandOfDraft(d) === brand))
     .map((d) => {
       const e = d.estimate_id ? est.get(d.estimate_id) : undefined;
       const email = Boolean(d.email);
@@ -35,6 +40,7 @@ export function funnelRows(input: MetricInput, range: Range): FunnelRow[] {
       return {
         started_on: melbourneDay(d.started_at), email_captured: email, saved, sent, viewed, accepted, furthest,
         lead_source: e?.lead_source ?? d.lead_source ?? "unknown",
+        brand: brandOfDraft(d),
         days_sent_to_accepted: accepted && e?.sent_at && e.accepted_at ? Math.round((Date.parse(e.accepted_at) - Date.parse(e.sent_at)) / 86_400_000 * 10) / 10 : 0,
       };
     });
@@ -43,8 +49,8 @@ export function funnelRows(input: MetricInput, range: Range): FunnelRow[] {
 export type FunnelStep = { key: FunnelStepKey; label: string; count: number; pct_of_start: number; dropped: number; drop_note: string };
 export type FunnelData = { steps: FunnelStep[]; started: number; median_days_sent_to_accepted: number | null; self_serve_note: string };
 
-export function buildFunnel(input: MetricInput, range: Range): FunnelData {
-  const rows = funnelRows(input, range);
+export function buildFunnel(input: MetricInput, range: Range, brand: "paintgroup" | "painthome" | null = null): FunnelData {
+  const rows = funnelRows(input, range, brand);
   const count = (k: FunnelStepKey) => rows.filter((r) => k === "started" || (k === "email" ? r.email_captured : k === "saved" ? r.saved : k === "sent" ? r.sent : k === "viewed" ? r.viewed : r.accepted)).length;
   const counts = Object.fromEntries(STEPS.map((k) => [k, count(k)])) as Record<FunnelStepKey, number>;
   const started = counts.started;
@@ -156,3 +162,8 @@ export const gateSessions: MetricDef<GateSessionRow> = {
   select: gateSessionRows,
   note: (rows) => rows.length ? `${rows.filter((r) => r.version === "details_first").length} details first · ${rows.filter((r) => r.version === "range_first").length} range first` : "no sessions with a gate version yet",
 };
+
+/** Paint Home brief §6: does the range hold any Paint Home session? Decides whether the dashboard draws the funnel per shopfront. */
+export function hasPaintHomeSessions(input: MetricInput, range: Range): boolean {
+  return (input.funnel?.drafts ?? []).some((d) => inRange(d.started_at, range) && brandOfDraft(d) === "painthome");
+}

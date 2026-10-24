@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BrandFilterChips } from "@/app/components/BrandPill";
+import { matchesBrand, parseBrandFilter } from "@/lib/brand/filter";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { LANES, type Lane } from "@/lib/workorder/stages";
@@ -45,7 +47,7 @@ const TABS = ["cust", "con", "mat", "act"] as const;
 const VIEWS = ["chase", "board", "table"] as const;
 type Tab = (typeof TABS)[number];
 type View = (typeof VIEWS)[number];
-type Params = { tab?: string; view?: string; stage?: string; q?: string; paid?: string; f?: string; cby?: string; job?: string; jt?: string };
+type Params = { tab?: string; view?: string; stage?: string; q?: string; paid?: string; f?: string; cby?: string; job?: string; jt?: string; brand?: string };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const BASE = "/invoicing";
@@ -75,9 +77,11 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const cby = pick(sp.cby, ["inv", "con"] as const, "inv");
   const jobId = UUID.test(sp.job ?? "") ? sp.job! : null;
   const jt = pick(sp.jt, ["in", "out"] as const, "in");
+  // Paint Home brief §6: one brand filter over the customers' jobs.
+  const brandFilter = parseBrandFilter(sp.brand);
 
   const current: Record<string, string | null> = {
-    tab: tab === "cust" ? null : tab, view: view === "chase" ? null : view, stage, q: q || null, paid: showPaid ? "1" : null, f: filter === "all" ? null : filter,
+    tab: tab === "cust" ? null : tab, view: view === "chase" ? null : view, stage, q: q || null, paid: showPaid ? "1" : null, f: filter === "all" ? null : filter, brand: brandFilter === "all" ? null : brandFilter,
     cby: cby === "inv" ? null : cby,
   };
   const href = (over: Record<string, string | null>) => {
@@ -104,7 +108,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   }
   const page = jobMoneyPage({ ...input, paymentTermsDays: settings.paymentTermsDays });
   const { customers, contractors, materials, activity } = page.blocks;
-  const rows = matchRows(page.rows, { q, lane: stage });
+  const rows = matchRows(page.rows, { q, lane: stage }).filter((r) => matchesBrand(r.brand, brandFilter));
   const notPaid = rows.filter((r) => r.section !== "paid_in_full");
   // Every other link on the page drops job= — leaving the panel is any click outside it.
   const panel = jobId ? await loadJobPanel(supabase, page, jobId, now) : null;
@@ -183,6 +187,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             </div>
             {tab === "cust" ? <Suspense fallback={null}><SearchBox initial={q} /></Suspense> : null}
             {view !== "chase" ? <Suspense fallback={null}><ShowPaid on={showPaid} /></Suspense> : null}
+            <BrandFilterChips value={brandFilter} className="fchips" chipClass={(on) => (on ? "on" : "")} hrefFor={(b) => href({ brand: b === "all" ? null : b })} />
           </div>
           <div>
             {view === "chase" ? <ChaseView rows={notPaid} hiddenDrafts={page.hiddenDraftCount} expandOffer={!!(q || stage)} href={href} /> : null}

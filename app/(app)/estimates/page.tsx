@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BrandFilterChips } from "@/app/components/BrandPill";
+import { matchesBrand, parseBrandFilter } from "@/lib/brand/filter";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { maybeSweep } from "@/lib/wizard/sweep";
@@ -22,9 +24,11 @@ export const dynamic = "force-dynamic";
 export default async function EstimatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; bucket?: string; source?: string; mode?: string; open?: string; built?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; bucket?: string; source?: string; mode?: string; open?: string; built?: string; q?: string; brand?: string }>;
 }) {
-  const { status, bucket, source, mode, open, built } = await searchParams;
+  const { status, bucket, source, mode, open, built, brand: brandParam } = await searchParams;
+  // Paint Home brief §6: one brand filter on every tab of this page.
+  const brandFilter = parseBrandFilter(brandParam);
   // Tom, 15 Sep: the search box — one needle (`?q=`), matched against whatever
   // the tab shows. Since 23 Oct 2026 the needle is read and applied on the
   // CLIENT, by the three tab tables through `lib/estimate/search.ts`: the box
@@ -45,7 +49,7 @@ export default async function EstimatesPage({
         return (
           <Link
             key={f}
-            href={f === DEFAULT_LIST_FILTER && sourceFilter === "all" ? "/estimates" : `/estimates?status=${f}${sourceFilter !== "all" ? `&built=${sourceFilter}` : ""}`}
+            href={f === DEFAULT_LIST_FILTER && sourceFilter === "all" && brandFilter === "all" ? "/estimates" : `/estimates?status=${f}${sourceFilter !== "all" ? `&built=${sourceFilter}` : ""}${brandFilter !== "all" ? `&brand=${brandFilter}` : ""}`}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize ${
               active ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800"
             }`}
@@ -55,6 +59,7 @@ export default async function EstimatesPage({
           </Link>
         );
       })}
+      <BrandFilterChips value={brandFilter} className="ml-auto flex items-center gap-1 self-center pb-1" hrefFor={(b) => `/estimates?status=${status ?? DEFAULT_LIST_FILTER}${sourceFilter !== "all" ? `&built=${sourceFilter}` : ""}${b !== "all" ? `&brand=${b}` : ""}`} />
     </div>
   );
 
@@ -101,6 +106,7 @@ export default async function EstimatesPage({
       .order("last_seen_at", { ascending: false }).limit(500);
     if (bucketOk) wq = wq.eq("bucket", bucketOk);
     if (source) wq = wq.eq("entry_source", source);
+    if (brandFilter !== "all") wq = wq.eq("brand", brandFilter);
     if (mode === "home" || mode === "business") wq = wq.eq("mode", mode);
     const { data: rows } = await wq;
     const order: Record<string, number> = { ready_call: 0, ready_visit: 0, needs_help: 1, priced_no_request: 2, online_now: 3, dropped: 4 };
@@ -112,9 +118,9 @@ export default async function EstimatesPage({
     const chip = (label: string, href: string, on: boolean) => (
       <Link key={href} href={href} className={`rounded-full border px-2.5 py-1 text-xs ${on ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 text-gray-600 hover:bg-gray-50"}`}>{label}</Link>
     );
-    const base = (b?: string, s?: string, m?: string) => {
+    const base = (b?: string, s?: string, m?: string, br: string = brandFilter) => {
       const p = new URLSearchParams({ status: "wizard" });
-      if (b) p.set("bucket", b); if (s) p.set("source", s); if (m) p.set("mode", m);
+      if (b) p.set("bucket", b); if (s) p.set("source", s); if (m) p.set("mode", m); if (br && br !== "all") p.set("brand", br);
       return `/estimates?${p.toString()}`;
     };
     return (
@@ -136,6 +142,9 @@ export default async function EstimatesPage({
           <span className="ml-3 mr-1 text-xs uppercase tracking-wide text-gray-400">Mode</span>
           {chip("Home", base(bucket, source, mode === "home" ? undefined : "home"), mode === "home")}
           {chip("Business", base(bucket, source, mode === "business" ? undefined : "business"), mode === "business")}
+          <span className="ml-3 mr-1 text-xs uppercase tracking-wide text-gray-400">Brand</span>
+          {chip("Paint Group", base(bucket, source, mode, brandFilter === "paintgroup" ? "all" : "paintgroup"), brandFilter === "paintgroup")}
+          {chip("Paint Home", base(bucket, source, mode, brandFilter === "painthome" ? "all" : "painthome"), brandFilter === "painthome")}
           {sources.length > 0 && <span className="ml-3 mr-1 text-xs uppercase tracking-wide text-gray-400">Source</span>}
           {sources.map((s) => chip(s, base(bucket, source === s ? undefined : s, mode), source === s))}
         </div>
@@ -166,7 +175,8 @@ export default async function EstimatesPage({
   if (sq && "eq" in sq) query = query.eq("source", sq.eq);
   if (sq && "or" in sq) query = query.or(sq.or);
   const { data: rawRows, error: listError } = await query;
-  const estimates = (rawRows ?? []) as unknown as RawListRow[];
+  // Paint Home brief §6: the brand filter narrows the list before anything else is derived.
+  const estimates = ((rawRows ?? []) as unknown as RawListRow[]).filter((e) => matchesBrand(e.brand, brandFilter));
 
   // Buckets brief §5: the wizard session behind each listed estimate. Read
   // the converted sessions newest-first rather than `in(ids)` — a thousand

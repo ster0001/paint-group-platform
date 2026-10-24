@@ -25,6 +25,8 @@ export type RawListRow = {
   valid_until: string | null;
   source: string | null;
   account_id: string | null;
+  /** Paint Home brief §6: which shopfront the lead came through (null = Paint Group). */
+  brand?: string | null;
   /** `builder_state->wizard->state->>jobType` — present only on a wizard estimate. */
   wizard_job: string | null;
   /** `builder_state->wizard->snapshot` — the submit-time baseline (proving). */
@@ -49,6 +51,8 @@ export type ListRow = {
   created_at: string;
   viewed_at: string | null;
   source: string | null;
+  /** Paint Home brief §6: the pill and the `?brand=` filter read this. */
+  brand: string | null;
   /** The Pack tab exists for this row (same test the quote shell applies). */
   hasWizard: boolean;
   pill: EstimatePill;
@@ -128,7 +132,7 @@ export function buildListRow(
   return {
     id: raw.id,
     number: raw.number ?? null,
-    customer, address, title: raw.title, status: raw.status, created_at: raw.created_at, viewed_at: raw.viewed_at, source: raw.source,
+    customer, address, title: raw.title, status: raw.status, created_at: raw.created_at, viewed_at: raw.viewed_at, source: raw.source, brand: raw.brand ?? null,
     hasWizard, pill, action, value, wizard: deps.wizard,
   };
 }
@@ -140,7 +144,7 @@ export function buildListRow(
  * rather than the whole tree.
  */
 export const LIST_SELECT =
-  "id, number, title, status, total_cents, created_at, viewed_at, accepted_at, valid_until, source, account_id, "
+  "id, number, title, status, total_cents, created_at, viewed_at, accepted_at, valid_until, source, account_id, brand, "
   + "wizard_job:builder_state->wizard->state->>jobType, snapshot:builder_state->wizard->snapshot, "
   + "requests:confirmation_requests(kind, status, requested_at, suggested_action, fixed_price_cents), "
   + "views:estimate_views(updated_at), work_orders(id), sources:estimate_sources(kind), "

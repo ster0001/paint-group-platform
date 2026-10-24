@@ -21,7 +21,7 @@ import { realOnly } from "@/lib/demo/scope";
  * ledger" lesson).
  */
 
-type EstimateRow = { id: string; accepted_name: string | null; accepted_total_cents: number | null; total_cents: number | null; title: string | null; job_address: string | null };
+type EstimateRow = { id: string; accepted_name: string | null; accepted_total_cents: number | null; total_cents: number | null; title: string | null; job_address: string | null; brand?: string | null };
 type WorkOrderRow = {
   estimate_id: string; wo_ref: string; stage: WoStage; start_date: string | null; id: string;
   contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
@@ -47,7 +47,7 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
   try {
     const [estimates, workOrders, invoices, payments, variations, cis, intake, jobCosts, views, chats, vendors, materialCosts] = await Promise.all([
       fetchAllRows<EstimateRow>((f, t) => realOnly(supabase.from("estimates")
-        .select("id, title, accepted_name, accepted_total_cents, total_cents, job_address:sent_snapshot->>jobAddress"))
+        .select("id, title, accepted_name, accepted_total_cents, total_cents, brand, job_address:sent_snapshot->>jobAddress"))
         .eq("status", "accepted").order("id").range(f, t)),
       fetchAllRows<WorkOrderRow>((f, t) => realOnly(supabase.from("work_orders")
         .select("id, estimate_id, wo_ref, stage, start_date, contractors(company_name, profiles(name))"))
@@ -90,6 +90,7 @@ export async function loadJobMoneyInput(supabase: SupabaseClient, now: Date): Pr
       const wo = woByEstimate.get(e.id);
       return {
         estimateId: e.id,
+        brand: e.brand ?? null,
         address: e.job_address || e.title || "Untitled job",
         customer: e.accepted_name,
         woRef: wo?.wo_ref ?? null,

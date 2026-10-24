@@ -170,4 +170,41 @@ export const wizardStartsBySource: MetricDef<StartsRow> = {
   note: (rows) => rows.length ? `${rows.reduce((s, r) => s + r.starts, 0)} starts` : "no wizard sessions in this range",
 };
 
-export const MARKETING_METRICS = [bySource, costPerAcceptedJob, cpaByChannel, spendVsSales, spendVsSalesTrend, repeatReferralShare, wizardStartsBySource] as const;
+// ---- by shopfront (Paint Home brief §6, §7: the side-by-side test) ----------------------------------
+
+export type BrandRow = { brand: string; started: number; saved: number; sent: number; accepted: number; calls_requested: number; visits_booked: number };
+/**
+ * Per shopfront, over the wizard sessions started in the range: sessions,
+ * estimates saved, sent, accepted, calls requested and visits booked (the
+ * range screen's option on the session). Page visits, `address_typed` and
+ * `see_price` live in the website events table, which already carries the
+ * audience — they join this row when the launch session wires that table in.
+ */
+export const byBrand: MetricDef<BrandRow> = {
+  key: "mk.by_brand", kind: "period", section: "marketing", title: "By shopfront",
+  definition: "Per brand (Paint Group / Paint Home), over the wizard sessions started on a day in the range: sessions started, estimates saved, sent, accepted (whenever), calls requested and site visits booked from the range screen.",
+  unit: "count", gst: null, roles: ROLES, aggregate: { sum: "started" }, display: "rows",
+  columns: [{ key: "brand", label: "Shopfront" }, { key: "started", label: "Started" }, { key: "saved", label: "Saved" }, { key: "sent", label: "Sent" }, { key: "accepted", label: "Accepted" }, { key: "calls_requested", label: "Calls requested" }, { key: "visits_booked", label: "Visits booked" }],
+  select: (input, range) => {
+    const f = input.funnel; if (!f) return [];
+    const est = new Map(f.estimates.map((e) => [e.id, e]));
+    const g = new Map<string, BrandRow>();
+    for (const d of f.drafts) {
+      if (!inRange(d.started_at, range)) continue;
+      const brand = d.brand === "painthome" ? "Paint Home" : "Paint Group";
+      const x = g.get(brand) ?? { brand, started: 0, saved: 0, sent: 0, accepted: 0, calls_requested: 0, visits_booked: 0 };
+      const e = d.estimate_id ? est.get(d.estimate_id) : undefined;
+      x.started += 1;
+      if (d.estimate_id) x.saved += 1;
+      if (e?.sent_at) x.sent += 1;
+      if (e?.status === "accepted") x.accepted += 1;
+      if (d.range_option === "speak") x.calls_requested += 1;
+      if (d.range_option === "visit") x.visits_booked += 1;
+      g.set(brand, x);
+    }
+    return [...g.values()].sort((a, b) => a.brand.localeCompare(b.brand));
+  },
+  note: (rows) => rows.length ? rows.map((r) => `${r.brand}: ${r.started} started, ${r.accepted} accepted`).join(" · ") : "no sessions in this range",
+};
+
+export const MARKETING_METRICS = [bySource, byBrand, costPerAcceptedJob, cpaByChannel, spendVsSales, spendVsSalesTrend, repeatReferralShare, wizardStartsBySource] as const;
