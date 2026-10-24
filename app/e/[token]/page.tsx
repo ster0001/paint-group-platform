@@ -1,4 +1,6 @@
 import type React from "react";
+import { companyForBrand } from "@/lib/messaging/brand";
+import { estimateBrandByToken } from "@/lib/estimate/brandByToken";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { BankDetails, CustomerSnapshot } from "@/lib/customer/snapshot";
@@ -28,8 +30,16 @@ export default async function Page({
 
   if (error || !row || !row.snapshot) notFound();
   // extra guard: never render anything that isn't a valid customer snapshot
-  const snap = row.snapshot as Partial<CustomerSnapshot>;
-  if (!snap || snap.version !== 1) notFound();
+  const snap0 = row.snapshot as Partial<CustomerSnapshot>;
+  if (!snap0 || snap0.version !== 1) notFound();
+  // Paint Home brief §5 (⚑ P8): a Paint Home estimate shows Paint Home's name, mark and number in
+  // the document chrome. The snapshot is the sent record and is not rewritten; the brand is laid
+  // over its company block at render, from the estimate's own column (one service read by token).
+  const estimateBrand = await estimateBrandByToken(token);
+  const brandCo = companyForBrand({ name: snap0.company?.name ?? "", phone: snap0.company?.phone ?? "", logoUrl: snap0.company?.logoUrl ?? "" }, estimateBrand);
+  const snap: Partial<CustomerSnapshot> = estimateBrand === "painthome" && snap0.company
+    ? { ...snap0, company: { ...snap0.company, name: brandCo.name ?? snap0.company.name, phone: brandCo.phone ?? snap0.company.phone, logoUrl: brandCo.logoUrl ?? snap0.company.logoUrl } }
+    : snap0;
 
   // Signed changes + adjusted total (accepted jobs; null before the 20261120
   // migration or when there's nothing to show — the page degrades quietly).
@@ -65,7 +75,7 @@ export default async function Page({
 
   return (
     <CustomerEstimate
-      snapshot={row.snapshot}
+      snapshot={snap as CustomerSnapshot}
       estimateNumber={row.number ?? null}
       bank={bank}
       token={token}

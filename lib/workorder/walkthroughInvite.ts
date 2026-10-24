@@ -7,6 +7,7 @@ import { isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
+import { companyForBrand, messageBrandOf } from "@/lib/messaging/brand";
 import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
@@ -49,7 +50,7 @@ export async function sendWalkthroughInvites(
 async function run(service: SupabaseClient, workOrderId: string): Promise<void> {
   const { data: w } = await service
     .from("work_orders")
-    .select("id, wo_ref, estimate_id, contractor_id, walkthrough_required, wo_snapshot, estimates(accepted_name, builder_state, sent_snapshot)")
+    .select("id, wo_ref, estimate_id, contractor_id, walkthrough_required, wo_snapshot, brand, estimates(accepted_name, builder_state, sent_snapshot)")
     .eq("id", workOrderId)
     .maybeSingle();
   const wo = w as {
@@ -117,7 +118,9 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
   }
   const painterFirst = painterName.split(/\s+/)[0] || "your painter";
 
-  const { messaging, company } = await loadMessaging(service);
+  const { messaging, company: company0 } = await loadMessaging(service);
+  // Paint Home brief §5: the job's brand names the organiser and signs the invite.
+  const company = companyForBrand(company0, messageBrandOf((wo as { brand?: unknown }).brand));
   const companyName = company.name || "Paint Group";
   const organizerEmail = company.email || "email@paintgroup.com.au";
   // Settings → Automations: "Final walkthrough calendar invite". Off = no

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { companyForBrand, messageBrandOf } from "@/lib/messaging/brand";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { buildPlainEmailHtml } from "@/lib/messaging/send";
 import { dispatched, outcomeWord, sendAutomation } from "@/lib/automations/dispatch";
@@ -34,7 +35,7 @@ export async function sendAppointmentConfirmation(
 async function run(service: SupabaseClient, workOrderId: string): Promise<void> {
   const { data: w } = await service
     .from("work_orders")
-    .select("id, wo_ref, stage, start_date, contractor_id, estimate_id, wo_snapshot, estimates(title, accepted_name, builder_state, sent_snapshot)")
+    .select("id, wo_ref, stage, start_date, contractor_id, estimate_id, wo_snapshot, brand, estimates(title, accepted_name, builder_state, sent_snapshot)")
     .eq("id", workOrderId)
     .maybeSingle();
   const wo = w as {
@@ -80,7 +81,7 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
     ...DEFAULT_MESSAGING,
     ...((rows.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingSettings>) ?? {}),
   };
-  const company = (rows.find((r) => r.key === "company_profile")?.value as {
+  const company0 = (rows.find((r) => r.key === "company_profile")?.value as {
     name?: string; phone?: string; email?: string; logoUrl?: string; logoUrlLight?: string; logoUrlEmail?: string;
   } | null) ?? {};
 
@@ -96,6 +97,8 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
     ? `Your final walkthrough is booked for ${longDay(booked.scheduled_date)}${booked.scheduled_time ? ` at ${booked.scheduled_time.slice(0, 5)}` : ""} — a calendar invite is on its way separately.`
     : `We'll confirm the date and time of your final walkthrough with you closer to the finish.`;
 
+  // Paint Home brief §5: the job's brand names the company in the message.
+  const company = companyForBrand(company0, messageBrandOf((wo as { brand?: unknown }).brand));
   const vars = {
     first_name: contact.first_name || (wo.estimates.accepted_name ?? "").split(/\s+/)[0] || "there",
     company_name: company.name ?? "Paint Group",

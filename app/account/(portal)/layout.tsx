@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getPortalContext } from "@/lib/portal/data";
+import { getPortalContext, getPortalJobs, portalBrandOf } from "@/lib/portal/data";
+import PaintHomeLogo from "@/app/(marketing)/_components/PaintHomeLogo";
+import { brandFor } from "@/lib/marketing/brand";
 import { ensureMembership } from "@/lib/portal/auth";
 import AccountTabs from "./AccountTabs";
 import AssistantWidget from "@/app/estimate/assist/AssistantWidget";
@@ -36,16 +38,21 @@ export default async function PortalShellLayout({ children }: { children: React.
     financeOnly = membership?.role === "finance";
   }
   const initial = (ctx.firstName ?? ctx.email)[0]?.toUpperCase() ?? "?";
-  const phone = ctx.companyPhone;
+  // Paint Home brief §5 (⚑ P8): the header follows the account's jobs — all Paint Home → the Paint Home mark and number.
+  const { brand } = portalBrandOf((await getPortalJobs(ctx.accounts.map((a) => a.id))).estimates);
+  const painthome = brand === "painthome";
+  const phone = painthome ? brandFor("painthome").phoneDisplay : ctx.companyPhone;
 
   return (
-    <div className="app">
+    <div className="app" data-brand={brand}>
       <header className="hdr">
         <div>
-          {ctx.logoUrl
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img className="brandlogo" src={ctx.logoUrl} alt={ctx.companyName} />
-            : <div className="brand">PAINT GROUP<span className="dot">.</span></div>}
+          {painthome
+            ? <PaintHomeLogo variant="nav" on="light" className="brandlogo" title="Paint Home" />
+            : ctx.logoUrl
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img className="brandlogo" src={ctx.logoUrl} alt={ctx.companyName} />
+              : <div className="brand">PAINT GROUP<span className="dot">.</span></div>}
           {trade && (
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 5 }}>
               {orgName && <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>{orgName}</span>}

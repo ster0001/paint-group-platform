@@ -12,6 +12,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
+import { companyForBrand, messageBrandOf, publicOriginFor } from "@/lib/messaging/brand";
 import { buildEstimateEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
@@ -101,21 +102,24 @@ export async function notifyOfficeOfAcceptanceByToken(service: SupabaseClient, s
 export async function sendCustomerWelcome(service: SupabaseClient, estimateId: string): Promise<"sent" | "skipped" | "already"> {
   try {
     const { data } = await service.from("estimates")
-      .select("id, status, account_id, accepted_name, sent_snapshot, builder_state")
+      .select("id, status, account_id, accepted_name, sent_snapshot, builder_state, brand")
       .eq("id", estimateId).maybeSingle();
-    const est = data as { id: string; status: string; account_id: string | null; accepted_name: string | null;
+    const est = data as { id: string; status: string; account_id: string | null; accepted_name: string | null; brand?: string | null;
       sent_snapshot: { jobAddress?: string; contactEmail?: string } | null; builder_state: { contact?: { first_name?: string; email?: string; phone?: string } } | null } | null;
     if (!est || est.status !== "accepted") return "skipped";
     if (!(await claimRung(service, "customer_accepted_welcome", estimateId, ""))) return "already";
-    const { company } = await loadMessaging(service);
-    const { messaging } = await loadMessaging(service);
+    // Paint Home brief §5: the welcome is from the estimate's brand, with links on its own domain.
+    const brand = messageBrandOf(est.brand);
+    const { messaging, company: company0 } = await loadMessaging(service);
+    const company = companyForBrand(company0, brand);
+    const origin = publicOriginFor(brand, siteUrl());
     const contact = est.builder_state?.contact ?? {};
     const email = (contact.email || est.sent_snapshot?.contactEmail || "").trim() || null;
     const phone = contact.phone ? normalisePhoneAU(contact.phone) : null;
     const { data: dep } = await service.from("invoices").select("token, status").eq("estimate_id", estimateId).eq("kind", "deposit")
       .in("status", ["issued", "sent", "viewed", "partially_paid"]).limit(1).maybeSingle();
-    const depositLink = (dep as { token?: string } | null)?.token ? `${siteUrl()}/i/${(dep as { token: string }).token}` : null;
-    const link = email ? `${siteUrl()}/account/login?email=${encodeURIComponent(email)}` : `${siteUrl()}/account`;
+    const depositLink = (dep as { token?: string } | null)?.token ? `${origin}/i/${(dep as { token: string }).token}` : null;
+    const link = email ? `${origin}/account/login?email=${encodeURIComponent(email)}` : `${origin}/account`;
     const vars = {
       first_name: contact.first_name || (est.accepted_name ?? "").split(/\s+/)[0] || "there",
       company_name: company.name || "Paint Group",

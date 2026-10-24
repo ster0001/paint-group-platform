@@ -125,7 +125,7 @@ export async function getPortalJobs(accountIds: string[]): Promise<PortalJobs> {
   // One round trip: the work order rides its estimate (volume gate finding).
   const { data: estimates } = await svc
     .from("estimates")
-    .select("id, title, status, source, total_cents, share_token, sent_at, created_at, property_id, work_orders(estimate_id, stage, start_date, end_date)")
+    .select("id, title, status, source, total_cents, share_token, sent_at, created_at, property_id, brand, work_orders(estimate_id, stage, start_date, end_date)")
     .in("account_id", accountIds)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -563,4 +563,17 @@ export function melbourneGreeting(now = new Date()): string {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
+}
+
+/**
+ * Paint Home brief §5 (⚑ P8): the portal's brand. Accounts are SHARED between
+ * the shopfronts, so the header follows the jobs: a customer whose every
+ * estimate came through Paint Home sees the Paint Home mark; a customer with
+ * jobs from both doors sees Paint Group's chrome with a brand tag on each
+ * Paint Home job (lib/portal/data.ts is the one reader of the jobs).
+ */
+export function portalBrandOf(estimates: ReadonlyArray<{ brand?: string | null }>): { brand: "paintgroup" | "painthome"; mixed: boolean } {
+  const ph = estimates.filter((e) => e.brand === "painthome").length;
+  if (estimates.length > 0 && ph === estimates.length) return { brand: "painthome", mixed: false };
+  return { brand: "paintgroup", mixed: ph > 0 };
 }

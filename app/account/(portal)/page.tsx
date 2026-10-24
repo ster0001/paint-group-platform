@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getPortalContext, getPortalJobs, melbourneGreeting, melbourneTodayYmd } from "@/lib/portal/data";
+import { getPortalContext, getPortalJobs, melbourneGreeting, melbourneTodayYmd, portalBrandOf } from "@/lib/portal/data";
 import { homeState } from "@/lib/portal/home";
 import { createServiceClient } from "@/lib/supabase/service";
 import { pageLabel } from "@/lib/wizard/journey";
@@ -38,6 +38,7 @@ export default async function AccountHomePage({
   }
 
   const all = await getPortalJobs(ctx.accounts.map((a) => a.id));
+  const portalMixed = portalBrandOf(all.estimates).mixed;
   const selected = ctx.properties.find((p) => p.id === propertyParam)?.id ?? null;
   const estimates = selected ? all.estimates.filter((e) => e.property_id === selected) : all.estimates;
   const workOrders = all.workOrders;
@@ -121,6 +122,8 @@ export default async function AccountHomePage({
           )}
           {estimates.slice(0, 8).map((e) => {
             const chip = STATUS_CHIP[e.status] ?? { cls: "mut", label: e.status };
+            // Paint Home brief §5 (⚑ P8): on a shared account the Paint Home jobs carry their brand.
+            const brandTag = portalMixed && e.brand === "painthome" ? <span className="chip mut nodot" data-testid="job-brand">Paint Home</span> : null;
             // A wizard-built draft is the customer's to keep shaping — it opens
             // the confirm-loop editor. A staff-built draft has no customer editor.
             const shaping = e.status === "draft" && e.source === "customer_intake";
@@ -132,6 +135,7 @@ export default async function AccountHomePage({
               <>
                 <div className="row">
                   <div className="addr">{e.title?.trim() || "Your estimate"}</div>
+                  {brandTag}
                   <span className={`chip ${shaping ? "amber" : chip.cls}`}>{shaping ? "Keep shaping" : chip.label}</span>
                 </div>
                 {open ? <div className="meta">{shaping ? "Tap to confirm your rooms and finalise your price" : "Tap to open it"}</div> : null}

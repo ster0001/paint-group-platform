@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { entityForBrand, messageBrandOf } from "@/lib/messaging/brand";
 import { createServiceClient } from "@/lib/supabase/service";
 import { reportError } from "@/lib/monitoring/report";
 import { buildReceiptHtml } from "./receiptHtml";
@@ -148,12 +149,12 @@ export async function ensureReceiptPdf(paymentId: string): Promise<string | null
   try {
     const [{ data: inv }, { data: settings }] = await Promise.all([
       service.from("invoices")
-        .select("id, number, estimate_id, estimates(accepted_name, job_address:sent_snapshot->>jobAddress)")
+        .select("id, number, estimate_id, brand, estimates(accepted_name, job_address:sent_snapshot->>jobAddress)")
         .eq("id", pay.invoice_id).maybeSingle(),
       service.from("settings").select("key, value").in("key", ["invoicing_entity", "invoicing_bank"]),
     ]);
     const invoice = inv as {
-      id: string; number: string | null;
+      id: string; number: string | null; brand?: string | null;
       estimates: { accepted_name: string | null; job_address: string | null } | null;
     } | null;
     if (!invoice) return null;
@@ -168,7 +169,8 @@ export async function ensureReceiptPdf(paymentId: string): Promise<string | null
       paidOn: pay.paid_on,
       billedTo: invoice.estimates?.accepted_name ?? "",
       jobAddress: invoice.estimates?.job_address ?? "",
-      entity: rows.find((r) => r.key === "invoicing_entity")?.value ?? {},
+      // Paint Home brief §5: the receipt carries the invoice's brand (Paint Home trades as Paint Home, Enlvn line).
+      entity: entityForBrand(rows.find((r) => r.key === "invoicing_entity")?.value ?? {}, messageBrandOf(invoice.brand)),
     });
     const pdf = await renderHtmlToPdf(html);
     const path = `${invoice.id}/${pay.receipt_number}.pdf`;
