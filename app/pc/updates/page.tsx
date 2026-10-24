@@ -3,6 +3,9 @@ import UpdateCard from "./UpdateCard";
 import ClearClosed from "./ClearClosed";
 import { reportError } from "@/lib/monitoring/report";
 import { realOnly } from "@/lib/demo/scope";
+import AutoSendSwitch from "./AutoSendSwitch";
+import { loadCustomerUpdatesSettings } from "@/lib/workorder/customerUpdates";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +19,7 @@ export default async function UpdatesPage() {
 
   const { data, error } = await realOnly(supabase
     .from("wo_updates")
-    .select("id, work_order_id, for_date, draft_text, final_text, status, photo_count, source_tick_ids, work_orders(wo_ref, wo_snapshot, stage)"))
+    .select("id, work_order_id, for_date, created_at, kind, draft_text, final_text, status, photo_count, source_tick_ids, work_orders(wo_ref, wo_snapshot, stage, estimates(accepted_name, builder_state))"))
     // Today's SENT updates stay on the page, greyed, rather than vanishing the
     // moment you press send: a card that disappears reads as "did that work?".
     // (It also made the e2e flaky — the card unmounted before it could confirm.)
@@ -28,10 +31,23 @@ export default async function UpdatesPage() {
   // A rejected read must say so, never draw "Nothing drafted" over a full list.
   if (error) reportError(error, { where: "pc.updates.list" });
   const rows = (error ? [] : data ?? []) as unknown as {
-    id: string; work_order_id: string; for_date: string; draft_text: string;
+    id: string; work_order_id: string; for_date: string; created_at: string; kind: string; draft_text: string;
     final_text: string | null; status: string; photo_count: number; source_tick_ids: string[] | null;
-    work_orders: { wo_ref: string; wo_snapshot: { jobTitle?: string } | null; stage: string | null } | null;
+    work_orders: {
+      wo_ref: string; wo_snapshot: { jobTitle?: string; jobAddress?: string; contactFirstName?: string } | null; stage: string | null;
+      estimates: { accepted_name: string | null; builder_state: { contact?: { name?: string } } | null } | null;
+    } | null;
   }[];
+
+  // The queue's two settings (work order UX Step 2): who it is from, and whether drafts go on their own.
+  const service = createServiceClient();
+  const settings = service ? await loadCustomerUpdatesSettings(service) : null;
+  const sender = settings?.senderFirstName ?? "the office";
+  const recipientOf = (r: (typeof rows)[number]): string => {
+    const name = r.work_orders?.estimates?.builder_state?.contact?.name ?? r.work_orders?.estimates?.accepted_name ?? r.work_orders?.wo_snapshot?.contactFirstName ?? "";
+    return name.trim() || "the customer";
+  };
+  const waiting = rows.filter((r) => r.status !== "sent").length;
 
   // Tom, 14 Oct 2026: WHEN the painter last ticked an area for this draft, so
   // the office knows how fresh the words are before sending them. Read from
@@ -60,15 +76,18 @@ export default async function UpdatesPage() {
   return (
     <>
       <div>
-        <h1>Updates waiting on you.</h1>
+        <h1>Customer updates.</h1>
         <p className="lede">
-          Written from today&rsquo;s ticks. Nothing reaches a customer until you
-          approve it — edit anything that doesn&rsquo;t sound like us.
+          Every message the system writes for a customer lands here &mdash; surface
+          milestones from the painter&rsquo;s ticks and the end-of-day summary.
+          Send it to their timeline, change the words first, or drop it.
         </p>
       </div>
 
       <div className="sect">
         <div className="stack" data-testid="updates">
+          {settings && <AutoSendSwitch on={settings.autoSend} sender={sender} />}
+          <p className="kicker" data-testid="updates-waiting">Waiting to send · {waiting}</p>
           {error && (
             <p className="empty" data-testid="updates-error">Couldn&rsquo;t load the updates just now — {error.message}</p>
           )}
@@ -82,6 +101,11 @@ export default async function UpdatesPage() {
               id={row.id}
               status={row.status}
               forDate={row.for_date}
+              createdAt={row.created_at}
+              kind={row.kind}
+              recipient={recipientOf(row)}
+              sender={sender}
+              jobAddress={row.work_orders?.wo_snapshot?.jobAddress ?? ""}
               text={row.final_text ?? row.draft_text}
               photoCount={row.photo_count}
               lastTickAt={lastTickFor(row)}
@@ -93,7 +117,7 @@ export default async function UpdatesPage() {
 
           {rows.length === 0 && !error && (
             <p className="empty" data-testid="updates-empty">
-              Nothing drafted. Updates appear here after the day&rsquo;s ticks.
+              Nothing waiting. Updates appear here as the painter ticks the job off.
             </p>
           )}
         </div>

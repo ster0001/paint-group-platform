@@ -4,7 +4,7 @@ role: employee
 title: Run a job from the first tick to the customer's signature
 summary: How an assigned job works on your phone as an employed painter — the pre-start list, before photos in one batch, ticking surfaces off, after photos of every room or side, the finishing-up list, the quality check and the walkthrough — the same as every painter, with no money on it.
 sources: app/portal/jobs, app/components/wo, app/s, lib/workorder, lib/contractor/employeeJobs.ts
-verified_at_commit: cd95185da3
+verified_at_commit: eb981f7e0e
 ---
 
 ## What this is for

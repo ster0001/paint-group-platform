@@ -25,6 +25,10 @@ export type TimelineUpdate = {
   for_date: string;
   text: string;
   sent_at: string;
+  /** Work order UX Step 2: which trigger wrote it (end_of_day | surface_milestone | checkin_40 | defect_day). */
+  kind?: string;
+  /** "Felipe, Paint Group" — the sender line (R8). Absent on rows sent before 20270301. */
+  sender?: string;
   /** The photos the office attached when sending (20270268). They render on
    * this card whatever day they were taken; absent on rows sent before. */
   photo_ids?: string[];
@@ -79,6 +83,13 @@ export type TimelineItem = {
 export type AreaRollup = { heading: string; chip: { cls: ChipCls; label: string } };
 
 
+/** "Hi Amanda, all the walls…" → "All the walls…" when the sender line already says who it is from. */
+export function stripGreeting(text: string): string {
+  const t = text.replace(/^\s*(hi|hello|hey)\b[^,\n]*,\s*/i, "");
+  if (t === text) return text;
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 export function melbourneDayOf(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
@@ -128,10 +139,12 @@ export function buildTimeline(input: TimelineInput): TimelineItem[] {
 
   for (const u of input.updates) {
     push({
-      key: `update:${u.for_date}`,
+      // Several updates can share a day now (a milestone and the summary): the key carries the instant.
+      key: u.kind && u.kind !== "end_of_day" ? `update:${u.for_date}:${u.sent_at}` : `update:${u.for_date}`,
       at: u.sent_at,
-      title: "From your painting team",
-      body: u.text,
+      title: u.sender ?? "From your painting team",
+      // The sender line names who it is from; the greeting would say it twice.
+      body: u.sender ? stripGreeting(u.text) : u.text,
       chip: null,
       photoIds: [...(u.photo_ids ?? [])],
       cta: null,

@@ -180,7 +180,7 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
               style={{ width: "auto", padding: "10px 18px", fontSize: 14, marginTop: 10, display: "inline-block" }}
               data-testid="message-coordinator"
             >
-              Message me
+              {project.replyTo ? `Reply to ${project.replyTo}` : "Message me"}
             </Link>
           </div>
         </>
