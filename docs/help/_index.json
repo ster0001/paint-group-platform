@@ -690,6 +690,8 @@
       "media": [],
       "verified_at_commit": null,
       "sources": [
+        "lib/brand/filter.ts",
+        "app/components/BrandPill.tsx",
         "lib/messaging/brand.ts",
         "lib/marketing/brand.ts",
         "lib/marketing/audience.ts",

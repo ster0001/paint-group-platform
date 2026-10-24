@@ -135,6 +135,8 @@ export type WizardJourney = {
   jobType: string | null;
   mode: string | null;
   entrySource: string | null;
+  /** Paint Home brief §6: which shopfront the session came through (null = Paint Group). */
+  brand: string | null;
   bucket: WizardBucket;
   outcome: WizardOutcome;
   outcomeAt: string | null;
@@ -163,7 +165,7 @@ export function journeyFromRow(r: Record<string, unknown>): WizardJourney {
   return {
     id: String(r.id), estimateId: s(r.estimate_id), accountId: s(r.account_id),
     name: s(r.name), email: s(r.email), phone: s(r.phone), address: s(r.address), suburb: s(r.suburb),
-    jobType: s(r.job_type), mode: s(r.mode), entrySource: s(r.entry_source),
+    jobType: s(r.job_type), mode: s(r.mode), entrySource: s(r.entry_source), brand: s(r.brand),
     bucket, outcome, outcomeAt: s(r.outcome_at), outcomeNote: s(r.outcome_note),
     currentPage: n(r.current_page, 1), furthestPage: n(r.furthest_page, 1), pagesTotal: n(r.pages_total, 6),
     activeSeconds: n(r.active_seconds, 0), stepTimes,
@@ -187,7 +189,7 @@ export function journeySteps(j: Pick<WizardJourney, "jobType" | "furthestPage" |
 }
 
 export const WIZARD_SESSION_COLUMNS =
-  "id, user_id, account_id, estimate_id, name, email, phone, address, suburb, postcode, job_type, mode, entry_source, bucket, outcome, outcome_at, outcome_note, current_page, furthest_page, pages_total, active_seconds, step_times, started_at, last_seen_at, converted_at, dropped_at, est_value_cents, progress_pct";
+  "id, user_id, account_id, estimate_id, name, email, phone, address, suburb, postcode, job_type, mode, entry_source, brand, bucket, outcome, outcome_at, outcome_note, current_page, furthest_page, pages_total, active_seconds, step_times, started_at, last_seen_at, converted_at, dropped_at, est_value_cents, progress_pct";
 
 // ---- C7b: the estimate's own status — the extended pill vocabulary --------
 

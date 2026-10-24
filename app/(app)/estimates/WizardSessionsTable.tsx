@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BrandPill } from "@/app/components/BrandPill";
 import Link from "next/link";
 import { journeyWho, type WizardJourney } from "@/lib/wizard/journey";
 import WizardPill from "./WizardPill";
@@ -39,7 +40,7 @@ export default function WizardSessionsTable({ sessions, openId = null }: { sessi
                   <div className="text-xs text-gray-500">{[s.address || s.suburb, s.email, s.phone].filter(Boolean).join(" · ") || "No contact yet"}</div>
                 </td>
                 <td className="px-4 py-2.5"><WizardPill j={s} onOpen={() => setOpen(s)} /></td>
-                <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{s.entrySource ?? "—"}{s.mode ? ` · ${s.mode}` : ""}</td>
+                <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{s.entrySource ?? "—"}{s.mode ? ` · ${s.mode}` : ""} <BrandPill brand={s.brand} /></td>
                 <td className="px-4 py-2.5 text-gray-500">{s.startedAt ? new Date(s.startedAt).toLocaleDateString("en-AU") : "—"}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{s.estValueCents != null ? `$${Math.round(s.estValueCents / 100).toLocaleString("en-AU")}` : "—"}</td>
               </tr>

@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { BrandFilterChips, BrandPill } from "@/app/components/BrandPill";
+import { matchesBrand, parseBrandFilter } from "@/lib/brand/filter";
+import { brandsForItems } from "@/lib/crm/itemBrands";
 import { getWorkQueue } from "../queue";
 import { createClient } from "@/lib/supabase/server";
 import { rememberBadge } from "@/lib/crm/badgeCache";
@@ -90,7 +93,7 @@ function ago(iso: string): string {
 }
 
 export default async function TodayPage({ searchParams }: {
-  searchParams: Promise<{ f?: string; page?: string; who?: string }>;
+  searchParams: Promise<{ f?: string; page?: string; who?: string; brand?: string }>;
 }) {
   const params = await searchParams;
   const filter = (FILTER_GROUPS.includes(params.f as FilterGroup) ? params.f : "all") as FilterGroup;
@@ -102,7 +105,12 @@ export default async function TodayPage({ searchParams }: {
   const { data: { user } } = await supabase.auth.getUser();
   const queue = await getWorkQueue();
   if (user) rememberBadge(user.id, queue.counts.byBucket.overdue + queue.counts.byBucket.today);
-  const scoped = scopeItems(queue.items, who, user?.id ?? null);
+  const scoped0 = scopeItems(queue.items, who, user?.id ?? null);
+  // Paint Home brief §6: the brand of each item, from the record it is about (work items are derived
+  // facts, never stored — the brand is read alongside, not added to the queue). Four small reads.
+  const brandFilter = parseBrandFilter(params.brand);
+  const brandOf = await brandsForItems(supabase, scoped0);
+  const scoped = brandFilter === "all" ? scoped0 : scoped0.filter((i) => matchesBrand(brandOf.get(i.key) ?? null, brandFilter));
   const filtered = filter === "all" ? scoped : scoped.filter((i) => GROUP_OF_KIND[i.kind] === filter);
   // P7: a customer's items sit under one card WITHIN a bucket (an overdue
   // follow-up and a due-today callback are two cards — the urgency differs).
@@ -122,7 +130,7 @@ export default async function TodayPage({ searchParams }: {
 
   const qs = (extra: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const merged = { f: filter === "all" ? undefined : filter, who: who === "mine" ? undefined : who, ...extra };
+    const merged = { f: filter === "all" ? undefined : filter, who: who === "mine" ? undefined : who, brand: brandFilter === "all" ? undefined : brandFilter, ...extra };
     for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
     const q = p.toString();
     return `/crm/today${q ? `?${q}` : ""}`;
@@ -147,6 +155,7 @@ export default async function TodayPage({ searchParams }: {
             {CHIP_LABEL[g]}<span className="chipn mono">{chipCount(g)}</span>
           </Link>
         ))}
+        <BrandFilterChips value={brandFilter} chipClass={(on) => `chip ${on ? "on" : ""}`} hrefFor={(b) => qs({ brand: b === "all" ? undefined : b, page: undefined })} />
       </div>
       {queue.counts.truncated.length > 0 && (
         <p className="partial" data-testid="truncated">
@@ -182,7 +191,7 @@ export default async function TodayPage({ searchParams }: {
                 <div key={item.key} className={`qitem ${item.bucket === "overdue" ? "od" : item.bucket === "today" ? "due" : "ok"}`}>
                   <span className="qico" aria-hidden="true">{GROUP_ICON[group]}</span>
                   <span className="qmain">
-                    <span className="qt"><span className="qsrc">{KIND_TAG[item.kind]}</span>{item.title}</span>
+                    <span className="qt"><span className="qsrc">{KIND_TAG[item.kind]}</span>{item.title} <BrandPill brand={brandOf.get(item.key) ?? null} className="qsrc" /></span>
                     <span className="qb">{item.detail}</span>
                     {rest.map((r) => (
                       <span className="qb qalso" key={r.key} data-testid="also">

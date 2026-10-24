@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandPill } from "@/app/components/BrandPill";
 import { LANES } from "@/lib/workorder/stages";
 import {
   TABLE_FILTERS, laneTone, tableFilter, totalCollectableCents, totalNowCents, totalOverdueCents,
@@ -107,7 +108,7 @@ function Row({ row }: { row: JobMoneyRow }) {
   const paid = row.section === "paid_in_full";
   return (
     <div className={`tr${row.health === "over" ? " isover" : ""}`} data-estimate={row.estimateId}>
-      <div className="td jb"><div className="a"><OpenJobLink estimateId={row.estimateId}>{row.address}</OpenJobLink></div><div className="c">{row.customer || row.woRef}</div></div>
+      <div className="td jb"><div className="a"><OpenJobLink estimateId={row.estimateId}>{row.address}</OpenJobLink> <BrandPill brand={row.brand} className="chip" /></div><div className="c">{row.customer || row.woRef}</div></div>
       <div className="td st"><b>{STAGE_NAME[row.lane]}</b><Rail row={row} /></div>
       <div className="td"><Cell row={row} k="deposit" /></div>
       <div className="td"><Cell row={row} k="progress" /></div>

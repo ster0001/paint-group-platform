@@ -25,6 +25,8 @@ type WoRow = {
   start_date: string | null; end_date: string | null; walkthrough_required: boolean | null;
   colours: Record<string, { status?: string }> | null;
   blocked_reason: string | null; wo_snapshot: { jobTitle?: string } | null;
+  /** Paint Home brief §6: the shopfront the job came through (null = Paint Group). */
+  brand?: string | null;
   issued_at: string | null;
   estimates: { total_cents: number | null; accepted_at: string | null } | null;
 };
@@ -38,7 +40,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
          qaOpen, walkBooked, qaPassed, sentUpdateRows] =
     await Promise.all([
       fetchAll<WoRow>((from, to) => realOnly(supabase.from("work_orders")
-        .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, end_date, walkthrough_required, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)"))
+        .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, end_date, walkthrough_required, colours, blocked_reason, wo_snapshot, issued_at, brand, estimates(total_cents, accepted_at)"))
         // Open jobs, plus anything closed in the last 30 days — so a signed job
         // lands in the board's Closed lane rather than vanishing (Tom, 23 Aug).
         // The queue and tiles filter closed out where they should.
@@ -109,6 +111,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       id: w.id,
       woRef: w.wo_ref,
       stage: w.stage,
+      brand: w.brand ?? null,
       title: w.wo_snapshot?.jobTitle ?? w.wo_ref,
       contractorName: w.contractor_id ? contractorName.get(w.contractor_id) ?? null : null,
       contractValueCents: w.estimates?.total_cents ?? 0,

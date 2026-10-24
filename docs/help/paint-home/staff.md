@@ -3,7 +3,7 @@ feature: paint-home
 role: staff
 title: Paint Home — the second shopfront: its words, its cards, and Settings → Brands
 summary: Paint Home (painthome.com.au) is the same business, wizard, painters, CRM and invoicing under a second name; its words are edited on the Paint Home tab of Website copy, its three cards are home jobs under the phone-close price with their own featured rank, and Settings → Brands holds each shopfront's domain, phone, legal line and accent colour.
-sources: lib/messaging/brand.ts, lib/marketing/brand.ts, lib/marketing/audience.ts, lib/marketing/copy/painthome.ts, app/(marketing)/painthome/page.tsx, app/(app)/settings/BrandsSettings.tsx, app/(app)/settings/SiteCopyEditor.tsx, app/(app)/settings/showcase/ShowcaseEditor.tsx, lib/showcase/rank.ts, lib/wizard/brand.ts, app/wizard/Reveal.tsx, app/api/wizard/submit/route.ts
+sources: lib/brand/filter.ts, app/components/BrandPill.tsx, lib/messaging/brand.ts, lib/marketing/brand.ts, lib/marketing/audience.ts, lib/marketing/copy/painthome.ts, app/(marketing)/painthome/page.tsx, app/(app)/settings/BrandsSettings.tsx, app/(app)/settings/SiteCopyEditor.tsx, app/(app)/settings/showcase/ShowcaseEditor.tsx, lib/showcase/rank.ts, lib/wizard/brand.ts, app/wizard/Reveal.tsx, app/api/wizard/submit/route.ts
 ---
 
 ## What this is for
@@ -33,6 +33,15 @@ Every Paint Home session, estimate, work order and invoice carries `brand = pain
 Every customer-facing message is the same template with the brand laid over it: the estimate email and text, the invoice email and text, the payment receipt, the booking confirmation, the walk-through calendar invite and the welcome all name Paint Home, carry the Paint Home mark, and link to painthome.com.au. The sender stays our verified mailbox with "Paint Home" as the display name. An invoice for a Paint Home job trades as Paint Home with the line *Enlvn Pty Ltd trading as Paint Home*; the ABN, address and bank details are the company's and do not change. The estimate page and the invoice page show the brand of the estimate, whichever address the customer opens them from.
 
 The customer portal is shared: one login sees every job from either door. A customer whose jobs all came through Paint Home sees the Paint Home mark and number in the portal header; a customer with jobs from both doors sees Paint Group's header and a *Paint Home* tag on each Paint Home job.
+
+## Finding Paint Home work in the office
+Every staff list carries the same two things. A **Paint Home** pill on a row that came through painthome.com.au (Paint Group rows wear nothing, since that is the default), and a brand filter, **All · Paint Group · Paint Home**, that narrows the list without changing anything else about it:
+
+- **Estimates** — the pill under the title; the filter sits at the right of the status tabs and stays with you as you change tab. The Wizard tab has its own Paint Group / Paint Home chips beside Home / Business.
+- **CRM → Today** — the pill after the card's title; the filter beside the group chips. The brand is read from the record each card is about.
+- **PC Command → Flow** — the pill on the job card; the filter above the river. Counts and alerts are still over every job.
+- **Invoicing → Customers** — the pill beside the address on the All jobs table; the filter beside Show paid.
+- **Dashboard** — once Paint Home has sessions in the range, *Where estimates go* draws two funnels, Paint Group then Paint Home; *Marketing* gains a **By shopfront** row: sessions started, estimates saved, sent, accepted, calls requested and visits booked, per brand. Page visits and the address-typed and see-price counts join that row when the website events table is wired in at launch.
 
 ## What the colours and labels mean
 - **Accent in use** — the hex, the phone link and the address that the site is rendering right now, after your save.

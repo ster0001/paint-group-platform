@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { BrandFilterChips, BrandPill } from "@/app/components/BrandPill";
+import { matchesBrand, parseBrandFilter } from "@/lib/brand/filter";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue } from "@/lib/workorder/console";
@@ -22,7 +24,9 @@ const money = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
  * booked job waits there until its start date is within a week, then shows in
  * Pre-start. The split is `laneFor`, from the start date and today's date.
  */
-export default async function FlowPage() {
+export default async function FlowPage({ searchParams }: { searchParams: Promise<{ brand?: string }> }) {
+  // Paint Home brief §6: one brand filter over the river; the evaluator still runs over every job.
+  const brandFilter = parseBrandFilter((await searchParams).brand);
   const supabase = await createClient();
   const { input } = await loadConsole(supabase);
   const queue = buildQueue(input);
@@ -93,10 +97,11 @@ export default async function FlowPage() {
             <p className="note">This column shows only while a call back is open. It is not a stage — the job stays where its gate put it.</p>
           </div>
         )}
+        <BrandFilterChips value={brandFilter} className="fl" chipClass={(on) => `pill ${on ? "p-em" : ""}`} hrefFor={(b) => (b === "all" ? "/pc/flow" : `/pc/flow?brand=${b}`)} />
         <div className="riverwrap">
           <div className="river" data-testid="river">
             {LANES.map((stage) => {
-              const inLane = input.workOrders.filter((w) => laneFor(w.stage as WoStage, w.startDate, today) === stage);
+              const inLane = input.workOrders.filter((w) => laneFor(w.stage as WoStage, w.startDate, today) === stage && matchesBrand((w as { brand?: string | null }).brand, brandFilter));
               // Tom, 8 Oct 2026: Pre-start reads soonest start first, and a
               // job starting within three days is lit orange (startAlert).
               const jobs = stage === "pre_start" ? [...inLane].sort(bySoonestStart) : inLane;
@@ -129,6 +134,7 @@ export default async function FlowPage() {
                         </span>
                         {startLine && <span className="sd" data-testid={`start-${job.id}`}>{startLine}</span>}
                         <div className="fl">
+                          <BrandPill brand={(job as { brand?: string | null }).brand} className="pill" />
                           {callbackJobIds.includes(job.id) && <span className="pill p-clay" data-testid={`callback-tag-${job.id}`}>Call back</span>}
                           {pausedJobs.has(job.id) && <span className="pill p-amber">Invoice chasing paused</span>}
                           {job.blockedReason && <span className="pill p-clay">Blocked</span>}
