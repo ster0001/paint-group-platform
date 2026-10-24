@@ -311,7 +311,15 @@ async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures:
   const estIds = [...new Set(rows.map((d) => d.estimate_id).filter((x): x is string => Boolean(x)))];
   const ests = estIds.length ? await inSlices(estIds, (s) => supabase.from("estimates").select("id, status, sent_at, viewed_at, accepted_at, declined_at, lead_source").in("id", s)) : { rows: [], error: null };
   if (ests.error) failure(failures, "estimates behind wizard sessions", ests.error);
+  // Paint Home brief §7: the website's events (type web_event; the payload carries the marketing name,
+  // the audience track() stamped, and the first-party visitor id). Newest 10,000 of the window.
+  type WebRow = { occurred_at: string; payload: { name?: string; props?: { audience?: string }; visitorId?: string } | null };
+  const web = await pageAll<WebRow>((from, to) => realOnly(supabase.from("crm_events").select("occurred_at, payload")).eq("type", "web_event")
+    .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).order("id").range(from, to), 10);
+  if (web.error) failure(failures, "website events", web.error);
+  if (web.truncated) failure(failures, "website events", new Error("more than 10,000 website events in the window — the shopfront row counts the newest 10,000"));
   return {
+    web: (web.data ?? []).map((e) => ({ name: e.payload?.name ?? "", audience: e.payload?.props?.audience ?? null, visitor_id: e.payload?.visitorId ?? null, occurred_at: e.occurred_at })),
     drafts: rows.map((d) => ({ id: d.id, started_at: d.started_at, email: d.email, estimate_id: d.estimate_id, converted_at: d.converted_at, last_seen_at: d.last_seen_at, lead_source: d.accounts?.lead_source ?? null, brand: d.brand ?? null,
       gate_version: d.gate_version ?? null, gate_shown_at: d.gate_shown_at ?? null, gate_completed_at: d.gate_completed_at ?? null, range_shown_at: d.range_shown_at ?? null, range_option: d.range_option ?? null })),
     estimates: ((ests.rows ?? []) as FunnelSlice["estimates"]),

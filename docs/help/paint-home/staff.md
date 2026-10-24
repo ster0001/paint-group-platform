@@ -43,6 +43,9 @@ Every staff list carries the same two things. A **Paint Home** pill on a row tha
 - **Invoicing → Customers** — the pill beside the address on the All jobs table; the filter beside Show paid.
 - **Dashboard** — once Paint Home has sessions in the range, *Where estimates go* draws two funnels, Paint Group then Paint Home; *Marketing* gains a **By shopfront** row: sessions started, estimates saved, sent, accepted, calls requested and visits booked, per brand. Page visits and the address-typed and see-price counts join that row when the website events table is wired in at launch.
 
+## Opening Paint Home to search
+The order, the 90-second phone walk and the flip are in `docs/testing/paint-home-launch.md`. In short: a second Clarity project (`NEXT_PUBLIC_CLARITY_ID_PAINTHOME`), the Resend sending domain, three ranked cards, then `PAINTHOME_INDEXABLE=1` in Vercel. Each site has its own robots file and sitemap, decided by the address it is opened on; Paint Home's sitemap lists its homepage and job list only, because the job pages belong to Paint Group in search. The dashboard's *By shopfront* row now carries the website's own numbers too: visits, addresses typed and See-my-price taps, per brand.
+
 ## What the colours and labels mean
 - **Accent in use** — the hex, the phone link and the address that the site is rendering right now, after your save.
 - **Saved** (green) — the row is written and the public pages have been told to refresh.

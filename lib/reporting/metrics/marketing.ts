@@ -172,27 +172,39 @@ export const wizardStartsBySource: MetricDef<StartsRow> = {
 
 // ---- by shopfront (Paint Home brief §6, §7: the side-by-side test) ----------------------------------
 
-export type BrandRow = { brand: string; started: number; saved: number; sent: number; accepted: number; calls_requested: number; visits_booked: number };
+export type BrandRow = { brand: string; visits: number; address_typed: number; see_price: number; started: number; saved: number; sent: number; accepted: number; calls_requested: number; visits_booked: number };
 /**
- * Per shopfront, over the wizard sessions started in the range: sessions,
- * estimates saved, sent, accepted, calls requested and visits booked (the
- * range screen's option on the session). Page visits, `address_typed` and
- * `see_price` live in the website events table, which already carries the
- * audience — they join this row when the launch session wires that table in.
+ * Per shopfront (the brief's side-by-side test, §7): website visits (distinct
+ * first-party visitor ids seen in the range), address typed, see price —
+ * from the website events, which `track()` stamps with the audience — then,
+ * over the wizard sessions started in the range: sessions, estimates saved,
+ * sent, accepted, calls requested and visits booked (the range screen's
+ * option on the session).
  */
 export const byBrand: MetricDef<BrandRow> = {
   key: "mk.by_brand", kind: "period", section: "marketing", title: "By shopfront",
-  definition: "Per brand (Paint Group / Paint Home), over the wizard sessions started on a day in the range: sessions started, estimates saved, sent, accepted (whenever), calls requested and site visits booked from the range screen.",
+  definition: "Per brand (Paint Group / Paint Home): website visits (distinct visitors with an event in the range), addresses typed and See-my-price taps from the website events; then, over the wizard sessions started in the range: sessions started, estimates saved, sent, accepted (whenever), calls requested and site visits booked from the range screen.",
   unit: "count", gst: null, roles: ROLES, aggregate: { sum: "started" }, display: "rows",
-  columns: [{ key: "brand", label: "Shopfront" }, { key: "started", label: "Started" }, { key: "saved", label: "Saved" }, { key: "sent", label: "Sent" }, { key: "accepted", label: "Accepted" }, { key: "calls_requested", label: "Calls requested" }, { key: "visits_booked", label: "Visits booked" }],
+  columns: [{ key: "brand", label: "Shopfront" }, { key: "visits", label: "Visits" }, { key: "address_typed", label: "Address typed" }, { key: "see_price", label: "See price" }, { key: "started", label: "Started" }, { key: "saved", label: "Saved" }, { key: "sent", label: "Sent" }, { key: "accepted", label: "Accepted" }, { key: "calls_requested", label: "Calls requested" }, { key: "visits_booked", label: "Visits booked" }],
   select: (input, range) => {
     const f = input.funnel; if (!f) return [];
     const est = new Map(f.estimates.map((e) => [e.id, e]));
     const g = new Map<string, BrandRow>();
+    const row = (brand: string) => g.get(brand) ?? { brand, visits: 0, address_typed: 0, see_price: 0, started: 0, saved: 0, sent: 0, accepted: 0, calls_requested: 0, visits_booked: 0 };
+    const seen = new Map<string, Set<string>>();
+    for (const e of f.web ?? []) {
+      if (!inRange(e.occurred_at, range)) continue;
+      const brand = e.audience === "painthome" ? "Paint Home" : "Paint Group";
+      const x = row(brand);
+      if (e.visitor_id) { const v = seen.get(brand) ?? new Set<string>(); if (!v.has(e.visitor_id)) { v.add(e.visitor_id); x.visits += 1; } seen.set(brand, v); }
+      if (e.name === "address_typed") x.address_typed += 1;
+      if (e.name === "see_price") x.see_price += 1;
+      g.set(brand, x);
+    }
     for (const d of f.drafts) {
       if (!inRange(d.started_at, range)) continue;
       const brand = d.brand === "painthome" ? "Paint Home" : "Paint Group";
-      const x = g.get(brand) ?? { brand, started: 0, saved: 0, sent: 0, accepted: 0, calls_requested: 0, visits_booked: 0 };
+      const x = row(brand);
       const e = d.estimate_id ? est.get(d.estimate_id) : undefined;
       x.started += 1;
       if (d.estimate_id) x.saved += 1;
