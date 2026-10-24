@@ -184,7 +184,7 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
           attachments: [{
             filename: state.cancelled ? "walkthrough-cancelled.ics" : "final-walkthrough.ics",
             content: Buffer.from(ics, "utf8").toString("base64"),
-            contentType: `text/calendar; method=${method}`,
+            contentType: `text/calendar; charset=utf-8; method=${method}`,
           }],
         },
         ctx: r.role === "customer"

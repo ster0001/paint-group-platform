@@ -46,6 +46,28 @@ export function askWord(m: { kind: string; title: string; from_kind: string | nu
   }
 }
 
+/**
+ * Tom, 24 Oct 2026: the calendar entry was titled "Paint · Taubmans · 1 line · 2 cans" — a label, not
+ * an instruction. The entry's TITLE is now the ask ("Collect the paint (Taubmans · 2 cans) from Dulux
+ * Oakleigh and deliver it to 6 Fleet St") and its DESCRIPTION is the same words the text message
+ * carries — the day and time, the place, the order reference, the note and the link. Calendar text
+ * is kept to plain ASCII: a middle dot or a dash sent as UTF-8 showed up as "¬∑" in the phone's
+ * calendar, so separators become hyphens and the file is declared charset=utf-8 as well.
+ */
+export function icsPlain(s: string): string {
+  return s.replace(/\s[·•]\s/g, " - ").replace(/[·•]/g, "-").replace(/[—–]/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/→/g, "to").replace(/[^\x20-\x7E\n]/g, "");
+}
+export function inviteWords(v: { ask: string; wo_ref: string; day: string; when: string; where: string; order_line: string; note: string; link: string; company_name: string }): { summary: string; description: string } {
+  const summary = icsPlain(`${v.ask} (${v.wo_ref})`);
+  const description = icsPlain([
+    `${v.ask} - ${v.day} at ${v.when}, ${v.where}.`,
+    [v.order_line.trim(), v.note.trim()].filter(Boolean).join(" "),
+    `Details, with Navigate and Call: ${v.link}`,
+    v.company_name,
+  ].filter(Boolean).join("\n"));
+  return { summary, description };
+}
+
 export async function sendMovementInvite(service: SupabaseClient, movementId: string): Promise<InviteOutcome> {
   const { data, error } = await service.from("movements")
     .select("id, work_order_id, kind, title, detail, status, assignee_kind, assignee_table, assignee_id, due_date, half, time, duration_min, from_kind, from_branch_id, from_text, to_kind, to_text, order_ref, note, invite_sequence, method_pref")
@@ -116,11 +138,12 @@ export async function sendMovementInvite(service: SupabaseClient, movementId: st
   if (!to) return { ok: true, sent: false, why: `${firstName} has no email on file${texted ? " — the text went" : ""}`, texted };
   const subject = renderTemplate(messaging.movementInviteSubject, vars);
   const body = renderTemplate(messaging.movementInviteBody, vars);
+  const words = inviteWords(vars);
   const ics = buildIcs({
     uid: `movement-${m.id}@paintgroup`, sequence: m.invite_sequence, method: "REQUEST",
-    summary: `${companyName}: ${what}${j ? ` — ${ref}` : ""}`,
-    description: [body, m.order_ref ? `Order ${m.order_ref}` : "", link].filter(Boolean).join("\n"),
-    location: location || undefined, date: m.due_date, time, durationMinutes: minutes,
+    summary: words.summary,
+    description: words.description,
+    location: location ? icsPlain(location) : undefined, date: m.due_date, time, durationMinutes: minutes,
     organizerEmail: company.email || "info@paintgroup.com.au", organizerName: companyName,
     attendeeEmail: to, attendeeName: firstName, now: new Date(),
   });
@@ -129,8 +152,8 @@ export async function sendMovementInvite(service: SupabaseClient, movementId: st
     to: { email: to },
     email: {
       subject, replyTo: company.email || undefined,
-      html: buildPlainEmailHtml({ heading: `${what} — ${dayWord(m.due_date)} ${time}`, message: body, companyName, logoUrl: emailLogoUrl(company), companyPhone: company.phone }),
-      attachments: [{ filename: "movement.ics", content: Buffer.from(ics, "utf8").toString("base64"), contentType: "text/calendar; method=REQUEST" }],
+      html: buildPlainEmailHtml({ heading: `${vars.ask} — ${dayWord(m.due_date)} ${time}`, message: body, companyName, logoUrl: emailLogoUrl(company), companyPhone: company.phone }),
+      attachments: [{ filename: "movement.ics", content: Buffer.from(ics, "utf8").toString("base64"), contentType: "text/calendar; charset=utf-8; method=REQUEST" }],
     },
     ctx: { workOrderId: m.work_order_id, kind: "movement_calendar_invite" }, contractorId,
   });
