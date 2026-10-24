@@ -60,6 +60,7 @@ import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
   policyFromSettings, serviceAreaFromSettings, settingValue,
   type GuardrailDecision,
+  underPctFor,
 } from "@/lib/wizard/policy";
 import { holdDaysFromSettings, holdUntil, priceToFix } from "@/lib/wizard/confirmation-actions";
 import { reportError } from "@/lib/monitoring/report";
@@ -1999,7 +2000,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const widen = commercialWidenFor(widenSnap.success ? widenSnap.data : null, ctx.settings, widenSegments);
     // 14 Sep: the range is the envelope over the open questions — it narrows
     // as they are answered and rooms are confirmed, never jumps.
-    const envelope = envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: widenSnap.success ? widenSnap.data : null, ctx, adj: adjustmentsFrom(newState), bands, widenPct: widen.widenPct, confirmed: loopState.states });
+    // Tom, 25 Oct 2026: an exterior envelope reaches 5% further under (policy.exteriorUnderPct).
+    const envelope = envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: widenSnap.success ? widenSnap.data : null, ctx, adj: adjustmentsFrom(newState), bands, widenPct: widen.widenPct, underPct: underPctFor(blocks, policyFromSettings(settingValue(ctx.settings, "wizard_policy"))), confirmed: loopState.states });
     const cp = customerPayload(payload, blocks, decision, bands, null, [], null, { ...widen, envelope });
     const flags = (settingValue(ctx.settings, "scope_editor") ?? {}) as { visitSlots?: string[] };
     const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");

@@ -45,6 +45,14 @@ export type WizardPolicySettings = {
   remoteConfirmCapCents: number;
   /** ⚑7 — exterior never, in v1. `false` opens it, and is Tom's call to make. */
   remoteConfirmInteriorOnly: boolean;
+  /**
+   * Tom, 25 Oct 2026: an EXTERIOR range reaches 5% further under its price
+   * than the band alone — "the pricing usually sits at the lower end of the
+   * range, and I want some flexibility for it to be 5% cheaper if required".
+   * The low end only; the top of the range, the central price, the tiers and
+   * the caps are untouched. Interior ranges keep the plain band.
+   */
+  exteriorUnderPct: number;
 };
 
 export const DEFAULT_POLICY: WizardPolicySettings = {
@@ -56,6 +64,7 @@ export const DEFAULT_POLICY: WizardPolicySettings = {
   // ⚑7's own numbers, as the plan proposed them.
   remoteConfirmCapCents: 1_200_000,
   remoteConfirmInteriorOnly: true,
+  exteriorUnderPct: 5,
 };
 
 export type BandSettings = {
@@ -82,6 +91,7 @@ export function policyFromSettings(value: unknown): WizardPolicySettings {
     remoteConfirmInteriorOnly: typeof v.remoteConfirmInteriorOnly === "boolean"
       ? v.remoteConfirmInteriorOnly
       : DEFAULT_POLICY.remoteConfirmInteriorOnly,
+    exteriorUnderPct: Math.max(0, num(v.exteriorUnderPct, DEFAULT_POLICY.exteriorUnderPct)),
   };
 }
 
@@ -105,8 +115,10 @@ export function rangeBandPct(accuracyPct: number, bands: BandSettings = DEFAULT_
 
 /** The customer-facing range, rounded outward to whole tens of dollars —
  * a range that looks machine-precise invites false confidence. */
-export function rangeFromTotal(totalCents: number, pct: number): { loCents: number; hiCents: number } {
-  const lo = totalCents * (1 - pct / 100);
+export function rangeFromTotal(totalCents: number, pct: number, underPct = 0): { loCents: number; hiCents: number } {
+  // `underPct` (Tom, 25 Oct 2026) stretches the LOW end only — the exterior
+  // 5% under; the top of the range is the band's alone.
+  const lo = totalCents * (1 - (pct + underPct) / 100);
   const hi = totalCents * (1 + pct / 100);
   return {
     loCents: Math.floor(lo / 1000) * 1000,
@@ -494,4 +506,14 @@ export function remoteConfirmVerdict(
     return { eligible: false, reason: `it is over the $${cap} remote-confirmation cap` };
   }
   return { eligible: true, reason: "" };
+}
+
+/** Has an Exterior block — the test every exterior-only rule reads, so none spells it differently. */
+export function hasExteriorBlock(blocks: unknown[]): boolean {
+  return blocks.some((b) => (b as { kind?: unknown; type?: unknown }).kind === "area" && (b as { type?: unknown }).type === "Exterior");
+}
+
+/** The extra reach under the price for these blocks: the policy's exterior under-percentage when an Exterior area is among them, else 0. */
+export function underPctFor(blocks: unknown[], policy: Pick<WizardPolicySettings, "exteriorUnderPct"> = DEFAULT_POLICY): number {
+  return hasExteriorBlock(blocks) ? policy.exteriorUnderPct : 0;
 }

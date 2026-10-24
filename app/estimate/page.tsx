@@ -17,7 +17,7 @@ import { loadTradeSpecs } from "@/lib/wizard/trade-specs";
 import { parseEstimateIntent } from "@/lib/marketing/prefill";
 import { showcaseJobBySlug } from "@/lib/showcase/queries";
 import { sanitiseClonedState, scopeSeed } from "@/lib/wizard/showcaseSeed";
-import { onlineEstimatesFrom, WIZARD_PUBLIC_KEY, type OnlineEstimates } from "@/lib/wizard/publicFlag";
+import { onlineEstimatesFrom, wizardOpenFor, WIZARD_PUBLIC_KEY, type OnlineEstimates } from "@/lib/wizard/publicFlag";
 import HoldingCallback from "./HoldingCallback";
 import { serverResumeFrom, type ServerDraftRow } from "@/lib/wizard/resume";
 import { ACCOUNT_DRAFT_MAX_AGE_MS, adoptDraft, findOpenDraft } from "@/lib/wizard/draftOwner";
@@ -177,7 +177,8 @@ export default async function CustomerWizardPage({
   // the homepage's "See my price" still lands here while the switch is off,
   // so the visitor's address rides in and a "call me" form files a callback
   // on Today. Wording is the office's (Settings → Estimates → Online estimates).
-  if (!online.enabled && !isStaff && !memberEmail) {
+  // Tom, 25 Oct 2026: the Paint Home door is live on its own switch; Paint Group's stays as it is.
+  if (!wizardOpenFor(online, brand) && !isStaff && !memberEmail) {
     return (
       <>
         <header className="wz-top"><Wordmark logoUrl={company.logoUrlLight} brand={brand} /></header>

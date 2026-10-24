@@ -16,12 +16,15 @@ export const WIZARD_PUBLIC_KEY = "wizard_public";
 
 export type OnlineEstimates = {
   enabled: boolean;
+  /** Paint Home brief + Tom, 25 Oct 2026: the Paint Home door has its own switch — LIVE unless switched off; Paint Group keeps `enabled`. */
+  enabledPaintHome: boolean;
   holdingTitle: string;
   holdingBody: string;
 };
 
 export const DEFAULT_ONLINE_ESTIMATES: OnlineEstimates = {
   enabled: false,
+  enabledPaintHome: true,
   holdingTitle: "Online estimates are nearly here",
   holdingBody:
     "We’re putting the finishing coats on. Leave your details below and we’ll call you with a price the old-fashioned way — quickly.",
@@ -37,7 +40,13 @@ export function onlineEstimatesFrom(value: unknown): OnlineEstimates {
   const body = typeof v.holdingBody === "string" ? v.holdingBody.trim().slice(0, MAX_BODY) : "";
   return {
     enabled: v.enabled === true,
+    enabledPaintHome: v.enabledPaintHome !== false,
     holdingTitle: title || DEFAULT_ONLINE_ESTIMATES.holdingTitle,
     holdingBody: body || DEFAULT_ONLINE_ESTIMATES.holdingBody,
   };
+}
+
+/** Is the public wizard open for this shopfront? Paint Home and Paint Group are switched separately (Tom, 25 Oct 2026). */
+export function wizardOpenFor(o: OnlineEstimates, brand: "paintgroup" | "painthome"): boolean {
+  return brand === "painthome" ? o.enabledPaintHome : o.enabled;
 }

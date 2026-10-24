@@ -170,9 +170,9 @@ export type CustomerRange = { rangeLoCents: number; rangeHiCents: number; bandPc
  * outward rounding as the whole, on that part's own payload. No arithmetic on
  * money happens here — `rangeFromTotal` is the one place that rounds.
  */
-export function customerRange(payload: Pick<WizardEditorPayload, "totals" | "accuracyPct">, bands: BandSettings): CustomerRange {
+export function customerRange(payload: Pick<WizardEditorPayload, "totals" | "accuracyPct">, bands: BandSettings, underPct = 0): CustomerRange {
   const bandPct = rangeBandPct(payload.accuracyPct, bands);
-  const { loCents, hiCents } = rangeFromTotal(payload.totals.totalCents, bandPct);
+  const { loCents, hiCents } = rangeFromTotal(payload.totals.totalCents, bandPct, underPct);
   return { rangeLoCents: loCents, rangeHiCents: hiCents, bandPct };
 }
 
@@ -188,7 +188,7 @@ export function customerPayload(
   /** C11: the resolved estimator, or null. */
   estimator: CustomerPayload["estimator"] = null,
   /** C12: the commercial widening (⚑20) and the segment block. */
-  extra: { widenPct?: number; commercial?: CustomerPayload["commercial"]; envelope?: Envelope | null; envelopeParts?: { interior: Envelope; exterior: Envelope } | null; holdDays?: number } = {},
+  extra: { widenPct?: number; commercial?: CustomerPayload["commercial"]; envelope?: Envelope | null; envelopeParts?: { interior: Envelope; exterior: Envelope } | null; holdDays?: number; underPct?: number } = {},
 ): CustomerPayload {
   const loose = blocks as LooseBlock[];
   const rooms: CustomerRoomView[] = payload.rooms.map((r) => {
@@ -217,7 +217,10 @@ export function customerPayload(
   const partEnv = extra.envelopeParts ?? null;
   const env = partEnv ? sumEnvelopes([partEnv.interior, partEnv.exterior]) : (extra.envelope ?? null);
   const bandPct = env ? env.bandPct : rangeBandPct(payload.accuracyPct, bands) + (extra.widenPct ?? 0);
-  const { loCents, hiCents } = env ? { loCents: env.loCents, hiCents: env.hiCents } : rangeFromTotal(payload.totals.totalCents, bandPct);
+  // Tom, 25 Oct 2026: an exterior range reaches `underPct` further under
+  // (policy.exteriorUnderPct). An envelope caller folded it into the
+  // envelope already; the band-only path applies it here.
+  const { loCents, hiCents } = env ? { loCents: env.loCents, hiCents: env.hiCents } : rangeFromTotal(payload.totals.totalCents, bandPct, extra.underPct ?? 0);
 
   return {
     outcome: "reveal",

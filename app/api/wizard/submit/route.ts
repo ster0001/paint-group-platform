@@ -41,6 +41,7 @@ import { resolveEstimator } from "@/lib/wizard/estimator";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, guardrailWhy,
   policyFromSettings, serviceAreaFromSettings, settingValue,
+  underPctFor,
 } from "@/lib/wizard/policy";
 import { requiresSiteCheck } from "@/lib/wizard/ladder";
 import { reportError } from "@/lib/monitoring/report";
@@ -1094,7 +1095,8 @@ export async function POST(request: Request) {
         // over the questions the quick look did not ask; nothing confirmed yet.
         (() => {
           const widen = commercialWidenFor(effectiveState, ctx.settings, segments);
-          const env = (areas: typeof merged.areas) => envelopeFor({ blocks: areas as unknown as Parameters<typeof envelopeFor>[0]["blocks"], state: effectiveState, ctx, adj: adjustmentsFrom(builderState), bands, widenPct: widen.widenPct, confirmed: null });
+          // Tom, 25 Oct 2026: an exterior envelope reaches 5% further under (policy.exteriorUnderPct); a "both" job's exterior half only.
+          const env = (areas: typeof merged.areas) => envelopeFor({ blocks: areas as unknown as Parameters<typeof envelopeFor>[0]["blocks"], state: effectiveState, ctx, adj: adjustmentsFrom(builderState), bands, widenPct: widen.widenPct, underPct: underPctFor(areas, policy), confirmed: null });
           // Tom, 14 Sep: a "both" job prices each half's envelope; the headline is their sum.
           const holdDays = holdDaysFromSettings(settingValue(ctx.settings, "wizard_hold_days"));
           return isBoth

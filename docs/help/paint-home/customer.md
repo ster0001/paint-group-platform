@@ -16,7 +16,7 @@ Your address, and a rough idea of what needs painting: which rooms, or the outsi
 1. Open painthome.com.au and type your address into the box at the top. Choose **Inside** or **Outside** under it.
 2. Press **See my price**. The estimator opens and asks about your home: what is being painted, roughly how big, the condition.
 3. Answer the quick questions: the kind of home, bedrooms, what is being painted, the condition. Nothing about coats or products.
-4. A price range appears on screen. It tightens as you answer. Save it and it is yours to come back to.
+4. A price range appears on screen. It tightens as you answer. For an outside job the low end of the range sits a little further under the price, so there is room for it to come in cheaper. Save it and it is yours to come back to.
 5. Press **Confirm my price. Book a call**. One of our people calls you, checks the details, and the price is then set. There is no site visit for most Paint Home jobs.
 6. Pick a start date from what is available. You will know who is coming before it is confirmed.
 

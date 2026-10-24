@@ -9,7 +9,7 @@ import { parseMeasuredTree, measuredTreeIsStale, measuredTreeMaxAgeDays } from "
 import { blocksForSpec, fileFacts, tradeQuoteState } from "@/lib/wizard/trade-quote";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { customerRange, editorPayload } from "@/lib/wizard/view";
-import { bandsFromSettings, settingValue } from "@/lib/wizard/policy";
+import { bandsFromSettings, policyFromSettings, settingValue, underPctFor } from "@/lib/wizard/policy";
 import { latestColours } from "@/lib/portal/colours-on-file";
 import OpenSheet from "./OpenSheet";
 
@@ -75,7 +75,7 @@ export default async function TradeNewQuotePage({ searchParams }: { searchParams
     if (blocks.some((b) => (b.surfaces ?? []).length > 0)) {
       const pctx = await loadPricingContext(svc);
       const payload = editorPayload(blocks, pctx, adjustmentsFrom({}), []);
-      const r = customerRange(payload, bandsFromSettings(settingValue(pctx.settings, "wizard_bands")));
+      const r = customerRange(payload, bandsFromSettings(settingValue(pctx.settings, "wizard_bands")), underPctFor(blocks, policyFromSettings(settingValue(pctx.settings, "wizard_policy"))));
       range = { lo: r.rangeLoCents, hi: r.rangeHiCents, bandPct: r.bandPct };
     }
   }

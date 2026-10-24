@@ -44,6 +44,12 @@ export default function OnlineEstimatesSettings({ initial }: { initial: OnlineEs
             aria-label="Online estimates on" data-testid="switch-wizard-public" className="h-4 w-4 accent-emerald-600" />
           <span className={form.enabled ? "text-emerald-700" : "text-gray-400"}>{form.enabled ? "Live" : "Holding"}</span>
         </label>
+        <label className="mt-2 flex items-center gap-2 text-sm" data-testid="online-estimates-painthome">
+          <input type="checkbox" role="switch" checked={form.enabledPaintHome} onChange={(e) => set("enabledPaintHome", e.target.checked)}
+            aria-label="Paint Home online estimates live" data-testid="online-estimates-painthome-switch" className="h-4 w-4 accent-emerald-600" />
+          <span className={form.enabledPaintHome ? "text-emerald-700" : "text-gray-400"}>{form.enabledPaintHome ? "Paint Home: live" : "Paint Home: holding"}</span>
+          <span className="text-xs text-gray-500">painthome.com.au has its own switch (on by default; interior and exterior homes only, never commercial).</span>
+        </label>
       </div>
 
       <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3">
