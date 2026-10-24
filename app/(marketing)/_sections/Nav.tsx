@@ -9,9 +9,8 @@ import { BRAND_DEFAULTS, type Brand } from "@/lib/marketing/brand";
  *  in the nav on desktop and in the call bar on mobile, so it never hides.
  *  Paint Group's logo is Settings → Company details → logo 1 (light-on-dark);
  *  the wordmark stands in when none is set. Paint Home's is the inline mark
- *  cropped to its top row, with the one small-print credit beside it (Paint
- *  Home brief §1a, §4: "powered by Paint Group" — here, under the reviews,
- *  one FAQ sentence and the footer, nowhere else). */
+ *  on its own (Tom, 25 Oct: no "powered by" beside the logo — the credit
+ *  stays under the reviews, in one FAQ sentence and in the footer). */
 export type NavCopy = { links: Array<{ label: string; href: string }>; otherLabel: string; otherHref: string; cta: string; prefix: string };
 
 export default function Nav({ logoUrl = "", copy, brand = BRAND_DEFAULTS.paintgroup }: { logoUrl?: string; copy?: NavCopy; brand?: Brand }) {
@@ -27,7 +26,7 @@ export default function Nav({ logoUrl = "", copy, brand = BRAND_DEFAULTS.paintgr
     <nav aria-label="Main">
       <Link href={c.prefix || "/"} className={painthome || logoUrl ? "brand" : "mono"} aria-label={`${brand.name} home`}>
         {painthome
-          ? <><PaintHomeLogo variant="nav" on="dark" className="logo" title={brand.name} /><span className="pb" data-testid="nav-powered-by">powered by {brand.poweredBy}</span></>
+          ? <PaintHomeLogo variant="nav" on="dark" className="logo" title={brand.name} />
           : logoUrl
             ? <Image src={logoUrl} alt="Paint Group" width={160} height={32} priority style={{ height: 28, width: "auto" }} />
             : "PAINT GROUP"}
