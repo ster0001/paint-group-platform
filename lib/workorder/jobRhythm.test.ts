@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  customerCheckins, customerDefectTapeRungs, dayAt, dayLabel, jobDays, painterFinishReminderDay, painterMorningHeadsUps, painterUpdateRungs, rungInstant,
+  customerCheckinDay, customerCheckins, customerDefectDay, customerDefectTapeRungs, dayAt, dayLabel, jobDays, painterFinishReminderDay, painterMorningHeadsUps, painterUpdateRungs, rungInstant,
   walkthroughDayOf,
 } from "./jobRhythm";
 
@@ -169,5 +169,37 @@ describe("the painter's finish reminder day", () => {
     expect(walkthroughDayOf({ endDate: "2026-10-07", finals: [{ status: "booked", date: "2026-10-09" }, { status: "cancelled", date: "2026-10-07" }] })).toBe("2026-10-09");
     expect(walkthroughDayOf({ endDate: "2026-10-07", finals: [{ status: "cancelled", date: "2026-10-09" }] })).toBe("2026-10-07");
     expect(walkthroughDayOf({ endDate: null, finals: [] })).toBeNull();
+  });
+});
+
+describe("the customer check-in day (work order UX Step 3, Trigger B)", () => {
+  const days = (n: number) => Array.from({ length: n }, (_, i) => `d${i + 1}`);
+  it("3, 5, 7 and 10-day jobs: the first morning at or past 40% elapsed", () => {
+    expect(customerCheckinDay(days(3))).toBe("d3");
+    expect(customerCheckinDay(days(5))).toBe("d3");
+    expect(customerCheckinDay(days(7))).toBe("d4");
+    expect(customerCheckinDay(days(10))).toBe("d5");
+    expect(customerCheckinDay(week5)).toBe("2026-10-07");
+  });
+  it("no check-in on jobs under three days, and none with no days", () => {
+    expect(customerCheckinDay(days(2))).toBeNull();
+    expect(customerCheckinDay(days(1))).toBeNull();
+    expect(customerCheckinDay([])).toBeNull();
+  });
+  it("the percentage and the floor are the office's to set", () => {
+    expect(customerCheckinDay(days(10), 0.5)).toBe("d6");
+    expect(customerCheckinDay(days(2), 0.4, 2)).toBe("d2");   // 40% of two days is past day 1
+  });
+});
+
+describe("the customer defect day (work order UX Step 3, Trigger C)", () => {
+  it("rides the defect-tape day on 3+ day jobs", () => {
+    expect(customerDefectDay(week5)).toBe(customerDefectTapeRungs(week5)[0].date);
+    expect(customerDefectDay(["2026-10-05", "2026-10-06", "2026-10-07"])).toBe("2026-10-05");
+  });
+  it("every job (R11): a one- or two-day job is told on its last day", () => {
+    expect(customerDefectDay(["2026-10-05"])).toBe("2026-10-05");
+    expect(customerDefectDay(["2026-10-05", "2026-10-06"])).toBe("2026-10-06");
+    expect(customerDefectDay([])).toBeNull();
   });
 });

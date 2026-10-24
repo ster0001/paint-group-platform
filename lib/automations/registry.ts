@@ -40,7 +40,7 @@ export type TimingDef = {
   /** Stored under controls[key].timing[id]. */
   id: string;
   label: string;
-  unit: "days" | "hours" | "minutes";
+  unit: "days" | "hours" | "minutes" | "%";
   default: number;
   min?: number;
   max?: number;
@@ -1005,9 +1005,9 @@ export const AUTOMATIONS: Automation[] = [
     guard: "Each rung once per job; stops at signature.",
   },
   {
-    key: "customer_updates_queue", name: "Customer updates — surface milestones and the end-of-day summary", audience: "customer", channels: ["email", "sms"], kind: "automatic",
+    key: "customer_updates_queue", name: "Customer updates — milestones, check-in, defect day, end-of-day summary", audience: "customer", channels: ["email", "sms"], kind: "automatic",
     defaultChannel: "both", approvable: true, defaultMode: "approve", sendKind: "job_update",
-    trigger: "Work order UX Step 2 (24 Oct 2026): every message the system writes about a job in progress lands on PC Command → Customer updates for the coordinator to send, edit or drop. A surface milestone is drafted the moment a surface (all the walls, all the ceilings…) is 100% prepped or 100% painted across the job — ticks within the bundle window collapse into one draft. The end-of-day summary is the daily update, now rolled up by surface. With this switched to send automatically, drafts go after the bundle window (and the summary at 4 pm, skipped on a day a milestone already went); otherwise they wait for a person. Never on a paused, rectification or signed-off job.",
+    trigger: "Work order UX Step 2 (24 Oct 2026): every message the system writes about a job in progress lands on PC Command → Customer updates for the coordinator to send, edit or drop. A surface milestone is drafted the moment a surface (all the walls, all the ceilings…) is 100% prepped or 100% painted across the job — ticks within the bundle window collapse into one draft. The end-of-day summary is the daily update, now rolled up by surface. Step 3 adds the 40% check-in — once, at the check-in time on the first morning at or past the check-in share of booked days, jobs of the minimum days or more, TIMELINE ONLY — and the defect-day note on every job, at the defect-day time on the day the touch-up pass starts (the defect-tape day on 3+ day jobs, the last day on shorter ones), timeline only beside the existing defect-tape text. With this switched to send automatically, drafts go after the bundle window (the summary at 4 pm, skipped on a day a milestone already went; the two notes at once); otherwise they wait for a person. Never on a paused, rectification or signed-off job.",
     templates: [
       { field: "customerMilestonePrepped", label: "Milestone — one surface prepped everywhere", kind: "sms", placeholders: P.milestone },
       { field: "customerMilestoneTwoPrepped", label: "Milestone — two surfaces prepped in one go", kind: "sms", placeholders: P.milestoneTwo },
@@ -1016,9 +1016,17 @@ export const AUTOMATIONS: Automation[] = [
       { field: "customerMilestonePlaceHome", label: "The word for a home (right through the …)", kind: "subject" },
       { field: "customerMilestonePlaceCommercial", label: "The word for a commercial job", kind: "subject" },
       { field: "customerEndOfDayBody", label: "End of day summary", kind: "body", placeholders: P.endOfDay },
+      { field: "customerCheckinBody", label: "40% check-in (timeline only)", kind: "sms", placeholders: ["{{first_name}}"] },
+      { field: "customerCheckinTime", label: "Check-in time (HH:MM Melbourne)", kind: "subject" },
+      { field: "customerDefectDayBody", label: "Defect day (timeline only)", kind: "sms", placeholders: ["{{first_name}}"] },
+      { field: "customerDefectDayTime", label: "Defect-day time (HH:MM Melbourne)", kind: "subject" },
       { field: "customerUpdatesSender", label: "Sender first name (empty = the coordinator in Company profile)", kind: "subject" },
     ],
-    timing: [{ id: "bundle_minutes", label: "Bundle ticks within", unit: "minutes", default: 5, min: 0, max: 60 }],
+    timing: [
+      { id: "bundle_minutes", label: "Bundle ticks within", unit: "minutes", default: 5, min: 0, max: 60 },
+      { id: "checkin_percent", label: "Check in after", unit: "%", default: 40, min: 10, max: 90 },
+      { id: "checkin_min_days", label: "Check in only on jobs of at least", unit: "days", default: 3, min: 1, max: 30 },
+    ],
     guard: "One draft per bundle window; a surface announced once is not announced again; a dropped draft is never regenerated for the same ticks; the end-of-day summary is one row per job per day.",
     href: "/pc/updates",
   },
