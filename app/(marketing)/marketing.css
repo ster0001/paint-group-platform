@@ -480,8 +480,10 @@ html:has(.mk) { scroll-behavior: smooth; }
 }
 .mk [data-brand="painthome"] .field { border-color: var(--brand); }
 .mk [data-brand="painthome"] .field.typing { box-shadow: 0 0 0 6px rgba(23, 249, 241, .14); }
-/* Tom, 25 Oct: the pressed chip (Inside / Outside) in the muted pink, not the logo cyan. */
-.mk [data-brand="painthome"] .chip[aria-pressed="true"] { background: var(--ph-blush); color: var(--color-ink); border-color: var(--ph-blush); }
+.mk [data-brand="painthome"] .chip[aria-pressed="true"] { background: var(--brand); color: var(--color-ink); border-color: var(--brand); }
+/* Tom, 25 Oct: the How it works section in the muted pink (the blush), not the sage. */
+.mk [data-brand="painthome"] #how.warm { background: var(--ph-blush); }
+.mk [data-brand="painthome"] #how .card { background: #FBFAF8; }
 /* Tom, 25 Oct: the progress-story phone was taller than a laptop viewport — scaled to fit. */
 @media (min-width: 960px) { .mk [data-brand="painthome"] .device { zoom: .74; } }
 @media (max-width: 959px) { .mk [data-brand="painthome"] .device { zoom: .46; } }
