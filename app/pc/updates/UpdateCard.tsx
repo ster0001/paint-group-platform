@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { approveAndSendUpdate, approveUpdate, dismissUpdate } from "../actions";
+import { UPDATE_KIND_LABEL } from "@/lib/workorder/milestones";
 
 /** "Tue 14 Oct, 3:42 pm" in Melbourne time — never the UTC date (CLAUDE.md → Dates). */
 function whenMelbourne(iso: string): string {
@@ -12,11 +13,18 @@ function whenMelbourne(iso: string): string {
 }
 
 /** One drafted update: read it, change it if it doesn't sound like us, send it — or delete it. */
+function timeMelbourne(iso: string): string {
+  return new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+}
+
 export default function UpdateCard({
   id, status, forDate, text, photoCount, woRef, jobTitle, jobStage = null, lastTickAt = null,
+  kind = "end_of_day", createdAt = null, recipient = "the customer", sender = "the office", jobAddress = "",
 }: {
   id: string; status: string; forDate: string; text: string;
   photoCount: number; woRef: string; jobTitle: string;
+  /** Work order UX Step 2: which trigger wrote it, when, to whom and from whom. */
+  kind?: string; createdAt?: string | null; recipient?: string; sender?: string; jobAddress?: string;
   /** When the painter last ticked an area this draft was written from (ISO) — Tom, 14 Oct 2026. */
   lastTickAt?: string | null;
   /** The job's stage now — a draft on a closed job is too late to send (Tom, 29 Sep). */
@@ -50,11 +58,16 @@ export default function UpdateCard({
   }
 
   return (
-    <div className="card" data-testid={`update-${id}`}>
+    <div className="card q" data-testid={`update-${id}`} data-kind={kind}>
+      <div className="meta">
+        <span className="trig" data-testid={`kind-${id}`}>{UPDATE_KIND_LABEL[kind] ?? kind}</span>
+        <span className="when">{(jobAddress || jobTitle || woRef).toUpperCase()}{createdAt ? ` · ${timeMelbourne(createdAt)}` : ""}</span>
+      </div>
       <h3>
         {jobTitle || woRef}
         <em>{woRef} · {forDate}{jobStage === "closed" ? " · job completed" : ""}</em>
       </h3>
+      <p className="to" data-testid={`to-${id}`}>To {recipient} · from {sender}</p>
       <p className="note" data-testid={`ticked-${id}`}>
         {lastTickAt
           ? <>Painter&rsquo;s last update to this job: <b>{whenMelbourne(lastTickAt)}</b></>
@@ -62,7 +75,7 @@ export default function UpdateCard({
       </p>
       {jobStage === "closed" && state !== "sent" && state !== "deleted" && (
         <p className="note" style={{ color: "var(--amber)" }} data-testid={`too-late-${id}`}>
-          This job has already completed — too late to send this one. Delete it.
+          This job has already completed — too late to send this one. Drop it.
         </p>
       )}
 
@@ -83,12 +96,12 @@ export default function UpdateCard({
         {state === "sent" ? (
           <span className="btn done" data-testid={`sent-${id}`}>Sent ✓</span>
         ) : state === "deleted" ? (
-          <span className="btn done" data-testid={`deleted-${id}`}>Deleted — not sent</span>
+          <span className="btn done" data-testid={`deleted-${id}`}>Dropped — not sent</span>
         ) : (
           <>
             <button type="button" className="btn primary" disabled={pending}
               onClick={() => run(approveAndSendUpdate, "sent")} data-testid={`send-${id}`}>
-              {pending ? "Sending…" : "Approve & send"}
+              {pending ? "Sending…" : "Send to timeline"}
             </button>
             <button type="button" className="btn" onClick={() => setEditing((e) => !e)}
               data-testid={`edit-toggle-${id}`}>
@@ -107,7 +120,7 @@ export default function UpdateCard({
                   else { setMessage(r.message); setConfirmDelete(false); }
                 });
               }}>
-              {pending && confirmDelete ? "Deleting…" : confirmDelete ? "Yes, delete it" : "Delete"}
+              {pending && confirmDelete ? "Dropping…" : confirmDelete ? "Yes, drop it" : "Drop"}
             </button>
           </>
         )}

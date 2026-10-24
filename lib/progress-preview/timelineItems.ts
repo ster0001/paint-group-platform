@@ -23,7 +23,7 @@ export const SAMPLE_PROJECT: PortalProject = {
   stage: "in_progress",
   startDate: null,
   endDate: null,
-  painterFirstName: null,
+  painterFirstName: null, replyTo: null,
   reportToken: null,
   timeline: {
     surfaces: [], updates: [], photos: [], variations: [],

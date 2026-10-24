@@ -1,24 +1,40 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { setSurfacePhotosOptionalAction, tickSurfaceAction } from "./tickAction";
+import { bulkTickAction, undoBulkTickAction } from "./bulkTickAction";
 import {
   jobNeedsBeforePhotos, nextState, progressByHeading, progressOf, tickNeedsBeforePhotos,
   type SurfaceRow, type SurfaceState,
 } from "@/lib/workorder/surfaces";
+import {
+  ROOM_STATE_WORD, UNDO_SHOWN_MS, VIEW_STORAGE_KEY, bulkTargets, bulkToast, groupViews, hasGroups, paintBlocked,
+  viewFromStorage, type GroupView, type TickView,
+} from "@/lib/workorder/surfaceGroups";
 
 /**
  * The tick list on the contractor's phone.
  *
- * One tap cycles TO DO → PREPPED → DONE, and round to TO DO again so a mis-tap
- * is fixable without hunting for an undo. The photo rule (Tom, 30 Sep: per
- * JOB — Step 1's before photos unlock every row) is enforced by the server;
- * until the job has one this list is shown LOCKED with a line saying so, and
- * a tap says it too. If the server refuses anyway (a photo was deleted, two
- * phones at once) the message still lands here.
+ * Two views of the SAME rows (work order UX brief §4.1, 24 Oct 2026):
+ *
+ *  · By surface (the default, ruling R2): one row per surface group on the job
+ *    — all the ceilings, all the walls — with "n of N" and two buttons that
+ *    mark every room at once. Painted waits until every room is prepped (R3).
+ *    Each bulk tap can be undone for six seconds (R6). No whole-job button,
+ *    ever (R1).
+ *  · By room: the list as it always was. One tap cycles TO DO → PREPPED → DONE,
+ *    and round to TO DO again so a mis-tap is fixable without hunting for an undo.
+ *
+ * The photo rule (Tom, 30 Sep: per JOB — Step 1's before photos unlock every
+ * row) is enforced by the server for both views; until the job has one this
+ * list is shown LOCKED with a line saying so, and a tap says it too. If the
+ * server refuses anyway (a photo was deleted, two phones at once) the message
+ * still lands here.
  */
 
 type Props = {
+  /** The job — a bulk tap is addressed to the job and a group, not to rows. */
+  workOrderId: string;
   surfaces: SurfaceRow[];
   /** Step 1 done: a before photo exists anywhere on the job. */
   hasBeforePhoto: boolean;
@@ -39,8 +55,25 @@ type Props = {
 
 const LABEL: Record<SurfaceState, string> = { todo: "To do", prepped: "Prepped", done: "Done" };
 
+// ---- the remembered view, per browser ---------------------------------------------------
+const viewListeners = new Set<() => void>();
+function readView(): TickView {
+  try { return viewFromStorage(window.localStorage.getItem(VIEW_STORAGE_KEY)); } catch { return "surface"; }
+}
+function writeView(v: TickView) {
+  try { window.localStorage.setItem(VIEW_STORAGE_KEY, v); } catch { /* private mode: the choice lasts the page */ }
+  for (const l of viewListeners) l();
+}
+function subscribeView(l: () => void) {
+  viewListeners.add(l);
+  window.addEventListener("storage", l);
+  return () => { viewListeners.delete(l); window.removeEventListener("storage", l); };
+}
+
+type Toast = { text: string; parentEventId: string | null; /** state per surface before the tap, for Undo's redraw */ before: Record<string, SurfaceState> };
+
 export default function TickList({
-  surfaces, hasBeforePhoto,
+  workOrderId, surfaces, hasBeforePhoto,
   headingMeta, surface = "portal", canWaivePhotos = false,
 }: Props) {
   const c = surface === "console" ? "pcw" : "";
@@ -51,6 +84,30 @@ export default function TickList({
   const [, startTransition] = useTransition();
   const locked = jobNeedsBeforePhotos(rows, hasBeforePhoto);
 
+  // The view. By surface is the default; the last choice is remembered per
+  // browser (R2: local, never a Settings value). A job with no grouped rows —
+  // a list seeded before 20270300 and not rebuilt, or rectification only —
+  // has nothing to show By surface, so it opens By room with no toggle.
+  const groupable = hasGroups(rows);
+  // The server renders the default; the browser swaps in the remembered choice
+  // on hydration without a setState-in-effect (useSyncExternalStore does that).
+  const view = useSyncExternalStore(subscribeView, readView, () => "surface" as TickView);
+  function pickView(v: TickView) {
+    writeView(v);
+    setMessage(null);
+  }
+  const showSurface = groupable && view === "surface";
+
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [toast, setToast] = useState<Toast | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
+  function showToast(t: Toast) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(t);
+    toastTimer.current = setTimeout(() => setToast(null), UNDO_SHOWN_MS);
+  }
+
   const headings = useMemo(() => {
     const seen: string[] = [];
     for (const s of rows) if (!seen.includes(s.heading)) seen.push(s.heading);
@@ -59,6 +116,7 @@ export default function TickList({
 
   const overall = progressOf(rows);
   const byHeading = progressByHeading(rows);
+  const groups = useMemo(() => groupViews(rows), [rows]);
 
   function waivePhotos(row: SurfaceRow) {
     setWaiving(row.id);
@@ -98,13 +156,73 @@ export default function TickList({
     });
   }
 
+  /** One tap, every room of one surface. The rows it will move are known
+   * before the call (R5), so the screen can say what happened and Undo can
+   * put exactly those back. */
+  function bulk(g: GroupView, to: "prepped" | "done") {
+    const targets = bulkTargets(rows, g.code, to);
+    if (targets.length === 0) return;
+    if (to === "done" && paintBlocked(rows, g.code)) {
+      setMessage({ text: "Mark every room prepped first — then painted unlocks." });
+      return;
+    }
+    if (targets.some((r) => tickNeedsBeforePhotos(r, hasBeforePhoto))) {
+      setMessage({ text: "Step 1 first — tap the green Upload photos button above, then every row unlocks." });
+      return;
+    }
+    const before: Record<string, SurfaceState> = {};
+    for (const r of targets) before[r.id] = r.state;
+    const key = `${g.code}:${to}`;
+    setBusy(key);
+    setMessage(null);
+    startTransition(async () => {
+      const result = await bulkTickAction({ workOrderId, groupCode: g.code, to });
+      if (result.ok) {
+        const moved = new Set(result.surfaceIds);
+        setRows((rs) => rs.map((r) => (moved.has(r.id) ? { ...r, state: to } : r)));
+        if (result.count > 0) showToast({ text: bulkToast(g.label, result.count, to), parentEventId: result.parentEventId, before });
+      } else {
+        setMessage({ text: result.message });
+      }
+      setBusy(null);
+    });
+  }
+
+  function undo() {
+    const t = toast;
+    setToast(null);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    if (!t?.parentEventId) return;
+    setBusy("undo");
+    startTransition(async () => {
+      const result = await undoBulkTickAction({ workOrderId, parentEventId: t.parentEventId });
+      if (result.ok) {
+        const back = new Set(result.surfaceIds);
+        setRows((rs) => rs.map((r) => (back.has(r.id) ? { ...r, state: t.before[r.id] ?? r.state } : r)));
+        setMessage({ text: result.count === 1 ? "1 room put back." : `${result.count} rooms put back.` });
+      } else {
+        setMessage({ text: result.message });
+      }
+      setBusy(null);
+    });
+  }
+
   return (
-    <div className={`card ${c}`} data-testid="tick-list">
+    <div className={`card ${c}`} data-testid="tick-list" data-view={showSurface ? "surface" : "room"}>
       <div className={`tick-head ${c}`}>
         <b>Scope &amp; ticks</b>
         <span className="tick-count" data-testid="tick-progress">{overall.done} / {overall.total}</span>
       </div>
       <div className="tick-prog"><i style={{ width: `${overall.pct}%` }} /></div>
+
+      {groupable && (
+        <div className="tick-view" role="tablist" aria-label="How to tick" data-testid="tick-view">
+          <button type="button" role="tab" aria-selected={view === "surface"} className={view === "surface" ? "on" : ""}
+            onClick={() => pickView("surface")} data-testid="tick-view-surface">By surface</button>
+          <button type="button" role="tab" aria-selected={view === "room"} className={view === "room" ? "on" : ""}
+            onClick={() => pickView("room")} data-testid="tick-view-room">By room</button>
+        </div>
+      )}
 
       {locked && (
         <p className="tick-msg locked" role="status" data-testid="tick-locked">
@@ -116,7 +234,59 @@ export default function TickList({
         <p className="tick-msg" role="status" data-testid="tick-message">{message.text}</p>
       )}
 
-      {headings.map((heading) => {
+      {showSurface && (
+        <div className="tick-groups" data-testid="tick-groups">
+          {groups.map((g) => {
+            const isOpen = Boolean(open[g.code]);
+            const prepBusy = busy === `${g.code}:prepped`;
+            const paintBusy = busy === `${g.code}:done`;
+            const preppedPct = g.total ? Math.round(((g.prepped - g.done) / g.total) * 100) : 0;
+            const donePct = g.total ? Math.round((g.done / g.total) * 100) : 0;
+            return (
+              <div className={`surf${isOpen ? " open" : ""}`} key={g.code} data-testid={`group-${g.code}`}>
+                <button type="button" className="surf-head" onClick={() => setOpen((o) => ({ ...o, [g.code]: !isOpen }))}
+                  aria-expanded={isOpen} data-testid={`group-head-${g.code}`}>
+                  <span className="surf-name">{g.label}</span>
+                  <span className="surf-rooms" data-testid={`group-summary-${g.code}`}>
+                    {g.summary} <span className="chev" aria-hidden="true">{isOpen ? "▴" : "▾"}</span>
+                  </span>
+                </button>
+                <div className="surf-bar" aria-hidden="true">
+                  <i className="d" style={{ width: `${donePct}%` }} />
+                  <i className="p" style={{ width: `${preppedPct}%` }} />
+                </div>
+                <div className="surf-acts">
+                  <button type="button"
+                    className={`surf-btn ${g.prepButton === "done" ? "done" : "next"}${locked ? " locked" : ""}`}
+                    disabled={g.prepButton === "done" || prepBusy || busy === "undo"}
+                    onClick={() => bulk(g, "prepped")}
+                    data-testid={`group-prep-${g.code}`}>
+                    {g.prepButton === "done" ? "✓ Prepped" : prepBusy ? "Saving…" : "Mark all prepped"}
+                  </button>
+                  <button type="button"
+                    className={`surf-btn ${g.paintButton === "done" ? "done" : g.paintButton === "next" ? "next" : ""}${locked ? " locked" : ""}`}
+                    disabled={g.paintButton !== "next" || paintBusy || busy === "undo"}
+                    onClick={() => bulk(g, "done")}
+                    data-testid={`group-paint-${g.code}`}>
+                    {g.paintButton === "done" ? "✓ Painted" : paintBusy ? "Saving…" : "Mark all painted"}
+                  </button>
+                </div>
+                {isOpen && (
+                  <div className="surf-detail" data-testid={`group-rooms-${g.code}`}>
+                    {g.rooms.map((r, i) => (
+                      <span key={r.id}>{i > 0 ? " · " : ""}{r.heading} <b>{ROOM_STATE_WORD[r.state]}</b></span>
+                    ))}
+                    {g.paintButton === "disabled" && <span className="surf-hint"> — painted unlocks once every room is prepped.</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <p className="tick-note">Anything not listed here — a repair, a line with no standard — is under <b>By room</b>.</p>
+        </div>
+      )}
+
+      {!showSurface && headings.map((heading) => {
         const p = byHeading.get(heading);
         return (
           <div className="elev" key={heading}>
@@ -198,6 +368,15 @@ export default function TickList({
 
       {rows.length === 0 && (
         <p className="tick-msg">No tick list on this job yet — the office adds it when the job sheet is issued.</p>
+      )}
+
+      {toast && (
+        <div className="tick-toast" role="status" data-testid="bulk-toast">
+          <span>{toast.text}</span>
+          {toast.parentEventId && (
+            <button type="button" onClick={undo} disabled={busy === "undo"} data-testid="bulk-undo">Undo</button>
+          )}
+        </div>
       )}
     </div>
   );

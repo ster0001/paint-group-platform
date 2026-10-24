@@ -388,3 +388,46 @@
 .pc .mvline { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
 .pc .mvline small { color: var(--muted); }
 .pc .btn.sm { padding: 2px 8px; font-size: 12px; }
+
+/* ---- By surface view in the console (work order UX Step 1, 24 Oct 2026) ---- */
+.pc .tick-view { display:flex; gap:6px; margin:12px 0 6px; }
+.pc .tick-view button { flex:1; border:1px solid var(--line); background:var(--graphite); color:var(--muted); font:600 12px var(--sans); padding:8px; border-radius:999px; cursor:pointer; }
+.pc .tick-view button.on { border-color:var(--cyan); color:var(--cyan); background:rgba(59,216,233,.12); }
+.pc .surf { display:flex; flex-direction:column; gap:8px; padding:12px 0; border-top:1px solid var(--line); }
+.pc .surf:first-child { border-top:0; padding-top:6px; }
+.pc .surf-head { display:flex; justify-content:space-between; align-items:center; gap:10px; width:100%; background:none; border:0; padding:0; color:var(--text); text-align:left; cursor:pointer; font:inherit; }
+.pc .surf-name { font-weight:600; font-size:15px; }
+.pc .surf-rooms { font-family:var(--mono); font-size:11px; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.pc .surf-bar { height:6px; background:rgba(255,255,255,.07); border-radius:3px; overflow:hidden; display:flex; }
+.pc .surf-bar i { display:block; height:100%; transition:width .4s; }
+.pc .surf-bar .d { background:var(--emerald); }
+.pc .surf-bar .p { background:var(--amber); }
+.pc .surf-acts { display:flex; gap:8px; }
+.pc .surf-btn { flex:1; border:1px solid var(--line); background:var(--graphite); color:var(--text); font:600 13px var(--sans); padding:11px 6px; border-radius:12px; min-height:44px; cursor:pointer; }
+.pc .surf-btn.next { background:var(--cyan); color:var(--oncyan); border-color:transparent; }
+.pc .surf-btn.done { background:rgba(47,164,107,.16); border-color:transparent; color:var(--emerald); }
+.pc .surf-btn:disabled { opacity:.45; cursor:default; }
+.pc .surf-btn.done:disabled { opacity:1; }
+.pc .surf-detail { font-size:12px; color:var(--muted); line-height:1.7; }
+.pc .surf-detail b { color:var(--text); font-weight:500; }
+.pc .tick-note { margin:12px 0 0; font-size:11.5px; color:var(--muted); }
+.pc .tick-toast { position:fixed; left:50%; transform:translateX(-50%); bottom:18px; z-index:40; width:calc(100% - 24px); max-width:406px; display:flex; gap:14px; align-items:center; background:var(--text); color:var(--ink); padding:12px 14px; border-radius:12px; font-size:13px; box-shadow:0 8px 24px rgba(0,0,0,.25); }
+.pc .tick-toast button { margin-left:auto; background:none; border:0; color:var(--cyan); font:700 13px var(--sans); cursor:pointer; padding:4px 6px; }
+.pc[data-theme="light"] .surf-bar { background:rgba(18,22,26,.08); }
+.pc[data-theme="light"] .tick-toast { color:var(--graphite); }
+
+/* ---- Customer updates queue (work order UX Step 2, 24 Oct 2026) ---- */
+.pc .kicker { font-family:var(--mono); font-size:10px; letter-spacing:.06em; color:var(--muted); text-transform:uppercase; margin:0 2px 8px; }
+.pc .card.auto { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.pc .card.auto b { display:block; font-size:14px; }
+.pc .card.auto small { display:block; color:var(--muted); font-size:12px; margin-top:3px; }
+.pc .sw { width:42px; height:24px; border-radius:12px; background:var(--line); position:relative; flex-shrink:0; border:0; cursor:pointer; padding:0; }
+.pc .sw::after { content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:var(--graphite); transition:left .15s; }
+.pc .sw.on { background:var(--cyan); }
+.pc .sw.on::after { left:21px; background:var(--oncyan); }
+.pc .sw:disabled { opacity:.6; }
+.pc .card.q { border-left:3px solid var(--cyan); }
+.pc .card.q .meta { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; }
+.pc .card.q .trig { font-family:var(--mono); font-size:10px; letter-spacing:.04em; color:var(--muted); text-transform:uppercase; }
+.pc .card.q .when { font-family:var(--mono); font-size:10px; color:var(--muted); text-align:right; }
+.pc .card.q .to { font-size:12px; color:var(--muted); margin:0 0 6px; }

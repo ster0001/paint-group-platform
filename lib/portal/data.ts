@@ -198,6 +198,8 @@ export type PortalProject = {
   startDate: string | null;
   endDate: string | null;
   painterFirstName: string | null;
+  /** Who the customer replies to (work order UX Step 2, R13): the first name on the latest sent update, else null. */
+  replyTo: string | null;
   /** The signed completion report's /s token — null until signed off. */
   reportToken: string | null;
   timeline: Omit<TimelineInput, "todayYmd">;
@@ -280,7 +282,7 @@ async function projectForWo(
   const [surfaces, updates, photos, variations, qa, walkthrough, signoff, events, deposit, painter] =
     await Promise.all([
       svc.from("wo_surfaces").select("heading, label, state, sort").eq("work_order_id", wo.id),
-      svc.from("wo_updates").select("for_date, final_text, draft_text, sent_at, photo_ids")
+      svc.from("wo_updates").select("for_date, final_text, draft_text, sent_at, photo_ids, kind, sender_name")
         .eq("work_order_id", wo.id).eq("status", "sent").not("sent_at", "is", null),
       svc.from("wo_photos").select("id, kind, area, caption, storage_path, created_at")
         .eq("work_order_id", wo.id).in("kind", ["before", "progress", "completion"])
@@ -311,7 +313,15 @@ async function projectForWo(
   const photoRows = (photos.data ?? []) as PhotoRow[];
   const updateRows = (updates.data ?? []) as Array<{
     for_date: string; final_text: string | null; draft_text: string; sent_at: string; photo_ids: string[] | null;
+    kind?: string | null; sender_name?: string | null;
   }>;
+  // Work order UX Step 2 (R8): the sender line the customer reads — "Felipe, Paint Group".
+  const senderCompany = (await getCompanyContact()).name;
+  const senderLineOf = (name: string | null | undefined): string | undefined => {
+    const n = (name ?? "").trim();
+    return n ? `${n}, ${senderCompany}` : undefined;
+  };
+  const latestSender = [...updateRows].sort((a, b) => (a.sent_at < b.sent_at ? 1 : -1)).find((u) => (u.sender_name ?? "").trim())?.sender_name ?? null;
 
   // Photos the office attached to an update (20270268) render on that card
   // whatever their kind or day — so an attached photo older than the gallery
@@ -345,6 +355,7 @@ async function projectForWo(
     startDate: (wo.start_date as string | null) ?? null,
     endDate: (wo.end_date as string | null) ?? null,
     painterFirstName: painterName,
+    replyTo: latestSender ? (latestSender.trim().split(/\s+/)[0] ?? null) : null,
     reportToken: (() => {
       const so = signoff.data as { signed_at: string | null; customer_token: string | null } | null;
       return so?.signed_at ? so.customer_token : null;
@@ -352,7 +363,10 @@ async function projectForWo(
     timeline: {
       surfaces: (surfaces.data ?? []) as TimelineInput["surfaces"],
       updates: updateRows
-        .map((u) => ({ for_date: u.for_date, text: u.final_text?.trim() || u.draft_text, sent_at: u.sent_at, photo_ids: u.photo_ids ?? [] })),
+        .map((u) => ({
+          for_date: u.for_date, text: u.final_text?.trim() || u.draft_text, sent_at: u.sent_at, photo_ids: u.photo_ids ?? [],
+          kind: u.kind ?? "end_of_day", sender: senderLineOf(u.sender_name),
+        })),
       // The day-grouped gallery keeps its kinds; attached photos reach the
       // timeline through the update itself (and are skipped by the grouping).
       photos: photoRows

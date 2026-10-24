@@ -14,6 +14,7 @@ import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireStaff } from "@/lib/supabase/guards";
 import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
+import { loadCustomerUpdatesSettings, setAutoSend } from "@/lib/workorder/customerUpdates";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
 import { qaWhenMessage } from "@/lib/workorder/qaSchedule";
@@ -166,13 +167,38 @@ export async function dismissUpdatesForClosedJobs(): Promise<PcResult & { count?
   return { ok: true, count: n, message: n === 0 ? "No drafts on completed jobs." : `Deleted ${n} draft${n === 1 ? "" : "s"} on completed jobs.` };
 }
 
+/** Who the customer reads an update from — Settings → Automations → Customer updates, else the coordinator. */
+async function senderFirstName(): Promise<string> {
+  const service = createServiceClient();
+  if (!service) return "";
+  try { return (await loadCustomerUpdatesSettings(service)).senderFirstName; } catch { return ""; }
+}
+
+/**
+ * The one switch on the Customer updates queue (R7, ruling M2): the registry's
+ * send-automatically / office-approves-first mode for customer_updates_queue.
+ */
+export async function setCustomerUpdatesAutoSend(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ on: z.boolean() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const supabase = await createClient();
+  if (!(await requireStaff(supabase))) return { ok: false, message: "Staff only." };
+  const { error } = await setAutoSend(supabase, parsed.data.on);
+  if (error) return { ok: false, message: `Couldn’t save the switch — ${error}` };
+  revalidatePath("/pc/updates");
+  return { ok: true, message: parsed.data.on ? "On — drafts go after the bundle window." : "Off — everything waits here." };
+}
+
 export async function approveAndSendUpdate(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ updateId: uuid, text: z.string().max(4000).optional() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
 
   const approved = await approveUpdate(parsed.data);
   if (!approved.ok) return approved;
-  const sent = await call("wo_send_update", { p_update_id: parsed.data.updateId }, "Sent — email and text on their way.");
+  // The sender line the customer reads ("Felipe, Paint Group") rides on the row (R8).
+  const sender = await senderFirstName();
+  const sent = await call("wo_send_update", { p_update_id: parsed.data.updateId, p_photo_ids: [], p_sender_name: sender },
+    "Sent to the timeline — email and text on their way.");
   if (sent.ok) {
     // The record is written; DELIVERY rides behind the response (Tom, 25 Aug:
     // updates were recorded as sent but nobody ever received anything).
@@ -223,7 +249,7 @@ export async function sendCustomerUpdateAction(raw: unknown): Promise<PcResult> 
   // timeline shows the ones the office picked, not whatever was taken that
   // day — and the same ids ride in the email below.
   const photoIds = parsed.data.photoIds;
-  const sent = await call("wo_send_update", { p_update_id: updateId, p_photo_ids: photoIds },
+  const sent = await call("wo_send_update", { p_update_id: updateId, p_photo_ids: photoIds, p_sender_name: await senderFirstName() },
     "Update sent — email and text with the photos are on their way.");
   if (sent.ok) {
     after(async () => {

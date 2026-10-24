@@ -5,7 +5,7 @@ title: Run a job from the first tick to the customer's signature
 summary: How a booked job works on your phone in four steps — before photos in one batch, ticking surfaces off, after photos of every room or side, and finishing — plus raising a variation, the quality check, and handing the phone to the customer to sign off.
 walkthrough: media/contractor-walkthrough.gif
 sources: app/portal/jobs/[id]/FinishUp.tsx, lib/reporting/workedTime.ts, app/portal/jobs, app/components/wo, app/s, lib/workorder
-verified_at_commit: 780c451640
+verified_at_commit: eb981f7e0e
 ---
 
 ## What this is for
@@ -34,7 +34,7 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
    ![](media/contractor-02.png)
 3. **Step 1 · Upload the before / progress photos.** The job runs in four numbered steps, shown across the top of the page. Until the job has its before photos the scope list is locked and says so. Tap the big green **Upload photos** button on the **Step 1 · Before / progress photos** card, pick every before photo at once, camera or library, and they upload the moment you choose them — the button counts "Uploading 3 of 8". A photo that fails stays listed with **Retry**. Take photos of all rooms or all sides, as you found them. Short videos are fine too. The moment they land, every row on the job unlocks, and the card folds to **Step 1 ✓ Before / progress photos are in — add more**; open it to add more photos as the job goes. One exception: a row marked **No photos** by the office (a fuel allowance, a set-up line) ticks without any photo and a job made only of such rows asks for nothing.
    ![](media/contractor-03.png)
-4. Now tick. The row turns cyan **PREPPED** on the first tap and green **DONE** on the second.
+4. Now tick. Since 24 Oct 2026 the list opens **By surface**: one row per surface on the job — **Ceilings**, **Walls**, **Doors, frames & skirting**, **Windows** (outside: **Weatherboards & render**, **Trims, fascias & eaves**, **Doors & windows**, **Fences & gates**) — with *2 of 3 prepped* and a bar (amber prepped, green painted). **Mark all prepped** marks that surface prepped in every room in one tap; **Mark all painted** does the same for painted, and only unlocks once every room of that surface is prepped. Tap the row's name to see each room (*Bed 1 painted · Bed 2 prepped*). After a bulk tap a bar at the bottom says what moved — *3 walls marked prepped* — with **Undo** for six seconds; Undo puts exactly those rooms back. There is no button for the whole job. A bulk tap counts as an update for your reminder moments exactly like a single tick. **By room** is one tap away at the top and is the list as before: each row has three squares — to do, prepped, done — and turns cyan **PREPPED** on the first tap and green **DONE** on the second. Anything with no surface behind it — a repair the office added, a line such as gutters — is only under By room. The app remembers which view you used last.
    ![](media/contractor-04.png)
 5. **Step 3 · Upload the after photos.** When every surface is **DONE** the **Step 3 · After photos** card appears. Tap the green **Upload photos** button and pick photos of all rooms or all sides now the work is finished, the same views as your before photos where you can; they upload straight away. Nothing asks for a finished shot per area any more; the job asks once. Step 4 stays locked, on your phone and on the server, until these are in.
 

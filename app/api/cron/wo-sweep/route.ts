@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { runPainterStatusSweep } from "@/lib/painterStatus/run";
 import { createServiceClient } from "@/lib/supabase/service";
-import { composeUpdate, type TickEvent } from "@/lib/workorder/updates";
+import { draftUpdateForWorkOrder } from "@/lib/workorder/draftFromTicks";
 import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
 import { reportError } from "@/lib/monitoring/report";
 import { sendPreStartChecklists } from "@/lib/workorder/preStart";
@@ -14,7 +14,6 @@ import { reconcileAllConnected } from "@/lib/gcal/sync";
 import { reconcileAllStaff } from "@/lib/gcal/staff";
 import { sendVisitReminders } from "@/lib/visits/notify";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
-import { staffCustomerUpdateDrafted } from "@/lib/staff/notify";
 import { sendCustomerUpdateDueAlerts } from "@/lib/automations/sweeps/customerUpdateDue";
 import { realOnly } from "@/lib/demo/scope";
 import { sendArrivedChecks } from "@/lib/movements/notify";
@@ -95,56 +94,19 @@ async function sweep(opts: { force?: boolean } = {}) {
 
   const byJob = new Map<string, TickRow[]>();
   for (const row of (ticks ?? []) as TickRow[]) {
-    byJob.set(row.work_order_id, [...(byJob.get(row.work_order_id) ?? []), row]);
+    byJob.set(row.work_order_id, [...(byJob.get(row.work_order_id) ?? [])]);
   }
 
+  // ONE draft pass per job (lib/workorder/draftFromTicks.ts) — the same one the
+  // tick runs the moment it lands: the end-of-day draft rolled up by surface,
+  // and any surface milestone the day crossed. This sweep is its backstop.
   let drafted = 0;
-  for (const [workOrderId, rows] of byJob) {
-    // Who the update is addressed to. First name only — the same rule the
-    // contractor surfaces follow.
-    const { data: wo } = await db
-      .from("work_orders").select("estimate_id").eq("id", workOrderId).maybeSingle();
-    const { data: estimate } = wo?.estimate_id
-      ? await db.from("estimates").select("accepted_name, builder_state")
-          .eq("id", wo.estimate_id).maybeSingle()
-      : { data: null };
-
-    const contact = (estimate?.builder_state as { contact?: { name?: string } } | null)?.contact?.name
-      ?? (estimate?.accepted_name as string | null)
-      ?? "";
-    const firstName = contact.trim().split(/\s+/)[0] ?? "";
-
-    const { count: photoCount } = await db
-      .from("wo_photos")
-      .select("id", { count: "exact", head: true })
-      .eq("work_order_id", workOrderId)
-      .gte("created_at", since);
-
-    const composed = composeUpdate({
-      customerFirstName: firstName,
-      ticks: rows.map((r): TickEvent => ({
-        heading: r.meta?.heading ?? "",
-        label: r.meta?.label ?? "",
-        from: r.meta?.from ?? "todo",
-        to: r.meta?.to ?? "todo",
-      })),
-      photoCount: photoCount ?? 0,
-      now: new Date(),
-    });
-    if (!composed) continue;   // nothing worth saying; no draft, no filler
-
-    const { error } = await db.rpc("wo_draft_update", {
-      p_work_order_id: workOrderId,
-      p_for_date: today,
-      p_text: composed,
-      p_tick_ids: rows.map((r) => r.id),
-      p_photo_count: photoCount ?? 0,
-    });
-    if (error) reportError(error, { where: "cron.woSweep.draft", extra: { workOrderId } });
-    else {
-      drafted += 1;
-      // Tom, 7 Oct 2026: the backstop tells the office the same way the tick does (once per job per day).
-      await staffCustomerUpdateDrafted(db, workOrderId, today);
+  for (const workOrderId of byJob.keys()) {
+    try {
+      const r = await draftUpdateForWorkOrder(db, workOrderId);
+      if (r.drafted) drafted += 1;
+    } catch (e) {
+      reportError(e, { where: "cron.woSweep.draft", extra: { workOrderId } });
     }
   }
 
