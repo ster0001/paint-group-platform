@@ -15,12 +15,18 @@ const PLACEHOLDERS = [
   { title: "[Interior Victorian]", days: 4, meta: "Fitzroy North · completed Aug 2026", price: "$8,400 – $9,600", scope: "4 rooms + hallway, walls, ceilings, trim", ph: "linear-gradient(135deg,#D8D3C7,#F2EFE8)" },
   { title: "[Commercial shopfront]", days: 3, meta: "Preston · completed Jun 2026", price: "$6,900 – $7,700", scope: "Exterior render + signage band, after-hours", ph: "linear-gradient(135deg,#9FA3A6,#D9DBDC)" },
 ];
+/** Paint Home (brief §4, ⚑ P4): the prototype's three cards — all homes, all phone-close sized. */
+const PAINTHOME_PLACEHOLDERS = [
+  { title: "[Exterior weatherboard]", days: 6, meta: "Thornbury · completed Jul 2026", price: "$14,200 – $15,800", scope: "Whole exterior, 2 coats, fascias & gutters, front fence", ph: "linear-gradient(135deg,#9DB4A6,#DCE5DE)" },
+  { title: "[Interior Victorian]", days: 4, meta: "Fitzroy North · completed Aug 2026", price: "$8,400 – $9,600", scope: "4 rooms + hallway, walls, ceilings, trim", ph: "linear-gradient(135deg,#E8CFC9,#F4ECEA)" },
+  { title: "[Two-bedroom apartment]", days: 2, meta: "Malvern East · completed Sep 2026", price: "$3,400 – $3,900", scope: "Whole apartment, walls + ceilings, 2 coats, confirmed on the phone", ph: "linear-gradient(135deg,#C9CFC6,#EDEFEA)" },
+];
 
 export type JobsCopy = { kicker: string; h2: string; lead: string; allLink: string };
 
-export default async function RealJobs({ audience, copy, prefix = "" }: { audience: Audience; copy: JobsCopy; prefix?: string }) {
-  const featured = await featuredShowcaseJobs(audience);
-  const gaps = PLACEHOLDERS.slice(featured.length, 3);
+export default async function RealJobs({ audience, copy, prefix = "", maxHighCents = null }: { audience: Audience; copy: JobsCopy; prefix?: string; /** Paint Home: the phone-close ceiling a card's top price may not exceed. */ maxHighCents?: number | null }) {
+  const featured = await featuredShowcaseJobs(audience, maxHighCents);
+  const gaps = (audience === "painthome" ? PAINTHOME_PLACEHOLDERS : PLACEHOLDERS).slice(featured.length, 3);
   return (
     <section className="sec light" id="jobs">
       <div className="wrap">

@@ -1,4 +1,4 @@
-import type { Mode } from "./estimateLink";
+import type { Mode, Scope } from "./estimateLink";
 
 /**
  * The self-typing estimator (brief §4.2) as a PURE schedule + a small
@@ -15,7 +15,8 @@ import type { Mode } from "./estimateLink";
  * ⚑9.1: replace EXAMPLES with real anonymised jobs when Tom supplies them.
  * Suburbs per Tom (5 Sep): Malvern, Coburg, Beaumaris, Melbourne CBD.
  */
-export type GhostExample = { address: string; mode: Mode; price: string; time: string };
+/** `scope` (Paint Home): which of the Inside / Outside chips lights while the example types. */
+export type GhostExample = { address: string; mode: Mode; price: string; time: string; scope?: Scope };
 
 export const GHOST_EXAMPLES: readonly GhostExample[] = [
   { address: "12 Elm Street, Malvern", mode: "home", price: "$8,400 – $9,600", time: "9 min to a range" },
@@ -32,7 +33,7 @@ export const GHOST_FADE_MS = 400;
 export const GHOST_GAP_MS = 350;
 
 export type GhostStep =
-  | { at: number; kind: "type"; text: string; mode: Mode }
+  | { at: number; kind: "type"; text: string; mode: Mode; scope?: Scope }
   | { at: number; kind: "result"; example: GhostExample }
   | { at: number; kind: "fade" }
   | { at: number; kind: "clear" };
@@ -44,7 +45,7 @@ export function ghostSchedule(example: GhostExample, rng: () => number = Math.ra
   let at = 0;
   for (let i = 1; i <= example.address.length; i++) {
     at += Math.round(lo + (hi - lo) * rng());
-    steps.push({ at, kind: "type", text: example.address.slice(0, i), mode: example.mode });
+    steps.push({ at, kind: "type", text: example.address.slice(0, i), mode: example.mode, scope: example.scope });
   }
   at += 220; // the beat before the answer
   steps.push({ at, kind: "result", example });
@@ -60,17 +61,18 @@ export type GhostState = {
   index: number;
   text: string;
   mode: Mode;
+  scope: Scope;
   result: GhostExample | null;
 };
 
-export const ghostInitial: GhostState = { status: "waiting", index: 0, text: "", mode: "home", result: null };
+export const ghostInitial: GhostState = { status: "waiting", index: 0, text: "", mode: "home", scope: "interior", result: null };
 /** Session 8: the business site's estimator starts on its own chip. */
 export const ghostInitialFor = (mode: Mode): GhostState => ({ ...ghostInitial, mode });
 
 export function applyGhostStep(state: GhostState, step: GhostStep, exampleCount = GHOST_EXAMPLES.length): GhostState {
   if (state.status === "stopped") return state;
   switch (step.kind) {
-    case "type": return { ...state, status: "typing", text: step.text, mode: step.mode, result: null };
+    case "type": return { ...state, status: "typing", text: step.text, mode: step.mode, scope: step.scope ?? state.scope, result: null };
     case "result": return { ...state, status: "result", result: step.example };
     case "fade": return { ...state, status: "fading" };
     case "clear": return { ...state, status: "waiting", text: "", result: null, index: (state.index + 1) % Math.max(1, exampleCount) };
@@ -79,7 +81,7 @@ export function applyGhostStep(state: GhostState, step: GhostStep, exampleCount 
 
 /** The visitor touched it: empty field, no result, chips back to the site's own default, never restarts. */
 export function stopGhost(state: GhostState, restMode: Mode = "home"): GhostState {
-  return { ...state, status: "stopped", text: "", result: null, mode: restMode };
+  return { ...state, status: "stopped", text: "", result: null, mode: restMode, scope: "interior" };
 }
 
 /** Time from mount to the first visible character / the first result, for the ACs (worst case). */

@@ -24,6 +24,9 @@ import type { SiteCopy } from "@/lib/marketing/copy/schema";
 import { brandView, type Brand } from "@/lib/marketing/brand";
 import { getBrand } from "@/lib/marketing/brandServer";
 import type { GhostExample } from "@/lib/marketing/ghostEstimator";
+import { isScope } from "@/lib/marketing/estimateLink";
+import { policyFromSettings } from "@/lib/wizard/policy";
+import { getSettingValue } from "@/lib/marketing/brandServer";
 
 /**
  * Session 8 — ONE homepage, two audiences. `app/(marketing)/page.tsx`
@@ -47,10 +50,13 @@ function copyFor(c: SiteCopy, audience: Audience) {
   const t = (s: Parameters<typeof text>[1], k: string) => text(c, s, k);
   // The self-typing examples carry the wizard MODE; Paint Home is residential only.
   const mode: GhostExample["mode"] = audience === "business" ? "business" : "home";
-  const examples: GhostExample[] = [1, 2, 3]
-    .map((n) => ({ address: t("estimator_examples", `example_${n}_address`), price: t("estimator_examples", `example_${n}_price`), time: t("estimator_examples", `example_${n}_time`), mode }))
+  const examples: GhostExample[] = [1, 2, 3, 4]
+    .map((n) => {
+      const sc = t("estimator_examples", `example_${n}_scope`);
+      return { address: t("estimator_examples", `example_${n}_address`), price: t("estimator_examples", `example_${n}_price`), time: t("estimator_examples", `example_${n}_time`), mode, ...(isScope(sc) ? { scope: sc } : {}) };
+    })
     .filter((e) => e.address && e.price);
-  const labels = { placeholder: t("hero", "placeholder"), button: t("hero", "button"), chipsLabel: t("hero", "chips_label"), chipHome: t("hero", "chip_home"), chipBusiness: t("hero", "chip_business") };
+  const labels = { placeholder: t("hero", "placeholder"), button: t("hero", "button"), chipsLabel: t("hero", "chips_label"), chipHome: t("hero", "chip_home"), chipBusiness: t("hero", "chip_business"), chipInterior: t("hero", "chip_interior"), chipExterior: t("hero", "chip_exterior") };
   // Paint Home: the nav has no "For business" link and no link to the
   // other site (brief §4). The link set is the copy's until Session 2
   // seeds Paint Home's own; the one pointing at the trade lane is dropped
@@ -68,8 +74,8 @@ function copyFor(c: SiteCopy, audience: Audience) {
     live: t("live", "heading"),
     painters: { h2: t("painters", "h2"), lead: t("painters", "lead"), rules: [1, 2, 3, 4].map((n) => t("painters", `rule_${n}`)) },
     trade: { kicker: t("trade", "kicker"), h2: t("trade", "h2"), lead: t("trade", "lead"), cta1: t("trade", "cta_1"), cta2: t("trade", "cta_2") },
-    reviews: { h2: t("reviews", "h2"), fallbackH2: t("reviews", "fallback_h2") },
-    faq: { h2: t("faq", "h2"), entries: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ q: t("faq", `q_${n}`), a: t("faq", `a_${n}`) })).filter((e) => e.q) as FaqEntry[] },
+    reviews: { h2: t("reviews", "h2"), fallbackH2: t("reviews", "fallback_h2"), lead: t("reviews", "lead") },
+    faq: { h2: t("faq", "h2"), entries: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => ({ q: t("faq", `q_${n}`), a: t("faq", `a_${n}`) })).filter((e) => e.q) as FaqEntry[] },
     cta: { h2: t("cta", "h2"), callLine: t("cta", "call_line"), labels },
     nav: {
       links: navLinks,
@@ -120,7 +126,10 @@ export function localBusinessLd(brand: Brand, serviceType: string, url: string) 
 }
 
 export default async function HomePage({ audience }: { audience: Audience }) {
-  const [content, logoUrl, siteCopy, brand] = await Promise.all([getWebsiteContent(), getSiteLogo(), getSiteCopy(audience), getBrand(audience)]);
+  const [content, logoUrl, siteCopy, brand, policyRow] = await Promise.all([getWebsiteContent(), getSiteLogo(), getSiteCopy(audience), getBrand(audience), audience === "painthome" ? getSettingValue("wizard_policy") : Promise.resolve(null)]);
+  // Paint Home brief §4–5: its cards never exceed the phone-close tier — the
+  // existing Settings value (wizard_policy.remoteConfirmCapCents, ⚑ P7).
+  const maxHighCents = audience === "painthome" ? policyFromSettings(policyRow).remoteConfirmCapCents : null;
   const c = copyFor(siteCopy, audience);
   const prefix = audiencePrefix(audience);
   // ⚑ D2: the wizard lives on the residential domain; from the commercial
@@ -141,7 +150,7 @@ export default async function HomePage({ audience }: { audience: Audience }) {
         <main data-audience={audience}>
           <Hero heroPhoto={business ? (content.heroPhotoBusiness ?? content.heroPhoto) : content.heroPhoto} copy={c.hero} />
           <HowItWorks copy={c.steps} brand={brand} />
-          <RealJobs audience={audience} copy={c.jobs} prefix={prefix} />
+          <RealJobs audience={audience} copy={c.jobs} prefix={prefix} maxHighCents={maxHighCents} />
           {business && <Trade copy={c.trade} promoted />}
           <PromiseSection variationPhotos={content.promisePhotos} copy={c.promise} />
           <Story photos={content.storyPhotos} copy={c.story} />

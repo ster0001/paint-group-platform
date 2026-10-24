@@ -29,3 +29,15 @@ export async function getBrandSettings(): Promise<BrandSettings> {
 export async function getBrand(audience: Audience): Promise<Brand> {
   return brandFor(audience, await getBrandSettings());
 }
+
+/** One `settings` row's value by key, for the public pages (service client; the error is reported, the caller gets null). */
+export async function getSettingValue(key: string): Promise<unknown> {
+  const svc = createServiceClient();
+  if (!svc) return null;
+  const { data, error } = await svc.from("settings").select("value").eq("key", key).maybeSingle();
+  if (error) {
+    reportError(error, { where: `marketing.settings.read:${key}` });
+    return null;
+  }
+  return data?.value ?? null;
+}

@@ -11,6 +11,13 @@ export function isMode(v: unknown): v is Mode {
   return typeof v === "string" && (MODES as readonly string[]).includes(v);
 }
 
+/** Paint Home brief §4–5: the hero's Inside / Outside chips are a SCOPE, not a mode — they ride as `?scope=interior|exterior`. */
+export const SCOPES = ["interior", "exterior"] as const;
+export type Scope = (typeof SCOPES)[number];
+export function isScope(v: unknown): v is Scope {
+  return typeof v === "string" && (SCOPES as readonly string[]).includes(v);
+}
+
 /** The wizard URL for a typed (or picked) address and the chosen chip.
  *  An empty address is simply omitted — the visitor lands on a blank field. */
 /** The ad-platform and campaign parameters that must survive the hand-off (lib/crm/attribution.ts reads them on /estimate). */

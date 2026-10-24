@@ -103,6 +103,18 @@ export async function saveShowcaseJobAction(raw: unknown): Promise<SaveShowcaseR
       }
     }
 
+    // Paint Home brief §4: its rank, one holder each, like the business rank.
+    if (input.featured_rank_painthome != null) {
+      let q = db.from("showcase_jobs").select("id").eq("featured_rank_painthome", input.featured_rank_painthome);
+      if (existing) q = q.neq("id", existing.id);
+      const { data: holders, error } = await q.limit(3);
+      if (error) throw error;
+      for (const h of holders ?? []) {
+        const { error: clearErr } = await db.from("showcase_jobs").update({ featured_rank_painthome: null }).eq("id", h.id as string);
+        if (clearErr) throw clearErr;
+      }
+    }
+
     // ---- write -------------------------------------------------------------
     const { id: _id, displace_featured: _d, slug: _s, ...fields } = input;
     void _id; void _d; void _s;
@@ -120,6 +132,8 @@ export async function saveShowcaseJobAction(raw: unknown): Promise<SaveShowcaseR
 
     // ---- ISR: the public pages pick the change up on their next request ----
     revalidatePath("/");
+    revalidatePath("/business");
+    revalidatePath("/painthome");
     revalidatePath("/work");
     revalidatePath(`/work/${job.slug}`);
     if (existing && existing.slug !== job.slug) revalidatePath(`/work/${existing.slug}`);
@@ -160,6 +174,8 @@ export async function deleteShowcaseJobAction(raw: unknown): Promise<DeleteShowc
       .filter((p): p is string => Boolean(p) && (p as string).startsWith(`jobs/${row.id as string}/`));
     if (paths.length) await db.storage.from(SHOWCASE_BUCKET).remove(paths).then(() => undefined, () => undefined);
     revalidatePath("/");
+    revalidatePath("/business");
+    revalidatePath("/painthome");
     revalidatePath("/work");
     revalidatePath(`/work/${row.slug as string}`);
     return { status: "deleted", slug: row.slug as string };

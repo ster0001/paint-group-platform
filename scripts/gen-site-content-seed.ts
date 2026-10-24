@@ -10,7 +10,10 @@ import { DEFAULT_COPY } from "../lib/marketing/copy";
 
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 const lines: string[] = [];
-for (const audience of ["home", "business"] as const) {
+// `npx tsx scripts/gen-site-content-seed.ts painthome` seeds one audience (Paint Home brief, Session 2).
+const only = process.argv[2];
+const audiences = (["home", "business", "painthome"] as const).filter((a) => !only || a === only);
+for (const audience of audiences) {
   const copy = DEFAULT_COPY[audience];
   for (const f of CONTENT_FIELDS) {
     const v = copy[f.section][f.key] ?? "";

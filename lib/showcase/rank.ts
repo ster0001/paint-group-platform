@@ -6,24 +6,36 @@ import type { Audience } from "@/lib/marketing/audience";
  * business, by featured_rank_business first, then newest; and it NEVER
  * fills with home jobs while three or more business jobs are published
  * (⚑ D4: a rank column per audience). Pure, unit-tested for 0/2/3/5.
+ *
+ * Paint Home (brief §4): property_type home AND the top of the price range
+ * at or under the phone-close ceiling (`maxHighCents`, Settings →
+ * wizard_policy.remoteConfirmCapCents), by featured_rank_painthome first,
+ * then newest. Never a commercial job; a job with no price never qualifies
+ * (the ceiling cannot be checked).
  */
 export type RankableJob = {
   property_type: "home" | "business";
   featured_rank: number | null;
   featured_rank_business?: number | null;
+  featured_rank_painthome?: number | null;
+  price_high_cents?: number | null;
   completed_on: string | null;
   published: boolean;
 };
 
-export function rankShowcaseJobs<J extends RankableJob>(jobs: J[], audience: Audience): J[] {
+export function rankShowcaseJobs<J extends RankableJob>(jobs: J[], audience: Audience, maxHighCents: number | null = null): J[] {
   const live = jobs.filter((j) => j.published);
   const newest = (a: J, b: J) => (b.completed_on ?? "").localeCompare(a.completed_on ?? "");
-  // Paint Home (brief §4) reads the home arm until Session 2 adds
-  // featured_rank_painthome and the phone-close price ceiling; it never
-  // shows a commercial job.
-  if (audience === "home" || audience === "painthome") {
+  if (audience === "home") {
     return live.filter((j) => j.property_type === "home" && j.featured_rank != null)
       .sort((a, b) => (a.featured_rank ?? 9) - (b.featured_rank ?? 9)).slice(0, 3);
+  }
+  if (audience === "painthome") {
+    const fits = (j: J) => j.property_type === "home" && j.price_high_cents != null && (maxHighCents == null || j.price_high_cents <= maxHighCents);
+    const homes = live.filter(fits);
+    const ranked = homes.filter((j) => j.featured_rank_painthome != null).sort((a, b) => (a.featured_rank_painthome ?? 9) - (b.featured_rank_painthome ?? 9));
+    const rest = homes.filter((j) => j.featured_rank_painthome == null).sort(newest);
+    return [...ranked, ...rest].slice(0, 3);
   }
   const business = live.filter((j) => j.property_type === "business");
   const ranked = business.filter((j) => j.featured_rank_business != null).sort((a, b) => (a.featured_rank_business ?? 9) - (b.featured_rank_business ?? 9));

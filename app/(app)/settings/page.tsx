@@ -166,8 +166,8 @@ export default async function SettingsPage() {
   const brandSettings = parseBrandSettings(allSettings.find((r) => r.key === BRANDS_SETTINGS_KEY)?.value);
   const videoJobs = (await listShowcaseJobsForStaff()).filter((j) => j.video_url).map((j) => ({ id: j.id, title: j.title, suburb: j.suburb, published: j.published }));
   // Session 8: the copy for both audiences and the fetched reviews' tags.
-  const [homeCopy, businessCopy, tagRes] = await Promise.all([
-    getSiteCopy("home"), getSiteCopy("business"),
+  const [homeCopy, businessCopy, paintHomeCopy, tagRes] = await Promise.all([
+    getSiteCopy("home"), getSiteCopy("business"), getSiteCopy("painthome"),
     supabase.from("review_tags").select("review_key, author, rating, snippet, published_at, audience_suggested, audience").order("published_at", { ascending: false }).limit(100),
   ]);
   const reviewTags = (tagRes.data ?? []) as ReviewTagRow[];
@@ -319,8 +319,8 @@ export default async function SettingsPage() {
           content: <WebsiteContentManager initial={websiteContent} videoJobs={videoJobs} /> },
         { id: "brands", title: "Brands", subtitle: "Paint Group and Paint Home — the domain, phone number, legal line and accent colour each shopfront shows; the Paint Home mark is the supplied vector",
           content: <BrandsSettings initial={brandSettings} /> },
-        { id: "site-copy", title: "Website copy", subtitle: "Every word on the homes site and the business site, by section, with a live preview. Business copy is a draft to work through here.",
-          content: <SiteCopyEditor initial={{ home: homeCopy, business: businessCopy }} businessHref={businessHref} /> },
+        { id: "site-copy", title: "Website copy", subtitle: "Every word on the homes site, the business site and Paint Home, by section, with a live preview. Business copy is a draft to work through here.",
+          content: <SiteCopyEditor initial={{ home: homeCopy, business: businessCopy, painthome: paintHomeCopy }} businessHref={businessHref} /> },
         { id: "review-tags", title: "Reviews", subtitle: "Tag each Google review Home or Business so the business site shows the right ones", count: reviewTags.length,
           content: <ReviewTagsManager initial={reviewTags} /> },
         { id: "showcase", title: "Showcase jobs", subtitle: "Finished jobs shown on the website as “Real jobs, real prices” — photos, price range, what we did; the three featured ones are the homepage cards",
