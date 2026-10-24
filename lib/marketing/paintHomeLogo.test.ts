@@ -20,8 +20,11 @@ describe("the Paint Home mark is the supplied SVG, verbatim", () => {
     expect(light.paint.fill).toBe(PAINT_HOME_LOGO.text.light);
     expect(light.tagline.fill).toBe(PAINT_HOME_LOGO.text.light);
   });
-  it("the canvas is 840 × 221 and the nav crop drops the tagline row (brief §3)", () => {
+  it("the canvas is 840 × 221; the nav keeps the whole canvas (the brush runs below the words) and drops only the tagline path", () => {
     expect(read("paint-home-logo-dark.svg")).toContain(`viewBox="${PAINT_HOME_LOGO.viewBoxFull}"`);
-    expect(PAINT_HOME_LOGO.viewBoxNav).toBe("0 0 840 132");
+    expect(PAINT_HOME_LOGO.viewBoxNav).toBe(PAINT_HOME_LOGO.viewBoxFull);
+    // the brush's lowest point is below the 132 line the brief named
+    const ys = [...PAINT_HOME_LOGO.paths.brush.matchAll(/[ML]\s*[\d.]+\s+([\d.]+)/g)].map((m) => Number(m[1]));
+    expect(Math.max(...ys)).toBeGreaterThan(132);
   });
 });
