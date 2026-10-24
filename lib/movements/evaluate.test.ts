@@ -258,7 +258,8 @@ describe("the brief's golden cases", () => {
     expect(JOBS[2].coloursConfirmed).toBe(false);
     expect(needsOrder(paint)).toBe(true);
     expect(jobNeeds(w, "0094").map((m) => m.id)).toEqual(["p94"]);
-    expect(gates(w, "0094")).toMatchObject({ paint: false, paintOrdered: 0, paintTotal: 1, paintBlocker: paint, gear: true, gearTotal: 0 });
+    // Tom, 24 Oct 2026: placed on the Supplier lane is enough for the gate — ordering is the painter's text.
+    expect(gates(w, "0094")).toMatchObject({ paint: true, paintOrdered: 1, paintTotal: 1, paintBlocker: null, gear: true, gearTotal: 0 });
     expect(counts(w).ordersToPlace).toBe(1);
   });
   it("a supplier lane whose branch does not deliver: the drop is the RPC's refusal; the evaluator says why the branch is wrong for that lane", () => {
@@ -370,13 +371,17 @@ describe("the run plan (ruling 22)", () => {
 });
 
 describe("gates and counts", () => {
-  it("gates: every paint chip ordered or done, every gear chip booked or done; a decision opens a gate with no chips; vacuous = open", () => {
-    const paint = placed({ id: "p", kind: "paint", work_order_id: "0092", assignee_id: null, due_date: MON, status: "planned" });
+  it("gates: every paint and materials chip off the tray, every gear chip booked or done; a decision opens a gate with no chips; vacuous = open", () => {
+    const paint = mv({ id: "p", kind: "paint", work_order_id: "0092" });
+    const mats = mv({ id: "m", kind: "materials", work_order_id: "0092" });
     const gear = mv({ id: "g", kind: "equipment_out", work_order_id: "0092" });
-    const w = world({ movements: [paint, gear] });
-    expect(gates(w, "0092")).toMatchObject({ paint: false, gear: false, paintBlocker: paint, gearBlocker: gear });
-    const ordered = world({ movements: [{ ...paint, ordered_at: "x", status: "booked" }, { ...gear, status: "booked", assignee_kind: "person", assignee_id: FELIPE, due_date: TUE }] });
-    expect(gates(ordered, "0092")).toMatchObject({ paint: true, gear: true, paintOrdered: 1, gearBooked: 1 });
+    const w = world({ movements: [paint, mats, gear] });
+    expect(gates(w, "0092")).toMatchObject({ paint: false, gear: false, paintBlocker: paint, gearBlocker: gear, paintTotal: 2 });
+    // Tom, 24 Oct 2026: planned on the Supplier lane counts; Ordered ✓ is not the gate.
+    const planned = world({ movements: [placed({ ...paint, assignee_id: null, due_date: MON, status: "planned" }), mats, gear] });
+    expect(gates(planned, "0092")).toMatchObject({ paint: false, paintOrdered: 1, paintBlocker: mats });
+    const ordered = world({ movements: [{ ...paint, ordered_at: "x", status: "booked" }, placed({ ...mats, assignee_id: null, due_date: MON, status: "planned" }), { ...gear, status: "booked", assignee_kind: "person", assignee_id: FELIPE, due_date: TUE }] });
+    expect(gates(ordered, "0092")).toMatchObject({ paint: true, gear: true, paintOrdered: 2, gearBooked: 1 });
     const decided = world({ movements: [paint], decisions: [{ work_order_id: "0092", line: "paint", decision: "painter_supplies" }] });
     expect(gates(decided, "0092")).toMatchObject({ paint: true, paintBlocker: null });
     expect(gates(world(), "0093")).toMatchObject({ paint: true, gear: true, paintTotal: 0 });
