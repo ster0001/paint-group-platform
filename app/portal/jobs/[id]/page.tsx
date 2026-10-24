@@ -156,7 +156,7 @@ export default async function PortalJobPage({
   // contractor's own jobs, so an id that isn't theirs simply returns nothing.
   const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }, { data: signoffRow }, { data: qaLinkRows, error: qaLinkErr }] = await Promise.all([
     supabase.from("wo_surfaces")
-      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key")
+      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope, photos_optional, surface_key, group_code")
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos")
       .select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
@@ -329,9 +329,10 @@ export default async function PortalJobPage({
   // like the row, so the label itself stays the bare substrate.
   const countByKey = surfaceCountsByKey(job.doc);
   const surfaces: SurfaceRow[] = ((surfaceRows as
-    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean; photos_optional?: boolean | null; surface_key?: string | null }[] | null) ?? [])
+    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean; photos_optional?: boolean | null; surface_key?: string | null; group_code?: string | null }[] | null) ?? [])
     .map((r) => ({
       id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope, photosOptional: Boolean(r.photos_optional),
+      group: r.group_code ?? null,
       ...(r.surface_key && countByKey[r.surface_key] != null ? { count: countByKey[r.surface_key] } : {}),
     }));
 
@@ -698,6 +699,7 @@ export default async function PortalJobPage({
             )}
 
             <TickList
+              workOrderId={id}
               surfaces={surfaces}
               hasBeforePhoto={hasBeforePhoto}
               headingMeta={headingMeta}

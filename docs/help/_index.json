@@ -1258,7 +1258,7 @@
         "media/contractor-18.png",
         "media/contractor-walkthrough-2.gif"
       ],
-      "verified_at_commit": "780c451640",
+      "verified_at_commit": "cd95185da3",
       "sources": [
         "app/portal/jobs/[id]/FinishUp.tsx",
         "lib/reporting/workedTime.ts",
@@ -1276,7 +1276,7 @@
       "path": "docs/help/work-orders/customer.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": null,
+      "verified_at_commit": "cd95185da3",
       "sources": [
         "app/account/(portal)/JobTimeline.tsx",
         "lib/portal/timeline.ts",
@@ -1291,7 +1291,7 @@
       "path": "docs/help/work-orders/employee.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "780c451640",
+      "verified_at_commit": "cd95185da3",
       "sources": [
         "app/portal/jobs",
         "app/components/wo",
@@ -1327,7 +1327,7 @@
         "media/pc-17.png",
         "media/pc-18.png"
       ],
-      "verified_at_commit": "780c451640",
+      "verified_at_commit": "cd95185da3",
       "sources": [
         "app/pc/wo/[id]/SiteVisitsCard.tsx",
         "app/pc/wo/[id]/ReviewCard.tsx",

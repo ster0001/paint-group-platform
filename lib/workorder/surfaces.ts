@@ -160,6 +160,13 @@ export type SurfaceRow = {
    * (standards, variation tick rows, the heal) sees a number in it.
    */
   count?: number;
+  /**
+   * The customer surface group this row belongs to (work order UX Step 1,
+   * 20270300) — `wo_surfaces.group_code`, resolved once in Postgres from the
+   * job sheet through the finish standards. Null for rectification rows,
+   * variation additions and lines no standard covers: those tick By room only.
+   */
+  group?: string | null;
 };
 
 /**

@@ -58,7 +58,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
   const [{ data: surfaceRows }, { data: photoRows }, { data: variationRows }, { data: prepRows }, { data: officeRows, error: officeErr }] =
     await Promise.all([
       supabase.from("wo_surfaces")
-        .select("id, heading, heading_meta, label, state, rectification, photos_optional, surface_key")
+        .select("id, heading, heading_meta, label, state, rectification, photos_optional, surface_key, group_code")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_photos").select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
       supabase.from("wo_variations")
@@ -80,7 +80,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
 
   const surfaces = ((surfaceRows ?? []) as {
     id: string; heading: string; heading_meta: string; label: string;
-    state: SurfaceRow["state"]; rectification: boolean; photos_optional?: boolean | null; surface_key?: string | null;
+    state: SurfaceRow["state"]; rectification: boolean; photos_optional?: boolean | null; surface_key?: string | null; group_code?: string | null;
   }[]);
   // "Doors × 4" on the preview's tick list, from the frozen document by key.
   const countByKey = surfaceCountsByKey(job.doc);
@@ -134,9 +134,10 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
 
       {row.stage === "in_progress" && surfaces.length > 0 && (
         <TickList
+          workOrderId={id}
           surfaces={surfaces.map((s) => ({
             id: s.id, heading: s.heading, label: s.label, state: s.state, rectification: s.rectification,
-            photosOptional: Boolean(s.photos_optional),
+            photosOptional: Boolean(s.photos_optional), group: s.group_code ?? null,
             ...(s.surface_key && countByKey[s.surface_key] != null ? { count: countByKey[s.surface_key] } : {}),
           }))}
           hasBeforePhoto={((photoRows as { area: string; kind: string }[] | null) ?? []).some((p) => p.kind === "before")}

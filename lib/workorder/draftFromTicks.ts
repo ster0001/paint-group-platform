@@ -22,7 +22,17 @@ export async function draftUpdateFromTodaysTicks(
     .from("wo_surfaces").select("work_order_id").eq("id", surfaceId).maybeSingle();
   const workOrderId = (surfaceRow as { work_order_id?: string } | null)?.work_order_id;
   if (!workOrderId) return;
+  await draftUpdateForWorkOrder(service, workOrderId);
+}
 
+/**
+ * The same refresh keyed by the JOB — what a bulk tick (work order UX Step 1)
+ * calls once for its N rows, and what an undo calls to re-read the day.
+ */
+export async function draftUpdateForWorkOrder(
+  service: SupabaseClient,
+  workOrderId: string,
+): Promise<void> {
   const now = new Date();
   const since = melbourneDayStartUtc(now); // an ISO string already
 
