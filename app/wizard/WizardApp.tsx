@@ -2126,7 +2126,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 suburb={state.address?.suburb || state.customer?.suburb || null}
                 estimatorName={estimatorName}
                 onNext={quickNext}
-                onBook={() => { flushDraft(lastScreen); setTalk({ mode: "visit" }); }}
+                // Paint Home brief §5: the mid-flow door asks for a call, never a site visit.
+                onBook={() => { flushDraft(lastScreen); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); }}
                 onMessage={() => { flushDraft(lastScreen); setTalk({ mode: "message" }); }}
                 gate={hasGate ? {
                   contact: state.contact,

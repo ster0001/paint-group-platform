@@ -783,7 +783,7 @@ export default function QuickLook({
         segmentName={commercial?.segment?.name ?? null}
         areaCount={commercial?.answers ? Object.values(commercial.answers.counts).reduce((a, n) => a + n, 0) : 0}
         briefCount={commercial?.brief?.what.length ?? 0} onGo={onGo} />
-      <TalkCard estimatorName={estimatorName} phone={phone} onBook={onBook} onMessage={onMessage} />
+      <TalkCard estimatorName={estimatorName} phone={phone} onBook={onBook} onMessage={onMessage} brand={brand} />
     </aside>
     </div>
   );
